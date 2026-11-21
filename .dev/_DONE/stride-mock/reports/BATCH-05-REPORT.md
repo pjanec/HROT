@@ -199,7 +199,7 @@ dotnet test Hrot\Subsystems\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj --no-bu
 
 5. **Final Verification:**
    ```powershell
-   dotnet build IOS-IG-SimHost.sln -c Debug --no-incremental
+   dotnet build HROT.sln -c Debug --no-incremental
    ```
 
 ---

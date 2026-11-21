@@ -23,8 +23,8 @@ physically moving two translator files. No subsystem behaviour changes yet.
 
 **Development branch:** All changes go on the current working branch (hexag).
 
-**Build command:** `dotnet build IOS-IG-SimHost.sln -v q`  
-**Test command:** `dotnet test IOS-IG-SimHost.sln --no-build -v q`
+**Build command:** `dotnet build HROT.sln -v q`  
+**Test command:** `dotnet test HROT.sln --no-build -v q`
 
 **Project paths:**
 - `Hrot.Core`: `Hrot/Engine/Hrot.Core/Hrot.Core.csproj`
@@ -232,7 +232,7 @@ Add no-op stubs for all these in every INetworkFactory implementor as well.
 2. `IMasterTimeTranslators.cs`, `ISlaveOrchestrationTranslator.cs`, `IOrchestrationObserver.cs`
    compile with no warnings in `Hrot.Core`.
 3. All implementing classes compile (no missing member errors).
-4. Full solution builds: `dotnet build IOS-IG-SimHost.sln -v q` → 0 errors.
+4. Full solution builds: `dotnet build HROT.sln -v q` → 0 errors.
 
 ---
 
@@ -271,7 +271,7 @@ HEXAG2-S010 (a later batch). Just move the files and fix namespaces.
 1. `Hrot.Network.Orchestration` assembly contains `ClusterOpMasterTranslator` and
    `NodeOpMasterTranslator` with updated namespace.
 2. `Hrot.Orchestrator` assembly no longer contains those files.
-3. `dotnet build IOS-IG-SimHost.sln -v q` → 0 errors.
+3. `dotnet build HROT.sln -v q` → 0 errors.
 4. If `Hrot.Orchestrator.csproj` no longer directly uses CycloneDDS after the move, remove
    that reference. Verify with grep that no `using CycloneDDS` or `DdsReader<T>` / 
    `DdsWriter<T>` or `DdsParticipant` remain directly in `Hrot.Orchestrator/*.cs` files
@@ -319,5 +319,5 @@ Submit your report to `.dev/hexag-2/reports/BATCH-02-REPORT.md`:
 - [ ] `NullOrchestrationTranslator` compiles without DDS references
 - [ ] `ClusterOpMasterTranslator` is in `Hrot.Network.Orchestration` (not `Hrot.Orchestrator`)
 - [ ] `NodeOpMasterTranslator` is in `Hrot.Network.Orchestration` (not `Hrot.Orchestrator`)
-- [ ] Build: `dotnet build IOS-IG-SimHost.sln -v q` → 0 errors
+- [ ] Build: `dotnet build HROT.sln -v q` → 0 errors
 - [ ] All previously passing tests still pass

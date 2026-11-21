@@ -37,15 +37,6 @@ public interface IBlackboardManagedAsset
     /// </summary>
     void UpdateVariableDefaultValueJson(string name, string? defaultValueJson);
 
-    /// <summary>
-    /// Sets the authoring role on an existing variable (S3-1). No-op if not found. Fires Changed.
-    /// </summary>
-    void UpdateVariableRole(string name, BlackboardVariableRole role) { }
-
-    /// <summary>
-    /// Sets the working-state scope on an existing variable (S3-1). No-op if not found. Fires Changed.
-    /// </summary>
-    void UpdateVariableScope(string name, WorkingStateScope scope) { }
 
     /// <summary>Moves a variable from sourceIndex to destIndex in canonical order. Fires Changed.</summary>
     void MoveVariable(int sourceIndex, int destIndex);
@@ -116,6 +107,25 @@ public interface IBlackboardManagedAsset
     bool IsConflictSuppressed(string variableName, string writerPairKey) => false;
     
     void SetConflictSuppressed(string variableName, string writerPairKey, bool suppressed) { }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>W7b</c> (§9.4) — the designer has explicitly allowed concurrent cross-region writes to
+    /// this variable: <i>"they go to the variable's ⋮ menu → 'Allow concurrent writes' → checkbox."</i>
+    ///
+    /// <para>
+    /// ⛔⛔ <b>Do NOT collapse this with <see cref="IsConflictSuppressed"/>.</b> Suppression is per
+    /// <b>(variable, writer-PAIR)</b> — §9.3 is explicit that <i>"a new aliasing relationship on the
+    /// same variable would surface a fresh diagnostic"</i>. ⭐ This is per <b>VARIABLE</b> and therefore
+    /// covers pairs that do not exist yet. ⇒ they answer different questions: <i>"I have looked at
+    /// THESE two writers"</i> versus <i>"the race on this variable is intended"</i>, and merging them
+    /// would silence future writers a designer never reviewed.
+    /// </para>
+    /// </summary>
+    bool IsConcurrentWritesAllowed(string variableName) => false;
+
+    /// <summary>Sets the <c>W7b</c> per-variable allowance. ⚠ Default no-op for the same reason the
+    /// suppression setters are: the mock implementers must stay compilable.</summary>
+    void SetConcurrentWritesAllowed(string variableName, bool allowed) { }
 
     bool IsUnusedWarningSuppressed(string variableName) => false;
     void SetUnusedWarningSuppressed(string variableName, bool suppressed) { }

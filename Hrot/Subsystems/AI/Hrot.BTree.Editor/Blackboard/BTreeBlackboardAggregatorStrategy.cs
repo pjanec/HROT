@@ -34,7 +34,8 @@ public sealed class BTreeBlackboardAggregatorStrategy : IBlackboardAggregatorStr
         foreach (var node in btAsset.Nodes)
         {
             // ---- Action / Condition: look up schema by MethodFqn ----
-            string? fqn = node.Action?.MethodFqn ?? node.Condition?.MethodFqn;
+            // ⭐ CE-417 B-1 — a blueprint binding's method is derived from its asset id (never persisted).
+            string? fqn = Hrot.Editor.AiShared.References.ComposedBlueprintResolver.EffectiveMethodFqn(node.Action ?? node.Condition);
             if (fqn != null)
             {
                 // Skip nodes whose parameter DTO is locally bound to a blackboard variable via

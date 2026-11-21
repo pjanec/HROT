@@ -1,0 +1,12 @@
+{
+  "//": "CE-4591 (P-4; docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7, G-9, G-35) — what a burst does to the ground. The deciding node (the Muscle) reads it ONCE per burst and writes the crater it decides into the GroundDamage record; every other node reads the record, never this file (V-10). Sizes scale with the cube root of the explosive mass (kg TNT), the apparent-crater rule for a surface burst in soil. Starting values (lane ruling R-5019) — a playtest changes them.",
+  "minKg": 0.5,
+  "radiusPerCbrtKg": 0.8,
+  "depthPerCbrtKg": 0.35,
+  "rimPerCbrtKg": 0.08,
+  "maxBurstHeightPerRadius": 0.5,
+  "largeRadiusM": 3.0,
+  "wallContactM": 0.5,
+  "//wallContactM": "CE-5019 (R-5064) — a burst that breaches a wall within this many metres of its face makes NO crater: a contact charge spends itself on the wall (before, a breaching charge left a 0.7 m pit at the wall foot the breachers could not climb out of). 0 = never skipped.",
+  "coverAfterSeconds": { "small": 30, "large": 60 }
+}

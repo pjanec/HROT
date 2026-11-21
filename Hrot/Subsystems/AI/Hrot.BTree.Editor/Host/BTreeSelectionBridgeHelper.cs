@@ -57,22 +57,41 @@ public static class BTreeSelectionBridgeHelper
         SelectionState      selection,
         BehaviorTreeAsset?  btreeAsset)
     {
-        if (btreeAsset == null) return null;
-        if (selection.Count != 1) return null;
+        var all = MapSelections(selection, btreeAsset);
+        return all.Count == 1 ? all[0] : null;
+    }
 
-        // Check attachments first: exactly one attachment selected → BTreePillSelection.
-        using (var attachEnum = selection.Attachments.GetEnumerator())
-        {
-            if (attachEnum.MoveNext())
-                return new BTreePillSelection(attachEnum.Current.Value);
-        }
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L0.2</c> — THE BRIDGE REPORTS, IT NEVER FILTERS.</b> 📌 <c>R-118</c> · 📄
+    /// <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L0.2</c>.
+    ///
+    /// <para>🔴 <b>Deleted:</b> <c>if (selection.Count != 1) return null;</c> — see
+    /// <c>BlueprintSelectionBridgeHelper.MapSelections</c> for why that <c>null</c> was three facts in
+    /// one, and for the pan defect it caused.</para>
+    ///
+    /// <para>⚠⚠ <b>BTree's ORDER is load-bearing and is preserved deliberately: ATTACHMENTS FIRST.</b>
+    /// 📐 The deleted code checked attachments before nodes, so a single selected attachment produced a
+    /// <c>BTreePillSelection</c> rather than a node selection. ⭐ Reporting attachments first keeps that
+    /// tie-break intact for the derived single — ⛔ a naive "nodes then attachments" would silently
+    /// change which facet a one-pill selection resolves to.</para>
+    /// </summary>
+    public static IReadOnlyList<IAssetSubSelection> MapSelections(
+        SelectionState      selection,
+        BehaviorTreeAsset?  btreeAsset)
+    {
+        if (btreeAsset == null) return Array.Empty<IAssetSubSelection>();
 
-        using var enumerator = selection.Nodes.GetEnumerator();
-        if (!enumerator.MoveNext()) return null;
+        List<IAssetSubSelection>? mapped = null;
+
+        // ⭐ Attachments first — the tie-break the single-selection path has always used.
+        foreach (var attachment in selection.Attachments)
+            (mapped ??= new List<IAssetSubSelection>()).Add(new BTreePillSelection(attachment.Value));
 
         // Canvas NodeId.Value == BTreeEditorNode.VisualId (BTreeNodeModel.Id contract).
-        var visualId = enumerator.Current.Value;
-        return new BTreeNodeSelection(visualId);
+        foreach (var nodeId in selection.Nodes)
+            (mapped ??= new List<IAssetSubSelection>()).Add(new BTreeNodeSelection(nodeId.Value));
+
+        return (IReadOnlyList<IAssetSubSelection>?)mapped ?? Array.Empty<IAssetSubSelection>();
     }
 
     /// <summary>
@@ -96,8 +115,8 @@ public static class BTreeSelectionBridgeHelper
         return ctx =>
         {
             var btreeAsset = ctx.AssetRef as BehaviorTreeAsset;
-            var newSel     = MapSelection(ctx.View.Selection, btreeAsset);
-            selectionStore.ActiveSubSelection = newSel;
+            // ⭐⭐ L0.2 — the FULL set is published (R-118).
+            selectionStore.ActiveSubSelections = MapSelections(ctx.View.Selection, btreeAsset);
         };
     }
 
@@ -111,15 +130,14 @@ public static class BTreeSelectionBridgeHelper
         => asset is null ? null : new BTreeFacetMapper(asset);
 
     /// <summary>
-    /// Builds a <see cref="BTreeFacetMapper"/> that also updates <paramref name="fqnContext"/>
-    /// with the selected action/condition FQN on each <c>GetFacet</c> call.
-    /// Pass the same <paramref name="fqnContext"/> to
-    /// <see cref="BTreePickerDrawerFactory.BuildDrawers"/> so the blackboard-field picker
-    /// filters variables by the current action's DtoType.
+    /// Builds a <see cref="BTreeFacetMapper"/> whose subtree pick resolves against <paramref name="catalog"/> (⭐ CE-439).
     /// Returns <see langword="null"/> when <paramref name="asset"/> is <see langword="null"/>.
     /// </summary>
     public static BTreeFacetMapper? BuildFacetDispatcher(
-        BehaviorTreeAsset?    asset,
-        BTreeFacetFqnContext? fqnContext)
-        => asset is null ? null : new BTreeFacetMapper(asset, fqnContext);
+        BehaviorTreeAsset? asset,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog,
+        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null,   // CE-417 slice 4c: compose on a blueprint pick
+        Func<string, string?>? childInputsTypeOf = null,                             // S8b-2: the one child-inputs lookup
+        Func<string, string?>? sopParamsTypeOf = null)                               // ⭐ CE-2079: an SOP order's params type
+        => asset is null ? null : new BTreeFacetMapper(asset, catalog, actionSchema, childInputsTypeOf, sopParamsTypeOf);
 }

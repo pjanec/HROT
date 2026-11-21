@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// reads <see cref="DebugState"/> in <c>SystemPhase.Simulation</c>.
     /// </remarks>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class DebugStatePatchSystem : IEcsModuleSystem
     {
         public DebugStatePatchSystem()
@@ -32,7 +33,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                     $"{nameof(DebugStatePatchSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            foreach (var cmd in repo.Bus.ReadManaged<PatchDebugStateCommand>())
+            foreach (var cmd in repo.ReadManagedEvents<PatchDebugStateCommand>())
             {
                 if (cmd == null) continue;
                 if (!repo.IsAlive(cmd.Target)) continue;
@@ -45,6 +46,11 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 ref var state = ref repo.GetComponentRW<DebugState>(cmd.Target);
                 DebugStatePatchCompiler.ApplyPatch(ref state, cmd.PatchJson);
             }
+
+            // ⭐ CE-1329 (Brain View §12r BV-65) — then the ONE store of per-unit debug switches is copied into the units it holds, every
+            //   frame: a preview's rewind or a respawn is followed on the next frame
+            if (repo.HasSingletonManaged<UnitDebugSettings>() && repo.GetSingletonManaged<UnitDebugSettings>() is { } settings)
+                settings.Apply(repo);
         }
     }
 }

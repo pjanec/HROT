@@ -22,7 +22,7 @@ BATCH-09 aimed to complete Phase 5 (2 remaining AiPrimitive registration tasks) 
 - **Baseline:** 169 tests (unchanged; verified no regressions)
 - **New:** 11 tests added (10 passing, 1 skipped for tech debt)
 - **Total:** 180 tests active
-- **Build Status:** Clean — 0 errors, 0 warnings (verified: `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore`)
+- **Build Status:** Clean — 0 errors, 0 warnings (verified: `dotnet build HROT.sln -c Debug --no-restore`)
 
 ---
 

@@ -53,7 +53,7 @@ using Fdp.Core;
 namespace Hrot.Orchestrator.Events;
 
 /// <summary>Triggers the K-way merge of all per-node log files from the last diagnostic dump.</summary>
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct MergeLogsIntent
 {
     /// <summary>NAS paths of the log files to merge (RelativeDest values for .log entries).</summary>
@@ -67,7 +67,7 @@ public struct MergeLogsIntent
 }
 
 /// <summary>Published by <see cref="DiagnosticLogMergeWorker"/> when the merged log file is ready.</summary>
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct LogMergeCompletedEvent
 {
     /// <summary>Full NAS path of the merged log file.</summary>

@@ -484,7 +484,7 @@ To ensure you don't flood the Event Bus (and your recording file) with thousands
 
 ```
 [ComponentId(GlobalComponentIds.AiTraceEnabledTag)]
-[DataPolicy(DataPolicy.NoSave)] // Don't save to scenarios, it's just for live debugging
+[DataPolicy(DataPolicy.NoScenario)] // Don't save to scenarios, it's just for live debugging
 public struct AiTraceEnabledTag { }
 ```
 
@@ -747,7 +747,7 @@ You would define the component like this:
 ```
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(YourAssignedId)]
-[DataPolicy(DataPolicy.NoSave)] // Prevents the trace buffer from being saved into declarative TKB scenario JSON files [8]
+[DataPolicy(DataPolicy.NoScenario)] // Prevents the trace buffer from being saved into declarative TKB scenario JSON files [8]
 public unsafe struct BTreeTraceWorkingMemory1024
 {
     public ushort WritePos;
@@ -889,7 +889,7 @@ namespace Hrot.Presentation.Renderers
 
 To include the trace buffer in clipboard copies and diagnostic dumps, you must write a custom scenario translator.
 
-Because `BTreeTraceWorkingMemory1024` represents transient execution state, it must be marked with `[DataPolicy(DataPolicy.NoSave)]` on its struct definition. Mirroring `BrainBlackboardTranslator`, your translator will implement `Extract` to build a `JsonObject` for the dump, but leave `Inject` completely empty so the engine never attempts to load historical traces from a scenario file.
+Because `BTreeTraceWorkingMemory1024` represents transient execution state, it must be marked with `[DataPolicy(DataPolicy.NoScenario)]` on its struct definition. Mirroring `BrainBlackboardTranslator`, your translator will implement `Extract` to build a `JsonObject` for the dump, but leave `Inject` completely empty so the engine never attempts to load historical traces from a scenario file.
 
 ```
 using System;
@@ -1080,7 +1080,7 @@ Assuming a 4-byte header to track the ring buffer state, the struct definition m
 ```
 [StructLayout(LayoutKind.Sequential, Size = 1024)]
 [ComponentId(YourAssignedId)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BTreeTraceWorkingMemory1024
 {
     // 4-byte header
@@ -1484,7 +1484,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     // Note: Assign specific IDs in BehaviorApplicationComponentIds for these
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
     [ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]
-    [DataPolicy(DataPolicy.NoSave)] // Recorded to FDP for replay, but excluded from TKB JSON [5, 6].
+    [DataPolicy(DataPolicy.NoScenario)] // Recorded to FDP for replay, but excluded from TKB JSON [5, 6].
     public unsafe struct BTreeTraceWorkingMemory1024
     {
         public const int CapacityRecords = 63;
@@ -1500,7 +1500,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
 
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
     [ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct HsmTraceWorkingMemory1024
     {
         public const int CapacityRecords = 63;
@@ -3473,7 +3473,7 @@ The following success conditions define the exact completion criteria for this r
 
 **2. Absolute Zero-Allocation Hot Path** Tracing execution steps within `BTreeTickSystem` and `HsmTickSystem` must result in zero heap allocations. The 1024-byte ring buffer operations must execute via O(1) unmanaged pointer arithmetic. The managed `HsmTraceBuffer` class must be entirely eradicated to prove this constraint is met.
 
-**3. Flight Recorder and Chunk Delta Integrity** The `BTreeTraceWorkingMemory1024` and `HsmTraceWorkingMemory1024` components must be decorated with `[DataPolicy(DataPolicy.NoSave)]` to prevent transient execution history from bloating persistent scenario files. Furthermore, when tracing is disabled via the `DebugState` flag, the tick systems must bypass `GetComponentRW<T>`, ensuring the `LastChangeTick` chunk version remains un-dirtied and the Flight Recorder delta-compression is undisturbed.
+**3. Flight Recorder and Chunk Delta Integrity** The `BTreeTraceWorkingMemory1024` and `HsmTraceWorkingMemory1024` components must be decorated with `[DataPolicy(DataPolicy.NoScenario)]` to prevent transient execution history from bloating persistent scenario files. Furthermore, when tracing is disabled via the `DebugState` flag, the tick systems must bypass `GetComponentRW<T>`, ensuring the `LastChangeTick` chunk version remains un-dirtied and the Flight Recorder delta-compression is undisturbed.
 
 **4. Strict Component Memory Layout** The unmanaged diagnostic components must perfectly respect the `EntityCommandBuffer` size limits. They must successfully pass `ComponentTypeRegistry` registration without triggering memory alignment or maximum component size exceptions during layout validation.
 

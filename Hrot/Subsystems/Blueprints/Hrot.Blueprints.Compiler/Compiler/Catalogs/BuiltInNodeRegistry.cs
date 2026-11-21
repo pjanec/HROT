@@ -29,6 +29,9 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         LiteralNode lt  => LiteralPins(lt),
         CastNode ca     => CastPins(ca),
         LatentDelayNode => LatentDelayPins(),
+        RunBehaviorNode rb => RunBehaviorPins(rb),
+        BehaviorTaskAbortNode => new[] { ExecIn() },   // ⭐ S7a — compile-time only
+        SopOrderNode so => SopOrderPins(so),             // ⭐ CE-2083
 
         // Dynamic: return known static skeleton; Stage0_Rehydrate enriches from asset state.
         EventEntryNode  => new[] { ExecOut() },
@@ -36,32 +39,24 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         GetVariableNode => Array.Empty<PinSchema>(),   // pure data-Out, type from variable
         SetVariableNode => new[] { ExecIn(), ExecOut() },
 
-        // GetParameter (GAP-11): pure data-Out node, fully-authored pins (mirrors GetComponentNode --
-        // the asset supplies the "Value" out-pin directly, typed from the referenced Parameter, so
-        // Stage0_Rehydrate's "node.Pins.Count > 0 => skip" guard leaves it alone; no enricher needed).
-        GetParameterNode  => Array.Empty<PinSchema>(),   // pure data-Out, type from the referenced Parameter (authored pin)
-
         // GetAllParameters: pure data-Out node, ONE out-pin per asset.Parameters entry. Dynamic
         // (like EventEntryNode) -- Stage0_Rehydrate.EnrichGetAllParametersPins rebuilds the full
         // pin set from asset.Parameters, so no static shape here.
         GetAllParametersNode => Array.Empty<PinSchema>(),   // pure data-Out(s), one per asset.Parameters entry
 
-        // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
-        // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
-        // the shared type is foreign to this asset). Slice 2b: GetShared's enricher additionally
-        // adds an OPTIONAL data-in "Target" Entity pin (cross-entity read) -- still no static
-        // shape here, since the enricher fully rebuilds this node's pins regardless.
-        GetSharedNode   => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out, type from SharedTypeId
-        SetSharedNode   => new[] { ExecIn(), ExecOut() },
+        // CE-433: the blackboard twins. Dynamic -- Stage0_Rehydrate.EnrichAllVariablesPins adds one
+        // data pin per non-list Variable; Set keeps this exec skeleton and appends its data-ins.
+        GetAllVariablesNode => Array.Empty<PinSchema>(),
+        SetVariablesNode    => new[] { ExecIn(), ExecOut() },
 
-        // GetComponent (P2 migration + CA-01 multi-pin): pure data-(In Target?)/Out node, mirrors
-        // GetSharedNode -- static skeleton is empty; Stage0_Rehydrate.EnrichGetComponentPins
+        // GetComponent (P2 migration + CA-01 multi-pin): pure data-(In Target?)/Out node --
+        // static skeleton is empty; Stage0_Rehydrate.EnrichGetComponentPins
         // rebuilds Target(in)/per-field-or-legacy-Value(out)/Found(out) whenever the node is
         // stored pin-less (fully-authored fixtures with Pins.Count > 0 are left alone by the
-        // "node.Pins.Count > 0 => skip" guard, same as GetShared).
+        // "node.Pins.Count > 0 => skip" guard, the removed GetShared once was).
         GetComponentNode => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out; enriched by Stage0 when pin-less
 
-        // SetComponent (CA-03, Slice W1): exec node, mirrors SetSharedNode -- static skeleton is
+        // SetComponent (CA-03, Slice W1): exec node -- static skeleton is
         // exec In/Out; Stage0_Rehydrate.EnrichSetComponentPins adds per-field data-ins + "Written"
         // whenever the node is stored pin-less. Self-only -- no "Target" pin (unlike GetComponent).
         SetComponentNode => new[] { ExecIn(), ExecOut() },
@@ -90,6 +85,12 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // Not is the one-operand case (A in, Result out only).
         BooleanOpNode    => ComparePins(),
         NotNode          => NotPins(),
+        // CE-470: one float out-pin, no inputs, no exec.
+        GetTimeNode      => new[] { new PinSchema("Value", "Out", false, "System.Single") },
+        // CE-472: exec skeleton; Stage0_Rehydrate adds Target + one pin per baked DTO member.
+        SendIntentNode   => new[] { ExecIn(), ExecOut() },
+        ToJsonNode       => Array.Empty<PinSchema>(),   // pure; Stage0 enriches from Fields
+        FromJsonNode     => Array.Empty<PinSchema>(),
 
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },
@@ -171,11 +172,57 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             Data("Count",      "Out", "System.Int32"),
         },
 
+        // CollectionWrite (FC-1, Q#20): exec node -- static skeleton is exec In/Out only;
+        // Stage0_Rehydrate.EnrichCollectionWritePins rebuilds the per-Op operand pins + "Ok"
+        // whenever the node is stored pin-less (mirrors SetComponentNode).
+        CollectionWriteNode       => new[] { ExecIn(), ExecOut() },
+
+        // ListWrite (FC-2/LV-3, Q#19-C): exec node -- same skeleton/enricher split.
+        ListWriteNode             => new[] { ExecIn(), ExecOut() },
+
+        // BP-108: pin COUNT is derived from the node's own Format property. ⭐ Registry-only -- no
+        // Stage0_Rehydrate case: NodePinSchema's switch ends `_ => FromRegistry(node)` and Stage0 builds
+        // its skeleton from GetStaticPins, so registering here covers BOTH projections. (CollectionWrite
+        // needs an enricher only because PinSchema has no IsArray field; these need no array pins.)
+        PrintStringNode ps        => PrintStringPins(ps),
+        FormatStringNode fs       => FormatStringPins(fs),
+
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 
-        ReadEqsResultNode         => Array.Empty<PinSchema>(),
-        SpawnEqsSensorNode        => new[] { ExecIn(), ExecOut() },
+        // ⭐ EQS nodes: FULL static schemas, mirroring the palette (WhenNodePaletteEntries) in order.
+        //    Blueprints are saved pin-less and rebuilt from here, so an exec-only / empty schema made
+        //    every data pin — and every link to it — vanish on save + reload (design EQS §17.4).
+        //    ⚠ New pins go at the END of their direction: legacy links bind positionally.
+        ReadEqsResultNode         => new[]
+        {
+            Data("Handle",      "In",  "FDP.Eqs.EqsSensorHandle"),
+            Data("ResultIndex", "In",  "System.Int32"),
+            Data("IsReady",     "Out", "System.Boolean"),
+            Data("ResultCount", "Out", "System.Int32"),
+            Data("Entity",      "Out", "Fdp.Core.Entity"),
+            Data("Position",    "Out", "System.Numerics.Vector2"),
+            Data("Score",       "Out", "System.Single"),
+        },
+        SpawnEqsSensorNode        => new[]
+        {
+            ExecIn(),
+            ExecOut(),
+            Data("SearchRadius",    "In",  "System.Single"),
+            Data("FactionFilter",   "In",  "System.UInt32"),
+            Data("ThreatThreshold", "In",  "System.Single"),
+            Data("PublishPolicy",   "In",  "System.Byte"),
+            Data("Priority",        "In",  "System.Byte"),
+            Data("Handle",          "Out", "FDP.Eqs.EqsSensorHandle"),
+            Data("ContextSlot0",    "In",  "Fdp.Core.Entity"),
+            Data("ContextSlot1",    "In",  "Fdp.Core.Entity"),
+            Data("ContextSlot2",    "In",  "Fdp.Core.Entity"),
+            // ⭐ CE-485: one sensor per KEY from a single spawn node (e.g. one per area in a loop). Unconnected ⇒ key 0.
+            Data("Key",             "In",  "Fdp.Core.Entity"),
+        },
+        // ⭐ CE-3078 N2 — pins are projected from the baked decl by Stage0 (ReadSensorResultNode.DataPins).
+        ReadSensorResultNode      => Array.Empty<PinSchema>(),
+        SpawnSensorNode           => new[] { ExecIn(), ExecOut() },   // ⭐ CE-3078 N3 — data pins from the decl (Stage0)
         ScoreDecisionNode         => ScoreDecisionPins(),
         ReadRankedResultNode      => ReadRankedResultPins(),
         PartitionElementsNode     => new[] { ExecIn(), ExecOut() },
@@ -235,15 +282,45 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("Result", "Out", false, ""),
         };
 
-    /// <summary>Cast: exec In/Out + data-In "In"/System.Object + data-Out "Out"/TargetTypeId.</summary>
+    /// <summary>Cast: data-In "In"/System.Object + data-Out "Out"/TargetTypeId — a PURE node.</summary>
+    /// <remarks>⭐ <c>CE-475</c>: it had exec In/Out pins, but every lowering of it is pure — Stage 3's synthesized
+    /// coercion casts carry no exec pins, Stage 5 lowers it only in the pure arm, the emitter writes a native C# cast.
+    /// Wired into an exec chain it was dropped with a <c>BP4004</c> and the chain walked on without it.</remarks>
     private static IReadOnlyList<PinSchema> CastPins(CastNode ca)
         => new[]
         {
-            new PinSchema("In",  "In",  true,  ""),
-            new PinSchema("Out", "Out", true,  ""),
             new PinSchema("In",  "In",  false, "System.Object"),
             new PinSchema("Out", "Out", false,
                 string.IsNullOrEmpty(ca.TargetTypeId) ? "System.Object" : ca.TargetTypeId),
+        };
+
+    /// <summary>⭐ S7a (U-11) — the Behaviour Task: in Start / Abort; out Started, While Running, Succeeded, Failed.
+    /// (S5d's Run Behaviour was In / Out / OnFailure — the same node, grown.)</summary>
+    private static IReadOnlyList<PinSchema> RunBehaviorPins(RunBehaviorNode rb)
+        => string.IsNullOrWhiteSpace(rb.ParamsTypeId)
+            ? RunBehaviorPins()
+            : RunBehaviorPins().Append(new PinSchema(RunBehaviorNode.ParamsPin, "In", false,
+                                                      RunBehaviorNode.ParamsPinTypeId(rb.ParamsTypeId!))).ToArray();
+
+    /// <summary>⭐ <c>CE-2083</c> — SOP order: exec In/Out, bool "Accepted" out, and (once a behaviour is picked) a "Params" in
+    /// typed as its authored params DTO — the Behaviour Task's pin shape (<see cref="RunBehaviorNode.ParamsPinTypeId"/>).</summary>
+    private static IReadOnlyList<PinSchema> SopOrderPins(SopOrderNode so)
+    {
+        var pins = new List<PinSchema> { ExecIn(), ExecOut(), new PinSchema(SopOrderNode.AcceptedPin, "Out", false, "System.Boolean") };
+        if (!string.IsNullOrWhiteSpace(so.ParamsTypeId))
+            pins.Add(new PinSchema(SopOrderNode.ParamsPin, "In", false, RunBehaviorNode.ParamsPinTypeId(so.ParamsTypeId!)));
+        return pins;
+    }
+
+    private static IReadOnlyList<PinSchema> RunBehaviorPins()
+        => new[]
+        {
+            new PinSchema(RunBehaviorNode.StartPin,        "In",  true, ""),
+            new PinSchema(RunBehaviorNode.AbortPin,        "In",  true, ""),
+            new PinSchema(RunBehaviorNode.StartedPin,      "Out", true, ""),
+            new PinSchema(RunBehaviorNode.WhileRunningPin, "Out", true, ""),
+            new PinSchema(RunBehaviorNode.SucceededPin,    "Out", true, ""),
+            new PinSchema(RunBehaviorNode.FailedPin,       "Out", true, ""),
         };
 
     /// <summary>LatentDelay: exec In/Out + data-In "Duration"/System.Single.</summary>
@@ -269,13 +346,16 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("Out",     "Out", true, ""),
         };
 
-    /// <summary>ScoreDecision: exec In/Out + data-Out "WinningOptionId"/System.Byte.</summary>
+    /// <summary>ScoreDecision: exec In/Out + data-Out "WinningOptionId"/System.Byte, "TopCandidate"/EntityRef, "TopScore"/System.Single (CE-2070).</summary>
     private static IReadOnlyList<PinSchema> ScoreDecisionPins()
         => new[]
         {
             new PinSchema("In",              "In",  true,  ""),
             new PinSchema("Out",             "Out", true,  ""),
             new PinSchema("WinningOptionId", "Out", false, "System.Byte"),
+            // ⭐ CE-2070 — a RANKING decision's answer (an option decision leaves them none / 0).
+            new PinSchema("TopCandidate",    "Out", false, "Fdp.Toolkit.Replication.EntityRef"),
+            new PinSchema("TopScore",        "Out", false, "System.Single"),
         };
 
     /// <summary>ReadRankedResult: three data-Out pins (IsValid/Entity/Score).</summary>
@@ -286,6 +366,55 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("Entity",  "Out", false, "System.Int64"),
             new PinSchema("Score",   "Out", false, "System.Single"),
         };
+
+    /// <summary>
+    /// BP-108 Print String: exec In/Out plus <b>one data-In per <c>{Name}</c> placeholder</b>, in
+    /// first-appearance order. A malformed format yields exec pins only -- Stage 2 reports it; emitting
+    /// guessed pins on top of a diagnostic would only add noise.
+    /// </summary>
+    private static IReadOnlyList<PinSchema> PrintStringPins(PrintStringNode ps)
+    {
+        var pins = new List<PinSchema>
+        {
+            new PinSchema("In",  "In",  true, ""),
+            new PinSchema("Out", "Out", true, ""),
+        };
+        AppendArgPins(pins, ps.Format, ps.ArgTypes);
+        return pins;
+    }
+
+    /// <summary>
+    /// BP-108 Format String: <b>pure</b> (no exec pins) -- one data-In per placeholder plus the
+    /// "Result" data-Out typed by <c>ResultTypeId</c>. Mirrors Unreal's Format Text.
+    /// </summary>
+    private static IReadOnlyList<PinSchema> FormatStringPins(FormatStringNode fs)
+    {
+        var pins = new List<PinSchema>();
+        AppendArgPins(pins, fs.Format, fs.ArgTypes);
+        pins.Add(new PinSchema("Result", "Out", false,
+            string.IsNullOrEmpty(fs.ResultTypeId) ? "Fdp.Core.FixedString128" : fs.ResultTypeId));
+        return pins;
+    }
+
+    /// <summary>
+    /// Shared derivation for both string nodes -- ⭐ one parser, one pin-derivation function. A repeated
+    /// placeholder is ONE pin used at several sites, and an undeclared arg type falls back to
+    /// <c>System.Object</c> (the established convention for an untyped pin here).
+    /// </summary>
+    private static void AppendArgPins(
+        List<PinSchema> pins, string format, Dictionary<string, string> argTypes)
+    {
+        var parsed = Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse(format);
+        if (!parsed.IsValid) return;
+
+        foreach (var name in parsed.Names)
+        {
+            string? typeId;
+            if (argTypes == null || !argTypes.TryGetValue(name, out typeId) || string.IsNullOrEmpty(typeId))
+                typeId = "System.Object";
+            pins.Add(new PinSchema(name, "In", false, typeId));
+        }
+    }
 
     /// <summary>ArrayMake: exec In/Out + two data-In element pins + data-Out "Array".</summary>
     private static IReadOnlyList<PinSchema> ArrayMakePins(ArrayMakeNode am)

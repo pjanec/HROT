@@ -167,8 +167,14 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public void OnHotReloadBegin() { }
     public void OnHotReloadCompleted(Guid[] reloadedAssetIds) { }
 
-    // BPF-003: tick boundary reset (no-op in test double; tests invoke directly)
-    public void OnNewTick() { }
+    // BPF-003: tick boundary reset (no-op in test double; tests invoke directly).
+    // BP-35: also counted, so a test can assert that DebugProbe.NewTick actually reaches this
+    // session -- including when it sits behind a MultiplexingProbeSink, where the
+    // `Sink as IBlueprintDebugSession` cast in DebugProbe would otherwise silently miss it.
+    public void OnNewTick() => NewTickCount++;
+
+    /// <summary>Number of <see cref="OnNewTick"/> calls received (BP-35).</summary>
+    public int NewTickCount { get; private set; }
 
     // ---- Inspection helpers -------------------------------------------------
 

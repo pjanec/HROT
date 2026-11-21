@@ -29,6 +29,14 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     private NodeDebugMetadata[]? _debugMetadata;
     private Guid _assetId = Guid.Empty;
 
+    // ⭐ CE-476: the registry whose interpreters RUN the trees. 🔴 The single slot above is LAST-WINS — the catalogue
+    //   registers every compiled tree through it — so a host where no asset is "opened" (a headless cluster) named every
+    //   entity's nodes from whichever tree was registered last ⇒ activeNode null, nodeVisualId Guid.Empty (measured
+    //   live). Update() now names them from the blob the entity's interpreter executes — the SAME lookup the inspector's
+    //   tree view uses (BehaviorRegistry.TryGetTreeBlob). The slot stays the fallback: a JSON-compiled blob carries no
+    //   DebugMetadata, and for it the asset the editor opened supplies the table.
+    private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviors;
+
     private enum StepMode { None, Over, Into, Out }
     private StepMode _stepMode = StepMode.None;
     private int  _stepFromStackDepth;
@@ -40,7 +48,11 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     public event Action<BTreeAsyncEvent>?    OnAsyncResolved;
     public event Action<BTreeAsyncEvent>?    OnAsyncAborted;
 
-    public BTreeDebugSession(AiTracerCoordinator? coordinator = null) : base(coordinator) { }
+    public BTreeDebugSession(AiTracerCoordinator? coordinator = null, Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors = null)
+        : base(coordinator)
+    {
+        _behaviors = behaviors;
+    }
 
     // ---- IBTreeDebugSession ------------------------------------------------
 
@@ -83,12 +95,25 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
         _assetId       = assetId;
     }
 
-    /// <summary>Returns the VisualId for the given node index, or null when unavailable.</summary>
-    private Guid? GetVisualId(int nodeIndex)
+    // The table that names THIS entity's nodes: the one its running tree carries, else the single slot.
+    private NodeDebugMetadata[]? ResolveMetadata(EntityRepository repo, Entity entity)
     {
-        if (_debugMetadata == null || nodeIndex < 0 || nodeIndex >= _debugMetadata.Length)
+        if (_behaviors is not null
+            && repo.HasComponent<BehaviorState>(entity)
+            && _behaviors.TryGetTreeBlob(repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash, out var blob)
+            && blob.DebugMetadata is { Length: > 0 } own)
+            return own;
+        return _debugMetadata;
+    }
+
+    /// <summary>Returns the VisualId for the given node index, or null when unavailable.</summary>
+    private Guid? GetVisualId(int nodeIndex) => GetVisualId(_debugMetadata, nodeIndex);
+
+    private static Guid? GetVisualId(NodeDebugMetadata[]? metadata, int nodeIndex)
+    {
+        if (metadata == null || nodeIndex < 0 || nodeIndex >= metadata.Length)
             return null;
-        string raw = _debugMetadata[nodeIndex].VisualId;
+        string raw = metadata[nodeIndex].VisualId;
         if (string.IsNullOrEmpty(raw)) return null;
         return Guid.TryParse(raw, out var g) ? g : (Guid?)null;
     }
@@ -108,17 +133,23 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     /// </summary>
     public unsafe void Update(EntityRepository repo, Entity entity)
     {
+        var metadata = ResolveMetadata(repo, entity);
+
         // === Snapshot ===
-        if (!repo.HasComponent<BrainBTreeState>(entity))
+        // ⭐⭐⭐ O7c-② / CE-319 — the cursor comes from the entity's ROOT STATE SLOT.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.
+        //   ⚠ A Try, not a Require: a debug session draws what is there, and "this entity has no
+        //     tree" is an ordinary answer here — exactly what HasComponent<BrainBTreeState> meant.
+        if (!Fdp.Toolkit.Behavior.RootStateAccess.TryGetState(repo, entity, out BehaviorTreeState* rootPtr))
         {
             _currentSnapshot = null;
         }
         else
         {
-            ref readonly var comp = ref repo.GetComponentRO<BrainBTreeState>(entity);
-            ushort runningNodeIndex = comp.State.RunningNodeIndex;
-            ushort sp               = comp.State.StackPointer;
-            uint   treeVersion      = comp.State.TreeVersion;
+            BehaviorTreeState comp = *rootPtr;
+            ushort runningNodeIndex = comp.RunningNodeIndex;
+            ushort sp               = comp.StackPointer;
+            uint   treeVersion      = comp.TreeVersion;
 
             int stackLen = Math.Min(8, (int)sp + 1);
             var stack    = new int[stackLen];
@@ -126,16 +157,15 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
             var regs     = new int[4];
             var handles  = new ulong[3];
 
-            ref var stateMut = ref Unsafe.AsRef(in comp.State);
-            BehaviorTreeState* statePtr = (BehaviorTreeState*)Unsafe.AsPointer(ref stateMut);
+            BehaviorTreeState* statePtr = rootPtr;
             for (int i = 0; i < stackLen; i++) stack[i]   = statePtr->NodeIndexStack[i];
             for (int i = 0; i < 4; i++)        regs[i]    = statePtr->LocalRegisters[i];
             for (int i = 0; i < 3; i++)        handles[i] = statePtr->AsyncHandles[i];
 
             // BPF-026: symbolicate running node index and stack entries to VisualIds.
-            Guid? runningElementId = GetVisualId(runningNodeIndex);
+            Guid? runningElementId = GetVisualId(metadata, runningNodeIndex);
             for (int i = 0; i < stackLen; i++)
-                stackIds[i] = GetVisualId(stack[i]);
+                stackIds[i] = GetVisualId(metadata, stack[i]);
 
             _currentSnapshot = new BehaviorTreeStateSnapshot(
                 entity, _assetId, runningNodeIndex, runningElementId,
@@ -163,18 +193,18 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
                     _nodeProcessedSinceStep = true;
                     // BPF-045: use node index to look up the VisualId.
                     RecordNodeExecuted(new BTreeNodeExecuted(
-                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
+                        entity, _assetId, GetVisualId(metadata, rec->NodeIndex) ?? Guid.Empty,
                         rec->Status, 0f, rec->Timestamp));
                     break;
                 case BTreeTraceOpCode.WaitStarted:
                     // BPF-045: use node index to look up the VisualId.
                     RecordAsyncEvent(new BTreeAsyncEvent(
-                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
+                        entity, _assetId, GetVisualId(metadata, rec->NodeIndex) ?? Guid.Empty,
                         rec->NodeIndex, 0u, BTreeAsyncPhase.Issued, 0f));
                     break;
                 case BTreeTraceOpCode.WaitCompleted:
                     RecordAsyncEvent(new BTreeAsyncEvent(
-                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
+                        entity, _assetId, GetVisualId(metadata, rec->NodeIndex) ?? Guid.Empty,
                         rec->NodeIndex, 0u, BTreeAsyncPhase.Resolved, 0f));
                     break;
             }

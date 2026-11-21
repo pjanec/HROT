@@ -63,7 +63,7 @@ tasks are done and the test suite is green.
 
 ```powershell
 # Build full solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run navigation tests only
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --filter "Navigation" -v quiet
@@ -72,7 +72,7 @@ dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --filter "
 dotnet test Hrot/Engine/Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj -v quiet
 
 # Run all tests (final gate)
-dotnet test IOS-IG-SimHost.sln -v quiet
+dotnet test HROT.sln -v quiet
 ```
 
 ### Report Submission
@@ -307,4 +307,4 @@ Your report MUST answer:
 - [ ] `PathfindingResultMaterializationSystem` writes `NavigationCorridorMuscle`, branches by action, fires `MoveStartedEvent` correctly.
 - [ ] `PathfindingBatchData` capacity is 256.
 - [ ] All listed tests pass; all pre-existing tests remain green.
-- [ ] `dotnet build IOS-IG-SimHost.sln` → 0 errors.
+- [ ] `dotnet build HROT.sln` → 0 errors.

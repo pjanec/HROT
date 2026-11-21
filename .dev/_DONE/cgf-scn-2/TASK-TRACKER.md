@@ -9,10 +9,10 @@
 **Goal:** Fix a misleading XML comment and prevent execution-tier components from appearing
 in scenario JSON.
 
-- [x] **TASK-S101** Fix DataPolicy.NoSave/NoRecord XML Comments [details](./TASK-DETAIL.md#task-s101-fix-datapolicynosave-xml-comment)
-- [x] **TASK-S102** Add DataPolicy.NoSave to Execution Channel Components [details](./TASK-DETAIL.md#task-s102-add-datapolicynosave-to-execution-channel-components)
-- [x] **TASK-S103** Add DataPolicy.NoSave to Brain Execution Components [details](./TASK-DETAIL.md#task-s103-add-datapolicynosave-to-brain-execution-components)
-- [x] **TASK-S104** Add DataPolicy.NoSave to Transient Perception Components [details](./TASK-DETAIL.md#task-s104-add-datapolicynosave-to-transient-perception-components)
+- [x] **TASK-S101** Fix DataPolicy.NoScenario/NoReplay XML Comments [details](./TASK-DETAIL.md#task-s101-fix-datapolicynosave-xml-comment)
+- [x] **TASK-S102** Add DataPolicy.NoScenario to Execution Channel Components [details](./TASK-DETAIL.md#task-s102-add-datapolicynosave-to-execution-channel-components)
+- [x] **TASK-S103** Add DataPolicy.NoScenario to Brain Execution Components [details](./TASK-DETAIL.md#task-s103-add-datapolicynosave-to-brain-execution-components)
+- [x] **TASK-S104** Add DataPolicy.NoScenario to Transient Perception Components [details](./TASK-DETAIL.md#task-s104-add-datapolicynosave-to-transient-perception-components)
 - [x] **TASK-S105** Delete WeaponChannelTranslator and Unregister It [details](./TASK-DETAIL.md#task-s105-delete-weaponchanneltranslator-and-unregister-it)
 
 ---

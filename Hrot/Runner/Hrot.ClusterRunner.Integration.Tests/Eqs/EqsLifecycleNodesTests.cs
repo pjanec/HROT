@@ -49,23 +49,22 @@ public sealed class EqsLifecycleNodesTests : IDisposable
     public void EqsLifecycleNodes_WaitForSensor_ReturnsSuccessWhenReady()
     {
         var p     = new EqsParams { BlueprintId = 1, SearchRadius = 50f };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // No buffer yet -> Running
         Assert.Equal(NodeStatus.Running,
-            EqsLifecycleNodes.Action_WaitForSensor(ref p, ref state, ref ctx));
+            EqsLifecycleNodes.Action_WaitForSensor(ref p, ctx.Self, ctx.World));
 
         // Add buffer with LastUpdateTick=0 -> IsReady=false -> Running
         _repo.AddComponent(_entity, new EqsCognitiveBuffer { LastUpdateTick = 0 });
         Assert.Equal(NodeStatus.Running,
-            EqsLifecycleNodes.Action_WaitForSensor(ref p, ref state, ref ctx));
+            EqsLifecycleNodes.Action_WaitForSensor(ref p, ctx.Self, ctx.World));
 
         // Set LastUpdateTick > 0 -> IsReady=true -> Success
         ref var buffer = ref _repo.GetComponentRW<EqsCognitiveBuffer>(_entity);
         buffer.LastUpdateTick = 1;
         Assert.Equal(NodeStatus.Success,
-            EqsLifecycleNodes.Action_WaitForSensor(ref p, ref state, ref ctx));
+            EqsLifecycleNodes.Action_WaitForSensor(ref p, ctx.Self, ctx.World));
     }
 
     // ── T6: Deactivate_MaintainEqsSensor ─────────────────────────────────────
@@ -79,11 +78,10 @@ public sealed class EqsLifecycleNodesTests : IDisposable
     public void EqsLifecycleNodes_Deactivator_RemovesComponentsOnAbort()
     {
         var p     = new EqsParams { BlueprintId = 2, SearchRadius = 75f, FactionFilter = 1 };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // First tick adds EqsSensor
-        var result = EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+        var result = EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Running, result);
         Assert.True(_repo.HasComponent<EqsSensor>(_entity), "EqsSensor must be added on first tick");
 
@@ -91,7 +89,7 @@ public sealed class EqsLifecycleNodesTests : IDisposable
         _repo.AddComponent(_entity, new EqsCognitiveBuffer { LastUpdateTick = 1 });
 
         // Deactivator fires (branch abort)
-        EqsLifecycleNodes.Deactivate_MaintainEqsSensor(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Deactivate_MaintainEqsSensor(ctx.Self, ctx.World);
 
         Assert.False(_repo.HasComponent<EqsSensor>(_entity),
             "EqsSensor must be removed by deactivator");
@@ -110,24 +108,23 @@ public sealed class EqsLifecycleNodesTests : IDisposable
     public void EqsLifecycleNodes_MaintainSensor_EpochIncrementsOnlyOnParamChange()
     {
         var p     = new EqsParams { BlueprintId = 3, SearchRadius = 100f, FactionFilter = 2 };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // Tick 1: sensor added, Epoch=1
-        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
         Assert.Equal(1u, _repo.GetComponentRO<EqsSensor>(_entity).Epoch);
 
         // Tick 2: same params, Epoch stays at 1
-        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
         Assert.Equal(1u, _repo.GetComponentRO<EqsSensor>(_entity).Epoch);
 
         // Tick 3: SearchRadius changed -> Epoch increments to 2
         p.SearchRadius = 200f;
-        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
         Assert.Equal(2u, _repo.GetComponentRO<EqsSensor>(_entity).Epoch);
 
         // Tick 4: same params again -> Epoch stays at 2
-        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
         Assert.Equal(2u, _repo.GetComponentRO<EqsSensor>(_entity).Epoch);
     }
 }

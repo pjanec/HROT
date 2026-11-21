@@ -37,7 +37,7 @@
 ## Testing Results
 
 **`Fdp.Presentation.Tests`:** 248 passed / 249 total (1 pre-existing failure unchanged)  
-**`IOS-IG-SimHost.sln` build:** Succeeded (no new errors)
+**`HROT.sln` build:** Succeeded (no new errors)
 
 **New tests added:** 11 (requirement was >= 10)
 

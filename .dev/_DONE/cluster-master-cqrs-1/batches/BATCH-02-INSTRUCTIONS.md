@@ -28,7 +28,7 @@ This is a **breaking interface change**. Every implementation and every test tha
 ```powershell
 # Run from d:\Work\IOS-IG-SimHost-FDP-2
 dotnet build FDP/FDP.sln -v q
-dotnet build IOS-IG-SimHost.sln -v q
+dotnet build HROT.sln -v q
 
 dotnet test FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/FDP.Toolkit.Orchestration.Tests.csproj
 dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj
@@ -136,7 +136,7 @@ Update their `CanHandle(int operationId)` → `CanHandle(NodeOpType operation)`.
 
 ---
 
-**CMC-S004 Success Check:** `dotnet build IOS-IG-SimHost.sln` succeeds. No `CanHandle(int` in solution.
+**CMC-S004 Success Check:** `dotnet build HROT.sln` succeeds. No `CanHandle(int` in solution.
 
 ---
 
@@ -400,7 +400,7 @@ After BATCH-02, the following test suites must be 100% green:
 - `grep -r "OrchestrationStatus" FDP/` → 0 results (excluding `OrchestrationStatusCode` which stays!)  
   Note: `OrchestrationStatusCode.cs` is NOT deleted — it contains the `StatusCode` int constants
 - `grep -r "System.Text.Json" FDP/Toolkits/FDP.Toolkit.Orchestration/` → 0 results
-- `dotnet build IOS-IG-SimHost.sln` → 0 errors
+- `dotnet build HROT.sln` → 0 errors
 - All test suites green
 
 ---

@@ -4,7 +4,7 @@
 **Phase:** 7 (Integration tests, networkless stage-1)  
 **Scope:** ANC-P7-01, ANC-P7-02, ANC-P7-03, ANC-P7-04  
 **Duration Estimate:** 15–18 hours  
-**Target Build:** IOS-IG-SimHost.sln (Debug)  
+**Target Build:** HROT.sln (Debug)  
 **Success Criteria:** All 4 tasks complete; foundation + first scenario passing tests.
 
 ---
@@ -207,7 +207,7 @@ You must answer these in your BATCH-11-REPORT:
 - [ ] ANC-P7-03: AnimationIntegrationFixture scaffolded; smoke test passes; TKB test data inline
 - [ ] ANC-P7-04: Scenario 1 (happy-path montage) implemented; test passes; frame budget verified
 - [ ] Full test suite clean: 169 baseline + 11 BATCH-09 + 22 BATCH-10 + NEW tests all green
-- [ ] Build clean: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors, 0 warnings
+- [ ] Build clean: `dotnet build HROT.sln -c Debug` → 0 errors, 0 warnings
 - [ ] No regressions detected
 - [ ] All developer insights questions answered in BATCH-11-REPORT.md
 - [ ] Code ready for review
@@ -229,7 +229,7 @@ You must answer these in your BATCH-11-REPORT:
 
 **Build:**
 ```powershell
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 **Run all animation tests:**

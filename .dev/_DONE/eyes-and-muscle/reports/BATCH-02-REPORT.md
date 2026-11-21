@@ -9,7 +9,7 @@
 ## 1. Build & Test Results
 
 ### Build
-✅ `dotnet build IOS-IG-SimHost.sln --no-restore` — **Build succeeded.** Zero new errors or warnings.
+✅ `dotnet build HROT.sln --no-restore` — **Build succeeded.** Zero new errors or warnings.
 
 ### Test Results
 

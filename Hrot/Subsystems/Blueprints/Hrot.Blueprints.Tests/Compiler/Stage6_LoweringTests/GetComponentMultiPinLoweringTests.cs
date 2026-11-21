@@ -65,7 +65,7 @@ public sealed class GetComponentMultiPinLoweringTests
     /// projection). When <paramref name="wireTarget"/>, Target is wired from a GetVariable(Entity);
     /// otherwise Target is left unwired (self-default).
     /// </summary>
-    private static BlueprintAsset BuildAsset(bool wireTarget)
+    private static BlueprintAsset BuildAsset(bool wireTarget, string componentFqn = "System.Numerics.Vector3")
     {
         var entry    = new EventEntryNode { Id = Guid.NewGuid() };
         var entryOut = new Pin { Id = Guid.NewGuid(), Name = "Out", Direction = "Out", IsExec = true, TypeRef = new() };
@@ -78,7 +78,7 @@ public sealed class GetComponentMultiPinLoweringTests
         var getComp = new GetComponentNode
         {
             Id               = Guid.NewGuid(),
-            ComponentTypeFqn = "System.Numerics.Vector3",
+            ComponentTypeFqn = componentFqn,
             Fields = new List<ComponentFieldDecl>
             {
                 new ComponentFieldDecl { Name = "X", TypeId = "System.Single" },
@@ -196,5 +196,38 @@ public sealed class GetComponentMultiPinLoweringTests
                 "GetComponentRO<global::System.Numerics.Vector3>")).Count;
         Assert.Equal(1, readCount);
         Assert.Contains("HasComponent<global::System.Numerics.Vector3>", source);
+    }
+
+    // -----------------------------------------------------------------------
+    // CE-474 -- the read runs BEFORE Found; it must not throw on an entity without the component
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// ⭐ <c>CE-474</c>: <c>EntityRepository.GetComponentRO&lt;T&gt;</c> throws for an entity that lacks T (measured), and the
+    /// component read is emitted BEFORE the node's Found check. Compiled and ticked for real: an entity WITHOUT the
+    /// component must tick cleanly with Found = false and the field at its default; the control entity WITH it reads it.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE474_MissingComponent_ReadsFoundFalse_DoesNotThrow(bool hasComponent)
+    {
+        var asset = BuildAsset(wireTarget: false, componentFqn: typeof(Hrot.Blueprints.Tests.Mocks.AnotherTestComponent).FullName!);
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        if (!fixture.World.IsComponentTypeRegistered<Hrot.Blueprints.Tests.Mocks.AnotherTestComponent>())
+            fixture.World.RegisterComponent<Hrot.Blueprints.Tests.Mocks.AnotherTestComponent>();
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        if (hasComponent) fixture.World.AddComponent(entity, new Hrot.Blueprints.Tests.Mocks.AnotherTestComponent { X = 3f, Y = 4f });
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.TickFrame(0.016f);
+
+        var state = fixture.GetBlueprintState(asset, entity);
+        Assert.True(state.HasValue);
+        Assert.True(state.Value.TryGetField<bool>("FoundOut", out var found));
+        Assert.True(state.Value.TryGetField<float>("FloatOut", out var x));
+        Assert.Equal(hasComponent, found);
+        Assert.Equal(hasComponent ? 3f : 0f, x);
     }
 }

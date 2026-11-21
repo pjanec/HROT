@@ -1,0 +1,184 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "city-battle",
+  "description": "What: CE-6001 feature scenario (showcase world, DESIGN_City_Battle_Showcase T-1) - the town loads: the hand-planned terrain city-battle (1500 m; assets/terrain-plans/city-battle.plan.json), three inert men on it - one west of the river beside the north bridge, one across it, one on the old town's square. Judge: it loads and runs, all three stand. The terrain's own rails (Hrot.Terrain.Random.Tests TownPlanRails) hold the load budget, the two bridges as the only crossings and the square and hall. Check: Hrot.ClusterRunner --mode editor --headless --verify town-loads"
+ },
+ "entities": {
+  "b6001000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     1040,
+     960,
+     2
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "West Bank",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6001000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     1180,
+     960,
+     2
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "East Bank",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6001000-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     905,
+     735,
+     2
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Square",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6001000-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     200,
+     760,
+     2
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Fields",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6001000-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     1400,
+     760,
+     2
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Hill",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

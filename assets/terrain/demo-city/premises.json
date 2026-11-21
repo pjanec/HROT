@@ -1,0 +1,15 @@
+{
+  "$comment": "UI-12 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — demo-city's PREMISES, as data beside the terrain (the bt-range file's format, docs/DESIGN_Terrain_Combat_Tuning.md §3 layer 2): the sight lines the urban battle's stage promises (docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md §4a). DemoPremisesTests (Hrot.Core.Tests) evaluates each row against THIS terrain's geometry with a margin (sight ≥ 0.6 or ≤ 0.4) and prints every crossing. Coordinates: terrain metres; the buildings are scripts/demo-city-quarters.py's labels (eye 1.7 m above a floor, a target at 1.0–1.5 m).",
+  "demos": {
+    "urban-battle-street": {
+      "premises": [
+        { "id": "the battle street is seen from an upper window on its west side (res-bw-02)", "kind": "sight", "from": [639.3, 24.6, 4.6], "to": [647.0, 125.0, 1.5], "expect": "seesThrough" },
+        { "id": "the battle street is seen from an upper window on its east side (res-be-03)", "kind": "sight", "from": [660.7, 40.4, 4.6], "to": [653.0, 130.0, 1.5], "expect": "seesThrough" },
+        { "id": "the roof of res-bw-01 (house-3f) sees north along the battle street", "kind": "sight", "from": [638.6, 9.0, 7.7], "to": [647.0, 128.0, 1.5], "expect": "seesThrough" },
+        { "id": "the roof of res-be-22 (house-3f) sees south along the battle street", "kind": "sight", "from": [661.4, 375.0, 7.7], "to": [653.0, 260.0, 1.5], "expect": "seesThrough" },
+        { "id": "the landing square is seen from the roof of office biz-ms-07", "kind": "sight", "from": [584.0, 411.4, 14.5], "to": [590.0, 320.0, 1.0], "expect": "seesThrough" },
+        { "id": "the yard of compound res-bw-03 is hidden from the street", "kind": "sight", "from": [655.0, 35.0, 1.7], "to": [636.2, 35.0, 1.0], "expect": "blocks" }
+      ]
+    }
+  }
+}

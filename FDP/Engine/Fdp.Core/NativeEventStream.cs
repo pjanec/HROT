@@ -23,6 +23,9 @@ namespace Fdp.Core
         public Type EventType => typeof(T);
         public int Count => _readBuffer.Count;
 
+        /// <inheritdoc/>
+        public object ReadItem(int index) => _readBuffer.Data[index];
+
         public IEnumerable<object> InspectReadBuffer()
         {
             // Read buffer is stable (only modified during Swap which is single-threaded usually)

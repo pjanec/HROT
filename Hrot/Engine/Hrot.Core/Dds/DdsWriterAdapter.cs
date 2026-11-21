@@ -27,16 +27,12 @@ public sealed class DdsWriterAdapter<T> : IDdsWriter<T>, IDisposable
     /// Active DDS participant used to create the underlying DDS writer.
     /// The participant must remain alive for the lifetime of this adapter.
     /// </param>
-    /// <param name="topicName">
-    /// DDS topic name. Overrides any [DdsTopic] attribute on <typeparamref name="T"/>.
-    /// </param>
-    public DdsWriterAdapter(DdsParticipant participant, string topicName)
+    /// <remarks>⭐ AQ107 A — the topic name is DERIVED from <typeparamref name="T"/> (<c>DdsTopicName.Of&lt;T&gt;()</c>); there is no override.</remarks>
+    public DdsWriterAdapter(DdsParticipant participant)
     {
         if (participant == null) throw new ArgumentNullException(nameof(participant));
-        if (string.IsNullOrEmpty(topicName))
-            throw new ArgumentException("Topic name must not be null or empty.", nameof(topicName));
 
-        _writer = new DdsWriter<T>(participant, topicName);
+        _writer = new DdsWriter<T>(participant);
     }
 
     /// <inheritdoc/>
@@ -52,6 +48,23 @@ public sealed class DdsWriterAdapter<T> : IDdsWriter<T>, IDisposable
     {
         if (_disposed) throw new ObjectDisposedException(nameof(DdsWriterAdapter<T>));
         _writer.DisposeInstance(key);
+    }
+
+    /// <inheritdoc/>
+    public void UnregisterInstance(T key)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(DdsWriterAdapter<T>));
+        _writer.UnregisterInstance(key);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4079 ④ — blocks until every matched reliable reader has acknowledged all this writer sent (disposes included), or
+    /// <paramref name="timeout"/> elapses. <c>CycloneNetworkCleanupSystem</c> finds it by this name on the translators that hold the adapter.
+    /// </summary>
+    public bool WaitForAcks(TimeSpan timeout)
+    {
+        if (_disposed) return true;
+        return _writer.WaitForAcks(timeout);
     }
 
     /// <inheritdoc/>

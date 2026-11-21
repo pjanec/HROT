@@ -69,7 +69,7 @@ public sealed class EventDrivenStorageGatewayTests
         {
             RequestId  = Guid.NewGuid(),
             Operation  = StorageOpType.Export,
-            ExerciseId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            ExerciseId = (Fdp.Core.ExerciseId)(Guid.Parse("11111111-1111-1111-1111-111111111111")),
         });
         bus.SwapBuffers();
 
@@ -97,7 +97,7 @@ public sealed class EventDrivenStorageGatewayTests
         {
             RequestId  = reqId,
             Operation  = StorageOpType.Export,
-            ExerciseId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            ExerciseId = (Fdp.Core.ExerciseId)(Guid.Parse("22222222-2222-2222-2222-222222222222")),
         });
         bus.SwapBuffers();
 
@@ -143,7 +143,7 @@ public sealed class EventDrivenStorageGatewayTests
         {
             RequestId  = reqId,
             Operation  = StorageOpType.Export,
-            ExerciseId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            ExerciseId = (Fdp.Core.ExerciseId)(Guid.Parse("33333333-3333-3333-3333-333333333333")),
         });
         bus.SwapBuffers();
 

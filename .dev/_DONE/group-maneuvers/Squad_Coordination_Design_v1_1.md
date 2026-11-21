@@ -79,7 +79,7 @@ No new hierarchy or blackboard component. The squad layer reuses, unchanged:
   maintained by `UnitHierarchySystem`.
 - **Shared memory:** the commander's `Blackboard1024`, projected via `Unsafe.As` into squad state
   structs (the established `HillAttackMutableState` pattern; `[SharedAiHeavyAction]` auto-emits the
-  projection). `[DataPolicy.NoSave]` — transient cognitive state, stripped from scenario JSON.
+  projection). `[DataPolicy.NoScenario]` — transient cognitive state, stripped from scenario JSON.
 - **Authority rail:** `AssignTacticalIntentEvent` → `TacticalIntentResolutionSystem` →
   `ITacticalOrderMapper` → `BehaviorIngressSystem`. The commander publishes intents; subordinates
   resolve them into their own behaviors. This is exactly how `PlatoonHillAttack` commands its tanks;

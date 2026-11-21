@@ -58,8 +58,8 @@ public sealed class V_FlowForEachValidatorTests
         {
             Id                 = Guid.NewGuid(),
             SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
-            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
-            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+            CountAccessorFqn   = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count",
+            ItemAccessorFqn    = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item",
         };
         feNode.Pins.AddRange(new[] { feIn, feBodyOut, feCompletedOut, feCurrentItem });
 
@@ -130,6 +130,22 @@ public sealed class V_FlowForEachValidatorTests
         var asset = BuildFlowForEachAsset(delay, Array.Empty<Node>(), Array.Empty<Link>());
 
         var diags = Validate(asset);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2050);
+    }
+
+    /// <summary>
+    /// ⭐ S1 / I13 (<c>DESIGN_Unified_Behaviour_Run</c> §2) — an INLINE ACTION (a <c>ChannelCommandNode</c> with an
+    /// <c>ActionFqn</c>) suspends exactly like a Delay (<c>MacroLatency.IsLatent</c>), so it is BP2050 in a loop body too.
+    /// ✅ Red-proof: the rule's old hand-written list (Delay/WaitForChannel/WaitForEvent/When) misses it.
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP2050")]
+    public void Validate_InlineActionInBody_BP2050()
+    {
+        var inl = new ChannelCommandNode { Id = Guid.NewGuid(), ActionFqn = "Some.Action_12345678_Bp.Call" };
+        inl.Pins.AddRange(new[] { ExecPin("In", "In"), ExecPin("Out", "Out") });
+
+        var diags = Validate(BuildFlowForEachAsset(inl, Array.Empty<Node>(), Array.Empty<Link>()));
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2050);
     }
 

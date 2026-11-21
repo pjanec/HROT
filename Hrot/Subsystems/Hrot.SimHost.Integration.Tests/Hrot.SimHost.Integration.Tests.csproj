@@ -27,7 +27,7 @@
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
-    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+    <ProjectReference Include="..\Hrot.Player\Hrot.Player.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
 
     <!-- Module host  -->

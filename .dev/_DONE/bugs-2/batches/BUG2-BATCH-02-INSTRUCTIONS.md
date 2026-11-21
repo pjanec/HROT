@@ -189,7 +189,7 @@ This batch completes the BUG2 work tracking and includes an immediate technical 
 ## 🧪 Testing Requirements
 - Unit tests MUST actually invoke behavioral conditions and avoid simple `Assert.Contains()` object-checking. Read test guidelines closely.
 - Verify tests in Phase 9 against system build dependencies to ensure solution links are healthy.
-- Complete execution of `dotnet test IOS-IG-SimHost.sln` is mandatory.
+- Complete execution of `dotnet test HROT.sln` is mandatory.
 
 ---
 

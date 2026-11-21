@@ -38,6 +38,42 @@ namespace Fdp.Tests
             Assert.False(e1 == e3);
             Assert.False(e1 == e4);
         }
+        // ⭐⭐ R-4222 (E-1, CE-4507) — an Entity has NO undefined bytes. 🔴 Red-proof: remove Entity._zero — the fields cover 6 of 8 bytes.
+        [Fact]
+        public void E1_TheFieldsCoverEveryByte_NoneIsPadding()
+        {
+            var fields = typeof(Entity).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            int covered = 0;
+            foreach (var f in fields) covered += System.Runtime.InteropServices.Marshal.SizeOf(f.FieldType);
+            Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<Entity>());   // recordings stay readable
+            Assert.Equal(System.Runtime.CompilerServices.Unsafe.SizeOf<Entity>(), covered);
+        }
+
+        // ⭐ R-4222 — built any way, the 8 bytes are canonical: bytes 6–7 zero, written over a buffer that held garbage.
+        [Fact]
+        public void E1_AnEntityBuiltAnyWay_WritesItsEightBytesCanonical()
+        {
+            Span<byte> buffer = stackalloc byte[8];
+            foreach (var e in new[] { new Entity(0x1234567, 0xBEEF), new Entity(0x0000BEEF_01234567UL), default(Entity), Entity.Null })
+            {
+                buffer.Fill(0xFF);
+                System.Runtime.InteropServices.MemoryMarshal.Write(buffer, in e);
+                Assert.Equal(0, buffer[6]);
+                Assert.Equal(0, buffer[7]);
+                Assert.Equal(e.PackedValue, System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(buffer));   // the bytes ARE the packed value
+            }
+        }
+
+        // ⭐ R-4222 — the field never shows in the usual UI: every UI / serializer reflects PUBLIC fields (the inspector's StructEdit builder,
+        //   the scenario serializer, System.Text.Json IncludeFields) — and those are exactly what they were. The JSON is unchanged.
+        [Fact]
+        public void E1_ThePublicSurface_IsUnchanged()
+        {
+            var names = Array.ConvertAll(typeof(Entity).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public), f => f.Name);
+            Assert.Equal(new[] { "Index", "Generation" }, names);
+            var json = System.Text.Json.JsonSerializer.Serialize(new Entity(42, 5), new System.Text.Json.JsonSerializerOptions { IncludeFields = true });
+            Assert.Equal("{\"PackedValue\":21474836522,\"IsNull\":false,\"Index\":42,\"Generation\":5}", json);   // as before the field (no \"_zero\")
+        }
     }
     
     public class EntityIndexTests
@@ -329,5 +365,6 @@ namespace Fdp.Tests
             });
         }
         #endif
+    
     }
 }

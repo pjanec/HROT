@@ -18,7 +18,7 @@ Build succeeded in 2.6s
 0 Error(s), 0 Warning(s)
 ```
 
-### IOS-IG-SimHost.sln
+### HROT.sln
 ```
 Build succeeded.
 0 Warning(s)

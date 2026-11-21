@@ -58,7 +58,10 @@ namespace Fdp.Tests.Benchmarks
              
              // In Debug mode, inlining might not happen, reducing the speedup.
              // We assert functionality and some improvement.
-             Assert.True(speedup > 1.5, $"Expected significant speedup, got {speedup:F2}x");
+             // ⭐ CE-2393 (2026-11-04) — the STANDARD path got faster: GetComponentRW reads the id-indexed table cache instead of a
+             //   Dictionary<Type> lookup, so the gap hoisting buys shrank (measured 1.21x–1.61x over three runs, was > 1.5x). ⛔ SUPERSEDED:
+             //   speedup > 1.5. Hoisting must still clearly win.
+             Assert.True(speedup > 1.1, $"Expected the hoisted path to win, got {speedup:F2}x");
         }
         
         private void RunStandard(EntityRepository repo, EntityQuery query)

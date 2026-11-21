@@ -11,7 +11,6 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.ExCon;
 using Hrot.ClusterRunner.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,11 +45,24 @@ public sealed class ClusterOpE2eScriptTests
     // â”€â”€ Shared helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// Boots a minimal two-subsystem stack, loads <paramref name="scriptFileName"/>
-    /// and runs it to completion via <see cref="HeadlessTestExecutor.RunAsync"/>.
-    /// Returns the int exit code (0 = pass, 1 = fail).
+    /// ⭐ <c>QA-028</c> — runs the script and asserts it PASSED, carrying every recorded failure reason
+    /// into the xUnit message. ⛔ The old shape (<c>Assert.Equal(0, result)</c>) discarded them: the
+    /// executor collapses all failures to <c>1</c> and logs the reasons to the <c>NullLogger</c> this
+    /// class injects.
     /// </summary>
-    private static async Task<int> RunScriptAsync(string scriptFileName)
+    private static async Task RunScriptAndAssertPassedAsync(string scriptFileName)
+    {
+        var (exitCode, executor) = await RunScriptAsync(scriptFileName).ConfigureAwait(false);
+        ScriptRunAssert.Passed(executor, exitCode);
+    }
+
+    /// <summary>
+    /// Boots a minimal two-subsystem stack, loads <paramref name="scriptFileName"/> and runs it to
+    /// completion via <see cref="HeadlessTestExecutor.RunAsync"/>. Returns the exit code
+    /// (0 = pass, 1 = fail) <b>and the executor</b>, so the caller can read
+    /// <see cref="HeadlessTestExecutor.AssertionFailures"/> for the reasons behind a 1.
+    /// </summary>
+    private static async Task<(int ExitCode, HeadlessTestExecutor Executor)> RunScriptAsync(string scriptFileName)
     {
         int domainId = NextDomainId();
 
@@ -60,12 +72,12 @@ public sealed class ClusterOpE2eScriptTests
         var factory = new NedNetworkFactory(
             participant:  testParticipant,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.None);
 
-        var orchestratorSvc = new OrchestratorSubsystem(factory);
+        var orchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(simHost: true, cgf: false));   // ⭐ CE-3347 — no CGF here, so no Brain is required
         var simHostSvc      = new SimHostSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
@@ -75,7 +87,18 @@ public sealed class ClusterOpE2eScriptTests
 
         ILogger logger = NullLogger.Instance;
 
-        var executor = new HeadlessTestExecutor(orchestrator, ScriptPath(scriptFileName), logger);
+        var executor = new HeadlessTestExecutor(orchestrator, ScriptRecordings.Fresh(ScriptPath(scriptFileName)), logger);
+
+        // ⭐⭐ QA-018 — QUEUE the position-advancing system BEFORE the orchestrator initialises.
+        //
+        // ⛔ This used to sit in AfterInitialize, calling the old TestHook_AddSystem — which documented
+        //    "must be called AFTER InitializeEmbedded" while ModuleHostKernel.RegisterGlobalSystem
+        //    throws once Initialize() has run. Both guards could not hold, so all four cases in this
+        //    class died on "Cannot register systems after Initialize() called".
+        //
+        // ⭐ MovingEntitySystem builds its query LAZILY on first Execute (see its own comment), so
+        //    registering it here and registering MovingTestTag below is the order it was designed for.
+        simHostSvc.TestHook_QueueSystem(new MovingEntitySystem());
 
         // Create a SysOpStatus reader on the shared participant BEFORE Initialize so that
         // the subscription is in place before the first SysOpStatus publication.
@@ -88,10 +111,9 @@ public sealed class ClusterOpE2eScriptTests
             var world       = simHostSvc.World!;
             var clusterMaster = orchestratorSvc.TestHook_ClusterMaster!;
 
-            // Register the test-only MovingTestTag component and install the system
-            // that advances entity positions each tick.
+            // Register the test-only MovingTestTag component. ⭐ QA-018: the SYSTEM that consumes it was
+            // queued before Initialize (above); only the component registration belongs here.
             world.RegisterComponent<MovingTestTag>();
-            simHostSvc.TestHook_AddSystem(new MovingEntitySystem());
 
             // Register all action handlers used by the E2E scripts.
             executor.RegisterHandler(new SpawnActionHandler(world, logger));
@@ -100,9 +122,32 @@ public sealed class ClusterOpE2eScriptTests
             executor.RegisterHandler(new AssertEntityCountActionHandler(world, logger));
             executor.RegisterHandler(new AddMovingTagActionHandler(world, logger));
             executor.RegisterHandler(new ClusterOpActionHandler(clusterMaster, statusReader, logger, timeoutSeconds: 30.0));
+
+            // ⭐⭐ The cluster BOOTS PAUSED (CE-101) — press play, as an operator does. Same fix as
+            //   HrotRunnerHarness.ResumeTimeAfterBoot, which this fixture never got because it builds its
+            //   own OrchestratorSubsystem. ⛔ Without it every frame runs at dt = 0 (measured 2026-10-01:
+            //   one non-zero frame in 14 000), so MovingEntitySystem never moves the tagged entity and
+            //   RecordAndReplaySeek records a stationary x = 0. ResumeTime bypasses 2PC and publishes no
+            //   op status, so it is fired here rather than as a script step the handler would wait on.
+            // ⭐⭐ CE-3349 — ⛔ NOT here, synchronously: AfterInitialize runs BEFORE the orchestrator loop starts (HeadlessTestExecutor),
+            //   so no node has advertised its roles yet and the CE-3344 latch refuses every cluster op — the resume was dropped and the
+            //   clock stayed paused (x = 0). ⇒ press play the moment the cluster reports ready, from the loop's own frames.
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                var deadline = DateTime.UtcNow.AddSeconds(30);
+                while (!clusterMaster.BootstrapComplete && DateTime.UtcNow < deadline)
+                    await System.Threading.Tasks.Task.Delay(20).ConfigureAwait(false);
+                await clusterMaster.HandleClusterOpRequestAsync(new ClusterOpRequest
+                {
+                    RequestId     = Guid.NewGuid(),
+                    OperationType = ClusterOpType.ResumeTime,
+                    PayloadJson   = string.Empty,
+                }).ConfigureAwait(false);
+            });
         };
 
-        return await executor.RunAsync().ConfigureAwait(false);
+        int exitCode = await executor.RunAsync().ConfigureAwait(false);
+        return (exitCode, executor);
     }
 
     // â”€â”€ Test facts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -114,8 +159,7 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task RecordAndReplaySeek_Passes()
     {
-        int result = await RunScriptAsync("e2e_record_and_replay_seek.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_record_and_replay_seek.json");
     }
 
     /// <summary>
@@ -125,8 +169,7 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task PreviewStateRestore_Passes()
     {
-        int result = await RunScriptAsync("e2e_preview_state_restore.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_preview_state_restore.json");
     }
 
     /// <summary>
@@ -137,8 +180,7 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task LiveFromReplayBranch_Passes()
     {
-        int result = await RunScriptAsync("e2e_live_from_replay_branch.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_live_from_replay_branch.json");
     }
 
     /// <summary>
@@ -148,7 +190,6 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task OverlappingCheckpoints_Passes()
     {
-        int result = await RunScriptAsync("e2e_overlapping_checkpoints.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_overlapping_checkpoints.json");
     }
 }

@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
     // and increments the execution controller listener count.
     //
     // Design: DESIGN.md §4.1
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class LocalTerminalModule : IEcsModule, IDisposable
     {
         private readonly GizmoExecutionController _controller;

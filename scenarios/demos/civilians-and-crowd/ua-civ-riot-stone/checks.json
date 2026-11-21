@@ -1,0 +1,54 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AW-8/CV-4 (CE-2238 part 2): the stone throw, the side follows the ACT. From the header's Judge (0)-(3). 'The ammo drops' is read as the throw being stamped (CivilianState.HostileActAt > 0); the protesters' 'Hostile only after their own throw' is per-man conditional and left out; 'on every node' collapses to one world.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the instigator riots",
+      "on": "field",
+      "who": "Instigator",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Riot"
+    },
+    {
+      "name": "he fills his hands at the source",
+      "on": "field",
+      "who": "Instigator",
+      "path": "WeaponState.Ammo",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "his throw is stamped",
+      "on": "field",
+      "who": "Instigator",
+      "path": "CivilianState.HostileActAt",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "the instigator is never Hostile before his throw",
+      "never": {
+        "on": "field",
+        "who": "Instigator",
+        "path": "EntityInfo.ForceId",
+        "op": "==",
+        "value": "Hostile"
+      },
+      "before": "his throw is stamped-0.1"
+    },
+    {
+      "name": "he is Hostile within 3 s of his throw",
+      "on": "field",
+      "who": "Instigator",
+      "path": "EntityInfo.ForceId",
+      "op": "==",
+      "value": "Hostile",
+      "after": "his throw is stamped",
+      "before": "his throw is stamped+3"
+    }
+  ]
+}

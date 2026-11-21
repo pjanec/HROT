@@ -44,11 +44,11 @@ public static class AssetRelPath
             .Replace('\\', '/').TrimStart('/');
 
         // The asset may physically live under a DIFFERENT absolute root than baseFolder — e.g. the
-        // contributor scanned the source project dir (…/Hrot/Subsystems/Hrot.AI.Behaviors/Assets/
-        // Blueprints/…) while baseFolder resolves to the bin/output dir (…/bin/…/Assets/Blueprints).
+        // contributor scanned another copy of the tree (e.g. …/repo/assets/behaviors/
+        // Blueprints/…) while baseFolder resolves to the NAS tree (…/shared/assets/behaviors/Blueprints).
         // GetRelativePath then emits "../../../…", surfacing as bogus ".." tree levels in the browser.
         // Recover the logical relpath by anchoring on baseFolder's trailing segment chain
-        // (e.g. "Assets/Blueprints") within the source path, independent of the absolute prefix.
+        // (e.g. "behaviors/Blueprints") within the source path, independent of the absolute prefix.
         if (relPath.StartsWith("../", StringComparison.Ordinal) || relPath == "..")
         {
             var baseSegs = baseFolder.Replace('\\', '/').TrimEnd('/').Split('/');

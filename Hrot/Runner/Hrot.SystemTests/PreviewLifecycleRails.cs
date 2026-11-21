@@ -1,0 +1,164 @@
+using Xunit.Abstractions;
+
+namespace Hrot.SystemTests;
+
+/// <summary>
+/// Rails for the preview lifecycle and the record→replay round trip.
+///
+/// <para><b>Where these came from.</b> Both were written as SKIPPED rails carrying the reproduction
+/// of <c>HN-001</c> — the defect this harness found on its first green run: <c>POST /preview/exit</c>
+/// aborted the editor process (SIGABRT). They are live assertions now that the defect is fixed; they
+/// stay so the fix cannot silently regress.</para>
+///
+/// <para><b>HN-001, for the record.</b> The preview rewind
+/// (<c>PreviewClusterOpHandler.UnloadingPreviewCommit</c> → <c>EntityRepository.SyncFrom(…,
+/// includeTransient: true)</c>) restored a managed component's PRESENCE bit without its managed
+/// PAYLOAD, and the next tick's <c>GenesisMaterializationSystem.MaterializeTargets</c> dereferenced
+/// the null. Root cause: <c>ManagedComponentTable.ClearRaw</c> — the command-buffer removal path —
+/// nulled the payload without bumping the chunk version, so <c>SyncDirtyChunks</c> skipped the chunk
+/// on the way back while the entity index (whose versions <c>ApplyComponentFilter</c> bumps on every
+/// sync) always restored the mask. Pinned at the unit level by
+/// <c>Fdp.Tests.PreviewRewindManagedComponentTests</c>.</para>
+///
+/// <para>These run in their OWN collection — a fresh editor — because a regression here KILLS the
+/// editor process and would take every other case with it.</para>
+/// </summary>
+[Collection(PreviewLifecycleCollection.Name)]
+[Trait("Category", "SystemSmoke")]
+[Trait("Category", "PreviewLifecycle")]
+public sealed class PreviewLifecycleRails
+{
+    private readonly EditorProcessFixture _fixture;
+    private readonly ITestOutputHelper _output;
+
+    public PreviewLifecycleRails(EditorProcessFixture fixture, ITestOutputHelper output)
+    {
+        _fixture = fixture;
+        _output = output;
+    }
+
+    private McpClient Mcp => _fixture.Client;
+
+    /// <summary>
+    /// <b>HN-001.</b> Three HTTP calls, no test code needed to reproduce the original crash:
+    /// <c>POST /scenario/load {"name":"hill-attack","waitForReady":true}</c> →
+    /// <c>POST /preview/enter {"startPaused":true}</c> → <c>POST /preview/exit</c>. Before the fix
+    /// the process exited 134 (SIGABRT), identically on all three curated scenarios.
+    /// </summary>
+    [Fact]
+    public async Task Exiting_preview_does_not_abort_the_editor()
+    {
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        (await Mcp.EnterPreviewIfNeededAsync(startPaused: true)).EnsureOk();
+
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
+
+        // The assertion is simply that the editor is still there afterwards.
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        var status = await Mcp.GetStatusAsync();
+        Assert.True(status.Ok, $"the editor did not survive leaving preview: {_fixture.ExitDiagnostics()}");
+        Assert.False(status.Bool("inPreview"));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-3156</c> — Stop Preview puts the CLOCK back with the world.</b>
+    /// 🔒 User, <c>2026-10-10</c>: <i>"Stop Preview does NOT reset time to zero (although the entity state resets
+    /// to initial state)."</i>
+    /// <para>📐 Stop rewound the repository (<c>SyncFrom</c>) and paused, and nothing repositioned
+    /// <c>MasterSyncController</c>'s accumulator — which the kernel writes into <c>GlobalTime</c> every frame —
+    /// so <c>simTime</c> stayed at the moment Stop was pressed. ⛔ No rail read time after a preview exit: the
+    /// one above asserts only that the editor survives.</para>
+    /// <para>⚠ Asserted against the time the preview STARTED from, not against literal zero: a preview entered
+    /// at a non-zero edit time must return THERE. In the normal case that value is 0.</para>
+    /// </summary>
+    [Fact]
+    public async Task Exiting_preview_returns_the_clock_to_where_the_preview_started()
+    {
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        double before = (await Mcp.GetStatusAsync()).Double("simTime");
+
+        (await Mcp.EnterPreviewIfNeededAsync(startPaused: false)).EnsureOk();
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        double during = (await Mcp.GetStatusAsync()).Double("simTime");
+        Assert.True(during > before + 0.5,
+            $"the preview clock did not run (before {before}, during {during}) — the rail cannot prove a reset.");
+
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
+        await Task.Delay(TimeSpan.FromSeconds(1));   // the snap is applied on the clock's next Update
+        var after = await Mcp.GetStatusAsync();
+
+        Assert.False(after.Bool("inPreview"));
+        Assert.Equal(before, after.Double("simTime"), precision: 3);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4316</c> — lifecycle LC-10, <b>Run to …</b>: on the REAL editor, Preview paused at its start, <c>run_to(+5 s)</c> runs the
+    /// networkless node's TURBO (fixed steps, many per rendered frame — DESIGN_Time_Architecture.md §20) and stops AT the time, paused; then again
+    /// with a 1/20 s step. The measured rate (sim seconds per wall second) of each leg is printed.
+    /// </summary>
+    [Fact]
+    public async Task Run_to_stops_the_preview_at_the_time_paused()
+    {
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        (await Mcp.EnterPreviewIfNeededAsync(startPaused: true)).EnsureOk();
+        double start = (await Mcp.GetSimStateAsync()).Double("totalTime");
+
+        // ⭐ CE-4316 — the editor node is networkless ⇒ the TURBO (DESIGN_Time_Architecture.md §20); the step is a setting of each run
+        start = await RunLeg(start, 5.0, step: null);          // the turbo default, 1/60
+        await RunLeg(start, 5.0, step: 1.0 / 20.0);            // a bigger quantum
+
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
+    }
+
+    private async Task<double> RunLeg(double start, double seconds, double? step)
+    {
+        double target = start + seconds;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        (await Mcp.RunToAsync(target, step)).EnsureOk();
+        ApiResult state;
+        do
+        {
+            await Task.Delay(100);
+            state = await Mcp.GetSimStateAsync();
+        } while (state.Field("runTo")?["running"]?.GetValue<bool>() == true && clock.Elapsed < TimeSpan.FromSeconds(120));
+        clock.Stop();
+
+        double reached = state.Double("totalTime");
+        var runTo = state.Field("runTo");
+        _output.WriteLine($"run to +{seconds:F1} s, step {runTo?["step"]}, turbo {runTo?["turbo"]}: {clock.Elapsed.TotalSeconds:F2} s wall = {(reached - start) / clock.Elapsed.TotalSeconds:F1}× ({runTo?["status"]})");
+        Assert.False(runTo?["running"]?.GetValue<bool>() ?? true, "the run never stopped");
+        Assert.True(runTo?["turbo"]?.GetValue<bool>() ?? false, "the networkless editor node runs the turbo");
+        Assert.True(state.Bool("isPaused"));
+        double half = (step ?? 1.0 / 60.0) / 2;
+        Assert.InRange(reached, target - half - 0.01, target + half + 0.05);
+        return reached;
+    }
+
+    /// <summary>
+    /// ⭐ R-3053 — <b>a dry run is never recorded</b>: the API that used to record a preview (<c>/recording/start</c>) is gone, and
+    /// <c>/replay/status</c> names no recording on a node that only ran a preview.
+    /// </summary>
+    [Fact]
+    public async Task A_preview_is_never_recorded()
+    {
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        (await Mcp.EnterPreviewAsync(startPaused: false)).EnsureOk();
+        (await Mcp.PlayAsync()).EnsureOk();
+        await Task.Delay(TimeSpan.FromSeconds(1));
+
+        var status = (await Mcp.GetStatusAsync()).EnsureOk();
+        Assert.False(status.Bool("recording"));
+
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
+    }
+}
+
+/// <summary>
+/// A collection of its own, so a case that kills the editor cannot take the capability suite with
+/// it. Its fixture is a separate editor instance.
+/// </summary>
+[CollectionDefinition(Name)]
+public sealed class PreviewLifecycleCollection : ICollectionFixture<EditorProcessFixture>
+{
+    public const string Name = "editor-process-preview-lifecycle";
+}

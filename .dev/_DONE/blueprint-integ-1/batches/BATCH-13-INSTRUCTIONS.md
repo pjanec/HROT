@@ -27,7 +27,7 @@ Register in the **Blueprint** perspective: (a) a **Details** window that renders
 
 ## Success Criteria
 - [ ] AIE-047/048 per success conditions; **Phase 4 / M-Blueprint complete** (Blueprint opens on canvas with My Blueprint outliner + node-drawer Details + Variables, structural editing from BATCH-11/12).
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors (GizmoMap.Contracts on 0.2.2).
+- [ ] `dotnet build HROT.sln` 0 errors (GizmoMap.Contracts on 0.2.2).
 - [ ] Green: `Hrot.Blueprints.Tests` (no new failures beyond DEBT-006's 10), `Hrot.Editor.AiShared.Tests`, `EditorSubsystemBoot` filter.
 - [ ] No warnings; docs; no leftover TODO/debug.
 - [ ] Report at `.dev/blueprint-integ-1/reports/BATCH-13-REPORT.md`.

@@ -39,6 +39,58 @@ namespace Fdp.Toolkit.Combat.Tests
             return template;
         }
 
+        /// <summary>
+        /// ⭐ CE-2410 — <c>EnumerateMounts</c> reads a per-frame index (it scanned every mount part of the world per call: 44 % of the CGF node's
+        /// thread on the CE-2408 stress world) — since CE-2412 the shared parts index. The answer equals the scan's for a mount ADDED, REMOVED
+        /// or RE-INDEXED after the index was built and an owner destroyed; a mount RE-PARENTED by a value write leaves its old owner at once
+        /// and joins the new one from the next frame (no production writer re-parents); a steady frame allocates nothing.
+        /// 🔴 Red-proof: the part-added rebuild off ⇒ the mount added in the same frame is missing.
+        /// </summary>
+        [Fact]
+        public void CE2410_TheMountIndex_AnswersAsTheScanDid_WhateverHappensInTheFrame()
+        {
+            Entity Mount(Entity owner, int index)
+            {
+                var m = _repo.CreateEntity();
+                _repo.AddComponent(m, new WeaponState { Ammo = 1 });
+                _repo.AddComponent(m, new WeaponMountInfo { MountIndex = index });
+                _repo.AddComponent(m, new PartMetadata { ParentEntity = owner, InstanceId = 100 + index });
+                return m;
+            }
+            var a = _repo.CreateEntity(); var b = _repo.CreateEntity();
+            var a2 = Mount(a, 2); var a1 = Mount(a, 1); var b1 = Mount(b, 1);
+            Span<Entity> dest = stackalloc Entity[8];
+            _repo.Tick();
+            Assert.Equal(new[] { a1, a2 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());   // sorted by mount index
+
+            var a3 = Mount(a, 3);                                                     // ADDED in the same frame, after the build
+            Assert.Equal(new[] { a1, a2, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            _repo.RemoveComponent<WeaponMountInfo>(a2);                               // REMOVED (no version moves)
+            Assert.Equal(new[] { a1, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            _repo.SetComponent(b1, new PartMetadata { ParentEntity = a, InstanceId = 7 });   // RE-PARENTED to a (by value write)
+            Assert.Equal(0, WeaponMountQuery.EnumerateMounts(_repo, b, dest));                // gone from b at once (live re-check)
+            _repo.Tick();                                                                     // ⭐ CE-2412: under a from the next frame
+            Assert.Equal(new[] { a1, b1, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            _repo.SetComponent(a1, new WeaponMountInfo { MountIndex = 9 });          // RE-INDEXED
+            Assert.Equal(new[] { b1, a3, a1 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            _repo.DestroyEntity(a3);
+            Assert.Equal(new[] { b1, a1 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            WeaponMountQuery.EnumerateMounts(_repo, a, dest);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) { WeaponMountQuery.EnumerateMounts(_repo, a, dest); WeaponMountQuery.EnumerateMounts(_repo, b, dest); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         // SC-P0-02-1: 3-mount definition → 3 WeaponState components (1 on owner, 2 children)
         [Fact]
         public void ThreeMountDefinition_SpawnsThreeWeaponStateComponents()
@@ -60,6 +112,27 @@ namespace Fdp.Toolkit.Combat.Tests
             int wsCount = 0;
             var allQuery = _repo.Query().With<WeaponState>().Build();
             foreach (var e in allQuery) wsCount++;
+            Assert.Equal(3, wsCount);
+        }
+
+        /// <summary>⭐ <c>CE-3089</c> (G7) — Inject is idempotent for the CHILDREN too (as it already was for the owner's WeaponState):
+        /// a second Inject makes no second child per mount. Measured live before the fix: three WeaponSelection candidates for a
+        /// two-mount Bradley. ✅ Red-proof: drop the existing-mount check ⇒ 5 WeaponStates.</summary>
+        [Fact]
+        public void CE3089_InjectTwice_MakesOneChildPerMount()
+        {
+            var template = BuildTemplate(new List<WeaponMountDto>
+            {
+                new WeaponMountDto { InitialAmmunition = 30, MuzzleVelocity = 800f },
+                new WeaponMountDto { InitialAmmunition = 20, MuzzleVelocity = 600f, WeaponGuid = 0xABCDEF01 },
+                new WeaponMountDto { InitialAmmunition = 4,  MuzzleVelocity = 0f,   WeaponGuid = 0xABCDEF02 },
+            });
+            var owner = _repo.CreateEntity();
+            _translator.Inject(_repo, owner, template);
+            _translator.Inject(_repo, owner, template);
+
+            int wsCount = 0;
+            foreach (var _ in _repo.Query().With<WeaponState>().Build()) wsCount++;
             Assert.Equal(3, wsCount);
         }
 
@@ -220,6 +293,146 @@ namespace Fdp.Toolkit.Combat.Tests
 
             // Child mount MaxAmmo must also match its own InitialAmmunition
             Assert.Equal(20, _repo.GetComponentRO<WeaponState>(mounts[1]).MaxAmmo);
+        }
+
+        // ── WL-1 (docs/DESIGN_Weapon_Layers.md W-9) — turret part children ─────────────────────────────────────────────────
+
+        private static TkbTemplate Turrets(int count)
+        {
+            var template = new TkbTemplate("Turreted", 2);
+            var suite = new TurretSuiteDto();
+            for (int i = 0; i < count; i++) suite.Turrets.Add(new TurretDto { PivotZ = 2f });
+            template.AddDescriptor(suite);
+            return template;
+        }
+
+        /// <summary>⭐ WL-1 — one part child per TKB turret, keyed <c>2000 + index</c>, starting forward and level; a second Inject
+        /// (spawn + ghost promotion) makes no second child. ✅ Red-proof: drop <c>TurretParts.Ensure</c>'s Find ⇒ 4 children.</summary>
+        [Fact]
+        public void WL1_EachTkbTurret_IsOnePartChild_KeyedByIndex()
+        {
+            _repo.RegisterComponent<TurretPose>();
+            var owner = _repo.CreateEntity();
+            var translator = new TurretTkbTranslator();
+            translator.Inject(_repo, owner, Turrets(2));
+            translator.Inject(_repo, owner, Turrets(2));
+
+            int children = 0;
+            foreach (var _ in _repo.Query().With<TurretPose>().Build()) children++;
+            Assert.Equal(2, children);
+            for (int i = 0; i < 2; i++)
+            {
+                var child = TurretParts.Find(_repo, owner, i);
+                Assert.False(child.IsNull);
+                Assert.Equal(TurretParts.FirstPartId + i, _repo.GetComponentRO<PartMetadata>(child).InstanceId);
+                Assert.Equal(owner, _repo.GetComponentRO<PartMetadata>(child).ParentEntity);
+                Assert.Equal(default, _repo.GetComponentRO<TurretPose>(child));
+            }
+            Assert.Equal(1, TurretParts.IndexOf(TurretParts.FirstPartId + 1));
+            Assert.Equal(-1, TurretParts.IndexOf(1000));   // a TKB sensor's part id is not a turret's
+        }
+
+        /// <summary>⭐ WL-1 — a turret is not a weapon mount: the mount enumeration (weapon choice, utility scoring) does not see it,
+        /// and a turret pose set on the part reads back through <see cref="TurretParts.PoseOf"/>.</summary>
+        [Fact]
+        public void WL1_TurretParts_AreNotMounts_AndCarryTheirPose()
+        {
+            _repo.RegisterComponent<TurretPose>();
+            var owner = _repo.CreateEntity();
+            _translator.Inject(_repo, owner, BuildTemplate(new List<WeaponMountDto>
+            {
+                new WeaponMountDto { InitialAmmunition = 300, Category = WeaponCategory.Autocannon, TurretIndex = 0 },
+                new WeaponMountDto { InitialAmmunition = 7,   Category = WeaponCategory.Atgm,       TurretIndex = 0 },
+            }));
+            new TurretTkbTranslator().Inject(_repo, owner, Turrets(1));
+
+            Span<Entity> mounts = stackalloc Entity[4];
+            Assert.Equal(2, WeaponMountQuery.EnumerateMounts(_repo, owner, mounts));
+
+            var turret = TurretParts.Find(_repo, owner, 0);
+            _repo.GetComponentRW<TurretPose>(turret) = new TurretPose { Azimuth = (Fdp.Core.Angle)(0.5f), Elevation = (Fdp.Core.Angle)(0.1f) };
+            Assert.Equal(0.5f, TurretParts.PoseOf(_repo, owner, 0).Azimuth);
+            Assert.Equal(default, TurretParts.PoseOf(_repo, owner, 1));   // no such turret ⇒ forward and level
+        }
+
+        /// <summary>⭐ WL-1 — a node that does not register <see cref="TurretPose"/> builds no turret child (and does not throw).</summary>
+        [Fact]
+        public void WL1_NoTurretChild_WhereTurretPoseIsNotRegistered()
+        {
+            var owner = _repo.CreateEntity();
+            new TurretTkbTranslator().Inject(_repo, owner, Turrets(1));
+            Assert.True(TurretParts.Ensure(_repo, owner, 0).IsNull);
+        }
+
+        // ── ⭐⭐ Weapon systems WS-3 (W-D, W-E, W-H; docs/designs/weapons/DESIGN_Weapon_Systems.md §6) ─────────────────────────────
+
+        private void RegisterWeaponSystems()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            _repo.RegisterComponent<WeaponSystemParams>();
+            _repo.RegisterComponent<WeaponSystemState>();
+        }
+
+        private Entity OfType(CarrierDefDto? carrier = null, WeaponSystemDto? weapon = null)
+        {
+            var e = _repo.CreateEntity();
+            var t = new TkbTemplate("T", 77);
+            if (carrier != null) t.AddDescriptor(carrier);
+            if (weapon != null) t.AddDescriptor(weapon);
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_repo, e, t);
+            new WeaponSystemTkbTranslator().Inject(_repo, e, t);
+            if (weapon != null) _repo.AddComponent(e, new WeaponState { Ammo = 10 });
+            return e;
+        }
+
+        private Entity[] FiringMounts(Entity unit)
+        {
+            Span<Entity> dest = stackalloc Entity[8];
+            int n = WeaponMountQuery.EnumerateFiringMounts(_repo, unit, dest);
+            return dest.Slice(0, n).ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-3 (W-D) — ONE controller per weapon system, and its mount list shows it: the pickup lists the M2 in its station (the host
+        /// controls it, W-H); the soldier in a tripod's Gunner seat lists the tripod (and it is no longer the tripod's own); an automatic
+        /// weapon nobody operates is its own (its own mount 0, nobody else's list); a manual one nobody mans is NOBODY's. Own mounts stay
+        /// <see cref="WeaponMountQuery.EnumerateMounts"/>' — a boarded weapon never joins them (the translator counts its children by it).
+        /// ✅ Red-proof: ControllerOf ignoring the gunner seat ⇒ the manned tripod is nobody's ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS3_EachWeaponSystem_HasOneController_AndOnlyItListsIt()
+        {
+            RegisterWeaponSystems();
+            var pickup = OfType(new CarrierDefDto { Seats =
+            {
+                new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner },
+                new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 0 },
+            } });
+            var m2 = OfType(weapon: new WeaponSystemDto { MountKinds = MountKinds.Pintle | MountKinds.Ground });
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_repo, m2, pickup));
+            Assert.Equal(pickup, WeaponSystems.ControllerOf(_repo, m2));
+            Assert.Equal(new[] { m2 }, FiringMounts(pickup));
+            Span<Entity> own = stackalloc Entity[8];
+            Assert.Equal(0, WeaponMountQuery.EnumerateMounts(_repo, pickup, own));
+
+            var tripod = OfType(new CarrierDefDto { Seats = { new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner } } },
+                new WeaponSystemDto { NeedsOperator = false });
+            Assert.Equal(tripod, WeaponSystems.ControllerOf(_repo, tripod));   // automatic, unmanned: its own
+            Assert.Equal(new[] { tripod }, FiringMounts(tripod));
+            var soldier = _repo.CreateEntity();
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied,
+                Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_repo, soldier, tripod, Fdp.Toolkit.Behavior.Components.SeatRole.Gunner));
+            Assert.Equal(soldier, WeaponSystems.ControllerOf(_repo, tripod));   // manned: the gunner's
+            Assert.Equal(new[] { tripod }, FiringMounts(soldier));
+
+            var manual = OfType(weapon: new WeaponSystemDto());   // NeedsOperator, nobody
+            Assert.Equal(Entity.Null, WeaponSystems.ControllerOf(_repo, manual));
+            Assert.Equal(-1, WeaponSystems.IndexOf(_repo, soldier, manual));
         }
     }
 }

@@ -26,15 +26,16 @@ namespace Fdp.Tests
             }
         }
         
-        private void CreateTestRecording(int frameCount, int keyframeInterval)
+        private void CreateTestRecording(int frameCount, int keyframeInterval, int extraEntities = 0, bool blockDeltas = true)
         {
             using var repo = new EntityRepository();
             repo.RegisterComponent<Position>();
             
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new Position { X = 0, Y = 0, Z = 0 });
+            for (int i = 0; i < extraEntities; i++) repo.AddComponent(repo.CreateEntity(), new Position { X = i, Y = 0, Z = 0 });   // ⭐ CE-4407 — a frame worth measuring
             
-            using var recorder = new AsyncRecorder(_testFilePath);
+            using var recorder = new AsyncRecorder(_testFilePath) { BlockDeltas = blockDeltas };
             uint prevTick = 0;
             
             for (int frame = 0; frame < frameCount; frame++)
@@ -144,6 +145,29 @@ namespace Fdp.Tests
             Assert.Equal(1, controller.CurrentFrame);
         }
         
+        /// <summary>⭐ <c>CE-4407</c> (R-2084) — applying a frame allocates no frame-sized buffer: the compressed and the decompressed buffers are reused (a frame of a 1 000-man
+        /// recording is 15–65 MB uncompressed; a fresh <c>new byte[]</c> for each was 11–65 MB of large-object garbage per frame). Measures the SMALLEST allocation of several
+        /// windows (JIT tiering can allocate inside one). 🔴 Red-proof (compiles): the two <c>new byte[]</c> back in <c>ApplyFrame</c> ⇒ every window ≥ the frame's size ⇒ red.</summary>
+        [Fact]
+        public void CE4407_StepForward_ReusesItsFrameBuffers_NoFrameSizedGarbage()
+        {
+            CreateTestRecording(frameCount: 40, keyframeInterval: 100, extraEntities: 30000, blockDeltas: false);   // ⭐ CE-1478 P6 — this rail is about the WHOLE frame's buffers: a block-run delta of one moved row is tiny
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            using var controller = new PlaybackController(_testFilePath);
+            long rawSize = controller.GetFrameMetadata(5).UncompressedSize;
+            Assert.True(rawSize > 64 * 1024, $"the test frame is only {rawSize} B");
+            for (int i = 0; i < 6; i++) controller.StepForward(repo);   // warm: the buffers grow to the largest frame
+            long best = long.MaxValue;
+            for (int w = 0; w < 4; w++)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 6; i++) controller.StepForward(repo);
+                best = Math.Min(best, (GC.GetAllocatedBytesForCurrentThread() - before) / 6);
+            }
+            Assert.True(best < Math.Max(256, rawSize / 2), $"a stepped frame allocated {best} B (the frame is {rawSize} B raw)");
+        }
+
         [Fact]
         public void StepForward_AtEnd_ReturnsFalse()
         {
@@ -520,7 +544,8 @@ namespace Fdp.Tests
         ///   wall-clock tick (floor-seek semantics).</item>
         /// </list>
         /// </summary>
-        [Fact]
+        [Fdp.Testing.FlakyFact("proves binary search by a wall-clock 5 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void SeekToWallClockTicks_UsesBinarySearch()
         {
             // Arrange: 1 000 frames, one keyframe every 100 frames.
@@ -587,6 +612,142 @@ namespace Fdp.Tests
                 Assert.Equal((float)seekedFrame, pos.X);
             }
         }
+
+        // ================================================
+        // ⭐ CE-3329 P0 — the v7 frame index: sim time + flags (docs/DESIGN_Replay_Time_Axis_And_Review.md §5 R1, §8 rows 1–5)
+        // ================================================
+
+        /// <summary>Records <paramref name="frames"/> frames: frame i advances the clock unless <paramref name="halted"/>(i), and moves the
+        /// entity only when <paramref name="moves"/>(i). The clock is the world's GlobalTime singleton, as the kernel writes it.</summary>
+        private void CreateClockedRecording(int frames, Func<int, bool> halted, Func<int, bool> moves)
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new Position());
+            using var recorder = new AsyncRecorder(_testFilePath);
+            uint prevTick = 0;
+            double sim = 0;
+            for (int i = 0; i < frames; i++)
+            {
+                repo.Tick();
+                float dt = halted(i) ? 0f : 0.5f;
+                sim += dt;
+                repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = sim, DeltaTime = dt, TimeScale = 1f, TotalWallTicks = 1_000 + i });
+                if (moves(i)) repo.GetComponentRW<Position>(entity).X = i;
+                if (i == 0) recorder.CaptureKeyframe(repo, 1_000 + i, blocking: true);
+                else recorder.CaptureFrame(repo, prevTick, 1_000 + i, blocking: true);
+                prevTick = repo.GlobalVersion;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3329 P0 — every frame's index entry carries its RECORDED sim time and its flags: <c>Halted</c> exactly where the clock
+        /// did not advance (the clock's own word, R-126), <c>Changed</c> where the frame carried anything besides the clock — so a paused
+        /// stretch, and whether anything happened in it, is read without decoding a frame.
+        /// </summary>
+        [Fact]
+        public void V7_TheFrameIndexCarriesTheRecordedSimTimeAndTheFlags()
+        {
+            // frames 0–3 run · 4–7 paused, nothing moves · 8 paused, the entity moves (a change during a pause) · 9 runs
+            CreateClockedRecording(10, halted: i => i is >= 4 and <= 8, moves: i => i < 4 || i == 8 || i == 9);
+
+            using var controller = new PlaybackController(_testFilePath);
+            Assert.Equal(FdpConfig.FORMAT_VERSION, controller.FormatVersion);
+            Assert.Equal(8u, FdpConfig.FORMAT_VERSION);   // ⭐ CE-1478 P6 — v8: block-run deltas
+
+            var sims  = new double[10];
+            for (int i = 0; i < 10; i++) sims[i] = controller.GetFrameMetadata(i).SimTime;
+            Assert.Equal(new[] { 0.5, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.5 }, sims);
+
+            for (int i = 0; i < 10; i++)
+            {
+                var flags = controller.GetFrameMetadata(i).Flags;
+                Assert.Equal(i is >= 4 and <= 8, flags.HasFlag(FrameFlags.Halted));
+                Assert.False(flags.HasFlag(FrameFlags.Unknown));
+            }
+            Assert.True(controller.GetFrameMetadata(0).Flags.HasFlag(FrameFlags.Changed));   // a keyframe
+            for (int i = 4; i <= 7; i++)
+                Assert.False(controller.GetFrameMetadata(i).Flags.HasFlag(FrameFlags.Changed));   // an unchanged pause
+            Assert.True(controller.GetFrameMetadata(8).Flags.HasFlag(FrameFlags.Changed));    // a change inside the pause
+        }
+
+        /// <summary>Rewrites a v7 recording as format v6 (25-byte frame headers) — what every recording before CE-3329 is.</summary>
+        private static void WriteAsV6(string v7Path, string v6Path)
+        {
+            var bytes = File.ReadAllBytes(v7Path);
+            using var output = new FileStream(v6Path, FileMode.CreateNew);
+            var header = bytes.AsSpan(0, RecordingSlice.GlobalHeaderSize).ToArray();
+            BitConverter.TryWriteBytes(header.AsSpan(6, 4), 6u);
+            output.Write(header);
+            int pos = RecordingSlice.GlobalHeaderSize;
+            while (pos < bytes.Length)
+            {
+                int compressed = BitConverter.ToInt32(bytes, pos);
+                output.Write(bytes, pos, FrameOuterHeader.SizeV6);
+                output.Write(bytes, pos + FrameOuterHeader.Size, compressed);
+                pos += FrameOuterHeader.Size + compressed;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3329 P0 (row 3) — a v6 recording (every one made before this change) still opens, indexes and seeks: same frames,
+        /// same wall stamps, same world; its index says it knows nothing about sim time (<see cref="FrameFlags.Unknown"/>, NaN).
+        /// </summary>
+        [Fact]
+        public void V6_ARecordingInTheOldFormat_StillOpensIndexesAndSeeks()
+        {
+            CreateTestRecording(frameCount: 20, keyframeInterval: 5);
+            var v6 = _testFilePath + ".v6.fdp";
+            try
+            {
+                WriteAsV6(_testFilePath, v6);
+                using var current = new PlaybackController(_testFilePath);
+                using var old = new PlaybackController(v6);
+
+                Assert.Equal(6u, old.FormatVersion);
+                Assert.Equal(current.TotalFrames, old.TotalFrames);
+                for (int i = 0; i < old.TotalFrames; i++)
+                {
+                    Assert.Equal(current.GetFrameMetadata(i).WallClockTicks, old.GetFrameMetadata(i).WallClockTicks);
+                    Assert.True(double.IsNaN(old.GetFrameMetadata(i).SimTime));
+                    Assert.Equal(FrameFlags.Unknown, old.GetFrameMetadata(i).Flags);
+                }
+
+                using var repo = new EntityRepository();
+                repo.RegisterComponent<Position>();
+                old.SeekToFrame(repo, 13);
+                var q = repo.Query().With<Position>().Build();
+                foreach (var e in q) Assert.Equal(13f, repo.GetComponentRO<Position>(e).X);
+            }
+            finally { if (File.Exists(v6)) File.Delete(v6); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3329 P0 (row 5) — a branch of a v6 parent (D18's history copy) is written in the CURRENT format, so the recorder's v7
+        /// frames appended after it never share a file with 25-byte headers.
+        /// </summary>
+        [Fact]
+        public void V6_ABranchCopyOfAnOldRecording_IsWrittenInTheCurrentFormat()
+        {
+            CreateTestRecording(frameCount: 12, keyframeInterval: 4);
+            var v6 = _testFilePath + ".v6.fdp";
+            var branch = _testFilePath + ".branch.fdp";
+            try
+            {
+                WriteAsV6(_testFilePath, v6);
+                RecordingSlice.CopyFrames(v6, branch, 0, 8);
+
+                using var copy = new PlaybackController(branch);
+                Assert.Equal(FdpConfig.FORMAT_VERSION, copy.FormatVersion);
+                Assert.Equal(8, copy.TotalFrames);
+                Assert.Equal(FrameFlags.Unknown, copy.GetFrameMetadata(7).Flags);
+            }
+            finally
+            {
+                if (File.Exists(v6)) File.Delete(v6);
+                if (File.Exists(branch)) File.Delete(branch);
+            }
+        }
     }
 }
-

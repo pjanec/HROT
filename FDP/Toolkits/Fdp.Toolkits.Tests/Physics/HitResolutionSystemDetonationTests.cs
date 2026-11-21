@@ -98,6 +98,218 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0f, det.HitZ, precision: 4);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-5, R-3099) — an ARROW / a BOLT (a round whose look <c>Sticks</c>) that strikes a PART writes a <c>HitMarks</c> entry of kind <c>Arrow</c> / <c>Bolt</c> (the
+        /// viewer draws the shaft out of the part, kept when he falls); an ordinary bullet writes <c>Bullet</c>; a hit with NO part (an animal is a plain cylinder, R-3099) writes NO mark at all.
+        /// 🔴 Red-proof: the mark kind fixed at Bullet ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_AnArrowOnAPart_WritesAnArrowMark_ABoltABoltMark_ABulletABulletMark_NoPartNoMark()
+        {
+            const long Arrow = 9066, Bolt = 9067, Ball = 9001;
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            foreach (var (id, bolt) in new[] { (Arrow, false), (Bolt, true) })
+            {
+                var t = new Fdp.Interfaces.TkbTemplate("round" + id, id);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MunitionVisualDto { Shape = Fdp.Toolkit.Tkb.Domain.MunitionShape.Arrow, Sticks = true, Bolt = bolt });
+                db.Register(t);
+            }
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            Fdp.Toolkit.Physics.BodyParts.HitMarkKind MarkOf(long ammo, byte hasPart)
+            {
+                var bullet = _world.CreateEntity();
+                _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Damage = 45f, Penetration = 4f, Ammo = ammo });
+                var man = _world.CreateEntity();
+                _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = man, Start = new Vector3(0, 0, 1.6f), End = new Vector3(10, 0, 1.6f),
+                    T = 0.5f, HasBodyPart = hasPart, BodyPart = 4, Face = 1, LocalPoint = new Vector3(0.5f, 0f, 0.1f),
+                } });
+                _world.Bus.SwapBuffers();
+                _sys.Execute(_world, 0.016f);
+                _world.Bus.SwapBuffers();
+                if (!_world.HasComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>(man)) return 0;
+                Assert.True(_world.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.HitMarks>(man).TryGet(0, out _, out _, out _, out var kind));
+                return kind;
+            }
+
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Arrow, MarkOf(Arrow, 1));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bolt, MarkOf(Bolt, 1));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bullet, MarkOf(Ball, 1));
+            Assert.Equal((Fdp.Toolkit.Physics.BodyParts.HitMarkKind)0, MarkOf(Arrow, 0));   // an animal (no part box): the arrow wounds it, no mark
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> PART C ③ (AN-20b) — a round into a FLOCK (ONE entity drawn as N birds): a chance PER DRAWN BIRD it passes (<c>FlockHits</c>) — a hit lowers the flock's count by ONE, requests ONE dead lone bird
+        /// at the strike (the flock's <c>LoneType</c>), consumes the round (TearDown) and publishes NO damage (no HitEvent, no detonation: the flock's own health is never the target); a miss lets the round fly on (not torn
+        /// down). The roll is deterministic (flock, count, round): the same rounds give the same birds, and the steady roll allocates nothing. 🔴 Red-proof: the flock branch removed ⇒ the flock entity takes the round's
+        /// damage and no bird is counted ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_ARoundIntoAFlock_HitsAtMostOneBird_ConsumesTheRound_ADeadBirdIsRequested_AndFlockHealthIsUntouched()
+        {
+            const long Duck = 713;
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterManagedEvent<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var lone = new Fdp.Interfaces.TkbTemplate("Duck", Duck); lone.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 6f }); db.Register(lone);
+            var flockT = new Fdp.Interfaces.TkbTemplate("DuckFlock", 714); flockT.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 13, LoneType = Duck }); db.Register(flockT);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var flock = _world.CreateEntity();
+            _world.AddComponent(flock, new SimTransform { Position = new Vector3(0, 0, 25f), Rotation = Quaternion.Identity });
+            _world.AddComponent(flock, new PhysicsCollider { Radius = 3f, Height = 1f, CollisionLayer = 1 });
+            _world.AddComponent(flock, new Fdp.Toolkit.Combat.Components.Health { Current = 40f, Max = 40f });
+            _world.AddComponent(flock, new Fdp.Toolkit.Animals.FlockState { Count = 40, InitialCount = 40 });
+            _world.AddComponent(flock, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)714 });
+
+            int expected = 0, count = 40;
+            var bullets = new Entity[40];
+            for (int i = 0; i < bullets.Length; i++)
+            {
+                var b = bullets[i] = _world.CreateEntity();
+                _world.AddComponent(b, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Damage = 45f });
+                long key = PhysicsConstants.PackBulletRayId(b.Index);
+                float passed = Fdp.Toolkit.Animals.FlockHits.BirdsPassed(count, 3f, new Vector3(0, 0, 25f), new Vector3(-10, 0, 25f), new Vector3(10, 0, 25f));
+                if (Fdp.Toolkit.Animals.FlockHits.Roll(flock, count, key) < Fdp.Toolkit.Animals.FlockHits.Chance(passed)) { expected++; count--; }
+                _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = key, HitEntity = flock, Start = new Vector3(-10, 0, 25f), End = new Vector3(10, 0, 25f), T = 0.5f,
+                } });
+            }
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            _world.FlushCommandBuffers();
+
+            Assert.InRange(expected, 1, 39);                                        // a flock of 40 through its middle: most rounds hit a bird, not all
+            Assert.Equal(40 - expected, _world.GetComponentRO<Fdp.Toolkit.Animals.FlockState>(flock).Count);
+            Assert.Equal(40f, _world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(flock).Current);   // the flock itself is never the target
+            Assert.Equal(0, _world.Bus.Read<HitEvent>().Length);
+            Assert.Equal(0, _world.Bus.Read<DetonationNotification>().Length);
+            int requested = 0;
+            foreach (var r in ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).ReadManagedEvents<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>())
+            {
+                requested++;
+                Assert.Equal((Fdp.Core.TkbTypeId)Duck, r.TkbType);
+                Assert.Contains(r.InitialComponents!, c => c is Fdp.Toolkit.Combat.Components.Health { Current: 0f, Max: 6f });
+            }
+            Assert.Equal(expected, requested);                                      // one dead bird per bird hit
+            int consumed = 0;
+            foreach (var b in bullets) if (_world.GetLifecycleState(b) == EntityLifecycle.TearDown) consumed++;
+            Assert.Equal(expected, consumed);                                       // a hit consumes the round; a miss flies on
+
+            // the steady roll allocates nothing
+            var from = new Vector3(-10, 0, 25f); var to = new Vector3(10, 0, 25f);
+            float sink = 0f;
+            for (int i = 0; i < 100; i++) sink += Fdp.Toolkit.Animals.FlockHits.Chance(Fdp.Toolkit.Animals.FlockHits.BirdsPassed(30, 3f, new Vector3(0, 0, 25f), from, to)) + Fdp.Toolkit.Animals.FlockHits.Roll(flock, 30, i);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++) sink += Fdp.Toolkit.Animals.FlockHits.Chance(Fdp.Toolkit.Animals.FlockHits.BirdsPassed(30, 3f, new Vector3(0, 0, 25f), from, to)) + Fdp.Toolkit.Animals.FlockHits.Roll(flock, 30, i);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(sink > 0f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (bows BW-11) — the RING an arrow scores: the distance of the strike from the scoring face's centre (a prop's position + FaceCentreZ), 10 rings of 6 cm
+        /// (10 at the centre … 1 at the rim, 0 beyond), read from the prop's TKB <c>ArcheryTargetDto</c>; a prop with none is no target (−1). 🔴 Red-proof: ring width halved ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_TheRingOfAnArrow_IsTheDistanceFromTheFacesCentre_10To1_0BeyondTheRim()
+        {
+            const long Target = 9500, Crate = 9501;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("target", Target);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ArcheryTargetDto());
+            db.Register(t);
+            db.Register(new Fdp.Interfaces.TkbTemplate("crate", Crate));
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            Entity Make(long type)
+            {
+                var e = _world.CreateEntity();
+                _world.AddComponent(e, new SimTransform { Position = new Vector3(50f, 5f, 0f), Rotation = Quaternion.Identity });
+                _world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)type });
+                return e;
+            }
+            var target = Make(Target);
+            var centre = new Vector3(50f, 5f, 1.0f);
+            Assert.Equal(10, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre));
+            Assert.Equal(10, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0.059f, 0f)));
+            Assert.Equal(9, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0.061f, 0f)));
+            Assert.Equal(5, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0f, 0.31f)));
+            Assert.Equal(1, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0.55f, 0f, 0f)));
+            Assert.Equal(0, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0.7f, 0f)));   // beyond the rim: a miss on the boss
+            Assert.Equal(-1, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, Make(Crate), centre));
+        }
+
+        // ── ⭐ Buildings §3d P2 (R-217): the walls crossed BEFORE the struck unit, on this segment ─────────────
+
+        /// <summary>A wooden fence (0.05 m, 3 mm RHA) at x = 5 on the segment (0,0,1.6) → (10,0,1.6). A unit struck at x = 4 (before it)
+        /// takes the round as it left the muzzle; one struck at x = 8 (beyond it) takes what got through: rifle 5 mm vs 3 mm passes
+        /// with chance 1 (full damage) but arrives with 2 mm; a 2.6 mm round passes with chance 0.17 ⇒ 17 % of its damage.</summary>
+        [Theory]
+        [InlineData(0.4f, 5f,   5f,   25f)]     // before the fence
+        [InlineData(0.8f, 5f,   2f,   25f)]     // beyond: chance 1, penetration − 3
+        [InlineData(0.8f, 2.6f, 1e-3f, 4.1667f)]  // beyond: 2.6/3 = 0.867 ⇒ chance (0.867 − 0.8)/0.4 = 0.1667 ⇒ 25 × 0.1667; spent, not unknown
+        public void R217_AStruckUnit_TakesTheRoundAsItArrived_FencesBeforeItCount_FencesBehindItDoNot(float t, float pen, float expectPen, float expectDamage)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            _world.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2 }, "geometry": { "type": "LineString", "coordinates": [[5,-5],[5,5]] } } ] }
+            """));
+            var bullet = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Damage = 25f, Penetration = pen });
+            var unit = _world.CreateEntity();
+            _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = unit,
+                Start = new Vector3(0, 0, 1.6f), End = new Vector3(10, 0, 1.6f), T = t,
+            } });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(expectPen, det.Penetration, 3);
+            Assert.Equal(expectDamage, det.Damage, 2);
+        }
+
+        // ── ⭐ M1 (DESIGN_Armour_Hit_Model §3): the way the round was travelling rides on the detonation ─────────────
+
+        /// <summary>
+        /// ⭐ M1 — a hit carries the round's TRAVEL: the swept segment (straight, or an arc's descending last segment), and for a
+        /// zero-length first segment the line from the muzzle. All three 0 means "unknown" to the damage step.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, 0f, 1.6f,   10f, 0f, 1.6f,   10f, 0f, 0f)]      // a straight round
+        [InlineData(0f, 0f, 20f,    3f, 0f, 16f,     3f, 0f, -4f)]      // an arc's last segment, descending
+        [InlineData(5f, 0f, 1.6f,   5f, 0f, 1.6f,    5f, 0f, -0.4f)]    // zero-length: from the muzzle (0,0,2) to the hit (5,0,1.6)
+        public void M1_HitResolution_CarriesTheTravelDirection(float sx, float sy, float sz, float ex, float ey, float ez, float tx, float ty, float tz)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var bullet = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+                { Damage = 25f, Penetration = 5f, Muzzle = new Vector3(0, 0, 2f), TerrainFlags = 1 });
+            var unit = _world.CreateEntity();
+            _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = unit,
+                Start = new Vector3(sx, sy, sz), End = new Vector3(ex, ey, ez), T = 0.5f,
+            } });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(tx, det.TravelX, 3);
+            Assert.Equal(ty, det.TravelY, 3);
+            Assert.Equal(tz, det.TravelZ, 3);
+        }
+
         // ── SC-2: LOS hit → no DetonationNotification ────────────────────────
 
         /// <summary>
@@ -172,5 +384,96 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(hitEntity,     detonations[0].Target);
             Assert.Equal(shooterEntity, detonations[0].Shooter);
         }
-    }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> — the detonation carries the BULLET's munition (the fired mount's penetration and damage), so the
+        /// damage step knows what struck. A bullet with no numbers reaches it as an unknown munition (0, 0 here — no bullet).
+        /// </summary>
+        [Fact]
+        public void CE3071_ABulletHit_CarriesTheBulletsMunition_IntoTheDetonation()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var hitEntity = _world.CreateEntity();
+            var shooter   = _world.CreateEntity();
+            var bullet    = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = shooter, Damage = 1100, Penetration = 600 });
+
+            _world.Bus.Publish(new RaycastResultEvent
+            {
+                Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = hitEntity,
+                    IgnoreEntity = shooter, Start = Vector3.Zero, End = new Vector3(10, 0, 0), T = 0.5f,
+                }
+            });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(600f,  det.Penetration);
+            Assert.Equal(1100f, det.Damage);
+        }
+    
+        // ── ⭐⭐ CE-2204 — a round hits ONCE, and a late result never lands on the round that took its slot ─────────────────────────
+
+        private void Result(long rayId, Entity hitEntity, Entity shooter)
+            => _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = rayId, HitEntity = hitEntity, IgnoreEntity = shooter, Start = Vector3.Zero, End = new Vector3(10, 0, 0), T = 0.5f,
+            } });
+
+        private DetonationNotification[] Resolve()
+        {
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            return _world.Bus.Read<DetonationNotification>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2204</c> — a rifle round's late raycast result (its round already spent and destroyed) resolves AFTER a tank's new HE
+        /// round took the rifle round's entity slot: it must be dropped — never a hit by the HE round, with the HE round's numbers, on the
+        /// tank that fired it. 🔴 Red before: the RayId carried the index only, so the result resolved against the HE round (live
+        /// ua-tank-ammo: "the tank hit its own hull").
+        /// </summary>
+        [Fact]
+        public void CE2204_ALateResult_ForADeadRound_NeverLandsOnTheRoundThatTookItsSlot()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var tank = _world.CreateEntity();
+            var rifleman = _world.CreateEntity();
+            var rifleRound = _world.CreateEntity();
+            _world.AddComponent(rifleRound, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = rifleman, Damage = 25, Penetration = 5 });
+            long rayId = PhysicsConstants.PackBulletRayId(rifleRound);
+            _world.DestroyEntity(rifleRound);
+            var he = _world.CreateEntity();
+            Assert.Equal(rifleRound.Index, he.Index);   // the slot is reused (the condition the live run hit)
+            _world.AddComponent(he, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = tank, Damage = 600, Penetration = 50 });
+
+            Result(rayId, tank, rifleman);
+            Assert.Empty(Resolve());
+            Assert.Equal(EntityLifecycle.Active, _world.GetLifecycleState(he));   // the HE round flies on
+        }
+
+        /// <summary>⭐ <c>CE-2204</c> — two segments of one round crossing the same body (they often do) resolve as ONE hit, in the same
+        /// frame and in the next (the round torn down by the first).</summary>
+        [Fact]
+        public void CE2204_ARound_HitsOnce_ThoughTwoOfItsSegmentsCrossTheBody()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var target = _world.CreateEntity();
+            var shooter = _world.CreateEntity();
+            var round = _world.CreateEntity();
+            _world.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = shooter, Damage = 25, Penetration = 5 });
+            long rayId = PhysicsConstants.PackBulletRayId(round);
+            Result(rayId, target, shooter);
+            Result(rayId, target, shooter);
+            Assert.Single(Resolve());
+            Result(rayId, target, shooter);   // the next frame: the round is torn down
+            Assert.Empty(Resolve());
+        }
 }
+}
+

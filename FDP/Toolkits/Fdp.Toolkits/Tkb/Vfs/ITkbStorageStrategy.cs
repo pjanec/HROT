@@ -7,7 +7,8 @@ namespace Fdp.Toolkit.Tkb.Vfs
     /// Abstraction over a TKB storage medium (raw directory or ZIP archive).
     /// Implementations decide how entity files are located, read, written, and deleted.
     /// </summary>
-    public interface ITkbStorageStrategy : IDisposable
+    /// <remarks>⭐ Narrows <see cref="IAssetStorageStrategy"/> (docs/DESIGN_Asset_Management.md §3, B5).</remarks>
+    public interface ITkbStorageStrategy : IAssetStorageStrategy
     {
         /// <summary>
         /// Lazily enumerates every JSON entity file in the storage.

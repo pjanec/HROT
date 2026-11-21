@@ -2,7 +2,7 @@
 
 **Batch:** BATCH-50
 **Status:** COMPLETE
-**Build:** `dotnet build IOS-IG-SimHost.sln -v quiet` — Build succeeded, 5 pre-existing warnings (CS0618 `IBlueprintTimeController` obsolete), 0 errors.
+**Build:** `dotnet build HROT.sln -v quiet` — Build succeeded, 5 pre-existing warnings (CS0618 `IBlueprintTimeController` obsolete), 0 errors.
 
 ---
 

@@ -43,8 +43,14 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
     {
         if (registry is null) throw new ArgumentNullException(nameof(registry));
 
-        registry.Register("Inspector",
-            () => new InspectorWindow(_selectionStore, _dirtyTracker, _drawerRegistry));
+        // ⛔⛔ L5 — the "Inspector" entry is RETIRED (Q38's retire list, R-112's table row).
+        //    📐 Measured: Hrot.Blueprints.Editor.InspectorWindow was a 70-line STUB — its Node tab
+        //       drew the literal string "Node inspector -- select a node in the graph editor." and
+        //       its Graph/Asset tabs listed names. ⭐ The real node inspector is
+        //       BlueprintDetailsWindow's node arm (live since Batch 87), and the asset facts are the
+        //       Details panel's business.
+        //    ⚠ This is the SECOND class named InspectorWindow; the 697-line AiShared one STAYS
+        //      (§6 L3: "do not delegate this one").
 
         registry.Register("Debug Panel",
             () => new DebugPanelWindow(_session));

@@ -10,6 +10,7 @@ namespace Hrot.Blueprints.Tests.MockSystems;
 /// Processes entities with WeaponChannel.ActiveAction != 0 and
 /// writes Status back from the configurable NextStatus lambda.
 /// </summary>
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class MockWeaponDispatcher : MockDispatcherSystem<WeaponChannel>
 {
     public Func<WeaponChannel, NodeStatus> NextStatus { get; set; } = _ => NodeStatus.Success;

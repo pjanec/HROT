@@ -23,17 +23,141 @@ internal static class LibraryEmitter
             e.WriteLine();
         }
 
+        // ⭐⭐⭐ Q43-A2′ — the CONSTRUCTION graph arm. `Construction` was a RESERVED GraphKind with no
+        // emitter consumer anywhere in the compiler (Q23: "nothing in the runtime consumes
+        // GraphKind.Construction yet"); this is the consumer it was reserved for.
+        //
+        // ⭐⭐ Deliberately the SAME emit as a Function graph, not a parallel shape. A resolver is
+        // "a pure function from the authored DTO to the usable DTO" — Q43-D — which is exactly what
+        // EmitFunctionGraph already produces, and Q43-B2's struct-typed signature needs nothing extra
+        // (measured 2026-09-21: a `global::Ns.Struct` graph input already emits and marshals correctly
+        // through the LibraryFunctionDelegate adapter; §8.1's "R3 — struct/DTO-typed graph inputs,
+        // Hard (architectural)" is STALE).
+        //
+        // ⛔ CE-448 — only a behaviour resolver asset (ResolverSubject) may carry one (V_ResolverPurity BP1676);
+        //   the reusable DTO→DTO resolver and its `BlueprintDefinition.Resolvers` index are retired.
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction))
+        {
+            EmitResolverGraph(e, asset, graph);
+            e.WriteLine();
+        }
+
+        // ⭐⭐ CE-428 — a BEHAVIOUR RESOLVER asset (shape ③) also exposes its one graph under a FIXED name,
+        //   so the behaviour's registrar can call it knowing only this class (Q76 §12.20). ⚠ V_ResolverPurity
+        //   guarantees exactly one Construction graph here.
+        // ⭐⭐ CE-443 — a behaviour resolver asset OWNS its authored shape: its declared Parameters become
+        //   `Params`, and `ParseAuthored` fills it (Parameter defaults, then the JSON by name). The behaviour's
+        //   registrar calls it, so the JSON is parsed by generated C#, never by the graph (DESIGN_Parameter_Model §P.7).
+        if (asset.ResolverSubject is not null)
+            EmitAuthoredParams(e, asset);
+
+        if (asset.ResolverSubject is { } subject
+            && asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction) is { } only)
+        {
+            e.WriteLine("/// <summary>CE-428: the behaviour-resolver entry point — stage 3 of the supply pipeline.</summary>");
+            e.WriteLine($"public static void ResolveBehavior({SubjectParams(subject)})");
+            e.WriteLine($"    => {only.Name}(in authored, ref block, world, self);");
+            e.WriteLine();
+        }
+
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// BP-73: the C# return type for a function graph with <b>N</b> outputs — the single shared
+    /// authority for all three method-DECLARATION sites (this file, <c>InstanceEmitter</c>, and
+    /// <c>CSharpEmitter</c>'s library adapter), which each used to read <c>Outputs[0]</c> and silently
+    /// drop the rest.
+    /// <list type="bullet">
+    /// <item>0 outputs → <c>void</c> (or <c>NodeStatus</c> when the graph returns a status).</item>
+    /// <item>1 output → that type, <b>byte-identical to pre-BP-73 output</b>.</item>
+    /// <item>N outputs → an <b>unnamed</b> ValueTuple, e.g. <c>(float, bool)</c>.</item>
+    /// </list>
+    /// ⚠ Unnamed on purpose. Named tuple elements would read better, but they inherit two failure
+    /// modes this avoids entirely: an output whose name is not a valid C# identifier, and the
+    /// positional <c>ItemN</c> collision rule (an element literally named <c>Item2</c> is illegal
+    /// anywhere but position 2). <c>IrOp_TupleField</c> reads elements positionally regardless, so
+    /// names would buy nothing the generated code actually uses.
+    /// </summary>
+    internal static string CSharpReturnType(IrGraph graph, bool hasStatusReturn)
+        => graph.Outputs.Count switch
+        {
+            0 => hasStatusReturn ? "global::Fbt.NodeStatus" : "void",
+            1 => CSharpType(graph.Outputs[0].Type),
+            _ => "(" + string.Join(", ", graph.Outputs.Select(o => CSharpType(o.Type))) + ")",
+        };
+
+    /// <summary>
+    /// BP-221 / BP-222 — the return type of an in-blueprint <c>Func_*</c> helper, for BOTH the
+    /// declaration and the call site.
+    ///
+    /// <para>
+    /// ⭐ <b>One function, called from three places, on purpose.</b> The two emitters declared the
+    /// helper and <c>StatementEmitter</c> emitted the call, each deciding independently whether the
+    /// call produces a value — and they disagreed in both directions: a zero-output graph was
+    /// declared <c>void</c> and assigned anyway (<c>CS0815</c>, BP-222), and an AiPrimitive graph
+    /// whose body ends in a status return was declared <c>void</c> and then returned a value
+    /// (<c>CS0127</c>). Whichever way the rule moves next, it moves here.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ The status return is DERIVED from the body, not assumed per dispatch. An Instance function
+    /// graph has never carried one, so this is a no-op there; an AiPrimitive graph lowers to
+    /// <c>NodeStatus</c> terminators and does.
+    /// </para>
+    /// </summary>
+    internal static string HelperReturnType(IrGraph graph)
+        => CSharpReturnType(graph, graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus));
+
+    /// <summary>
+    /// BP-57 / Q27-A1+E — declares this graph's function-locals as plain C# locals, initialised from
+    /// their declared defaults, at the top of the emitted body.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Emitted HERE, in the one body-emitter every graph goes through</b> — the Instance
+    /// function helper, the AiPrimitive helper, the Library static method and <c>TickCore</c> all call
+    /// <see cref="EmitGraphBody"/>. Declaring at each of those sites instead would have been four
+    /// copies of one rule, and the fourth would have been missed exactly as <c>BP-221</c>'s helper
+    /// loop was.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The initialiser is what makes "local" mean what it says.</b> Q27-E: reset on entry, so
+    /// call N+1 cannot see call N's value. A field written early would behave identically on the first
+    /// call and differently on the second — which is precisely the Unreal macro-local wart Q27 exists
+    /// to avoid, and why the test for this calls the function TWICE.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Names are prefixed <c>__loc_</c>. A designer's local may share a name with a method parameter
+    /// (the graph's own inputs are parameters), a C# keyword, or another emitted symbol; the prefix
+    /// makes the collision unrepresentable rather than making it someone's later bug report.
+    /// </para>
+    /// </summary>
+    internal static void EmitLocalDeclarations(CSharpEmitter e, IrGraph graph)
+    {
+        if (graph.Locals.Count == 0) return;
+
+        // BP-57 / Q27-A3 — a suspending graph's locals are struct fields, initialised by
+        // IrOp_ResetLocals in the entry block instead. Declaring them here would both fail to compile
+        // and reset them once per FRAME rather than once per invocation.
+        if (graph.LocalSlotPrefix is not null) return;
+
+        foreach (var local in graph.Locals)
+        {
+            var init = string.IsNullOrWhiteSpace(local.DefaultValueCSharp)
+                ? "default"
+                : local.DefaultValueCSharp;
+            e.WriteLine($"{CSharpType(local.Type)} {EmissionContext.LocalName(local.Name)} = {init};");
+        }
+        e.WriteLine();
     }
 
     private static void EmitFunctionGraph(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
         bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
-        var returnType = graph.Outputs.Count > 0
-            ? CSharpType(graph.Outputs[0].Type)
-            : hasStatusReturn ? "global::Fbt.NodeStatus"
-            : "void";
+        var returnType = CSharpReturnType(graph, hasStatusReturn);
 
         var paramList = string.Join(", ",
             graph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}"));
@@ -48,10 +172,99 @@ internal static class LibraryEmitter
         e.WriteLine("}");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R4</c> — a behaviour resolver graph's emitted method, with the world in scope.</b>
+    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4 · <c>DESIGN_Parameter_Model.md</c> §P.7.
+    ///
+    /// <para>
+    /// ⭐ The subjects are injected (<c>in Params authored</c>, <c>ref TBlock block</c>) and the trailing context
+    /// is fixed (<c>world</c>, <c>self</c>). ⛔ <b><c>EntityRepository</c>, not <c>ISimulationView</c></b> (§4
+    /// <c>D2</c>): the world-singleton accessors live on the repository. ⛔ No <c>time</c> (§4 <c>D4</c>):
+    /// resolve-once-at-activation (<c>R-37</c>). ⛔ <c>host</c> retired by <c>CE-445</c>; the reusable
+    /// <c>(dto, world, self)</c> shape retired by <c>CE-448</c>.
+    /// </para>
+    /// </summary>
+    private static void EmitResolverGraph(CSharpEmitter e, IrAsset asset, IrGraph graph)
+    {
+        // ⚠ Set BEFORE the signature is written: EmissionContext.IsResolverGraph keys on CurrentGraph,
+        //   and CSharpReturnType/CSharpType do not need it but the body emitter's scope vars do.
+        //   EmitGraphBody sets it again (and clears it), which is harmless and keeps that method the
+        //   single owner of the body's lifetime.
+        e.Ctx.CurrentGraph = graph;
+
+        bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
+        var returnType = CSharpReturnType(graph, hasStatusReturn);
+
+        // ⭐⭐ CE-428 — a behaviour resolver's subjects are INJECTED, never declared: the authored DTO by
+        //   `in`, the WHOLE block by `ref` (Q76 §12.10b). Its graph declares no inputs (V_ResolverPurity).
+        if (asset.ResolverSubject is { } subject)
+        {
+            e.WriteLine($"public static {returnType} {graph.Name}({SubjectParams(subject)})");
+            e.WriteLine("{");
+            e.Indent();
+            EmitGraphBody(e, asset, graph);
+            e.Outdent();
+            e.WriteLine("}");
+            e.Ctx.CurrentGraph = null;
+            return;
+        }
+
+        // ⛔ CE-448 — unreachable: BP1676 refuses a Construction graph on a Library with no ResolverSubject,
+        //   and a fatal validation error stops the pipeline before emit.
+        e.Ctx.CurrentGraph = null;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-428</c> — the injected subject parameters: <c>in TAuthored authored, ref TBlock block</c>, then
+    /// the same trailing context a resolver always takes (<c>world</c>, <c>self</c>; <c>host</c> retired by <c>CE-445</c>).
+    /// </summary>
+    private static string SubjectParams(Hrot.Blueprints.Core.Assets.ResolverSubjectDecl subject)
+        => "in Params authored, "
+         + $"ref global::{subject.BlockTypeId.Replace('+', '.')} block, "
+         + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-443</c> — the resolver asset's authored <c>Params</c> (one field per declared Parameter, in
+    /// declaration order) and <c>ParseAuthored</c>, the SAME defaults-then-JSON body an Instance's
+    /// <c>ParseParams</c> runs (<see cref="InstanceEmitter.EmitParamsDefaultsAndOverlay"/>).
+    /// </summary>
+    private static void EmitAuthoredParams(CSharpEmitter e, IrAsset asset)
+    {
+        e.WriteLine("/// <summary>CE-443: the authored DTO — this resolver's declared Parameters.</summary>");
+        e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+        e.WriteLine("public struct Params");
+        e.WriteLine("{");
+        e.Indent();
+        foreach (var f in asset.Parameters)
+            e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+        // ⭐ CE-2135 P4 (R-2004, P4-e) — the contract a HOST behaviour publishes for this resolver: its named params DTO (whose fields
+        //   ARE the Params above), else Params. The host bridge reads it here, so no host emitter has to look the resolver up.
+        string published = asset.ParamsDtoTypeId is { } dto ? "global::" + dto.Replace('+', '.') : "Params";
+        e.WriteLine("/// <summary>CE-2135 P4: the authored contract a host behaviour publishes (its JsonParamsDtoType).</summary>");
+        e.WriteLine($"public static readonly global::System.Type PublishedParams = typeof({published});");
+        e.WriteLine();
+        e.WriteLine("/// <summary>CE-443: the Parameter defaults, then the intent JSON by name. The graph never sees JSON.</summary>");
+        e.WriteLine("public static void ParseAuthored(string json, out Params authored)");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("authored = default;");
+        e.WriteLine("ref var p = ref authored;");
+        InstanceEmitter.EmitParamsDefaultsAndOverlay(e, asset);
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+        InstanceEmitter.EmitParamJsonOptions(e);
+        e.WriteLine();
+    }
+
     /// <summary>Emits the block-by-block body for a graph. Sets CurrentGraph on context.</summary>
     internal static void EmitGraphBody(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
         e.Ctx.CurrentGraph = graph;
+        EmitLocalDeclarations(e, graph);
         for (int i = 0; i < graph.Blocks.Count; i++)
         {
             var block = graph.Blocks[i];

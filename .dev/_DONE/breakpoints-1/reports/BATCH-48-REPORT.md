@@ -2,7 +2,7 @@
 
 **Status:** COMPLETE  
 **Tasks:** UBP-P10T1 (EditorSubsystem), UBP-P10T2 (CgfSubsystem)  
-**Result:** All 5 new tests pass; 103 existing BP tests remain green; `dotnet build IOS-IG-SimHost.sln -v quiet` → 0 errors, 0 warnings.
+**Result:** All 5 new tests pass; 103 existing BP tests remain green; `dotnet build HROT.sln -v quiet` → 0 errors, 0 warnings.
 
 ---
 

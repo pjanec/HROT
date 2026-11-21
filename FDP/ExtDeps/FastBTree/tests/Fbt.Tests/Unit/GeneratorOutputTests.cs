@@ -10,6 +10,12 @@ namespace Fbt.Tests.Unit
 {
     public class GeneratorOutputTests
     {
+        // CE-2049: the shipped generator (Fdp.Toolkits.Analyzers BTreeActionGenerator) keys an action by its FULLY
+        //   QUALIFIED method name — the convention every HROT binding resolves by (E6(A)). The deleted Fbt.SourceGen
+        //   keyed it by the short name, which is why these rails were red once it was gone.
+        private static readonly string ActionKey =
+            typeof(AnnotatedTestActions).FullName + "." + nameof(AnnotatedTestActions.AlwaysSuccessAction);
+
         [Fact]
         public void GeneratedRegistrar_ContainsBTreeAction_Method()
         {
@@ -51,7 +57,7 @@ namespace Fbt.Tests.Unit
 
             method!.Invoke(null, new object[] { registry });
 
-            Assert.True(registry.TryGetAction("AlwaysSuccessAction", out _));
+            Assert.True(registry.TryGetAction(ActionKey, out _));
         }
     }
 }

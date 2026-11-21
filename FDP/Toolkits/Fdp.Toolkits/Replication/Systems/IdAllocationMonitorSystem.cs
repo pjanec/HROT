@@ -7,9 +7,11 @@ using Fdp.Toolkit.Replication.Services;
 
 namespace Fdp.Toolkit.Replication.Systems
 {
+    [TickMode(TickPolicy.EveryFrame)]
     public class IdAllocationMonitorSystem : IEcsModuleSystem, IDisposable
     {
         private BlockIdManager? _manager;
+        [Fdp.Core.NotState("process identity, computed once lazily")]
         private string _clientId = string.Empty;
         private EntityRepository? _repo;
 
@@ -56,7 +58,7 @@ namespace Fdp.Toolkit.Replication.Systems
             }
             
             // 2. Consume Network Responses
-            if (repo.Bus.HasManagedEvent<IdBlockResponse>())
+            if (repo.HasManagedEvents<IdBlockResponse>())
             {
                 var responses = view.ReadManagedEvents<IdBlockResponse>();
                 foreach (var resp in responses)

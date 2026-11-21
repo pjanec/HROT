@@ -33,13 +33,14 @@ namespace Fdp.Toolkit.Replication.Extensions
         /// </summary>
         public static bool OwnsDescriptorKey(this ISimulationView view, Entity entity, long packedKey)
         {
-            if (!view.HasComponent<NetworkOwnership>(entity)) return false;
-            
-            var ownership = view.GetComponentRO<NetworkOwnership>(entity);
-            
+            if (!view.HasComponent<NetworkAuthority>(entity)) return false;
+
+            var ownership = view.GetComponentRO<NetworkAuthority>(entity);
+
             // NOTE: Detailed per-descriptor ownership map was removed as part of Core simplification (BATCH-07).
             // Logic now falls back to Primary Owner. Implement custom logic in modules if per-descriptor ownership is needed again.
-            
+            // CE-281: repointed from the retired NetworkOwnership to NetworkAuthority (identical shape).
+
             // Fallback to Primary
             return ownership.PrimaryOwnerId == ownership.LocalNodeId;
         }
@@ -66,12 +67,13 @@ namespace Fdp.Toolkit.Replication.Extensions
 
         public static int GetDescriptorOwnerKey(this ISimulationView view, Entity entity, long packedKey)
         {
-             if (!view.HasComponent<NetworkOwnership>(entity)) return 0;
-            
-            var ownership = view.GetComponentRO<NetworkOwnership>(entity);
-            
+             if (!view.HasComponent<NetworkAuthority>(entity)) return 0;
+
+            var ownership = view.GetComponentRO<NetworkAuthority>(entity);
+
              // NOTE: Detailed per-descriptor ownership map was removed.
-            
+             // CE-281: repointed from the retired NetworkOwnership to NetworkAuthority (identical shape).
+
             return ownership.PrimaryOwnerId;
         }
 

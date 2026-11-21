@@ -1,0 +1,30 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S6 (CE-2158 F-d): fire and movement in buddy pairs. From the header's Judge (1), (5): the squad runs the drill and fires, and closes >= 20 m in up to 120 s (read as >= 3 riflemen past y 185). (2)-(4) at most 2 up at once, the buddy fires, A then B come from the maneuver route, not a component.",
+  "runFor": 125,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the squad runs FireAndMovement",
+      "on": "task",
+      "who": "Squad",
+      "is": "FireAndMovement"
+    },
+    {
+      "name": "the riflemen open fire in contact",
+      "on": "shot",
+      "by": "*Rifleman"
+    },
+    {
+      "name": "the squad closes 20 m in 120 s (3+ riflemen past y 185)",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 185,
+      "quantifier": "atLeast:3",
+      "before": 120
+    }
+  ]
+}

@@ -79,16 +79,16 @@ namespace Fdp.Toolkit.Scenario.Tests
     }
 
     // ────────────────────────────────────────────────────────────────────────────
-    // NoSave component
+    // NoScenario component
     // ────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Transient velocity component — marked <c>NoSave</c> so it must never appear
+    /// Transient velocity component — marked <c>NoScenario</c> so it must never appear
     /// in the scenario DOM.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(293)] // was 214; 214 = GlobalComponentIds.EqsSolverGlobalState (production conflict)
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct NoSaveVelocity
     {
         public float Speed;

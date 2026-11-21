@@ -1,0 +1,35 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AQ (CE-3079 H7): the same scene as ua-danger-crossing, the rifleman's task the blueprint DangerCrossingBp. Only Judge (3)'s walk-away and (4)'s arrival are expressible (sensor ratings and the 10 s hold are not readable); the twin of ua-danger-crossing's conditions.",
+  "runFor": 240,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the rifleman runs DangerCrossingBp",
+      "on": "task",
+      "who": "Rifleman",
+      "is": "DangerCrossingBp"
+    },
+    {
+      "name": "the watcher walks away to (395,290)",
+      "on": "near",
+      "who": "Watcher",
+      "point": [
+        395,
+        290
+      ],
+      "within": 4
+    },
+    {
+      "name": "the rifleman crosses and arrives within 6 m of (285,220)",
+      "on": "near",
+      "who": "Rifleman",
+      "point": [
+        285,
+        220
+      ],
+      "within": 6
+    }
+  ]
+}

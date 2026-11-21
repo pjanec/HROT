@@ -33,8 +33,8 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             _entity = _world.CreateEntity();
             _world.AddComponent(_entity, new TerrainClampBaseline
             {
-                LastValidIgAltitude = 10f, // seed so jump-rejection threshold applies
-                IgAltitudeBaselineEstablished = 1,
+                LastValidPlayerAltitude = 10f, // seed so jump-rejection threshold applies
+                PlayerAltitudeBaselineEstablished = 1,
             });
             _world.AddComponent(_entity, new SimTransform
             {
@@ -103,7 +103,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             var tf = _world.GetComponent<SimTransform>(_entity);
             var state = _world.GetComponent<TerrainClampBaseline>(_entity);
             Assert.Equal(InitialZ, tf.Position.Z);        // Z unchanged on rejection
-            Assert.Equal(10f, state.LastValidIgAltitude); // baseline unchanged
+            Assert.Equal(10f, state.LastValidPlayerAltitude); // baseline unchanged
         }
 
         /// <summary>Hit within threshold: |13 − 10| = 3 ≤ 5 → accepted; Z := 13, X/Y unchanged.</summary>
@@ -118,8 +118,8 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             Assert.Equal(13f, tf.Position.Z);             // authoritative altitude written
             Assert.Equal(InitialX, tf.Position.X);        // X preserved
             Assert.Equal(InitialY, tf.Position.Y);        // Y preserved
-            Assert.Equal(13f, state.LastValidIgAltitude); // baseline advanced
-            Assert.Equal((byte)1, state.IgAltitudeBaselineEstablished);
+            Assert.Equal(13f, state.LastValidPlayerAltitude); // baseline advanced
+            Assert.Equal((byte)1, state.PlayerAltitudeBaselineEstablished);
         }
 
         /// <summary>First accepted hit (bootstrap): any magnitude accepted while baseline unset.</summary>
@@ -128,8 +128,8 @@ namespace Fdp.Modules.Geographic.Tests.Systems
         {
             _world.SetComponent(_entity, new TerrainClampBaseline
             {
-                LastValidIgAltitude = 0f,
-                IgAltitudeBaselineEstablished = 0, // bootstrap
+                LastValidPlayerAltitude = 0f,
+                PlayerAltitudeBaselineEstablished = 0, // bootstrap
             });
 
             // HitZ = 50 would fail the ±5 m threshold against baseline 0, but bootstrap accepts it.
@@ -139,8 +139,8 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             var tf = _world.GetComponent<SimTransform>(_entity);
             var state = _world.GetComponent<TerrainClampBaseline>(_entity);
             Assert.Equal(50f, tf.Position.Z);
-            Assert.Equal(50f, state.LastValidIgAltitude);
-            Assert.Equal((byte)1, state.IgAltitudeBaselineEstablished);
+            Assert.Equal(50f, state.LastValidPlayerAltitude);
+            Assert.Equal((byte)1, state.PlayerAltitudeBaselineEstablished);
         }
 
         /// <summary>Two-step: bootstrap then a within-threshold hit accepted and Z updated.</summary>
@@ -149,8 +149,8 @@ namespace Fdp.Modules.Geographic.Tests.Systems
         {
             _world.SetComponent(_entity, new TerrainClampBaseline
             {
-                LastValidIgAltitude = 0f,
-                IgAltitudeBaselineEstablished = 0,
+                LastValidPlayerAltitude = 0f,
+                PlayerAltitudeBaselineEstablished = 0,
             });
 
             SetBatchEntry(_entity, hitZ: 20f, referenceSimZ: 0f); // bootstrap accept
@@ -160,7 +160,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             SetBatchEntry(_entity, hitZ: 23f, referenceSimZ: 0f); // |23-20|=3 ≤ 5 accept
             RunOnce();
             Assert.Equal(23f, _world.GetComponent<SimTransform>(_entity).Position.Z);
-            Assert.Equal(23f, _world.GetComponent<TerrainClampBaseline>(_entity).LastValidIgAltitude);
+            Assert.Equal(23f, _world.GetComponent<TerrainClampBaseline>(_entity).LastValidPlayerAltitude);
         }
 
         /// <summary>When the result has <c>HasHit = false</c> it must be ignored.</summary>
@@ -173,7 +173,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             var tf = _world.GetComponent<SimTransform>(_entity);
             var state = _world.GetComponent<TerrainClampBaseline>(_entity);
             Assert.Equal(InitialZ, tf.Position.Z);        // unchanged
-            Assert.Equal(10f, state.LastValidIgAltitude); // unchanged
+            Assert.Equal(10f, state.LastValidPlayerAltitude); // unchanged
         }
 
         /// <summary>When no singleton exists the system should not throw.</summary>

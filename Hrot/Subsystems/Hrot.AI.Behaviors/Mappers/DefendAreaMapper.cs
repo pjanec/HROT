@@ -1,8 +1,11 @@
+using Fdp.Toolkit.Replication;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
+using Hrot.Map.Definitions.Behavior;
+using Hrot.Map.Definitions.Behavior.Intents;
 
 namespace Hrot.AI.Behaviors.Mappers
 {
@@ -12,14 +15,17 @@ namespace Hrot.AI.Behaviors.Mappers
     /// into a unit-type-specific <see cref="AssignBehaviorEvent"/>:
     /// <list type="bullet">
     ///   <item><see cref="TkbEntityTypes.MilitaryApc"/> → "ConvoyEscort" behavior</item>
-    ///   <item><see cref="TkbEntityTypes.InfantrySoldier"/> → "InfantryCombat" behavior</item>
+    ///   <item>⭐ <see cref="TkbEntityTypes.InfantrySoldier"/> / <see cref="TkbEntityTypes.Insurgent"/> → the library's
+    ///         <c>CombatPosture</c>, advancing to the area's centre and holding within its radius (<c>CE-3160</c>, L4, R-266 — ⛔ it
+    ///         was <c>InfantryCombat</c>, the UrbanCombat example's tree, registered on the editor only, so CGF dropped the order)</item>
     ///   <item>All other unit types → returns <c>false</c> (pass-through fallback)</item>
     /// </list>
     /// <para>
-    /// The JsonParams from the original intent (centre lat/lon, radius) are forwarded
-    /// unchanged to the target behavior for further interpretation.
+    /// The APC's JsonParams (centre lat/lon, radius) are forwarded unchanged; the infantry's are converted to the posture's
+    /// contract with the node's geographic transform.
     /// </para>
     /// </summary>
+    [Behavior(BehaviorNames.DefendArea, Params = typeof(global::Hrot.Map.Definitions.Behavior.Intents.DefendAreaIntentDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134 — an intent id is fulfilled by its mapper
     public sealed class DefendAreaMapper : ITacticalOrderMapper
     {
         public string TargetIntentId => "DefendArea";
@@ -32,20 +38,45 @@ namespace Hrot.AI.Behaviors.Mappers
         {
             assignment = null!;
 
+            // ⭐ CE-2275 D-1 (DA-39) — a unit with men under it defends with its squad: SquadDefend at the area's centre, its radius the
+            //   posts' search radius. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c.
+            if (repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>() && repo.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(self)
+                && repo.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self).Count > 0)
+            {
+                // ⭐ CE-2276 E-2 (DA-64) — a unit whose members are units (a platoon) defends with its squads: PlatoonDefend at the centre
+                bool platoon = Hrot.AI.Behaviors.Brains.SquadManeuverRunner.IsUnit(repo, repo.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self).SubordinateEntities[0]);
+                assignment = new AssignBehaviorEvent
+                {
+                    Entity = self, BehaviorName = platoon ? BehaviorNames.PlatoonDefend : BehaviorNames.SquadDefend,
+                    JsonParams = platoon ? PlatoonDefendAt(repo, jsonParams) : SquadDefendAt(repo, jsonParams),
+                };
+                return true;
+            }
+
             if (!repo.HasComponent<TkbIdentity>(self))
                 return false;
 
             var tkbType = repo.GetComponent<TkbIdentity>(self).TkbType;
 
-            string behaviorName = tkbType switch
+            string behaviorName = (long)tkbType switch
             {
                 TkbEntityTypes.MilitaryApc     => "ConvoyEscort",
-                TkbEntityTypes.InfantrySoldier => "InfantryCombat",
+                TkbEntityTypes.InfantrySoldier => BehaviorNames.CombatPosture,
+                TkbEntityTypes.Insurgent       => BehaviorNames.CombatPosture,
                 _                              => string.Empty
             };
 
             if (string.IsNullOrEmpty(behaviorName))
                 return false;
+
+            if (behaviorName == BehaviorNames.CombatPosture)
+            {
+                // ⭐ CE-2375 (AQ104 A-1, R-2081) — a LONE man defends with a squad of his own: it is asked for now and gets SquadDefend once it
+                //   exists on this node (OneManCommandSystem); until then he holds the area on the posture below — creation is never immediate
+                if (Hrot.AI.Behaviors.Brains.OneManCommand.IsLone(repo, self))
+                    Hrot.AI.Behaviors.Brains.OneManCommand.Request(repo, self, BehaviorNames.SquadDefend, SquadDefendAt(repo, jsonParams));
+                jsonParams = PostureAt(repo, jsonParams);
+            }
 
             assignment = new AssignBehaviorEvent
             {
@@ -55,5 +86,51 @@ namespace Hrot.AI.Behaviors.Mappers
             };
             return true;
         }
-    }
+    
+        /// <summary>⭐ CE-2275 — the area as SquadDefend's contract: the centre (this node's sim frame) and the radius.</summary>
+        private static string SquadDefendAt(EntityRepository repo, string jsonParams)
+        {
+            var options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var area = string.IsNullOrWhiteSpace(jsonParams) ? null
+                : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
+            return System.Text.Json.JsonSerializer.Serialize(new SquadDefendParamsJsonDto
+            {
+                Position = CentreOf(repo, area), SearchRadius = (float)(area?.RadiusMeters ?? 0f),
+            }, options);
+        }
+
+        /// <summary>⭐ DA-64 — the area as PlatoonDefend's contract: the centre and the radius (the squads' search radius); no engagement
+        /// area, so the platoon takes its own sector, else the trigger is an enemy within 300 m (DA-53).</summary>
+        private static string PlatoonDefendAt(EntityRepository repo, string jsonParams)
+        {
+            var options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var area = string.IsNullOrWhiteSpace(jsonParams) ? null
+                : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
+            return System.Text.Json.JsonSerializer.Serialize(new PlatoonDefendParamsJsonDto
+            {
+                Position = CentreOf(repo, area), SearchRadius = (float)(area?.RadiusMeters ?? 0f),
+            }, options);
+        }
+
+        private static System.Numerics.Vector3 CentreOf(EntityRepository repo, DefendAreaIntentDto? area)
+        {
+            // ⭐ S0 item 5 (SR-135): the centre is an authored PointLink — local metres already, no geodetic conversion
+            return area == null ? System.Numerics.Vector3.Zero : (System.Numerics.Vector3)area.Center;
+        }
+
+        /// <summary>The area as CombatPosture's contract: advance to the centre (lat/lon → this node's sim frame), arrive within the
+        /// radius. Without a geographic transform the centre stays at the origin — the posture then holds where it is.</summary>
+        private static string PostureAt(EntityRepository repo, string jsonParams)
+        {
+            var options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var area = string.IsNullOrWhiteSpace(jsonParams) ? null
+                : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
+            var centre = CentreOf(repo, area);
+            var posture = new CombatPostureParamsJsonDto
+            {
+                Advance = new CombatPostureAdvanceJsonDto { Objective = centre, ArrivalRadius = area?.RadiusMeters ?? 0f },
+            };
+            return System.Text.Json.JsonSerializer.Serialize(posture, options);
+        }
+}
 }

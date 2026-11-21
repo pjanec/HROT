@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SimPresentationModule_DoesNotDraw_WhenOtherPerspectiveActive()
         {
-            _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "IG" });
+            _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "Player" });
 
             var module = new SimPresentationModule(canvas: null);
 

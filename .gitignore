@@ -52,12 +52,60 @@ nunit-*.xml
 .dumps
 .tmp
 imgui.ini
+# ...except the SHIPPED DEFAULT LAYOUT, which is a deliberate asset (UX_Feature_Layout_Defaults.md).
+!layout/default/imgui.ini
 cyclonedds.log
 *.csproj.user
 .codebase
 .codebase-memory
-*.lscache
 build-output.txt
 
 # Blueprint debug session files (user-local, not committed)
 .debug/
+.type_index.json
+__pycache__/
+scenarios/perf-civ-*/
+.claude/worktrees/
+
+# CE-4324 — the default staging / recordings root (OrchestrationConstants.ResolveStagingRoot) in a dev build
+/data/
+
+# CE-4363: the scale terrains (scripts/terrain-scale.py) — regenerated, never committed
+assets/terrain/scale-*/
+# ⭐ CE-4425 (Terrain Authoring §18 C-11, G-14): generated terrain content is NEVER in git — a terrain folder is git's only if it is one of the
+#   committed demos below; a new one (generated, imported, baked by "Save terrain as") lives on the NAS / content root. Add a new DEMO here on purpose.
+assets/terrain/*
+!assets/terrain/basic-desert/
+!assets/terrain/berlin/
+!assets/terrain/bt-range/
+!assets/terrain/cqb-village/
+!assets/terrain/demo-city/
+!assets/terrain/highway-rest/
+!assets/terrain/indirect-fire-range/
+!assets/terrain/test-town/
+# CE-6003 — a hand-authored FEATURE terrain (showcases/city-battle/features/roadblock-blast: a wall with one 6 m gate), committed on purpose
+!assets/terrain/roadblock-street/
+# CE-4623 AB-10 — the hand-authored FARM for the animals demo (scenarios/demos/animals/farm-under-fire): a pasture fence, a pig pen, an orchard — committed on purpose
+!assets/terrain/farm/
+# CE-10001 (air lane, R-10009) — the generated AIR-RANGE for the air-combat feature tests (scenarios/demos/air/ac-*): 2 x 2 km, written by
+#   scripts/gen-air-combat-scenarios.py from the same height function the checks are computed from — committed on purpose (~10 KB)
+!assets/terrain/air-range/
+# CE-6001 — the hand-planned CITY-BATTLE terrain (assets/terrain-plans/city-battle.plan.json, regenerate with HROT_GEN_CITY_BATTLE=1): committed on purpose, WITHOUT its kept source/ (ignored below)
+!assets/terrain/city-battle/
+# CE-4672 / CE-4673 — the STREET-FIGHT ground (a 30 m open corridor between detached family houses), written by scripts/gen-wide-corridor.py — committed on purpose (~40 KB)
+!assets/terrain/wide-corridor/
+# the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
+assets/terrain/*/source/
+# ⭐ AQ112 A (R-4280): the old versions of a re-imported terrain (versions/<contentHash>/) live on disk and the content root, never in git — demos included
+assets/terrain/**/versions/
+# the content-hash cache TerrainContentHash writes beside terrain.json (per machine, by length + mtime) — never in git, demos included
+assets/terrain/*/terrain.hash
+**/terrain.hash
+**/terrain-overlay/
+scenarios/scale-rig-*/
+
+# SUMO installed by scripts/install-sumo.* (Terrain From OSM §9.1) — never committed
+.local/
+
+# hrot-terrain-osm's default --out: OSM-derived input sets (ODbL) - regenerated, never committed
+terrain-input/

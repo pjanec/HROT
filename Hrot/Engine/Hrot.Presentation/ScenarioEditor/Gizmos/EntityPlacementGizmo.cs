@@ -39,8 +39,11 @@ namespace Hrot.ScenarioEditor.Gizmos
         // Constants copied from deleted CreationToolConstants
         private const long DefaultTkbType    = 101L;
         private const byte GhostAlpha        = 128;
-        private const int  GhostRadiusPx     = 15;
-        private const int  GhostLabelOffsetY = 20;
+        // ⭐ CE-1065 — half the size it was (user, 2026-10-14: "make the entity placement and entity picker gizmo 2 times smaller").
+        //   ⚠ Despite the "Px" name these are WORLD METRES (DrawSphere's default SizeMode) — a 15 m translucent ball hid the scene in 3-D.
+        // ⭐ CE-1337 — 6 m across, about one tank (user, 2026-10-25: "it should not be bigger than 2 tank lengths"); the ghost box shows the real size.
+        private const byte FootprintFillAlpha = 100;
+        private const float GhostLabelOffsetY = 10f;
 
         private readonly Action<SpawnEntityCommand> _onEntityCreated;
         private readonly long                       _tkbType;
@@ -49,8 +52,34 @@ namespace Hrot.ScenarioEditor.Gizmos
         private readonly bool                       _autoPopOnPlace;
         private readonly Func<string>?              _nameResolver;
         private readonly Action                     _onRemove;
+        private readonly string?                    _displayName;
+        private readonly Func<Hrot.Common.Macros.MacroPreviewResult?>? _macroPreview;   // ⭐ CE-4244 (MA-10) — a MACRO placement draws its ghosts at the cursor
+        private readonly Hrot.UI.Common.AddEntity.TerrainPlacement? _terrain;            // ⭐ Terrain authoring U-2 — a block / house placement draws its fitted ghost; R turns it
+
+        /// <summary>
+        /// ⭐ CE-1017 S2 (D6b) — the entity faces NORTH: yaw +90° about Z. 📐 The transform's yaw 0 is EAST
+        /// (<c>SimTransform</c>: "yaw: 0=X axis direction (east), +90=Y axis direction (north)"), so the
+        /// <c>Quaternion.Identity</c> used before faced every placed entity east.
+        /// </summary>
+        internal static readonly Quaternion FacingNorth = PlacementSession.FacingNorth;
+
+        /// <summary>The hint shown under the ghost while the tool stays armed (always-multi, D5 rev 3).</summary>
+        internal const string MultiPlacementHint = "click: place  ·  right-click/Esc: done";
+
+        /// <summary>The raylib key code of <c>R</c> (the map streams typed keys as raylib codes, like PgUp / PgDn).</summary>
+        internal const int KeyR = 82;
 
         private Vector3 _cursorWorld;
+        private Fdp.Toolkit.World.IWorldQuery? _world;
+
+        // ⭐ CE-4309 (Map Interaction P3) — airborne by type, the 2-D level, the heading drag: decided here, built into the command below
+        private readonly PlacementSession _session = new();
+        private bool _typeKnown;
+        private (float? Air, int Level, int Count) _hintKey = (null, -1, -1);
+        private (string First, string? Second) _hint = (MultiPlacementHint, null);
+
+        /// <summary>The placement's choices (rails).</summary>
+        internal PlacementSession Session => _session;
 
         /// <summary>
         /// Raised after a <see cref="SpawnEntityCommand"/> has been constructed and passed
@@ -68,6 +97,9 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <inheritdoc/>
         public bool RequiresExclusiveFocus => true;
         public bool WantsRawInput => true;
+
+        /// <summary>⭐ Terrain authoring U-2 — the terrain placement this tool carries, or null (rails).</summary>
+        internal Hrot.UI.Common.AddEntity.TerrainPlacement? Terrain => _terrain;
 
         /// <inheritdoc/>
         public bool IsFocused { get; private set; }
@@ -93,7 +125,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </param>
         /// <param name="nameResolver">
         /// Optional delegate invoked on each left-click to obtain the entity name.
-        /// When provided it takes priority over any <c>name</c> in <paramref name="initialPropertiesJson"/>.
+        /// When provided it replaces the TKB-default name (⭐ <c>CE-259ax</c> G2: it is no longer dropped). ⚠ An explicit <c>name</c> in
+        /// <paramref name="initialPropertiesJson"/> is compiled on top by the adapter and still wins.
         /// </param>
         /// <param name="onRemove">
         /// Callback invoked when the gizmo wants to exit. Typically calls
@@ -105,8 +138,14 @@ namespace Hrot.ScenarioEditor.Gizmos
             string?                    initialPropertiesJson = null,
             bool                       autoPopOnPlace        = true,
             Func<string>?              nameResolver          = null,
-            Action?                    onRemove              = null)
+            Action?                    onRemove              = null,
+            string?                    displayName           = null,
+            Func<Hrot.Common.Macros.MacroPreviewResult?>? macroPreview = null,
+            Hrot.UI.Common.AddEntity.TerrainPlacement? terrain = null)
         {
+            _terrain               = terrain;
+            _macroPreview          = macroPreview;
+            _displayName           = displayName;
             _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
             _tkbType               = tkbType == 0 ? DefaultTkbType : tkbType;
             _affiliationForDisplay = ParseAffiliationFromJson(initialPropertiesJson);
@@ -125,15 +164,121 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </remarks>
         public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
+            _world = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1033 S2 — for the clicked level (M20)
+            EnsureType(view);
             var ghostColor = GetAffiliationColor(_affiliationForDisplay);
             ghostColor.A = GhostAlpha;
 
-            draw.DrawSphere(_cursorWorld, GhostRadiusPx, ghostColor);
+            // ⭐ U-8 (CE-4339) — while a heading drag is down the entity lands at the PRESS point, so the ghost stands there (it used to follow the cursor) and a direction line runs from it toward the cursor
+            var (ghostAt, dragYaw) = _session.Pending(_cursorWorld);
+            // ⭐ B-17 P7 ① — NO ball any more (the 3 px sphere). The ghost is the entity's FOOTPRINT, as the 2-D map will draw it (EntityFootprint's one rule, read from the TKB template),
+            //   turned to the pending heading with a notch at the front; an aircraft stands at its altitude over a drop line and a ground ring (its shadow).
+            float lift = _session.AirborneHeight ?? 0f;
+            if (_terrain is not null)
+            {
+                // ⭐ Terrain authoring U-2 — no entity footprint: the block's own ghost, fitted to the site under the cursor (the pure expander), turned by the drag and by R
+                float baseHeading = dragYaw is { } yaw ? yaw * (180f / MathF.PI) - 90f : 0f;
+                if (_terrain.Preview(new Vector2(ghostAt.X, ghostAt.Y), baseHeading) is { } shape) TerrainGhostDraw.Draw(draw, shape, _cursorWorld, GhostLabelOffsetY);
+                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - GhostLabelOffsetY, _label ??= _terrain.Title, Rgba32.White, style: GizmoTextStyle.Backdrop);
+                Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(view as EntityRepository)?.ClaimCursorHint();
+                PlacementDirectionLine.Draw(draw, _session, _cursorWorld);
+                return;
+            }
+            DrawFootprint(draw, ghostColor, ghostAt, dragYaw ?? (MathF.PI / 2f));   // north until a drag sets the heading (PlacementSession.FacingNorth)
+            DrawGhostBox(view, draw, ghostColor, lift > 0f ? new Vector3(ghostAt.X, ghostAt.Y, ghostAt.Z + lift) : ghostAt, dragYaw ?? (MathF.PI / 2f));
+            if (lift > 0f) DrawAircraftShadow(draw, ghostColor, ghostAt, lift);
+            if (_macroPreview?.Invoke() is { } preview) MacroGhostDraw.Draw(draw, preview, ghostAt);   // ⭐ CE-4244 MP-2 (a) — what the click would create
+            PlacementDirectionLine.Draw(draw, _session, _cursorWorld);
+            // ⭐ CE-1017 S2: the type's NAME (it used to be the bare TKB number), and while the tool stays armed
+            //   the hint that says how to finish.
             draw.DrawTextLong(
                 _cursorWorld.X,
-                _cursorWorld.Y + GhostLabelOffsetY,
-                _tkbType.ToString(),
-                Rgba32.White);
+                _cursorWorld.Y - GhostLabelOffsetY,   // ⭐ CE-1040 (N5) — north-up: below the cursor is world −Y
+                _label ??= string.IsNullOrWhiteSpace(_displayName) ? _tkbType.ToString() : _displayName!,   // ⭐ cached: a per-frame ToString() allocated
+                Rgba32.White, style: GizmoTextStyle.Backdrop);
+            var key = (_session.AirborneHeight, _session.Level, _session.LevelCount);
+            if (key != _hintKey) { _hintKey = key; _hint = _session.Hint(_autoPopOnPlace ? "click: place" : MultiPlacementHint); }   // ⭐ CE-4309 — rebuilt only when a choice moves (0 B steady)
+            if (!_autoPopOnPlace || _hint.Second != null)
+            {
+                Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(view as EntityRepository)?.ClaimCursorHint();   // ⭐ B-17 P1 — ONE hint at the cursor: this one
+                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 2 * GhostLabelOffsetY, _hint.First, Rgba32.White, style: GizmoTextStyle.Backdrop);
+                if (_hint.Second != null) draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 3 * GhostLabelOffsetY, _hint.Second, Rgba32.White, style: GizmoTextStyle.Backdrop);
+            }
+        }
+
+        /// <summary>⭐ CE-4309 — once: does this type fly? Its TKB flight descriptor's height (the A-10C 300 m, a helicopter 30 m), else a ground type.</summary>
+        private void EnsureType(ISimulationView view)
+        {
+            if (_typeKnown || view is not Fdp.Core.EntityRepository repo || !repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return;
+            var tkb = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            if (tkb == null || !tkb.TryGetByType(_tkbType, out var template) || template == null) return;
+            var flight = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.FlightParamsDto>();
+            _session.SetType(flight?.HoverHeightM, flight is null ? 0f : (flight.CruiseSpeedMps > 0f ? flight.CruiseSpeedMps : flight.MaxSpeedMps));
+            _bodyLook = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(template);   // ⭐ once, with the footprint: the ghost's wire box is the same every frame (0 B steady)
+            Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.Dimensions(template, out _footLength, out _footWidth);   // ⭐ B-17 P7 ① — once: the rule the 2-D symbol and the pick area use
+            _typeKnown = true;
+        }
+
+        // ⭐ B-17 P7 ① — the footprint (metres) the spawned entity will have on the 2-D map; the rule's fallback until the TKB template is known.
+        private string? _label;
+        private Hrot.UI.Common.Map3D.EntityBodyLayer3D.TypeLook? _bodyLook;
+        private float _footLength = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.DefaultLengthMetres;
+        private float _footWidth = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.DefaultLengthMetres * Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.DefaultWidthFactor;
+
+        /// <summary>⭐ B-17 P7 ① — a translucent box of the entity's footprint (world metres) turned to <paramref name="yawRad"/> (math yaw: the length runs along local +X), a dashed outline in the side colour,
+        /// and a small solid notch triangle just beyond the front edge so the heading reads at a glance.</summary>
+        private void DrawFootprint(IDebugDrawBuilder draw, Rgba32 colour, Vector3 at, float yawRad)
+        {
+            var outline = new Rgba32(colour.R, colour.G, colour.B, 230);
+            var fill = new Rgba32(colour.R, colour.G, colour.B, FootprintFillAlpha);
+            var centre = new Vector2(at.X, at.Y);
+            draw.DrawBox2D(centre, new Vector2(_footLength * 0.5f, _footWidth * 0.5f), outline, yawRad * (180f / MathF.PI), 1.6f, SizeMode.WorldMeters, fillColor: fill, style: LineStyle.Dashed);   // metres for the box, a 1.6 px outline (outlines are pixels)
+            var f = new Vector2(MathF.Cos(yawRad), MathF.Sin(yawRad));
+            var side = new Vector2(-f.Y, f.X);
+            float half = _footLength * 0.5f, notchHalf = _footWidth * 0.2f, notchLen = _footWidth * 0.35f;
+            var front = centre + f * half;
+            draw.DrawFilledTriangle(front + side * notchHalf, front - side * notchHalf, front + f * notchLen, outline);
+        }
+
+        /// <summary>⭐ B-17 P7 ① — an aircraft at its altitude: a dashed drop line from the ghost down to the ground under it, and a ground ring (its shadow) round the footprint.</summary>
+        private void DrawAircraftShadow(IDebugDrawBuilder draw, Rgba32 colour, Vector3 groundAt, float lift)
+        {
+            var line = new Rgba32(colour.R, colour.G, colour.B, 230);
+            draw.DrawLine(new Vector3(groundAt.X, groundAt.Y, groundAt.Z + lift), groundAt, line, 1.2f, SizeMode.ScreenPixels, style: LineStyle.Dashed);
+            draw.DrawSphere(new Vector3(groundAt.X, groundAt.Y, 0f), MathF.Max(_footLength, _footWidth) * 0.5f, line, thickness: 1f);   // thickness ⇒ an outline ring only, draped on the ground in 3-D
+        }
+
+        /// <summary>
+        /// ⭐ CE-1033 S3 (docs/DESIGN_Map_3D_Mode.md M20) — the placement GHOST: a wire box of the type's drawn size (the 3-D map's
+        /// <see cref="Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve"/>, one sizing rule) standing on the picked surface. In 3-D
+        /// it shows the body where it will land (a roof, a slope); in 2-D its edges collapse onto the type's footprint.
+        /// ⚠ A wire box, not the translucent shape kit the design names: a gizmo emits primitives, and a kit mesh is not one.
+        /// </summary>
+        private static Vector3 Corner(Vector3 centre, float cs, float sn, float lx, float ly, float z) => new(centre.X + lx * cs - ly * sn, centre.Y + lx * sn + ly * cs, z);
+        private static void Edge(IDebugDrawBuilder draw, Vector3 a, Vector3 b, Rgba32 colour) => draw.DrawLine(a, b, colour, 1f, SizeMode.ScreenPixels, PipelineTarget.Viewport3D);
+
+        private void DrawGhostBox(ISimulationView view, IDebugDrawBuilder draw, Rgba32 colour, Vector3 centre, float yawRad)
+        {
+            if (_bodyLook is not { } look) return;   // resolved once by EnsureType
+            if (look.Family == Hrot.UI.Common.Map3D.VisualFamily.Unit) return;
+            var h = look.Size / 2f;
+            float z0 = centre.Z, z1 = centre.Z + look.Size.Z;
+            // ⭐ B-17 P7-C — the 3-D view's box only (PipelineTarget.Viewport3D: the 2-D renderer skips a primitive without Map2D, DebugPrimitiveRenderer2D.cs:119), turned to the SAME heading as
+            //   the footprint (the size's X runs along the heading). ONE outline per view: 2-D shows the footprint box alone.
+            float cs = MathF.Cos(yawRad), sn = MathF.Sin(yawRad);
+            // the 12 edges, with no span / array (a steady frame allocates nothing): the two rectangles (z0, z1) and the four verticals
+            for (int level = 0; level < 2; level++)
+            {
+                float z = level == 0 ? z0 : z1;
+                var a = Corner(centre, cs, sn, -h.X, -h.Y, z); var b = Corner(centre, cs, sn, h.X, -h.Y, z);
+                var c = Corner(centre, cs, sn, h.X, h.Y, z); var d = Corner(centre, cs, sn, -h.X, h.Y, z);
+                Edge(draw, a, b, colour); Edge(draw, b, c, colour); Edge(draw, c, d, colour); Edge(draw, d, a, colour);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                float lx = (i & 1) == 0 ? -h.X : h.X, ly = (i & 2) == 0 ? -h.Y : h.Y;
+                Edge(draw, Corner(centre, cs, sn, lx, ly, z0), Corner(centre, cs, sn, lx, ly, z1), colour);
+            }
         }
 
         // IEntityStatefulGizmo — interaction
@@ -142,6 +287,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void OnDragUpdate(Vector3 worldPos)
         {
             _cursorWorld = worldPos;
+            _session.Hover(_world, worldPos);   // ⭐ CE-4309 — the surfaces stacked under the cursor (2-D)
         }
 
         /// <inheritdoc/>
@@ -151,9 +297,14 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </remarks>
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
+            // ⭐ CE-1017 S2: modifiers ride in the high bits (MapMouseButton.ShiftMask …); a Shift+click IS a
+            //   left click. 📐 The exact compare used before made a modified click do nothing at all.
+            bool shift = (button & MapMouseButton.ShiftMask) != 0;   // ⭐ CE-4309 — Shift places an aircraft parked on the ground
+            button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
+            if (button == MapMouseButton.Left && isPressed) _session.Press(worldPos);   // ⭐ CE-4309 — a drag from here sets the heading
             if (button == MapMouseButton.Left && !isPressed)
             {
-                BuildAndPublishSpawnCommand(worldPos);
+                BuildAndPublishSpawnCommand(worldPos, shift);
                 if (_autoPopOnPlace)
                     Remove();
             }
@@ -168,6 +319,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (key == MapKeyboardKey.Escape && isPressed)
                 Remove();
+            else if (((int)key & 0xFFFF) == KeyR && isPressed && _terrain is not null) _terrain.Rotate();   // ⭐ Terrain authoring U-2 — a quarter turn
+            else if (isPressed) _session.Key((int)key);   // ⭐ CE-4309 — PgUp / PgDn: the level under the cursor
         }
 
         // Unused IEntityStatefulGizmo methods — empty body (no interaction handle for placement)
@@ -196,32 +349,47 @@ namespace Hrot.ScenarioEditor.Gizmos
             _onRemove();
         }
 
-        private void BuildAndPublishSpawnCommand(Vector3 worldPos)
+        private void BuildAndPublishSpawnCommand(Vector3 worldPos, bool shift = false)
         {
             // The canvas worldPos is in flat-earth Cartesian space (X = east meters, Y = north meters).
             // Store it verbatim as the InitialTransform. The ACL egress translator
             // (SpawnEntityCommandEgressTranslator) converts this position to geodetic lat/lon
             // via the IGeographicTransform when building the DDS CreateEntityRequest.
-            // nameResolver is retained for future wiring (session-scoped sequential names).
-            _ = _nameResolver; // retained for future use
+            //
+            // ⭐ CE-4309 (P3) — the session decides the rest: a FLYING type is born in the air (AboveLevel + its height; Shift: on the ground),
+            //   a 2-D click on a stacked place takes the chosen level, a 3-D click its own level (CE-1033 M20), a drag sets the heading.
+            int? levelOf3D = worldPos.Z != 0f && _world != null ? Fdp.Toolkit.World.Levels.LevelOf(_world, worldPos) : null;
+            var (position, height, rotation) = _session.Resolve(worldPos, shift, levelOf3D);
 
             var cmd = new SpawnEntityCommand
             {
                 NetworkId         = 0,
-                TkbType           = _tkbType,
-                OwnerNodeId       = 0,
+                TkbType           = (Fdp.Core.TkbTypeId)(_tkbType),
+                OwnerNodeId       = (Fdp.Core.NodeId)(0),
                 InitType          = ReliableInitType.AllPeers,
                 InitialTransform  = new SimTransform
                 {
-                    Position = new Vector3(worldPos.X, worldPos.Y, 0f),
-                    Rotation = Quaternion.Identity,
+                    Position = position,
+                    Rotation = rotation,
                 },
+                SpawnHeight           = height,
                 InitialAttributesJson = _initialPropertiesJson,
                 RequestId             = Guid.NewGuid(),
             };
 
+            // ⭐ CE-259ax G2 — the resolver was accepted and DROPPED (`_ = _nameResolver`). Its name now rides on the command as the
+            //   entity's EntityInfo, which the adapter keeps instead of seeding its TKB-default one; an explicit `name` in the properties
+            //   JSON is compiled on top and still wins.
+            var resolved = _nameResolver?.Invoke();
+            if (!string.IsNullOrWhiteSpace(resolved))
+                cmd.InitialComponents = new System.Collections.Generic.List<object>
+                {
+                    new EntityInfo { Name = new FixedString64(resolved), ForceId = ForceId.Neutral },
+                };
+
             _onEntityCreated(cmd);
             OnCommandPublished?.Invoke(cmd);
+            _terrain?.Renew();   // ⭐ Terrain authoring U-2 — always-multi: the next ghost is another layout
         }
 
         /// <summary>
@@ -252,13 +420,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             return ForceId.Neutral;
         }
 
-        private static Rgba32 GetAffiliationColor(ForceId affiliation) =>
-            affiliation switch
-            {
-                ForceId.Friend  => new Rgba32(0, 0, 255, 255),
-                ForceId.Hostile => Rgba32.Red,
-                ForceId.Neutral => Rgba32.Green,
-                _               => Rgba32.White,
-            };
+        /// <summary>⭐ CE-1163 (Symbology §3.2) — the second side palette folded into the one table: the ghost and the placed entity match.</summary>
+        private static Rgba32 GetAffiliationColor(ForceId affiliation) => Hrot.Common.Diagnostics.Gizmos.AffiliationColors.Of(affiliation);
     }
 }

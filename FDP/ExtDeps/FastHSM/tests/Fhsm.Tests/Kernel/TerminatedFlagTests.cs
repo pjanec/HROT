@@ -39,7 +39,7 @@ namespace Fhsm.Tests.Kernel
             var blob = BuildBlob(builder);
 
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Entry;
             instance.ActiveLeafIds[0] = 0xFFFF;
 
@@ -66,7 +66,7 @@ namespace Fhsm.Tests.Kernel
             var blob = BuildBlob(builder);
 
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Entry;
             instance.ActiveLeafIds[0] = 0xFFFF;
 
@@ -100,7 +100,7 @@ namespace Fhsm.Tests.Kernel
             var blob = BuildBlob(builder);
 
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Entry;
             instance.ActiveLeafIds[0] = 0xFFFF;
 
@@ -127,7 +127,7 @@ namespace Fhsm.Tests.Kernel
             var blob = BuildBlob(builder);
 
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Entry;
             instance.ActiveLeafIds[0] = 0xFFFF;
 

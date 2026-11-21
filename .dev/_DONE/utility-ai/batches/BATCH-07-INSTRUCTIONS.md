@@ -183,7 +183,7 @@ If done, mark D-08 RESOLVED in `DEBT-TRACKER.md`.
 ## Build and test
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj --filter "FullyQualifiedName~StarterPackIntegrationTests|FullyQualifiedName~UtilitySelectorNodeTests|FullyQualifiedName~UtilityTransitionArbiterTests"
 dotnet test Hrot\Subsystems\Blueprints\Hrot.Blueprints.Tests\Hrot.Blueprints.Tests.csproj --filter "FullyQualifiedName~UtilityNodeRuntimeTests"
 ```

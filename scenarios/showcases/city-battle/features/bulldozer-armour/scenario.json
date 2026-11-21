@@ -1,0 +1,412 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-6006 feature scenario (showcase world, DESIGN_City_Battle_Showcase V-1a) - on open basic-desert, two bulldozers (TKB 112, inert, Health 1000) 600 m apart. 'Dozer Rifle' is shot at by a four-man rifle squad from 60 m; 'Dozer RPG' by one RPG man (four rockets) from 50 m. Judge: (1) the squad hits 'Dozer Rifle' many times and it is NOT hurt (small arms do nothing to its 40-50 mm steel) (2) the RPG man's rockets hit 'Dozer RPG': it is still alive after the 2nd and dead after the 3rd. Fail: any health lost to rifles, dead after 2 rockets, alive after 3. Check: Hrot.ClusterRunner --mode editor --headless --verify bulldozer-armour"
+ },
+ "entities": {
+  "b6006000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 112
+   },
+   "EntityInfo": {
+    "Name": "Dozer Rifle",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6006000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     700,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 112
+   },
+   "EntityInfo": {
+    "Name": "Dozer RPG",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6006000-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     92,
+     360,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "b6006000-0000-4000-8000-000000000001",
+      "PosX": 100,
+      "PosY": 300,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": {
+     "target": "b6006000-0000-4000-8000-000000000001",
+     "advance": {
+      "Objective": [
+       92,
+       360,
+       0
+      ],
+      "Speed": 2,
+      "ArrivalRadius": 3,
+      "CooldownSeconds": 1
+     }
+    },
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicInfantrySop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6006000-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     97,
+     360,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Rifleman 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "b6006000-0000-4000-8000-000000000001",
+      "PosX": 100,
+      "PosY": 300,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": {
+     "target": "b6006000-0000-4000-8000-000000000001",
+     "advance": {
+      "Objective": [
+       97,
+       360,
+       0
+      ],
+      "Speed": 2,
+      "ArrivalRadius": 3,
+      "CooldownSeconds": 1
+     }
+    },
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicInfantrySop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6006000-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     102,
+     360,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Rifleman 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "b6006000-0000-4000-8000-000000000001",
+      "PosX": 100,
+      "PosY": 300,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": {
+     "target": "b6006000-0000-4000-8000-000000000001",
+     "advance": {
+      "Objective": [
+       102,
+       360,
+       0
+      ],
+      "Speed": 2,
+      "ArrivalRadius": 3,
+      "CooldownSeconds": 1
+     }
+    },
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicInfantrySop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6006000-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     107,
+     360,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Rifleman 4",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "b6006000-0000-4000-8000-000000000001",
+      "PosX": 100,
+      "PosY": 300,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": {
+     "target": "b6006000-0000-4000-8000-000000000001",
+     "advance": {
+      "Objective": [
+       107,
+       360,
+       0
+      ],
+      "Speed": 2,
+      "ArrivalRadius": 3,
+      "CooldownSeconds": 1
+     }
+    },
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicInfantrySop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b6006000-0000-4000-8000-000000000020": {
+   "SimTransform": {
+    "Position": [
+     700,
+     350,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "RPG Man",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "b6006000-0000-4000-8000-000000000002",
+      "PosX": 700,
+      "PosY": 300,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": {
+     "target": "b6006000-0000-4000-8000-000000000002",
+     "advance": {
+      "Objective": [
+       700,
+       350,
+       0
+      ],
+      "Speed": 2,
+      "ArrivalRadius": 3,
+      "CooldownSeconds": 1
+     }
+    },
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicInfantrySop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

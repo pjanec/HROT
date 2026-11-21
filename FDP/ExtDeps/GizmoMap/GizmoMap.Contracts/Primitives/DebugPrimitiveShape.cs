@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         ContextMenuBinding  = 11, // Non-visual meta-primitive: binds an interned JSON menu hash to a NetworkId
         InputCaptureBinding = 12, // Non-visual meta-primitive: declares that the bound token wants raw HW events
         MainMenuBinding     = 13, // Non-visual meta-primitive: injects an interned JSON menu array into the global main menu
-        LayerControlMask    = 14  // Non-visual meta-primitive: 256-bit layer visibility mask asserted by the backend
+        LayerControlMask    = 14, // Non-visual meta-primitive: 256-bit layer visibility mask asserted by the backend
+        FilledTriangle      = 15  // A filled 2-D triangle in world space (TriA/TriB/TriC + Color) — terrain/area fills (DESIGN_Terrain_World W2)
     }
 }

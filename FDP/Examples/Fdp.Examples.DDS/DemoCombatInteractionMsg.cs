@@ -6,14 +6,14 @@ namespace Fdp.Examples.DDS
     /// Cross-process fire/hit notification.
     /// Used by the DistributedTank and UrbanCombat (new) scenarios.
     /// </summary>
-    [DdsTopic("FDP.Demo_CombatInteraction")]
+    [DdsTopic]
     public partial struct DemoCombatInteractionMsg
     {
         /// <summary>Network ID of the firing entity.</summary>
-        public long ShooterNetId;
+        public int ShooterNetId;
 
         /// <summary>Network ID of the target entity.</summary>
-        public long TargetNetId;
+        public int TargetNetId;
 
         /// <summary><c>true</c> when the projectile successfully hit the target.</summary>
         public bool IsHit;

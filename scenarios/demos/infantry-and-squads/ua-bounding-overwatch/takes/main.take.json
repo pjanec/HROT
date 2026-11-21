@@ -1,0 +1,85 @@
+{
+  "title": "Bounding overwatch",
+  "caption": "The halves leapfrog; when the hostile is seen, the watchers open fire",
+  "clip": "F-25",
+  "chapter": 6,
+  "state": "ready",
+  "endAt": "m+5",
+  "anchors": {
+    "m": {
+      "on": "hit",
+      "target": "Hostile"
+    }
+  },
+  "keys": [
+    {
+      "at": "m-10",
+      "follow": "Leader",
+      "distance": 60,
+      "yaw": 20,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 45,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Rifleman 5",
+      "toward": "Hostile",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rifleman 5",
+      "toward": "Hostile",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Hostile",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-10",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-10",
+      "until": "m-4",
+      "text": "One half moves while the other watches"
+    },
+    {
+      "at": "m-4",
+      "until": "m+5",
+      "text": "Contact: the watchers open fire"
+    }
+  ]
+}

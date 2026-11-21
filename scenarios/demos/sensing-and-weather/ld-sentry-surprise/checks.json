@@ -1,0 +1,34 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — LD-5: a 200-degree cone hides a man walking up behind the sentry until he fires. Only the positions are expressible: the Sentry holds, A crosses, B walks up to y 40. Left out: ALL four Judge points about eyes and memory (look bearing, 'A seen', 'B not in memory', 'turns to the shot'): memory and look are read over /memory and /state, and the live check also sets his sector and orders B to fire over HTTP (not components). Golden false for the same reason: this run lacks those acts.",
+  "runFor": 60,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the Sentry holds (PersonHold)",
+      "on": "task",
+      "who": "Sentry",
+      "is": "PersonHold",
+      "before": 10
+    },
+    {
+      "name": "Hostile A crosses to the east end of its line at (198,150)",
+      "on": "near",
+      "who": "Hostile A",
+      "point": [
+        198,
+        150
+      ],
+      "within": 2
+    },
+    {
+      "name": "Hostile B walks up behind the Sentry (the take's cue: within 5 m of (185,40))",
+      "on": "near",
+      "who": "Hostile B",
+      "point": [
+        185,
+        40
+      ],
+      "within": 5
+    }
+  ]
+}

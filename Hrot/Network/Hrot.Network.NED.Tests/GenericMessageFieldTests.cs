@@ -102,7 +102,7 @@ namespace Hrot.DDS.DataModel.Tests
         {
             var field = typeof(Hrot.NED.Messages.DeleteEntityRequest).GetField("EntityId");
             Assert.NotNull(field);
-            Assert.Equal(typeof(int), field!.FieldType);
+            Assert.Equal(typeof(int)    /* CE-4200 (supersedes AQ107 E / R-4093): every entity id on the wire is int32 */, field!.FieldType);
         }
 
         // ── TWOACK-DM002: NedStatusCode enum ────────────────────────────────────
@@ -142,36 +142,18 @@ namespace Hrot.DDS.DataModel.Tests
             }
         }
 
-        // ── TWOACK-DM003: CreateUpdateDeleteEntityAck struct ───────────────────
+        // ── ⭐ Edit framework F2 (R-4126): CreateUpdateDeleteEntityAck and RequireAck are RETIRED — EntityEditOutcome is the one answer ──────────
 
+        /// <summary>No type named <c>CreateUpdateDeleteEntityAck</c> is left on the wire, and the attribute request has no <c>RequireAck</c> (only <c>WantOutcome</c>).
+        /// ✅ Red-proof: the struct restored ⇒ red.</summary>
         [Fact]
-        public void CreateUpdateDeleteEntityAck_HasEntityIdField()
+        public void F2_TheOldAckIsRetired_EntityEditOutcomeIsTheOneAnswer()
         {
-            var field = typeof(Hrot.NED.Messages.CreateUpdateDeleteEntityAck).GetField("EntityId");
-            Assert.NotNull(field);
-            Assert.Equal(typeof(int), field!.FieldType);
-        }
-
-        [Fact]
-        public void CreateUpdateDeleteEntityAck_HasStatusCodeField()
-        {
-            var field = typeof(Hrot.NED.Messages.CreateUpdateDeleteEntityAck).GetField("StatusCode");
-            Assert.NotNull(field);
-            Assert.Equal(typeof(int), field!.FieldType);
-        }
-
-        [Fact]
-        public void CreateUpdateDeleteEntityAck_HasNoErrorCodeField()
-        {
-            var field = typeof(Hrot.NED.Messages.CreateUpdateDeleteEntityAck).GetField("ErrorCode");
-            Assert.Null(field);
-        }
-
-        [Fact]
-        public void CreateUpdateDeleteEntityAck_HasNoNewEntityIdField()
-        {
-            var field = typeof(Hrot.NED.Messages.CreateUpdateDeleteEntityAck).GetField("NewEntityId");
-            Assert.Null(field);
+            var asm = typeof(Hrot.NED.Messages.EntityEditOutcome).Assembly;
+            Assert.DoesNotContain(asm.GetTypes(), t => t.Name == "CreateUpdateDeleteEntityAck");
+            Assert.Null(typeof(Hrot.NED.Messages.UpdateEntityAttributeRequest).GetField("RequireAck"));
+            Assert.NotNull(typeof(Hrot.NED.Messages.UpdateEntityAttributeRequest).GetField("WantOutcome"));
+            Assert.Equal(typeof(int), typeof(Hrot.NED.Messages.EntityEditOutcome).GetField("EntityId")!.FieldType);
         }
     }
 }

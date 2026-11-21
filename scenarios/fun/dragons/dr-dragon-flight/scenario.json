@@ -1,0 +1,95 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: the DRAGON flies and lands like a helicopter (CE-4634 D-1, docs/designs/fun/DESIGN_Dragon.md DR-1). On basic-desert a 'Dragon' (TKB 411, a rotorcraft on four legs) starts on the ground at (300, 300) and flies the 'Dragon route': up and east to (420, 300) at 25 m, down onto a meadow at (500, 350) where it LANDS and holds 8 s, then up again to (620, 300) at 30 m. Judge: it lifts off; it lands within 8 m of the meadow (on its legs, no longer airborne); it takes off again after the landing; it reaches the last point."
+  },
+  "entities": {
+    "d4634000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          3
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 411
+      },
+      "EntityInfo": {
+        "Name": "Dragon",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": {
+          "routeEntityId": "d4634000-0000-4000-8000-000000000002",
+          "Speed": 20
+        },
+        "Origin": "Superior"
+      }
+    },
+    "d4634000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          420,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Dragon route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 420,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 20,
+            "HeightAgl": 25
+          },
+          {
+            "X": 500,
+            "Y": 350,
+            "Z": 0,
+            "TargetSpeed": 8,
+            "HeightAgl": 0,
+            "Kind": "Ground",
+            "Hold": "Seconds",
+            "HoldSeconds": 8
+          },
+          {
+            "X": 620,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 20,
+            "HeightAgl": 30
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}

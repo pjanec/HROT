@@ -1,0 +1,11 @@
+asset a2322000-0000-0000-0000-000000000001
+group Library/Sop
+sop-orders no
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variables none
+parse (empty) -> no params region
+parse {} -> no params region
+parse {"bogus":1} -> no params region
+Wait c2322001-0000-0000-0000-000000000002 seconds=3600 "Nothing — no idle choice, no reactions"
+  # CE-2322 (AQ97 C, R-2062): the explicit NONE. Once a type names a default SOP, an absent Sop key means that default; assign this to keep a unit doing exactly what it is told and nothing on its own (the old 'no SOP').

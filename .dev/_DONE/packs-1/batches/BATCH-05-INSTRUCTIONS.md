@@ -114,7 +114,7 @@ See: `TASK-DETAIL.md#pack-e001`
 1. **Define `ClusterOpIntent`** in `ClusterCqrsEvents.cs`:
    ```csharp
    [EventId(9018)]
-   [DataPolicy(DataPolicy.NoRecord)]
+   [DataPolicy(DataPolicy.NoReplay)]
    public sealed class ClusterOpIntent
    {
        public Guid            RequestId;

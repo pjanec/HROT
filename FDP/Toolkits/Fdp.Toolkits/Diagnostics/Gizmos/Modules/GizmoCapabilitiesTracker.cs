@@ -4,12 +4,13 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
 {
-    // Tracks which remote terminal node IDs have announced via IGCapabilitiesAnnounce
+    // Tracks which remote terminal node IDs have announced (CE-3358: the IG capabilities announce that fed it is retired; fed by tests only)
     // and drives the GizmoExecutionController listener count accordingly.
     // Each unique node ID arriving alive increments the count exactly once.
     // Idempotent: a second alive sample from the same node ID is ignored.
     //
     // Design: DESIGN.md §5
+    [Fdp.Core.WorldDerived("connected-terminal id set, re-derived from events; gizmo UI only")]
     internal sealed class GizmoCapabilitiesTracker
     {
         private readonly GizmoExecutionController _controller;
@@ -22,10 +23,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
             _bus = bus;
         }
 
-        // Called once per received IGCapabilitiesAnnounce sample.
+        // Called once per received terminal announce sample.
         // isAlive: true when the sample is a normal data sample; false when the DDS
         // instance state indicates the remote writer has gone non-alive (disconnect/crash).
-        public void OnSample(long nodeId, bool isAlive)
+        public void OnSample(int nodeId, bool isAlive)
         {
             if (isAlive)
             {

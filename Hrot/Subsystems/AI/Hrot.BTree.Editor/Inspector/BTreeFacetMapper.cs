@@ -2,6 +2,7 @@ using System;
 using Fbt;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Editor.AiShared.Selection;
 
 namespace Hrot.BTree.Editor.Inspector;
@@ -15,23 +16,38 @@ namespace Hrot.BTree.Editor.Inspector;
 public sealed class BTreeFacetMapper : IFacetDispatcher
 {
     private readonly BehaviorTreeAsset    _asset;
-    private readonly BTreeFacetFqnContext? _fqnContext;
-
-    public BTreeFacetMapper(BehaviorTreeAsset asset)
-        : this(asset, null)
-    {
-    }
+    // ⭐ CE-439 — the catalogue the subtree pick resolves against (the asset id; S8b-2: the Inputs type is the lookup's). ⚠ Optional so a
+    //   headless fixture need not supply one; ⛔ a production host HAS one and passes it (AiFacetPickerBinder).
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
     /// <summary>
-    /// Constructs a mapper that writes the current action/condition FQN to
-    /// <paramref name="fqnContext"/> before returning each facet, so the
-    /// <see cref="BlackboardFieldPickerDrawer"/> can filter variables by DtoType.
+    /// ⭐ <c>CE-417</c> slice 4b: no side channel any more — each action/condition facet carries its whole binding, so the
+    /// one binding drawer filters the variables by the binding's own method (the retired <c>BTreeFacetFqnContext</c>).
     /// </summary>
-    public BTreeFacetMapper(BehaviorTreeAsset asset, BTreeFacetFqnContext? fqnContext)
+    /// <param name="actionSchema">⭐ <c>CE-417</c> slice 4c — resolves a blueprint picked in the inspector to its generated
+    /// Params/WorkingState types so the pick COMPOSES its variables (the palette-drop rule). ⚠ Optional for headless fixtures;
+    /// ⛔ a production host HAS one and passes it (<c>AiFacetPickerBinder</c>).</param>
+    /// <param name="childInputsTypeOf">⭐ S8b-2 (CE-2025) — a picked child's Inputs type id (<c>ChildInputTypes.Lookup</c>, the
+    /// one answer every behaviour picker shares). ⚠ Optional for headless fixtures; ⛔ a production host passes it.</param>
+    public BTreeFacetMapper(BehaviorTreeAsset asset, Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
+                            Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null,
+                            Func<string, string?>? childInputsTypeOf = null,
+                            Func<string, string?>? sopParamsTypeOf = null)
     {
-        _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
-        _fqnContext = fqnContext;
+        _asset             = asset ?? throw new ArgumentNullException(nameof(asset));
+        _catalog           = catalog;
+        _actionSchema      = actionSchema;
+        _childInputsTypeOf = childInputsTypeOf;
+        _sopParamsTypeOf   = sopParamsTypeOf;
     }
+
+    /// <summary>⭐ <c>CE-2079</c> — a picked behaviour's authored params type id (<c>ChildInputTypes.ParamsDtoLookup</c>): the
+    /// type an SOP order serialises to the assignment's JSON. ⚠ Optional for headless fixtures; ⛔ a production host passes it.</summary>
+    private readonly Func<string, string?>? _sopParamsTypeOf;
+
+    private readonly Func<string, string?>? _childInputsTypeOf;
+
+    private readonly Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? _actionSchema;
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
 
@@ -46,22 +62,11 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         var node = _asset.FindNode(sel.VisualId);
         if (node is null) return null;
 
-        // Clear the FQN context for non-action/condition nodes so the blackboard picker
-        // shows all variables when a composite or wait node is selected.
-        if (node.KernelType != NodeType.Action && node.KernelType != NodeType.Condition)
-        {
-            if (_fqnContext is not null)
-            {
-                _fqnContext.CurrentActionFqn    = null;
-                _fqnContext.CurrentNodeVisualId = null;
-                _fqnContext.CurrentDelegateShape = null;
-            }
-        }
-
         return node.KernelType switch
         {
-            NodeType.Action   => BuildActionFacet(node, _fqnContext),
-            NodeType.Condition => BuildConditionFacet(node, _fqnContext),
+            NodeType.Action when node.SopOrder is not null => BuildSopOrderFacet(node),   // ⭐ CE-2079
+            NodeType.Action   => BuildActionFacet(node),
+            NodeType.Condition => BuildConditionFacet(node),
             NodeType.Wait     => BuildWaitFacet(node),
             NodeType.Sequence => BuildSequenceFacet(node),
             NodeType.Selector => BuildSelectorFacet(node),
@@ -76,6 +81,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// <inheritdoc/>
     public void ApplyFacet(IAssetSubSelection subSelection, object facet)
     {
+        if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)) return;   // ⭐ CE-1252 — a code-built graph is read-only
         if (subSelection is BTreePillSelection ps)
         {
             ApplyPillFacet(ps, facet);
@@ -89,10 +95,12 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         switch (facet)
         {
             case BTreeActionFacet af:
+                // ⭐ CE-417 slice 4b — THE shared applier. A BTree node always carries its binding (KeepWhenEmpty).
                 if (node.Action is not null)
                 {
-                    node.Action.MethodFqn           = af.MethodFqn;
-                    node.Action.ExpressionTargetField = af.ExpressionTargetField;
+                    bool hadBlueprint = NamesBlueprint(node.Action);
+                    node.Action = BehaviorActionBindingEditor.Apply(node.Action, af.Action, ApplyContext);
+                    ApplyShape(node, node.Action, hadBlueprint);
                 }
                 node.Comment      = af.Comment;
                 node.IsBreakpoint = af.IsBreakpoint;
@@ -101,8 +109,9 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
             case BTreeConditionFacet cf:
                 if (node.Condition is not null)
                 {
-                    node.Condition.MethodFqn             = cf.MethodFqn;
-                    node.Condition.ExpressionTargetField = cf.ExpressionTargetField;
+                    bool hadBlueprint = NamesBlueprint(node.Condition);
+                    node.Condition = BehaviorActionBindingEditor.Apply(node.Condition, cf.Condition, ApplyContext);
+                    ApplyShape(node, node.Condition, hadBlueprint);
                 }
                 node.Comment      = cf.Comment;
                 node.IsBreakpoint = cf.IsBreakpoint;
@@ -131,6 +140,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
                 break;
 
             case BTreeParallelFacet pf:
+                node.ParallelPolicy = (int)pf.Policy;   // ⭐ CE-2073
                 node.Comment      = pf.Comment;
                 node.IsBreakpoint = pf.IsBreakpoint;
                 break;
@@ -139,58 +149,135 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
                 node.Comment = rf.Comment;
                 break;
 
+            case BTreeSopOrderFacet sof:   // ⭐ CE-2079
+                node.Comment      = sof.Comment;
+                node.IsBreakpoint = sof.IsBreakpoint;
+                ApplySopOrder(node, sof);
+                break;
+
             case BTreeSubtreeFacet stf:
                 node.Comment      = stf.Comment;
                 node.IsBreakpoint = stf.IsBreakpoint;
+                ApplySubtreePick(node, stf.SubtreeName);   // ⭐ CE-439
                 break;
         }
 
         _asset.MarkDirty();
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-439</c> (<c>Q76</c> §12.28) — <b>the BTree subtree pick LANDS.</b> 🔴 The facet carried
+    /// <c>[AiAssetPicker(BTree)]</c> on <c>SubtreeName</c> and this method wrote back only <c>Comment</c>/<c>IsBreakpoint</c>,
+    /// so a pick was discarded; the only writer of the reference was the heal-on-load resolver. ⭐ Same shape as the HSM
+    /// state's pick: the Guid captured at pick time (the shared rule), and a NEWLY picked child brings its params variable
+    /// (the shared compose step) bound as this site's <c>ParamsVariable</c>.
+    /// </summary>
+    private void ApplySubtreePick(BTreeEditorNode node, string? pickedName)
+    {
+        node.Subtree ??= new BTreeSubtreePayload();
+        var st = node.Subtree;
+        if (string.IsNullOrWhiteSpace(pickedName))
+        {
+            st.SubtreeName    = string.Empty;
+            st.SubtreeAssetId = Guid.Empty;
+            st.IsResolved     = false;
+            st.ParamsVariable = null;   // no child, no binding (the variable stays — no rush removals)
+            return;
+        }
+        if (string.Equals(st.SubtreeName, pickedName, StringComparison.Ordinal)) return;   // unchanged ⇒ nothing to compose
+
+        st.SubtreeName = pickedName!;
+        (st.SubtreeAssetId, st.IsResolved) = Hrot.Editor.AiShared.References.SubtreeReferenceResolver.ResolvePick(
+            _catalog, pickedName!, Hrot.Editor.AiShared.AssetKind.BTree, st.SubtreeAssetId);
+        st.ParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
+            _asset, pickedName!, _childInputsTypeOf?.Invoke(pickedName!));   // ⭐ S8b-2: the one child-inputs lookup
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2079</c> — an SOP order's pick lands like the subtree pick: a NEWLY picked behaviour brings a variable of its
+    /// params type (the shared compose step, so its fields are edited in the blackboard), bound as this order's
+    /// <c>ParamsVariable</c>; no params type (a class DTO, or none) ⇒ unbound — the behaviour's authored defaults.
+    /// </summary>
+    private void ApplySopOrder(BTreeEditorNode node, BTreeSopOrderFacet facet)
+    {
+        var order = node.SopOrder ??= new BTreeSopOrderPayload();
+        order.Urgency = facet.Urgency;
+        string picked = facet.BehaviorName ?? string.Empty;
+        if (string.Equals(order.BehaviorName, picked, StringComparison.Ordinal)) return;   // unchanged ⇒ nothing to compose
+
+        order.BehaviorName = picked;
+        if (string.IsNullOrWhiteSpace(picked)) { order.ParamsVariable = null; return; }   // the variable stays (no rush removals)
+        order.ParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
+            _asset, picked, _sopParamsTypeOf?.Invoke(picked),
+            comment: $"CE-2079: the params the SOP order sends with '{picked}'.");
+        node.DisplayLabel = (order.Kind == Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React ? "React: " : "Idle: ") + picked;
+    }
+
+    private static BTreeSopOrderFacet BuildSopOrderFacet(BTreeEditorNode node) =>
+        new BTreeSopOrderFacet
+        {
+            Kind           = node.SopOrder!.Kind == Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React ? "React" : "Do when idle",
+            BehaviorName   = node.SopOrder.BehaviorName,
+            ParamsVariable = node.SopOrder.ParamsVariable ?? string.Empty,
+            Urgency        = node.SopOrder.Urgency,
+            Comment        = node.Comment,
+            IsBreakpoint   = node.IsBreakpoint,
+            VisualId       = node.VisualId.ToString(),
+        };
+
     // ── Private builders ──────────────────────────────────────────────────────
 
-    private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
+    /// <summary>⭐ The BTree apply rules: a node keeps its binding even when empty; a CHANGED blueprint pick composes params
+    /// AND working state — the same base names the palette drop uses (<c>ComposeForAiPrimitive</c>'s defaults).</summary>
+    private ActionBindingApplyContext ApplyContext => new(
+        _asset, _catalog, _actionSchema, ComposeBaseName: "bpParams", KeepWhenEmpty: true, WorkingStateBaseName: "bpWorkingState");
+
+    private static bool NamesBlueprint(Hrot.Editor.AiShared.BehaviorActionBinding? b)
+        => b is not null && (b.BlueprintAssetId != Guid.Empty || !string.IsNullOrEmpty(b.BlueprintName));
+
+    /// <summary>
+    /// ⭐ <c>CE-417</c> slice 4c (design §5.5 ②) — a blueprint binding is called through its generated TickCore, so the node's
+    /// shape is <c>AiPrimitiveTickCore</c>; clearing the blueprint returns the node to the plain shape. ⚠ Only a blueprint
+    /// pick moves the shape: a hand-written AiPrimitive-shaped C# method keeps whatever shape the palette gave it.
+    /// </summary>
+    private static void ApplyShape(BTreeEditorNode node, Hrot.Editor.AiShared.BehaviorActionBinding? b, bool hadBlueprint)
     {
-        var fqn = node.Action?.MethodFqn ?? string.Empty;
-        if (ctx is not null)
-        {
-            ctx.CurrentActionFqn     = string.IsNullOrEmpty(fqn) ? null : fqn;
-            ctx.CurrentNodeVisualId  = node.VisualId.ToString();
-            ctx.CurrentDelegateShape = node.Action?.DelegateShape;
-        }
-        return new BTreeActionFacet
-        {
-            MethodFqn              = fqn,
-            ExpressionTargetField  = node.Action?.ExpressionTargetField,
-            Comment                = node.Comment,
-            IsBreakpoint           = node.IsBreakpoint,
-            VisualId               = node.VisualId.ToString(),
-            LastResult             = string.Empty,
-            TickCount              = 0,
-        };
+        // ⭐⭐ CE-504 C-1 — a C# pick takes the shape its method's signature implies (a stateful method becomes stateful).
+        if (!NamesBlueprint(b) && BTreeCallShapeResolver.ShapeOf(
+                b, Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures()) is { } derived)
+            node.DelegateShape = derived;
+        else if (NamesBlueprint(b)) node.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        else if (hadBlueprint) node.DelegateShape = BTreeActionDelegateShape.Plain;
     }
 
-    private static BTreeConditionFacet BuildConditionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
-    {
-        var fqn = node.Condition?.MethodFqn ?? string.Empty;
-        if (ctx is not null)
+    /// <summary>The node's binding as the inspector shows it. ⚠ A param-less (<c>NoParams</c>) method binds no variable, so
+    /// the drawer offers none.</summary>
+    private static BehaviorActionBindingFacet BindingFacet(BTreeEditorNode node, Hrot.Editor.AiShared.BehaviorActionBinding? binding)
+        => BehaviorActionBindingEditor.ToFacet(
+               binding, node.VisualId.ToString(),
+               targetsWholeBlackboard: binding is not null && node.DelegateShape is BTreeActionDelegateShape.NoParams);
+
+    private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node) =>
+        new BTreeActionFacet
         {
-            ctx.CurrentActionFqn     = string.IsNullOrEmpty(fqn) ? null : fqn;
-            ctx.CurrentNodeVisualId  = node.VisualId.ToString();
-            ctx.CurrentDelegateShape = node.Condition?.DelegateShape;
-        }
-        return new BTreeConditionFacet
-        {
-            MethodFqn              = fqn,
-            ExpressionTargetField  = node.Condition?.ExpressionTargetField,
-            Comment                = node.Comment,
-            IsBreakpoint           = node.IsBreakpoint,
-            VisualId               = node.VisualId.ToString(),
-            LastResult             = string.Empty,
-            TickCount              = 0,
+            Action       = BindingFacet(node, node.Action),
+            Comment      = node.Comment,
+            IsBreakpoint = node.IsBreakpoint,
+            VisualId     = node.VisualId.ToString(),
+            LastResult   = string.Empty,
+            TickCount    = 0,
         };
-    }
+
+    private static BTreeConditionFacet BuildConditionFacet(BTreeEditorNode node) =>
+        new BTreeConditionFacet
+        {
+            Condition    = BindingFacet(node, node.Condition),
+            Comment      = node.Comment,
+            IsBreakpoint = node.IsBreakpoint,
+            VisualId     = node.VisualId.ToString(),
+            LastResult   = string.Empty,
+            TickCount    = 0,
+        };
 
     private static BTreeWaitFacet BuildWaitFacet(BTreeEditorNode node) =>
         new BTreeWaitFacet
@@ -231,6 +318,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     private BTreeParallelFacet BuildParallelFacet(BTreeEditorNode node) =>
         new BTreeParallelFacet
         {
+            Policy       = (BTreeParallelPolicy)node.ParallelPolicy,
             Comment      = node.Comment,
             IsBreakpoint = node.IsBreakpoint,
             VisualId     = node.VisualId.ToString(),

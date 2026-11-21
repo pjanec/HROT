@@ -19,14 +19,14 @@ namespace Fdp.Network.Cyclone.Services
     /// "write-before-match" problem that caused the very first request to be silently
     /// dropped when the server was not yet present at construction time.</para>
     /// </summary>
-    public class DdsIdAllocator : INetworkIdAllocator
+    public class DdsIdAllocator : INetworkIdAllocator, IRestorableIdAllocator
     {
         private readonly DdsWriter<IdRequest> _requestWriter;
         private readonly DdsReader<IdResponse> _responseReader;
         private readonly DdsReader<IdStatus> _statusReader;
         private readonly string _clientId;
         private long _requestCounter = 0;
-        private readonly Queue<long> _availableIds = new();
+        private readonly Queue<int> _availableIds = new();
 
         private const int CHUNK_SIZE = 100;
         private const int LOW_WATER_MARK = 10;
@@ -103,7 +103,7 @@ namespace Fdp.Network.Cyclone.Services
 
         // ── INetworkIdAllocator ──────────────────────────────────────────────
 
-        public long AllocateId()
+        public int AllocateId()
         {
             // ── Step 1: wait for the server to be discovered ─────────────────
             // Block until the server's DDS reader is matched to our writer, or
@@ -160,7 +160,7 @@ namespace Fdp.Network.Cyclone.Services
                 ReqNo = _requestCounter++,
                 Type = EIdRequestType.Req_Alloc,
                 Start = 0, // Unused for Alloc
-                Count = (ulong)count
+                Count = (uint)count
             });
         }
 
@@ -182,9 +182,12 @@ namespace Fdp.Network.Cyclone.Services
                 if (response.Type == EIdResponseType.Resp_Alloc)
                 {
                     // Add chunk to local pool
-                    for (ulong i = 0; i < response.Count; i++)
+                    // ⭐ CE-4200: the server refuses to issue a block past int.MaxValue; this is the client-side belt —
+                    // the last id of the block must fit, or the whole block is refused (nothing half-queued).
+                    if (response.Count > 0) NetworkIdLimit.Checked((long)response.Start + response.Count - 1);
+                    for (uint i = 0; i < response.Count; i++)
                     {
-                        _availableIds.Enqueue((long)(response.Start + i));
+                        _availableIds.Enqueue((int)(response.Start + i));
                     }
                 }
                 else if (response.Type == EIdResponseType.Resp_Reset)
@@ -198,7 +201,7 @@ namespace Fdp.Network.Cyclone.Services
             }
         }
 
-        public void Reset(long startId)
+        public void Reset(int startId)
         {
             // Send reset request to server
             _requestWriter.Write(new IdRequest
@@ -206,7 +209,7 @@ namespace Fdp.Network.Cyclone.Services
                 ClientId = "", // Global request (empty ClientId)
                 ReqNo = _requestCounter++,
                 Type = EIdRequestType.Req_Reset,
-                Start = (ulong)startId,
+                Start = (uint)startId,
                 Count = 0
             });
             
@@ -220,6 +223,47 @@ namespace Fdp.Network.Cyclone.Services
             // Actually, if we send Reset, Server will broadcast Reset to everyone.
         }
         
+        // ── Preview dry-run: restore OUR pool; ⛔ the server is NOT told ──────────────────────
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// ⭐⭐⭐ 🔒 <b>The user's model, `2026-08-23`:</b> <i>"each node needs to remember the ids/chunks used
+        /// during the run and on world reset to simply reset to their beginning while the central allocatore
+        /// stays where it is for potential fresh allocations."</i>
+        ///
+        /// <para>⛔⛔⛔ <b>THIS IS DELIBERATELY NOT <see cref="Reset"/>.</b> 📐 <c>Reset</c> writes a GLOBAL
+        /// <c>Req_Reset</c> to the server, which broadcasts to every client and flushes their pools, and
+        /// 📄 <c>docs/designs/mgmt-1/DESIGN.md</c> §5.7 designs that reset to move the high-water mark
+        /// <b>FORWARD</b> for collision avoidance. ⇒ 🔴 using it to rewind a preview would drag the WHOLE
+        /// CLUSTER backward and flush pools other nodes are mid-way through. ⭐⭐ <b>This capability touches
+        /// only <c>_availableIds</c> — this node's own reservation.</b></para>
+        ///
+        /// <para>⭐⭐ <b>Why the guarantee is EXACT and not "high chance"</b> *(§4c)*: chunks arrive as
+        /// contiguous ranges enqueued in order and <see cref="AllocateId"/> dequeues FIFO ⇒ putting the same
+        /// queue back yields the same ids in the same order.</para>
+        ///
+        /// <para>⚠⚠ <b>THE BOUNDARY.</b> Only ids held AT CAPTURE are restored. A preview that drains the
+        /// pool triggers <c>RequestChunk(CHUNK_SIZE)</c>, and those fresh ids are spent from the cluster's
+        /// point of view — the server advanced past them. ⇒ ⛔ they are NOT re-offered; the prefix repeats
+        /// and the tail legitimately differs. 📌 With <c>CHUNK_SIZE = 100</c> a preview spawning fewer than
+        /// ~100 entities is inside the exact case.</para>
+        ///
+        /// <para>⛔ <c>null</c> when the pool is empty — no position to promise, and the bracket reports it.</para>
+        /// </remarks>
+        public object? CaptureIssuingPosition()
+            => _availableIds.Count == 0 ? null : _availableIds.ToArray();
+
+        /// <inheritdoc/>
+        public void RestoreIssuingPosition(object snapshot)
+        {
+            if (snapshot is not int[] held) return;
+
+            // ⭐ Replace: ids fetched during the preview must not be re-offered (see the remarks).
+            // ⛔ No writer, no request, no server round-trip.
+            _availableIds.Clear();
+            foreach (var id in held) _availableIds.Enqueue(id);
+        }
+
         public void Dispose()
         {
             _requestWriter.PublicationMatched -= OnPublicationMatched;

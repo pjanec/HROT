@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using System.Reflection;
@@ -31,6 +32,46 @@ namespace Fdp.Toolkit.Blueprints;
 /// </summary>
 public static class BlueprintRegistrarScanner
 {
+    /// <summary>
+    /// ⭐ CE-4109 — THE discovery (does NOT invoke) of the <c>[BlueprintRegistrar]</c> classes in <paramref name="assembly"/>, sorted
+    /// deterministically: one <see cref="ResolvedRegistrar"/> per class with its <c>Register</c> / <c>RegisterAll</c> entry point. Both hot-reload
+    /// coordinators (the blueprint one in Fdp.Toolkits and the editor's <c>Hrot.AI.Behaviors.dll</c> one) discover through here.
+    /// ⚠ The attribute is matched by TYPE: a reload context with no <c>Load</c> override resolves <c>Fdp.Toolkits</c> from the default
+    /// context, so the attribute type is the same type there (the editor's copy used to match it by NAME — CE-4109 ①).
+    /// </summary>
+    public static IReadOnlyList<ResolvedRegistrar> Discover(Assembly assembly)
+    {
+        var registrars = new List<ResolvedRegistrar>();
+        Type[] types;
+
+        try { types = assembly.GetTypes(); }
+        catch (ReflectionTypeLoadException ex)
+        {
+            types = ex.Types.Where(t => t != null).ToArray()!;
+        }
+
+        foreach (var type in types)
+        {
+            if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
+                continue;
+
+            var method =
+                type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
+                type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
+            if (method == null) continue;
+
+            var parameters = method.GetParameters()
+                .Select((p, i) => new RegistrarParameter(p.Name ?? $"arg{i}", p.ParameterType, i))
+                .ToList();
+
+            registrars.Add(new ResolvedRegistrar(type, method, parameters));
+        }
+
+        return registrars
+            .OrderBy(r => r.DeclaringType.FullName, StringComparer.Ordinal)
+            .ToList();
+    }
+
     /// <summary>
     /// Scans <paramref name="assembly"/> for all <see cref="BlueprintRegistrarAttribute"/>-decorated
     /// classes, resolves each one's <c>Register</c> or <c>RegisterAll</c> static method, and invokes
@@ -94,7 +135,7 @@ public static class BlueprintRegistrarScanner
 
         // Lazily built (once per scan) the first time a registrar requests the BTree
         // action registry. Built from THIS assembly only — see BTreeActionRegistryFactory.
-        ActionRegistry<BrainBlackboard, BTreeContext>? btreeActionRegistry = null;
+        ActionRegistry<byte, BTreeContext>? btreeActionRegistry = null;
 
         foreach (var type in types)
         {
@@ -123,7 +164,7 @@ public static class BlueprintRegistrarScanner
                 // BTree action delegates: inject a registry populated from this assembly's
                 // [FbtRegistrar]. Lazily built once so JSON BTree bridges resolve real
                 // action/condition logic instead of the interpreter's Failure fallback.
-                else if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                else if (paramType == typeof(ActionRegistry<byte, BTreeContext>))
                     args[i] = btreeActionRegistry ??= BTreeActionRegistryFactory.BuildFromAssembly(assembly);
                 // BlueprintRegistry direct — violates the RCU contract.
                 else if (paramType == typeof(BlueprintRegistry))
@@ -156,6 +197,44 @@ public static class BlueprintRegistrarScanner
 
             if (!skipThisRegistrar)
                 method.Invoke(null, args);
+        }
+
+        ComputeHostedOccurrenceDemands(blueprintStaging, behaviorStaging);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7b-3</c> — <b>THE JOIN, and this is the only place in the tree where both registries
+    /// are populated in one pass.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.7.
+    ///
+    /// <para>🔒 <b>Why here rather than in the HSM emitter</b> (user ruling, <c>2026-09-21</c>:
+    /// <i>"would that mean the hsm code will need to know about blueprint catalogs? Not good."</i>). A
+    /// generated HSM registrar authors the machine's topology and must stay ignorant of blueprints;
+    /// this pass reads the topology it already wrote and joins it to the blueprints the SAME scan just
+    /// staged. ⇒ nothing new is emitted anywhere.</para>
+    ///
+    /// <para>⚠ <b>The honest limit: a scan sees ONE assembly.</b> A behaviour whose machine hosts a
+    /// blueprint staged by a DIFFERENT scan gets no demand recorded, which is the pre-<c>O7b-3</c>
+    /// state — the smallest tier, and <c>OccurrenceWorkingState</c>'s loud <i>"no room"</i> if it does
+    /// not fit. ⛔ It is not a silent mis-size: absent ≠ zero, and both registries' overlays are
+    /// order-independent, so a later scan that sees both simply records it then.</para>
+    /// </summary>
+    private static void ComputeHostedOccurrenceDemands(
+        BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging)
+    {
+        if (blueprintStaging.Definitions.Count == 0) return;
+
+        // ⭐ Built ONCE for the whole scan — O(behaviours + blueprints), not the product.
+        var sizeByActionId = HostedOccurrenceDemandCalculator
+            .BuildActionIdIndex(blueprintStaging.Definitions);
+
+        foreach (var name in behaviorStaging.GetRegisteredNames())
+        {
+            if (!behaviorStaging.TryGetId(name, out int id)) continue;
+            if (!behaviorStaging.TryGetDefinition(id, out var def) || def is null) continue;
+
+            var demand = HostedOccurrenceDemandCalculator.For(def, sizeByActionId);
+            if (demand is not null)
+                behaviorStaging.RegisterHostedOccurrenceDemand(name, demand);
         }
     }
 }

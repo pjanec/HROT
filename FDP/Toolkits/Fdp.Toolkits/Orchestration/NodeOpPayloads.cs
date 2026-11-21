@@ -12,25 +12,84 @@ namespace Fdp.Toolkit.Orchestration
     /// <summary>
     /// Payload for <see cref="NodeOpType.NodeReplaySeek"/> intents.
     /// Replaces the previously boxed <c>long</c> wall-clock tick target.
+    /// <para>⭐⭐ <c>R-4012</c> (Q91 §4-P P1) — <paramref name="TargetWallTicks"/> is RELATIVE to the replay's zero, and
+    /// <paramref name="AnchorWallTicks"/> IS that zero: the earliest first frame across every node's recording, computed by the
+    /// master from the prepare round. 0 = not known (a node then uses its own first frame, as before).</para>
     /// </summary>
-    public readonly record struct ReplaySeekPayload(long TargetWallTicks);
+    public readonly record struct ReplaySeekPayload(long TargetWallTicks, long AnchorWallTicks = 0);
+
+    /// <summary>
+    /// ⭐ <c>CE-3299</c> B3 (R-3044, D3) — payload of <see cref="NodeOpType.TakeSnapshot"/>: write a checkpoint KEYFRAME named
+    /// <paramref name="Label"/> at the first frame whose <c>GlobalTime.TotalWallTicks</c> is at or past <paramref name="AtWallTicks"/>
+    /// (0 = the next frame). The master names one wall time for every node.
+    /// </summary>
+    public readonly record struct CheckpointPayload(string Label, long AtWallTicks);
+
+    /// <summary>⭐ <c>CE-3299</c> B3 — payload of <see cref="NodeOpType.ExportCheckpoint"/>: export the checkpoint <paramref name="Label"/>.</summary>
+    public readonly record struct ExportCheckpointPayload(string Label);
+
+    /// <summary>
+    /// ⭐ <c>CE-3299</c> B4 — payload of both phases of a checkpoint restore (<see cref="NodeOpType.PrepareRestore"/>, then
+    /// <see cref="NodeOpType.RestoreSnapshot"/>): restore checkpoint <paramref name="Label"/> and record on as the exercise
+    /// <paramref name="NewExerciseId"/>, which the master minted (D18).
+    /// </summary>
+    public readonly record struct RestoreCheckpointPayload(string Label, ExerciseId NewExerciseId);
+
+    /// <summary>
+    /// ⭐ <c>CE-3299</c> B4 — a node's answer to <see cref="NodeOpType.RestoreSnapshot"/>: the clock its checkpoint was written at
+    /// (D5 — the master snaps the cluster to the earliest one) and the exercise it records now.
+    /// </summary>
+    public readonly record struct CheckpointRestoreResult(GlobalTime RestoredTime, ExerciseId ExerciseId);
 
     /// <summary>
     /// Result payload returned by a completed <see cref="NodeOpType.NodeReplaySeek"/> operation.
     /// Carries the <see cref="GlobalTime"/> the recording landed on after the seek.
     /// </summary>
-    public readonly record struct ReplaySeekResult(GlobalTime RestoredTime);
+    /// <param name="RetractionAckTimeout">⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — <see langword="null"/> when this node's
+    /// retraction disposes were acknowledged before it answered; otherwise the text of the bounded wait that timed out. ⛔ Reported, never fatal:
+    /// the seek is done either way.</param>
+    public readonly record struct ReplaySeekResult(GlobalTime RestoredTime, string? RetractionAckTimeout = null);
 
     /// <summary>
     /// Result payload returned by a completed <see cref="NodeOpType.PrepareLive"/> Live-from-Replay
     /// branch operation.  Carries the historical <see cref="GlobalTime"/> captured immediately
     /// before the node tore down its replay module (CGF1-S0305 / RT-019).
     /// </summary>
-    public readonly record struct LiveBranchResult(GlobalTime HistoricalTime);
+    /// <param name="FromRecording">⭐ CE-3337 — the node restored this frame from its OWN recording, so
+    /// <see cref="GlobalTime.FrameNumber"/> is the recorded step count at it (what the live run resumes counting from); a listening node's
+    /// world clock is not that, and the aggregator prefers a recording node's answer.</param>
+    /// <param name="ParentExerciseId">⭐ CE-4097 (AQ108 D5) — the exercise the node's new recording branches from: the very
+    /// <c>RecordingBranch.ParentExerciseId</c> it writes into its sidecar (<c>Guid.Empty</c> on a listener, which records no history). The master's
+    /// inventory carries it for the live run — no second record of the branch.</param>
+    /// <param name="BranchWallTicks">⭐ the same <c>RecordingBranch.BranchWallTicks</c> (the sidecar's <c>BranchWallTicks</c>); 0 when none.</param>
+    public readonly record struct LiveBranchResult(GlobalTime HistoricalTime, bool FromRecording = false,
+                                                   ExerciseId ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// Payload for <see cref="NodeOpType.AbortTransaction"/> intents.
     /// Replaces the previously boxed <c>Guid</c> target transaction ID.
     /// </summary>
     public readonly record struct AbortTransactionPayload(Guid TargetTransactionId);
+
+    /// <summary>
+    /// Payload for the <see cref="NodeOpType.PrepareZone"/> / <see cref="NodeOpType.CommitZone"/>
+    /// pair — ONE zone per round (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.3).
+    ///
+    /// <para>⭐ It carries a zone id and nothing else <b>on purpose</b>: the zone's shape lives on the
+    /// zone ENTITY, which every node already has (§5.1 — "there is no zone artefact"). Putting bounds on
+    /// the wire would create a second place the truth can live, and the two could then disagree.
+    /// ⚠ This is why it is NOT <c>mgmt-1</c> §11.2's <c>ZoneSpec</c>: that predates the
+    /// entity-is-the-definition model and carries <c>Bounds</c> + <c>DataPath</c>.</para>
+    /// </summary>
+    public readonly record struct ZoneOpPayload(string ZoneId);
+
+    /// <summary>
+    /// Payload for the <see cref="NodeOpType.PrepareTerrainAsset"/> /
+    /// <see cref="NodeOpType.CommitTerrainAsset"/> pair.
+    ///
+    /// <para><paramref name="Kinds"/> names the asset kinds to (re)build — the operator's selection in
+    /// the cluster panel. ⚠ Empty means "everything", not "nothing": an op that asked for nothing would
+    /// never be published. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §3.1.</para>
+    /// </summary>
+    public readonly record struct TerrainAssetOpPayload(string[]? Kinds);
 }

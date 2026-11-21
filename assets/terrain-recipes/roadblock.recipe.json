@@ -1,0 +1,66 @@
+{
+ "id": "roadblock",
+ "radius": 20,
+ "elements": [
+  {
+   "type": "group",
+   "items": [
+    {
+     "type": "car",
+     "line": {
+      "from": [
+       3,
+       -5
+      ],
+      "to": [
+       3,
+       5
+      ],
+      "count": [
+       2,
+       3
+      ]
+     },
+     "facing": "along"
+    },
+    {
+     "type": "concrete-block",
+     "line": {
+      "from": [
+       8,
+       -5
+      ],
+      "to": [
+       8,
+       5
+      ],
+      "count": [
+       3,
+       4
+      ]
+     },
+     "facing": "along"
+    },
+    {
+     "type": "jersey-barrier",
+     "at": [
+      [
+       -3,
+       -4,
+       10
+      ],
+      [
+       -3,
+       4,
+       -10
+      ]
+     ]
+    }
+   ]
+  }
+ ],
+ "ui": {
+  "chip": "Military",
+  "line": "cars, blocks across a road"
+ }
+}

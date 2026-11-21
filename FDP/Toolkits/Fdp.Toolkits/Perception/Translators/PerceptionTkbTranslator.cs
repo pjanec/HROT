@@ -18,6 +18,19 @@ namespace Fdp.Toolkit.Perception.Translators
             yield return typeof(SensorCapabilitiesDto);
         }
 
+        /// <summary>⭐ None of these carries <c>[PerInstanceValue]</c> — a receptor is a template constant and
+        /// the two memories legitimately start empty — so this translator contributes nothing to any
+        /// promotion gate. ⚠ It is still declared: the set is a statement about the TRANSLATOR, not about
+        /// today's attribute list, and a later <c>[PerInstanceValue]</c> must find it already here.</summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(PerceptionReceptor);
+            yield return typeof(TargetMemory);
+            yield return typeof(ActiveSensorTracks);
+            yield return typeof(SensorMount);
+            yield return typeof(SensorTag);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<SensorCapabilitiesDto>();
@@ -34,16 +47,74 @@ namespace Fdp.Toolkit.Perception.Translators
                     FieldOfViewCos   = fovCos
                 });
 
-            if (dto.VisionRange > 0f)
+            // ⭐ Posture eye heights — only when the template states any; otherwise the LOS strategy's default
+            // soldier mount applies (docs/DESIGN_Terrain_World.md §7.1 W5).
+            if ((dto.EyeHeightStanding > 0f || dto.EyeHeightCrouched > 0f || dto.EyeHeightProne > 0f)
+                && repo.IsComponentTypeRegistered<SensorMount>() && !repo.HasComponent<SensorMount>(entity))
+            {
+                float standing = dto.EyeHeightStanding > 0f ? dto.EyeHeightStanding : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+                repo.AddComponent(entity, new SensorMount
+                {
+                    Standing = standing,
+                    Crouched = dto.EyeHeightCrouched > 0f ? dto.EyeHeightCrouched : standing,
+                    Prone    = dto.EyeHeightProne    > 0f ? dto.EyeHeightProne    : standing,
+                });
+            }
+
+            if (dto.VisionRange > 0f || dto.HearingRange > 0f)   // ⭐ CE-2106 — a unit that only hears remembers too
             {
                 if (repo.IsComponentTypeRegistered<TargetMemory>() && !repo.HasComponent<TargetMemory>(entity))
                     repo.AddComponent(entity, new TargetMemory());
-
-                if (repo.IsComponentTypeRegistered<SensorContactList>() && !repo.HasComponent<SensorContactList>(entity))
-                    repo.AddComponent(entity, new SensorContactList());
+                // ⭐ CE-2238 part 4 (AW-22, §5h.6 KC-1) — the known-combatant list rides beside the memory (its own component, so the
+                //   memory's copy-and-write-back cannot erase a mark)
+                if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.KnownCombatantList>() && !repo.HasComponent<Fdp.Toolkit.Combat.KnownCombatantList>(entity))
+                    repo.AddComponent(entity, new Fdp.Toolkit.Combat.KnownCombatantList());
 
                 if (repo.IsComponentTypeRegistered<ActiveSensorTracks>() && !repo.HasComponent<ActiveSensorTracks>(entity))
                     repo.AddComponent(entity, new ActiveSensorTracks());
+            }
+
+            // ⭐ The unit's SENSORS — one child per entry, built the same way on every node (R-185 K, design §5.1).
+            for (int i = 0; i < dto.Sensors.Count; i++)
+            {
+                var child = Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(repo, entity, i, dto.Sensors[i]);
+                // ⭐ CE-2349 — an entry that reads the live receptor is tagged as the implicit sensor is (VisualPerception.Optics)
+                if (dto.Sensors[i].FromReceptor && !child.IsNull && repo.HasComponent<SensorTag>(child))
+                {
+                    var tag = repo.GetComponentRO<SensorTag>(child);
+                    tag.Implicit = 1;
+                    repo.SetComponent(child, tag);
+                }
+            }
+
+            // ⭐⭐ CE-3038 — a TKB that lists no sensors but can SEE gets ONE implicit visual sensor (part 1000): vision is a
+            //    sensor like any other, solved by the EQS solver and debounced by its memory stage (design §5.5). ⛔ The
+            //    unit no longer carries a SensorContactList — each perception sensor keeps its own.
+            if (dto.Sensors.Count == 0 && dto.VisionRange > 0f)
+            {
+                var visual = Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(
+                    repo, entity, 0, Fdp.Toolkit.Perception.Sensors.VisualPerception.ImplicitEntry(dto));
+                if (!visual.IsNull)
+                {
+                    var tag = repo.GetComponentRO<SensorTag>(visual);
+                    tag.Implicit = 1;
+                    repo.SetComponent(visual, tag);
+                }
+            }
+
+            // ⭐⭐ CE-2106 — and ONE implicit ACOUSTIC sensor (part 1001) when it can HEAR. 🔴 HearingRange was authored on every
+            //    shipped hearing unit and read by nothing since the old audio pipeline was retired (CE-3062), so no unit heard.
+            //    📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.1.
+            if (dto.Sensors.Count == 0 && dto.HearingRange > 0f)
+            {
+                var ears = Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(
+                    repo, entity, 1, Fdp.Toolkit.Perception.Sensors.AcousticPerception.ImplicitEntry(dto));
+                if (!ears.IsNull)
+                {
+                    var tag = repo.GetComponentRO<SensorTag>(ears);
+                    tag.Implicit = 1;
+                    repo.SetComponent(ears, tag);
+                }
             }
         }
     }

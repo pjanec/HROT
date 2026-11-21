@@ -42,7 +42,7 @@ Additionally:
 | File | Phase | Change |
 |------|-------|--------|
 | `Hrot/Engine/Hrot.Common/Systems/MissionControlExecutionSystem.cs` | 1 | SetManagedComponent fix + Span fix |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` | 1 | DataPolicy.NoSave on BrainBlackboard |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` | 1 | DataPolicy.NoScenario on BrainBlackboard |
 | `FDP/Toolkits/Fdp.Toolkits/Time/Controllers/SteppingTimeController.cs` | 1 | GetMode() fix |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/MissionControlModule.cs` | 2 | Two-group overload |
 | `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs` | 2 | Two-group overload |
@@ -76,12 +76,12 @@ Additionally:
 **Build the solution:**
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 ```
 
 **Run all tests:**
 ```
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 ```
 
 **Run only the most relevant test projects for this workstream:**

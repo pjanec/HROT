@@ -8,7 +8,7 @@ First MVE slice (the RUN stage): a headless proof that an Instance Blueprint is 
 The **ClusterRunner kernel does NOT schedule the blueprint runtime** — `EditorHarness` (lines 118–221) loads only SimHost/CGF/EQS/editor modules; no `BlueprintTickSystem`/`MaintenanceSystem`, no `BlueprintBlackboard*` components, no `BlueprintRegistry`. So MVE-01 used the proven `BlueprintTestFixture` substrate (which runs the real tick/maintenance systems, not a mock). **Consequence:** the editor "Run Opened Blueprint" button (MVE-06) needs a **`BlueprintModule` wired into the kernel** first (register tier components + tick/maintenance + registry). Documented in the report.
 
 ## Verification (ran myself)
-- `dotnet build IOS-IG-SimHost.sln` **0 Warnings / 0 Errors**.
+- `dotnet build HROT.sln` **0 Warnings / 0 Errors**.
 - New MVE tests **6/6** (`BlueprintRunMveTests`). Full `Hrot.Blueprints.Tests` **1126 / 10 / 8** (10 = DEBT-006, unchanged). `EditorSubsystemBoot` **10/10**. (No production code changed — only `.dev/` + two test files — so AiShared/BTree/HSM cannot regress.)
 
 ## Test quality (real execution)

@@ -1,5 +1,7 @@
 # How each new blueprint addition is authored — SHIPPED pattern, in use
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 > See [Blueprints_Overview.md](Blueprints_Overview.md) for the current capabilities + architecture
 > front door.
 
@@ -26,7 +28,7 @@ show one input pin per field of `MoveToParams`. Every addition below is the same
 
 There are many event structs, so we do NOT make a node per event. **The Engine Event Catalog already
 exists** — `BuiltInEngineEventCatalog` lists ~20 events today (`HitEvent`, `BehaviorFinishedEvent`,
-`TargetVisibleEvent`, animation + navigation lifecycle events), each an entry:
+`SensorChangedEvent`, animation + navigation lifecycle events), each an entry:
 ```csharp
 new(Name, EventTypeFqn, DisplayName, Category, TargetFieldName, FilterableFields[], QoS, Propagates…)
 ```
@@ -168,7 +170,7 @@ hazard is handled inside the primitive — invisible to the designer.
 
 ## 8. Struct values — `MakeStruct` / `BreakStruct` / `SetMembers` (shipped)
 
-One triple per `[BlackboardDtoStruct]`-tagged type, generated via `MakeBreakStructPaletteEntries`
+One triple per `[Dto]` (was `[BlackboardDtoStruct]`, retired CE-3185)-tagged type, generated via `MakeBreakStructPaletteEntries`
 (same catalog+reify pattern as above, keyed off the struct's own fields instead of an event/channel
 catalog entry):
 ```

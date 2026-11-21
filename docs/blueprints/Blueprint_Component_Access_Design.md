@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-09 (STATUS block added; content unchanged)
+current-answer: the whole document (Q#15 read, Q#16 write)
+stale-below: the "mirroring the shipped GetShared/SetShared" wording — those nodes were removed (Q76, CE-440); the component nodes stand alone
+known-rot: see stale-below
+related-designs:
+  - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — NOT reached through these nodes — it has its own GetShared/SetShared nodes (the user rejected the component route)
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — removed the GetShared/SetShared nodes this design mirrored
+-->
+
 # Blueprint Component Access — implementation design (READ + WRITE)
 
 **Status: cleared to build.** Consolidates the two approved architect rounds — **Q#15 (component READ)** and
@@ -98,6 +109,10 @@ API names on the view/ECB at build.
 - **`ComponentFieldReflector`** (new) — reflects a component type's public fields → `(Name, TypeId, IsManaged)`,
   **no offset**, **does not reject managed fields** (unlike `SharedStructFieldReflector`). Flags each field
   managed/unmanaged for the persistence caveat.
+  ⭐ **As built `2026-10-06` (CE-2114):** an ENUM field (and an enum collection element) is baked as
+  `global::Ns.Enum` — the compiler's AN2 enum sentinel, the same rule as `NodePinSchema.EnumStampedTypeFqn`. ⛔ It
+  used to bake the bare FQN, which `Stage4_TypeResolve` cannot resolve ⇒ every `GetComponent` / `SetComponent` on a
+  component with an enum field (e.g. `SensorTag.Kind`) was BP1500. Rail `ComponentFieldReflectorTests.CE2114_*`.
 - **Discovery / palette** — `ComponentTypeProvider`: reflect **all** component types (read picker) and
   **`[BlueprintWritable]`** types (write picker) at editor startup. `GetComponentPaletteEntries` /
   `SetComponentPaletteEntries` in `BlueprintEditorBootstrap.CreatePaletteRegistry`.

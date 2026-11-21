@@ -257,7 +257,7 @@ public struct SquadContactPool
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
-[DataPolicy(DataPolicyKind.NoSave)]
+[DataPolicy(DataPolicyKind.NoScenario)]
 public struct SquadCognitiveState
 {
     // --- maneuver scalars (16 B) ---
@@ -292,7 +292,7 @@ public struct SquadCognitiveState
 ```
 
 Check: does `DataPolicy` / `DataPolicyAttribute` exist in the codebase? Search for it before adding it.
-If not, omit the attribute and add a code comment: `// NoSave: transient squad working state.`
+If not, omit the attribute and add a code comment: `// NoScenario: transient squad working state.`
 
 ### B.3 `SquadStateMarker` component and GlobalComponentIds
 
@@ -301,7 +301,7 @@ If not, omit the attribute and add a code comment: `// NoSave: transient squad w
 Add a new block:
 ```csharp
 // ---- Squad coordination components (256–299) ----------------------------
-/// <summary><c>SquadStateMarker</c> — zero-byte tag on squad commander entities. NoSave.</summary>
+/// <summary><c>SquadStateMarker</c> — zero-byte tag on squad commander entities. NoScenario.</summary>
 public const int SquadStateMarker = 256;
 ```
 

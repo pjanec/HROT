@@ -6,9 +6,16 @@ using Xunit;
 namespace Fhsm.Tests.SourceGen
 {
     /// <summary>
-    /// Tests for BHU-013/014: HSM source generator SharedAi and ExitCleanup infrastructure.
-    /// Verifies that the generated HsmActionRegistrar exposes RequiredExitCleanups and that
-    /// RegisterAll() is safe to call even when no SharedAi methods are present in the assembly.
+    /// Shape tests for BHU-013/014 — RequiredExitCleanups and RegisterAll.
+    ///
+    /// <para>⚠ <b>These do not cover a source generator.</b> <c>Fhsm.Tests.Generated.HsmActionRegistrar</c>
+    /// is <c>Helpers/GeneratedRegistrarStub.cs</c>, hand-written; there is no generator in this
+    /// project, and the ProjectReference that suggested otherwise was dangling until Batch 78
+    /// (<c>BP-307</c>). What is asserted here is the CONTRACT a registrar must satisfy — a field
+    /// named <c>RequiredExitCleanups</c> assignable to <c>IReadOnlyDictionary&lt;string,string&gt;</c>,
+    /// and a public static <c>RegisterAll</c> — which is worth keeping, but it is a contract example,
+    /// not coverage of emitted code. See the stub's header for the one place the stub and the
+    /// successor analyzer have since diverged.</para>
     /// </summary>
     public class SharedAiHsmTests
     {

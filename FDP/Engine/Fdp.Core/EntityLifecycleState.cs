@@ -28,6 +28,13 @@ namespace Fdp.Core
         Ghost = 4,
         
         /// <summary>
+        /// ⭐ CE-4007 / CE-4000 residual — special value for queries: every state BUT <see cref="TearDown"/>. What an egress publishes from
+        /// (a constructing entity must announce itself; a dying one must never be written again after its delete went out — measured live,
+        /// docs/DESIGN_Cluster_Load_Phase.md §8.3).
+        /// </summary>
+        AllButTearDown = 254,
+
+        /// <summary>
         /// Special value for queries to include all states.
         /// </summary>
         All = 255

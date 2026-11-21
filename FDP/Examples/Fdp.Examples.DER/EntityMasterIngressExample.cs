@@ -33,18 +33,18 @@ namespace Fdp.Toolkit.DER.Examples
 
             // 1) Core Handler: EntityMaster (Handles Entity Creation/Deletion lifecycle)
             _handlers.Add(new MasterIngressHandler<LocalEntityMaster>(
-                _participant, _repo, "LocalEntityMaster",
+                _participant, _repo,
                 data => data.EntityId,
                 data => data.TkbType));
 
             // 2) Standard Single-Part Descriptor
             _handlers.Add(new DescriptorIngressHandler<LocalGeoSpatial>(
-                _participant, _repo, "LocalGeoSpatial", 
+                _participant, _repo,
                 data => data.EntityId));
 
             // 3) Standard Multi-Part Descriptor
             _handlers.Add(new DescriptorIngressHandler<LocalMapEntitySymbol>(
-                _participant, _repo, "LocalMapEntitySymbol", 
+                _participant, _repo,
                 data => data.EntityId, 
                 data => data.MapGroupId));
 

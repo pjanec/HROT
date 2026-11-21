@@ -1,0 +1,357 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_103_Idle_Life.md (CE-2368, R-2074) \u2014 il-idle-life, the scenario's Judge list. (1) the Idlers stay within 3 m of where they started (the start stands for 'where he settled'); (2) Watchman, Held and Down never move 0.3 m; (3) idle gestures (Gesture.Kind IdleSmoking / IdleShiftWeight / IdleStretch / IdleLookAbout) on at least half the Idlers and on the Watchman, Held and the waiting civilian; (4) Down shows none. \u26a0 Left out: 'each Idler shifts at least twice' (counting is not a cue; the gestures stand for the idle life).",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(1) Idler 1 never strays 3 m in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 1",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 293
+      }
+    },
+    {
+      "name": "(1) Idler 1 never strays 3 m back in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 1",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 287
+      }
+    },
+    {
+      "name": "(1) Idler 1 never strays 3 m in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 1",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 303
+      }
+    },
+    {
+      "name": "(1) Idler 1 never strays 3 m back in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 1",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 297
+      }
+    },
+    {
+      "name": "(1) Idler 2 never strays 3 m in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 2",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 297
+      }
+    },
+    {
+      "name": "(1) Idler 2 never strays 3 m back in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 2",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 291
+      }
+    },
+    {
+      "name": "(1) Idler 2 never strays 3 m in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 2",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 303
+      }
+    },
+    {
+      "name": "(1) Idler 2 never strays 3 m back in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 2",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 297
+      }
+    },
+    {
+      "name": "(1) Idler 3 never strays 3 m in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 3",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 301
+      }
+    },
+    {
+      "name": "(1) Idler 3 never strays 3 m back in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 3",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 295
+      }
+    },
+    {
+      "name": "(1) Idler 3 never strays 3 m in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 3",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 303
+      }
+    },
+    {
+      "name": "(1) Idler 3 never strays 3 m back in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 3",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 297
+      }
+    },
+    {
+      "name": "(1) Idler 4 never strays 3 m in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 4",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 305
+      }
+    },
+    {
+      "name": "(1) Idler 4 never strays 3 m back in x",
+      "never": {
+        "on": "field",
+        "who": "Idler 4",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 299
+      }
+    },
+    {
+      "name": "(1) Idler 4 never strays 3 m in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 4",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 303
+      }
+    },
+    {
+      "name": "(1) Idler 4 never strays 3 m back in y",
+      "never": {
+        "on": "field",
+        "who": "Idler 4",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 297
+      }
+    },
+    {
+      "name": "(2) Watchman never shifts in x",
+      "never": {
+        "on": "field",
+        "who": "Watchman",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 310.3
+      }
+    },
+    {
+      "name": "(2) Watchman never shifts back in x",
+      "never": {
+        "on": "field",
+        "who": "Watchman",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 309.7
+      }
+    },
+    {
+      "name": "(2) Watchman never shifts in y",
+      "never": {
+        "on": "field",
+        "who": "Watchman",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 300.3
+      }
+    },
+    {
+      "name": "(2) Watchman never shifts back in y",
+      "never": {
+        "on": "field",
+        "who": "Watchman",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 299.7
+      }
+    },
+    {
+      "name": "(2) Held never shifts in x",
+      "never": {
+        "on": "field",
+        "who": "Held",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 314.3
+      }
+    },
+    {
+      "name": "(2) Held never shifts back in x",
+      "never": {
+        "on": "field",
+        "who": "Held",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 313.7
+      }
+    },
+    {
+      "name": "(2) Held never shifts in y",
+      "never": {
+        "on": "field",
+        "who": "Held",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 300.3
+      }
+    },
+    {
+      "name": "(2) Held never shifts back in y",
+      "never": {
+        "on": "field",
+        "who": "Held",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 299.7
+      }
+    },
+    {
+      "name": "(2) Down never shifts in x",
+      "never": {
+        "on": "field",
+        "who": "Down",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 318.3
+      }
+    },
+    {
+      "name": "(2) Down never shifts back in x",
+      "never": {
+        "on": "field",
+        "who": "Down",
+        "path": "SimTransform.Position.0",
+        "op": "<",
+        "value": 317.7
+      }
+    },
+    {
+      "name": "(2) Down never shifts in y",
+      "never": {
+        "on": "field",
+        "who": "Down",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 300.3
+      }
+    },
+    {
+      "name": "(2) Down never shifts back in y",
+      "never": {
+        "on": "field",
+        "who": "Down",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 299.7
+      }
+    },
+    {
+      "name": "(3) at least half the Idlers show an idle gesture",
+      "on": "field",
+      "who": "*Idler ",
+      "path": "Demeanour.Kind",
+      "op": "in",
+      "value": [
+        "IdleSmoking",
+        "IdleShiftWeight",
+        "IdleStretch",
+        "IdleLookAbout"
+      ],
+      "quantifier": "atLeast:2"
+    },
+    {
+      "name": "(3) the Watchman shows an idle gesture",
+      "on": "field",
+      "who": "Watchman",
+      "path": "Demeanour.Kind",
+      "op": "in",
+      "value": [
+        "IdleSmoking",
+        "IdleShiftWeight",
+        "IdleStretch",
+        "IdleLookAbout"
+      ]
+    },
+    {
+      "name": "(3) Held shows an idle gesture",
+      "on": "field",
+      "who": "Held",
+      "path": "Demeanour.Kind",
+      "op": "in",
+      "value": [
+        "IdleSmoking",
+        "IdleShiftWeight",
+        "IdleStretch",
+        "IdleLookAbout"
+      ]
+    },
+    {
+      "name": "(3) the waiting civilian shows an idle gesture",
+      "on": "field",
+      "who": "Waiting civilian",
+      "path": "Demeanour.Kind",
+      "op": "in",
+      "value": [
+        "IdleSmoking",
+        "IdleShiftWeight",
+        "IdleStretch",
+        "IdleLookAbout"
+      ]
+    },
+    {
+      "name": "(4) Down shows no idle gesture",
+      "never": {
+        "on": "field",
+        "who": "Down",
+        "path": "Demeanour.Kind",
+        "op": "in",
+        "value": [
+          "IdleSmoking",
+          "IdleShiftWeight",
+          "IdleStretch",
+          "IdleLookAbout"
+        ]
+      }
+    }
+  ]
+}

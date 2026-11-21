@@ -1,0 +1,150 @@
+using System.Linq;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Tkb.Domain;
+using Xunit;
+
+namespace Hrot.Map.Common.Tests
+{
+    /// <summary>
+    /// ⭐⭐ <b>The PRODUCTION ownership groups</b> — <see cref="HrotOwnershipGroups.Table"/>.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §1–§2. Each fact asserted here is a user ruling or a measured
+    /// classification row; a change to the table that breaks one is a design change, not a test fix.
+    /// </summary>
+    public class HrotOwnershipGroupsTests
+    {
+        private static readonly Fdp.Toolkit.Replication.Abstractions.OwnershipGroupTable T = HrotOwnershipGroups.Table;
+
+        [Fact]
+        public void ThereIsExactlyOneGroupPerNodeRole_R172()
+        {
+            var roles = new[] { NodeRole.Brain, NodeRole.MuscleGround, NodeRole.Perception, NodeRole.NavigationSolver, NodeRole.Map2D,
+                               NodeRole.Traffic };   // ⭐ AQ93 §12 S2 (R-4056) — the traffic settings' group, served by a Traffic node
+            Assert.Equal(roles.OrderBy(r => r), T.Groups.Keys.OrderBy(r => r));
+        }
+
+        [Fact]
+        public void DtWorldPosMovesWholeAsTheMuscleGroundGroup_R170()
+        {
+            foreach (int id in new[] { GlobalComponentIds.SimTransform, GlobalComponentIds.SimVelocity,
+                                       GlobalComponentIds.VehicleState, GlobalComponentIds.VehicleParams, GlobalComponentIds.NavState })
+                Assert.Equal(NodeRole.MuscleGround, T.GroupOf(id));
+        }
+
+        [Fact]
+        public void DamageAndPerceptionIntentsStayWithTheBrain_R171()
+        {
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.CombatHealth));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(ComponentType<Fdp.Toolkit.Perception.Components.PerceptionReceptor>.ID));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.EqsSensor));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(NavigationContractsComponentIds.NavigationIntent));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(ComponentType<BehaviorState>.ID));
+        }
+
+        [Fact]
+        public void PerceptionExecutionIsItsOwnGroupNotMuscleGround_R171()
+        {
+            Assert.Equal(NodeRole.Perception, T.GroupOf(GlobalComponentIds.EqsCognitiveBuffer));
+            Assert.Equal(NodeRole.Perception, T.GroupOf(GlobalComponentIds.SensorEvalState));
+            Assert.Equal(NodeRole.Perception, T.GroupOf(Fdp.Toolkit.Perception.PerceptionApplicationComponentIds.SensorContactList));
+        }
+
+        /// <summary>
+        /// ⭐ CE-513 / R-180 (Architect_Question_80 §0 A) — a channel that crosses nodes is split: the Brain owns the
+        /// request, the Muscle owns the report, the same shape as stance and the montage queue. Red-proof: drop either
+        /// SetBit pair in <c>HrotOwnershipGroups</c> and this fails.
+        /// </summary>
+        [Fact]
+        public void AnAnimationChannelIsSplitIntoABrainRequestAndAMuscleReport_R180()
+        {
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.AnimationChannel));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.LookAtChannel));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.AnimationChannelStatus));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.LookAtChannelStatus));
+
+            // the existing pairs this follows
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.StanceIntent));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.StanceStatus));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.AnimationMontageQueue));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.AnimationMontageQueueState));
+        }
+
+        [Fact]
+        public void NavigationSolverAndMap2DGroupsAreEmpty()
+        {
+            Assert.True(T.Groups[NodeRole.NavigationSolver].Members.IsEmpty());
+            Assert.True(T.Groups[NodeRole.Map2D].Members.IsEmpty());     // R-161
+        }
+
+        [Fact]
+        public void IdentityAndMapGeometryStayWithTheCreator_AndShadowsAreLocal()
+        {
+            Assert.Equal(NodeRole.None, T.GroupOf(GlobalComponentIds.NetworkIdentity));
+            Assert.Equal(NodeRole.None, T.GroupOf(GlobalComponentIds.EntityInfo));
+            Assert.True(T.IsLocal(GlobalComponentIds.NetworkTransform));
+            Assert.True(T.IsLocal(GlobalComponentIds.NetworkVelocity));
+        }
+
+        [Fact]
+        public void AGroupAppliesOnlyWhenTheTemplateProvisionsIt_G4()
+        {
+            var bare = new TkbTemplate("bare", 1);
+            Assert.False(T.Groups[NodeRole.Brain].AppliesTo(bare));
+            Assert.False(T.Groups[NodeRole.MuscleGround].AppliesTo(bare));
+            Assert.False(T.Groups[NodeRole.Perception].AppliesTo(bare));
+
+            var noBrain = new TkbTemplate("noBrain", 2);
+            noBrain.AddDescriptor(new BehaviorProfileDto { BrainTier = 0 });
+            noBrain.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 0f });
+            Assert.False(T.Groups[NodeRole.Brain].AppliesTo(noBrain));
+            Assert.False(T.Groups[NodeRole.Perception].AppliesTo(noBrain));
+
+            var tank = new TkbTemplate("tank", 3);
+            tank.AddDescriptor(new BehaviorProfileDto { BrainTier = 1 });
+            tank.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 1000f });
+            tank.AddDescriptor(new VehicleParametersDto());
+            Assert.True(T.Groups[NodeRole.Brain].AppliesTo(tank));
+            Assert.True(T.Groups[NodeRole.MuscleGround].AppliesTo(tank));
+            Assert.True(T.Groups[NodeRole.Perception].AppliesTo(tank));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3199</c> / R-3005 (user, <c>2026-10-14</c>: "use one single Muscle role, so all positions are owned by it" ·
+        /// "keep MuscleGround so we do not need to rename") — a FLYER's body is granted to the same Muscle role as a tank's: the FPV
+        /// drone (no car kinematics, a <see cref="FlightParamsDto"/>) gets <see cref="NodeRole.MuscleGround"/>, and its flight state
+        /// sits in that group. 📄 <c>docs/designs/motion-models/DESIGN_Motion_Domains.md</c> §5a. Red before: the drone's position
+        /// stayed with its creator, so on a split cluster the SimHost's air module never moved it.
+        /// </summary>
+        [Fact]
+        public void CE3199_AFlyerIsMovedByTheOneMuscleRole_ItsPositionAndFlightStateAreMuscleGrounds()
+        {
+            var drone = HrotEnvironment.CreateTkb().GetAll().Single(t => t.TkbType == Hrot.Map.Common.TkbEntityTypes.Drone_Fpv);
+            Assert.NotNull(drone.GetDescriptor<FlightParamsDto>());
+            Assert.Null(drone.GetDescriptor<VehicleParametersDto>());
+            Assert.True(T.Groups[NodeRole.MuscleGround].AppliesTo(drone));
+            foreach (int id in new[] { GlobalComponentIds.SimTransform, GlobalComponentIds.SimVelocity,
+                                       GlobalComponentIds.FlightState, GlobalComponentIds.FlightParams })
+                Assert.Equal(NodeRole.MuscleGround, T.GroupOf(id));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-523</c> (S8) rests on this: Health is in the BRAIN group, and only the Brain node runs
+        /// <c>HealthApplicationSystem</c> (gated on the Health claim). A template that provisions Health
+        /// (<see cref="CombatPlatformDefDto"/>) but no brain would keep Health with its creator — a SimHost or IG that
+        /// applies no damage — so every production combat template must carry a brain. A new brainless combat template
+        /// breaks this, and with it the damage path: run <c>HealthApplicationSystem</c> on every host before adding one.
+        /// ⭐ <c>CE-4030</c> — a brainless combat platform (a civilian or SUMO car, hittable but with no behaviour) is in the group by its
+        /// Health alone (G-4: the group applies where its components are provisioned), so its damage still lands on the Brain node.
+        /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.
+        /// </summary>
+        [Fact]
+        public void EveryProductionTemplateWithHealth_HasABrain_SoTheBrainNodeAppliesItsDamage_CE523()
+        {
+            var combat = HrotEnvironment.CreateTkb().GetAll().Where(t => t.GetDescriptor<CombatPlatformDefDto>() != null).ToList();
+            Assert.NotEmpty(combat);
+            Assert.All(combat, t => Assert.True(T.Groups[NodeRole.Brain].AppliesTo(t), $"{t.Name} has Health but no brain"));
+        }
+    }
+}

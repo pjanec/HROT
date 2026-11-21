@@ -45,7 +45,7 @@ public sealed class UnitRosterRenderer : IImGuiRenderer
                 ImGuiApi.TextDisabled($"[{i}]");
 
                 ImGuiApi.TableSetColumnIndex(1);
-                var entity = new Entity((ulong)roster.SubordinateEntities[i]);
+                var entity = roster.SubordinateEntities[i];
                 if (entity.IsNull)
                     ImGuiApi.TextDisabled("[null]");
                 else

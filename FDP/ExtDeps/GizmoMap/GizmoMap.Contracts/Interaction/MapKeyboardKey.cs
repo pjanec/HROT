@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Interaction
         Escape = 256,
         Enter  = 257,
         Tab    = 258,
+        Backspace = 259,   // ⭐ B-17 P2 — remove the last drawn point
         Delete = 261,
 
         LeftShift    = 340,

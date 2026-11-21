@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 600" width="980" height="600" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .bg      { fill:#1e2229; }
+      .panel   { fill:#262b33; stroke:#3a414d; stroke-width:1; }
+      .canvas  { fill:#20242b; stroke:#3a414d; stroke-width:1; }
+      .hdr     { fill:#e8ecf2; font-size:13px; font-weight:600; }
+      .lbl     { fill:#c3cad4; font-size:12px; }
+      .dim     { fill:#8892a0; font-size:11px; }
+      .tiny    { fill:#7d8794; font-size:10px; }
+      .newmark { fill:#7ee081; font-size:10px; font-weight:700; }
+      .tabon   { fill:#2f3540; stroke:#5b8dd9; stroke-width:1.5; }
+      .taboff  { fill:#242931; stroke:#3a414d; stroke-width:1; }
+      .sect    { fill:#2c323b; stroke:#3a414d; stroke-width:1; }
+      .plus    { fill:#7ee081; font-size:13px; font-weight:700; }
+      .node    { fill:#2b313a; stroke:#4a5260; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="980" height="600"/>
+
+  <!-- ─────────── title ─────────── -->
+  <text x="24" y="30" class="hdr" font-size="15">Target authoring UX — how a designer tells Instance / Function / Macro apart</text>
+  <text x="24" y="50" class="dim">Green marks are new work. Everything else exists today.</text>
+
+  <!-- ─────────── MY BLUEPRINT PANEL ─────────── -->
+  <rect class="panel" x="24" y="70" width="250" height="500" rx="4"/>
+  <text x="38" y="92" class="hdr">My Blueprint</text>
+
+  <!-- search box (new) -->
+  <rect x="38" y="102" width="222" height="22" rx="3" fill="#1b1f25" stroke="#4a5260" stroke-width="1"/>
+  <rect x="38" y="102" width="222" height="22" rx="3" fill="#1b1f25" stroke="#3a414d" stroke-width="1"/>
+  <text x="48" y="117" class="tiny">search…</text>
+  <text x="232" y="117" class="newmark">NEW</text>
+
+  <!-- GRAPHS -->
+  <rect class="sect" x="38" y="136" width="222" height="24" rx="3"/>
+  <text x="48" y="152" class="lbl">Graphs</text>
+  <text x="228" y="153" class="plus">+</text>
+  <text x="242" y="152" class="newmark">NEW</text>
+  <circle cx="54" cy="176" r="6" fill="#c9564e"/>
+  <text x="50" y="180" class="tiny" fill="#1e2229" font-weight="700">E</text>
+  <text x="68" y="180" class="lbl">EventGraph</text>
+  <text x="150" y="180" class="tiny">(Instance only)</text>
+
+  <!-- FUNCTIONS -->
+  <rect class="sect" x="38" y="196" width="222" height="24" rx="3"/>
+  <text x="48" y="212" class="lbl">Functions</text>
+  <text x="228" y="213" class="plus">+</text>
+  <circle cx="54" cy="236" r="6" fill="#4b8fd6"/>
+  <text x="50" y="240" class="tiny" fill="#1e2229" font-weight="700">F</text>
+  <text x="68" y="240" class="lbl">GetThreatLevel</text>
+  <circle cx="54" cy="258" r="6" fill="#4b8fd6"/>
+  <text x="50" y="262" class="tiny" fill="#1e2229" font-weight="700">F</text>
+  <text x="68" y="262" class="lbl">ComputeScore</text>
+  <text x="150" y="262" class="dim">F2 = rename</text>
+  <text x="222" y="262" class="newmark">NEW</text>
+
+  <!-- MACROS -->
+  <rect class="sect" x="38" y="278" width="222" height="24" rx="3"/>
+  <text x="48" y="294" class="lbl">Macros</text>
+  <text x="228" y="295" class="plus">+</text>
+  <text x="242" y="294" class="newmark">NEW</text>
+  <circle cx="54" cy="318" r="6" fill="#b57ddb"/>
+  <text x="49" y="322" class="tiny" fill="#1e2229" font-weight="700">M</text>
+  <text x="68" y="322" class="lbl">AimWaitFire</text>
+  <text x="150" y="322" class="tiny">latent OK</text>
+
+  <!-- CUSTOM EVENTS -->
+  <rect class="sect" x="38" y="340" width="222" height="24" rx="3"/>
+  <text x="48" y="356" class="lbl">Custom Events</text>
+  <text x="228" y="357" class="plus">+</text>
+  <circle cx="54" cy="380" r="6" fill="#d68f4b"/>
+  <text x="50" y="384" class="tiny" fill="#1e2229" font-weight="700">C</text>
+  <text x="68" y="384" class="lbl">OnDamaged</text>
+
+  <!-- VARIABLES -->
+  <rect class="sect" x="38" y="402" width="222" height="24" rx="3"/>
+  <text x="48" y="418" class="lbl">Variables</text>
+  <text x="228" y="419" class="plus">+</text>
+  <circle cx="54" cy="442" r="6" fill="#6fb98f"/>
+  <text x="68" y="446" class="lbl">ThreatLevel</text>
+  <text x="150" y="446" class="dim">F2 = rename</text>
+  <text x="222" y="446" class="newmark">NEW</text>
+
+  <text x="38" y="486" class="tiny">Icon colour + letter is the ONE consistent</text>
+  <text x="38" y="500" class="tiny">signal: it repeats in the tab, the breadcrumb</text>
+  <text x="38" y="514" class="tiny">and the asset browser.</text>
+  <text x="38" y="536" class="newmark">NEW</text>
+  <text x="72" y="536" class="tiny">Macros section is rendered today but</text>
+  <text x="38" y="550" class="tiny">always empty, and its + does nothing (BP-77).</text>
+
+  <!-- ─────────── CANVAS ─────────── -->
+  <rect class="canvas" x="296" y="70" width="660" height="500" rx="4"/>
+
+  <!-- tab bar -->
+  <rect class="taboff" x="308" y="82" width="128" height="26" rx="3"/>
+  <circle cx="322" cy="95" r="5" fill="#c9564e"/>
+  <text x="334" y="99" class="lbl" font-size="11">EventGraph</text>
+
+  <rect class="tabon" x="440" y="82" width="140" height="26" rx="3"/>
+  <circle cx="454" cy="95" r="5" fill="#4b8fd6"/>
+  <text x="466" y="99" class="lbl" font-size="11">GetThreatLevel</text>
+
+  <rect class="taboff" x="584" y="82" width="122" height="26" rx="3"/>
+  <circle cx="598" cy="95" r="5" fill="#b57ddb"/>
+  <text x="610" y="99" class="lbl" font-size="11">AimWaitFire</text>
+  <text x="716" y="99" class="newmark">NEW — tabs carry the kind icon</text>
+
+  <!-- breadcrumb -->
+  <rect x="308" y="118" width="636" height="26" rx="3" fill="#2a2f37" stroke="#3a414d"/>
+  <text x="320" y="135" class="lbl" font-size="11">SquadState</text>
+  <text x="392" y="135" class="dim" font-size="11">[Library]</text>
+  <text x="450" y="135" class="dim" font-size="11">&gt;</text>
+  <text x="464" y="135" class="lbl" font-size="11">GetThreatLevel</text>
+  <text x="556" y="135" class="dim" font-size="11">(Function)</text>
+  <text x="640" y="135" class="dim" font-size="11">— returns 1 output</text>
+  <text x="790" y="135" class="newmark">BP-85 ships part of this</text>
+
+  <!-- graph body -->
+  <rect x="330" y="172" width="120" height="46" rx="4" fill="#2b313a" stroke="#4b8fd6" stroke-width="1.5"/>
+  <text x="342" y="190" class="lbl" font-size="11">Entry</text>
+  <text x="342" y="206" class="tiny">inputs = out pins</text>
+  <circle cx="450" cy="196" r="4" fill="#6fb98f"/>
+
+  <rect x="560" y="172" width="140" height="60" rx="4" fill="#2b313a" stroke="#4b8fd6" stroke-width="1.5"/>
+  <text x="572" y="190" class="lbl" font-size="11">Return</text>
+  <text x="572" y="206" class="tiny">outputs = IN pins</text>
+  <circle cx="560" cy="196" r="4" fill="#6fb98f"/>
+  <text x="572" y="224" class="newmark" font-size="9">Details here lists + adds outputs</text>
+
+  <line x1="450" y1="196" x2="560" y2="196" stroke="#6fb98f" stroke-width="2"/>
+
+  <!-- details panel mock -->
+  <rect x="740" y="172" width="200" height="200" rx="4" fill="#262b33" stroke="#3a414d"/>
+  <text x="752" y="192" class="hdr" font-size="12">Details — Return</text>
+  <line x1="752" y1="200" x2="928" y2="200" stroke="#3a414d"/>
+  <text x="752" y="220" class="lbl" font-size="11">Outputs</text>
+  <text x="912" y="221" class="plus">+</text>
+  <rect x="752" y="230" width="176" height="22" rx="3" fill="#1b1f25" stroke="#3a414d"/>
+  <text x="760" y="245" class="tiny">ThreatLevel : float</text>
+  <text x="752" y="274" class="lbl" font-size="11">Inputs</text>
+  <text x="912" y="275" class="plus">+</text>
+  <text x="752" y="296" class="tiny">(none declared)</text>
+  <text x="752" y="330" class="newmark" font-size="9">BP-89 — this is where the</text>
+  <text x="752" y="344" class="newmark" font-size="9">designer already is looking.</text>
+  <text x="752" y="358" class="tiny">Unreal opens the same panel from</text>
+  <text x="752" y="371" class="tiny">3 places; we have 1, elsewhere.</text>
+
+  <!-- legend -->
+  <rect x="330" y="410" width="610" height="140" rx="4" fill="#262b33" stroke="#3a414d"/>
+  <text x="344" y="432" class="hdr" font-size="12">How the three graph kinds differ — one rule, repeated everywhere</text>
+
+  <circle cx="356" cy="458" r="7" fill="#c9564e"/>
+  <text x="351" y="462" class="tiny" fill="#1e2229" font-weight="700">E</text>
+  <text x="372" y="462" class="lbl" font-size="11">Event</text>
+  <text x="440" y="462" class="dim" font-size="11">runs on tick / on an event · latent OK · Instance assets only</text>
+
+  <circle cx="356" cy="486" r="7" fill="#4b8fd6"/>
+  <text x="351" y="490" class="tiny" fill="#1e2229" font-weight="700">F</text>
+  <text x="372" y="490" class="lbl" font-size="11">Function</text>
+  <text x="440" y="490" class="dim" font-size="11">called · returns values · NO latent (BP1650) · callable cross-asset</text>
+
+  <circle cx="356" cy="514" r="7" fill="#b57ddb"/>
+  <text x="351" y="518" class="tiny" fill="#1e2229" font-weight="700">M</text>
+  <text x="372" y="518" class="lbl" font-size="11">Macro</text>
+  <text x="440" y="518" class="dim" font-size="11">inlined at each call site · latent OK · N exec-outs · asset-local</text>
+
+  <text x="344" y="540" class="tiny">The latent column is the whole reason macros exist — a Function cannot contain a Delay.</text>
+</svg>

@@ -1,20 +1,28 @@
-using Fdp.Core;
-
 namespace Fdp.Toolkit.Diagnostics.Gizmos
 {
-    // Extension methods that add ECS-specific computed properties to DebugPrimitive.
-    // These replace the former .Anchor and .Token instance properties that coupled
-    // GizmoMap.Contracts.DebugPrimitive to Fdp.Core.Entity and PickToken.
+    /// <summary>
+    /// ⭐ Convenience projections from a <c>GizmoMap.Contracts.DebugPrimitive</c> to the ECS-side
+    /// <see cref="PickToken"/>.
+    ///
+    /// <para>⛔⛔ <b>§6.7, 2026-09-11 — <c>GetAnchor()</c> IS GONE.</b> It returned
+    /// <c>new Entity(p.AnchorIndex, p.AnchorGeneration)</c>: an ECS handle fabricated out of two fields
+    /// that, for most primitive shapes, hold something else entirely (a narrowed <c>SpatialAnchor</c>
+    /// cache key, a <c>StringHash</c>, a <c>LineOffsetPx</c> — see <c>DebugPrimitive.cs</c> offset 8/12).
+    /// 📐 Measured: it had <b>no production caller</b>, only a rail asserting the fabrication itself.
+    /// ⇒ 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7 — identity is the anchor network id, and a
+    /// handle is resolved from it in a world, never reconstructed from wire-adjacent bytes.</para>
+    ///
+    /// <para>⚠ This mirrors <c>GizmoMap.Presentation.DebugGizmoLayer.MakePickToken</c>, which is the
+    /// PRODUCTION path (it also carries <c>GizmoTypeId</c>). ⛔ Do not grow a second policy here — if the
+    /// two ever need to differ, that is a finding, not a feature.</para>
+    /// </summary>
     public static class EcsDebugPrimitiveExtensions
     {
-        // Reconstructs the entity anchor from its split index + generation fields.
-        public static Entity GetAnchor(this DebugPrimitive p)
-            => new Entity(p.AnchorIndex, p.AnchorGeneration);
-
-        // Computed pick token that uses the Anchor entity as the hit-test target.
-        // IsValid returns true when AnchorIndex >= 0 and AnchorGeneration != 0,
-        // i.e. the anchor entity is non-null.
+        /// <summary>
+        /// The primitive's pick token: its anchor IDENTITY (<c>BoxAnchorId</c> — a network id, a disjoint
+        /// tool id, or 0) plus the sub-element index.
+        /// </summary>
         public static PickToken GetPickToken(this DebugPrimitive p)
-            => new PickToken { Target = p.GetAnchor(), SubElementId = p.SubElementId };
+            => new PickToken { AnchorId = p.BoxAnchorId, SubElementId = p.SubElementId };
     }
 }

@@ -107,7 +107,15 @@ public sealed class StateInspectorTests
     // ---- SC5: MarshalFromBytes unknown type returns byte[] --------------------
 
     /// <summary>
-    /// MarshalFromBytes must return the raw byte[] unchanged for types not in the switch.
+    /// MarshalFromBytes must return the raw byte[] unchanged when it cannot decode the bytes.
+    ///
+    /// <para>
+    /// ⚠ <b>The reason changed with <c>S3</c>, and the assertion did not.</b> This used to hold because
+    /// <c>DateTime</c> is <i>"not in the switch"</i>; the struct arm now decodes any unmanaged value
+    /// type, so what keeps this red-able is the <b>exactness</b> bound — four bytes are not a
+    /// <c>DateTime</c>'s eight. 📌 Left on <c>DateTime</c> deliberately: a type that <i>would</i> decode
+    /// at the right length is a sharper witness for the bound than one that could never decode at all.
+    /// </para>
     /// </summary>
     [Fact]
     public void MarshalFromBytes_UnknownType_ReturnsByteArray()

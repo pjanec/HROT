@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Fdp.Core;
-using Fdp.Toolkit.Spatial.Eqs.Topics;
 
 namespace Fdp.Toolkit.Spatial.Eqs
 {
@@ -26,7 +25,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public uint Epoch;
         /// <summary>Simulation tick at which the Muscle solver completed this evaluation.</summary>
         public uint RefreshTick;
-        /// <summary>Ranked result entries.  May be empty for Phase 1 stub results (EntryCount == 0).</summary>
-        public List<EqsResultEntry> Results = new();
+        /// <summary>Ranked results, ENGINE-side (<see cref="EqsResult"/>: <c>EntityId</c> is this node's packed entity, 0 = positional).
+        /// May be empty for Phase 1 stub results (EntryCount == 0). ⭐ CE-4207 (R-134): no DDS type on the event — the ingress translator
+        /// converts the wire's <c>EqsResultEntry</c> (network ids) into these.</summary>
+        public List<EqsResult> Results = new();
     }
 }

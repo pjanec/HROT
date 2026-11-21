@@ -159,7 +159,7 @@ See `.dev/anim-ctrl/` for all design docs:
 - **Source files:**
   - `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Nodes/AnimationActionNodes.cs` (or split per node if preferred)
   - Pair with corresponding `*.Tests.cs` files
-- **Build clean:** `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore` produces 0 errors.
+- **Build clean:** `dotnet build HROT.sln -c Debug --no-restore` produces 0 errors.
 - **Tests pass:** `dotnet test Hrot.MuscleCharacter.Animation.Tests --no-build -v minimal` shows 130+ passing (117 pre-existing + ~17–20 new).
 - **Batch report:** `.dev/anim-ctrl/reports/BATCH-07-REPORT.md` with all insight questions answered + test summary.
 

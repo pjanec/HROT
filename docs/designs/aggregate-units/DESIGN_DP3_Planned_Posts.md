@@ -1,0 +1,282 @@
+<!--STATUS
+state: LIVE
+build-state: BUILT end to end (agg-behaviors' planner + PlannedPosts 138, agg-backend's wait `b0d53162e`; §9 verdict 2026-11-17: agg-squad-holds-house's 10 men land on the house's wall posts); OPEN: DP3-D ② — designed in DESIGN_X2_Order_Reresolution.md §7 X2-F (READY-TO-BUILD 2026-11-17)
+updated: 2026-11-17 (§9 the end-to-end verdict; CE-8307: the planner's scope is "a unit whose split makes men, with a person in its table", cached per type — DESIGN_Split_One_Level.md §10 F7 / F11)
+current-answer: §9 AS BUILT (read first) · §0 the decision · §2 the claim table · §3 classes (as built) · §4 sequence · §5 modules · §6 the sub-questions with leans · §7 acceptance
+stale-below: nothing.
+known-rot: none.
+known-conflict: DESIGN_Stochastic_Units_And_Resolution.md §16 P-1 / P-2 (posts surveyed ONCE when the unit settles) — already SUPERSEDED there by §16a; this design follows §16a / SV-5 (posts planned during the split's Planning stage)
+related-designs:
+  - DESIGN_Split_One_Level.md — OWNS the one-level split (CE-8307): a split platoon's SQUADS are stochastic units that then split into men, so this design's squad plan applies at every echelon's leaf; the planner's scope becomes "a unit whose split makes men" (R-8388)
+  - DESIGN_Stochastic_Units_And_Resolution.md — OWNS the split process (§16a D-P1…D-P7), SV-5 (the planned-posts component), the manager (§16b) and R-8330 (why ST-5 C stopped); this file answers its D-P3 for the SQUAD leaf only
+  - ../group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS SquadDefend's plan (§8c D-1…D-2m), D-2f authored posts (the handover path) and §13b R-2037 (the brain asks the muscle, never reads geometry) that rules out a synchronous plan
+  - ../eqs-2/EQS_Design_v1.3_final.md — OWNS the child-sensor road the asks ride (EqsChildSensor, epochs, the Muscle's 10 Hz solver) and the baked cover provider (A7) that is this problem's "precomputed tactical data"
+  - ../../DESIGN_World_Survey_Sensor.md — OWNS the frame / fan / coverage surveys (WorldSurveyChildSensor) the plan's later stages ask
+  - ../../DESIGN_Orders_Params_Entity_Classes.md — OWNS the order routing the handover's re-resolution (X-2) goes through
+  - DESIGN_X2_Order_Reresolution.md — OWNS X-2 (the order re-issued on a switch) and therefore DP3-D ② as designed (§7 X2-F, R-8359: Posts from PlannedPosts, MaxPosts 8 → 13, the recording measured — the blackboard is recorded bytes, the component layout unchanged)
+-->
+
+# D-P3 — real defence posts for a splitting stochastic squad *(agg-behaviors, `2026-11-16`)*
+
+🔒 The ask (§16a D-P3, SV-5): a stochastic squad about to split gets REAL posts (windows, frames, roof, cover) so its men materialise on them —
+today they land on `UnitSplits.FallbackPosts`' line (`UnitResolution.cs:84-99`). Stopped once (R-8330, §23.5c) because the plan is bound to a
+commander's sensors and live men. Links: [main design](https://github.com/pjanec/HROT/blob/exp/agg-behaviors/docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) ·
+[SquadDefend §8c](https://github.com/pjanec/HROT/blob/exp/agg-behaviors/docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md).
+
+## 9. AS BUILT *(agg-behaviors, `2026-11-17`, CE-8303 — read this first)*
+
+| part | built | where |
+|---|---|---|
+| ① measured (§2 row 4) | ✅ **the unit IS placed on the Perception node.** `--mode all`, `agg-squad-holds-house`, t = 23 s: the CGF node (400) and SimHost-1 (Muscle + Perception) both hold unit 1000 with `SimTransform` (125, 161, 0) — its authored point; `NetworkAuthority.PrimaryOwnerId` 400 on both, no `DescriptorOwnership` split (the CGF owner publishes its position). ⇒ the asks have an origin; no `ContextPoint1` fallback was needed. ⚠ Measured on a unit that holds its point; a moving unit's position reaching SimHost was not measured | `GET /entities/1000` per perspective |
+| DP3-A | ✅ `DefencePlan.Step<TCrew>` + `RosterCrew` / `SlotCrew` / `DefenceAsk`; `SquadDefendPlay.Plan` calls it; `AskTerrainAll` / `DropSensor` gained a carrier + ask-state overload (the roster one delegates) | `Hrot.AI.Behaviors/Brains/DefencePlan.cs`, `SquadManeuverRunner.cs` |
+| DP3-C | ✅ `PlannedPosts` (138): 13 × point · watch · flags, `Count`, `Ready`, `Stage`, `PlannedAt`; `TryGet(k, out PlannedPost)` for the manager | `Fdp.Toolkits/Aggregate/PlannedPosts.cs`, `GlobalComponentIds`, `HrotSharedComponentRegistry` |
+| DP3-B (ours) | ✅ `UnitPostPlanningSystem`, registered in `CgfLogicPack` right before `ResolutionManagerSystem` | `Hrot.CGF/Systems/UnitPostPlanningSystem.cs` |
+| DP3-B (agg-backend) | ✅ built by agg-backend `b0d53162e` (R-4286): Planning waits for `Ready` or `DeadlineSeconds` (10 s) for a unit that HAS `PlannedPosts`; forced never waits; a withdrawn trigger removes the component. ⛔ SUPERSEDED: *"not built — the posts are written but not consumed"* (true until the merge `6e4e3f1c0`) | `UnitResolution.cs:245-268` |
+| DP3-D ① | ✅ the manager writes `_posts[k] = post.Point` for each `TryGet(k)` over the first `Count` live slots, then `Materialise` (one struct, unified on ours at the merge `6e4e3f1c0`) | `UnitResolution.cs:259-266` |
+| DP3-D ② | ✅ built with X-2 S4 (`2026-11-17`, CE-8306, R-8359): the reconciler's re-issued `SquadDefend` carries `PlannedPosts` as D-2f `Posts` (`OrderReissue.WithPlannedPosts`); `SquadDefendPostJsonDto.MaxPosts` 8 → 13. 🔒 User: *"Breaking replay is no issue."* — an old recording replayed mid-`SquadDefend` may mis-read its blackboard block, accepted (R-8365). Live in `agg-squad-holds-house`: SquadDefend at the handover, every man still inside the house 3 s later (no ask). ⛔ SUPERSEDED: *"not built (waits on X-2)"* · *"whether the blackboard is recorded is NOT measured"* (it is — DESIGN_X2 claim 13) | `UnitResolutionFitSystem.cs`, `OrderReissue.cs`; [DESIGN_X2 §11](DESIGN_X2_Order_Reresolution.md) |
+
+### 9a. ⭐ The end-to-end verdict *(`2026-11-17`, `exp/agg-behaviors` after merging agg-backend `b0d53162e`; design §23.6g, R-8351)*
+
+✅ **DP3 places the men on real posts.** `agg-squad-holds-house` (cqb-village, a stochastic squad of 10 holding "OBJ" = house-3f, 10 × 8 m, footprint x 115–125 · y 153–161):
+
+| measured (editor tier, fresh processes) | value |
+|---|---|
+| Planning seen · `PlannedPosts.Ready` = 1 · `Count` | 0.25 s · by 0.25 s · 10 (every live slot posted) |
+| handover (Physical) | 2.25 s — unchanged: the plan is Ready before the manager's NEXT 1 Hz step, so the wait returns at once (⚠ the 10 s wait itself is not exercised by this scenario; agg-backend's `UnitResolutionRails` pins it) |
+| where the 10 men stand at the handover | all 0.5 m inside an outer wall: 5 at z 3 (upper storey), 5 at z 0; 5 on the north wall (the one facing the enemy, its windows and door — y 160.5), 2 on the south, 3 on the east / west. **No roof post** (z 6) chosen. Still all inside at 20 s |
+| before (the fallback line, `94ba2a698`) | one line across the heading at y 161 ± 1, x out to 134 — 5 of the 10 old line rows now FAIL (the men are inside the house) |
+
+⭐ The scenario now judges this (22 rows, golden): every man inside the footprint, ≥ 5 on the upper storey, ≥ 5 on the enemy-facing wall, the plan Ready (Count 10) before the men exist, still inside at 20 s. ⚠ The rows read the MEN, not `PlannedPosts`' flags: a fixed buffer is not in the entity dump (measured: `PlannedPosts.Flags.*` / `.Z.*` match nothing), so "a window post" is judged by position at the wall, not by the window bit.
+⭐ The `TryGet` unification at the merge is proved by the same run (the posts reach the men); no fix needed. Root-cause tree of the brief (planner / wait / unification) not needed: nothing failed.
+
+**Deviations from §3 / §4, each with its reason**
+
+| design said | as built | why |
+|---|---|---|
+| `Step(ref DefencePosts, ref PlanAsk, in crew, position, radius)` | `Step<TCrew>(ref DefencePosts, ref DefenceAsk, in TCrew, in AuthoredPosts, position, radius)` | the authored posts (D-2f) are part of the plan; `PlanAsk` is named `DefenceAsk`. The physical play copies `ws.Sensor` / `ws.LastAnswerTick` into it and back each call — the only change to the physical path besides the carrier parameter |
+| crew: `Carrier · Origin · Count · Live(i) · At(i) · Support(i) · MedianTier` | `World · Carrier · Now · Count · Live(i) · Live(i, out at) · Support(i) · Origin() · MedianTier()` | `At` merged into `Live(i, out at)` (the roster reads a man's body once); the engagement area is read off the `Carrier` (the commander / the unit) |
+| `UnitPostPlanningSystem` in `Hrot.AI.Behaviors` | in `Hrot.CGF/Systems`, beside `UnitSopResolutionSystem` | the brief named the CGF brain pack; it calls `DefencePlan` (public) across the assembly boundary like `UnitSopResolutionSystem` calls `TacticalIntentResolutionSystem` |
+| the Defend order's position / radius (not stated) | read from the order's start text (`BehaviorStartRecord`, the neutral `DefendOrder`) once per plan; none ⇒ the unit's position / 30 m (SquadDefend's default) | the stochastic Defend's blackboard keeps only its position; nothing else holds the order's `SearchRadius` (RV-17: the order is derived from the start record) |
+| `PlannedPosts` flags: window · roof · frame · authored · gun | + a `Posted` bit (bit 0) | an entry must say "no post ⇒ his fallback point" (the silent-muscle case) |
+| "a withdrawn trigger clears `PlannedPosts`" under DP3-B (the manager) | the PLANNER clears it when the unit is Stochastic and not splitting (a withdrawal, a merge) | one owner of the component; the manager needs no change for it |
+| the plan's state (not stated) | per unit, in the system (process state, never recorded); `Stage` / `PlannedAt` are recorded — a seek that moves the clock back, or a recorded plan that is not the held one, restarts the asks | the asks' children live in the world, the plan's candidates do not need to |
+
+**Rails** (`SquadManeuverTests` — the defence's own suite — and `Fdp.Toolkits.Tests`), each red-proved by one compiling mutation:
+
+| rail | the mutation that turned it red |
+|---|---|
+| `DP3_TheStochasticPlanner_WritesAWindowPostPerLiveSlot_FromTheUnitsOwnAsk` (the ask is the UNIT's child, slot 0 = the unit; Ready; Count = 8 live of 10; distinct window posts; the MG flagged) | publishing every slot, not the live ones ⇒ Count 10 ≠ 8 |
+| `DP3_ASilentMuscle_GivesReadyWithNoPosts_InsideTheDeadline` (Ready between 5 s and 10 s, no posted entry) | the window stage's timeout removed ⇒ never Ready |
+| `DP3_AWithdrawnTrigger_DropsTheAsks_AndClearsThePlannedPosts` (+ a platoon plans nothing) | the clear dropped ⇒ Stage stays Planning |
+| `DP3_ASteadyPlanningFrame_AllocatesNothing` (0 B over 200 waiting frames) | a `new Vector3[13]` fallback buffer per frame |
+| `DP3_TheRosterCrew_AndTheSlotCrew_GetTheSamePosts_FromTheSameAnswer` (one plan, two crews ⇒ the same posts) | `SlotCrew` placing each man on the next rank's point |
+| `PlannedPostsRails` ×3 (138, unmanaged, ≤ 1024 B, NoScenario and recorded · `TryGet` · a recording round-trip) | `NoReplay` added ⇒ 2 red · `TryGet`'s Ready guard dropped ⇒ red |
+
+**Lane decisions:** R-8346 (the order's position / radius from its start text) · R-8347 (the planner owns and clears `PlannedPosts`) · R-8348 (the planner's home, `Hrot.CGF/Systems`).
+
+**Scenarios** (`scripts/scenario-regression.sh`, editor tier, at `94ba2a698`): sq-defend-house 3/3 · pc-defend-house 7/7 · bc-house-defended 4/4 · ts-three-defenders 9/9 golden SAME · agg-prepared-defence 4/4 SAME · agg-squad-holds-house 42/42 SAME · agg-split-on-contact 66/66 SAME · ts-house-defenders 4/6 and ia-area-defend 3/6 — the rows already filed as CE-3462 / CE-3463 (open before this work, no golden). `agg-probe-defend` (§7) does not exist in the tree. ⛔ SUPERSEDED by §9a: *"`agg-squad-holds-house` is NOT re-judged"* — it is, on the real posts.
+
+**Parallel safety:** `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8 --scenario agg-squad-holds-house --dll <Debug runner>` — STATE EQUAL (0 types differ; the gate's window is 2 s, which covers the split: Planning at ~0.6 s, Materialising at the next manager step).
+
+**Seen live** (editor, `agg-squad-holds-house`): the planner ran — the unit got `PlannedPosts` Stage 1 (Planning) at t 0.59 s, and the manager materialised one step later with `Ready` 0 (no wait yet). ⚠ A plan cut off that way keeps `Stage` 1 / `Ready` 0 on the now-physical unit (it is cleared at the next merge); harmless, since nothing reads it while physical.
+
+⭐ The physical defence: `SquadManeuverTests` **318 / 0 before and after** the extract (plain, and 318 / 0 after under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`); with the new rails and `CgfLogicPackTests` 341 / 0 in both.
+
+## 0. The decision *(under a page)*
+
+**Decision.** Run SquadDefend's OWN plan — not a copy — over a *crew* abstraction: the physical play's crew is its roster (unchanged); the
+stochastic crew is the unit entity itself (a placed origin, the EQS carrier) plus its slot table (count, roles) with every virtual man standing
+on his fallback point. A behaviors-side `UnitPostPlanningSystem` steps that plan every frame for each squad-echelon unit in `Planning` whose
+current order is a Defend, and writes the result into **`PlannedPosts` (138)** on the unit. agg-backend's manager **waits** in `Planning` until
+`PlannedPosts.Ready` or its existing `DeadlineSeconds` (`UnitResolution.cs:41`, D-P5), then materialises the men AT the planned posts (fallback
+for any slot left without one). Once the order re-resolution on a switch (X-2) exists, the same posts ride the re-resolved `SquadDefend` order as
+D-2f `Posts`, so the physical squad starts Set with no survey.
+
+**Rejected** *(one line each)*
+- a separate stochastic post planner — a second implementation of the defence plan (shared-and-unified rule); it drifts from D-2a…D-2m at once.
+- posts precomputed per house (at load, or when the unit settles — §16 P-1) — P-1 is SUPERSEDED (§16a: a split happens anywhere, any time), and R-2037 forbids the brain from reading baked geometry: doors, smoke and damage are known only to the muscle.
+- a synchronous plan inside the manager's Planning step — the asks are solved on the Perception node (10 Hz banded solver, EQS §19 / §13b), so no answer exists within one call; and `Fdp.Toolkits` cannot reference `Hrot.AI.Behaviors`.
+- the manager calling a planner seam at its 1 Hz step — each of the plan's ≤ 5 stages would wait for the next step (≥ 5 s for a plan the solver answers in about a second), and the manager would own a behaviour's state.
+- writing the posts straight into the physical squad's blackboard at the handover — a second entry beside the order contract; D-2f `Posts` already is that entry.
+
+**Design docs checked**
+- `DESIGN_Stochastic_Units_And_Resolution.md` §16a / §16c / SV-5 / R-8330 — applies: owns the requirement and the component; ⚠ its P-1 / P-2 are superseded and not followed.
+- `DESIGN_Defend_And_Attack_Position.md` §8c (D-2f…D-2m) — applies: the plan reused, D-2f is the handover path. §13b (R-2037 / R-2038) — applies and DECIDES DP3-A / DP3-B: geometry comes from the muscle, asynchronously.
+- `EQS_Design_v1.3_final.md` §19.5 (`EqsContext.Self`: slot 0 any PLACED entity) and A7 (cover provider baked at terrain residency) — applies: the unit entity can be the origin, and the "precomputed tactical data" of the proven solution already sits under the asks on the muscle.
+- `DESIGN_World_Survey_Sensor.md` — applies: frame / fan / coverage surveys take a carrier entity and an area, no member.
+- `DESIGN_Orders_Params_Entity_Classes.md` — applies to DP3-D only (re-resolution); ⚠ X-2 is not built (§2 row 9).
+- `DESIGN_Aggregate_Squad.md` (FusionSquad) — does not apply: optional and deferred (R-4253); nothing here needs a FusionSoldier.
+
+## 1. INVENTORY *(graph AND grep; `scripts/cbm.sh`, project `home-user-HROT`, indexed this session)*
+
+| query | total | what it found that matters |
+|---|---|---|
+| `search_graph name_pattern=".*Post.*" label=Class` | 32 | `AuthoredPosts`, `DefencePosts`, `DefencePostPicker` (`SquadDefendBehavior.cs`), `CoveragePosts`, the EQS templates `FindDefensiveWindowPosts` / `…SetBackPosts` / `FindWindowPostsAllRound` / `…SetBackPostsAllRound` / `FindRoofPosts` / `FindCoverPosts`, `SquadManeuverRunner.MemberPost` — ⭐ no planned-post or post-planner type exists |
+| `".*Planned.*"` Class | 2 | `PathReplannedEvent`, `PlannedPathGizmo` — ⭐ `PlannedPosts` does not exist (138 reserved, R-8329) |
+| `".*Planner.*"` Class / Interface | 5 / 0 | `RoutePlanner`, `TransitionPlanner`, `ClusterMasterPlanner`, `SocialPlanner` — none plans posts |
+| `".*Defen[cs]e.*"` Class | 7 | `DefencePostPicker`, `DefencePosts`, `PlatoonDefencePlan`, `PlatoonDefendBehavior`, `SquadDefendBehavior` (+ air defence) — the ONE defence plan is `SquadDefendPlay.Plan` |
+| `".*SquadDefend.*"` Class | 7 | `SquadDefendPlay`, `SquadDefendParams`, `SquadDefendBlackboard`, `SquadDefendManeuver` (Fdp.Toolkits), the two DTOs |
+| `".*Resolution.*"` Class / Interface | 17 / **0** | `TacticalIntentResolutionSystem`, `TerrainQueryResolutionSystem` … ⚠ the graph MISSED `IUnitResolutionSwitch` and `ResolutionManagerSystem` — grep finds both (`UnitResolution.cs:52, :125`) |
+| `".*Split.*"` Class | 10 | `PlatoonDefendBehavior.SectorSplit` — nothing splits a unit's posts |
+| `".*Eqs.*"` Class / Interface | 134 / 7 | `EqsChildSensor`, `EqsContext`, `EqsSchedule`, `EqsCognitiveBuffer` — the carrier road takes any parent entity |
+| `".*Survey.*"` Class · `".*CoverProvider.*"` Class | 24 · 4 | `WorldSurveyChildSensor`; the muscle's baked `TerrainCoverProvider` |
+| `".*Tactical.*"` · `".*Footprint.*"` Class | 23 · 8 | no tactical-position store on the brain; `VehicleFootprint` (EQS hull sizing) only |
+| `search_code "ReResolve\|Reissue.*Order\|ResolutionChanged"` regex | 0 relevant | ⭐ nothing re-issues an order on a resolution switch (X-2 unbuilt) |
+| grep `AggregateChild` | 4 files | the split's children join no roster (no squad code reads the tag) |
+
+⚠ Coverage could not be checked (`check_index_coverage` is not in the CLI); the `Resolution` miss above is why every absence row is grep-confirmed.
+
+## 2. The claim table
+
+| the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| 1 the plan is one async state machine over a commander's EQS children, measured from the first live man | ✅ `SquadDefendBehavior.cs:492-566` (`FirstLive` :495, `AskTerrainAll` :524-527), `SquadManeuverRunner.cs:778-818` (carrier = `ctx.Commander`) | ✅ §8c D-1, §23.5c R-8330 |
+| 2 the roster is read only in four places: `AnyWithoutPost`, `PickAll`, `MedianTier`, `GunOnTheLongestView` | ✅ `:858-864`, `:707-747`, `:631-639`, `:574-584` | ⛔ searched §8c, none states it |
+| 3 any PLACED entity can be the ask's origin; a carrier needs only to be alive | ✅ `EqsContext.cs:19-30` (slot 0, else observer, else carrier's parent); `EqsChildSensor.Ensure(view, parent, …)` `EqsChildSensor.cs:67` | ✅ EQS §19.5 |
+| 4 the unit entity is placed and on the wire | ✅ brain: the manager's query `With<SimTransform>` `UnitResolution.cs:157`; wire: `dtAggregateUnit` 220 `AllDescriptors.cs:224`. ⛔ its `SimTransform` on the Perception node assumed (the generic position descriptor) — **measured first in slice ①**; if false the ask has no origin and returns empty ⇒ fallback (safe) | ✅ ST-2 N-1 (LOS between footprint samples on the Muscle) presumes it |
+| 5 geometry cannot be read synchronously on the brain | ✅ asks go out as `EqsSensor` config, answers come back (`EqsSensorConfigEgressTranslator`, `EqsResultIngressTranslator`) | ✅ R-2037 / R-2038, §13b |
+| 6 the manager's Planning is one step and already carries a deadline | ✅ `UnitResolution.cs:245-252` (Materialise at once), `DeadlineSeconds = 10` declared, unread (`:41`) | ✅ D-P5 |
+| 7 `Materialise` places the k-th LIVE slot on `posts[k]` | ✅ `UnitResolution.cs:333-352` | ✅ D-P4 |
+| 8 a slot carries a role, no proficiency | ✅ `UnitSlot` `AggregateComponents.cs:210-222`, `SlotRole.MachineGunner = 3` | ⛔ searched, none on the stochastic tier — the unit's own proficiency (or Regular) stands in |
+| 9 X-2 (re-resolve the order on a switch) is NOT built; children join no roster | ✅ `Handover` maps health / stress / ammo only (`UnitResolution.cs:359-380`); search_code 0 | ✅ X-2, SV-10, RV-17 say it should be ⇒ DP3-D part ② waits on it |
+| 10 authored posts skip the asks when every man holds one; cap 8 | ✅ `:496-506`, `SquadDefendPostJsonDto.MaxPosts = 8` | ✅ D-2f |
+| 11 the proven solution for this class: plan from the aggregate's origin / footprint with the same unit planner, over precomputed tactical position data, as an async stage with a lead time and a deadline fallback to the formation template | adopt / adapt: origin ✅ (row 3) · precomputed data ✅ already on the muscle (`TerrainCoverProvider`, EQS A7) · async + deadline ✅ (rows 5, 6) · a brain-side position database ⛔ rejected (R-2037) | — |
+
+## 3. Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendPlay {
+    <<EXISTING SquadDefendBehavior.cs>>
+    Plan() calls DefencePlan.Step over a RosterCrew
+  }
+  class DefencePlan {
+    <<BUILT static, DefencePlan.cs - the body of SquadDefendPlay.Plan moved, unchanged>>
+    Step~TCrew~(ref DefencePosts, ref DefenceAsk, in TCrew, in AuthoredPosts, position, radius) bool
+    Abandon(world, carrier, ref DefenceAsk)
+  }
+  class IDefenceCrew {
+    <<BUILT interface, two structs>>
+    World · Carrier · Now · Count · Live(i) · Live(i, out at) · Support(i) · Origin() · MedianTier()
+  }
+  class RosterCrew {
+    <<BUILT readonly struct over SquadPlayContext>>
+  }
+  class SlotCrew {
+    <<BUILT readonly struct over the unit + UnitSlotTable>>
+    every virtual man on his fallback point
+  }
+  class DefenceAsk {
+    <<BUILT - the ask's sensor handle + last answer tick>>
+  }
+  class UnitPostPlanningSystem {
+    <<BUILT serial, per frame, Hrot.CGF/Systems>>
+  }
+  class PlannedPosts {
+    <<BUILT component 138, unmanaged ≤ 1024 B, recorded, NoScenario>>
+    13 x point · watch · flags, Count, Ready, Stage, PlannedAt
+    TryGet(k, out PlannedPost) bool
+  }
+  class ResolutionManagerSystem {
+    <<EXISTING agg-backend UnitResolution.cs>>
+    Planning waits for Ready or the deadline - NOT YET BUILT
+  }
+  class UnitSplits {
+    <<EXISTING>> FallbackPosts
+  }
+  class DefencePosts { <<EXISTING, 16>> }
+  class AuthoredPosts { <<EXISTING, D-2f, 8 to 13>> }
+  class AskTerrainAll { <<EXISTING SquadManeuverRunner, carrier + ask state made parameters>> }
+  SquadDefendPlay ..> DefencePlan
+  UnitPostPlanningSystem ..> DefencePlan
+  DefencePlan ..> IDefenceCrew
+  RosterCrew ..|> IDefenceCrew
+  SlotCrew ..|> IDefenceCrew
+  DefencePlan ..> AskTerrainAll
+  DefencePlan ..> DefenceAsk
+  DefencePlan *-- DefencePosts
+  UnitPostPlanningSystem --> PlannedPosts : writes, clears
+  SlotCrew ..> UnitSplits : virtual men's points
+  ResolutionManagerSystem ..> PlannedPosts : reads Ready, TryGet
+  ResolutionManagerSystem ..> UnitSplits : the rest
+  PlannedPosts ..> AuthoredPosts : DP3-D, after X-2
+```
+*What it shows that prose hid: ONE plan (`DefencePlan`) and two crews — the physical squad's behaviour changes only by an extract-method, and the
+stochastic path adds a crew and a system, never a second planner. The only agg-backend box that changes is the manager's wait.*
+
+## 4. Sequence — a stochastic squad holding a house splits
+
+```mermaid
+sequenceDiagram
+  participant MGR as ResolutionManager (brain, 1 Hz)
+  participant U as unit entity (AggregateUnit, PlannedPosts)
+  participant PL as UnitPostPlanningSystem (brain, per frame)
+  participant M as Perception node (EQS solver, surveys)
+  MGR->>U: Splitting = Planning, SplittingSince = now
+  PL->>U: Defend order? squad echelon? then SlotCrew over the slot table
+  PL->>M: window ask (+ frame survey), carrier and origin = the unit
+  M-->>PL: ranked points (a frame or two later)
+  PL->>M: roof ask, cover ask - only while a live slot has no post
+  M-->>PL: points
+  PL->>M: coverage fan (all-round) or gun fan (sector)
+  M-->>PL: rays
+  PL->>U: PlannedPosts per live slot, Ready = 1
+  MGR->>U: next step: Ready (or deadline passed)
+  MGR->>MGR: Materialise(planned, fallback for the rest)
+  Note over MGR: Materialising, Handover unchanged (D-P4, D-P6)
+  MGR-->>U: after X-2: Order.Defend re-resolved with Posts = PlannedPosts (D-2f) - Set at once
+```
+*What it shows: the plan is a race against the deadline the manager already declares; every stage times out on its own 5 s
+(`AskTimeoutSeconds`), so a silent muscle degrades to the fallback line, never to a stall. The last arrow is DP3-D part ②.*
+
+## 5. Modules — who runs it each frame
+
+```mermaid
+graph TD
+  CGF[CgfLogicPack - registers, AI node only] --> PL[UnitPostPlanningSystem - BUILT, serial, Simulation phase, BEFORE the manager]
+  CGF --> MGR[ResolutionManagerSystem - EXISTING, serial, 1 Hz]
+  CGF --> SOP[UnitSopResolutionSystem - EXISTING F-5, after the manager]
+  BRAIN[the squad brain phase - per-entity parallel] --> PLAY[SquadDefendPlay.Update - EXISTING]
+  PLAY --> DP[DefencePlan.Step - NEW home of the plan]
+  PL --> DP
+  DP --> EQS[EqsChildSensor / WorldSurveyChildSensor children of the CARRIER]
+  EQS -.wire.-> MUS[Perception node: EqsSolverSystem 10 Hz, survey solver]
+  EDITOR[editor host - NullReplication]:::dead -.no AI node pack, never ticks.-> PL
+  classDef dead stroke:#c33,color:#c33,stroke-dasharray: 5 5
+```
+*What it shows: the planner rides the SAME registration site as the manager (`CgfLogicPack.cs:290-301`), so every host that splits also plans
+— by construction. It runs serially before the manager, so the manager sees `Ready` in the same frame; the brain phase keeps the physical play
+on its own path. ⚠ The dashed edge: a host without the CGF pack runs neither the manager nor the planner — consistent, nothing splits there.*
+
+## 6. The sub-questions — each with a lean
+
+| # | question | ⭐ lean | blast radius | would change it |
+|---|---|---|---|---|
+| **DP3-A** | where the plan runs | **reuse SquadDefend's plan**: extract `SquadDefendPlay.Plan` (and `Settle` / `Frames` / `PickAll` / `Coverage` / `GunOnTheLongestView`) into `DefencePlan.Step` over an `IDefenceCrew` (constrained generic, no boxing — R-2084); `AskTerrainAll` takes the carrier instead of reading `ctx.Commander`. `SlotCrew`: carrier = origin = the unit; live = `IsUp(i)`; at = the slot's `FallbackPosts` point; support = `Role == MachineGunner`; tier = the unit's proficiency, else Regular. Squad echelon only (`Echelon == 0`, ≤ 13); a platoon / company keeps the fallback until P-3/P-4's allocation | Hrot.AI.Behaviors only: `SquadDefendBehavior.cs`, `SquadManeuverRunner.cs` (one overload), one new file. The physical defence is an extract-method — proved by its suites unchanged (§7) | the user wanting the platoon / company planners in the same slice; or slot 0 not placed on the muscle (row 4) ⇒ then slot 1's point (`ContextPoint1`) as the target and a placed carrier added — measured first |
+| **DP3-B** | sync or async Planning, and its deadline (agg-backend) | **async**, stepped by `UnitPostPlanningSystem` every frame for units in `Planning`; the manager's Planning case changes from "materialise now" to: `forced` ⇒ as today (C-7); else `PlannedPosts.Ready` **or** `now − SplittingSince ≥ DeadlineSeconds` ⇒ `Materialise` with planned posts first, `FallbackPosts` for the remaining live slots. Keep `DeadlineSeconds = 10` (the stage timeouts are 5 s each; measured answers come within the 10 Hz solver's banding). A withdrawn trigger clears `PlannedPosts` | agg-backend: `UnitResolution.cs:245-252` (≈ 10 lines) + the D-P1 lead absorbing up to 10 s more; `agg-split-on-contact` / `agg-squad-holds-house` goldens move (the split lands later) | a measured plan time > 10 s on `sq-defend-house` ⇒ raise the deadline in `ResolutionPolicy`, not the code |
+| **DP3-C** | what 138 stores, and its record policy | **`PlannedPosts`** (id 138, unmanaged, ≤ 1024 B — RV-11): per LIVE-slot order (the order `Materialise` walks) 13 × { point (3 float), watch point (3 float, zero = the sector — D-2f's convention), flags byte: window · roof · frame · authored · gun }, `Count`, `Ready`, `Stage` (so a seek mid-plan restarts the asks), `PlannedAt`. **Recorded, `NoScenario`** (like `AggregateChild`: process state, never saved); **no wire descriptor** — only the owning AI node writes and reads it | Fdp.Toolkits (the struct, beside `AggregateChild`), `HrotSharedComponentRegistry`; ⚠ SV-12: add every field NOW — a later field is a versioned break | agg-ui wanting to draw the planned posts on the split's progress ⇒ add a descriptor then |
+| **DP3-D** | how the handover passes the posts | **two parts.** ① now: `Materialise` places each man AT his planned post (D-P4) — this alone delivers the ask (the men appear on windows, not the line). ② when X-2 lands (a switch re-resolves the unit's current order from `BehaviorStartRecord`, RV-17, and the children join the squad's roster): the re-resolved `Order.Defend`'s params carry `Posts` = `PlannedPosts` (D-2f) ⇒ authored first, no ask, every man within `PostRadius` ⇒ Set at once. Raise `SquadDefendPostJsonDto.MaxPosts` 8 → 13 (= `CapacityFor(0)`) in that slice, else men 9–13 are surveyed again | ① none beyond DP3-B. ② the `SquadDefendParams` layout grows (5 more posts): ⛔ whether the blackboard is recorded is NOT measured — if it is, a versioned break under SV-12 | X-2 being designed to hand the play's state over directly (phase mapping, SV-10) instead of a fresh order ⇒ pass the posts through that seam |
+
+⭐ **Physical defence unchanged:** the only change to the physical path is the extract-method and the carrier parameter; the plan's stages, timeouts,
+picker and the D-2a…D-2m semantics stay byte-for-byte. ⛔ `PlannedPosts` is never read by `SquadDefendPlay` except through D-2f `Posts`.
+
+## 7. Acceptance *(R-4277: scenarios are the verdict)*
+
+| what | rail / scenario | ⭐ passes when |
+|---|---|---|
+| the physical defence unchanged — its OWN suites (T-1) | `SquadManeuverTests` `CE2275_*` (posts, window way, median tier, roof, gun, D-2j, authored, D-2l ×4, alternate, flanked, hold-fire), `CE2304_*`, `CE2345_*`, `CE2359_*`, `CE2373_*` ×2, `CE2376_*`, `CE7007_*` (ActiveDefence), `CE2276_PlatoonDefend_*` | all green, no edit to any assertion |
+| the defence scenarios | `sq-defend-house`, `pc-defend-house`, `bc-house-defended`, `ts-house-defenders`, `ts-three-defenders`, `ia-area-defend`, `agg-probe-defend`, `agg-prepared-defence` | `scripts/scenario-regression.sh` pass, goldens SAME |
+| the parallel rule | the rails above under `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8` on `sq-defend-house` | no throw; the same hash |
+| the planner | new rails in `SquadManeuverTests` (the defence's suite): a memberless squad in a house gets window posts within the deadline; a silent muscle ⇒ fallback at the deadline; a withdrawn trigger clears `PlannedPosts`; a steady planning frame allocates 0 B | red-proved by a compiling mutation each |
+| the feature | `agg-squad-holds-house` re-judged: its `checks.json` line rows become "each child within `PostRadius` of a window post" | pass + golden; `$doc` updated |
+| agg-backend's wait | `UnitResolutionRails` (Fdp.Toolkits.Tests): Ready ⇒ planned posts used; deadline ⇒ fallback; forced ⇒ no wait | red-proved |
+
+## 8. Slices
+
+| # | lane | builds |
+|---|---|---|
+| ① | agg-behaviors | measure row 4 (the unit placed on the Perception node); `DefencePlan` extract + carrier parameter — the physical suites and scenarios green FIRST, nothing else in the commit |
+| ② | agg-backend | `PlannedPosts` (138 — agg-behaviors' id, declared in the shared pack per §23.2) + the manager's wait (DP3-B) |
+| ③ | agg-behaviors | `SlotCrew` + `UnitPostPlanningSystem` + its rails; `agg-squad-holds-house` re-judged |
+| ④ | whoever builds X-2 | DP3-D ② and `MaxPosts` 13 |

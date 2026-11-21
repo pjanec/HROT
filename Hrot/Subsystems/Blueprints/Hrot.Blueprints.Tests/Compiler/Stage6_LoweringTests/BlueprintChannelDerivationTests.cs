@@ -1,0 +1,306 @@
+using System;
+using System.Collections.Generic;
+using Hrot.Blueprints.Core.Compiler.Emit;
+using Hrot.Blueprints.Core.Compiler.Ir;
+using Xunit;
+
+namespace Hrot.Blueprints.Tests.Compiler.Stage6_LoweringTests;
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>CE-388</c> / <c>Q74 D-A2</c> — the compiler derives which actuator channels a
+/// blueprint drives, with NO authoring.</b>
+/// 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §4 <c>D-A</c>.
+///
+/// <para>🔒 <b>The user's constraint:</b> <i>"the most common use case is a default so the user does
+/// not need to author unless he needs something extra."</i> ⇒ these rails pin that the common case
+/// needs no declaration, and that the cases the compiler CANNOT see are reported rather than
+/// silently treated as "writes nothing".</para>
+///
+/// <para>⚠ <b>The user's own objection is what shaped this</b> — <i>"it can call macros and functons
+/// and even hardcoded c#"</i>. Each arm below is one of those.</para>
+/// </summary>
+public sealed class BlueprintChannelDerivationTests
+{
+    private const string Loco   = "Fdp.Toolkit.Behavior.Components.LocomotionChannel";
+    private const string Weapon = "Fdp.Toolkit.Behavior.Components.WeaponChannel";
+
+    // ── fixture helpers ──────────────────────────────────────────────────────
+
+    private static IrGraph Graph(string name, IrGraphKind kind, params IrOperation[] ops)
+        => new()
+        {
+            Id     = Guid.NewGuid(),
+            Name   = name,
+            Kind   = kind,
+            Blocks = new[]
+            {
+                new IrBlock
+                {
+                    Id         = new IrBlockId(0),
+                    Label      = "entry",
+                    Statements = Array.ConvertAll(ops, o => new IrStatement { Operation = o }),
+                    Terminator = new IrTerm_FallThrough(),
+                },
+            },
+        };
+
+    private static IrAsset Asset(params IrGraph[] graphs)
+        => new() { AssetId = Guid.NewGuid(), Name = "ChannelDemo", Graphs = graphs };
+
+    private static IrOp_ChannelCommand Command(string channelFqn)
+        => new(channelFqn, "MoveTo", "Fdp.Toolkit.Navigation.MoveToParams",
+               Array.Empty<(string, IrValue)>());
+
+    // ── ① the common case: a direct channel-command node, nothing authored ───
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE HEADLINE — a graph that issues channel commands needs NO declaration.</b>
+    /// Every entry in <c>BuiltInChannelCommandCatalog</c> already names its channel type, so the
+    /// compiler already holds the fact the author would otherwise have to repeat.
+    /// </summary>
+    [Fact]
+    public void CE388_R1_DirectChannelCommands_AreDerivedWithNoAuthoring()
+    {
+        var result = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Tick", IrGraphKind.AiPrimitiveMain, Command(Loco), Command(Weapon))));
+
+        Assert.True(result.IsComplete);
+        Assert.Equal(new[] { Loco, Weapon }, result.ChannelComponentFqns);
+    }
+
+    /// <summary>⛔ The no-churn half: a blueprint that commands nothing derives an EMPTY set and is
+    /// still COMPLETE — so nothing binds a cleanup and no existing asset moves.</summary>
+    [Fact]
+    public void CE388_R2_ABlueprintThatCommandsNothing_IsEmptyAndComplete()
+    {
+        var result = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Tick", IrGraphKind.AiPrimitiveMain)));
+
+        Assert.True(result.IsComplete);
+        Assert.Empty(result.ChannelComponentFqns);
+    }
+
+    // ── ② the user's three escape hatches ────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>A FUNCTION graph in the same asset is followed.</b> 🔒 The user: <i>"it can call …
+    /// functons …"</i>. Its IR is right here, so this is exact, not an approximation.
+    /// </summary>
+    [Fact]
+    public void CE388_R3_AChannelCommandInsideACalledFunctionGraph_IsFollowed()
+    {
+        var fn   = Graph("Helper", IrGraphKind.Function, Command(Loco));
+        var tick = Graph("Tick", IrGraphKind.AiPrimitiveMain,
+                         new IrOp_GraphCall(fn.Id, Array.Empty<IrValue>(), null!));
+
+        var result = BlueprintChannelDerivation.Derive(Asset(tick, fn));
+
+        Assert.True(result.IsComplete);
+        Assert.Equal(new[] { Loco }, result.ChannelComponentFqns);
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>REACHABILITY, not "every graph in the asset".</b> An UNCALLED Function graph must NOT
+    /// contribute — binding a cleanup for a channel this blueprint never drives is exactly the
+    /// over-clean that can wipe a channel a PARALLEL REGION is currently driving.
+    /// </summary>
+    [Fact]
+    public void CE388_R4_AnUncalledFunctionGraph_DoesNotContribute()
+    {
+        var orphan = Graph("NeverCalled", IrGraphKind.Function, Command(Weapon));
+        var tick   = Graph("Tick", IrGraphKind.AiPrimitiveMain, Command(Loco));
+
+        var result = BlueprintChannelDerivation.Derive(Asset(tick, orphan));
+
+        Assert.True(result.IsComplete);
+        Assert.Equal(new[] { Loco }, result.ChannelComponentFqns);
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b>HARDCODED C# MAKES THE RESULT INCOMPLETE — it does not make it EMPTY.</b>
+    /// 🔒 The user: <i>"… and even hardcoded c#"</i>. 📐 The compiler holds a string FQN and nothing
+    /// else, and the netstandard2.0 generator host cannot load the assemblies it is compiling.
+    ///
+    /// <para>⛔ The caller must report this, never silently bind no cleanup. ⚠ And the tempting
+    /// alternative — "assume it writes all three" — is worse, not safer: see <c>CE388_R4</c>.</para>
+    /// </summary>
+    [Fact]
+    public void CE388_R5_ACallIntoHardcodedCSharp_MakesTheSetINCOMPLETE_NotEmpty()
+    {
+        var result = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Tick", IrGraphKind.AiPrimitiveMain,
+                        Command(Loco),
+                        new IrOp_InlineActionCall("Some.Nodes.Action_DoesWhoKnowsWhat",
+                                                  "Some.Params",
+                                                  Array.Empty<(string, IrValue)>(),
+                                                  IsAiPrimitive: false))));
+
+        // the compiler cannot see inside a C# method body
+        Assert.False(result.IsComplete);
+        Assert.Contains("Some.Nodes.Action_DoesWhoKnowsWhat", result.OpaqueCalls);
+
+        // ⭐ and what it COULD see is still reported — the diagnostic names the gap, it does not
+        //   discard the derivation.
+        Assert.Equal(new[] { Loco }, result.ChannelComponentFqns);
+    }
+
+    /// <summary>
+    /// ⚠ <b>A call into another ASSET is opaque too</b> — its IR is not given to this pass.
+    /// ⭐ Named separately from the C# case so the diagnostic can say which kind it hit.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CrossAssetCalls))]
+    public void CE388_R6_ACallIntoAnotherAsset_MakesTheSetIncomplete(IrOperation call, string expected)
+    {
+        var result = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Tick", IrGraphKind.AiPrimitiveMain, call)));
+
+        Assert.False(result.IsComplete);
+        Assert.Contains(expected, result.OpaqueCalls);
+    }
+
+    public static IEnumerable<object[]> CrossAssetCalls() => new[]
+    {
+        new object[] { new IrOp_LibraryCall(7, "Helper", Array.Empty<IrValue>(), null!), "library 7.Helper" },
+        new object[] { new IrOp_AiPrimitiveCall(9, Array.Empty<IrValue>(), null!),       "aiprimitive 9"    },
+        new object[] { new IrOp_PeerCall(11, "Ping", Array.Empty<IrValue>(), null!),     "peer 11.Ping"     },
+    };
+
+    // ── ③ macros: the one escape hatch that is a NON-ISSUE, pinned so nobody re-derives it ──
+
+    /// <summary>
+    /// ⭐⭐ <b>A MACRO needs no handling at all, and this rail is why.</b>
+    /// 🔒 The user asked about macros; 📐 <c>Stage2_5_ExpandMacros</c> is a compile-time fixpoint that
+    /// runs BEFORE IR and removes the <c>MacroCallNode</c> (<c>MacroExpander.cs:16</c>,
+    /// <c>BlueprintCompiler.cs:100</c>) ⇒ by the time this pass runs, a macro's channel commands are
+    /// ORDINARY INLINED OPS in the host graph and are derived like any other.
+    ///
+    /// <para>⛔ <c>IrGraphKind</c> has no <c>Macro</c> member — that absence IS the mechanism, and
+    /// this rail records it so a later reader does not add speculative macro handling.</para>
+    /// </summary>
+    [Fact]
+    public void CE388_R7_MacrosNeedNoHandling_BecauseTheyAreGoneBeforeIr()
+    {
+        // macros are expanded away by Stage2_5 before IR exists — if this ever changes,
+        // BlueprintChannelDerivation must learn about them.
+        Assert.DoesNotContain("Macro", Enum.GetNames(typeof(IrGraphKind)));
+
+        // The post-expansion shape: the macro's command is simply inline in the host graph.
+        var result = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Tick", IrGraphKind.AiPrimitiveMain, Command(Weapon))));
+
+        Assert.True(result.IsComplete);
+        Assert.Equal(new[] { Weapon }, result.ChannelComponentFqns);
+    }
+
+    // ── CE-407 — the derivation and the emitter must agree on WHICH graph is main ──────────
+
+    /// <summary>
+    /// 🔴🔴 <b><c>CE407_R1</c> — a main graph kinded <c>Function</c> is walked, because that is the
+    /// kind every AUTHORED asset actually uses.</b>
+    /// 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §9.9.
+    ///
+    /// <para>⛔⛔ <b>Why every other rail in this file missed the defect:</b> they all build their
+    /// entry graph as <c>IrGraphKind.AiPrimitiveMain</c> — a kind <b>no authored asset uses</b>.
+    /// <c>Loco1.bp.json</c> and both end-to-end activity blueprints carry <c>"Kind": "Function"</c>,
+    /// and <c>AiPrimitiveEmitter.cs:325-326</c> resolves the main graph as
+    /// <c>AiPrimitiveMain ?? first Function</c> — so the emitter emitted a <c>TickCore</c> from a
+    /// graph the derivation refused to walk.</para>
+    ///
+    /// <para>🔴 The result was an EMPTY channel set with <c>IsComplete == true</c> — the one state
+    /// the design says must never be read as "writes nothing" — so the cleanup thunk was emitted
+    /// with a comment for a body, registered, and bound. 📐 <b>Measured live:</b> an entity that had
+    /// left its driving state still held <c>LocomotionChannel {ActiveAction=1, Status=Running}</c>.
+    /// ⚠ The golden corpus cannot catch this either: an empty cleanup body is valid output.</para>
+    ///
+    /// <para>⭐ <b>This rail pins the AGREEMENT between the two sites, not either rule alone.</b> If
+    /// the emitter's main-graph resolution changes, this must change with it.</para>
+    ///
+    /// <para>✅ <b>Red-proof:</b> drop the <c>?? first Function</c> fallback from the derivation ⇒
+    /// the set comes back empty and this reddens.</para>
+    /// </summary>
+    [Fact]
+    public void CE407_R1_AFunctionKindedMainGraph_IsStillWalked()
+    {
+        var d = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Main", IrGraphKind.Function, Command(Loco))));
+
+        Assert.True(d.IsComplete);
+        Assert.Equal(new[] { Loco }, d.ChannelComponentFqns);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE407_R2</c> — the non-vacuity half: an UNREACHED Function graph still contributes
+    /// nothing.</b> <c>CE407_R1</c>'s fallback must not degrade into "walk every graph in the asset",
+    /// which would bind a cleanup for a channel the blueprint never drives — the over-clean that can
+    /// wipe a parallel region's standing command. Only the FIRST Function graph is the main one.
+    /// </summary>
+    [Fact]
+    public void CE407_R2_ASecondUncalledFunctionGraph_ContributesNothing()
+    {
+        var d = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Main",   IrGraphKind.Function, Command(Loco)),
+                  Graph("Unused", IrGraphKind.Function, Command(Weapon))));
+
+        Assert.True(d.IsComplete);
+        Assert.Equal(new[] { Loco }, d.ChannelComponentFqns);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1432</c> — a blueprint HSM activity's emitted exit cleanup releases its channel by a CALL to the runtime
+    /// <c>ChannelRelease.Release</c> (the ONE implementation, CE-1411), behind the <c>HasComponent</c> guard (a derived channel may not be
+    /// on every entity) — not by the two writes inlined. Compiled from the corpus asset <c>HsmDriveActivity</c> (Locomotion) and
+    /// <c>HsmFireActivity</c> (Weapon) through the golden harness's own stage sequence.
+    /// 🔴 Red-proof: <c>AiPrimitiveEmitter.EmitHsmExitCleanupThunk</c> writing the two lines inline again ⇒ the call is missing and
+    /// <c>ActionInstanceId =</c> is present.
+    /// </summary>
+    [Theory]
+    [InlineData("HsmDriveActivity", "LocomotionChannel", 0)]
+    [InlineData("HsmFireActivity",  "WeaponChannel",     1)]
+    public void CE1432_TheEmittedExitCleanup_ReleasesThroughChannelRelease(string asset, string channel, int kind)
+    {
+        string src = Hrot.Blueprints.Tests.Golden.GoldenCorpus.Compile(Hrot.Blueprints.Tests.Golden.GoldenCorpus.Load(asset)).Tier2;
+        int at = src.IndexOf("public static unsafe void HsmExitCleanup", StringComparison.Ordinal);
+        Assert.True(at >= 0, "the cleanup thunk is emitted");
+        string body = src.Substring(at, src.IndexOf("\n    }", at, StringComparison.Ordinal) - at);
+
+        Assert.Contains($"if (__repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.{channel}>(__bridge->Self))", body);
+        Assert.Contains($"global::Fdp.Toolkit.Behavior.ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind){kind});", body);
+        Assert.DoesNotContain("ActionInstanceId", body);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1435</c> — the exit-cleanup emitter has NO inline fallback: a channel component outside the three engine channels (<c>BuiltInChannelCommandCatalog</c> names no other, and no production catalog exists beside it)
+    /// is REFUSED at Stage 7 with <c>BP6001</c> naming it, and the emitted thunk releases nothing for it; an engine channel is accepted and released through <c>ChannelRelease</c>.
+    /// 🔴 Red-proof: <c>Stage7_Emit.Run</c> not calling <c>CheckChannelsAreEngineChannels</c> ⇒ no <c>BP6001</c>.
+    /// </summary>
+    [Fact]
+    public void CE1435_AChannelOutsideTheEngineThree_IsRefusedAtStage7_NotReleasedInline()
+    {
+        const string Foreign = "Some.Game.FooChannel";
+        var asset = new IrAsset
+        {
+            AssetId = Guid.NewGuid(), Name = "ForeignChannel", Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.AiPrimitive, Hostings = new[] { Hrot.Blueprints.Core.Assets.AiPrimitiveHosting.HsmAction },
+            Graphs = new[] { Graph("Main", IrGraphKind.AiPrimitiveMain, Command(Loco), Command(Foreign)) },
+        };
+        var sink = new Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticSink();
+        var (source, _) = Hrot.Blueprints.Core.Compiler.Stages.Stage7_Emit.Run(asset, Hrot.Blueprints.Core.Compiler.CompilerMode.Release, sink);
+
+        var refused = Assert.Single(sink.All, d => d.Code == Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticCodes.BP6001);
+        Assert.Contains(Foreign, refused.Message);
+        int at = source.IndexOf("public static unsafe void HsmExitCleanup", StringComparison.Ordinal);
+        Assert.True(at >= 0, "the cleanup thunk is emitted");
+        string body = source.Substring(at, source.IndexOf("\n    }", at, StringComparison.Ordinal) - at);
+        Assert.DoesNotContain("ActionInstanceId", body);                         // no inline release for the foreign channel
+        Assert.DoesNotContain("GetComponentRW", body);
+        Assert.Contains("ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind)0);", body);   // the engine channel beside it still goes through the one release
+
+        var ok = new Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticSink();
+        Hrot.Blueprints.Core.Compiler.Stages.Stage7_Emit.Run(new IrAsset
+        {
+            AssetId = Guid.NewGuid(), Name = "EngineChannel", Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.AiPrimitive, Hostings = new[] { Hrot.Blueprints.Core.Assets.AiPrimitiveHosting.HsmAction },
+            Graphs = new[] { Graph("Main", IrGraphKind.AiPrimitiveMain, Command(Loco), Command(Weapon)) },
+        }, Hrot.Blueprints.Core.Compiler.CompilerMode.Release, ok);
+        Assert.DoesNotContain(ok.All, d => d.Code == Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticCodes.BP6001);
+    }
+}

@@ -82,7 +82,7 @@ After this batch the solution must build without errors and all existing tests m
 
 **After EVERY task** run:
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
 ```
 Fix any error CS before proceeding. No batch is done until `Build succeeded` and all tests pass.
 
@@ -166,14 +166,14 @@ Fix any error CS before proceeding. No batch is done until `Build succeeded` and
 
 **Key constraints** (details in TASK-DETAIL.md):
 - Must be `unsafe struct`
-- Must carry `[DataPolicy(DataPolicy.NoSave)]`
+- Must carry `[DataPolicy(DataPolicy.NoScenario)]`
 - `public const int Capacity = 16` inside the struct
 - `fixed long SubordinateEntities[Capacity]` and `fixed ushort TacticalDesignations[Capacity]`
 - `sizeof(UnitRoster)` must equal **164 bytes** = 4 (Count) + 128 (16*8) + 32 (16*2)
 
 **Tests required:**
 - `Unsafe.SizeOf<UnitRoster>() == 164`
-- `DataPolicy` attribute has `NoSave` set
+- `DataPolicy` attribute has `NoScenario` set
 - `UnitRoster.Capacity == 16`
 - Boundary write test: writing to index 15 does not corrupt adjacent memory
 
@@ -241,8 +241,8 @@ Fix any error CS before proceeding. No batch is done until `Build succeeded` and
 ## 🧪 Testing Requirements
 
 - **Minimum:** 15 unit tests total across all tasks
-- Build must succeed: `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` → `Build succeeded`
-- Run tests with: `dotnet test IOS-IG-SimHost.sln --no-build --nologo`
+- Build must succeed: `dotnet build HROT.sln --no-restore -v quiet` → `Build succeeded`
+- Run tests with: `dotnet test HROT.sln --no-build --nologo`
 - All pre-existing tests must continue to pass (no regressions)
 
 **Test quality standards:**

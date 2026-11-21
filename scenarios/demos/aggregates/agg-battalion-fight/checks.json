@@ -1,0 +1,301 @@
+{
+  "$doc": "\u00a723.6 ST-4. 'A side broken' is the measured end: the Blue BASE OF FIRE (Blue Company 2, roster slot 1 - CompanyAttack's roles are slot 0 assault, 1 base of fire, 2 reserve; relabelled 2026-11-17, CE-8302) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), its HQ hears TaskFailed and reads it Black. It dies at ~290 m (335 s), on its way to its 250 m support position (CE-8302 moved that position from 100 m of the posts; this run is unchanged, golden SAME), so it never reports Set and the assault (Blue Company 1, Subordinates.0) is never committed; the reserve (3) waits at its 400 m stand-off, out of reach, for the 900 s deadline. After agg-backend's CE-8009 round of 2026-11-17 (personal weapons at the measured 0.4 rounds a man a second, hits through the body's zones, R-8005 re-fitted) the base of fire costs Red companies 1 and 2 five to nine men each (Green; it was ten or more - Amber - on 2026-11-16, R-8332), company 3 none (R-8345). The base of fire is down 5 at 329 s, all 90 at 346 s; it never reports Set, so the assault is still never ordered. The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
+  "runFor": 450,
+  "golden": {
+    "every": 50
+  },
+  "expect": [
+    {
+      "name": "the Blue HQ runs CompanyAttack",
+      "on": "task",
+      "who": "Blue Battalion HQ",
+      "is": "CompanyAttack",
+      "before": 10
+    },
+    {
+      "name": "the Red HQ runs CompanyDefend",
+      "on": "task",
+      "who": "Red Battalion HQ",
+      "is": "CompanyDefend",
+      "before": 10
+    },
+    {
+      "name": "the base of fire (Company 2) is ordered SupportByFire by KIND: the generic Attack play",
+      "on": "task",
+      "who": "Blue Company 2",
+      "is": "StochasticUnitAttack",
+      "before": 10
+    },
+    {
+      "name": "the census: the Blue HQ's three companies hold 270 slot-table men in the area",
+      "on": "field",
+      "who": "Blue Battalion Census",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "before": 20
+    },
+    {
+      "name": "the census: the Red HQ's three companies hold 270 slot-table men in the area",
+      "on": "field",
+      "who": "Red Battalion Census",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "before": 20
+    },
+    {
+      "name": "the HQ hears the base of fire is lost (PROGRESS TaskFailed): the fight has run to an end",
+      "on": "field",
+      "who": "Blue Battalion HQ",
+      "path": "CommandPicture.Subordinates.1.Progress",
+      "op": "==",
+      "value": "TaskFailed",
+      "before": 440
+    },
+    {
+      "name": "the base of fire's slot table agrees: every slot is down",
+      "on": "field",
+      "who": "Blue Company 2",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "atEnd": true,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 90
+    },
+    {
+      "name": "... and its SITREP colour at the HQ is Black",
+      "on": "field",
+      "who": "Blue Battalion HQ",
+      "path": "CommandPicture.Subordinates.1.Strength",
+      "op": "==",
+      "value": "Black",
+      "atEnd": true
+    },
+    {
+      "name": "the assault company, never committed, has lost nobody: its SITREP colour is Green",
+      "on": "field",
+      "who": "Blue Battalion HQ",
+      "path": "CommandPicture.Subordinates.0.Strength",
+      "op": "==",
+      "value": "Green",
+      "atEnd": true
+    },
+    {
+      "name": "... and its slot table agrees (no slot down)",
+      "never": {
+        "on": "field",
+        "who": "Blue Company 1",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        }
+      }
+    },
+    {
+      "name": "Red's SITREP colours: company 3, untouched by the base of fire, reads Green",
+      "on": "field",
+      "who": "Red Battalion HQ",
+      "path": "CommandPicture.Subordinates.0.Strength",
+      "op": "==",
+      "value": "Green",
+      "atEnd": true
+    },
+    {
+      "name": "... and its slot table agrees (fewer than 10 of 90 down: >= 90 % present)",
+      "never": {
+        "on": "field",
+        "who": "Red Company 3",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 10
+      }
+    },
+    {
+      "name": "Red's SITREP colours: company 2, in the base of fire's path, reads Green",
+      "on": "field",
+      "who": "Red Battalion HQ",
+      "path": "CommandPicture.Subordinates.1.Strength",
+      "op": "==",
+      "value": "Green",
+      "atEnd": true
+    },
+    {
+      "name": "Red's SITREP colours: company 1 reads Green",
+      "on": "field",
+      "who": "Red Battalion HQ",
+      "path": "CommandPicture.Subordinates.2.Strength",
+      "op": "==",
+      "value": "Green",
+      "atEnd": true
+    },
+    {
+      "name": "... and the fire told on company 2 (at least 5 down)",
+      "on": "field",
+      "who": "Red Company 2",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "atEnd": true,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 5
+    },
+    {
+      "name": "... and on company 1 (at least 5 down)",
+      "on": "field",
+      "who": "Red Company 1",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "atEnd": true,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 5
+    },
+    {
+      "name": "... and the slot table agrees with Green (fewer than 10 of 90 down) - company 1",
+      "never": {
+        "on": "field",
+        "who": "Red Company 1",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 10
+      }
+    },
+    {
+      "name": "... and with Green - company 2",
+      "never": {
+        "on": "field",
+        "who": "Red Company 2",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 10
+      }
+    },
+    {
+      "name": "no physical play on Blue Company 1",
+      "never": {
+        "on": "task",
+        "who": "Blue Company 1",
+        "is": [
+          "PlatoonAttack",
+          "PlatoonDefend",
+          "CompanyAttack",
+          "CompanyDefend",
+          "PlatoonSupportByFire"
+        ]
+      }
+    },
+    {
+      "name": "no physical play on Blue Company 2",
+      "never": {
+        "on": "task",
+        "who": "Blue Company 2",
+        "is": [
+          "PlatoonAttack",
+          "PlatoonDefend",
+          "CompanyAttack",
+          "CompanyDefend",
+          "PlatoonSupportByFire"
+        ]
+      }
+    },
+    {
+      "name": "no physical play on Blue Company 3",
+      "never": {
+        "on": "task",
+        "who": "Blue Company 3",
+        "is": [
+          "PlatoonAttack",
+          "PlatoonDefend",
+          "CompanyAttack",
+          "CompanyDefend",
+          "PlatoonSupportByFire"
+        ]
+      }
+    },
+    {
+      "name": "no physical play on Red Company 1",
+      "never": {
+        "on": "task",
+        "who": "Red Company 1",
+        "is": [
+          "PlatoonAttack",
+          "PlatoonDefend",
+          "CompanyAttack",
+          "CompanyDefend",
+          "PlatoonSupportByFire"
+        ]
+      }
+    },
+    {
+      "name": "no physical play on Red Company 2",
+      "never": {
+        "on": "task",
+        "who": "Red Company 2",
+        "is": [
+          "PlatoonAttack",
+          "PlatoonDefend",
+          "CompanyAttack",
+          "CompanyDefend",
+          "PlatoonSupportByFire"
+        ]
+      }
+    },
+    {
+      "name": "no physical play on Red Company 3",
+      "never": {
+        "on": "task",
+        "who": "Red Company 3",
+        "is": [
+          "PlatoonAttack",
+          "PlatoonDefend",
+          "CompanyAttack",
+          "CompanyDefend",
+          "PlatoonSupportByFire"
+        ]
+      }
+    }
+  ]
+}

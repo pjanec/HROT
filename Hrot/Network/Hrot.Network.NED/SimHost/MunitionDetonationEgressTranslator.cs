@@ -36,28 +36,29 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class MunitionDetonationEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "MunitionDetonation";
 
         private readonly IDdsWriter<MunitionDetonation> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MunitionDetonation>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMunitionDetonation;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
-        public MunitionDetonationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<MunitionDetonation>(participant, DdsTopicName), entityMap)
+        public MunitionDetonationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
+            : this(new DdsWriterAdapter<MunitionDetonation>(participant), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor â€” accepts an injected writer stub.</summary>
-        internal MunitionDetonationEgressTranslator(IDdsWriter<MunitionDetonation> writer, NetworkEntityMap entityMap)
+        internal MunitionDetonationEgressTranslator(IDdsWriter<MunitionDetonation> writer, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             _writer    = writer     ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc/>
@@ -77,7 +78,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 if (evt.IsRemote) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.Shooter, out long shooterNetId))
+                if (!_entityMap.TryGetNetworkId(evt.Shooter, out int shooterNetId))
                 {
                     FdpLog<MunitionDetonationEgressTranslator>.Warn(
                         "[MunitionDetonationEgress] Shooter entity #{0} not in NetworkEntityMap â€” skipping detonation.",
@@ -85,7 +86,8 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long hitNetId))
+                int hitNetId = 0;   // ⭐ CE-1032 W-3 — a round that detonated on the terrain has no target
+                if (evt.Target != Entity.Null && !_entityMap.TryGetNetworkId(evt.Target, out hitNetId))
                 {
                     FdpLog<MunitionDetonationEgressTranslator>.Warn(
                         "[MunitionDetonationEgress] Target entity #{0} not in NetworkEntityMap â€” skipping detonation.",
@@ -95,11 +97,13 @@ namespace Hrot.Network.NED.SimHost
 
                 _writer.Write(new MunitionDetonation
                 {
+                    SourceNodeId = _localNodeId,
                     ShooterEntityId = shooterNetId,
                     HitEntityId     = hitNetId,
                     HitX            = evt.HitX,
                     HitY            = evt.HitY,
                     HitZ            = evt.HitZ,
+                    MunitionType    = evt.Ammo,
                 });
                 SentSampleCount++;
             }
@@ -109,6 +113,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

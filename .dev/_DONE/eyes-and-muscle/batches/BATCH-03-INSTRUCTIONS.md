@@ -13,7 +13,7 @@
 3. **Project references are a real constraint.** `Hrot.SimHost` CANNOT reference `Hrot.ClusterRunner`. This is why the pre-migration infrastructure task must happen first.
 4. **Test commands to use throughout:**
    ```powershell
-   dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-restore
+   dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-restore
    dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests --no-build
    dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Integration.Tests --no-build
    dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.SimHost.Tests --no-build

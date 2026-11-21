@@ -12,16 +12,15 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// Ingress translator: receives <see cref="DdsLookAtChannelIntent"/> from DDS
 /// and updates only the Brain-authored intent fields on the Muscle ghost's
 /// <see cref="LookAtChannel"/> component.
-/// Muscle-local fields (DispatchedInstanceId, Status, State) are preserved.
+/// The Muscle's report is the separate <see cref="LookAtChannelStatus"/> (CE-513 / R-180), so nothing here is Muscle-owned.
 /// </summary>
-internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
+internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/intent/LookAtChannel";
 
     private readonly DdsReader<DdsLookAtChannelIntent>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsLookAtChannelIntent>();
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -30,10 +29,13 @@ internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsLookAtChannelIntent>(participant, TopicNameConst)
+            ? new DdsReader<DdsLookAtChannelIntent>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {
@@ -48,7 +50,7 @@ internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
     }
 
     /// <summary>
-    /// Updates only the intent fields; preserves Muscle-local fields via read-modify-write.
+    /// Updates only the intent fields; the request component holds only Brain-written fields since CE-513 (R-180).
     /// For LookAtEntity actions, remaps TargetEntityId from network ID to local entity ID via
     /// NetworkEntityMap. If the target is not in the map, the channel is left unchanged.
     /// Exposed internal for unit testing.
@@ -78,7 +80,7 @@ internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
 
             // pUpd->Params is already a fixed buffer inside the struct pointer; cast directly.
             LookAtEntityParams* p = (LookAtEntityParams*)pUpd->Params;
-            long networkTargetId = (long)p->TargetEntityId;
+            int networkTargetId = (int)p->TargetEntityId;
             if (!_entityMap.TryGetEntity(networkTargetId, out var localTarget))
             {
                 // Target entity not yet known on this node — keep channel unchanged.

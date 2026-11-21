@@ -1,34 +1,17 @@
-using System;
 using Fdp.Toolkit.ReplayBrowser.Search;
+using Fdp.Toolkit.ReplayBrowser.Search.Conditions;
 
 namespace Hrot.Diagnostics.Breakpoints;
 
 /// <summary>
-/// Converts a <see cref="SearchPredicateDto"/> to a short human-readable string
-/// suitable for the "Condition Summary" column in the Data Breakpoint Manager window.
+/// The "Condition Summary" text of the Data Breakpoint Manager. ⭐ U-14 / C2 (docs/UX/DESIGN_Condition_Editor.md §2): FOLDED INTO the one sentence
+/// renderer, <see cref="ConditionSentence"/> — a condition the friendly catalogue knows reads as its sentence, a debugging one keeps the technical line
+/// (<c>Component: Health.Current &lt;= 20</c>, CE-1285). ⛔ SUPERSEDED: the second copy of that logic that lived here. Kept as the breakpoints' name for it.
 /// </summary>
 public static class BreakpointConditionSummarizer
 {
-    public static string Summarize(SearchPredicateDto? dto) => dto switch
-    {
-        null                           => "(none)",
-        PropertyMatchDto pm            => $"Component: {pm.ComponentType?.Name ?? "?"} {SummarizePredicate(pm.Predicate)}",
-        TransientEventPredicateDto te  => $"Event: {te.EventType?.Name ?? "?"}",
-        BehaviorParamPredicateDto bp   => $"BParam: {bp.BehaviorId}",
-        StructuralPredicateDto st      => $"Structural: {st.ModificationType}",
-        SpatialBoundingPredicateDto sp => $"Spatial",
-        LifecyclePredicateDto lc       => $"Lifecycle: {lc.IdentifierType}",
-        TraceBufferScanPredicateDto tr => $"Trace[0x{tr.OpCode:X2}]",
-        CompoundPredicateDto cp        => $"Compound[{cp.Operator}]({cp.Conditions.Count})",
-        BlueprintVariablePredicateDto bv => $"Blueprint: {bv.TargetBlueprintAssetId.ToString()[..8]}...",
-        ExternalHitTagPredicateDto et  => $"Tag: {et.Tag}",
-        _                              => dto.GetType().Name,
-    };
+    public static string Summarize(SearchPredicateDto? dto) => ConditionSentence.Of(dto);
 
-    private static string SummarizePredicate(SearchPredicateDto? pred) => pred switch
-    {
-        NumericPredicateDto n  => $"[{n.MinValue}, {n.MaxValue}]",
-        StringPredicateDto s   => $"\"{s.Substring}\"",
-        _                      => string.Empty,
-    };
+    /// <summary>⭐ CE-1323 — a behaviour step as a sentence: "Withdrawing entered (squad-hsm)".</summary>
+    public static string Step(BehaviourStepPredicateDto st) => ConditionSentence.Step(st);
 }

@@ -1,0 +1,48 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S9/S4 (CE-2159 D6): contact arrives DURING the crossing. Judge (2)+(3) the squad's task becomes ReactToContact, (4) the squad is split at contact (a man past the road's west edge x>190 AND a man short of it, both in the first second after contact), (5 partly) the squad fires at the Hostile. NOT expressible: 'far side fires and near side fires' (sides are not named units), 'the assault closes by FireAndMovement' (a maneuver kind, not a task); the split window contact..contact+1 is the check's sampling aperture, not from the Judge.",
+  "runFor": 130,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "n": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "the squad reacts to the contact (ReactToContact)",
+      "on": "task",
+      "who": "Squad",
+      "is": "ReactToContact",
+      "after": "contact"
+    },
+    {
+      "name": "a man is past the road's west edge when contact comes",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 190,
+      "after": "contact",
+      "before": "contact+1"
+    },
+    {
+      "name": "a man is still short of the road when contact comes",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 190,
+      "after": "contact",
+      "before": "contact+1"
+    },
+    {
+      "name": "the squad fires at the Hostile",
+      "on": "shot",
+      "by": "*Rifleman",
+      "at": "Hostile"
+    }
+  ]
+}

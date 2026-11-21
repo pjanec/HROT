@@ -63,7 +63,7 @@ namespace Fdp.Core.FlightRecorder
 
                 // 3. Fold in the field's byte offset within the struct.
                 //    This catches reordering even when names and types are unchanged.
-                int offset = (int)Marshal.OffsetOf(type, field.Name);
+                int offset = TypeLayout.OffsetOf(type, field.Name);   // ⭐ CE-2044 — where the field really is (was Marshal.OffsetOf)
                 hash = HashInt(hash, offset);
             }
 

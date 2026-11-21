@@ -1,6 +1,7 @@
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core;
+using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -22,6 +23,7 @@ internal sealed class WireRenderer
         GraphView view,
         ImDrawListPtr dl,
         Dictionary<PinId, Vector2> pinPositions,
+        Dictionary<LinkId, LinkPath> linkPaths,
         HashSet<NodeId> visibleNodes,
         RectF visibleGraphRect)
     {
@@ -46,8 +48,7 @@ internal sealed class WireRenderer
                 if (!waypointVisible) continue;
             }
 
-            if (!pinPositions.TryGetValue(link.FromPin, out var a)) continue;
-            if (!pinPositions.TryGetValue(link.ToPin,   out var b)) continue;
+            if (!linkPaths.TryGetValue(link.Id, out var path)) continue;
 
             // Skip hidden links; they are drawn by custom renderers (e.g. HSM internal transitions).
             if (link.Style == LinkStyle.Hidden) continue;
@@ -78,7 +79,7 @@ internal sealed class WireRenderer
             else if (selected)
                 color = ImGui.GetColorU32(theme.SelectionAccent);
 
-            DrawLinkSegments(dl, view, a, b, link, color, thickness, isExec, view.Model.Kind.Orientation);
+            DrawPath(dl, path, color, thickness, isExec, view.Viewport.Zoom);
         }
 
         // Reroute dots
@@ -87,46 +88,33 @@ internal sealed class WireRenderer
 
     // ── private ───────────────────────────────────────────────────────────────
 
-    private static void DrawLinkSegments(
-        ImDrawListPtr dl,
-        GraphView view,
-        Vector2 a, Vector2 b,
-        ILinkModel link,
-        uint color, float thickness, bool isExec, PinOrientation orientation)
+    /// <summary>
+    /// Draws one link from its CE-1000 <see cref="LinkPath"/> — the same instance the hit-tester and custom renderers
+    /// read. A pin wire without waypoints keeps its exec mid-arrow; a node-to-node path gets a target arrowhead aimed
+    /// along the curve's end tangent.
+    /// </summary>
+    internal static void DrawPath(ImDrawListPtr dl, LinkPath path, uint color, float thickness, bool isExec, float zoom)
     {
-        var waypoints = link.Waypoints;
-        float zoom = view.Viewport.Zoom;
-
-        if (waypoints.Count == 0)
+        bool execArrow = isExec && !path.HasArrowhead && path.Segments.Count == 1;
+        foreach (var s in path.Segments)
         {
-            DrawBezierSegment(dl, a, b, color, thickness, isExec, BezierSegments, orientation, zoom);
-            return;
+            if (execArrow)
+                dl.AddBezierWithArrow(s.P0, s.C1, s.C2, s.P3, color, thickness, thickness * 2.5f, BezierSegments);
+            else
+                dl.AddBezierCubic(s.P0, s.C1, s.C2, s.P3, color, thickness, BezierSegments);
         }
-
-        var prev = a;
-        for (int i = 0; i < waypoints.Count; i++)
-        {
-            var rr = new RerouteRef(link.Id, i);
-            var wpGraph = view.Interaction.RerouteDragOverridePositions.TryGetValue(rr, out var ovr) ? ovr : waypoints[i];
-            var wp = view.Viewport.GraphToScreen(wpGraph);
-            DrawBezierSegment(dl, prev, wp, color, thickness, false, BezierSegments, orientation, zoom);
-            prev = wp;
-        }
-        DrawBezierSegment(dl, prev, b, color, thickness, false, BezierSegments, orientation, zoom);
+        if (path.HasArrowhead)
+            DrawArrowhead(dl, path.End, path.Tangent(1f), color, MathF.Max(6f, 9f * zoom), MathF.Max(4f, 5.5f * zoom));
     }
 
-    private static void DrawBezierSegment(
-        ImDrawListPtr dl,
-        Vector2 a, Vector2 b,
-        uint color, float thickness, bool withArrow, int segments,
-        PinOrientation orientation = PinOrientation.Horizontal, float zoom = 1f)
+    internal static void DrawArrowhead(ImDrawListPtr dl, Vector2 tip, Vector2 tangent, uint color, float length, float halfWidth)
     {
-        var (c1, c2) = HitTester.WireTangents(a, b, orientation, zoom);
-
-        if (withArrow)
-            dl.AddBezierWithArrow(a, c1, c2, b, color, thickness, thickness * 2.5f, segments);
-        else
-            dl.AddBezierCubic(a, c1, c2, b, color, thickness, segments);
+        float len = tangent.Length();
+        if (len < 1e-4f) return;
+        var dir = tangent / len;
+        var nor = new Vector2(-dir.Y, dir.X);
+        var baseC = tip - dir * length;
+        dl.AddTriangleFilled(tip, baseC + nor * halfWidth, baseC - nor * halfWidth, color);
     }
 
     private static void DrawRerouteDots(

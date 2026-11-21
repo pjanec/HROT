@@ -30,9 +30,12 @@ namespace Hrot.DDS.DataModel.Tests
 
             foreach (var t in topicStructs)
             {
+                // A [DdsStruct] is a nested ELEMENT type (e.g. FeatureOverrideWire inside ClusterStateTopic), not a topic: it carries no
+                // [DdsTopic], but it must still land in the orchestration IDL file (checked below).
+                var isNestedElement = t.GetCustomAttribute<DdsStructAttribute>() != null;
                 var topicAttr = t.GetCustomAttribute<DdsTopicAttribute>();
-                Assert.True(topicAttr != null,
-                    $"Type {t.Name} is missing [DdsTopic] attribute.");
+                Assert.True(topicAttr != null || isNestedElement,
+                    $"Type {t.Name} is missing [DdsTopic] attribute (or [DdsStruct] if it is a nested element type).");
 
                 var idlAttr = t.GetCustomAttribute<DdsIdlFileAttribute>();
                 Assert.True(idlAttr != null,
@@ -59,6 +62,20 @@ namespace Hrot.DDS.DataModel.Tests
         public void SysOpType_SetTimeScale_Is15()
         {
             Assert.Equal(15, (int)ClusterOpType.SetTimeScale);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3191</c> — the ExCon gateway's <c>SetTimeScale</c> payload binds to what the master reads, with the master's
+        /// own options (<c>ClusterMaster</c>, <c>SetTimeScale</c> case). ⛔ It was a bare number, which never bound.
+        /// </summary>
+        [Fact]
+        public void TheGatewaysSetTimeScalePayload_IsWhatTheMasterReads()
+        {
+            string json = Hrot.Network.NED.ExCon.NedTimeControlGateway.SetTimeScalePayload(2.5f);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Network.Orchestration.SetTimeScalePayloadDto>(
+                json, Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
+            Assert.NotNull(dto);
+            Assert.Equal(2.5f, dto!.TimeScale);
         }
 
         [Fact]

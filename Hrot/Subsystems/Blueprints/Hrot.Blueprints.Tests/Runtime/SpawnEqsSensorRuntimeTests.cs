@@ -41,6 +41,7 @@ public sealed class SpawnEqsSensorRuntimeTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
     }
 
     private static T ReadSlotField<T>(
@@ -270,8 +271,13 @@ public sealed class SpawnEqsSensorRuntimeTests
         Assert.False(buffer.IsReady, "Buffer should start not-ready");
     }
 
+    /// <summary>
+    /// ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3). ⭐ CE-485 (DESIGN_Behaviour_Fault_And_Teardown.md §1
+    /// D5): on the live world the sensor is created AT ONCE, so the Handle is live on the creating tick; the next execution
+    /// FINDS the same sensor — no second one is made. ⛔ HISTORY: the handle used to be pending on the creating tick.
+    /// </summary>
     [Fact]
-    public void Spawn_PopulatesHandleOutput()
+    public void Spawn_PopulatesHandleOutput_OnceTheSensorExists_AndNeverDuplicatesIt()
     {
         using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
         RegisterEqsComponents(fixture);
@@ -281,11 +287,19 @@ public sealed class SpawnEqsSensorRuntimeTests
         fixture.AttachBlueprint(asset, entity);
 
         fixture.TickFrame(0.016f);
+        var first = ReadSlotField<EqsSensorHandle>(fixture, asset, entity, "MySensor");
+        Assert.True(first.IsValid, "CE-485: live on the creating tick");
 
-        // After tick, the MySensor variable should hold a valid handle
+        fixture.TickFrame(0.016f);
         var handle = ReadSlotField<EqsSensorHandle>(fixture, asset, entity, "MySensor");
-        Assert.True(handle.IsValid, "MySensor handle should point to a valid entity");
+        Assert.True(handle.IsValid, "MySensor handle should point to the sensor once it exists");
+        Assert.Equal(first, handle);                                   // found, not re-created
+        Assert.Single(QueryEntities<PartMetadata>(fixture));
         Assert.True(fixture.World.IsAlive(handle.ChildId), "Handle's ChildId should be alive");
+
+        fixture.TickFrame(0.016f);
+        Assert.Single(QueryEntities<EqsSensor>(fixture));                       // found every tick, never re-created
+        Assert.Equal(handle, ReadSlotField<EqsSensorHandle>(fixture, asset, entity, "MySensor"));
     }
 
     [Fact]
@@ -341,9 +355,12 @@ public sealed class SpawnEqsSensorRuntimeTests
 
         var childEntities = QueryEntities<PartMetadata>(fixture);
         var meta = fixture.World.GetComponentRO<PartMetadata>(childEntities[0]);
-        // InstanceId is derived from BlueprintIdHash.Compute(nodeId) baked at compile time
-        int expectedId = (int)BlueprintIdHash.Compute(nodeId);
-        Assert.Equal(expectedId, meta.InstanceId);
+        // ⭐ CE-485: the part id (the DDS key) is ALLOCATED — the lowest free, 1 — and the node's baked hash is the SITE,
+        //   carried on the brain-local owner stamp.
+        Assert.Equal(1, meta.InstanceId);
+        int expectedSite = (int)BlueprintIdHash.Compute(nodeId);
+        Assert.Equal(expectedSite,
+            fixture.World.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(childEntities[0]).SiteId);
     }
 
     [Fact]

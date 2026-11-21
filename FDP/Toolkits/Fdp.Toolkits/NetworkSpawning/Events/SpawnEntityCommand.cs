@@ -22,12 +22,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// 0 = request new ID allocation (local authority creates new entity).
         /// Non-zero = replicate an existing network entity (ghost/replica path).
         /// </summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// TKB template type to instantiate. Must match a registered TkbDatabase entry.
         /// </summary>
-        public long TkbType;
+        public TkbTypeId TkbType;
 
         /// <summary>
         /// Raw DIS entity type associated with this spawn (from network descriptors).
@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// For SimHost-spawned entities: SimHost's local node ID.
         /// For network-replicated ghosts: the remote node's ID.
         /// </summary>
-        public int OwnerNodeId;
+        public NodeId OwnerNodeId;
 
         /// <summary>
         /// Reliability mode for the Entity Lifecycle Module handshake.
@@ -47,6 +47,19 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// None:     Entity transitions immediately to Constructing state (use for ghost replicas).
         /// </summary>
         public ReliableInitType InitType;
+
+        /// <summary>
+        /// ⭐⭐ When true, the spawned entity is a THROWAWAY and every node that materialises it stamps
+        /// <see cref="Fdp.Toolkit.Scenario.ScenarioIgnoreTag"/> so the scenario serializer skips it.
+        ///
+        /// <para>⛔ The tag is derived LOCALLY at spawn, on each receiver, rather than replicated: the
+        /// authoring node knows the entity is a sketch, and deriving it here means the decision survives
+        /// that node disconnecting. See <c>EntityCreationRequest.IsTransient</c> for the ruling and the
+        /// measurement (<c>R-140</c>; <c>docs/DESIGN_Node_Roles_And_Policies.md</c> §7.3).</para>
+        ///
+        /// <para>⭐ Defaults to <c>false</c>, so every existing publisher is unchanged.</para>
+        /// </summary>
+        public bool IsTransient;
 
         /// <summary>
         /// Optional list of ECS component instances to apply on top of TKB template defaults.
@@ -75,11 +88,39 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         public Guid RequestId;
 
         /// <summary>
+        /// CE-287 (C1, reliable init): the peer node ids the creator waits for before its own entity leaves
+        /// <c>Constructing</c>. ⭐ <b>null ⇒ ALL present nodes advertising <c>fdp.reliable-init</c></b> (the
+        /// capability-filtered set the <c>IExpectedPeersProvider</c> yields). A non-null list is the creator's
+        /// OWN policy narrowing — it MAY restrict the wait to a role subset it computed from the cluster cache;
+        /// the effective wait-set is <c>(capability-filtered present ∩ this list)</c> minus local.
+        /// ⛔ NOT a component/type filter — the peer's wait condition is host-local and opaque to the creator
+        /// (DESIGN_Cross_Node_Construction_Barrier.md §3b.1). Ignored when <see cref="InitType"/> is <c>None</c>.
+        /// </summary>
+        public int[]? ReliableInitPeers;
+
+        /// <summary>
+        /// CE-287 (C1): the creator's authoritative bound on the reliable-init wait. On expiry with the wait-set
+        /// unsatisfied the creator ABORTS by disposing the <c>EntityMaster</c> instance (§3b.3). null/zero ⇒ the
+        /// gateway's default timeout. Ignored when <see cref="InitType"/> is <c>None</c>.
+        /// </summary>
+        public TimeSpan? ReliableInitTimeout;
+
+        /// <summary>
         /// Optional JSON attribute overrides (verbatim initialPropertiesJson from the tool).
         /// Preserved for the ACL egress translator to include in CreateEntityRequest.InitialAttributesJson.
         /// When the edge compiler is active at the DDS boundary the translator compiles this to
         /// binary records; otherwise it is forwarded to SimHost verbatim.
         /// </summary>
         public string? InitialAttributesJson;
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the birth-height request; <c>null</c> ⇒ <see cref="InitialTransform"/>'s Z stands (today).
+        /// When set, <c>NetworkSpawningSystem</c> replaces that Z with <c>TerrainWorld.ResolveLevel(x, y, Level)</c>
+        /// (+ the sent Z for <see cref="SpawnHeightMode.AboveLevel"/>); with no terrain resident the sent Z stands.
+        /// <para>⛔ Set only by the CREATOR (the request path or a direct publisher such as the placement tool). Replica /
+        /// ghost ingress never sets it — replicas take the owner's replicated Z.</para>
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2e.
+        /// </summary>
+        public SpawnHeight? SpawnHeight;
     }
 }

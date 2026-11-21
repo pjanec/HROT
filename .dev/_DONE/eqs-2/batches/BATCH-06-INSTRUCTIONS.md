@@ -436,7 +436,7 @@ Assert.Equal((long)targetB.PackedValue, buffer.GetSpanRO()[0].EntityId);
 
 ## Build and Test Verification
 
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors.
+1. `dotnet build HROT.sln` — 0 errors.
 2. `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/ --filter "FullyQualifiedName~Eqs"` — 27 existing + T-NP1, T-NP2, T-NS1, T-NR1, T-NR2, T-NR3, T-PC1, T-PC2 = 35 tests pass.
 3. `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ --filter "FullyQualifiedName~Eqs"` — 15 existing + path-cost inversion test = 16 tests pass.
 

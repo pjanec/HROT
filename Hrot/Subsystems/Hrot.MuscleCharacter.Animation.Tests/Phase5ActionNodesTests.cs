@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Xunit;
@@ -11,7 +12,7 @@ using Fdp.Toolkit.Lifecycle.Events;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Hrot.MuscleCharacter.Animation.Nodes;
@@ -82,7 +83,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                         IsStanceTransition = false,
                     },
                 },
-                SupportedStances = new[] { Components.StanceId.Standing, Components.StanceId.Crouched },
+                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = new AimConfigDto { MaxYawDegrees = 90f, MaxPitchDegrees = 70f, AimSourceBone = "head" },
                 NotifyMarkers = new List<NotifyMarkerDefDto>(),
@@ -103,7 +104,9 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             var repo = new EntityRepository();
             repo.RegisterComponent<AnimationChannel>();
+            repo.RegisterComponent<AnimationChannelStatus>();
             repo.RegisterComponent<LookAtChannel>();
+            repo.RegisterComponent<LookAtChannelStatus>();
             repo.RegisterComponent<StanceIntent>();
             repo.RegisterComponent<StanceStatus>();
             repo.RegisterComponent<AnimationMontageQueue>();
@@ -122,8 +125,10 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             ActorCapabilities caps = ActorCapabilities.CanPlayAnimations | ActorCapabilities.CanChangeStance | ActorCapabilities.CanAim)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new AnimationChannel { Status = NodeStatus.Failure });
-            repo.AddComponent(entity, new LookAtChannel { Status = NodeStatus.Failure });
+            repo.AddComponent(entity, new AnimationChannel());
+            repo.AddComponent(entity, new AnimationChannelStatus { Status = NodeStatus.Failure });
+            repo.AddComponent(entity, new LookAtChannel());
+            repo.AddComponent(entity, new LookAtChannelStatus { Status = NodeStatus.Failure });
             repo.AddComponent(entity, new StanceIntent { TargetStance = StanceId.Standing, BlendTime = 0.1f });
             repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing, Phase = StanceTransitionPhase.Idle });
             repo.AddComponent(entity, new AnimationMontageQueue { Count = 0, QueueVersion = 0 });
@@ -503,6 +508,27 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             // uint + byte = 4 + 1 = 5 bytes (plus padding)
             var size = Marshal.SizeOf<SetStanceNode>();
             Assert.True(size >= 5, $"SetStanceNode size {size} should be at least 5");
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2042</c> — an animation node's <c>StructureHash</c> is the engine's layout hash, the same in every process.
+    /// 🔴 It folded <c>string.GetHashCode()</c> (randomised per process), so no two runs registered the same hash.
+    /// </summary>
+    public class AnimationNodeStructureHashTests
+    {
+        [Fact]
+        public void CE2042_ANodesStructureHash_IsTheDeterministicLayoutHash()
+        {
+            var registry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
+            var staging = registry.BeginStaging();
+            Hrot.MuscleCharacter.Animation.Registration.AnimationNodeRegistrar.Register(staging, new BehaviorRegistry());
+            registry.CommitStaging(staging);
+
+            Assert.True(registry.TryGetByName("PlayMontageNode", out var def));
+            var nodeType = typeof(Hrot.MuscleCharacter.Animation.Registration.AnimationNodeRegistrar).Assembly.GetTypes()
+                .Single(t => t.Name == "PlayMontageNode" && t.IsValueType);
+            Assert.Equal(Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(nodeType), def!.StructureHash);
         }
     }
 }

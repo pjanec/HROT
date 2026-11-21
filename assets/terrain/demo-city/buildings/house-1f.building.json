@@ -1,0 +1,22 @@
+{
+  "$comment": "CE-4028 — a one-storey brick house for demo-city: 9 x 8 m, a front door onto the street (closed, not locked, so a frightened civilian can run in — DESIGN_Civilians_And_Crowd_Control §5e), a back door, an inner wall with a door, windows. Local metres; origin = the south-west corner; the front wall is y = 0.",
+  "name": "house-1f",
+  "material": "brick",
+  "footprint": [[0,0],[9,0],[9,8],[0,8]],
+  "storeys": [
+    { "height": 3.2,
+      "walls": [
+        { "from": [0,0], "to": [9,0], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 0.8, "width": 1.2 },
+                        { "kind": "door",   "at": 3.0, "width": 0.9, "doorId": "front", "initial": "closed" },
+                        { "kind": "window", "at": 6.0, "width": 1.6 } ] },
+        { "from": [9,0], "to": [9,8], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 3.0, "width": 1.2 } ] },
+        { "from": [9,8], "to": [0,8], "thickness": 0.3,
+          "openings": [ { "kind": "door", "at": 2.0, "width": 0.9, "doorId": "back", "initial": "closed" } ] },
+        { "from": [0,8], "to": [0,0], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 3.0, "width": 1.2 } ] },
+        { "from": [4.5,0], "to": [4.5,8], "thickness": 0.15, "material": "concrete",
+          "openings": [ { "kind": "door", "at": 5.5, "width": 0.9, "doorId": "hall" } ] } ] } ],
+  "roof": "flat"
+}

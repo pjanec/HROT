@@ -125,4 +125,4 @@ Build succeeded.
     0 Error(s)
 ```
 
-Full solution (`IOS-IG-SimHost.sln`) builds cleanly with no warnings added by this batch.
+Full solution (`HROT.sln`) builds cleanly with no warnings added by this batch.

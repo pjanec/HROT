@@ -65,6 +65,19 @@ public sealed class SaveActiveBlueprintCommand
     /// </summary>
     /// <param name="asset">The in-memory blueprint to persist.</param>
     /// <param name="path">Absolute (or rooted) path to write.</param>
+    /// <summary>
+    /// ⭐ <c>CE-1443</c> B2 — <i>Save Blueprint as Recipe…</i>: writes <paramref name="asset"/> to <paramref name="path"/> exactly as <see cref="Save"/> does, then marks the
+    /// WRITTEN COPY a recipe (<c>EditorMetadata.Recipe</c>, which <i>New Blueprint</i> lists by) — ⛔ the open asset is never touched.
+    /// </summary>
+    public static void SaveAsRecipe(BlueprintAsset asset, string path, string displayName)
+    {
+        Save(asset, path);
+        var copy = BlueprintJsonServices.Deserialize(File.ReadAllText(path))
+                   ?? throw new InvalidOperationException($"the recipe written to '{path}' does not read back");
+        copy.EditorMetadata.Recipe = new RecipeMetadata { DisplayName = displayName };
+        File.WriteAllText(path, BlueprintJsonServices.Serialize(copy));
+    }
+
     public static void Save(BlueprintAsset asset, string path)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));

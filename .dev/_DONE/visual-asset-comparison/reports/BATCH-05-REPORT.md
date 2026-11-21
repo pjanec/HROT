@@ -171,7 +171,7 @@ Duration: ~22 s - Hrot.Editor.AiShared.Tests.dll (net8.0)
 Build succeeded. 0 Error(s)
 ```
 
-Full solution: `IOS-IG-SimHost.sln -c Debug --no-restore`
+Full solution: `HROT.sln -c Debug --no-restore`
 
 ---
 

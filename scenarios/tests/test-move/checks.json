@@ -1,0 +1,48 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — The simplest movement test. Judge (1) the Bradley moves east along y 296 (never more than 5 m off the line, the arrival radius), (2) it stops within 5 m of (489,296) after about 24 s. Left out: 'the mission ends' (a MissionPlan end, not read).",
+  "runFor": 30,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the Bradley moves east",
+      "on": "field",
+      "who": "M2 Bradley IFV",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 400
+    },
+    {
+      "name": "it never leaves y 296 to the north",
+      "never": {
+        "on": "field",
+        "who": "M2 Bradley IFV",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 301
+      }
+    },
+    {
+      "name": "it never leaves y 296 to the south",
+      "never": {
+        "on": "field",
+        "who": "M2 Bradley IFV",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 291
+      }
+    },
+    {
+      "name": "it stops within 5 m of (489,296)",
+      "on": "near",
+      "who": "M2 Bradley IFV",
+      "point": [
+        489,
+        296
+      ],
+      "within": 5,
+      "atEnd": true
+    }
+  ]
+}

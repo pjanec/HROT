@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""When does something happen in a scenario? — the sim times of every shot fired (and what it hit), to plan a film's cuts.
+
+⭐ CE-3289 (docs/RUNBOOK_Filming.md). Launches a ClusterRunner --mode all under Xvfb, loads the scenario, plays it in real time and
+prints each new shot as `sim <t>: <shooter> -> <target> <outcome>`, plus the start positions of the named entities. ⭐ --mode editor STEPS from
+a paused preview, so its times are exactly the film's; --mode all plays in real time — treat its times as ±0.5 s.
+
+  scripts/film-events.py ua-tank-ammo --seconds 40
+"""
+import argparse, importlib.util, os, sys, time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+spec = importlib.util.spec_from_file_location("udc", os.path.join(HERE, "utility-demo-check.py"))
+udc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(udc)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("scenario")
+    ap.add_argument("--seconds", type=float, default=40.0, help="sim seconds to watch")
+    ap.add_argument("--port", type=int, default=8111)
+    ap.add_argument("--mode", default="all", help="the ClusterRunner mode: all or editor")
+    args = ap.parse_args()
+    udc.BASE = f"http://localhost:{args.port}"
+    proc = udc.launch(args.port, args.mode)
+    try:
+        udc.load(args.scenario)
+        ids = udc.ids_by_name()
+        name = {v: k for k, v in ids.items()}
+        for n, nid in sorted(ids.items(), key=lambda kv: kv[1]):
+            c = (udc.data(udc.call("GET", f"/entities/{nid}")) or {}).get("Components") or {}
+            p = (c.get("SimTransform") or {}).get("Position")
+            print(f"   {nid:>6}  {n:<24} {[round(float(v), 1) for v in p] if isinstance(p, list) else p}")
+        editor = args.mode == "editor"
+        if editor:   # ⭐ step from a paused preview: the times are the film's (film.py steps the same way), frame for frame
+            udc.call("POST", "/preview/enter", {"startPaused": True})
+        else:
+            udc.call("POST", "/sim/play", {})
+        seen = set()
+        give_up = time.time() + args.seconds * 6 + 120   # a sim that never advances must not hang the probe
+        while (udc.sim_time() or 0.0) < args.seconds and time.time() < give_up:
+            t = udc.sim_time() or 0.0
+            shots = udc._if_shots_all() if args.mode == "all" else (udc.data(udc.call("GET", "/combat/shots?last=64")) or {}).get("shots") or []
+            for x in shots:
+                if x.get("seq") in seen:
+                    continue
+                seen.add(x.get("seq"))
+                at = x.get("firedAt")   # the shot's own sim time — exact, whatever the polling
+                print(f"   sim {at if isinstance(at, (int, float)) else t:6.2f}: {name.get(x.get('shooter'), x.get('shooter'))} -> {name.get(x.get('target'), x.get('target'))} "
+                      f"{x.get('outcome')}" + (f" (hit {name.get(x.get('hit'), x.get('hit'))})" if x.get("hit") else ""), flush=True)
+            if editor:
+                udc.call("POST", "/sim/step", {"count": 15})   # a quarter second of sim per look
+            else:
+                time.sleep(0.5)
+    finally:
+        udc.stop(proc)
+
+
+if __name__ == "__main__":
+    main()

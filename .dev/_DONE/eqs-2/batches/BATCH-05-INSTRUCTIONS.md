@@ -511,7 +511,7 @@ private sealed class SimpleEqsTemplateRegistry : IEqsTemplateRegistry
 
 After implementing all changes:
 
-1. `dotnet build IOS-IG-SimHost.sln` — 0 errors.
+1. `dotnet build HROT.sln` — 0 errors.
 2. `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/ --filter "FullyQualifiedName~Eqs"` — all EQS unit tests pass (20 existing + 6 new = 26+).
 3. `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ --filter "FullyQualifiedName~Eqs"` — all 13 existing + 2 new integration tests pass.
 

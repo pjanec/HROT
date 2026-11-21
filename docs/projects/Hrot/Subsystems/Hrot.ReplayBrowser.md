@@ -419,7 +419,7 @@ FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/
 | `Panels/ReplayBrowser/ComponentDiffPanel.cs` | `ComponentDiffPanel` | Renders `DiffNode` tree with old/new value columns; Seek-to-Change buttons disabled in Merged View |
 | `Panels/EventBrowserPanel.cs` | `EventBrowserPanel` | Structured event log with causality-jump links |
 | `Panels/EntityInspectorPanel.cs` | `EntityInspectorPanel` | Component inspector; renders `Entity`-typed fields in warning colour when value is `Entity.Null` and `InspectorState.IsMergedView` is true |
-| `Windows/ReplayBrowser/ReplayTimelineWindow.cs` | `ReplayTimelineWindow` | `PerspectiveBound` window wrapping the timeline panel |
+| `Windows/ReplayBrowser/RecordingInfoWindow.cs` | `RecordingInfoWindow` | `PerspectiveBound` dialog (File ▸ Recording info) over the timeline panel — ⛔ the old `ReplayTimelineWindow` (`rb_timeline`) is retired (B-7 part 3) |
 | `Windows/ReplayBrowser/FdpEntityInspectorWindow.cs` | `FdpEntityInspectorWindow` | `PerspectiveBound` window wrapping the entity inspector panel |
 | `Windows/ReplayBrowser/ComponentDiffWindow.cs` | `ComponentDiffWindow` | `PerspectiveBound` window wrapping the diff panel |
 | `Windows/ReplayBrowser/FdpEventBrowserWindow.cs` | `FdpEventBrowserWindow` | `PerspectiveBound` window wrapping the event browser panel |
@@ -894,7 +894,7 @@ Immutable value type carried by both history trackers.
 | `Hrot.AI.Behaviors` | via `Hrot.CGF` (AI behavior gizmo registrar) |
 | `Hrot.IG` | via `Hrot.SimHost` (SelectionState, MapOverlayStyle components) |
 | `Hrot.ScenarioEditor` | via `Hrot.SimHost` (SelectionInteractionSystem, ScenarioEditor gizmos) |
-| `Hrot.Presentation` | via `Hrot.SimHost` (BrainBlackboardRenderer, BTreeVisualizerRenderer, etc.) |
+| `Hrot.Presentation` | via `Hrot.SimHost` (the tier renderers' `RootParamsProjection` section, BTreeVisualizerRenderer, etc.) |
 
 ### InternalsVisibleTo
 

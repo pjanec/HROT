@@ -33,6 +33,7 @@ public sealed class ClusterMasterReplayTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                  = new[] { "SimHost" },
             HeartbeatTimeoutSeconds    = 60f,
             TransactionHistoryCapacity = 10,
@@ -45,7 +46,7 @@ public sealed class ClusterMasterReplayTests
         // Register mandatory node.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,

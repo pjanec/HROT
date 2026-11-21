@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Common.Orchestration
 {
@@ -80,7 +81,7 @@ namespace Hrot.Common.Orchestration
             {
                 null     => string.Empty,
                 string s => s,
-                _        => System.Text.Json.JsonSerializer.Serialize(intent.DomainPayload),
+                _        => System.Text.Json.JsonSerializer.Serialize(intent.DomainPayload, FdpJsonOptionsRegistry.DefaultRelaxed),
             };
             return new NodeOpCommand
             {

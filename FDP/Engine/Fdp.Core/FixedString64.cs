@@ -24,19 +24,40 @@ namespace Fdp.Core
         /// Creates a FixedString64 from a regular string.
         /// Truncates if longer than MaxLength.
         /// </summary>
-        public FixedString64(string str)
+        public FixedString64(string str) : this(str.AsSpan())
+        {
+        }
+
+        /// <summary>
+        /// Creates a FixedString64 from a character span, encoding to UTF-8.
+        /// Truncates silently if longer than MaxLength. Zero-allocation.
+        /// </summary>
+        public FixedString64(ReadOnlySpan<char> str)
         {
             this = default;
-            if (string.IsNullOrEmpty(str)) return;
-            
+            if (str.IsEmpty) return;
+
             ref byte start = ref Unsafe.As<FixedString64, byte>(ref this);
             Span<byte> buffer = MemoryMarshal.CreateSpan(ref start, 64);
-            
-            var encoder = Encoding.UTF8.GetEncoder();
-            encoder.Convert(str.AsSpan(), buffer.Slice(0, MaxLength), true, out _, out int bytesUsed, out _);
+
+            // ⛔ R-2084 (measured 2026-11-07, A5) — Utf8.FromUtf16 is static: an Encoder per construction allocated 48 B, i.e. every gizmo label every frame.
+            //   It stops at a whole character when the buffer is full, as the encoder did.
+            System.Text.Unicode.Utf8.FromUtf16(str, buffer.Slice(0, MaxLength), out _, out int bytesUsed, replaceInvalidSequences: true, isFinalBlock: true);
             buffer[bytesUsed] = 0;
         }
         
+        /// <summary>⭐ CE-4432 (R-2084) — decodes into <paramref name="destination"/> and returns the chars written: the 0 B
+        /// <see cref="ToString"/> for a per-frame reader (a string per entity per frame was the style pass's garbage).</summary>
+        public readonly int CopyTo(Span<char> destination)
+        {
+            ref byte start = ref Unsafe.As<FixedString64, byte>(ref Unsafe.AsRef(in this));
+            ReadOnlySpan<byte> span = MemoryMarshal.CreateReadOnlySpan(ref start, 64);
+            int len = 0;
+            while (len < MaxLength && span[len] != 0) len++;
+            System.Text.Unicode.Utf8.ToUtf16(span.Slice(0, len), destination, out _, out int written, replaceInvalidSequences: true, isFinalBlock: true);
+            return written;
+        }
+
         /// <summary>
         /// Converts to a regular string.
         /// </summary>

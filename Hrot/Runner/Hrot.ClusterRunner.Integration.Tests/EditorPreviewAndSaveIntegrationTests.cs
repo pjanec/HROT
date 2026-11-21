@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Fdp.Toolkit.Scenario;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.Common.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Toolkit.Replication;
 using Xunit;
@@ -29,7 +29,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
 {
-    private const long   TestNetworkId  = 42L;
+    private const int   TestNetworkId  = 42;
     private const long   TestTkbType    = 1L;   // Matches TkbTemplate("TestUnit", 1L) in EditorHarness
     private const int    PumpTimeoutMs  = 5_000;
 
@@ -53,10 +53,13 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         // â”€â”€ Step 2: Spawn entity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
+            // ⭐ CE-4153 — this harness publishes the spawn itself, bypassing CreateEntityRequestSystem (the one place that mints the entity's
+            //   stable key), and the test then SAVES: it plays the creator and stamps the key, as a production request would.
+            InitialComponents = new List<object> { new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()) },
         });
         Assert.True(
             harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpTimeoutMs),
@@ -83,10 +86,8 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         Assert.Equal(100f, tfBeforePreview.Position.X, precision: 2);
 
         // â”€â”€ Step 5: Capture snapshot (LoadingPreview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        var handler = new PreviewClusterOpHandler(harness.Repo);
-        handler.Commit(
-            new NodeOpCommand { PayloadJson = "{\"TargetState\": 20}" },
-            null);
+        var handler = new Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler(harness.Repo, includeTransient: true);
+        handler.TriggerLoadingPreview();
 
         // â”€â”€ Step 6: Move entity to (999, 0, 0) in preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new UpdateEntityCommand
@@ -104,9 +105,7 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         Assert.Equal(999f, tfDuringPreview.Position.X, precision: 2);
 
         // â”€â”€ Step 8: Rewind (UnloadingPreview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        handler.Commit(
-            new NodeOpCommand { PayloadJson = "{\"TargetState\": 22}" },
-            null);
+        handler.TriggerUnloadingPreview();
 
         // â”€â”€ Step 9: Assert state restored to snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var tfAfterRewind = harness.Repo.GetComponent<SimTransform>(spawnedEntity);
@@ -123,7 +122,10 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         Assert.Equal(0, harness.Repo.EntityCount);
 
         // â”€â”€ Step 12: LoadScenario â€” assert entity restored â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        harness.Editor.LoadScenario(_tempFile);
+        // ⭐ HN-037 Part B: the raw file→repo load belongs to the SERIALIZER, and the claim here is the
+        //   file round-trip (save → wipe → the entity comes back), not the editor's load pipeline.
+        new ScenarioSerializerBuilder("Hrot.Scenario").Build()
+            .Deserialize(harness.Repo, File.ReadAllText(_tempFile));
         harness.PumpFrames(5);
 
         Assert.Equal(1, harness.Repo.EntityCount);

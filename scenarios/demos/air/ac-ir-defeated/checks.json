@@ -1,0 +1,55 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S2 \u2014 feature (golden).",
+  "runFor": 40,
+  "golden": {
+    "every": 5
+  },
+  "anchors": {
+    "launch": {
+      "on": "shot",
+      "by": "Fulcrum",
+      "n": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "the MiG fires",
+      "on": "shot",
+      "by": "Fulcrum",
+      "n": 1
+    },
+    {
+      "name": "a MiG missile is DEFEATED",
+      "on": "shot",
+      "by": "Fulcrum",
+      "n": 1,
+      "where": {
+        "outcome": "Defeated"
+      }
+    },
+    {
+      "name": "the F-16 releases >= 2 flares",
+      "on": "field",
+      "who": "Viper",
+      "path": "MissileDefenceState.DecoysTotal",
+      "op": ">=",
+      "value": 2
+    },
+    {
+      "name": "no MiG MISSILE hits the F-16 in 30 s (R-10029: its gun may \u2014 the MiG closes while the F-16 beams)",
+      "never": {
+        "on": "shot",
+        "by": "Fulcrum",
+        "n": 1,
+        "hit": "Viper",
+        "where": {
+          "weaponIndex": [
+            ">=",
+            1
+          ]
+        }
+      },
+      "before": 30
+    }
+  ]
+}

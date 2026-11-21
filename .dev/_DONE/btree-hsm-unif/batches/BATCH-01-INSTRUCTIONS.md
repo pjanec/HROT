@@ -44,7 +44,7 @@
 - `dotnet test FDP/ExtDeps/FastBTree/tests/Fbt.Tests/Fbt.Tests.csproj`
 - `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj`
 - `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/Hrot.Editor.Tests.csproj`
-- `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` (final build check)
+- `dotnet build HROT.sln --no-restore -v quiet` (final build check)
 
 ### Report Submission
 
@@ -67,7 +67,7 @@ Submit your report to: `.dev/btree-hsm-unif/reports/BATCH-01-REPORT.md`
 9. BHU-009 → build passes + test pass
 10. BHU-010 + BHU-015 → build passes + test pass (do together, they are coupled)
 11. BHU-016 → build passes + test pass
-12. Final: `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` — zero errors
+12. Final: `dotnet build HROT.sln --no-restore -v quiet` — zero errors
 
 Do not stop to ask permission for obvious actions (running tests, fixing compile errors, iterating on failures). Complete everything and write the report only when ALL tests pass.
 
@@ -467,7 +467,7 @@ This batch is DONE when:
 - [ ] BHU-009: `HsmTickSystem` reads byte 126 → injects event; does NOT clear it
 - [ ] BHU-010 + BHU-015: 6-system order confirmed; `HsmDamageBridgeSystem` deleted
 - [ ] BHU-016: HSM state reset on behavior reassignment; `Terminated` cleared
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` — zero `error CS` lines
+- [ ] `dotnet build HROT.sln --no-restore -v quiet` — zero `error CS` lines
 
 ---
 

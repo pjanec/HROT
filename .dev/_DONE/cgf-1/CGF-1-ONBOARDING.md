@@ -116,10 +116,10 @@ If you are unsure which layer a file belongs to, check: does it need to know abo
 
 ```powershell
 # Full solution (from repo root)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 
 # Run Orchestrator via Runner
 dotnet run --project Hrot.ClusterRunner -- --mode orchestrator
@@ -175,7 +175,7 @@ Key points:
 
 ## DDS Test Isolation — Contributor Note
 
-**Problem:** Several test assemblies use DDS domain 0. When `dotnet test IOS-IG-SimHost.sln`
+**Problem:** Several test assemblies use DDS domain 0. When `dotnet test HROT.sln`
 runs all assemblies in parallel, DDS participants in different test processes discover each
 other and cause intermittent failures (e.g. `DomainIsolation_*`, migration tests).
 
@@ -191,7 +191,7 @@ other and cause intermittent failures (e.g. `DomainIsolation_*`, migration tests
 see flakes should run integration tests serially:
 
 ```powershell
-dotnet test IOS-IG-SimHost.sln --maxcpucount:1 -- dotnet test
+dotnet test HROT.sln --maxcpucount:1 -- dotnet test
 ```
 
 or target individual integration-test assemblies in isolation:

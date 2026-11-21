@@ -262,7 +262,7 @@ Adapters that bridge the editor model to `NodeEditor.Core` interfaces.
 | `BTreeLinkValidator.cs` | `BTreeLinkValidator` | Implements `ILinkValidator`. Enforces: leaf nodes cannot receive child connections; duplicate parent edge is forbidden; cycles are detected by walking the ancestor chain. |
 | `BTreeCommandSink.cs` | `BTreeCommandSink` | Implements `IGraphCommandSink`. Translates `GraphCommand` discriminated union records (MoveNodes, AddNode, RemoveNodes, AddLink, RemoveLinks, SetNodeProperty, AddAttachment, RemoveAttachments, SetAttachmentProperty, ReorderAttachments, Batch) into mutations on `BehaviorTreeAsset`. |
 | `BTreeKinds.cs` | `BTreeKinds` | Static string constants for all 16 node kind IDs. Helper: `IsLeaf(NodeKindKey)`, `IsDecorator(NodeKindKey)`, `KindIdToNodeType(string)`. |
-| `BTreeTraceLaneProvider.cs` | `BTreeTraceLaneProvider` | Implements `ITraceLaneProvider`. Declares four timeline swim-lanes: `bt.nodes` (NodeStatus), `bt.stack` (Stack), `bt.async` (Async), `bt.errors` (Errors). |
+| `BTreeTraceLaneProvider.cs` | `BTreeTraceLaneProvider` | Implements `ITimelineLaneProvider` (moved to `Fdp.Toolkits`, R-4078). Declares four timeline swim-lanes: `bt.nodes` (NodeStatus), `bt.stack` (Stack), `bt.async` (Async), `bt.errors` (Errors). |
 
 ### Hrot.BTree.Editor.Validation
 
@@ -605,10 +605,10 @@ Handles: `MoveNodes`, `AddNode`, `RemoveNodes`, `AddLink`, `RemoveLinks`,
 ### BTreeTraceLaneProvider (Host)
 
 ```csharp
-public sealed class BTreeTraceLaneProvider : ITraceLaneProvider
+public sealed class BTreeTraceLaneProvider : ITimelineLaneProvider
 {
-    public AssetKind Kind { get; }   // AssetKind.BTree
-    public IReadOnlyList<TraceLaneDescriptor> Lanes { get; }
+    public bool Applies(TimelineLaneContext context);   // context.AssetKind == nameof(AssetKind.BTree)
+    public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; }
     // bt.nodes, bt.stack, bt.async, bt.errors
 }
 ```
@@ -739,7 +739,7 @@ full comparison feature architecture.
 |---------|----------|------|
 | `Fbt.Kernel` | `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/` | BTree runtime: `BehaviorTreeBlob`, `NodeType`, `NodeStatus`, `BTreeBuilder<BB,Ctx>`, `[BTreeDefinition]`, `[BTreeLayout]`, `NodeDebugMetadata` |
 | `NodeEditor.Core` | `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/` | Graph canvas: `IEditorHostServices`, `INodeCatalog`, `ITypeSystem`, `ILinkValidator`, `IGraphCommandSink`, `ICustomCanvasRenderer`, `GraphCommand`, `PinId`, `NodeId` |
-| `Hrot.Editor.AiShared` | `Hrot/Editor/Hrot.Editor.AiShared/` | Shared AI editor infrastructure: `IEditableAsset`, `AssetKind`, `IAssetCatalog`, `IAssetCatalogContributor`, `IAiDebugSession`, `AiDebugSessionBase`, `ITraceLaneProvider`, `IAssetValidator`, `AssetDiagnostic`, `IFluentCSharpEmitter<T>`, `FluentCSharpEmitterBase`, `HotReloadClassifier`, `HotReloadTier`, `AssetIdHasher`, `LayoutDiscovery`, `IRuntimeInspectorPane` |
+| `Hrot.Editor.AiShared` | `Hrot/Editor/Hrot.Editor.AiShared/` | Shared AI editor infrastructure: `IEditableAsset`, `AssetKind`, `IAssetCatalog`, `IAssetCatalogContributor`, `IAiDebugSession`, `AiDebugSessionBase`, `IAssetValidator`, `AssetDiagnostic`, `IFluentCSharpEmitter<T>`, `FluentCSharpEmitterBase`, `HotReloadClassifier`, `HotReloadTier`, `AssetIdHasher`, `LayoutDiscovery`, `IRuntimeInspectorPane` |
 | `Fdp.Core` | `FDP/Engine/Fdp.Core/` | FDP framework: `Entity`, `Breakpoint` |
 
 ### NuGet Packages

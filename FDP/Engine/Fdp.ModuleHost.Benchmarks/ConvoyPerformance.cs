@@ -69,6 +69,7 @@ namespace Fdp.ModuleHost.Benchmarks
             _kernel.Update(0.016f);
         }
 
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class BenchModule : IEcsModule
         {
             public string Name { get; set; }

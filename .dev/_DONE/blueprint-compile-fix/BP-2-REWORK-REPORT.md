@@ -152,7 +152,7 @@ that pre-date this branch).
 ## Build Results
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
   0 Error(s)
   18 Warning(s) — all pre-existing (xUnit2013, CS0618 IBlueprintTimeController obsolete)
   Time: ~50 seconds
@@ -178,7 +178,7 @@ No new errors or warnings introduced.
 - [x] `CountingDemo_ProofTests` (2): PASS
 - [x] `Stage0_RehydrateTests` (all): PASS
 - [x] Final failures ≤7, all DEBT-006: **6 failures** (passes gate)
-- [x] `dotnet build IOS-IG-SimHost.sln -c Debug`: 0 errors
+- [x] `dotnet build HROT.sln -c Debug`: 0 errors
 - [x] No golden snapshot files regenerated
 - [x] `RecipeCreateModal.cs`, `AssetBrowserWindow.cs`, `EditorSubsystem.cs` not touched
 

@@ -19,7 +19,7 @@ namespace Hrot.DDS.DataModel.Tests
         {
             var msg = new TacticalIntentRequest
             {
-                TargetEntityId = 42L,
+                TargetEntityId = 42,
                 IntentId       = "DefendArea",
                 JsonParams     = "{\"radius\":100}",
             };

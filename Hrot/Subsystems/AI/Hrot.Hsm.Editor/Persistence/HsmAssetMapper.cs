@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fhsm.Kernel.Data;
+using Hrot.AiEditor.Persistence;
+using Hrot.AiEditor.Persistence.Emit;
 using Hrot.AiEditor.Persistence.Hsm;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Hsm.Editor.Model;
 
@@ -53,11 +56,16 @@ public static class HsmAssetMapper
                 IsDeepHistory  = s.IsDeepHistory,
                 IsParallel     = s.IsParallel,
                 IsFinal        = s.IsFinal,
-                OnEntryAction  = s.OnEntryAction,
-                OnExitAction   = s.OnExitAction,
-                ActivityAction = s.ActivityAction,
-                TimerAction    = s.TimerAction,
+                // ⭐ CE-417 (slice 4a): the four slots are bindings in the model too — a straight copy.
+                OnEntry        = BehaviorActionBindingMapping.ToDto(s.OnEntry),
+                OnExit         = BehaviorActionBindingMapping.ToDto(s.OnExit),
+                Activity       = BehaviorActionBindingMapping.ToDto(s.Activity),
+                Timer          = BehaviorActionBindingMapping.ToDto(s.Timer),
                 RegionIndex    = s.RegionIndex,
+                SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
+                SubtreeName    = s.SubtreeName,      // E5 / Q36-B = A
+                SubtreeParamsVariable = s.SubtreeParamsVariable,   // CE-439
+                SopOrder       = CopySopOrder(s.SopOrder),          // CE-2083
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -95,6 +103,10 @@ public static class HsmAssetMapper
                 Name                = r.Name,
                 Priority            = r.Priority,
                 InitialChildStableId = r.InitialChild?.StableId,
+                // BP-299: ownership is written explicitly now. The owner is the state whose
+                // RegionNodes contains this region -- the model already knows it; only the JSON did not.
+                OwnerStableId        = OwnerOf(asset, r)?.StableId,
+                PreferredSize       = r.PreferredSize,
                 Comment             = r.Comment,
                 ColorOverride       = r.ColorOverride,
             });
@@ -109,13 +121,14 @@ public static class HsmAssetMapper
                 SourceStableId        = t.Source.StableId,
                 TargetStableId        = t.Target.StableId,
                 EventName             = t.EventName,
-                GuardFunction         = t.GuardFunction,
-                ActionFunction        = t.ActionFunction,
-                ExpressionTargetField = t.ExpressionTargetField,
+                // ⭐ CE-417: guard and action are bindings, each with its own field — a straight copy.
+                Guard                 = BehaviorActionBindingMapping.ToDto(t.Guard),
+                Action                = BehaviorActionBindingMapping.ToDto(t.Action),
                 Priority              = t.Priority,
                 Kind                  = (TransitionKindDto)t.Kind,
                 SyncGroupId           = t.SyncGroupId,
                 Comment               = t.Comment,
+                IsPolled              = t.IsPolled,   // CE-381
             };
             foreach (var wp in t.Waypoints)
                 tDto.Waypoints.Add(new WaypointDto { X = wp.X, Y = wp.Y });
@@ -130,9 +143,8 @@ public static class HsmAssetMapper
                 VisualId              = g.VisualId,
                 TargetStableId        = g.Target.StableId,
                 EventName             = g.EventName,
-                GuardFunction         = g.GuardFunction,
-                ActionFunction        = g.ActionFunction,
-                ExpressionTargetField = g.ExpressionTargetField,
+                Guard                 = BehaviorActionBindingMapping.ToDto(g.Guard),   // CE-417
+                Action                = BehaviorActionBindingMapping.ToDto(g.Action),
                 Priority              = g.Priority,
                 Comment               = g.Comment,
             });
@@ -157,11 +169,47 @@ public static class HsmAssetMapper
             dto.Suppressions.Conflict.Add(new HsmConflictSuppressionDto { VariableName = varName, WriterPairKey = writerKey });
         foreach (var varName in asset.GetUnusedSuppressions())
             dto.Suppressions.Unused.Add(varName);
+        foreach (var varName in asset.GetConcurrentWritesAllowed())
+            (dto.Suppressions.ConcurrentWritesAllowed ??= new()).Add(varName);
+
+        // ⭐⭐⭐ Batch 91 (91b) — Approach-A ALIASES (persistence design :132).
+        //    🔴 These never persisted: the only writers to _aliases were rename, AddAlias and prune,
+        //    and NOTHING on the load path touched them ⇒ every alias a designer authored was gone on
+        //    reopen, with the badge, the type match and the cross-region refusal that guarded it.
+        //    ⛔ Emitted ONLY when non-empty (the DTO field is nullable, WhenWritingNull) — no shipped
+        //    asset can contain an alias, so the whole corpus stays byte-identical.
+        foreach (var kv in asset.GetAllAliases())
+        {
+            if (kv.Value.Count == 0) continue;
+            var list = new List<Hrot.AiEditor.Persistence.BlackboardAliasBindingDto>();
+            foreach (var a in kv.Value)
+            {
+                list.Add(new Hrot.AiEditor.Persistence.BlackboardAliasBindingDto
+                {
+                    RequiringAssetId   = a.RequiringAssetId,
+                    RequiringElementId = a.RequiringElementId,
+                    RequiringAssetName = a.RequiringAssetName,
+                    RequiredByPath     = a.RequiredByPath,
+                    // ⭐ FullName, the same spelling every other persisted type id uses.
+                    DtoTypeId          = a.DtoType?.FullName ?? string.Empty,
+                });
+            }
+            (dto.Aliases ??= new())[kv.Key] = list;
+        }
 
         // Blackboard (§5.4)
         dto.Blackboard = BlackboardToDto(asset);
 
-        return dto;
+        // ⭐ CE-503 — the bound resolver asset (the BTree's CE-428 field, now shared). ⚠ Must round-trip: an editor save that
+        //   dropped it would silently unbind the resolver — the defect CE-428 found on the BTree mapper.
+        dto.Resolver = asset.Resolver is { } resolver
+            ? new Hrot.AiEditor.Persistence.BTree.BehaviorResolverRefDto { AssetId = resolver.AssetId, Name = resolver.Name, ShapeHash = resolver.ShapeHash }
+            : null;
+        dto.ParamsDtoTypeId = asset.ParamsDtoTypeId;   // ⭐ CE-2133 — must round-trip like the resolver
+        dto.ParamsDefaultJson = Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.Find(asset.BlackboardVariables)?.DefaultValueJson
+                                ?? asset.ParamsDefaultJson;   // ⭐ CE-2135
+
+        return Hrot.AiEditor.Persistence.WorkingStateVariables.Mark(dto);   // ⭐ CE-3193 — working state, from the bindings
     }
 
     // ── DTO → Model ───────────────────────────────────────────────────────────
@@ -183,6 +231,10 @@ public static class HsmAssetMapper
         string sourceFilePath,
         bool isEditorOwned)
     {
+        // ⭐ Q84 C1/D1 — fold any old History pseudo-state into its parent's flag (history is a property of the
+        //    composite being re-entered). The next Save writes the migrated shape.
+        Hrot.AiEditor.Persistence.Hsm.HsmHistoryMigration.Apply(dto);
+
         // Build empty blob / metadata placeholders (runtime-only fields)
         var emptyBlob     = new HsmDefinitionBlob();
         var emptyMetadata = new MachineMetadata();
@@ -202,11 +254,15 @@ public static class HsmAssetMapper
                 IsDeepHistory = sDto.IsDeepHistory,
                 IsParallel    = sDto.IsParallel,
                 IsFinal       = sDto.IsFinal,
-                OnEntryAction = sDto.OnEntryAction,
-                OnExitAction  = sDto.OnExitAction,
-                ActivityAction = sDto.ActivityAction,
-                TimerAction   = sDto.TimerAction,
+                OnEntry       = BehaviorActionBindingMapping.FromDto(sDto.OnEntry),    // CE-417
+                OnExit        = BehaviorActionBindingMapping.FromDto(sDto.OnExit),
+                Activity      = BehaviorActionBindingMapping.FromDto(sDto.Activity),
+                Timer         = BehaviorActionBindingMapping.FromDto(sDto.Timer),
                 RegionIndex   = sDto.RegionIndex,
+                SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
+                SubtreeName    = sDto.SubtreeName,      // E5 / Q36-B = A
+                SubtreeParamsVariable = sDto.SubtreeParamsVariable,   // CE-439
+                SopOrder      = CopySopOrder(sDto.SopOrder),          // CE-2083
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,
@@ -251,6 +307,7 @@ public static class HsmAssetMapper
                 StableId      = rDto.StableId,
                 RegionIndex   = rDto.RegionIndex,
                 Priority      = rDto.Priority,
+                PreferredSize = rDto.PreferredSize,
                 Comment       = rDto.Comment,
                 ColorOverride = rDto.ColorOverride,
             };
@@ -262,13 +319,21 @@ public static class HsmAssetMapper
             stableIdToRegion[rDto.StableId] = region;
         }
 
-        // Attach each region to the parent state of its initial child so parallel states
-        // expose IContainerNodeModel.Regions (→ NodeEditor draws region dividers). The flat
-        // JSON region list carries no parent ref; InitialChild.Parent is the unambiguous owner.
-        // (RHS-05)
+        // Attach each region to its owning parallel state so those states expose
+        // IContainerNodeModel.Regions (→ NodeEditor draws region dividers).
+        //
+        // ⭐⭐ BP-299: the OwnerStableId written by ToDto is authoritative; InitialChild.Parent is the
+        //    FALLBACK for assets saved before that field existed (RHS-05's original derivation).
+        // ⛔ The fallback is not merely legacy support: it is why a region with no initial child used
+        //    to be orphaned, taking rules 8/8b down with it silently.
         foreach (var region in regionNodes)
         {
-            var owner = region.InitialChild?.Parent;
+            StateNode? owner = null;
+            var rDto = dto.Regions.FirstOrDefault(x => x.StableId == region.StableId);
+            if (rDto?.OwnerStableId is Guid ownerId)
+                stableIdToState.TryGetValue(ownerId, out owner);
+            owner ??= region.InitialChild?.Parent;
+
             if (owner != null && !owner.RegionNodes.Contains(region))
                 owner.RegionNodes.Add(region);
         }
@@ -290,13 +355,13 @@ public static class HsmAssetMapper
                 Source                = src,
                 Target                = tgt,
                 EventName             = tDto.EventName,
-                GuardFunction         = tDto.GuardFunction,
-                ActionFunction        = tDto.ActionFunction,
-                ExpressionTargetField = tDto.ExpressionTargetField,
+                Guard                 = BehaviorActionBindingMapping.FromDto(tDto.Guard),    // CE-417
+                Action                = BehaviorActionBindingMapping.FromDto(tDto.Action),
                 Priority              = tDto.Priority,
                 Kind                  = (TransitionKind)tDto.Kind,
                 SyncGroupId           = tDto.SyncGroupId,
                 Comment               = tDto.Comment,
+                IsPolled              = tDto.IsPolled,                // CE-381/CE-385
                 FlatIndex             = 0,   // runtime-only
                 EventId               = 0,   // runtime-only
             };
@@ -316,9 +381,8 @@ public static class HsmAssetMapper
                 VisualId              = gDto.VisualId,
                 Target                = tgt,
                 EventName             = gDto.EventName,
-                GuardFunction         = gDto.GuardFunction,
-                ActionFunction        = gDto.ActionFunction,
-                ExpressionTargetField = gDto.ExpressionTargetField,
+                Guard                 = BehaviorActionBindingMapping.FromDto(gDto.Guard),    // CE-417
+                Action                = BehaviorActionBindingMapping.FromDto(gDto.Action),
                 Priority              = gDto.Priority,
                 Comment               = gDto.Comment,
                 FlatIndex             = 0,   // runtime-only
@@ -329,12 +393,12 @@ public static class HsmAssetMapper
         // Build events; EventId is stored in DTO for emit-core byte-identity.
         // For new assets created from JSON (PU-03+), IDs will be reassigned sequentially.
         var events = new List<EventDefinition>();
+        // ⭐ CE-3040: the emitter's own assignment (HsmEventIds) — an engine-raised event's name wins its reserved id.
         var eventNameToId = new Dictionary<string, ushort>(StringComparer.Ordinal);
-        ushort fallbackId = 1;
+        var assigned = Hrot.AiEditor.Persistence.Emit.HsmEventIds.Assign(dto.Events.Select(e => (e.Name, e.EventId)));
         foreach (var eDto in dto.Events)
         {
-            // Use stored EventId when present (non-zero); fall back to sequential for new JSON assets.
-            ushort id = eDto.EventId != 0 ? eDto.EventId : fallbackId;
+            ushort id = assigned[eDto.Name];
             var ev = new EventDefinition(eDto.Name, id)
             {
                 PayloadSize  = eDto.PayloadSize,
@@ -343,7 +407,6 @@ public static class HsmAssetMapper
             };
             events.Add(ev);
             eventNameToId[eDto.Name] = id;
-            if (eDto.EventId == 0) fallbackId++;
         }
 
         // Restore DeferredEventIds from DeferredEventNames
@@ -379,6 +442,9 @@ public static class HsmAssetMapper
         // override with persisted value if it differs.
         // (BlackboardTypeName has a setter)
         asset.BlackboardTypeName = dto.BlackboardTypeName;
+        if (dto.Resolver is { } rr) asset.Resolver = new BehaviorResolverRef(rr.AssetId, rr.Name, rr.ShapeHash);   // ⭐ CE-503
+        asset.ParamsDtoTypeId = dto.ParamsDtoTypeId;   // ⭐ CE-2133
+        asset.ParamsDefaultJson = dto.ParamsDefaultJson;   // ⭐ CE-2135
 
         asset.CanvasPanOffset = new Vector2(dto.Canvas.PanX, dto.Canvas.PanY);
         asset.CanvasZoomLevel = dto.Canvas.Zoom;
@@ -386,8 +452,34 @@ public static class HsmAssetMapper
         // Suppressions
         foreach (var s in dto.Suppressions.Conflict)
             asset.SetConflictSuppressed(s.VariableName, s.WriterPairKey, true);
+
+        // ⭐⭐⭐ Batch 91 (91b) — rehydrate the aliases. ⭐ ResolveClrType is the EXISTING resolver that
+        //    already probes loaded assemblies for DTO structs living in behavior assemblies — ⛔ not a
+        //    second one. ⚠ An unresolvable type yields typeof(object) rather than throwing: a behavior
+        //    assembly can legitimately be absent, and the alias is still a real authored relationship.
+        if (dto.Aliases is { Count: > 0 })
+        {
+            var aliases = new Dictionary<string, IReadOnlyList<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>>();
+            foreach (var kv in dto.Aliases)
+            {
+                var list = new List<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>();
+                foreach (var a in kv.Value)
+                {
+                    list.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding(
+                        a.RequiringAssetId,
+                        a.RequiringElementId,
+                        a.RequiringAssetName,
+                        a.RequiredByPath,
+                        ResolveClrType(a.DtoTypeId)));
+                }
+                aliases[kv.Key] = list.AsReadOnly();
+            }
+            asset.LoadAliases(aliases);
+        }
         foreach (var varName in dto.Suppressions.Unused)
             asset.SetUnusedWarningSuppressed(varName, true);
+        foreach (var varName in dto.Suppressions.ConcurrentWritesAllowed ?? new())
+            asset.SetConcurrentWritesAllowed(varName, true);
 
         // Blackboard variables
         // Restore the editor-managed flag from the persisted block (mirrors the BTree
@@ -395,6 +487,9 @@ public static class HsmAssetMapper
         // never read back, so a Managed asset always opened as "not managed".
         asset.IsBlackboardEditorManaged = dto.Blackboard.Managed;
         var vars = BlackboardFromDto(dto.Blackboard);
+        // ⭐ CE-2135 (B3a) — a named params DTO with no Input variable appears as the reserved Params entry.
+        Hrot.Editor.AiShared.Blackboard.ReservedParamsVariable.AddTo(vars, dto.ParamsDtoTypeId, dto.ParamsDefaultJson,
+            dto.Blackboard.Managed, dto.Resolver != null);
         if (vars.Count > 0)
             asset.SetBlackboardVariables(vars);
 
@@ -403,6 +498,18 @@ public static class HsmAssetMapper
     }
 
     // ── Blackboard mapping (§5.4) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>BP-299</c>: the state that owns <paramref name="region"/> — the one whose
+    /// <c>RegionNodes</c> contains it. ⚠ Asked of the MODEL rather than derived from the region's
+    /// initial child, because the initial child is exactly what may be missing.
+    /// </summary>
+    private static StateNode? OwnerOf(HsmAsset asset, RegionNode region)
+    {
+        foreach (var s in asset.AllStates)
+            if (s.RegionNodes.Contains(region)) return s;
+        return null;
+    }
 
     private static HsmBlackboardBlockDto BlackboardToDto(HsmAsset asset)
     {
@@ -415,6 +522,7 @@ public static class HsmAssetMapper
 
         foreach (var v in asset.BlackboardVariables)
         {
+            if (v.IsReservedParams) continue;   // ⭐ CE-2135 — saved as ParamsDtoTypeId / ParamsDefaultJson, never as a variable
             var typeId = v.FieldType.FullName ?? v.FieldType.Name;
             block.Variables.Add(new HsmBlackboardVariableDto
             {
@@ -428,8 +536,6 @@ public static class HsmAssetMapper
                 DefaultValueJson = v.DefaultValueJson,
                 Comment          = v.Comment,
                 IsAutoManaged    = v.IsAutoManaged,
-                Role             = v.Role,
-                Scope            = v.Scope,
             });
         }
 
@@ -445,37 +551,20 @@ public static class HsmAssetMapper
             result.Add(new BlackboardVariableEntry(
                 v.Name, clrType, v.Comment,
                 IsAutoManaged:    v.IsAutoManaged,
-                DefaultValueJson: v.DefaultValueJson,
-                Role:             v.Role,
-                Scope:            v.Scope));
+                DefaultValueJson: v.DefaultValueJson));
         }
         return result;
     }
 
+    // ⭐ CE-439 — the shared rule (BlackboardTypeHelper.ResolveClrType); this mapper used to own a private copy.
     private static Type ResolveClrType(string typeId)
-    {
-        var primitive = BlackboardTypeHelper.GetPrimitiveType(typeId);
-        if (primitive != null) return primitive;
+        => Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(typeId);
 
-        var t = Type.GetType(typeId);
-        if (t != null) return t;
-
-        // DTO struct types live in behavior assemblies, not the editor assembly — Type.GetType
-        // misses them. Search loaded assemblies by full name (`+` nested separator from Type.FullName).
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+    /// <summary>⭐ <c>CE-2083</c> — a state's SOP order, copied so the model and the DTO never share one instance.</summary>
+    private static Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto? CopySopOrder(Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto? o)
+        => o is null ? null : new Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto
         {
-            Type? byName;
-            try { byName = asm.GetType(typeId, throwOnError: false, ignoreCase: false); }
-            catch { byName = null; }
-            if (byName != null) return byName;
-        }
-
-        foreach (var name in BlackboardTypeHelper.DefaultKnownTypeNames)
-        {
-            var pt = BlackboardTypeHelper.GetPrimitiveType(name);
-            if (pt != null && (pt.FullName == typeId || pt.Name == typeId)) return pt;
-        }
-
-        return typeof(object);
-    }
+            Kind = o.Kind, BehaviorAssetId = o.BehaviorAssetId, BehaviorName = o.BehaviorName,
+            ParamsVariable = o.ParamsVariable, Urgency = o.Urgency,
+        };
 }

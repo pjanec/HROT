@@ -26,7 +26,7 @@ public static class BlackboardSchemaBuilder
     {
         try
         {
-            return (int)Marshal.OffsetOf(structType, fieldName);
+            return global::Fdp.Core.TypeLayout.OffsetOf(structType, fieldName); // ⭐ CE-2043 — the MANAGED offset
         }
         catch
         {
@@ -44,7 +44,8 @@ public static class BlackboardSchemaBuilder
             t == typeof(sbyte)  || t == typeof(decimal))
             return BlackboardFieldKind.Numeric;
 
-        if (t == typeof(Vector2) || t == typeof(Vector3) || t == typeof(Vector4))
+        var storage = Fdp.Core.SemanticValueTypes.StorageTypeOf(t);   // ⭐ S0 item 6 — a WorldPoint is a vector as the Vector3 was
+        if (storage == typeof(Vector2) || storage == typeof(Vector3) || storage == typeof(Vector4))
             return BlackboardFieldKind.Vector;
 
         if (t.IsEnum)   return BlackboardFieldKind.Enum;

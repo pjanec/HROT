@@ -1,8 +1,8 @@
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// Named constants for the <see cref="CullingState"/> component and
-/// <see cref="Hrot.IG.Systems.MapCullingSystem"/> zoom-to-LOD thresholds.
+/// <see cref="Hrot.Player.Systems.MapCullingSystem"/> zoom-to-LOD thresholds.
 ///
 /// Centralised here so that a single edit propagates to all component definitions,
 /// system logic, and test assertions (§CODE-STANDARDS §1 — no magic numbers).

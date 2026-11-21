@@ -16,7 +16,7 @@
 - `DerRepo`/`IDerRepo` is from `FDP.Toolkit.DER` — a non-ECS view repo used by ExCon panels.
 - Panel test pattern: expose a `HandleXxxClick(IEditorLogic logic)` method that is the actual logic path; `DrawContent(IEditorLogic logic)` calls ImGui and delegates to it. Tests call `HandleXxxClick` directly without ImGui context.
 - `ScenarioSerializerBuilder` does NOT require any translators (auto-serializer handles basic component types). `HrotEntityScenarioTranslator` referenced in the design docs does NOT exist yet — use no translators for F001 scaffolding.
-- Add `Hrot.Editor` and `Hrot.Editor.Tests` to `IOS-IG-SimHost.sln` using `dotnet sln add`.
+- Add `Hrot.Editor` and `Hrot.Editor.Tests` to `HROT.sln` using `dotnet sln add`.
 
 ---
 
@@ -526,8 +526,8 @@ public class EditorDependencyTests
 
 Run from the workspace root:
 ```
-dotnet sln IOS-IG-SimHost.sln add Hrot.Editor/Hrot.Editor.csproj
-dotnet sln IOS-IG-SimHost.sln add Hrot.Editor.Tests/Hrot.Editor.Tests.csproj
+dotnet sln HROT.sln add Hrot.Editor/Hrot.Editor.csproj
+dotnet sln HROT.sln add Hrot.Editor.Tests/Hrot.Editor.Tests.csproj
 ```
 
 ---
@@ -591,7 +591,7 @@ public class EditorBootstrapTests
 
 ## Verification Checklist
 
-1. **Build:** `dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors**
+1. **Build:** `dotnet build HROT.sln --no-incremental` → **0 errors**
 2. **Tests:**
    - `dotnet test Hrot.Editor.Tests --no-build` → all pass (min. 6+ tests)
 3. **No-NED check:** `EditorDependencyTests.HrotEditor_HasNoTransitiveNedDependency` passes.

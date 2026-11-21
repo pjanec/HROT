@@ -1,0 +1,749 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "cqb-village",
+  "description": "What: CE-7015 / CE-4584 (AQ101 \u00a7R, R-4227) - on cqb-village, pc-defend-dry's 'Red Platoon' (three squads of four, Militia, nerve 0.15) defends OBJ at (121,157) facing south; a Blue 81 mm mortar section at (280,30) fires on it, a barrage the check orders once its crews man the tubes (a Strike converged on Squad 2, 10 bombs a tube). The check engages the platoon (the squads' Set and a SPOT inside the engagement area, as pc-defend-dry). Judge: the bursts near-miss the line's men (UnderFire, stress rises); a GREEN platoon's men break and it FALLS BACK (BreakContact) while still mostly alive. Report the sim times. Check: python3 scripts/utility-demo-check.py --launch morale-barrage-green. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md DA-67 (CE-7015)"
+ },
+ "entities": {
+  "c2276d00-0000-4000-8000-000000009300": {
+   "SimTransform": {
+    "Position": [
+     110,
+     182,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 305
+   },
+   "EntityInfo": {
+    "Name": "Red Platoon",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "PlatoonDefend",
+    "Params": {
+     "Position": [
+      120.9,
+      157,
+      0
+     ],
+     "Left": 135,
+     "Right": 225,
+     "MaxRange": 160,
+     "Speed": 2,
+     "Squads": [
+      {
+       "Squad": 1,
+       "Point": [
+        120.9,
+        157,
+        0
+       ],
+       "SearchRadius": 12
+      },
+      {
+       "Squad": 2,
+       "Point": [
+        80,
+        156,
+        0
+       ],
+       "SearchRadius": 10
+      },
+      {
+       "Squad": 3,
+       "Reserve": true,
+       "Point": [
+        105,
+        208,
+        0
+       ],
+       "SearchRadius": 10
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009310": {
+   "SimTransform": {
+    "Position": [
+     120.9,
+     157,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 1",
+    "ForceId": "Hostile"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009300",
+    "Designation": "Wingman"
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009311": {
+   "SimTransform": {
+    "Position": [
+     118.4,
+     156,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 1 Leader",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009310",
+    "Designation": "SquadLeader"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009312": {
+   "SimTransform": {
+    "Position": [
+     120.0,
+     156,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 1 Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009310",
+    "Designation": "MachineGunner"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009313": {
+   "SimTransform": {
+    "Position": [
+     121.6,
+     156,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 1 Rifleman 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009310",
+    "Designation": "Wingman"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009314": {
+   "SimTransform": {
+    "Position": [
+     123.2,
+     156,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 1 Rifleman 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009310",
+    "Designation": "Wingman"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009320": {
+   "SimTransform": {
+    "Position": [
+     80,
+     156,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 2",
+    "ForceId": "Hostile"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009300",
+    "Designation": "Wingman"
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009321": {
+   "SimTransform": {
+    "Position": [
+     77.5,
+     155,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 2 Leader",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009320",
+    "Designation": "SquadLeader"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009322": {
+   "SimTransform": {
+    "Position": [
+     79.1,
+     155,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 2 Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009320",
+    "Designation": "MachineGunner"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009323": {
+   "SimTransform": {
+    "Position": [
+     80.7,
+     155,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 2 Rifleman 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009320",
+    "Designation": "Wingman"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009324": {
+   "SimTransform": {
+    "Position": [
+     82.3,
+     155,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad 2 Rifleman 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009320",
+    "Designation": "Wingman"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009330": {
+   "SimTransform": {
+    "Position": [
+     105,
+     208,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red Reserve",
+    "ForceId": "Hostile"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009300",
+    "Designation": "Wingman"
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009331": {
+   "SimTransform": {
+    "Position": [
+     102.5,
+     209,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Reserve Leader",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009330",
+    "Designation": "SquadLeader"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009332": {
+   "SimTransform": {
+    "Position": [
+     104.1,
+     209,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Reserve Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009330",
+    "Designation": "Wingman"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009333": {
+   "SimTransform": {
+    "Position": [
+     105.7,
+     209,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Reserve Rifleman 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009330",
+    "Designation": "Wingman"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c2276d00-0000-4000-8000-000000009334": {
+   "SimTransform": {
+    "Position": [
+     107.3,
+     209,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Reserve Rifleman 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2276d00-0000-4000-8000-000000009330",
+    "Designation": "Wingman"
+   },
+   "Proficiency": "Militia",
+   "Temperament": {
+    "nerve": 0.15
+   }
+  },
+  "c7015000-0000-4000-8000-000000009800": {
+   "SimTransform": {
+    "Position": [
+     280,
+     30,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 304
+   },
+   "EntityInfo": {
+    "Name": "Insurgent Mortar",
+    "ForceId": "Friend"
+   }
+  },
+  "c7015000-0000-4000-8000-000000009801": {
+   "SimTransform": {
+    "Position": [
+     275,
+     30,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "Mortar Tube 1",
+    "ForceId": "Friend"
+   }
+  },
+  "c7015000-0000-4000-8000-000000009802": {
+   "SimTransform": {
+    "Position": [
+     273,
+     30,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Mortar Man 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c7015000-0000-4000-8000-000000009800",
+    "Designation": "SquadLeader"
+   },
+   "Behavior": {
+    "Name": "ManWeapon",
+    "Params": {
+     "weapon": "c7015000-0000-4000-8000-000000009801"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c7015000-0000-4000-8000-000000009803": {
+   "SimTransform": {
+    "Position": [
+     285,
+     30,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "Mortar Tube 2",
+    "ForceId": "Friend"
+   }
+  },
+  "c7015000-0000-4000-8000-000000009804": {
+   "SimTransform": {
+    "Position": [
+     283,
+     30,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Mortar Man 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c7015000-0000-4000-8000-000000009800",
+    "Designation": "Wingman"
+   },
+   "Behavior": {
+    "Name": "ManWeapon",
+    "Params": {
+     "weapon": "c7015000-0000-4000-8000-000000009803"
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

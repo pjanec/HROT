@@ -7,6 +7,7 @@ namespace Fdp.Core
     /// Implements a doubly-linked list for efficient parent/child traversal.
     /// </summary>
     [ComponentId(GlobalComponentIds.HierarchyNode)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct HierarchyNode
     {
         /// <summary>

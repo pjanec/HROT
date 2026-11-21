@@ -1,0 +1,28 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='440' height='292' viewBox='0 0 440 292'>
+<rect x='0' y='0' width='440' height='292' fill='#1B1B1F' rx='0' opacity='1'/>
+<rect x='0' y='0' width='440' height='292' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='10' y='18' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Face paint</text>
+<rect x='89.9' y='170.6' width='17.0' height='93.3' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='113.2' y='170.6' width='17.0' height='93.3' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='88.8' y='111.2' width='42.4' height='59.4' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='99.4' y='83.7' width='21.2' height='25.4' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='77.1' y='114.4' width='10.6' height='65.7' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='132.3' y='114.4' width='10.6' height='65.7' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='99.4' y='91.1' width='21.2' height='4.2' fill='#1E1E22' rx='0' stroke='#5A5A66' stroke-width='0.8' opacity='1'/>
+<rect x='99.9' y='95.3' width='5.3' height='10.6' fill='#C23B32' rx='0' stroke='#6A201B' stroke-width='0.8' opacity='1'/>
+<rect x='114.8' y='95.3' width='5.3' height='10.6' fill='#F4F3EE' rx='0' stroke='#868582' stroke-width='0.8' opacity='1'/>
+<rect x='314.7' y='114.4' width='10.6' height='65.7' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='311.5' y='170.6' width='17.0' height='93.3' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='330.8' y='95.3' width='1.3' height='10.6' fill='#F4F3EE' rx='0' stroke='#868582' stroke-width='0.8' opacity='1'/>
+<rect x='307.3' y='111.2' width='25.4' height='59.4' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='308.9' y='83.7' width='22.3' height='25.4' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='330.8' y='91.1' width='1.3' height='4.2' fill='#1E1E22' rx='0' stroke='#5A5A66' stroke-width='0.8' opacity='1'/>
+<rect x='330.8' y='95.3' width='1.3' height='10.6' fill='#C23B32' rx='0' stroke='#6A201B' stroke-width='0.8' opacity='1'/>
+<rect x='311.5' y='170.6' width='17.0' height='93.3' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<rect x='314.7' y='114.4' width='10.6' height='65.7' fill='#B9855F' rx='0' stroke='#654934' stroke-width='0.8' opacity='1'/>
+<text x='110' y='280' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>front</text>
+<text x='320' y='280' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>side</text>
+<text x='10' y='36' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a black band across the eyes, a red stripe on one cheek and a</text>
+<text x='10' y='49' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>white one on the other</text>
+<line x1='10' y1='266' x2='430' y2='266' stroke='#4A4A55' stroke-width='1' stroke-dasharray='3 3'/>
+</svg>

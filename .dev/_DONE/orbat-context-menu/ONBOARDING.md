@@ -62,7 +62,7 @@ This workstream spans four projects: **DataModel** (new command type), **SimHost
 
 ```powershell
 # Build the whole solution
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 
 # Run all tests
 dotnet test Hrot.NED.Tests

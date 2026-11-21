@@ -1,0 +1,127 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Fdp.Core;
+using Fdp.Toolkit.Terrain;
+using Hrot.Map.Common.Services;
+
+namespace Hrot.Map.Common.ClusterLoad;
+
+/// <summary>
+/// ⭐⭐ <c>L3</c> — the terrain step. ⭐ <b>Role-derived</b>: only <c>MuscleGround</c> and
+/// <c>NavigationSolver</c> require it, because they are the only roles with a measured consumer of the
+/// road graph. 🔒 <i>"load nothing where nothing reads it"</i> (user, <c>2026-09-18</c>).
+///
+/// <para>⭐ The step is glue. The work — and the idempotency branch, and the unload seam — lives in
+/// <see cref="TerrainResidency"/>, so the future operator-driven preload calls the same code without a new
+/// cluster operation. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.1a, <c>L3</c>/<c>L5</c>.</para>
+///
+/// <para>⭐⭐ The terrain NAME comes from the load MESSAGE, with the staged header as a one-release fallback
+/// — see <see cref="KnowledgeBaseLoadStep"/> for the race that made the header alone unsafe.</para>
+/// </summary>
+public sealed class TerrainLoadStep : ILoadPartProvider
+{
+    private readonly TerrainResidency _residency;
+    private readonly string _stagingRoot;
+
+    // Staged per transaction, so two overlapping rounds cannot clobber each other.
+    private readonly Dictionary<Guid, TerrainResidency.Staged> _staged = new();
+    private readonly object _stagedGate = new();
+
+    public TerrainLoadStep(TerrainResidency residency, string localStagingRoot)
+    {
+        _residency   = residency ?? throw new ArgumentNullException(nameof(residency));
+        _stagingRoot = localStagingRoot ?? throw new ArgumentNullException(nameof(localStagingRoot));
+    }
+
+    /// <inheritdoc/>
+    public LoadPart Part => LoadPart.Terrain;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ P4 — pure: <c>TerrainResidency.Prepare</c> builds a private <c>Staged</c> and touches only its own
+    /// last-loaded fields; the world is written in <see cref="Commit"/>.</remarks>
+    public bool PreparesOffFrameThread => true;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐⭐ <c>CE-2242</c> — the geo origin goes in before the (off-thread, ~0.5 s) navmesh bake, because faster
+    /// nodes commit and replicate their entities in meanwhile. Only on an empty world (world boundary, catch-up): there
+    /// nothing was placed under the old origin. Any other load keeps the origin change inside <see cref="Commit"/>.</remarks>
+    public void BeforePrepare(LoadPhaseContext context, EntityRepository? world)
+    {
+        // ⭐⭐ CE-2244 — a terrain that is not resident yet is COMING: sight is not judged until it is in (the commit, or the abort,
+        //   clears the mark). Faster nodes' units replicate in meanwhile (CE-2242), and with no terrain every wall was transparent.
+        string? requested = RequestedName(context);
+        if (world != null && !string.IsNullOrWhiteSpace(requested) && requested != _residency.ResidentTerrainName)
+        {
+            Fdp.Toolkit.Terrain.TerrainWorldSource.MarkPending(world, true);
+            _pendingWorld = world;
+        }
+        if (!context.IsWorldBoundary && !context.IsCatchUp) return;
+        _residency.ApplyOriginAhead(world, requested);
+    }
+
+    // ⭐ CE-2244 — the world marked at BeforePrepare (Abort carries no world)
+    private EntityRepository? _pendingWorld;
+
+    private void ClearPending()
+    {
+        if (_pendingWorld != null) Fdp.Toolkit.Terrain.TerrainWorldSource.MarkPending(_pendingWorld, false);
+        _pendingWorld = null;
+    }
+
+    private string? RequestedName(LoadPhaseContext context)
+        => !string.IsNullOrWhiteSpace(context.TerrainName)
+            ? context.TerrainName
+            : ScenarioTerrainName.Read(_stagingRoot);
+
+    /// <inheritdoc/>
+    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
+    {
+        string? requested = RequestedName(context);
+
+        // ⭐⭐⭐ L8 — the bounded wait that used to stand here is GONE: this step no longer runs until the
+        //    distribution of the scenario has been acknowledged by every node, so the definition is either
+        //    present or genuinely absent. 📄 docs/DESIGN_Cluster_Load_Phase.md §7.3 ④.
+        // ⭐ O-4 (CE-4415) — the scenario's terrain overlay, staged beside the terrain by its content hash; a hash named but no folder found is a broken deployment, like a missing terrain
+        string? overlayFolder = null;
+        string? overlayHash = ScenarioTerrainName.ReadOverlayHash(_stagingRoot);
+        if (!string.IsNullOrWhiteSpace(requested) && !string.IsNullOrEmpty(overlayHash))
+            overlayFolder = _residency.ResolveOverlay(overlayHash)
+                ?? throw new System.IO.FileNotFoundException(
+                    $"[Terrain] The staged scenario names terrain overlay '{overlayHash}' for terrain '{requested}', but no overlays/{overlayHash}/overlay.json exists under any terrain root. Loading it is mandatory: a broken deployment.");
+        var staged = _residency.Prepare(requested, overlayFolder);
+        if (staged.HasWork)
+            lock (_stagedGate) _staged[context.TransactionId] = staged;
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public void Commit(LoadPhaseContext context, EntityRepository? world)
+    {
+        _residency.Commit(world, Take(context.TransactionId));
+        ClearPending();   // ⭐ CE-2244 — the terrain is in: sight is judged again
+    }
+
+    /// <inheritdoc/>
+    public void Abort(LoadPhaseContext context)
+    {
+        _residency.AbortStaged(Take(context.TransactionId));
+        ClearPending();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ Terrain finishes inside <see cref="Commit"/>; there is nothing that drains over frames.</remarks>
+    public bool IsResolved(EntityRepository? world) => true;
+
+    private TerrainResidency.Staged? Take(Guid transactionId)
+    {
+        lock (_stagedGate)
+        {
+            if (!_staged.TryGetValue(transactionId, out var staged)) return null;
+            _staged.Remove(transactionId);
+            return staged;
+        }
+    }
+}

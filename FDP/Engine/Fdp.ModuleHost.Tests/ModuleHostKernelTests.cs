@@ -86,6 +86,7 @@ namespace Fdp.ModuleHost.Tests
     }
     
     // Test module that tracks delta time
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     class DeltaTimeTrackingModule : IEcsModule
     {
         public string Name => "DeltaTimeTracker";
@@ -127,6 +128,7 @@ namespace Fdp.ModuleHost.Tests
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     class InputPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 
@@ -134,6 +136,7 @@ namespace Fdp.ModuleHost.Tests
     }
     
     [UpdateInPhaseAttribute(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     class BeforeSyncPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 
@@ -141,6 +144,7 @@ namespace Fdp.ModuleHost.Tests
     }
     
     [UpdateInPhaseAttribute(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     class PostSimPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 
@@ -148,6 +152,7 @@ namespace Fdp.ModuleHost.Tests
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     class ExportPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 

@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
                 Assert.Equal(0L, candidates[i].EntityId);
         }
 
-        // T-NR1: NavmeshReachableTest: unreachable candidates get EntityId=-1L.
+        // T-NR1: NavmeshReachableTest: unreachable candidates get EntityId=-1.
         [Fact]
         public void NavmeshReachableTest_UnreachableCandidates_GetRejected()
         {
@@ -98,8 +98,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 5f,  PositionY = 0f },
-                new EqsResult { EntityId = 0L, PositionX = 10f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 5f,  PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 10f, PositionY = 0f },
             };
 
             var sensor = new EqsSensor();
@@ -125,8 +125,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 5f,  PositionY = 0f },
-                new EqsResult { EntityId = 0L, PositionX = 10f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 5f,  PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 10f, PositionY = 0f },
             };
 
             var sensor = new EqsSensor();
@@ -154,7 +154,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = -1L, PositionX = 5f, PositionY = 0f, Flags = 0 },
+                new EqsResult { EntityId = -1, PositionX = 5f, PositionY = 0f, Flags = 0 },
             };
 
             var sensor = new EqsSensor();
@@ -180,7 +180,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 5f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 5f, PositionY = 0f },
             };
 
             var sensor = new EqsSensor { SearchRadius = 60f };
@@ -207,8 +207,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             // Candidate at (20,0): Euclidean dist = 20.
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 5f,  PositionY = 0f },
-                new EqsResult { EntityId = 0L, PositionX = 20f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 5f,  PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 20f, PositionY = 0f },
             };
 
             var sensor = new EqsSensor { SearchRadius = 60f };

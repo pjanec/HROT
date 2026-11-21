@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         public long DescriptorTypeId;
 
         /// <summary>Node ID that will own this descriptor.</summary>
-        public int NodeId;
+        public NodeId NodeId;
     }
 
     /// <summary>
@@ -35,11 +35,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
     /// </para>
     /// </summary>
     [EventId(9040)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public class DeferredTakeOwnershipCommand
     {
         /// <summary>Network entity ID the routing table applies to.</summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// Per-descriptor ownership assignments.  Each entry states which node ID should

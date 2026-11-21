@@ -18,13 +18,17 @@ namespace Hrot.Common.Events
         public Guid RequestId;
 
         /// <summary>Network entity ID of the mission target.</summary>
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         /// <summary>Client-side version the request is based on (0 = unconditional).</summary>
         public long BaseVersion;
 
         /// <summary>Strongly-typed neutral mission command payload.</summary>
         public MissionCommandPayload Payload = new();
+
+        /// <summary>⭐ Edit framework F6 (CE-4277) — it came off the wire (<c>MissionControlIngressTranslator</c>): never forwarded again. A LOCAL intent for a
+        /// unit whose brain another node owns is forwarded there by <c>MissionControlEgressTranslator</c> and NOT applied here.</summary>
+        public bool IsRemote;
     }
 
     /// <summary>

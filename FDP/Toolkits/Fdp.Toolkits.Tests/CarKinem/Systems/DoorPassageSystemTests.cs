@@ -1,0 +1,271 @@
+using System.Numerics;
+using CarKinem.Core;
+using CarKinem.Systems;
+using CarKinem.Trajectory;
+using Fdp.Core;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Terrain;
+using Xunit;
+
+using NavResult = Fdp.Toolkit.Navigation.NavigationResult;
+
+namespace CarKinem.Tests.Systems
+{
+    /// <summary>
+    /// ⭐ Buildings Stage 5d-3/5d-4 (📄 docs/DESIGN_Building_Interiors.md §3j "5d") — an agent on a planned path through a doorway: it
+    /// stops at a CLOSED door, opens it (action time, one command, the owner's answer), and walks on; a LOCKED door ahead makes the
+    /// route stale, so it replans — or fails the move when its intent allows no replan.
+    /// </summary>
+    public sealed class DoorPassageSystemTests
+    {
+        // A closed 10 x 8 m room at (20,20) whose only way in is one door ("front", 1.2 m) in the south wall: centre (25, 20).
+        private const string OneDoorRoom = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"R","doors":{"front":"closed"},"building":{
+                 "footprint":[[0,0],[10,0],[10,8],[0,8]],
+                 "storeys":[{"height":3,"walls":[
+                      {"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},
+                      {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+               "geometry":{"type":"Point","coordinates":[20,20]}}]}
+            """;
+
+        private sealed class Fixture : System.IDisposable
+        {
+            public readonly EntityRepository Repo = new();
+            public readonly TrajectoryPoolManager Pool = new();
+            public readonly DoorPassageSystem System;
+            public readonly DoorCommandSystem Owner = new();
+            public readonly Entity Agent, Door;
+
+            public Fixture(TerrainDoorState door, float agentY, bool allowReplan = true)
+            {
+                var r = Repo;
+                r.RegisterComponent<NavState>(); r.RegisterComponent<SimTransform>(); r.RegisterComponent<DoorState>();
+                r.RegisterComponent<NavigationIntent>(); r.RegisterComponent<NavigationStatus>(); r.RegisterComponent<FrustrationTicks>();
+                r.RegisterComponent<DoorPassage>();   // ⭐ R-3039 S1 — the passage lives on the walker
+                r.RegisterManagedComponent<TerrainObjectKey>();
+                r.RegisterEvent<DoorCommandEvent>(); r.RegisterEvent<PathfindingRequestEvent>(); r.RegisterEvent<PathReplannedEvent>();
+                r.RegisterEvent<NavigationPathDetailsResponseEvent>(); r.RegisterEvent<MoveCompletedEvent>();
+                r.SetSingletonManaged(TerrainWorldParser.Parse(OneDoorRoom, "range"));
+
+                // the planner's path: outside → doorway (two Door corners) → inside
+                Pool.RegisterTrajectoryWithKey(
+                    new[] { new Vector3(25, 10, 0), new Vector3(25, 19.8f, 0), new Vector3(25, 20.2f, 0), new Vector3(25, 25, 0) }, 5,
+                    new byte[] { 0, (byte)TraversalKind.Door, (byte)TraversalKind.Door, 0 });
+                System = new DoorPassageSystem(Pool);
+
+                Door = r.CreateEntity();
+                r.AddComponent(Door, new DoorState { State = door });
+                r.AddComponent(Door, new SimTransform { Position = new Vector3(25, 20, 0), Rotation = Quaternion.Identity });
+                r.SetManagedComponent(Door, new TerrainObjectKey { Key = "range/R/front" });   // no authority component: owned here
+
+                Agent = r.CreateEntity();
+                r.AddComponent(Agent, new SimTransform { Position = new Vector3(25, agentY, 0), Rotation = Quaternion.Identity });
+                r.AddComponent(Agent, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 5, ProgressS = agentY - 10f });
+                r.AddComponent(Agent, new NavigationIntent
+                {
+                    Mode = NavigationMode.PathToPoint, FinalDestination = new Vector3(25, 25, 0), ArrivalRadius = 1f, IntentId = 1,
+                    Flags = (byte)(allowReplan ? 1 << NavigationConstants.FlagBitAllowReplan : 0),
+                });
+                r.AddComponent(Agent, new NavigationStatus { IntentId = 1, Result = NavResult.InProgress });
+                r.AddComponent(Agent, new FrustrationTicks());
+            }
+
+            /// <summary>One frame: the passage system, then (as on the door's owner) the applier, then the bus moves on.</summary>
+            public int Tick(float dt = 0.1f)
+            {
+                System.Execute(Repo, dt);
+                Repo.Bus.SwapBuffers();
+                int commands = Repo.Bus.Read<DoorCommandEvent>().Length;
+                Owner.Execute(Repo, dt);
+                return commands;
+            }
+
+            public bool Held => Repo.GetComponent<NavState>(Agent).IsBlocked != 0;
+            public TerrainDoorState DoorNow => Repo.GetComponent<DoorState>(Door).State;
+
+            public void Dispose() { Pool.Dispose(); Repo.Dispose(); }
+        }
+
+        /// <summary>⭐⭐ 5d-3 — a closed door ahead: held at the door, ONE Open after the action time, released when it is open.</summary>
+        [Fact]
+        public void Stage5d_AClosedDoorAhead_HoldsTheAgent_OpensItOnce_AndReleasesItWhenOpen()
+        {
+            using var f = new Fixture(TerrainDoorState.Closed, agentY: 18.5f);   // 1.5 m from the door's centre: in reach
+            int commands = 0;
+            for (int i = 0; i < 9; i++) commands += f.Tick();                    // 0.9 s < 1 s of opening
+            Assert.True(f.Held);
+            Assert.Equal(0, commands);
+            Assert.Equal(TerrainDoorState.Closed, f.DoorNow);
+
+            for (int i = 0; i < 3; i++) commands += f.Tick();
+            Assert.Equal(1, commands);                                           // exactly one command
+            Assert.Equal(TerrainDoorState.Open, f.DoorNow);                      // applied by the (local) owner
+            Assert.False(f.Held);                                                // walks on
+            Assert.Equal(1, f.System.OpenCommandsSent);
+            Assert.Equal(NavResult.InProgress, f.Repo.GetComponent<NavigationStatus>(f.Agent).Result);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #4) — a half-opened door survives a checkpoint restored into a FRESH
+        /// system: 0.6 s of the 1 s opening, keyframe, applied to a second world with a NEW system, 0.5 s more ⇒ the one Open goes out (as an
+        /// uninterrupted run). 🔴 Red-proof: the passage back in a system field ⇒ the fresh system restarts the opening ⇒ no command ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_AHalfOpenedDoor_SurvivesACheckpointRestoredIntoAFreshSystem()
+        {
+            using var f = new Fixture(TerrainDoorState.Closed, agentY: 18.5f);
+            for (int i = 0; i < 6; i++) Assert.Equal(0, f.Tick());
+            Assert.True(f.Held);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(f.Repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new Fixture(TerrainDoorState.Closed, agentY: 18.5f);   // the same content, a NEW system
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh.Repo, kf);
+            Assert.True(fresh.Held);
+
+            int commands = 0;
+            for (int i = 0; i < 5; i++) commands += fresh.Tick();
+            Assert.Equal(1, commands);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4040</c> — TURNS at a doorway: two walkers in reach of one open door; the one nearer its centre goes, the other is
+        /// held — even standing BESIDE the doorway, where his progress already reads past the door mark (through is by the wall's side,
+        /// not by progress) — and he is released once the first is through. 📌 ua-civ-shelter: four civilians at House A's one-man door
+        /// jostled with no progress until the watchdog failed every move. ✅ Red-proof: the turn removed (an open door never holds) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4040_TwoWalkersAtAnOpenDoor_TakeTurns_ThroughIsBySide_NotByProgress()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 19f);           // 1 m out, on the doorway's axis: his turn
+            var second = f.Repo.CreateEntity();
+            f.Repo.AddComponent(second, new SimTransform { Position = new Vector3(26.4f, 19.85f, 0), Rotation = Quaternion.Identity });
+            f.Repo.AddComponent(second, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 5, ProgressS = 9.85f });   // ≥ the mark (9.8): beside it
+            bool SecondHeld() => f.Repo.GetComponent<NavState>(second).IsBlocked != 0;
+
+            f.Tick();
+            Assert.False(f.Held);                                                    // the nearer goes
+            Assert.True(SecondHeld());                                               // the other waits — he is NOT through
+
+            var nav = f.Repo.GetComponent<NavState>(f.Agent);                        // the first steps through the doorway
+            nav.ProgressS = 10.6f;
+            f.Repo.SetComponent(f.Agent, nav);
+            f.Repo.SetComponent(f.Agent, new SimTransform { Position = new Vector3(25, 20.6f, 0), Rotation = Quaternion.Identity });
+            f.Tick();
+            Assert.False(SecondHeld());                                              // his turn
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2259</c> — a walker already THROUGH an open door is never held for the next man's turn, though he is still in reach
+        /// and his path still shows the door just behind him. 📌 bc-house-clear: a rifleman 0.3 m past the front door was held there and
+        /// blocked the man whose turn it was — the squad never stacked. ✅ Red-proof: the through-test dropped from the hold ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2259_AWalkerThroughTheDoor_IsNotHeldForTheNextMansTurn()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 20.6f);          // 0.6 m past the door's centre, inside: through
+            var nav = f.Repo.GetComponent<NavState>(f.Agent);
+            Assert.Equal(10.6f, nav.ProgressS, 3);                                   // the door mark (9.8) still in the look-behind window
+            var next = f.Repo.CreateEntity();
+            f.Repo.AddComponent(next, new SimTransform { Position = new Vector3(25, 19f, 0), Rotation = Quaternion.Identity });
+            f.Repo.AddComponent(next, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 5, ProgressS = 9f });   // 1 m out: his turn
+
+            f.Tick();
+            Assert.False(f.Repo.GetComponent<NavState>(next).IsBlocked != 0);        // the next man goes
+            Assert.False(f.Held);                                                    // and the man through is not held in his way
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2259</c> — the door funnel aims a walker on the wall's plane, or a hair past it, ON THROUGH: his side is the one his path
+        /// comes from, not the one he stands on. 📌 bc-house-clear: an entry man 0–5 cm into room A (not yet "through") was aimed a metre
+        /// back out, rocked on the plane, and the drill never cleared the room. ✅ Red-proof: the side read from where he stands ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2259_TheDoorFunnel_AimsAWalkerOnThePlane_OnThrough_NotBack()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 20.02f);         // 2 cm past the south wall's plane (centre y 20)
+            var terrain = f.Repo.GetSingletonManaged<TerrainWorld>();
+            var from = new Vector2(25, 10);                                           // his path comes from the south
+            Assert.True(f.Pool.TryGetTrajectory(5, out var traj));
+            Assert.Equal(0, DoorPassageSystem.DoorToPass(traj, 10.02f, terrain, new Vector2(25, 20.02f), out var cameFrom));
+            Assert.Equal(from, cameFrom);                                             // not through yet (Through wants 5 cm) …
+
+            Assert.True(DoorApproach.Funnel(terrain, 0, cameFrom, new Vector2(25, 20.02f), out var aim));
+            Assert.True(aim.Y > 20.5f, $"… and the funnel sends him on into the room, not back out: aim {aim}");
+            Assert.True(DoorApproach.Funnel(terrain, 0, from, new Vector2(25, 19.5f), out aim));
+            Assert.True(aim.Y > 20.5f, $"from his own side he is aimed through as before: aim {aim}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2259</c> — a path that STARTS in the doorway (a man leaving his post beside the door) has no point behind the door; his
+        /// side is the opposite of where the path goes next. Once past the plane he is through, and never held for the next man's turn.
+        /// 📌 bc-house-clear: such a man was held 0.3 m into the hall, in the way of the man whose turn it was. ✅ Red-proof: no mirrored side ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2259_APathStartingInTheDoorway_IsThroughOncePastThePlane()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 19.8f);         // the next man, in the doorway on the south side, NEARER: his turn
+            f.Pool.RegisterTrajectoryWithKey(                                        // a path from the doorway itself, northward into the room
+                new[] { new Vector3(25, 19.9f, 0), new Vector3(25, 20.2f, 0), new Vector3(25, 25, 0) }, 6,
+                new byte[] { (byte)TraversalKind.Door, (byte)TraversalKind.Door, 0 });
+            Assert.True(f.Pool.TryGetTrajectory(6, out var traj));
+            var terrain = f.Repo.GetSingletonManaged<TerrainWorld>();
+            Assert.Null(DoorPassageSystem.DoorToPass(traj, 0.4f, terrain, new Vector2(25, 20.3f), out var from));   // 0.3 m past the plane: through
+            Assert.True(from.Y < 20f, $"his side is the south one, opposite where the path goes: {from}");
+            Assert.Equal(0, DoorPassageSystem.DoorToPass(traj, 0f, terrain, new Vector2(25, 19.9f)));                  // still on the south side: not
+
+            var leaver = f.Repo.CreateEntity();
+            f.Repo.AddComponent(leaver, new SimTransform { Position = new Vector3(25, 20.3f, 0), Rotation = Quaternion.Identity });
+            f.Repo.AddComponent(leaver, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 6, ProgressS = 0.4f });
+            f.Tick();
+            Assert.False(f.Repo.GetComponent<NavState>(leaver).IsBlocked != 0);      // not held in the next man's way
+        }
+
+        /// <summary>⭐ 5d-3 — a closed door still out of reach does not stop the agent yet; an open door never does.</summary>
+        [Fact]
+        public void Stage5d_ADoorNotYetInReach_OrOpen_DoesNotHold()
+        {
+            using (var far = new Fixture(TerrainDoorState.Closed, agentY: 16.5f))   // 3.5 m away, the mark already in look-ahead
+            {
+                for (int i = 0; i < 20; i++) Assert.Equal(0, far.Tick());
+                Assert.False(far.Held);
+            }
+            using var open = new Fixture(TerrainDoorState.Open, agentY: 18.5f);
+            for (int i = 0; i < 20; i++) Assert.Equal(0, open.Tick());
+            Assert.False(open.Held);
+        }
+
+        /// <summary>
+        /// ⭐⭐ 5d-4 (R-218 P3) — a door ahead that is LOCKED makes the route stale: ONE replan request through the shared Muscle replan
+        /// (not one per frame), the agent is not held, and the move goes on.
+        /// </summary>
+        [Fact]
+        public void Stage5d_ALockedDoorAhead_ReplansOnce()
+        {
+            using var f = new Fixture(TerrainDoorState.Locked, agentY: 16f);
+            int requests = 0;
+            for (int i = 0; i < 10; i++)                                          // 1 s, inside the quiet window
+            {
+                f.System.Execute(f.Repo, 0.1f);
+                f.Repo.Bus.SwapBuffers();
+                requests += f.Repo.Bus.Read<PathfindingRequestEvent>().Length;
+            }
+            Assert.Equal(1, requests);
+            Assert.Equal(1, f.System.DoorReplans);
+            Assert.False(f.Held);
+            var status = f.Repo.GetComponent<NavigationStatus>(f.Agent);
+            Assert.Equal(1, status.ReplanCount);
+            Assert.Equal(NavResult.InProgress, status.Result);
+        }
+
+        /// <summary>⭐ 5d-4 — a locked door ahead on a move that may not replan fails the move (FailedBlocked) rather than walking through it.</summary>
+        [Fact]
+        public void Stage5d_ALockedDoorAhead_WithNoReplanAllowed_FailsTheMove()
+        {
+            using var f = new Fixture(TerrainDoorState.Locked, agentY: 16f, allowReplan: false);
+            f.Tick();
+            Assert.Equal(NavResult.FailedBlocked, f.Repo.GetComponent<NavigationStatus>(f.Agent).Result);
+            Assert.Equal(0, f.System.DoorReplans);
+        }
+    }
+}

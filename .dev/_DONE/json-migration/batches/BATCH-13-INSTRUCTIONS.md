@@ -561,7 +561,7 @@ For the legacy format test, `nodes: []` is acceptable — `Deserialize` will do 
 
 After all changes, run:
 ```
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
 ```
 Expected: no new `error CS` lines.
 

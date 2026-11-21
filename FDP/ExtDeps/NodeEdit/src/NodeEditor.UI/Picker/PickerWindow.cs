@@ -25,10 +25,25 @@ public sealed class PickerWindow
 
     private bool _isOpen;
     private string _title    = "";
+    private string _windowTitle = "##picker";   // ⭐ CE-4359 — built once per open (a concat per frame allocates)
     private PickerLayout _layout;
     private PickerSelectionMode _selectionMode;
     private Vector2? _screenPos;
     private CategoryNode? _categoryRoot;
+    private bool _foldSingleChildFolders;
+    private bool _showPreview;
+
+    // ⭐ CE-4168 (AQ108 D26) — the opt-in extensions of the open request (all null/false for a classic picker).
+    private bool _sidePaneOn;
+    private float _paneWidth = 280f;
+    private Action<PickerEntry, PickerPaneContext>? _drawPane;
+    private bool _drawPaneAfterDefault;
+    private Action<PickerEntry, PickerPaneContext>? _drawUnderHeader;
+    private PickerPaneContext? _paneCtx;
+    private PickerEntry? _paneEntryCached;
+    private Func<PickerEntry?, object?>? _capturePaneState;
+    private IReadOnlyList<PickerAction>? _actions;
+    private IReadOnlyList<PickerLayout>? _layoutChoices;
 
     // Entry-driven path (OpenFromRequest).
     private PickerEntry[]? _requestEntries;
@@ -47,9 +62,35 @@ public sealed class PickerWindow
     internal IIconProvider? Icons;
     internal IEditorTheme? Theme;
 
+    /// <summary>⭐ CE-4098 — the Recent lists this window reads and pushes (a host swaps in its persisted store; default in-memory).</summary>
+    internal RecentStore Recent { get => _state.Recent; set => _state.Recent = value ?? new RecentStore(); }
+
+    /// <summary>⭐ CE-4168 (P1/P4) — the remembered layout choice and side-pane width per context (a host swaps in its persisted store; default in-memory).</summary>
+    internal PickerViewStore View { get; set; } = new();
+
+    /// <summary>⭐ CE-4168 (P5) — the shared lazy image cache of this window (a host swaps in one wired to its texture loader).</summary>
+    internal PickerImageCache Images { get => _state.Images; set => _state.Images = value ?? new PickerImageCache(); }
+
+    /// <summary>The layout the open picker draws now (after a P4 toggle) — for the headless rails.</summary>
+    internal PickerLayout CurrentLayout => _layout;
+
+    /// <summary>The window size the open picker asks for (a request's <c>DefaultSize</c>, else the layout's rule) — for the headless rails.</summary>
+    internal Vector2 DefaultSizeForRail => GetDefaultSize();
+
+    /// <summary>True when the open request shows the side pane — for the headless rails.</summary>
+    internal bool SidePaneOn => _sidePaneOn;
+
+    /// <summary>The side-pane width now — for the headless rails.</summary>
+    internal float PaneWidth => _paneWidth;
+
+    /// <summary>The session state — for the headless rails (PickerState is internal).</summary>
+    internal PickerState State => _state;
+
     // ── size helpers ──────────────────────────────────────────────────────────
 
-    private Vector2 GetDefaultSize() => _layout switch
+    private Vector2? _requestSize;   // ⭐ CE-4141 — PickerRequest.DefaultSize
+
+    private Vector2 GetDefaultSize() => _requestSize ?? _layout switch
     {
         PickerLayout.Compact => new Vector2(320f, 360f),
         PickerLayout.Wide    => new Vector2(800f, 600f),
@@ -65,10 +106,23 @@ public sealed class PickerWindow
         Cancel(); // cancel any open session
 
         _title          = request.Title;
-        _layout         = request.Layout;
+        _windowTitle    = request.Title + "##picker";
+        _layoutChoices  = request.LayoutChoices is { Count: > 1 } ? request.LayoutChoices : null;
+        _layout         = View.ResolveLayout(request.ContextKey, request.Layout, _layoutChoices);
         _selectionMode  = request.SelectionMode;
         _screenPos      = request.AnchorScreen;
         _categoryRoot   = request.CategoryRoot;
+        _foldSingleChildFolders = request.FoldSingleChildFolders;
+        _showPreview    = request.ShowPreview;
+        _sidePaneOn     = request.ShowSidePane || request.DrawPane is not null;
+        _requestSize    = request.DefaultSize;
+        _paneWidth      = View.GetPaneWidth(request.ContextKey) ?? request.SidePaneWidth;
+        _drawPane       = request.DrawPane;
+        _drawPaneAfterDefault = request.DrawPaneAfterDefault;
+        _drawUnderHeader = request.DrawUnderHeader;
+        _capturePaneState = request.CapturePaneState;
+        _actions        = request.Actions is { Count: > 0 } ? request.Actions : null;
+        _actionLabels   = null;
         _requestEntries = request.ItemsProvider().ToArray();
         _adapter        = null;
         _adapterContext = null;
@@ -76,9 +130,25 @@ public sealed class PickerWindow
         _onPickRaw      = null;
         _onCancel       = null;
 
+        _hostSearch = false;
         _state.Reset(request.ContextKey, request.InitialQuery, request.SelectionMode);
+        _state.Groups = request.GroupSidebar;
+        if (!string.IsNullOrEmpty(request.InitialGroup)) _state.SelectedCategory = request.InitialGroup;
+        _state.TileWidth = Math.Clamp(View.GetTileWidth(request.ContextKey) ?? PickerState.DefaultTileWidth,
+                                      PickerState.MinTileWidth, PickerState.MaxTileWidth);
         _state.AllEntries = _requestEntries;
+        _state.FolderOrder = request.FolderOrder;
+        if (request.InitiallyOpenFolders is { } open) foreach (var f in open) _state.FolderOpen[f] = true;
+        _state.KeepEntryOrder = request.KeepEntryOrder;
+        _state.HideToggle = request.HideToggle;
+        if (request.HideToggle is { } ht)
+        {
+            int hidden = 0;
+            foreach (var e in _requestEntries) if (ht.Hides(e)) hidden++;
+            _state.HideToggleText = ht.Label + " (" + hidden + ")"; _state.HideToggleLabel = _state.HideToggleText + "##picker_hidden";
+        }
         _state.Refilter();
+        _state.ApplyInitialSelection(request.InitialSelectionId);
 
         _isOpen = true;
     }
@@ -99,15 +169,25 @@ public sealed class PickerWindow
         _adapter        = adapter;
         _adapterContext = context;
         _title          = adapter.Title;
+        _windowTitle    = adapter.Title + "##picker";
         _layout         = adapter.PreferredLayout;
         _selectionMode  = adapter.SelectionMode;
         _screenPos      = screenPos;
         _categoryRoot   = null;
+        _foldSingleChildFolders = false;
+        _showPreview    = false;
+        _sidePaneOn     = false;
+        _requestSize    = null;
+        _drawPane       = null;
+        _capturePaneState = null;
+        _actions        = null;
+        _layoutChoices  = null;
         _requestEntries = null;
         _onPickRaw      = onPick;
         _onPickResult   = null;
         _onCancel       = onCancel;
 
+        _hostSearch = false;
         _state.Reset(contextKey, "", adapter.SelectionMode);
 
         // For cheap/sync sources, pre-load items immediately.
@@ -129,6 +209,7 @@ public sealed class PickerWindow
     {
         if (!_isOpen) return;
 
+        _state.Images.BeginFrame();
         var size = GetDefaultSize();
         ImGui.SetNextWindowSize(size, ImGuiCond.Appearing);
 
@@ -145,7 +226,7 @@ public sealed class PickerWindow
         var flags = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoSavedSettings;
 
         bool windowOpen = true;
-        bool visible    = ImGui.Begin(_title + "##picker", ref windowOpen, flags);
+        bool visible    = ImGui.Begin(_windowTitle, ref windowOpen, flags);
 
         try
         {
@@ -185,7 +266,9 @@ public sealed class PickerWindow
 
     private void DrawSearchBar()
     {
-        ImGui.SetNextItemWidth(-1f);
+        // ⭐ CE-4168 (P4) — the layout toggle sits at the right end of the search row.
+        float toggleW = _layoutChoices is null ? 0f : LayoutToggleWidth();
+        ImGui.SetNextItemWidth(-(toggleW > 0f ? toggleW + ImGui.GetStyle().ItemSpacing.X : 1f));
 
         if (_state.FocusSearchNextFrame)
         {
@@ -193,17 +276,187 @@ public sealed class PickerWindow
             _state.FocusSearchNextFrame = false;
         }
 
+        float tickW = _state.HideToggle is null ? 0f : ImGui.CalcTextSize(_state.HideToggleText).X + ImGui.GetFrameHeight() + ImGui.GetStyle().ItemInnerSpacing.X + ImGui.GetStyle().ItemSpacing.X;
+        if (tickW > 0f) ImGui.SetNextItemWidth(-(toggleW > 0f ? toggleW + ImGui.GetStyle().ItemSpacing.X : 0f) - tickW);
         string buf = _state.SearchText;
-        if (ImGui.InputText("##picker_search", ref buf, 256))
+        if (_hostSearch)   // ⭐ CE-4398 — a host's SetSearch (a rail's typing): the box shows it, disabled, until the picker is reopened — a focused box would hand back its own stale text
+        {
+            ImGui.BeginDisabled();
+            ImGui.InputText("##picker_search", ref buf, 256);
+            ImGui.EndDisabled();
+        }
+        else if (ImGui.InputText("##picker_search", ref buf, 256))
             _state.SearchText = buf;
+        if (_state.HideToggle is not null)
+        {
+            ImGui.SameLine();
+            bool show = _state.ShowHidden;
+            if (ImGui.Checkbox(_state.HideToggleLabel, ref show)) { _state.ShowHidden = show; _state.Refilter(); }   // ⭐ CE-4359 — reveals the hidden entries
+        }
+
+        if (_layoutChoices is not null)
+        {
+            ImGui.SameLine();
+            DrawLayoutToggle();
+        }
 
         // ESC handled in footer / key polling.
+    }
+
+    // ── CE-4168 (P4) layout toggle ────────────────────────────────────────────
+
+    /// <summary>The label of a layout in the toggle: thumbnails for Grid, a list for everything else.</summary>
+    internal static string LayoutLabel(PickerLayout l) => l == PickerLayout.Grid ? "Thumbnails" : "List";
+
+    private float LayoutToggleWidth()
+    {
+        float w = 0f;
+        foreach (var c in _layoutChoices!) w += ImGui.CalcTextSize(LayoutLabel(c)).X + ImGui.GetStyle().FramePadding.X * 2f;
+        return w + ImGui.GetStyle().ItemInnerSpacing.X * (_layoutChoices!.Count - 1);
+    }
+
+    private void DrawLayoutToggle()
+    {
+        for (int i = 0; i < _layoutChoices!.Count; i++)
+        {
+            var choice = _layoutChoices[i];
+            bool active = choice == _layout;
+            if (i > 0) ImGui.SameLine(0f, ImGui.GetStyle().ItemInnerSpacing.X);
+            if (active)
+                ImGui.PushStyleColor(ImGuiCol.Button, BuildRenderContext().Theme.SelectionAccent with { W = 0.55f });
+            bool clicked = ImGui.Button(LayoutLabel(choice) + "##layout_" + choice);
+            if (active) ImGui.PopStyleColor();
+            if (clicked) SetLayout(choice);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4168 (P4) — switches the open picker to <paramref name="layout"/> (one of the request's <see cref="PickerRequest.LayoutChoices"/>)
+    /// and remembers it for this context. The current entry stays selected and is revealed in the new layout. False when not allowed.
+    /// </summary>
+    internal bool SetLayout(PickerLayout layout)
+    {
+        if (!_isOpen || _layoutChoices is null || !_layoutChoices.Contains(layout)) return false;
+        if (layout == _layout) return true;
+        _layout = layout;
+        View.SetLayout(_state.ContextKey, layout);
+        if (_state.CurrentEntry() is { } cur)
+        {
+            int idx = _state.Filtered.FindIndex(r => r.Entry.Id == cur.Id);
+            _state.KeyboardFocusIndex = idx;
+            _state.RevealCategory = cur.Category;
+            _state.FocusLeafOnDraw = idx;
+            _state.ScrollToFocus = true;
+        }
+        return true;
     }
 
     private void DrawBody()
     {
         var ctx = BuildRenderContext();
+        if (!_sidePaneOn)
+        {
+            DrawLayout(ctx);
+            return;
+        }
 
+        // ⭐ CE-4168 (P1) — the layout left, a draggable splitter, the pane right. The split's children end above the footer row,
+        // so the layout inside reserves nothing more (PickerState.InSidePane).
+        var style = ImGui.GetStyle();
+        var avail = ImGui.GetContentRegionAvail();
+        float height = Math.Max(avail.Y - ImGui.GetFrameHeightWithSpacing(), 40f);
+        const float splitterW = 6f;
+        _paneWidth = ClampPaneWidth(_paneWidth, avail.X, splitterW);
+        float leftW = Math.Max(avail.X - _paneWidth - splitterW, 40f);
+
+        if (ImGui.BeginChild("##picker_split_left", new Vector2(leftW, height), ImGuiChildFlags.None))
+        {
+            _state.InSidePane = true;
+            try { DrawLayout(ctx); }
+            finally { _state.InSidePane = false; ImGui.EndChild(); }
+        }
+        else ImGui.EndChild();
+
+        ImGui.SameLine(0f, 0f);
+        ImGui.InvisibleButton("##picker_splitter", new Vector2(splitterW, height));
+        if (ImGui.IsItemHovered() || ImGui.IsItemActive())
+            ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW);
+        if (ImGui.IsItemActive())
+            _paneWidth = ClampPaneWidth(_paneWidth - ImGui.GetIO().MouseDelta.X, avail.X, splitterW);
+        if (ImGui.IsItemDeactivated())
+            View.SetPaneWidth(_state.ContextKey, _paneWidth);
+        var min = ImGui.GetItemRectMin();
+        var max = ImGui.GetItemRectMax();
+        float lx = (min.X + max.X) * 0.5f;
+        ImGui.GetWindowDrawList().AddLine(new Vector2(lx, min.Y), new Vector2(lx, max.Y),
+            ImGui.GetColorU32(ImGui.IsItemActive() ? ctx.Theme.SelectionAccent : ctx.Theme.TextMuted with { W = 0.4f }));
+
+        ImGui.SameLine(0f, 0f);
+        if (ImGui.BeginChild("##picker_side_pane", new Vector2(0f, height), ImGuiChildFlags.Borders))
+        {
+            try { DrawSidePane(ctx); }
+            finally { ImGui.EndChild(); }
+        }
+        else ImGui.EndChild();
+    }
+
+    /// <summary>Pane width kept within [<see cref="MinPaneWidth"/>, 70 % of the body] so neither side can be dragged away.</summary>
+    internal static float ClampPaneWidth(float width, float bodyWidth, float splitterWidth)
+    {
+        float max = Math.Max(MinPaneWidth, (bodyWidth - splitterWidth) * 0.7f);
+        return Math.Clamp(width, MinPaneWidth, max);
+    }
+
+    internal const float MinPaneWidth = 160f;
+
+    /// <summary>The entry the side pane shows: the focused tree leaf, else the keyboard-focused entry.</summary>
+    private PickerEntry? PaneEntry()
+    {
+        int idx = _layout == PickerLayout.Tree ? TreeLayout.FocusedLeafIndex(_state) : _state.KeyboardFocusIndex;
+        return idx >= 0 && idx < _state.Filtered.Count ? _state.Filtered[idx].Entry : null;
+    }
+
+    private void BuildPaneContext(PickerEntry entry, PickerRenderContext ctx, float width)
+    {
+        _paneEntryCached = entry;
+        void UnderHeader() => _drawUnderHeader?.Invoke(entry, _paneCtx!);
+        void DrawDefaultFor() => PickerPaneContent.DrawDefault(entry, ctx, _state.Images, _paneCtx!.Width, _drawUnderHeader is null ? null : UnderHeader);
+        _paneCtx = new PickerPaneContext { Width = width, Theme = ctx.Theme, Icons = ctx.Icons, Images = _state.Images, DrawDefault = DrawDefaultFor };
+    }
+
+    private void DrawSidePane(PickerRenderContext ctx)
+    {
+        var entry = PaneEntry();
+        if (entry is null)
+        {
+            PickerPaneContent.DrawMuted(ctx.Theme, "(no selection)");
+            return;
+        }
+
+        float width = ImGui.GetContentRegionAvail().X;
+        // ⭐ CE-4359 (HOT PATH) — the pane's context and its closures are rebuilt only when the entry or the width changes
+        if (_paneCtx is null || !ReferenceEquals(_paneEntryCached, entry)) BuildPaneContext(entry, ctx, width);   // ⭐ CE-4359 — in its own method: a closure in THIS one would be allocated on every call, even the early return
+        var pane = _paneCtx!;
+        pane.Width = width;   // the width follows the splitter without a new context
+        System.Action DrawDefault = pane.DrawDefault;
+        if (_drawPane is null) { DrawDefault(); return; }
+
+        if (_drawPaneAfterDefault) { DrawDefault(); ImGui.Separator(); }
+        _drawPane(entry, pane);
+    }
+
+    private void DrawLayout(PickerRenderContext ctx)
+    {
+        DrawLayoutCore(ctx);
+        if (_state.TileWidthChanged)
+        {
+            _state.TileWidthChanged = false;
+            View.SetTileWidth(_state.ContextKey, _state.TileWidth);
+        }
+    }
+
+    private void DrawLayoutCore(PickerRenderContext ctx)
+    {
         switch (_layout)
         {
             case PickerLayout.Compact:
@@ -219,7 +472,7 @@ public sealed class PickerWindow
                 break;
 
             case PickerLayout.Tree:
-                TreeLayout.Draw(_state, ctx, _categoryRoot);
+                TreeLayout.Draw(_state, ctx, _categoryRoot, _foldSingleChildFolders, _showPreview && !_sidePaneOn);
                 break;
 
             default: // Standard
@@ -253,7 +506,19 @@ public sealed class PickerWindow
 
         // Architecturally modified: Enter universally confirms the picker
         // regardless of Single or Multi-Select mode.
-        bool shouldConfirm = _state.Confirmed || ImGui.Button("OK") || enterPressed;
+        bool shouldConfirm;
+        if (_actions is null)
+            shouldConfirm = _state.Confirmed || ImGui.Button("OK") || enterPressed;
+        else
+        {
+            // ⭐ CE-4168 (P3) — the request's actions replace OK; Enter / double-click take the default one.
+            if (DrawActionButtons() is { } clicked)
+            {
+                Confirm(clicked);
+                return;
+            }
+            shouldConfirm = _state.Confirmed || enterPressed;
+        }
 
         if (shouldConfirm)
         {
@@ -272,9 +537,47 @@ public sealed class PickerWindow
         if (_state.SelectedFilteredIndices.Count > 0)
         {
             ImGui.SameLine();
-            ImGui.TextColored(BuildRenderContext().Theme.TextMuted,
-                $"{_state.SelectedFilteredIndices.Count} selected");
+            int nSel = _state.SelectedFilteredIndices.Count;
+            if (nSel != _selectedTextFor) { _selectedTextFor = nSel; _selectedText = nSel + " selected"; }   // ⭐ CE-4359 — cached per count
+            ImGui.TextColored(BuildRenderContext().Theme.TextMuted, _selectedText);
         }
+    }
+
+    /// <summary>Draws the action buttons (disabled ones greyed with their reason as a tooltip); the id of the one clicked, else null.</summary>
+    private int _selectedTextFor = -1; private string _selectedText = "";
+    private string[]? _actionLabels; private string? _actionDefaultId;
+    private string? DrawActionButtons()
+    {
+        string? clicked = null;
+        var entry = _state.CurrentEntry();
+        var theme = BuildRenderContext().Theme;
+        // ⭐ CE-4359 (HOT PATH) — the button ids and the default are built once per open, not per frame
+        if (_actionLabels is null || _actionLabels.Length != _actions!.Count)
+        {
+            _actionLabels = new string[_actions!.Count];
+            for (int i = 0; i < _actionLabels.Length; i++) _actionLabels[i] = _actions[i].Label + "##act_" + _actions[i].Id;
+            _actionDefaultId = (_actions.FirstOrDefault(a => a.IsDefault) ?? _actions[0]).Id;
+        }
+        var defaultId = _actionDefaultId!;
+        for (int ai = 0; ai < _actions!.Count; ai++)
+        {
+            var a = _actions[ai];
+            string? reason = a.DisabledReason?.Invoke(entry);
+            bool isDefault = a.Id == defaultId;
+            ImGui.BeginDisabled(reason is not null);
+            if (isDefault) ImGui.PushStyleColor(ImGuiCol.Button, theme.SelectionAccent with { W = 0.6f });
+            if (ImGui.Button(_actionLabels[ai])) clicked = a.Id;
+            if (isDefault) ImGui.PopStyleColor();
+            ImGui.EndDisabled();
+            if (reason is not null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            {
+                ImGui.BeginTooltip();
+                ImGui.TextUnformatted(reason);
+                ImGui.EndTooltip();
+            }
+            ImGui.SameLine();
+        }
+        return clicked;
     }
 
     private void HandleKeyboardNavigation()
@@ -286,6 +589,13 @@ public sealed class PickerWindow
         if (_layout == PickerLayout.Tree && _state.VisualRows.Count > 0)
         {
             HandleTreeKeyboardNavigation();
+            return;
+        }
+
+        // ── ⭐ CE-4142: the gallery Grid moves over the tiles it DREW (arrows are 2-D) ──
+        if (_layout == PickerLayout.Grid && _state.Groups is not null && _state.VisibleFiltered.Count > 0)
+        {
+            HandleGridKeyboardNavigation();
             return;
         }
 
@@ -333,6 +643,22 @@ public sealed class PickerWindow
                 }
             }
         }
+    }
+
+    private void HandleGridKeyboardNavigation()
+    {
+        var vis = _state.VisibleFiltered;
+        int cols = Math.Max(1, _state.GridColumns);
+        int pos = Math.Max(0, vis.IndexOf(_state.KeyboardFocusIndex));
+        int next = pos;
+        if (ImGui.IsKeyPressed(ImGuiKey.LeftArrow)) next = pos - 1;
+        else if (ImGui.IsKeyPressed(ImGuiKey.RightArrow)) next = pos + 1;
+        else if (ImGui.IsKeyPressed(ImGuiKey.UpArrow)) next = pos - cols;
+        else if (ImGui.IsKeyPressed(ImGuiKey.DownArrow)) next = pos + cols;
+        else if (ImGui.IsKeyPressed(ImGuiKey.Home)) next = 0;
+        else if (ImGui.IsKeyPressed(ImGuiKey.End)) next = vis.Count - 1;
+        next = Math.Clamp(next, 0, vis.Count - 1);
+        if (next != pos || !vis.Contains(_state.KeyboardFocusIndex)) SetFocus(vis[next], extendSelection: false);
     }
 
     private void HandleTreeKeyboardNavigation()
@@ -450,7 +776,67 @@ public sealed class PickerWindow
 
     // ── confirm / cancel ──────────────────────────────────────────────────────
 
-    private void Confirm()
+    /// <summary>
+    /// ⭐ CE-4098 — the Recent section of the OPEN picker as <see cref="PickerEntry"/>s, last picked first: what a layout draws before
+    /// any other row. Empty when the picker is closed.
+    /// </summary>
+    /// <summary>⭐ CE-4359 — the Tree layout's rows as last drawn (a rail's measurement): folders by their last path segment, leaves by name, each with its depth. Empty when closed.</summary>
+    internal IReadOnlyList<PickerTreeRow> TreeRows()
+    {
+        var rows = new List<PickerTreeRow>(_state.VisualRows.Count);
+        if (!_isOpen) return rows;
+        foreach (var r in _state.VisualRows)
+        {
+            if (r.IsFolder) { int slash = r.FolderPath.LastIndexOf('/'); rows.Add(new PickerTreeRow(true, slash < 0 ? r.FolderPath : r.FolderPath.Substring(slash + 1), r.Depth)); }
+            else if (r.FilteredIndex >= 0 && r.FilteredIndex < _state.Filtered.Count) rows.Add(new PickerTreeRow(false, _state.Filtered[r.FilteredIndex].Entry.Name, r.Depth));
+        }
+        return rows;
+    }
+
+    /// <summary>⭐ CE-4359 — selects entry <paramref name="id"/> as a click on its row does (a rail's stand-in); false when it is not listed.</summary>
+    internal bool SelectEntry(string id)
+    {
+        if (!_isOpen || _state.Filtered.FindIndex(r => r.Entry.Id == id) < 0) return false;
+        _state.ApplyInitialSelection(id);   // the same path the request's InitialSelectionId takes: its folders open, its row focused
+        return true;
+    }
+
+    /// <summary>⭐ CE-4398 — types <paramref name="text"/> into the search box (a rail's stand-in); the next drawn frame refilters.</summary>
+    internal void SetSearch(string text) { _state.SearchText = text; _hostSearch = true; }
+    private bool _hostSearch;
+
+    /// <summary>⭐ CE-4359 — opens the Tree folder at <paramref name="path"/> (a rail's stand-in for the click on its chevron).</summary>
+    internal void ExpandFolder(string path) => _state.FolderOpen[path] = true;
+
+    /// <summary>⭐ CE-4359 — the hide tick's state (the task picker's <i>Show tests and demos</i>) and how many entries the picker lists now.</summary>
+    internal bool ShowHidden { get => _state.ShowHidden; set { _state.ShowHidden = value; _state.Refilter(); } }
+    internal int ListedCount => _state.Filtered.Count;
+
+    internal IReadOnlyList<PickerEntry> RecentSection()
+        => _isOpen
+            ? _state.RecentFilteredIndices().Select(i => _state.Filtered[i].Entry).ToList()
+            : Array.Empty<PickerEntry>();
+
+    /// <summary>
+    /// ⭐ CE-4098 — confirms the entry <paramref name="id"/> exactly as OK / double-click / Enter would (same <see cref="Confirm"/>: a disabled
+    /// entry never confirms; the pick is recorded in its kind's Recent list; the host's callback runs). False when the picker is closed or
+    /// the entry is not listed — a headless rail's stand-in for the click.
+    /// </summary>
+    internal bool ConfirmEntry(string id, string? actionId = null)
+    {
+        if (!_isOpen) return false;
+        int idx = _state.Filtered.FindIndex(r => r.Entry.Id == id);
+        if (idx < 0) return false;
+        _state.SelectedFilteredIndices.Clear();
+        _state.SelectedFilteredIndices.Add(idx);
+        _state.KeyboardFocusIndex = idx;
+        _state.TreeFocusRow = -1;   // ⭐ CE-4359 — the click this stands in for moves the tree focus onto the leaf; a folder row in focus would only expand (Confirm's guard)
+        Confirm(actionId);
+        return !_isOpen;
+    }
+
+    /// <param name="actionId">⭐ CE-4168 (P3) — the footer action clicked; null = Enter / double-click ⇒ the request's default action.</param>
+    private void Confirm(string? actionId = null)
     {
         // Tree layout guard: if the focused row is a folder, expand it instead of
         // confirming a wrong item (e.g. when user clicks OK while a folder is focused).
@@ -466,26 +852,33 @@ public sealed class PickerWindow
             }
         }
 
-        if (_state.SelectedFilteredIndices.Count == 0 && _state.Filtered.Count > 0)
+        // Default confirm (nothing selected): the focused item. Disabled entries never confirm; if ONLY
+        // disabled ones were picked, stay open rather than return an empty choice.
+        var selected = _state.ConfirmableSelection(out bool onlyDisabled);
+        if (onlyDisabled)
         {
-            // Default confirm: first item.
-            _state.SelectedFilteredIndices.Add(_state.KeyboardFocusIndex >= 0
-                ? _state.KeyboardFocusIndex : 0);
+            _state.Confirmed = false;
+            return;
         }
 
-        var selected = _state.SelectedFilteredIndices
-            .Where(i => i >= 0 && i < _state.Filtered.Count)
-            .OrderBy(i => i)
-            .Select(i => _state.Filtered[i])
-            .ToList();
+        // ⭐ CE-4168 (P3) — with actions, the confirm runs one of them; a disabled (or unknown) action never confirms.
+        var action = PickerAction.Resolve(_actions, actionId, selected.FirstOrDefault()?.Entry, out bool blocked, out _);
+        if (blocked)
+        {
+            _state.Confirmed = false;
+            return;
+        }
 
-        // Update recent store.
-        foreach (var re in selected)
-            _state.Recent.Push(_state.ContextKey, re.Entry.Id);
+        // Update recent store (⭐ CE-4098: each entry's own kind list).
+        _state.RecordPick(selected);
 
         if (_onPickResult is not null)
         {
-            var result = new PickerResult(selected.Select(r => r.Entry).ToArray());
+            var result = new PickerResult(selected.Select(r => r.Entry).ToArray())
+            {
+                ActionId  = action?.Id,
+                PaneState = _capturePaneState?.Invoke(selected.FirstOrDefault()?.Entry),
+            };
             _isOpen = false;
             _onPickResult(result);
         }
@@ -515,11 +908,17 @@ public sealed class PickerWindow
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private PickerRenderContext BuildRenderContext() => new()
+    // ⭐ CE-4359 (HOT PATH) — one context per (icons, theme), not one per call: a drawn frame allocates nothing
+    private PickerRenderContext? _ctxCache;
+    private PickerRenderContext BuildRenderContext()
     {
-        Icons = Icons ?? NullIconProvider.Instance,
-        Theme = Theme ?? DefaultPickerTheme.Instance,
-    };
+        var icons = Icons ?? NullIconProvider.Instance;
+        var theme = Theme ?? DefaultPickerTheme.Instance;
+        if (_ctxCache is null || !ReferenceEquals(_ctxCache.Icons, icons) || !ReferenceEquals(_ctxCache.Theme, theme))
+            _ctxCache = new PickerRenderContext { Icons = icons, Theme = theme };
+        _ctxCache.MatchPositions = null;
+        return _ctxCache;
+    }
 }
 
 // ── null-object helpers ───────────────────────────────────────────────────────
@@ -551,3 +950,6 @@ file sealed class DefaultPickerTheme : IEditorTheme
     public Vector4 GetCategoryHeaderColor(NodeEditor.Primitives.NodeCategory c) => new(0.2f, 0.2f, 0.3f, 1f);
     public nint GetFontForSize(float targetPixelSize) => 0;
 }
+
+/// <summary>⭐ CE-4359 — one row of the Tree layout as last drawn.</summary>
+public readonly record struct PickerTreeRow(bool IsFolder, string Label, int Depth);

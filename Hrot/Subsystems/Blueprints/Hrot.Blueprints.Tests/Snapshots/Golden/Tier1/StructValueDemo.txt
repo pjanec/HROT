@@ -1,0 +1,13 @@
+StructureHash: 0x7552C3C67E20CF71
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  OutHealth : System.Int32 @16 size=4
+  OutArmor : System.Int32 @20 size=4
+  OutAmmo : System.Int32 @24 size=4
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

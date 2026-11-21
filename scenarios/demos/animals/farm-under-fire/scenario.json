@@ -1,0 +1,424 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "farm",
+    "description": "What: a farm under fire (CE-4623 AB-10, docs/designs/animals/DESIGN_Animals.md \u00a76.2). Five ANIMAL AREAS populate at the start: 'Pasture' (8 cattle, by the lane), 'Farm dog' at the farmhouse, 'Hens', 'Pig pen' (3 pigs, enclosed) and 'Orchard birds' (one flock of 30 in the orchard). An 'M1 Abrams' drives the lane east and turns up the track into the pasture's south edge, then away. At 40 s a 'Rifleman' north-west of the orchard fires 20 rounds at a berm. Judge: (1) the tank frightens the herd: cows panic and flee (2) the herd runs away from the tank, north, and at least one cow breaks through the wooden fence (beyond y = 64) (3) the birds stay perched (and singing) until the shots (4) the shots flush the flock (it flies) and the birdsong stops (the flock is frightened) (5) the pigs stay in their pen. Check: scripts/scenario-regression.sh farm-under-fire"
+  },
+  "entities": {
+    "46230a10-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          150,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Pasture",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -45,
+            "Y": -12
+          },
+          {
+            "X": 45,
+            "Y": -12
+          },
+          {
+            "X": 45,
+            "Y": 12
+          },
+          {
+            "X": -45,
+            "Y": 12
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "Cattle",
+        "Enclosed": 0,
+        "Count": 8,
+        "Seed": 4624
+      }
+    },
+    "46230a10-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          40,
+          108,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Farm dog",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -6,
+            "Y": -4
+          },
+          {
+            "X": 6,
+            "Y": -4
+          },
+          {
+            "X": 6,
+            "Y": 4
+          },
+          {
+            "X": -6,
+            "Y": 4
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "Dog",
+        "Enclosed": 0,
+        "Count": 1,
+        "Seed": 4625
+      }
+    },
+    "46230a10-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          70,
+          112,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Hens",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -8,
+            "Y": -6
+          },
+          {
+            "X": 8,
+            "Y": -6
+          },
+          {
+            "X": 8,
+            "Y": 6
+          },
+          {
+            "X": -8,
+            "Y": 6
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "Hen",
+        "Enclosed": 0,
+        "Count": 6,
+        "Seed": 4626
+      }
+    },
+    "46230a10-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          20,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Pig pen",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -6,
+            "Y": -6
+          },
+          {
+            "X": 6,
+            "Y": -6
+          },
+          {
+            "X": 6,
+            "Y": 6
+          },
+          {
+            "X": -6,
+            "Y": 6
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "Pig",
+        "Enclosed": 1,
+        "Count": 3,
+        "Seed": 4627
+      }
+    },
+    "46230a10-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          240,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Orchard birds",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -18,
+            "Y": -18
+          },
+          {
+            "X": 18,
+            "Y": -18
+          },
+          {
+            "X": 18,
+            "Y": 18
+          },
+          {
+            "X": -18,
+            "Y": 18
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "BirdFlock",
+        "Enclosed": 0,
+        "Count": 30,
+        "Seed": 4628
+      }
+    },
+    "46230a10-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          0,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "M1 Abrams",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": {
+          "routeEntityId": "46230a10-0000-4000-8000-000000000011",
+          "Speed": 8
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230a10-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          150,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Tank route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 140,
+            "Y": 10,
+            "Z": 0,
+            "TargetSpeed": 8
+          },
+          {
+            "X": 150,
+            "Y": 20,
+            "Z": 0,
+            "TargetSpeed": 5
+          },
+          {
+            "X": 150,
+            "Y": 42,
+            "Z": 0,
+            "TargetSpeed": 5
+          },
+          {
+            "X": 175,
+            "Y": 30,
+            "Z": 0,
+            "TargetSpeed": 6
+          },
+          {
+            "X": 200,
+            "Y": 10,
+            "Z": 0,
+            "TargetSpeed": 8
+          },
+          {
+            "X": 295,
+            "Y": 10,
+            "Z": 0,
+            "TargetSpeed": 8
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "46230a10-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          200,
+          160,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "46230a10-0000-4000-8000-000000000021",
+          "Tasks": [
+            {
+              "TaskId": "46230a10-0000-4000-8000-000000000021",
+              "ExecutingEngine": "",
+              "BehaviorName": "Idle",
+              "BehaviorParams": {},
+              "Triggers": [
+                {
+                  "Type": "TimerElapsed",
+                  "Params": "40"
+                }
+              ]
+            },
+            {
+              "TaskId": "46230a10-0000-4000-8000-000000000022",
+              "ExecutingEngine": "",
+              "BehaviorName": "FireAtPoint",
+              "BehaviorParams": {
+                "x": 285,
+                "y": 185,
+                "z": 1,
+                "mount": 0,
+                "rounds": 20,
+                "cooldownSeconds": 0.5
+              },
+              "Triggers": [
+                {
+                  "Type": "BehaviorFinished",
+                  "Params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

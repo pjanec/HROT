@@ -36,5 +36,38 @@ namespace Hrot.Map.Common.Tests
 
             Assert.True(world.HasComponent<PartMetadata>(entity));
         }
+
+        /// <summary>
+        /// ⭐ R-140 D2 — <c>NetworkSpawningSystem.ProcessSpawn</c> stamps <see cref="Fdp.Toolkit.Scenario.ScenarioIgnoreTag"/> on every
+        /// transient entity it materialises, on every host. 🔴 No host registered it (only the rails did, each for itself), so the first
+        /// door entity spawned in a cluster killed the CGF process (bt-doors live run, 2026-10-08).
+        /// </summary>
+        [Fact]
+        public void RegisterAll_TheTransientSpawnTag_IsRegistered()
+        {
+            using var world = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(world);
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+            Assert.True(world.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(entity));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3110</c> I-2c — the embarkation STATE is registered on every host (any node that can own a live entity can own a
+        /// vehicle or a passenger, and every node applies I-2b's passenger list). 🔴 It was registered only by the CGF and SimHost
+        /// registries, so IG — which runs the passenger-list ingress — would have applied an unregistered <c>PassengerBuffer</c>.
+        /// </summary>
+        [Fact]
+        public void CE3110_RegisterAll_TheEmbarkationState_IsRegisteredOnEveryHost()
+        {
+            using var world = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(world);
+
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>());
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>());
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>());
+            Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierSeats>());   // ⭐ CE-2151 — a carrier type's seats
+        }
     }
 }

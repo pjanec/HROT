@@ -15,6 +15,7 @@ public sealed class HsmEditorLayoutBuilder
     private readonly Dictionary<Guid, RegionLayoutEntry> _regions = new();
     private readonly List<(string VariableName, string WriterPairKey)> _conflictSuppressions = new();
     private readonly List<string> _unusedSuppressions = new();
+    private readonly List<string> _concurrentWritesAllowed = new();
 
     public HsmEditorLayoutBuilder Canvas(Vector2 panOffset, float zoomLevel)
     {
@@ -94,6 +95,14 @@ public sealed class HsmEditorLayoutBuilder
         return this;
     }
 
+    /// <summary>⭐ <c>W7b</c> (§9.4) — the designer allowed concurrent cross-region writes to
+    /// this variable. ⛔ PER VARIABLE; see <c>SuppressBlackboardConflict</c> for the per-pair one.</summary>
+    public HsmEditorLayoutBuilder AllowConcurrentWrites(string variableName)
+    {
+        _concurrentWritesAllowed.Add(variableName);
+        return this;
+    }
+
     public HsmEditorLayout Build() => new HsmEditorLayout
     {
         PanOffset = _panOffset,
@@ -103,5 +112,6 @@ public sealed class HsmEditorLayoutBuilder
         Regions = _regions,
         BlackboardConflictSuppressions = _conflictSuppressions,
         UnusedWarningSuppressions = _unusedSuppressions,
+        ConcurrentWritesAllowed   = _concurrentWritesAllowed,
     };
 }

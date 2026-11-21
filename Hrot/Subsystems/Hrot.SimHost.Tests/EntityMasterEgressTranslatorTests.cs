@@ -27,7 +27,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 200u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -35,7 +35,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
             repo.SetDisType(entity, new DISEntityType { Value = 0 });
 
             Thread.Sleep(200);
@@ -60,13 +60,45 @@ namespace Hrot.SimHost.Tests
             Assert.True(found, "Expected EntityMaster sample for locally-owned entity.");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4000</c> residual (docs/DESIGN_Cluster_Load_Phase.md §8.3) — a dying entity is never announced again. 📐 Measured live
+        /// 2026-11-05: the cleanup disposed 1003, then this translator (it scans <c>Lifecycle.All</c>, for constructing entities) wrote its master
+        /// again while it lingered in TearDown — every late Player built a ghost, and the next reload did not delete it. 🔴 Red-proof: drop the
+        /// TearDown skip in <c>ScanAndPublish</c> ⇒ a second sample is sent.
+        /// </summary>
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void CE4000_AnEntityInTearDown_IsNotAnnouncedAgainAfterItsDispose()
+        {
+            using var participant = new DdsParticipant(176u);
+            var translator = new EntityMasterEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
+            var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(1003));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(100) });
+
+            translator.ScanAndPublish(repo);
+            Assert.Equal(1, translator.SentSampleCount);
+
+            repo.SetLifecycleState(entity, EntityLifecycle.TearDown);   // destroyed in game: modules are still acking
+            translator.Dispose(1003);                                    // the cleanup system's delete
+            translator.ScanAndPublish(repo);
+            translator.ScanAndPublish(repo);
+            Assert.Equal(1, translator.SentSampleCount);
+
+            repo.SetLifecycleState(entity, EntityLifecycle.Active);      // an in-place restore brings the id back: announced again
+            translator.ScanAndPublish(repo);
+            Assert.Equal(2, translator.SentSampleCount);
+        }
+
         [Fact]
         [Trait("Category", "Integration")]
         public void ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish()
         {
             const uint domainId = 205u; // 201 fails on some machines; use 205 instead
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -74,7 +106,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
 
             Thread.Sleep(200);
             translator.ScanAndPublish(repo);
@@ -94,13 +126,45 @@ namespace Hrot.SimHost.Tests
             Assert.False(found, "Remote entities must not publish EntityMaster samples.");
         }
 
+        /// <summary>
+        /// ⭐ AQ93 EM-4 (R-4045) — an entity this node OWNS but that another mechanism publishes (a SUMO car's replica, on
+        /// SumoSharp's own topics) carries a <see cref="ReplicationRoute"/>, and the default egress publishes NOTHING for it.
+        /// The owned twin above proves the same entity without the route does publish.
+        /// </summary>
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void AQ93_ScanAndPublish_OwnedEntityOnAnotherRoute_DoesNotPublish()
+        {
+            const uint domainId = 207u;
+            using var participant = new DdsParticipant(domainId);
+            using var reader = new DdsReader<EntityMaster>(participant);
+            var entityMap = new NetworkEntityMap();
+            var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
+
+            var repo = CreateWorld();
+            repo.RegisterComponent<ReplicationRoute>();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(43));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
+            repo.AddComponent(entity, new ReplicationRoute(ReplicationRoute.SumoSharp));
+
+            Thread.Sleep(200);
+            translator.ScanAndPublish(repo);
+            Thread.Sleep(200);
+
+            using var loan = reader.Take();
+            foreach (var sample in loan)
+                Assert.False(sample.IsValid && sample.Data.EntityId == 43, "An entity on another replication route must not publish on NED.");
+        }
+
         [Fact]
         [Trait("Category", "Integration")]
         public void ScanAndPublish_RepeatedScan_PublishesEntityMasterExactlyOnce()
         {
             const uint domainId = 206u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -108,7 +172,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(420));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
             repo.SetDisType(entity, new DISEntityType { Value = 0 });
 
             Thread.Sleep(200);
@@ -137,7 +201,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 202u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -145,7 +209,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
             repo.SetDisType(entity, new DISEntityType { Value = 0 });
             translator.ScanAndPublish(repo);
             Thread.Sleep(200);
@@ -188,7 +252,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 210u;
             using var participant = new DdsParticipant(domainId);
-            using var reader     = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader     = new DdsReader<EntityMaster>(participant);
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -196,7 +260,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(55));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 1001 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1001) });
             repo.SetDisType(entity, new DISEntityType
             {
                 Kind        = 1,

@@ -1,12 +1,12 @@
-using Hrot.Blueprints.Core.Debug;
+using Hrot.Diagnostics.Breakpoints;
 
 namespace Hrot.Blueprints.Tests.Debug;
 
 /// <summary>
-/// Test double for IBlueprintTimeController.
+/// Test double for IEngineDebugTimeController.
 /// Records all pause/resume/step requests for assertion.
 /// </summary>
-public sealed class MockTimeController : IBlueprintTimeController
+public sealed class MockTimeController : IEngineDebugTimeController
 {
     public bool PauseWasRequested  { get; private set; }
     public int  PauseRequestCount  { get; private set; }

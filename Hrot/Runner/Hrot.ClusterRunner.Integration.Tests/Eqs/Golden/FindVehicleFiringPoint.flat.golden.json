@@ -1,0 +1,56 @@
+{
+  "Name": "FindVehicleFiringPoint",
+  "BlueprintId": 4048901606,
+  "Count": 6,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": -4.877248,
+      "PositionY": -24.519634,
+      "Score": 0.9903927,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 4.87726,
+      "PositionY": -24.51963,
+      "Score": 0.9903927,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -13.88925,
+      "PositionY": -20.786745,
+      "Score": 0.9157349,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 13.88926,
+      "PositionY": -20.786737,
+      "Score": 0.91573477,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -20.78674,
+      "PositionY": -13.889257,
+      "Score": 0.7777852,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 20.786745,
+      "PositionY": -13.889247,
+      "Score": 0.77778494,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

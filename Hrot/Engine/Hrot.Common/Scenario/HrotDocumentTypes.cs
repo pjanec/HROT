@@ -16,7 +16,7 @@ namespace Hrot.Common.Scenario
         // ── Versioned customer-authored documents (migration chain registered) ──
 
         /// <summary>Cross-node, engine-agnostic scenario payload.</summary>
-        public const string Scenario      = "Hrot.Scenario";
+        public const string Scenario      = HrotSubsystemTypes.Scenario;
 
         /// <summary>Compiled blueprint asset.</summary>
         public const string Blueprint     = "Hrot.Blueprints";
@@ -68,12 +68,12 @@ namespace Hrot.Common.Scenario
         // routing consistency in migration bootstrappers that work with subsystem roles.
 
         /// <summary>SimHost-authoritative subsystem identifier.</summary>
-        public const string SimHostSubsystem = "Hrot.SimHost";
+        public const string SimHostSubsystem = HrotSubsystemTypes.SimHost;
 
         /// <summary>CGF-authoritative subsystem identifier.</summary>
-        public const string CgfSubsystem     = "Hrot.CGF";
+        public const string CgfSubsystem     = HrotSubsystemTypes.Cgf;
 
-        /// <summary>IG-specific subsystem identifier.</summary>
-        public const string IgSubsystem      = "Hrot.IG";
+        /// <summary>Player-specific subsystem identifier.</summary>
+        public const string PlayerSubsystem  = HrotSubsystemTypes.Player;
     }
 }

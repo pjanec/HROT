@@ -73,7 +73,10 @@ public static class HsmDocumentFactory
         IDebugSession?          debugSession      = null,
         IHsmDebugSession?       hsmDebugSession   = null,
         IDataBreakpointManager? breakpointManager = null,
-        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null)
+        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
+        Func<Guid, bool>? isStatefulSubtree = null,
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -83,14 +86,75 @@ public static class HsmDocumentFactory
                 $"Expected {nameof(HsmAsset)} but got {asset.GetType().Name}.",
                 nameof(asset));
 
+        // ── 0. Reconcile the hosted-subtree references ────────────────────────
+        // ⭐⭐⭐ §11.1a — RESOLVE BEFORE ANYTHING READS `IsSubtreeResolved`.
+        // 🔴 THE DEFECT THIS AVOIDS, and an existing rail caught it: the dangling rule reads a
+        //    DERIVED flag that only `HsmSubtreeResolver` sets. With no production caller the flag
+        //    is permanently false ⇒ the rule would report EVERY hosting state as dangling.
+        // ⚠⚠ That was not hypothetical — it was the state BTree was in: `BTreeSubtreeResolver` had
+        //    ZERO production callers, `BehaviorTreeAssetProjector` writes `IsResolved = false`, and
+        //    `BTreeValidator` Rule 6 fires on `!IsResolved`. ⭐ `CE-361` wired the twin step 0 into
+        //    `BTreeDocumentFactory`, so both hosts now resolve at the same moment.
+        // ⭐ Opening a document is the right moment: it is the one place that has BOTH the asset and
+        //   the catalogue, and it re-runs after a hot reload for free.
+        // ⚠ A heal is a real edit — `MarkDirty` so it is saved rather than re-done every load.
+        if (catalog is not null &&
+            Hrot.Hsm.Editor.Model.HsmSubtreeResolver.Resolve(hsmAsset, catalog) > 0)
+        {
+            hsmAsset.MarkDirty();
+        }
+
+        // ── 0b. Infer the output-lane masks ──────────────────────────────────
+        // ⭐⭐⭐ HSM-007 — THE PRODUCER THAT NEVER RAN. 📄 HSM_Editor_NodeEditor_Host_Design.md §10.3 step 2:
+        //   "At asset open, the editor reflects each [HsmAction]'s Lane property." That step existed as a tested
+        //   class (HsmOutputLaneMaskInferrer) with ZERO production callers, so every editor-owned asset carried
+        //   OutputLaneMask == 0 and the WHOLE lane-conflict feature was inert: rule 7 could not fire, the
+        //   hsm.region_conflicts renderer (fed from this very method) stayed dark, and the inspector's
+        //   "Output lanes (inferred)" summary was always blank.
+        // ⭐ Here, and not in the mapper, for the same reason step 0 is here: opening a document is the one moment
+        //   that has the asset in hand, and it re-runs after a hot reload for free — which matters because the
+        //   masks are derived from [HsmAction].Lane in the LOADED assemblies, and a reload changes those.
+        // ⚠ This is a DERIVED field, never persisted and never author-edited (§10.3 step 4), so — unlike step 0's
+        //   heal — it does NOT MarkDirty: recomputing it must not make an untouched asset look edited.
+        // ⛔ What this does NOT fix: the RUNTIME half. Nothing carries the mask into the emitted blob (the editor
+        //   does not emit it, §10.3 step 5, and nothing in Fhsm.Compiler computes it), so
+        //   HsmKernelCore.ArbitrateOutputLanes still arbitrates on zeros. See the HSM-007 runtime row.
+        Validation.HsmOutputLaneMaskInferrer.ApplyToAsset(
+            hsmAsset,
+            Validation.HsmOutputLaneMaskInferrer.BuildLaneDictionaryFromLoadedAssemblies());
+
         // ── 1. Graph model ────────────────────────────────────────────────────
-        var graphModel = new HsmGraphModel(hsmAsset);
+        // ⭐⭐⭐ E5 / items 6-7 (2026-09-26) — THE CANVAS NOW ASKS THE SAME QUESTIONS THE DIAGNOSTICS
+        //    WINDOW DOES. 🔴 This used to be `new HsmGraphModel(hsmAsset)` with NO resolvers, while
+        //    the composition root handed both to HsmAssetValidator (EditorSubsystem:3383) — so
+        //    rules 8 and 8b fired in the Diagnostics window and were INERT on the node badges.
+        //    ⛔ That is exactly the split HsmGraphModel's own remarks warn about: "a resolver on
+        //    only one of them would make a state light up in one surface and not the other."
+        //
+        // ⛔⛔ WHY THE TWO RESOLVERS ARE DELEGATES AND ITEM 7'S DEPENDENCY IS A CATALOGUE — the
+        //    difference is real, not an inconsistency:
+        //    ① rules 8/8b (§32.15): the predicate has to switch on BOTH BehaviorTreeAsset and
+        //      HsmAsset, and this assembly (Hrot.Hsm.Editor) cannot see the former — so it COULD
+        //      NOT compute it even if handed the catalogue. 🔒 The resolvers' own remarks say they
+        //      live "at the only layer that sees both asset types", and that a second copy would
+        //      let the two surfaces disagree. ⇒ pass the ANSWER, not the source.
+        //    ② rule 10 / item 7 (§32.16): the hosting edge is read through ISubtreeHostingAsset,
+        //      so the walk needs NO knowledge of either concrete type ⇒ the catalogue is passable
+        //      and the adapter lives ONCE, inside SubtreeCycleDetector, instead of at every
+        //      composition root. ⭐ The interface removed the constraint rather than working
+        //      around it.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15 and §32.16.
+        var graphModel = new HsmGraphModel(hsmAsset, isStatefulSubtree, sharedScopeKeys, catalog);
 
         // ── 2. Kind-specific host components ─────────────────────────────────
         var nodeCatalog  = new HsmNodeCatalog();
         var typeSystem   = new HsmTypeSystem();
         var validator    = new HsmLinkValidator(hsmAsset);
         var commandSink  = new HsmCommandSink(hsmAsset);
+        // ⭐ CE-1001: HSM registered NO node picker, so Tab / "Add Node…" / an arrow dropped on empty canvas opened
+        //    whichever BTree or Blueprint catalogue was opened last (or nothing). Its own scope, its own catalogue.
+        var pickers = new NodeEditor.Core.Interfaces.ScopedPickerRegistry(bundle.PickerRegistry, $"doc:{hsmAsset.AssetId:N}");
+        HsmPickerSources.Register(pickers, nodeCatalog);
 
         // ── 3. Custom renderers (built-in HSM set + caller extras) ────────────
         var renderers = BuildRenderers(hsmAsset, hsmDebugSession, breakpointManager, extraRenderers, out var regionConflicts);
@@ -105,7 +169,7 @@ public static class HsmDocumentFactory
             typeSystem:      typeSystem,
             linkValidator:   validator,
             commandSink:     commandSink,
-            pickers:         bundle.PickerRegistry,
+            pickers:         pickers,
             clipboard:       bundle.ClipboardInterface,
             icons:           bundle.IconProvider,
             diagnostics:     bundle.DiagnosticsSink,
@@ -127,6 +191,7 @@ public static class HsmDocumentFactory
             hostServices.TypeSystem,
             hostServices.NodeCatalog,
             hostServices);
+        hostServices.SetNodeContextMenu(hsmAsset, view);   // ⭐ CE-1003: "Set as Initial State"
 
         // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
         var commands = new EditorCommandsImpl();

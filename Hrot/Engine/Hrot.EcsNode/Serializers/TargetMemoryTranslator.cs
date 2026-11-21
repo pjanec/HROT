@@ -1,0 +1,122 @@
+using Fdp.Toolkit.Replication;
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using Fdp.Core;
+using Fdp.Toolkit.Perception;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Scenario;
+using Hrot.Common.Serializers;
+
+namespace Hrot.SimHost.Serializers
+{
+    /// <summary>
+    /// Custom scenario translator for <see cref="TargetMemory"/>.
+    ///
+    /// The <see cref="Fdp.Toolkit.Scenario.FdpAutoSerializer"/> cannot serialize
+    /// <c>fixed long[]</c> / <c>fixed float[]</c> buffers or entity-typed integer
+    /// fields: the fixed-buffer backing structs are opaque and their contents are
+    /// zeroed on every JSON round-trip.  This translator replaces the auto-generated
+    /// stub by serialising each valid target entry as a GUID-resolved entity handle
+    /// plus the associated position, score, and metadata so handles survive
+    /// serialisation/deserialisation.
+    /// </summary>
+    public sealed unsafe class TargetMemoryTranslator : IEntityScenarioTranslator
+    {
+        private const string Key = "TargetMemory";
+
+        // ── IEntityScenarioTranslator ─────────────────────────────────────────
+
+        public BitMask512 GetConsumedComponentsMask()
+        {
+            var mask = new BitMask512();
+            int id = ComponentTypeRegistry.GetId(typeof(TargetMemory));
+            if (id >= 0) mask.SetBit(id);
+            return mask;
+        }
+
+        public bool CanTranslate(EntityRepository repo, Entity entity)
+            => repo.HasComponent<TargetMemory>(entity);
+
+        public Dictionary<string, object> Extract(
+            EntityRepository repo, Entity entity, IGuidResolver resolver)
+        {
+            // Value copy ensures a stable stack location for pointer arithmetic.
+            TargetMemory tm = repo.GetComponent<TargetMemory>(entity);
+            TargetMemory* ptr = &tm;
+
+            var entries = new JsonArray();
+            for (int i = 0; i < tm.Count; i++)
+            {
+                // ⭐ CE-3063 — a heard, anonymous contact is transient and has no entity to save (§6.1 lean: not saved).
+                if (TargetMemory.IsAnonymous(in tm, i)) continue;
+                var handle = new Entity((ulong)ptr->EntityIds[i]);
+                if (handle.IsNull || !repo.IsAlive(handle))
+                    continue;  // skip stale/null entities — not in the save map
+                // ⭐ CE-4250 — target memory is a SENSING CACHE, not authored intent: a target the save leaves out (one a Preview spawned) is
+                //   dropped from the save with a warning, never a throw (it killed the editor on Save during Preview).
+                if (!resolver.TryResolve(handle, out string targetGuid))
+                {
+                    Fdp.Core.Logging.FdpLog<TargetMemoryTranslator>.Warn(
+                        "[Scenario] {0}: target memory names {1}, which this save does not hold — that entry is not saved.", entity, handle);
+                    continue;
+                }
+
+                entries.Add(new JsonObject
+                {
+                    ["Entity"]   = targetGuid,
+                    ["PosX"]     = ptr->PositionsX[i],
+                    ["PosY"]     = ptr->PositionsY[i],
+                    ["PosZ"]     = ptr->PositionsZ[i],
+                    ["Score"]    = ptr->Freshness[i],
+                    ["Tick"]     = (long)ptr->LastSeenTick[i],
+                    ["Modality"] = (int)ptr->Modalities[i],
+                    ["Stance"]   = (int)ptr->SeenStance[i],   // ⭐ CE-2326 — StanceId + 1, 0 = none
+                });
+            }
+
+            return new Dictionary<string, object>
+            {
+                [Key] = new JsonObject { ["Entries"] = entries }
+            };
+        }
+
+        public void Inject(
+            EntityRepository repo, Entity entity,
+            Dictionary<string, object> scenarioData, IGuidResolver resolver)
+        {
+            if (!scenarioData.TryGetValue(Key, out var raw)) return;
+            if (raw is not JsonObject obj) return;
+            if (obj["Entries"] is not JsonArray entries) return;
+
+            var intent = new InitialTargetsIntent();
+
+            foreach (var item in entries)
+            {
+                if (intent.Entries.Count >= PerceptionConstants.MaxTrackedTargets) break;
+                if (item is not JsonObject entry) continue;
+
+                var guidStr = entry["Entity"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(guidStr)) continue;
+
+                intent.Entries.Add(new TargetEntry
+                {
+                    NetworkId    = FileLinks.FromGuidText(guidStr),
+                    PosX         = entry["PosX"]?.GetValue<float>()  ?? 0f,
+                    PosY         = entry["PosY"]?.GetValue<float>()  ?? 0f,
+                    PosZ         = entry["PosZ"]?.GetValue<float>()  ?? 0f,
+                    Score        = entry["Score"]?.GetValue<float>() ?? 0f,
+                    LastSeenTick = (uint)(entry["Tick"]?.GetValue<long>()    ?? 0L),
+                    Modality     = (byte)(entry["Modality"]?.GetValue<int>() ?? 0),
+                    SeenStance   = (byte)(entry["Stance"]?.GetValue<int>()   ?? 0),
+                });
+            }
+
+            repo.SetManagedComponent(entity, intent);
+        }
+
+        public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();
+    }
+}
+

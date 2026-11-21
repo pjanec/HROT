@@ -48,7 +48,7 @@ instantiable on any node.
 - `Hrot.ClusterRunner.Tests`: 161
 
 All 266 tests were passing after BATCH-28. Build the solution first:
-`dotnet build IOS-IG-SimHost.sln -c Debug`
+`dotnet build HROT.sln -c Debug`
 
 ---
 
@@ -609,7 +609,7 @@ All five success conditions from CGF-1-TASK-DETAIL.md §CGF1-S0506 must be cover
 
 5. **`Fact: ClusterScenarioPanel compiles with ClusterUiCache`** — the solution must
    build with zero errors after the rename/refactoring. Confirm with
-   `dotnet build IOS-IG-SimHost.sln -c Debug`.
+   `dotnet build HROT.sln -c Debug`.
 
 6. **`Fact: No regression in E2E DSM test suite`** — all existing `DsmE2eScriptTests`
    still pass (they are in `Hrot.ClusterRunner.Tests`).

@@ -148,7 +148,7 @@ the **pre-change** 2D baseline).
 1. Golden files exist for all registered starter templates (enumerate via the `[EqsTemplate]` registry;
    do not hardcode a count).
 2. Re-running the capture twice on the unchanged tree produces byte-identical artifacts (determinism).
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ---
 
@@ -179,7 +179,7 @@ the **pre-change** 2D baseline).
 1. The struct contains exactly `LastValidIgAltitude` + `IgAltitudeBaselineEstablished` (+ explicit
    padding); a unit test asserts it is an unmanaged value type.
 2. No symbol named `TargetZOffset` or `CurrentZOffset` remains anywhere in the solution (grep clean).
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ### P3D-102 — `TerrainQueryResolutionSystem` writes `HitZ` into authoritative `SimTransform.Position.Z`
 
@@ -208,7 +208,7 @@ the **pre-change** 2D baseline).
    (non-bootstrap) is rejected and leaves `SimTransform.Position.Z` unchanged.
 3. Unit test: the first hit for an entity is always accepted regardless of magnitude (bootstrap).
 4. Existing `TerrainQueryResolutionSystemTests` are updated to the new contract and pass.
-5. `dotnet build IOS-IG-SimHost.sln` succeeds.
+5. `dotnet build HROT.sln` succeeds.
 
 ### P3D-103 — `TransformSyncSystem` stops applying the visual-only Z correction
 
@@ -237,7 +237,7 @@ real.
    `SimTransform.Position.Z` toward `h` (no offset added).
 2. No reference to `GroundClampingState`/`TerrainClampBaseline` remains in `TransformSyncSystem`.
 3. `TransformSyncSystemRegistrationTests` still pass (interpolation of all entities; owned-not-overwritten).
-4. `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. `dotnet build HROT.sln` succeeds.
 
 ### P3D-104 — Dead-reckoning regression fixture on slopes and steps (Axis-3 risk probe)
 
@@ -259,7 +259,7 @@ real.
 1. On the ramp, predicted Z tracks authoritative Z within the documented tolerance every tick.
 2. On the step transition, no overshoot/oscillation beyond tolerance; replication converges.
 3. The fixture is part of the §6 regression gate (referenced by the atomic-PR merge checklist).
-4. `dotnet build IOS-IG-SimHost.sln` succeeds and the fixture passes.
+4. `dotnet build HROT.sln` succeeds and the fixture passes.
 
 ---
 
@@ -294,7 +294,7 @@ real.
 2. A test writes `span[i].PositionZ`, re-reads via `GetSpanRO()`, asserts retention (defensive-copy path
    still bypassed).
 3. A test asserts `Marshal.SizeOf<EqsResultArray>() == 512`.
-4. `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. `dotnet build HROT.sln` succeeds.
 
 ### P3D-202 — Widen the `EqsResultEntry` DDS wire + EQS result translators to carry altitude
 
@@ -319,7 +319,7 @@ real.
 1. Round-trip test: an `EqsResult` with `PositionZ = z` published via egress and read via ingress yields
    `PositionZ == z` (tolerance-exact for float).
 2. Existing EQS DDS round-trip tests pass with the new field populated.
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ### P3D-203 — Generators retain real Z (the three existing production generators)
 
@@ -349,7 +349,7 @@ real.
 2. `NavmeshSamplesGenerator`: with a stub navmesh returning a point at Recast `Y = a`, the candidate has
    `PositionZ == a`, `PositionX/PositionY` matching the prior 2D mapping.
 3. `CoverPointsGenerator`: a 3D cover point at altitude `z` produces a candidate with `PositionZ == z`.
-4. Existing generator tests updated and passing; `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. Existing generator tests updated and passing; `dotnet build HROT.sln` succeeds.
 
 ### P3D-204 — Widen `CoverPoint` + `ICoverProvider` family to 3D
 
@@ -371,7 +371,7 @@ real.
 **Success conditions:**
 1. `Marshal.SizeOf<CoverPoint>()` returns `28`.
 2. A cover provider returns a node with `PositionZ = z` and a consumer reads it back unchanged.
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ### P3D-205 — Scoring/filter tests use real Z (with correct axis mapping)
 
@@ -395,7 +395,7 @@ real.
    scores; with equal Z, scores equal the legacy 2D result.
 2. `PathCostScoreTest`/`NavmeshReachableTest`: the observer/candidate vectors passed to the navmesh place
    altitude in the Recast Y component (verified via a recording stub provider).
-3. Existing scoring tests updated; flat-terrain cases unchanged. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. Existing scoring tests updated; flat-terrain cases unchanged. `dotnet build HROT.sln` succeeds.
 
 ### P3D-206 — Widen `TargetMemory` to 3D contacts; `ThreatEvaluationSystem` passes real Z
 
@@ -428,7 +428,7 @@ readers here.
    `SimTransform.Position.Z`.
 3. All 21 `AddOrUpdateTarget` call sites compile and pass `posZ`; `TargetMemory_IsUnmanagedValueType`
    passes.
-4. `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. `dotnet build HROT.sln` succeeds.
 
 ---
 
@@ -454,7 +454,7 @@ signature change.
 1. `StubNavmeshProvider.PathCost(from, to)` for `from=(0,0,0)`, `to=(3,4,0)` returns `5`; for
    `to=(0,12,0)` (altitude only) returns `12` (previously `0`).
 2. A `PathCostScoreTest` over the stub now penalizes a candidate that differs only in altitude.
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ### P3D-302 — Widen the navigation destination/intent chain to `Vector3`
 
@@ -483,7 +483,7 @@ adaptable; if a blueprint param schema hash changes, record it (codegen drift) i
 2. `NavigationIntentBridgeSystem` publishes a `PathfindingRequestEvent.End` with the real destination Z
    (no `0f`) for both `MoveTo` and `PlanRoute`; `NavigationIntentBridgeSystemTests` updated and passing.
 3. No `new Vector3(..Destination.X, ..Destination.Y, 0f)` remains in `NavigationIntentBridgeSystem`.
-4. `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. `dotnet build HROT.sln` succeeds.
 
 ### P3D-303 — Trajectory pool stores + interpolates Z (steering stays 2D)
 
@@ -518,7 +518,7 @@ adaptable; if a blueprint param schema hash changes, record it (codegen drift) i
 3. `CarKinematicsSystem` produces identical X/Y motion to the 2D baseline on flat terrain (regression);
    `SimTransform.Position.Z` is governed by the terrain query, not the trajectory.
 4. Existing `TrajectoryPoolTests` / `HermiteTrajectoryTests` / `TrajectoryInterpolationTests` updated to
-   `Vector3` and passing. `dotnet build IOS-IG-SimHost.sln` succeeds.
+   `Vector3` and passing. `dotnet build HROT.sln` succeeds.
 
 ### P3D-304 — Navigation egress/ingress translators carry real altitude
 
@@ -550,7 +550,7 @@ adaptable; if a blueprint param schema hash changes, record it (codegen drift) i
 2. `PathResponse` round-trip: a planned waypoint at altitude `a` survives egress→ingress with the
    reconstructed pool waypoint `Position.Z ≈ a` (no `Up=0f`).
 3. `NavigationIntentEgressTranslatorTests` and path-response translator tests updated and passing.
-4. `dotnet build IOS-IG-SimHost.sln` succeeds.
+4. `dotnet build HROT.sln` succeeds.
 
 ---
 
@@ -574,7 +574,7 @@ adaptable; if a blueprint param schema hash changes, record it (codegen drift) i
    verification with a screenshot in the task report).
 2. `EqsSensorGizmo` draws using `PositionZ` (verified via the gizmo's vertex/line data in a test or
    documented manual check).
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ### P3D-402 — Multi-level proof fixture (Axis-2)
 
@@ -597,7 +597,7 @@ exercised, not the stub.
    merged/confused.
 2. The fixture asserts `deckClearance > walkableHeight` as a precondition (fails loudly otherwise).
 3. The same query on flat ground returns a single level (no spurious second surface).
-4. `dotnet build IOS-IG-SimHost.sln` succeeds and the fixture passes.
+4. `dotnet build HROT.sln` succeeds and the fixture passes.
 
 ### P3D-403 — Flat-terrain parity gate (Axis-1)
 
@@ -658,7 +658,7 @@ insurance for anything the enumeration missed (Design O-3). It is **mandatory**,
 1. Loading a pre-change recording fails fast with a clear version-mismatch message (not a silent
    misread).
 2. A changelog/notice entry exists describing the engine-wide recorder break.
-3. `dotnet build IOS-IG-SimHost.sln` succeeds.
+3. `dotnet build HROT.sln` succeeds.
 
 ---
 

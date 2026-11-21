@@ -82,10 +82,10 @@ implementation details internal.
 | Feature | Implementation highlight |
 |---|---|
 | Entity handle | 48-bit: 32-bit index + 16-bit generation |
-| Component bitmask | `BitMask256`: 256-bit, AVX2-accelerated |
+| Component bitmask | `BitMask512`: 512-bit, AVX2-accelerated |
 | Memory strategy | Windows `VirtualAlloc` reserve/commit, 64 KB chunks |
 | Max entities | 1,000,000 (compile-time constant) |
-| Max component types | 256 (limited by bitmask width) |
+| Max component types | 512 (limited by bitmask width) — `FdpConfig.MAX_COMPONENT_TYPES` |
 | Event streaming | Lock-free double-buffered `NativeEventStream<T>` |
 | Recording | Async LZ4-compressed delta snapshots, `.fdp` format |
 | Component IDs | Explicit `[ComponentId]` attribute, collision detection |
@@ -106,7 +106,7 @@ delta recording.
 
 **2. Explicit component IDs via `[ComponentId]`**
 All component types must declare a globally unique integer ID via `[ComponentIdAttribute]`.
-IDs are registered in `GlobalComponentIds.cs` which partitions the 256-slot space into named
+IDs are registered in `GlobalComponentIds.cs` which partitions the id space into named
 blocks. This guarantees deterministic IDs when multiple binaries merge into a single process
 (a hard requirement for the multi-process Runner architecture).
 
@@ -417,7 +417,7 @@ Fdp.Core Dependency Tree
     `GetRefRO<T>()`, `HasComponent<T>()`
   - `Query()` — returns `QueryBuilder`
   - `SetSingletonUnmanaged<T>()`, `GetSingletonUnmanaged<T>()`
-  - `UnmanagedHandle` — GCHandle IntPtr for HSM bridge
+  - `UnmanagedHandle` — GCHandle IntPtr for HSM bridge (⭐ WEAK since `CE-3183`: read it only while holding the repository)
 
 - **`EntityRepository.DeltaQuery.cs`** — `QueryDelta(query, sinceVersion)` returning
   `DeltaQueryEnumerable`. Implements two-level chunk-skip: Level 1 skips whole 64 KB
@@ -511,7 +511,7 @@ Fdp.Core Dependency Tree
   `CreateEntity()`, `DestroyEntity()`, `AddComponent<T>()`, `SetComponent<T>()`,
   `RemoveComponent<T>()`, and managed variants. `Playback(repo)` replays commands in order.
 - **`EpisodeTag.cs`** — `[ComponentId(84)]` tag marking entities belonging to a specific
-  episode (Guid). `[DataPolicy(DataPolicy.NoSave)]`.
+  episode (Guid). `[DataPolicy(DataPolicy.NoScenario)]`.
 - **`DISEntityType.cs`** — `[StructLayout(Explicit, Size=8)]` overlay struct allowing access
   as both a `ulong` and named DIS fields (Kind, Domain, Country, Category, Subcategory,
   Specific, Extra).
@@ -646,6 +646,7 @@ reissued, allowing stale references to be detected in O(1).
 |---|---|
 | `int Index` | Entity slot in the ECS array. |
 | `ushort Generation` | Stale-reference guard. Starts at 1, never 0. |
+| *(private)* `ushort _zero` | ⭐ R-4222 (CE-4507) — the two bytes after `Generation`, always zero: an `Entity` has no undefined bytes (size 8). Private, so no UI or serializer shows it. |
 | `ulong PackedValue` | `(Generation << 32) | Index`. For ECB serialization. |
 | `bool IsNull` | True when `Index < 0 || Generation == 0`. |
 | `static Entity Null` | Null sentinel value. |
@@ -664,7 +665,7 @@ Internal slot record stored in the entity index. Explicit layout.
 | `AuthorityMask` | 32 | `BitMask256` | Which components this node owns. |
 | `Generation` | 64 | `ushort` | Matches `Entity.Generation`. |
 | `Flags` | 66 | `ushort` | Bit 0 = `IsActive`. |
-| `LastChangeTick` | 68 | `ulong` | Frame tick of last structural change. |
+| `LastChangeTick` | 68 | `ulong` | Frame tick of last structural change: create, destroy, lifecycle, DIS type, a component **added or removed**. ⭐ `CE-3243` (2026-10-17): a VALUE write (`SetComponent`, the command buffer's set/field patch, a managed replace) does **not** stamp it — the table's chunk version carries it, which the flight recorder and `QueryDelta` read. ⚠ Before, every value write stamped it, so the recorder rewrote every table chunk holding the entity each frame. |
 | `DisType` | 76 | `DISEntityType` | Full 8-byte DIS type. |
 | `LifecycleState` | 84 | `EntityLifecycle` | `Constructing/Active/TearDown/Ghost`. |
 
@@ -704,7 +705,7 @@ Central ECS world. `IDisposable`, `partial` (split across four files).
 | `PhaseConfig PhaseConfig` | Transition / permission configuration. |
 | `FdpEventBus Bus` | Event bus for publish/subscribe. |
 | `float SimulationTime` | Current simulation time (seconds). |
-| `IntPtr UnmanagedHandle` | GCHandle pointer for HSM bridge. |
+| `IntPtr UnmanagedHandle` | GCHandle pointer for HSM bridge — a WEAK handle (`CE-3183`): valid while the repository is reachable; it never keeps the repository alive. |
 | `TimeSliceMetric DefaultTimeSliceMetric` | `WallClockTime` or `EntityCount`. |
 
 **Entity lifecycle**
@@ -844,6 +845,43 @@ Byte-stream deferred command recorder. Thread-safe per buffer instance.
 | `void Playback(EntityRepository)` | Executes all recorded commands. |
 | `void Clear()` | Resets buffer for reuse. |
 
+#### 🔴 `ManagedComponentTable<T>` — **every payload mutation must bump the chunk version**
+
+⛔ **The invariant, and it fails SILENTLY when broken** *(measured `2026-08-22`, `HN-001`)*:
+`SyncDirtyChunks` **skips** any chunk whose version equals the source's, so a write or a **removal**
+that leaves the version untouched is **invisible to every version-gated consumer** — a preview
+snapshot, a preview rewind, an SoD replica, a flight-recorder delta.
+
+📐 **What that cost.** `ClearRaw` — the type-erased removal the **EntityCommandBuffer** plays back —
+nulled the payload without bumping. ⛔ ~~The entity index has no such escape (`ApplyComponentFilter`
+bumps its chunk versions on every sync, so its versions never compare equal)~~ — **SUPERSEDED `2026-10-05`
+(`CE-3067`), see the next paragraph** ⇒ the preview
+rewind restored a component's **PRESENCE bit without its payload**, and the next tick dereferenced
+the null: `GetManagedComponentRO<T>` returned null with `Has=true`, and the process aborted
+(SIGABRT) out of `GenesisMaterializationSystem`.
+
+⭐ **So:** `SetRawObject`, `ClearRaw` and `Clear(int)` all route through one `BumpChunkVersion`, and
+any new mutation path must too. ⚠ The bump never lands on `0` — a fresh table reads `0`, so a `0`
+would compare equal to *"never written"*. ⭐ Pinned by `Fdp.Tests.PreviewRewindManagedComponentTests`,
+which reproduces the crash exactly (`Has=true`, payload null) when the bump is removed.
+
+#### 🔴 `EntityIndex.SyncFrom` — **copied WHOLE, never version-gated** *(`CE-3067`, `2026-10-05`)*
+
+⛔ **SUPERSEDED premise:** the paragraph above says the entity index *"has no such escape — its versions never
+compare equal"*. 📐 **False.** Add/Remove component writes the mask through `GetComponentMask()` **without
+stamping** the chunk version, and `ApplyComponentFilter` bumps the **destination's** version by `+1` ⇒ when the
+source did exactly ONE entity create/destroy in a chunk since the capture, both sides read `V+1` and the mask chunk
+was **skipped**. Measured on a preview rewind: a unit kept the `BlueprintBlackboard1024` bit added during the
+preview (its data rewound to zeros) and lost the `256` bit ⇒ `BrainTickSystem` threw *"no ROOT TREE STATE slot"* —
+flaky, because it needed the create/destroy count to land on exactly one.
+⭐ **Now:** `EntityIndex.SyncFrom` calls `SyncDirtyChunks(source, force: true)` for both the masks and the
+metadata — the index is the structural truth every table read is gated on, so it is copied whole. Pinned by
+`Fdp.Tests.PreviewRewindComponentMaskTests`.
+
+⚠ **The unmanaged `ComponentTable<T>.ClearRaw` deliberately does nothing** — an unmanaged read is
+guarded by the mask, so stale bytes behind a cleared bit are harmless. ⛔ For a MANAGED component the
+payload *is* the presence, which is why only this tier needs the rule.
+
 #### `NativeChunkTable<T>` (class)
 
 Per-component virtual memory page table.
@@ -919,11 +957,15 @@ and registered in `GlobalComponentIds`. Collision detected at registration time.
 #### `DataPolicyAttribute` (class)
 
 ```csharp
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 ```
 
-Controls how the engine pipeline handles a component type: `NoSnapshot`, `SnapshotViaClone`,
-`NoRecord`, `NoSave`, or `Transient` (all three exclusions).
+Controls how the engine pipeline handles a component type: `NoPreview` (excluded from the live
+snapshot/rewind mask), `SnapshotViaClone`, `NoReplay` (excluded from the `.fdp` checkpoint
+recording), `NoScenario` (excluded from scenario-file persistence), or `Transient` (all three
+exclusions). The three exclusion bits are **independent** — a component may opt out of one context
+and stay in the others. *(Renamed `2026-09-14`, CE-275: `NoSnapshot`→`NoPreview`,
+`NoRecord`→`NoReplay`, `NoSave`→`NoScenario`.)*
 
 #### `EventIdAttribute` (class)
 

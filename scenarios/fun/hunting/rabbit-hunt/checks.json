@@ -1,0 +1,50 @@
+{
+  "$doc": "CE-4649 part D AN-21h - the rabbit hunt, one row per Judge line.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "at least two rabbits are flushed",
+      "on": "field",
+      "who": "*Rabbit",
+      "path": "AnimalState.Mode",
+      "op": "==",
+      "value": "Flee",
+      "quantifier": "atLeast:2"
+    },
+    {
+      "name": "at least three rounds at rabbits, after the dogs flushed them",
+      "on": "shot",
+      "by": "*Hunter",
+      "at": "*Rabbit",
+      "n": 3,
+      "after": "at least two rabbits are flushed"
+    },
+    {
+      "name": "a rabbit is killed",
+      "on": "field",
+      "who": "*Rabbit",
+      "path": "Health.Current",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "name": "never a round at a dog",
+      "never": {
+        "on": "shot",
+        "by": "*Hunter",
+        "at": "*Dog"
+      }
+    },
+    {
+      "name": "never a round at a hunter",
+      "never": {
+        "on": "shot",
+        "by": "*Hunter",
+        "at": "*Hunter"
+      }
+    }
+  ]
+}

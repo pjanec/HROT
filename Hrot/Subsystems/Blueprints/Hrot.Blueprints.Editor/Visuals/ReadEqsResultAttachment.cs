@@ -13,7 +13,8 @@ public sealed class ReadEqsResultAttachment : IAttachmentModel
     public AttachmentId Id { get; } = new(Guid.NewGuid());
     public NodeId HostNodeId { get; }
     public AttachmentCategory Category => AttachmentCategory.Custom;
-    public string? Glyph => "📊";
+    public string? Glyph => NodeEditor.Core.Widgets.Icons.Get("bp/eqs-result").Glyph;   // ⭐ U-3: the ONE icon map (CE-1063: a Font Awesome glyph, merged into the canvas faces)
+    public System.Numerics.Vector4? GlyphColor => NodeEditor.Core.Widgets.Icons.Get("bp/eqs-result").Color;
     public string? Label { get; private set; }
     public string? Tooltip => Label;
     public AttachmentState State { get; private set; }
@@ -27,7 +28,12 @@ public sealed class ReadEqsResultAttachment : IAttachmentModel
 
     public void Refresh(ReadEqsResultNode node)
     {
-        if (string.IsNullOrWhiteSpace(node.SensorVariableName))
+        if (node.UnitSensorKind != 0)   // ⭐ CE-3054 D — the unit's own sensor of a kind
+        {
+            Label = Hrot.Blueprints.Editor.NodeDrawers.EqsSensorSourcePicker.Describe(node.SensorVariableName, node.UnitSensorKind);
+            State = AttachmentState.Normal;
+        }
+        else if (string.IsNullOrWhiteSpace(node.SensorVariableName))
         {
             Label = "(no variable)";
             State = AttachmentState.Warning;

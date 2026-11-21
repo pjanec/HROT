@@ -163,6 +163,14 @@ namespace Fdp.Toolkit.Replication.Utilities
         /// </summary>
         public static void MarkDirty(EntityRepository repo, Entity entity, long descriptorOrdinal)
         {
+            // ⭐ F-11 / N-11 (CE-4474) — inside a per-entity parallel phase the mark is a follow-up, played serially after the phase in batch
+            //   order: EgressSignals grows one shared array and the publication state may be a first add (structural). Nothing reads the marks
+            //   before egress, which runs after the simulation.
+            if (ParallelReadCheck.Defers(repo))
+            {
+                ParallelReadCheck.CurrentBatch!.Later(MarkDirtyAfterPhase.Instance, entity, 0, descriptorOrdinal);
+                return;
+            }
             EgressPublicationState state;
             bool hadState = repo.HasManagedComponent<EgressPublicationState>(entity);
             if (hadState)
@@ -179,6 +187,13 @@ namespace Fdp.Toolkit.Replication.Utilities
             }
 
             state.DirtyDescriptors.Add(descriptorOrdinal);
+            EgressSignals.Dirty(repo, entity.Index);   // ⭐ CE-2407 H8 — the set edit moves no version; the visit gates read this
+        }
+
+        private sealed class MarkDirtyAfterPhase : Fdp.Core.Jobs.IPhaseFollowUp
+        {
+            public static readonly MarkDirtyAfterPhase Instance = new();
+            public void Apply(EntityRepository repo, Entity e, int code, long arg) => MarkDirty(repo, e, arg);
         }
 
         /// <summary>
@@ -187,6 +202,7 @@ namespace Fdp.Toolkit.Replication.Utilities
         /// </summary>
         public static void ForceMarkAllDirty(EntityRepository repo)
         {
+            EgressSignals.AllDirty(repo);   // ⭐ CE-2407 H3 — every gated translator scans everything next
             var view = (ISimulationView)repo;
             var query = view.Query().Build();
             foreach (var entity in query)

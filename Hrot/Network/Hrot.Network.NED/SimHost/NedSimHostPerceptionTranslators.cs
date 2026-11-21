@@ -10,6 +10,7 @@ using Hrot.Core.Network;
 using Fdp.ModuleHost;
 using Fdp.Network.Cyclone.Modules;
 using Fdp.Network.Cyclone.Systems;
+using Fdp.Core;
 
 namespace Hrot.Network.NED.SimHost;
 

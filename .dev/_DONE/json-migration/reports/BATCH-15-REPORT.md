@@ -23,7 +23,7 @@
 
 | Path | Description |
 |------|-------------|
-| `IOS-IG-SimHost.sln` | Added both new projects |
+| `HROT.sln` | Added both new projects |
 
 ### Fixture Files Stamped (43 total)
 
@@ -298,7 +298,7 @@ scenarios/test-fire/scenario.json
 scenarios/test-move/scenario.json
 ```
 
-(IOS-IG-SimHost.sln also modified — projects added.)
+(HROT.sln also modified — projects added.)
 
 ---
 

@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus  = new FdpEventBus();
             var ctrl = new SlaveSyncController(bus, 1, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             long expectedOffset = (masterTick + masterTick - 1L) / 2; // = 4_999_999
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 1L, NewOffset = expectedOffset });
@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus  = new FdpEventBus();
             var ctrl = new SlaveSyncController(bus, 1, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 200L, NewOffset = 5_000_000L });
             bus.SwapBuffers();
@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus  = new FdpEventBus();
             var ctrl = new SlaveSyncController(bus, 1, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             long trueOffset     = 5_000_000L;
             long rtt            = 400L;
@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = new FdpEventBus();
             var ctrl   = new SlaveSyncController(bus, 1, config, () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // RTT = 1001 > MaxRttTicks (500) → rejected by controller
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 1001L, NewOffset = 300_000L });
@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus  = new FdpEventBus();
             var ctrl = new SlaveSyncController(bus, 1, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Translator pre-computed: offset=300_000, RTT=0
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 300_000L });
@@ -137,14 +137,14 @@ namespace Fdp.Toolkit.Time.Tests
             var bus  = new FdpEventBus();
             var ctrl = new SlaveSyncController(bus, 1, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // First sync → hard-snap to 300_000
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 300_000L });
             bus.SwapBuffers();
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>(); // drain any follow-up request
+            bus.Read<TimeSyncProbeEvent>(); // drain any follow-up request
 
             // Second sync → newOffset = 310_000 → gentle steer
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 310_000L });

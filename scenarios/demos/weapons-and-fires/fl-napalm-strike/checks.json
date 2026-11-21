@@ -1,0 +1,68 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3487 FL-3 (flame weapons \u00a77b): napalm's fireball and its burning ground.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the A-10 releases the firebomb",
+      "on": "shot",
+      "by": "A-10 Napalm"
+    },
+    {
+      "name": "the firebomb bursts",
+      "on": "blast",
+      "by": "A-10 Napalm"
+    },
+    {
+      "name": "the fireball sets the three line men alight",
+      "on": "field",
+      "who": "*Line Man",
+      "quantifier": "all",
+      "path": "EffectState.BurningUntil",
+      "op": ">",
+      "value": 0,
+      "before": 60
+    },
+    {
+      "name": "the line men die",
+      "on": "field",
+      "who": "*Line Man",
+      "quantifier": "all",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 100
+    },
+    {
+      "name": "the Late Man is never set alight (the fireball missed him)",
+      "never": {
+        "on": "field",
+        "who": "Late Man",
+        "path": "EffectState.BurningUntil",
+        "op": ">",
+        "value": 0
+      }
+    },
+    {
+      "name": "the Late Man is burned by the ground fire",
+      "on": "field",
+      "who": "Late Man",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "before": 140
+    },
+    {
+      "name": "the Far Car is untouched",
+      "never": {
+        "on": "field",
+        "who": "Far Car",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 500
+      }
+    }
+  ]
+}

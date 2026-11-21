@@ -95,7 +95,7 @@ Run and include summary output for:
 1. `dotnet test Hrot/Subsystems/Hrot.Animation.Network.Integration.Tests/Hrot.Animation.Network.Integration.Tests.csproj -c Debug`
 2. `dotnet test Hrot/Subsystems/Hrot.Animation.Replication.Tests/Hrot.Animation.Replication.Tests.csproj -c Debug --no-build`
 3. `dotnet test Hrot/Subsystems/Hrot.MuscleCharacter.Animation.Stride.Tests/Hrot.MuscleCharacter.Animation.Stride.Tests.csproj -c Debug --no-build`
-4. `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4`
+4. `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4`
 
 ---
 

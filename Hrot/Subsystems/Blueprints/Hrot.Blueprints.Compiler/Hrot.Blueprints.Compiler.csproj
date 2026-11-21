@@ -17,6 +17,42 @@
     <InternalsVisibleTo Include="Hrot.Blueprints.Compiler.Tests" />
   </ItemGroup>
 
+  <!-- Q31-A: the v1⇄v2 transform, extracted so `Hrot.Common` can reach it without a cycle.
+       ⚠ UNCONDITIONAL, and that is the point: the netstandard2.0 target is the generator, which is
+       the one production reader that must be able to Down a v2 file. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Blueprints.Schema\Hrot.Blueprints.Schema.csproj" />
+  </ItemGroup>
+
+  <!-- ⭐⭐ O3a / B3② — THE TIER LADDER'S NUMBERS, LINKED (design §17.5, the BP-306 / A1 precedent).
+       ⛔ UNCONDITIONAL and that is the point: Stage2_Validate hard-coded the payload budgets
+       928 / 3936 / 16096 as literals because this project targets netstandard2.0 too and can only
+       reference Fdp.Toolkits under net8.0. A re-pick of MaxSlots would have silently desynced
+       compile-time validation from runtime capacity. The file is `internal` and const-only, so the
+       numbers travel across the wall and nothing else does. -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Blueprints\Shared\BlueprintTierLadder.cs"
+             Link="Compiler\Shared\BlueprintTierLadder.cs" />
+
+    <!-- CE-388 / Q74 D-F: ONE spelling of the HSM exit-cleanup id. This emitter REGISTERS the
+         cleanup thunk under it; HsmEmitCore BAKES the same id into the HSM blob; the generated
+         HsmActionRegistrar computes it for the C# route. Three producers, one formula, LINKED —
+         see the fuller note in Hrot.AiEditor.Persistence.csproj.
+         🔒 User ruling 2026-09-28: "no duplicating the HsmActionKey formula, must be shared."
+         ⛔ CE-403 measured what a disagreement costs: a lookup that misses with no error anywhere. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs"
+             Link="Compiler\Shared\HsmActionKey.cs" />
+    <!-- CE-2036: the ONE asset-id hash. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlueprintIdFnv.cs"
+             Link="Compiler\Shared\BlueprintIdFnv.cs" />
+    <!-- CE-2035: the ONE utility-id hash (ScoreDecision bakes a decision id). -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\UtilityIdHash.cs"
+             Link="Compiler\Shared\UtilityIdHash.cs" />
+    <!-- CE-2039: the ONE identifier sanitizer (Sanitizer.SanitizeName is its PascalJoin). -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\IdentifierSanitizer.cs"
+             Link="Compiler\Shared\IdentifierSanitizer.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     <PackageReference Include="System.Runtime.Loader" Version="4.3.0" />

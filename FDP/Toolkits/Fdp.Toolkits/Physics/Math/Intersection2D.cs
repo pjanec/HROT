@@ -70,5 +70,45 @@ namespace Fdp.Toolkit.Physics.Math
             t = 0f;
             return false;
         }
+
+        /// <summary>
+        /// ⭐ M1 (DESIGN_Armour_Hit_Model §2) — the part of the segment <paramref name="start"/>→<paramref name="end"/> (t ∈ [0, 1])
+        /// that lies INSIDE the circle: [<paramref name="tIn"/>, <paramref name="tOut"/>]. Unlike <see cref="RaycastCircle"/> it
+        /// answers a segment wholly inside (a round dropping onto a hull) and a vertical one (no horizontal length). False when the
+        /// segment never enters.
+        /// </summary>
+        public static bool SegmentInCircle(Vector2 start, Vector2 end, Vector2 center, float radius, out float tIn, out float tOut)
+        {
+            Vector2 d = end - start;
+            Vector2 f = start - center;
+            float a = Vector2.Dot(d, d);
+            float c = Vector2.Dot(f, f) - radius * radius;
+            tIn = 0f; tOut = 1f;
+            if (a < 1e-12f) return c <= 0f;   // no horizontal travel: inside the whole way, or never
+            float b = 2f * Vector2.Dot(f, d);
+            float disc = b * b - 4f * a * c;
+            if (disc < 0f) return false;
+            float sq = MathF.Sqrt(disc);
+            tIn  = MathF.Max(0f, (-b - sq) / (2f * a));
+            tOut = MathF.Min(1f, (-b + sq) / (2f * a));
+            return tIn <= tOut;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4622</c> K-1 (Checkpoint RM-1, KV-4) — the swept test's GROUND form, beside <see cref="SegmentInCircle"/> (the flyer's): a hull
+        /// rectangle (centre <paramref name="hullCentre"/> NOW, unit <paramref name="forward"/>, half length / width) that moved
+        /// <paramref name="travelled"/> metres forward this frame MEETS a circle (a person: centre, radius) when the circle overlaps the strip the
+        /// hull's FRONT swept — from where its front was to where it is (grown by the radius). A body the hull already overlapped is not met again
+        /// (it was met when the front reached it). <paramref name="along"/> = how far ahead of the hull's centre the contact lies.
+        /// </summary>
+        public static bool SweptFrontMeetsCircle(Vector2 hullCentre, Vector2 forward, float halfLength, float halfWidth, float travelled,
+                                                 Vector2 center, float radius, out float along)
+        {
+            var d = center - hullCentre;
+            along = d.X * forward.X + d.Y * forward.Y;
+            float side = -d.X * forward.Y + d.Y * forward.X;
+            if (MathF.Abs(side) > halfWidth + radius) return false;
+            return along <= halfLength + radius && along >= halfLength - MathF.Max(0f, travelled) - radius;
+        }
     }
 }

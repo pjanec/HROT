@@ -33,7 +33,7 @@ NOT part of this batch — they go to `Fdp.Presentation` in BATCH-03.
 - **Target new project:** `FDP/Toolkits/Fdp.Engine/Fdp.Engine.csproj`
 - **Target test project:** `FDP/Toolkits/Fdp.Engine.Tests/Fdp.Engine.Tests.csproj`
 - **FDP solution file:** `FDP/FDP.sln`
-- **Top-level solution file:** `IOS-IG-SimHost.sln`
+- **Top-level solution file:** `HROT.sln`
 
 ### Report Submission
 
@@ -250,21 +250,21 @@ Same pattern as BATCH-01:
 
 **Before starting:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 Confirm zero errors (baseline from BATCH-01).
 
 **After each task:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 Never leave the build broken.
 
 **Final verification:**
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP/Toolkits/Fdp.Engine.Tests/Fdp.Engine.Tests.csproj
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 ---

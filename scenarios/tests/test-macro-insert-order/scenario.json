@@ -1,0 +1,74 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: a TRIGGER inserts the 8-man platoon macro forces/red-qrf (a body-less platoon 'Red QRF', key @RedQRF, two 4-man squads) at the keyed Drop point at 3 s and ORDERS the platoon PlatoonAttack 60 m north. Judge: the platoon's roster holds its two squads, and the squads take tasks of the attack (a base of fire SquadDefend, then bounding) - the order reaches a macro-inserted chain of command. Found by the showcase Bridgehead live run (its QRF squads stayed Idle)."
+ },
+ "entities": {
+  "a1d00000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     150.0,
+     100.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 8803
+   },
+   "EntityInfo": {
+    "Name": "Drop point",
+    "ForceId": "Hostile"
+   },
+   "RefKey": {
+    "Value": "Drop"
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": -4,
+      "Y": -4
+     },
+     {
+      "X": -4,
+      "Y": 4
+     },
+     {
+      "X": 4,
+      "Y": 4
+     },
+     {
+      "X": 4,
+      "Y": -4
+     }
+    ],
+    "Version": 0
+   }
+  },
+  "a1d00000-0000-4000-8000-000000000002": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Reinforce and attack",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Origin": "Superior",
+    "Params": {"common": {"title": "Reinforce and attack"}, "when": {"$type": "ScenarioTime", "fromSeconds": 3}, "do": [{"act": "InsertMacro", "args": {"macro": "forces/red-qrf", "at": "@Drop", "heading": 0, "params": {"side": "Hostile"}}}, {"act": "Order", "args": {"target": "@RedQRF", "behavior": "PlatoonAttack", "params": {"Position": [150, 160, 0], "SearchRadius": 30, "Preset": "AttackPosition", "Speed": 3}}}]}
+   }
+  }
+ }
+}

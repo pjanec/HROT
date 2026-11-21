@@ -1,0 +1,125 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4664 (thermal drivers TD-S8): a crewed tank idles two minutes and drives off \u2014 one warm ground heat mark; a cold parked truck in the same cell leaves none.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the tank idles at its stand (a crewed vehicle starts Idle)",
+      "on": "field",
+      "who": "Tank",
+      "path": "HeatSource.State",
+      "op": "in",
+      "value": [
+        "Idle",
+        2
+      ],
+      "before": 100
+    },
+    {
+      "name": "the tank drives off after the order (Running)",
+      "on": "field",
+      "who": "Tank",
+      "path": "HeatSource.State",
+      "op": "in",
+      "value": [
+        "Running",
+        3
+      ],
+      "atEnd": true
+    },
+    {
+      "name": "... and has left its stand",
+      "on": "field",
+      "who": "Tank",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 320,
+      "atEnd": true
+    },
+    {
+      "name": "the cold truck drove off too",
+      "on": "field",
+      "who": "Cold Truck",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 320,
+      "atEnd": true
+    },
+    {
+      "name": "ONE heat mark is written where the tank stood (the cell's record, network id 1006 \u2014 measured: the 6th id, after the 3 authored entities and the world's)",
+      "on": "field",
+      "who": "1006",
+      "path": "GroundHeatMarks.Count",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "... a vehicle stand (Kind 1)",
+      "on": "field",
+      "who": "1006",
+      "path": "GroundHeatMarks.Kind.0",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "... at the tank's stand (300, 300)",
+      "on": "field",
+      "who": "1006",
+      "path": "GroundHeatMarks.X.0",
+      "op": "==",
+      "value": 300,
+      "atEnd": true,
+      "also": [
+        {
+          "path": "GroundHeatMarks.Y.0",
+          "op": "==",
+          "value": 300
+        }
+      ]
+    },
+    {
+      "name": "... a T-72's footprint, its hot end at the rear (HotEnd 2)",
+      "on": "field",
+      "who": "1006",
+      "path": "GroundHeatMarks.HotEnd.0",
+      "op": "==",
+      "value": 2,
+      "atEnd": true,
+      "also": [
+        {
+          "path": "GroundHeatMarks.Length.0",
+          "op": ">",
+          "value": 6
+        },
+        {
+          "path": "GroundHeatMarks.Width.0",
+          "op": ">",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "name": "... its engine ran there about two minutes",
+      "on": "field",
+      "who": "1006",
+      "path": "GroundHeatMarks.EngineOnSeconds.0",
+      "op": ">=",
+      "value": 100,
+      "atEnd": true
+    },
+    {
+      "name": "the cold truck in the same cell never adds a second mark",
+      "never": {
+        "on": "field",
+        "who": "1006",
+        "path": "GroundHeatMarks.Count",
+        "op": ">=",
+        "value": 2
+      }
+    }
+  ]
+}

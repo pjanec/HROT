@@ -1,0 +1,36 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Hull-down attack (CE-2230 H-5/H-6): pairs crest, fire one round and reverse. From the header's Judge (6) only: the platoon commander runs PlatoonHillAttack, the tanks fire, both T-72s die (the take's first shot comes at 210.7 s, so the run is long). (1)-(5) need a round's muzzle point, exposure spans and heading, none of which a shot row or a component carries; 300 s may be short for both kills. A platoon, so no golden.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the platoon runs PlatoonHillAttack",
+      "on": "task",
+      "who": "Hill Platoon",
+      "is": "PlatoonHillAttack"
+    },
+    {
+      "name": "a tank fires its first round",
+      "on": "shot",
+      "by": "*Tank"
+    },
+    {
+      "name": "Enemy Tank 1 dies",
+      "on": "field",
+      "who": "Enemy Tank 1",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "Enemy Tank 2 dies",
+      "on": "field",
+      "who": "Enemy Tank 2",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

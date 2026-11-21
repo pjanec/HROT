@@ -19,7 +19,7 @@
 
 ## 🧪 2. Validation Outputs
 
-### Final `dotnet build IOS-IG-SimHost.sln` (last 10 lines)
+### Final `dotnet build HROT.sln` (last 10 lines)
 
 ```
   Hrot.ClusterRunner.Integration.Tests -> ...\Hrot.ClusterRunner.Integration.Tests\bin\Debug\net8.0\...dll
@@ -190,6 +190,6 @@ migration of `EyesAndMuscleSubsystem` to use `.WithReplication()` is out of scop
 - [x] `HrotNodeBuilderReplicationExtensions.cs` + `HrotNodeBuilderWithReplication.cs` exist in `Hrot.Network/Infrastructure/` (S202)
 - [x] Design-correct guard: calling `.Build()` without `.WithReplication()` returns null `NedReplication` (type-level enforcement via wrapper pattern) (S202)
 - [x] `CgfSubsystem._nedReplicationModule` field deleted; builder uses `.WithReplication(NodeRole.Brain)` (S401)
-- [x] `dotnet build IOS-IG-SimHost.sln` succeeds — 0 errors
+- [x] `dotnet build HROT.sln` succeeds — 0 errors
 - [x] All pre-existing test suite results unchanged (no new failures) — 124 ClusterRunner.Tests pass; 4 CgfComponentRegistryTests pass
 - [x] Report submitted to `.dev/mod-init/reports/BATCH-02-REPORT.md`

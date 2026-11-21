@@ -1,0 +1,356 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: Air Ops slice 3c (CE-2223) - a doors-off UH-60 flies the 'Insertion route' on test-town carrying a six-man air assault squad (Leader, Rifleman 1-5) to a landing zone at (190, 340); the squad's SOP rides, dismounts on landing, and its SquadMarch order resumes toward an objective at (200, 195). Judge: (1) the helicopter lands within 10 m of the LZ (phase Unloading) and nobody leaves it while still in the air (2) all six dismount at the LZ (3) the helicopter lifts off (30 m+ from the LZ) only after the last man is out (4) the squad's centre ends within 15 m of the objective. Fail: a man jumps out airborne, the helicopter leaves with men aboard, or the squad stays at the LZ. Check: python3 scripts/utility-demo-check.py --launch ua-air-assault"
+  },
+  "entities": {
+    "a2173300-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 404
+      },
+      "EntityInfo": {
+        "Name": "UH-60 (doors off)",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": {"routeEntityId":"a2173300-0000-4000-8000-000000000002","Speed":15},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 6,
+        "Passengers": [
+          "a2173300-0000-4000-8000-000000000010",
+          "a2173300-0000-4000-8000-000000000011",
+          "a2173300-0000-4000-8000-000000000012",
+          "a2173300-0000-4000-8000-000000000013",
+          "a2173300-0000-4000-8000-000000000014",
+          "a2173300-0000-4000-8000-000000000015"
+        ],
+        "Seats": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      }
+    },
+    "a2173300-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Air assault squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {"Objective": [200, 195, 0], "Shape": 0, "Spacing": 4},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2173300-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173300-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173300-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "a2173300-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173300-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "a2173300-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173300-0000-4000-8000-000000000001",
+        "Seat": 2
+      }
+    },
+    "a2173300-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173300-0000-4000-8000-000000000001",
+        "Seat": 3
+      }
+    },
+    "a2173300-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173300-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "a2173300-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173300-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173300-0000-4000-8000-000000000001",
+        "Seat": 5
+      }
+    },
+    "a2173300-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          190,
+          340,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Insertion route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 190,
+            "Y": 340,
+            "Z": 0,
+            "TargetSpeed": 10,
+            "HeightAgl": 0,
+            "Hold": "Unload"
+          },
+          {
+            "X": 380,
+            "Y": 390,
+            "Z": 0,
+            "TargetSpeed": 30,
+            "HeightAgl": 40
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}

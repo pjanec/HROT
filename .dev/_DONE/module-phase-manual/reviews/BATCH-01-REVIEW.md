@@ -40,8 +40,8 @@ All three tasks completed correctly. Build succeeds with zero errors. The develo
 **Status: PASS**
 
 - All specified files and directories deleted.
-- Both `FDP/FDP.sln` and `IOS-IG-SimHost.sln` updated (project blocks + `ProjectConfigurationPlatforms` + `NestedProjects`).
-- Full build: `IOS-IG-SimHost.sln` succeeds with zero errors.
+- Both `FDP/FDP.sln` and `HROT.sln` updated (project blocks + `ProjectConfigurationPlatforms` + `NestedProjects`).
+- Full build: `HROT.sln` succeeds with zero errors.
 - Unspecified fix applied correctly: `Hrot.IG.Tests.csproj` reference redirected from deleted NetworkDemo to `Fdp.Examples.Common`. 5 `TransformSyncSystem` tests continue to pass.
 
 ---
@@ -49,7 +49,7 @@ All three tasks completed correctly. Build succeeds with zero errors. The develo
 ## Build Verification
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 Build succeeded. 0 errors.
 ```
 
@@ -84,7 +84,7 @@ These are tracked as P3 tech debt below.
 ## Developer Insights Extracted
 
 - **Hidden test coupling discovered:** `Hrot.IG.Tests` was incorrectly depending on `Fdp.Examples.NetworkDemo` (an example project) instead of `Fdp.Examples.Common` (the canonical library). Deletion exposed the fragile dependency. Fixed by redirecting. Future batches should not introduce test → example-project couplings.
-- **GUID uniqueness in SLN files confirmed:** `IOS-IG-SimHost.sln` has a separate `Hrot.Examples.NetworkDemo` project (different GUIDs) which was correctly preserved.
+- **GUID uniqueness in SLN files confirmed:** `HROT.sln` has a separate `Hrot.Examples.NetworkDemo` project (different GUIDs) which was correctly preserved.
 - **CRLF handling in SLN PowerShell editing:** Developer needed `\r?\n` patterns for robust multi-line block removal from SLN files on Windows.
 
 ---
@@ -113,9 +113,9 @@ MPM-P1-T03: Delete AutoCycloneTranslators, ReplicationBootstrap, NetworkDemo
 - Delete ReplicationBootstrap.cs, FdpDescriptorAttribute.cs
 - Delete AutoCycloneTranslatorTests.cs
 - Delete Fdp.Examples.NetworkDemo/ and Fdp.Examples.NetworkDemo.Tests/
-- Remove deleted projects from FDP/FDP.sln and IOS-IG-SimHost.sln
+- Remove deleted projects from FDP/FDP.sln and HROT.sln
 - Redirect Hrot.IG.Tests from deleted NetworkDemo to Fdp.Examples.Common
 
-Build: IOS-IG-SimHost.sln succeeds with 0 errors
+Build: HROT.sln succeeds with 0 errors
 Tests: Fdp.Network.Cyclone.Tests 40/40 passed
 ```

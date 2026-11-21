@@ -48,7 +48,7 @@ namespace CarKinem.Commands
             var params_ = parameters ?? new FormationParams
             {
                 Spacing = 5.0f,
-                WedgeAngleRad = 0.52f,  // ~30 degrees
+                WedgeAngleRad = (Fdp.Core.Angle)(0.52f),  // ~30 degrees
                 MaxCatchUpFactor = 1.2f,
                 BreakDistance = 50.0f,
                 ArrivalThreshold = 2.0f,

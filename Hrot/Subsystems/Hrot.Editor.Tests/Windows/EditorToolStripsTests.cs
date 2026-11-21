@@ -1,0 +1,260 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Presentation.WindowManager;
+using Fdp.Toolkit.Terrain;
+using Hrot.Common.Constants;
+using Hrot.Common.Interactions;
+using Hrot.Editor.UiFrameRail;
+using Hrot.Editor.Windows;
+using Hrot.Map.Common;
+using Hrot.ScenarioEditor.Tools;
+using Hrot.UI.Common.AddEntity;
+using Hrot.UI.Common.Facades;
+using Moq;
+using Xunit;
+
+namespace Hrot.Editor.Tests.Windows;
+
+/// <summary>
+/// ⭐ CE-5006 W2 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-1 / TE-17 / TE-19) — the editor's two tool strips (Scenario tools, Terrain) that replaced the Editor Toolbar: their entries and what each member runs, the armed-tool-is-lit rule
+/// (Tool Model step 5 / UXR-84, ported from the old toolbar), the Terrain strip's key to <see cref="TerrainLock"/>, and a real frame of both orientations.
+/// </summary>
+[Collection(PanelSnapshotTestCollection.Name)]
+public sealed class EditorToolStripsTests : IDisposable
+{
+    private readonly EntityRepository _world = new();
+    private string? _armed;
+    private readonly List<(int Action, object? View, Entity Target)> _ran = new();
+
+    public void Dispose() => _world.Dispose();
+
+    private ScenarioToolsWindow Scenario()
+    {
+        var reg = new GlobalActionRegistry();
+        foreach (var id in new[] { GlobalActionIds.AddEntityFriendly, GlobalActionIds.AddEntityHostile, GlobalActionIds.AddEntityNeutral, GlobalActionIds.AddMapGraphic, GlobalActionIds.Measure })
+        {
+            int captured = id;
+            reg.Register(id, (v, t) => _ran.Add((captured, v, t)));
+        }
+        return new ScenarioToolsWindow(() => reg, () => _world, () => _armed);
+    }
+
+    private (TerrainToolsWindow Window, Mock<ISpawnController> Spawn) Terrain(EntityRepository? world = null)
+    {
+        var spawn = new Mock<ISpawnController>();
+        var w = new TerrainToolsWindow(() => world ?? _world, () => spawn.Object, () => _armed, TerrainPickCatalog.FeaturePicks(),
+            new[] { ("street-clutter", "Street clutter", 1.5f), ("undergrowth", "Undergrowth", 2f) });
+        return (w, spawn);
+    }
+
+    // ── Scenario tools ──────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The strip has ONE family, Add Entity (Friendly · Hostile · Neutral · Map graphic), and Measure; each member runs ITS existing handler (203…206, 200) from the host registry with the editor's world and no target. 🔴 Red-proof: map Hostile to 203 ⇒ red.</summary>
+    /// <summary>⭐ CE-1977 — with the host's disarm, a strip's SELECT tile (first) is lit while no tool is armed and its click disarms; a click on a LIT tool's
+    /// icon turns the tool off instead of running it again; an unlit icon runs its tool. 🔒 User, 2026-11-18: "The new arrow icon on the very left of the
+    /// toolbar is a great idea. Clicking the tool icon again to deactivate it is also approved." ✅ Red-proof: FaceClicked ignoring <c>lit</c> ⇒ red.</summary>
+    [Fact]
+    public void CE1977_TheSelectTile_AndAClickOnTheLitTool_DisarmIt()
+    {
+        var w = Scenario();
+        int disarmed = 0;
+        bool armed = false;
+        w.DisarmTool = () => { disarmed++; armed = false; };
+        w.AnyToolArmed = () => armed;
+        Assert.True(w.SelectEntry.IsLit!());                                  // nothing armed: Select is lit
+        armed = true;
+        Assert.False(w.SelectEntry.IsLit!());
+        ToolStripWindow.FaceClicked(w.SelectEntry, false, null);              // the Select tile's own click
+        Assert.Equal(1, disarmed);
+        var measure = w.StripEntries[1];
+        _ran.Clear();
+        ToolStripWindow.FaceClicked(measure, lit: true, w.DisarmTool);        // Measure is the lit one: off
+        Assert.Equal(2, disarmed);
+        Assert.Empty(_ran);
+        ToolStripWindow.FaceClicked(measure, lit: false, w.DisarmTool);       // not lit: it arms
+        Assert.Equal(new[] { 200 }, _ran.Select(r => r.Action).ToArray());
+    }
+
+    /// <summary>⭐ CE-1965 — a dropdown entry IS the shared split button (the main toolbar's): picking from its menu makes that member the face, and the
+    /// face's click (<c>Pick(Selected)</c>) runs it again. 🔒 User, 2026-11-17: "whatever I click in the menu it will be remembered for the next click of the icon".</summary>
+    [Fact]
+    public void CE1965_TheFaceRunsTheMemberChosenLast()
+    {
+        var w = Scenario();
+        var add = w.StripEntries[0];
+        add.Pick(2);                                                          // chosen from the menu
+        _ran.Clear();
+        add.Pick(add.Selected);                                               // what the face's click does
+        Assert.Equal(new[] { 205 }, _ran.Select(r => r.Action).ToArray());     // the same member again
+    }
+
+    [Fact]
+    public void TheScenarioStrip_HasAddEntityAndMeasure_AndEachMemberRunsItsOwnHandler()
+    {
+        var w = Scenario();
+        Assert.Equal(new[] { "##ts_add_entity", "##ts_measure" }, w.StripEntries.Select(e => e.Id).ToArray());
+        var add = w.StripEntries[0];
+        Assert.Equal(new[] { "Friendly", "Hostile", "Neutral", "Map graphic" }, add.Family!.Select(m => m.Label).ToArray());
+        Assert.True(w.IsOpen);   // open by default
+        for (int i = 0; i < 4; i++) add.Pick(i);
+        w.StripEntries[1].OnClick!();
+        Assert.Equal(new[] { 203, 204, 205, 206, 200 }, _ran.Select(r => r.Action).ToArray());
+        Assert.All(_ran, r => { Assert.Same(_world, r.View); Assert.True(r.Target.IsNull); });
+        Assert.Equal(3, add.Selected);   // the picked member is now the face
+    }
+
+    /// <summary>🔒 The armed-tool rule, ported from the old toolbar: Add Entity is lit while the Spawn tool is the armed one, Measure while Measure is; with Select (or nothing) armed neither is. 🔴 Red-proof: IsLit always false ⇒ red.</summary>
+    [Fact]
+    public void TheArmedToolIsLit_OnTheScenarioStrip()
+    {
+        var w = Scenario();
+        _armed = ScenarioToolIds.Spawn;   Assert.Equal((true, false), (w.StripEntries[0].IsLit!(), w.StripEntries[1].IsLit!()));
+        _armed = ScenarioToolIds.Measure; Assert.Equal((false, true), (w.StripEntries[0].IsLit!(), w.StripEntries[1].IsLit!()));
+        _armed = ScenarioToolIds.Select;  Assert.Equal((false, false), (w.StripEntries[0].IsLit!(), w.StripEntries[1].IsLit!()));
+        _armed = null;                    Assert.Equal((false, false), (w.StripEntries[0].IsLit!(), w.StripEntries[1].IsLit!()));
+    }
+
+    // ── Terrain strip ───────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The Terrain strip's families and their members, in order; it is CLOSED by default. 🔴 Red-proof: drop Hedge from the Walls filter ⇒ red.</summary>
+    [Fact]
+    public void TheTerrainStrip_HasTheSevenFamilies_AndIsClosedByDefault()
+    {
+        var (w, _) = Terrain();
+        Assert.False(w.IsOpen);
+        string[] Names(string id) => w.StripEntries.Single(e => e.Id == "##ts_t_" + id).Family!.Select(m => m.Label).ToArray();
+        Assert.Equal(new[] { "wood", "trees", "walls", "obstacles", "earthworks", "buildings", "water", "scatter" }, w.StripEntries.Select(e => e.Id["##ts_t_".Length..]).ToArray());   // ⭐ CE-5030 the Buildings family
+        Assert.Equal(new[] { "Remove building", "Make enterable", "Add door" }, Names("buildings"));
+        Assert.Equal(new[] { "Wood", "Scrub" }, Names("wood"));
+        Assert.Equal(new[] { "Tree", "Tree row", "Tree group" }, Names("trees"));   // ⭐ CE-5008 (TE-3): One · Row · Group
+        Assert.Equal(new[] { "Wall", "Wall around a plot", "Fence", "Hedge" }, Names("walls"));   // ⭐ CE-5012 (TE-7) added the closed-wall pick
+        // ⭐ CE-5008 (TE-5): every obstacle type of the ONE table, then the row tool (the table grows — 📐 water- and sand-filled barrels arrived; a hard-coded list went stale)
+        Assert.Equal(TerrainToolsWindow.ObstacleMembers.Select(o => o.Label).Append("Row of obstacles…").ToArray(), Names("obstacles"));
+        Assert.Contains("Sandbag wall", Names("obstacles"));
+        Assert.Contains("Level", Names("earthworks")); Assert.DoesNotContain("Crater", Names("earthworks"));   // the disabled pick is not offered
+        Assert.Equal(new[] { "Water", "Bridge" }, Names("water"));
+        Assert.Equal(new[] { "Street clutter", "Undergrowth" }, Names("scatter"));
+        Assert.All(w.StripEntries.SelectMany(e => e.Family!), m => Assert.False(string.IsNullOrEmpty(m.Glyph.Glyph)));
+    }
+
+    /// <summary>What a member arms: a line feature is DRAWN (the area tool, its spec in the style JSON), a tree is one click, an obstacle is placed as an ENTITY of its TKB type (R-4264), a scatter member names its recipe. 🔴 Red-proof: obstacles armed as features ⇒ red.</summary>
+    [Fact]
+    public void TheTerrainMembers_ArmTheRightTool()
+    {
+        var (w, spawn) = Terrain();
+        ToolStripEntry E(string id) => w.StripEntries.Single(e => e.Id == "##ts_t_" + id);
+        E("walls").Pick(0);
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:2:"))), Times.Once);
+        E("trees").Pick(0);
+        spawn.Verify(s => s.StartPlacementMode(TkbEntityTypes.TerrainFeature, It.IsAny<string?>()), Times.Once);
+        E("obstacles").Pick(1);
+        spawn.Verify(s => s.StartPlacementMode(TkbEntityTypes.Obstacle_SandbagWall, null), Times.Once);
+        E("trees").Pick(1);   // ⭐ CE-5008 — the tree Row is DRAWN (a line), the Group too
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:14:tree:Line"))), Times.Once);
+        E("trees").Pick(2);
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:15:tree:Area"))), Times.Once);
+        E("obstacles").Pick(TerrainToolsWindow.ObstacleMembers.Count());   // the obstacle ROW (the last member): a line tool whose spec is the row's, never a terrain feature
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains(ObstacleRowOptions.Spec))), Times.Once);
+        E("scatter").Pick(1);
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("undergrowth"))), Times.Once);
+        E("buildings").Pick(1);   // ⭐ CE-5030 — a building edit is ONE click (a point), its action in the spec
+        spawn.Verify(s => s.StartPlacementMode(TkbEntityTypes.TerrainFeature, It.Is<string?>(j => j != null && j.Contains("feature:16:enterable:Point"))), Times.Once);
+        Assert.Equal(1, E("scatter").Selected);
+    }
+
+    /// <summary>Lit = the family this strip armed last AND a tool still armed. 🔴 Red-proof: ignore the active tool ⇒ stays lit after the tool ends ⇒ red.</summary>
+    [Fact]
+    public void ATerrainFamily_IsLit_WhileItsToolIsArmed()
+    {
+        var (w, _) = Terrain();
+        var walls = w.StripEntries.Single(e => e.Id == "##ts_t_walls"); var water = w.StripEntries.Single(e => e.Id == "##ts_t_water");
+        _armed = ScenarioToolIds.Spawn;
+        Assert.False(walls.IsLit!());                     // nothing armed by this strip yet
+        walls.Pick(0);
+        Assert.Equal((true, false), (walls.IsLit!(), water.IsLit!()));
+        _armed = null;
+        Assert.False(walls.IsLit!());                     // the tool ended
+        _armed = ScenarioToolIds.Select;
+        Assert.False(walls.IsLit!());
+    }
+
+    /// <summary>
+    /// 🔑 THE KEY — ONE per-frame rule: placed terrain is selectable on the editor's CURRENT world only while the Terrain strip is open AND its perspective is the active one. Open + Scenario ⇒ unlocked; another perspective ⇒ locked; back ⇒ unlocked;
+    /// closed ⇒ locked; a reloaded world is followed. 🔴 Red-proof: drop the <c>BelongsTo</c> term ⇒ the other-perspective assert fails; always <c>false</c> ⇒ the open asserts.
+    /// </summary>
+    [Fact]
+    public void TheTerrainLock_FollowsOpenAndThePerspective_OnTheCurrentWorld()
+    {
+        var first = new EntityRepository(); var second = new EntityRepository();
+        try
+        {
+            EntityRepository current = first;
+            var w = new TerrainToolsWindow(() => current, () => null, () => _armed, TerrainPickCatalog.FeaturePicks(), Array.Empty<(string, string, float)>());
+            w.UpdateLock("Scenario");
+            Assert.False(TerrainLock.IsOpen(first));                 // closed by default
+            w.IsOpen = true;
+            w.UpdateLock("Scenario"); Assert.True(TerrainLock.IsOpen(first));
+            w.UpdateLock("Review");   Assert.False(TerrainLock.IsOpen(first));   // open, but its perspective is not the active one
+            w.UpdateLock("Scenario"); Assert.True(TerrainLock.IsOpen(first));
+            current = second;                                        // a reload swaps the world
+            w.UpdateLock("Scenario"); Assert.True(TerrainLock.IsOpen(second));
+            w.IsOpen = false;
+            w.UpdateLock("Scenario"); Assert.False(TerrainLock.IsOpen(second));
+        }
+        finally { first.Dispose(); second.Dispose(); }
+    }
+
+    /// <summary>A narrow tool strip draws no pin in its title bar (it would cover the title); the title stays "Terrain".</summary>
+    [Fact]
+    public void AToolStrip_HasNoTitleBarPin_AndKeepsItsTitle()
+    {
+        var (w, _) = Terrain();
+        Assert.Equal("Terrain", w.Title);
+        Assert.False((bool)typeof(ToolStripWindow).GetProperty("ShowPinButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(w)!);
+    }
+
+    /// <summary>A real frame of both strips: the Scenario strip wide ⇒ a ROW, the Terrain strip tall ⇒ a COLUMN (and a screenshot when <c>HROT_RAIL_SHOTS</c> names a folder). 🔴 Red-proof: flip the orientation test in <c>ToolStripLayout.Compute</c> ⇒ red.</summary>
+    [SkippableFact]
+    public void TheStrips_DrawInARowWhenWide_AndAColumnWhenTall()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var scenario = Scenario(); var (terrain, _) = Terrain(); terrain.IsOpen = true;
+        foreach (var strip in new ToolStripWindow[] { scenario, terrain }) { strip.DisarmTool = () => { }; strip.AnyToolArmed = () => _armed != null; }   // ⭐ CE-1977 — the Select tile first
+        terrain.StripEntries.Single(e => e.Id == "##ts_t_walls").Pick(0); _armed = ScenarioToolIds.Spawn;   // Walls lit, as in panel A
+        using var frame = UiFrameHarness.Begin();
+        frame.StepN(3, () =>
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(20, 20), ImGuiNET.ImGuiCond.Always); ImGuiNET.ImGui.SetNextWindowSize(new Vector2(320, 70), ImGuiNET.ImGuiCond.Always);
+            scenario.Render("Scenario", null!);
+            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(20, 120), ImGuiNET.ImGuiCond.Always); ImGuiNET.ImGui.SetNextWindowSize(new Vector2(70, 360), ImGuiNET.ImGuiCond.Always);
+            terrain.Render("Scenario", null!);
+        });
+        Assert.Equal(ToolStripOrientation.Row, scenario.LastOrientation);
+        Assert.Equal(ToolStripOrientation.Column, terrain.LastOrientation);
+        // ⭐ CE-1965 — every dropdown is the SHARED split button: a square face and a narrow ▾ bar to its right — two hit zones, never overlapping, the bar
+        //   as tall as the face and as wide as SplitArrow.BarWidth — in the row strip and the column strip alike; and the next icon never sits on the bar.
+        //   🔒 User, 2026-11-18: "Will the icon and the vertical bar on the right be separated hit zones?" 🔴 Red-proof: the old corner ▾ (no bar) ⇒ red.
+        int splits = 0;
+        foreach (var entries in new[] { scenario.StripEntries, terrain.StripEntries })
+        {
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var e = entries[i];
+                if (e.Family is not { Count: > 0 }) continue;
+                splits++;
+                var (fMin, fMax) = e.LastFace; var (bMin, bMax) = e.LastBar;
+                Assert.True(fMax.X <= bMin.X, $"{e.Id}: the bar is right of the face, not on it ({fMax.X} > {bMin.X})");
+                Assert.InRange(bMin.X - fMax.X, 0f, 2f);                                          // side by side
+                Assert.Equal(fMax.Y - fMin.Y, bMax.Y - bMin.Y, 1);                                // one height
+                Assert.Equal(fMin.Y, bMin.Y, 1);
+                Assert.InRange(bMax.X - bMin.X, Fdp.Presentation.Icons.SplitArrow.BarWidth * 0.8f, Fdp.Presentation.Icons.SplitArrow.BarWidth * 1.2f);   // the shared bar, scaled with the font
+                Assert.InRange(fMax.X - fMin.X, (fMax.Y - fMin.Y) * 0.9f, (fMax.Y - fMin.Y) * 1.3f);   // the face is (about) square
+            }
+        }
+        Assert.True(splits >= 2, "both strips have a dropdown");
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "tool-strips.png"));
+    }
+}

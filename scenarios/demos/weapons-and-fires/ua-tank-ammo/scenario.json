@@ -1,0 +1,184 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: Basic-desert, north of a 210 m ridge: one friendly M1 (\"Tank\", BasicVehicleSop) faces an idle enemy T-72 (\"Enemy Tank\", 240 m), an HMG technical (\"Technical\", 230 m) and two riflemen advancing on it (\"Rifleman 1\"/\"Rifleman 2\", 230 m). Shows the weapon brain choosing the round by target (A7/A8). Judge: (1) the M1 fires at the T-72, the technical and the riflemen (all three kinds hit as targets) (2) the round against the tank penetrates more (kinetic APFSDS) than any round fired at the soft targets (HE / HEAT). Fail: the M1 fires at fewer than three target kinds, or the same round goes at tank and soft targets. Check: python3 scripts/utility-demo-check.py --launch ua-tank-ammo"
+  },
+  "entities": {
+    "a2200d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          280,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          520,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Enemy Tank",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          120,
+          430,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 104
+      },
+      "EntityInfo": {
+        "Name": "Technical",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 300,
+        "Max": 300
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          470,
+          440,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"target":"a2200d00-0000-4000-8000-000000000001","assault":true},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          478,
+          446,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"target":"a2200d00-0000-4000-8000-000000000001","assault":true},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

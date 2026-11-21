@@ -32,7 +32,7 @@
 ```powershell
 dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj" -c Debug
 dotnet test "Hrot/Subsystems/AI/Hrot.Hsm.Editor.Tests/Hrot.Hsm.Editor.Tests.csproj" -c Debug
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ### Report Submission
@@ -268,7 +268,7 @@ Actually: DON'T add a trivial test. The test coverage for D-16 is already provid
 - [ ] D-07: 1 new test in `HsmComparisonSanitizerTests` passes
 - [ ] D-16: `VariablesPanelControl.DrawSingle` + `DrawDual` accept optional `Func<string, FieldDecoration?>` callback; `BlackboardAuthoringWindow` passes callback from session; old separate section removed; full build 0 errors
 - [ ] All existing tests still pass (no regressions)
-- [ ] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
+- [ ] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
 - [ ] Report submitted to `.dev\visual-asset-comparison\reports\BATCH-08-REPORT.md`
 
 ---

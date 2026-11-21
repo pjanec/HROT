@@ -8,6 +8,7 @@ using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Events;
 using Fdp.Toolkit.Blueprints.Partitioning;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 
 namespace Hrot.Blueprints.Editor.EntityBlueprints;
@@ -17,6 +18,9 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     private readonly EntityBlueprintsEditModel _model;
     private readonly EntityRepository _world;
     private readonly BlueprintRegistry _registry;
+
+    /// <summary>⭐ CE-1326 — opens a blueprint's graph live on a unit (the host's: the Brain tab's controller); null = no button.</summary>
+    public static Action<string, Entity>? OpenGraph { get; set; }
     private readonly Func<Entity?>? _entityResolver;
     private bool _isRunning;
     private Entity? _lastEntity;
@@ -33,15 +37,46 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _entityResolver = entityResolver;
+
+        // ⭐⭐⭐ U1b — DECLARED AT CONSTRUCTION, ALWAYS, and NOT gated on CaptureEnabled.
+        //    ⛔ A panel whose window is never opened never draws; if instrumentation were declared by
+        //      DRAWING, this panel would be indistinguishable from one nobody has converted ⇒ the
+        //      reader could not tell "showed nothing" from "not instrumented". 📌 That is the false
+        //      green the opt-in registry exists to prevent.
+        PanelSnapshot.DeclareInstrumented(PanelIds.EntityBlueprints);
     }
 
     public bool IsRunning { get => _isRunning; set => _isRunning = value; }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>U-obs-1</c>: BUILD · CAPTURE · RENDER.</b>
+    /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    ///
+    /// <para>⚠⚠ <b>ONE DEVIATION FROM §Example's ORDER, and it is deliberate — capture happens BEFORE the
+    /// ImGui-context guard, not after the render.</b> 📐 §Example shows build → render → capture, which
+    /// would make the dump <b>depend on a live GPU context</b> ⇒ ⛔ a headless run would observe nothing.
+    /// ⭐ That defeats the umbrella purpose *(<c>DESIGN_Headless_Testability.md</c> — this programme is the
+    /// step that makes the UI checkable WITHOUT a display)*. ⇒ ⭐⭐ <b>the model is the panel's truth
+    /// whether or not anyone paints it</b>, so it is published first.</para>
+    /// </summary>
     public override void DrawUI()
     {
-        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        var vm = BuildViewModel();
 
-        // Resolve entity selection
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        Render(vm);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>A pure-ish projection of current state into the model the draw reads.</b>
+    /// ⚠ "Pure-ish": it still RESOLVES the selected entity and refreshes reality, because those ARE how the
+    /// panel learns what it is showing — ⛔ they were in the draw before and they are state ACQUISITION,
+    /// not rendering.
+    /// </summary>
+    public EntityBlueprintsViewModel BuildViewModel()
+    {
         if (_entityResolver != null)
         {
             var selected = _entityResolver();
@@ -54,50 +89,129 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
         if (!_model.HasValidEntity)
         {
-            ImGui.TextDisabled("No entity selected. Select an entity on the map to edit its blueprints.");
-            return;
+            return new EntityBlueprintsViewModel
+            {
+                HasEntity    = false,
+                EmptyMessage = "No entity selected. Select an entity on the map to edit its blueprints.",
+            };
         }
 
         _model.RefreshReality();
 
-        ImGui.Text("Entity Blueprints");
-        ImGui.Separator();
-        ImGui.Text(_isRunning ? "Sim: Running" : "Sim: Paused");
-        ImGui.Text($"Current tier: {_model.GetCurrentTier()}");
-
         var proj = _model.ComputeProjection();
-        DrawProjectionBar(proj);
-        ImGui.Separator();
 
-        // + Add button with popup
+        var addOptions = new List<EntityBlueprintAddOption>();
+        foreach (var (id, def) in _registry.GetAll())
+        {
+            if (def.Kind != BlueprintDispatchKind.Instance) continue;
+
+            bool inReality  = _model.Reality.Any(s => s.BlueprintId == id);
+            bool inAdds     = _model.StagedAdds.Contains(def.AssetId);
+            bool inRemoves  = _model.StagedRemoves.Contains(def.AssetId);
+
+            if (inReality && !inRemoves)
+                addOptions.Add(new EntityBlueprintAddOption($"{def.Name} (attached)", "attached", def.AssetId, id.ToString()));
+            else if (inAdds)
+                addOptions.Add(new EntityBlueprintAddOption($"{def.Name} (staged)", "staged", def.AssetId, id.ToString()));
+            else
+                addOptions.Add(new EntityBlueprintAddOption(def.Name, "selectable", def.AssetId, id.ToString()));
+        }
+
+        var rows = new List<EntityBlueprintRow>();
+        // ⭐ CE-1326 — only the BLUEPRINTS: the unit's task / SOP / hosted children keep their own slots in the same store (they count
+        //   toward its capacity, above), but they are no blueprints. 🔴 They were listed as "0x7C4ED832 · Active · Remove".
+        foreach (var slot in _model.Reality.Where(s => s.Kind == Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint))
+        {
+            bool isRemoved = _model.StagedRemoves.Contains(slot.AssetId);
+            rows.Add(new EntityBlueprintRow(
+                Name:        slot.Name,
+                Status:      isRemoved ? "Remove pending" : "Active",
+                Emphasis:    isRemoved ? "warning" : "none",
+                ActionLabel: isRemoved ? "Restore" : "Remove",
+                AssetId:     slot.AssetId,
+                ActionScope: slot.BlueprintId.ToString(),
+                Memory:      $"{slot.PayloadSize} B"));
+        }
+
+        // ⚠ Iterate a COPY — the render's Cancel button mutates StagedAdds, and the original code took
+        //   this copy for that reason. Building the model early does not remove the need for it.
+        foreach (var assetId in _model.StagedAdds.ToList())
+        {
+            if (_model.Reality.Any(s => s.AssetId == assetId)) continue;
+
+            rows.Add(new EntityBlueprintRow(
+                Name:        _model.GetBlueprintName(assetId) ?? $"0x{BlueprintIdHash.Compute(assetId):X8}",
+                Status:      "Add pending",
+                Emphasis:    "success",
+                ActionLabel: "Cancel",
+                AssetId:     assetId,
+                ActionScope: $"add_{BlueprintIdHash.Compute(assetId):X8}"));
+        }
+
+        bool hasChanges = _model.HasStagedChanges;
+
+        return new EntityBlueprintsViewModel
+        {
+            HasEntity        = true,
+            ProjectionLabel  = ProjectionLabelOf(proj),
+            ShowProjection   = proj.Status == UsageStatus.OverCeiling,   // ⭐ CE-1327 — "upgrade needed" is no action: the store appends a block (R-236)
+            ProjectionStatus = proj.Status.ToString(),
+            AddOptions       = addOptions,
+            Rows             = rows,
+            BehaviourSlots   = _model.Reality.Count(s => s.Kind != Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint),
+            CanApply         = hasChanges && proj.Status != UsageStatus.OverCeiling,
+            CanRevert        = hasChanges,
+        };
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>THE INVARIANT LIVES HERE: every state-derived value drawn below comes from <paramref name="vm"/>.</b>
+    /// ⚠ The literals that remain — the <c>+ Add Blueprint...</c> caption, the column headers, the
+    /// <c>Apply</c>/<c>Revert All</c> captions — are constant chrome, 📄 which §Adoption explicitly says not
+    /// to refactor. ⭐ <b>A reviewer's check is simple: any <c>ImGui.Text</c> whose argument reaches
+    /// <c>_model</c> or <c>_registry</c> is a defect.</b>
+    /// </summary>
+    private void Render(EntityBlueprintsViewModel vm)
+    {
+        if (!vm.HasEntity)
+        {
+            ImGui.TextDisabled(vm.EmptyMessage ?? string.Empty);
+            return;
+        }
+
+        // ⛔ CE-1327 — no title / "Sim:" / "Current tier:" lines (the Brain tab's section header names it); the capacity only when it matters
+        if (vm.ShowProjection) ImGui.TextColored(new Vector4(1, 0.5f, 0, 1), vm.ProjectionLabel);
+
         if (ImGui.Button("+ Add Blueprint..."))
+        {
             ImGui.OpenPopup("##addBlueprintPopup");
+            _addSearch = "";
+        }
 
         if (ImGui.BeginPopup("##addBlueprintPopup"))
         {
-            foreach (var (id, def) in _registry.GetAll())
+            // ⭐ CE-1327 — an incremental search, focused on open; Enter adds the first selectable match
+            if (ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
+            ImGui.SetNextItemWidth(260f);
+            bool enter = ImGui.InputTextWithHint("##addSearch", "search...", ref _addSearch, 128, ImGuiInputTextFlags.EnterReturnsTrue);
+            var shown = FilterAddOptions(vm.AddOptions, _addSearch);
+            if (shown.Count == 0) ImGui.TextDisabled("no blueprint matches");
+            if (enter && shown.FirstOrDefault(o => o.State == "selectable") is { } first)
             {
-                if (def.Kind != BlueprintDispatchKind.Instance) continue;
-
-                bool inReality = _model.Reality.Any(s => s.BlueprintId == id);
-                bool inAdds = _model.StagedAdds.Contains(def.AssetId);
-                bool inRemoves = _model.StagedRemoves.Contains(def.AssetId);
-
-                if (inReality && !inRemoves)
+                _model.StageAdd(first.AssetId);
+                ImGui.CloseCurrentPopup();
+            }
+            foreach (var option in shown)
+            {
+                if (option.State != "selectable")
                 {
                     ImGui.BeginDisabled();
-                    ImGui.Text($"{def.Name} (attached)");
+                    ImGui.Text(option.Label);
                     ImGui.EndDisabled();
                 }
-                else if (inAdds)
+                else if (ImGui.Selectable($"{option.Label}##{option.ActionScope}"))
                 {
-                    ImGui.BeginDisabled();
-                    ImGui.Text($"{def.Name} (staged)");
-                    ImGui.EndDisabled();
-                }
-                else if (ImGui.Selectable($"{def.Name}##{id}"))
-                {
-                    _model.StageAdd(def.AssetId);
+                    _model.StageAdd(option.AssetId);
                     ImGui.CloseCurrentPopup();
                 }
             }
@@ -106,65 +220,55 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
         ImGui.Separator();
 
-        // Table
-        bool hasChanges = _model.HasStagedChanges;
-        bool overCeiling = proj.Status == UsageStatus.OverCeiling;
-
-        if (ImGui.BeginTable("##entityBpTable", 3,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        if (ImGui.BeginTable("##entityBpTable", 4,
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Blueprint");
             ImGui.TableSetupColumn("Status");
+            ImGui.TableSetupColumn("Memory");
             ImGui.TableSetupColumn("");
             ImGui.TableHeadersRow();
 
-            // Reality rows — show "Active" or "Removed"
-            foreach (var slot in _model.Reality)
+            foreach (var row in vm.Rows)
             {
-                bool isRemoved = _model.StagedRemoves.Contains(slot.AssetId);
                 ImGui.TableNextRow();
 
                 ImGui.TableNextColumn();
-                ImGui.Text(slot.Name);
+                ImGui.Text(row.Name);
+                // ⭐ CE-1326 — open its graph, live on this unit (pinned to him, as "Open running behaviour" from a pinned tab)
+                if (row.Status != "Add pending" && OpenGraph is { } open)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton($"Open graph##open{row.ActionScope}")) open(row.Name, _model.GetEntity());
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {row.Name}'s graph with this unit's live values.");
+                }
 
                 ImGui.TableNextColumn();
-                if (isRemoved)
-                    ImGui.TextColored(new Vector4(1, 0.5f, 0, 1), "Remove pending");
+                if (EmphasisColor(row.Emphasis) is { } color)
+                    ImGui.TextColored(color, row.Status);
                 else
-                    ImGui.Text("Active");
+                    ImGui.Text(row.Status);
 
                 ImGui.TableNextColumn();
-                if (ImGui.SmallButton(isRemoved ? $"Restore##{slot.BlueprintId}" : $"Remove##{slot.BlueprintId}"))
-                    _model.StageRemove(slot.AssetId);
-            }
-
-            // Added rows (staged adds not in Reality) — iterate copy to avoid mutation crash
-            foreach (var assetId in _model.StagedAdds.ToList())
-            {
-                if (_model.Reality.Any(s => s.AssetId == assetId)) continue;
-
-                ImGui.TableNextRow();
-                ImGui.TableNextColumn();
-                ImGui.Text(_model.GetBlueprintName(assetId) ?? $"0x{BlueprintIdHash.Compute(assetId):X8}");
+                ImGui.TextDisabled(row.Memory);
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("This blueprint's own slot in the unit's blueprint memory.");
 
                 ImGui.TableNextColumn();
-                ImGui.TextColored(new Vector4(0, 1, 0, 1), "Add pending");
-
-                ImGui.TableNextColumn();
-                if (ImGui.SmallButton($"Cancel##add_{BlueprintIdHash.Compute(assetId):X8}"))
-                    _model.CancelAdd(assetId);
+                if (ImGui.SmallButton($"{row.ActionLabel}##{row.ActionScope}"))
+                {
+                    if (row.Status == "Add pending") _model.CancelAdd(row.AssetId);
+                    else                             _model.StageRemove(row.AssetId);
+                }
             }
 
             ImGui.EndTable();
         }
+        if (vm.BehaviourSlots > 0)
+            ImGui.TextDisabled($"+ {vm.BehaviourSlots} slot(s) of the running behaviours (see Running behaviours)");
 
         ImGui.Separator();
 
-        // Footer
-        bool canApply = hasChanges && !overCeiling;
-        bool canRevert = hasChanges;
-
-        if (!canApply) ImGui.BeginDisabled();
+        if (!vm.CanApply) ImGui.BeginDisabled();
         if (ImGui.Button("Apply"))
         {
             var timing = _isRunning ? CommitTiming.Running : CommitTiming.Paused;
@@ -173,32 +277,47 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
             _model.RevertAll();
             _model.RefreshReality();
         }
-        if (!canApply) ImGui.EndDisabled();
+        if (!vm.CanApply) ImGui.EndDisabled();
 
         ImGui.SameLine();
-        if (!canRevert) ImGui.BeginDisabled();
+        if (!vm.CanRevert) ImGui.BeginDisabled();
         if (ImGui.Button("Revert All"))
             _model.RevertAll();
-        if (!canRevert) ImGui.EndDisabled();
+        if (!vm.CanRevert) ImGui.EndDisabled();
     }
 
-    private void DrawProjectionBar(Projection proj)
+    private string _addSearch = "";
+
+    /// <summary>⭐ <c>CE-1327</c> — the add options a search keeps: every word in the label, case-insensitive. Pure.</summary>
+    public static IReadOnlyList<EntityBlueprintAddOption> FilterAddOptions(IReadOnlyList<EntityBlueprintAddOption> options, string search)
     {
-        string label = proj.Status switch
-        {
-            UsageStatus.OverCeiling => $"⚠ Over ceiling: {proj.Slots}/{proj.Bytes} (max 16/16096)",
-            UsageStatus.UpgradeNeeded => $"Upgrade needed: {proj.Slots}/{proj.Bytes} → {proj.Tier}",
-            _ => $"OK: {proj.Slots}/{proj.Bytes} in {proj.Tier}",
-        };
-        ImGui.Text(label);
+        var words = search.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return options.Where(o => words.All(w => o.Label.Contains(w, StringComparison.OrdinalIgnoreCase))).ToList();
     }
+
+    /// <summary>⭐ The colour ROLE resolves to a colour here, in the render — ⛔ never in the model, so a
+    /// cross-host diff does not fail on theming.</summary>
+    private static Vector4? EmphasisColor(string emphasis) => emphasis switch
+    {
+        "warning" => new Vector4(1, 0.5f, 0, 1),
+        "success" => new Vector4(0, 1, 0, 1),
+        _         => null,
+    };
+
+    /// <summary>⭐ The projection bar's whole line, composed once so the dump carries what the eye reads.</summary>
+    private static string ProjectionLabelOf(Projection proj) => proj.Status switch
+    {
+        UsageStatus.OverCeiling   => $"⚠ Over ceiling: {proj.Slots}/{proj.Bytes} (max 16/16096)",
+        UsageStatus.UpgradeNeeded => $"Upgrade needed: {proj.Slots}/{proj.Bytes} → {proj.Tier}",
+        _                         => $"OK: {proj.Slots}/{proj.Bytes} in {proj.Tier}",
+    };
 
     private unsafe void ExecuteCommitPlan(CommitPlan plan, CommitTiming timing)
     {
         if (timing == CommitTiming.Paused)
         {
-            if (plan.UpgradeToTier.HasValue)
-                UpgradeTier(_model.GetCurrentTier(), plan.UpgradeToTier.Value);
+            // ⭐ CE-3137 U-0 (R-236): no promotion step — AttachToEntity appends a block when the store is full, and
+            //   no slot already attached moves. `plan.UpgradeToTier` remains a DISPLAY fact ("needs more room").
 
             foreach (int bpId in plan.DetachBlueprintIds)
                 BlueprintInstanceService.DetachFromEntity(_world, bpId, _model.GetEntity());
@@ -209,43 +328,14 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         else
         {
             foreach (var evt in plan.RemoveEvents) _world.Bus.Publish(evt);
-            foreach (var evt in plan.AttachEvents) _world.Bus.Publish(evt);
+            // ⭐ Batch 70 — the attach event is managed now (it carries params JSON), so it rides the
+            //   managed bus. The plan built in the editor is the OTHER producer of this event; it
+            //   supplies no params, so the blueprint's declared defaults stand.
+            foreach (var evt in plan.AttachEvents) _world.Bus.PublishManaged(evt);
         }
     }
 
-    private unsafe void UpgradeTier(BlackboardTier oldTier, BlackboardTier newTier)
-    {
-        var entity = _model.GetEntity();
-        switch (newTier)
-        {
-            case BlackboardTier.B4096:
-                if (!_world.HasComponent<BlueprintBlackboard4096>(entity))
-                    _world.AddComponent(entity, default(BlueprintBlackboard4096));
-                break;
-            case BlackboardTier.B16384:
-                if (!_world.HasComponent<BlueprintBlackboard16384>(entity))
-                    _world.AddComponent(entity, default(BlueprintBlackboard16384));
-                break;
-        }
-
-        switch (oldTier)
-        {
-            case BlackboardTier.B1024 when newTier == BlackboardTier.B4096:
-                ref var old1024 = ref _world.GetComponentRW<BlueprintBlackboard1024>(entity);
-                ref var new4096 = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* src = old1024.Memory) fixed (byte* dst = new4096.Memory)
-                    BlueprintBlackboardPartitions.CopyToLargerTier(src, BlueprintBlackboard1024.TotalSize, dst, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
-                _world.RemoveComponent<BlueprintBlackboard1024>(entity);
-                break;
-            case BlackboardTier.B4096 when newTier == BlackboardTier.B16384:
-                ref var old4096 = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                ref var new16384 = ref _world.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* src = old4096.Memory) fixed (byte* dst = new16384.Memory)
-                    BlueprintBlackboardPartitions.CopyToLargerTier(src, BlueprintBlackboard4096.TotalSize, dst, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
-                _world.RemoveComponent<BlueprintBlackboard4096>(entity);
-                break;
-        }
-    }
+    // ⛔ HISTORY — UpgradeTier (the editor's copy-promotion, O3a/B3) RETIRED by CE-3137 U-0 (R-236): the store never moves.
 
     public override void OnActivated() { }
     public override void OnDeactivated() { }

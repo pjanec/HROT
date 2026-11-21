@@ -1,0 +1,186 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Minefields MF-14 / KR-15 (CE-4624): the knowledge a side saved comes back on load (and through a replay seek with --verify-replay). From the header's Judge.",
+  "runFor": 120,
+  "golden": false,
+  "expect": [
+    {
+      "name": "after the load Friend knows Field E in full",
+      "on": "knowledge",
+      "who": "Field E",
+      "side": "Friend",
+      "is": "Marked"
+    },
+    {
+      "name": "after the load Friend holds its one lane",
+      "on": "knowledge",
+      "who": "Field E",
+      "side": "Friend",
+      "is": "Lane",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "Hostile never knows Field E in full",
+      "never": {
+        "on": "knowledge",
+        "who": "Field E",
+        "side": "Hostile",
+        "is": "Marked"
+      }
+    },
+    {
+      "name": "Hostile never holds a lane",
+      "never": {
+        "on": "knowledge",
+        "who": "Field E",
+        "side": "Hostile",
+        "is": "Lane"
+      }
+    },
+    {
+      "name": "Hostile never knows a cell mined",
+      "never": {
+        "on": "knowledge",
+        "who": "Field E",
+        "side": "Hostile",
+        "is": "KnownMined"
+      }
+    },
+    {
+      "name": "Hostile never suspects a cell",
+      "never": {
+        "on": "knowledge",
+        "who": "Field E",
+        "side": "Hostile",
+        "is": "Suspected"
+      }
+    },
+    {
+      "name": "at the end Friend still knows Field E in full",
+      "on": "knowledge",
+      "who": "Field E",
+      "side": "Friend",
+      "is": "Marked",
+      "atEnd": true
+    },
+    {
+      "name": "at the end Friend still holds its lane",
+      "on": "knowledge",
+      "who": "Field E",
+      "side": "Friend",
+      "is": "Lane",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "the squad marches",
+      "on": "task",
+      "who": "Squad",
+      "is": "SquadMarch"
+    },
+    {
+      "name": "never a halt for a minefield ahead (its own lane is a passage)",
+      "never": {
+        "on": "task",
+        "who": "Squad",
+        "is": "MinefieldAhead"
+      }
+    },
+    {
+      "name": "a man is in the lane (inside the field, x 125-135, y 77.5-82.5)",
+      "on": "field",
+      "who": "*Man",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 125,
+      "also": [
+        {
+          "path": "SimTransform.Position.0",
+          "op": "<",
+          "value": 135
+        },
+        {
+          "path": "SimTransform.Position.1",
+          "op": ">",
+          "value": 77.5
+        },
+        {
+          "path": "SimTransform.Position.1",
+          "op": "<",
+          "value": 82.5
+        }
+      ]
+    },
+    {
+      "name": "never a man inside the field south of the lane (y 50-77.5)",
+      "never": {
+        "on": "field",
+        "who": "*Man",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 120,
+        "also": [
+          {
+            "path": "SimTransform.Position.0",
+            "op": "<",
+            "value": 140
+          },
+          {
+            "path": "SimTransform.Position.1",
+            "op": ">",
+            "value": 50
+          },
+          {
+            "path": "SimTransform.Position.1",
+            "op": "<",
+            "value": 77.5
+          }
+        ]
+      }
+    },
+    {
+      "name": "never a man inside the field north of the lane (y 82.5-110)",
+      "never": {
+        "on": "field",
+        "who": "*Man",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 120,
+        "also": [
+          {
+            "path": "SimTransform.Position.0",
+            "op": "<",
+            "value": 140
+          },
+          {
+            "path": "SimTransform.Position.1",
+            "op": ">",
+            "value": 82.5
+          },
+          {
+            "path": "SimTransform.Position.1",
+            "op": "<",
+            "value": 110
+          }
+        ]
+      }
+    },
+    {
+      "name": "no mine goes off",
+      "never": {
+        "on": "blast"
+      }
+    },
+    {
+      "name": "a man reaches (160, 80)",
+      "on": "near",
+      "who": "*Man",
+      "point": [
+        160,
+        80
+      ],
+      "within": 4
+    }
+  ]
+}

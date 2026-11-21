@@ -1,0 +1,18 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-6009 macro-platoon (see scenario.json's header). The insert and the hierarchy are judged by the rail (MacroPlatoonScenarioTests); the grammar judges a man of the platoon near the drop point.",
+  "runFor": 20,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the platoon's 1st squad leader stands near the drop point",
+      "on": "near",
+      "who": "Squad 1 Leader",
+      "point": [
+        50,
+        50
+      ],
+      "within": 25
+    }
+  ]
+}

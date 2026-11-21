@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Time;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Time.Controllers
 {
@@ -34,7 +35,7 @@ namespace Fdp.Toolkit.Time.Controllers
         /// For Slave role: ID of this local node.
         /// Required for sending ACKs in lockstep mode.
         /// </summary>
-        public int LocalNodeId { get; set; } = 0;
+        public NodeId LocalNodeId { get; set; } = (Fdp.Core.NodeId)(0);
         
         /// <summary>
         /// Initial time scale (0.0 = paused, 1.0 = realtime).

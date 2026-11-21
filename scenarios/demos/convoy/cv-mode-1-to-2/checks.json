@@ -1,0 +1,78 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 / CE-9020 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6, §6): mode 1 → 2, a convoy leaves the SUMO network next to an off-road destination and drives the rest on our own route. Inside demo-city's world [0, 800]² (our planner has no navmesh outside it). ✅ passes in both tiers since 2026-11-17.",
+  "runFor": 90,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the lead runs the convoy",
+      "on": "task",
+      "who": "Escort 1",
+      "is": "PlatformConvoy"
+    },
+    {
+      "name": "the lead is handed to SUMO",
+      "on": "field",
+      "who": "Escort 1",
+      "path": "NavigationIntent.Mode",
+      "op": "==",
+      "value": "Traffic"
+    },
+    {
+      "name": "the lead leaves SUMO (mode 1 → 2)",
+      "on": "field",
+      "who": "Escort 1",
+      "path": "NavigationIntent.Mode",
+      "op": "!=",
+      "value": "Traffic",
+      "after": "the lead is handed to SUMO"
+    },
+    {
+      "name": "the lead reaches the off-road destination",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        220,
+        525
+      ],
+      "within": 15
+    },
+    {
+      "name": "the column never splits (Escort 2 never more than 60 m behind Escort 1)",
+      "never": {
+        "on": "far",
+        "who": "Escort 2",
+        "from": "Escort 1",
+        "m": 60
+      }
+    },
+    {
+      "name": "the column never splits (Escort 3 never more than 60 m behind Escort 2)",
+      "never": {
+        "on": "far",
+        "who": "Escort 3",
+        "from": "Escort 2",
+        "m": 60
+      }
+    },
+    {
+      "name": "the column never splits (Escort 4 never more than 60 m behind Escort 3)",
+      "never": {
+        "on": "far",
+        "who": "Escort 4",
+        "from": "Escort 3",
+        "m": 60
+      }
+    },
+    {
+      "name": "the tail ends near the destination",
+      "on": "close",
+      "who": "Escort 4",
+      "point": [
+        220,
+        525
+      ],
+      "m": 70,
+      "atEnd": true
+    }
+  ]
+}

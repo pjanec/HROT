@@ -27,7 +27,7 @@ This batch implements all of Stage 1 of the `mod-init` workstream. The goal is t
 - **Files to move from:** `Hrot.IG/Systems/DeadReckoningSyncSystem.cs`, `Hrot.SimHost/Network/*.cs`
 - **Destination (most):** `Hrot.Common/Systems/`, `Hrot.Map.Common/Translators/`, `Hrot.Map.Common/Replication/Ingress/`, `Hrot.Map.Common/Replication/Egress/`, `Hrot.Network/Translators/`, `Hrot.Network/Replication/`, `Hrot.Network/Infrastructure/`
 - **Callers to update:** Any `.cs` file that `using Hrot.IG.Systems;` or `using Hrot.SimHost.Network;`
-- **Solution file:** `IOS-IG-SimHost.sln` (root of repo)
+- **Solution file:** `HROT.sln` (root of repo)
 - **Primary test projects:** `Hrot.ClusterRunner.Integration.Tests/`, `Hrot.IG.Tests/`, `Hrot.SimHost.Tests/`, `Hrot.Map.Common.Tests/`
 
 ### Report Submission
@@ -93,7 +93,7 @@ Stage 1 is purely a *push-down* operation: no behavioral changes to any class, o
    - `Hrot.CGF/Hrot.CGF.csproj`
    - `Hrot.ClusterRunner/Hrot.ClusterRunner.csproj`
 
-5. Add the project to the solution: `dotnet sln IOS-IG-SimHost.sln add Hrot.Network/Hrot.Network.csproj`
+5. Add the project to the solution: `dotnet sln HROT.sln add Hrot.Network/Hrot.Network.csproj`
 
 **Constraints (from TASK-DETAIL):**
 - `Hrot.Network.csproj` must NOT reference `Hrot.SimHost` or `Hrot.IG`
@@ -101,8 +101,8 @@ Stage 1 is purely a *push-down* operation: no behavioral changes to any class, o
 
 **Verify:**
 ```powershell
-dotnet build IOS-IG-SimHost.sln
-dotnet sln IOS-IG-SimHost.sln list | Select-String "Hrot.Network"
+dotnet build HROT.sln
+dotnet sln HROT.sln list | Select-String "Hrot.Network"
 Select-String "<ProjectReference.*Hrot.Network" Hrot.Common/Hrot.Common.csproj, Hrot.Map.Common/Hrot.Map.Common.csproj
 ```
 Expected: build succeeds, solution lists the project, last command returns zero matches.
@@ -131,7 +131,7 @@ For each file:
 
 **Verify:**
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 # no files remain in source:
 ls Hrot.SimHost/Network/Navigation*.cs  # should be empty
 # no old namespace references:
@@ -235,7 +235,7 @@ dotnet build Hrot.Network/Hrot.Network.csproj --no-restore
 
 **CRITICAL: You MUST complete tasks in sequence with passing tests at each step:**
 
-1. **Task 1 (S100):** Create project → `dotnet build IOS-IG-SimHost.sln` passes ✅
+1. **Task 1 (S100):** Create project → `dotnet build HROT.sln` passes ✅
 2. **Task 2 (S107):** Move 4 translators → build passes, existing tests green ✅
 3. **Task 3 (S101):** Move DeadReckoningSyncSystem + write unit tests → all tests pass ✅
 4. **Task 4 (S102):** Move SharedTranslatorPack + write integration test → all tests pass ✅
@@ -260,7 +260,7 @@ dotnet build Hrot.Network/Hrot.Network.csproj --no-restore
 **Test runner command:**
 ```powershell
 # From repo root:
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 Or per project:
 ```powershell
@@ -282,8 +282,8 @@ For each task (S100, S107, S101, S102, S103, S104, S106): ✅ Done / ⚠️ Part
 
 ### 2. Validation Outputs
 Paste the actual terminal output of:
-- `dotnet build IOS-IG-SimHost.sln` (last build)
-- `dotnet test IOS-IG-SimHost.sln` (or per-project test run)
+- `dotnet build HROT.sln` (last build)
+- `dotnet test HROT.sln` (or per-project test run)
 - The `Select-String` boundary validation queries from Task 7
 
 ### 3. Developer Insights
@@ -310,7 +310,7 @@ This batch is DONE when:
 - [ ] `KinematicTranslatorPack` in `Hrot.Map.Common/Translators/` with updated namespace; test green (MODINIT-S103)
 - [ ] `CognitiveTranslatorPack` in `Hrot.Network/Translators/` with updated namespace; test green (MODINIT-S104)
 - [ ] All validation queries from S106 return zero violations (MODINIT-S106)
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds
+- [ ] `dotnet build HROT.sln` succeeds
 - [ ] All existing tests pass
 - [ ] Report submitted to `.dev/mod-init/reports/BATCH-01-REPORT.md`
 

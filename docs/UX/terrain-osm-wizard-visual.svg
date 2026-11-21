@@ -1,0 +1,275 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='1250' viewBox='0 0 1240 1250'>
+<rect x='0' y='0' width='1240' height='1250' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Terrain from OpenStreetMap — the wizard: 1 Area, 2 Options (DESIGN_Terrain_From_OSM.md §6)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
+<rect x='20' y='56' width='1200' height='600' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='56' width='1200' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='70' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>New terrain from OpenStreetMap</text>
+<rect x='32' y='86' width='80.06153846153846' height='24' fill='#3369AD' rx='12' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='45' y='102' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>1</text>
+<text x='60' y='102' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Area</text>
+<line x1='116.06153846153846' y1='98' x2='132.06153846153848' y2='98' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='136.06153846153848' y='86' width='96.49230769230769' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='149.06153846153848' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>2</text>
+<text x='164.06153846153848' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Options</text>
+<line x1='236.55384615384617' y1='98' x2='252.55384615384617' y2='98' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='256.55384615384617' y='86' width='98.98461538461538' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='269.55384615384617' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3</text>
+<text x='284.55384615384617' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
+<line x1='359.53846153846155' y1='98' x2='375.53846153846155' y2='98' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='379.53846153846155' y='86' width='95.29230769230769' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='392.53846153846155' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>4</text>
+<text x='407.53846153846155' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Import</text>
+<clipPath id='canvas'><rect x='30' y='120' width='830' height='476'/></clipPath><g clip-path='url(#canvas)'>
+<rect x='30' y='120' width='830' height='476' fill='#F2EFE9' rx='0' opacity='1'/>
+<polygon points='50.0,140.0 200.0,130.0 280.0,190.0 240.0,270.0 90.0,280.0 40.0,220.0' fill='#ADD19E' fill-opacity='1.0'/>
+<polygon points='690.0,400.0 840.0,420.0 850.0,590.0 730.0,610.0 670.0,520.0' fill='#ADD19E' fill-opacity='1.0'/>
+<polyline points='550.0,601.0 590.0,540.0 620.0,450.0 600.0,320.0 650.0,210.0 730.0,115.0' fill='none' stroke='#AAD3DF' stroke-width='9' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='25.0,420.0 290.0,405.0 550.0,370.0 865.0,330.0' fill='none' stroke='#C8C0B8' stroke-width='8.7' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='25.0,420.0 290.0,405.0 550.0,370.0 865.0,330.0' fill='none' stroke='#FCD6A4' stroke-width='7.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='630.0,115.0 670.0,320.0 730.0,601.0' fill='none' stroke='#C8C0B8' stroke-width='10.5' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='630.0,115.0 670.0,320.0 730.0,601.0' fill='none' stroke='#E892A2' stroke-width='9.0' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='360.0,115.0 380.0,390.0 410.0,601.0' fill='none' stroke='#C8C0B8' stroke-width='7.260000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='360.0,115.0 380.0,390.0 410.0,601.0' fill='none' stroke='#F7FABF' stroke-width='5.760000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='70.0,180.0 230.0,240.0 330.0,230.0' fill='none' stroke='#C8C0B8' stroke-width='3.66' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='70.0,180.0 230.0,240.0 330.0,230.0' fill='none' stroke='#FFFFFF' stroke-width='2.16' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='25.0,560.0 430.0,540.0 865.0,500.0' fill='none' stroke='#C8C0B8' stroke-width='4.02' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='25.0,560.0 430.0,540.0 865.0,500.0' fill='none' stroke='#999999' stroke-width='2.52' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,300.0 550.0,282.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,300.0 550.0,282.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,334.0 550.0,316.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,334.0 550.0,316.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,368.0 550.0,350.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,368.0 550.0,350.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,402.0 550.0,384.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,402.0 550.0,384.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,436.0 550.0,418.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='210.0,436.0 550.0,418.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='230.0,290.0 240.0,460.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='230.0,290.0 240.0,460.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='320.0,290.0 330.0,460.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='320.0,290.0 330.0,460.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='410.0,290.0 420.0,460.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='410.0,290.0 420.0,460.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='500.0,290.0 510.0,460.0' fill='none' stroke='#C8C0B8' stroke-width='5.460000000000001' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='500.0,290.0 510.0,460.0' fill='none' stroke='#FFFFFF' stroke-width='3.9600000000000004' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='239.5,306.0 251.4,306.0 251.4,316.7 239.5,316.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='266.6,306.0 281.3,306.0 281.3,317.0 266.6,317.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='268.6,320.0 274.6,320.0 274.6,325.0 268.6,325.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='289.9,306.0 301.8,306.0 301.8,319.0 289.9,319.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='238.9,340.0 252.1,340.0 252.1,352.3 238.9,352.3' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='265.7,340.0 279.9,340.0 279.9,351.7 265.7,351.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='267.7,354.7 273.7,354.7 273.7,359.7 267.7,359.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='291.1,340.0 308.8,340.0 308.8,348.2 291.1,348.2' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='241.5,374.0 255.3,374.0 255.3,385.6 241.5,385.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='265.3,374.0 278.7,374.0 278.7,385.6 265.3,385.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='288.9,374.0 299.6,374.0 299.6,382.7 288.9,382.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='290.9,385.7 296.9,385.7 296.9,390.7 290.9,390.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='240.0,408.0 255.0,408.0 255.0,417.5 240.0,417.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='263.9,408.0 278.2,408.0 278.2,418.0 263.9,418.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='292.0,408.0 309.4,408.0 309.4,420.3 292.0,420.3' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='330.2,306.0 345.8,306.0 345.8,315.6 330.2,315.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='356.3,306.0 372.0,306.0 372.0,315.1 356.3,315.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='358.3,318.1 364.3,318.1 364.3,323.1 358.3,323.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='380.6,306.0 391.6,306.0 391.6,316.4 380.6,316.4' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='382.6,319.4 388.6,319.4 388.6,324.4 382.6,324.4' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='328.0,340.0 341.0,340.0 341.0,351.0 328.0,351.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='341.0,340.0 354.0,340.0 354.0,351.0 341.0,351.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='354.0,340.0 367.0,340.0 367.0,351.0 354.0,351.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='367.0,340.0 380.0,340.0 380.0,351.0 367.0,351.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='380.0,340.0 393.0,340.0 393.0,351.0 380.0,351.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='328.6,374.0 345.0,374.0 345.0,384.1 328.6,384.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='330.6,387.1 336.6,387.1 336.6,392.1 330.6,392.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='355.4,374.0 368.7,374.0 368.7,382.6 355.4,382.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='357.4,385.6 363.4,385.6 363.4,390.6 357.4,390.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='381.5,374.0 397.3,374.0 397.3,383.7 381.5,383.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='328.3,408.0 346.3,408.0 346.3,417.5 328.3,417.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='354.2,408.0 371.8,408.0 371.8,420.9 354.2,420.9' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='356.2,423.9 362.2,423.9 362.2,428.9 356.2,428.9' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='379.3,408.0 389.6,408.0 389.6,420.3 379.3,420.3' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='420.1,306.0 433.1,306.0 433.1,316.3 420.1,316.3' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='446.9,306.0 462.3,306.0 462.3,314.5 446.9,314.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='469.0,306.0 482.4,306.0 482.4,317.6 469.0,317.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='471.0,320.6 477.0,320.6 477.0,325.6 471.0,325.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='419.4,340.0 431.4,340.0 431.4,349.5 419.4,349.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='421.4,352.5 427.4,352.5 427.4,357.5 421.4,357.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='445.5,340.0 460.1,340.0 460.1,348.1 445.5,348.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='447.5,351.1 453.5,351.1 453.5,356.1 447.5,356.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='469.4,340.0 484.5,340.0 484.5,349.7 469.4,349.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='420.4,374.0 432.6,374.0 432.6,384.4 420.4,384.4' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='422.4,387.4 428.4,387.4 428.4,392.4 422.4,392.4' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='444.2,374.0 457.1,374.0 457.1,385.1 444.2,385.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='446.2,388.1 452.2,388.1 452.2,393.1 446.2,393.1' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='469.5,374.0 482.4,374.0 482.4,383.6 469.5,383.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='471.5,386.6 477.5,386.6 477.5,391.6 471.5,391.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='421.3,408.0 437.6,408.0 437.6,416.5 421.3,416.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='445.6,408.0 456.7,408.0 456.7,418.5 445.6,418.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='447.6,421.5 453.6,421.5 453.6,426.5 447.6,426.5' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='470.8,408.0 482.3,408.0 482.3,418.2 470.8,418.2' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='508.9,306.0 526.5,306.0 526.5,317.4 508.9,317.4' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='535.6,306.0 547.0,306.0 547.0,315.7 535.6,315.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='560.1,306.0 571.9,306.0 571.9,314.6 560.1,314.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='562.1,317.6 568.1,317.6 568.1,322.6 562.1,322.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='511.5,340.0 528.1,340.0 528.1,350.9 511.5,350.9' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='534.4,340.0 549.5,340.0 549.5,352.0 534.4,352.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='536.4,355.0 542.4,355.0 542.4,360.0 536.4,360.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='559.9,340.0 574.0,340.0 574.0,352.2 559.9,352.2' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='561.9,355.2 567.9,355.2 567.9,360.2 561.9,360.2' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='511.7,374.0 525.0,374.0 525.0,384.0 511.7,384.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='513.7,387.0 519.7,387.0 519.7,392.0 513.7,392.0' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='535.5,374.0 549.3,374.0 549.3,386.2 535.5,386.2' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='537.5,389.2 543.5,389.2 543.5,394.2 537.5,394.2' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='558.9,374.0 576.5,374.0 576.5,386.6 558.9,386.6' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='511.9,408.0 527.9,408.0 527.9,419.7 511.9,419.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='513.9,422.7 519.9,422.7 519.9,427.7 513.9,427.7' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='535.4,408.0 547.2,408.0 547.2,416.3 535.4,416.3' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='537.4,419.3 543.4,419.3 543.4,424.3 537.4,424.3' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<polygon points='561.2,408.0 573.2,408.0 573.2,416.2 561.2,416.2' fill='#D9D0C9' fill-opacity='1.0' stroke='#C4B5AA' stroke-width='0.6'/>
+<line x1='30' y1='120' x2='30' y2='596' stroke='#E2DED6' stroke-width='0.6'/>
+<line x1='286' y1='120' x2='286' y2='596' stroke='#E2DED6' stroke-width='0.6'/>
+<line x1='542' y1='120' x2='542' y2='596' stroke='#E2DED6' stroke-width='0.6'/>
+<line x1='798' y1='120' x2='798' y2='596' stroke='#E2DED6' stroke-width='0.6'/>
+<line x1='30' y1='120' x2='860' y2='120' stroke='#E2DED6' stroke-width='0.6'/>
+<line x1='30' y1='376' x2='860' y2='376' stroke='#E2DED6' stroke-width='0.6'/>
+</g>
+<rect x='664' y='578' width='196' height='18' fill='#FFFFFF' rx='0' opacity='0.75'/>
+<text x='670' y='591' fill='#333333' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>© OpenStreetMap contributors</text>
+<rect x='40' y='130' width='24' height='24' fill='#141418' rx='3' stroke='#3A3A44' stroke-width='1' opacity='0.9'/>
+<path d='M256 368Q256 382 247 391Q238 400 224 400Q210 400 201 391Q192 382 192 368V224H48Q34 224 25 215Q16 206 16 192Q16 178 25 169Q34 160 48 160H192V16Q192 2 201 -7Q210 -16 224 -16Q238 -16 247 -7Q256 2 256 16V160H400Q414 160 423 169Q432 178 432 192Q432 206 423 215Q414 224 400 224H256V368Z' fill='#C8C8D0' fill-opacity='1' transform='translate(46,145.7578125) scale(0.0234375,-0.0234375)'/>
+<rect x='40' y='158' width='24' height='24' fill='#141418' rx='3' stroke='#3A3A44' stroke-width='1' opacity='0.9'/>
+<path d='M432 192Q432 178 423 169Q414 160 400 160H48Q34 160 25 169Q16 178 16 192Q16 206 25 215Q34 224 48 224H400Q414 224 423 215Q432 206 432 192Z' fill='#C8C8D0' fill-opacity='1' transform='translate(46,173.7578125) scale(0.0234375,-0.0234375)'/>
+<rect x='40' y='186' width='24' height='24' fill='#141418' rx='3' stroke='#3A3A44' stroke-width='1' opacity='0.9'/>
+<path d='M256 448Q270 448 279 439Q288 430 288 416V406Q360 394 409 345Q458 295 470 224H480Q494 224 503 215Q512 206 512 192Q512 178 503 169Q494 160 480 160H470Q458 88 409 39Q359 -10 288 -22V-32Q288 -46 279 -55Q270 -64 256 -64Q242 -64 233 -55Q224 -46 224 -32V-22Q152 -10 103 39Q54 88 42 160H32Q18 160 9 169Q0 178 0 192Q0 206 9 215Q18 224 32 224H42Q54 296 103 345Q152 394 224 406V416Q224 430 233 439Q242 448 256 448ZM107 160Q117 116 149 85Q180 53 224 43V64Q224 78 233 87Q242 96 256 96Q270 96 279 87Q288 78 288 64V43Q332 53 363 85Q395 116 405 160H384Q370 160 361 169Q352 178 352 192Q352 206 361 215Q370 224 384 224H405Q395 268 363 299Q332 331 288 341V320Q288 306 279 297Q270 288 256 288Q242 288 233 297Q224 306 224 320V341Q180 331 149 299Q117 268 107 224H128Q142 224 151 215Q160 206 160 192Q160 178 151 169Q142 160 128 160H107ZM256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Q224 206 233 215Q242 224 256 224Z' fill='#C8C8D0' fill-opacity='1' transform='translate(46,201.7578125) scale(0.0234375,-0.0234375)'/>
+<rect x='76' y='130' width='330' height='24' fill='#141418' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<path d='M416 240Q415 170 376 117L503 -9Q512 -19 512 -32Q512 -45 503 -55Q493 -64 480 -64Q467 -64 457 -55L331 72Q278 33 208 32Q120 34 61 93Q2 152 0 240Q2 328 61 387Q120 446 208 448Q296 446 355 387Q414 328 416 240ZM208 96Q247 96 280 115Q313 134 333 168Q352 202 352 240Q352 278 333 312Q313 346 280 365Q247 384 208 384Q169 384 136 365Q103 346 83 312Q64 278 64 240Q64 202 83 168Q103 134 136 115Q169 96 208 96Z' fill='#C8C8D0' fill-opacity='1' transform='translate(84,146.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='104' y='147' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Kolín</text>
+<rect x='76' y='156' width='330' height='72' fill='#141418' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='77' y='157' width='328' height='23' fill='#34343E' rx='0' opacity='1'/>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#E65555' fill-opacity='1' transform='translate(84,171.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='102' y='173' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Kolín</text>
+<text x='140.73846153846154' y='173' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>town, Central Bohemia, Czechia</text>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#E65555' fill-opacity='1' transform='translate(84,194.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='102' y='196' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Kolín district</text>
+<text x='189.66153846153847' y='196' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>district, Czechia</text>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#E65555' fill-opacity='1' transform='translate(84,217.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='102' y='219' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Nový Kolín</text>
+<text x='171.1076923076923' y='219' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>village</text>
+<rect x='180' y='260' width='450' height='330' fill='#4296FA' rx='0' opacity='0.1'/>
+<rect x='180' y='260' width='450' height='330' fill='none' rx='0' stroke='#4296FA' stroke-width='2' opacity='1'/>
+<rect x='176' y='256' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='626' y='256' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='176' y='586' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='626' y='586' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='401.0' y='256' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='401.0' y='586' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='176' y='421.0' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='626' y='421.0' width='8' height='8' fill='#FFFFFF' rx='0' stroke='#4296FA' stroke-width='1.5' opacity='1'/>
+<rect x='343.0' y='234' width='124' height='20' fill='#141418' rx='10' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='405.0' y='248' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>4.8 × 3.5 km</text>
+<text x='872' y='142' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The area</text>
+<line x1='933.6' y1='138' x2='1210' y2='138' stroke='#4A4A55' stroke-width='1'/>
+<text x='872' y='160' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Drag a box on the map, or search a place.</text>
+<text x='872' y='192' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Width</text>
+<rect x='952' y='178' width='248' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='957' y='192' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>4.8 km</text>
+<text x='872' y='220' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Height</text>
+<rect x='952' y='206' width='248' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='957' y='220' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>3.5 km</text>
+<text x='872' y='248' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Centre</text>
+<rect x='952' y='234' width='248' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='957' y='248' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>50.0281 N · 15.2049 E</text>
+<text x='872' y='276' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>UTM zone</text>
+<rect x='952' y='262' width='248' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='957' y='276' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>33 N</text>
+<rect x='872' y='298' width='338' height='26' fill='#1C1C22' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM216 112H240H216H240V176H216Q194 178 192 200Q194 222 216 224H264Q286 222 288 200V112H296Q318 110 320 88Q318 66 296 64H216Q194 66 192 88Q194 110 216 112ZM256 320Q270 320 279 311Q288 302 288 288Q288 274 279 265Q270 256 256 256Q242 256 233 265Q224 274 224 288Q224 302 233 311Q242 320 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(880,315.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='900' y='316' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Largest box: 6 × 6 km</text>
+<text x='872' y='364' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Estimate (from the map, before download)</text>
+<line x1='1143.3000000000002' y1='360' x2='1210' y2='360' stroke='#4A4A55' stroke-width='1'/>
+<text x='872' y='382' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The content check runs in Preview —</text>
+<text x='872' y='396' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a town packs ≈ 1 000 buildings per km²;</text>
+<text x='872' y='410' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>HROT is tuned for ≈ 1 800 in all.</text>
+<line x1='20' y1='614' x2='1220' y2='614' stroke='#4A4A55' stroke-width='1'/>
+<rect x='990' y='622' width='110' height='20' fill='#3369AD' rx='3' opacity='1'/>
+<path d='M311 215Q320 205 320 192Q320 179 311 169L119 -23Q109 -32 96 -32Q83 -32 73 -23Q64 -13 64 0Q64 13 73 23L243 192L73 361Q64 371 64 384Q64 397 73 407Q83 416 96 416Q109 416 119 407L311 215Z' fill='#FFFFFF' fill-opacity='1' transform='translate(997,636.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='1014' y='636.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Next</text>
+<rect x='1110' y='622' width='90' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='1155.0' y='636.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Cancel</text>
+<text x='20' y='674' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>① Area — the map is OSM's standard map tiles (not satellite), with the attribution; pan with the mouse, wheel to zoom, Fit = the box.</text>
+<text x='20' y='688' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   Search = Nominatim; picking a result centres the map and proposes a box of the place's size (clamped to 6 × 6 km).</text>
+<text x='20' y='702' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   The box: drag on empty map to draw, drag inside to move, the 8 handles to resize; the size chip turns RED above 6 km and Next greys.</text>
+<rect x='20' y='746' width='1200' height='330' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='746' width='1200' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='760' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>New terrain from OpenStreetMap</text>
+<rect x='32' y='776' width='80.06153846153846' height='24' fill='#1D2F48' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M439 343Q448 333 448 320Q448 307 439 297L183 41Q173 32 160 32Q147 32 137 41L9 169Q0 179 0 192Q0 205 9 215Q19 224 32 224Q45 224 55 215L160 109L393 343Q403 352 416 352Q429 352 439 343Z' fill='#5BD06A' fill-opacity='1' transform='translate(41,791.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='60' y='792' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Area</text>
+<line x1='116.06153846153846' y1='788' x2='132.06153846153848' y2='788' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='136.06153846153848' y='776' width='96.49230769230769' height='24' fill='#3369AD' rx='12' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='149.06153846153848' y='792' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>2</text>
+<text x='164.06153846153848' y='792' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Options</text>
+<line x1='236.55384615384617' y1='788' x2='252.55384615384617' y2='788' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='256.55384615384617' y='776' width='98.98461538461538' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='269.55384615384617' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3</text>
+<text x='284.55384615384617' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
+<line x1='359.53846153846155' y1='788' x2='375.53846153846155' y2='788' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='379.53846153846155' y='776' width='95.29230769230769' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='392.53846153846155' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>4</text>
+<text x='407.53846153846155' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Import</text>
+<text x='40' y='832' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Terrain</text>
+<line x1='95.1' y1='828' x2='600' y2='828' stroke='#4A4A55' stroke-width='1'/>
+<text x='40' y='854' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
+<rect x='190' y='840' width='390' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='195' y='854' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>kolin-centre</text>
+<path d='M256 416Q279 415 291 396L507 28Q517 8 507 -12Q495 -31 472 -32H40Q17 -31 5 -12Q-5 8 5 28L222 396Q234 415 256 416ZM256 288Q234 286 232 264V152Q234 130 256 128Q278 130 280 152V264Q278 286 256 288ZM288 64Q288 78 279 87Q270 96 256 96Q242 96 233 87Q224 78 224 64Q224 50 233 41Q242 32 256 32Q270 32 279 41Q288 50 288 64Z' fill='#F2C033' fill-opacity='1' transform='translate(592,856.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='190' y='884' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Saved as assets/terrain/kolin-centre/</text>
+<text x='40' y='924' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Include</text>
+<line x1='95.1' y1='920' x2='600' y2='920' stroke='#4A4A55' stroke-width='1'/>
+<rect x='44' y='932' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M48 942 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<path d='M576 192Q575 179 566 170Q557 161 544 160H512L513 0Q512 -4 512 -8V-24Q512 -41 500 -52Q489 -64 472 -64H456Q454 -64 453 -64Q451 -64 449 -64H416H392Q375 -64 364 -52Q352 -41 352 -24V0V64Q352 78 343 87Q334 96 320 96H256Q242 96 233 87Q224 78 224 64V0V-24Q224 -41 212 -52Q201 -64 184 -64H160H128Q127 -64 126 -64Q125 -64 124 -64Q122 -64 120 -64H104Q87 -64 76 -52Q64 -41 64 -24V88Q64 89 64 91V160H32Q18 161 9 170Q0 179 0 192Q0 206 10 216L266 440Q277 449 288 448Q300 448 309 441L565 216Q577 206 576 192Z' fill='#F29B38' fill-opacity='1' transform='translate(70,945.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='92' y='946' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Buildings</text>
+<text x='240' y='946' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>enterable houses; garages and sheds solid</text>
+<rect x='44' y='960' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M48 970 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<path d='M211 442 62 279 211 442 62 279Q56 272 56 263Q58 242 79 240H104L31 167Q24 160 24 151Q26 130 47 128H80L5 38Q0 32 0 23Q2 2 24 0H192V-32Q192 -46 201 -55Q210 -64 224 -64Q238 -64 247 -55Q256 -46 256 -32V0H425Q446 2 448 23Q448 32 443 38L368 128H401Q422 130 424 151Q424 160 417 167L344 240H369Q390 242 392 263Q392 272 386 279L237 442Q232 448 224 448Q216 448 211 442Z' fill='#5BD06A' fill-opacity='1' transform='translate(70,973.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='92' y='974' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Trees and woods</text>
+<text x='240' y='974' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>woods, scrub, lone trees, tree rows</text>
+<rect x='44' y='988' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M48 998 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<path d='M384 352V224V352V224H256V352H384ZM384 160V32V160V32H256V160H384ZM192 224H64H192H64V352H192V224ZM64 160H192H64H192V32H64V160ZM64 416Q37 415 19 397Q1 379 0 352V32Q1 5 19 -13Q37 -31 64 -32H384Q411 -31 429 -13Q447 5 448 32V352Q447 379 429 397Q411 415 384 416H64Z' fill='#A0A0AA' fill-opacity='1' transform='translate(70,1001.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='92' y='1002' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Walls and fences</text>
+<text x='240' y='1002' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>walls, fences, hedges, retaining walls</text>
+<rect x='44' y='1016' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M48 1026 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<path d='M270 378Q288 390 307 378Q342 353 384 352Q426 354 461 378Q482 391 501 376Q523 358 551 351Q564 348 571 337Q578 326 575 313Q572 300 561 293Q550 286 537 289Q499 299 479 314Q434 289 384 288Q335 291 304 307Q295 311 288 315Q281 311 272 307Q241 291 192 288Q142 289 98 314Q77 299 39 289Q26 286 15 293Q4 300 1 313Q-2 326 5 337Q12 348 25 351Q53 358 75 376Q94 391 115 378Q150 354 192 352Q235 353 270 378ZM307 90Q342 65 384 64Q426 66 461 90Q482 103 501 88Q523 70 551 63Q564 60 571 49Q578 38 575 25Q572 12 561 5Q550 -2 537 1Q499 11 479 26Q434 1 384 0Q335 3 304 19Q295 23 288 27Q281 23 272 19Q241 3 192 0Q142 1 98 26Q77 11 39 1Q26 -2 15 5Q4 12 1 25Q-2 38 5 49Q12 60 25 63Q53 70 75 88Q94 102 115 90Q150 66 192 64Q235 65 270 90Q288 102 307 90ZM307 234Q342 209 384 208Q426 210 461 234Q482 247 501 232Q523 214 551 207Q564 204 571 193Q578 182 575 169Q572 156 561 149Q550 142 537 145Q499 155 479 170Q434 145 384 144Q335 147 304 163Q295 167 288 171Q281 167 272 163Q241 147 192 144Q142 145 98 170Q77 155 39 145Q26 142 15 149Q4 156 1 169Q-2 182 5 193Q12 204 25 207Q53 214 75 232Q94 247 115 234Q150 210 192 208Q235 209 270 234Q288 246 307 234Z' fill='#5AA9FF' fill-opacity='1' transform='translate(70,1029.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='92' y='1030' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Water</text>
+<text x='240' y='1030' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>lakes, ponds, rivers</text>
+<text x='640' y='832' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Buildings without a height in OSM</text>
+<line x1='851.3' y1='828' x2='1200' y2='828' stroke='#4A4A55' stroke-width='1'/>
+<text x='640' y='854' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Storey height</text>
+<rect x='790' y='840' width='120' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='795' y='854' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>3.0 m</text>
+<text x='640' y='882' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Default storeys</text>
+<rect x='790' y='868' width='120' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='795' y='882' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2</text>
+<text x='640' y='912' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Used only where OSM has no levels, no height</text>
+<text x='640' y='926' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>and no known building type (≈ 1 in 3 buildings).</text>
+<text x='640' y='940' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Roads always come in (they cannot be switched off).</text>
+<rect x='640' y='970' width='540' height='46' fill='#3A3112' rx='3' stroke='#F2C033' stroke-width='1' opacity='1'/>
+<path d='M256 416Q279 415 291 396L507 28Q517 8 507 -12Q495 -31 472 -32H40Q17 -31 5 -12Q-5 8 5 28L222 396Q234 415 256 416ZM256 288Q234 286 232 264V152Q234 130 256 128Q278 130 280 152V264Q278 286 256 288ZM288 64Q288 78 279 87Q270 96 256 96Q242 96 233 87Q224 78 224 64Q224 50 233 41Q242 32 256 32Q270 32 279 41Q288 50 288 64Z' fill='#F2C033' fill-opacity='1' transform='translate(650,989.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='672' y='988' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A terrain named "kolin-centre" exists — tick Replace to overwrite it.</text>
+<rect x='672' y='994' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='696' y='1008' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Replace — used by 2 scenarios: kolin-patrol, kolin-cordon</text>
+<line x1='20' y1='1034' x2='1220' y2='1034' stroke='#4A4A55' stroke-width='1'/>
+<rect x='890' y='1042' width='90' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M9 215Q0 205 0 192Q0 179 9 169L201 -23Q211 -32 224 -32Q237 -32 247 -23Q256 -13 256 0Q256 13 247 23L77 192L247 361Q256 371 256 384Q256 397 247 407Q237 416 224 416Q211 416 201 407L9 215Z' fill='#C8C8D0' fill-opacity='1' transform='translate(897,1056.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='914' y='1056.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Back</text>
+<rect x='990' y='1042' width='110' height='20' fill='#3369AD' rx='3' opacity='1'/>
+<path d='M288 416Q227 415 179 392Q131 369 95 335Q60 302 37 267Q14 232 3 204Q-2 192 3 180Q14 152 37 117Q60 82 95 49Q131 15 179 -8Q227 -31 288 -32Q349 -31 397 -8Q445 15 481 49Q516 82 539 117Q562 152 574 180Q579 192 574 204Q562 232 539 267Q516 302 481 335Q445 369 397 392Q349 415 288 416ZM144 192Q144 231 163 264Q182 297 216 317Q250 336 288 336Q326 336 360 317Q394 297 413 264Q432 231 432 192Q432 153 413 120Q394 87 360 67Q326 48 288 48Q250 48 216 67Q182 87 163 120Q144 153 144 192ZM288 256Q287 229 269 211Q251 193 224 192Q213 192 204 195Q194 197 192 188Q192 178 195 167Q207 128 240 109Q273 90 313 99Q352 111 371 144Q390 177 381 217Q372 248 348 267Q323 286 292 288Q283 286 285 276Q288 267 288 256Z' fill='#3EC6B0' fill-opacity='1' transform='translate(997,1056.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='1014' y='1056.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
+<rect x='1110' y='1042' width='90' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='1155.0' y='1056.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Cancel</text>
+<text x='20' y='1094' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>② Options — the name is checked as you type (a valid folder name; green tick = new, amber row = exists → Replace with the scenarios that use it).</text>
+<text x='20' y='1108' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   Everything else follows the design's rules; there is no per-building editing (one-shot, Q-O5) — to change anything, import again.</text>
+</svg>

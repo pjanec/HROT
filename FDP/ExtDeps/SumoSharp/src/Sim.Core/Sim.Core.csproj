@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Ingest\Sim.Ingest.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- net8.0: the primary target (the parity/perf surface; JITs fastest).
+         netstandard2.1: Unity (Mono / IL2CPP) and Godot reach (SUMOSHARP-API.md §3). The
+         performance-critical API is span-based, so it is ONE API across both targets; net8
+         just runs it faster. A handful of net8-only calls are #if-guarded; compiler-support
+         types are polyfilled (see ..\Shared\NetstandardPolyfills.cs). -->
+    <TargetFrameworks>net8.0;netstandard2.1</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12</LangVersion>
+
+    <!-- NuGet: the microsimulation engine (Engine, obstacle store, read surface, runtime demand,
+         async runner). The one package most users install; depends on SumoSharp.Ingest. -->
+    <Description>SumoSharp — an unofficial C#/.NET reimplementation of Eclipse SUMO's microscopic traffic-simulation core, validated for behavioural parity against SUMO. Load a SUMO network, spawn/route vehicles at runtime, step deterministically or run async, read vehicle state (SoA spans), and inject live external obstacles. For games, training pipelines, and digital twins. Not affiliated with the Eclipse SUMO project.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <Compile Include="..\Shared\NetstandardPolyfills.cs" Link="NetstandardPolyfills.cs" />
+  </ItemGroup>
+
+  <!-- netstandard2.1 lacks in-box Span<T>/Memory<T>; System.Memory provides them (net8.0 has them
+       in the BCL, so it is scoped to the ns2.1 target only). -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+  </ItemGroup>
+
+</Project>

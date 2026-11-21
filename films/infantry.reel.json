@@ -1,0 +1,72 @@
+{
+ "title": "HROT — The soldier · The squad",
+ "transition": "fade",
+ "items": [
+  {
+   "scenario": "ua-danger-crossing",
+   "take": "main",
+   "title": "Hold at a watched road",
+   "clip": "F-18"
+  },
+  {
+   "scenario": "ua-attack-approach",
+   "take": "main",
+   "title": "Flank a lost target",
+   "clip": "F-19"
+  },
+  {
+   "scenario": "bt-window-duel",
+   "take": "main",
+   "title": "Window duel",
+   "clip": "F-20"
+  },
+  {
+   "scenario": "ua-grenade-or-rifle",
+   "take": "main",
+   "title": "Grenade over the sandbags",
+   "clip": "F-21"
+  },
+  {
+   "scenario": "ld-sentry-surprise-360",
+   "take": "main",
+   "title": "The sentry turns",
+   "clip": "F-22"
+  },
+  {
+   "scenario": "uf-alone-under-fire",
+   "take": "main",
+   "title": "Pinned in the open",
+   "clip": "F-61"
+  },
+  {
+   "scenario": "ua-fire-and-movement",
+   "take": "main",
+   "title": "Fire and movement",
+   "clip": "F-24"
+  },
+  {
+   "scenario": "ua-bounding-overwatch",
+   "take": "main",
+   "title": "Bounding overwatch",
+   "clip": "F-25"
+  },
+  {
+   "scenario": "ua-squad-danger-crossing",
+   "take": "main",
+   "title": "Crossing a road",
+   "clip": "F-26"
+  },
+  {
+   "scenario": "ua-squad-danger-crossing-contact",
+   "take": "main",
+   "title": "Contact mid-crossing",
+   "clip": "F-27"
+  },
+  {
+   "scenario": "ua-fire-distribution",
+   "take": "main",
+   "title": "Spread the fire",
+   "clip": "F-29"
+  }
+ ]
+}

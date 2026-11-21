@@ -21,6 +21,7 @@ namespace Hrot.ClusterRunner.Testing
     /// ComponentId 219 is an unoccupied byte value in the test-reserved range (200-255).
     /// </summary>
     [Fdp.Core.ComponentId(219)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct MovingTestTag
     {
         /// <summary>Metres per second along the X axis.</summary>

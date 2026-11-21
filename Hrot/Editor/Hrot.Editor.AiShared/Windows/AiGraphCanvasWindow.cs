@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Fonts;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
+using Hrot.Editor.AiShared.Identity;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
@@ -13,6 +16,30 @@ using NodeEditor.Primitives;
 using NodeEditor.UI.Find;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — this window's own state, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠ <b>Deliberately narrower than the hosted canvas's full paint</b> — the actual graph content
+/// (nodes, wires, layout) is rendered by the NodeEdit canvas pipeline through
+/// <see cref="ICanvasRenderSeam"/>, which is a THIRD-PARTY component (<c>FDP/ExtDeps/NodeEdit</c>) this
+/// sweep does not own or convert. ⭐ What IS this window's own decision — which document is active, how
+/// many tabs are open, and the breadcrumb it derives — is captured whole.</para>
+/// </summary>
+public sealed record AiGraphCanvasWindowPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string AssetKind,
+    bool   HasActiveDocument,
+    string? ActiveDocumentName,
+    bool   ActiveDocumentDirty,
+    int    OpenDocumentCount,
+    string? Breadcrumb) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 // ── Canvas context ────────────────────────────────────────────────────────────
 
@@ -59,6 +86,37 @@ public sealed class AiCanvasContext
     /// property only needs to be read by the rendering/overlay path.
     /// </summary>
     public BookmarkStore? Bookmarks { get; set; }
+
+    /// <summary>
+    /// Optional per-document notification surface built by the document factory. Commands report
+    /// refusals through <see cref="IEditorIndicators.Notify"/>; the composition root drains the
+    /// queue and draws the toasts.
+    ///
+    /// <para>
+    /// ⚠ BP-223 — before BP-74 this was a local inside the Blueprint document factory, over a
+    /// <c>ToastQueue</c> <b>nothing drained</b>: the only <c>TryDequeue</c> in the repo was
+    /// <c>NodeEditor.Demo</c>'s shell, so every bookmark notification was enqueued and discarded.
+    /// Exposing it here is what makes "refuse on invoke, and say why" (Q26-B2) reach the designer
+    /// rather than a queue nobody reads.
+    /// </para>
+    /// </summary>
+    public IEditorIndicators? Indicators { get; set; }
+
+    /// <summary>
+    /// Optional provider for the id of the graph the canvas is currently showing, set by document
+    /// factories whose asset holds more than one graph (Blueprint, since BP-24's graph switching).
+    /// <para>
+    /// A plain delegate rather than a typed reference, for the same reason <see cref="AssetRef"/> is
+    /// an <see cref="object"/>: this assembly is shared by BTree/HSM/Blueprint and must not depend
+    /// on any one of them. Kinds with a single graph per document leave it <c>null</c>.
+    /// </para>
+    /// <para>
+    /// BP-72: graph-scoped windows (the Graph Signature editor) need this to stay pointed at the
+    /// graph the designer is looking at. Asset-scoped windows — My Blueprint, Details, Variables —
+    /// do not, which is why Q23's retarget audit found no fan-out work and missed this one.
+    /// </para>
+    /// </summary>
+    public Func<Guid>? CurrentGraphId { get; set; }
 
     /// <summary>
     /// Creates a canvas context.
@@ -113,8 +171,14 @@ public interface ICanvasRenderSeam
 /// </list>
 /// </para>
 /// </summary>
-public sealed class AiGraphCanvasWindow : ManagedWindow
+public sealed class AiGraphCanvasWindow : ManagedWindow, Fdp.Presentation.Input.IKeyScopeWindow
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal, not a <c>PanelIds</c> constant: this
+    /// class is instantiated per-perspective (BTree/HSM/Blueprint each construct their own), so the
+    /// SAME kind already means "a graph canvas" without a cross-assembly constant — there is only one
+    /// class, so there is nothing two literals could drift apart on.</summary>
+    internal const string Kind = "graph-canvas";
+
     private readonly AiDocumentManager _docManager;
     private readonly string            _assetKind;
     private readonly ICanvasRenderSeam _renderer;
@@ -124,13 +188,11 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     // and can close. Null only in legacy headless tests that do not exercise the picker.
     private readonly IPickerRegistry? _pickers;
 
-    // BCP-BATCH-02-FIX Task 1: per-frame hotkey pump (Ctrl+F find, etc.). Null only in
-    // legacy headless tests that do not supply a host input source.
-    private readonly EditorHotkeyDispatcher? _hotkeys;
+    // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5, CE-4282) — the canvas's command hotkeys (Ctrl+F, Ctrl+Z, Delete, Esc …) run
+    //   through the WindowManager's KeyRouter, and ONLY while this canvas is focused (IKeyScopeWindow below). ⛔ SUPERSEDED: BCP-BATCH-02-FIX's
+    //   per-canvas EditorHotkeyDispatcher, which pumped on every DRAWN canvas, so one Esc/Delete/Ctrl+Z fired in several.
 
-    // MULTI-TAB: raw host input, kept alongside _hotkeys so the Alt+Left back-navigation
-    // check can read modifiers/keys directly (EditorHotkeyDispatcher only dispatches
-    // registered IEditorCommands bindings). Null in legacy headless tests.
+    // MULTI-TAB: raw host input, so the Alt+Left back-navigation check can read modifiers/keys directly. Null in legacy headless tests.
     private readonly IInputSource? _input;
 
     // SAVE-ON-CLOSE FIX: the ONLY path that persists a document. Invoked exclusively by the
@@ -172,6 +234,17 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// </summary>
     public Action<AiCanvasContext>? AfterDraw { get; set; }
 
+    /// <summary>
+    /// ⭐⭐ <b>Invoked every frame this window holds focus</b>, so the selection store can record that
+    /// the designer is working in the CANVAS *(<c>SelectionOrigin.GraphCanvas</c>)*.
+    ///
+    /// <para>⭐ A callback rather than a store reference, matching <see cref="AfterDraw"/>: this window
+    /// is shared by Blueprint, BTree and HSM and must not grow a dependency on any one perspective's
+    /// selection store. ⛔ The registrar owns the wiring, so there is nothing for a composition root to
+    /// forget.</para>
+    /// </summary>
+    public Action? NotifyFocusClaim { get; set; }
+
     // BCP-BATCH-02-FIX Task 2: the document whose name is currently reflected in Title,
     // so we only rebuild the title string when the active document actually changes.
     private AiDocument? _titleDoc;
@@ -198,8 +271,8 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     ///   in headless tests that do not exercise the picker overlay.
     /// </param>
     /// <param name="input">
-    ///   Host input source used to drive the per-frame <see cref="EditorHotkeyDispatcher"/>
-    ///   (Ctrl+F find and other command shortcuts). May be <c>null</c> in headless tests.
+    ///   Host input source for the Alt+Left back-navigation chord (the command shortcuts are the WindowManager's KeyRouter's, B-10 K1).
+    ///   May be <c>null</c> in headless tests.
     /// </param>
     /// <param name="idOverride">
     ///   Optional stable ImGui id suffix. When <c>null</c> a default of
@@ -229,12 +302,14 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _docManager = docManager ?? throw new ArgumentNullException(nameof(docManager));
         _renderer   = renderer   ?? throw new ArgumentNullException(nameof(renderer));
         _pickers      = pickers;
-        _hotkeys      = input != null ? new EditorHotkeyDispatcher(input) : null;
         _input        = input;
         _saveDocument = saveDocument;
         _baseTitle    = $"{assetKind} Canvas";
 
         IsOpen = true;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>
@@ -270,6 +345,31 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 
     // ── ManagedWindow implementation ─────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    /// ⛔⛔ No ImGui — every field is a plain read of <see cref="AiDocument"/>/<see cref="AiCanvasContext"/>
+    /// state, published before the render guard so a headless run still observes this window.
+    /// </summary>
+    private AiGraphCanvasWindowPanelViewModel BuildAndPublish(AiDocument? doc)
+    {
+        var context    = doc?.ViewState as AiCanvasContext;
+        var breadcrumb = doc != null ? BuildBreadcrumb(doc, context?.View.Model) : null;
+
+        var vm = new AiGraphCanvasWindowPanelViewModel(
+            Id, Kind, _assetKind,
+            HasActiveDocument:   doc != null,
+            ActiveDocumentName:  doc?.Asset.Name,
+            ActiveDocumentDirty: doc?.Asset.IsDirty ?? false,
+            OpenDocumentCount:   TabDocuments.Count,
+            Breadcrumb:          string.IsNullOrEmpty(breadcrumb) ? null : breadcrumb);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal AiGraphCanvasWindowPanelViewModel SimulateBuildAndPublish() => BuildAndPublish(ActiveDocument);
+
     /// <inheritdoc/>
     protected override void DrawClientArea()
     {
@@ -277,9 +377,20 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         // different from the last activation, call Activate.  Gate the ImGui call for
         // headless safety.
         var doc = ActiveDocument;
+        BuildAndPublish(doc);
 
         if (ImGuiAvailable())
+        {
+            // ⭐⭐⭐ Batch 87 — claim the Details panel for the CANVAS while this window holds focus
+            //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge: HandleFocusActivation below is
+            //    edge-triggered (`doc == _lastActivatedDoc` returns early), and an edge is exactly what
+            //    B8 could not observe — re-entering the canvas with an unchanged selection IS the
+            //    failing gesture. ⭐ The store de-duplicates, so a per-frame call costs a comparison.
+            if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
+                NotifyFocusClaim?.Invoke();
+
             HandleFocusActivation(doc);
+        }
 
         // BCP-BATCH-02-FIX Task 2: reflect the active asset name in the window title,
         // keeping the stable "###id" so docking identity is preserved. Empty-state title
@@ -312,44 +423,31 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 
         var context = ActiveContext;
 
+        // BP-85: name the graph the canvas is showing. Without this the tab shows only the asset
+        // name, so switching to a freshly created (empty) function graph read as "my graph has been
+        // emptied" — a false data-loss scare — and nothing on screen answered "is this an Instance
+        // blueprint?".
+        if (ImGuiAvailable())
+            DrawBreadcrumb(BuildBreadcrumb(doc, context.View.Model));
+
         // Render the cached GraphView via the seam, threading FindBar and Commands when present.
         _renderer.Render(context.View, context.FindBar, context.Commands);
 
-        // BCP-BATCH-02-FIX Task 1 (THE key fix): draw the picker overlay and pump command
-        // hotkeys once per frame, gated behind an available ImGui context for headless safety.
-        // Without DrawFrame the TAB add-node picker / wire-drop picker open invisibly and the
-        // interaction Mode sticks (PickerOpen / PendingWire), killing RMB-pan, context menu and
-        // wire-drag (all of which live in HandleIdle).
+        // BCP-BATCH-02-FIX Task 1 (THE key fix): draw the picker overlay once per frame, gated behind an available ImGui context for headless
+        // safety. Without DrawFrame the TAB add-node picker / wire-drop picker open invisibly and the interaction Mode sticks (PickerOpen /
+        // PendingWire), killing RMB-pan, context menu and wire-drag (all of which live in HandleIdle). ⭐ B-10 K1: the hotkeys are the router's.
         if (ImGuiAvailable())
-        {
-            // Yield command hotkeys while the user is typing into a text field so we do not
-            // steal keystrokes from inline editors / search boxes.
-            bool wantText = ImGuiNET.ImGui.GetIO().WantTextInput;
-            DrawPickerAndPumpHotkeys(context, suppressHotkeys: wantText);
-        }
+            _pickers?.DrawFrame();
 
         // BF-UX1 FIX C: per-frame hook for cross-cutting logic (e.g. selection→details bridge).
         AfterDraw?.Invoke(context);
     }
 
-    /// <summary>
-    /// Draws the shared picker overlay once and pumps the per-frame command hotkeys.
-    /// Extracted from <see cref="DrawClientArea"/> so it can be exercised headlessly
-    /// via <see cref="SimulatePickerAndHotkeyFrame"/> (the <c>DrawFrame</c> spy and the
-    /// hotkey dispatcher do not require an ImGui context themselves).
-    /// </summary>
-    /// <param name="context">The active canvas context (supplies the command set).</param>
-    /// <param name="suppressHotkeys">
-    /// When <c>true</c>, the hotkey pump is skipped (used when the user is typing into a
-    /// text field so command shortcuts do not steal keystrokes).
-    /// </param>
-    private void DrawPickerAndPumpHotkeys(AiCanvasContext context, bool suppressHotkeys)
-    {
-        _pickers?.DrawFrame();
+    /// <summary>⭐ B-10 K1 — the keymap's window kind for this canvas's commands (one per canvas window).</summary>
+    public string KeyScopeKind => Id;
 
-        if (!suppressHotkeys)
-            _hotkeys?.ProcessThisFrame(context.Commands);
-    }
+    /// <summary>⭐ B-10 K1 — the active document's commands, run by the KeyRouter while this canvas is focused.</summary>
+    public NodeEditor.Core.Action.IEditorCommands? KeyCommands => ActiveContext?.Commands;
 
     /// <summary>
     /// Sets <see cref="ManagedWindow.Title"/> to include the active document's asset name
@@ -368,6 +466,51 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         Title = _baseTitle;
     }
 
+    // ── BP-85: canvas breadcrumb ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the one-line breadcrumb naming what the canvas is currently editing:
+    /// <c>{asset} · {dispatch}  ▸  {graph} ({graph kind})</c>.
+    ///
+    /// <para>
+    /// Kind-agnostic: the dispatch segment appears only for assets implementing
+    /// <see cref="IAssetSubtitleProvider"/>, and the graph-kind segment is dropped when it would
+    /// merely repeat the graph's name. Pure and static so the format is testable headlessly.
+    /// </para>
+    /// </summary>
+    internal static string BuildBreadcrumb(AiDocument? doc, IGraphModel? model)
+    {
+        if (doc == null) return string.Empty;
+
+        var sb = new System.Text.StringBuilder(doc.Asset.Name);
+
+        if (doc.Asset is IAssetSubtitleProvider s && !string.IsNullOrWhiteSpace(s.Subtitle))
+            sb.Append(" · ").Append(s.Subtitle);
+
+        var graphName = model?.DisplayName;
+        if (!string.IsNullOrWhiteSpace(graphName))
+        {
+            // ASCII separator on purpose: the editor's ImGui font atlas has no glyph for "▸"
+            // (U+25B8) and renders it as "?" — the same reason "? EDIT" shows elsewhere in the UI.
+            sb.Append("  >  ").Append(graphName);
+
+            var kindName = model!.Kind?.DisplayName;
+            if (!string.IsNullOrWhiteSpace(kindName) &&
+                !string.Equals(kindName, graphName, StringComparison.OrdinalIgnoreCase))
+                sb.Append(" (").Append(kindName).Append(')');
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Renders <paramref name="text"/> as a dimmed breadcrumb line above the canvas.</summary>
+    private static void DrawBreadcrumb(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        ImGuiNET.ImGui.TextDisabled(text);
+        ImGuiNET.ImGui.Separator();
+    }
+
     // ── MULTI-TAB: tab bar ────────────────────────────────────────────────────
 
     /// <summary>
@@ -381,42 +524,48 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             .ToList();
 
     /// <summary>
-    /// Builds the ImGui tab label for <paramref name="doc"/>: a per-kind FontAwesome glyph,
-    /// the asset name, and a stable <c>###AssetId</c> suffix so ImGui keeps the tab's identity
-    /// across reorders/renames. Exposed internally for headless label-format tests.
+    /// The ImGui tab label of <paramref name="doc"/>: its text (the asset name, ⭐ <c>CE-1318</c> BV-55: a PINNED document says for whom — <c>PlatoonDefend · #1:2975</c>) and the stable
+    /// <c>###id</c> suffix, so ImGui keeps the tab's identity across reorders and renames. ⭐ <c>U-3</c>: no glyph prefix any more — the coloured icon is painted by <see cref="IconTab"/>
+    /// (<see cref="GetTabIconKey"/>). Exposed internally for headless label-format tests.
     /// </summary>
-    internal static string GetTabLabel(AiDocument doc) =>
-        $"{GetTabGlyph(doc)} {doc.Asset.Name}###{doc.Asset.AssetId}";
+    internal static string GetTabLabel(AiDocument doc) => $"{GetTabText(doc)}###{GetTabId(doc)}";
+
+    /// <summary>The visible text of a document tab.</summary>
+    internal static string GetTabText(AiDocument doc) => doc.PinnedEntity is { } pin ? $"{doc.Asset.Name} · {doc.PinLabel ?? $"#{pin.Index}"}" : doc.Asset.Name;
+
+    /// <summary>The stable id of a document tab (two pins of one asset are two tabs).</summary>
+    internal static string GetTabId(AiDocument doc) => doc.PinnedEntity is { } pin ? $"{doc.Asset.AssetId}@{pin.Index}:{pin.Generation}" : doc.Asset.AssetId.ToString();
 
     /// <summary>
-    /// Resolves the FontAwesome glyph for a document's tab: prefers a finer-grained
-    /// <see cref="IAssetIconKeyProvider.IconKey"/> when the backing asset supplies one
-    /// (e.g. a Blueprint's Action/Condition/Function intent), otherwise falls back to a
-    /// per-<see cref="AssetKind"/> default. Kept kind-agnostic — no blueprint-specific types.
+    /// ⭐ U-3 (Colour Icons §3) — the key in <c>NodeEditor.Core.Widgets.Icons</c> of a document's icon: a finer-grained <see cref="IAssetIconKeyProvider.IconKey"/> when the backing asset supplies one
+    /// (a Blueprint's Action / Condition / Function intent), otherwise a per-<see cref="AssetKind"/> default. Kind-agnostic — no blueprint-specific types.
     /// </summary>
-    internal static string GetTabGlyph(AiDocument doc)
+    internal static string GetTabIconKey(AiDocument doc)
     {
         if (doc.Asset is IAssetIconKeyProvider iconProvider && !string.IsNullOrEmpty(iconProvider.IconKey))
         {
             switch (iconProvider.IconKey)
             {
-                case AssetKindIcons.BlueprintActionIconKey:    return IconsFontAwesome6.Bolt;
-                case AssetKindIcons.BlueprintConditionIconKey: return IconsFontAwesome6.CircleQuestion;
-                case AssetKindIcons.BlueprintFunctionIconKey:  return IconsFontAwesome6.Gear;
+                case AssetKindIcons.BlueprintActionIconKey:    return "doc/blueprint";
+                case AssetKindIcons.BlueprintConditionIconKey: return "doc/condition";
+                case AssetKindIcons.BlueprintFunctionIconKey:  return "doc/utility";
             }
         }
 
         return doc.Kind switch
         {
-            AssetKind.Blueprint  => IconsFontAwesome6.Bolt,
-            AssetKind.BTree      => IconsFontAwesome6.Sitemap,
-            AssetKind.Hsm        => IconsFontAwesome6.CircleNodes,
-            AssetKind.Blackboard => IconsFontAwesome6.LayerGroup,
-            AssetKind.Utility    => IconsFontAwesome6.Gear,
-            AssetKind.Scenario   => IconsFontAwesome6.DiagramProject,
-            _                    => IconsFontAwesome6.File,
+            AssetKind.Blueprint  => "doc/blueprint",
+            AssetKind.BTree      => "doc/btree",
+            AssetKind.Hsm        => "doc/hsm",
+            AssetKind.Blackboard => "doc/blackboard",
+            AssetKind.Utility    => "doc/utility",
+            AssetKind.Scenario   => "doc/scenario",
+            _                    => "doc/other",
         };
     }
+
+    /// <summary>The FontAwesome glyph of a document's icon (the map's glyph for <see cref="GetTabIconKey"/>).</summary>
+    internal static string GetTabGlyph(AiDocument doc) => NodeEditor.Core.Widgets.Icons.Get(GetTabIconKey(doc)).Glyph;
 
     /// <summary>
     /// Draws the multi-tab bar for this perspective's open documents (skipped entirely when
@@ -438,7 +587,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         // otherwise we'd fight the user's own tab clicks every frame.
         bool syncSelection = !ReferenceEquals(active, _lastSyncedActive);
 
-        if (!ImGuiNET.ImGui.BeginTabBar("##ai_graph_tabs",
+        if (!NodeEditor.Core.Widgets.IconTab.BeginBar("##ai_graph_tabs",       // ⭐ U-3: the shared neutral tab bar
                 ImGuiNET.ImGuiTabBarFlags.TabListPopupButton
               | ImGuiNET.ImGuiTabBarFlags.AutoSelectNewTabs
               | ImGuiNET.ImGuiTabBarFlags.NoCloseWithMiddleMouseButton))
@@ -455,7 +604,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             if (syncSelection && ReferenceEquals(d, active))
                 flags |= ImGuiNET.ImGuiTabItemFlags.SetSelected;
 
-            if (ImGuiNET.ImGui.BeginTabItem(GetTabLabel(d), ref tabOpen, flags))
+            if (NodeEditor.Core.Widgets.IconTab.Begin(GetTabId(d), GetTabText(d), NodeEditor.Core.Widgets.Icons.Get(GetTabIconKey(d)), flags, ref tabOpen))
             {
                 if (!ReferenceEquals(d, _docManager.Active))
                     _docManager.Activate(d);
@@ -466,7 +615,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
                 (toClose ??= new List<AiDocument>()).Add(d);
         }
 
-        ImGuiNET.ImGui.EndTabBar();
+        NodeEditor.Core.Widgets.IconTab.EndBar();
 
         _lastSyncedActive = _docManager.Active;
 
@@ -477,6 +626,9 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             foreach (var d in toClose)
                 RequestTabClose(d);
     }
+
+    /// <summary>⭐ U-3 — the real tab-bar draw, for a frame rail inside a live ImGui frame.</summary>
+    internal void DrawTabBarForRail() => DrawTabBar();
 
     // ── MULTI-TAB: unsaved-changes prompt on tab close ────────────────────────
     //
@@ -678,13 +830,10 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// <summary>
     /// Test hook: runs the non-ImGui portion of <see cref="DrawClientArea"/> for the active
     /// document — updates <see cref="ManagedWindow.Title"/> from the asset name and, when a
-    /// context is present, draws the picker overlay and pumps command hotkeys.
-    /// Mirrors the production per-frame path without requiring an ImGui context.
+    /// context is present, draws the picker overlay. Mirrors the production per-frame path without requiring an ImGui context.
+    /// ⭐ B-10 K1: the hotkeys are the KeyRouter's (KeyRouterTests), not the canvas's.
     /// </summary>
-    /// <param name="suppressHotkeys">
-    /// Simulates the "user is typing into a text field" gate that suppresses the hotkey pump.
-    /// </param>
-    internal void SimulateDrawClientArea(bool suppressHotkeys = false)
+    internal void SimulateDrawClientArea()
     {
         var doc = ActiveDocument;
         UpdateTitle(doc);
@@ -693,7 +842,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         var context = ActiveContext;
         if (doc == null || context == null) return;
 
-        DrawPickerAndPumpHotkeys(context, suppressHotkeys);
+        _pickers?.DrawFrame();
     }
 
     // ── MULTI-TAB: test seams (mirror production tab-bar / back-nav logic, no ImGui) ──

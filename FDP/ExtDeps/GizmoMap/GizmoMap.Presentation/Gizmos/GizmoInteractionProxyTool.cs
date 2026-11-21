@@ -15,7 +15,8 @@ namespace GizmoMap.Presentation
     /// - Uses a callback delegate instead of FdpEventBus.
     /// - Uses an optional exit callback instead of MapCanvas.PopTool().
     /// - Callback carries actionId and stateFlags so the same delegate handles RawInput.
-    ///   For Started/DragUpdate/Commit/Cancel, actionId=0 and stateFlags=0.
+    ///   For DragUpdate/Commit/Cancel, actionId=0 and stateFlags=0; ⭐ CE-4342 — Started carries the press's button and held modifiers
+    ///   (<c>startedActionId</c>: <c>MapMouseButton.Left | ShiftMask …</c>), the contract <c>GizmoInteractionStartedEvent.Button</c> documents.
     /// </summary>
     public sealed class GizmoInteractionProxyTool
     {
@@ -30,8 +31,12 @@ namespace GizmoMap.Presentation
             Vector2 initialWorldPos,
             Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null,
             Action? onExit = null,
-            CoordinateSpace space = CoordinateSpace.World)
+            CoordinateSpace space = CoordinateSpace.World,
+            float initialZ = 0f,
+            Func<float>? height = null,
+            int startedActionId = 0)
         {
+            _height = height;
             _token         = token;
             _onInteraction = onInteraction;
             _onExit        = onExit;
@@ -39,8 +44,12 @@ namespace GizmoMap.Presentation
 
             // Fire Started event immediately on construction (mirrors OnEnter behaviour).
             _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Started,
-                new Vector3(initialWorldPos.X, initialWorldPos.Y, 0f), 0, 0);
+                new Vector3(initialWorldPos.X, initialWorldPos.Y, initialZ), startedActionId, 0);
         }
+
+        // ⭐ CE-1033 S2 (M19) — the height of the point this tool reports (the 3-D map's terrain under the cursor; 2-D: 0).
+        private readonly Func<float>? _height;
+        private float Z => _height?.Invoke() ?? 0f;
 
         public bool HandlePress(Vector2 worldPos, MouseButton button)
         {
@@ -58,7 +67,7 @@ namespace GizmoMap.Presentation
             _onInteraction?.Invoke(
                 _token,
                 GizmoInteractionEventKind.DragUpdate,
-                new Vector3(worldPos.X, worldPos.Y, 0f), 0, 0);
+                new Vector3(worldPos.X, worldPos.Y, Z), 0, 0);
             return true;
         }
 
@@ -72,7 +81,7 @@ namespace GizmoMap.Presentation
                     _onInteraction?.Invoke(
                         _token,
                         GizmoInteractionEventKind.Commit,
-                        new Vector3(worldPos.X, worldPos.Y, 0f), 0, 0);
+                        new Vector3(worldPos.X, worldPos.Y, Z), 0, 0);
                     _onExit?.Invoke();
                     return true;
                 }

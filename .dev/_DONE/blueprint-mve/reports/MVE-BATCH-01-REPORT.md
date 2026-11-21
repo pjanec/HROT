@@ -134,7 +134,7 @@ above being closed first.
   the blueprint tick path or my new files; count unchanged at 10.
 - `Hrot.ClusterRunner.Integration.Tests` (filter `~EditorSubsystemBoot`): **Passed 10/10.**
 - `Hrot.Editor.AiShared.Tests`: **Passed 761/761.**
-- `dotnet build IOS-IG-SimHost.sln` (single-threaded): **0 errors**, 18 pre-existing
+- `dotnet build HROT.sln` (single-threaded): **0 errors**, 18 pre-existing
   solution-wide warnings, none from the two new files (verified by filtered build).
 
 ## Developer Insights

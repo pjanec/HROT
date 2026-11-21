@@ -1,3 +1,4 @@
+using Hrot.Diagnostics.Breakpoints;
 using System;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Time;
@@ -9,9 +10,10 @@ namespace Hrot.Blueprints.Editor.Debug;
 /// <summary>
 /// Adapts the engine's native MasterSyncController to the Blueprint debug protocol.
 /// </summary>
-#pragma warning disable CS0618 // IBlueprintTimeController is obsolete; retained for one-batch backward compatibility
-public sealed class MasterSyncTimeControllerAdapter : IEngineDebugTimeController, IBlueprintTimeController
-#pragma warning restore CS0618
+// ⭐ CE-350: the obsolete `IBlueprintTimeController` alias is GONE, and with it the
+//    `#pragma warning disable CS0618` that used to wrap this line — the ONLY production code that
+//    named the alias did so purely to silence the warning the alias itself generated.
+public sealed class MasterSyncTimeControllerAdapter : IEngineDebugTimeController
 {
     private readonly MasterSyncController _masterSync;
 

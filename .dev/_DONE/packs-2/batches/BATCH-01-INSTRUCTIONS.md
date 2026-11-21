@@ -180,7 +180,7 @@ Creates a composite `IEcsModule` wrapping the cluster-sync modules/handlers:
 
 **Build verification after Task 1:**
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.SimHost.Tests --no-build
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests --no-build
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Integration.Tests --no-build
@@ -285,7 +285,7 @@ dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests
 Before writing your report, verify ALL of the following are green:
 
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.SimHost.Tests
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Integration.Tests

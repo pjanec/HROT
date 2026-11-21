@@ -31,7 +31,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             var ctx   = new BTreeContext { Self = entity, World = world };
             var state = new BehaviorTreeState();
-            var bb    = new BrainBlackboard();
+            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
             InsurgentNodes.Deactivate_AimAndFire(ref bb, ref state, ref ctx, 0);
@@ -55,7 +55,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             var ctx   = new BTreeContext { Self = entity, World = world };
             var state = new BehaviorTreeState();
-            var bb    = new BrainBlackboard();
+            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act + Assert (no exception)
             InsurgentNodes.Deactivate_AimAndFire(ref bb, ref state, ref ctx, 0);
@@ -78,7 +78,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             var ctx   = new BTreeContext { Self = entity, World = world };
             var state = new BehaviorTreeState();
-            var bb    = new BrainBlackboard();
+            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
             InsurgentNodes.Deactivate_AimAndFire(ref bb, ref state, ref ctx, 0);
@@ -106,7 +106,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             var ctx   = new BTreeContext { Self = entity, World = world };
             var state = new BehaviorTreeState();
-            var bb    = new BrainBlackboard();
+            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
             InsurgentNodes.Deactivate_AimAndFire(ref bb, ref state, ref ctx, 0);

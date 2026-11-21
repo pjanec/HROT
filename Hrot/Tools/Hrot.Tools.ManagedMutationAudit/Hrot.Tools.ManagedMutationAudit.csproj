@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ⭐ CE-4445 M-1 (exp/managed-reads, HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit) — an INSTRUMENT, not part of HROT.sln:
+       every site that READS a managed component and then MUTATES the object in place (Roslyn, the semantic model of HROT.sln). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-mutation-audit</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Locator" Version="1.7.8" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.11.0" />
+  </ItemGroup>
+</Project>

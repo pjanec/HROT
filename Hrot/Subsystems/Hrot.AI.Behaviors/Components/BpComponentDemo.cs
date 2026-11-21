@@ -13,9 +13,10 @@ namespace Hrot.AI.Behaviors
     /// <see cref="BlueprintWritableAttribute"/>'s doc comment) but a demo-only component owned by no
     /// system is exactly the safe case it is meant for.
     /// </summary>
-    [ComponentId(188)] // Hrot application-level block (160-199, HrotComponentIds); next free after 187 (InitialBlueprintsIntent).
+    [ComponentId(GlobalComponentIds.BpComponentDemo)] // Hrot application-level block (160-199, HrotComponentIds); next free after 187 (InitialBlueprintsIntent).
     [BlueprintWritable]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct BpComponentDemo
     {
         public int Health;

@@ -44,7 +44,7 @@
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build HROT.sln --no-incremental -clp:ErrorsOnly
 ```
 **Result:** Build succeeded. 0 Error(s).
 

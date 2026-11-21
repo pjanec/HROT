@@ -11,10 +11,13 @@ namespace Fdp.Examples.CarKinem
         private readonly SelectionManager _selectionManager;
         private readonly EntityRepository _repository; 
         
+        private int _version;
+
         public CarKinemInspectorAdapter(SelectionManager selectionManager, EntityRepository repository)
         {
             _selectionManager = selectionManager;
             _repository = repository;
+            _selectionManager.SelectionChanged += () => _version++;
         }
 
         // ISelectionState Implementation
@@ -56,5 +59,18 @@ namespace Fdp.Examples.CarKinem
         }
 
         public bool IsMergedView { get; set; }
+
+        // ── ISelectionState, UXI-11 S-1 ───────────────────────────────────────
+        // ⭐ SelectionManager already carried this vocabulary; the interface adopted its shape.
+
+        public int Version => _version;
+
+        public void Add(Entity entity) => _selectionManager.Add(entity);
+
+        public void Remove(Entity entity) => _selectionManager.Remove(entity);
+
+        public void SetMultiple(IReadOnlyCollection<Entity> entities) => _selectionManager.SetMultiple(entities);
+
+        public void Clear() => _selectionManager.Clear();
     }
 }

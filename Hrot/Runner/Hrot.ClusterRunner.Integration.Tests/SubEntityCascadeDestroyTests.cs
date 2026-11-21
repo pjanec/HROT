@@ -22,7 +22,7 @@ public class SubEntityCascadeDestroyTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new GeoPoint { Latitude = 32.0, Longitude = 34.0 });
 

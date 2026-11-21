@@ -1,0 +1,256 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-13
+current-answer: one section per item, newest last — CE-6003
+stale-below: nothing
+related-designs:
+  - ../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — OWNS the city battle; §11 holds every item of this lane as a row
+  - ../../DESIGN_Peek_And_Fire.md — §9.9 the as-built obstacle removal (CE-6003)
+  - HANDOFF_Ui_To_Showcase_World.md — the frames and the gate contract (§3) this report answers
+-->
+
+# STATUS — `showcase-world` (the city battle's world lane)
+
+Base: `ui` `d9f024272` (started marker `809265f1d`). Gate contract: [`HANDOFF_Ui_To_Showcase_World.md`](HANDOFF_Ui_To_Showcase_World.md) §3.
+
+## CE-6003 — an obstacle can be destroyed, and its removal opens the street
+
+**As built:** [`DESIGN_Peek_And_Fire.md` §9.9](../../DESIGN_Peek_And_Fire.md) (classDiagram, sequenceDiagram, module graph, decisions, rejected) ·
+[`DESIGN_City_Battle_Showcase.md`](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §11 O-1 row + §8 caption updated.
+⚠ **Deviation from the lean, measured:** the person / hull law of `AreaEffectSystem` is NOT reused for an obstacle — with the obstacle branch off
+it gave a concrete block **80 hp for every warhead** at its face (8 kg charge = 81 mm = 120 mm = M67): the fragments stop in the block's own prism
+and only the warhead-independent `BlastLethalDamage` lands. An obstacle takes `ObstacleDamage.BlastDamage` = 100 hp/kg × kg × f(d / ∛kg) instead
+(the breach law's scaled distance), still as ONE `DamageAssessedEvent` to its Health owner.
+
+**Graph queries run** (`scripts/cbm.sh`): `search_graph name_pattern .*Obstacle.* label Class` → 22, none damages or removes an obstacle;
+`search_graph .*(Demoli|Destructi|Wreck|Removal|Clear(ance)?Obstacle).* Class` → 7 (ELM destruction events, `WreckSpawnSystem` — Presentation only);
+`search_code IsObstacle` → 7 (LOS occluder, bullet narrow phase, vehicle cover). ⚠ The CLI cannot check index coverage. Grep confirmed: the
+destroy idiom is `DestroyEntityCommand` (`Charges.End`, `AreaEffectCloudSystem.End`), the one teardown.
+
+**Overlap with the parallel programme** (`git diff --name-only HEAD...origin/exp/threaded-build`, `2026-11-13`): none of the edited files
+(`AreaEffectSystem.cs`, `HealthApplicationSystem.cs` untouched, `ObstacleTkbTranslator.cs`, `StaticObstacleDto.cs`, `CoreInfrastructureCapabilities.cs`,
+`NedTkbCatalog.cs`). ⚠ One HIT on the re-check before commit: `Hrot.ReplayBrowser.Tests/ReplayBrowserSubsystemTests.cs` is on the list ⇒ the
+replay rail was MOVED to its own file (`ObstacleRemovalReplayTests.cs`, own fixture) and that file is untouched. `CarKinematicsSystem.cs` is on it too ⇒ CE-6014 not built. Edits to `NedTkbCatalog.cs` are confined to `RegisterObstacles` / `RegisterObstacle` (the bulldozer worker's CE-6006 touches the
+vehicle region); `TkbEntityTypes.cs` untouched. Cross-lane edit, said: `Hrot.Editor.Tests/EditorCapabilitiesTests.cs` (ui) — its pinned
+health-application head is now read from the capability (`HealthApplicationHead()`), as its tail already was.
+
+### Gates
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-restore` | 0 errors | builds |
+| 2 | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build --filter "FullyQualifiedName~ObstacleDamageTests\|FullyQualifiedName~StaticObstacleTests\|FullyQualifiedName~AreaEffectSystemTests\|FullyQualifiedName~HealthApplicationSystemTests\|FullyQualifiedName~ChargesTests\|FullyQualifiedName~AreaEffectCloudTests\|FullyQualifiedName~BuildingCollapseTests\|FullyQualifiedName~BuildingDamageSystemTests"` | **111 / 0 / 0** | ✅ (test bin dll 18:09:37, after the last edit) |
+| 3 | `dotnet build Hrot/Subsystems/Hrot.ReplayBrowser.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~CE6003\|FullyQualifiedName~O8_\|FullyQualifiedName~T6_"` (the CE-6003 rail in its own file `ObstacleRemovalReplayTests.cs`) | **9 / 0 / 0** | ✅ |
+| 4 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~RoadblockBlastScenarioTests"` | **1 / 0 / 0** (75 s) | ✅ |
+| 5 | `dotnet build Hrot/Subsystems/Hrot.SimHost.Tests/... --no-restore` · `dotnet test … --no-build --filter "…UtmEverywhereTests\|…LiveSimulationPlanRails\|…StaticObstacleBakeTests\|…UnitCommanderTests\|…CgfLogicPackTests\|…BuildingDamageBakeTests"` | **48 / 1 / 0** — the red `CgfLogicPackTests.CE454_TheSquadLayerRunsThroughTheRealCgfPack` (*Expected 2, Actual 0*) is PRE-EXISTING: red with this item's five code files stashed (base `d9f024272` code + the test edits only) | ✅ |
+| 6 | `dotnet build Hrot/Subsystems/Hrot.Editor.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~EditorCapabilitiesTests\|FullyQualifiedName~Systems.SystemTests"` | **12 / 0 / 0** | ✅ |
+| — | `python3 scripts/design-digest.py --check` | ⚠ fails on files this item did not touch (`DESIGN_Terrain_Synth.md`, `DESIGN_Readable_Scenario_Json.md`, `UX/DESIGN_Rules_Bundle.md`, `UX/DESIGN_Replay_Browser_UX.md`, `UX/DESIGN_Show_On_Map.md`, a `superpowers/plans` file): pre-existing | — |
+| — | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs` on both designs | 28 + 6 blocks parse | — |
+| — | `python3 scripts/tracker-counts.py --check` | OK (3134 rows) | — |
+| — | not run: the E2E / system suite (T3), the full solution build | the change is gated by its own rails + the touched classes; ⚠ the three parallel checks and `stepped-hash.py` do not exist on `ui` ⇒ CE-6012 | — |
+
+### Red-proofs (each a compiling mutation, applied, tested and reverted in one command, the file touched after)
+
+| mutation | rail | result |
+|---|---|---|
+| M1 the obstacle branch off (`… && w.ExplosiveKg < 0f`) — the person / hull law runs | `CE6003_A1`, `CE6003_A2` | 🔴 both: *"the charge took 80 of 600"*; 81 mm = 120 mm = M67 = 80 |
+| M2 no `HealthOwnership.AppliesHere` gate | `CE6003_R1` | 🔴 |
+| M3 `BlastDamage` without the kg factor | `CE6003_L1`, `CE6003_A2` | 🔴 both (every warhead 800) |
+| M4 the query rebuilt every frame | `CE6003_H1` | ⚪ stayed green — building an `EntityQuery` allocates nothing measurable; replaced by M4b |
+| M4b a boxed read per obstacle | `CE6003_H1` | 🔴 *"100 steady frames allocated 120000 B"* |
+| M5 the translator writes no Health | `CE6003_T2` | 🔴 |
+| M6 the seam ignores `IsDestructible` | `CE6003_S1` | 🔴 |
+| M7 the trace runs INTO the block (own prism crossed) | `CE6003_A1`, `A2` | ⚪ green — finding: an obstacle prism is not a closed barrier, so the 2 cm offset changes nothing today (kept, documented §9.9) |
+| R1 replay: no `BakeRecordedObstacles` on a jump (`ReplayBrowserSubsystem.DebugSurface.cs:266`) | `ObstacleRemovalReplayTests.CE6003_ARemovedObstacle_…` | 🔴 (at the load, which is a jump — the seeks go through the same line) |
+| T1 (test-side) the roadblock kept in the "after" world | `CE6003_T1` | not run separately: the "before" half asserts exactly that world closed |
+| F1 the twin: the removal never fires (`Current > -1f`) | `RoadblockBlastScenarioTests` | 🔴 *"② … CGF: Roadblock Active hp 0; SimHost: Roadblock Active hp 0; Player: Roadblock Active hp 0"* — the damage reached every node, nothing removed it |
+
+### Parallel contract (CE-6012 reruns these unchanged with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`)
+
+`ObstacleRemovalSystem` — owner-only (it asks for its OWN teardown: a command + `TearDown` through the command buffer), no statics, no
+randomness, no clock, a cached query + a counter as its only state, 0 B per steady frame (`CE6003_H1`). Rails: `ObstacleDamageTests.*`,
+`StaticObstacleTests.CE6003_T1/T2`, `ObstacleRemovalReplayTests.CE6003_*`, `RoadblockBlastScenarioTests.*`.
+
+### The feature scenario — `scenarios/showcases/city-battle/features/roadblock-blast` (+ NEW feature terrain `assets/terrain/roadblock-street`)
+
+A 3 m wall cuts the terrain in two with one 6 m gate, closed by a 6 × 1 × 1 m concrete barrier (type 8808, a per-instance `ObstacleShape`); 'Charge Man'
+sets off the 8 kg demolition charge 0.6 m off it; 'IFV' is ordered across at 40 s. Measured (the twin): no ground / vehicle path before; the barrier gone on
+CGF, SimHost and the Player by sim 12.4 s; both paths through the gate by 12.9 s; the IFV reaches (150, 51.5). `checks.json`: the burst, then the IFV at the
+far side. 📐 Why not `cqb-village`: its compound gate is 4 m and the vehicle navmesh agent radius is 1.8 m (`RecastNavmeshBaker.cs:81`) — it never opens to a
+vehicle (the IFV's route stayed `None`). ⚠ No `preview.jpg` for the scenario or the terrain: `scripts/thumbnails.py` drives a live editor (skipped, a
+follow-up for whoever runs one). ⚠ The replay half is the Replay Browser rail on a recorded removal, not a recording of this scenario.
+
+### Findings
+
+- **CE-6013** (filed, Area S-W): obstacles now carry `Health` ⇒ the objective measures read a blasted roadblock as a Neutral person (civilian harm,
+  `MeasuresEvidence.cs:90`; `ObjectiveCensus.IsMan`). Brains code; lean in the row.
+- **CE-6014** (filed, Area S-W): the IFV swerved round the charge man's body and crossed the wall line ~7 m off the gate THROUGH the concrete (measured three
+  times, `AvoidanceRadius` 5; an authored 1 m changed nothing). `CarKinematicsSystem` is on the parallel programme's list ⇒ not touched; the twin asserts the
+  route, logs the crossing.
+- Replay Browser: a recording opened through the debug provider's `Open` shows its recorded obstacles only after the first check interval / jump
+  (`LoadFdpViaManager` and every seek bake at once). Pre-existing, not filed (cosmetic, one throttle interval).
+
+### Ids allocated
+
+`CE-6013`, `CE-6014`. No ruling ids.
+
+### Clean tree / tracker
+
+The tree is clean after every run but for this item's own files (`git status` lists only them; no golden moved). Every mutation file restored and touched.
+Committed by path, pushed to `origin showcase-world`. `.gitignore` gains `!assets/terrain/roadblock-street/` — a committed demo terrain, added on purpose as its own comment asks.
+
+## CE-6005 — a heavy vehicle's wreck blocks the street
+
+Started at `271ab5f73` (the coordinator's merge of CE-6003 + the bulldozer). **As built:** [`DESIGN_Peek_And_Fire.md` §9.10](../../DESIGN_Peek_And_Fire.md)
+(class, sequence, module diagrams; decisions; rejected) · [`DESIGN_City_Battle_Showcase.md`](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §11 O-2 row + §8 node.
+
+**Decisions:** the wreck is a SEPARATE obstacle entity (new type `Obstacle_Wreck` = **8819**, car-body, 600 hp, sized per instance from the hulk's
+`VehicleParams` × hull height) sitting on the hulk, which stays. ⛔ "The vehicle becomes the obstacle" rejected: `StaticObstacle` is TKB-derived and never on
+the wire, and the hulk's Health 0 would make CE-6003 delete it. Opt-in per type by the new TKB descriptor `WreckObstacleDto` (M1, T-72, Bradley; the HMMWV
+not). ONCE = the alive→dead crossing seen on the Health owner (`WreckSpawnSystem`'s rule) — no flag component, because a new component id would edit
+`GlobalComponentIds.cs`, which is on the parallel programme's list. Created through `EntityCreationRequest` (the ELM; `Constructing` until its bake, R-243).
+Double counting with the hulk's collider: only cover gets extra points (both rings); bullets stop at the first, sight and fragments are opaque either
+way; the navmesh sees only the prism — the one consumer that needed it.
+
+**Ids:** TKB type 8819 (`git grep -E '\b8819\b'` over every `origin/*` branch: no hit). No tracker or ruling ids. **Overlap re-check** (`git diff
+--name-only HEAD...origin/exp/threaded-build`): none of the edited files; `GlobalComponentIds.cs` IS on it ⇒ avoided (above).
+
+**Graph/grep:** `search_graph .*(Demoli|Destructi|Wreck|Removal…).* Class` (earlier, CE-6003) → `WreckSpawnSystem` the only wreck class (Presentation, display
+only); grep: no other producer of a wreck obstacle; 88xx ids grepped on every branch.
+
+### Gates
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build FDP/Toolkits/Fdp.Toolkits.Tests/... --no-restore` · `dotnet test … --no-build --filter "…WreckObstacleTests\|…ObstacleDamageTests\|…StaticObstacleTests\|…AreaEffectSystemTests\|…HealthApplicationSystemTests\|…TkbDtosTests\|…TkbDescriptor"` | **108 / 0 / 0** | ✅ |
+| 2 | `dotnet build Hrot/Engine/Hrot.Core.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~NedTkbBuilderCombatTests"` | **55 / 0 / 0** | ✅ |
+| 3 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "…WreckBlocksStreetScenarioTests\|…RoadblockBlastScenarioTests"` | **2 / 0 / 0** (2 m 36 s) — T-72 killed at sim 31.9 s, ONE wreck active on CGF / SimHost / Player at 32.5 s on the hulk (100, 50), gate closed to vehicles; cleared and reopened by 74.4 s; never a second wreck on any node | ✅ |
+| 4 | `dotnet build Hrot/Subsystems/Hrot.Editor.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~EditorCapabilitiesTests"` (the capability head is derived) | **12 / 0 / 0** | ✅ |
+| — | `mermaid-check` (31 + 6 blocks) · `tracker-counts.py --check` OK | — | — |
+
+### Red-proofs (compiling mutation, applied, tested, reverted, touched)
+
+| mutation | rail | result |
+|---|---|---|
+| ask whenever dead (no crossing) | `CE6005_W1` | 🔴 |
+| no Health-owner gate | `CE6005_W2` | 🔴 |
+| no replay gate | `CE6005_W3` | 🔴 |
+| a boxed read per vehicle | `CE6005_H1` | 🔴 *"100 steady frames allocated 120000 B"* |
+| the Bradley off the heavy list | `NedTkbBuilderCombatTests.CE6005_…` | 🔴 |
+| the twin: the request never sent | `WreckBlocksStreetScenarioTests` | 🔴 *"③④ … CGF: 0 (0 active); SimHost: 0; Player: 0"* |
+
+### Notes
+
+- The feature scenario uses a REAL kill (an M1 with `BasicVehicleSop` vs an idle T-72, 60 m). The demolition man waits 60 s so the kill (~32 s measured twice)
+  comes first; the rail asserts the kill before 58 s.
+- With the wreck in the 6 m gate, 1.2 m is left on either side: the gate closes to VEHICLES (agent radius 1.8 m), a man still squeezes past — asserted
+  for the vehicle layer only.
+- ⚠ Edge not handled: a Health claim that moves to another node in the very frame of the death (no crossing on either node ⇒ no wreck). Not measured anywhere.
+- The bulldozer (112) does not leave a wreck (not on the heavy list); one line in `RegisterObstacles` adds it.
+
+## CE-6009 — company / platoon macros
+
+Started at `44b98210c`. **As built:** [`DESIGN_City_Battle_Showcase.md` §4a](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) (macro tree, decisions).
+⭐ **CONTENT only** — four macro files under `macros/city-battle/` on the existing expander / `InsertMacro` (Scenario Macros §16); no code, and none of the
+off-limits files (`MacroExpansionSystem.cs`, `ScenarioEntityWalk.cs`, `ActionComponents.cs`, the editor sessions) needed a change. `MacroExpanderTests.cs`
+is on the parallel list ⇒ the rails are in their own file.
+
+| macro | what it expands into (measured) |
+|---|---|
+| `rifle-platoon` (side, name) | platoon 305 @Platoon + 3 squads 302 + 18 men (15 × 2002, 3 × 2004 grenadiers) — 22 parts |
+| `militia-platoon` (side = Hostile, name) | the same shape, 2003 fighters |
+| `mech-company` (side) | 3 nested rifle-platoon instances (1st / 2nd / 3rd Platoon; `MacroInstance.Args.side ← side`) + tank section 301 with 2 M1 + 4 Bradleys — 76 parts |
+| `defender-company` (side = Hostile) | 3 militia platoons + 2 technicals |
+
+**Company commander: NONE** until CE-7002 — a placeholder 305 would run platoon plays that expect squads. **Kit** = which macro; **entry point** = the anchor.
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build Hrot/Subsystems/Hrot.SimHost.Tests/... --no-restore` · `dotnet test … --no-build --filter "…BehaviorParamsSweepTests\|…CityBattleMacrosTests\|…ScenarioRulesTests"` (the sweep reads every shipped macro) | **143 / 0 / 0** | ✅ |
+| 2 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~MacroPlatoonScenarioTests"` | **1 / 0 / 0** — at sim 3.4 s, on CGF / SimHost / Player: 3 squads, 18 men, 22/22 Active, 22/22 Friend, within 20 m of (50, 50); on CGF 3 squads under the platoon, 18 men under a squad; the instance Done | ✅ |
+
+| red-proof (data mutation, applied, tested, restored) | rail | result |
+|---|---|---|
+| the platoon's `EntityInfo.Name ← name` dropped | `CE6009_M1` | 🔴 |
+| one nested instance's `MacroInstance.Args.side ← side` dropped | `CE6009_M2` | 🔴 |
+| one man without his `UnitSubordinate` | `MacroPlatoonScenarioTests` | 🔴 |
+
+**Found, filed CE-6015:** the command hierarchy reaches neither SimHost nor the Player for any platoon (scenario-loaded `pc-attack-dry`: 15/15 on CGF,
+0 elsewhere — a temporary probe, not committed). An egress re-send while the commander is unmapped (`EntityInfoEgressTranslator`) was tried and changed
+nothing ⇒ reverted, not shipped. The twin asserts the hierarchy on the brain node and says why.
+**Also:** my three twins moved to DDS domains 176 / 177 / 178 — 186 / 187 sat in `TheClusterAiDebugSurfaceAnswersTests`' 181–189 range (my CE-6003 / CE-6005 miss).
+**Ids:** CE-6015. No previews (`thumbnails.py` needs a live editor).
+
+## CE-6008 — lethality as scenario settings
+
+Started at `9042c73aa` (CE-6009 + the dozer merge). **As built:** [`DESIGN_City_Battle_Showcase.md` §4b](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md).
+⭐ **No code** — what already exists is exposed as content; what does not is filed.
+
+| knob | where it lives (measured) | as built |
+|---|---|---|
+| **accuracy** | `SkillAmplifier` (World Environment) → `ProficiencyFillSystem` → `CombatProficiency.SideTiers` (replicated, `dtCombatProficiency`) → `HitModel.Sigma` × `ProficiencyOf.SpreadFactor` | ✅ a 0 s trigger `SetSkillAmplifier {side, tiers}` per side — ⚠ needs `fireIfTrueWhenArmed: true` (CE-4166: a condition true when armed is not an edge; measured, without it nothing fired) |
+| **drone count** | the scenario's entities / macros / variants | ✅ content |
+| **battery** | `FlightParams.EnduranceSeconds` — TKB, `NoScenario` | ⛔ filed CE-6016 |
+| **armour** | the TKB platform (`CombatTkb.PlatformOf`); R-4018 forbids a scenario-named TKB | ⛔ filed CE-6016 (a new World Environment component needs `GlobalComponentIds.cs`, on the parallel list) |
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~LethalityAccuracyScenarioTests"` | **1 / 0 / 0**, twice — both gunners fire 30; tiers +2 / −2 on SimHost; Red Target (Friend +2's lane) lost **45**, Blue Target (Hostile −2's) **12.5** | ✅ |
+
+| red-proof (data mutation, applied, tested, restored) | result |
+|---|---|
+| both tiers 0 in the staged trigger | 🔴 — 35 vs 35 lost, tiers 0 on SimHost |
+| (measured before the fix) the trigger without `fireIfTrueWhenArmed` | 🔴 — the amplifier never set |
+
+**Ids:** CE-6016. Tree clean after the runs (`git status`). The new rail's domain is 179.
+
+## CE-6010 — the scenario skeleton `showcases/city-battle`
+
+Started at `c0808108e` (the town CE-6001 merged). **As built:** [`DESIGN_City_Battle_Showcase.md` §4c](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md).
+⭐ **Content on the existing machinery** — `scenarios/showcases/city-battle/city-battle/scenario.json`, generated by `scripts/city_battle_scenario.py` (and the
+macros by `scripts/city_battle_macros.py`). No engine code; none of the parallel programme's files.
+
+| deviation from the frame | why (measured) |
+|---|---|
+| the file is `showcases/city-battle/city-battle/`, not `showcases/city-battle/` | a folder holding a `scenario.json` hides `features/` beside it (`ScenarioFolderIndex` never enters a scenario folder) — `macro-platoon` stopped resolving |
+| a platoon is SIX squads of six (CE-6009's macros changed) | ≈ 1 050 needed more men per platoon; a squad stays at 6 (`CommandPicture.MaxSubordinates`) |
+| orders name platoons by KEY (`@A1`, `@D21` …), each company passing `p1..p3` down | a macro child's GUID in a trigger fails the LOAD ("no entity with GUID … here") |
+| 844 soldiers (with the 2nd wave) + 200 civilians, not 1 050 soldiers | the order of battle of §4 by the macros; a 4th platoon or bigger companies is a content change |
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build Hrot/Subsystems/Hrot.SimHost.Tests/... --no-restore` · `dotnet test … --no-build --filter "…CityBattleMacrosTests\|…CityBattleVariantsTests\|…BehaviorParamsSweepTests"` | **7 / 0 / 0** | ✅ |
+| 2 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "…CityBattleSkeletonTests\|…MacroPlatoonScenarioTests"` | **3 / 0 / 0** — on CGF / SimHost / Player: people F274 H462 civ200, 32 vehicles, 14 aircraft, all Active (complete at sim 35 s); 4 position triggers Achieved; recording 5.6 MB (SimHost) + 9.3 MB (CGF); 0 fault lines · the platoon twin: 6 squads, 36 men, 43/43 | ✅ |
+
+📐 **Size and speed** (in-process, 4 hosts in one thread, Debug, quiet VM): 6 658 entities on CGF (1 840 doors); OperatingLive **9.2 s** after boot; steady **≈ 365 ms per
+frame**. ⚠ `--mode editor --headless --verify city-battle` (runFor 60) did not finish in 600 s, with `NavigationSolver` CIRCUIT-OPEN ×19 → CE-6019.
+
+| red-proof (data mutation, applied, tested, restored) | rail | result |
+|---|---|---|
+| one defender Order names an unknown platoon key | `CE6010_…` ③ | 🔴 — the trigger stays "running its actions" |
+| the rifle platoon's `RefKey.Value ← key` binding dropped | `CE6009_M1`, `CE6009_M2` | 🔴 |
+
+⏳ **Waiting on the town:** the town is being redrawn (radial roads) and its SUMO net re-placed (`showcase-world-roads`). Every place of the battle is in ONE
+role-named table (`ANCHORS` in `scripts/city_battle_scenario.py`) so re-anchoring is one edit + a regenerate. The 60 s check uses no SUMO traffic and no
+road-following vehicle path; the civilians stand on `roads.json` points — measured in the terrain's local frame (its nodes are the plan's ring road), and
+each is checked clear of every house and the river.
+
+**Found:** CE-6017 (a failed load reached OperatingLive in the twin — 60 s on empty worlds), CE-6018 (what the scripted top cannot express: census / quiet-sector predicates, no jammer / quadcopter type, an unresolved key never fails), CE-6019 (speed at this size). **Ids:** CE-6017, CE-6018, CE-6019. Stepped-hash → CE-6012. No preview (`thumbnails.py` needs a live editor).
+
+## CE-6011 — variants
+
+**As built:** §4c. The variant FORMS in the battle's file (Scenario Macros §17), no code: defender companies and AA / MANPADS teams `Positions` (3 places,
+the authored first), the three `city-battle/roadblock` macro instances `Presence` 0.6, civilians `Presence` 0.7 (Civilian 1 always). The defenders' orders
+defend at their own key, so a moved company needs no second trigger.
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | (row 1 above) `CityBattleVariantsTests` V1 (variant 0 = as authored), V2 (variants 1–30: each of the four varies; variants 1 and 2 differ in all four; nothing else changes) | ✅ in 7 / 0 / 0 | ✅ |
+| 2 | (row 2 above) `CE6011_AVariant_…` — variant 1 (2 roadblocks, 135 civilians, 1 Coy at x 760) loads complete on every node: H458 civ135, all Active, position triggers Achieved | ✅ in 3 / 0 / 0 | ✅ |
+
+| red-proof | rail | result |
+|---|---|---|
+| the defender companies' `Positions` removed | V2 | 🔴 "the defender layout varies" |
+| 1 Coy's places reordered (an alternative first) | V1 | 🔴 |
+
+Tree clean after the runs. **Ids:** none new.

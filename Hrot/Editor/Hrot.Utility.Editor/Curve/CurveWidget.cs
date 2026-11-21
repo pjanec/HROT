@@ -1,4 +1,5 @@
 using System.Numerics;
+using NodeEditor.Core.Widgets;
 using Fdp.Toolkit.Utility;
 using ImGuiNET;
 
@@ -32,11 +33,11 @@ namespace Hrot.Utility.Editor.Curve
             // Kind dropdown
             int kindIndex = (int)curve.Kind;
             string[] kindNames = Enum.GetNames<CurveKind>();
-            if (ImGui.Combo("Kind", ref kindIndex, kindNames, kindNames.Length))
+            FormGrid.BeginField("curve.form", "Kind"); if (ImGui.Combo("##Kind", ref kindIndex, kindNames, kindNames.Length))
             {
                 curve.Kind = (CurveKind)kindIndex;
                 changed = true;
-            }
+            } FormGrid.EndField();
 
             // Plot canvas
             float plotW = opts.PlotWidth > 0f ? opts.PlotWidth : ImGui.GetContentRegionAvail().X;

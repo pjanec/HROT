@@ -5,8 +5,48 @@ public abstract record IrOperation;
 // Constants and references
 public sealed record IrOp_Const(string CSharpLiteral, IrTypeRef Type) : IrOperation;
 public sealed record IrOp_ReadParam(int ParamIndex) : IrOperation;
-public sealed record IrOp_ReadVariable(int VariableIndex) : IrOperation;
-public sealed record IrOp_WriteVariable(int VariableIndex, IrValue Value) : IrOperation;
+// U-3 / BP-226: the target carries its KIND. ⛔ It used to be a bare `int` whose meaning Stage 5 and
+// Stage 7 disagreed about — see VariableRef for what that cost.
+public sealed record IrOp_ReadVariable(VariableRef Target) : IrOperation;
+public sealed record IrOp_WriteVariable(VariableRef Target, IrValue Value) : IrOperation;
+
+/// <summary>
+/// BP-57 / Q27-A1 — reads a <b>function-local</b> variable: a plain C# local, not a
+/// <c>State</c> field.
+///
+/// <para>
+/// ⭐ <b>Why this is not <see cref="IrOp_ReadVariable"/> with a flag.</b> That op emits
+/// <c>{stateVar}.{VarFieldName(index)}</c> — a field access on the state struct — and its index lives
+/// in an asset-level union of Variables/WorkingState/Parameters. A local is neither a field nor a
+/// member of that union, so representing one there would mean teaching every reader of that index
+/// space about a fourth list whose entries are not fields at all. Q27-D ruled for a separate op, and
+/// this is what forces it.
+/// </para>
+///
+/// <para>⚠ <see cref="LocalIndex"/> indexes <c>IrGraph.Locals</c> — <b>per graph</b>, never the asset union.</para>
+/// </summary>
+public sealed record IrOp_ReadLocal(int LocalIndex) : IrOperation;
+
+/// <summary>BP-57 — writes a function-local variable. See <see cref="IrOp_ReadLocal"/>.</summary>
+public sealed record IrOp_WriteLocal(int LocalIndex, IrValue Value) : IrOperation;
+
+/// <summary>
+/// BP-57 / ⭐⭐ <b>Q27-A3</b> — resets every local of the current graph to its declared default.
+///
+/// <para>
+/// ⭐ <b>Only ever appears in a suspending graph's ENTRY block</b>, injected by
+/// <c>LocalStorage.PromoteSuspendingGraphLocals</c>. There the locals are blackboard slots that
+/// outlive the method frame, so the "reset on entry" half of Q27-E has to be an explicit statement
+/// rather than a C# initialiser — and it has to sit in the one block reached only when
+/// <c>__phase == 0</c>, so it fires once per invocation and not once per frame.
+/// </para>
+///
+/// <para>
+/// ⚠ Carries no payload: the fields, their defaults and the slot prefix all come from
+/// <c>EmissionContext.CurrentGraph</c>, so a local added or renamed cannot leave a stale copy here.
+/// </para>
+/// </summary>
+public sealed record IrOp_ResetLocals : IrOperation;
 public sealed record IrOp_ReadInputArg(int ArgIndex) : IrOperation;
 public sealed record IrOp_Self : IrOperation;
 public sealed record IrOp_Time : IrOperation;
@@ -114,7 +154,7 @@ public sealed record IrOp_GetManagedComponentRO(string ComponentTypeFqn, IrValue
 
 /// <summary>
 /// CA-03 (Slice W1, Q#16) -- unmanaged, self-only, write-if-present ECS write. A SINGLE guarded
-/// block (not per-field ops, unlike multi-pin SetShared's <see cref="IrOp_WriteSharedField"/>):
+/// block (not per-field ops, unlike the removed multi-pin SetShared's IrOp_WriteSharedField):
 /// the entity's <c>HasComponent&lt;T&gt;</c> result drives BOTH the emitting
 /// <see cref="Assets.SetComponentNode"/>'s "Written" data-out (this op's ResultValue) AND the
 /// write guard -- <c>GetComponentRW&lt;T&gt;</c> is fetched only INSIDE that guard (mirrors
@@ -122,7 +162,7 @@ public sealed record IrOp_GetManagedComponentRO(string ComponentTypeFqn, IrValue
 /// the fields present in <see cref="Fields"/> are assigned; an unwired field is simply ABSENT from
 /// the list (Stage5 only adds a WIRED field's resolved value here), so its value in the live
 /// component is left untouched ("unwired preserved" -- same semantics as
-/// <see cref="IrOp_WriteSharedField"/>, but as one statement/block instead of N, since this is a
+/// the removed IrOp_WriteSharedField, but as one statement/block instead of N, since this is a
 /// typed member write, not a byte-offset write, so there is no independent-byte-range reason to
 /// split it per field).
 /// </summary>
@@ -169,6 +209,83 @@ public sealed record IrOp_SetManagedComponent(
     IrValue Entity,
     IrValue? Value
 ) : IrOperation;
+
+/// <summary>
+/// FC-1 (Q#20) -- component-collection element write through a curated
+/// <c>[BlueprintCollectionWrite]</c> static accessor. Same guarded write-if-present shape as
+/// <see cref="IrOp_WriteComponentFields"/> (the <c>HasComponent&lt;T&gt;</c> bool drives BOTH the
+/// guard and this op's ResultValue), but the ResultValue is then REASSIGNED to the accessor's own
+/// bool inside the guard, so it carries "component present AND op applied" -- the emitting
+/// <see cref="Assets.CollectionWriteNode"/>'s "Ok" data-out (Stage5 ALWAYS allocates it):
+/// <code>
+/// var __tN = wv.HasComponent&lt;global::{ComponentTypeFqn}&gt;(self);
+/// if (__tN)
+/// {
+///     ref var __wcN = ref wv.GetComponentRW&lt;global::{ComponentTypeFqn}&gt;(self);
+///     __tN = global::{WriteAccessorFqn}(ref __wcN[, intArg][, value]);   // Clear: plain call, __tN stays true
+/// }
+/// </code>
+/// Raw buffer mutation NEVER appears in generated code (Q#5-C / Q#20 G1) -- the accessor owns the
+/// <c>Span&lt;T&gt;</c> pattern, Count maintenance, and the tail-always-default invariant. In
+/// non-Release mode with <c>self</c> in scope, a refused op / absent component additionally emits
+/// <c>DebugProbe.CollectionWriteFailed(self, nodeId, verb, reason)</c> (the never-silent
+/// false-on-overflow contract; reasons: "op-rejected" / "component-absent").
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the component carrying the collection. Baked string -- no reflection.</param>
+/// <param name="Entity">ALWAYS the resolved <c>self</c> (an <see cref="IrOp_Self"/> value) -- the "Collection" wire is author-time binding only, never the write entity (Q#16/Q#20 self-only; Stage2 BP2069/BP2070 enforce).</param>
+/// <param name="WriteAccessorFqn">Baked FQN of the curated write-accessor static for <paramref name="Verb"/>.</param>
+/// <param name="Verb">The op name ("Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize") -- probe argument only; arity is driven by <paramref name="IntArg"/>/<paramref name="Value"/>/<paramref name="ReturnsBool"/>.</param>
+/// <param name="NodeId">The authoring node's id -- probe argument (mirrors <c>IrOp_DebugProbe_NodeEnter</c>'s "D" format).</param>
+/// <param name="IntArg">The int operand (Index for SetAt/InsertAt/RemoveAt, Length for Resize), or null (Add/Clear). Passed AFTER the ref receiver, BEFORE <paramref name="Value"/>.</param>
+/// <param name="Value">The element operand (Add/SetAt/InsertAt), or null.</param>
+/// <param name="ReturnsBool">False only for Clear (a void accessor -- the ResultValue keeps the guard bool).</param>
+public sealed record IrOp_CollectionWrite(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    string WriteAccessorFqn,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value,
+    bool ReturnsBool
+) : IrOperation;
+
+/// <summary>
+/// FC-2/LV-2 (Q#19-A/F1) -- binds a WRITABLE `ref` local to a State/WorkingState FIELD:
+/// <c>ref var __tN = ref {s|ws}.{FieldName};</c>. The list-variable analog of the component path's
+/// <c>IrOp_GetComponentRO</c> roster read: the collection consumers' RosterValue/Component argument
+/// references this local and <c>RenderCollectionAccessors</c>' BlackboardFixedList branch renders
+/// <c>__tN.Count</c>/<c>__tN.Items[i]</c> off it -- ref-bind (zero-copy, sees same-tick writes),
+/// per the decided read-binding contract. A writable ref (not `ref readonly`) so element reads use
+/// the inline array's direct element access, never the readonly defensive-copy path.
+/// </summary>
+public sealed record IrOp_StateFieldRef(string FieldName, IrTypeRef Type) : IrOperation;
+
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- in-place fixed-list VARIABLE mutation, the blackboard sibling of
+/// <see cref="IrOp_CollectionWrite"/> (they share the verb vocabulary, NOT machinery -- review R1).
+/// Emits a scoped block that ref-binds the state field, applies the F2 clamp, mutates through the
+/// <c>Span&lt;T&gt;</c> cast (never the naive inline-array indexer -- the amended Q#19-D emit), keeps
+/// the G6 tail-always-default invariant (RemoveAt/Clear/Resize-shrink zero vacated slots; grow never
+/// fills), and drives the "Ok" ResultValue per the false-on-overflow contract (+ a Debug-mode
+/// <c>DebugProbe.CollectionWriteFailed</c> on refusal). Clear has no ResultValue semantics beyond
+/// completing (its node has no "Ok" pin).
+/// </summary>
+/// <param name="FieldName">The state field (variable name) -- rendered off the s/ws local.</param>
+/// <param name="ElementTypeFqn">Element type for the Span cast / default().</param>
+/// <param name="Capacity">Declared capacity N (bounds + clamp).</param>
+/// <param name="Verb">"Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize" -- probe arg + emit dispatch.</param>
+/// <param name="NodeId">Authoring node id -- probe arg.</param>
+/// <param name="IntArg">Index (SetAt/InsertAt/RemoveAt) or Length (Resize); null for Add/Clear.</param>
+/// <param name="Value">Element operand (Add/SetAt/InsertAt); null otherwise.</param>
+public sealed record IrOp_ListWrite(
+    string FieldName,
+    string ElementTypeFqn,
+    int Capacity,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value) : IrOperation;
 
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
@@ -232,7 +349,8 @@ public sealed record IrOp_ForEach(
     IrValue? CountVar = null,
     IrValue? IndexVar = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
@@ -288,6 +406,38 @@ public sealed record IrOp_InlineActionCall(
     string ParamsTypeFqn,
     IReadOnlyList<(string FieldName, IrValue Value)> ParamFields,
     bool IsAiPrimitive) : IrOperation;
+
+/// <summary>
+/// ⭐ S5d (<c>DESIGN_Unified_Behaviour_Run</c> §4) — step the behaviour hosted at site <paramref name="SiteId"/> (the Run Behaviour
+/// node's id) one frame; returns its <c>NodeStatus</c>. Latent exactly like <see cref="IrOp_InlineActionCall"/>: WaitLowering
+/// re-invokes it in the resume check until it is not Running.
+/// </summary>
+public sealed record IrOp_RunBehavior(string BehaviorName, Guid SiteId) : IrOperation
+{
+    /// <summary>⭐ S8 / <c>CE-2022</c> — the host member whose bytes seed the child at its start, as a path in the block
+    /// (<c>St.Name</c> a Variable, <c>In.Name</c> a Parameter — CE-2023 ③), or null (the child starts from its defaults).</summary>
+    public string? ParamsVariable { get; init; }
+}
+
+/// <summary>
+/// ⭐ S7a (<c>DESIGN_Unified_Behaviour_Run</c> "S7 design" D2/D5) — abort the Behaviour Task <paramref name="TaskNodeId"/> of
+/// this graph. Stage 6 (<c>WaitLowering_Instance</c>) replaces it with <see cref="IrOp_ResetHostedSite"/> + a cursor write
+/// to that task's ABORTED resume label, so the waiting fiber continues on Failed next frame.
+/// </summary>
+public sealed record IrOp_AbortTask(Guid TaskNodeId) : IrOperation;
+
+/// <summary>⭐ S7a — <c>HostedSubtree.Reset</c> the child hosted at <paramref name="SiteId"/> (the Behaviour Task's node id),
+/// recursively; inside a fiber graph, the running copy's site.</summary>
+public sealed record IrOp_ResetHostedSite(Guid SiteId) : IrOperation;
+
+/// <summary>⭐ S7b — (re)start the task fiber <paramref name="FiberGraph"/>: if it still waits, reset every site it hosts
+/// and clear it (Restart), then run it to its first wait. Emitted directly (it is the Restart arrival, B2).</summary>
+public sealed record IrOp_StartTask(string FiberGraph) : IrOperation;
+
+/// <summary>⭐ S7b — abort the Started task <paramref name="SiteId"/> running in the task fiber <paramref name="FiberGraph"/>:
+/// only while that fiber waits ON the task, reset the site and move its cursor to the task's aborted label (⇒ Failed next
+/// frame). Emitted from the fiber graph's <c>IrGraph.TaskLabels</c>.</summary>
+public sealed record IrOp_AbortStartedTask(string FiberGraph, Guid SiteId) : IrOperation;
 
 // Channel command (lowered from ChannelCommandNode in Stage 6)
 public sealed record IrOp_ChannelCommand(
@@ -358,7 +508,8 @@ public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef 
 public sealed record IrOp_ComponentAccessorCall(
     string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "", string ElementTypeFqn = "") : IrOperation;
+    string ManagedFieldName = "", string ElementTypeFqn = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// CA-07d-1 -- bounded linear search over a component collection, sharing the SAME curated
@@ -387,7 +538,8 @@ public sealed record IrOp_ComponentCollectionSearch(
     IrValue? FindIndex = null,
     IrValue? FindFound = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:
@@ -439,6 +591,33 @@ public sealed record IrOp_BooleanOp(
 /// Stage5_Schedule's NotNode case).
 /// </summary>
 public sealed record IrOp_Not(IrValue Operand) : IrOperation;
+
+/// <summary>
+/// BP-108 — <c>Print String</c>. <paramref name="Format"/> is the ALREADY-REWRITTEN body of a C#
+/// interpolated string (placeholders replaced with <c>{__tN}</c> temp references by Stage 5), so emit is
+/// a pure string paste with no runtime formatting machinery.
+///
+/// <para>
+/// ⭐ Emitted <b>inside a level probe</b>: <c>if (BlueprintLog.IsInfoEnabled) BlueprintLog.Info($"…")</c>.
+/// The interpolation — and therefore every allocation — is skipped entirely when the level is off.
+/// </para>
+/// </summary>
+public sealed record IrOp_PrintString(string InterpolatedBody, string Level) : IrOperation;
+
+/// <summary>
+/// BP-108 — <c>Format String</c>. Same rewritten interpolated body as <see cref="IrOp_PrintString"/>,
+/// but the result is written into a <c>stackalloc</c> buffer and converted to a <c>FixedString</c>.
+///
+/// <para>
+/// ⚖️ <b>Zero-allocation by user ruling</b> (<i>"favor zero alloc path, it is always better"</i>). Unlike
+/// Print String this node is <b>pure</b>, so it has no level probe to hide behind — a naive
+/// <c>string.Format</c> here would allocate every tick for every entity. Emitting
+/// <c>MemoryExtensions.TryWrite</c> into a stack buffer and then the <c>ReadOnlySpan&lt;char&gt;</c>
+/// FixedString constructor keeps it allocation-free.
+/// </para>
+/// </summary>
+public sealed record IrOp_FormatString(
+    string InterpolatedBody, string ResultTypeFqn, int BufferChars) : IrOperation;
 
 // Debug probes (Debug/Trace modes)
 public sealed record IrOp_DebugProbe_NodeEnter(Guid NodeId, string NodeKind) : IrOperation;
@@ -540,7 +719,9 @@ public sealed record IrOp_WhenEqsResultCheck(
     /// <summary>Block to goto when condition fires (RisingEdge). Null if no RisingEdge.</summary>
     IrBlockId? OnFiredBlock,
     /// <summary>Block to goto when condition ends (FallingEdge). Null if no FallingEdge.</summary>
-    IrBlockId? OnEndedBlock
+    IrBlockId? OnEndedBlock,
+    /// <summary>⭐ CE-3054 D — non-zero: read the unit's sensor of this <c>SensorModality</c> instead of the variable.</summary>
+    byte UnitSensorKind = 0
 ) : IrOperation;
 
 /// <summary>
@@ -557,7 +738,9 @@ public sealed record IrOp_ReadEqsResult(
     /// <summary>8-char hex prefix of the node ID, used for naming the helper/struct.</summary>
     string NodeId8,
     /// <summary>Name of the local generated result struct type (e.g. "_EqsResultRead_a3f7c218").</summary>
-    string ResultStructTypeName
+    string ResultStructTypeName,
+    /// <summary>⭐ CE-3054 D — non-zero: read the unit's sensor of this <c>SensorModality</c> instead of the variable.</summary>
+    byte UnitSensorKind = 0
 ) : IrOperation;
 
 /// <summary>
@@ -568,7 +751,8 @@ public sealed record IrOp_ReadEqsResult(
 public sealed record IrOp_SpawnEqsSensor(
     /// <summary>Template's BlueprintId as a hex uint literal (e.g. "0xA3F7C218u").</summary>
     string TemplateBlueprintIdLiteral,
-    /// <summary>Baked InstanceId derived from node.Id.GetHashCode() at compile time.</summary>
+    /// <summary>The sensor's SITE id, baked from the node id at compile time. ⭐ CE-485: no longer the DDS key — the part id
+    /// is allocated at runtime (<c>EqsChildSensor.Ensure</c>).</summary>
     int BakedInstanceId,
     /// <summary>IrValue for SearchRadius input (or null -> literal 0f).</summary>
     IrValue? SearchRadiusValue,
@@ -579,7 +763,16 @@ public sealed record IrOp_SpawnEqsSensor(
     /// <summary>IrValue for PublishPolicy input (or null -> literal (byte)0).</summary>
     IrValue? PublishPolicyValue,
     /// <summary>IrValue for Priority input (or null -> literal (byte)0).</summary>
-    IrValue? PriorityValue
+    IrValue? PriorityValue,
+    /// <summary>IrValue for the ContextSlot0 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot0Value = null,
+    /// <summary>IrValue for the ContextSlot1 entity input (or null -> default Entity) — the area for
+    /// the area query's EQS form.</summary>
+    IrValue? ContextSlot1Value = null,
+    /// <summary>IrValue for the ContextSlot2 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot2Value = null,
+    /// <summary>⭐ CE-485 — IrValue for the Key entity input (or null -> key 0): one sensor per key from this node.</summary>
+    IrValue? KeyValue = null
 ) : IrOperation;
 
 /// <summary>
@@ -590,7 +783,79 @@ public sealed record IrOp_ScoreDecision(
     /// <summary>Baked numeric decision ID literal (FNV-1a hash of the AssetId GUID).</summary>
     string DecisionIdLiteral,
     /// <summary>8-char hex prefix of the node ID.</summary>
-    string NodeId8
+    string NodeId8,
+    /// <summary>⭐ CE-2070 — the helper's result struct (<c>WinningOptionId</c> · <c>TopCandidate</c> · <c>TopScore</c>).</summary>
+    string ResultStructTypeName,
+    /// <summary>⭐ CE-2070 — the node's hidden last-winner field (<c>_score_&lt;id8&gt;_last</c>), added by Stage 6.</summary>
+    string SynthFieldName
+) : IrOperation;
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N2 — emitted by Stage 5 for a <c>ReadSensorResultNode</c>: one helper call per node returning a
+/// struct { IsReady, Count, AnswerTick, Element }; the out-pins are <see cref="IrOp_FieldRead"/>s on it.
+/// </summary>
+public sealed record IrOp_ReadSensorResult(
+    /// <summary>IrValue holding the entry index (0 if unconnected).</summary>
+    IrValue IndexValue,
+    /// <summary>8-char hex prefix of the node ID (helper / struct names).</summary>
+    string NodeId8,
+    /// <summary>Name of the generated result struct type.</summary>
+    string ResultStructTypeName,
+    /// <summary>The sensor kind (<c>SensorModality</c> value).</summary>
+    byte Kind,
+    /// <summary>FQN of the result component on the sensor child.</summary>
+    string ResultComponentFqn,
+    /// <summary>FQN of one entry.</summary>
+    string ElementTypeFqn
+) : IrOperation;
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N3 — emitted by Stage 5 for a <c>SpawnSensorNode</c>: settings from the type's <c>Default</c> (or
+/// <c>default</c>), each WIRED settings pin assigned over it, then the kind's Ensure method; the result is the child entity.
+/// </summary>
+public sealed record IrOp_WhenSensorResultCheck(
+    /// <summary>The sensor kind (<c>SensorModality</c> value).</summary>
+    byte Kind,
+    /// <summary>FQN of the result component on the sensor child.</summary>
+    string ResultComponentFqn,
+    /// <summary>"Header" / "FieldChanged" / "FieldCrossed".</summary>
+    string Shape,
+    /// <summary>The trigger name (a header trigger is decided by it: FirstReady / Changed / BecomesStale).</summary>
+    string Trigger,
+    /// <summary>The element field a field trigger watches; null for a header trigger.</summary>
+    string? ElementField,
+    /// <summary>C# type of the watched field (the prev-state slot), e.g. <c>global::System.UInt32</c>; null for a header trigger.</summary>
+    string? FieldCSharpType,
+    /// <summary>FieldCrossed threshold as a float literal; null otherwise.</summary>
+    string? ThresholdLiteral,
+    /// <summary>BecomesStale age as a float literal; null otherwise.</summary>
+    string? MaxAgeLiteral,
+    /// <summary>The synthesized prev-state field (<c>_when_&lt;id8&gt;_prev</c>).</summary>
+    string SynthFieldName,
+    /// <summary>The prev-state struct type, local to the generated class.</summary>
+    string SynthStructTypeName,
+    /// <summary>Its size (StructureHash contribution).</summary>
+    int SynthStructSizeBytes,
+    /// <summary>Block for OnFired (RisingEdge), or null.</summary>
+    IrBlockId? OnFiredBlock,
+    /// <summary>Block for OnEnded (FallingEdge), or null.</summary>
+    IrBlockId? OnEndedBlock
+) : IrOperation;
+
+/// <summary>⭐ <c>CE-3078</c> N3 — see SpawnSensorNode.</summary>
+public sealed record IrOp_SpawnSensor(
+    /// <summary>The sensor's SITE id, baked from the node id (as <see cref="IrOp_SpawnEqsSensor.BakedInstanceId"/>).</summary>
+    int BakedSiteId,
+    /// <summary>FQN of the settings type.</summary>
+    string SettingsTypeFqn,
+    /// <summary>FQN of the settings' static Default, or null for <c>default(T)</c>.</summary>
+    string? SettingsDefaultFqn,
+    /// <summary>FQN of the kind's static Ensure method.</summary>
+    string EnsureMethodFqn,
+    /// <summary>The wired settings fields: (field name, value).</summary>
+    IReadOnlyList<(string Field, IrValue Value)> Settings,
+    /// <summary>IrValue for the Key entity input (or null -> key 0).</summary>
+    IrValue? KeyValue
 ) : IrOperation;
 
 /// <summary>
@@ -606,87 +871,32 @@ public sealed record IrOp_ReadRankedResult(
     string ResultStructTypeName
 ) : IrOperation;
 
-// ── GetShared / SetShared (Slice 2a-2) ────────────────────────────────────
-
-/// <summary>
-/// Emitted by Stage 5 for a <c>GetSharedNode</c>. Reads the ENTITY-scoped shared working-state
-/// slot named <paramref name="VariableId"/> via
-/// <c>Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState.TryGetShared&lt;T&gt;</c> (Slice
-/// 2a-1 accessor). The statement's own <c>ResultValue</c> holds the "Value" output;
-/// <paramref name="FoundValue"/> is a second, already-allocated <see cref="IrValue"/> that this
-/// op DECLARES (not references) -- Stage 7 emits both locals from this single statement, mirroring
-/// how <c>IrOp_ReadEqsResult</c>/<c>IrOp_ReadRankedResult</c> feed a multi-field result to
-/// downstream consumers, but without an intermediate helper struct (the two outputs are declared
-/// inline).
-/// </summary>
-/// <param name="VariableId">Entity-scoped slot name (name-keyed, not a variable index).</param>
-/// <param name="SharedTypeFqn">
-/// FQN (unprefixed, dots for nested types) of the Category-1 shared struct -- the generic type
-/// argument for <c>TryGetShared&lt;T&gt;</c>.
-/// </param>
-/// <param name="FoundValue">
-/// The "Found" (<c>System.Boolean</c>) output slot, declared by this statement's emission.
-/// </param>
-/// <param name="TargetEntity">
-/// Slice 2b -- cross-entity read. The resolved "Target" data-in pin, when the <c>GetSharedNode</c>
-/// has it wired (any Entity-valued pin the graph author supplies -- mirrors how
-/// <see cref="IrOp_GetComponent"/> carries its <c>Entity</c> argument as a resolved
-/// <see cref="IrValue"/>). <c>null</c> when the pin is unwired -- Stage 7 then emits <c>self</c>
-/// EXACTLY as Slice 2a-2 (byte-identical unwired path).
-/// </param>
-public sealed record IrOp_ReadShared(
-    string VariableId,
-    string SharedTypeFqn,
-    IrValue FoundValue,
-    IrValue? TargetEntity = null
-) : IrOperation;
-
-/// <summary>
-/// Emitted by Stage 5 for a <c>SetSharedNode</c>. Writes <paramref name="Value"/> into the
-/// ENTITY-scoped shared working-state slot named <paramref name="VariableId"/> via
-/// <c>Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState.TrySetShared&lt;T&gt;</c> (Slice
-/// 2a-1 accessor). When the node's optional "Written" data-out pin is wired, the statement's
-/// <c>ResultValue</c> captures the returned <c>bool</c>; otherwise the call's result is discarded.
-/// </summary>
-/// <param name="VariableId">Entity-scoped slot name (name-keyed, not a variable index).</param>
-/// <param name="SharedTypeFqn">
-/// FQN (unprefixed, dots for nested types) of the Category-1 shared struct -- the generic type
-/// argument for <c>TrySetShared&lt;T&gt;</c>.
-/// </param>
-/// <param name="Value">The resolved "Value" data-in.</param>
-public sealed record IrOp_WriteShared(
-    string VariableId,
-    string SharedTypeFqn,
-    IrValue Value
-) : IrOperation;
-
-/// <summary>
-/// Q#14 multi-pin SetShared: writes ONE field (<paramref name="Value"/>) into the ENTITY-scoped shared
-/// slot <paramref name="VariableId"/> at byte <paramref name="FieldOffset"/> within
-/// <paramref name="SharedTypeFqn"/>, via <c>BlueprintSharedState.TrySetSharedField&lt;TStruct,TField&gt;</c>.
-/// One statement per WIRED field pin (unwired fields never emit → preserved). Sources are resolved
-/// top-to-bottom into temporaries before the writes (evaluate-then-write); the per-field writes touch
-/// distinct byte ranges, so they are order-independent.
-/// </summary>
-/// <param name="VariableId">Entity-scoped slot name (name-keyed).</param>
-/// <param name="SharedTypeFqn">FQN of the shared struct (TStruct — hash validation + bounds).</param>
-/// <param name="FieldTypeFqn">FQN of the field type (TField — the write width).</param>
-/// <param name="FieldOffset">Byte offset of the field within the struct (editor-baked).</param>
-/// <param name="Value">The resolved field data-in.</param>
-public sealed record IrOp_WriteSharedField(
-    string VariableId,
-    string SharedTypeFqn,
-    string FieldTypeFqn,
-    int FieldOffset,
-    IrValue Value
-) : IrOperation;
-
 /// <summary>
 /// Q#14 Option B (<c>MakeStructNode</c>): constructs a struct value from per-field values —
 /// <c>var __t{result} = new global::{StructFqn} { A = __t{..}, B = __t{..} };</c>. The result is the
 /// struct-typed value flowed to downstream consumers (mirrors <see cref="IrOp_PublishBusEvent"/>'s
 /// object-initializer construction, but the value flows out instead of being published).
 /// </summary>
+/// <summary>
+/// ⭐ CE-472 — <c>var __t{r} = JsonSerializer.Serialize(__t{Value}, FdpJsonOptionsRegistry.DefaultRelaxed);</c> — the
+/// one serializer setting every behaviour parse already reads with (DESIGN_Typed_Intent_And_Json_Nodes §4 C).
+/// </summary>
+/// <summary>⭐ <c>CE-2083</c> — an SOP order: <c>SopActions.{React|DoWhenIdle}(world, self, name[, urgency], in params | "{}")</c>;
+/// the result is <c>bool</c> — true unless the gate refused it. <see cref="UrgencyName"/> is the
+/// <c>ReactionUrgency</c> member spelled into the call.</summary>
+public sealed record IrOp_SopOrder(bool IsReact, string BehaviorName, byte Urgency, string UrgencyName, IrValue? Params) : IrOperation;
+
+public sealed record IrOp_ToJson(IrValue Value) : IrOperation;
+
+/// <summary>
+/// ⭐ CE-472 — deserialises <see cref="Json"/> into a <see cref="TypeFqn"/> instance, never null and never throwing:
+/// bad or empty input yields <c>new T()</c> and records failure in <c>__fjok{r}</c>, read by <see cref="IrOp_FromJsonOk"/>.
+/// </summary>
+public sealed record IrOp_FromJson(IrValue Json, string TypeFqn) : IrOperation;
+
+/// <summary>⭐ CE-472 — <c>var __t{r} = __fjok{Dto};</c> — whether the <see cref="IrOp_FromJson"/> that produced <see cref="Dto"/> parsed.</summary>
+public sealed record IrOp_FromJsonOk(IrValue Dto) : IrOperation;
+
 public sealed record IrOp_MakeStruct(
     string StructFqn,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields
@@ -702,3 +912,32 @@ public sealed record IrOp_SetMembers(
     IrValue Input,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields
 ) : IrOperation;
+
+/// <summary>
+/// BP-73: packs N function-graph outputs into the <b>carrier</b> a multi-output
+/// <c>Func_X</c> returns — <c>var __t{result} = (__t{a}, __t{b});</c>.
+/// <para>
+/// The carrier is a <b>ValueTuple</b>, not a synthesized struct. Deciding constraint:
+/// <c>CSharpEmitter.IsReferencableStateFieldType</c> treats a <c>'_'</c>-prefixed synthesized type as
+/// NOT referencable outside the generated class and excludes it from <c>StateFields</c>, so a
+/// <c>_FuncOut_X</c> return would be invisible to the debugger/watch; a ValueTuple is a BCL type.
+/// </para>
+/// <para>
+/// ⚠ The carrier deliberately has <b>no <see cref="IrTypeRef"/> representation</b>. Temps are emitted
+/// as <c>var __tN = …</c>, so C# infers it; only the three method-DECLARATION sites need a composed
+/// type string, and each builds it from <c>graph.Outputs</c> via
+/// <c>LibraryEmitter.CSharpReturnType</c>. That keeps N-output out of the type system entirely.
+/// </para>
+/// </summary>
+public sealed record IrOp_MakeTuple(IReadOnlyList<IrValue> Values) : IrOperation;
+
+/// <summary>
+/// BP-73: reads one element back out of a multi-output carrier —
+/// <c>var __t{result} = __t{Source}.Item{Index + 1};</c>.
+/// <para>
+/// Accessed positionally (<c>ItemN</c>) rather than by element name: <c>ItemN</c> is always present on
+/// a ValueTuple regardless of whether the declaration names its elements, so the fan-out cannot break
+/// on an output whose name is not a valid C# identifier.
+/// </para>
+/// </summary>
+public sealed record IrOp_TupleField(IrValue Source, int Index) : IrOperation;

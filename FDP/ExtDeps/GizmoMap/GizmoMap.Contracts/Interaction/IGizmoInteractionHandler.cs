@@ -47,6 +47,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Interaction
         // Default no-op so existing gizmos that do not support StructInspector still compile.
         void OnStructUpdate(string payloadJson) { }
 
+        // ⭐ CE-1066 — the operator closed this gizmo's StructInspector panel with its [X]. Default no-op: a gizmo that never
+        // closes its panel itself (or has none) ignores it; one that toggles the panel (the layer control) stops emitting it.
+        void OnInspectorClosed() { }
+
         // Raw HW events -- only delivered while exclusive InputCaptureBinding is held.
         void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos);
         void OnKeyEvent(MapKeyboardKey key, bool isPressed);

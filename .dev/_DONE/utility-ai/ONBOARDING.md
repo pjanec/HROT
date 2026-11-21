@@ -104,13 +104,13 @@ Hrot/Subsystems/Hrot.AI.Behaviors/Brains/HillAttackCommanderNodes.cs   -- preced
 Build the full solution from the workspace root:
 
 ```bat
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Run all tests (no rebuild):
 
 ```bat
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 ```
 
 Run only the Utility-AI tests (once they exist):

@@ -779,7 +779,7 @@ using Fdp.Core.Serialization.Migrations;
 
 After all changes, build the solution:
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4
+dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4
 ```
 
 Run the editor tests:

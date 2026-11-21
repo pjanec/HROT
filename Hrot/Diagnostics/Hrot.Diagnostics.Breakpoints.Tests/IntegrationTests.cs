@@ -210,9 +210,14 @@ public sealed class IntegrationTests
         mgr.StageMutation(entity, typeof(E2EHealthComp), new E2EHealthComp { Value = 1000 });
         Assert.Equal(1, mgr.PendingMutationsCount);
 
-        // Step: drains ECB, restores post-tick, advances time
+        // ⭐⭐ W5: Step RESTORES post-tick and advances time; it no longer drains. The drain is the
+        //    kernel's PreFrame pull — here, the seam it calls. ⛔ Two steps, and the split is asserted:
+        //    the resume must leave the mutation queued.
         mgr.RequestStep();
         Assert.False(mgr.IsPaused);
+        Assert.Equal(1, mgr.PendingMutationsCount);
+
+        ((Fdp.ModuleHost.Abstractions.IStagedWrites)mgr).DrainInto(liveRepo);
         Assert.Equal(0, mgr.PendingMutationsCount);
 
         // Apply the ECB to liveRepo (simulates kernel's ECB flush at N+1 tick boundary)
@@ -358,9 +363,9 @@ public sealed class IntegrationTests
             var config = new RecordingConfiguration
             {
                 FilePath   = tempFile,
-                ExerciseId = Guid.NewGuid(),
+                ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                 Blocking   = true,
-                NodeId = 0,
+                NodeId = (Fdp.Core.NodeId)(0),
             };
             var module   = new RecordingModule(config);
             var captured = new CapturingSystemRegistry();

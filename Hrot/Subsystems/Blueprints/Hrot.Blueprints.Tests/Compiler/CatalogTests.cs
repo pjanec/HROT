@@ -200,8 +200,8 @@ public sealed class CatalogTests
         Assert.Contains(pins, p => p.Name == "Out" && p.Direction == "Out" && p.IsExec);
 
         // MoveToParams public instance fields: Destination, ArrivalRadius, Speed,
-        // RouteHandle, LayerMask, ReverseAllowed, Flags, MaxReplans, BackendForce.
-        // We assert all expected field names appear as data-IN pins.
+        // RouteHandle, LayerMask, ReverseAllowed, Flags, MaxReplans, BackendForce — then the read/write property RoadUse
+        // (CE-3130, over Flags bits 5–7). We assert all expected names appear as data-IN pins.
         var dataPins = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
         var dataNames = dataPins.Select(p => p.Name).ToHashSet();
 
@@ -214,12 +214,13 @@ public sealed class CatalogTests
         Assert.Contains("Flags",          dataNames);
         Assert.Contains("MaxReplans",     dataNames);
         Assert.Contains("BackendForce",   dataNames);
+        Assert.Contains("RoadUse",        dataNames);   // ⭐ CE-3130 — the actor's road use, an enum pin
 
         // Must NOT be the Int32 placeholder (would produce a single "Int32" pin).
         Assert.DoesNotContain("Int32", dataNames);
 
-        // Total data-IN pins == 9 (one per MoveToParams field, no extras).
-        Assert.Equal(9, dataPins.Count);
+        // Total data-IN pins == 10 (nine fields and the RoadUse property, no extras).
+        Assert.Equal(10, dataPins.Count);
     }
 
     [Fact]
@@ -236,10 +237,18 @@ public sealed class CatalogTests
         var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
         var dataNames = dataPins.Select(p => p.Name).ToHashSet();
 
-        // AimAndFireParams fields: Target (Entity), CooldownSeconds (float).
+        // AimAndFireParams fields: Target (Entity), CooldownSeconds (float), and (CE-3089 G7) Mount (byte: 0 = the owner's
+        // weapon, 255 = the executor picks per shot).
         Assert.Contains("Target",          dataNames);
         Assert.Contains("CooldownSeconds", dataNames);
-        Assert.Equal(2, dataPins.Count);
+        Assert.Contains("Mount",           dataNames);
+        Assert.Contains("Rounds",          dataNames);   // ⭐ CE-3136 B7 — aimed rounds, then Success (0 = until stopped); the count went stale on 2026-10-09
+        Assert.Contains("BlindFire",       dataNames);   // AQ89 (R-269) — Suppress at a hidden target fires blind
+        Assert.Contains("Point",           dataNames);   // AQ89 — the point a blind burst aims at
+        Assert.Contains("Operator",        dataNames);   // CE-3172 S4d — operator fire
+        Assert.Contains("Trigger",         dataNames);   // CE-3172 S4d
+        Assert.DoesNotContain("AlongBarrel", dataNames); // a read-only derived property (CE-4143) is no input pin — NodePinSchema projects read/write properties only
+        Assert.Equal(8, dataPins.Count);                 // went stale again on 2026-10-11 (AQ89 + CE-3172 added four fields)
     }
 
     [Fact]
@@ -256,10 +265,13 @@ public sealed class CatalogTests
         var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
         var dataNames = dataPins.Select(p => p.Name).ToHashSet();
 
-        // FollowRouteParams fields: TrajectoryId (int), IsLooped (byte).
-        Assert.Contains("TrajectoryId", dataNames);
-        Assert.Contains("IsLooped",     dataNames);
-        Assert.Equal(2, dataPins.Count);
+        // FollowRouteParams fields: TrajectoryId (int), IsLooped (byte), RouteEntityId (long — CE-2171, the route the motion side resolves),
+        // ReleaseHold (byte — Air Ops slice 3, appended 2026-10-14; this rail still said 3 until CE-1006's suite run found it).
+        Assert.Contains("TrajectoryId",  dataNames);
+        Assert.Contains("IsLooped",      dataNames);
+        Assert.Contains("RouteEntityId", dataNames);
+        Assert.Contains("ReleaseHold",   dataNames);
+        Assert.Equal(4, dataPins.Count);
     }
 
     [Fact]

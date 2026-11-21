@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Rules view mockup (SR-109, docs/DESIGN_Scenario_Rules.md). Static, self-contained: open in a browser. Source of truth for the live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Rules view — live</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #1b1d21; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: flex; flex-direction: column;">
+
+  <div style="height: 52px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 12px; background: #23262b; border-bottom: 1px solid #353941;">
+    <span style="font-size: 15px; font-weight: 600;">Rules</span>
+    <span style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; background: #3a1f1f; color: #ff8a80; font-size: 12px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #ff5f56;"></span>LIVE · 09:24:10</span>
+    <div style="display: flex; border: 1px solid #3c4048; border-radius: 6px; overflow: hidden;">
+      <button style="background: #3a4150; color: #fff; border: 0; padding: 6px 12px; font: inherit;">Timeline</button>
+      <button style="background: transparent; color: #b8bcc4; border: 0; padding: 6px 12px; font: inherit;">Graph</button>
+      <button style="background: transparent; color: #b8bcc4; border: 0; padding: 6px 12px; font: inherit;">List</button>
+    </div>
+    <label style="display: flex; align-items: center; gap: 6px; color: #9aa0a8;">Group by <select style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 4px 6px; font: inherit;"><option>Macro</option><option>Subject</option><option>Side</option></select></label>
+    <label style="display: flex; align-items: center; gap: 6px; color: #9aa0a8;">Side <select style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 4px 6px; font: inherit;"><option>All</option><option>Blue</option><option>Red</option></select></label>
+    <label style="display: flex; align-items: center; gap: 6px; color: #9aa0a8;"><input type="checkbox" checked>Follow now</label>
+    <div style="flex-grow: 1;"></div>
+    <input type="search" placeholder="Find objective or trigger" aria-label="Find objective or trigger" style="width: 220px; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 8px; font: inherit;">
+    <button style="background: #2f6fd6; color: #fff; border: 0; border-radius: 6px; padding: 7px 14px; font: inherit; font-weight: 600;">+ Add ▾</button>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 1040px; display: flex; flex-direction: column; border-right: 1px solid #353941;">
+      <div style="position: relative; height: 520px;">
+
+        <div style="position: absolute; left: 0; top: 0; width: 280px; height: 520px; border-right: 1px solid #353941; background: #1f2226;">
+          <div style="position: absolute; left: 0; top: 0; width: 280px; height: 32px; box-sizing: border-box; padding: 8px 12px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em; border-bottom: 1px solid #30343b;">OBJECTIVE / TRIGGER</div>
+
+          <div style="position: absolute; left: 0; top: 40px; width: 280px; height: 24px; box-sizing: border-box; padding: 4px 10px; color: #c9ccd2; font-weight: 600; font-size: 12px;">▾ Blue mission · SeizeArea <span style="color: #8a9099; font-weight: 400;">@BluePL</span></div>
+          <div style="position: absolute; left: 0; top: 64px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #4fbf85;">◎</span>Reach the village<span style="margin-left: auto; color: #4fbf85; font-size: 11px;">Achieved</span></div>
+          <div style="position: absolute; left: 0; top: 98px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #5aa8ff;">◎</span>Hold the bridge<span style="margin-left: auto; color: #5aa8ff; font-size: 11px;">Active 6:10</span></div>
+          <div style="position: absolute; left: 0; top: 132px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #8a9099;">◎</span>Clear the village<span style="margin-left: auto; color: #8a9099; font-size: 11px;">Pending</span></div>
+
+          <div style="position: absolute; left: 0; top: 166px; width: 280px; height: 24px; box-sizing: border-box; padding: 4px 10px; color: #c9ccd2; font-weight: 600; font-size: 12px;">▾ Blue evaluation · PlatoonAttackEval</div>
+          <div style="position: absolute; left: 0; top: 190px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #5aa8ff;">◈</span>Platoon attack<span style="margin-left: auto; color: #e4e6ea; font-size: 11px; font-weight: 600;">Score 0.42</span></div>
+          <div style="position: absolute; left: 0; top: 224px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #4fbf85;">◎</span>No fratricide<span style="color: #8a9099; font-size: 11px;">required</span><span style="margin-left: auto; color: #4fbf85; font-size: 11px;">Holding</span></div>
+
+          <div style="position: absolute; left: 0; top: 258px; width: 280px; height: 24px; box-sizing: border-box; padding: 4px 10px; color: #c9ccd2; font-weight: 600; font-size: 12px;">▾ Red counter · AdaptivePressure</div>
+          <div style="position: absolute; left: 0; top: 282px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center; background: #2a3342; border-left: 3px solid #5aa8ff;"><span style="color: #f0904a;">⚡</span><span style="font-weight: 600;">Counter-attack</span><span style="margin-left: auto; color: #f0904a; font-size: 11px;">Acting 2/3</span></div>
+          <div style="position: absolute; left: 0; top: 316px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #3fbdb8;">⚡</span>Ease off<span style="margin-left: auto; color: #d9a83f; font-size: 11px;">Cooldown · 1/2</span></div>
+          <div style="position: absolute; left: 0; top: 350px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #3fbdb8;">⚡</span>Push harder<span style="margin-left: auto; color: #3fbdb8; font-size: 11px;">Armed</span></div>
+
+          <div style="position: absolute; left: 0; top: 384px; width: 280px; height: 24px; box-sizing: border-box; padding: 4px 10px; color: #c9ccd2; font-weight: 600; font-size: 12px;">▾ Exercise</div>
+          <div style="position: absolute; left: 0; top: 408px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #3fbdb8;">⚡</span>Phase 2 briefing<span style="margin-left: auto; color: #8a9099; font-size: 11px;">at 09:45</span></div>
+          <div style="position: absolute; left: 0; top: 442px; width: 280px; height: 34px; box-sizing: border-box; padding: 8px 10px 8px 24px; display: flex; gap: 8px; align-items: center;"><span style="color: #3fbdb8;">⚡</span>End of exercise<span style="margin-left: auto; color: #8a9099; font-size: 11px;">Armed</span></div>
+        </div>
+
+        <div style="position: absolute; left: 280px; top: 0; width: 760px; height: 520px; overflow: hidden;">
+          <div style="position: absolute; left: 0; top: 0; width: 760px; height: 32px; border-bottom: 1px solid #30343b; background: #1f2226;"></div>
+          <span style="position: absolute; left: 4px; top: 9px; color: #8a9099; font-size: 11px;">09:00</span>
+          <span style="position: absolute; left: 74px; top: 9px; color: #8a9099; font-size: 11px;">09:10</span>
+          <span style="position: absolute; left: 144px; top: 9px; color: #8a9099; font-size: 11px;">09:20</span>
+          <span style="position: absolute; left: 214px; top: 9px; color: #8a9099; font-size: 11px;">09:30</span>
+          <span style="position: absolute; left: 284px; top: 9px; color: #8a9099; font-size: 11px;">09:40</span>
+          <span style="position: absolute; left: 354px; top: 9px; color: #8a9099; font-size: 11px;">09:50</span>
+          <span style="position: absolute; left: 424px; top: 9px; color: #8a9099; font-size: 11px;">10:00</span>
+          <span style="position: absolute; left: 494px; top: 9px; color: #8a9099; font-size: 11px;">10:10</span>
+          <span style="position: absolute; left: 564px; top: 9px; color: #8a9099; font-size: 11px;">10:20</span>
+          <span style="position: absolute; left: 634px; top: 9px; color: #8a9099; font-size: 11px;">10:30</span>
+          <span style="position: absolute; left: 704px; top: 9px; color: #8a9099; font-size: 11px;">10:40</span>
+          <div style="position: absolute; left: 12px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 82px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 152px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 222px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 292px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 362px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 432px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 502px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 572px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+          <div style="position: absolute; left: 642px; top: 32px; width: 1px; height: 488px; background: #2a2d33;"></div>
+
+          <div style="position: absolute; left: 0; top: 282px; width: 760px; height: 34px; background: #232b38;"></div>
+
+          <div style="position: absolute; left: 26px; top: 72px; width: 84px; height: 18px; border-radius: 4px; background: #2f8f5e; color: #fff; font-size: 11px; box-sizing: border-box; padding: 2px 6px;">✓ 09:14</div>
+
+          <div style="position: absolute; left: 110px; top: 106px; width: 70px; height: 18px; border-radius: 4px 0 0 4px; background: #3d7fd9; color: #fff; font-size: 11px; box-sizing: border-box; padding: 2px 6px;">held 6:10</div>
+          <div style="position: absolute; left: 180px; top: 106px; width: 140px; height: 18px; border-radius: 0 4px 4px 0; box-sizing: border-box; border: 1px dashed #5aa8ff; background: repeating-linear-gradient(135deg, rgba(90,168,255,0.18) 0 6px, transparent 6px 12px); color: #a9ceff; font-size: 11px; padding: 2px 6px;">needs 10:00 · ~09:44</div>
+
+          <div style="position: absolute; left: 320px; top: 140px; width: 147px; height: 18px; border-radius: 4px; box-sizing: border-box; border: 1px dashed #6b7280; color: #9aa0a8; font-size: 11px; padding: 2px 6px;">expected after Hold</div>
+
+          <div style="position: absolute; left: 12px; top: 200px; width: 168px; height: 14px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 42%; height: 14px; background: #5aa8ff;"></div></div>
+          <span style="position: absolute; left: 186px; top: 199px; color: #e4e6ea; font-size: 11px;">0.42 ↘</span>
+
+          <div style="position: absolute; left: 12px; top: 234px; width: 168px; height: 14px; border-radius: 3px; background: #2f8f5e;"></div>
+
+          <div style="position: absolute; left: 106px; top: 292px; width: 10px; height: 10px; background: #e4e6ea; transform: rotate(45deg);"></div>
+          <div style="position: absolute; left: 112px; top: 290px; width: 14px; height: 18px; box-sizing: border-box; background: repeating-linear-gradient(135deg, rgba(217,168,63,0.35) 0 4px, transparent 4px 8px); border: 1px solid #d9a83f;"></div>
+          <div style="position: absolute; left: 126px; top: 290px; width: 54px; height: 18px; border-radius: 0 4px 4px 0; background: #d8762f; color: #fff; font-size: 11px; box-sizing: border-box; padding: 2px 5px;">do 2/3</div>
+          <span style="position: absolute; left: 186px; top: 292px; color: #f0b27a; font-size: 11px;">Order @RedQRF — waiting for acceptance</span>
+
+          <div style="position: absolute; left: 12px; top: 332px; width: 147px; height: 3px; background: #3fbdb8;"></div>
+          <div style="position: absolute; left: 154px; top: 327px; width: 10px; height: 10px; background: #e4e6ea; transform: rotate(45deg);"></div>
+          <div style="position: absolute; left: 164px; top: 324px; width: 70px; height: 18px; box-sizing: border-box; border: 1px solid #d9a83f; background: repeating-linear-gradient(135deg, rgba(217,168,63,0.25) 0 5px, transparent 5px 10px); color: #f0d08a; font-size: 11px; padding: 2px 5px;">cooldown</div>
+          <div style="position: absolute; left: 234px; top: 332px; width: 466px; height: 3px; background: repeating-linear-gradient(90deg, #3fbdb8 0 6px, transparent 6px 10px);"></div>
+
+          <div style="position: absolute; left: 12px; top: 366px; width: 210px; height: 3px; background: #3fbdb8;"></div>
+          <div style="position: absolute; left: 220px; top: 359px; width: 3px; height: 17px; background: #8a9099;"></div>
+          <span style="position: absolute; left: 228px; top: 360px; color: #8a9099; font-size: 11px;">window closes 09:30 → disarmed</span>
+
+          <div style="position: absolute; left: 322px; top: 420px; width: 10px; height: 10px; background: #3fbdb8; transform: rotate(45deg);"></div>
+          <span style="position: absolute; left: 338px; top: 417px; color: #9aa0a8; font-size: 11px;">⏱ pinned 09:45 · Message Blue</span>
+
+          <div style="position: absolute; left: 462px; top: 454px; width: 10px; height: 10px; box-sizing: border-box; border: 2px solid #9aa0a8; transform: rotate(45deg);"></div>
+          <span style="position: absolute; left: 478px; top: 451px; color: #9aa0a8; font-size: 11px;">expected · or at latest</span>
+          <div style="position: absolute; left: 637px; top: 454px; width: 10px; height: 10px; background: #9aa0a8; transform: rotate(45deg);"></div>
+          <span style="position: absolute; left: 652px; top: 451px; color: #9aa0a8; font-size: 11px;">10:30</span>
+
+          <div style="position: absolute; left: 104px; top: 124px; width: 2px; height: 175px; background: #b38cf0; opacity: 0.8;"></div>
+          <div style="position: absolute; left: 320px; top: 124px; width: 2px; height: 12px; background: #b38cf0;"></div>
+          <div style="position: absolute; left: 316px; top: 134px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #b38cf0;"></div>
+          <div style="position: absolute; left: 466px; top: 158px; width: 2px; height: 290px; background: #b38cf0; opacity: 0.8;"></div>
+          <div style="position: absolute; left: 462px; top: 446px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #b38cf0;"></div>
+          <div style="position: absolute; left: 158px; top: 214px; width: 2px; height: 106px; background: #b38cf0; opacity: 0.8;"></div>
+          <div style="position: absolute; left: 200px; top: 214px; width: 2px; height: 146px; background: #b38cf0; opacity: 0.55;"></div>
+
+          <div style="position: absolute; left: 179px; top: 32px; width: 2px; height: 488px; background: #ff5f56;"></div>
+          <span style="position: absolute; left: 184px; top: 36px; color: #ff8a80; font-size: 11px; font-weight: 600;">NOW</span>
+        </div>
+      </div>
+
+      <div style="padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; border-top: 1px solid #30343b; color: #9aa0a8; font-size: 11px;">
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 14px; height: 10px; background: #2f8f5e; border-radius: 2px;"></span>achieved</span>
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 14px; height: 10px; background: #3d7fd9; border-radius: 2px;"></span>active</span>
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 14px; height: 10px; border: 1px dashed #6b7280; border-radius: 2px;"></span>expected (after its predecessors)</span>
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 14px; height: 3px; background: #3fbdb8;"></span>trigger armed</span>
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 14px; height: 10px; border: 1px solid #d9a83f;"></span>delay / cooldown</span>
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 14px; height: 10px; background: #d8762f; border-radius: 2px;"></span>acting (step n/N)</span>
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 9px; height: 9px; background: #e4e6ea; transform: rotate(45deg);"></span>fired</span>
+        <span style="display: flex; gap: 6px; align-items: center;"><span style="width: 14px; height: 2px; background: #b38cf0;"></span>depends on</span>
+      </div>
+
+      <div style="margin: 0 16px 16px; padding: 12px 14px; border: 1px solid #353941; border-radius: 8px; background: #212429; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">COMING UP</span>
+        <span>⏳ <b>Counter-attack</b> — Order @RedQRF accepted → then Message Blue "Enemy counter-attack expected"</span>
+        <span>⏳ <b>Hold the bridge</b> achieves at ~09:44 if Blue keeps 4 men on @Bridge → starts <b>Clear the village</b></span>
+        <span>⏱ <b>Phase 2 briefing</b> at 09:45 · <b>Push harder</b> disarms at 09:30</span>
+      </div>
+    </div>
+
+    <div style="width: 400px; display: flex; flex-direction: column; background: #202328;">
+      <div style="padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #353941;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #f0904a; font-size: 16px;">⚡</span><span style="font-size: 16px; font-weight: 600;">Counter-attack</span><span style="margin-left: auto; padding: 2px 8px; border-radius: 10px; background: #4a2c17; color: #f6b37a; font-size: 11px; font-weight: 600;">ACTING · 2/3</span></div>
+        <span style="color: #9aa0a8; font-size: 12px;">Trigger · subject <a href="#">Red HQ</a> · in macro <a href="#">AdaptivePressure</a></span>
+        <div style="display: flex; gap: 8px; margin-top: 4px;">
+          <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 10px; font: inherit;">Fire now</button>
+          <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 10px; font: inherit;">Disarm</button>
+          <button style="background: #2b2f35; color: #6f747c; border: 1px solid #33373d; border-radius: 5px; padding: 6px 10px; font: inherit;" disabled>Re-arm</button>
+          <button style="margin-left: auto; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 10px; font: inherit;">Show on map</button>
+        </div>
+      </div>
+      <div style="display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid #353941; font-size: 12px;">
+        <button style="background: transparent; color: #fff; border: 0; border-bottom: 2px solid #5aa8ff; padding: 9px 8px; font: inherit;">Overview</button>
+        <button style="background: transparent; color: #9aa0a8; border: 0; padding: 9px 8px; font: inherit;">When</button>
+        <button style="background: transparent; color: #9aa0a8; border: 0; padding: 9px 8px; font: inherit;">Do</button>
+        <button style="background: transparent; color: #9aa0a8; border: 0; padding: 9px 8px; font: inherit;">Rules</button>
+        <button style="background: transparent; color: #9aa0a8; border: 0; padding: 9px 8px; font: inherit;">History</button>
+        <button style="background: transparent; color: #9aa0a8; border: 0; padding: 9px 8px; font: inherit;">Bindings</button>
+      </div>
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">WHEN</span>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; background: #262a30;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #4fbf85;"></span><a href="#">@Hold the bridge</a> state = Active<span style="margin-left: auto; color: #4fbf85; font-size: 11px;">true since 09:14</span></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">DO</span>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; background: #262a30;"><span style="color: #4fbf85;">✓</span>InsertMacro <b>RedQRF</b> at @VillageEdge<span style="margin-left: auto; color: #4fbf85; font-size: 11px;">12/12 built</span></div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; background: #3a2a1d; border: 1px solid #6b4422;"><span style="color: #f0904a;">▶</span>Order <b>@RedQRF</b> Attack @Bridge<span style="margin-left: auto; color: #f0b27a; font-size: 11px;">running 6 s</span></div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; background: #262a30; color: #b8bcc4;"><span>○</span>Message <b>Blue</b> "Enemy counter-attack expected" · 8 s</div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Rules</span>delay 120 s · once</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Fired</span>09:16:02 · 1×</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Waits on</span><a href="#">Hold the bridge</a></div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Starts</span><a href="#">RedQRF</a> (12 units)</div>
+        </div>
+        <div style="padding: 8px 10px; border-radius: 6px; border: 1px solid #3a4560; background: #1f2633; color: #a9ceff; font-size: 12px;">Live — edits apply at once and are journaled with your name. Click any field to edit.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

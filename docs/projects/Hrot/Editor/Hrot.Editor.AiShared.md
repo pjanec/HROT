@@ -239,7 +239,7 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `BlackboardAliasBinding.cs` | `record BlackboardAliasBinding` | Records a sub-tree requirement bound to a variable: `RequiringAssetId`, `RequiringElementId`, `RequiringAssetName`, `RequiredByPath`, `DtoType`. |
 | `BlackboardLoadState.cs` | `enum BlackboardLoadState` | Load-time health: `Clean`, `SpanCaptureFailed`, `StructParseFailed`, `AssemblyFailed`. Drives banner display and save-gate logic in `BlackboardAuthoringWindow`. |
 | `BlackboardDiagnosticCode.cs` | `enum BlackboardDiagnosticCode` | Three codes: `UnusedVariable` (Info), `VariableTypeNotFound` (Warning), `CrossRegionConflict` (Error). |
-| `BlackboardBinPacker.cs` | `static class BlackboardBinPacker` | Classifies variables into `Inline` vs `Heavy` tiers, computes byte sizes, and emits `PackWarning` when budgets are exceeded. Constants: `MaxInlineBytes = 100`, `MaxHeavyBytes` TBD per tier. |
+| `BlackboardBinPacker.cs` | `static class BlackboardBinPacker` | Computes byte sizes and sequential offsets for the asset's variables, emitting `PackWarning` when the total exceeds what any occurrence tier could seat. Constant: `MaxInlineBytes = 16096` (the largest tier's payload). ⭐ `CE-314` removed the inline/heavy split — there is one region, not two. |
 | `BlackboardVariableDescriptor.cs` | `record BlackboardVariableDescriptor` | `Name` + `FieldType`; packing input. |
 | `BlackboardFieldClassifier.cs` | `static class BlackboardFieldClassifier` | Maps a CLR type to a `BlackboardFieldKind` for display in the Variables panel. |
 | `BlackboardNameValidator.cs` | `static class BlackboardNameValidator` | Validates that a proposed variable name is a legal C# identifier and does not collide with existing names. |
@@ -286,7 +286,7 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `ILiveSessionProvider.cs` | `interface ILiveSessionProvider` | Reports live entity count per asset. |
 | `LiveSessionRegistry.cs` | `sealed class LiveSessionRegistry` | Maps `assetId -> IAiDebugSession`; reports count 1 when attached. |
 | `IRuntimeInspectorPane.cs` | `interface IRuntimeInspectorPane` | Subsystem pane contract for `RuntimeInspectorWindow`. |
-| `ITraceLaneProvider.cs` | `interface ITraceLaneProvider` + `TraceLaneDescriptor` | Subsystem swim-lane definitions for `TraceTimelineWindow`. |
+| ~~`ITraceLaneProvider.cs`~~ | ⛔ moved `2026-10-26` (R-4078) | Now `Fdp.Toolkits/ReplayBrowser/Timeline/ITimelineLaneProvider.cs` — one lane seam shared with the Event Timeline (`DESIGN_Director_Timeline_Editor.md` §9d). |
 
 ### `Hrot.Editor.AiShared.Windows`
 
@@ -296,10 +296,11 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `BlackboardAuthoringWindow.cs` | `sealed class BlackboardAuthoringWindow` | Docked panel for editing the blackboard variable list of the active asset. Renders variable rows with type, byte size, alias badges, and inline rename. Shows inline/heavy byte budget gauges. Delegates to `VariablesPanelControl` and `BlackboardBinPacker`. Window ID: `ai_blackboard_variables`. |
 | `InspectorWindow.cs` | `sealed class InspectorWindow` | Active-asset property panel; context menu for Find References, Rename. |
 | `RuntimeInspectorWindow.cs` | `sealed class RuntimeInspectorWindow` | Shell that delegates to registered `IRuntimeInspectorPane` implementations. |
-| `TraceTimelineWindow.cs` | `sealed class TraceTimelineWindow` | Shell that delegates to registered `ITraceLaneProvider` implementations. |
+| `TraceTimelineWindow.cs` | `sealed class TraceTimelineWindow` | Shell that delegates to registered `ITimelineLaneProvider` implementations whose `Applies(context)` matches the asset kind. |
 | `FindResultsWindow.cs` | `sealed class FindResultsWindow` | Renders find-references results and rename preview diffs. |
 | `DiagnosticsWindow.cs` | `sealed class DiagnosticsWindow` | Runs all registered `IAssetValidator` instances against all catalog assets each frame; displays colored table. |
-| `SharedAiWindowRegistrar.cs` | `sealed class SharedAiWindowRegistrar` | `IWindowRegistrar` that registers all 8 windows with `WindowManager`. |
+| `ShellCommandCoreBundle.cs` | `sealed class ShellCommandCoreBundle` | `IUiBundle` wrapping `CgfEditorShellToolbar.RegisterCommonCore`; composed by **both** hosts (`CE-069`). |
+| ⛔ ~~`SharedAiWindowRegistrar.cs`~~ | *(deleted `2026-08-27`)* | **DELETED — `CE-070`.** A flat host-level `IWindowRegistrar` over 7 windows, with **zero** constructions in the repo; its windows declare `WindowScope.PerspectiveBound`, so the live path is `PerspectiveWorkspaceRegistrar` (both hosts, one per perspective). 📄 `docs/DESIGN_Subsystem_Composition_Unification.md` §5b.5–§5b.6. |
 
 ### `Hrot.Editor.AiShared.Di`
 
@@ -784,12 +785,15 @@ public interface IRuntimeInspectorPane
     void Draw();
 }
 
-public sealed record TraceLaneDescriptor(string Id, string DisplayName, TraceLevel SupportedLevels);
+// ⭐ R-4078 (2026-10-26): the lane seam lives in Fdp.Toolkits (namespace Fdp.Toolkit.ReplayBrowser.Timeline), shared with the
+// Event Timeline — see docs/DESIGN_Director_Timeline_Editor.md §9d. TraceLevel moved with it.
+public sealed record TimelineLaneDescriptor(string Id, string DisplayName, TraceLevel SupportedLevels = TraceLevel.All,
+    string Group = "", int Priority = 0, uint Color = 0, TimelineGlyph Glyph = TimelineGlyph.Dot);
 
-public interface ITraceLaneProvider
+public interface ITimelineLaneProvider
 {
-    AssetKind Kind { get; }
-    IReadOnlyList<TraceLaneDescriptor> Lanes { get; }
+    IReadOnlyList<TimelineLaneDescriptor> Lanes { get; }
+    bool Applies(TimelineLaneContext context);     // editor providers: context.AssetKind == nameof(AssetKind.X)
 }
 ```
 
@@ -824,7 +828,7 @@ public sealed record ActionSchemaEntry(
     Type            DtoType,       // first ref parameter type
     ActionHosting   Hostings,      // BTreeAction | HsmAction | SharedAi | Heavy
     BlackboardAccess ParamAccess,  // ReadOnly | ReadWrite | Unknown
-    Type?           HeavyDtoType); // set for [SharedAiHeavyAction]; null otherwise
+    Type?           HeavyDtoType); // the extra component's DTO for [SharedAiHeavyAction]; null otherwise
 
 [Flags]
 public enum ActionHosting
@@ -896,15 +900,18 @@ Diagnostic codes emitted by BTree/HSM validators for blackboard-related issues:
 ```csharp
 public enum BlackboardDiagnosticCode
 {
-    UnusedVariable,               // Info: variable declared but not referenced
-    VariableTypeNotFound,         // Warning: DTO type dropped from assembly after reload
-    UnboundActionNode,            // Error: action/condition node with null ExpressionTargetField
-    UnboundSubTreeRequirement,    // Warning: sub-tree DTO requirement not aliased or promoted
-    CrossRegionBlackboardConflict, // Warning: concurrent writes to same variable across parallel regions
-    InlineMemoryExceeded,         // Error: master variables exceed 100 B inline budget
-    DuplicateAliasAcrossRegions,  // Error: same variable aliased by sub-trees in concurrent regions
+    UnusedVariable,        // Info: variable declared but not referenced by any node
+    VariableTypeNotFound,  // Warning: FieldType unresolvable after a schema rebuild;
+                           //          the variable is preserved verbatim, authoring suspended
+    CrossRegionConflict,   // Error: two sub-trees in different parallel regions write
+                           //        the same variable
 }
 ```
+
+Over-capacity is reported separately, by `BlackboardBinPacker`'s `PackWarning` enum
+(`None` | `InlineMemoryExceeded`), when the packed total exceeds `MaxInlineBytes` (16 096 --
+the largest occurrence tier's payload). ⚠ `InlineMemoryExceeded` keeps its name although there is
+no second region to contrast with: "inline" now simply means *the params region*.
 
 ---
 
@@ -912,7 +919,7 @@ public enum BlackboardDiagnosticCode
 
 The blackboard authoring subsystem enables visual DTO editing from within the BTree and HSM
 editors. The following summarizes the key concepts; full detail is in the design document at
-`.dev/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md`.
+`.dev/_DONE/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md`.
 
 ### File ownership — two categories
 
@@ -951,16 +958,14 @@ requirements from action nodes. Results populate the "Unbound Sub-Tree Requireme
 panel section. Designers bind these to master variables via drag-drop (Approach A
 aliasing) or promote them to new standalone variables.
 
-### Memory tier bin-packing
+### Occurrence-slot allocation
 
-`BlackboardBinPacker` partitions variables between:
-- **Inline tier:** `BrainBlackboard.BehaviorParameters` — 100 bytes max.
-- **Heavy tier:** `Blackboard1024.Memory` — 928 usable bytes, allocated on demand.
-
-Master variables always stay inline. Aggregated sub-tree variables fill remaining
-inline space first, then overflow to heavy. When heavy variables exist, the asset's
-`[BTreeDefinition]` / `[HsmDefinition]` attribute carries `HeavyDtoType = typeof(X)`
-so the source generator wires up the `Blackboard1024` component provisioning.
+`BlackboardBinPacker` places variables into occurrence slots in the tier ladder
+(`BlueprintBlackboard{256,1024,4096,16384}`). Master variables and aggregated sub-tree
+variables are both ordinary occurrence slots — there is no separate inline/heavy split.
+`BlueprintTierTable.ResolveTier` picks the smallest tier whose payload and slot count both
+fit the asset's requirements (up to 16 096 usable bytes across ≤16 slots at the top tier),
+promoting up the ladder as needed.
 
 ---
 
@@ -1193,7 +1198,7 @@ tree with zero live instances is always safe to apply silently.
 
 | Project | Relationship |
 |---------|-------------|
-| `Hrot.BTree.Editor` | Subsystem editor; implements `IAssetCatalogContributor`, `IAiDebugSession`, `IFluentCSharpEmitter`, `IAssetValidator`, `IRuntimeInspectorPane`, `ITraceLaneProvider` for behaviour trees. |
+| `Hrot.BTree.Editor` | Subsystem editor; implements `IAssetCatalogContributor`, `IAiDebugSession`, `IFluentCSharpEmitter`, `IAssetValidator`, `IRuntimeInspectorPane`, `ITimelineLaneProvider` for behaviour trees. |
 | `Hrot.Hsm.Editor` | Subsystem editor; same plug-in points for hierarchical state machines. |
 | `Hrot.Editor.AiShared.Tests` | Test project; exercises catalog, selection, references, refactor, layout, hot-reload, debug session, and window shells. Has `[InternalsVisibleTo]` access. |
 | `Fdp.Core` | Provides `Entity`, shared domain primitives. Required by debug session and selection bridge. |

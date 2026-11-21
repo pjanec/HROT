@@ -1,0 +1,91 @@
+{
+  "title": "Onlookers",
+  "caption": "Twelve people come from four streets and ring a hurt man",
+  "clip": "F-06",
+  "chapter": 3,
+  "state": "ready",
+  "endAt": "m+12",
+  "anchors": {
+    "m": {
+      "on": "near",
+      "who": "Onlooker 3",
+      "point": [
+        200,
+        200
+      ],
+      "within": 18
+    }
+  },
+  "keys": [
+    {
+      "at": 0.2,
+      "follow": "Casualty",
+      "distance": 150,
+      "yaw": 0,
+      "pitch": -55,
+      "lift": 1,
+      "fov": 55,
+      "segment": "come"
+    },
+    {
+      "at": "m-8",
+      "follow": "Onlooker 3",
+      "distance": 30,
+      "yaw": 45,
+      "pitch": -25,
+      "lift": 1.5,
+      "fov": 45,
+      "segment": "close"
+    },
+    {
+      "at": "m+3",
+      "follow": "Casualty",
+      "distance": 28,
+      "yaw": 120,
+      "pitch": -30,
+      "lift": 1,
+      "fov": 45,
+      "segment": "ring"
+    },
+    {
+      "at": "m+10",
+      "follow": "Casualty",
+      "distance": 60,
+      "yaw": 0,
+      "pitch": -60,
+      "lift": 1,
+      "fov": 50,
+      "segment": "ring"
+    }
+  ],
+  "segments": [
+    {
+      "id": "come",
+      "from": 0.2,
+      "to": "m-9",
+      "speed": 3
+    },
+    {
+      "id": "close",
+      "from": "m-9",
+      "to": "m+2"
+    },
+    {
+      "id": "ring",
+      "from": "m+2",
+      "to": "m+12"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.2,
+      "until": "m+2",
+      "text": "Twelve onlookers come up four streets"
+    },
+    {
+      "at": "m+2",
+      "until": "m+12",
+      "text": "They ring the hurt man"
+    }
+  ]
+}

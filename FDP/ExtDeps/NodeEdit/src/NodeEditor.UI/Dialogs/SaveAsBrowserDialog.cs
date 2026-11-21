@@ -1,4 +1,5 @@
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 using System.Numerics;
@@ -265,10 +266,15 @@ public sealed class SaveAsBrowserDialog
             _focusName = false;
         }
 
-        ImGui.SetNextItemWidth(-1f);
         var inputFlags = ImGuiInputTextFlags.EnterReturnsTrue;
-        bool nameEnter = ImGui.InputText("Name", ref _name, 256, inputFlags);
-        _nameInputActive = ImGui.IsItemActive();
+        bool nameEnter = false;
+        if (NodeEditor.Core.Widgets.FormGrid.Begin("saveas.form"))
+        {
+            NodeEditor.Core.Widgets.FormGrid.Row("Name");
+            nameEnter = ImGui.InputText("##name", ref _name, 256, inputFlags);
+            _nameInputActive = ImGui.IsItemActive();
+            NodeEditor.Core.Widgets.FormGrid.End();
+        }
 
         // Validate name
         string? error = _request?.ValidateName?.Invoke(_name);
@@ -319,6 +325,7 @@ public sealed class SaveAsBrowserDialog
     private void DrawFolderTree(IIconProvider icons)
     {
         _visibleFolderPaths.Clear();
+        _folderDepth = 0;
 
         var root = _request?.GetFolderTree();
         if (root == null) return;
@@ -330,37 +337,25 @@ public sealed class SaveAsBrowserDialog
         }
     }
 
+    private int _folderDepth;   // ⭐ U-4: the indent of the row being drawn (TreeRow takes the depth; nothing is TreePush-ed)
+
     private void DrawFolderNode(CategoryNode node, string parentPath, IIconProvider icons)
     {
         string fullPath = string.IsNullOrEmpty(parentPath) ? node.Name : parentPath + "/" + node.Name;
         bool isSelected = fullPath == _destination;
 
-        // Determine folder icon (closed / open) mirroring TreeLayout idiom.
-        uint nodeId = ImGui.GetID(fullPath);
-        bool wasOpen = ImGui.GetStateStorage().GetInt(nodeId, 0) != 0;
-        string folderKey = wasOpen ? "folder_open" : "folder";
-        bool hasIcon = icons.TryGet(folderKey, out var folderIcon)
-                       || icons.TryGet("folder", out folderIcon);
-
-        if (hasIcon)
-        {
-            ImGui.Image(folderIcon.TextureId, IconSize, folderIcon.Uv0, folderIcon.Uv1);
-            ImGui.SameLine();
-        }
-
-        var treeFlags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
-        if (isSelected)
-            treeFlags |= ImGuiTreeNodeFlags.Selected;
-        if (node.Children.Count == 0)
-            treeFlags |= ImGuiTreeNodeFlags.Leaf;
-
-        ImGui.SetNextItemOpen(!_collapsedFolders.Contains(fullPath), ImGuiCond.Always);
+        // ⭐ U-4 (DESIGN_UI_Conventions §2) — the shared TreeRow: chevron · icon · label; the open state is this dialog's own collapsed set.
+        bool hasChildren = node.Children.Count > 0;
+        bool expanded = !_collapsedFolders.Contains(fullPath);
+        string folderKey = expanded ? "folder_open" : "folder";
+        var icon = icons.TryGet(folderKey, out var folderIcon) || icons.TryGet("folder", out folderIcon)
+            ? RowIcon.Image(folderIcon) : RowIcon.None;
         _visibleFolderPaths.Add(fullPath);
-        bool expanded = ImGui.TreeNodeEx(node.Name, treeFlags);
+        NodeEditor.Core.Widgets.TreeRow.Draw(fullPath, node.Name, icon, _folderDepth, hasChildren, ref expanded, isSelected);
 
         // Sync manual collapse state with mouse-driven arrow toggle.
         if (expanded) _collapsedFolders.Remove(fullPath);
-        else if (node.Children.Count > 0) _collapsedFolders.Add(fullPath);
+        else if (hasChildren) _collapsedFolders.Add(fullPath);
 
         // Single-click selects this folder as destination.
         if (ImGui.IsItemClicked())
@@ -390,11 +385,12 @@ public sealed class SaveAsBrowserDialog
 
         if (expanded)
         {
+            _folderDepth++;
             foreach (var child in node.Children)
             {
                 DrawFolderNode(child, fullPath, icons);
             }
-            ImGui.TreePop();
+            _folderDepth--;
         }
     }
 

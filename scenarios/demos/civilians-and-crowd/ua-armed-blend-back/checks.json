@@ -1,0 +1,63 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 AW-22 only the witness remembers. From the header's Judge (1)-(3). The rifle's IsEmbarkedTag.Seat 3 = hidden in his passenger buffer (the live check's reading); the rifle leaving the buffer reads as 'not 3' (a missing component is != 3). 'A holds while a civilian is in the line' = never a round from A that hits a civilian.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "he draws the rifle",
+      "on": "field",
+      "who": "Rifle",
+      "path": "IsEmbarkedTag.Seat",
+      "op": "!=",
+      "value": 3
+    },
+    {
+      "name": "he turns Hostile when he aims",
+      "on": "side",
+      "who": "Insurgent",
+      "is": "Hostile"
+    },
+    {
+      "name": "he hides the rifle again",
+      "on": "field",
+      "who": "Rifle",
+      "path": "IsEmbarkedTag.Seat",
+      "op": "==",
+      "value": 3,
+      "after": "he turns Hostile when he aims",
+      "before": "he turns Hostile when he aims+15"
+    },
+    {
+      "name": "patrol A fires at him once the line is clear",
+      "on": "shot",
+      "by": "Patrol A",
+      "at": "Insurgent"
+    },
+    {
+      "name": "his rifle is still hidden after patrol A fires",
+      "on": "field",
+      "who": "Rifle",
+      "path": "IsEmbarkedTag.Seat",
+      "op": "==",
+      "value": 3,
+      "after": "patrol A fires at him once the line is clear"
+    },
+    {
+      "name": "patrol A never hits a civilian",
+      "never": {
+        "on": "shot",
+        "by": "Patrol A",
+        "hit": "*Civilian"
+      }
+    },
+    {
+      "name": "patrol B never spends a round",
+      "never": {
+        "on": "shot",
+        "by": "Patrol B"
+      }
+    }
+  ]
+}

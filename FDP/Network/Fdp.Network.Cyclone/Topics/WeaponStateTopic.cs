@@ -5,7 +5,7 @@ namespace Fdp.Network.Cyclone.Topics
 {
     public partial struct WeaponStateTopic
     {
-        public long EntityId { get; set; }
+        public int EntityId { get; set; }
         public long InstanceId { get; set; }
         public float Azimuth { get; set; }
         public float Elevation { get; set; }

@@ -13,11 +13,11 @@ using Fdp.Toolkit.Replication;
 namespace Hrot.SimHost.Tests;
 
 /// <summary>
-/// Verifies INTS-P1-002: <see cref="SimHostScenarioManager.SpawnVehicle"/> publishes a
-/// <see cref="SpawnEntityCommand"/> so that entities are visible on the network
-/// (not just local ghosts).
+/// Verifies INTS-P1-002: <see cref="SimHostScenarioManager.SpawnVehicle"/> asks for a networked entity through
+/// <c>EntityCreation.RequestEntityCreation</c> (⭐ CE-259ax — it used to publish a <see cref="SpawnEntityCommand"/> order) so that entities are
+/// visible on the network (not just local ghosts).
 ///
-/// Uses a lightweight <see cref="IEventBus"/> stub â€” no DDS or Raylib required.
+/// Uses the production creation pack over a bare world â€” no DDS or Raylib required.
 /// </summary>
 public class SpawnEntityCommandTests
 {
@@ -28,45 +28,34 @@ public class SpawnEntityCommandTests
 
     // â”€â”€ Bus stub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /// <summary>
-    /// Capturing IEventBus implementation that records all managed publications.
-    /// </summary>
-    private sealed class CapturingBus : IEventBus
+    /// <summary>The production creation pack's world: SpawnVehicle's request lands on its bus (⭐ CE-259ax).</summary>
+    private sealed class Rig
     {
-        public readonly List<object> ManagedEvents = new();
-
-        /// <inheritdoc/>
-        public void Publish<T>(T evt) where T : unmanaged
-        { /* unmanaged events not relevant for these tests */ }
-
-        /// <inheritdoc/>
-        public void PublishManaged<T>(T evt) => ManagedEvents.Add(evt!);
+        public required EntityRepository World;
     }
 
-    // â”€â”€ Factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    private const int NodeId = 7;
 
-    private static (SimHostScenarioManager Sut, CapturingBus Bus) CreateSut()
+    private static (SimHostScenarioManager Sut, Rig Bus) CreateSut()
     {
-        var bus  = new CapturingBus();
-        var repo = new EntityRepository();
+        var world = new EntityRepository();
+        var creation = Hrot.TestShared.TestEntityCreation.For(world, Hrot.Map.Common.HrotEnvironment.CreateTkb(), NodeId);
 
-        // Road/traj/formations are only used by demo helpers (SpawnRoamers etc.),
-        // not by SpawnVehicle which only touches _spawnBus.
+        // Road/traj/formations are only used by demo helpers (SpawnRoamers etc.), not by SpawnVehicle.
         var sut = new SimHostScenarioManager(
-            repo:       repo,
+            repo:       world,
             road:       default(RoadNetworkBlob),
             traj:       null!,
             formations: null!,
-            spawnBus:   bus);
+            creation:   creation);
 
-        return (sut, bus);
+        return (sut, new Rig { World = world });
     }
 
-    private static SpawnEntityCommand ExtractCommand(CapturingBus bus)
+    private static EntityCreationRequest ExtractCommand(Rig bus)
     {
-        Assert.Single(bus.ManagedEvents);
-        Assert.IsType<SpawnEntityCommand>(bus.ManagedEvents[0]);
-        return (SpawnEntityCommand)bus.ManagedEvents[0];
+        bus.World.Bus.SwapBuffers();
+        return Assert.Single(((Fdp.ModuleHost.Abstractions.ISimulationView)bus.World).ReadManagedEvents<EntityCreationRequest>().ToList());
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -113,7 +102,7 @@ public class SpawnEntityCommandTests
     // P1-002-T2: Command structure
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-    /// <summary>Published command must have NetworkId = 0 so DdsIdAllocator assigns one.</summary>
+    /// <summary>The request must not pre-allocate a network id: the spawn system assigns one.</summary>
     [Fact]
     public void SpawnVehicle_PublishesCommand_WithNetworkId_Zero()
     {
@@ -122,10 +111,10 @@ public class SpawnEntityCommandTests
         sut.SpawnVehicle(DefaultPos, DefaultHeading);
 
         var cmd = ExtractCommand(bus);
-        Assert.Equal(0, cmd.NetworkId);
+        Assert.Equal(0L, cmd.PreAllocatedNetworkId);
     }
 
-    /// <summary>Published command must carry the local SimHost node ID.</summary>
+    /// <summary>Published request must be owned by this node (the pack's NodeId).</summary>
     [Fact]
     public void SpawnVehicle_PublishesCommand_WithLocalNodeId()
     {
@@ -134,7 +123,7 @@ public class SpawnEntityCommandTests
         sut.SpawnVehicle(DefaultPos, DefaultHeading);
 
         var cmd = ExtractCommand(bus);
-        Assert.Equal(SimHostNetworkConstants.LocalNodeId, cmd.OwnerNodeId);
+        Assert.Equal(NodeId, cmd.OwnerAppInstanceId);   // ⭐ CE-259ax — 'mine' is the pack's own node id
     }
 
     /// <summary>InitialComponents must contain exactly one SimTransform.</summary>

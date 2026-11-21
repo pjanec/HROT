@@ -5,6 +5,7 @@ using System.Numerics;
 using Fbt;
 using Hrot.AiEditor.Persistence;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
@@ -30,17 +31,31 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     /// placing a node from the palette (<see cref="ApplyAddNode"/>). Null in call sites/tests that
     /// don't care about AiPrimitive composition — the non-AiPrimitive placement path is unaffected.
     /// </param>
-    internal BTreeCommandSink(BehaviorTreeAsset asset, IGraphModel graph, IActionSchemaExporter? actionSchema = null)
+    /// <param name="catalog">⭐ <c>CE-417</c> B-1 — turns a dropped blueprint's generated TickCore into the blueprint's
+    /// asset id + name (B-1: the method is derived, never persisted). ⚠ Optional: without it the node keeps the FQN form,
+    /// which the next open heals (<c>BTreeBlueprintBindingResolver</c>). ⛔ A production host HAS one and passes it.</param>
+    internal BTreeCommandSink(BehaviorTreeAsset asset, IGraphModel graph, IActionSchemaExporter? actionSchema = null,
+                              Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         _asset        = asset;
         _graph        = graph;
         _actionSchema = actionSchema;
+        _catalog      = catalog;
     }
+
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
     // ---- IGraphCommandSink --------------------------------------------------
 
+    /// <summary>⭐ CE-1276 — the document is a code-built (read-only) graph; the canvas asks this to hide its authoring affordances.</summary>
+    internal bool IsReadOnly => Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset);
+
     public GraphCommandResult Apply(GraphCommand command)
     {
+        // ⭐ CE-1252 (BV-19) — a code-built graph is read-only. ⭐ CE-1275 — a breakpoint and a node MOVE are view state, not an edit
+        //   of the behaviour, so they still go through (and mark nothing dirty: see ApplyNodeMoves).
+        if (Hrot.Editor.AiShared.Documents.AiDocument.RefusesCommand(_asset, command))
+            return new GraphCommandResult(false, Hrot.Editor.AiShared.Documents.AiDocument.ReadOnlyReason(_asset));
         switch (command)
         {
             case GraphCommand.MoveNodes m:
@@ -106,6 +121,11 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                     Apply(sub);
                 break;
 
+            // ⭐ CE-1062 (§13.10c E4) — an asset-level edit (the params DTO, its defaults) on this document's undo stack.
+            case Hrot.Editor.AiShared.Documents.AssetEditCommand assetEdit:
+                assetEdit.Mutate();
+                break;
+
             default:
                 return new GraphCommandResult(false, $"Unsupported: {command.GetType().Name}");
         }
@@ -123,7 +143,9 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             if (node != null)
                 node.Position = m.NewPosition;
         }
-        _asset.MarkDirty();
+        // ⭐ CE-1275 — a position on a code-built graph is view state: kept on the in-memory asset, never a document change.
+        if (!Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset))
+            _asset.MarkDirty();
     }
 
     private void ApplyAddNode(GraphCommand.AddNode add)
@@ -138,13 +160,24 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             DisplayLabel    = add.Kind.Id,
         };
 
-        if (BTreeKinds.TryParseLeafActionKind(add.Kind.Id, out var fqn, out var isCond))
+        if (add.Kind.Id is BTreeKinds.SopDoWhenIdle or BTreeKinds.SopReact)   // ⭐ CE-2079 — an SOP order
+        {
+            bool react = add.Kind.Id == BTreeKinds.SopReact;
+            node.KernelType   = NodeType.Action;
+            node.DisplayLabel = react ? "React" : "Do when idle";
+            node.SopOrder     = new BTreeSopOrderPayload
+            {
+                Kind = react ? Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React
+                             : Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle,
+            };
+        }
+        else if (BTreeKinds.TryParseLeafActionKind(add.Kind.Id, out var fqn, out var isCond))
         {
             node.KernelType = isCond ? NodeType.Condition : NodeType.Action;
             node.DisplayLabel = fqn.Substring(fqn.LastIndexOf('.') + 1);
             if (isCond)
             {
-                var condition = new BTreeConditionPayload { MethodFqn = fqn };
+                var condition = new BehaviorActionBinding { MethodFqn = fqn };
                 node.Condition = condition;
 
                 // E2: mirror the action-side AiPrimitive composition (see below) for conditions.
@@ -155,13 +188,13 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 var condEntry = _actionSchema?.Lookup(fqn);
                 if (condEntry is { IsAiPrimitive: true })
                 {
-                    ComposeAiPrimitiveCondition(condition, condEntry);
+                    ComposeAiPrimitive(node, condition, condEntry);
                     node.DisplayLabel = BTreeNodeCatalog.AiPrimitiveDisplayName(fqn);
                 }
             }
             else
             {
-                var action = new BTreeActionPayload { MethodFqn = fqn };
+                var action = new BehaviorActionBinding { MethodFqn = fqn };
                 node.Action = action;
 
                 // E2: a Blueprint-compiled AiPrimitive action must be placed as a fully composed
@@ -173,13 +206,21 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 var entry = _actionSchema?.Lookup(fqn);
                 if (entry is { IsAiPrimitive: true })
                 {
-                    ComposeAiPrimitiveAction(action, entry);
+                    ComposeAiPrimitive(node, action, entry);
                     // A composed blueprint's method is always "{Blueprint}_{id:X8}_Bp.TickCore", so the
                     // bare method name ("TickCore") is a useless node label. Show the blueprint name,
                     // matching how the palette entry is labelled.
                     node.DisplayLabel = BTreeNodeCatalog.AiPrimitiveDisplayName(fqn);
                 }
             }
+
+            // ⭐⭐ CE-504 C-1 — a dropped C# method takes the shape its signature implies (composed blueprints set theirs
+            //   above; the classifier agrees with them).
+            if (node.DelegateShape != BTreeActionDelegateShape.AiPrimitiveTickCore &&
+                Hrot.BTree.Editor.Model.BTreeCallShapeResolver.ShapeOf(
+                    isCond ? node.Condition : node.Action,
+                    Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures()) is { } shape)
+                node.DelegateShape = shape;
         }
         else
         {
@@ -209,112 +250,38 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     }
 
     /// <summary>
-    /// E2: composes a placed Action node onto a Blueprint-compiled AiPrimitive (T31 shape).
-    /// Sets <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>, derives the generated
-    /// WorkingState type FQN from the schema entry's Params type, and auto-creates a blackboard
-    /// variable (mirroring the "Promote to new variable" IsAutoManaged convention — see
-    /// <see cref="ApplyRemoveNodes"/>) to hold the Params, wiring it up via ExpressionTargetField.
-    /// Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
-    /// variable (Node scope by default) and binds it via WorkingStateTargetField, so the designer can
-    /// flip that variable's Scope to Behavior in the blackboard Role/Scope panel — two composed nodes
-    /// bound to the same Behavior-scoped variable then resolve to the same partition slot.
+    /// E2: composes a placed Action OR Condition node onto a Blueprint-compiled AiPrimitive (T31 shape). Sets
+    /// <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/> on the node, derives the generated WorkingState type FQN
+    /// from the schema entry's Params type, and auto-creates a blackboard variable (the "Promote to new variable"
+    /// IsAutoManaged convention — see <see cref="ApplyRemoveNodes"/>) to hold the Params, wiring it via
+    /// ExpressionTargetField. Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
+    /// variable (Node scope by default) bound via WorkingStateTargetField, so the designer can flip its Scope to Behavior —
+    /// two composed nodes bound to the same Behavior-scoped variable then share one partition slot.
+    /// <para>A composed CONDITION is composed identically: edge-detection/hysteresis need cross-tick memory, so it gets a
+    /// partition-slot WorkingState exactly like an action — never a transient/zeroed state.</para>
+    /// <para>⭐ <c>CE-417</c>: ONE method for both — they used to be two only because <c>BTreeActionPayload</c> and
+    /// <c>BTreeConditionPayload</c> were two sealed classes with identical members and no common base.</para>
+    /// <para>⭐⭐⭐ The variables come from <see cref="AutoManagedVariables.ComposeForAiPrimitive"/>, which the HSM host calls
+    /// too. 🔒 User, <c>2026-09-28</c>: <i>"If btree does something right, hsm should reuse it by sharing wherever possible,
+    /// not by duplication."</i></para>
     /// </summary>
-    private void ComposeAiPrimitiveAction(BTreeActionPayload action, ActionSchemaEntry entry)
+    private void ComposeAiPrimitive(BTreeEditorNode node, BehaviorActionBinding binding, ActionSchemaEntry entry)
     {
-        action.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        var composed = AutoManagedVariables.ComposeForAiPrimitive(_asset, entry);
 
-        // An AiPrimitive binding bin-packs its Params inline into the managed BrainBlackboard, so it
-        // hard-requires an editor-managed blackboard (codegen otherwise fails with BTREE0002). Placing
-        // the node is exactly the moment that requirement becomes true, so enable managed mode here
-        // rather than making the first Full Rebuild fail and forcing a manual "use editor managed
-        // blackboard" step. There is no valid state with a composed AiPrimitive node and Managed=false.
-        _asset.IsBlackboardEditorManaged = true;
+        node.DelegateShape              = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        binding.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
+        binding.ExpressionTargetField   = composed.ParamsVariable;
+        binding.WorkingStateTargetField = composed.WorkingStateVariable;
 
-        // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
-        // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
-        // still placed) if the generated shape doesn't match — never throws.
-        var wsType = entry.DtoType.DeclaringType?.GetNestedType("WorkingState");
-        action.WorkingStateTypeId = wsType?.FullName;
-
-        string varName = GenerateUniqueVariableName("bpParams");
-        _asset.AddVariable(new BlackboardVariableEntry(
-            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
-
-        action.ExpressionTargetField = varName;
-
-        // Slice 1: a SEPARATE WorkingState host variable (Role=State), distinct from the Params
-        // (Input) variable above, so its Scope is independently authorable. Only created when the
-        // generated shape has a WorkingState type (mirrors the WorkingStateTypeId null-guard).
-        if (wsType != null)
+        // ⭐⭐ CE-417 B-1 — a GENERATED blueprint is named by its asset id + name; its TickCore is derived. ⚠ A
+        //   hand-written AiPrimitive-shaped C# method does not parse as a generated class and stays a method.
+        if (Hrot.Editor.AiShared.References.ComposedBlueprintResolver.Resolve(binding.MethodFqn, _catalog) is { } bp)
         {
-            string wsVarName = GenerateUniqueVariableName("bpWorkingState");
-            _asset.AddVariable(new BlackboardVariableEntry(
-                wsVarName, wsType, Comment: null, IsAutoManaged: true,
-                Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node));
-            action.WorkingStateTargetField = wsVarName;
+            binding.BlueprintAssetId = bp.AssetId;
+            binding.BlueprintName    = bp.Name;
+            binding.MethodFqn        = null;
         }
-    }
-
-    /// <summary>
-    /// E2: composes a placed Condition node onto a Blueprint-compiled AiPrimitive (T31 shape),
-    /// mirroring <see cref="ComposeAiPrimitiveAction"/>. Sets
-    /// <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>, derives the generated
-    /// WorkingState type FQN from the schema entry's Params type, and auto-creates a blackboard
-    /// variable to hold the Params, wiring it up via ExpressionTargetField. A composed condition
-    /// MUST get a partition-slot WorkingState exactly like an action (edge-detection/hysteresis
-    /// need cross-tick memory) — never a transient/zeroed state.
-    /// Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
-    /// variable (Node scope by default) and binds it via WorkingStateTargetField, mirroring the
-    /// action path — see <see cref="ComposeAiPrimitiveAction"/>.
-    /// </summary>
-    private void ComposeAiPrimitiveCondition(BTreeConditionPayload condition, ActionSchemaEntry entry)
-    {
-        condition.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
-
-        // Same hard requirement as the action path: an AiPrimitive binding bin-packs its Params
-        // inline into the managed BrainBlackboard, so it hard-requires an editor-managed blackboard.
-        _asset.IsBlackboardEditorManaged = true;
-
-        // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
-        // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
-        // still placed) if the generated shape doesn't match — never throws.
-        var wsType = entry.DtoType.DeclaringType?.GetNestedType("WorkingState");
-        condition.WorkingStateTypeId = wsType?.FullName;
-
-        string varName = GenerateUniqueVariableName("bpParams");
-        _asset.AddVariable(new BlackboardVariableEntry(
-            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
-
-        condition.ExpressionTargetField = varName;
-
-        // Slice 1: a SEPARATE WorkingState host variable (Role=State), distinct from the Params
-        // (Input) variable above, so its Scope is independently authorable. Only created when the
-        // generated shape has a WorkingState type (mirrors the WorkingStateTypeId null-guard).
-        if (wsType != null)
-        {
-            string wsVarName = GenerateUniqueVariableName("bpWorkingState");
-            _asset.AddVariable(new BlackboardVariableEntry(
-                wsVarName, wsType, Comment: null, IsAutoManaged: true,
-                Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node));
-            condition.WorkingStateTargetField = wsVarName;
-        }
-    }
-
-    /// <summary>Returns baseName if unused, else baseName_2, baseName_3, … — first unused wins.</summary>
-    private string GenerateUniqueVariableName(string baseName)
-    {
-        if (_asset.BlackboardVariables.All(v => v.Name != baseName))
-            return baseName;
-
-        int suffix = 2;
-        string candidate;
-        do
-        {
-            candidate = $"{baseName}_{suffix}";
-            suffix++;
-        } while (_asset.BlackboardVariables.Any(v => v.Name == candidate));
-
-        return candidate;
     }
 
     /// <summary>Human-readable default title for a freshly-created node of the given kind.</summary>
@@ -372,10 +339,11 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         {
             var node = _asset.FindNode(id.Value);
             if (node is null) continue;
-            CollectAutoVarCandidate(candidateVars, node.Action?.ExpressionTargetField);
-            CollectAutoVarCandidate(candidateVars, node.Action?.WorkingStateTargetField);
-            CollectAutoVarCandidate(candidateVars, node.Condition?.ExpressionTargetField);
-            CollectAutoVarCandidate(candidateVars, node.Condition?.WorkingStateTargetField);
+            // ⭐ CE-3182 — the VARIABLE a target names (Params.walk → Params), never the path string.
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Action?.ExpressionTargetField));
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Action?.WorkingStateTargetField));
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Condition?.ExpressionTargetField));
+            CollectAutoVarCandidate(candidateVars, Hrot.AiEditor.Persistence.BindingPath.Root(node.Condition?.WorkingStateTargetField));
         }
 
         foreach (var id in nodeIds)
@@ -383,16 +351,19 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
 
         foreach (var varName in candidateVars)
         {
-            var varEntry = _asset.BlackboardVariables.FirstOrDefault(v => v.Name == varName);
-            if (varEntry is not { IsAutoManaged: true })
-                continue;
+            // ⚠ The still-referenced test is BTree's own and stays here: a BTree variable can be
+            //   shared by several nodes (Slice 1's Behavior-scoped working state is exactly that), so
+            //   deleting one node must not take a variable another still binds. ⛔ An HSM hosting site
+            //   is 1:1 with its composed variable, which is why its caller needs no such check.
             bool stillReferenced = _asset.Nodes.Any(n =>
-                n.Action?.ExpressionTargetField     == varName ||
-                n.Action?.WorkingStateTargetField   == varName ||
-                n.Condition?.ExpressionTargetField  == varName ||
-                n.Condition?.WorkingStateTargetField == varName);
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Action?.ExpressionTargetField,      varName) ||
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Action?.WorkingStateTargetField,    varName) ||
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Condition?.ExpressionTargetField,   varName) ||
+                Hrot.AiEditor.Persistence.BindingPath.Targets(n.Condition?.WorkingStateTargetField, varName));
+
+            // ⭐ The IsAutoManaged test itself is SHARED — one rule for "may the editor delete this?".
             if (!stillReferenced)
-                _asset.RemoveVariable(varName);
+                AutoManagedVariables.RemoveIfAutoManaged(_asset, varName);
         }
         _asset.MarkDirty();
     }

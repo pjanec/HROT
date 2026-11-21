@@ -64,15 +64,17 @@ public sealed class EqsContextSlotTests : IDisposable
         public float LastToX { get; private set; } = float.NaN;
 
         // Returns true (exposed) when to.X is near 20.
-        public bool HasCheapLineOfSight(Vector2 from, Vector2 to)
+        // ⭐ The 3-D seam (CE-210): the default LOS filter looks FROM the slot entity (eye) AT the candidate (aim).
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim)
         {
-            LastToX = to.X;
-            return MathF.Abs(to.X - 20f) < 1f; // exposed only when target is near x=20
+            LastToX = eye.X;
+            return MathF.Abs(eye.X - 20f) < 1f; // exposed only when the threat is near x=20
         }
     }
 
     // Mock raycast solver: captures RaycastRequestEvent.End and writes a synthetic hit.
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class CapturingMockRaycastSolverSystem : IEcsModuleSystem
     {
         public Vector3 LastRaycastEnd { get; private set; }
@@ -139,9 +141,9 @@ public sealed class EqsContextSlotTests : IDisposable
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         // Spawn the observer (parent) and the slot target on Brain.
-        long parentNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int parentNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
-        long targetNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int targetNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for both Muscle ghosts to appear.
@@ -208,7 +210,7 @@ public sealed class EqsContextSlotTests : IDisposable
         int domainId = NextDomain();
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         bool entityReady = harness.PumpUntil(
@@ -270,7 +272,7 @@ public sealed class EqsContextSlotTests : IDisposable
         var entityMap  = new NetworkEntityMap();
         var translator = new EqsSensorConfigIngressTranslator(participant: null, entityMap: entityMap);
 
-        Entity result = translator.ResolveSlot(999L);
+        Entity result = translator.ResolveSlot(999);
 
         Assert.True(result.IsNull, "Unresolved network ID must resolve to Entity.Null");
     }
@@ -298,22 +300,22 @@ public sealed class EqsContextSlotTests : IDisposable
             var ctx    = new BTreeContext { Self = entity, World = repo };
 
             // First tick: sensor added with Epoch=1 and ContextSlot1=entityA.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(entityA, repo.GetComponentRO<EqsSensor>(entity).ContextSlot1);
 
             // Second tick: same params, Epoch stays at 1.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
 
             // Third tick: change ContextSlot1 to entityB. Epoch must increment to 2.
             p.ContextSlot1 = entityB;
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(entityB, repo.GetComponentRO<EqsSensor>(entity).ContextSlot1);
 
             // Fourth tick: same params again. Epoch stays at 2.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
         }
         finally
@@ -327,7 +329,7 @@ public sealed class EqsContextSlotTests : IDisposable
     /// <summary>
     /// T-CS5: <see cref="CheapLineOfSightTest"/> must pass the <see cref="SimTransform"/>
     /// position of the <c>ContextSlot1</c> entity as the threat position to
-    /// <see cref="ILosService.HasCheapLineOfSight"/>.
+    /// <see cref="ILosService.HasLineOfSight"/> (as the eye — the threat looks at the candidate).
     /// When the service reports all candidates are exposed (no cover), all are rejected and
     /// the buffer is empty.
     /// </summary>
@@ -369,7 +371,7 @@ public sealed class EqsContextSlotTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 99f; // irrelevant -- position is read from slot entity
             mem.PositionsY[0]   = 0f;
         }
@@ -390,7 +392,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = targetEntity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8350L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8350 });
 
         // Pump until buffer is ready (even if empty).
         bool ready = _harness.PumpUntil(
@@ -454,7 +456,7 @@ public sealed class EqsContextSlotTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 20f;
             mem.PositionsY[0]   = 0f;
         }
@@ -469,7 +471,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = Entity.Null,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8360L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8360 });
 
         bool ready = _harness.PumpUntil(
             () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
@@ -527,7 +529,7 @@ public sealed class EqsContextSlotTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 100f; // decoy -- must not appear in raycast End
             mem.PositionsY[0]   = 0f;
         }
@@ -548,7 +550,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = targetEntity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8370L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8370 });
 
         // Pump until the mock solver captures at least one raycast request.
         bool raySubmitted = _harness.PumpUntil(
@@ -569,7 +571,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ISimulationView view, Span<EqsResult> candidates)
         {
             if (candidates.Length == 0) return 0;
-            candidates[0] = new EqsResult { EntityId = 0L, PositionX = 0f, PositionY = 0f, Score = 0f };
+            candidates[0] = new EqsResult { EntityId = 0, PositionX = 0f, PositionY = 0f, Score = 0f };
             return 1;
         }
     }

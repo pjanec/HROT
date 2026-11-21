@@ -72,13 +72,13 @@ namespace Hrot.SimHost.Tests
 
             var entityA = _world.CreateEntity();
             var entityB = _world.CreateEntity();
-            _entityMap.Register(1L, entityA);
-            _entityMap.Register(2L, entityB);
+            _entityMap.Register(1, entityA);
+            _entityMap.Register(2, entityB);
 
             var request = new WeaponFireRequest
             {
-                ShooterEntityId = 1L,
-                TargetEntityId  = 2L,
+                ShooterEntityId = 1,
+                TargetEntityId  = 2,
                 WeaponIndex     = 0,
             };
 
@@ -104,9 +104,9 @@ namespace Hrot.SimHost.Tests
 
             // Only target is registered; shooter (99) is unknown.
             var entityB = _world.CreateEntity();
-            _entityMap.Register(2L, entityB);
+            _entityMap.Register(2, entityB);
 
-            var request = new WeaponFireRequest { ShooterEntityId = 99L, TargetEntityId = 2L };
+            var request = new WeaponFireRequest { ShooterEntityId = 99, TargetEntityId = 2 };
 
             var events = ProcessAndFlush(translator, in request);
 
@@ -125,10 +125,10 @@ namespace Hrot.SimHost.Tests
             var translator = BuildTranslator();
 
             var entityA = _world.CreateEntity();
-            _entityMap.Register(1L, entityA);
+            _entityMap.Register(1, entityA);
             // Target (99) is not registered.
 
-            var request = new WeaponFireRequest { ShooterEntityId = 1L, TargetEntityId = 99L };
+            var request = new WeaponFireRequest { ShooterEntityId = 1, TargetEntityId = 99 };
 
             var events = ProcessAndFlush(translator, in request);
 

@@ -15,13 +15,19 @@ namespace Hrot.Editor.Tests.IntegrationTests;
 /// Integration tests for the Editor file operations via <see cref="IEditorLogic"/>:
 /// PACK2-F002 (New), PACK2-F003 (Save), PACK2-F004 (Load round-trip).
 /// </summary>
+/// <remarks>
+/// ⚠ Serial (CE-3327): it CLEARS the process-global <see cref="ComponentTypeRegistry"/>. 🔴 Measured: run in parallel, the clear landed
+/// between another class's recording and its reload (<c>TheClusterControlRoutesTests.RB2_*</c> / <c>RB5_*</c>, red 2 of 3 full-suite runs,
+/// green alone) — the recording no longer loaded.
+/// </remarks>
+[Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
 public sealed class EditorFileOpsIntegrationTests : IDisposable
 {
     // ── Test component types ─────────────────────────────────────────────────
 
     /// <summary>Round-trip payload component for integration tests.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(222)]
+    [ComponentId(245)]   // was 222 — now GlobalComponentIds.StanceIntent (the static registry collided by test order); ids index a 256-bit mask
     private struct TestVector3
     {
         public float X;
@@ -31,7 +37,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
 
     /// <summary>Secondary payload to verify multi-component round-trips.</summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(223)]
+    [ComponentId(246)]   // was 223 — now GlobalComponentIds.StanceStatus
     private struct TestTag
     {
         public int Value;
@@ -67,7 +73,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
     {
         var fileService = EditorBootstrap.CreateFileService();
         var bus         = new FdpEventBus();
-        return new EditorApplication(fileService, bus, new FdpEventBus(), repo);
+        return new EditorApplication(fileService, bus, new FdpEventBus(), () => null, repo);
     }
 
     // ── PACK2-F002: New Scenario ─────────────────────────────────────────────
@@ -160,7 +166,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
     /// F004-1: Load round-trip preserves entity count and TestVector3 component values.
     /// </summary>
     [Fact]
-    public void LoadScenario_RoundTrip_PreservesEntityCountAndComponents()
+    public void A_save_load_round_trip_preserves_entity_count_and_components()
     {
         // — Save phase —
         var saveRepo = CreateRepo();
@@ -177,9 +183,12 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         saveRepo.Dispose();
 
         // — Load phase —
+        // ⭐ HN-037 Part B: EditorApplication.LoadScenario (the direct file→repo facade) is gone; the
+        //   round-trip it was standing in front of is the SERIALIZER's, so the test asks it directly.
         var loadRepo = CreateRepo();
-        var loadApp  = CreateApp(loadRepo);
-        loadApp.LoadScenario(_tempFile);
+        EditorBootstrap.CreateFileService();   // keeps the serializer registration path exercised
+        new ScenarioSerializerBuilder("Hrot.Scenario").Build()
+            .Deserialize(loadRepo, File.ReadAllText(_tempFile));
 
         Assert.Equal(5, loadRepo.EntityCount);
 
@@ -206,28 +215,26 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
     }
 
     /// <summary>
-    /// F004-2: LoadScenario also resets GlobalTime.TotalTime to zero.
+    /// F004-2: the world boundary resets <c>GlobalTime.TotalTime</c> to zero.
+    /// <para>⭐ HN-037 Part B: this used to be asserted through <c>LoadScenario</c>. With that facade gone,
+    /// <c>NewScenario</c> is the world boundary that owns the reset — and it is the SAME line of code
+    /// (<c>SetSingletonUnmanaged(default(GlobalTime))</c>) the removed method ran. ⛔ Not weakened: it is
+    /// also the boundary the real load goes through, since <c>EditorApplication.Update</c> calls
+    /// <c>NewScenario()</c> before dispatching the load transition.</para>
     /// </summary>
     [Fact]
-    public void LoadScenario_ResetsGlobalTime()
+    public void The_world_boundary_resets_global_time()
     {
-        // Prepare a valid saved file.
-        var saveRepo = CreateRepo();
-        saveRepo.CreateEntity();
-        var saveApp = CreateApp(saveRepo);
-        saveApp.SaveScenario(_tempFile);
-        saveRepo.Dispose();
+        var repo = CreateRepo();
+        repo.CreateEntity();
+        repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 99.0, TimeScale = 1.0f });
 
-        // Load into a repo with a pre-seeded non-zero GlobalTime.
-        var loadRepo = CreateRepo();
-        loadRepo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 99.0, TimeScale = 1.0f });
+        var app = CreateApp(repo);
+        app.NewScenario();
 
-        var loadApp = CreateApp(loadRepo);
-        loadApp.LoadScenario(_tempFile);
+        Assert.Equal(0.0, repo.GetSingletonUnmanaged<GlobalTime>().TotalTime, precision: 6);
 
-        Assert.Equal(0.0, loadRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime, precision: 6);
-
-        loadRepo.Dispose();
+        repo.Dispose();
     }
 
     /// <summary>
@@ -235,7 +242,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
     /// repo is left empty (migration throws before SoftClear is reached).
     /// </summary>
     [Fact]
-    public void LoadScenario_UnrecognisedSubsystemType_Throws_AndLeavesRepoEmpty()
+    public void An_unrecognised_doc_type_is_refused_before_anything_is_mutated()
     {
         // Write a JSON file with an unknown $meta docType.
         var badJson = """
@@ -247,12 +254,20 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         File.WriteAllText(_tempFile, badJson);
 
         var repo = CreateRepo();
-        var app  = CreateApp(repo);
 
-        // Should throw MigrationException — migration rejects unknown docType.
-        Assert.Throws<MigrationException>(() => app.LoadScenario(_tempFile));
+        // ⭐ HN-037 Part B: the rejection is the MIGRATION ADAPTER's, and the removed LoadScenario was only
+        //   the caller that reached it. ⛔ Retargeted rather than deleted — this is the only rail on
+        //   "an unknown docType is refused before anything is mutated".
+        // ⚠ Worth recording: the migration-aware ScenarioFileService is TEST-ONLY. 📐 Measured `2026-08-24`,
+        //   EditorBootstrap.CreateFileService has zero production callers and EditorSubsystem builds the
+        //   service with migrationServices: null — so this adapter never ran in the shipped editor, before
+        //   or after Part B. Wiring migration into the genesis load path is filed as an open finding.
+        var migrations = EditorBootstrap.CreateMigrationServices();
 
-        // Repo is still empty — SoftClear was not reached.
+        Assert.Throws<MigrationException>(() =>
+            migrations.Persistent.LoadAndMigrateAsync(_tempFile).GetAwaiter().GetResult());
+
+        // Nothing was mutated — the refusal happens before any world touch.
         Assert.Equal(0, repo.EntityCount);
 
         repo.Dispose();
@@ -263,7 +278,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
     /// cross-app compatibility.
     /// </summary>
     [Fact]
-    public void LoadScenario_HrotSimHostSubsystemType_Succeeds()
+    public void A_HrotSimHost_labelled_file_is_accepted_and_deserializes()
     {
         // Build a valid 2-entity file but label it "Hrot.SimHost".
         var saveRepo = CreateRepo();
@@ -276,13 +291,39 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         simHostFileService.SaveScenario(saveRepo, _tempFile);
         saveRepo.Dispose();
 
-        // Load with the Editor's file service (accepts "Hrot.SimHost").
+        // Load with the Editor's accepted-types check plus the serializer.
+        // ⭐ Two claims, and Part B splits them onto the two components that own them: the HEADER is accepted
+        //   (ScenarioFileService.ValidateSubsystemType lists Hrot.SimHost), and the CONTENT deserializes.
         var loadRepo = CreateRepo();
-        var loadApp  = CreateApp(loadRepo);
-        loadApp.LoadScenario(_tempFile);
+        ScenarioFileService.ValidateSubsystemType(File.ReadAllText(_tempFile));
+        new ScenarioSerializerBuilder("Hrot.Scenario").Build()
+            .Deserialize(loadRepo, File.ReadAllText(_tempFile));
 
         Assert.Equal(2, loadRepo.EntityCount);
 
         loadRepo.Dispose();
+    }
+
+    /// <summary>
+    /// ⭐ CE-3407 — the editor hands HTTP (<c>DebugApiService.CannotSave</c>: <c>/status.canSave</c>, the <c>/scenario/save</c> 409) its session's ONE save reason, not the variant gate alone:
+    /// a cluster in Preview refuses with <see cref="Hrot.Editor.AiShared.Scenarios.SaveRefusal.Preview"/>; Edit answers null.
+    /// 🔴 Red-proof: <c>EditorApplication.SaveDisabledReason</c> removed ⇒ the interface default (null) answers ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3407_TheEditorHandsHttpItsSessionsOneSaveReason()
+    {
+        var orchestration = new FdpEventBus();
+        var view = new Fdp.Toolkit.Orchestration.ClusterView(orchestration);
+        IEditorLogic app = new EditorApplication(EditorBootstrap.CreateFileService(), new FdpEventBus(), orchestration, () => view, CreateRepo());
+        void ClusterIs(Fdp.Toolkit.Orchestration.ClusterState s)
+        {
+            orchestration.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = s });
+            orchestration.SwapBuffers();
+            view.Update();
+        }
+        ClusterIs(Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview);
+        Assert.Equal(Hrot.Editor.AiShared.Scenarios.SaveRefusal.Preview, app.SaveDisabledReason);
+        ClusterIs(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit);
+        Assert.Null(app.SaveDisabledReason);
     }
 }

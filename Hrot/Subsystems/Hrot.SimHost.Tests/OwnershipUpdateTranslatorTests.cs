@@ -20,7 +20,7 @@ namespace Hrot.SimHost.Tests
             const int localNodeId = 7;
             const uint domainId = 212u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<OwnershipUpdateWire>(participant, "SST_OwnershipUpdate");
+            using var reader = new DdsReader<OwnershipUpdateWire>(participant);
             var translator = new OwnershipUpdateTranslator(participant, localNodeId);
 
             var repo = new EntityRepository();
@@ -32,16 +32,16 @@ namespace Hrot.SimHost.Tests
             {
                 NetworkId = new NetworkIdentity { Value = 1001 },
                 PackedKey = packedKey,
-                NewOwnerNodeId = localNodeId + 1,
-                OriginNodeId = localNodeId
+                NewOwnerNodeId = (Fdp.Core.NodeId)(localNodeId + 1),
+                OriginNodeId = (Fdp.Core.NodeId)(localNodeId)
             });
 
             repo.Bus.Publish(new OwnershipUpdateMsg
             {
                 NetworkId = new NetworkIdentity { Value = 1002 },
                 PackedKey = packedKey,
-                NewOwnerNodeId = localNodeId,
-                OriginNodeId = localNodeId + 1
+                NewOwnerNodeId = (Fdp.Core.NodeId)(localNodeId),
+                OriginNodeId = (Fdp.Core.NodeId)(localNodeId + 1)
             });
 
             repo.Bus.SwapBuffers();
@@ -73,7 +73,7 @@ namespace Hrot.SimHost.Tests
             const int localNodeId = 9;
             const uint domainId = 213u;
             using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<OwnershipUpdateWire>(participant, "SST_OwnershipUpdate");
+            using var writer = new DdsWriter<OwnershipUpdateWire>(participant);
             var translator = new OwnershipUpdateTranslator(participant, localNodeId);
 
             var repo = new EntityRepository();
@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
             const int localNodeId = 10;
             const uint domainId = 214u;
             using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<OwnershipUpdateWire>(participant, "SST_OwnershipUpdate");
+            using var writer = new DdsWriter<OwnershipUpdateWire>(participant);
             var translator = new OwnershipUpdateTranslator(participant, localNodeId);
 
             var repo = new EntityRepository();

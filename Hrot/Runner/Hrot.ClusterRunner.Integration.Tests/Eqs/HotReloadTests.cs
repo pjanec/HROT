@@ -108,7 +108,7 @@ public sealed class HotReloadTests : IDisposable
 
         var entity = _harness.Repo.CreateEntity();
         _harness.Repo.AddComponent(entity, new EqsSensor { BlueprintId = blueprintId, Epoch = 1 });
-        _harness.Repo.AddComponent(entity, new NetworkIdentity { Value = 8001L });
+        _harness.Repo.AddComponent(entity, new NetworkIdentity { Value = 8001 });
 
         // Pump until SensorEvalState is present and hash is set (template A evaluated at least once).
         bool initialised = _harness.PumpUntil(
@@ -160,7 +160,7 @@ public sealed class HotReloadTests : IDisposable
 
         var entity = _harness.Repo.CreateEntity();
         _harness.Repo.AddComponent(entity, new EqsSensor { BlueprintId = blueprintId, Epoch = 1 });
-        _harness.Repo.AddComponent(entity, new NetworkIdentity { Value = 8002L });
+        _harness.Repo.AddComponent(entity, new NetworkIdentity { Value = 8002 });
 
         // Pump until initial evaluation completes and StructureHash is recorded.
         bool initialised = _harness.PumpUntil(

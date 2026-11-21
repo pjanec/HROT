@@ -1,0 +1,11 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-4: a blow is a hostile act. From the header's Judge (0)-(2), in the editor (one node).",
+  "runFor": 40,
+  "golden": {"every": 10},
+  "expect": [
+    {"name": "the instigator riots", "on": "field", "who": "Rioter", "path": "CivilianState.Mode", "op": "==", "value": "Riot", "before": 30},
+    {"name": "his blow knocks the policeman down", "on": "field", "who": "Policeman", "path": "EffectState.KnockedDownUntil", "op": ">", "value": "$now", "after": "the instigator riots"},
+    {"name": "the rioter is Hostile after the blow", "on": "field", "who": "Rioter", "path": "EntityInfo.ForceId", "op": "==", "value": "Hostile", "after": "his blow knocks the policeman down"},
+    {"name": "the policeman survives", "on": "field", "who": "Policeman", "path": "Health.Current", "op": ">", "value": 0, "atEnd": true}
+  ]
+}

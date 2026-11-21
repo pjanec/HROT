@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Core;
 using Hrot.AI.Behaviors;
 using Hrot.AI.Behaviors.Brains;
@@ -266,5 +267,67 @@ public sealed class ComponentFieldReflectorTests
         Assert.Equal(typeof(int).FullName, memberIds.ElementTypeId);
         Assert.Equal("", memberIds.CountAccessorFqn);
         Assert.Equal("", memberIds.ItemAccessorFqn);
+    }
+
+    // ── ⭐ CE-2043 — the struct palette bakes MANAGED offsets ───────────────────────────────────────────────────────
+
+#pragma warning disable CS0649   // layout-only fixture
+    public struct FlagsThenFloat { public bool A; public bool B; public float C; }
+#pragma warning restore CS0649
+
+    /// <summary>
+    /// <c>SharedStructFieldReflector</c> gives Make/Break/SetMembers a per-field offset that the compiler writes at, into
+    /// managed bytes. 🔴 It used <c>Marshal.OffsetOf</c> — the INTEROP offset, which counts each bool as 4 — so <c>C</c> came
+    /// back as 8 while it sits at 4, and a SetMembers write landed in padding. Measured on shipped types: 22 of 1545 fields.
+    /// </summary>
+    [Fact]
+    public void CE2043_TheStructPalette_BakesManagedFieldOffsets()
+    {
+        var decls = SharedStructFieldReflector.TryReflect(typeof(FlagsThenFloat).FullName);
+        Assert.NotNull(decls);
+        Assert.Equal(0, decls!.Single(d => d.Name == "A").Offset);
+        Assert.Equal(1, decls.Single(d => d.Name == "B").Offset);
+        Assert.Equal(4, decls.Single(d => d.Name == "C").Offset);
+    }
+
+    // ⭐⭐ CE-2114 — an ENUM field is baked as `global::Ns.Enum`, the compiler's AN2 enum sentinel (the NodePinSchema /
+    //   SensorKindBaker rule). A bare FQN does not resolve (Stage4_TypeResolve), so every GetComponent on a component
+    //   with an enum field (SensorTag.Kind, …) failed with BP1500 the moment the type was picked.
+    [Fact]
+    public void CE2114_AnEnumField_IsBakedWithTheGlobalSentinel_AndCompiles()
+    {
+        const string fqn = "Fdp.Toolkit.Perception.Components.SensorTag";
+        var decls = ComponentFieldReflector.TryReflect(fqn);
+        Assert.NotNull(decls);
+        Assert.Equal("global::Fdp.Toolkit.Perception.Components.SensorModality", decls!.Single(d => d.Name == "Kind").TypeId);
+        Assert.Equal("System.Byte", decls.Single(d => d.Name == "TkbIndex").TypeId);
+
+        Assert.DoesNotContain(CompileGetComponent(fqn, decls.Select(d => (d.Name, d.TypeId))), c => c == "BP1500");
+
+        // The mechanism, pinned: the bare FQN the reflector used to bake does NOT resolve.
+        Assert.Contains(CompileGetComponent(fqn, new[] { ("Kind", "Fdp.Toolkit.Perception.Components.SensorModality") }), c => c == "BP1500");
+    }
+
+    private static List<string> CompileGetComponent(string fqn, IEnumerable<(string Name, string TypeId)> fields)
+    {
+        var asset = Hrot.Blueprints.Tests.Builders.BlueprintAssetBuilder.Instance("EnumFieldRead")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new GetComponentNode
+        {
+            Id               = System.Guid.NewGuid(),
+            ComponentTypeFqn = fqn,
+            Fields           = fields.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList(),
+        });
+
+        var result = new Hrot.Blueprints.Core.Compiler.BlueprintCompiler().Compile(asset, new Hrot.Blueprints.Core.Compiler.CompileOptions(
+            Mode:              Hrot.Blueprints.Core.Compiler.CompilerMode.Debug,
+            NodeRegistry:      Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInNodeRegistry.Instance,
+            TypeRegistry:      Hrot.Blueprints.Core.Compiler.Catalogs.StaticTypeRegistry.Instance,
+            EngineEvents:      Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: System.Array.Empty<Hrot.Blueprints.Core.Compiler.BlueprintSignature>()));
+        return result.Diagnostics.Select(d => d.Code).ToList();
     }
 }

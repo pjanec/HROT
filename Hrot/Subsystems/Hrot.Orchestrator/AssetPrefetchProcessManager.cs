@@ -24,17 +24,48 @@ public sealed class AssetPrefetchProcessManager
         public HashSet<int> PendingNodeIds { get; }
         public bool HasFailure { get; set; }
 
-        public PrefetchAckTracker(IEnumerable<int> nodeIds)
+        /// <summary>
+        /// ⭐⭐⭐ <c>L8</c> — the request that STARTED this distribution, carried so the completion can be
+        /// correlated back to it. ⛔ Before this the tracker was keyed only by its own internal fan-out
+        /// transaction id and forgot the origin, so nothing outside the saga could learn that the files
+        /// of a particular request had landed. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.3 ③.
+        /// </summary>
+        public Guid   OriginRequestId { get; }
+        public string ScenarioId      { get; }
+
+        public PrefetchAckTracker(IEnumerable<int> nodeIds, Guid originRequestId, string scenarioId)
         {
-            PendingNodeIds = new HashSet<int>(nodeIds);
+            PendingNodeIds  = new HashSet<int>(nodeIds);
+            OriginRequestId = originRequestId;
+            ScenarioId      = scenarioId;
         }
     }
 
     private readonly FdpEventBus _bus;
     private readonly StorageGatewayModule _gateway;
+
+    /// <summary>⭐ <c>R-4018</c> — the deployment's one TKB, synced on every prefetch (<c>ClusterConfiguration.TkbName</c>).</summary>
+    private readonly string _tkbName;
+
+    /// <summary>⭐ The TKB name this saga syncs — exposed so a rail can assert the production composition passes it.</summary>
+    public string TkbName => _tkbName;
     private readonly string _nasBasePath;
     private readonly string _localStagingRoot;
     private readonly Dictionary<Guid, PrefetchAckTracker> _pendingPrefetchAcks = new();
+
+    /// <summary>⭐ P8 H5 — the staging copy of each prefetch in flight, by request id, so a cancel can stop it.
+    /// ⚠ Written on the frame thread, removed by the copy's continuation on a worker.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, System.Threading.CancellationTokenSource> _copies = new();
+
+    /// <summary>
+    /// ⭐ <c>CE-4091</c> (AQ108 D7) — runs on a worker BEFORE a scenario name is staged to the nodes: puts a name that is not a file of the NAS yet there
+    /// (<see cref="AssetInventoryProcessManager.StageRecordedScenario"/>: a recording's scenario copy, opened for editing). Set by
+    /// <c>OrchestratorCore</c>, the host that owns the inventory (silent-default rule: every host builds its prefetch there). Null: none.
+    /// </summary>
+    public Func<string, bool>? SourceStager { get; set; }
+
+    /// <summary>The prefetch copies in flight — for rails.</summary>
+    internal int CopiesInFlight => _copies.Count;
 
     /// <param name="bus">Shared event bus.</param>
     /// <param name="gateway">Storage gateway for prefetch operations.</param>
@@ -47,8 +78,10 @@ public sealed class AssetPrefetchProcessManager
         FdpEventBus bus,
         StorageGatewayModule gateway,
         string nasBasePath,
-        string? localStagingRoot = null)
+        string? localStagingRoot = null,
+        string tkbName = ClusterConfiguration.DefaultTkbName)
     {
+        _tkbName          = tkbName;
         _bus              = bus              ?? throw new ArgumentNullException(nameof(bus));
         _gateway          = gateway          ?? throw new ArgumentNullException(nameof(gateway));
         _nasBasePath      = nasBasePath      ?? throw new ArgumentNullException(nameof(nasBasePath));
@@ -62,6 +95,18 @@ public sealed class AssetPrefetchProcessManager
     /// </summary>
     public void Tick()
     {
+        SyncTkbToJoinedNodes();
+
+        // ⭐⭐ P8 H5 — the operator cancelled the parked load: STOP its copy (the transfer cancels and removes its partial
+        //   files). Its continuation then publishes nothing — the master already answered the request Cancelled.
+        foreach (var cancel in _bus.ReadManaged<PrefetchCancelRequestedEvent>())
+            if (_copies.TryGetValue(cancel.RequestId, out var copy))
+            {
+                FdpLog<AssetPrefetchProcessManager>.Info(
+                    "[AssetPrefetchProcessManager] P8: the staging copy of request {0} is cancelled.", cancel.RequestId);
+                copy.Cancel();
+            }
+
         foreach (var intent in _bus.ReadManaged<ExecutePrefetchIntent>())
         {
             if (string.IsNullOrWhiteSpace(_nasBasePath))
@@ -79,16 +124,60 @@ public sealed class AssetPrefetchProcessManager
                 continue;
             }
 
-            var targets = BuildNodeDistributionTargets(intent.ActiveNodeIds, intent.ScenarioId);
+            var targets = BuildNodeDistributionTargets(intent.ActiveNodeIds, intent.ScenarioId, intent.NodeCapabilities);
+
+            // ⭐⭐ C3 — the staleness probe on every load (docs/DESIGN_Asset_Management.md §5): AHEAD or BEHIND only WARNS,
+            //   the load continues and NOTHING transfers; an offline author is not in the roster and is not probed.
+            foreach (var f in ProbeOnLoad(_nasBasePath, intent.NodeCapabilities))
+                FdpLog<AssetPrefetchProcessManager>.Warn(
+                    f.State == AssetStaleness.Ahead
+                        ? $"[AssetSync] node {f.NodeId} has UNPUBLISHED '{f.Kind}' changes ({f.Node.Count} files, newest {f.Node.NewestUtc:u}; NAS {f.Nas.Count}, {f.Nas.NewestUtc:u}). Load continues — publish to share them."
+                        : $"[AssetSync] NAS has NEWER '{f.Kind}' assets than node {f.NodeId} ({f.Nas.Count} files, newest {f.Nas.NewestUtc:u}; node {f.Node.Count}, {f.Node.NewestUtc:u}). Load continues, nothing is overwritten — refresh to take them.");
 
             FdpLog<AssetPrefetchProcessManager>.Info(
                 "[AssetPrefetchProcessManager] PrefetchScenario started for '{0}' (requestId={1}).",
                 intent.ScenarioId, intent.RequestId);
 
             var capturedIntent = intent;
-            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath)
+            var copy = new System.Threading.CancellationTokenSource();
+            _copies[intent.RequestId] = copy;
+            // ⭐ CE-4091 — a name that is not a file of the NAS (a recording's copy opened for editing) is put there first, on the worker, so the
+            //   gateway below finds it; a stager that throws fails the load like any scenario that is not there.
+            var scenarioId = intent.ScenarioId;
+            var stager     = SourceStager;
+            // ⭐⭐ CE-4099 (AQ108 §4c A7, §4c.3) — a RECOVERY load: the scenario's autosave is delivered as its scenario.json (read and checked on the worker;
+            //   none / stale ⇒ the load fails with the reason). Otherwise the folder as it is, exactly as before.
+            bool recover = intent.RecoverAutosave;
+            string nas = _nasBasePath;
+            System.Threading.Tasks.Task<GatewayResult> CopyAsync() => !recover
+                ? _gateway.PrefetchScenarioAsync(scenarioId, targets, nas, _tkbName, copy.Token)
+                : System.Threading.Tasks.Task.Run(() =>
+                {
+                    var autosave = AutosaveFiles.Read(nas, scenarioId, Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
+                    if (autosave.Refusal is { } why) throw new InvalidOperationException($"cannot recover '{scenarioId}': {why}");
+                    return _gateway.PrefetchScenarioAsync(scenarioId, targets, nas, _tkbName, copy.Token, scenarioFileFrom: autosave.DataPath);
+                });   // Task.Run of a Task-returning lambda already unwraps
+            var copying = stager == null
+                ? CopyAsync()
+                : System.Threading.Tasks.Task.Run(() => stager(scenarioId))
+                    .ContinueWith(staged => staged.IsFaulted
+                            ? System.Threading.Tasks.Task.FromException<GatewayResult>(staged.Exception!.GetBaseException())
+                            : CopyAsync(),
+                        System.Threading.Tasks.TaskScheduler.Default)
+                    .Unwrap();
+            _ = copying
                 .ContinueWith(task =>
                 {
+                    _copies.TryRemove(capturedIntent.RequestId, out _);
+                    copy.Dispose();
+                    if (task.IsCanceled)
+                    {
+                        FdpLog<AssetPrefetchProcessManager>.Info(
+                            "[AssetPrefetchProcessManager] PrefetchScenario for '{0}' stopped — the load was cancelled.",
+                            capturedIntent.ScenarioId);
+                        return;   // ⭐ P8 H5 — the master already answered Cancelled; nothing more to say
+                    }
+
                     bool isSuccess = !task.IsFaulted && !task.IsCanceled
                                      && task.Result.FailureCount == 0;
                     if (!isSuccess)
@@ -127,6 +216,10 @@ public sealed class AssetPrefetchProcessManager
                     RequestId  = ev.RequestId,
                     StatusCode = OrchestrationStatusCode.Timeout,
                 });
+                // ⭐⭐ L8 §7.4 — a FAILED copy must also unpark. ⛔ Before parking existed the transition had
+                //    already been fanned out by the time this ran, so the cluster went on to build a world
+                //    from files that never arrived; now the parked entry is dropped and nothing is sent.
+                PublishDistributionCompleted(ev.RequestId, ev.ScenarioId, isSuccess: false);
                 continue;
             }
 
@@ -134,13 +227,13 @@ public sealed class AssetPrefetchProcessManager
                 "[AssetPrefetchProcessManager] PrefetchScenario for '{0}' succeeded — fanning out PrefetchFiles to {1} node(s).",
                 ev.ScenarioId, ev.ActiveNodeIds.Count);
             var txId = Guid.NewGuid();
-            _pendingPrefetchAcks[txId] = new PrefetchAckTracker(ev.ActiveNodeIds);
+            _pendingPrefetchAcks[txId] = new PrefetchAckTracker(ev.ActiveNodeIds, ev.RequestId, ev.ScenarioId);
             foreach (var nodeId in ev.ActiveNodeIds)
             {
                 _bus.PublishManaged(new ExecuteNodeOpIntent
                 {
                     TransactionId = txId,
-                    TargetNodeId  = nodeId,
+                    TargetNodeId  = (Fdp.Core.NodeId)(nodeId),
                     Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrefetchFiles,
                     DomainPayload = new PrefetchHandlerPayload(ev.ScenarioId),
                 });
@@ -153,12 +246,18 @@ public sealed class AssetPrefetchProcessManager
                     RequestId  = txId,
                     StatusCode = OrchestrationStatusCode.Success,
                 });
+                // ⭐ L8 — an empty roster is a COMPLETE distribution, not a missing one. ⛔ Without this the
+                //   parked transition would sit until its liveness bound expired on a cluster with no nodes.
+                PublishDistributionCompleted(ev.RequestId, ev.ScenarioId, isSuccess: true);
             }
         }
 
         foreach (var ack in _bus.ReadManaged<NodeOpCompletedEvent>())
         {
             if (ack.Operation != Fdp.Toolkit.Orchestration.NodeOpType.PrefetchFiles)
+                continue;
+            // ⭐ P4 — a node still preparing reports progress; only its final answer settles its files.
+            if (ack.StatusCode is OrchestrationStatusCode.InProgress or OrchestrationStatusCode.Pending)
                 continue;
 
             if (!_pendingPrefetchAcks.TryGetValue(ack.TransactionId, out var tracker))
@@ -178,22 +277,123 @@ public sealed class AssetPrefetchProcessManager
                         ? OrchestrationStatusCode.Failure
                         : OrchestrationStatusCode.Success,
                 });
+
+                // ⭐⭐⭐ L8 — THE FACT A PARKED TRANSITION WAITS ON. This set empties only when EVERY node has
+                //   acknowledged its files, which is exactly the condition the load steps used to approximate
+                //   with a bounded retry. 📄 docs/DESIGN_Cluster_Load_Phase.md §7.1.
+                PublishDistributionCompleted(
+                    tracker.OriginRequestId, tracker.ScenarioId, isSuccess: !tracker.HasFailure);
             }
         }
     }
 
-    private List<NodeDistributionTarget> BuildNodeDistributionTargets(List<int> nodeIds, string scenarioId)
+    /// <summary>
+    /// ⭐ <c>L8</c> — announce that a scenario's distribution is finished, success or failure, against the
+    /// request that started it. ⛔ Every terminal path of the saga calls this, including the empty-roster and
+    /// failed-copy short-circuits: a parked transition that is never told would only be released by its
+    /// liveness bound, which is the timeout this whole change exists to remove.
+    /// </summary>
+    private void PublishDistributionCompleted(Guid originRequestId, string scenarioId, bool isSuccess)
+    {
+        _bus.PublishManaged(new PrefetchDistributionCompletedEvent
+        {
+            RequestId  = originRequestId,
+            ScenarioId = scenarioId,
+            IsSuccess  = isSuccess,
+        });
+
+        FdpLog<AssetPrefetchProcessManager>.Info(
+            "[AssetPrefetchProcessManager] L8: distribution of '{0}' for request {1} completed ({2}).",
+            scenarioId, originRequestId, isSuccess ? "success" : "FAILURE");
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3020 — the behaviour-asset trees a node receives, from its advertised tokens (docs/DESIGN_Asset_Management.md
+    /// §7.3a/§7.3b, §10 D4): every kind it advertised a ROOT for and either NEEDS (mirror) or AUTHORS (add-only).
+    /// ⭐ The load-part kinds (tkb, terrain, scenario) are not here — they travel by the scenario/artifact staging above.
+    /// </summary>
+    /// <summary>⭐ C3 — the probe a load runs; never throws, never transfers (a probe failure is logged and ignored).</summary>
+    public static IReadOnlyList<AssetProbeFinding> ProbeOnLoad(string nasBasePath, IReadOnlyDictionary<int, string[]>? capabilities)
+    {
+        try { return AssetSyncService.Probe(nasBasePath, capabilities); }
+        catch (Exception ex)
+        {
+            FdpLog<AssetPrefetchProcessManager>.Warn($"[AssetSync] staleness probe skipped: {ex.Message}");
+            return Array.Empty<AssetProbeFinding>();
+        }
+    }
+
+    public static IReadOnlyList<AssetSyncTarget> AssetSyncsFor(IEnumerable<string>? tokens)
+    {
+        var profile = Fdp.Toolkit.Orchestration.Assets.AssetTokens.Parse(tokens);
+        var list = new List<AssetSyncTarget>();
+        foreach (var (kind, root) in profile.Roots)
+        {
+            var mode = profile.ModeFor(kind);
+            if (mode != null) list.Add(new AssetSyncTarget(kind, root, mode.Value));
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — the JOIN SYNC: a node that entered the roster gets the deployment's TKB
+    /// copied into its staging, on a worker, through the same <see cref="StorageGatewayModule.SyncTkb"/> every scenario
+    /// load uses. ⭐ No command to the node and no ACK — its first world build loads the file (the knowledge-base step).
+    /// ⚠ A failure is logged, never fatal: the copy before the next scenario load runs again and fails that load loudly.
+    /// 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0a.
+    /// </summary>
+    private void SyncTkbToJoinedNodes()
+    {
+        foreach (var joined in _bus.ReadManaged<NodeJoinedRosterEvent>())
+        {
+            if (string.IsNullOrWhiteSpace(_nasBasePath) || string.IsNullOrWhiteSpace(_tkbName)) continue;
+
+            var target = new NodeDistributionTarget
+            {
+                NodeId             = joined.NodeId,
+                TkbDestinationPath = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeTkbStagingRoot(
+                    _localStagingRoot, joined.NodeId),
+            };
+            int nodeId = joined.NodeId;
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                int ok = 0, failed = 0;
+                StorageGatewayModule.SyncTkb(_tkbName, new[] { target }, _nasBasePath, ref ok, ref failed, _gateway.Provider);   // ⭐ P6 — the node's transport
+                if (failed > 0)
+                    FdpLog<AssetPrefetchProcessManager>.Error(
+                        "[AssetPrefetchProcessManager] Join sync of TKB '{0}' to node {1} failed — the next scenario load retries it.",
+                        _tkbName, nodeId);
+                else
+                    FdpLog<AssetPrefetchProcessManager>.Info(
+                        "[AssetPrefetchProcessManager] Join sync: TKB '{0}' checked on node {1}.", _tkbName, nodeId);
+            });
+        }
+    }
+
+    private List<NodeDistributionTarget> BuildNodeDistributionTargets(
+        List<int> nodeIds, string scenarioId, IReadOnlyDictionary<int, string[]>? capabilities)
     {
         var targets = new List<NodeDistributionTarget>(nodeIds.Count);
         foreach (var nodeId in nodeIds)
         {
             targets.Add(new NodeDistributionTarget
             {
-                NodeId          = nodeId,
+                NodeId          = (Fdp.Core.NodeId)(nodeId),
                 DestinationPath = Path.Combine(
                     Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(_localStagingRoot, nodeId),
                     Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,
                     scenarioId),
+
+                // ⭐⭐ S2b/S2c — the TKB artifact directory is a SIBLING of the scenario destination, not a
+                //   child: the node reads {base}/nodes/node-N/TKB while slices land under
+                //   {base}/nodes/node-N/scenarios/{id}. 📐 S1b's rail proves this is the same directory the
+                //   node-side handler resolves from the per-node root its bootstrap already hands it.
+                TkbDestinationPath =
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeTkbStagingRoot(
+                        _localStagingRoot, nodeId),
+
+                // ⭐⭐ CE-3020 — what this node advertised it needs / authors (docs/DESIGN_Asset_Management.md §4).
+                AssetSyncs = AssetSyncsFor(capabilities != null && capabilities.TryGetValue(nodeId, out var t) ? t : null),
             });
         }
         return targets;

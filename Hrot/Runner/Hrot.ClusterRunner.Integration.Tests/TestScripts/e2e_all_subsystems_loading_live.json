@@ -8,7 +8,7 @@
       "Action": "assert_slave_transition",
       "Args": {
         "TargetState": "OperatingLive",
-        "ExerciseId": "e2e-all-01",
+        "ExerciseId": "a11a11a1-0000-4000-8000-000000000001",
         "TimeoutSeconds": 15.0
       }
     }

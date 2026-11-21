@@ -82,6 +82,27 @@ public sealed class BlueprintRegistrarScannerTests
         public static int ExpectedBehId => DualBehId;
     }
 
+    // ── CE-4109 ① — ONE discovery, by attribute TYPE ─────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-4109 ① — <see cref="BlueprintRegistrarScanner.Discover"/> (the ONE discovery both hot-reload coordinators use) matches the
+    /// <c>[BlueprintRegistrar]</c> attribute by its TYPE: a class carrying a different attribute that merely has the same NAME is not a registrar.
+    /// 🔴 Red-proof: match by <c>attr.GetType().Name</c> (what the editor's coordinator did) ⇒ the decoy is discovered.
+    /// </summary>
+    [Fact]
+    public void CE4109_Discover_MatchesTheAttributeByType_NotByName()
+    {
+        var found = BlueprintRegistrarScanner.Discover(typeof(BlueprintRegistrarScannerTests).Assembly);
+        bool real = false, decoy = false;
+        foreach (var r in found)
+        {
+            if (r.DeclaringType == typeof(TestBlueprintRegistrar)) real = true;
+            if (r.DeclaringType == typeof(Decoy.DecoyRegistrar)) decoy = true;
+        }
+        Assert.True(real, "the real [BlueprintRegistrar] class is discovered");
+        Assert.False(decoy, "a same-named attribute from another namespace is not the registrar attribute");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static (BlueprintRegistryStaging bp, BehaviorRegistry beh) CreateStaging()

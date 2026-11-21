@@ -1,0 +1,34 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-6010 the city battle's skeleton (see scenario.json's header). The order of battle on every node, the recorder and the fault-free run are judged by the rail CityBattleSkeletonTests; the grammar judges that the battle's anchors stand.",
+  "runFor": 60,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the battalion HQ stands",
+      "on": "field",
+      "who": "Battalion HQ",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the hill's ZU-23 stands",
+      "on": "field",
+      "who": "ZU-23 Technical",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "a civilian is on the streets",
+      "on": "field",
+      "who": "Civilian 1",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

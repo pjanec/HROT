@@ -74,4 +74,29 @@ public sealed class HsmAssetBlackboardTests
 
         asset.BlackboardTypeName.Should().Be("GuardPatrol_HSM_Blackboard");
     }
+
+    public struct HsmParamsA { public float Radius; }
+    public struct HsmParamsB { public int Rounds; }
+
+    /// <summary>⭐ <c>CE-1061</c> U5a/U5b + <c>CE-1062</c> — the HSM's one params write (<c>SetParams</c>) and its undo through the HSM sink's
+    /// <c>AssetEditCommand</c> arm: the DTO choice clears the overrides and rebuilds the reserved entry; undo restores the exact pair.</summary>
+    [Fact]
+    public void CE1062_TheHsmParamsWrite_IsUndoableThroughItsSink()
+    {
+        var asset = MakeAsset();
+        asset.IsBlackboardEditorManaged = true;
+        asset.SetParams(typeof(HsmParamsA).FullName, "{\"Radius\":3}");
+        var undo = new NodeEditor.Core.Commands.UndoStack(new Hrot.Hsm.Editor.Host.HsmCommandSink(asset));
+
+        Hrot.Editor.AiShared.Documents.AssetEdits.Run(undo, "Params DTO: HsmParamsB",
+            () => asset.SetParams(typeof(HsmParamsB).FullName, null),
+            () => asset.SetParams(typeof(HsmParamsA).FullName, "{\"Radius\":3}")).Should().BeTrue();
+        asset.ParamsDtoTypeId.Should().Be(typeof(HsmParamsB).FullName);
+        asset.CurrentParamsDefaults.Should().BeNull();
+        ReservedParamsVariable.Find(asset.BlackboardVariables)!.FieldType.Should().Be(typeof(HsmParamsB));
+
+        undo.Undo().Should().BeTrue();
+        (asset.ParamsDtoTypeId, asset.CurrentParamsDefaults).Should().Be((typeof(HsmParamsA).FullName, "{\"Radius\":3}"));
+        ReservedParamsVariable.Find(asset.BlackboardVariables)!.FieldType.Should().Be(typeof(HsmParamsA));
+    }
 }

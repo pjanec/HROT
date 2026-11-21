@@ -64,7 +64,7 @@ namespace Fdp.Examples.Scenarios.Perception
         public float Phase2Z { get; private set; }
 
         /// <summary>LastValidIgAltitude captured at tick 240 (Phase 3, spike rejected).</summary>
-        public float Phase3LastValidIgAltitude { get; private set; }
+        public float Phase3LastValidPlayerAltitude { get; private set; }
 
         /// <summary>Authoritative Position.Z captured at tick 240 (Phase 3, spike rejected).</summary>
         public float Phase3Z { get; private set; }
@@ -172,12 +172,12 @@ namespace Fdp.Examples.Scenarios.Perception
             // ── Phase 3 (tick 240): spike region — jump rejected ──────────────
             if (tick == 240 && !_phase3Passed)
             {
-                Phase3LastValidIgAltitude = state.LastValidIgAltitude;
+                Phase3LastValidPlayerAltitude = state.LastValidPlayerAltitude;
                 Phase3Z = posZ;
 
-                if (state.LastValidIgAltitude >= 10f)
+                if (state.LastValidPlayerAltitude >= 10f)
                     throw new ScenarioFailureException(3,
-                        $"Phase 3 FAILED at tick {tick}: LastValidIgAltitude={state.LastValidIgAltitude:F4} expected < 10 (spike should have been rejected)");
+                        $"Phase 3 FAILED at tick {tick}: LastValidPlayerAltitude={state.LastValidPlayerAltitude:F4} expected < 10 (spike should have been rejected)");
                 if (posZ >= 10f)
                     throw new ScenarioFailureException(3,
                         $"Phase 3 FAILED at tick {tick}: Position.Z={posZ:F4} expected < 10 (spike should not have been applied)");
@@ -237,8 +237,8 @@ namespace Fdp.Examples.Scenarios.Perception
 
             world.AddComponent(e, new TerrainClampBaseline
             {
-                LastValidIgAltitude = 0f, // First-frame bootstrap: accepts first hit unconditionally.
-                IgAltitudeBaselineEstablished = 0,
+                LastValidPlayerAltitude = 0f, // First-frame bootstrap: accepts first hit unconditionally.
+                PlayerAltitudeBaselineEstablished = 0,
             });
 
             return e;

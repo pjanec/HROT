@@ -29,6 +29,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.UI
         // Called every frame. Always emits the MakeStructInspector primitive.
         // Only calls uiPublisher.Publish when the serialised JSON differs from the cache.
         // When uiPublisher is null, no JSON is allocated.
+        // ⭐ CE-4581 — the anchor is a LONG: a gizmo-manager tool id is ToolAnchorIdBase (1 << 40) + n, and the panel sends its edits back to
+        //   exactly this id. 📌 It was an `int`, the layer control passed `unchecked((int)id)` = 1, and every checkbox of the layer panel went to
+        //   gizmo 1, which nobody is — the panel said "Changes apply as you click" and nothing applied, from 2026-09-10 (the base) on.
         public void EmitAndSync(
             IDebugDrawBuilder draw,
             long networkId,
@@ -53,7 +56,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.UI
             _lastPublishedJson = json;
             _uiPublisher.Publish(new GizmoUiState
             {
-                GizmoInstanceId  = (uint)networkId,
+                GizmoInstanceId  = unchecked((uint)networkId),   // the UI-state key is 32-bit on both ends (ImGuiPropertyTreeAdapter.Remember)
                 EditDocumentJson = json,
             });
         }

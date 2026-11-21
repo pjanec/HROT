@@ -1,0 +1,14 @@
+<Project>
+  <!-- ⭐⭐ R-4221 (F-5, CE-4505) — NO OUTPUT IS EVER CULTURE-FORMATTED: every HROT executable runs culture-INVARIANT.
+       🔒 User, 2026-11-13: "There should never ever be decimal commas, it needs to be language neutral."
+       📌 Measured: on a Czech Windows the editor printed "[FrameStats] … mean 8,9 ms" and the measuring scripts read 8.
+       ⭐ Set ONCE here so a new executable cannot forget it: logs, HTTP JSON, files and the UI format the same on every machine.
+       ⚠ In a .targets file, not Directory.Build.props: the props are imported BEFORE the project body and the test SDK's props, so
+          OutputType and IsTestProject are not known there yet. A .targets file is evaluated after both (the runtimeconfig is written
+          from this property at build time, after evaluation).
+       ⛔ Not test projects: a test may set a culture on purpose (a Czech-locale rail). Libraries do not need it — the setting lives in
+          the executable's runtimeconfig.json. Rail: scripts/test_invariant_culture.py. -->
+  <PropertyGroup Condition="('$(OutputType)' == 'Exe' Or '$(OutputType)' == 'WinExe') And '$(IsTestProject)' != 'true' And !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests'))">
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+</Project>

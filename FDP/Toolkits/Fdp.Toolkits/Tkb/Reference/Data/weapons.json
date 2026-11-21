@@ -1,0 +1,21 @@
+{
+  "$comment": "Reference-library driving parameters per WEAPON (launcher), matched by the weapon TKB type's NAME. velocityFactor = muzzle velocity relative to the ammo's nominal (a shorter barrel < 1). Placeholder approximations — tune, or state real numbers in the TKB.",
+  "weapons": {
+    "M4_Carbine":  { "velocityFactor": 0.97, "ammo": ["5.56x45 ball"] },
+    "M16A2":       { "velocityFactor": 1.0,  "ammo": ["5.56x45 ball"] },
+    "M249":        { "velocityFactor": 0.98, "ammo": ["5.56x45 ball"] },
+    "M240":        { "velocityFactor": 1.0,  "ammo": ["7.62x51 ball"] },
+    "M2HB":        { "velocityFactor": 1.0,  "ammo": ["12.7x99 ball", "12.7x99 AP"] },
+    "25mm_M242":   { "velocityFactor": 1.0,  "ammo": ["25mm APDS", "25mm HEI"] },
+    "30mm_Mk44":   { "velocityFactor": 1.0,  "ammo": ["30mm APFSDS", "30mm HE"] },
+    "120mm_M256":  { "velocityFactor": 1.0,  "ammo": ["120mm APFSDS", "120mm HEAT"] },
+    "125mm_2A46":  { "velocityFactor": 1.0,  "ammo": ["125mm APFSDS", "125mm HE-frag"] },
+    "RPG-7":       { "velocityFactor": 1.0,  "ammo": ["PG-7V HEAT"] },
+    "TOW_ATGM":    { "velocityFactor": 1.0,  "ammo": ["TOW-2 HEAT"] },
+    "M203":        { "velocityFactor": 1.0,  "ammo": ["40mm HEDP"] },
+    "Hand":        { "velocityFactor": 1.0,  "ammo": ["M67 grenade"] },
+    "60mm_M224":   { "velocityFactor": 1.0,  "ammo": ["60mm mortar HE"] },
+    "81mm_M252":   { "velocityFactor": 1.0,  "ammo": ["81mm mortar HE"] },
+    "120mm_M120":  { "velocityFactor": 1.0,  "ammo": ["120mm mortar HE"] }
+  }
+}

@@ -70,7 +70,7 @@ Replaced `Hrot.UI.Common` / `Hrot.ScenarioEditor` references with `Hrot.Presenta
 
 ### A9 — Solution file
 
-- `IOS-IG-SimHost.sln` — Removed `Hrot.ScenarioEditor`, `Hrot.ScenarioEditor.Tests`, `Hrot.UI.Common` project entries and configuration lines; added `Hrot.Presentation` (GUID `{D4E5F6A7-B8C9-0123-DEF0-123456789003}`) and `Hrot.Presentation.Tests` (GUID `{E5F6A7B8-C9D0-1234-EF01-234567890104}`) with full configuration entries
+- `HROT.sln` — Removed `Hrot.ScenarioEditor`, `Hrot.ScenarioEditor.Tests`, `Hrot.UI.Common` project entries and configuration lines; added `Hrot.Presentation` (GUID `{D4E5F6A7-B8C9-0123-DEF0-123456789003}`) and `Hrot.Presentation.Tests` (GUID `{E5F6A7B8-C9D0-1234-EF01-234567890104}`) with full configuration entries
 
 ### Test files fixed (not in original instructions but required for build)
 

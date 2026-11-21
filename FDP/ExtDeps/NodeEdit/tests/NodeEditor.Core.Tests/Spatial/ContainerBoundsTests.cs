@@ -239,4 +239,22 @@ public sealed class ContainerBoundsTests
         result.X.Should().BeApproximately(40f + 2f * Outline, 0.001f);
         result.Y.Should().BeApproximately(HeaderHt + 25f + 2f * Outline, 0.001f);
     }
+
+    // ── CE-1004 (R1): the author-set outer size is a MINIMUM ─────────────────
+
+    [Fact]
+    public void CE1004_ASizeOverride_EnlargesTheContainer_ButNeverBelowItsContent()
+    {
+        var pad = new ContainerPadding(Top: 0f, Right: 0f, Bottom: 0f, Left: 0f);
+        var child = new StubNode { Position = new Vector2(10f, 5f) };
+        var container = new StubContainer(pad, new Vector2(0f, 0f), new[] { child.Id });
+        var model = new StubModel();
+        model.Add(child);
+        System.Func<NodeId, Vector2?> size = id => id == child.Id ? new Vector2(30f, 20f) : null;
+
+        ContainerBoundsComputer.ComputeOuterSize(container, model, size, HeaderHt, sizeOverride: new Vector2(500f, 300f))
+            .Should().Be(new Vector2(500f, 300f));
+        ContainerBoundsComputer.ComputeOuterSize(container, model, size, HeaderHt, sizeOverride: new Vector2(10f, 10f))
+            .Should().Be(new Vector2(40f + 2f * Outline, HeaderHt + 25f + 2f * Outline));
+    }
 }

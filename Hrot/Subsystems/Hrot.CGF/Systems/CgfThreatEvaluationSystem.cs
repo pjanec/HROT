@@ -18,6 +18,8 @@ namespace Hrot.CGF.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class CgfThreatEvaluationSystem : IEcsModuleSystem
     {
         private readonly ThreatEvaluationSystem _threatEvaluation = new ThreatEvaluationSystem();

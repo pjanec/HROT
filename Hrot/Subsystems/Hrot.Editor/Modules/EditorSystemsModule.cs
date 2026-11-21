@@ -5,9 +5,12 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Editor.Modules;
 
 /// <summary>
-/// <see cref="IEcsModule"/> that registers the three editor-only ECS systems:
-/// <see cref="EditorCargoSystem"/>, <see cref="EditorPerceptionSetupSystem"/>, and
-/// <see cref="EditorZoneAuthoringSystem"/>.
+/// <see cref="IEcsModule"/> that registers the editor-only ECS system <see cref="EditorZoneAuthoringSystem"/>.
+/// <para>⛔ <c>EditorPerceptionSetupSystem</c> is RETIRED (B-5 S3): a <c>SeedTargetCommand</c> is applied by <c>SeedTargetSystem</c> (the
+/// <c>Interactions</c> capability, every node) on the node that owns the perceiver's <c>TargetMemory</c>.</para>
+/// <para>⛔ <c>EditorCargoSystem</c> is RETIRED (<c>CE-3110</c> I-2a): the ORBAT's embark/disembark commands are applied by
+/// <c>EmbarkationSystem</c>, which the editor gets from <c>CgfLogicPack</c> like CGF — one applier, one set of rules
+/// (📄 docs/DESIGN_Entity_Interactions.md §7.1a).</para>
 ///
 /// <para>Uses the direct-execution pattern: each system is initialised via
 /// <see cref="ComponentSystem.Create"/> at construction time and driven via
@@ -20,10 +23,9 @@ namespace Hrot.Editor.Modules;
 /// kernel.Initialize();
 /// </code>
 /// </summary>
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class EditorSystemsModule : IEcsModule
 {
-    private readonly EditorCargoSystem           _cargo;
-    private readonly EditorPerceptionSetupSystem _perception;
     private readonly EditorZoneAuthoringSystem   _zone;
 
     /// <inheritdoc/>
@@ -33,24 +35,30 @@ public sealed class EditorSystemsModule : IEcsModule
     public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
     /// <summary>
-    /// Creates the three editor-only ECS systems.
+    /// Creates the editor-only ECS systems.
+    /// <para>⛔ The former <c>zoneService</c> parameter is gone (F1): the zone authoring system no longer
+    /// mirrors authored zones into a save-pipeline DTO, because a zone is an entity and the ordinary save
+    /// gate already carries it. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.</para>
     /// </summary>
-    /// <param name="zoneService">
-    /// Optional <see cref="ZoneManagerService"/> used by <see cref="EditorZoneAuthoringSystem"/>
-    /// to mirror authored zone data into the save pipeline.
-    /// </param>
-    public EditorSystemsModule(ZoneManagerService? zoneService = null)
+    /// <param name="creation">⭐ <c>CE-3141</c> — the node's creation pack, read late (the obstacle tool requests typed obstacles
+    /// through it). A host that has it MUST pass it; null drops placements loudly.</param>
+    public EditorSystemsModule(System.Func<Hrot.Common.EntityCreation.EntityCreation?>? creation = null)
     {
-        _cargo      = new EditorCargoSystem();
-        _perception = new EditorPerceptionSetupSystem();
-        _zone       = new EditorZoneAuthoringSystem(zoneService);
+        _zone       = new EditorZoneAuthoringSystem(creation);
     }
+
+    /// <inheritdoc/>
+    public void RegisterSystems(ISystemRegistry registry)
+    {
+        // ⭐ CE-3293 S2 — still ticked by this module through the scheduler's one gate.
+        _zoneRun       = registry.RegisterManualSystem(_zone);
+    }
+
+    private IEcsModuleSystem? _zoneRun;
 
     /// <inheritdoc/>
     public void Tick(ISimulationView view, float deltaTime)
     {
-        _cargo.Execute(view, deltaTime);
-        _perception.Execute(view, deltaTime);
-        _zone.Execute(view, deltaTime);
+        (_zoneRun ?? _zone).Execute(view, deltaTime);
     }
 }

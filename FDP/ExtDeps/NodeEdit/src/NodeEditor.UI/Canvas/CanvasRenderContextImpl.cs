@@ -58,6 +58,13 @@ internal sealed class CanvasRenderContextImpl : ICanvasRenderContext, IHitTestCo
         screenRect = default; return false;
     }
 
+    public bool TryGetLinkScreenPath(LinkId id, out LinkPath path)
+    {
+        if (_layout != null && _layout.LinkScreenPaths.TryGetValue(id, out path!)) return true;
+        path = null!;
+        return false;
+    }
+
     public bool TryGetPinScreenPosition(PinId id, out Vector2 screenPos)
     {
         if (_layout != null && _layout.PinScreenPositions.TryGetValue(id, out screenPos)) return true;

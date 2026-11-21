@@ -103,7 +103,7 @@ Pre-condition failures (no entity, no asset, wrong type) use dedicated messages 
 
 ## Build Status
 
-`dotnet build IOS-IG-SimHost.sln` → **Build succeeded. 0 Error(s), 0 Warning(s).**
+`dotnet build HROT.sln` → **Build succeeded. 0 Error(s), 0 Warning(s).**
 
 Touched projects (`Hrot.Blueprints.Editor`, `Hrot.Editor`) each build with 0 errors, 0 warnings under `TreatWarningsAsErrors=true`.
 

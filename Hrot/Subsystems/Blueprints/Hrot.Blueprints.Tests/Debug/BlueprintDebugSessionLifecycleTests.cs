@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Tests.Mocks;

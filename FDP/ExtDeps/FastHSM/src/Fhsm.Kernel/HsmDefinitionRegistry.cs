@@ -22,7 +22,7 @@ namespace Fhsm.Kernel
         /// </summary>
         public void Register(HsmDefinitionBlob blob)
         {
-            uint id = blob.Header.StructureHash;
+            uint id = blob.MachineId;   // ⭐ CE-2001
             if (id == 0) throw new ArgumentException("Invalid MachineId (0). Definition might not be initialized.", nameof(blob));
             
             _definitions.AddOrUpdate(id, blob, (key, existing) => 

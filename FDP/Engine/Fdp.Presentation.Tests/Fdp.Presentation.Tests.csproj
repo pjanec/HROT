@@ -9,6 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up -->
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="FluentAssertions" Version="8.8.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />

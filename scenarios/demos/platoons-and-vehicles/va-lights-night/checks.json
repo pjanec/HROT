@@ -1,0 +1,48 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4670 (vehicle appearance VA-S3): the light rule \u2014 discipline \u00d7 darkness \u00d7 engine.",
+  "runFor": 20,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Lit Tank's head and tail lights are on (dark, engine idling, Normal discipline)",
+      "on": "field",
+      "who": "Lit Tank",
+      "path": "VehicleLights.OnMask",
+      "op": "==",
+      "value": 3
+    },
+    {
+      "name": "... and still on at the end",
+      "on": "field",
+      "who": "Lit Tank",
+      "path": "VehicleLights.OnMask",
+      "op": "==",
+      "value": 3,
+      "atEnd": true
+    },
+    {
+      "name": "the Blacked-out Tank never shows a light",
+      "never": {
+        "on": "field",
+        "who": "Blacked-out Tank",
+        "path": "VehicleLights.OnMask",
+        "op": ">",
+        "value": 0
+      }
+    },
+    {
+      "name": "its discipline holds (Blackout)",
+      "on": "field",
+      "who": "Blacked-out Tank",
+      "path": "VehicleLights.Discipline",
+      "op": "in",
+      "value": [
+        "Blackout",
+        2
+      ],
+      "atEnd": true
+    }
+  ]
+}

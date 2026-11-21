@@ -1,4 +1,5 @@
 using Xunit;
+using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using MessagePack;
 using System.IO;
@@ -24,8 +25,42 @@ namespace Fdp.Tests
         public List<int>? Numbers { get; set; }
     }
 
+    /// <summary>⭐ CE-4200 — a managed object that carries semantic value types (readonly structs).</summary>
+    public class TestSemanticIdsObject
+    {
+        public NodeId Node { get; set; }
+        public TkbTypeId Template;
+        public int After { get; set; }
+    }
+
     public class FdpAutoSerializerTests
     {
+        /// <summary>
+        /// ⭐ CE-4200 — a <see cref="NodeId"/> / <see cref="TkbTypeId"/> member is written as its STORAGE type (an int / a long: the bytes the plain
+        /// field wrote) and read back through the type's explicit conversion. ⛔ Before this the recursive case tried to assign the readonly
+        /// <c>Value</c> member and threw "Expression must be writeable" on the first managed event that carried one.
+        /// </summary>
+        [Fact]
+        public void SemanticIdMembers_RoundTrip_AsTheirStorageBytes()
+        {
+            using var ms = new MemoryStream();
+            using var writer = new BinaryWriter(ms);
+            FdpAutoSerializer.Serialize(new TestSemanticIdsObject { Node = new NodeId(300), Template = new TkbTypeId(7202), After = 5 }, writer);
+            writer.Flush();
+            Assert.Equal(4 + 8 + 4, ms.Length);                       // an int, a long, an int — no wrapper bytes
+
+            ms.Position = 0;
+            using var reader = new BinaryReader(ms);
+            Assert.Equal(5, reader.ReadInt32());                       // members are written in name order: After,
+            Assert.Equal(300, reader.ReadInt32());                     //   Node — the bytes the plain int wrote —
+            Assert.Equal(7202L, reader.ReadInt64());                   //   Template — the bytes the plain long wrote
+            ms.Position = 0;
+            var back = FdpAutoSerializer.Deserialize<TestSemanticIdsObject>(reader);
+            Assert.Equal(new NodeId(300), back.Node);
+            Assert.Equal(new TkbTypeId(7202), back.Template);
+            Assert.Equal(5, back.After);
+        }
+
         [Fact]
         public void Serialize_SimpleObject_WritesCorrectValues()
         {
@@ -906,6 +941,86 @@ namespace Fdp.Tests
             Assert.Null(result.Child.Child.Child.Child.Child);
         }
         
+        #endregion
+
+        #region CE-3305 — what a recording used to drop
+
+        public sealed class BclValues
+        {
+            public Guid Id;
+            public DateTime When;
+            public TimeSpan Span;
+        }
+
+        public sealed class PrivateState
+        {
+            [RecordedMember] private List<int> _items = new();
+            public IReadOnlyList<int> Items => _items;
+            public void Add(int v) => _items.Add(v);
+        }
+
+        public sealed class PrivateSetter
+        {
+            public Dictionary<int, int> Map { get; private set; } = new();
+        }
+
+        /// <summary>⭐ CE-3305 — a collection behind `{ get; private set; }` is written and read (a get-only one was lost: ChildMap,
+        /// PendingAuthorityGrants, SopStartRecord.HostedKeys).</summary>
+        [Fact]
+        public void A_PrivateSetter_Collection_RoundTrips()
+        {
+            var v = new PrivateSetter();
+            v.Map[1] = 10; v.Map[2] = 20;
+            var back = RoundTrip(v);
+            Assert.Equal(2, back.Map.Count);
+            Assert.Equal(20, back.Map[2]);
+        }
+
+        public sealed class ReadonlyRecorded
+        {
+            [RecordedMember] private readonly List<int> _items = new();
+            public int Count => _items.Count;
+        }
+
+        private static T RoundTrip<T>(T value)
+        {
+            using var ms = new MemoryStream();
+            using (var w = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true)) FdpAutoSerializer.Serialize(value, w);
+            ms.Position = 0;
+            using var r = new BinaryReader(ms);
+            return FdpAutoSerializer.Deserialize<T>(r);
+        }
+
+        /// <summary>⭐ CE-3305 — a Guid read back as Guid.Empty (measured: SensorCapability.Default.Template in a dry-run keyframe):
+        /// the recursive case wrote nothing for a struct with no public settable member. Guid, DateTime and TimeSpan are written whole.</summary>
+        [Fact]
+        public void Guid_DateTime_TimeSpan_RoundTrip()
+        {
+            var v = new BclValues { Id = Guid.NewGuid(), When = new DateTime(2026, 10, 22, 11, 0, 0, DateTimeKind.Utc), Span = TimeSpan.FromMilliseconds(1234.5) };
+            var back = RoundTrip(v);
+            Assert.Equal(v.Id, back.Id);
+            Assert.Equal(v.When, back.When);
+            Assert.Equal(DateTimeKind.Utc, back.When.Kind);
+            Assert.Equal(v.Span, back.Span);
+        }
+
+        /// <summary>⭐ CE-3305 — state behind a read-only view (RoutePlan's waypoints) is recorded when its field is [RecordedMember].</summary>
+        [Fact]
+        public void A_RecordedMember_PrivateField_RoundTrips()
+        {
+            var v = new PrivateState();
+            v.Add(3); v.Add(5);
+            Assert.Equal(new[] { 3, 5 }, RoundTrip(v).Items);
+        }
+
+        /// <summary>⭐ CE-3305 — a readonly [RecordedMember] field could not be assigned by a read: refused at once, by name.</summary>
+        [Fact]
+        public void A_Readonly_RecordedMember_IsRefused_ByName()
+        {
+            var ex = Assert.ThrowsAny<Exception>(() => RoundTrip(new ReadonlyRecorded()));
+            Assert.Contains("_items", ex.ToString());
+        }
+
         #endregion
     }
 }

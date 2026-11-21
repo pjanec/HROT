@@ -179,24 +179,59 @@ namespace GizmoMap.Presentation.Tests
         }
 
         // SC-GZ055-6: MilStd2525 affiliation color mapping.
-        [Fact]
-        public void SC_GZ055_6_MilStd2525AffiliationColors()
+        // Corrected 2026-08-30: the previous expectations encoded the renderer's own bug --
+        // neutral and unknown were swapped against the standard, and Joker sat with the friends.
+        [Theory]
+        // Friend: F friend, A assumed friend, D exercise friend, M exercise assumed friend.
+        [InlineData("SF...", "friend")]
+        [InlineData("SA...", "friend")]
+        [InlineData("SD...", "friend")]
+        [InlineData("SM...", "friend")]
+        // Hostile: H hostile, S suspect, J joker, K faker.
+        [InlineData("SH...", "hostile")]
+        [InlineData("SS...", "hostile")]
+        [InlineData("SJ...", "hostile")]
+        [InlineData("SK...", "hostile")]
+        // Neutral: N neutral, L exercise neutral.
+        [InlineData("SN...", "neutral")]
+        [InlineData("SL...", "neutral")]
+        // Unknown: U unknown, P pending, G exercise pending, W exercise unknown, O none specified.
+        [InlineData("SU...", "unknown")]
+        [InlineData("SP...", "unknown")]
+        [InlineData("SG...", "unknown")]
+        [InlineData("SW...", "unknown")]
+        [InlineData("SO...", "unknown")]
+        // Unrecognised and degenerate codes fall to unknown, never to a coloured affiliation.
+        [InlineData("SZ...", "unknown")]
+        [InlineData("S",     "unknown")]
+        [InlineData("",      "unknown")]
+        public void SC_GZ055_6_MilStd2525AffiliationColors(string sidc, string expected)
         {
-            // Friendly: SIDC[1] = 'F'
-            var friendly = MilStd2525Renderer.GetAffiliationColor("SF...");
-            Assert.Equal(Color.Blue, friendly);
+            var want = expected switch
+            {
+                "friend"  => MilStd2525Renderer.FriendColor,
+                "hostile" => MilStd2525Renderer.HostileColor,
+                "neutral" => MilStd2525Renderer.NeutralColor,
+                _         => MilStd2525Renderer.UnknownColor,
+            };
 
-            // Hostile: SIDC[1] = 'H'
-            var hostile = MilStd2525Renderer.GetAffiliationColor("SH...");
-            Assert.Equal(Color.Red, hostile);
+            Assert.Equal(want, MilStd2525Renderer.GetAffiliationColor(sidc));
+        }
 
-            // Neutral: SIDC[1] = 'N'
-            var neutral = MilStd2525Renderer.GetAffiliationColor("SN...");
-            Assert.Equal(Color.Yellow, neutral);
+        // The four affiliation colours must be mutually distinct, or the mapping above could pass
+        // while every affiliation rendered identically.
+        [Fact]
+        public void SC_GZ055_6_AffiliationColorsAreDistinct()
+        {
+            var all = new[]
+            {
+                MilStd2525Renderer.FriendColor,
+                MilStd2525Renderer.HostileColor,
+                MilStd2525Renderer.NeutralColor,
+                MilStd2525Renderer.UnknownColor,
+            };
 
-            // Unknown: other
-            var unknown = MilStd2525Renderer.GetAffiliationColor("SU...");
-            Assert.Equal(Color.Green, unknown);
+            Assert.Equal(all.Length, all.Distinct().Count());
         }
     }
 
@@ -238,6 +273,27 @@ namespace GizmoMap.Presentation.Tests
         }
     }
 
+    // ⭐ CE-1203 (docs/DESIGN_Terrain_Combat_Tuning.md §5e FL-5) — a row prints its [EditDisplayName] (else its name) and shows its
+    // [EditDoc] line on hover; a row without one shows no tooltip.
+    public class CE1203_RowLabelAndMeaningTests
+    {
+        [Fact]
+        public void ARow_PrintsItsDisplayName_AndHoversItsDoc()
+        {
+            var meta = new StructEdit.Core.EditNodeMetadata
+            {
+                DisplayName = "Vision cones",
+                CustomAttributes = new System.Attribute[] { new StructEdit.Core.Attributes.EditDocAttribute("What each unit can see.") },
+            };
+            var named = new StructEdit.Core.EditNode(new StructEdit.Core.EditNodeId(1), "VisionCones", "$.Ai.VisionCones", default, typeof(bool), metadata: meta);
+            var plain = new StructEdit.Core.EditNode(new StructEdit.Core.EditNodeId(2), "Doors", "$.Map.Doors", default, typeof(bool));
+            Assert.Equal("Vision cones", ImGuiPropertyTreeAdapter.LabelOf(named));
+            Assert.Equal("What each unit can see.", ImGuiPropertyTreeAdapter.DocOf(named));
+            Assert.Equal("Doors", ImGuiPropertyTreeAdapter.LabelOf(plain));
+            Assert.Null(ImGuiPropertyTreeAdapter.DocOf(plain));
+        }
+    }
+
     // ---- GZ068: ImGui window stable ID tests --------------------------------
 
     public class ImGuiWindowStableIdTests
@@ -267,6 +323,22 @@ namespace GizmoMap.Presentation.Tests
             string stableId2 = title2.Split("###")[1];
 
             Assert.Equal(stableId1, stableId2);
+        }
+
+        // ⭐ CE-1066: the stable ID does not carry the per-run instance id (a docked panel finds its slot after a restart), unless two
+        // panels of one type are open at once; the visible title is the schema's name made readable.
+        [Fact]
+        public void CE1066_TheStableId_IsTheGizmoType_AndTheTitleIsReadable()
+        {
+            string Id(string t) => t.Split("###")[1];
+            Assert.Equal(Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("LayerControlDto", 1099511627777L, 0x1234u, 100u, true)),
+                         Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("LayerControlDto", 1099511627790L, 0x1234u, 100u, true)));
+            Assert.NotEqual(Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 1L, 0x1u, 100u, true, disambiguate: true)),
+                            Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 2L, 0x1u, 100u, true, disambiguate: true)));
+            Assert.NotEqual(Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 1L, 0x1u, 0u, true)),   // unstamped: the id stays
+                            Id(ImGuiPropertyTreeAdapter.MakeWindowTitle("S", 2L, 0x1u, 0u, true)));
+            Assert.StartsWith("Layer Control###", ImGuiPropertyTreeAdapter.MakeWindowTitle("LayerControlDto", 7L, 0x1u, 100u, true));
+            Assert.Equal("AI Tuning", ImGuiPropertyTreeAdapter.FriendlyName("AITuningDto"));
         }
 
         // SC-GZ068-3: Existing GizmoPresentationTests compile and pass without modification.
@@ -303,6 +375,60 @@ namespace GizmoMap.Presentation.Tests
             Assert.Equal(ImGuiPropertyTreeAdapter.InspectorState.Editing,
                          adapter._inspectorStates[(1L, 10u)]);
             Assert.Equal(0, callbackCount);
+        }
+
+        // ⭐ CE-1065: a field edited in a FOCUSED window commits at once (no Apply, no waiting for focus loss) and the window stays
+        // in Editing; a frame with no edit sends nothing more.
+        [Fact]
+        public void CE1065_AnEdit_CommitsAtOnce_AndTheWindowStaysEditing()
+        {
+            var (doc, _) = TestDocFactory.MakeIntDoc();
+            var registry = new GizmoSchemaRegistry();
+            registry.Register(0x1111u, doc);
+            var adapter = new ImGuiPropertyTreeAdapter(registry);
+
+            int callbackCount = 0;
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, callbackCount);
+            Assert.Equal(ImGuiPropertyTreeAdapter.InspectorState.Editing, adapter._inspectorStates[(1L, 10u)]);
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => false);
+            Assert.Equal(1, callbackCount);
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, isReadOnly: true);   // a read-only panel never commits
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, callbackCount);
+        }
+
+        // ⭐ CE-1066: the panel's [X] tells its gizmo once, stops editing, and hides the panel while the close travels (an edit
+        // in that time commits nothing); once the gizmo stops emitting it, the next open shows it at once.
+        [Fact]
+        public void CE1066_TheClose_TellsTheGizmoOnce_AndHidesThePanelUntilItStops()
+        {
+            var (doc, _) = TestDocFactory.MakeIntDoc();
+            var registry = new GizmoSchemaRegistry();
+            registry.Register(0x1111u, doc);
+            var adapter = new ImGuiPropertyTreeAdapter(registry);
+            var closed = new List<(long, uint)>();
+            int commits = 0;
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true, closedOverride: _ => true,
+                                  onClosed: (n, t) => closed.Add((n, t)));
+            Assert.Equal(new[] { (1L, 10u) }, closed);
+            Assert.False(adapter._inspectorStates.ContainsKey((1L, 10u)));
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);   // the gizmo has not heard yet: still emitted
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(0, commits);                             // hidden — nothing to click, nothing committed
+
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true);   // the gizmo stopped emitting it
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);                            // reopened from the menu
+            adapter.DrawScheduled((_, _, _) => commits++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, commits);
+            Assert.Single(closed);
         }
 
         // SC-GZ069-2: Editing + unfocused => transitions to Viewing; callback invoked exactly once.
@@ -432,6 +558,35 @@ namespace GizmoMap.Presentation.Tests
             Assert.Equal(0, (int)binding.GetBoxed()!);
         }
 
+        // ⭐ CE-1234 — a gizmo publishes under its INSTANCE id (the projector: GizmoInstanceId = its anchor), the registry is keyed by
+        // SCHEMA: the panel finds the schema from what it scheduled, and a state that arrives before the schedule waits for it.
+        // 🔒 User: "map layer controls (checkbox) does not seem to work in 3d". 🔴 Red-proof: looked up by instance id only, the state
+        // never reached the panel — its own copy kept the 2-D view, and every 3-D click was dropped as an edit of the other view.
+        [Fact]
+        public void CE1234_AStateUnderItsInstanceId_ReachesThePanel_EvenBeforeItIsScheduled()
+        {
+            var (doc, binding) = TestDocFactory.MakeIntDoc(initial: 0);
+            var registry = new GizmoSchemaRegistry();
+            const uint schemaHash = 0xC0DEu;
+            const long instance = 1099511627790L;   // a GlobalGizmoManager id: far above any schema hash
+            registry.Register(schemaHash, doc);
+            var adapter = new ImGuiPropertyTreeAdapter(registry);
+            binding.SetBoxed(7);
+            string json = EditDocumentJsonSerializer.Serialize(doc);
+            binding.SetBoxed(0);
+
+            adapter.ReceiveUiState(new GizmoUiState { GizmoInstanceId = unchecked((uint)instance), EditDocumentJson = json });
+            Assert.Equal(0, (int)binding.GetBoxed()!);   // not scheduled yet: kept
+            adapter.Schedule(instance, schemaHash, 100u, 0f, 0f, false);
+            Assert.Equal(7, (int)binding.GetBoxed()!);   // applied when the panel learns its schema
+
+            binding.SetBoxed(9);
+            json = EditDocumentJsonSerializer.Serialize(doc);
+            binding.SetBoxed(0);
+            adapter.ReceiveUiState(new GizmoUiState { GizmoInstanceId = unchecked((uint)instance), EditDocumentJson = json });
+            Assert.Equal(9, (int)binding.GetBoxed()!);   // known: applied at once
+        }
+
         // SC-GZ070-3: ReceiveUiState with unknown GizmoInstanceId does not throw.
         [Fact]
         public void SC_GZ070_3_UnknownGizmoInstanceId_NoException()
@@ -461,6 +616,105 @@ namespace GizmoMap.Presentation.Tests
             // The method must be callable at compile time; no exception is required here.
             var method = typeof(ImGuiPropertyTreeAdapter).GetMethod(nameof(ImGuiPropertyTreeAdapter.ReceiveUiState));
             Assert.NotNull(method);
+        }
+    }
+
+    // ==========================================================================
+    // SC-GZ067: pick-token construction — DebugGizmoLayer.MakePickToken
+    // 🔴 MOVED here 2026-09-10 from GizmoMap.Contracts.Tests, where it could only
+    //    RE-IMPLEMENT the logic (that project references ONLY GizmoMap.Contracts) and so
+    //    stayed green while S5 changed the real construction. R-142 ③.
+    // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §5.1/§6 (S5).
+    // ==========================================================================
+
+    public class GizmoPickTokenConstructionTests
+    {
+        private static DebugPrimitive EntityPickBox(long networkId, int ecsIndex, ushort ecsGen, uint gizmoTypeId = 0u)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Box2D;
+            p.Space            = CoordinateSpace.World;
+            p.BoxAnchorId      = networkId;
+            p.AnchorIndex      = ecsIndex;
+            p.AnchorGeneration = ecsGen;
+            p.GizmoTypeId      = gizmoTypeId;
+            return p;
+        }
+
+        // SC-GZ067-1: the token's IDENTITY is the network id, never the ECS index.
+        // ⛔ RED-PROOF SHAPE: restore `AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId` in
+        //    MakePickToken and this asserts 5L instead of 90210L.
+        [Fact]
+        public void SC_GZ067_1_MakePickToken_AnchorIdIsTheNetworkId()
+        {
+            var prim = EntityPickBox(networkId: 90210L, ecsIndex: 5, ecsGen: 1, gizmoTypeId: 77u);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(90210L, token.AnchorId);
+            Assert.Equal(77u,    token.GizmoTypeId);
+        }
+
+        // SC-GZ067-1b: ⭐⭐⭐ §6.7 — the ECS handle DOES NOT TRAVEL. Offsets 8/12 of the hit primitive
+        //   are IGNORED: whatever they hold (a stale handle from an older peer, a StringHash, a
+        //   SpatialAnchor key) cannot leak into the token.
+        // ⚠ INVERTED 2026-09-11. It used to assert `token.AnchorIndex == 5 && token.StreamId == 7` —
+        //   i.e. that the payload was faithfully forwarded. That payload is deleted, so the rail now
+        //   pins the opposite property, which is the one that matters.
+        // ⛔ RED-PROOF SHAPE: make MakePickToken write `StreamId = hit.AnchorGeneration` again and this
+        //   reddens on the 0u.
+        [Fact]
+        public void SC_GZ067_1b_MakePickToken_IgnoresOffsets8And12_NoEcsHandleTravels()
+        {
+            var prim = EntityPickBox(networkId: 90210L, ecsIndex: 5, ecsGen: 7);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(90210L, token.AnchorId);   // the identity, and the only thing carried
+            Assert.Equal(0u,     token.StreamId);   // ⛔ NOT the primitive's AnchorGeneration (7)
+        }
+
+        // SC-GZ067-1c: a TOOL handle's identity is the tool's own id, from the disjoint high range —
+        // so a consumer resolving it against its world finds no entity, which is correct for a tool. §6.1.
+        [Fact]
+        public void SC_GZ067_1c_MakePickToken_ToolHandleCarriesTheToolId()
+        {
+            var prim = EntityPickBox(networkId: DebugGizmoLayer.ToolCaptureIdForTests(3), ecsIndex: 0, ecsGen: 0);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(DebugGizmoLayer.ToolCaptureIdForTests(3), token.AnchorId);
+            // ⭐ Above int.MaxValue by construction ⇒ it can never collide with an entity network id
+            //   (SequentialIdAllocator counts from 1), which is the whole point of the disjoint range.
+            Assert.True(token.AnchorId > int.MaxValue);
+        }
+
+        // SC-GZ067-1d: an entity whose NETWORK id collides with ANOTHER entity's ECS index is not
+        // confusable — the two live in different fields. This is defect D1's root cause, pinned.
+        [Fact]
+        public void SC_GZ067_1d_MakePickToken_NetworkIdAndEcsIndexDoNotAlias()
+        {
+            // Entity A: network id 3, ECS index 41.  Entity B: network id 41, ECS index 3.
+            var a = DebugGizmoLayer.MakePickToken(EntityPickBox(networkId: 3L,  ecsIndex: 41, ecsGen: 1));
+            var b = DebugGizmoLayer.MakePickToken(EntityPickBox(networkId: 41L, ecsIndex: 3,  ecsGen: 1));
+
+            Assert.NotEqual(a.AnchorId, b.AnchorId);
+            Assert.Equal(3L,  a.AnchorId);
+            Assert.Equal(41L, b.AnchorId);
+        }
+
+        /// <summary>⭐ CE-1228 — one filled triangle in the winding raylib keeps: counter-clockwise on its y-down screen (a negative cross
+        /// product) for a plain view, the other way for a view that mirrors the plane (the north-up map); either data winding comes out the
+        /// same way. ✅ Red-proof: KeptWinding returns its input ⇒ the clockwise datum keeps its order.</summary>
+        [Fact]
+        public void CE1228_AFilledTriangle_IsDrawnOnce_InTheWindingRaylibKeeps()
+        {
+            static float Cross((Vector2 A, Vector2 B, Vector2 C) t) => (t.B.X - t.A.X) * (t.C.Y - t.A.Y) - (t.B.Y - t.A.Y) * (t.C.X - t.A.X);
+            Vector2 a = new(0, 0), b = new(10, 0), c = new(0, 10);   // CCW in y-up world data: cross > 0
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, b, c, mirrored: false)) < 0f);
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, c, b, mirrored: false)) < 0f);
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, b, c, mirrored: true)) > 0f);
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, c, b, mirrored: true)) > 0f);
         }
     }
 }

@@ -13,7 +13,7 @@ internal static class CompactLayout
     /// <summary>Render the compact list (no detail pane).</summary>
     public static void Draw(PickerState state, IPickerRenderContext ctx)
     {
-        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        float height = ImGui.GetContentRegionAvail().Y - PickerLayoutMetrics.FooterReserve(state);
         if (ImGui.BeginChild("##picker_compact", new Vector2(0f, height), ImGuiChildFlags.None))
         {
             try

@@ -11,6 +11,7 @@ using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Events;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Systems;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Integration.Tests;
 
@@ -79,7 +80,9 @@ public sealed class AnimationIntegrationFixture : IPumpableHarness, IDisposable
         World = new EntityRepository();
 
         World.RegisterComponent<AnimationChannel>();
+        World.RegisterComponent<AnimationChannelStatus>();
         World.RegisterComponent<LookAtChannel>();
+        World.RegisterComponent<LookAtChannelStatus>();
         World.RegisterComponent<StanceStatus>();
         World.RegisterComponent<StanceIntent>();
         World.RegisterComponent<AnimationMontageQueue>();
@@ -163,8 +166,10 @@ public sealed class AnimationIntegrationFixture : IPumpableHarness, IDisposable
     {
         var entity = World.CreateEntity();
 
-        World.AddComponent(entity, new AnimationChannel { Status = NodeStatus.Failure });
-        World.AddComponent(entity, new LookAtChannel { Status = NodeStatus.Failure });
+        World.AddComponent(entity, new AnimationChannel());
+        World.AddComponent(entity, new AnimationChannelStatus { Status = NodeStatus.Failure });
+        World.AddComponent(entity, new LookAtChannel());
+        World.AddComponent(entity, new LookAtChannelStatus { Status = NodeStatus.Failure });
         World.AddComponent(entity, new StanceStatus
         {
             CurrentStance = StanceId.Standing,

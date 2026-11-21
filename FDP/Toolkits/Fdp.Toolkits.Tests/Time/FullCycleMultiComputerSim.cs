@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Time.Tests
             long masterTick, long slaveTick, int nodeId = 1)
         {
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent
             {
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Time.Tests
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
         }
 
         [Fact]

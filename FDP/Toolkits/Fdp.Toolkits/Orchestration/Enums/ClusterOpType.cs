@@ -7,8 +7,11 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     public enum ClusterOpType : int
     {
+        /// <summary>⭐ AQ107 / CycloneDDS.NET 0.4: a default-initialised message carries 0, and Cyclone DDS 11 refuses to serialize an enum value
+        /// the enum does not declare (DdsWriter.Write → BadParameter). Never sent on purpose; module-unique name (IDL scopes enum members by module).</summary>
+        ClusterOpNone = 0,
         TransitionState = 1,
-        SaveScenario = 2,
+        // 2 — RESERVED gap: the legacy SaveScenario op (CE-278) was retired; wire value 2 is not reused.
         LoadZone = 3,
         TakeCheckpoint = 4,
         CollectCheckpoint = 5,
@@ -23,5 +26,61 @@ namespace Fdp.Toolkit.Orchestration
         StepTime = 14,
         SetTimeScale = 15,
         DumpDiagnostics = 16,
+
+        // ⚠⚠ 17 IS NOT FREE, and it is deliberately absent HERE: the authoritative NED enum
+        //    (Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs) has
+        //    `SaveScenario = 17` — the live distributed JSON scenario save (CE-277(c0), renamed by
+        //    CE-278 with the wire value unchanged), routed at ClusterMaster and translated both ways.
+        //    ⛔ This mirror never gained it, so the two enums are ALREADY DIVERGED.
+        //    ⚠⚠ CORRECTION (2026-09-17, same day): an earlier version of this comment said the header's
+        //    "verified by unit tests" was empty talk because "no such test exists". That is FALSE and I
+        //    wrote it. FdpOrchestrationEnumSyncTests.ClusterOpTypeValuesMatchHrot DOES exist. What is
+        //    true is narrower and more useful: the test iterates the FDP enum ONLY, so it can never see
+        //    a member NED has and this mirror lacks — which is exactly the shape of the 17 divergence.
+        //    ⇒ Do NOT reuse 17 here to close the hole; adding SaveScenario to this mirror changes the
+        //    generated CycloneDDS IDL and is a wire-surface decision, not a tidy-up.
+
+        // ⛔ PERMANENT WIRE VALUE (R-42). Ruled 2026-09-17 after 17 was found occupied.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §6.
+        BuildTerrainAsset = 18,
+
+        // ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-03 — the next free values in BOTH enums.
+        // ⭐ CE-3021 — the explicit, user-triggered asset operations (docs/DESIGN_Asset_Management.md §5, C4/C5):
+        //   publish an author's tree to NAS / refresh an author's tree from NAS. Payload: AssetOpPayloadDto.
+        PublishAssets = 19,
+        RefreshAssets = 20,
+
+        // ⭐ CE-3299 B4 — restore checkpoint X on every node (mgmt-1 §9.3 named this request; no enum carried it).
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-22 — the next free value in BOTH enums.
+        RestoreCheckpoint = 21,
+
+        // ⭐ CE-3329 P1 (R-3058) — switch the replay's time axis (Sim | Wall) for the whole session, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayAxisPayloadDto.
+        SetReplayAxis = 22,
+
+        // ⭐ CE-3329 §12n — set / clear the replay's LOOP range (a session setting of the master's replay clock), from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayLoopPayloadDto.
+        SetReplayLoop = 23,
+
+        // ⭐ CE-4090 (AQ108 D14) — set the cluster-wide run settings (today: Record live runs), held by the master, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums. Payload: SetRunSettingsPayloadDto.
+        SetRunSettings = 24,
+
+        // ⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording (its ledger entry and staging copies), from any host. Payload: ArchivePayloadDto.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums.
+        DeleteExercise = 25,
+
+        // ⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: ask every node whether its whole world differs from its saved baseline, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums. No payload; the answer is UnsavedCheckResult.
+        //   ⚠ Named CheckUnsavedChanges, not CheckUnsaved: IDL scopes enum members by module, and NodeOpType.CheckUnsaved (35) is in the same module.
+        CheckUnsavedChanges = 26,
+
+        // ⭐ New scenario N2 (docs/UX/DESIGN_New_Scenario_And_Recipe.md, R-4135) — write a BLANK scenario (header only, naming its terrain) at the master, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-11-07 — the next free value in BOTH enums. Payload: SaveScenarioRequestJson (name + header {"terrainName": …}).
+        CreateBlankScenario = 27,
+
+        // ⭐ CE-4325 (E7, R-4177, docs/UX/DESIGN_Bookmarks_And_Notes.md §2) — the ONE note CRUD message (add / edit / delete a note of the exercise on show), from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-11-08 — the next free value in BOTH enums. Payload: NoteEditPayloadDto.
+        EditExerciseNote = 28,
     }
 }

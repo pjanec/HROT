@@ -69,11 +69,15 @@ public sealed class PerspectiveCoordinatorSystem
     {
         while (_queue.TryDequeue(out var evt))
         {
+            // ⭐⭐ CE-4088 — the OUTGOING listener goes whatever the incoming perspective is. ⛔ It used to be removed only inside the
+            //   "incoming is mapped" branch, so entering an unmapped perspective (an editor document perspective, AQ108's `Start`) leaked
+            //   the listener and that gizmo group stayed enabled.
+            // GZH-014: transfer gizmo listener — outgoing loses one, incoming gains one.
+            if (_gizmoControllables.TryGetValue(evt.OldPerspective, out var outgoing))
+                outgoing.GizmoController?.RemoveListener();
+
             if (_perspectiveToSubsystemName.TryGetValue(evt.NewPerspective, out var subsystemName))
             {
-                // GZH-014: transfer gizmo listener — outgoing loses one, incoming gains one.
-                if (_gizmoControllables.TryGetValue(evt.OldPerspective, out var outgoing))
-                    outgoing.GizmoController?.RemoveListener();
                 if (_gizmoControllables.TryGetValue(evt.NewPerspective, out var incoming))
                     incoming.GizmoController?.AddListener();
 

@@ -154,7 +154,7 @@ For authority simulation in tests: **entity without `BehaviorState` component = 
 - Minimum: 2 tests for TI001, 3 tests for TI002, 5 tests for TI003
 - All tests must verify **actual behavior**, not just compilation
 - SC-5 for TI003 (authority gate) is non-negotiable — it directly implements the CQRS boundary
-- Run `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` and `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build --nologo` and `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build --nologo` after implementing each task
+- Run `dotnet build HROT.sln --no-restore -v quiet` and `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build --nologo` and `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build --nologo` after implementing each task
 
 ---
 
@@ -189,7 +189,7 @@ Submit `.dev/tactical-intent/reports/BATCH-01-REPORT.md` with:
 - [ ] `TacticalIntentResolutionSystem` exists, wired into `CgfLogicPack.SimulationSystems` after `MissionAdapterSystem`
 - [ ] `CgfSubsystem.cs` passes `new TacticalIntentMapperRegistry()` to `CgfLogicPack` constructor
 - [ ] All 10+ tests passing
-- [ ] `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` reports no errors
+- [ ] `dotnet build HROT.sln --no-restore -v quiet` reports no errors
 
 ---
 

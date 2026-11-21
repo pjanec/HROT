@@ -117,7 +117,7 @@ namespace Hrot.Core.MapDefinitions.Behavior
 **Verify:**
 - Both files compile.
 - `BehaviorCategory.AllMilitary == 14` (MilitaryApc=2, Infantry=4, Insurgent=8).
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 
 ---
 
@@ -174,7 +174,7 @@ Match the integer ID constants and category flags from DESIGN.md § 5.2. Use the
 
 **Verify:**
 - All 9 DTOs have `[BehaviorContract]` attribute and `const string BehaviorId`.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 
 ---
 
@@ -228,15 +228,15 @@ public static class BehaviorSchemaDiscovery
 **Verify:**
 - `BehaviorSchemaDiscovery.cs` compiles in its chosen project.
 - No new circular project dependencies introduced.
-- `dotnet build IOS-IG-SimHost.sln` passes.
-- `dotnet test IOS-IG-SimHost.sln --no-build` - same baseline as before (130 pass, 10 pre-existing integration failures).
+- `dotnet build HROT.sln` passes.
+- `dotnet test HROT.sln --no-build` - same baseline as before (130 pass, 10 pre-existing integration failures).
 
 ---
 
 ## Testing Requirements
 
-1. **After each task:** `dotnet build IOS-IG-SimHost.sln`
-2. **After Task 3 (final):** `dotnet test IOS-IG-SimHost.sln --no-build`
+1. **After each task:** `dotnet build HROT.sln`
+2. **After Task 3 (final):** `dotnet test HROT.sln --no-build`
 
 No new unit tests required for T01 (the types are tested transitively). T02 and T03 tests are mentioned in TASK-DETAIL.md as "success conditions" but these will be verified via the build and integration smoke.
 
@@ -255,10 +255,10 @@ Submit to `.dev/module-phase-manual/reports/BATCH-05-REPORT.md`.
 - [ ] MPM-P5-T03: Create BehaviorSchemaDiscovery
 
 ## Build Status
-[Result of: dotnet build IOS-IG-SimHost.sln]
+[Result of: dotnet build HROT.sln]
 
 ## Test Status
-[Result of: dotnet test IOS-IG-SimHost.sln --no-build]
+[Result of: dotnet test HROT.sln --no-build]
 
 ## Developer Insights
 
@@ -284,7 +284,7 @@ Submit to `.dev/module-phase-manual/reports/BATCH-05-REPORT.md`.
 - [ ] 4 existing DTOs have `[BehaviorContract]` + `const string BehaviorId`
 - [ ] 5 new marker DTO files created with `[BehaviorContract]` + `const string BehaviorId`
 - [ ] `BehaviorSchemaDiscovery.cs` compiles without new project reference cycles
-- [ ] `dotnet build IOS-IG-SimHost.sln` - 0 errors
+- [ ] `dotnet build HROT.sln` - 0 errors
 - [ ] Test count unchanged from BATCH-04 baseline
 - [ ] Report submitted
 

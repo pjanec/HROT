@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using FluentAssertions;
 using Hrot.AiEditor.Generators;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Emit;
 using Hrot.BTree.Editor.Catalog;
@@ -116,6 +117,32 @@ public sealed class BTreeJsonGeneratorTests
         result.Diagnostics.Should().BeEmpty(
             "a valid asset should produce no generator diagnostics");
     }
+
+    /// <summary>⭐ CE-3164 (R-268) — the asset's folder below <c>assets/behaviors/BTrees/</c> is its picker group, written into the
+    /// generated registration; a root-level asset gets none (the picker's "Other"). 🔴 Red before: no Group was emitted.</summary>
+    [Theory]
+    [InlineData("/repo/assets/behaviors/BTrees/Library/Tactics/SampleScout.btree.json", "Library/Tactics")]
+    [InlineData("/repo/assets/behaviors/BTrees/Demos/SampleScout.btree.json", "Demos")]
+    [InlineData("/repo/assets/behaviors/BTrees/SampleScout.btree.json", null)]
+    public void CE3164_TheAssetFolder_IsTheRegisteredGroup(string path, string? group)
+    {
+        string json = BTreeJsonServices.Serialize(BehaviorTreeAssetMapper.ToDto(LoadSampleScout()));
+        var bridge = RunGenerator(MakeAdditionalText(path, json)).GeneratedTrees
+            .First(t => t.FilePath.Contains("Registrar")).ToString();
+        if (group == null) bridge.Should().NotMatchRegex(@"\bGroup\s+=");
+        else bridge.Should().MatchRegex($@"\bGroup\s+= ""{group}"",");
+    }
+
+    /// <summary>⭐ CE-3164 — the group rule itself: Windows or Unix separators, any kind root, root-level ⇒ none.</summary>
+    [Theory]
+    [InlineData(@"C:\repo\assets\behaviors\BTrees\Demos\Urban\Ambush.btree.json", "Demos/Urban")]
+    [InlineData("C:/repo/assets/behaviors/HSMs/Library/Squad/Guard.hsm.json", "Library/Squad")]
+    [InlineData("/repo/assets/behaviors/Blueprints/Samples/Count4.bp.json", "Samples")]
+    [InlineData("/repo/assets/behaviors/Blueprints/Count4.bp.json", null)]
+    [InlineData("/elsewhere/Count4.bp.json", null)]
+    [InlineData(null, null)]
+    public void CE3164_FromAssetPath(string? path, string? group)
+        => Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath(path).Should().Be(group);
 
     [Fact]
     public void ValidBTreeJson_GeneratedFileName_MatchesAssetName()
@@ -235,8 +262,38 @@ public sealed class BTreeJsonGeneratorTests
             "topology core must NOT contain [BTreeLayout( (§6.2)");
     }
 
+    /// <summary>⭐ <c>CE-2073</c>: a Parallel's policy is authorable — a RequireOne (1) survives DTO → model → DTO, and comes back
+    /// when the editor projects the COMPILED tree (the compiler keeps it in IntParams). The default (0) stays out of the JSON, so
+    /// older assets are byte-identical. ⭐ <c>CE-3160</c> (R-266): CombatPosture — the shipped RequireOne — is now a C#-built tree,
+    /// so the authored half reads <c>T03_Parallel</c> with its policy set to 1, and the compiled half still projects CombatPosture.</summary>
     [Fact]
-    public void EmitTopologyCore_EmptyTypeNames_DefaultsToBrainBlackboardAndBTreeContext()
+    public void CE2073_TheParallelPolicy_RoundTrips_AndIsEmitted()
+    {
+        string path = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder), "Tests", "Authoring", "T03_Parallel.btree.json");
+        System.IO.File.Exists(path).Should().BeTrue("the shipped T03_Parallel asset must be found in assets/behaviors/BTrees");
+
+        var dto = BTreeJsonServices.Deserialize(System.IO.File.ReadAllText(path))!;
+        var par = dto.Nodes.OfType<BTreeParallelNodeDto>().Single();
+        par.Policy = 1;
+        dto = BTreeJsonServices.Deserialize(BTreeJsonServices.Serialize(dto))!;
+        dto.Nodes.OfType<BTreeParallelNodeDto>().Single().Policy.Should().Be(1, "JSON round trip");
+
+        var model = BehaviorTreeAssetMapper.FromDto(dto);
+        model.Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel).ParallelPolicy.Should().Be(1, "DTO → model");
+        BehaviorTreeAssetMapper.ToDto(model).Nodes.OfType<BTreeParallelNodeDto>().Single().Policy.Should().Be(1, "model → DTO");
+
+        var contributor = new BTreeAssetContributor();
+        contributor.LoadFrom(BehaviorsAssembly);
+        ((BehaviorTreeAsset)contributor.Enumerate().Single(a => a.Name == "CombatPosture"))
+            .Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel).ParallelPolicy
+            .Should().Be(1, "the editor's projection of the compiled tree must show the policy it runs with");
+
+        par.Policy = 0;
+        System.Text.Json.JsonSerializer.Serialize(par).Should().NotContain("Policy", "the default is omitted");
+    }
+
+    [Fact]
+    public void EmitTopologyCore_EmptyTypeNames_NeverEmitAnUnboundGeneric()
     {
         // Regression: a freshly-created (empty) BTree asset is saved with blank
         // BlackboardTypeName/ContextTypeName and no nodes. Before the fix, EmitCreateBuilder
@@ -261,13 +318,21 @@ public sealed class BTreeJsonGeneratorTests
 
         string core = BTreeEmitCore.EmitTopologyCore(dto);
 
-        core.Should().Contain("BTreeBuilder<BrainBlackboard, BTreeContext>",
-            "empty BlackboardTypeName/ContextTypeName must default to the standard Brain-tier types, " +
-            "not be emitted as an unbound generic name");
+        // ⭐ P4-③ (CE-313): the BLACKBOARD argument is now unconditionally `byte` — the root params
+        //   slot base the Interpreter actually dispatches on — so the empty-blackboard half of the
+        //   CS7003 hazard is structurally IMPOSSIBLE rather than defaulted around.
+        // ⚠ The CONTEXT half is NOT: ctxShort still comes from the asset, so the claim this rail
+        //   exists for is unchanged and still worth asserting.
+        core.Should().Contain("BTreeBuilder<byte, BTreeContext>",
+            "the blackboard generic is always `byte`, and an empty ContextTypeName must still default " +
+            "to the standard Brain-tier context rather than emit an unbound generic name");
         core.Should().NotContain("<, >",
             "an empty type name must never produce an unbound generic argument list (CS7003)");
+        // ⚠ The namespace collector still runs on the asset's BlackboardTypeName, so this using is
+        //   still emitted even though the builder no longer names the type. Asserted deliberately:
+        //   if that collector is ever changed, this says so rather than the change passing silently.
         core.Should().Contain("using Fdp.Toolkit.Behavior.Components;",
-            "the defaulted BrainBlackboard namespace must be in the usings so the short type name resolves");
+            "the blackboard namespace collector still runs off the asset's declared type name");
         core.Should().Contain("using Fdp.Toolkit.Behavior;",
             "the defaulted BTreeContext namespace must be in the usings so the short type name resolves");
     }
@@ -342,13 +407,37 @@ public sealed class BTreeJsonGeneratorTests
         // Params struct. The bools carry [MarshalAs(I1)] (task #3), so the compiled struct is 8 bytes
         // (int@0, bool@4, bool@5, pad→8); WITHOUT that attribute the runtime marshaller would see two
         // 4-byte BOOLs (→12) and every bin-packed offset after it would drift, corrupting AAR/replay.
-        int predicted = StructSizeResolver.ComputeSequentialSize(new[] { 4, 1, 1 });
+        int predicted = global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.SequentialSize(new[] { (4, 4), (1, 1), (1, 1) });
         int reflected = Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>();
 
         predicted.Should().Be(8);
         reflected.Should().Be(predicted,
             "the generator's Sequential size prediction for a composed blueprint's Params must match " +
             "the reflected compiled layout, or bin-packed offsets drift and corrupt AAR/replay schemas");
+    }
+
+    /// <summary>
+    /// 🔴 <c>CE-2111</c> — a node kind the DTO accepts but the emitter does not emit (a decorator authored as a NODE, e.g.
+    /// <c>"kind": "UntilSuccess"</c>) must FAIL THE BUILD, not vanish: it used to become a <c>// Unknown node type</c> comment
+    /// and its whole subtree silently dropped out of the tree (found by the Sentry tree, CE-3079 H2). A decorator is a PILL.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]   // directly under the root
+    [InlineData(true)]    // inside a composite
+    public void CE2111_ADecoratorAuthoredAsANodeKind_EmitsAnError_NotASilentComment(bool underComposite)
+    {
+        Guid root = Guid.NewGuid(), seq = Guid.NewGuid(), until = Guid.NewGuid(), wait = Guid.NewGuid();
+        var dto = new BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = "Ce2111", TargetNamespace = "Ce2111.Trees" };
+        dto.Nodes.Add(new BTreeRootNodeDto { VisualId = root, ChildVisualIds = { underComposite ? seq : until } });
+        if (underComposite) dto.Nodes.Add(new BTreeSequenceNodeDto { VisualId = seq, ChildVisualIds = { until } });
+        dto.Nodes.Add(new BTreeUntilSuccessNodeDto { VisualId = until, ChildVisualIds = { wait } });
+        dto.Nodes.Add(new BTreeWaitNodeDto { VisualId = wait, Wait = new BTreeWaitPayloadDto { Duration = 1f } });
+
+        string code = BTreeEmitCore.EmitTopologyCore(dto);
+
+        code.Should().Contain("#error", "an unemitted node kind must stop the build");
+        code.Should().Contain(until.ToString("D"), "the error names the node");
+        code.Should().NotContain("// Unknown node type").And.NotContain("// Unsupported node type");
     }
 
     [Fact]
@@ -663,6 +752,12 @@ public sealed class BTreeJsonGeneratorTests
     // plus a valid method (CompatAction) and several invalid ones.
     private const string ValidMethodStubs = @"
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+// ⭐ CE-504 slice 4 — the shared node signature names Fdp.Core.Entity / EntityRepository; the stub compilation does not
+//   reference Fdp.Core, so it declares look-alikes (the resolver matches the types by name).
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
@@ -671,14 +766,18 @@ namespace Stub
 
     public static class StubNodes
     {
-        // VALID: matches NodeLogicDelegate<StubBb, StubCtx> exactly.
-        public static NodeStatus CompatAction(
-            ref StubBb blackboard,
-            ref BehaviorTreeState state,
-            ref StubCtx ctx,
-            int paramIndex) => NodeStatus.Running;
+        // ⭐⭐⭐ CE-316: param 0 is `ref byte` — the ROOT PARAMS SLOT BASE — and the asset that binds
+        //   these still declares BlackboardTypeName = ""Stub.StubBb"". That pairing IS the rail: after
+        //   CE-313 the emitted registrar is ActionRegistry<byte, TCtx>, so TBB comes from the EMITTER,
+        //   never from the asset's declared type. ⛔ These stubs used to take `ref StubBb`, which is
+        //   the rule P4-② retired — and the validator kept enforcing it, silently skipping six real
+        //   assets (§30.25 ⑤).
+        // VALID: ⭐ CE-504 slice 4 — the shared param-less form (the whole-block kernel form it used to take is retired).
+        [SharedAiAction]
+        public static NodeStatus CompatAction(Entity self, EntityRepository world) => NodeStatus.Running;
 
-        // INVALID: param 0 is a DTO struct, not the declared blackboard type.
+        // INVALID: param 0 is a DTO struct, not the slot base. ⭐ The NEGATIVE CONTROL — it proves the
+        //   check still has teeth, and that CE-316 moved its source of truth rather than removing it.
         public struct SomeDtoParam { }
         public static NodeStatus DtoParamAction(
             ref SomeDtoParam dto,
@@ -686,15 +785,15 @@ namespace Stub
             ref StubCtx ctx,
             int paramIndex) => NodeStatus.Running;
 
-        // INVALID: param 0 matches the blackboard but wrong arity (3 params instead of 4).
+        // INVALID: param 0 is correct but wrong arity (3 params instead of 4).
         public static NodeStatus WrongArityAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             int paramIndex) => NodeStatus.Running;
 
         // INVALID: returns void instead of NodeStatus.
         public static void WrongReturnAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref StubCtx ctx,
             int paramIndex) { }
@@ -703,7 +802,7 @@ namespace Stub
 ";
 
     private static string BuildBoundActionJson(string methodFqn,
-        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.FourParamFull)
+        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.NoParams)
     {
         var actionId = new Guid("BB170000-0000-0000-0000-000000000001");
         var dto = new BehaviorTreeAssetDto
@@ -720,11 +819,11 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = methodFqn,
-                        DelegateShape = shape,
                     },
+                    DelegateShape = shape,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -736,7 +835,7 @@ namespace Stub
     }
 
     private static string BuildBoundConditionJson(string methodFqn,
-        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.FourParamFull)
+        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.NoParams)
     {
         var condId = new Guid("BB170000-0000-0000-0000-000000000002");
         var dto = new BehaviorTreeAssetDto
@@ -753,11 +852,11 @@ namespace Stub
                     VisualId = condId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Condition = new BTreeConditionPayloadDto
+                    Condition = new BehaviorActionBindingDto
                     {
                         MethodFqn = methodFqn,
-                        DelegateShape = shape,
                     },
+                    DelegateShape = shape,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -985,7 +1084,7 @@ namespace Stub
         structSource!.Should().Contain("[MarshalAs(UnmanagedType.I1)]",
             "bool fields require [MarshalAs(UnmanagedType.I1)] for sequential layout correctness");
 
-        // Total must be within 100-byte inline budget.
+        // Total must be within the params ceiling (CE-307: was a 100-byte inline budget).
         packResult.TotalInlineBytes.Should().BeLessOrEqualTo(BlackboardBinPacker.MaxInlineBytes,
             "test fixture must fit in the inline budget");
     }
@@ -1039,24 +1138,24 @@ namespace Stub
                     VisualId = conditionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Condition = new BTreeConditionPayloadDto
+                    Condition = new BehaviorActionBindingDto
                     {
                         MethodFqn = conditionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Counter",   // offset 0
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
                 new BTreeActionNodeDto
                 {
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Threshold",  // offset 4
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1096,7 +1195,7 @@ namespace Stub
     /// (a) the registrar registers under the SAME keys the topology blob uses
     ///     ("{conditionFqn}@0", "{actionFqn}@4") — proving blob key == registry key, and
     /// (b) each thunk projects at the baked offset
-    ///     (Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0) for @0,
+    ///     (Unsafe.AddByteOffset(ref bb, (nint)0) for @0,
     ///      and (nint)4 for @4) — proving the offset is wired in, not @0 for everything.
     /// </summary>
     [Fact]
@@ -1143,24 +1242,24 @@ namespace Stub
                     VisualId = conditionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Condition = new BTreeConditionPayloadDto
+                    Condition = new BehaviorActionBindingDto
                     {
                         MethodFqn = conditionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Counter",   // offset 0
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
                 new BTreeActionNodeDto
                 {
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Threshold",  // offset 4
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1184,27 +1283,39 @@ namespace Stub
             "action registry key must be {actionFqn}@4 (== blob key)");
 
         // (b) Baked offset must be wired into each thunk projection.
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0)",
             "the @0 binding must project at byte offset 0");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)4)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)4)",
             "the @4 binding must project at byte offset 4 (not @0 for everything)");
     }
 
     /// <summary>
-    /// S1-2: A managed asset whose variables exceed 100 bytes must be SKIPPED BY THE GENERATOR
-    /// with a BTREE0002 Warning — never a hard build break, and no oversized struct emitted.
+    /// S1-2: A managed asset whose variables exceed the params ceiling must be SKIPPED BY THE
+    /// GENERATOR with a BTREE0002 Warning — never a hard build break, and no oversized struct emitted.
     ///
-    /// Corrective round (BATCH-02 review): this test now RUNS THE GENERATOR on the 13×Vector3
-    /// managed asset (same harness as ManagedAsset_Generator_EmitsThreeFiles_*) instead of only
-    /// poking WouldOverflow/Pack directly, so it verifies the real generator path (the previous
-    /// version never exercised GenerateOneAsset and so could not catch a silent oversized emit).
+    /// Corrective round (BATCH-02 review): this test RUNS THE GENERATOR on the oversized managed asset
+    /// (same harness as ManagedAsset_Generator_EmitsThreeFiles_*) instead of only poking
+    /// WouldOverflow/Pack directly, so it verifies the real generator path (the previous version never
+    /// exercised GenerateOneAsset and so could not catch a silent oversized emit).
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-307</c> (2026-09-22) — THE MECHANISM IS UNCHANGED; THE THRESHOLD MOVED.</b>
+    /// This used to overflow with <b>13 × Vector3 = 156 B</b> against a 100-byte cap. ⛔ That cap was a
+    /// buffer-overrun guard for params stored inline in <c>BrainBlackboard</c>; params now occupy their
+    /// own occurrence slot, so the only real bound is the largest tier's payload. ⭐ <b>The fixture is
+    /// sized FROM the constant</b>, so it keeps testing the skip-on-overflow path if the ceiling moves
+    /// again — ⛔ a hard-coded count would have to be found and edited by hand, which is how the
+    /// previous number outlived its reason.</para>
     /// </summary>
     [Fact]
-    public void ManagedAsset_MasterDtoOver100Bytes_HardErrors()
+    public void ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped()
     {
-        // Build a managed DTO with 13 × Vector3 (13 × 12 = 156 bytes > 100).
+        // Vector3 is 12 bytes and packs at alignment 4 with no padding between fields, so the
+        // aggregate is 12 × count. Two spare fields put it unambiguously over the ceiling.
+        const int Vector3Bytes = 12;
+        int fieldCount = (BTreeBlackboardPackHelper.MaxInlineBytes / Vector3Bytes) + 2;
+
         var vars = new List<BlackboardVariableDto>();
-        for (int i = 0; i < 13; i++)
+        for (int i = 0; i < fieldCount; i++)
         {
             vars.Add(new BlackboardVariableDto
             {
@@ -1215,7 +1326,9 @@ namespace Stub
 
         // Small standalone sanity check on the pack helper (kept from the original test).
         bool overflow = BTreeBlackboardPackHelper.WouldOverflow(vars, out string? unknownType);
-        overflow.Should().BeTrue("13 Vector3 fields (156 bytes) exceeds 100-byte inline budget");
+        overflow.Should().BeTrue(
+            $"{fieldCount} Vector3 fields ({fieldCount * Vector3Bytes} bytes) exceeds the "
+            + $"{BTreeBlackboardPackHelper.MaxInlineBytes}-byte params ceiling");
         unknownType.Should().BeNull("Vector3 is a known type");
 
         // Build a managed asset (Wait node — no method binding, avoids validator interference)
@@ -1356,8 +1469,13 @@ namespace Stub
         var structSource = result.GeneratedTrees
             .First(t => t.FilePath.EndsWith("ManagedWaitTree.Blackboard.g.cs"))
             .ToString();
-        structSource.Should().Contain("[StructLayout(LayoutKind.Sequential)]",
-            "struct source must carry [StructLayout(Sequential)]");
+        // ⭐ CE-418: the struct is the SINGLE layout authority now — Explicit, sized by Pack, with
+        //   Pack's offsets stamped per field. Sequential would hand the CLR a second opinion, which
+        //   is the defect this replaced (3 of 15 behaviours disagreed with their own manifest).
+        structSource.Should().Contain("[StructLayout(LayoutKind.Explicit, Size = 4)]",
+            "struct source must carry Explicit layout sized by Pack (CE-418)");
+        structSource.Should().Contain("[FieldOffset(0)]",
+            "every field must carry Pack's offset explicitly (CE-418)");
         structSource.Should().Contain("ManagedWaitTreeBlackboard",
             "struct source must use the TypeName from the DTO");
         structSource.Should().Contain("public int Counter;",
@@ -1366,12 +1484,18 @@ namespace Stub
         result.Diagnostics.Should().BeEmpty("no diagnostics for a valid managed asset");
     }
 
-    // ── BATCH-02 S1-4: ThreeParamReusable validator unblock ────────────────────
+    // ── BATCH-02 S1-4: Plain validator unblock ────────────────────
 
     // Stubs for S1-4 tests: DemoCounterParams DTO + 3-param action/condition.
     private const string ThreeParamStubs = @"
 using System.Runtime.InteropServices;
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+// ⭐ CE-504 slice 4 — the shared node signature names Fdp.Core.Entity / EntityRepository; the stub compilation does not
+//   reference Fdp.Core, so it declares look-alikes (the resolver matches the types by name).
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
@@ -1386,22 +1510,27 @@ namespace Stub
 
     public static class DemoCounterNodes
     {
+        // ⭐ CE-504 slice 4 — the shared forms (the BTree-only (ref P, ref BTS, ref Ctx) form is retired).
+        [SharedAiAction]
         public static NodeStatus Action_IncrementCounter(
-            ref DemoCounterParams p,
-            ref BehaviorTreeState state,
-            ref StubCtx ctx) => NodeStatus.Success;
+            ref DemoCounterParams p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiCondition]
         public static NodeStatus Condition_CounterBelowThreshold(
-            ref DemoCounterParams p,
-            ref BehaviorTreeState state,
-            ref StubCtx ctx) => p.Counter < p.Threshold ? NodeStatus.Success : NodeStatus.Failure;
+            ref DemoCounterParams p, Entity self, EntityRepository world)
+            => p.Counter < p.Threshold ? NodeStatus.Success : NodeStatus.Failure;
 
         // WRONG: type mismatch — takes StubBb, not DemoCounterParams.
         public struct StubBb { }
+        [SharedAiAction]
         public static NodeStatus WrongTypeAction(
-            ref StubBb bb,
+            ref StubBb bb, Entity self, EntityRepository world) => NodeStatus.Running;
+
+        // WRONG: the retired BTree-only 3-param form.
+        public static NodeStatus RetiredFormAction(
+            ref DemoCounterParams p,
             ref BehaviorTreeState state,
-            ref StubCtx ctx) => NodeStatus.Running;
+            ref StubCtx ctx) => NodeStatus.Success;
 
         // WRONG: 4 params instead of 3.
         public static NodeStatus FourParamAction(
@@ -1427,12 +1556,12 @@ namespace Stub
                 VisualId = actionId,
                 ChildVisualIds = new List<Guid>(),
                 EditorMetadata = new NodeEditorMetadataDto(),
-                Action = new BTreeActionPayloadDto
+                Action = new BehaviorActionBindingDto
                 {
                     MethodFqn = methodFqn,
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                     ExpressionTargetField = expressionTargetField,
                 },
+                DelegateShape = BTreeDelegateShapeDto.Plain,
             });
         }
         else
@@ -1442,12 +1571,12 @@ namespace Stub
                 VisualId = actionId,
                 ChildVisualIds = new List<Guid>(),
                 EditorMetadata = new NodeEditorMetadataDto(),
-                Condition = new BTreeConditionPayloadDto
+                Condition = new BehaviorActionBindingDto
                 {
                     MethodFqn = methodFqn,
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                     ExpressionTargetField = expressionTargetField,
                 },
+                DelegateShape = BTreeDelegateShapeDto.Plain,
             });
         }
 
@@ -1534,12 +1663,12 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = "Stub.DemoCounterNodes.Action_IncrementCounter",
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = null, // MISSING
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1619,15 +1748,18 @@ namespace Stub
     ///   - Stub.VecParams         {int A; Vector3 B}                              → 24 bytes (A@0 size4, B@8 size12, AlignUp(20,8)=24)
     ///   - Stub.StubCtx2          (context type for this fixture)
     ///   Actions:
-    ///   - Action_TwoInt(ref TwoIntParams, ref BehaviorTreeState, ref StubCtx2)
-    ///   - Action_ThreeField(ref ThreeFieldParams, ref BehaviorTreeState, ref StubCtx2)
-    ///   - Action_Nested(ref ContainerParams.NestedDto, ref BehaviorTreeState, ref StubCtx2)
-    ///   - Action_Vec(ref VecParams, ref BehaviorTreeState, ref StubCtx2)
+    ///   - Action_TwoInt / Action_ThreeField / Action_Nested / Action_Vec — [SharedAiAction] (ref P, Entity, EntityRepository)
     /// </summary>
     private const string StructDtoStubs = @"
 using System.Runtime.InteropServices;
 using System.Numerics;
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+// ⭐ CE-504 slice 4 — the shared node signature names Fdp.Core.Entity / EntityRepository; the stub compilation does not
+//   reference Fdp.Core, so it declares look-alikes (the resolver matches the types by name).
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
@@ -1650,17 +1782,21 @@ namespace Stub
 
     public static class StructDtoNodes
     {
+        [SharedAiAction]
         public static NodeStatus Action_TwoInt(
-            ref TwoIntParams p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref TwoIntParams p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiAction]
         public static NodeStatus Action_ThreeField(
-            ref ThreeFieldParams p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref ThreeFieldParams p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiAction]
         public static NodeStatus Action_Nested(
-            ref ContainerParams.NestedDto p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref ContainerParams.NestedDto p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiAction]
         public static NodeStatus Action_Vec(
-            ref VecParams p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref VecParams p, Entity self, EntityRepository world) => NodeStatus.Success;
     }
 }
 ";
@@ -1719,11 +1855,11 @@ namespace Stub
         int? nestedSize = StructSizeResolver.Resolve("Stub.ContainerParams+NestedDto", compilation);
         nestedSize.Should().Be(8, "ContainerParams+NestedDto = {int,float} → 8 bytes");
 
-        // VecParams: {int A(4); Vector3 B(12)} → A@0(4), B@8(align=8), raw end=20,
-        // maxAlign=8 → AlignUp(20,8)=24.
+        // ⭐ CE-2027 — VecParams: {int A(4); Vector3 B(12)} → A@0(4), B@4 (a Vector3 is 4-aligned — the CLR's rule; the old
+        // "align = min(size, 8)" guess put it at 8 and called 24 "managed sequential", refuted by Unsafe.SizeOf), end=16.
         int? vecSize = StructSizeResolver.Resolve("Stub.VecParams", compilation);
-        vecSize.Should().Be(24,
-            "VecParams = {int@0(4), Vector3@8(12)} → raw=20, maxAlign=8, AlignUp(20,8)=24 (managed sequential)");
+        vecSize.Should().Be(16,
+            "VecParams = {int@0(4), Vector3@4(12)} → 16, the CLR's managed size (CE-2027; was 24 under the min(size, 8) guess)");
 
         // Reference check: ensure bool=1 assumption.
         // A {int; bool} struct: A@0(4), B@4(1) → raw=5, maxAlign=4, padded=8.
@@ -1897,7 +2033,7 @@ namespace Stub
         packed[1].ByteSize.Should().Be(12, "ThreeFieldParams is 12 bytes");
 
         total.Should().Be(20, "total = 8+12 = 20 bytes");
-        total.Should().BeLessOrEqualTo(BTreeBlackboardPackHelper.MaxInlineBytes, "must fit in 100-byte budget");
+        total.Should().BeLessOrEqualTo(BTreeBlackboardPackHelper.MaxInlineBytes, "must fit in the params ceiling");
 
         // Emit struct and verify both fields declared with global::-qualified names.
         var dto = BuildManagedDtoWithVars("StructDtoPackTest", vars);
@@ -1971,24 +2107,24 @@ namespace Stub
                     VisualId = act1Id,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn1,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Params1",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
                 new BTreeActionNodeDto
                 {
                     VisualId = act2Id,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn2,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Params2",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2016,16 +2152,16 @@ namespace Stub
             "registrar key for Params1 must be @0");
         registrar.Should().Contain($"\"{actionFqn2}@8\"",
             "registrar key for Params2 must be @8 (== blob key)");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0)",
             "Params1 thunk must project at offset 0");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)8)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8)",
             "Params2 thunk must project at resolved offset 8 (single offset source)");
     }
 
     // ── Test 4: NestedStructDto_TypeMatch_Validates ───────────────────────────
 
     /// <summary>
-    /// S1-2b: A ThreeParamReusable binding whose variable TypeId uses the '+' nested-type
+    /// S1-2b: A Plain binding whose variable TypeId uses the '+' nested-type
     /// separator must validate when the param-0 type is the same struct (the validator
     /// normalizes '+' → '.' before comparing, so the separator never causes a false rejection).
     /// </summary>
@@ -2052,12 +2188,12 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "NestedParam",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2095,22 +2231,27 @@ namespace Stub
             "valid nested-DTO asset must emit topology + struct + bridge");
     }
 
-    // ── Test 5: StructDtoVariable_AggregateOver100Bytes_SkipsWithBtree0002 ───
+    // ── Test 5: StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002 ───
 
     /// <summary>
-    /// S1-2b: A managed asset whose resolved struct sizes sum >100 bytes must emit
+    /// S1-2b: A managed asset whose resolved struct sizes sum past the params ceiling must emit
     /// a BTREE0002 Warning and no .Blackboard.g.cs (generator skips entirely).
     /// Uses the full generator pipeline (same pattern as BATCH-02 overflow rewrite).
+    ///
+    /// <para>⭐⭐ <b><c>CE-307</c> (2026-09-22)</b> — was 6 × <c>VecParams</c> against a 100-byte cap.
+    /// ⭐ The fixture is now sized FROM the constant; the resolved-struct-size path it exercises is
+    /// unchanged.</para>
     /// </summary>
     [Fact]
-    public void StructDtoVariable_AggregateOver100Bytes_SkipsWithBtree0002()
+    public void StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002()
     {
-        // VecParams is 24 bytes (managed sequential: int@0, Vector3@8, AlignUp(20,8)=24).
-        // Each VecParams: size=24, align=min(24,8)=8.
-        // V0@0(24), V1@24(24), V2@48(24), V3@72(24), V4@96(24), end@120 > 100B.
-        // 5 VecParams already exceeds 100. Use 6 to be safe.
+        // VecParams is 16 bytes (managed sequential: int@0, Vector3@4 — CE-2027; 24 under the old alignment guess)
+        // and packs at alignment min(24,8)=8, so 24 divides evenly and there is no padding.
+        const int VecParamsBytes = 16;
+        int fieldCount = (BTreeBlackboardPackHelper.MaxInlineBytes / VecParamsBytes) + 2;
+
         var vars = new List<BlackboardVariableDto>();
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < fieldCount; i++)
             vars.Add(new BlackboardVariableDto
             {
                 Name = $"V{i}",
@@ -2156,7 +2297,7 @@ namespace Stub
         result.Diagnostics.Should().ContainSingle(d =>
             d.Id == BTreeJsonGenerator.CodegenWarningId &&
             d.Severity == DiagnosticSeverity.Warning,
-            "struct-DTO aggregate >100 bytes must produce exactly one BTREE0002 Warning");
+            "a struct-DTO aggregate over the params ceiling must produce exactly one BTREE0002 Warning");
         result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
             .Should().BeEmpty("overflow must never be a hard build break");
 
@@ -2276,21 +2417,24 @@ namespace Stub
     // ── HAJSON-B: [BTreeDeactivator] deactivator registration ─────────────────
 
     /// <summary>
-    /// Stub source for HAJSON-B tests.
+    /// Stub source for HAJSON-B tests. ⭐ <c>CE-504</c> slice 4: every node and deactivator takes a SHARED form, and a
+    /// deactivator names its action by method FQN (it is registered per BINDING, under the binding's own key).
     ///
     /// Defines:
-    ///   - Stub.HajsonBb (blackboard — FourParamFull shape)
-    ///   - Stub.HajsonCtx (context)
-    ///   - Stub.HajsonDto (DTO struct for ThreeParamReusable)
-    ///   - Stub.HajsonNodes.Action_Full      — 4-param action (FourParamFull)
-    ///   - Stub.HajsonNodes.Deactivate_Full  — 4-param deactivator paired with Action_Full
-    ///   - Stub.HajsonNodes.Action_Dto       — 3-param action (ThreeParamReusable)
-    ///   - Stub.HajsonNodes.Deactivate_Dto   — 3-param deactivator paired with Action_Dto@0
-    ///   - Stub.HajsonNodes.Action_NoDe      — 4-param action with NO paired deactivator
+    ///   - Stub.HajsonCtx (context), Stub.HajsonDto (params struct)
+    ///   - Stub.HajsonNodes.Action_Full / Deactivate_Full — param-less (Entity, EntityRepository) pair
+    ///   - Stub.HajsonNodes.Action_Dto  / Deactivate_Dto  — plain (ref HajsonDto, Entity, EntityRepository) pair
+    ///   - Stub.HajsonNodes.Action_Legacy / Deactivate_Legacy — a target still spelled with the pre-slice-4 "@0" suffix
+    ///   - Stub.HajsonNodes.Action_NoDe — no paired deactivator
+    ///   - Stub.HajsonNodes.Action_Retired / Deactivate_Retired — a deactivator in the RETIRED (ref, ref BTS, ref Ctx) form
     /// </summary>
     private const string DeactivatorStubs = @"
 using System.Runtime.InteropServices;
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
@@ -2302,40 +2446,37 @@ namespace Stub
 
     public static class HajsonNodes
     {
-        // 4-param action (FourParamFull)
-        public static NodeStatus Action_Full(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
-            => NodeStatus.Running;
+        [SharedAiAction]
+        public static NodeStatus Action_Full(Entity self, EntityRepository world) => NodeStatus.Running;
 
-        // 4-param deactivator paired with Action_Full (key = bare FQN)
         [BTreeDeactivator(""Stub.HajsonNodes.Action_Full"")]
-        public static void Deactivate_Full(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
-        { }
+        public static void Deactivate_Full(Entity self, EntityRepository world) { }
 
-        // 3-param action (ThreeParamReusable), DTO = HajsonDto at offset 0
-        public static NodeStatus Action_Dto(
-            ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx)
-            => NodeStatus.Running;
+        [SharedAiAction]
+        public static NodeStatus Action_Dto(ref HajsonDto dto, Entity self, EntityRepository world) => NodeStatus.Running;
 
-        // 3-param deactivator paired with Action_Dto at offset 0
-        [BTreeDeactivator(""Stub.HajsonNodes.Action_Dto@0"")]
-        public static void Deactivate_Dto(
-            ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx)
-        { }
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Dto"")]
+        public static void Deactivate_Dto(ref HajsonDto dto, Entity self, EntityRepository world) { }
 
-        // 4-param action with NO paired deactivator
-        public static NodeStatus Action_NoDe(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
-            => NodeStatus.Running;
+        [SharedAiAction]
+        public static NodeStatus Action_Legacy(ref HajsonDto dto, Entity self, EntityRepository world) => NodeStatus.Running;
+
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Legacy@0"")]
+        public static void Deactivate_Legacy(Entity self, EntityRepository world) { }
+
+        [SharedAiAction]
+        public static NodeStatus Action_NoDe(Entity self, EntityRepository world) => NodeStatus.Running;
+
+        [SharedAiAction]
+        public static NodeStatus Action_Retired(ref HajsonDto dto, Entity self, EntityRepository world) => NodeStatus.Running;
+
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Retired"")]
+        public static void Deactivate_Retired(ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx) { }
     }
 }
 ";
 
-    /// <summary>
-    /// Builds a non-managed FourParamFull DTO that binds a single Action node to a given method FQN.
-    /// Used for the bare-key (4-param) deactivator tests.
-    /// </summary>
+    /// <summary>A non-managed asset binding one param-less Action node.</summary>
     private static BehaviorTreeAssetDto BuildNonManagedActionDto(string methodFqn, string assetName = "HajsonFullAsset")
     {
         var actionId = new Guid("AA100000-0000-0000-0000-000000000001");
@@ -2353,11 +2494,11 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn     = methodFqn,
-                        DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.NoParams,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2368,12 +2509,18 @@ namespace Stub
     }
 
     /// <summary>
-    /// Builds a managed ThreeParamReusable DTO that binds a single Action node to a given method FQN
-    /// targeting the "Value" field (offset 0) of HajsonDto.
+    /// A managed asset binding one Action node to <paramref name="methodFqn"/> at the HajsonDto variable "Value".
+    /// ⭐ <paramref name="padBefore"/> puts an <c>int</c> variable FIRST, so "Value" packs at a NON-ZERO offset — the case
+    /// the pre-slice-4 hard-coded <c>"…@0"</c> pairing could not reach.
     /// </summary>
-    private static BehaviorTreeAssetDto BuildManagedThreeParamDeactivatorDto(string methodFqn, string assetName = "HajsonDtoAsset")
+    private static BehaviorTreeAssetDto BuildManagedThreeParamDeactivatorDto(
+        string methodFqn, string assetName = "HajsonDtoAsset", bool padBefore = false)
     {
         var actionId = new Guid("AB100000-0000-0000-0000-000000000001");
+        var vars = new List<BlackboardVariableDto>();
+        if (padBefore)
+            vars.Add(new BlackboardVariableDto { Name = "Pad", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } });
+        vars.Add(new BlackboardVariableDto { Name = "Value", Type = new BlackboardTypeRefDto { TypeId = "Stub.HajsonDto" } });
         return new BehaviorTreeAssetDto
         {
             AssetId = new Guid("AB100000-0000-0000-0000-AABBCCDD0001"),
@@ -2388,12 +2535,12 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn             = methodFqn,
-                        DelegateShape         = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Value",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2404,81 +2551,97 @@ namespace Stub
             {
                 Managed  = true,
                 TypeName = "HajsonDtoBlackboard",
-                Variables = new List<BlackboardVariableDto>
-                {
-                    new BlackboardVariableDto
-                    {
-                        Name = "Value",
-                        Type = new BlackboardTypeRefDto { TypeId = "Stub.HajsonDto" },
-                    },
-                },
+                Variables = vars,
             },
         };
     }
 
-    /// <summary>
-    /// HAJSON-B: A 4-param FourParamFull action bound in a non-managed asset, where
-    /// the compilation contains a [BTreeDeactivator] companion, must emit
-    /// <c>actionRegistry.RegisterDeactivator("Stub.HajsonNodes.Action_Full", ...)</c>
-    /// in the generated registrar.
-    /// </summary>
+    private static string BridgeOf(GeneratorDriverRunResult result)
+        => result.GeneratedTrees.First(t => t.FilePath.EndsWith("Registrar.g.cs")).ToString();
+
+    /// <summary>HAJSON-B / CE-504: a param-less action's param-less deactivator is registered under the bare-FQN key.</summary>
     [Fact]
-    public void Deactivator_FourParam_Action_EmitsRegisterDeactivatorCall()
+    public void Deactivator_NoParams_Action_EmitsRegisterDeactivatorCall()
     {
         var dto  = BuildNonManagedActionDto("Stub.HajsonNodes.Action_Full");
-        string json = BTreeJsonServices.Serialize(dto);
-
         var result = RunGeneratorWithStubs(DeactivatorStubs,
-            MakeAdditionalText("/p/HajsonFull.btree.json", json));
+            MakeAdditionalText("/p/HajsonFull.btree.json", BTreeJsonServices.Serialize(dto)));
 
-        // Asset must emit 2 files (non-managed: topology + bridge, no blackboard struct)
-        result.GeneratedTrees.Should().HaveCount(2,
-            "non-managed asset with FourParamFull action must emit topology core + bridge");
         result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
-            "valid bound action must not trigger BTREE0002");
-
-        // Bridge file must contain the RegisterDeactivator call.
-        var bridge = result.GeneratedTrees
-            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
-            .ToString();
-
+            "a valid param-less binding and deactivator must not trigger BTREE0002");
+        var bridge = BridgeOf(result);
         bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Full\"",
-            "bridge must call RegisterDeactivator with the action's bare FQN key");
-        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Full",
-            "bridge must reference the deactivator method directly (4-param = no wrapper)");
+            "the deactivator is registered under the node's bare-FQN key");
+        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Full(ctx.Self, ctx.World)",
+            "the param-less deactivator is called with the shared (Entity, EntityRepository) arguments");
+    }
+
+    /// <summary>HAJSON-B / CE-504: a plain deactivator is projected at its binding's offset — offset 0 here.</summary>
+    [Fact]
+    public void Deactivator_Plain_Action_EmitsWrapperLambda_WithBakedOffset()
+    {
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Dto");
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonDto.btree.json", BTreeJsonServices.Serialize(dto)));
+
+        result.GeneratedTrees.Should().HaveCount(3,
+            "managed asset must emit topology core + blackboard struct + bridge");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId);
+        var bridge = BridgeOf(result);
+        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@0\"",
+            "the deactivator is registered under the binding's {methodFqn}@{offset} key");
+        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Dto(ref dto, ctx.Self, ctx.World)");
+        bridge.Should().Contain("(nint)0", "the wrapper projects the params at the binding's offset");
     }
 
     /// <summary>
-    /// HAJSON-B: A 3-param ThreeParamReusable action in a managed asset, where
-    /// the compilation contains a [BTreeDeactivator] companion, must emit a
-    /// RegisterDeactivator call with a wrapper lambda that projects the DTO at offset 0.
+    /// ⭐⭐ CE-504 slice 4 — the rail for the "@0" coincidence: a binding whose variable packs at a NON-ZERO offset still
+    /// gets its deactivator, under ITS key and projected at ITS offset. 🔴 Before slice 4 the deactivator carried a
+    /// hard-coded <c>"…@0"</c> key and silently never paired with this binding.
     /// </summary>
     [Fact]
-    public void Deactivator_ThreeParam_Action_EmitsWrapperLambda_WithBakedOffset()
+    public void Deactivator_PairsPerBinding_AtANonZeroOffset()
     {
-        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Dto");
-        string json = BTreeJsonServices.Serialize(dto);
-
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Dto", "HajsonOffsetAsset", padBefore: true);
         var result = RunGeneratorWithStubs(DeactivatorStubs,
-            MakeAdditionalText("/p/HajsonDto.btree.json", json));
+            MakeAdditionalText("/p/HajsonOffset.btree.json", BTreeJsonServices.Serialize(dto)));
 
-        // Managed asset must emit 3 files (topology + blackboard struct + bridge).
-        result.GeneratedTrees.Should().HaveCount(3,
-            "managed asset must emit topology core + blackboard struct + bridge");
-        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
-            "valid bound action must not trigger BTREE0002");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId);
+        var bridge = BridgeOf(result);
+        bridge.Should().Contain("actionRegistry.Register(\"Stub.HajsonNodes.Action_Dto@4\"",
+            "precondition: the int variable packs first, so the bound HajsonDto lands at offset 4");
+        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@4\"",
+            "the deactivator pairs with the binding at offset 4, under the binding's own key");
+        bridge.Should().NotContain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@0\"",
+            "no registration under a key no node uses");
+    }
 
-        // Bridge file must contain the RegisterDeactivator call with wrapper lambda.
-        var bridge = result.GeneratedTrees
-            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
-            .ToString();
+    /// <summary>CE-504: a target still spelled with the pre-slice-4 <c>"@0"</c> suffix pairs by method, so it keeps working.</summary>
+    [Fact]
+    public void Deactivator_LegacyOffsetSuffixInTheTarget_StillPairsByMethod()
+    {
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Legacy", "HajsonLegacyAsset", padBefore: true);
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonLegacy.btree.json", BTreeJsonServices.Serialize(dto)));
 
-        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@0\"",
-            "bridge must call RegisterDeactivator with the {methodFqn}@{offset} key");
-        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Dto",
-            "bridge must reference the 3-param deactivator method in the wrapper");
-        bridge.Should().Contain("(nint)0",
-            "wrapper lambda must bake in byte offset 0 for the DTO projection");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId);
+        BridgeOf(result).Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Legacy@4\"");
+    }
+
+    /// <summary>
+    /// ⛔ CE-504 slice 4 — a deactivator in the retired (ref, ref BehaviorTreeState, ref TCtx) form skips the WHOLE asset with
+    /// BTREE0002 — never a deactivator that silently stops firing.
+    /// </summary>
+    [Fact]
+    public void Deactivator_RetiredForm_SkipsTheAssetWithBtree0002()
+    {
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Retired", "HajsonRetiredAsset");
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonRetired.btree.json", BTreeJsonServices.Serialize(dto)));
+
+        result.GeneratedTrees.Should().BeEmpty("the asset is skipped whole, never partially emitted");
+        result.Diagnostics.Should().ContainSingle(d => d.Id == BTreeJsonGenerator.CodegenWarningId)
+            .Which.GetMessage().Should().Contain("Deactivate_Retired").And.Contain("retired form");
     }
 
     /// <summary>
@@ -2488,23 +2651,15 @@ namespace Stub
     [Fact]
     public void Deactivator_NoCompanion_DoesNotEmitRegisterDeactivatorCall()
     {
-        // Action_NoDe has no [BTreeDeactivator] annotation in the stubs.
         var dto = BuildNonManagedActionDto("Stub.HajsonNodes.Action_NoDe", "HajsonNoDeAsset");
-        string json = BTreeJsonServices.Serialize(dto);
-
         var result = RunGeneratorWithStubs(DeactivatorStubs,
-            MakeAdditionalText("/p/HajsonNoDe.btree.json", json));
+            MakeAdditionalText("/p/HajsonNoDe.btree.json", BTreeJsonServices.Serialize(dto)));
 
         result.GeneratedTrees.Should().HaveCount(2,
             "valid non-managed asset without deactivator must still emit topology + bridge");
         result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
             "absence of a deactivator is not an error");
-
-        var bridge = result.GeneratedTrees
-            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
-            .ToString();
-
-        bridge.Should().NotContain("RegisterDeactivator",
+        BridgeOf(result).Should().NotContain("RegisterDeactivator",
             "bridge must NOT emit RegisterDeactivator when no companion exists");
     }
 
@@ -2598,13 +2753,13 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = methodFqn,
-                        DelegateShape = BTreeDelegateShapeDto.AiPrimitiveTickCore,
                         ExpressionTargetField = "bpParams",
                         WorkingStateTypeId = workingStateTypeId,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.AiPrimitiveTickCore,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2700,7 +2855,7 @@ namespace Stub
         size.Should().Be(8, "int(4)@0 + bool(1)@4 → raw=5, maxAlign=4 → AlignUp(5,4)=8");
 
         // Cross-check: the SAME field-size sequence run through the shared alignment primitive
-        // (StructSizeResolver.ComputeSequentialSize — the one the Roslyn-symbol path itself uses,
+        // (RoslynStructLayout.SequentialSize — the one the Roslyn-symbol path itself uses, CE-2027,
         // via ComputeStructSize) must produce the identical total. This proves the schema-driven
         // fallback reuses that one alignment routine rather than a hand-rolled second copy.
         //
@@ -2709,9 +2864,76 @@ namespace Stub
         // group's own max alignment is needed, since it's not itself a single array-element
         // struct type), whereas a real struct's managed byte size (what Params actually is, once
         // the blueprint's type exists) DOES need that trailing pad — hence AlignUp(5,4)=8, not 5.
-        int reference = StructSizeResolver.ComputeSequentialSize(new[] { 4, 1 });
+        int reference = global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.SequentialSize(new[] { (4, 4), (1, 1) });
         reference.Should().Be(size!.Value,
             "the schema-driven Params size must match the shared ComputeSequentialSize primitive directly — same alignment math, no second copy");
+    }
+
+    // ── ⭐⭐ CE-2026 (S8c) — ONE generated-type catalogue ─────────────────────────────────────────────────────────
+
+    private static Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto InputsTree(string name, params (string Name, string TypeId)[] inputs)
+    {
+        var dto = new Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = name };
+        dto.Blackboard.Managed = true;
+        foreach (var (n, t) in inputs)
+            dto.Blackboard.Variables.Add(new BlackboardVariableDto { Name = n, Type = new BlackboardTypeRefDto { TypeId = t } });
+        return dto;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2026</c> — <c>Declares</c> names exactly the types a SIBLING generator emits in this run: a BTree's and an HSM's
+    /// Inputs struct and a generated blueprint class or a type nested in it — in either spelling — and nothing else.
+    /// </summary>
+    [Fact]
+    public void S8c_TheCatalogue_DeclaresSiblingGeneratedTypes_AndNothingElse()
+    {
+        const string bpJson = @"{ ""AssetId"": ""11111111-1111-1111-1111-111111111111"", ""Name"": ""TestBp"", ""Dispatch"": ""AiPrimitive"", ""Parameters"": [] }";
+        var tree = InputsTree("CatTree", ("Speed", "System.Single"));
+        var hsm = new Hrot.AiEditor.Persistence.Hsm.HsmAssetDto { AssetId = Guid.NewGuid(), Name = "CatMachine" };
+        hsm.Blackboard.Managed = true;
+        hsm.Blackboard.Variables.Add(new Hrot.AiEditor.Persistence.Hsm.HsmBlackboardVariableDto
+        { Name = "Laps", Type = new Hrot.AiEditor.Persistence.Hsm.HsmBlackboardTypeRefDto { TypeId = "System.Int32" } });
+
+        var catalog = GeneratedTypeCatalog.Parse(
+            ImmutableArray.Create(("/p/TestBp.bp.json", bpJson)),
+            ImmutableArray.Create(("/p/CatTree.btree.json", BTreeJsonServices.Serialize(tree))),
+            ImmutableArray.Create(("/p/CatMachine.hsm.json", Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(hsm))));
+
+        string treeInputs = BTreeEmitCore.InputsStructTypeId(tree)!;
+        string hsmInputs  = BTreeEmitCore.InputsStructTypeId(HsmBridgeEmitCore.BlackboardOwner(hsm))!;
+        catalog.Declares(treeInputs).Should().BeTrue();
+        catalog.Declares("global::" + hsmInputs).Should().BeTrue("the editor's global:: spelling names the same type");
+        catalog.Declares("Stub.Generated.TestBp_07CD46B5_Bp").Should().BeTrue();
+        catalog.Declares("Stub.Generated.TestBp_07CD46B5_Bp+Params").Should().BeTrue("a type nested in a generated blueprint class");
+        catalog.Declares("Stub.Generated.Other_07CD46B5_Bp").Should().BeFalse("no sibling blueprint has that name");
+        catalog.Declares("Made.Up.Type").Should().BeFalse();
+
+        var size = catalog.SizeResolver(CreateCompilation());
+        size(hsmInputs).Should().Be(4, "the HSM child's Inputs are sized by the packing its own generator emits with");
+        size("global::" + treeInputs).Should().Be(4);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2026</c> — a child whose Inputs hold its PARENT's Inputs (A ⊃ B ⊃ A) has no size: the catalogue answers
+    /// <c>null</c> (the asset is then skipped loudly, BTREE0002) instead of recursing until the generator's stack overflows.
+    /// 🔴 <c>GeneratedBehaviorSchemaCatalog</c>'s guard made a FRESH visited-set on every recursive call, so it never fired.
+    /// </summary>
+    [Fact]
+    public void S8c_AnInputsCycle_HasNoSize_AndDoesNotOverflow()
+    {
+        var a = InputsTree("CycleA", ("Speed", "System.Single"));
+        var b = InputsTree("CycleB", ("Laps", "System.Int32"));
+        string aInputs = BTreeEmitCore.InputsStructTypeId(a)!, bInputs = BTreeEmitCore.InputsStructTypeId(b)!;
+        a.Blackboard.Variables.Add(new BlackboardVariableDto { Name = "Child", Type = new BlackboardTypeRefDto { TypeId = bInputs } });
+        b.Blackboard.Variables.Add(new BlackboardVariableDto { Name = "Parent", Type = new BlackboardTypeRefDto { TypeId = aInputs } });
+
+        var catalog = GeneratedTypeCatalog.Parse(
+            ImmutableArray<(string Path, string Text)>.Empty,
+            ImmutableArray.Create(("/p/CycleA.btree.json", BTreeJsonServices.Serialize(a)),
+                                  ("/p/CycleB.btree.json", BTreeJsonServices.Serialize(b))),
+            ImmutableArray<(string Path, string Text)>.Empty);
+
+        catalog.SizeResolver(CreateCompilation())(aInputs).Should().BeNull();
     }
 
     /// <summary>
@@ -2743,4 +2965,8 @@ namespace Stub
             d.Id == BTreeJsonGenerator.CodegenWarningId && d.Severity == DiagnosticSeverity.Warning,
             "must still report BTREE0002 — the schema fallback must not silently mask a broken reference");
     }
+
+    // ── ⭐ CE-423 — a State variable that would get NO storage is an error, never a silent skip ─────────────
+
+    // ⛔ HISTORY — CE-423's BTREE0003 rail: CE-3193 derives working state from the bindings, so the case cannot arise.
 }

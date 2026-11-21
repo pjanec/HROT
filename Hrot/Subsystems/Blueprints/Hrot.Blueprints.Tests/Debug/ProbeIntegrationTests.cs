@@ -200,7 +200,7 @@ public sealed class BlueprintEditorModuleSessionWiringTests : IDisposable
             new BlueprintRegistry(), new StubSimView(), new MockTimeController());
 
         var module = new BlueprintEditorModule(
-            new MockWindowRegistrar(),
+            new MockShellCommandRegistrar(),
             new DirtyTracker(),
             new EditorSelectionStore(),
             new EditorState(),
@@ -219,7 +219,7 @@ public sealed class BlueprintEditorModuleSessionWiringTests : IDisposable
             new BlueprintRegistry(), new StubSimView(), new MockTimeController());
 
         var module = new BlueprintEditorModule(
-            new MockWindowRegistrar(),
+            new MockShellCommandRegistrar(),
             new DirtyTracker(),
             new EditorSelectionStore(),
             new EditorState(),

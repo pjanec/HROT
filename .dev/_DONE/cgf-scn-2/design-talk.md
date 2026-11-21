@@ -412,7 +412,7 @@ Based on the codebase, the following components store raw or packed entity handl
 
 2\. Perception & Memory Buffers
 
--   **TargetMemory**: Uses `fixed long EntityIds` to store packed `Entity.PackedValue` primitives. This must be replaced with an `InitialTargetsIntent`.-   **SensorContactList**: A Muscle-tier component that also uses `fixed long EntityIds` to store raw ECS handles.-   **ActiveSensorTracks**: A Brain-tier cognitive buffer containing `public fixed long EntityIds[PerceptionConstants.MaxTrackedTargets]`. _(Architectural Note:_ _SensorContactList_ _and_ _ActiveSensorTracks_ _are transient runtime state. Rather than building intents for them, the clean architecture approach is to mark them with_ _\[DataPolicy(DataPolicy.NoSave)\]_ _so they are never serialized into scenario files in the first place. Perception should be re-acquired organically upon scenario start.)_
+-   **TargetMemory**: Uses `fixed long EntityIds` to store packed `Entity.PackedValue` primitives. This must be replaced with an `InitialTargetsIntent`.-   **SensorContactList**: A Muscle-tier component that also uses `fixed long EntityIds` to store raw ECS handles.-   **ActiveSensorTracks**: A Brain-tier cognitive buffer containing `public fixed long EntityIds[PerceptionConstants.MaxTrackedTargets]`. _(Architectural Note:_ _SensorContactList_ _and_ _ActiveSensorTracks_ _are transient runtime state. Rather than building intents for them, the clean architecture approach is to mark them with_ _\[DataPolicy(DataPolicy.NoScenario)\]_ _so they are never serialized into scenario files in the first place. Perception should be re-acquired organically upon scenario start.)_
 
 3\. Active Execution Channels
 
@@ -436,11 +436,11 @@ Here is the architectural impact of this shift:
 
 By intercepting these relations and converting them into managed Intent components (e.g., `List<long>`) during extraction, the auto-serializer natively handles the standard C# collections without requiring any complex unmanaged IL traversal logic.
 
-**2\. Strict Exclusion of Execution Buffers** Components like `TargetMemory`, `SensorContactList`, and `LocomotionChannel` represent transient runtime execution state. They do not belong in a scenario DOM. Instead of trying to serialize their `fixed` arrays, you must explicitly sever them from the scenario serialization pipeline. You do this by marking their unmanaged fields with `[ScenarioIgnore]` or decorating the entire component struct with `[DataPolicy(DataPolicy.NoSave)]`. This guarantees the auto-serializer skips them entirely, relying on the Intent DTOs to reconstruct the relationships cleanly during the genesis pipeline.
+**2\. Strict Exclusion of Execution Buffers** Components like `TargetMemory`, `SensorContactList`, and `LocomotionChannel` represent transient runtime execution state. They do not belong in a scenario DOM. Instead of trying to serialize their `fixed` arrays, you must explicitly sever them from the scenario serialization pipeline. You do this by marking their unmanaged fields with `[ScenarioIgnore]` or decorating the entire component struct with `[DataPolicy(DataPolicy.NoScenario)]`. This guarantees the auto-serializer skips them entirely, relying on the Intent DTOs to reconstruct the relationships cleanly during the genesis pipeline.
 
 **3\. The Remaining Scope for the Auto-Serializer Upgrade** Teaching the `FdpAutoSerializer` to iterate `[InlineArray]` and `fixed` buffers via `Unsafe.Add` is still architecturally necessary, but _only_ for pure, scalar data payloads. If you define a component with a `fixed float` array to store a historical temperature curve, or a purely mathematical scalar matrix, the auto-serializer must be able to serialize it to JSON without truncating it to the compiler-generated `FixedElementField`.
 
-In summary, the Intent pattern decouples relational domain logic from binary memory layouts. You must still upgrade the `FdpAutoSerializer` expression trees to correctly loop over `fixed` buffers for pure scalar data, but you must actively prevent the serializer from touching arrays containing `Entity` handles by utilizing strict `[DataPolicy.NoSave]` boundaries.
+In summary, the Intent pattern decouples relational domain logic from binary memory layouts. You must still upgrade the `FdpAutoSerializer` expression trees to correctly loop over `fixed` buffers for pure scalar data, but you must actively prevent the serializer from touching arrays containing `Entity` handles by utilizing strict `[DataPolicy.NoScenario]` boundaries.
 
 do we need to save the state of the WeaponChannel and LocomotionChannel and InteractionChannel to the scenario at all?Is the scenario trated as an exact snapshot of the very current state of the ECS? If the behavior has already started and is running, we probably need to save these components as there is not way of reconstructing their state otherwise. But if we consider a scenario to define simplified initial conditions only, ignoring the working state of those problematic (difficult-to-serialize) components, and somehow making sure these problemtic components are initialized in different, simplified, initialization-specific way?
 
@@ -468,54 +468,54 @@ Required Architectural Corrections
 
 You must sever the transient execution state from the scenario serialization pipeline entirely.
 
--   **Delete the Custom Translator:** Remove the `WeaponChannelTranslator` you implemented. It violates the scenario paradigm.-   **Mark Channels as Transient for Scenarios:** Decorate the execution channels and cognitive execution pointers with `[DataPolicy(DataPolicy.NoSave)]`. This guarantees the `FdpAutoSerializer` will drop them during scenario serialization while still allowing them to be captured in binary Checkpoints.
+-   **Delete the Custom Translator:** Remove the `WeaponChannelTranslator` you implemented. It violates the scenario paradigm.-   **Mark Channels as Transient for Scenarios:** Decorate the execution channels and cognitive execution pointers with `[DataPolicy(DataPolicy.NoScenario)]`. This guarantees the `FdpAutoSerializer` will drop them during scenario serialization while still allowing them to be captured in binary Checkpoints.
 
 ```
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.LocomotionChannel)]
-[DataPolicy(DataPolicy.NoSave)] // ADD THIS
+[DataPolicy(DataPolicy.NoScenario)] // ADD THIS
 public unsafe struct LocomotionChannel { ... }
 
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.WeaponChannel)]
-[DataPolicy(DataPolicy.NoSave)] // ADD THIS
+[DataPolicy(DataPolicy.NoScenario)] // ADD THIS
 public unsafe struct WeaponChannel { ... }
 
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.InteractionChannel)]
-[DataPolicy(DataPolicy.NoSave)] // ADD THIS
+[DataPolicy(DataPolicy.NoScenario)] // ADD THIS
 public unsafe struct InteractionChannel { ... }
 ```
 
-Apply this identical `[DataPolicy(DataPolicy.NoSave)]` attribute to `BrainBTreeState`, `BrainHsm64`, and `BrainHsm128`.
+Apply this identical `[DataPolicy(DataPolicy.NoScenario)]` attribute to `BrainBTreeState`, `BrainHsm64`, and `BrainHsm128`.
 
 By doing this, your scenario JSON payload will remain clean, declarative, and easily transportable across the distributed cluster, while the runtime engine organically reconstructs the complex execution buffers upon load.
 
-DataPolicy.NoSave is marked to be used for savegame/checkpointing. Is this the same as our scenario saving so just the comment is confusing? For checkpoint snapshots, do we use the DataPolicy.NoRecord to decide what to save to the snapshot? Snapshots must contain all internal state of the brain etc to allow restoring the full live siomulation...
+DataPolicy.NoScenario is marked to be used for savegame/checkpointing. Is this the same as our scenario saving so just the comment is confusing? For checkpoint snapshots, do we use the DataPolicy.NoReplay to decide what to save to the snapshot? Snapshots must contain all internal state of the brain etc to allow restoring the full live siomulation...
 
-Your architectural deduction is exactly correct. The XML comment on `DataPolicy.NoSave` stating it is for "Save Game / Checkpoints" is a legacy artifact that contradicts the current engine architecture. It is highly confusing and should be rewritten.
+Your architectural deduction is exactly correct. The XML comment on `DataPolicy.NoScenario` stating it is for "Save Game / Checkpoints" is a legacy artifact that contradicts the current engine architecture. It is highly confusing and should be rewritten.
 
 In our current pipeline, there is a strict divergence between Scenario persistence and Checkpoint persistence. They are governed by two entirely different bitmasks derived from `DataPolicy`.
 
-1\. Scenarios use `DataPolicy.NoSave`
+1\. Scenarios use `DataPolicy.NoScenario`
 
 Scenarios are processed by the `ScenarioSerializer` and its fallback `FdpAutoSerializer`. The auto-serializer builds its compilation delegates by iterating exclusively over `ComponentTypeRegistry.GetSaveableTypeIds()`.
 
-Therefore, applying `[DataPolicy(DataPolicy.NoSave)]` strips a component from the JSON Scenario DOM. This is exactly what we want for transient execution buffers like `WeaponChannel` and `BrainBTreeState`.
+Therefore, applying `[DataPolicy(DataPolicy.NoScenario)]` strips a component from the JSON Scenario DOM. This is exactly what we want for transient execution buffers like `WeaponChannel` and `BrainBTreeState`.
 
-2\. Checkpoints use `DataPolicy.NoRecord`
+2\. Checkpoints use `DataPolicy.NoReplay`
 
 Checkpoints are not handled by the Scenario serializer. The `CheckpointIOWorker` executes a strict binary memory clone by delegating directly to `_recorderSystem.RecordKeyframe`.
 
 The `RecorderSystem` determines what to serialize by calling `GetRecordableMask()`, which relies exclusively on `ComponentTypeRegistry.GetRecordableTypeIds()`.
 
-Therefore, Checkpoints (and the Flight Recorder) are governed entirely by `DataPolicy.NoRecord`.
+Therefore, Checkpoints (and the Flight Recorder) are governed entirely by `DataPolicy.NoReplay`.
 
 Architectural Conclusion
 
-By marking complex unmanaged buffers like `WeaponChannel` and `BrainHsm128` with `[DataPolicy(DataPolicy.NoSave)]`, you achieve the exact required architectural boundary:
+By marking complex unmanaged buffers like `WeaponChannel` and `BrainHsm128` with `[DataPolicy(DataPolicy.NoScenario)]`, you achieve the exact required architectural boundary:
 
--   The JSON `ScenarioSerializer` safely ignores them, preventing data corruption and keeping the authoring templates purely declarative.-   Because you omitted `DataPolicy.NoRecord`, the `CheckpointIOWorker` will fully serialize their raw memory layouts into the LZ4 binary payload.
+-   The JSON `ScenarioSerializer` safely ignores them, preventing data corruption and keeping the authoring templates purely declarative.-   Because you omitted `DataPolicy.NoReplay`, the `CheckpointIOWorker` will fully serialize their raw memory layouts into the LZ4 binary payload.
 
 When you restore a Checkpoint, the `PlaybackSystem` will cleanly overwrite the ECS chunks, flawlessly restoring the exact mid-tick execution state of the brain, current navigation progress, and active weapon status.
 
@@ -528,14 +528,14 @@ You should update `DataPolicy.cs` immediately to reflect this reality and preven
 /// Exclude from Flight Recorder and Binary Checkpoints.
 /// Use for debug-only data or metrics that shouldn't pollute binary state snapshots.
 /// </summary>
-NoRecord = 1 << 2,
+NoReplay = 1 << 2,
 
 /// <summary>
 /// Exclude from Scenario JSON serialization.
 /// Use for runtime execution state (e.g. BTree pointers, active weapon channels) 
 /// that should be preserved in binary checkpoints but omitted from declarative authoring templates.
 /// </summary>
-NoSave = 1 << 3,
+NoScenario = 1 << 3,
 ```
 
 Let's imagine the situation we are in the middle of the preview, we pause the time. We like the exact current state of the simulation and we would like to save this as an initial state for a new scenario. The entities are in the middle of executing their behaviors (having some brain states) etc. We can take a checkpoint snapshot that already supports this well. But we want to savethe situation as initial conditions for a new scenario file. based on our previous conversation, scenarios are now not allowed to include the brain state. That means the system needs to save the scenario in a state that is as close as possible to the current ECS situation, and try to reconstruct similar situation on scenario load. In case of tasks within a mission plan, we should remember what task is currently active and activate it automatically on scenario load which will restart the task (restarts its behavior). That means we do not try to remember what behavior the entity is currently executing, we rely on the mission plan only. Behaviors for Entities that were comanded to execute their current behaviors from different sources (menu command, sub-hierarchical state machine etc.) will forget the behavior completely. I am not sure here if this "behavior amnesia" could work well enough for behavior trees and hierarchical state machines based AI behaviors (they should be idempotent in some way to be able to restore their behvaior) and how to approach this.
@@ -562,7 +562,7 @@ For example, the `FireAtTarget` BTree relies on `Condition_TargetAliveAndVisible
 
 When the scenario is loaded:
 
--   The entity spawns with an empty `BrainBTreeState` (due to `DataPolicy.NoSave`).-   The `TargetMemory` is reconstructed accurately by the translator.-   On the first simulation tick, the BTree ticks from the root, immediately sees that `TargetMemory` contains the threat, and branches straight back into `Action_FireAtTarget`.
+-   The entity spawns with an empty `BrainBTreeState` (due to `DataPolicy.NoScenario`).-   The `TargetMemory` is reconstructed accurately by the translator.-   On the first simulation tick, the BTree ticks from the root, immediately sees that `TargetMemory` contains the threat, and branches straight back into `Action_FireAtTarget`.
 
 The behavior is idempotent because the decision-making state (`TargetMemory`, `ActorCapabilityState`, `Health`) is preserved by the serializers.
 
@@ -580,7 +580,7 @@ Architectural Directive
 
 You do not need to invent new ways to serialize BTree or HSM execution pointers.
 
-To ensure safe mid-preview scenario extractions, you must strictly enforce the rule that **all AI state transitions must be projections of persistent ECS data**. If a behavior requires an entity to "remember" a state that cannot be derived from `TargetMemory`, `Health`, `ActorCapabilityState`, or the mission plan, you must store that state in the `BrainBlackboard` (which is serialized), not in the transient execution channels. Maintain the `[DataPolicy(DataPolicy.NoSave)]` boundary on your execution components, and the pipeline will reconstruct the behaviors predictably.
+To ensure safe mid-preview scenario extractions, you must strictly enforce the rule that **all AI state transitions must be projections of persistent ECS data**. If a behavior requires an entity to "remember" a state that cannot be derived from `TargetMemory`, `Health`, `ActorCapabilityState`, or the mission plan, you must store that state in the `BrainBlackboard` (which is serialized), not in the transient execution channels. Maintain the `[DataPolicy(DataPolicy.NoScenario)]` boundary on your execution components, and the pipeline will reconstruct the behaviors predictably.
 
 I was thinking about the checkpoint snapshot and the saving of the fdp event "in flight". Let's imagine the situation a fire event was just issued when the snaphost was saved. If we do not include the event into the snapshot the show will never be fired once we reconstruct the snapshot. I think we have to save the events as part of the snapshot.
 
@@ -878,7 +878,7 @@ Here is the objective summary of the finalized architectural boundaries:
 
 **1\. Separation of Intent and Execution (Mission Data)** The `ActiveMissionPlan` managed component serves as the absolute single source of truth for an entity's mission. It contains pure-domain JSON strings (e.g., `BehaviorId`, `BehaviorParams`). The highly optimized, unmanaged `MissionPlanQueue` is not directly serialized; instead, it is organically reconstructed from the `ActiveMissionPlan` during the scenario load pipeline.
 
-**2\. Eradication of Execution State from Scenarios** Transient execution buffers and cognitive state pointers—such as `WeaponChannel`, `LocomotionChannel`, `InteractionChannel`, and `BrainBTreeState`—contain highly volatile mid-tick memory. Serializing these into a scenario DOM pollutes the authoring template with execution artifacts. These components must be decorated with `[DataPolicy(DataPolicy.NoSave)]`. This explicitly instructs the `ScenarioSerializer` to ignore them, ensuring the scenario remains a clean set of initial conditions. Checkpoint binary snapshots, governed by `DataPolicy.NoRecord`, remain responsible for capturing this raw memory.
+**2\. Eradication of Execution State from Scenarios** Transient execution buffers and cognitive state pointers—such as `WeaponChannel`, `LocomotionChannel`, `InteractionChannel`, and `BrainBTreeState`—contain highly volatile mid-tick memory. Serializing these into a scenario DOM pollutes the authoring template with execution artifacts. These components must be decorated with `[DataPolicy(DataPolicy.NoScenario)]`. This explicitly instructs the `ScenarioSerializer` to ignore them, ensuring the scenario remains a clean set of initial conditions. Checkpoint binary snapshots, governed by `DataPolicy.NoReplay`, remain responsible for capturing this raw memory.
 
 **3\. Network ID Translation (The "Intent" Pattern)** An ECS `Entity` handle is a strictly local memory pointer (Index + Generation) and is invalid across distributed cluster boundaries. Raw entity handles stored in high-performance `[InlineArray]` or `fixed` buffers must never be serialized directly. We resolved this by implementing custom `IEntityScenarioTranslator` classes, such as `TargetMemoryTranslator` and `PassengerBufferTranslator`. During extraction, these translators convert local ECS handles into stable GUID strings or Network IDs. Upon scenario load, the `StagingEntityExtractor` patches these IDs, and the target node late-binds them to newly allocated local ECS handles.
 

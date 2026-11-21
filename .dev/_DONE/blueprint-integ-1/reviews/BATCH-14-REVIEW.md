@@ -8,7 +8,7 @@ Phase 5 wiring of three existing cross-asset services into the editor compositio
 - **AIE-050** — `SanitizerRegistry` populated with BTree/HSM/Blueprint sanitizers (mirroring the DI-extension bodies, since the editor composes manually); `ComparisonExportBuilder` + `ComparisonSessionRegistry` constructed and forwarded to the existing `BlackboardAuthoringWindow` comparison toolbar (no new window invented).
 
 ## Verification performed (ran myself)
-- **`dotnet build IOS-IG-SimHost.sln` → Build succeeded, 0 Warnings, 0 Errors** (GizmoMap.Contracts on 0.2.2; Hrot.IG/DDS untouched).
+- **`dotnet build HROT.sln` → Build succeeded, 0 Warnings, 0 Errors** (GizmoMap.Contracts on 0.2.2; Hrot.IG/DDS untouched).
 - `Hrot.Editor.AiShared.Tests` **718 / 0** (+16). `Hrot.BTree.Editor.Tests` **380 / 0** (+3). `Hrot.Hsm.Editor.Tests` **330 / 0**. `Hrot.Blueprints.Tests` **1027 / 10 / 8** — the 10 are the pre-existing DEBT-006 set (golden emit, allocation-free, library/MoveToAndFire snapshots; same count as the BATCH-13 baseline, **no new failures**). `EditorSubsystemBoot` **10 / 0**.
 
 ## Code read (diffs + new files)

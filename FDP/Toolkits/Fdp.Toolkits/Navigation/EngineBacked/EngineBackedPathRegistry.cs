@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// Real <see cref="IPathRegistry"/> adapter backed by <see cref="TrajectoryPoolManager"/>.
     /// RouteHandle equals NavState.TrajectoryId. All-in-one mode only.
     /// </summary>
+    [Fdp.Core.WorldDerived("R-3039 S2 (§7c; was C): its per-handle entry is re-registered by TrajectoryRestoreSystem for every restored path (the solver's backend tag is not recorded and reads 0 after a restore)")]
     public sealed class EngineBackedPathRegistry : IPathRegistry
     {
         private readonly TrajectoryPoolManager _pool;
@@ -135,10 +136,9 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                     var tw = traj.Waypoints[start + i];
                     dest[i] = new NavWaypoint
                     {
-                        // Sim (Z-up) trajectory waypoint -> Recast (Y-up) NavWaypoint: altitude
-                        // (Sim Z) goes into the Recast Y slot, not 0f (§0.1, P3D-404 sweep fix).
-                        Position  = new Vector3(tw.Position.X, tw.Position.Z, tw.Position.Y),
-                        Traversal = TraversalKind.Walk,
+                        // Sim and NavWaypoint are both engine space (Z-up) — no swizzle (W7 / CE-3011).
+                        Position  = new Vector3(tw.Position.X, tw.Position.Y, tw.Position.Z),
+                        Traversal = (TraversalKind)tw.Traversal,   // ⭐ 5d-3 — the planner's mark (was forced to Walk)
                         Surface   = SurfaceType.Generic,
                     };
                 }
@@ -198,9 +198,9 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                 var tw = traj.Waypoints[i];
                 dest[i] = new NavWaypoint
                 {
-                    // Sim (Z-up) -> Recast (Y-up): altitude (Sim Z) into Recast Y (§0.1, P3D-404 sweep fix).
-                    Position  = new Vector3(tw.Position.X, tw.Position.Z, tw.Position.Y),
-                    Traversal = TraversalKind.Walk,
+                    // Sim and NavWaypoint are both engine space (Z-up) — no swizzle (W7 / CE-3011).
+                    Position  = new Vector3(tw.Position.X, tw.Position.Y, tw.Position.Z),
+                    Traversal = (TraversalKind)tw.Traversal,   // ⭐ 5d-3 — the planner's mark (was forced to Walk)
                     Surface   = SurfaceType.Generic,
                 };
             }

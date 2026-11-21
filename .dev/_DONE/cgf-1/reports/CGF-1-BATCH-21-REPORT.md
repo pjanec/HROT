@@ -155,7 +155,7 @@ references). Contains:
 `TransitionGraphBuilder` cycle detection, and `OrchestrationStatusCode` serialization
 roundtrip.
 
-**Solution registration:** Both projects added to `IOS-IG-SimHost.sln`
+**Solution registration:** Both projects added to `HROT.sln`
 (GUIDs `{E7A3C82F-5B4D-4F81-9A3E-D2B7E1C5F8A4}` /
 `{C4D9B7E2-8F3A-46C5-B8D1-A7E6C3F2D9B5}`) under FDP Toolkits folder
 `{3DFBA611-AEBE-D6DE-A5E3-4D7D40152939}`.
@@ -172,7 +172,7 @@ roundtrip.
 **Files changed:**
 - `FDP/Toolkits/FDP.Toolkit.Orchestration/` — 10 source files (new project)
 - `FDP/Toolkits/FDP.Toolkit.Orchestration.Tests/` — `OrchestrationContractTests.cs`, `.csproj` (new project)
-- `IOS-IG-SimHost.sln` — 2 new project entries + config + NestedProjects
+- `HROT.sln` — 2 new project entries + config + NestedProjects
 - `Hrot.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` — qualified `IDsmHandler`
 - `Hrot.SimHost/Modules/Orchestration/Handlers/{Checkpoint,PrefetchFiles,ReplayLoad,StoryLoad}DsmHandler.cs` — qualified `IDsmHandler`
 

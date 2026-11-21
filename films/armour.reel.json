@@ -1,0 +1,54 @@
+{
+ "title": "HROT — Vehicles and armour",
+ "transition": "fade",
+ "items": [
+  {
+   "scenario": "ua-weapon-choice",
+   "take": "main",
+   "title": "TOW or 25 mm",
+   "clip": "F-40"
+  },
+  {
+   "scenario": "ua-tank-corner",
+   "take": "main",
+   "title": "Tank round the corner",
+   "clip": "F-41"
+  },
+  {
+   "scenario": "ua-javelin-lock",
+   "take": "main",
+   "title": "The lock that never comes",
+   "clip": "F-42"
+  },
+  {
+   "scenario": "ua-rpg-window",
+   "take": "main",
+   "title": "RPG from the windows",
+   "clip": "F-43"
+  },
+  {
+   "scenario": "ua-ifv-standoff",
+   "take": "main",
+   "title": "Stand-off",
+   "clip": "F-44"
+  },
+  {
+   "scenario": "ua-tank-ammo",
+   "take": "main",
+   "title": "A round for each target",
+   "clip": "F-45"
+  },
+  {
+   "scenario": "ua-hill-attack",
+   "take": "main",
+   "title": "Hull-down platoon",
+   "clip": "F-46"
+  },
+  {
+   "scenario": "uc-convoy-hit-ifv",
+   "take": "main",
+   "title": "Push through",
+   "clip": "F-47"
+  }
+ ]
+}

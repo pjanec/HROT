@@ -20,6 +20,19 @@ public sealed class GlobalContextProcessManager
     private readonly FdpEventBus _bus;
     private readonly GlobalContextClusterOpHandler _handler;
 
+    // ⭐ Q86 §4-G (R-215) — a load resets the clock to 0 and HOLDS it while the world is rebuilt; whether it then runs is a property of the
+    //   LOAD (TransitionStateIntent.TimeMode). ⭐⭐ CE-3354 (R-3075): the RUN is the MASTER's — ClusterMaster.RunsWhenLoaded, fired when the load
+    //   round succeeded on every node. ⛔ HISTORY: this manager resumed on the announced cluster STATE, which the master advances at the round's
+    //   start and re-announces mid-round (readiness, CE-3344/3345) — a re-announce dropped the resume (CE-4122). The two constants stay here: the
+    //   wire values every sender uses.
+
+    /// <summary>The <see cref="TransitionStateIntent.TimeMode"/> value that asks a load to start paused.</summary>
+    public const string StartPausedTimeMode = "Deterministic";
+
+    /// <summary>⭐ CE-3329 row 21 — the <c>TimeMode</c> a dry run asks for to start RUNNING (Play from edit); absent ⇒ paused.</summary>
+    public const string ContinuousTimeMode = "Continuous";
+
+
     public GlobalContextProcessManager(FdpEventBus bus, GlobalContextClusterOpHandler handler)
     {
         _bus     = bus     ?? throw new ArgumentNullException(nameof(bus));
@@ -41,36 +54,13 @@ public sealed class GlobalContextProcessManager
             var loadState = ResolveLoadState((ClusterState)(int)intent.TargetState);
             if (loadState == null || string.IsNullOrEmpty(intent.ScenarioId)) continue;
 
-            CommitContextLoad(loadState.Value, intent.ScenarioId, intent.ExerciseId);
+            CommitContextLoad(loadState.Value, intent.ScenarioId, intent.ExerciseId);   // jumps the clock to 0, paused
         }
 
-        // 2. On SaveScenario: PrepareAsync + Commit + publish manifest entry.
-        foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
-        {
-            if (intent.Operation != StorageOpType.SaveScenario) continue;
-
-            var exerciseIdJson = intent.ExerciseId != Guid.Empty
-                ? JsonSerializer.Serialize(new { ExerciseId = intent.ExerciseId })
-                : string.Empty;
-            var localCmd = ClusterNodeOpBuilder.LocalContextCmd(
-                NodeOpType.SerializeLocal, Guid.NewGuid(), exerciseIdJson);
-
-            _ = _handler.PrepareAsync(localCmd, CancellationToken.None)
-                .ContinueWith(t =>
-                {
-                    if (!t.IsFaulted)
-                    {
-                        _handler.Commit(localCmd, null);
-                        PublishManifestReady(_handler.CommitManifestEntry);
-                    }
-                    else
-                    {
-                        FdpLog<GlobalContextProcessManager>.Error(
-                            "[GlobalContextProcessManager] PrepareAsync faulted: {0}",
-                            t.Exception?.GetBaseException().Message ?? "unknown");
-                    }
-                }, System.Threading.Tasks.TaskScheduler.Default);
-        }
+        // CE-278: the SaveScenario=2 SAVE branch (PrepareAsync + Commit + PublishManifestReady, which wrote
+        // exercises/<id>/Orchestrator.json) is retired. Only the LOAD branch above remains — the transition
+        // context restore, unrelated to the retired op. The exercise sidecar is now written on the Export
+        // path by AssetInventoryProcessManager (§5).
     }
 
     /// <summary>
@@ -103,11 +93,5 @@ public sealed class GlobalContextProcessManager
         FdpLog<GlobalContextProcessManager>.Info(
             "[GlobalContextProcessManager] CommitLoad executed for scenario '{0}' (loadState={1}).",
             scenarioId, loadState);
-    }
-
-    private void PublishManifestReady(FileManifestEntry? entry)
-    {
-        if (entry == null) return;
-        _bus.PublishManaged(new GlobalContextManifestReadyEvent { Entry = entry });
     }
 }

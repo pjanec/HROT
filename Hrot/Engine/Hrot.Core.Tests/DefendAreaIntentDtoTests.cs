@@ -12,7 +12,7 @@ public class DefendAreaIntentDtoTests
     [Fact]
     public void BehaviorCatalog_MilitaryApc_ContainsDefendArea()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.MilitaryApc);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc);
         Assert.Contains("DefendArea", behaviors);
     }
 
@@ -20,7 +20,7 @@ public class DefendAreaIntentDtoTests
     [Fact]
     public void BehaviorCatalog_CivilianCar_DoesNotContainDefendArea()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianCar);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar);
         Assert.DoesNotContain("DefendArea", behaviors);
     }
 }

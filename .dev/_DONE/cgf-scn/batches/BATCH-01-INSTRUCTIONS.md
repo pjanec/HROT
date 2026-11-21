@@ -57,7 +57,7 @@ You are implementing three tasks:
 
 ```powershell
 # From repo root d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run Hrot.Core tests
 dotnet test Hrot\Engine\Hrot.Core.Tests\Hrot.Core.Tests.csproj
@@ -240,7 +240,7 @@ This batch is DONE when:
 - [ ] All C001 tests pass (min 4)
 - [ ] All C002 tests pass (min 4)
 - [ ] All C003 tests pass (min 4)
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds with zero errors
+- [ ] `dotnet build HROT.sln` succeeds with zero errors
 - [ ] Report submitted to `.dev/cgf-scn/reports/BATCH-01-REPORT.md`
 
 ---

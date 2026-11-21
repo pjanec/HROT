@@ -38,7 +38,7 @@ GizmoMap.Network (SC-GZ054-1 through SC-GZ054-5):
 - [x] SC-GZ054-4: No type in GizmoMap.Network implements IEcsModuleSystem
 - [x] SC-GZ054-5: DdsDebugPrimitivePublisher constructor succeeds and Publish works with empty buffer
 
-Both projects added to IOS-IG-SimHost.sln under ExtDeps/GizmoMap solution folder.
+Both projects added to HROT.sln under ExtDeps/GizmoMap solution folder.
 Full solution build: 0 errors, 110 warnings (all pre-existing).
 
 ---
@@ -122,7 +122,7 @@ The `DdsDebugPrimitivePublisher.Publish()` signature was extended with `frameNum
 - GizmoMap.Network.Tests.csproj
 - GizmoNetworkTests.cs (5 tests)
 
-**IOS-IG-SimHost.sln** -- added GizmoMap solution folder under ExtDeps with all 4 projects and their test projects; added ProjectConfigurationPlatforms and NestedProjects entries.
+**HROT.sln** -- added GizmoMap solution folder under ExtDeps with all 4 projects and their test projects; added ProjectConfigurationPlatforms and NestedProjects entries.
 
 ---
 

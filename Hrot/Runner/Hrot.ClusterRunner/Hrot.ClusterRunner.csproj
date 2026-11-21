@@ -13,6 +13,11 @@
          use (the runtime Raylib.SetWindowIcon only drives the title-bar icon). Multi-resolution
          .ico (16..256) generated from FDP\Data\Icons\HROT-icon-green.png. -->
     <ApplicationIcon>..\..\..\FDP\Data\Icons\HROT-icon-green.ico</ApplicationIcon>
+    <!-- ⭐ CE-3427 G-1 (user, 2026-11-10) — server GC, 4 heaps (runtimeconfig.template.json: HeapCount 4, NoAffinitize so the
+         nodes on one machine do not all pin their heaps to the same four CPUs). Measured, the cold navmesh bake at scale 1:
+         322 s → 127 s, SimHost peak 2.5 GB (all heaps: 118 s but 4.9 GB). docs/DESIGN_Scale_Rig.md §7.3.
+         DOTNET_gcServer / DOTNET_GCHeapCount still override it per process. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,17 +40,16 @@
     <!-- IWindowRegistrar (uses FDP.Toolkit_ImGui.WindowManager) is in Fdp.Presentation -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
-    <ProjectReference Include="..\..\Network\Hrot.Network.BDC\Hrot.Network.BDC.csproj" />
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
     <!-- Subsystem libraries (R2) -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.SimHost\Hrot.SimHost.csproj" />
-    <ProjectReference Include="..\..\Subsystems\Hrot.IG\Hrot.IG.csproj" />
-    <ProjectReference Include="..\..\Subsystems\Hrot.ExCon\Hrot.ExCon.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.Player\Hrot.Player.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
-    <ProjectReference Include="..\..\Subsystems\Hrot.StrideMock\Hrot.StrideMock.csproj" />
+    <!-- AQ93 N1: mode "traffic", the dedicated SUMO traffic node -->
+    <ProjectReference Include="..\..\Subsystems\Hrot.TrafficNode\Hrot.TrafficNode.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <!-- IScenario + ScenarioSubsystem for mode ci -->
     <ProjectReference Include=".\..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
@@ -54,6 +58,41 @@
          IL reference, but MSBuild copy-local mechanics still deliver the DLL. -->
     <ProjectReference Include="..\..\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.ReplayBrowser\Hrot.ReplayBrowser.csproj" />  </ItemGroup>
+
+  <!--
+    ⭐⭐⭐ Batch 103 (103a) — THE SHIPPED DEFAULT LAYOUT reaches the output directory.
+
+    📄 docs/UX/UX_Feature_Layout_Defaults.md. 🔒 The user's ruling: the json lives NEXT TO the imgui.ini
+    in BOTH places, so "the layout" is a DIRECTORY and a reset is a directory copy — ⛔ not two
+    special-cased files. Adding a third layout file later needs no build change, only a new file.
+
+    ⭐ CE-4260 — a layout is PER APPLICATION: `layout/<app>/` in the source and in the output alike
+    (`layout/Editor/` ships the editor's). ⛔ SUPERSEDED: one flat `layout/` pair every app shared.
+  -->
+  <ItemGroup>
+    <!-- ⭐ CE-4260 — one folder per APPLICATION (layout/Editor/, layout/ReplayBrowser/, …), kept as folders in the output: LayoutPaths.ShippedDefaultDirectory(layout) -->
+    <Content Include="..\..\..\layout\**\imgui.ini;..\..\..\layout\**\fdp_windows.json" LinkBase="layout">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!--
+    ⭐⭐⭐ BP-505 — THE GIT-MAINTAINED CURATED DEBUG SESSION reaches the output directory.
+
+    🔒 The user's ruling, 2026-08-24: "ad file path - user local folder; BUT during development we need
+    clean env controlled from git only. let's apply same rule as for curated scenarios and imgui.ini -
+    always overwrite the user's copy with git maintained curated copy on start."
+
+    ⭐ Exactly the shape of the layout item above: the SOURCE keeps `debug/default/` so the tree says
+    which session it is; the output is flattened to `debug/` because
+    DebugSessionPaths.ShippedCuratedDirectory looks there.
+    ⛔ The old home, `<repo>/.debug/bpsession.json`, could never host this — `.gitignore:65` ignores it.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\..\debug\default\bpsession.json" Link="debug\bpsession.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />

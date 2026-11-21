@@ -25,7 +25,7 @@ This batch:
 ### Build & Test Commands
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln -v q
+dotnet build HROT.sln -v q
 dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj
 dotnet test Hrot.Orchestrator.Integration.Tests/Hrot.Orchestrator.Integration.Tests.csproj
 dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj
@@ -308,7 +308,7 @@ Minimum: **7 new tests**
 - [ ] CMC-S016: `CgfApplication` and `IgApplication` wired with `NodeOpSlaveTranslator`
 - [ ] CMC-S017: 6 AllInOne integration tests pass
 - [ ] CMC-S017: 1 translator round-trip test passes
-- [ ] `dotnet build IOS-IG-SimHost.sln` → 0 errors
+- [ ] `dotnet build HROT.sln` → 0 errors
 - [ ] All existing integration tests still pass
 - [ ] TASK-TRACKER.md updated: all 16 tasks checked ✅
 - [ ] Report submitted

@@ -3,17 +3,57 @@ using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Core
 {
+    /// <summary>⭐ CE-1478 P2 — what a restore needs of a managed table without naming its element type: the entities one chunk covers.</summary>
+    public interface IManagedChunkedTable
+    {
+        /// <summary>Entities per chunk — chunk <c>c</c> covers entity indexes <c>[c * ChunkCapacity, (c + 1) * ChunkCapacity)</c>.</summary>
+        int ChunkCapacity { get; }
+    }
+
     /// <summary>
     /// Stores managed components (classes, strings, etc.) in GC-managed arrays.
     /// Tier 2 storage for "cold" data that doesn't need the performance of native memory.
     /// Uses standard .NET arrays, so GC manages all memory.
     /// </summary>
-    public sealed class ManagedComponentTable<T> : IComponentTable where T : class
+    public sealed class ManagedComponentTable<T> : IComponentTable, IManagedChunkedTable, IMemorySized where T : class
     {
         private T?[][] _chunks;
         private readonly int _chunkSize;
         private readonly int _componentTypeId;
         private uint[] _chunkVersions;
+
+        // ⭐ CE-2399 — chunk arrays a Clear() emptied, kept for the next allocation: a pooled SoD snapshot is cleared on every release
+        //   and re-synced on the next acquire, and a replay keyframe clears the world, so each re-allocated a T[16384] (128 KB, large-object
+        //   heap) per managed chunk. 📐 ≈ 300 KB of garbage per frame on Crossfire (the navigation + EQS snapshots). Never escapes the table.
+        private T?[][] _spare = Array.Empty<T?[]>();
+
+        // ⭐ CE-4456 N-1 — the memory census: the reference arrays (8 bytes a slot + the array header), not the objects
+        long IMemorySized.NativeBytes => 0;
+        long IMemorySized.ManagedSlotBytes
+        {
+            get
+            {
+                long n = 0; var chunks = _chunks; var spare = _spare;
+                for (int i = 0; i < chunks.Length; i++) if (chunks[i] != null) n += 24 + 8L * chunks[i]!.Length;
+                for (int i = 0; i < spare.Length; i++) if (spare[i] != null) n += 24 + 8L * spare[i].Length;
+                return n + 24 + 8L * chunks.Length;
+            }
+        }
+        private int _spareCount;
+
+        private T?[] NewChunk()
+        {
+            if (_spareCount > 0) { var c = _spare[--_spareCount]; _spare[_spareCount] = null!; return c; }
+            return new T?[_chunkSize];
+        }
+
+        private void Retire(T?[]? chunk)
+        {
+            if (chunk == null || chunk.Length != _chunkSize) return;
+            Array.Clear(chunk);
+            if (_spareCount == _spare.Length) Array.Resize(ref _spare, Math.Max(4, _spare.Length * 2));
+            _spare[_spareCount++] = chunk;
+        }
         
         public ManagedComponentTable(int chunkSize = 16384)
         {
@@ -41,7 +81,7 @@ namespace Fdp.Core
             int localIndex = index % _chunkSize;
 
             if (_chunks[chunkIndex] == null)
-                _chunks[chunkIndex] = new T[_chunkSize];
+                _chunks[chunkIndex] = NewChunk();
 
             _chunks[chunkIndex][localIndex] = (T)value;
 
@@ -49,11 +89,9 @@ namespace Fdp.Core
             // SyncFrom call.  Without this, the version stays at 0 and the version-
             // equality check (_chunkVersions[i] == srcVer) silently skips the chunk,
             // leaving managed components absent from SoD snapshots.
-            _chunkVersions[chunkIndex] = _chunkVersions[chunkIndex] == 0
-                ? 1u
-                : _chunkVersions[chunkIndex] + 1u;
+            BumpChunkVersion(chunkIndex);
         }
-        
+
         // NEW: Type-erased getter
         public object GetRawObject(int index)
         {
@@ -62,14 +100,45 @@ namespace Fdp.Core
             return val;
         }
 
+        /// <summary>
+        /// Type-erased removal (EntityCommandBuffer playback → RemoveManagedComponentRaw).
+        /// </summary>
+        /// <remarks>
+        /// HN-001 — the bump is load-bearing, exactly as it is in <see cref="SetRawObject"/>.
+        /// A removal that leaves the chunk version untouched is invisible to
+        /// <see cref="SyncDirtyChunks"/>, whose version-equality check then SKIPS the chunk. The
+        /// entity index has no such escape (<c>ApplyComponentFilter</c> bumps its versions on every
+        /// sync), so a preview rewind restored the component's PRESENCE bit and left the payload
+        /// null — and the next tick dereferenced it. Every payload mutation on this table must make
+        /// the chunk look dirty.
+        /// </remarks>
         public void ClearRaw(int index)
         {
-            this[index] = null;
+            int chunkIndex = index / _chunkSize;
+            int localIndex = index % _chunkSize;
+
+            if (_chunks[chunkIndex] == null)
+                return; // Nothing stored — no state change, so no version change either.
+
+            _chunks[chunkIndex][localIndex] = null;
+            BumpChunkVersion(chunkIndex);
+        }
+
+        /// <summary>
+        /// Marks a chunk dirty for the next <see cref="SyncDirtyChunks"/>. Never lands on 0 —
+        /// a fresh table's version is 0, so a 0 here would compare equal to "never written".
+        /// </summary>
+        private void BumpChunkVersion(int chunkIndex)
+        {
+            _chunkVersions[chunkIndex] = _chunkVersions[chunkIndex] == 0
+                ? 1u
+                : _chunkVersions[chunkIndex] + 1u;
         }
 
         public void Clear()
         {
             // System.Console.WriteLine($"[DEBUG] Clearing Managed Table for {typeof(T).Name}");
+            for (int i = 0; i < _chunks.Length; i++) Retire(_chunks[i]);   // ⭐ CE-2399 — kept for reuse, emptied
             Array.Clear(_chunks, 0, _chunks.Length);
             Array.Clear(_chunkVersions, 0, _chunkVersions.Length);
         }
@@ -112,7 +181,7 @@ namespace Fdp.Core
                 // Lazy allocate chunk if needed
                 if (_chunks[chunkIndex] == null)
                 {
-                    _chunks[chunkIndex] = new T[_chunkSize];
+                    _chunks[chunkIndex] = NewChunk();
                 }
                 
                 _chunks[chunkIndex][localIndex] = value;
@@ -130,15 +199,32 @@ namespace Fdp.Core
             // Lazy allocate chunk if needed
             if (_chunks[chunkIndex] == null)
             {
-                _chunks[chunkIndex] = new T[_chunkSize];
+                _chunks[chunkIndex] = NewChunk();
             }
             
             // Update version
             _chunkVersions[chunkIndex] = version;
+            if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             
             return ref _chunks[chunkIndex][localIndex];
         }
         
+        // POC 2 / P-1 - the slot a pure read of an unallocated chunk points at. Never written (callers hold a ref readonly).
+        private static T? _nullSlot;
+
+        /// <summary>
+        /// POC 2 / P-1 - a read-only REFERENCE to the slot: stamps NO chunk version and allocates NO chunk
+        /// (an unallocated chunk yields a ref to a shared null slot).
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public ref readonly T? GetRefRO(int entityIndex)
+        {
+            int chunkIndex = entityIndex / _chunkSize;
+            var chunk = _chunks[chunkIndex];
+            if (chunk == null) return ref _nullSlot;
+            return ref chunk[entityIndex % _chunkSize];
+        }
+
         /// <summary>
         /// Gets value for read-only access. Does NOT allocate.
         /// Returns null if chunk not allocated.
@@ -158,6 +244,28 @@ namespace Fdp.Core
         /// <summary>
         /// Sets component value with version tracking.
         /// </summary>
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+        {
+            var value = ((ManagedComponentTable<T>)source).GetRO(entityIndex);
+            // ⭐ N-9 (CE-4471) — a value-copied type is copied INTO this table's own instance (allocated once), never shared across worlds
+            if (value is IValueCopy<T> && ComponentTypeRegistry.NeedsClone(ManagedComponentType<T>.ID)) value = CopyValue(value, GetRO(entityIndex));
+            Set(entityIndex, value, version);
+        }
+
+        /// <summary>⭐ N-9 — <paramref name="source"/> copied into <paramref name="mine"/> when that is this table's own distinct instance of the same
+        /// type (no allocation), else a fresh clone (the first copy).</summary>
+        private static T CopyValue(T source, T? mine)
+        {
+            var copy = (IValueCopy<T>)source;
+            if (mine is not null && !ReferenceEquals(mine, source) && mine.GetType() == source.GetType())
+            {
+                ((IValueCopy<T>)mine).CopyFrom(source);
+                return mine;
+            }
+            return copy.CloneValue();
+        }
+
         public void Set(int entityIndex, T? value, uint version)
         {
             int chunkIndex = entityIndex / _chunkSize;
@@ -166,13 +274,14 @@ namespace Fdp.Core
             // Lazy allocate chunk if needed
             if (_chunks[chunkIndex] == null)
             {
-                _chunks[chunkIndex] = new T[_chunkSize];
+                _chunks[chunkIndex] = NewChunk();
             }
             
             _chunks[chunkIndex][localIndex] = value;
             if (version != 0)
             {
                 _chunkVersions[chunkIndex] = version;
+                if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             }
         }
 
@@ -226,6 +335,18 @@ namespace Fdp.Core
                 "SetRaw is not supported for managed components. " +
                 "Use Set() with the deserialized object instead.");
         }
+
+        /// <summary>
+        /// Ruling 14 — ⛔ not applicable to a managed component: it has no byte layout to patch, so
+        /// there is no "the other fields" to preserve. Callers route a managed edit through
+        /// <c>SetManagedComponentRaw</c>, which replaces the reference wholesale.
+        /// </summary>
+        public unsafe void SetRawAt(int entityIndex, int byteOffset, IntPtr src, int size, uint version)
+        {
+            throw new NotSupportedException(
+                "SetRawAt is not supported for managed components — a reference-typed component has "
+                + "no byte layout. Replace the object via the managed path instead.");
+        }
         
         /// <summary>
         /// Checks if chunk is allocated.
@@ -236,16 +357,18 @@ namespace Fdp.Core
         }
         
         /// <summary>
-        /// Clears a component value (sets to null).
+        /// Clears a component value (sets to null). Marks the chunk dirty — see
+        /// <see cref="ClearRaw"/> for why a silent clear corrupts a later sync.
         /// </summary>
         public void Clear(int entityIndex)
         {
             int chunkIndex = entityIndex / _chunkSize;
             int localIndex = entityIndex % _chunkSize;
-            
+
             if (_chunks[chunkIndex] != null)
             {
                 _chunks[chunkIndex][localIndex] = null;
+                BumpChunkVersion(chunkIndex);
             }
         }
 
@@ -261,11 +384,11 @@ namespace Fdp.Core
         /// Uses shallow copy (Array.Copy) for normal components.
         /// Uses deep clone for components marked with DataPolicy.SnapshotViaClone.
         /// </summary>
-        public void SyncDirtyChunks(ManagedComponentTable<T> source)
+        public void SyncDirtyChunks(ManagedComponentTable<T> source, bool force = false)
         {
             // Check if this type requires cloning
-            int typeId = ComponentTypeRegistry.GetId(typeof(T));
-            bool needsClone = ComponentTypeRegistry.NeedsClone(typeId);
+            // ⭐ CE-2394 — the per-T cached id (CE-2389, lock-free, re-resolved after a registry Clear); it asked the registry under its lock
+            bool needsClone = ComponentTypeRegistry.NeedsClone(ManagedComponentType<T>.ID);
             
             // Assuming matching configurations by architecture design
             int loopMax = Math.Min(_chunks.Length, source._chunks.Length);
@@ -274,7 +397,7 @@ namespace Fdp.Core
             {
                 // Optimization: Version Check
                 uint srcVer = source.GetChunkVersion(i);
-                if (_chunkVersions[i] == srcVer)
+                if (!force && _chunkVersions[i] == srcVer)
                     continue;
 
                 // Liveness check: Does source have data?
@@ -286,7 +409,8 @@ namespace Fdp.Core
                     // Source is empty. If we have data, clear it.
                     if (_chunks[i] != null)
                     {
-                        // Release the array for GC
+                        // ⭐ CE-2399 — kept for reuse (was released for GC)
+                        Retire(_chunks[i]);
                         _chunks[i] = null!; 
                     }
                     
@@ -297,7 +421,7 @@ namespace Fdp.Core
                 // Source has data. Ensure we have storage.
                 if (_chunks[i] == null)
                 {
-                    _chunks[i] = new T[_chunkSize];
+                    _chunks[i] = NewChunk();
                 }
                 
                 if (needsClone)
@@ -306,7 +430,11 @@ namespace Fdp.Core
                     for (int k = 0; k < _chunkSize; k++)
                     {
                         var srcVal = srcChunk[k];
-                        if (srcVal != null)
+                        if (srcVal is IValueCopy<T>)
+                        {
+                            _chunks[i][k] = CopyValue(srcVal, _chunks[i][k]);   // ⭐ N-9 — into this table's own instance, no allocation once warm
+                        }
+                        else if (srcVal != null)
                         {
                             _chunks[i][k] = FdpAutoSerializer.DeepClone(srcVal);
                         }
@@ -342,11 +470,20 @@ namespace Fdp.Core
             throw new NotSupportedException("Cannot get raw pointer for managed component");
         }
 
-        public void SyncFrom(IComponentTable source)
+        public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
+
+        /// <summary>⭐ M-4 (CE-4483) — see <see cref="IComponentTable.InvalidateChunksStampedSince"/>.</summary>
+        public void InvalidateChunksStampedSince(uint version)
+        {
+            for (int i = 0; i < _chunkVersions.Length; i++)
+                if (_chunkVersions[i] >= version) _chunkVersions[i] = NativeChunkTable<byte>.NeverSyncedVersion;
+        }
+
+        public void SyncFrom(IComponentTable source, bool force)
         {
              if (source is ManagedComponentTable<T> typedSource)
              {
-                 this.SyncDirtyChunks(typedSource);
+                 this.SyncDirtyChunks(typedSource, force);
              }
              #if FDP_PARANOID_MODE
              else

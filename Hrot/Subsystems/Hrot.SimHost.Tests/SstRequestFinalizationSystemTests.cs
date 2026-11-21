@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
 using Hrot.Core.Network;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
@@ -63,7 +64,7 @@ namespace Hrot.SimHost.Tests
             var world = CreateWorld();
             var (system, ackSink, map) = BuildSystem();
             var requestId = Guid.NewGuid();
-            const long networkId = 2001;
+            const int networkId = 2001;
 
             var entity = world.CreateEntity();
             world.SetLifecycleState(entity, EntityLifecycle.Constructing);
@@ -85,7 +86,7 @@ namespace Hrot.SimHost.Tests
             var world = CreateWorld();
             var (system, ackSink, map) = BuildSystem();
             var requestId = Guid.NewGuid();
-            const long networkId = 3001;
+            const int networkId = 3001;
 
             var entity = world.CreateEntity();
             world.SetLifecycleState(entity, EntityLifecycle.Constructing);
@@ -119,7 +120,7 @@ namespace Hrot.SimHost.Tests
         {
             var world = CreateWorld();
             var (system, ackSink, map) = BuildSystem();
-            const long networkId = 4001;
+            const int networkId = 4001;
 
             var entity = world.CreateEntity();
             world.SetLifecycleState(entity, EntityLifecycle.Active);
@@ -144,7 +145,7 @@ namespace Hrot.SimHost.Tests
         {
             var world = CreateWorld();
             var (system, ackSink, map) = BuildSystem();
-            const long networkId = 5001;
+            const int networkId = 5001;
 
             var entity = world.CreateEntity();
             map.Register(networkId, entity);
@@ -165,7 +166,7 @@ namespace Hrot.SimHost.Tests
             var world = CreateWorld();
             var (system, ackSink, map) = BuildSystem();
             var requestId = Guid.NewGuid();
-            const long networkId = 6001;
+            const int networkId = 6001;
 
             var entity = world.CreateEntity();
             map.Register(networkId, entity);

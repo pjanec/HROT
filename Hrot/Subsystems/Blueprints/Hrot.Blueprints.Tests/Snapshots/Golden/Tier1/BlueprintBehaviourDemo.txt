@@ -1,0 +1,11 @@
+StructureHash: 0x4E2DE83B8A930CAD
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  Waited : System.Boolean @0 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

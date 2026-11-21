@@ -1,0 +1,21 @@
+{
+  "$comment": "CE-4028 — a one-storey concrete shop for demo-city: 12 x 9 m, a wide front door between two shop windows (closed, not locked — a shelter, DESIGN_Civilians_And_Crowd_Control §5e), a back door, a stock room behind a partition. Local metres; origin = the south-west corner; the front wall is y = 0.",
+  "name": "shop-1f",
+  "material": "concrete",
+  "footprint": [[0,0],[12,0],[12,9],[0,9]],
+  "storeys": [
+    { "height": 4.0,
+      "walls": [
+        { "from": [0,0], "to": [12,0], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 0.8, "width": 3.6 },
+                        { "kind": "door",   "at": 5.3, "width": 1.4, "doorId": "front", "initial": "closed" },
+                        { "kind": "window", "at": 7.6, "width": 3.6 } ] },
+        { "from": [12,0], "to": [12,9], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 2.0, "width": 1.2 } ] },
+        { "from": [12,9], "to": [0,9], "thickness": 0.3,
+          "openings": [ { "kind": "door", "at": 2.0, "width": 0.9, "doorId": "back", "initial": "closed" } ] },
+        { "from": [0,9], "to": [0,0], "thickness": 0.3 },
+        { "from": [0,6], "to": [12,6], "thickness": 0.15, "material": "brick",
+          "openings": [ { "kind": "door", "at": 9.0, "width": 0.9, "doorId": "stock" } ] } ] } ],
+  "roof": "flat"
+}

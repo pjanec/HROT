@@ -54,7 +54,9 @@ public static class UtilityPreviewRunner
                     con.Curve.ToRuntime(),
                     new InputParams
                     {
-                        BlueprintId = con.Params.BlueprintId,
+                        BlueprintId = string.IsNullOrEmpty(con.Params.TemplateAssetId)
+                            ? 0u
+                            : In.EqsTemplateId(con.Params.TemplateAssetId),   // ⭐ CE-2046 — the emitted code's id
                         MaxRange    = con.Params.MaxRange,
                         MountIndex  = con.Params.MountIndex,
                     });

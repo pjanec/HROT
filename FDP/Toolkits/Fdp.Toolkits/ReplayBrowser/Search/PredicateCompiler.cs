@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     /// <summary>
     /// Compiles SearchPredicateDto trees into Func&lt;EntityRepository, Entity, bool&gt; delegates.
     /// </summary>
-    public sealed class PredicateCompiler : IPredicateCompiler
+    public sealed partial class PredicateCompiler : IPredicateCompiler
     {
         private readonly IComponentEditService _editService;
         private readonly BehaviorRegistry _behaviorRegistry;
@@ -35,7 +35,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public Func<EntityRepository, Entity, bool> CompileComponentPredicate(SearchPredicateDto root)
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
-            return Compile(root);
+            return Compile(root, PredicateMode.Scan);
+        }
+
+        /// <inheritdoc/>
+        public Func<EntityRepository, Entity, bool> CompileLevelPredicate(SearchPredicateDto root)
+        {
+            if (root == null) throw new ArgumentNullException(nameof(root));
+            return Compile(root, PredicateMode.State);
         }
 
         /// <inheritdoc/>
@@ -46,12 +53,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             return result;
         }
 
-        private Func<EntityRepository, Entity, bool> Compile(SearchPredicateDto dto)
+        private Func<EntityRepository, Entity, bool> Compile(SearchPredicateDto dto, PredicateMode mode)
         {
             switch (dto)
             {
                 case CompoundPredicateDto compound:
-                    return CompileCompound(compound);
+                    return CompileCompound(compound, mode);
 
                 case PropertyMatchDto prop:
                     return CompilePropertyMatch(prop);
@@ -70,7 +77,22 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 case BlueprintVariablePredicateDto blueprintVar:
                     return CompileBlueprintVariablePredicate(blueprintVar);
 
-                // Specialized loop predicates: pass-through; handled by the service.
+                // ⭐ CE-4164 — the LEVEL arms (PredicateCompiler.Level.cs): what a trigger's `when` asks every frame.
+                case SpatialBoundingPredicateDto spatial when mode == PredicateMode.State: return CompileSpatialLevel(spatial);
+                case LifecyclePredicateDto lifecycle when mode == PredicateMode.State: return CompileLifecycleLevel(lifecycle);
+                case StructuralPredicateDto structural when mode == PredicateMode.State: return CompileStructuralLevel(structural);
+                case TransientEventPredicateDto transient when mode == PredicateMode.State: return CompileEventLevel(transient);
+
+                // Both modes: the new leaves.
+                case OnEntityPredicateDto onEntity: return CompileOnEntity(onEntity, mode);
+                case ScenarioTimePredicateDto time: return CompileScenarioTime(time);
+                case CountMatchingPredicateDto count: return CompileCountMatching(count, mode);
+                case InputAbovePredicateDto inputAbove: return CompileInputAbove(inputAbove);
+                case InUnitPredicateDto inUnit: return CompileInUnit(inUnit);
+                case InTheFightPredicateDto: return static (repo, e) => Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(repo, e);
+                case TaskFinishedPredicateDto taskFinished: return CompileTaskFinished(taskFinished);   // ⭐ CE-4298 — mission plan D6
+
+                // Specialized loop predicates: SEARCH mode passes through; handled by the service (edge / loop scanners).
                 case StructuralPredicateDto _:
                 case SpatialBoundingPredicateDto _:
                 case LifecyclePredicateDto _:
@@ -78,17 +100,28 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     return static (_, _) => true;
 
                 // Value predicates used standalone: pass-through (normally nested inside PropertyMatch).
-                default:
+                case SearchPredicateValueDto _:
+                // Evaluated OUTSIDE this per-entity path: a ring entry / a value change by their own scanners, a behaviour step by the
+                // editor's evaluator (DataBreakpointManager mounts each on its own arm) — pass-through, as before CE-4159.
+                case RingEntryPredicateDto _:
+                case ValueChangePredicateDto _:
+                case BehaviourStepPredicateDto _:
                     return static (_, _) => true;
+
+                // ⭐⭐ CE-4159 (DESIGN_Scenario_Rules.md SR-108) — a DTO with no arm is a LOUD error. ⛔ It compiled to constant TRUE: nested in
+                //   a Compound it made the whole condition true with no error (a new predicate type, a trigger's OnEntity, a typo'd type).
+                default:
+                    throw new NotSupportedException(
+                        $"PredicateCompiler: no compiler arm for predicate type '{dto?.GetType().FullName ?? "null"}' — add an arm (or a deliberate pass-through) in PredicateCompiler.Compile.");
             }
         }
 
-        private Func<EntityRepository, Entity, bool> CompileCompound(CompoundPredicateDto compound)
+        private Func<EntityRepository, Entity, bool> CompileCompound(CompoundPredicateDto compound, PredicateMode mode)
         {
             // Compile all child predicates upfront.
             var childFuncs = new Func<EntityRepository, Entity, bool>[compound.Conditions.Count];
             for (int i = 0; i < compound.Conditions.Count; i++)
-                childFuncs[i] = Compile(compound.Conditions[i]);
+                childFuncs[i] = Compile(compound.Conditions[i], mode);
 
             if (compound.Operator == LogicalOperator.And)
             {
@@ -96,6 +129,16 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     for (int i = 0; i < childFuncs.Length; i++)
                         if (!childFuncs[i](repo, entity)) return false;
+                    return true;
+                };
+            }
+            else if (compound.Operator == LogicalOperator.None)
+            {
+                // ⭐ C1 (R-4142) — true when no child holds; a one-child None is NOT.
+                return (repo, entity) =>
+                {
+                    for (int i = 0; i < childFuncs.Length; i++)
+                        if (childFuncs[i](repo, entity)) return false;
                     return true;
                 };
             }
@@ -135,12 +178,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             int typeId = ComponentTypeRegistry.GetId(typeof(T));
 
             var param = Expression.Parameter(typeof(T).MakeByRefType(), "comp");
-            Expression fieldAccess = param;
-            if (!string.IsNullOrEmpty(prop.PropertyPath))
-            {
-                foreach (string seg in prop.PropertyPath.Split('.'))
-                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
-            }
+            Expression fieldAccess = FieldAccess(param, prop.PropertyPath);
+
+            if (prop.Operator == SearchOperator.Changed) return BuildChangedMatcher<T>(typeId, param, fieldAccess, prop.PropertyPath);
 
             Expression condition = BuildConditionExpression(fieldAccess, prop.Operator, prop.Predicate);
             var matcher = Expression.Lambda<ComponentMatcherDelegate<T>>(condition, param).Compile();
@@ -154,15 +194,47 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             };
         }
 
+        private delegate bool SameFieldDelegate<T>(ref T now, ref T before);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1258</c> (BV-28, R-1029) — <see cref="SearchOperator.Changed"/> EXACT per entity: true when THIS entity's field differs
+        /// from the same entity in <see cref="PredicateChangeBaseline.Current"/> (the breakpoint manager's pre-tick copy). 📐 It used to be
+        /// <c>true</c> for every entity of a chunk that changed (the caller's <c>QueryDelta</c>), so a breakpoint filtered to one unit fired
+        /// when a NEIGHBOUR in the chunk wrote. ⚠ With no baseline (the recording search) it keeps that chunk-granular answer; an entity
+        /// absent from the baseline (created this tick) counts as changed.
+        /// </summary>
+        private static Func<EntityRepository, Entity, bool> BuildChangedMatcher<T>(int typeId, ParameterExpression now, Expression nowField,
+            string? path) where T : unmanaged
+        {
+            var before = Expression.Parameter(typeof(T).MakeByRefType(), "before");
+            Expression beforeField = before;
+            if (!string.IsNullOrEmpty(path))
+                foreach (string seg in path.Split('.')) beforeField = Expression.PropertyOrField(beforeField, seg);
+            Expression same;
+            try { same = Expression.Equal(nowField, beforeField); }
+            catch (InvalidOperationException)   // a struct field with no == : compare by Equals
+            {
+                same = Expression.Call(typeof(object).GetMethod(nameof(object.Equals), new[] { typeof(object), typeof(object) })!,
+                    Expression.Convert(nowField, typeof(object)), Expression.Convert(beforeField, typeof(object)));
+            }
+            var sameField = Expression.Lambda<SameFieldDelegate<T>>(same, now, before).Compile();
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasComponentByTypeId(entity, typeId)) return false;
+                var baseline = PredicateChangeBaseline.Current;
+                if (baseline is null || ReferenceEquals(baseline, repo)) return true;
+                if (!baseline.IsAlive(entity) || !baseline.HasComponentByTypeId(entity, typeId)) return true;
+                ref readonly T a = ref repo.GetComponentRO<T>(entity);
+                ref readonly T b = ref baseline.GetComponentRO<T>(entity);
+                return !sameField(ref Unsafe.AsRef(in a), ref Unsafe.AsRef(in b));
+            };
+        }
+
         private static Func<EntityRepository, Entity, bool> BuildManagedMatcher<T>(PropertyMatchDto prop) where T : class
         {
             var param = Expression.Parameter(typeof(T), "comp");
-            Expression fieldAccess = param;
-            if (!string.IsNullOrEmpty(prop.PropertyPath))
-            {
-                foreach (string seg in prop.PropertyPath.Split('.'))
-                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
-            }
+            Expression fieldAccess = FieldAccess(param, prop.PropertyPath);
 
             Expression condition = BuildConditionExpression(fieldAccess, prop.Operator, prop.Predicate);
             var matcher = Expression.Lambda<Func<T, bool>>(condition, param).Compile();
@@ -263,11 +335,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Expression condition = BuildConditionExpression(param, dto.Operator, dto.Predicate);
             var matcher = Expression.Lambda<ComponentMatcherDelegate<TField>>(condition, param).Compile();
 
-            // Bake tier component type IDs at compile time.
-            // GetId returns -1 for unregistered types (BB16384 in test repos) -> HasComponentByTypeId returns false.
-            int typeId1024  = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard1024));
-            int typeId4096  = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard4096));
-            int typeId16384 = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard16384));
+            // ⭐ O3a / B3: bake ONE type id per tier, from BlueprintTierTable, at compile time.
+            //   ⚠ HasComponentByTypeId is kept deliberately rather than spec.Has: GetId returns -1
+            //     for a type this repo never registered (BB16384 in test repos), and the by-id probe
+            //     answers false for -1 where HasComponent<T> would not be safe. That subtlety was
+            //     documented on the old three-arm version and it survives the collapse.
+            var tiers   = BlueprintTierTable.Ascending;
+            var typeIds = new int[tiers.Count];
+            for (int t = 0; t < tiers.Count; t++)
+                typeIds[t] = ComponentTypeRegistry.GetId(tiers[t].ComponentType);
 
             return (repo, entity) =>
             {
@@ -275,20 +351,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     byte* memory = null;
 
-                    if (repo.HasComponentByTypeId(entity, typeId1024))
+                    // ⚠ Ascending, which is the order the three arms probed in. An entity carries at
+                    //   most one tier, so the order is not observable — preserved anyway.
+                    for (int t = 0; t < tiers.Count; t++)
                     {
-                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard1024>(entity);
-                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-                    }
-                    else if (repo.HasComponentByTypeId(entity, typeId4096))
-                    {
-                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard4096>(entity);
-                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-                    }
-                    else if (repo.HasComponentByTypeId(entity, typeId16384))
-                    {
-                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard16384>(entity);
-                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
+                        if (typeIds[t] < 0 || !repo.HasComponentByTypeId(entity, typeIds[t])) continue;
+                        memory = tiers[t].MemoryReadOnly(repo, entity);
+                        break;
                     }
 
                     if (memory == null) return false;
@@ -312,9 +381,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             if (!_behaviorRegistry.TryGetDefinition(dto.BehaviorId, out var def))
                 return static (_, _) => false;
 
-            Type? dtoType = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
-                ? def.HeavyDtoType
-                : def.ParamsDtoType;
+            // ⭐ CE-308: ONE resolver, shared with both field drawers — a drawer that offered a
+            //   property path this could not bind would produce a search that silently matches
+            //   nothing.
+            Type? dtoType = BehaviorParamSlotResolver.ResolveDtoType(def, dto.WorkingSlotKey);
             if (dtoType == null)
                 return static (_, _) => false;
 
@@ -325,15 +395,22 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             Expression condition = BuildConditionExpression(fieldAccess, dto.Operator, dto.Predicate);
 
-            string methodName = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
-                ? nameof(BuildBehaviorParamMatcherGenericHeavy)
-                : nameof(BuildBehaviorParamMatcherGenericBrain);
+            // ⭐⭐ CE-308: TWO matchers, and they differ only in WHICH SLOT they resolve —
+            //   the root params slot (key computed from the behaviour) or a named working-state
+            //   slot. ⛔ The old pair differed in which COMPONENT they read, and one of them read a
+            //   component nothing filled.
+            string methodName = dto.WorkingSlotKey == BehaviorParamSlotResolver.RootParamsSlotKey
+                ? nameof(BuildBehaviorParamMatcherGenericBrain)
+                : nameof(BuildBehaviorParamMatcherGenericWorkingSlot);
             var buildMethod = typeof(PredicateCompiler).GetMethod(
                 methodName,
                 BindingFlags.NonPublic | BindingFlags.Static)!;
             var genericBuild = buildMethod.MakeGenericMethod(dtoType);
-            return (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
-                null, new object[] { dto.BehaviorId, condition, param })!;
+            return dto.WorkingSlotKey == BehaviorParamSlotResolver.RootParamsSlotKey
+                ? (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
+                    null, new object[] { dto.BehaviorId, condition, param })!
+                : (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
+                    null, new object[] { dto.BehaviorId, dto.WorkingSlotKey, condition, param })!;
         }
 
         private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericBrain<TDto>(
@@ -344,57 +421,84 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             var matcher = Expression.Lambda<BehaviorParamMatcherDelegate<TDto>>(condition, dtoParam).Compile();
             int stateTypeId = ComponentTypeRegistry.GetId(typeof(BehaviorState));
-            int bbTypeId = ComponentTypeRegistry.GetId(typeof(BrainBlackboard));
 
             return (repo, entity) =>
             {
                 if (!repo.HasComponentByTypeId(entity, stateTypeId)) return false;
-                if (!repo.HasComponentByTypeId(entity, bbTypeId)) return false;
 
                 ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
                 if (state.ActiveBehaviorHash != behaviorHash) return false;
 
-                ref readonly var bb = ref repo.GetComponentRO<BrainBlackboard>(entity);
                 unsafe
                 {
-                    fixed (byte* src = bb.BehaviorParameters)
-                    {
-                        ref TDto projected = ref Unsafe.AsRef<TDto>(src);
-                        return matcher(ref projected);
-                    }
+                    // ⚠ P3-C: the params live in the ROOT PARAMS OCCURRENCE SLOT now, not in a
+                    //   BrainBlackboard component. ⭐ TRY, not Require — a SEARCH PREDICATE runs over
+                    //   every entity in a replay frame and "this one has no params region" is an
+                    //   ordinary non-match, not a fault. ⛔ That is the one place the loud accessor
+                    //   would be wrong: it would turn a browse into a crash.
+                    if (!RootParamsAccess.TryGetRootBytes(repo, entity, out byte* src)) return false;
+
+                    ref TDto projected = ref Unsafe.AsRef<TDto>(src);
+                    return matcher(ref projected);
                 }
             };
         }
 
-        private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericHeavy<TDto>(
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-308</c> — matches against a behaviour's NAMED WORKING-STATE SLOT.</b>
+        ///
+        /// <para>🔴 <b>This is a capability the old "heavy" arm advertised and never delivered.</b>
+        /// It resolved through <c>HeavyDtoType</c>, which is <c>null</c> at every production site, so
+        /// the compiler returned <c>(_, _) =&gt; false</c> before reaching it. The working state it
+        /// meant to read is real now — it lives in an occurrence slot (<c>HillAttackMutableState</c>
+        /// is one) — and this reads it where it actually is.</para>
+        ///
+        /// <para>⚠ <b>TRY, never Require</b>, for the same reason as the root matcher: a search
+        /// predicate runs over every entity in a replay frame, and "this one has no such slot" is an
+        /// ordinary non-match, not a fault. ⛔ A loud accessor here would turn a browse into a crash.</para>
+        /// </summary>
+        private static unsafe Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericWorkingSlot<TDto>(
             int behaviorHash,
+            int slotKey,
             Expression condition,
             ParameterExpression dtoParam)
             where TDto : unmanaged
         {
             var matcher = Expression.Lambda<BehaviorParamMatcherDelegate<TDto>>(condition, dtoParam).Compile();
             int stateTypeId = ComponentTypeRegistry.GetId(typeof(BehaviorState));
-            int bbTypeId = ComponentTypeRegistry.GetId(typeof(Blackboard1024));
 
             return (repo, entity) =>
             {
                 if (!repo.HasComponentByTypeId(entity, stateTypeId)) return false;
-                if (!repo.HasComponentByTypeId(entity, bbTypeId)) return false;
 
                 ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
                 if (state.ActiveBehaviorHash != behaviorHash) return false;
 
-                ref readonly var bb = ref repo.GetComponentRO<Blackboard1024>(entity);
-                unsafe
-                {
-                    fixed (byte* src = bb.Memory)
-                    {
-                        ref TDto projected = ref Unsafe.AsRef<TDto>(src);
-                        return matcher(ref projected);
-                    }
-                }
+                // ⭐ CE-3137 U-0: every block of the recorded frame (an old single-tier recording is a one-block store).
+                if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryFindSlotReadOnly(
+                        repo, entity, slotKey, out byte* mem, out int payloadOffset, out _))
+                    return false;
+                if (payloadOffset <= 0) return false;
+
+                ref TDto projected = ref Unsafe.AsRef<TDto>(mem + payloadOffset);
+                return matcher(ref projected);
             };
         }
+
+        // ⛔⛔ `BuildBehaviorParamMatcherGenericHeavy` WAS HERE — deleted by `P4`-① (`2026-09-22`)
+        //    with the `Blackboard1024` component it read.
+        //
+        // 📐 It was PROVABLY UNREACHABLE, not merely unused: its only caller selects it when
+        //    `TargetBlackboard == BlackboardTarget.Blackboard1024`, and that same branch first sets
+        //    `dtoType = def.HeavyDtoType` and returns `static (_, _) => false` when it is null.
+        //    `HeavyDtoType` is null at every production site and in all 30 shipped assets, so the
+        //    caller short-circuited before this method could ever be reached.
+        //
+        // ⚠ `BlackboardTarget` ITSELF STAYS, deliberately. Its job — "which memory region does this
+        //   predicate read?" — survives P4: there are still TWO regions, the root params slot and the
+        //   node working-state slots. `CE-308` RE-POINTS the members in `P4`-③ rather than removing
+        //   the axis, because deleting it would drop the ability to break on working state.
+        //   📄 §30.14. ⛔ Do not "finish the job" here by removing the enum.
 
         private static Expression BuildConditionExpression(Expression fieldAccess, SearchOperator op, SearchPredicateDto? predicate)
         {
@@ -454,16 +558,43 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             return Expression.Constant(true);
         }
 
+        /// <summary>
+        /// Adds <paramref name="componentType"/> to <paramref name="result"/> unless it is null or
+        /// already present.
+        ///
+        /// <para>
+        /// ⚠ The null check is load-bearing. <c>PropertyMatchDto.ComponentType</c> is declared
+        /// <c>null!</c> and is genuinely null in two ordinary situations: a predicate the designer
+        /// created but has not yet given a component type (the panel's "Add" builds a bare
+        /// <c>new PropertyMatchDto()</c>), and one deserialized from a type name that no longer
+        /// resolves — <c>TypeNameJsonConverter.Read</c> returns null for those by design. Letting
+        /// either into this list put a null into <c>CompiledComponentPredicate.MandatoryComponents</c>,
+        /// which <c>DataBreakpointSystem</c> then passed to <c>ComponentTypeRegistry.GetId</c> every
+        /// frame. A single empty "New Breakpoint", once saved to the debug session, killed the
+        /// editor on every subsequent launch.
+        /// </para>
+        /// </summary>
+        private static void AddIfResolvable(Type? componentType, List<Type> result)
+        {
+            if (componentType is null) return;
+            if (result.Contains(componentType)) return;
+            result.Add(componentType);
+        }
+
         private static void CollectMandatoryComponents(SearchPredicateDto dto, List<Type> result)
         {
+            // ⭐ CE-4164 — OnEntity / CountMatching evaluate OTHER entities (ScenarioTime none), so they contribute nothing to THIS entity's mandatory set.
+            if (dto is OnEntityPredicateDto or ScenarioTimePredicateDto or CountMatchingPredicateDto or InputAbovePredicateDto) return;
+            // ⭐ C1 — InUnit reads the unit's roster, InTheFight works with or without Health (a unit by its roster): neither demands a component of THIS entity.
+            //   A None compound demands nothing either (its children must NOT hold) — only And recurses below.
+            if (dto is InUnitPredicateDto or InTheFightPredicateDto) return;
             if (dto is CompoundPredicateDto compound && compound.Operator == LogicalOperator.And)
             {
                 foreach (var condition in compound.Conditions)
                 {
                     if (condition is PropertyMatchDto propMatch)
                     {
-                        if (!result.Contains(propMatch.ComponentType))
-                            result.Add(propMatch.ComponentType);
+                        AddIfResolvable(propMatch.ComponentType, result);
                     }
                     else if (condition is CompoundPredicateDto nested)
                     {
@@ -473,18 +604,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             }
             else if (dto is PropertyMatchDto single)
             {
-                if (!result.Contains(single.ComponentType))
-                    result.Add(single.ComponentType);
+                AddIfResolvable(single.ComponentType, result);
             }
             else if (dto is BehaviorParamPredicateDto behaviorParam)
             {
+                // ⭐ CE-308: BehaviorState is the ONLY mandatory component. ⛔ BrainBlackboard was
+                //   listed here and neither matcher has read it since P3 — it is attached empty and
+                //   never filled (CE-312), so requiring it filtered replay entities on a component
+                //   that carries no information. The params and working state live in the entity's
+                //   occurrence store, whose TIER varies per entity and may be promoted, so there is
+                //   no single component type to demand — the matchers resolve it per entity.
                 if (!result.Contains(typeof(BehaviorState)))
                     result.Add(typeof(BehaviorState));
-                Type targetComponentType = behaviorParam.TargetBlackboard == BlackboardTarget.Blackboard1024
-                    ? typeof(Blackboard1024)
-                    : typeof(BrainBlackboard);
-                if (!result.Contains(targetComponentType))
-                    result.Add(targetComponentType);
             }
             else if (dto is TraceBufferScanPredicateDto traceScan)
             {

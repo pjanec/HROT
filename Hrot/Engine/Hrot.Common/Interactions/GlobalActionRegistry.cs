@@ -12,6 +12,7 @@ namespace Hrot.Common.Interactions
     // Composition-root owned registry that maps integer action IDs (see GlobalActionIds)
     // to application-level handler callbacks.  Register all handlers before the ECS
     // kernel is initialized; the registry is immutable during runtime.
+    [Fdp.Core.NotState("action id handlers registered at setup")]
     public sealed class GlobalActionRegistry
     {
         private readonly Dictionary<int, GlobalActionHandler> _handlers = new();
@@ -26,9 +27,31 @@ namespace Hrot.Common.Interactions
                     $"GlobalActionRegistry: ActionId {actionId} is already registered.");
         }
 
+        // ⭐ CE-3178 — a handler for THIS node's own clicks only: an action an operator starts here (a follow-up pick, an
+        //   order issued from this station). A click relayed from another node (GlobalActionRequestedEvent.Relayed) does not
+        //   run it — that node's own registry already did, so running it here too would issue the order twice and open a
+        //   pick on a window nobody clicked.
+        public void RegisterLocal(int actionId, GlobalActionHandler handler)
+        {
+            Register(actionId, handler);
+            _localOnly.Add(actionId);
+        }
+
+        private readonly HashSet<int> _localOnly = new();
+
         // Returns true and sets <paramref name="handler"/> when a handler exists for
         // <paramref name="actionId"/>.
         public bool TryGetHandler(int actionId, out GlobalActionHandler handler)
             => _handlers.TryGetValue(actionId, out handler!);
+
+        // ⭐ CE-1150 (HA-6) — this node runs <paramref name="actionId"/>: a menu offers it, a relay requests it.
+        public bool Has(int actionId) => _handlers.ContainsKey(actionId);
+
+        // ⭐ CE-3178 — as above, and false for a RegisterLocal action that was relayed from another node.
+        public bool TryGetHandler(int actionId, bool relayed, out GlobalActionHandler handler)
+        {
+            if (relayed && _localOnly.Contains(actionId)) { handler = null!; return false; }
+            return TryGetHandler(actionId, out handler);
+        }
     }
 }

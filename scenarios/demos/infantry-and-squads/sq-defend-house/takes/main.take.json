@@ -1,0 +1,66 @@
+{
+  "title": "Defend a house",
+  "caption": "The defenders take window and roof posts and open fire as Blue crosses the sector",
+  "clip": "F-38",
+  "chapter": 8,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Blue 1",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-3.9",
+      "follow": "Red Leader",
+      "distance": 100,
+      "yaw": 20,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Red Rifleman 1",
+      "toward": "Blue 1",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Blue 1",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-3.9",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-3.9",
+      "until": "m+8",
+      "text": "The defenders take window and roof posts and open fire as Blue crosses the sector"
+    }
+  ]
+}

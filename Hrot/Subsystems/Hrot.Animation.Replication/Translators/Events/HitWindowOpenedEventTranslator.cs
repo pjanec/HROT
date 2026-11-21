@@ -15,7 +15,6 @@ namespace Hrot.Animation.Replication.Translators.Events;
 internal sealed class HitWindowOpenedEventTranslator
     : CycloneNativeEventTranslator<HitWindowOpenedEvent, DdsHitWindowOpenedEvent>
 {
-    private const string TopicNameConst = "hrot/anim/HitWindowOpened";
 
     private struct Proxy
     {
@@ -28,7 +27,7 @@ internal sealed class HitWindowOpenedEventTranslator
 
     internal HitWindowOpenedEventTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap, TranslatorDirection direction)
-        : base(participant, TopicNameConst, entityMap)
+        : base(participant, entityMap, CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsHitWindowOpenedEvent).Namespace, new[] { nameof(DdsHitWindowOpenedEvent) }))
     {
         Direction = direction;
     }
@@ -36,7 +35,7 @@ internal sealed class HitWindowOpenedEventTranslator
     protected override bool TryEncode(
         in HitWindowOpenedEvent ecs, out DdsHitWindowOpenedEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

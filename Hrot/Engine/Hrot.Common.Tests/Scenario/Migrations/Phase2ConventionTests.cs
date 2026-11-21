@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -27,10 +28,10 @@ public sealed class Phase2ConventionTests
     [Fact]
     public void AllCommittedFixtures_HaveValidMetaEnvelope()
     {
-        string root = FindWorkspaceRoot();
+        string root = TestRepo.Root;
         var knownFixtures = new List<string>();
 
-        foreach (string path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
+        foreach (string path in Fdp.Testing.RepoSources.Files(root, "*.json", "ExtDeps", ".tmp")   /* ⭐ CE-1366 — the one scan */)
         {
             if (ShouldSkipPath(path))
                 continue;
@@ -75,10 +76,10 @@ public sealed class Phase2ConventionTests
     [Fact]
     public void AllScenarioFixtures_HaveCorrectDocTypeAndVersion()
     {
-        string root = FindWorkspaceRoot();
+        string root = TestRepo.Root;
         var scenarioFiles = new List<string>();
 
-        foreach (string path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
+        foreach (string path in Fdp.Testing.RepoSources.Files(root, "*.json", "ExtDeps", ".tmp")   /* ⭐ CE-1366 — the one scan */)
         {
             if (ShouldSkipPath(path))
                 continue;
@@ -125,10 +126,10 @@ public sealed class Phase2ConventionTests
     [Fact]
     public void AllBlueprintFixtures_HaveCorrectDocTypeAndVersion()
     {
-        string root = FindWorkspaceRoot();
+        string root = TestRepo.Root;
         var blueprintFiles = new List<string>();
 
-        foreach (string path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
+        foreach (string path in Fdp.Testing.RepoSources.Files(root, "*.json", "ExtDeps", ".tmp")   /* ⭐ CE-1366 — the one scan */)
         {
             if (ShouldSkipPath(path))
                 continue;
@@ -177,8 +178,8 @@ public sealed class Phase2ConventionTests
     [Fact]
     public async Task LoadScenario_ViaReadOnlyAdapter_DomHasValidMetaAndRoundTrips()
     {
-        string root = FindWorkspaceRoot();
-        string scenarioPath = Path.Combine(root, "scenarios", "hill-attack", "scenario.json");
+        string root = TestRepo.Root;
+        string scenarioPath = TestRepo.ScenarioFile("hill-attack");   // CE-4361 — filed under scenarios/tests/
 
         Assert.True(File.Exists(scenarioPath), $"Scenario fixture not found: {scenarioPath}");
 
@@ -215,18 +216,6 @@ public sealed class Phase2ConventionTests
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private static string FindWorkspaceRoot()
-    {
-        DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
-            dir = dir.Parent;
-        if (dir == null)
-            throw new InvalidOperationException(
-                "Cannot locate workspace root (IOS-IG-SimHost.sln not found). " +
-                $"Started search from: {AppContext.BaseDirectory}");
-        return dir.FullName;
-    }
 
     private static JsonObject? TryParseJsonObject(string path)
     {
@@ -302,18 +291,7 @@ public sealed class Phase2ConventionTests
     /// </summary>
     private static bool ShouldSkipPath(string path)
     {
-        if (path.Contains(@"\obj\") || path.Contains("/obj/")
-            || path.Contains(@"\bin\") || path.Contains("/bin/"))
-            return true;
-
-        if (path.Contains(@"\ExtDeps\") || path.Contains("/ExtDeps/"))
-            return true;
-
-        if (path.Contains(@"\.tmp\") || path.Contains("/.tmp/"))
-            return true;
-
-        if (path.Contains(@"\.claude\") || path.Contains("/.claude/"))
-            return true;
+        // obj/ bin/ .claude/ .git/ ExtDeps/ .tmp/ are pruned by the scan itself (RepoSources, CE-1366)
 
         if (path.Contains(@"Fdp.Core.Tests\Serialization\Migrations")
             || path.Contains("Fdp.Core.Tests/Serialization/Migrations"))

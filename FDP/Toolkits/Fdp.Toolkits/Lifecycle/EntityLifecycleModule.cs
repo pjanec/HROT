@@ -14,6 +14,8 @@ namespace Fdp.Toolkit.Lifecycle
     /// Ensures entities are fully initialized before becoming Active,
     /// and properly cleaned up before destruction.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class EntityLifecycleModule : IEcsModule
     {
         public string Name => "EntityLifecycleManager";
@@ -30,47 +32,90 @@ namespace Fdp.Toolkit.Lifecycle
         public IReadOnlyList<Type>? WatchComponents => null;
         
         private readonly ITkbDatabase _tkb;
+        [Fdp.Core.NotState("injected translator list, set in ctor/SetTranslators")]
         private IReadOnlyList<ITkbEntityTranslator> _translators;
         
         /// <summary>
         /// Global participants that care about all entities.
         /// </summary>
+        [Fdp.Core.NotState("participant registration at setup")]
         private readonly HashSet<int> _globalParticipants;
         
         /// <summary>
         /// Blueprint-specific participants.
         /// </summary>
+        [Fdp.Core.NotState("per-blueprint participant requirements registered at setup")]
         private readonly Dictionary<long, HashSet<int>> _blueprintRequirements = new();
+
+        // ⭐ CE-3136 P-7a (R-243) — requirements stated by a RULE over the TKB template, evaluated at BeginConstruction against the
+        //   TKB as it is then (a scenario's knowledge base may replace the in-code one after composition).
+        [Fdp.Core.NotState("template requirement rules registered at setup")]
+        private readonly List<(Func<TkbTemplate, bool> Applies, int ModuleId)> _templateRequirements = new();
+
+        // ⭐ CE-8013 ② (SV-6) — requirements stated per ENTITY (a split's held child), evaluated at BeginConstruction — after the creation
+        //   request's components are on the entity (NetworkSpawningSystem begins construction LAST).
+        [Fdp.Core.NotState("module-requirement predicates registered at start-up (RegisterEntityRequirement)")]
+        private readonly List<(Func<Entity, bool> Applies, int ModuleId)> _entityRequirements = new();
         
         private readonly int _timeoutFrames;
         
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         
+        [Fdp.Core.ProtocolCache("in-flight construction handshake; re-derived by ResumeFromRestoredWorld")]
         private readonly Dictionary<Entity, PendingConstruction> _pendingConstruction = new();
+        [Fdp.Core.ProtocolCache("in-flight destruction handshake; re-derived by ResumeFromRestoredWorld")]
         private readonly Dictionary<Entity, PendingDestruction> _pendingDestruction = new();
         
+        [Fdp.Core.WorldDerived("diagnostic counter")]
         private int _totalConstructed;
+        [Fdp.Core.WorldDerived("diagnostic counter")]
         private int _totalDestructed;
+        [Fdp.Core.WorldDerived("diagnostic counter")]
         private int _timeouts;
         
+        /// <param name="tkb">TKB template registry.</param>
+        /// <param name="participatingModuleIds">Modules that must ACK every construction/destruction.</param>
+        /// <param name="timeoutFrames">Frames to wait for ACKs before giving up on a handshake.</param>
+        /// <param name="localNodeId">This node's logical ID.</param>
+        /// <param name="translators">
+        /// 🔴 <b>The node's TKB→ECS projection list, handed to <c>BlueprintApplicationSystem</c> in
+        /// <see cref="RegisterSystems"/>. Omitting it means "apply NO TKB template components" — not
+        /// "apply a default set".</b>
+        ///
+        /// <para>⚠⚠ It defaults to <c>Array.Empty</c>, silently. ⛔ <b>Do not use a short or absent list
+        /// to narrow what a host materialises</b> — every <see cref="ITkbEntityTranslator"/> already
+        /// guards each write with <c>IsComponentTypeRegistered&lt;T&gt;()</c>, so the per-host lever is
+        /// the REGISTRATION SET, not the list. 📄 See the interface's own remarks and
+        /// <c>docs/designs/tkb-1/DESIGN.md</c> §6.1/§6.5. 📌 <c>CE-138</c>.</para>
+        ///
+        /// <para>⭐ Pass the SAME instance here and to <c>NetworkSpawningSystem</c> /
+        /// <c>GhostPromotionSystem</c> — §6.3: <i>"the translator list is identical for all three
+        /// systems within the same node"</i>. ⚠ <see cref="SetTranslators"/> exists for composition
+        /// roots that build the module before the list; it must run before
+        /// <see cref="RegisterSystems"/>.</para>
+        /// </param>
         public EntityLifecycleModule(
             ITkbDatabase tkb,
             IEnumerable<int> participatingModuleIds,
             int timeoutFrames = 300,
-            long localNodeId = 0,
-            IReadOnlyList<ITkbEntityTranslator>? translators = null) 
+            int localNodeId = 0,
+            IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _tkb = tkb;
             _globalParticipants = new HashSet<int>(participatingModuleIds);
             _timeoutFrames = timeoutFrames;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
         
+        // ⭐⭐⭐ The replay gate — 📄 mgmt-1/DESIGN.md §8.10: during replay "the ELM pipeline is never invoked". ⭐ CE-3329 P2: the
+        //   LifecycleSystem reads the world's Fdp.Toolkit.Replay.ReplayState, set by whatever installs a replay. ⛔ SUPERSEDED: an
+        //   IsReplayActive predicate here, set by the composition root ("unset means never replaying").
+
         public void RegisterSystems(ISystemRegistry registry)
         {
             registry.RegisterSystem(new BlueprintApplicationSystem(_tkb, _translators));
-            registry.RegisterSystem(new LifecycleSystem(this));
+            registry.RegisterSystem(new LifecycleSystem(this));   // ⭐ CE-3329 P2 — gated by the world's ReplayState
         }
 
         /// <summary>
@@ -81,6 +126,22 @@ namespace Fdp.Toolkit.Lifecycle
         {
             _translators = translators;
         }
+
+        /// <summary>
+        /// ⭐⭐ The node's ONE TKB→ECS projection list, readable so that the node's other two
+        /// projection sites can share this exact instance rather than being handed a second copy —
+        /// §6.3: <i>"the translator list is identical for all three systems within the same node"</i>.
+        ///
+        /// <para>📌 <c>CE-155</c>: <c>GhostPromotionSystem</c> was constructed with a
+        /// <c>translators</c> argument that <b>no production composition root ever passed</b>
+        /// (<c>NedNetworkFactory.CreateReplicationModule</c> omits it), so ghost promotion applied
+        /// mandatory template components and <b>zero</b> TKB translators on every node. Reading the
+        /// list from here removes the second copy instead of adding a third plumbing path.</para>
+        ///
+        /// <para>⚠ Read it LATE (at <c>Execute</c>, not at construction): composition roots that use
+        /// <see cref="SetTranslators"/> assign it after the module is built.</para>
+        /// </summary>
+        public IReadOnlyList<ITkbEntityTranslator> Translators => _translators;
         
         public void Tick(ISimulationView view, float deltaTime)
         {
@@ -107,6 +168,101 @@ namespace Fdp.Toolkit.Lifecycle
                 _blueprintRequirements[blueprintId] = set;
             }
             set.Add(moduleId);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3136</c> P-7a (R-243) — module <paramref name="moduleId"/> must ack the construction of every entity whose TKB template
+        /// satisfies <paramref name="applies"/> (e.g. "carries a static-obstacle descriptor"). Evaluated when construction BEGINS, so a
+        /// knowledge base loaded later is covered. ⚠ The module must exist on this node and ack, or the entity times out.
+        /// </summary>
+        public void RegisterTemplateRequirement(Func<TkbTemplate, bool> applies, int moduleId)
+            => _templateRequirements.Add((applies ?? throw new ArgumentNullException(nameof(applies)), moduleId));
+
+        /// <summary>
+        /// ⭐ <c>CE-8013</c> ② (SV-6) — module <paramref name="moduleId"/> must ack the construction of every ENTITY satisfying
+        /// <paramref name="applies"/> (a split's held child), evaluated when construction begins. ⚠ The module must exist on this node and ack,
+        /// or the entity times out (or, under <see cref="WaitWithoutTimeout"/>, waits).
+        /// </summary>
+        public void RegisterEntityRequirement(Func<Entity, bool> applies, int moduleId)
+            => _entityRequirements.Add((applies ?? throw new ArgumentNullException(nameof(applies)), moduleId));
+
+        /// <summary>Is <paramref name="entity"/>'s construction still waiting for <paramref name="moduleId"/>'s ack?</summary>
+        public bool IsWaitingFor(Entity entity, int moduleId)
+            => _pendingConstruction.TryGetValue(entity, out var p) && p.RemainingAcks.Contains(moduleId);
+
+        /// <summary>
+        /// ⭐ <c>CE-8013</c> ② — forget the construction of an entity that was DESTROYED while constructing (a cancelled split's held child):
+        /// no ack will come and, under an unbounded wait, nothing would ever end it. A no-op for an entity not constructing.
+        /// </summary>
+        public void AbandonConstruction(Entity entity) => _pendingConstruction.Remove(entity);
+
+        // ⭐ CE-3304 — a participant whose work can take longer than the default timeout (frames) waits this long instead.
+        [Fdp.Core.NotState("per-module timeout config registered at setup")]
+        private readonly Dictionary<int, int> _moduleTimeoutFrames = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-3304</c> (Peek &amp; Fire §9 O2's own mitigation) — a construction still waiting for <paramref name="moduleId"/> times
+        /// out after <paramref name="timeoutFrames"/> frames instead of the default. 📐 Measured: the terrain module's bake (a 0.5 s quiet
+        /// period, then 100–270 ms off-thread) outlived 300 frames in a headless editor load, whose frames run unthrottled — the static
+        /// obstacles were DESTROYED by the timeout. A participant that always acks in the end (the bake acks on failure too) may take longer.
+        /// </summary>
+        public void SetModuleTimeout(int moduleId, int timeoutFrames)
+        {
+            if (timeoutFrames <= 0) throw new ArgumentOutOfRangeException(nameof(timeoutFrames));
+            _moduleTimeoutFrames[moduleId] = timeoutFrames;
+        }
+
+        /// <summary>The timeout <see cref="WaitWithoutTimeout"/> stores: a construction waiting on such a module never times out.</summary>
+        public const int Unbounded = int.MaxValue;
+
+        /// <summary>
+        /// ⭐ <c>CE-4419</c> (Terrain Authoring §18, O-0) — a construction still waiting for <paramref name="moduleId"/> NEVER times out. For a participant
+        /// that always acks in the end (the terrain bake acks on failure too), however long its work takes. 📐 Why not a bigger frame count: the
+        /// budget is FRAMES and a headless load runs frames unthrottled, so a slow bake (an overlay's houses, ≈ 17 s at scale-1) outlived 18 000 of them
+        /// and the timeout DESTROYED the entities it was baking.
+        /// </summary>
+        public void WaitWithoutTimeout(int moduleId) => _moduleTimeoutFrames[moduleId] = Unbounded;
+
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — the timeout of a construction still waiting for <paramref name="remainingAcks"/>: <see cref="Unbounded"/> ONLY when EVERY remaining module is one that always acks
+        /// (<see cref="WaitWithoutTimeout"/>); while any other module's ack is pending, the usual budget applies (the default, or the longest <see cref="SetModuleTimeout"/> among the bounded ones) — a module that
+        /// never acks must still destroy the construction, whatever the terrain bake is doing.
+        /// </summary>
+        private int TimeoutFor(HashSet<int> remainingAcks)
+        {
+            int timeout = _timeoutFrames;
+            if (_moduleTimeoutFrames.Count == 0) return timeout;
+            bool allUnbounded = remainingAcks.Count > 0;
+            foreach (var module in remainingAcks)
+            {
+                if (_moduleTimeoutFrames.TryGetValue(module, out var t))
+                {
+                    if (t == Unbounded) continue;
+                    allUnbounded = false;
+                    if (t > timeout) timeout = t;
+                }
+                else allUnbounded = false;
+            }
+            return allUnbounded ? Unbounded : timeout;
+        }
+
+        /// <summary>⭐ CE-4427 R-5 — seconds an UNBOUNDED wait may last before it is said loudly (once per construction); 60 s is more than three times the ≈ 17 s a scale-1 overlay bake measured.</summary>
+        [field: Fdp.Core.NotState("configuration: seconds before warning about an unbounded wait")]
+        public double UnboundedWaitWarnSeconds { get; set; } = 60.0;
+
+        /// <summary>⭐ CE-4427 R-5 — how many unbounded waits have been reported (diagnostics / rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of unbounded-wait warnings")]
+        public int UnboundedWarnings { get; private set; }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — the entities (cleared <paramref name="into"/>, filled) whose construction waits for <paramref name="moduleId"/> ALONE: every other module has acked, so the entity is fully built and only
+        /// that module's ack is missing. A participant that cannot serve an entity (the terrain bake, for one without an obstacle's components) acks it from here. Allocation-free once <paramref name="into"/> has grown.
+        /// </summary>
+        public void CollectSoleWaiters(int moduleId, List<Entity> into)
+        {
+            into.Clear();
+            foreach (var kvp in _pendingConstruction)
+                if (kvp.Value.RemainingAcks.Count == 1 && kvp.Value.RemainingAcks.Contains(moduleId)) into.Add(kvp.Key);
         }
 
         public void AcknowledgeConstruction(Entity entity, int moduleId, uint frame, IEntityCommandBuffer cmd)
@@ -136,6 +292,11 @@ namespace Fdp.Toolkit.Lifecycle
             {
                 participants.UnionWith(reqs);
             }
+            if (_templateRequirements.Count > 0 && _tkb != null && _tkb.TryGetByType(blueprintId, out var template) && template != null)
+                foreach (var (applies, moduleId) in _templateRequirements)
+                    if (applies(template)) participants.Add(moduleId);
+            for (int i = 0; i < _entityRequirements.Count; i++)
+                if (_entityRequirements[i].Applies(entity)) participants.Add(_entityRequirements[i].ModuleId);
 
             var order = new ConstructionOrder
             {
@@ -238,6 +399,7 @@ namespace Fdp.Toolkit.Lifecycle
                 
                 _pendingConstruction.Remove(ack.Entity);
                 cmd.DestroyEntity(ack.Entity);
+                Constructed(pending, currentFrame, succeeded: false, ack.ErrorMessage);
                 return;
             }
             
@@ -253,6 +415,7 @@ namespace Fdp.Toolkit.Lifecycle
                     "[Node-{0}] ELM: Entity {1} promoted to Active", _localNodeId, ack.Entity.Index);
                 _pendingConstruction.Remove(ack.Entity);
                 _totalConstructed++;
+                Constructed(pending, currentFrame, succeeded: true, default);
             }
         }
         
@@ -271,6 +434,7 @@ namespace Fdp.Toolkit.Lifecycle
                 cmd.DestroyEntity(ack.Entity);
                 _pendingDestruction.Remove(ack.Entity);
                 _totalDestructed++;
+                Destructed(pending, currentFrame, forced: false);
             }
         }
         
@@ -295,6 +459,7 @@ namespace Fdp.Toolkit.Lifecycle
                 cmd.SetLifecycleState(entity, EntityLifecycle.Active);
                 FdpLog<EntityLifecycleModule>.Debug(
                     "[Node-{0}] ELM: Entity {1} promoted to Active", _localNodeId, entity.Index);
+                Constructed(_pendingConstruction[entity], currentFrame, succeeded: true, default);
                 _pendingConstruction.Remove(entity);
                 _totalConstructed++;
             }
@@ -308,17 +473,38 @@ namespace Fdp.Toolkit.Lifecycle
             foreach (var entity in readyDestruct)
             {
                 cmd.DestroyEntity(entity);
+                Destructed(_pendingDestruction[entity], currentFrame, forced: false);
                 _pendingDestruction.Remove(entity);
                 _totalDestructed++;
             }
         }
 
+        // reused every frame (CheckTimeouts runs each tick — 0 B steady)
+        [Fdp.Core.FrameScratch("reused list of timed-out constructions: cleared at the top of CheckTimeouts")]
+        private readonly List<Entity> _timedOutConstruction = new();
+        [Fdp.Core.FrameScratch("reused list of timed-out destructions: cleared at the top of the destruction pass")]
+        private readonly List<Entity> _timedOutDestruction = new();
+
         public void CheckTimeouts(uint currentFrame, IEntityCommandBuffer cmd)
         {
-            var timedOutConstruction = new List<Entity>();
+            var timedOutConstruction = _timedOutConstruction;
+            timedOutConstruction.Clear();
             foreach (var kvp in _pendingConstruction)
             {
-                if (currentFrame - kvp.Value.StartFrame > _timeoutFrames)
+                int limit = TimeoutFor(kvp.Value.RemainingAcks);
+                if (limit == Unbounded)   // ⭐ CE-4419 — waiting on a module that always acks (and only on such): never destroyed…
+                {
+                    // …but never SILENT either (CE-4427 R-5): a wait that outlives UnboundedWaitWarnSeconds is said once
+                    var p = kvp.Value;
+                    if (!p.Warned && System.Diagnostics.Stopwatch.GetElapsedTime(p.StartTimestamp).TotalSeconds > UnboundedWaitWarnSeconds)
+                    {
+                        p.Warned = true; UnboundedWarnings++;
+                        FdpLog<EntityLifecycleModule>.Warn(
+                            $"[ELM] Construction of {kvp.Key.Index} has waited {UnboundedWaitWarnSeconds:0} s for module(s) {string.Join(", ", p.RemainingAcks)}, which never time out: is that module running and acking?");
+                    }
+                    continue;
+                }
+                if (currentFrame - kvp.Value.StartFrame > (uint)limit)
                 {
                     timedOutConstruction.Add(kvp.Key);
                 }
@@ -333,9 +519,11 @@ namespace Fdp.Toolkit.Lifecycle
                 _pendingConstruction.Remove(entity);
                 cmd.DestroyEntity(entity);
                 _timeouts++;
+                Constructed(pending, currentFrame, succeeded: false, ConstructionTimeout);
             }
             
-            var timedOutDestruction = new List<Entity>();
+            var timedOutDestruction = _timedOutDestruction;
+            timedOutDestruction.Clear();
             foreach (var kvp in _pendingDestruction)
             {
                 if (currentFrame - kvp.Value.StartFrame > _timeoutFrames)
@@ -349,12 +537,195 @@ namespace Fdp.Toolkit.Lifecycle
                 Console.Error.WriteLine(
                     $"[ELM] Destruction timeout for {entity.Index}. Forcing deletion.");
                 
+                Destructed(_pendingDestruction[entity], currentFrame, forced: true);
                 _pendingDestruction.Remove(entity);
                 cmd.DestroyEntity(entity);
                 _timeouts++;
             }
         }
         
+        // ── World replacement: clear, then re-derive ─────────────────────────────
+        // 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m — HN-018 / CE-259ap / CE-259ar.
+
+        [Fdp.Core.ProtocolCache("armed flag to re-derive handshakes after world replacement")]
+        private bool _resumePending;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Discards all in-flight construction/destruction bookkeeping because THE WORLD WAS
+        /// REPLACED under it.</b> Call at EVERY world replacement: entering a replay, every seek, ending a
+        /// replay, branching to live, and entering/leaving an editor preview.
+        ///
+        /// <para>⛔⛔ <b>Why this must exist.</b> These dictionaries are keyed by <see cref="Entity"/>
+        /// handles that a rewind INVALIDATES, and nothing else resets them. 🔴 Left stale,
+        /// <see cref="CheckTimeouts"/> computes <c>currentFrame - StartFrame</c> on <b>uint</b>: once the
+        /// frame counter is rewound behind a recorded <c>StartFrame</c> the subtraction WRAPS past any
+        /// timeout, and the entry is "timed out" into <c>cmd.DestroyEntity(entity)</c> on a stale handle.
+        /// ⚠ The generation guard that would catch that is <c>#if FDP_PARANOID_MODE</c>, which
+        /// <c>Fdp.Core.csproj</c> defines for <b>Debug only</b> ⇒ a Release build has no guard at all.</para>
+        ///
+        /// <para>⭐ Deliberately NOT public: only a world-replacement boundary may legitimately discard an
+        /// in-flight handshake. 📌 <c>CE-259ar</c>.</para>
+        /// </summary>
+        internal void ClearForWorldReplacement()
+        {
+            _pendingConstruction.Clear();
+            _pendingDestruction.Clear();
+            _outcomes.Clear();   // ⭐ AQ107 — an outcome decided against the replaced world names a handle that no longer means it
+            _resumePending = false;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Arms the re-derive performed by <see cref="ResumeFromRestoredWorld"/> on the next tick.
+        /// ⛔ Arm this ONLY when resuming to a LIVE world (<c>FinalizeReplay</c> / <c>PrepareLive</c> /
+        /// preview exit) — ⚠ never when ENTERING a replay, where re-opening protocols the log is about to
+        /// overwrite would be pure waste.
+        /// </summary>
+        internal void ArmResumeFromRestoredWorld() => _resumePending = true;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The PUBLIC world-replacement boundary — the one composition roots call.</b>
+        /// 📄 <c>docs/designs/replay-and-modules/DESIGN.md</c> §2.1m step 3.
+        ///
+        /// <para>⭐ Call at EVERY world replacement: <c>PrepareReplay</c> *(<c>resumingToLive: false</c>)*,
+        /// every <b>seek</b> *(<c>false</c> — a seek stays inside the replay)*, and
+        /// <c>FinalizeReplay</c>/<c>PrepareLive</c> *(<c>true</c>)*. ⭐ The editor preview goes through
+        /// <c>PreviewParticipants.LifecycleModule</c> instead, which does the same two things.</para>
+        ///
+        /// <para>⭐⭐ <b>Why ONE method taking the intent, rather than exposing the two internals.</b> The
+        /// pair is <c>internal</c> on purpose — ⛔ only a world-replacement boundary may legitimately
+        /// discard an in-flight handshake, and a public <c>Clear()</c> invites exactly the caller that
+        /// should not exist. ⭐ This surface states the intent instead of the mechanism, so the
+        /// clear-without-arm case cannot be got wrong by forgetting the second call.</para>
+        /// </summary>
+        public void OnWorldReplaced(bool resumingToLive)
+        {
+            ClearForWorldReplacement();
+            if (resumingToLive) ArmResumeFromRestoredWorld();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Re-opens every in-flight protocol the restored world still implies.</b> Driven by
+        /// <see cref="Systems.LifecycleSystem"/>, which is where a command buffer and a frame number exist —
+        /// ⛔ <see cref="ClearForWorldReplacement"/>'s caller has neither.
+        ///
+        /// <para>⭐⭐ <b>Why RE-DERIVE and not RESTORE.</b> The authoritative fact — which entities are
+        /// mid-construction — IS recorded: <c>EntityMetadataCold.LifecycleState</c> travels in the entity
+        /// index's cold chunk, and <c>TkbIdentity</c> carries no <c>[DataPolicy]</c> so it is recorded too.
+        /// ⇒ 🔒 <b>re-deriving from those carries NO <see cref="Entity"/> handle across the boundary</b>,
+        /// so the handle-invalidation problem that deferred <c>HN-018</c> never arises. ⛔ Restoring a
+        /// snapshot of the queues would hit it head-on, and restoring PARTIAL ack progress would deadlock:
+        /// a participant that already acked before the rewind never acks again without a new order.</para>
+        ///
+        /// <para>⭐ The participant set is RECOMPUTED from live registration state, which is exactly what
+        /// <see cref="BeginConstruction"/> does anyway — a FRESH full set is the correct semantics after a
+        /// rewind, because the modules must redo their setup.</para>
+        ///
+        /// <para>⭐⭐ Re-publishing <c>ConstructionOrder</c> re-injects the TKB template via
+        /// <see cref="Systems.BlueprintApplicationSystem"/>, and that is CORRECT rather than destructive:
+        /// 📄 <c>docs/DESIGN_Entity_State_Sourcing.md</c> §1 — entity state must be reconstructible from
+        /// the TKB or a published descriptor, and §2 ② calls a stored copy of translator-derived
+        /// components "an ERROR … stale duplicates of TKB material".</para>
+        /// </summary>
+        internal void ResumeFromRestoredWorld(ISimulationView view, uint currentFrame, IEntityCommandBuffer cmd)
+        {
+            if (!_resumePending) return;
+            _resumePending = false;
+
+            int reopenedConstructions = 0, reopenedDestructions = 0;
+
+            // Constructing + TkbIdentity ⇒ re-open a construction with a FRESH participant set and the
+            // RESUME frame. ⛔ Never the recorded StartFrame — CheckTimeouts subtracts unsigned.
+            var constructing = view.Query()
+                .With<Fdp.Toolkit.Replication.Components.TkbIdentity>()
+                .WithLifecycle(EntityLifecycle.Constructing)
+                .Build();
+            foreach (var entity in constructing)
+            {
+                ref readonly var identity =
+                    ref view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity);
+                BeginConstruction(entity, identity.TkbType, currentFrame, cmd);
+                _pendingConstruction[entity].Resumed = true;   // ⭐ AQ107 — its completion is a re-derive, not a new entity
+                reopenedConstructions++;
+            }
+
+            // TearDown ⇒ re-open a destruction so the deletion the log captured actually COMPLETES.
+            // ⚠ The original Reason is not recoverable — nothing records it — so a generic one is stamped.
+            // It is diagnostic text, not protocol.
+            var tearDown = view.Query().WithLifecycle(EntityLifecycle.TearDown).Build();
+            foreach (var entity in tearDown)
+            {
+                BeginDestruction(entity, currentFrame, ResumeDestructionReason, cmd);
+                reopenedDestructions++;
+            }
+
+            FdpLog<EntityLifecycleModule>.Info(
+                "[Node-{0}] ELM: resumed from a restored world at frame {1} — re-opened {2} construction(s) " +
+                "and {3} destruction(s) with fresh participant sets.",
+                _localNodeId, currentFrame, reopenedConstructions, reopenedDestructions);
+        }
+
+        private static readonly FixedString64 ResumeDestructionReason = new FixedString64("resume-from-restored-world");
+
+        // ── ⭐ AQ107 (CE-3323) — the generic notifications: what finished this frame ──────────────────────────
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4e. Recorded where the outcome is decided (no view there), published by
+        // LifecycleSystem at the end of its tick, while the command buffer has not yet destroyed anything (so the entity still reads).
+
+        private static readonly FixedString64 ConstructionTimeout = new FixedString64("construction timed out");
+
+        private readonly struct Outcome
+        {
+            public readonly Entity Entity; public readonly bool Construction, Ok, Forced, Resumed;
+            public readonly TkbTypeId TkbType; public readonly FixedString64 Text; public readonly uint Frame;
+            public Outcome(Entity e, bool construction, bool ok, bool forced, bool resumed, TkbTypeId tkbType, FixedString64 text, uint frame)
+            { Entity = e; Construction = construction; Ok = ok; Forced = forced; Resumed = resumed; TkbType = tkbType; Text = text; Frame = frame; }
+        }
+
+        [Fdp.Core.ProtocolCache("⭐ AQ107 — this tick's finished constructions / teardowns, published by LifecycleSystem at the end of the same tick; cleared at a world replacement (ClearForWorldReplacement)")]
+        private readonly List<Outcome> _outcomes = new();
+
+        private void Constructed(PendingConstruction p, uint frame, bool succeeded, FixedString64 failure)
+            => _outcomes.Add(new Outcome(p.Entity, true, succeeded, false, p.Resumed, (Fdp.Core.TkbTypeId)(p.BlueprintId), failure, frame));
+
+        private void Destructed(PendingDestruction p, uint frame, bool forced)
+            => _outcomes.Add(new Outcome(p.Entity, false, true, forced, false, (Fdp.Core.TkbTypeId)(0), p.Reason, frame));
+
+        /// <summary>
+        /// ⭐ AQ107 (CE-3323) — publishes <see cref="EntityConstructionCompleted"/> / <see cref="EntityDestructionCompleted"/> for every
+        /// construction and teardown that finished since the last call, reading each entity's identity off <paramref name="view"/>.
+        /// Called by <see cref="Systems.LifecycleSystem"/> after the acks, drains and timeouts of its tick.
+        /// </summary>
+        internal void PublishOutcomes(ISimulationView view, IEntityCommandBuffer cmd)
+        {
+            // ⭐ CE-3047's idiom — published where the world registered them (every Hrot host does, HrotSharedComponentRegistry; a bare
+            //   test or example world that never asked for them is left alone: playback would throw on an unregistered event).
+            bool construction = view is not EntityRepository r || r.Bus.IsRegistered<EntityConstructionCompleted>();
+            bool destruction  = view is not EntityRepository d || d.Bus.IsRegistered<EntityDestructionCompleted>();
+            foreach (var o in _outcomes)
+            {
+                bool alive = view.IsAlive(o.Entity);
+                int networkId = alive && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity)
+                    ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity).Value : 0;
+                long tkbType = o.TkbType != 0 || !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity)
+                    ? o.TkbType : view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity).TkbType;
+                bool owned = !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(o.Entity)
+                    || view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(o.Entity).HasAuthority;
+                if (o.Construction ? !construction : !destruction) continue;
+                if (o.Construction)
+                    cmd.PublishEvent(new EntityConstructionCompleted
+                    {
+                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), IsLocallyOwned = owned,
+                        Succeeded = o.Ok, Resumed = o.Resumed, Failure = o.Ok ? default : o.Text, FrameNumber = o.Frame,
+                    });
+                else
+                    cmd.PublishEvent(new EntityDestructionCompleted
+                    {
+                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), IsLocallyOwned = owned,
+                        Forced = o.Forced, Reason = o.Text, FrameNumber = o.Frame,
+                    });
+            }
+            _outcomes.Clear();
+        }
+
         public (int constructed, int destructed, int timeouts, int pending) GetStatistics()
         {
             return (_totalConstructed, _totalDestructed, _timeouts, 
@@ -368,6 +739,9 @@ namespace Fdp.Toolkit.Lifecycle
         public long BlueprintId;
         public uint StartFrame;
         public HashSet<int> RemainingAcks = new();
+        public bool Resumed;   // ⭐ AQ107 — re-opened by ResumeFromRestoredWorld
+        public long StartTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();   // ⭐ CE-4427 R-5 — wall clock, for the loud log of an unbounded wait
+        public bool Warned;
     }
     
     internal class PendingDestruction

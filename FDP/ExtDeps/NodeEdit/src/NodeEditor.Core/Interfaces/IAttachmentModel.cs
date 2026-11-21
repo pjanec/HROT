@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Numerics;
 using NodeEditor.Primitives;
 
 namespace NodeEditor.Core.Interfaces;
@@ -24,6 +25,12 @@ public interface IAttachmentModel
     /// Null means no glyph.
     /// </summary>
     string? Glyph { get; }
+
+    /// <summary>
+    /// ⭐ U-3 (Colour Icons §3) — the colour the glyph is painted in (the icon's own colour from <c>NodeEditor.Core.Widgets.Icons</c>); the label stays the pill's text colour.
+    /// Default null = the label's colour — additive; existing implementations are unaffected.
+    /// </summary>
+    Vector4? GlyphColor => null;
 
     /// <summary>
     /// Optional one-line label rendered after the glyph.

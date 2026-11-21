@@ -130,6 +130,76 @@ public sealed class NewAssetLauncherTests
     }
 
     /// <summary>
+    /// ⭐ New scenario N1 (docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2, R-4135) — File ▸ New Scenario… is ONE picker with TWO groups: every terrain under
+    /// <i>Blank, on a terrain</i> (read LIVE per open — a terrain folder added appears on the next open), the recipes under <i>From a recipe</i>; a terrain's pick goes to
+    /// the host's blank naming, a recipe's to the ordinary one. ✅ Red-proof: the launcher without the terrain group ⇒ no BlankTerrainChoice ⇒ red.
+    /// </summary>
+    [Fact]
+    public void N1_NewScenario_OffersEveryTerrainBlank_AndTheRecipes_InOnePicker()
+    {
+        var recipe = new StubRecipe { Kind = AssetKind.Scenario, Name = "sop-demo" };
+        var services = new Dictionary<AssetKind, INewAssetService> { [AssetKind.Scenario] = new FakeNewAssetService(AssetKind.Scenario, recipe) };
+        var picker = new FakeOpenPicker();
+        var terrains = new List<string> { "basic-desert", "berlin" };
+        string? blank = null; IEditableAsset? fromRecipe = null;
+        var launcher = new NewAssetLauncher(picker.OpenPicker, services, (_, r) => fromRecipe = r,
+            terrains: () => terrains, showNewBlankDialog: t => blank = t);
+
+        launcher.Open(AssetKind.Scenario);
+        var entries = picker.CapturedRequest!.ItemsProvider().ToList();
+        Assert.Equal(new[] { "basic-desert", "berlin" }, entries.Where(e => e.Category == NewAssetLauncher.BlankGroup).Select(e => e.Name));
+        Assert.All(entries.Where(e => e.Category == NewAssetLauncher.BlankGroup), e => Assert.IsType<BlankTerrainChoice>(e.Tag));
+        Assert.Contains(entries, e => e.Category == NewAssetLauncher.RecipeGroup && e.Tag is RecipeChoice);
+        Assert.Null(entries[1].Description);   // B-9 N1 pane: the default text is drawn UNDER the facts (DrawTerrainFacts), not as the description
+
+        picker.InvokeHandler(ConfirmResult(entries[1]));
+        Assert.Equal("berlin", blank);
+        Assert.Null(fromRecipe);
+        picker.InvokeHandler(ConfirmResult(entries.Single(e => e.Tag is RecipeChoice)));
+        Assert.Same(recipe, fromRecipe);
+
+        terrains.Add("test-town");                                     // live: the next open lists it
+        launcher.Open(AssetKind.Scenario);
+        Assert.Contains(picker.CapturedRequest!.ItemsProvider(), e => e.Name == "test-town");
+
+        launcher.Open();                                               // the general New Asset picker has no terrain rows
+        Assert.DoesNotContain(picker.CapturedRequest!.ItemsProvider(), e => e.Tag is BlankTerrainChoice);
+    }
+
+    /// <summary>
+    /// ⭐ B-9 N1 pane — a terrain row's ImageKey is the <c>preview.jpg</c> beside its terrain.json (found through the catalog's definition locator, the SAME reader as a scenario's still), absent when it has none;
+    /// the New Scenario request carries the wide side pane and a pane-draw callback. ✅ Red-proof: ImageKey left null ⇒ red.
+    /// </summary>
+    [Fact]
+    public void B9_TerrainRows_CarryTheirStill_AndTheRequestHasTheSidePane()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "b9img-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "berlin")); Directory.CreateDirectory(Path.Combine(dir, "test-town"));
+        File.WriteAllText(Path.Combine(dir, "berlin", "terrain.json"), "{}"); File.WriteAllText(Path.Combine(dir, "test-town", "terrain.json"), "{}");
+        File.WriteAllBytes(Path.Combine(dir, "berlin", "preview.jpg"), new byte[] { 1 });
+        try
+        {
+            var services = new Dictionary<AssetKind, INewAssetService> { [AssetKind.Scenario] = new FakeNewAssetService(AssetKind.Scenario) };
+            var picker = new FakeOpenPicker();
+            var launcher = new NewAssetLauncher(picker.OpenPicker, services, (_, _) => { },
+                terrains: () => new[] { "berlin", "test-town" }, showNewBlankDialog: _ => { },
+                terrainDefinition: t => Path.Combine(dir, t, "terrain.json"));
+            launcher.Open(AssetKind.Scenario);
+            var request = picker.CapturedRequest!;
+            var rows = request.ItemsProvider().Where(e => e.Tag is BlankTerrainChoice).ToList();
+            Assert.EndsWith(Path.Combine("berlin", "preview.jpg"), rows.Single(r => r.Name == "berlin").ImageKey);
+            Assert.Null(rows.Single(r => r.Name == "test-town").ImageKey);
+            Assert.True(request.ShowSidePane);
+            Assert.NotNull(request.DrawPane);
+            Assert.True(request.DrawPaneAfterDefault);
+
+            launcher.Open();                                           // the general picker: no pane
+            Assert.Null(picker.CapturedRequest!.DrawPane);
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
+    /// <summary>
     /// Confirming a pick invokes showNewAssetDialog with the picked (kind, recipe).
     /// </summary>
     [Fact]
@@ -191,5 +261,76 @@ public sealed class NewAssetLauncherTests
         fakePicker.InvokeHandler(CancelResult());
 
         Assert.False(dialogCalled, "showNewAssetDialog should not be called on cancel.");
+    }
+
+    // ── CE-460 (E4): product-first entries, over the REAL per-kind services ─────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-460</c> — File / New Behavior… opens the SAME launcher rooted at Behavior, over the
+    /// PRODUCTION services: BTree and HSM each keep a folder (Empty + Starter), the blueprint's one
+    /// Behavior template collapses to a leaf named "Blueprint", and picking it routes through the SAME
+    /// dialog as New Asset. ⛔ An Instance or Library blueprint must NOT be offered as a behaviour.
+    /// 🔴 Red-proof: return <c>null</c> from <c>BlueprintNewAssetService.ProductOf</c> for Behavior ⇒ no
+    /// "Blueprint" leaf.
+    /// </summary>
+    [Fact]
+    public void CE460_New_behavior_lists_every_technology_and_routes_through_the_one_dialog()
+    {
+        var services = new Dictionary<AssetKind, INewAssetService>
+        {
+            [AssetKind.Blueprint] = new Hrot.Blueprints.Editor.BlueprintNewAssetService(),
+            [AssetKind.BTree]     = new Hrot.BTree.Editor.BTreeNewAssetService(),
+            [AssetKind.Hsm]       = new Hrot.Hsm.Editor.HsmNewAssetService(),
+        };
+
+        var picker = new FakeOpenPicker();
+        (AssetKind Kind, IEditableAsset Recipe)? dialog = null;
+        var launcher = new NewAssetLauncher(picker.OpenPicker, services, (k, r) => dialog = (k, r));
+
+        launcher.Open(AuthoringProduct.Behavior);
+
+        Assert.Equal("New Behavior", picker.CapturedRequest!.Title);
+        Assert.Equal("assets.new.behavior", picker.CapturedRequest.ContextKey);
+        // ⭐ D2 — BTree's blank template is the pre-selected default.
+        Assert.Equal("BTree:Empty", picker.CapturedRequest.InitialSelectionId);
+        var entries = picker.CapturedRequest.ItemsProvider().ToList();
+
+        Assert.Equal(2, entries.Count(e => e.Category == "BTree"));
+        Assert.Equal(2, entries.Count(e => e.Category == "Hsm"));
+        var bp = Assert.Single(entries, e => e.Tag is RecipeChoice { Kind: AssetKind.Blueprint });
+        Assert.Equal("Blueprint", bp.Name);
+        Assert.Equal("Behavior", ((RecipeChoice)bp.Tag!).Recipe.Name);
+        Assert.DoesNotContain(entries, e => e.Tag is RecipeChoice rc
+            && rc.Kind == AssetKind.Blueprint && rc.Recipe.Name is "Empty" or "Function Library");
+
+        picker.InvokeHandler(ConfirmResult(bp));
+        Assert.Equal(AssetKind.Blueprint, dialog!.Value.Kind);
+        Assert.Same(((RecipeChoice)bp.Tag!).Recipe, dialog.Value.Recipe);
+    }
+
+    /// <summary>
+    /// ⭐ D5 — the C# row is shown and picking it creates NOTHING.
+    /// </summary>
+    [Fact]
+    public void CE460_Picking_the_csharp_row_creates_nothing()
+    {
+        var services = new Dictionary<AssetKind, INewAssetService>
+        {
+            [AssetKind.Blueprint] = new Hrot.Blueprints.Editor.BlueprintNewAssetService(),
+        };
+        var picker = new FakeOpenPicker();
+        bool dialogCalled = false;
+        var launcher = new NewAssetLauncher(picker.OpenPicker, services, (_, _) => dialogCalled = true);
+
+        launcher.Open(AuthoringProduct.Condition);
+
+        // ⭐ D2 — Blueprint's Condition template is the pre-selected default.
+        Assert.Equal("Blueprint:Condition", picker.CapturedRequest!.InitialSelectionId);
+
+        var cs = Assert.Single(picker.CapturedRequest!.ItemsProvider(), e => e.Tag is NotCreatableChoice);
+        Assert.False(cs.IsEnabled);   // the generic picker never confirms it…
+        picker.InvokeHandler(ConfirmResult(cs));   // …and if a host forced it through, nothing is created
+
+        Assert.False(dialogCalled);
     }
 }

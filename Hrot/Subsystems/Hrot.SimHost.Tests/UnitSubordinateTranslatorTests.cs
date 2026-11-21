@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -56,16 +57,16 @@ namespace Hrot.SimHost.Tests
         public void Inject_WithValidGuid_WritesInitialUnitSubordinateIntent()
         {
             var commander = _repo.CreateEntity();
-            _repo.SetComponent(commander, new NetworkIdentity { Value = 77L });
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 77 });
 
             var resolver = new StubResolver();
-            resolver.Register(commander, "guid-commander");
+            resolver.Register(commander, "36d10dd5-c1b4-5c4c-b0bc-ffc4dfde9c8b");
 
             var dom = new Dictionary<string, object>
             {
                 ["UnitSubordinate"] = new JsonObject
                 {
-                    ["commanderGuid"] = "guid-commander",
+                    ["commanderGuid"] = "36d10dd5-c1b4-5c4c-b0bc-ffc4dfde9c8b",
                     ["designation"]   = ((TacticalDesignation)3).ToString(),
                 }
             };
@@ -76,8 +77,29 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(subordinate);
             Assert.NotNull(intent);
-            Assert.Equal(77L, intent!.CommanderNetworkId);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse("36d10dd5-c1b4-5c4c-b0bc-ffc4dfde9c8b")), intent!.CommanderNetworkId.Spec);
             Assert.Equal((TacticalDesignation)3, intent.Designation);
+        }
+
+        /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — a scenario names a squad role by name: "MachineGunner" reaches the subordinate's intent
+        /// as that role (a scenario squad with an MG gunner).</summary>
+        [Theory]
+        [InlineData("AutomaticRifleman", TacticalDesignation.AutomaticRifleman)]
+        [InlineData("MachineGunner", TacticalDesignation.MachineGunner)]
+        [InlineData("Marksman", TacticalDesignation.Marksman)]
+        public void CE3253_AScenarioRole_IsReadByName(string name, TacticalDesignation expected)
+        {
+            var commander = _repo.CreateEntity();
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 78 });
+            var resolver = new StubResolver();
+            resolver.Register(commander, "0e28fc6d-111c-5d62-a2eb-e6680c310e25");
+            var dom = new Dictionary<string, object>
+            {
+                ["UnitSubordinate"] = new JsonObject { ["commanderGuid"] = "0e28fc6d-111c-5d62-a2eb-e6680c310e25", ["designation"] = name },
+            };
+            var gunner = _repo.CreateEntity();
+            new UnitSubordinateTranslator().Inject(_repo, gunner, dom, resolver);
+            Assert.Equal(expected, ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(gunner)!.Designation);
         }
 
         // CS013-T02: Inject with unresolvable GUID writes intent with CommanderNetworkId = 0
@@ -92,7 +114,7 @@ namespace Hrot.SimHost.Tests
             {
                 ["UnitSubordinate"] = new JsonObject
                 {
-                    ["commanderGuid"] = "guid-unknown",
+                    ["commanderGuid"] = "d9599a84-7daa-5373-8dad-d2ee7d67ca5e",
                     ["designation"]   = TacticalDesignation.Undefined.ToString(),
                 }
             };
@@ -103,7 +125,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(subordinate);
             Assert.NotNull(intent);
-            Assert.Equal(0L, intent!.CommanderNetworkId);
+            Assert.Equal(0, intent!.CommanderNetworkId.Ref.NetworkId);   // S8: the file GUID stays a link; the extractor resolves it (or fails loudly)
         }
 
         // CS013-T03: Extract with commander produces correct keys
@@ -124,13 +146,13 @@ namespace Hrot.SimHost.Tests
 ;
 
             var resolver = new StubResolver();
-            resolver.Register(commander, "guid-cmdr-abc");
+            resolver.Register(commander, "dcf23aa5-7cfa-5ada-82c1-5e65c026d350");
 
             var dict = new UnitSubordinateTranslator().Extract(_repo, subordinate, resolver);
 
             Assert.True(dict.ContainsKey("UnitSubordinate"));
             var obj = (JsonObject)dict["UnitSubordinate"];
-            Assert.Equal("guid-cmdr-abc", obj["commanderGuid"]!.GetValue<string>());
+            Assert.Equal("dcf23aa5-7cfa-5ada-82c1-5e65c026d350", obj["commanderGuid"]!.GetValue<string>());
             Assert.Equal(TacticalDesignation.Wingman.ToString(), obj["designation"]!.GetValue<string>());
         }
 
@@ -147,6 +169,36 @@ namespace Hrot.SimHost.Tests
             });
 
             Assert.False(new UnitSubordinateTranslator().CanTranslate(_repo, entity));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2281</c> / R-3019 — the scenario carries a man's FIRE TEAM: saved as a letter beside the designation, loaded into the
+        /// genesis intent; a man with no team saves no key. ✅ Red-proof: the Extract line removed ⇒ no "fireTeam" ⇒ red; the Inject parse
+        /// removed ⇒ the intent's team stays None ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2281_TheFireTeam_RoundTripsThroughTheScenario()
+        {
+            var commander = _repo.CreateEntity();
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 77 });
+            var subordinate = _repo.CreateEntity();
+            _repo.SetComponent(subordinate, new UnitSubordinate { Commander = commander, Designation = TacticalDesignation.Wingman, FireTeam = FireTeam.B });
+            var loner = _repo.CreateEntity();
+            _repo.SetComponent(loner, new UnitSubordinate { Commander = commander, Designation = TacticalDesignation.Wingman });
+
+            var resolver = new StubResolver();
+            resolver.Register(commander, "a0f3290c-442a-57a2-b2a9-2183d8df9602");
+            var obj = (JsonObject)new UnitSubordinateTranslator().Extract(_repo, subordinate, resolver)["UnitSubordinate"];
+            Assert.Equal("B", obj["fireTeam"]!.GetValue<string>());
+            var none = (JsonObject)new UnitSubordinateTranslator().Extract(_repo, loner, resolver)["UnitSubordinate"];
+            Assert.True(none["fireTeam"] is null, "a man with no team saves no team");
+
+            var reloaded = _repo.CreateEntity();
+            new UnitSubordinateTranslator().Inject(_repo, reloaded,
+                new Dictionary<string, object> { ["UnitSubordinate"] = JsonNode.Parse(obj.ToJsonString())!.AsObject() }, resolver);
+            var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(reloaded)!;
+            Assert.Equal(FireTeam.B, intent.FireTeam);
+            Assert.Equal(TacticalDesignation.Wingman, intent.Designation);
         }
     }
 }

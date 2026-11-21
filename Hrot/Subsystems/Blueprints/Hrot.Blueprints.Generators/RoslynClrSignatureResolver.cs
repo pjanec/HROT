@@ -34,7 +34,30 @@ internal sealed class RoslynClrSignatureResolver : IClrSignatureResolver
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
         genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
-    public RoslynClrSignatureResolver(Compilation compilation) => _compilation = compilation;
+    // ⭐ CE-2026 (S8c) — a type a SIBLING generator emits in this run exists for the C# compile, though not for this
+    //   Compilation; the shared GeneratedTypeCatalog names those.
+    private readonly System.Func<string, bool>? _declaredBySibling;
+
+    public RoslynClrSignatureResolver(Compilation compilation, System.Func<string, bool>? declaredBySibling = null)
+    {
+        _compilation = compilation;
+        _declaredBySibling = declaredBySibling;
+    }
+
+    /// <summary>
+    /// U-7 — type existence via the semantic model, the same oracle this class already uses for
+    /// method resolution. ⭐ Batch 44 measured this path and the in-process reflection path
+    /// byte-identical across all 42 corpus assets, so the rail sees what production sees.
+    /// </summary>
+    public bool TypeExists(string typeId)
+    {
+        if (string.IsNullOrEmpty(typeId)) return false;
+        var metadataName = typeId.StartsWith("global::", System.StringComparison.Ordinal)
+            ? typeId.Substring("global::".Length)
+            : typeId;
+        return _compilation.GetTypeByMetadataName(metadataName) != null
+            || (_declaredBySibling?.Invoke(metadataName) ?? false);
+    }
 
     public bool TryResolve(string targetTypeId, string methodName, out ClrMethodSig? sig)
     {

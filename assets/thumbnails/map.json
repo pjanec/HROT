@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "_comment": "CE-4142 G4 - which PNG (a file in this folder) a DIS type gets when its TKB visual names none: the MOST SPECIFIC matching mask wins. Empty until the director-stills run (POST /director/stills) writes the snapshots; a type with no thumbnail draws its DIS glyph on a dashed tile.",
+  "thumbnails": []
+}

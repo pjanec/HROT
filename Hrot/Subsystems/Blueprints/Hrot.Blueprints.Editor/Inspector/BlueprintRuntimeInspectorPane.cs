@@ -29,7 +29,6 @@ public sealed class BlueprintRuntimeInspectorPane : IRuntimeInspectorPane
     private IBlueprintDebugSession? _session;
 
     /// <summary>Resolves the currently selected entity for the Blueprint perspective.</summary>
-    private Func<Entity?>? _selectedEntityResolver;
 
     /// <summary>Resolves the active blueprint asset id from the active canvas context.</summary>
     private Func<Guid?>? _activeAssetIdResolver;
@@ -39,21 +38,48 @@ public sealed class BlueprintRuntimeInspectorPane : IRuntimeInspectorPane
     /// <summary>Sets the debug session used for live state reads.</summary>
     public void SetSession(IBlueprintDebugSession? session) => _session = session;
 
-    /// <summary>Sets the delegates that resolve the selected entity and active asset id at draw time.</summary>
-    public void SetResolvers(Func<Entity?> selectedEntityResolver, Func<Guid?> activeAssetIdResolver)
+    /// <summary>
+    /// ⭐ Sets the delegate that resolves the ACTIVE ASSET id at draw time.
+    ///
+    /// <para>⚠⚠ <b><c>CE-303</c> REMOVED the <c>selectedEntityResolver</c> half.</b> 🔴 It read
+    /// <c>EditorSelectionStore.SelectedEntity</c> — a GLOBAL — so a PINNED copy of this view rendered
+    /// whatever was selected NOW instead of the entity it was pinned to. ⭐ The entity now arrives with
+    /// the <see cref="Hrot.Editor.AiShared.Shell.DetailsContext"/>, which is LIVE when docked and
+    /// FROZEN when pinned. 📄 <c>DESIGN_Editor_Entity_Selection_Source.md</c> §11.</para>
+    ///
+    /// <para>⚠ The ASSET id stays a resolver: it follows the active DOCUMENT, not the selection, and
+    /// <c>DetailsContext.Asset</c> is the shell's <c>IEditableAsset</c> rather than the
+    /// <c>Guid</c> this pane resolves snapshots by.</para>
+    /// </summary>
+    public void SetResolvers(Func<Guid?> activeAssetIdResolver)
     {
-        _selectedEntityResolver = selectedEntityResolver ?? throw new ArgumentNullException(nameof(selectedEntityResolver));
-        _activeAssetIdResolver  = activeAssetIdResolver  ?? throw new ArgumentNullException(nameof(activeAssetIdResolver));
+        _activeAssetIdResolver = activeAssetIdResolver ?? throw new ArgumentNullException(nameof(activeAssetIdResolver));
     }
 
     // ---- IRuntimeInspectorPane ---------------------------------------------
 
-    public void Draw()
+    /// <summary>
+    /// ⭐ The entity this pane draws about — the context's primary, or <c>null</c> when it names none.
+    /// ⛔ Exposed as a method rather than inlined so a rail can assert the rule without an ImGui context,
+    /// which <see cref="Draw"/> returns early without.
+    /// </summary>
+    internal static Entity? ResolveEntity(Hrot.Editor.AiShared.Shell.DetailsContext context)
+        => context.Entities is { Count: > 0 } ? context.Entities[0] : null;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-303</c> — the entity comes from the CONTEXT, so this pane can be PINNED.</b>
+    /// 📄 <c>DESIGN_Editor_Entity_Selection_Source.md</c> §11.
+    /// </summary>
+    public void Draw(Hrot.Editor.AiShared.Shell.DetailsContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         // Guard: skip entirely when ImGui context is not available (headless / unit tests).
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
-        var entity  = _selectedEntityResolver?.Invoke();
+        // ⭐ LIVE when docked, FROZEN when pinned — the view hands over whichever its source holds.
+        // ⚠ The PRIMARY, as everywhere else: this pane is single-entity by construction.
+        var entity  = ResolveEntity(context);
         var assetId = _activeAssetIdResolver?.Invoke();
 
         if (entity is null || assetId is null)

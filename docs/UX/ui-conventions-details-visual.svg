@@ -1,0 +1,166 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='830' viewBox='0 0 1240 830'>
+<rect x='0' y='0' width='1240' height='830' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>UI conventions — what is not a form row, a node's Details editor, the label width (DESIGN_UI_Conventions.md §3)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
+<text x='20' y='76' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A · Not form rows — they keep ImGui's own shape (Q-C3)</text>
+<line x1='379.5' y1='72' x2='1220' y2='72' stroke='#4A4A55' stroke-width='1'/>
+<text x='20' y='102' fill='#5BD06A' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>KEPT · a filter bar: each checkbox is an option, its text after the box</text>
+<rect x='20' y='110' width='560' height='120' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='110' width='560' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='124' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Asset Browser</text>
+<rect x='32' y='140' width='536' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='37' y='154' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>      search assets</text>
+<path d='M416 240Q415 170 376 117L503 -9Q512 -19 512 -32Q512 -45 503 -55Q493 -64 480 -64Q467 -64 457 -55L331 72Q278 33 208 32Q120 34 61 93Q2 152 0 240Q2 328 61 387Q120 446 208 448Q296 446 355 387Q414 328 416 240ZM208 96Q247 96 280 115Q313 134 333 168Q352 202 352 240Q352 278 333 312Q313 346 280 365Q247 384 208 384Q169 384 136 365Q103 346 83 312Q64 278 64 240Q64 202 83 168Q103 134 136 115Q169 96 208 96Z' fill='#808080' fill-opacity='1' transform='translate(38,153.7578125) scale(0.0234375,-0.0234375)'/>
+<rect x='32' y='168' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M36 178 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='57' y='182' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>BTree</text>
+<rect x='117.9' y='168' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M121.9 178 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='142.9' y='182' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>HSM</text>
+<rect x='191.7' y='168' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M195.7 178 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='216.7' y='182' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Blueprint</text>
+<rect x='297.7' y='168' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='322.7' y='182' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scenario</text>
+<rect x='399.7' y='168' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='424.7' y='182' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mission</text>
+<rect x='32' y='196' width='110' height='20' fill='#3369AD' rx='3' opacity='1'/>
+<path d='M256 368Q256 382 247 391Q238 400 224 400Q210 400 201 391Q192 382 192 368V224H48Q34 224 25 215Q16 206 16 192Q16 178 25 169Q34 160 48 160H192V16Q192 2 201 -7Q210 -16 224 -16Q238 -16 247 -7Q256 2 256 16V160H400Q414 160 423 169Q432 178 432 192Q432 206 423 215Q414 224 400 224H256V368Z' fill='#5BD06A' fill-opacity='1' transform='translate(39,210.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='56' y='210.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Create...</text>
+<rect x='148' y='196' width='90' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='193.0' y='210.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Cancel</text>
+<text x='20' y='246' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Three things stay as they are: a search box (the hint inside it is its label),</text>
+<text x='20' y='260' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a row of filter checkboxes (each one an option, not a field), a row of buttons.</text>
+<text x='640' y='102' fill='#E65555' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>REJECTED · the same bar forced label-first</text>
+<rect x='640' y='110' width='580' height='168' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='110' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='124' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Asset Browser</text>
+<text x='652' y='152' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Search</text>
+<rect x='752' y='138' width='456' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='757' y='152' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<text x='652' y='176' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>BTree</text>
+<rect x='752' y='162' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M756 172 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='652' y='199' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>HSM</text>
+<rect x='752' y='185' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M756 195 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='652' y='222' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Blueprint</text>
+<rect x='752' y='208' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M756 218 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='652' y='245' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scenario</text>
+<rect x='752' y='231' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='652' y='266' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>… a column of rows for what was one line</text>
+<text x='20' y='312' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B · A node's editor in the Blueprint's Details panel (the 'node drawers' — NOT on the canvas)</text>
+<line x1='596.3000000000001' y1='308' x2='1220' y2='308' stroke='#4A4A55' stroke-width='1'/>
+<text x='20' y='338' fill='#E65555' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>TODAY · WhenNodeDrawer: label after the control</text>
+<rect x='20' y='346' width='560' height='176' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='346' width='560' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='360' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — When</text>
+<rect x='32' y='376' width='330' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<rect x='343' y='376' width='19' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M348 383 l4.5 5 l4.5 -5 z' fill='#FFFFFF'/>
+<text x='37' y='390' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Event Fired</text>
+<text x='372' y='390' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mode</text>
+<text x='32' y='415' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Edges:</text>
+<rect x='80' y='401' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M84 411 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='104' y='415' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Rising</text>
+<rect x='160' y='401' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='184' y='415' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Falling</text>
+<rect x='32' y='426' width='330' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<rect x='343' y='426' width='19' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M348 433 l4.5 5 l4.5 -5 z' fill='#FFFFFF'/>
+<text x='37' y='440' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>EntityDamaged</text>
+<text x='372' y='440' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Event</text>
+<rect x='32' y='451' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M36 461 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='56' y='465' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Only when it targets me</text>
+<text x='220' y='465' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(via Target)</text>
+<rect x='32' y='476' width='330' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='37' y='490' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>0.50</text>
+<text x='372' y='490' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Score threshold</text>
+<rect x='32' y='501' width='330' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='37' y='515' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.0</text>
+<text x='372' y='515' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Max age (s)</text>
+<text x='640' y='338' fill='#5BD06A' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>AFTER · label-first; a group of flags stays in column 2</text>
+<rect x='640' y='346' width='580' height='176' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='346' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='360' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — When</text>
+<text x='652' y='390' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mode</text>
+<rect x='780' y='376' width='420' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<rect x='1181' y='376' width='19' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M1186 383 l4.5 5 l4.5 -5 z' fill='#FFFFFF'/>
+<text x='785' y='390' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Event Fired</text>
+<text x='652' y='415' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Edges</text>
+<rect x='780' y='401' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M784 411 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='804' y='415' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Rising</text>
+<rect x='870' y='401' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='894' y='415' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Falling</text>
+<text x='652' y='440' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Event</text>
+<rect x='780' y='426' width='420' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<rect x='1181' y='426' width='19' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M1186 433 l4.5 5 l4.5 -5 z' fill='#FFFFFF'/>
+<text x='785' y='440' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>EntityDamaged</text>
+<text x='652' y='465' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Targets me only</text>
+<rect x='780' y='451' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M784 461 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='806' y='465' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>via Target</text>
+<text x='652' y='490' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Score threshold</text>
+<rect x='780' y='476' width='420' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='785' y='490' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>0.50</text>
+<text x='652' y='515' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Max age (s)</text>
+<rect x='780' y='501' width='420' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='785' y='515' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.0</text>
+<text x='640' y='536' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A field made of several flags (Edges) keeps each flag's text after its box — INSIDE column 2.</text>
+<text x='640' y='550' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The same applies to every node editor (20 drawers) and to popups like 'promote to variable'.</text>
+<text x='20' y='582' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C · The label column: the widest label, but never more than 25 % of the form (Q-C6)</text>
+<line x1='539.0' y1='578' x2='1220' y2='578' stroke='#4A4A55' stroke-width='1'/>
+<rect x='20' y='616' width='560' height='130' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='616' width='560' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='630' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Unit — wide panel</text>
+<text x='32' y='660' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
+<rect x='166.0' y='646' width='402.0' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='171.0' y='660' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>
+<text x='32' y='685' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Side</text>
+<rect x='166.0' y='671' width='402.0' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='171.0' y='685' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Blue</text>
+<text x='32' y='710' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Starts with weap…</text>
+<rect x='166.0' y='696' width='402.0' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='171.0' y='710' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>yes</text>
+<text x='32' y='735' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skill</text>
+<rect x='166.0' y='721' width='402.0' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='171.0' y='735' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Veteran</text>
+<line x1='160.0' y1='642' x2='160.0' y2='746' stroke='#5A5A66' stroke-width='1' stroke-dasharray='2 3'/>
+<text x='20' y='764' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>560 px: 25 % = 134 px. The long label is cut with … and its full text is</text>
+<text x='20' y='778' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the tooltip; the short ones keep the column narrow (widest first, cap second).</text>
+<rect x='150' y='708' width='250' height='26' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<text x='158' y='724' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Starts with weapon raised and ready</text>
+<rect x='640' y='616' width='320' height='130' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='616' width='320' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='630' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Unit — narrow panel</text>
+<text x='652' y='660' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
+<rect x='742' y='646' width='206' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='747' y='660' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>
+<text x='652' y='685' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Side</text>
+<rect x='742' y='671' width='206' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='747' y='685' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Blue</text>
+<text x='652' y='710' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Starts wit…</text>
+<rect x='742' y='696' width='206' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='747' y='710' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>yes</text>
+<text x='652' y='735' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skill</text>
+<rect x='742' y='721' width='206' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='747' y='735' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Veteran</text>
+<line x1='736' y1='642' x2='736' y2='746' stroke='#5A5A66' stroke-width='1' stroke-dasharray='2 3'/>
+<text x='640' y='764' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>320 px: 25 % = 74 px, below the 90 px floor —</text>
+<text x='640' y='778' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>so the column is 90 px.</text>
+<text x='980' y='646' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The rule, recomputed when the form's</text>
+<text x='980' y='660' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>width changes (no allocation: the widest</text>
+<text x='980' y='674' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>label is measured once per form):</text>
+<text x='980' y='688' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<text x='980' y='702' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>  col1 = min(widest + 14,</text>
+<text x='980' y='716' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>             max(25 % of the form, 90 px))</text>
+<text x='980' y='730' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<text x='980' y='744' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⭐ Labels are written short — a label</text>
+<text x='980' y='758' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>that needs the cut is a finding.</text>
+</svg>

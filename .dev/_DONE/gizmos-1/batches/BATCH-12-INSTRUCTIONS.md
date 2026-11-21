@@ -18,8 +18,8 @@ The three remaining wiring gaps prevent the framework from behaving correctly in
 3. **GZ033:** No publisher broadcasts the `DebugPrimitiveBuffer` contents over DDS → remote
    viewers receive nothing even though `DebugPrimitivesBatch` DDS topic was defined in GZ016.
 
-Build command: `dotnet build IOS-IG-SimHost.sln`
-Test command: `dotnet test IOS-IG-SimHost.sln`
+Build command: `dotnet build HROT.sln`
+Test command: `dotnet test HROT.sln`
 
 ---
 
@@ -240,7 +240,7 @@ Use a mock `IDdsWriter<DebugPrimitivesBatch>` (implement a simple capturing clas
 
 After completing all three tasks:
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 Must succeed with 0 errors.
 

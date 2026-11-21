@@ -54,7 +54,7 @@ public sealed unsafe class PerceptionMapLayer : IMapLayer
         float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
         float dashLength = 15.0f / zoom;
         float gapLength = 10.0f / zoom;
-        uint currentTick = _world.GlobalVersion;
+        uint currentTick = Fdp.Toolkit.Perception.PerceptionClock.Now(_world);   // ⭐ CE-3292 — LastSeenTick's clock
 
         foreach (Entity entity in _query)
         {

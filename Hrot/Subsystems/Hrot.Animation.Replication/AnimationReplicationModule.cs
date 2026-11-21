@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using CycloneDDS.Schema;
 using Fdp.Interfaces;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Animation.Replication.Translators.Channels;
 using Hrot.Animation.Replication.Translators.Descriptors;
@@ -62,6 +63,59 @@ public sealed class AnimationReplicationModule
         AllTranslators = BuildTranslators(participant, entityMap, isBrain);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2121</c> — ONLY the body-stance pair for this node's role: the Brain sends <see cref="Hrot.MuscleCharacter.Animation.Components.StanceIntent"/>
+    /// and receives <see cref="Hrot.MuscleCharacter.Animation.Components.StanceStatus"/>; a Muscle node the reverse. ⛔ Not
+    /// <see cref="AllTranslators"/>: the montage / look-at topics belong to the rest of the pipeline (<c>CE-3010</c>) and their
+    /// components are not registered on any host. 📄 docs/DESIGN_Decision_Layer.md §3.3g slice ②.
+    /// </summary>
+    public static IReadOnlyList<INetworkTranslator> StanceTranslators(DdsParticipant participant, NetworkEntityMap entityMap, NodeRole role)
+        => (role & NodeRole.Brain) != 0
+            ? new INetworkTranslator[] { new StanceIntentEgressTranslator(participant, entityMap), new StanceStatusIngressTranslator(participant, entityMap) }
+            : new INetworkTranslator[] { new StanceIntentIngressTranslator(participant, entityMap), new StanceStatusEgressTranslator(participant, entityMap) };
+
+    /// <summary>⭐ <c>CE-2121</c> — registers <see cref="StanceTranslators"/> (⭐ and, <c>CE-3252</c>, <see cref="LookAtTranslators"/>) on <paramref name="kernel"/> the way every translator
+    /// pack does (one ingress and one egress system). No participant ⇒ nothing (offline hosts share one world).</summary>
+    public static void RegisterStanceOn(Fdp.ModuleHost.ModuleHostKernel kernel, DdsParticipant? participant, NetworkEntityMap entityMap, NodeRole role)
+    {
+        if (participant is null) return;
+        var all = new List<INetworkTranslator>(StanceTranslators(participant, entityMap, role));
+        all.AddRange(LookAtTranslators(participant, entityMap, role));   // ⭐ CE-3252 (G5) — the look rides beside the stance
+        var ingress = new List<INetworkTranslator>(); var egress = new List<INetworkTranslator>();
+        foreach (var t in all)
+        {
+            if ((t.Direction & TranslatorDirection.Ingress) != 0) ingress.Add(t);
+            if ((t.Direction & TranslatorDirection.Egress)  != 0) egress.Add(t);
+        }
+        kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem(ingress.ToArray()));
+        kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Systems.CycloneEgressSystem(egress.ToArray()));
+    }
+
+    /// <summary>⭐ <c>CE-3252</c> (LD-F, G5) — the look-at pair for this node's role, the stance pair's twin: the Brain sends
+    /// <see cref="Hrot.MuscleCharacter.Animation.Components.LookAtChannel"/> and receives its report; a Muscle node the reverse.
+    /// (Every node reads where a person looks from FDP's replicated <c>LookState</c> instead — no viewer half here.)</summary>
+    public static IReadOnlyList<INetworkTranslator> LookAtTranslators(DdsParticipant participant, NetworkEntityMap entityMap, NodeRole role)
+        => (role & NodeRole.Brain) != 0
+            ? new INetworkTranslator[] { new LookAtChannelIntentEgressTranslator(participant, entityMap), new LookAtChannelStatusIngressTranslator(participant, entityMap) }
+            : new INetworkTranslator[] { new LookAtChannelIntentIngressTranslator(participant, entityMap), new LookAtChannelStatusEgressTranslator(participant, entityMap) };
+
+    /// <summary>
+    /// ⭐ <c>CE-1139</c> — a VIEWER's half of the stance wire (an IG: it draws people but neither asks for a stance nor performs
+    /// one): BOTH stance topics IN, nothing out. 🔴 Without it the viewer's world carried no <c>StanceIntent</c>, so
+    /// <c>LogicalStance.Of</c> answered Standing for everyone — a possessed soldier told to crouch stayed upright on the IG, and
+    /// the first-person eye (which rides the drawn head) never moved. 🔒 User, manual test <c>2026-10-16</c>: <i>"switching FPS
+    /// posture … does not seem to move the camera location"</i>. No participant ⇒ nothing (an offline host shares one world).
+    /// </summary>
+    public static void RegisterStanceViewerOn(Fdp.ModuleHost.ModuleHostKernel kernel, DdsParticipant? participant, NetworkEntityMap entityMap)
+    {
+        if (participant is null) return;
+        kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem(StanceViewerTranslators(participant, entityMap).ToArray()));
+    }
+
+    /// <summary>⭐ <c>CE-1139</c> — the two stance ingress translators a viewer runs (<see cref="RegisterStanceViewerOn"/>).</summary>
+    public static List<INetworkTranslator> StanceViewerTranslators(DdsParticipant participant, NetworkEntityMap entityMap)
+        => new() { new StanceIntentIngressTranslator(participant, entityMap), new StanceStatusIngressTranslator(participant, entityMap) };
+
     private static IReadOnlyList<INetworkTranslator> BuildTranslators(
         DdsParticipant participant,
         NetworkEntityMap entityMap,
@@ -114,16 +168,19 @@ public sealed class AnimationReplicationModule
     private static IReadOnlyList<AnimTopicQosPolicy> BuildTopicQosPolicies()
     {
         // State-bearing topics (channels, descriptors, side-buffers) — DD-2 §6.
-        static AnimTopicQosPolicy State(string name) => new()
+        // ⭐ AQ107 A — the topic name is DERIVED from the DTO type (the library's rule). ⚠ 11 of the 15 DTOs are not [DdsTopic] yet (CE-3010, test-only):
+        //   for them the rule's string core names them as it will once they are.
+        static string Derived(System.Type t) => DdsTopicName.Of(t.Namespace, new[] { t.Name });
+        static AnimTopicQosPolicy State(System.Type t) => new()
         {
-            TopicName = name,
+            TopicName = Derived(t),
             Reliability = DdsReliability.Reliable,
             Durability = DdsDurability.TransientLocal,
         };
         // Event topics — Volatile so late joiners do not replay historical events.
-        static AnimTopicQosPolicy Evt(string name) => new()
+        static AnimTopicQosPolicy Evt(System.Type t) => new()
         {
-            TopicName = name,
+            TopicName = Derived(t),
             Reliability = DdsReliability.Reliable,
             Durability = DdsDurability.Volatile,
         };
@@ -131,24 +188,24 @@ public sealed class AnimationReplicationModule
         return new List<AnimTopicQosPolicy>
         {
             // Channel intent / status (4 topics)
-            State("hrot/anim/intent/AnimationChannel"),
-            State("hrot/anim/status/AnimationChannel"),
-            State("hrot/anim/intent/LookAtChannel"),
-            State("hrot/anim/status/LookAtChannel"),
+            State(typeof(DdsAnimationChannelIntent)),
+            State(typeof(DdsAnimationChannelStatus)),
+            State(typeof(DdsLookAtChannelIntent)),
+            State(typeof(DdsLookAtChannelStatus)),
             // Descriptor intent / status (2 topics)
-            State("hrot/anim/StanceIntent"),
-            State("hrot/anim/StanceStatus"),
+            State(typeof(DdsStanceIntent)),
+            State(typeof(DdsStanceStatus)),
             // Side-buffer (2 topics)
-            State("hrot/anim/MontageQueue"),
-            State("hrot/anim/MontageQueueState"),
+            State(typeof(DdsMontageQueue)),
+            State(typeof(DdsMontageQueueState)),
             // Event topics (7 topics)
-            Evt("hrot/anim/MontageStarted"),
-            Evt("hrot/anim/MontageEnded"),
-            Evt("hrot/anim/MontageSectionAdv"),
-            Evt("hrot/anim/StanceChanged"),
-            Evt("hrot/anim/HitWindowOpened"),
-            Evt("hrot/anim/HitWindowClosed"),
-            Evt("hrot/anim/AnimNotify"),
+            Evt(typeof(DdsMontageStartedEvent)),
+            Evt(typeof(DdsMontageEndedEvent)),
+            Evt(typeof(DdsMontageSectionAdvancedEvent)),
+            Evt(typeof(DdsStanceChangedEvent)),
+            Evt(typeof(DdsHitWindowOpenedEvent)),
+            Evt(typeof(DdsHitWindowClosedEvent)),
+            Evt(typeof(DdsAnimNotifyEvent)),
         }.AsReadOnly();
     }
 }

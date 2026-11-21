@@ -1,0 +1,101 @@
+using System.Collections.Generic;
+using Fdp.Toolkit.Tkb.Attributes;
+
+namespace Fdp.Toolkit.Tkb.Domain
+{
+    /// <summary>
+    /// ⭐ WL-1 (docs/DESIGN_Weapon_Layers.md W-9, M25) — a platform's TURRETS. Each becomes a part child entity on every node
+    /// (<c>TurretTkbTranslator</c>) carrying a <c>TurretPose</c>; weapon mounts name the turret they sit on
+    /// (<see cref="WeaponMountDto.TurretIndex"/>), so two mounts can share one turret (the Bradley's 25 mm and TOW).
+    /// </summary>
+    [TkbDescriptor("Combat.Turrets")]
+    public record TurretSuiteDto
+    {
+        /// <summary>The turrets, in index order (index 0 = the main turret).</summary>
+        public List<TurretDto> Turrets { get; init; } = new();
+    }
+
+    /// <summary>One turret: where it turns, how far, how fast. Angles in degrees; azimuth counter-clockwise from the hull's forward,
+    /// elevation up from the turret plane (M23).</summary>
+    public record TurretDto
+    {
+        /// <summary>The traverse pivot relative to the hull's reference point (m; X forward, Y left, Z up).</summary>
+        public float PivotX { get; init; }
+        public float PivotY { get; init; }
+        public float PivotZ { get; init; }
+
+        /// <summary>⭐ E4 (DESIGN_Visual_Effects §6b) — the gun's trunnion (its elevation axis) relative to the pivot: forward along
+        /// the turret's facing and up (m). The muzzle offset of a mount on this turret is measured from here.</summary>
+        public float TrunnionX { get; init; }
+        public float TrunnionZ { get; init; }
+
+        /// <summary>Traverse limits; −180 … 180 = all round.</summary>
+        public float TraverseMinDeg { get; init; } = -180f;
+        public float TraverseMaxDeg { get; init; } = 180f;
+
+        /// <summary>Gun elevation limits (depression negative).</summary>
+        public float ElevationMinDeg { get; init; } = -8f;
+        public float ElevationMaxDeg { get; init; } = 20f;
+
+        /// <summary>Slew rates (degrees per second).</summary>
+        public float TraverseRateDegPerSec { get; init; } = 40f;
+        public float ElevationRateDegPerSec { get; init; } = 10f;
+    }
+
+    /// <summary>
+    /// ⭐ WL (docs/DESIGN_Weapon_Layers.md W-5) — a weapon's CATEGORY: it selects the hardcoded weapon-brain profile that drives the
+    /// weapon. <see cref="Unknown"/> takes the default profile (today's behaviour).
+    /// </summary>
+    public enum WeaponCategory : byte
+    {
+        Unknown = 0,
+        SmallArms = 1,
+        MachineGun = 2,
+        Autocannon = 3,
+        TankGun = 4,
+        Atgm = 5,
+        Mortar = 6,
+        Grenade = 7,
+        /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §8) — a free-fall bomb: released from an aircraft at the weapon brain's
+        /// cue (the Release profile), it leaves with the carrier's velocity and falls.</summary>
+        Bomb = 8,
+        /// <summary>⭐ Air Ops slice 6a (AW-3, DESIGN_Air_Operations §7a) — an unguided ROCKET pod (a Hydra-70 class): the per-shot path; a
+        /// held trigger keeps firing at the cooldown (the ripple), so it is not fired per press. Appended (no wire struct carries it).</summary>
+        Rocket = 9,
+        /// <summary>⭐ Indirect fire IF-1 (I8, IF-G) — a HOWITZER (towed or self-propelled): fires per shot, at a point by a fire solution
+        /// (<c>WeaponMountDto.Arc</c>); stands to fire; one round per press. Appended.</summary>
+        Howitzer = 10,
+        /// <summary>⭐ <c>CE-2187</c> (DESIGN_Weapon_Systems §5c) — a surface-to-air MISSILE launcher (a MANPADS): fired like an ATGM (lock,
+        /// one round per press, stands to fire), at aircraft only (its missile's <c>TargetDomain</c>). Appended.</summary>
+        Sam = 11,
+        /// <summary>⭐ <c>CE-2188</c> / <c>CE-1111</c> (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER: an ordinary mount whose loadout is
+        /// expendables (flare, chaff), counted and spent like any round, released by <c>Countermeasures.Release</c> — ⛔ NOT a weapon: no
+        /// target, no damage, never chosen to fire at anything (the "armed" readers skip it). The aircraft's LAST mount. Appended.</summary>
+        Countermeasure = 12,
+        /// <summary>⭐ <c>CE-10000</c> (air lane, AC-8, R-10002; DESIGN_Air_Combat §3) — an AIR-TO-AIR missile rail (AIM-9 / AIM-120 class):
+        /// fired at aircraft only, inside the employment zone, one at a time per target. ⛔ Never <see cref="Sam"/> (the ground-AA SOP row
+        /// reads it). Appended.</summary>
+        AirToAir = 13,
+        /// <summary>⭐ <c>CE-4649</c> (docs/designs/weapons/DESIGN_Bows_And_Crossbows.md BW-1, R-4289) — a BOW or a CROSSBOW: a held, two-handed DIRECT weapon whose
+        /// round flies the low ARC (an arrow's gravity) and is SILENT to the AI (BW-9). Bow and crossbow are two mounts of this one kind that differ
+        /// only in numbers — speed, draw (<c>AimSeconds</c>), reload (<c>ReloadSeconds</c>) — and look. Appended.</summary>
+        Bow = 14,
+        /// <summary>⭐ <c>CE-4670</c> (vehicle appearance VA-9 / VA-S5; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §6e) — a vehicle's SMOKE
+        /// DISCHARGERS: one fire is a SALVO of <c>Pellets</c> smoke grenades laid in a fan <c>PelletSpreadMils</c> wide, centred on the bearing it is fired
+        /// towards, bursting <c>Range</c> metres out — each round's burst is the existing smoke cloud. ⛔ NOT a weapon (no target, no damage): self-protection,
+        /// like <see cref="Countermeasure"/> (<see cref="WeaponCategories.IsSelfProtection"/>). Appended.</summary>
+        SmokeDischarger = 15,
+        /// <summary>⭐ <c>CE-4635</c> (R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md F-1, F-6) — a FLAMETHROWER (man-portable or vehicle-mounted;
+        /// a dragon's breath, CE-4634): a burst throws no round — the jet is the mount's burst record (<c>WeaponAmmo</c> last shot) aimed by
+        /// <c>WeaponPosture</c>, its reach from the munition's <see cref="WarheadDto.FlameRangeM"/> (<c>FlameJets.TryGet</c>). Fuel counts as rounds. Appended.</summary>
+        Flamethrower = 16,
+    }
+
+    /// <summary>⭐ <c>CE-4670</c> (VA-S5) — the ONE answer to "is this mount a weapon at all?" (ruling 9: the readers each tested
+    /// <see cref="WeaponCategory.Countermeasure"/> by hand — a smoke discharger joins it here, once).</summary>
+    public static class WeaponCategories
+    {
+        /// <summary>A self-protection mount — a flare / chaff dispenser or smoke dischargers: never chosen to fire at anything, never "armed".</summary>
+        public static bool IsSelfProtection(this WeaponCategory c) => c is WeaponCategory.Countermeasure or WeaponCategory.SmokeDischarger;
+    }
+}

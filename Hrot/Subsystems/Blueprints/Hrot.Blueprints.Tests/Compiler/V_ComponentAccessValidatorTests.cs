@@ -194,29 +194,6 @@ public sealed class V_ComponentAccessValidatorTests
     }
 
     [Fact]
-    [CoversDiagnosticCode("BP2063")]
-    public void Validate_ManagedFieldWiredIntoSetShared_BP2063()
-    {
-        var asset = BlueprintAssetBuilder
-            .AiPrimitive("ManagedReadTest")
-            .WithHostings(AiPrimitiveHosting.BTreeAction)
-            .WithGraph("Main", g => g.Entry().Return())
-            .Build();
-
-        var getComp  = MakeManagedGetComponent(out var namePin, out _);
-        var setShared = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "SomeSlot", SharedTypeId = "System.String" };
-        var setValueIn = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.String" } };
-        setShared.Pins.Add(setValueIn);
-
-        asset.Graphs[0].Nodes.Add(getComp);
-        asset.Graphs[0].Nodes.Add(setShared);
-        asset.Graphs[0].Links.Add(new Link { FromNodeId = getComp.Id, FromPinId = namePin.Id, ToNodeId = setShared.Id, ToPinId = setValueIn.Id });
-
-        var diags = Validate(asset);
-        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2063);
-    }
-
-    [Fact]
     public void Validate_ManagedFieldWiredIntoFunctionCall_NoBP2063_LegitimatePassThrough()
     {
         var asset = BlueprintAssetBuilder

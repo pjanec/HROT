@@ -413,7 +413,7 @@ the Asset Browser.
 
 ### UtilityTraceLaneProvider
 
-Implements `ITraceLaneProvider` with `AssetKind.Utility`. Provides two trace lanes displayed
+Implements `ITimelineLaneProvider` (moved to `Fdp.Toolkits`, R-4078) with `AssetKind.Utility`. Provides two trace lanes displayed
 in the shared debug timeline:
 
 | Lane ID | Display name |

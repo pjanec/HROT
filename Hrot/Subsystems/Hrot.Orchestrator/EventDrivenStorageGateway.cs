@@ -84,9 +84,7 @@ public sealed class EventDrivenStorageGateway
                 case StorageOpType.Import:
                     await _storage.ImportArchiveAsync(intent.ExerciseId, ct).ConfigureAwait(false);
                     break;
-                case StorageOpType.SaveScenario:
-                    await _storage.SaveScenarioAsync(ct).ConfigureAwait(false);
-                    break;
+                // CE-278: StorageOpType.SaveScenario (=2) retired — no dispatch case.
             }
 
             _bus.PublishManaged(new StorageOpCompletedEvent

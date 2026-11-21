@@ -18,5 +18,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <param name="entity">The entity to draw debug visualisation for.</param>
         /// <param name="drawBuilder">Target draw builder; thread-safe for concurrent callers.</param>
         void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder);
+
+        /// <summary>
+        /// ⭐ CE-1480 G5 — OPTIONAL: what this rule's picture is a function of. Declared ⇒ the system draws the rule only on a frame where an input
+        /// moved and re-appends the cached picture otherwise. Undeclared (the default, null) ⇒ drawn every frame, as before.
+        /// </summary>
+        GizmoInputs? Inputs => null;
     }
 }

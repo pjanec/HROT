@@ -106,7 +106,7 @@ This is a pre-existing architectural gap, unrelated to BATCH-25.
 | `FDP/Diagnostics/Fdp.Diagnostics.Network/TypeForwards.cs` | Pre-existing fix: commented out dead `global using StringInternBatch` alias |
 | `FDP/Toolkits/Fdp.Toolkits/GlobalUsings.GizmoNetwork.cs` | Pre-existing fix: same |
 | `FDP/Toolkits/Fdp.Toolkits.Tests/GlobalUsings.GizmoNetwork.cs` | Pre-existing fix: same |
-| `IOS-IG-SimHost.sln` | Project references updated for new gizmo source files |
+| `HROT.sln` | Project references updated for new gizmo source files |
 
 ---
 

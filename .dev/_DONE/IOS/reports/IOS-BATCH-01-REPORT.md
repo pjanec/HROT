@@ -12,7 +12,7 @@
 | Task | Status | Notes |
 |---|---|---|
 | Corrective Task 0 (DEBT-028) | ✅ | `TASK-TRACKER.md` now includes Phase IOS-P5; `DEBT-TRACKER.md` resolved row added |
-| Task 1 – P5.1/P5.2: Project Setup | ✅ | `Hrot.ExCon.csproj` + `Hrot.ExCon.Tests.csproj` added to `IOS-IG-SimHost.sln` |
+| Task 1 – P5.1/P5.2: Project Setup | ✅ | `Hrot.ExCon.csproj` + `Hrot.ExCon.Tests.csproj` added to `HROT.sln` |
 | Task 2 – IOS.6.1: Request Transaction Manager | ✅ | `IRequestTransactionManager` + `RequestTransactionManager` |
 | Task 3 – IOS.6.2: Mission Editor Service | ✅ | `IMissionEditorService` + `MissionEditorService` |
 | Task 4 – IOS.6.3: Context Menu Logic | ✅ | `IContextMenuLogic` + `ContextMenuLogic` + `ContextMenuActions` constants |
@@ -46,7 +46,7 @@
 
 ### Modified files
 - `Hrot.NED/MissionMessages.cs` – added `BaseVersion` to `MissionControlRequest`; added `MissionControlAck` topic
-- `IOS-IG-SimHost.sln` – added `Hrot.ExCon` and `Hrot.ExCon.Tests` project entries + build configurations
+- `HROT.sln` – added `Hrot.ExCon` and `Hrot.ExCon.Tests` project entries + build configurations
 - `docs/design/TASK-TRACKER.md` – added IOS Phase P5 section; marked IOS.6.1–6.3 complete; updated progress
 - `.dev-workstream/DEBT-TRACKER.md` – marked DEBT-028 as resolved
 

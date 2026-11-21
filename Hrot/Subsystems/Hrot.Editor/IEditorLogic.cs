@@ -1,3 +1,4 @@
+using Hrot.Common;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fdp.Core.Serialization.Migrations;
@@ -22,16 +23,35 @@ public interface IEditorLogic
     /// <summary>Serializes current world state to <paramref name="filePath"/>.</summary>
     void SaveScenario(string filePath);
 
-    /// <summary>
-    /// Clears the world, then deserializes entities from <paramref name="filePath"/>.
-    /// </summary>
-    void LoadScenario(string filePath);
+    // ⛔ `void LoadScenario(string filePath)` was REMOVED `2026-08-24` (HN-037 Part B). It bypassed the
+    //    EntityLifecycleModule handshake (no Constructing phase, no AuthorityMask), left the transient
+    //    genesis Intents dangling because GenesisMaterializationSystem never ran, and never synced the id
+    //    allocator — so a later spawn could collide. ⭐ No capability is lost: LoadScenarioByName IS the
+    //    editor's load (genesis pipeline via HrotEditLoadHandler), and a raw file round-trip belongs to
+    //    ScenarioSerializer. 📐 Measured: zero production callers but the facade itself.
 
     /// <summary>
     /// Loads a scenario by name from the scenarios root directory.
     /// Remembers the name for subsequent <see cref="SaveCurrentScenario"/> calls.
     /// </summary>
     void LoadScenarioByName(string scenarioName);
+
+    /// <summary>
+    /// ⭐ <c>CE-4101</c> — <see cref="LoadScenarioByName(string)"/> followed by <paramref name="then"/> ONCE THE OPEN WENT OUT: the open is GUARDED (a run ⇒ Stop &amp; Load, unsaved edits ⇒ Save / Discard / Cancel), so a
+    /// caller that continues with something that only makes sense after the load (New-from-a-recipe saves the seed as the new name) must not run it when the user cancelled. The default is the unguarded shape a fake has.
+    /// </summary>
+    void LoadScenarioByName(string scenarioName, System.Action then) { LoadScenarioByName(scenarioName); then(); }
+
+    /// <summary>⭐ New scenario N2 — the master writes a blank scenario on a terrain (header only).</summary>
+    void CreateBlankScenario(string scenarioName, string terrainName) => throw new System.NotSupportedException("This host cannot create a scenario.");
+
+    /// <summary>
+    /// ⭐ <c>CE-4101</c> — the ONE guarded door of this editor's scenario session (HTTP asks through it with its refusing asker); <see langword="null"/> on a fake that has no session.
+    /// </summary>
+    Hrot.UI.Common.RunMode.ScenarioDoor? Door => null;
+
+    /// <summary>⭐ CE-3407 — the ONE "can I save" answer of this host's scenario session (<c>IScenarioSession.SaveDisabledReason</c>: the cluster, then the variant); null = it may save. A default member: a fake saves.</summary>
+    string? SaveDisabledReason => null;
 
     /// <summary>
     /// Saves the current world state to the scenario most recently loaded via
@@ -64,43 +84,26 @@ public interface IEditorLogic
     /// Publishes an <c>UpdateEntityCommand</c> for <paramref name="networkId"/>
     /// with the supplied component replacements.
     /// </summary>
-    void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents);
+    void CommitPropertyEdit(int networkId, IReadOnlyList<object> updatedComponents);
 
-    /// <summary>Read-only non-ECS view of the current entity set (for panels).</summary>
-    IDerRepo View { get; }
-
-    /// <summary>
-    /// Ejects the local FDP SimHost logic packs and (if translator packs are configured)
-    /// installs the ACL translator packs. No-op when kernel is not configured.
-    /// </summary>
-    Task SwitchToExternalAsync();
-
-    /// <summary>
-    /// Uninstals translator packs (if any) and reinstalls the local FDP SimHost logic packs.
-    /// No-op when kernel is not configured or already in Internal mode.
-    /// </summary>
-    Task SwitchToInternalAsync();
-
-    /// <summary>Current operational mode of the editor.</summary>
-    SimHostMode CurrentMode { get; }
 
     /// <summary>
     /// Pans and zooms the map canvas to centre on the entity identified by
     /// <paramref name="entityId"/>.
     /// </summary>
-    void CenterOnEntity(long entityId);
+    void CenterOnEntity(int entityId);
 
     /// <summary>
     /// Programmatically selects the entity identified by <paramref name="entityId"/>
     /// as the primary selection, switching to the Select tool if required.
     /// </summary>
-    void SelectEntity(long entityId);
+    void SelectEntity(int entityId);
 
     /// <summary>
     /// Opens the in-map rename dialog for the entity identified by
     /// <paramref name="entityId"/>.
     /// </summary>
-    void OpenRenameDialog(long entityId);
+    void OpenRenameDialog(int entityId);
 
     /// <summary>
     /// Invokes the MSBuild compiler on the AI Behaviors assembly in the background.
@@ -109,6 +112,13 @@ public interface IEditorLogic
     /// the active BTree interpreters without stalling the editor loop.
     /// </summary>
     void RebuildAndReloadAI();
+
+    /// <summary>
+    /// ⭐ <c>CE-1321</c> (BV-68) — the same rebuild, awaited: build, copy into the watched directory, wait for the swap, say what
+    /// changed (<c>POST /ai/reload</c>). A host without hot reload answers <c>not-wired</c>.
+    /// </summary>
+    System.Threading.Tasks.Task<AiReloadResult> RebuildAndReloadAIAsync()
+        => System.Threading.Tasks.Task.FromResult(AiReloadResult.NotWired("This host wires no C# behaviour hot reload."));
 
     /// <summary>
     /// True when the currently loaded scenario was opened in degraded mode

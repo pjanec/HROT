@@ -130,7 +130,7 @@ FDP.Toolkit.Replication          ← (optionally) unit tests for compilers/inter
 ### Build everything
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 ### Run test suites relevant to this workstream

@@ -35,7 +35,7 @@ internal sealed class MultipleNodesDetailsView : IDetailsView
         ImGui.Spacing();
 
         // List selected node IDs (informational).
-        if (ImGui.CollapsingHeader($"Selected Nodes ({_ids.Count})"))
+        if (NodeEditor.Core.Widgets.SectionHeader.Draw("hdr.selected_nodes", $"Selected Nodes ({_ids.Count})", "section/selection"))
         {
             foreach (var id in _ids)
                 ImGui.BulletText(id.ToString());

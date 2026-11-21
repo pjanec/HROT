@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Player debrief / HUD mockup (SR-112, docs/DESIGN_Scenario_Rules.md). Static, self-contained: open in a browser. Live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>HUD — game</title>
+</head>
+<body>
+<style>
+body{margin:0}
+</style>
+<div style="position: relative; width: 1440px; height: 810px; overflow: hidden; background: linear-gradient(180deg, #7f97ad 0%, #b6c2c6 38%, #5a6849 39%, #384329 100%); color: #f4f6f8; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 14px;">
+
+  <div style="position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-radius: 10px; background: rgba(8,10,12,0.66);">
+    <span style="font-size: 22px; font-weight: 800; color: #7fb6ff;">87</span>
+    <div style="display: flex; gap: 6px;">
+      <span style="width: 30px; height: 30px; border-radius: 6px; background: #2f6fd6; display: flex; align-items: center; justify-content: center; font-weight: 800;">A</span>
+      <span style="width: 30px; height: 30px; border-radius: 6px; background: linear-gradient(90deg, #2f6fd6 60%, #6b7280 60%); display: flex; align-items: center; justify-content: center; font-weight: 800; outline: 2px solid #fff;">B</span>
+      <span style="width: 30px; height: 30px; border-radius: 6px; background: #c2412f; display: flex; align-items: center; justify-content: center; font-weight: 800;">C</span>
+    </div>
+    <span style="font-size: 22px; font-weight: 800; color: #ff8a73;">12</span>
+    <span style="color: #d9dde2; font-variant-numeric: tabular-nums;">06:18</span>
+  </div>
+  <span style="position: absolute; left: 50%; top: 66px; transform: translateX(-50%); padding: 3px 10px; border-radius: 4px; background: rgba(47,111,214,0.75); font-size: 12px; font-weight: 700;">CAPTURING B · 60 %</span>
+
+  <div style="position: absolute; right: 20px; top: 20px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-size: 13px;">
+    <span style="padding: 4px 10px; border-radius: 4px; background: rgba(8,10,12,0.6);"><b style="color: #7fb6ff;">You</b> ⟶ <span style="color: #ff8a73;">Raven</span> · 212 m</span>
+    <span style="padding: 4px 10px; border-radius: 4px; background: rgba(8,10,12,0.5);"><b style="color: #ff8a73;">Fox</b> ⟶ <span style="color: #7fb6ff;">Bobr</span></span>
+    <span style="padding: 4px 10px; border-radius: 4px; background: rgba(8,10,12,0.45);"><b style="color: #7fb6ff;">Hawk</b> captured <b>A</b></span>
+  </div>
+
+  <div style="position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid rgba(255,255,255,0.85); border-radius: 9px;"></div>
+  <span style="position: absolute; left: 50%; top: 50%; margin-left: 22px; margin-top: -26px; color: #ffe08a; font-weight: 800;">✕ HIT</span>
+
+  <div style="position: absolute; left: 50%; top: 470px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px;">
+    <span style="font-size: 20px; font-weight: 800; color: #ffd27a;">+100 ELIMINATION</span>
+    <span style="font-size: 14px; color: #ffe3a8;">STREAK ×3</span>
+  </div>
+
+  <div style="position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); padding: 8px 18px; border-radius: 6px; background: rgba(8,10,12,0.78); font-size: 17px; white-space: nowrap;">Supply drop landing at point C in 30 s!</div>
+  <span style="position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); color: #d9dde2; font-size: 11px;">M — messages</span>
+
+  <div style="position: absolute; left: 20px; bottom: 20px; padding: 10px 14px; border-radius: 8px; background: rgba(8,10,12,0.6); display: flex; flex-direction: column; gap: 6px; min-width: 220px;">
+    <div style="display: flex; justify-content: space-between; font-size: 13px;"><b>Kral</b><span>K 8 · D 4 · 1 310</span></div>
+    <div style="height: 8px; border-radius: 4px; background: rgba(255,255,255,0.18); overflow: hidden;"><div style="width: 70%; height: 8px; background: #4fbf85;"></div></div>
+  </div>
+  <div style="position: absolute; right: 20px; bottom: 20px; padding: 10px 14px; border-radius: 8px; background: rgba(8,10,12,0.6); display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+    <span style="font-size: 22px; font-weight: 800;">18 / 90</span>
+    <span style="color: #c9ccd2; font-size: 12px;">rifle · auto</span>
+  </div>
+</div>
+</body>
+</html>

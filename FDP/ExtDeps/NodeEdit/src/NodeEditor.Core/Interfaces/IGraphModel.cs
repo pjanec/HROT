@@ -53,6 +53,16 @@ public interface IGraphModel
     /// Raised when graph data changes externally. The editor subscribes and
     /// updates view state (selection, viewport hold, badges, undo invalidation).
     /// </summary>
+    /// <summary>
+    /// CE-1000/CE-1001 — in <see cref="LinkRouting.NodeToNode"/> graphs, the pin a whole-node link attaches to on
+    /// <paramref name="node"/> (an <see cref="PinDirection.Output"/> pin for the source end, <see cref="PinDirection.Input"/>
+    /// for the target end). ⚠ It must also answer for a node id that is ABOUT TO BE CREATED — the "drop on empty
+    /// canvas" batch adds the node and the link in one undo step — so a host whose pin ids derive from the node id
+    /// overrides this; the default reads the existing node's pins.
+    /// </summary>
+    PinId? NodeLinkPin(NodeId node, PinDirection direction)
+        => FindNode(node)?.Pins.FirstOrDefault(p => p.Direction == direction)?.Id;
+
     event Action<GraphChangeNotification>? Changed;
 }
 
@@ -68,6 +78,27 @@ public sealed record GraphKindDescriptor(
     /// or Vertical (output top / input bottom).  Default is Horizontal.
     /// </summary>
     public PinOrientation Orientation { get; init; } = PinOrientation.Horizontal;
+
+    /// <summary>
+    /// ⭐ CE-1000 — how links are drawn and started. <see cref="LinkRouting.PinWires"/> (default) is the
+    /// Blueprint/BTree pin-to-pin wire. <see cref="LinkRouting.NodeToNode"/> draws state-machine arrows from node
+    /// border to node border, and a link can be started by dragging from a node's border band or Shift-dragging the
+    /// node. The link model is unchanged (still pin to pin); only geometry and gestures differ.
+    /// </summary>
+    public LinkRouting Routing { get; init; } = LinkRouting.PinWires;
+
+    /// <summary>What one link is called in menus ("Add {LinkDisplayName}"), e.g. "Transition".</summary>
+    public string LinkDisplayName { get; init; } = "Link";
+}
+
+/// <summary>How a graph's links are drawn and started (CE-1000).</summary>
+public enum LinkRouting
+{
+    /// <summary>Pin-to-pin S-curve wires (Blueprint, BTree).</summary>
+    PinWires = 0,
+
+    /// <summary>Border-to-border arrows on a gentle arc (state machines).</summary>
+    NodeToNode = 1,
 }
 
 /// <summary>Controls which node edges pins are placed on.</summary>

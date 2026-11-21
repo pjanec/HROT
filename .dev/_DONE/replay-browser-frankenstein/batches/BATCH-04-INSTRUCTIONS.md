@@ -11,7 +11,7 @@
 ## Build and test commands
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj --filter "FullyQualifiedName~RBF_P4T"
 dotnet test Hrot/Subsystems/Hrot.ReplayBrowser.Tests/Hrot.ReplayBrowser.Tests.csproj --filter "FullyQualifiedName~RBF_P4T"
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj
@@ -1111,7 +1111,7 @@ _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
 
 ## Success criteria
 
-All 28 tests pass. `dotnet build IOS-IG-SimHost.sln` clean (0 errors, 0 warnings).
+All 28 tests pass. `dotnet build HROT.sln` clean (0 errors, 0 warnings).
 
 The following invariants must hold after this batch:
 - `FederationPanel.ActiveMode == SingleNode` after construction (default).
@@ -1151,7 +1151,7 @@ rendering? Does the search task get cancelled?
 
 ## Checklist before finishing
 
-- [ ] Build the solution: `dotnet build IOS-IG-SimHost.sln` — 0 errors, 0 warnings
+- [ ] Build the solution: `dotnet build HROT.sln` — 0 errors, 0 warnings
 - [ ] Run P4 tests in `Fdp.Presentation.Tests`: all pass
 - [ ] Run P4 tests in `Hrot.ReplayBrowser.Tests`: all pass
 - [ ] Run full `Fdp.Toolkits.Tests` suite to verify no regressions

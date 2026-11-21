@@ -1,5 +1,7 @@
 # Architect question #16 — self ECS component WRITE (per-field unmanaged / whole-replace managed)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Status: ✅ APPROVED (architect) — A1 · B1 · C · D.** Self-write cleared: opt-in `[BlueprintWritable]` marker,
 direct `GetComponentRW<T>(self)` for unmanaged (write-if-present), ECB whole-replace for managed. Counterpart to
 Q#15 (READ, approved). Cleared to build (W1 → W2).

@@ -22,7 +22,7 @@
 
 **0 errors. Build succeeded.**
 
-Command: `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet`
+Command: `dotnet build HROT.sln --no-restore -v quiet`
 
 ---
 

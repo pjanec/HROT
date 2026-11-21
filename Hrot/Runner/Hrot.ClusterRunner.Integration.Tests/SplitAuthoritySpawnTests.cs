@@ -47,7 +47,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         cgf.PumpFrames(20);
 
         // SimHost node ID is 1 (SimHostNetworkConstants.LocalNodeId)
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         bool arrived = PumpBothUntil(simHost, cgf,
@@ -78,6 +78,16 @@ namespace Hrot.ClusterRunner.Integration.Tests;
     [Fact]
     public void BrainSpawn_WithWorldPosDelegation_MuscleTakesSimTransformAuthority()
     {
+        // ⭐⭐⭐ RUN UNDER THE PRODUCTION GUARD. Hrot.ClusterRunner/Program.cs:52 sets this process-wide
+        //    and NOTHING in this suite did, which is the whole reason the handover could be broken on
+        //    every node while IT-SA-1..3 stayed green: the publish that throws in production is a
+        //    silent no-op here. Same save/restore idiom as EditorSubsystemBootTests:224 and
+        //    HrotNodeBuilderTests:105 — reused, not reinvented. 📄 §4.1U.
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var simHost = new HrotRunnerHarness("simhost", domainId);
         using var cgf     = new CgfHarness(domainId);
@@ -85,7 +95,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         cgf.PumpFrames(20);
 
         // SimHost node ID is 1 (SimHostNetworkConstants.LocalNodeId)
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for SimTransform authority to become true on the Muscle side.
@@ -108,6 +118,46 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         Assert.True(hasAuthority,
             $"SimHost should have SimTransform authority for entity {networkId} " +
             $"within {AuthorityTimeoutMs} ms after split-authority spawn");
+
+        // ⭐⭐⭐ ADDED 2026-09-04 — and the assertion above is NOT enough on its own.
+        //
+        // 📐 Measured: the handover was broken on EVERY node in production for as long as this suite
+        //    has existed, and IT-SA-1..3 all stayed GREEN. Cause: ExecuteTakeover threw at step 2b
+        //    (Bus.Publish(OwnershipUpdate) — the event was registered by no host), but step 2a
+        //    (SetAuthority) had ALREADY run. ⇒ the assertion above tests exactly the half that still
+        //    worked, and the two steps after the throw — SetManagedComponent(ownership) and
+        //    RemoveManagedComponent<PendingAuthorityGrants> — never ran at all.
+        //
+        // ⭐⭐ The grant is the honest completion witness: it is attached by
+        //    DeferredTakeOwnershipIngressTranslator and removed ONLY by the LAST line of
+        //    ExecuteTakeover. So it is stripped if and only if the whole method completed.
+        // ⛔ Not vacuous: `hasAuthority` above is true only because 2a ran, and 2a only runs FROM a
+        //    grant — so the component provably existed before this waits for it to disappear.
+        // 📌 On the live cluster before the fix it stayed attached and the system retried every frame
+        //    forever, while the Brain kept its own authority bits and nothing moved.
+        // ⛔ INVERSE-EDIT RED-PROOF: delete RegisterEvent<Replication.Messages.OwnershipUpdate>()
+        //    from HrotSharedComponentRegistry.RegisterAll and THIS assertion fails while the one
+        //    above it still passes.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1U.
+        bool grantStripped = PumpBothUntil(simHost, cgf,
+            () =>
+            {
+                var world = simHost.SimHost.World;
+                var map   = simHost.SimHost.TestHook_EntityMap;
+                if (world == null) return false;
+                if (!map.TryGetEntity(networkId, out Entity entity)) return false;
+                if (!world.IsAlive(entity)) return false;
+                return !world.HasManagedComponent<PendingAuthorityGrants>(entity);
+            },
+            AuthorityTimeoutMs);
+
+        Assert.True(grantStripped,
+            $"DeferredTakeoverSystem must strip PendingAuthorityGrants for entity {networkId} within " +
+            $"{AuthorityTimeoutMs} ms — still attached means ExecuteTakeover never reached its last " +
+            "line, so the Brain was never told to yield and the descriptor ownership was never recorded.");
+
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
     }
 
     // ── IT-SA-3 ───────────────────────────────────────────────────────────────
@@ -125,7 +175,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
         cgf.PumpFrames(20);
 
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // First wait for the entity to arrive on Muscle so we know propagation completed.
@@ -160,7 +210,377 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             $"within {AuthorityTimeoutMs} ms when WorldPos is delegated to Muscle");
     }
 
+    // ── IT-SA-4 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-2210</c> (Airborne Insertion §7d, D-15) — a man CREATED coming down, through the real request path (what
+    /// <c>EjectionSystem</c> enqueues on the jet's Health owner): the Muscle that takes his position must hold his
+    /// <c>Descent</c> and the jet's speed, and FLY him — his phase leaves the seat's arc there, and the Brain sees it.
+    /// 📐 Measured before the fix: position and velocity crossed, the descent never did (its egress scanned Active entities
+    /// only, and the creator owns the descent only while he is Constructing) ⇒ a Pedestrian at a standstill, for ever.
+    /// 🔴 Red-proof: drop <c>WithLifecycle(All)</c> from <c>EntityDescentEgressTranslator</c> ⇒ no descent on the Muscle.
+    /// <para>Domain 33 — explicit: a fourth shared-counter domain here would be 233, above CycloneDDS's 232.</para>
+    /// </summary>
+    [Fact]
+    public void BrainCreatesAManComingDown_TheMuscleFliesHim()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 33);
+            using var cgf     = new CgfHarness(33);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Pilot),
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(100, 200, 300), Rotation = System.Numerics.Quaternion.Identity },
+                    new SimVelocity  { Linear = new System.Numerics.Vector3(0, 150, 40) },
+                    new Fdp.Toolkit.Motion.Descent
+                    {
+                        Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = Fdp.Toolkit.Motion.DescentPhase.Exit,
+                        Canopy = Fdp.Toolkit.Motion.CanopyKind.Round, PhaseSince = (SimInstant)(Fdp.Toolkit.Motion.DescentRules.Now(cgfWorld)),
+                    },
+                },
+            });
+
+            float forwardSpeed = 0f;
+            bool descending = PumpBothUntil(simHost, cgf, () =>
+            {
+                var w = simHost.SimHost.World;
+                if (w == null || !w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>()) return false;
+                var pilot = PilotIn(w);
+                if (pilot.IsNull || !w.HasComponent<Fdp.Toolkit.Motion.Descent>(pilot) || !w.HasComponent<SimVelocity>(pilot)) return false;
+                forwardSpeed = w.GetComponentRO<SimVelocity>(pilot).Linear.Y;
+                return w.GetComponentRO<Fdp.Toolkit.Motion.Descent>(pilot).Kind == Fdp.Toolkit.Motion.DescentKind.Ejection;
+            }, PropagationTimeoutMs);
+            Assert.True(descending, "the Muscle never received the pilot's Descent{Ejection} — he would be a Pedestrian there");
+            Assert.True(forwardSpeed > 100f, $"the jet's forward speed must ride with him (got {forwardSpeed:0.#} m/s)");
+
+            bool flown = PumpBothUntil(simHost, cgf, () =>
+            {
+                var w = simHost.SimHost.World!;
+                var pilot = PilotIn(w);
+                var brain = PilotIn(cgfWorld);
+                return !pilot.IsNull && w.HasComponent<Fdp.Toolkit.Motion.Descent>(pilot)
+                    && w.GetComponentRO<Fdp.Toolkit.Motion.Descent>(pilot).Phase != Fdp.Toolkit.Motion.DescentPhase.Exit
+                    && !brain.IsNull && cgfWorld.HasComponent<Fdp.Toolkit.Motion.Descent>(brain)
+                    && cgfWorld.GetComponentRO<Fdp.Toolkit.Motion.Descent>(brain).Phase != Fdp.Toolkit.Motion.DescentPhase.Exit;
+            }, AuthorityTimeoutMs);
+            Assert.True(flown, "the Muscle must fly him past the seat's arc, and the Brain must see his new phase");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
+    // ── IT-SA-5 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3216</c> S1-0 (R-3012, C-4; docs/designs/weather/DESIGN_Weather_And_Time.md §5) — the FIRST positionless replicated
+    /// entity: a World Environment created on CGF through the real request path carries its <c>ScenarioClock</c> to SimHost with no
+    /// <c>SimTransform</c> on either node; both derive UTC = start + their own sim time from the same start; and a runtime edit sent
+    /// by the NON-owner (SimHost) is applied by the owner (CGF's <c>UpdateEntityAttributeRequestSystem</c>) as sent and replicates back
+    /// (W-8: a new start time). 🔴 Red-proofs: drop the clock egress from <c>SharedTranslatorPack</c> ⇒ the clock never reaches SimHost;
+    /// drop the JSON route in <c>AttributeCompilerFactory.Build</c> ⇒ the edit never lands on CGF.
+    /// <para>Domain 35 — explicit, like IT-SA-4's 33 (the shared counter would pass CycloneDDS's 232).</para>
+    /// </summary>
+    [Fact]
+    public void CE3216_ThePositionlessWorldEnvironment_CarriesItsClock_AndAnEditFromANonOwnerReachesEveryNode()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 35);
+            using var cgf     = new CgfHarness(35);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            long start = new DateTime(2024, 3, 1, 4, 30, 0, DateTimeKind.Utc).Ticks;
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WorldEnvironment),
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = start, DisplayUtcOffsetMinutes = 180 },
+                    // ⭐ CE-3216 S1 — and the global weather on dtWeather: a steady 7 m/s wind toward the north-east
+                    Fdp.Toolkit.Weather.WeatherConditions.SteadyWind(new System.Numerics.Vector2(5f, 5f)),
+                },
+            });
+
+            // ① the clock arrives on SimHost — an entity with no position, on both nodes
+            Assert.True(PumpBothUntil(simHost, cgf, () => simHost.SimHost.World is { } w && !EnvironmentIn(w, start).IsNull, PropagationTimeoutMs),
+                "the World Environment's clock never reached SimHost — a positionless entity did not replicate");
+            var simWorld = simHost.SimHost.World!;
+            var simEnv = EnvironmentIn(simWorld, start);
+            var cgfEnv = EnvironmentIn(cgfWorld, start);
+            Assert.False(cgfEnv.IsNull, "the creator lost its own World Environment");
+            Assert.False(simWorld.HasComponent<SimTransform>(simEnv), "the World Environment must stay positionless on SimHost");
+            Assert.False(cgfWorld.HasComponent<SimTransform>(cgfEnv), "the World Environment must stay positionless on CGF");
+            Assert.Equal((short)180, simWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(simEnv).DisplayUtcOffsetMinutes);
+
+            // ⭐ CE-3216 S1 — the global weather crossed too (dtWeather): SimHost's weather field blows the CGF's wind
+            Assert.True(PumpBothUntil(simHost, cgf, () => simWorld.HasComponent<Fdp.Toolkit.Weather.WeatherConditions>(simEnv), PropagationTimeoutMs),
+                "the World Environment's weather never reached SimHost (dtWeather)");
+            var simWind = Fdp.Toolkit.Weather.WeatherField.WindAt(simWorld, new System.Numerics.Vector3(0, 0, 300));
+            Assert.True(System.Numerics.Vector2.Distance(simWind, new System.Numerics.Vector2(5f, 5f)) < 0.01f, $"SimHost's wind {simWind}");
+
+            // ② both nodes derive UTC = start + their own sim time, from the SAME start (the cluster syncs the sim time)
+            foreach (var w in new[] { cgfWorld, simWorld })
+            {
+                double now = w.GetSingleton<GlobalTime>().TotalTime;
+                Assert.Equal(new DateTime(start, DateTimeKind.Utc).AddTicks((long)Math.Round(now * TimeSpan.TicksPerSecond)),
+                    Fdp.Toolkit.Weather.ScenarioTime.Utc(w));
+            }
+
+            // ③ a runtime edit from the NON-owner: SimHost asks, CGF (the owner) applies it as sent, and the new start replicates back
+            long newStart = new DateTime(2024, 3, 1, 22, 0, 0, DateTimeKind.Utc).Ticks;
+            Assert.True(Fdp.Toolkit.Replication.Attributes.EntityAttributeChangeRequests.TryPublishJsonPatch(
+                simWorld, simEnv, $"{{\"ScenarioStartUtcTicks\":{newStart}}}"), "SimHost could not address the clock's owner");
+            Assert.True(PumpBothUntil(simHost, cgf, () =>
+                    cgfWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(cgfEnv).StartUtcTicks == newStart
+                    && simWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(simEnv).StartUtcTicks == newStart, AuthorityTimeoutMs),
+                $"the edit did not round-trip: CGF {new DateTime(cgfWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(cgfEnv).StartUtcTicks):O}, " +
+                $"SimHost {new DateTime(simWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(simEnv).StartUtcTicks):O}");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
+    // ── IT-SA-6 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3221</c> (civilians B-3, CV-4, R-3013; docs/DESIGN_Civilians_And_Crowd_Control.md §7.1) — a runtime side flip made on
+    /// CGF (the creator, which owns <c>EntityInfo</c>, R-160) through the ONE write path, <c>EntityWriteRouter</c> + the
+    /// <c>Affiliation</c> attribute, reaches SimHost. ⚠ <c>EntityInfo</c>'s egress re-sends only when the descriptor is dirty, so a
+    /// bare <c>SetComponent</c> on CGF would never leave it (AX-015). 🔴 Red-proof: skip <c>EcsPatchContext.FlushDirtyMarks</c> ⇒
+    /// SimHost keeps the old side.
+    /// <para>Domain 36 — explicit, like IT-SA-5's 35.</para>
+    /// </summary>
+    [Fact]
+    public void CE3221_ASideFlipMadeOnCgf_ReachesSimHost()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 36);
+            using var cgf     = new CgfHarness(36);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman),
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(10, 20, 0), Rotation = System.Numerics.Quaternion.Identity },
+                },
+            });
+
+            Assert.True(PumpBothUntil(simHost, cgf, () => simHost.SimHost.World is { } w && !OfType(w, TkbEntityTypes.Infantry_Rifleman).IsNull
+                    && w.HasComponent<EntityInfo>(OfType(w, TkbEntityTypes.Infantry_Rifleman)), PropagationTimeoutMs),
+                "the rifleman never reached SimHost");
+            var simWorld = simHost.SimHost.World!;
+            var simMan = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+            var cgfMan = OfType(cgfWorld, TkbEntityTypes.Infantry_Rifleman);
+            Assert.NotEqual(ForceId.Hostile, simWorld.GetComponentRO<EntityInfo>(simMan).ForceId);
+
+            var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(cgfWorld).Write(cgfMan, new[]
+            {
+                new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+                {
+                    AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.Affiliation,
+                    Value       = Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)Fdp.Toolkit.Replication.ForceIdentifier.Opposing),
+                },
+            });
+            Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct, route);   // CGF created him, so CGF owns EntityInfo
+            Assert.Equal(ForceId.Hostile, cgfWorld.GetComponentRO<EntityInfo>(cgfMan).ForceId);
+
+            Assert.True(PumpBothUntil(simHost, cgf, () => simWorld.GetComponentRO<EntityInfo>(simMan).ForceId == ForceId.Hostile, AuthorityTimeoutMs),
+                $"the flip never reached SimHost (it reads {simWorld.GetComponentRO<EntityInfo>(simMan).ForceId})");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2234</c> M-1 (docs/DESIGN_Civilians_And_Crowd_Control.md §5a; CV-7) — a person CGF created is DELETED by CGF and gone on
+    /// SimHost: the brain's <c>DestroyEntityCommand</c> (what a sheltered civilian issues after its hide time) is enough — no ownership
+    /// move, no SimHost-side logic. The measurement the shelter slice (<c>CE-2236</c>) rests on.
+    /// <para>⭐ <c>CE-3271</c> (Q94 D, R-3018) — the same person is created "on the ground": the level is resolved by SimHost, which owns his
+    /// position and is the ONLY node here with terrain (ground 7 m), and both nodes end with Z 7 and the request resolved. 🔴 Red-proof: a
+    /// brain-side resolve (CGF has no terrain) leaves Z 0.</para>
+    /// </summary>
+    [Fact]
+    public void CE2234_APersonCgfCreated_DeletedOnCgf_IsGoneOnSimHost()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 37);
+            using var cgf     = new CgfHarness(37);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            simHost.SimHost.World!.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(Ground7));   // CE-3271: SimHost only
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman),
+                SpawnHeight        = Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(10, 20, 0), Rotation = System.Numerics.Quaternion.Identity },
+                },
+            });
+            Assert.True(PumpBothUntil(simHost, cgf, () => simHost.SimHost.World is { } w && !OfType(w, TkbEntityTypes.Infantry_Rifleman).IsNull,
+                PropagationTimeoutMs), "the person never reached SimHost");
+            var simWorld = simHost.SimHost.World!;
+            var cgfMan = OfType(cgfWorld, TkbEntityTypes.Infantry_Rifleman);
+
+            // ⭐ CE-3271 — born on the ground SimHost knows, on both nodes.
+            static (float Z, int Resolved) Level(EntityRepository w, Entity m)
+                => (w.GetComponentRO<SimTransform>(m).Position.Z,
+                    w.HasComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(m) ? w.GetComponentRO<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(m).Resolved : -1);
+            bool grounded = PumpBothUntil(simHost, cgf, () =>
+            {
+                var sm = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+                if (sm.IsNull) return false;
+                var (sz, sr) = Level(simWorld, sm);
+                var (cz, cr) = Level(cgfWorld, cgfMan);
+                return sr == 1 && cr == 1 && MathF.Abs(sz - 7f) < 0.01f && MathF.Abs(cz - 7f) < 0.01f;
+            }, AuthorityTimeoutMs);
+            var simNow = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+            Assert.True(grounded, $"the level must be resolved by SimHost (ground 7) and come back to CGF: SimHost {Level(simWorld, simNow)}, CGF {Level(cgfWorld, cgfMan)}");
+            int netId = cgfWorld.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(cgfMan).Value;
+
+            cgfWorld.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand { NetworkId = netId, Reason = "CE-2234 sheltered" });
+            bool gone = PumpBothUntil(simHost, cgf, () =>
+            {
+                var m = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+                return m.IsNull || !simWorld.IsAlive(m);
+            }, AuthorityTimeoutMs);
+            var c = OfType(cgfWorld, TkbEntityTypes.Infantry_Rifleman);
+            Assert.True(gone, $"a delete issued on CGF must remove the person on SimHost (CGF copy alive: {!c.IsNull && cgfWorld.IsAlive(c)})");
+            Assert.True(c.IsNull || !cgfWorld.IsAlive(c), "and on CGF");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
+    /// <summary>⭐ CE-3271 — a flat ground at 7 m (no buildings), for SimHost only.</summary>
+    private const string Ground7 = """
+        { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [-100, -100, 200, 200], "groundZ": 7 }, "features": [] }
+        """;
+
+    private static Entity OfType(EntityRepository w, long tkbType)
+    {
+        if (!w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;
+        foreach (var e in w.Query().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build())
+            if (w.GetComponentRO<TkbIdentity>(e).TkbType == tkbType) return e;
+        return Entity.Null;
+    }
+
+    /// <summary>The World Environment whose clock started at <paramref name="startTicks"/> (Null when none has it).</summary>
+    private static Entity EnvironmentIn(EntityRepository w, long startTicks)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Weather.ScenarioClock>() || !w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;
+        foreach (var e in w.Query().With<Fdp.Toolkit.Weather.ScenarioClock>().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build())
+            if (w.GetComponentRO<TkbIdentity>(e).TkbType == TkbEntityTypes.WorldEnvironment
+                && w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks == startTicks) return e;
+        return Entity.Null;
+    }
+
+    private static Entity PilotIn(EntityRepository w)
+    {
+        if (!w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;
+        foreach (var e in w.Query().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build())
+            if (w.GetComponentRO<TkbIdentity>(e).TkbType == TkbEntityTypes.Infantry_Pilot) return e;
+        return Entity.Null;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // ── IT-SA-7 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ AQ107 (CE-3323; behaviors' CE-2375 — the requester must learn which entity its request made), as rebuilt by CE-4266 — a creation
+    /// request published on the Brain (CGF) and SERVICED ON ANOTHER NODE (SimHost, the owner it names) is known to the Brain by the network id
+    /// it PRE-ALLOCATED (<c>EntityCreation.AllocateNetworkId</c>): the lifecycle module on EACH node announces <c>EntityConstructionCompleted</c>
+    /// for that id. ⛔ Nothing about the request rides the entity or <c>EntityMaster</c>. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4e-1.
+    /// Under the production guard (strict event registration).
+    /// 🔴 Red-proofs: drop the <c>PreAllocatedNetworkId</c> line ⇒ the entity gets another id and neither node announces this one;
+    /// drop the <c>RegisterEvent&lt;EntityConstructionCompleted&gt;</c> in <c>HrotSharedComponentRegistry</c> ⇒ no event on either node.
+    /// <para>Domain 38 — explicit, like IT-SA-4's 33.</para>
+    /// </summary>
+    [Fact]
+    public void AQ107_ARequestFromTheBrain_ServicedOnSimHost_IsKnownToTheBrain_ByItsPreAllocatedId()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 38);
+            using var cgf     = new CgfHarness(38);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            int netId   = cgf.CgfSvc.EntityCreation!.AllocateNetworkId();
+            int owner   = simHost.SimHost.EntityCreation!.NodeId;
+            Assert.NotEqual(cgf.CgfSvc.EntityCreation!.NodeId, owner);
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = owner,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
+                PreAllocatedNetworkId = netId,
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(40, 60, 0), Rotation = System.Numerics.Quaternion.Identity },
+                },
+            });
+
+            Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted? onBrain = null, onOwner = null;
+            static Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted? Seen(EntityRepository? w, int id)
+            {
+                if (w == null || !w.Bus.IsRegistered<Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted>()) return null;
+                foreach (var e in ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted>())
+                    if (e.NetworkId == id) return e;
+                return null;
+            }
+            bool both = PumpBothUntil(simHost, cgf, () =>
+            {
+                onBrain ??= Seen(cgf.World, netId);
+                onOwner ??= Seen(simHost.SimHost.World, netId);
+                return onBrain != null && onOwner != null;
+            }, AuthorityTimeoutMs);
+
+            Assert.True(onOwner != null, "the servicing node (SimHost) never announced the entity its request made");
+            Assert.True(onBrain != null, "the requesting node (the Brain) never learned which entity its request made");
+            Assert.True(onOwner!.Value.Succeeded && onBrain!.Value.Succeeded);
+            Assert.True(onOwner.Value.IsLocallyOwned, "SimHost owns it");
+            Assert.False(onBrain.Value.IsLocallyOwned, "the Brain holds a replica");
+            Assert.NotEqual(0, netId);
+            Assert.Equal(netId, onOwner.Value.NetworkId);
+            Assert.Equal(netId, onBrain.Value.NetworkId);
+            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, onBrain.Value.TkbType);
+            Assert.True(cgf.World!.IsAlive(onBrain.Value.Entity), "the Brain's event names its own live entity");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
 
     private static bool PumpBothUntil(
         HrotRunnerHarness simHost,

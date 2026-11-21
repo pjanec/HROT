@@ -1,4 +1,5 @@
 using System.Globalization;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -32,6 +33,9 @@ internal sealed class LiteralNodeSession : INodeEditSession
     private readonly BlueprintAsset  _parent;
     private readonly IEditService    _editService;
 
+    /// <summary>BP-11 (Q22-E1): one undo entry per typing/drag gesture, not per keystroke.</summary>
+    private readonly ContinuousEditCoalescer<string> _valueCoalescer = new();
+
     public bool IsDirty { get; private set; }
 
     public LiteralNodeSession(
@@ -56,11 +60,11 @@ internal sealed class LiteralNodeSession : INodeEditSession
         {
             int val = int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)
                 ? i : 0;
-            if (ImGui.InputInt("Value", ref val))
+            FormGrid.BeginField("bp.node", "Value"); if (ImGui.InputInt("##Value", ref val))
             {
                 _node.ValueJson = val.ToString(CultureInfo.InvariantCulture);
                 changed = true;
-            }
+            } FormGrid.EndField();
         }
         else if (_node.TypeId == BlueprintTypeSystem.Single)
         {
@@ -68,70 +72,86 @@ internal sealed class LiteralNodeSession : INodeEditSession
             var clean = rawValue.TrimEnd('f', 'F');
             float val = float.TryParse(clean, NumberStyles.Float, CultureInfo.InvariantCulture, out var f)
                 ? f : 0f;
-            if (ImGui.InputFloat("Value", ref val))
+            FormGrid.BeginField("bp.node", "Value"); if (ImGui.InputFloat("##Value", ref val))
             {
                 // Float literals MUST have 'f' suffix for Roslyn (avoids CS0664)
                 _node.ValueJson = val.ToString(CultureInfo.InvariantCulture) + "f";
                 changed = true;
-            }
+            } FormGrid.EndField();
         }
         else if (_node.TypeId == BlueprintTypeSystem.Float64)
         {
             double val = double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
                 ? d : 0.0;
-            if (ImGui.InputDouble("Value", ref val))
+            FormGrid.BeginField("bp.node", "Value"); if (ImGui.InputDouble("##Value", ref val))
             {
                 _node.ValueJson = val.ToString(CultureInfo.InvariantCulture);
                 changed = true;
-            }
+            } FormGrid.EndField();
         }
         else if (_node.TypeId == BlueprintTypeSystem.Bool)
         {
             bool val = bool.TryParse(rawValue, out var b) && b;
-            if (ImGui.Checkbox("Value", ref val))
+            FormGrid.BeginField("bp.node", "Value"); if (ImGui.Checkbox("##Value", ref val))
             {
                 _node.ValueJson = val ? "true" : "false";
                 changed = true;
-            }
+            } FormGrid.EndField();
         }
         else if (_node.TypeId == BlueprintTypeSystem.String)
         {
             // Strip surrounding quotes for editing
             var clean = rawValue.Trim('\"');
             var buf   = clean;
-            if (ImGui.InputText("Value", ref buf, 1024))
+            FormGrid.BeginField("bp.node", "Value"); if (ImGui.InputText("##Value", ref buf, 1024))
             {
                 // String literals must be wrapped in quotes for the generated C# source
                 _node.ValueJson = $"\"{buf}\"";
                 changed = true;
-            }
+            } FormGrid.EndField();
         }
         else if (_node.TypeId == BlueprintTypeSystem.Byte)
         {
             byte val = byte.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b)
                 ? b : (byte)0;
             int asInt = val;
-            if (ImGui.InputInt("Value", ref asInt))
+            FormGrid.BeginField("bp.node", "Value"); if (ImGui.InputInt("##Value", ref asInt))
             {
                 asInt = Math.Clamp(asInt, byte.MinValue, byte.MaxValue);
                 _node.ValueJson = ((byte)asInt).ToString(CultureInfo.InvariantCulture);
                 changed = true;
-            }
+            } FormGrid.EndField();
         }
         else
         {
             // Fallback for unknown types: raw C# literal text entry
-            if (ImGui.InputText("C# Literal", ref rawValue, 256))
+            FormGrid.BeginField("bp.node", "C# Literal"); if (ImGui.InputText("##C_Literal", ref rawValue, 256))
             {
                 _node.ValueJson = rawValue;
                 changed = true;
-            }
+            } FormGrid.EndField();
         }
+
+        // BP-11 / Q22-E1: the widget above mutated ValueJson live (unchanged UX — the designer sees
+        // every keystroke), but undo is recorded once per gesture. The baseline is taken when the
+        // widget becomes active, because IsItemDeactivatedAfterEdit fires only after the value has
+        // already changed. Exactly one widget is drawn per frame, so these refer to it.
+        _valueCoalescer.BeginIfNeeded(ImGui.IsItemActivated(), rawValue);
 
         if (changed)
         {
             IsDirty = true;
             _editService.MarkDirty(_parent);
+        }
+
+        if (_valueCoalescer.TryCommit(ImGui.IsItemDeactivatedAfterEdit(), out var beforeGesture))
+        {
+            string afterGesture = _node.ValueJson ?? string.Empty;
+            _editService.RecordPropertyEdit(
+                _parent, "Set Literal Value",
+                // Already the current value — the assignment matters on redo.
+                apply: () => _node.ValueJson = afterGesture,
+                undo:  () => _node.ValueJson = beforeGesture);
         }
     }
 

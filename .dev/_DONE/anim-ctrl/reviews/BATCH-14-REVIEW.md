@@ -39,7 +39,7 @@ Commands executed by reviewer:
 
 - `dotnet test Hrot/Subsystems/Hrot.Animation.Replication.Tests/Hrot.Animation.Replication.Tests.csproj -c Debug`
   - Passed: 42, Failed: 0
-- `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore`
+- `dotnet build HROT.sln -c Debug --no-restore`
   - Build succeeded, 0 warnings, 0 errors
 
 ---

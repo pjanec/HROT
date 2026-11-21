@@ -1,0 +1,510 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Terrain;
+using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Weather;
+using Fdp.Toolkit.World;
+using Xunit;
+
+namespace Fdp.Toolkit.Combat.Tests
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-3219</c> part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) — the gas / smoke cloud: it
+    /// blocks sight through it at the world-query seam (and thins at its end), it drifts on the ground wind, a tear-gas cloud irritates
+    /// whoever stands in it once a second, it ends at its time, and a tear-gas / smoke burst asks for one.
+    /// </summary>
+    public sealed class AreaEffectCloudTests : System.IDisposable
+    {
+        private readonly EntityRepository _w = new();
+        private readonly AreaEffectCloudSystem _sys = new();
+        private double _t;
+
+        public AreaEffectCloudTests()
+        {
+            _w.RegisterComponent<SimTransform>();
+            _w.RegisterComponent<Health>();
+            _w.RegisterComponent<AreaEffectCloud>();
+            _w.RegisterEvent<DamageAssessedEvent>();
+            _w.RegisterEvent<DetonationNotification>();
+            _w.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            _w.SetSingletonManaged(new TerrainWorld { BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100) });
+            Clock(0);
+        }
+
+        public void Dispose() => _w.Dispose();
+
+        private void Clock(double t)
+        {
+            _t = t;
+            _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
+        }
+
+        private Entity Cloud(CloudKind kind, Vector3 at, float radius = 5f, float seconds = 30f, float transmittance = 0.1f)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new AreaEffectCloud
+            {
+                Kind = kind, Radius = radius, Height = 3f, SightTransmittance = transmittance,
+                IrritantSeconds = kind == CloudKind.TearGas ? 1.5f : 0f, BornAtSimSeconds = (SimInstant)_t, Seconds = seconds,
+            });
+            return e;
+        }
+
+        private Entity Man(float x, float y)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new Health { Current = 100f, Max = 100f });
+            _w.AddComponent(e, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });   // a person
+            return e;
+        }
+
+        private Entity Car(float x, float y)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new Health { Current = 500f, Max = 500f });
+            _w.AddComponent(e, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.PersonalCar });
+            return e;
+        }
+
+        private void Wind(Vector2 wind)
+        {
+            _w.RegisterComponent<ScenarioClock>();
+            _w.RegisterComponent<WeatherConditions>();
+            var env = _w.CreateEntity();
+            _w.AddComponent(env, ScenarioClock.Default);
+            _w.AddComponent(env, WeatherConditions.SteadyWind(wind));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3227</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3d-B G-2) — a tear-gas cloud's danger footprint runs from where it is
+        /// to where the wind takes it in 15 s, its radius + 2 m; a cloud still sitting on its canister does not drift; smoke is never one.
+        /// ✅ Red-proofs: no drift ⇒ the footprint ends where it starts ⇒ red; smoke not skipped ⇒ two footprints ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3227_TheGasFootprint_ReachesWhereTheWindTakesIt()
+        {
+            Wind(new Vector2(2f, 0f));
+            Cloud(CloudKind.TearGas, new Vector3(0, 0, 0));
+            Cloud(CloudKind.Smoke, new Vector3(0, 40, 0));
+            var vented = Cloud(CloudKind.TearGas, new Vector3(0, -40, 0));
+            _w.GetComponentRW<AreaEffectCloud>(vented).SourceNetworkId = 99;
+
+            System.Span<Fdp.Toolkit.Squad.DangerArea.GasFootprint> into = stackalloc Fdp.Toolkit.Squad.DangerArea.GasFootprint[8];
+            int n = Fdp.Toolkit.Squad.DangerArea.GasFootprints.Of(_w, into);
+            Assert.Equal(2, n);
+            var free = into[0].From.Y == 0f ? into[0] : into[1];
+            var sitting = into[0].From.Y == 0f ? into[1] : into[0];
+            Assert.True(Vector2.Distance(new Vector2(30f, 0f), free.To) < 1e-3f, $"{free.To}");   // 2 m/s × 15 s downwind
+            Assert.Equal(7f, free.Radius);                                    // 5 + the 2 m margin
+            Assert.Equal(sitting.From, sitting.To);                           // on its canister: where it is
+            Assert.True(free.Contains(new Vector3(34f, 0f, 0f)));             // downwind, where it WILL be
+            Assert.False(free.Contains(new Vector3(-10f, 0f, 0f)));           // upwind of it
+        }
+
+        /// <summary>One frame at <paramref name="t"/>: the system, then its deletes, then the events it published.</summary>
+        private DamageAssessedEvent[] Frame(double t, float dt = 0.5f)
+        {
+            Clock(t);
+            _sys.Execute(_w, dt);
+            ((EntityCommandBuffer)((ISimulationView)_w).GetCommandBuffer()).Playback(_w);
+            _w.Bus.SwapBuffers();
+            return _w.Bus.Read<DamageAssessedEvent>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #3) — a cloud's step clock survives a checkpoint restored into a FRESH
+        /// system: stepped each second to t = 10 on a 2 m/s wind, captured at 10.5, applied to a new world with a NEW system, stepped at 11 ⇒ it
+        /// drifts ONE second's worth (2 m). 🔴 Red-proof: the clock back in a system field ⇒ the fresh system steps from the cloud's birth ⇒ it
+        /// jumps eleven seconds' worth (22 m) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_ACloudsStepClock_SurvivesACheckpointRestoredIntoAFreshSystem()
+        {
+            Wind(new Vector2(2f, 0f));
+            var cloud = Cloud(CloudKind.Smoke, Vector3.Zero, seconds: 120f);
+            for (int t = 0; t <= 10; t++) Frame(t);
+            Frame(10.5);
+            float x = _w.GetComponentRO<SimTransform>(cloud).Position.X;
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new EntityRepository();
+            fresh.RegisterComponent<SimTransform>();
+            fresh.RegisterComponent<Health>();
+            fresh.RegisterComponent<AreaEffectCloud>();
+            fresh.RegisterEvent<DamageAssessedEvent>();
+            fresh.RegisterEvent<DetonationNotification>();
+            fresh.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            fresh.RegisterComponent<ScenarioClock>();
+            fresh.RegisterComponent<WeatherConditions>();
+            fresh.SetSingletonManaged(new TerrainWorld { BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100) });
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+
+            fresh.SetSingletonUnmanaged(new GlobalTime { TotalTime = 11 });
+            new AreaEffectCloudSystem().Execute(fresh, 0.5f);
+            Assert.Equal(x + 2f, fresh.GetComponentRO<SimTransform>(cloud).Position.X, 3);
+        }
+
+        // ── sight ───────────────────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void ASmokeCloud_BlocksSightThroughIt_NotBesideIt_AndThinsAtItsEnd()
+        {
+            var eye = new Vector3(-20, 0, 1.7f);
+            var target = new Vector3(20, 0, 1.7f);
+            var beside = new Vector3(20, 15, 1.7f);
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));   // 🔴 control: no cloud, clear
+
+            Cloud(CloudKind.Smoke, Vector3.Zero, radius: 5f, seconds: 30f);
+            var q = WorldQuery.Of(_w)!;
+            Assert.True(q.SightBlocked(eye, target));
+            Assert.False(q.SightBlocked(eye, beside));
+            Assert.False(q.SightBlocked(new Vector3(-20, 0, 5f), new Vector3(20, 0, 5f)));   // over its 3 m top
+
+            var trace = new List<TraceCrossing>();
+            q.Trace(eye, target, TracePurpose.Sight, trace);
+            var c = Assert.Single(trace, x => x.Kind == "cloud");
+            Assert.InRange(c.T, 0.36f, 0.39f);   // it enters at x = -5 of a -20..20 line
+            Assert.Equal(0.1f, c.Loss, 3);
+
+            Clock(29);   // nine tenths through its thinning third: nearly clear
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            Clock(31);   // over: not read at all
+            Assert.Null(AreaEffectClouds.Of(_w));
+        }
+
+        /// <summary>⭐ CE-2414 — the cloud table is built once per frame and handed back while nothing of the clouds changed (it walked every
+        /// entity per sight / fire query, clouds or none); within ONE frame a cloud added, drifted, thinned or destroyed is seen at once, and
+        /// the clock moving rebuilds it. 🔴 Red-proof: the held clouds' values not compared ⇒ the drifted cloud is served where it was.</summary>
+        [Fact]
+        public void CE2414_TheCloudTable_IsHeldForTheFrame_AndEveryChangeWithinItIsSeen()
+        {
+            var eye = new Vector3(-30, 0, 1.7f);
+            var target = new Vector3(30, 0, 1.7f);
+            _w.Tick();
+            Assert.Null(AreaEffectClouds.Of(_w));
+            var smoke = Cloud(CloudKind.Smoke, new Vector3(0, 0, 0));                     // added within the frame
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            var held = AreaEffectClouds.Of(_w);
+            Assert.Same(held, AreaEffectClouds.Of(_w));
+
+            _w.GetComponentRW<SimTransform>(smoke).Position = new Vector3(0, 50, 0);      // drifted off the line within the frame
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.GetComponentRW<SimTransform>(smoke).Position = new Vector3(0, 0, 0);
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.GetComponentRW<AreaEffectCloud>(smoke).SightTransmittance = 0.9f;          // thinned within the frame
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.GetComponentRW<AreaEffectCloud>(smoke).SightTransmittance = 0.1f;
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+
+            _w.Tick();
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.DestroyEntity(smoke);                                                      // destroyed within the frame
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            Assert.Null(AreaEffectClouds.Of(_w));
+        }
+
+        [Fact]
+        public void ATearGasCloud_ThinsSight_ButASingleOneDoesNotBlockIt_TwoDo()
+        {
+            var eye = new Vector3(-30, 0, 1.7f);
+            var target = new Vector3(30, 0, 1.7f);
+            Cloud(CloudKind.TearGas, new Vector3(-10, 0, 0), transmittance: 0.6f);
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));   // 0.6 ≥ 0.5
+            Cloud(CloudKind.TearGas, new Vector3(10, 0, 0), transmittance: 0.6f);
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));    // 0.36 < 0.5: the clouds multiply
+        }
+
+        // ── the owner's side ────────────────────────────────────────────────────────────────
+
+        /// <summary>🔒 User: <i>"not every tick"</i> — the cloud steps once a second, by the wind × the time since its last step.</summary>
+        [Fact]
+        public void ACloud_DriftsOnTheGroundWind_OnceASecond()
+        {
+            Wind(new Vector2(2f, 0f));
+            var cloud = Cloud(CloudKind.Smoke, Vector3.Zero);
+            float X() => _w.GetComponentRO<SimTransform>(cloud).Position.X;
+            Frame(0.5);
+            Assert.Equal(1f, X(), 3);    // its first step: 2 m/s × the 0.5 s since it burst
+            Frame(1.0);
+            Assert.Equal(1f, X(), 3);    // not a second yet: it stays
+            Frame(1.5);
+            Assert.Equal(3f, X(), 3);    // a second later: 2 m/s × 1 s
+            for (int i = 4; i <= 11; i++) Frame(i * 0.5);
+            Assert.Equal(11f, X(), 3);   // 2 m/s for 5.5 s, in whole steps
+            Assert.Equal(0f, _w.GetComponentRO<SimTransform>(cloud).Position.Y, 3);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3258</c> (CE-2287, R-2037 — the brain never reads world geometry) — a cloud's owner is CGF, a brain node: it drifts on the wind
+        /// at its OWN height above the ground it lies on (its Z), never on a terrain read — so a cloud on a 20 m roof drifts as one on the street
+        /// does, under a wind that grows with height — and it DRIFTS (the wind at its middle; at its base, height 0 of a log profile, it never
+        /// did). ✅ Red-proofs: the terrain's ground (0 m with no terrain) ⇒ the roof cloud drifts 1.57× the street one ⇒ red; the wind at its
+        /// base ⇒ no drift ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3258_ACloud_DriftsOnTheWindAtItsOwnGround_NoTerrainRead()
+        {
+            _w.RegisterComponent<ScenarioClock>();
+            _w.RegisterComponent<WeatherConditions>();
+            var env = _w.CreateEntity();
+            _w.AddComponent(env, ScenarioClock.Default);
+            var weather = WeatherConditions.Standard;
+            weather.SetWind(0, 2000f, 270f, 8f, 0f);   // 8 m/s from the west at 2000 m MSL, slower below (the log profile); so high that a
+                                                       // 20 m roof barely shortens the profile (the levels are MSL — a low level is nearer a roof)
+            weather.WindCount = 1;
+            _w.AddComponent(env, weather);
+            var street = Cloud(CloudKind.Smoke, new Vector3(0f, 0f, 0.5f));
+            var roof = Cloud(CloudKind.Smoke, new Vector3(0f, 50f, 20.5f));
+            for (int i = 1; i <= 8; i++) Frame(i * 0.5);
+            float streetX = _w.GetComponentRO<SimTransform>(street).Position.X, roofX = _w.GetComponentRO<SimTransform>(roof).Position.X;
+            Assert.InRange(roofX / streetX, 0.99f, 1.01f);
+            Assert.True(streetX > 1f, $"it drifts under a scenario wind: {streetX} m");   // ⛔ at its base (height 0) it never did
+        }
+
+        [Fact]
+        public void ACloud_WithNoWeather_StaysWhereItBurst()
+        {
+            var cloud = Cloud(CloudKind.Smoke, new Vector3(3, 4, 0));
+            for (int i = 1; i <= 4; i++) Frame(i * 0.5);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(3, 4, 0), _w.GetComponentRO<SimTransform>(cloud).Position);
+        }
+
+        [Fact]
+        public void ATearGasCloud_IrritatesWhoeverIsInside_OnceASecond_NotTheManOutside()
+        {
+            var inside = Man(2, 1);
+            var outside = Man(9, 0);
+            Cloud(CloudKind.TearGas, Vector3.Zero);
+
+            var hits = new List<DamageAssessedEvent>();
+            for (int i = 0; i <= 4; i++) hits.AddRange(Frame(i * 0.5));   // t = 0 .. 2 s
+
+            Assert.Equal(3, hits.Count(h => h.HitEntity == inside));          // t = 0, 1, 2
+            Assert.DoesNotContain(hits, h => h.HitEntity == outside);
+            Assert.All(hits, h =>
+            {
+                Assert.Equal(HitEffect.Irritant, h.Effect);
+                Assert.Equal(0f, h.TotalDamage);
+                Assert.Equal(1.5f, h.EffectSeconds.Seconds);
+            });
+        }
+
+        [Fact]
+        public void ATearGasCloud_GassesPeople_NotAVehicleInIt()
+        {
+            var man = Man(1, 0);
+            var car = Car(-1, 0);
+            Cloud(CloudKind.TearGas, Vector3.Zero);
+            var hits = Frame(0);
+            Assert.Contains(hits, h => h.HitEntity == man);
+            Assert.DoesNotContain(hits, h => h.HitEntity == car);
+        }
+
+        [Fact]
+        public void ASmokeCloud_IrritatesNobody()
+        {
+            Man(0, 0);
+            Cloud(CloudKind.Smoke, Vector3.Zero);
+            Assert.Empty(Frame(0));
+            Assert.Equal(0, _sys.Pulses);
+        }
+
+        [Fact]
+        public void ACloud_EndsAtItsTime()
+        {
+            var cloud = Cloud(CloudKind.Smoke, Vector3.Zero, seconds: 2f);
+            Frame(1.5);
+            Assert.True(_w.IsAlive(cloud));
+            Frame(2.0);
+            Assert.False(_w.IsAlive(cloud));
+        }
+
+        /// <summary>⭐ <c>CE-3228</c> — a REPLICATED cloud (it has a network identity) ends through the one teardown path: a
+        /// <c>DestroyEntityCommand</c>, published ONCE, never a local destroy (which left every replica behind — the cross-node rail).
+        /// ✅ Red-proof: the direct destroy back ⇒ the cloud is gone here and no command is published ⇒ red.</summary>
+        [Fact]
+        public void CE3228_AReplicatedCloud_EndsThroughTheTeardownCommand_Once()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _w.RegisterManagedEvent<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>();
+            var cloud = Cloud(CloudKind.Smoke, Vector3.Zero, seconds: 2f);
+            _w.AddComponent(cloud, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 77 });
+
+            Frame(2.0);
+            var asked = _w.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>().ToArray();
+            Assert.True(_w.IsAlive(cloud));                     // the teardown, not this system, removes it
+            Assert.Equal(77, Assert.Single(asked).NetworkId);
+
+            Frame(2.5);
+            Assert.Empty(_w.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>());   // asked once
+        }
+
+        [Fact]
+        public void ACloudThisNodeDoesNotOwn_IsNeitherMovedNorEnded()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            Wind(new Vector2(2f, 0f));
+            var cloud = Cloud(CloudKind.TearGas, Vector3.Zero, seconds: 1f);
+            _w.AddComponent(cloud, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            var man = Man(0, 0);
+            var hits = Frame(1.5);
+            Assert.True(_w.IsAlive(cloud));
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, _w.GetComponentRO<SimTransform>(cloud).Position);
+            Assert.Empty(hits);
+        }
+
+        // ── the burst asks for it ───────────────────────────────────────────────────────────
+
+        [Fact]
+        public void ATearGasBurst_AsksForACloud_AKineticOneDoesNot()
+        {
+            const long Gas = 6101, Plain = 6102;
+            var db = new TkbDatabase();
+            var gas = new TkbTemplate("test tear-gas grenade", Gas);
+            gas.AddDescriptor(new WarheadDto { Kind = WarheadKind.Irritant, CloudRadiusM = 6f, CloudHeightM = 2.5f, CloudSeconds = 40f, EffectSeconds = 2f });
+            db.Register(gas);
+            db.Register(new TkbTemplate("test ball", Plain));
+            _w.SetSingletonManaged<ITkbDatabase>(db);
+            Clock(12);
+
+            var area = new AreaEffectSystem();
+            _w.Bus.Publish(new DetonationNotification { HitX = 4, HitY = 5, HitZ = 0, Ammo = Gas });
+            _w.Bus.Publish(new DetonationNotification { HitX = 9, HitY = 9, HitZ = 0, Ammo = Plain });
+            _w.Bus.Publish(new DetonationNotification { HitX = 7, HitY = 7, HitZ = 0, Ammo = Gas, IsRemote = true });   // another node's
+            _w.Bus.SwapBuffers();
+            area.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+
+            // ⭐ CE-3228 — THE entity-creation request on the FDP bus, owner 0 (the system picks): the same request every author and the wire use
+            var request = Assert.Single(_w.Bus.ReadManaged<EntityCreationRequest>().ToArray());
+            Assert.Equal(AreaEffectClouds.TkbType, request.TkbType);
+            Assert.Equal(0, request.OwnerAppInstanceId);
+            Assert.NotEqual(System.Guid.Empty, request.RequestId);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(4, 5, 0), Assert.Single(request.InitialComponents!.OfType<SimTransform>()).Position);
+            var cloud = Assert.Single(request.InitialComponents!.OfType<AreaEffectCloud>());
+            Assert.Equal(CloudKind.TearGas, cloud.Kind);
+            Assert.Equal(6f, cloud.Radius);
+            Assert.Equal(2.5f, cloud.Height);
+            Assert.Equal(40f, cloud.Seconds.Seconds);
+            Assert.Equal(12.0, cloud.BornAtSimSeconds);
+            Assert.Equal(2f, cloud.IrritantSeconds.Seconds);
+            Assert.True(cloud.SightTransmittance is > 0f and < 1f);
+        }
+
+        // ── ⭐ CE-3236 (B-14, §7.15) — the cloud's SOURCE ───────────────────────────────────
+
+        /// <summary>
+        /// ⭐ VC-4 — a cloud SITS on its venting canister while that lives (no drift in the wind), and once the canister is gone (picked up)
+        /// it lets go and drifts from where it was. ✅ Red-proof: <c>SitsOnItsSource</c> returning false ⇒ it drifts while the canister vents
+        /// ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3236_ACloud_SitsOnItsCanister_ThenDriftsFreeWhenItIsGone()
+        {
+            Wind(new Vector2(2f, 0f));
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var canister = _w.CreateEntity();
+            _w.AddComponent(canister, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            _w.AddComponent(canister, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 777 });
+            var cloud = Cloud(CloudKind.TearGas, Vector3.Zero);
+            _w.GetComponentRW<AreaEffectCloud>(cloud).SourceNetworkId = 777;
+            float X() => _w.GetComponentRO<SimTransform>(cloud).Position.X;
+
+            for (int i = 1; i <= 6; i++) Frame(i * 0.5);
+            Assert.Equal(0f, X(), 3);                                                       // venting: it stays on its canister
+            Assert.Equal(777, _w.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId);
+
+            _w.DestroyEntity(canister);                                                     // picked up
+            Frame(3.5);
+            Assert.Equal(0, _w.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId);     // let go (replicates: free) …
+            Assert.Equal(2f, X(), 3);                                                       // … and drifts from that step: 2 m/s × 1 s
+            Frame(4.5);
+            Assert.Equal(4f, X(), 3);
+        }
+
+        /// <summary>
+        /// ⭐ VC-2 / VC-3 — a burst that names its round (a canister lying, venting) asks for a cloud that lasts the round's BURN and sits on it
+        /// (its network id). ✅ Red-proof: <c>RequestCloud</c> ignoring the round ⇒ the warhead's 40 s and no source ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3236_AVentingCanistersBurst_AsksForACloud_ForItsBurn_SittingOnIt()
+        {
+            const long Gas = 6101;
+            var db = new TkbDatabase();
+            var gas = new TkbTemplate("test tear-gas canister", Gas);
+            gas.AddDescriptor(new WarheadDto { Kind = WarheadKind.Irritant, CloudRadiusM = 6f, CloudSeconds = 40f, EffectSeconds = 2f });
+            db.Register(gas);
+            _w.SetSingletonManaged<ITkbDatabase>(db);
+            _w.RegisterComponent<BallisticProjectile>();
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var round = _w.CreateEntity();
+            _w.AddComponent(round, new BallisticProjectile
+            {
+                Ammo = Gas, BurnSeconds = 17.5f, FuzeRemaining = 17.5f,
+                Warhead = WarheadRound.Area | WarheadRound.Vents | WarheadRound.Landed | WarheadRound.Lingers,
+            });
+            _w.AddComponent(round, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 4711 });
+            Clock(3);
+
+            _w.Bus.Publish(new DetonationNotification { HitX = 1, HitY = 2, HitZ = 0, Ammo = Gas, Round = round });
+            _w.Bus.SwapBuffers();
+            new AreaEffectSystem().Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+
+            var cloud = Assert.Single(Assert.Single(_w.Bus.ReadManaged<EntityCreationRequest>().ToArray()).InitialComponents!.OfType<AreaEffectCloud>());
+            Assert.Equal((17.5f, 4711L), (cloud.Seconds, cloud.SourceNetworkId));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4155</c> (SR-82; docs/DESIGN_Scenario_Rules.md §10.10) — a gas cloud's pulse NAMES ITS CREATOR: the burst that makes the cloud
+        /// records the thrower's network id (and the first thrower's, when the round was thrown back), and every pulse's irritant hit carries them
+        /// as <c>Source</c> / <c>OriginalSource</c>, resolved on the node that runs the cloud — a replica's owner has only the wire field.
+        /// ✅ Red-proofs: <c>RequestCloud</c> not recording the creator ⇒ the id is 0 ⇒ red; <c>Pulse</c> not passing the creator ⇒ Source Null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4155_ACloudPulse_NamesItsCreator_AndTheFirstThrower()
+        {
+            const long Gas = 6102;
+            var db = new TkbDatabase();
+            var gas = new TkbTemplate("test tear-gas grenade", Gas);
+            gas.AddDescriptor(new WarheadDto { Kind = WarheadKind.Irritant, CloudRadiusM = 6f, CloudSeconds = 40f, EffectSeconds = 2f });
+            db.Register(gas);
+            _w.SetSingletonManaged<ITkbDatabase>(db);
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var thrower = _w.CreateEntity();
+            _w.AddComponent(thrower, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 501 });
+            var first = _w.CreateEntity();
+            _w.AddComponent(first, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 502 });
+            Clock(3);
+
+            // the burst asks for the cloud, naming who threw it and who threw it first …
+            _w.Bus.Publish(new DetonationNotification { HitX = 1, HitY = 2, HitZ = 0, Ammo = Gas, Shooter = thrower, OriginalShooter = first });
+            _w.Bus.SwapBuffers();
+            new AreaEffectSystem().Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            var asked = Assert.Single(Assert.Single(_w.Bus.ReadManaged<EntityCreationRequest>().ToArray()).InitialComponents!.OfType<AreaEffectCloud>());
+            Assert.Equal((501, 502), (asked.CreatorNetworkId, asked.OriginalCreatorNetworkId));
+
+            // … and the made cloud's pulse carries them to the man in it (here the cloud as a replica holds it: only the wire fields)
+            var man = Man(1, 0);
+            var cloud = Cloud(CloudKind.TearGas, Vector3.Zero);
+            _w.GetComponentRW<AreaEffectCloud>(cloud).CreatorNetworkId = asked.CreatorNetworkId;
+            _w.GetComponentRW<AreaEffectCloud>(cloud).OriginalCreatorNetworkId = asked.OriginalCreatorNetworkId;
+            var hit = Assert.Single(Frame(0), h => h.HitEntity == man);
+            Assert.Equal((thrower, first), (hit.Source, hit.OriginalSource));
+        }
+    }
+}

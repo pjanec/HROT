@@ -49,7 +49,7 @@ public class WindowManagerTests : IDisposable
 
     private WM CreateManager() => new(_atlas);
 
-    private RenderCountWindow MakePerspectiveBound(string id, string perspective = "IG")
+    private RenderCountWindow MakePerspectiveBound(string id, string perspective = "Player")
         => new(id, perspective, WindowScope.PerspectiveBound);
 
     private RenderCountWindow MakeGlobal(string id)
@@ -94,7 +94,7 @@ public class WindowManagerTests : IDisposable
     public void ShowWindow_CrossPerspective_PerspectiveBound_SetsIsPinned()
     {
         var wm = CreateManager(); // CurrentPerspective = "Default"
-        var win = MakePerspectiveBound("w2", "IG"); // owning = "IG" ≠ "Default"
+        var win = MakePerspectiveBound("w2", "Player"); // owning = "IG" ≠ "Default"
         wm.RegisterWindow(win);
 
         wm.ShowWindow("w2");
@@ -108,9 +108,11 @@ public class WindowManagerTests : IDisposable
     public void ShowWindow_SamePerspective_DoesNotChangeIsPinned()
     {
         var wm = CreateManager();
-        wm.SwitchPerspective("IG");
-        var win = MakePerspectiveBound("w3", "IG");
+        // ⭐ A0 — register BEFORE switching: a perspective exists because a window claims it, so an
+        //   unclaimed name is now refused. 📄 DESIGN_Perspective_Unification.md §2/§3 A0.
+        var win = MakePerspectiveBound("w3", "Player");
         wm.RegisterWindow(win);
+        wm.SwitchPerspective("Player");
         win.IsPinned = false;
 
         wm.ShowWindow("w3");
@@ -201,7 +203,7 @@ public class WindowManagerTests : IDisposable
     public void FocusWindow_CrossPerspective_SetsIsPinned()
     {
         var wm = CreateManager(); // CurrentPerspective = "Default"
-        var win = MakePerspectiveBound("w6", "IG");
+        var win = MakePerspectiveBound("w6", "Player");
         wm.RegisterWindow(win);
 
         wm.FocusWindow("w6");
@@ -216,6 +218,9 @@ public class WindowManagerTests : IDisposable
     public void SwitchPerspective_UpdatesCurrentPerspective()
     {
         var wm = CreateManager();
+        // ⭐ A0 — the target has to be CLAIMED. ⛔ Switching to an unclaimed name is now a logged no-op,
+        //   because it would hide every perspective-bound window and say nothing.
+        wm.RegisterWindow(MakePerspectiveBound("w_excon", "ExCon"));
 
         wm.SwitchPerspective("ExCon");
 
@@ -228,6 +233,7 @@ public class WindowManagerTests : IDisposable
     public void SwitchPerspective_FiresOnPerspectiveChangedWithOldAndNew()
     {
         var wm = CreateManager();
+        wm.RegisterWindow(MakePerspectiveBound("w_excon", "ExCon"));   // ⭐ A0 — claimed first
         string? capturedOld = null;
         string? capturedNew = null;
         wm.OnPerspectiveChanged += (old, @new) =>
@@ -347,7 +353,7 @@ public class WindowManagerTests : IDisposable
     public void ShowWindow_CrossPerspectiveWindow_SetsIsPinned()
     {
         var wm = CreateManager(); // CurrentPerspective = "Default"
-        var win = MakePerspectiveBound("crossW", "IG");
+        var win = MakePerspectiveBound("crossW", "Player");
         wm.RegisterWindow(win);
 
         wm.ShowWindow("crossW");
@@ -392,15 +398,15 @@ public class WindowManagerTests : IDisposable
     public void SwitchPerspective_MultipleSamePerspectiveWindows_DoesNotDuplicateInEvents()
     {
         var wm = CreateManager();
-        wm.RegisterWindow(MakePerspectiveBound("a", "IG"));
-        wm.RegisterWindow(MakePerspectiveBound("b", "IG"));
+        wm.RegisterWindow(MakePerspectiveBound("a", "Player"));
+        wm.RegisterWindow(MakePerspectiveBound("b", "Player"));
 
         int eventFired = 0;
         wm.OnPerspectiveChanged += (_, _) => eventFired++;
-        wm.SwitchPerspective("IG");
+        wm.SwitchPerspective("Player");
 
         Assert.Equal(1, eventFired);
-        Assert.Equal("IG", wm.CurrentPerspective);
+        Assert.Equal("Player", wm.CurrentPerspective);
     }
 
     /// <summary>WM-S304 condition 3: Clicking a radio button triggers SwitchPerspective.</summary>
@@ -425,7 +431,7 @@ public class WindowManagerTests : IDisposable
     public void HelpDebug_PerspectiveBoundWindowNotGlobal()
     {
         var wm = CreateManager();
-        var pbWin = MakePerspectiveBound("pbOnly", "IG");
+        var pbWin = MakePerspectiveBound("pbOnly", "Player");
         wm.RegisterWindow(pbWin);
 
         // Verify scope is PerspectiveBound (not Global) — this confirms Debug menu would skip it.
@@ -508,5 +514,111 @@ public class WindowManagerTests : IDisposable
         Assert.True(wm.GlobalMenu.Root.Children.ContainsKey("A"));
         Assert.True(wm.GlobalMenu.Root.Children["A"].Children.ContainsKey("B"));
         Assert.True(wm.GlobalMenu.Root.Children["A"].Children["B"].Children.ContainsKey("C"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CE-4094 (AQ108 D16/M7): the START perspective — remembered on entry, refuses switches, left through the gate
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private WM ManagerWithStart(params string[] perspectives)
+    {
+        var wm = CreateManager();
+        foreach (var p in perspectives) wm.RegisterWindow(MakePerspectiveBound("w-" + p, p));
+        wm.RegisterWindow(MakePerspectiveBound("w-start", WM.StartPerspectiveName));
+        return wm;
+    }
+
+    [Fact]
+    public void Start_EnteringItRemembersThePreviousPerspective()
+    {
+        var wm = ManagerWithStart("Player", "SimHost");
+        wm.SwitchPerspective("SimHost");
+
+        Assert.True(wm.TrySwitchPerspective(WM.StartPerspectiveName, out var reason));
+
+        Assert.Null(reason);
+        Assert.Equal(WM.StartPerspectiveName, wm.CurrentPerspective);
+        Assert.Equal("SimHost", wm.RememberedPerspective);
+        Assert.True(wm.IsStartShowing);
+    }
+
+    [Fact]
+    public void Start_ASwitchWhileItShowsIsRefusedWithAReason_AndFiresNothing()
+    {
+        var wm = ManagerWithStart("Player", "SimHost");
+        wm.SwitchPerspective("SimHost");
+        wm.SwitchPerspective(WM.StartPerspectiveName);
+        int fired = 0;
+        wm.OnPerspectiveChanged += (_, _) => fired++;
+
+        wm.SwitchPerspective("Player");                                   // the void entry point refuses too
+        bool ok = wm.TrySwitchPerspective("Player", out var reason);
+
+        Assert.False(ok);
+        Assert.Contains("Start", reason);
+        Assert.Equal(WM.StartPerspectiveName, wm.CurrentPerspective);
+        Assert.Equal("SimHost", wm.RememberedPerspective);
+        Assert.Equal(0, fired);
+    }
+
+    [Fact]
+    public void Start_LeavingThroughTheGateRestoresTheRememberedPerspective()
+    {
+        var wm = ManagerWithStart("Player", "SimHost");
+        wm.SwitchPerspective("SimHost");
+        wm.SwitchPerspective(WM.StartPerspectiveName);
+        (string, string)? seen = null;
+        wm.OnPerspectiveChanged += (o, n) => seen = (o, n);
+
+        Assert.True(wm.LeaveStartPerspective(out var reason));
+
+        Assert.Null(reason);
+        Assert.Equal("SimHost", wm.CurrentPerspective);
+        Assert.Null(wm.RememberedPerspective);
+        Assert.Equal((WM.StartPerspectiveName, "SimHost"), seen);
+        Assert.True(wm.TrySwitchPerspective("Player", out _));              // ordinary switching works again
+        Assert.Equal("Player", wm.CurrentPerspective);
+    }
+
+    [Fact]
+    public void Start_LeavingWhenItIsNotShowingIsRefused()
+    {
+        var wm = ManagerWithStart("Player");
+        wm.SwitchPerspective("Player");
+
+        Assert.False(wm.LeaveStartPerspective(out var reason));
+        Assert.NotNull(reason);
+        Assert.Equal("Player", wm.CurrentPerspective);
+    }
+
+    [Fact]
+    public void Start_NeverEntered_SwitchingBehavesAsBefore()
+    {
+        var wm = ManagerWithStart("Player", "SimHost");
+
+        Assert.True(wm.TrySwitchPerspective("Player", out var r1));
+        Assert.Null(r1);
+        Assert.True(wm.TrySwitchPerspective("Player", out _));              // no-op onto the current one is not a refusal
+        wm.SwitchPerspective("SimHost");
+        Assert.Equal("SimHost", wm.CurrentPerspective);
+        Assert.Null(wm.RememberedPerspective);
+        Assert.False(wm.TrySwitchPerspective("Nobody", out var r2));    // A0 still refuses an unclaimed name, now with a reason
+        Assert.Contains("Nobody", r2);
+        Assert.Equal("SimHost", wm.CurrentPerspective);
+    }
+
+    [Fact]
+    public void Start_SaveSettingsPersistsTheRememberedPerspective_NotStart()
+    {
+        var wm = ManagerWithStart("Player", "SimHost");
+        wm.SwitchPerspective("SimHost");
+        wm.SwitchPerspective(WM.StartPerspectiveName);
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ce4094-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            wm.SaveSettings(path);
+            Assert.Equal("SimHost", CreateManager().LoadSettings(path));
+        }
+        finally { System.IO.File.Delete(path); }
     }
 }

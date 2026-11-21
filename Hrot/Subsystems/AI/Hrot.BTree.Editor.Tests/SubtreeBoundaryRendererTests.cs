@@ -9,6 +9,7 @@ using Hrot.BTree.Editor.Renderers;
 using Hrot.Editor.AiShared.Debug;
 using NodeEditor.Core.Canvas;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.BTree.Editor.Tests;
 

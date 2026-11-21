@@ -22,11 +22,11 @@ public sealed class SubTickRestoreRegistrationTests
 
     /// <summary>
     /// A recordable-but-NOT-snapshotable component (mirrors the real-world type 162 crash).
-    /// DataPolicy.NoSnapshot excludes it from the snapshotable mask used by SyncFrom's
+    /// DataPolicy.NoPreview excludes it from the snapshotable mask used by SyncFrom's
     /// default seeding, but FlightRecorder keyframes still capture it because it is recordable.
     /// </summary>
     [ComponentId(504)]
-    [DataPolicy(DataPolicy.NoSnapshot)]
+    [DataPolicy(DataPolicy.NoPreview)]
     private struct NoSnapshotProbe { public int V; }
 
     /// <summary>Normal int component — both recordable and snapshotable (default policy).</summary>
@@ -50,7 +50,7 @@ public sealed class SubTickRestoreRegistrationTests
 
     /// <summary>
     /// BF-01: scratch repo seeded WITHOUT includeTransient fails to register
-    /// a [DataPolicy(DataPolicy.NoSnapshot)] component, causing RestoreTo to throw
+    /// a [DataPolicy(DataPolicy.NoPreview)] component, causing RestoreTo to throw
     /// when the keyframe contains that component.
     ///
     /// <para>Steps:
@@ -83,7 +83,7 @@ public sealed class SubTickRestoreRegistrationTests
         // ── Step 4: Reproduce the bug — mask-level proof ──────────────────────
 
         // The snapshotable mask (includeTransient: false) must NOT contain NoSnapshotProbe
-        // because [DataPolicy(DataPolicy.NoSnapshot)] marks it non-snapshotable.
+        // because [DataPolicy(DataPolicy.NoPreview)] marks it non-snapshotable.
         // This is the root cause: SyncFrom(repo) uses this mask and skips the type.
         int noSnapshotId = ComponentType<NoSnapshotProbe>.ID;
         var maskExcludingTransient = repo.GetSnapshotableMask(includeTransient: false);
@@ -96,9 +96,15 @@ public sealed class SubTickRestoreRegistrationTests
         // When SyncFrom(repo) is called without includeTransient, the scratch repo
         // does NOT register NoSnapshotProbe. The keyframe contains NoSnapshotProbe data,
         // so RestoreTo → ApplyFrame → ApplyChunkData throws InvalidOperationException.
+        // ⭐ SUPERSEDED premise (2026-11-08): this path USED to throw (the scratch lacked the type). Since CE-3299 B5 (D10, PlaybackSystem
+        //   .ApplyChunkData) playback REGISTERS a type it meets on first use — as a fresh process restoring a checkpoint must — so the old
+        //   seeding now restores too. Pinned as designed: no throw, the type registered, its value restored. (Was Assert.Throws — red since.)
         using var bad = new EntityRepository();
-        bad.SyncFrom(repo); // OLD seeding — omits NoSnapshotProbe
-        Assert.Throws<InvalidOperationException>(() => sut.RestoreTo(0, bad));
+        bad.SyncFrom(repo); // OLD seeding — omits NoSnapshotProbe; playback registers it on first use
+        sut.RestoreTo(0, bad);
+        var restoredInBad = new Entity(entity.Index, entity.Generation);
+        Assert.True(bad.HasComponent<NoSnapshotProbe>(restoredInBad), "playback registers a type it meets on first use (CE-3299 B5)");
+        Assert.Equal(42, bad.GetComponent<NoSnapshotProbe>(restoredInBad).V);
 
         // ── Step 5: Prove the fix ─────────────────────────────────────────────
 

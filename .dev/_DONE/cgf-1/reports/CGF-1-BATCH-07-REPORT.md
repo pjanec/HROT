@@ -13,7 +13,7 @@
 
 **Part B** (CGF1-S0204) was completed: `SwitchTimeModeEvent` refactored to `BarrierWallTicks`, `DistributedTimeCoordinator` and `SlaveTimeModeListener` migrated to wall-tick-based barrier, `TimeConfig.LookaheadWallTicks` added, `TimeNetworkModule` created for DDS registration, and all five `FutureBarrierTests` success conditions implemented and passing.
 
-Solution build: **0 errors**. Full `dotnet test IOS-IG-SimHost.sln --nologo --no-build`: **green** (all passing, 2 pre-existing skips).
+Solution build: **0 errors**. Full `dotnet test HROT.sln --nologo --no-build`: **green** (all passing, 2 pre-existing skips).
 
 ---
 
@@ -91,7 +91,7 @@ The design spec requests `[DdsTopic]` and `[DdsIdlFile("bdc-time")]` on `SwitchT
 ## Test Results
 
 ```
-dotnet test IOS-IG-SimHost.sln --nologo --no-build
+dotnet test HROT.sln --nologo --no-build
 ```
 
 All test assemblies: **Passed!** (0 failures). Notable counts:

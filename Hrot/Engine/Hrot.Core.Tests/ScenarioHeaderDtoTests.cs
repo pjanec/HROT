@@ -6,49 +6,27 @@ using Xunit;
 namespace Hrot.Core.Tests;
 
 /// <summary>
-/// TKB-016 -- Unit tests for TkbName deserialization in ScenarioHeaderDto.
+/// TKB-016 -- ⛔⛔ <c>R-4018</c>: the scenario header carries no TKB name. An OLDER file that still has one must load
+/// unchanged — the field is simply ignored. (Was: <c>TkbName</c> deserializes into the header.)
 /// </summary>
 public sealed class ScenarioHeaderDtoTests
 {
-    // ── Test 1 ────────────────────────────────────────────────────────────────
-
     [Fact]
-    public void ScenarioHeaderDto_WithTkbName_Deserializes()
+    public void TheHeaderDto_HasNoTkbName()
     {
-        const string json = "{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\",\"TkbName\":\"Sample_v1\"},\"Entities\":{}}";
-
-        var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
-
-        Assert.NotNull(envelope);
-        Assert.NotNull(envelope!.Header);
-        Assert.Equal("Sample_v1", envelope.Header!.TkbName);
+        Assert.Null(typeof(ScenarioHeaderDto).GetProperty("TkbName"));
     }
 
-    // ── Test 2 ────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void ScenarioHeaderDto_WithoutTkbName_IsNull()
+    [Theory]
+    [InlineData("{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\",\"TkbName\":\"Sample_v1\",\"TerrainName\":\"basic-desert\"},\"Entities\":{}}")]
+    [InlineData("{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\",\"TkbName\":null,\"TerrainName\":\"basic-desert\"},\"Entities\":{}}")]
+    public void ALegacyFileNamingATkb_StillDeserializes_AndKeepsItsTerrain(string json)
     {
-        const string json = "{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\"},\"Entities\":{}}";
-
         var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
 
         Assert.NotNull(envelope);
         Assert.NotNull(envelope!.Header);
-        Assert.Null(envelope.Header!.TkbName);
-    }
-
-    // ── Test 3 ────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void ScenarioHeaderDto_TkbNameNull_InJson_IsNull()
-    {
-        const string json = "{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\",\"TkbName\":null},\"Entities\":{}}";
-
-        var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
-
-        Assert.NotNull(envelope);
-        Assert.NotNull(envelope!.Header);
-        Assert.Null(envelope.Header!.TkbName);
+        Assert.Equal("Hrot.SimHost", envelope.Header!.SubsystemType);
+        Assert.Equal("basic-desert", envelope.Header.TerrainName);
     }
 }

@@ -1,0 +1,16 @@
+StructureHash: 0x17D6D38FF75AA716
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  Sent : System.Boolean @0 size=1
+  Confirmed : System.Boolean @1 size=1
+  StartedAt : System.Single @4 size=4
+  LastOrder : Hrot.AI.Behaviors.Orders.OrderKind @8 size=4
+  Slots : __List_Hrot_AI_Behaviors_Brains_SubordinateSlot_8 @16 size=36
+  Orders : __List_Hrot_AI_Behaviors_Brains_SubordinateOrder_8 @56 size=36
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

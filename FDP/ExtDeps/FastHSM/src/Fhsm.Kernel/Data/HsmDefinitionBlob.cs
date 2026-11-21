@@ -15,6 +15,35 @@ namespace Fhsm.Kernel.Data
         /// Used by the editor projection layer to recover authoring Guids from flat indices.
         /// </summary>
         public MachineMetadata? Metadata { get; set; }
+
+        /// <summary>
+        /// ⭐ <c>CE-2001</c> — the hash of the machine's NAME (set by <c>HsmEmitter</c>); <c>0</c> for an unnamed, hand-built
+        /// blob. 📄 <c>docs/blueprints/DESIGN_Unified_Behaviour_Run.md</c> "S8j".
+        /// </summary>
+        public uint IdentityHash { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2001</c> — <b>which machine at which shape</b>: the value the kernel stamps into
+        /// <c>InstanceHeader.MachineId</c> and validates against, and the key of every "which machine" table.
+        /// <see cref="HsmDefinitionHeader.StructureHash"/> when <see cref="IdentityHash"/> is 0, else a mix of both (never 0).
+        /// <para>⛔ It WAS <see cref="HsmDefinitionHeader.StructureHash"/>, which hashes topology only — so two machines of one
+        /// shape shared param-binding seeds and occurrence keys. <c>StructureHash</c> keeps meaning "the shape" (hot reload).</para>
+        /// <para>⚠ Computed, not cached: <see cref="Header"/> is a mutable field.</para>
+        /// </summary>
+        public uint MachineId => IdentityHash == 0 ? Header.StructureHash : CombineMachineId(Header.StructureHash, IdentityHash);
+
+        /// <summary>The <see cref="MachineId"/> mix: a murmur3 finaliser over shape and identity; never 0 (0 = an unbound instance).</summary>
+        public static uint CombineMachineId(uint structureHash, uint identityHash)
+        {
+            unchecked
+            {
+                uint h = structureHash ^ (identityHash * 0x9E3779B1u);
+                h ^= h >> 16; h *= 0x85EBCA6Bu;
+                h ^= h >> 13; h *= 0xC2B2AE35u;
+                h ^= h >> 16;
+                return h == 0 ? 1u : h;
+            }
+        }
         
         private readonly StateDef[] _states;
         private readonly TransitionDef[] _transitions;

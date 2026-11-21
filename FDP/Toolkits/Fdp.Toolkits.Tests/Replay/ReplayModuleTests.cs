@@ -193,6 +193,189 @@ namespace Fdp.Toolkit.Replay.Tests
             module.Dispose();
         }
 
+        // ── R-4012 (Q91 §4-P) — restore inside the span, listen outside it ───────
+
+        [Fact]
+        public void R4012_A_recording_covers_its_span_plus_a_grace_at_both_ends_and_the_end_sentinel()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+            using var playback = new PlaybackController(filePath);
+            long first = playback.FirstFrameWallTicks, last = playback.LastFrameWallTicks;
+
+            long grace = PlaybackController.CoverageGraceTicks;
+            Assert.False(playback.Covers(first - grace - 1));
+            Assert.True(playback.Covers(first - grace));   // 📐 a node present all along starts recording up to ~0.7 s late
+            Assert.True(playback.Covers(first));
+            Assert.True(playback.Covers(last + grace));
+            Assert.False(playback.Covers(last + grace + 1));
+            Assert.True(playback.Covers(long.MaxValue));
+        }
+
+        /// <summary>
+        /// 🔴 Before R-4012 a moment before the first frame restored frame 0 (<c>PlaybackController.SeekToWallClockTicks</c>
+        /// floors to it) — a late joiner showed its FIRST recorded world for earlier moments.
+        /// </summary>
+        [Fact]
+        public void R4012_A_playhead_before_the_first_frame_clears_the_world_and_listens_never_restoring_frame_zero()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            world.CreateEntity();   // the world this node held before the replay
+
+            var stub = new StubTimeController(0L);   // TotalTime 0 = the replay's zero
+            var sys  = new PlaybackTickSystem(playback, stub)
+            {
+                AnchorWallTicks = playback.FirstFrameWallTicks - 5 * TimeSpan.TicksPerSecond,   // the cluster started 5 s earlier
+            };
+            sys.Execute(world, 0.016f);
+
+            Assert.Equal(ReplaySpanState.Listening, sys.State);
+            Assert.True(playback.IsAtStart);
+            Assert.Equal(0, world.EntityCount);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4056 — a seek BACK while the clock still stands later (a review entered from the live point, any seek below the clock): the
+        /// clock is moved to the landing only when the seek round completes, a tick or more later. ⛔ The pull model then played the world
+        /// forward to the OLD clock position, and once the clock was snapped back below that frame it never returned — every entry stood one
+        /// seek behind (measured: a review entered at sim 5 stood at L). ⇒ after a seek the playback holds until the clock has moved.
+        /// </summary>
+        [Fact]
+        public void CE4056_A_seek_back_holds_until_the_clock_moves_to_it()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long start = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(playback.GetFrameMetadata(8).WallClockTicks, start);   // the clock stands at frame 8 (L)
+            var sys  = new PlaybackTickSystem(playback, stub);
+            sys.Execute(world, 0f);
+            Assert.Equal(8, playback.CurrentFrame);
+
+            Assert.True(sys.SeekTo(world, playback.GetFrameMetadata(2).WallClockTicks));   // the seek round: back to frame 2
+            Assert.Equal(2, playback.CurrentFrame);
+            sys.Execute(world, 0f);                                                        // the clock has not been moved yet
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);                                        // ⛔ not played forward to the old clock
+
+            long frame2 = playback.GetFrameMetadata(2).WallClockTicks;                     // the snap lands: the clock at the landing
+            stub.SeedState(new GlobalTime { TotalTime = (frame2 - start) / (double)TimeSpan.TicksPerSecond });
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);
+
+            long frame5 = playback.GetFrameMetadata(5).WallClockTicks;                     // play on: the clock drives it again
+            stub.SeedState(new GlobalTime { TotalTime = (frame5 - start) / (double)TimeSpan.TicksPerSecond });
+            sys.Execute(world, 0f);
+            Assert.Equal(5, playback.CurrentFrame);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5041</c> — a seek BACK sent while the PREVIOUS seek's round is still completing (the replay check's shuffled seeks; an
+        /// operator's quick second click). 📌 Measured in `ua-civ-melee --verify-replay` (11 of 41 seeks never stood): the previous round's LATE
+        /// snap moved the clock, the hold (CE-4056) took it for its own, released, and the world was pulled forward to the previous landing; when
+        /// this seek's own snap then put the clock back, the pull — forward-only — never followed. ⇒ a clock standing BEHIND the frame shown is
+        /// restored back to. 🔴 Red-proof: drop the backward follow ⇒ the world stands at frame 8.
+        /// </summary>
+        [Fact]
+        public void CE5041_A_quick_seek_back_lands_although_the_previous_rounds_late_snap_pulled_it_forward()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long start = playback.GetFrameMetadata(0).WallClockTicks;
+            double At(int frame) => (playback.GetFrameMetadata(frame).WallClockTicks - start) / (double)TimeSpan.TicksPerSecond;
+            var stub = new StubTimeController(playback.GetFrameMetadata(7).WallClockTicks, start);   // the clock at frame 7 (the seek before)
+            var sys  = new PlaybackTickSystem(playback, stub) { AnchorWallTicks = start };
+            sys.Execute(world, 0f);
+
+            Assert.True(sys.SeekTo(world, playback.GetFrameMetadata(8).WallClockTicks));   // seek to 8: the world stands there…
+            sys.Execute(world, 0f);
+            Assert.True(sys.SeekTo(world, playback.GetFrameMetadata(2).WallClockTicks));   // …so the next seek, BACK to 2, is sent at once
+
+            stub.SeedState(new GlobalTime { TotalTime = At(8) });                          // the round for 8 completes now: its late snap
+            sys.Execute(world, 0f);
+            sys.Execute(world, 0f);
+
+            stub.SeedState(new GlobalTime { TotalTime = At(2) });                          // the round for 2 lands
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);                                        // ⭐ the world follows the clock back
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);                                        // and stands (no restore loop)
+
+            stub.SeedState(new GlobalTime { TotalTime = At(5) });                          // play on: the clock drives it again
+            sys.Execute(world, 0f);
+            Assert.Equal(5, playback.CurrentFrame);
+        }
+
+        /// <summary>⭐ <c>CE-5041</c> — a clock on a frame whose seconds, as a double, fall a hair below the frame's tick names THAT frame, not the one
+        /// before (📌 `ua-civ-melee --verify-replay` stood at 26.9833 for 27). 🔴 Red-proof: truncate in <c>ClockTicks</c> ⇒ frame 4.</summary>
+        [Fact]
+        public void CE5041_A_clock_on_a_frame_names_that_frame_despite_its_rounding()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long start = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(start, start);
+            var sys  = new PlaybackTickSystem(playback, stub) { AnchorWallTicks = start };
+            double at5 = (playback.GetFrameMetadata(5).WallClockTicks - start) / (double)TimeSpan.TicksPerSecond;
+            stub.SeedState(new GlobalTime { TotalTime = at5 - 1e-12 });   // the double reading of a clock snapped onto frame 5
+            sys.Execute(world, 0f);
+            Assert.Equal(5, playback.CurrentFrame);
+        }
+
+        [Fact]
+        public void R4012_The_playhead_crossing_into_the_span_restores_by_a_seek()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long anchor = playback.FirstFrameWallTicks - 5 * TimeSpan.TicksPerSecond;
+
+            var stub = new StubTimeController(0L);
+            var sys  = new PlaybackTickSystem(playback, stub) { AnchorWallTicks = anchor };
+            sys.Execute(world, 0.016f);
+            Assert.Equal(ReplaySpanState.Listening, sys.State);
+
+            // halfway to frame 7, so double rounding cannot floor the target to frame 5
+            long target = (playback.GetFrameMetadata(6).WallClockTicks + playback.GetFrameMetadata(7).WallClockTicks) / 2;
+            stub.SeedState(new GlobalTime { TotalTime = (target - anchor) / (double)TimeSpan.TicksPerSecond });
+            sys.Execute(world, 0.016f);
+
+            Assert.Equal(ReplaySpanState.Restoring, sys.State);
+            Assert.Equal(6, playback.CurrentFrame);
+        }
+
+        [Fact]
+        public async Task R4012_A_seek_reports_whether_this_node_restored()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+            using var world = new EntityRepository();
+            var module = new ReplayModule(filePath, world, new StubTimeController(0L));
+            module.RegisterSystems(new CapturingSystemRegistry());
+
+            Assert.False(await module.SeekToWallClockTicksAsync(module.RecordingStartWallTicks - PlaybackController.CoverageGraceTicks - 1));
+            Assert.Equal(ReplaySpanState.Listening, module.State);
+            Assert.True(await module.SeekToWallClockTicksAsync(module.RecordingStartWallTicks));
+            Assert.True(module.IsRestoring);
+            module.Dispose();
+        }
+
+        /// <summary>🔴 Before R-4012 a node with no recording of the exercise failed the whole replay transition.</summary>
+        [Fact]
+        public async Task R4012_A_node_with_no_recording_is_a_listener_not_a_failed_replay()
+        {
+            using var world = new EntityRepository();
+            var module = new ReplayModule(Path.Combine(_tempDir, "absent.fdp"), world, new StubTimeController(0L));
+            module.RegisterSystems(new CapturingSystemRegistry());
+
+            Assert.False(module.HasRecording);
+            Assert.False(await module.SeekToWallClockTicksAsync(123));
+            Assert.Equal(ReplaySpanState.Listening, module.State);
+            module.Dispose();
+        }
+
         // ── Helper ────────────────────────────────────────────────────────────────
 
         /// <summary>Creates a small valid .fdp file with <paramref name="frameCount"/> frames.</summary>

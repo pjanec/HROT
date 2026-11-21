@@ -37,11 +37,11 @@ You are implementing the first vertical slice of the CGF-1 control plane: **wire
 ### Build and test commands (repo root)
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln
-dotnet test IOS-IG-SimHost.sln
+dotnet build HROT.sln
+dotnet test HROT.sln
 ```
 
-Use narrower projects while iterating if helpful (e.g. `Hrot.NED.Tests/Hrot.NED.Tests.csproj`), but **before the report** run **`dotnet test IOS-IG-SimHost.sln`** and ensure green.
+Use narrower projects while iterating if helpful (e.g. `Hrot.NED.Tests/Hrot.NED.Tests.csproj`), but **before the report** run **`dotnet test HROT.sln`** and ensure green.
 
 ### Report and questions
 
@@ -115,7 +115,7 @@ This batch establishes the **DDS vocabulary** and **orchestrator process** that 
 
 **Scope:**
 
-- New projects: `Hrot.Orchestrator` (library, `net8.0`) and `Hrot.Orchestrator.Standalone` (executable host), registered in `IOS-IG-SimHost.sln`. Project references must align with the task detail (DataModel, Fdp.Kernel, Cyclone/module host as needed—**no** `Hrot.*` inside `FDP/`).  
+- New projects: `Hrot.Orchestrator` (library, `net8.0`) and `Hrot.Orchestrator.Standalone` (executable host), registered in `HROT.sln`. Project references must align with the task detail (DataModel, Fdp.Kernel, Cyclone/module host as needed—**no** `Hrot.*` inside `FDP/`).  
 - `ClusterMaster`: subscribe `NodeHeartbeat`, publish `SystemStateTopic` on startup, `Tick()` for heartbeat-driven maintenance (roster pruning threshold per task detail / design).  
 - Skeleton types: `DistributedTransaction`, `NodeRoster` as described in task detail (no full 2PC yet).  
 - `Hrot.ClusterRunner`: activate orchestrator subsystem via **`--mode orchestrator`** and/or configuration—match the pattern used for other modes in that project.
@@ -165,7 +165,7 @@ Do **not** treat the report as a comprehension quiz; focus on professional obser
 - [ ] CGF1-S0101 success conditions satisfied (including `OrchestrationSchemaTests`).  
 - [ ] CGF1-S0102 success conditions satisfied (integration test + Standalone clean exit).  
 - [ ] CGF1-S0103 success conditions satisfied (migration test + SimHost integration suite).  
-- [ ] `dotnet test IOS-IG-SimHost.sln` passes.  
+- [ ] `dotnet test HROT.sln` passes.  
 - [ ] Report filed at `.dev/cgf-1/reports/CGF-1-BATCH-01-REPORT.md`.  
 
 ---

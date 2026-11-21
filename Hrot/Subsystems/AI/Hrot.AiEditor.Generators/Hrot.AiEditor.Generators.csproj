@@ -21,6 +21,13 @@
 
   <ItemGroup>
     <!-- Mirror Hrot.Blueprints.Generators.csproj: PrivateAssets=all, ExcludeAssets=runtime -->
+    <!-- Batch 55: this generator parses *.bp.json itself (GeneratedBlueprintSchemaCatalog), so it has
+         to understand v2. Hrot.Blueprints.Schema is a BCL-only, multi-targeted leaf, which is exactly
+         why it can be referenced from a netstandard2.0 source generator.
+         ⚠ Its Analyzer asset is shipped by Hrot.AI.Behaviors, the one consumer of this generator. -->
+    <ProjectReference Include="..\..\Blueprints\Hrot.Blueprints.Schema\Hrot.Blueprints.Schema.csproj"
+                      PrivateAssets="all" />
+
     <ProjectReference Include="..\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj"
                       PrivateAssets="all"
                       ExcludeAssets="runtime" />
@@ -28,6 +35,16 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.AiEditor.Generators.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ⭐⭐ CE-2027 — the ONE compile-time struct-layout algorithm, shared by link with the FDP analyzers that used to carry
+         three copies of it (BehaviorParameterSizeAnalyzer, BTreeActionGenerator, HsmActionGenerator). StructSizeResolver is
+         its string front door. Dependency-free (Roslyn only), like its Shared/ neighbours. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\RoslynStructLayout.cs"
+             Link="Shared\RoslynStructLayout.cs" />
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\KnownTypeLayouts.cs"
+             Link="Shared\KnownTypeLayouts.cs" />
   </ItemGroup>
 
 </Project>

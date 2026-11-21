@@ -17,6 +17,8 @@ internal static class Stage6_Lower
             AssetDispatchKind.Library     => LibraryLowering.Apply(asset, sink),
             AssetDispatchKind.AiPrimitive => AiPrimitiveLowering.Apply(asset, sink),
             AssetDispatchKind.Instance    => InstanceLowering.Apply(asset, sink),
+            // ⭐ CE-446: a behaviour IS an Instance body (When fields, latent cursor) — the status is an emit concern.
+            AssetDispatchKind.Behavior    => InstanceLowering.Apply(asset, sink),
             _ => throw new InvalidOperationException($"Unknown dispatch kind: {asset.Dispatch}")
         };
 

@@ -10,6 +10,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// a handle into this array; the DDS egress translator reads the handle in the same frame.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    // ⭐ CE-3132 — NoScenario | NoReplay: the NativeArray is this process's memory; recorded, it carried raw pointers into a replay
+    //   (the class ZoneEnvironmentData showed, CE-3118). docs/DESIGN_Geo_Origin.md §5.6.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.EqsResultPool)]
     public struct EqsResultPool
     {
@@ -62,7 +65,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// Network ID of the parent agent (or the sensor entity itself for legacy single-sensor path).
         /// 0 for purely local (offline/editor) sensors.
         /// </summary>
-        public long ParentNetworkId;
+        public int ParentNetworkId;
         /// <summary>
         /// PartMetadata.InstanceId of the child sensor entity; 0 for the legacy single-sensor path
         /// where the sensor lives directly on the parent entity.

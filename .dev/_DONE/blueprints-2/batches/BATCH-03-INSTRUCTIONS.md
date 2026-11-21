@@ -58,7 +58,7 @@ FDP/Engine/Fdp.Core/Entity.cs   (for Entity type)
 dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj"
 
 # Build main solution (run at end to verify no regressions)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 ### Report Submission
@@ -490,7 +490,7 @@ This batch is DONE when:
 - [ ] TASK-S1-12: `IAiDebugSession` + `AiDebugSessionBase` + `IDebugSessionRegistry` + `DebugSessionRegistry` with 16+ tests
 - [ ] TASK-S1-13: `HotReloadClassifier` + `HotReloadTier` + `HotReloadStatus` with 11+ tests
 - [ ] `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj` — ALL PASS (65 old + 45+ new)
-- [ ] `dotnet build IOS-IG-SimHost.sln` — builds clean
+- [ ] `dotnet build HROT.sln` — builds clean
 - [ ] Report submitted at `.dev/blueprints-2/reports/BATCH-03-REPORT.md`
 
 ---

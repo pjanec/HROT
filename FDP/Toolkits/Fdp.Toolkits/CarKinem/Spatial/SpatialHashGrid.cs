@@ -7,7 +7,7 @@ namespace CarKinem.Spatial
 {
     /// <summary>
     /// 2D spatial hash grid for fast neighbor queries.
-    /// Hardcoded cell size: 5.0 meters.
+    /// Cell size and origin are set at <see cref="Create"/> and moved by <see cref="Rebase"/>.
     /// <para>
     /// <b>Incremental update support (BATCH-09):</b>
     /// <see cref="Remove"/> splices an entity out of its cell's linked-list chain and
@@ -35,7 +35,17 @@ namespace CarKinem.Spatial
         /// <summary>Number of valid entries currently stored in <see cref="FreeList"/>.</summary>
         public int FreeListCount;
         
-        public float CellSize;
+        /// <summary>
+        /// ⭐ CE-3018 — the grid's geometry <c>[cellSize, originX, originY]</c> in SHARED native memory, exactly like the
+        /// cell arrays: every value copy of this struct (a system's field, the <c>SpatialGridData</c> singleton, a
+        /// background snapshot) sees a <see cref="Rebase"/> at once. Before, these were plain fields, so a copy kept the
+        /// geometry it was made with and a grid could not follow a terrain (docs/DESIGN_Terrain_World.md §4.4).
+        /// </summary>
+        public NativeArray<float> Geometry;
+
+        /// <summary>Cell edge length in metres.</summary>
+        public float CellSize => Geometry.IsCreated ? Geometry[0] : 0f;
+
         public int Width;
         public int Height;
         public int EntityCount;
@@ -44,8 +54,8 @@ namespace CarKinem.Spatial
         /// World-space origin of the grid (bottom-left corner).
         /// Allows the grid to cover negative world coordinates.
         /// </summary>
-        public float OriginX;
-        public float OriginY;
+        public float OriginX => Geometry.IsCreated ? Geometry[1] : 0f;
+        public float OriginY => Geometry.IsCreated ? Geometry[2] : 0f;
         
         /// <summary>
         /// Create grid with specified dimensions.
@@ -53,23 +63,53 @@ namespace CarKinem.Spatial
         public static SpatialHashGrid Create(int width, int height, float cellSize,
             int maxEntities, Allocator allocator, float originX = 0f, float originY = 0f)
         {
-            return new SpatialHashGrid
+            var geometry = new NativeArray<float>(3, allocator);
+            geometry[0] = cellSize;
+            geometry[1] = originX;
+            geometry[2] = originY;
+            var grid = new SpatialHashGrid
             {
+                Geometry = geometry,
                 GridHead = new NativeArray<int>(width * height, allocator),
                 GridNext = new NativeArray<int>(maxEntities, allocator),
                 GridValues = new NativeArray<Entity>(maxEntities, allocator),
                 Positions = new NativeArray<Vector2>(maxEntities, allocator),
                 FreeList = new NativeArray<int>(maxEntities, allocator),
                 FreeListCount = 0,
-                CellSize = cellSize,
                 Width = width,
                 Height = height,
                 EntityCount = 0,
-                OriginX = originX,
-                OriginY = originY,
             };
+
+            // ⭐⭐⭐ CE-3152 — ESTABLISH THE EMPTY-CELL INVARIANT HERE. 🔴 This one missing line was the producer behind
+            //   CE-3146's hang, measured live on 2026-10-09: "cell 0 … head=0, GridNext[head]=0 (SELF-CYCLE)".
+            //   📐 In this structure "-1" means "empty", but NativeArray DELIBERATELY zero-fills its block
+            //   (NativeArray.cs:39-41 — "Marshal.AllocHGlobal does not zero-initialize. Clear the block …"), so a grid
+            //   straight out of Create() has EVERY cell claiming slot 0 as its head, and GridNext[0] is 0 too ⇒ any
+            //   walk of cell 0 follows 0 → 0 → 0 forever.
+            //   ⛔ It was NOT a double-free / double hand-out of a slot: Clear() and Rebase() were the only writers of
+            //   the -1 sentinel, so the grid was only well formed AFTER the first Clear(). It bites whenever anything
+            //   reads the grid before the builder's first FullRebuild — on the editor host, scenario load does exactly
+            //   that. ⭐ Contrast RoadNetworkBuilder.cs:203-204, which has always initialised its heads explicitly.
+            grid.Clear();
+            return grid;
         }
         
+        /// <summary>
+        /// ⭐ CE-3018 — move the grid to a new origin and cell size, keeping its cell COUNT and capacity, and empty it.
+        /// ⛔ Nothing is reallocated, so no other holder of this memory is left reading freed memory — the reason this is
+        /// a rebase and not a resize (docs/DESIGN_Terrain_World.md §4.4). The caller re-inserts; a copy whose own
+        /// <see cref="EntityCount"/> it tracks (the perception builder) must also full-rebuild.
+        /// </summary>
+        public void Rebase(float originX, float originY, float cellSize)
+        {
+            if (cellSize <= 0f) throw new ArgumentOutOfRangeException(nameof(cellSize), cellSize, "cell size must be positive");
+            Geometry[0] = cellSize;
+            Geometry[1] = originX;
+            Geometry[2] = originY;
+            Clear();
+        }
+
         /// <summary>
         /// Clear grid (reset all heads to -1) and reset the free-list.
         /// After a full clear all slot state is gone, so the free-list must also be reset
@@ -93,13 +133,16 @@ namespace CarKinem.Spatial
         /// <see cref="EntityCount"/>.
         /// </para>
         /// </summary>
-        public void Add(Entity entity, Vector2 position)
+        /// <returns>⭐ <c>CE-2193</c> — false when <paramref name="position"/> is outside the grid and the entity was NOT added (no round,
+        /// avoidance or radius search can meet it); <c>SpatialHashSystem</c> warns about it once.</returns>
+        public bool Add(Entity entity, Vector2 position)
         {
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;
             int cellX = (int)((position.X - OriginX) / CellSize);
             int cellY = (int)((position.Y - OriginY) / CellSize);
 
             if (cellX < 0 || cellX >= Width || cellY < 0 || cellY >= Height)
-                return; // Out of bounds
+                return false; // Out of bounds
             
             int cellIdx = cellY * Width + cellX;
 
@@ -111,13 +154,14 @@ namespace CarKinem.Spatial
             {
                 entityIdx = EntityCount++;
                 if (entityIdx >= GridValues.Length)
-                    return; // Exceeded max entities capacity
+                    return false; // Exceeded max entities capacity
             }
             
             Positions[entityIdx] = position;
             GridValues[entityIdx] = entity;
             GridNext[entityIdx] = GridHead[cellIdx];
             GridHead[cellIdx] = entityIdx;
+            return true;
         }
 
         /// <summary>
@@ -135,6 +179,7 @@ namespace CarKinem.Spatial
         /// </returns>
         public bool Remove(Entity entity, Vector2 previousPosition)
         {
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;
             int cellX = (int)((previousPosition.X - OriginX) / CellSize);
             int cellY = (int)((previousPosition.Y - OriginY) / CellSize);
 
@@ -176,9 +221,48 @@ namespace CarKinem.Spatial
         /// Writes results to output array, returns count.
         /// Each result carries the full <see cref="Entity"/> handle (Index + Generation).
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-3209</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-2, tier ①) — every entity whose grid point lies
+        /// in a cell that comes within <paramref name="pad"/> of the segment <paramref name="a"/>→<paramref name="b"/>: the cells ALONG the
+        /// segment, not a disc around its middle. <paramref name="pad"/> is the largest body radius the caller may meet (an entity's point is
+        /// its body's centre). Returns how many were written; <paramref name="overflow"/> is true when <paramref name="output"/> was too small.
+        /// </summary>
+        public int QuerySegment(Vector2 a, Vector2 b, float pad, Span<(Entity entity, Vector2 pos)> output, out bool overflow)
+        {
+            overflow = false;
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;
+            int count = 0;
+            float reach = pad + CellSize * 0.70710678f;   // a cell is in when its centre is within pad + half its diagonal
+            float reach2 = reach * reach;
+            int minCellX = Math.Max(0, (int)MathF.Floor((MathF.Min(a.X, b.X) - pad - OriginX) / CellSize));
+            int maxCellX = Math.Min(Width - 1, (int)MathF.Floor((MathF.Max(a.X, b.X) + pad - OriginX) / CellSize));
+            int minCellY = Math.Max(0, (int)MathF.Floor((MathF.Min(a.Y, b.Y) - pad - OriginY) / CellSize));
+            int maxCellY = Math.Min(Height - 1, (int)MathF.Floor((MathF.Max(a.Y, b.Y) + pad - OriginY) / CellSize));
+            var ab = b - a;
+            float len2 = ab.LengthSquared();
+            for (int cy = minCellY; cy <= maxCellY; cy++)
+            {
+                for (int cx = minCellX; cx <= maxCellX; cx++)
+                {
+                    var centre = new Vector2(OriginX + (cx + 0.5f) * CellSize, OriginY + (cy + 0.5f) * CellSize);
+                    float t = len2 > 1e-12f ? Math.Clamp(Vector2.Dot(centre - a, ab) / len2, 0f, 1f) : 0f;
+                    if (Vector2.DistanceSquared(a + ab * t, centre) > reach2) continue;
+                    int head = GridHead[cy * Width + cx];
+                    while (head >= 0)
+                    {
+                        if (count >= output.Length) { overflow = true; return count; }
+                        output[count++] = (GridValues[head], Positions[head]);
+                        head = GridNext[head];
+                    }
+                }
+            }
+            return count;
+        }
+
         public int QueryNeighbors(Vector2 position, float radius, 
             Span<(Entity entity, Vector2 pos)> output)
         {
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;   // one read of the shared geometry
             int count = 0;
             float radiusSq = radius * radius;
             
@@ -232,6 +316,7 @@ namespace CarKinem.Spatial
             if (GridValues.IsCreated) GridValues.Dispose();
             if (Positions.IsCreated) Positions.Dispose();
             if (FreeList.IsCreated) FreeList.Dispose();
+            if (Geometry.IsCreated) Geometry.Dispose();
         }
     }
 }

@@ -10,6 +10,7 @@ using Hrot.Core.Network;
 using Fdp.ModuleHost;
 using Fdp.Network.Cyclone.Modules;
 using Fdp.Network.Cyclone.Systems;
+using Fdp.Core;
 
 namespace Hrot.Network.NED.SimHost;
 
@@ -34,6 +35,20 @@ internal sealed class NedSimHostPathfindingTranslators : ISimHostPathfindingTran
             _translators.AddRange(BrainPathfindingTranslatorPack.Create(participant, entityMap, geoTransform, trajectoryPool, localNodeId));
         if (role.HasFlag(NodeRole.NavigationSolver) && trajectoryPool != null)
             _translators.AddRange(SimPathfindingTranslatorPack.Create(participant, entityMap, geoTransform, trajectoryPool));
+
+        // ⭐ Macros S3a ⑤ (SR-180) — the placement query needs NO trajectory pool, so it is gated by ROLE alone. 📌 Measured live
+        //   2026-11-02 (--mode all): CGF composes this set WITHOUT a pool, so with the placement pair inside the pool-gated packs the
+        //   Brain never sent a request and every expansion fell back to its own terrain (E-6) after 300 frames.
+        if (role.HasFlag(NodeRole.Brain))
+        {
+            _translators.Add(new PlacementRequestBrainEgressTranslator(participant, localNodeId));
+            _translators.Add(new PlacementResponseBrainIngressTranslator(participant, localNodeId));
+        }
+        if (role.HasFlag(NodeRole.NavigationSolver))
+        {
+            _translators.Add(new PlacementRequestSolverIngressTranslator(participant));
+            _translators.Add(new PlacementResponseSolverEgressTranslator(participant));
+        }
     }
 
     public void RegisterOn(ModuleHostKernel kernel)

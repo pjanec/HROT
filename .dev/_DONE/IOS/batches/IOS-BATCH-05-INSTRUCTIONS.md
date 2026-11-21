@@ -23,7 +23,7 @@ Welcome back! BATCH-04 finalized the core integration testing and proved the ove
 
 ### Source Code Location
 - **Primary Work Area:** `Hrot.ExCon/Panels/`, `Hrot.ExCon.Tests/`
-- **Solution File:** `IOS-IG-SimHost.sln`
+- **Solution File:** `HROT.sln`
 
 ### Report Submission
 **When done, submit your report to:**  

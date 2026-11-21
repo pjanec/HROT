@@ -14,5 +14,7 @@ global using PipelineTarget     = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Giz
 global using Rgba32             = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.Rgba32;
 global using LineStyle          = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.LineStyle;
 global using ScreenAnchor       = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.ScreenAnchor;
+global using GizmoTextStyle     = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.GizmoTextStyle;   // ⭐ B-17 P7 ⑥
 global using SizeMode           = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.SizeMode;
 global using StringInternMap    = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.StringInternMap;
+global using LayerMask256       = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256;   // ⭐ CE-1071

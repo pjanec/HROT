@@ -33,7 +33,7 @@ The button UI itself is ImGui (manual), but the **callback logic must be unit-te
 ## Execution rules — YOU (the sonnet agent) run the full implement→build→test→fix loop yourself
 - Verify `IWindowRegistrar.RegisterToolbarEntry` + `EditorSelectionStore.SelectedEntity`/`ActiveAsset` + the active-asset access against the code FIRST (cite file:line). If `SelectedEntity` doesn't exist on `EditorSelectionStore`, find the real entity-selection source the editor uses and use that (report what you found).
 - Reuse `BlueprintAttachService`; do NOT duplicate the attach sequence or reimplement the runtime. Gate all ImGui behind a context check; keep the callback logic ImGui-free + testable.
-- Build (`dotnet build IOS-IG-SimHost.sln`) and run the suites listed above yourself; fix to green before reporting; never fake a pass.
+- Build (`dotnet build HROT.sln`) and run the suites listed above yourself; fix to green before reporting; never fake a pass.
 
 ## Report
 Document: the toolbar registration; the selected-entity + active-asset resolution (members used, cited); the status feedback; the testable callback method + its tests/counts; build status; EditorSubsystemBoot unaffected; the precise next step for MVE-04 (Save). Suggested commit message. No comprehension questions.

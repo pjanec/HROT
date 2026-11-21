@@ -1536,3 +1536,23 @@ void EngineLoop()
 2.  Refactor AI to use `ISimulationView` reading from World B (temporarily).
 3.  Implement **SoD (World C)** optimization later if memory bandwidth becomes a bottleneck.
 
+---
+
+**See also (`2026-11-11`):** `docs/DESIGN_Threaded_Simulation_Presentation.md` — extends this model with a SELF-PACED reader: the kernel ticked on a worker, the editor's presentation pulled on the main thread from a leased published snapshot, events queued per reader (a proof of concept, measured). Not ruled.
+
+## 8. The self-paced reader — the kernel on a worker, the presentation pulled from a published snapshot *(R-4205, `2026-11-11`; details in Architect Question 111)*
+
+The model of §2–§7 assumes the kernel's thread is the application's main thread and every reader is a module the kernel DISPATCHES. R-4205 adds a
+reader the kernel does not dispatch: the windowed host's presentation, run by the render loop on the main thread, at the render rate.
+
+| piece | rule |
+|---|---|
+| World A | unchanged — owned by the thread that ticks the kernel, which becomes a WORKER in a windowed host |
+| the published snapshot | at the sync point the kernel fills a FREE pooled repository (`SnapshotPool`) and publishes it as the latest; the reader LEASES the latest each frame and releases it; a leased or latest snapshot is never written (⇒ 2 copies, 3 at peak). ⚠ Not the `DoubleBufferProvider` of §3 — it syncs one replica in place |
+| events | queued PER READER on the kernel's thread (the accumulator's windows are valid only until the next capture); the reader takes them once per frame. ⛔ Never carried on a snapshot — a reader that skips a snapshot would lose them (measured in the proof of concept) |
+| writes | the reader's commands go to a thread-safe queue, validated and applied at the kernel's next Input phase (§3.3's optimistic concurrency) |
+| `RunMode.Pulled` *(proposed)* | a module the host runs itself, on its own thread, on the leased view; registered in the kernel like any module, timed in its profiler |
+| schedulings | inline (tests, headless): no worker, the reader sees World A through a read-only wrapper; threaded: the windowed editor and player. A host with no pulled module publishes nothing |
+
+Owning design: `docs/DESIGN_Threaded_Simulation_Presentation.md`; proof of concept: branch `poc/threaded-kernel`, `FDP/Examples/Fdp.Examples.ThreadedKernel`.
+

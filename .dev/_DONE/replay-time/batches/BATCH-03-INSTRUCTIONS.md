@@ -30,7 +30,7 @@
 ### Build & Test Commands
 ```powershell
 # Build (check for errors):
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
 
 # Run Hrot.Orchestrator tests:
 dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot\Subsystems\Hrot.Orchestrator.Tests\Hrot.Orchestrator.Tests.csproj -v normal

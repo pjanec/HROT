@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Concurrent;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Core.Tkb;
 
 namespace Hrot.MuscleCharacter.Animation.Baking
@@ -10,6 +10,7 @@ namespace Hrot.MuscleCharacter.Animation.Baking
     /// Owned by AnimationTkbTranslator to share baked data across all entities of the same class.
     /// Subscribes to ITkbHotReloadEvents to invalidate entries when descriptors change.
     /// </summary>
+    [Fdp.Core.WorldDerived("cache of baked TKB animation data, refilled on demand/hot-reload")]
     public sealed class BakedAnimationCache : IDisposable
     {
         /// <summary>

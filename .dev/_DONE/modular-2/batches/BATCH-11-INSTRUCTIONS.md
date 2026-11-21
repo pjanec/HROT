@@ -380,10 +380,10 @@ dotnet list Hrot.CGF/Hrot.CGF.csproj reference
 dotnet list Hrot.Orchestrator/Hrot.Orchestrator.csproj reference
 
 # 2 - Full solution build
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 
 # 3 - Unit tests (no integration: integration tests take longer, check after build)
-dotnet test IOS-IG-SimHost.sln --filter "FullyQualifiedName!~Integration" -v quiet
+dotnet test HROT.sln --filter "FullyQualifiedName!~Integration" -v quiet
 ```
 
 **Success conditions:**

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<g transform="translate(0,-5)">
+<rect x="12" y="81" width="98" height="22" rx="11.0" fill="url(#dark)"/>
+<circle cx="24.0" cy="92" r="7.4" fill="url(#wheel)"/>
+<circle cx="24.0" cy="92" r="2.4" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="38.4" cy="92" r="7.4" fill="url(#wheel)"/>
+<circle cx="38.4" cy="92" r="2.4" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="52.8" cy="92" r="7.4" fill="url(#wheel)"/>
+<circle cx="52.8" cy="92" r="2.4" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="67.2" cy="92" r="7.4" fill="url(#wheel)"/>
+<circle cx="67.2" cy="92" r="2.4" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="81.6" cy="92" r="7.4" fill="url(#wheel)"/>
+<circle cx="81.6" cy="92" r="2.4" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="96.0" cy="92" r="7.4" fill="url(#wheel)"/>
+<circle cx="96.0" cy="92" r="2.4" fill="#3A434E" stroke-width="1.2"/>
+<path d="M8,74 L14,66 L100,66 L114,74 L112,82 L10,82 Z" fill="url(#body)"/>
+<path d="M10,74 L112,74" fill="none" stroke-width="1.2"/>
+<rect x="9" y="56" width="16" height="10" rx="4" fill="url(#dark)" stroke-width="1.8"/>
+<path d="M17,56 L17,66" fill="none" stroke-width="1.2"/>
+<path d="M34,66 C34,48 50,41 66,41 C82,41 96,49 98,66 Z" fill="url(#body)"/>
+<ellipse cx="58" cy="40" rx="7" ry="3.5" fill="url(#body)" stroke-width="1.8"/>
+<rect x="82" y="44" width="7" height="6" rx="1.5" fill="url(#glass)" stroke-width="1.6"/>
+<path d="M96,53.6 L126,53.6 L126,56.6 L96,56.6 Z" fill="url(#dark)" stroke-width="1.6"/>
+<path d="M105,52.2 L111,52.2 L111,58 L105,58 Z" fill="url(#dark)" stroke-width="1.4"/>
+</g>
+</g>
+</svg>

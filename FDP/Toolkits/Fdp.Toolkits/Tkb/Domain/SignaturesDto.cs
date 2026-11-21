@@ -1,0 +1,218 @@
+using Fdp.Toolkit.Tkb.Attributes;
+using StructEdit.Core.Attributes;
+
+namespace Fdp.Toolkit.Tkb.Domain
+{
+    /// <summary>
+    /// ⭐ <c>CE-3061</c> / <c>CE-3062</c> — what an entity type gives OFF to other units' sensors: its heat and its noise
+    /// (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §4, R-205). Absent ⇒ the entity is cold and silent.
+    /// </summary>
+    [TkbDescriptor("Perception.Signatures")]
+    public record SignaturesDto
+    {
+        /// <summary>Heat: a base signature plus heat built up by running and firing.</summary>
+        public ThermalSignatureDto? Thermal { get; init; }
+
+        /// <summary>Noise: how far moving, firing and detonations carry (🔒 user, 2026-10-05: "Hearability params to be added to to the tkb").</summary>
+        public AcousticSignatureDto? Acoustic { get; init; }
+
+        /// <summary>⭐ <c>CE-4617</c> (RS-2) — how big it looks to a radar.</summary>
+        public RadarSignatureDto? Radar { get; init; }
+    }
+
+    /// <summary>⭐ <c>CE-4617</c> (docs/designs/air-attack/DESIGN_Radar_SAM.md RS-2) — a radar cross-section. A radar's range is stated against a
+    /// 10 m² reference and scales as RCS^¼ (a 0.01 m² FPV is seen at ~18 % of it).</summary>
+    public record RadarSignatureDto
+    {
+        /// <summary>Radar cross-section, m².</summary>
+        [EditUnit("m²")]
+        public float RcsM2 { get; init; } = 10f;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3061</c> — heat (🔒 user, 2026-10-05: "Hot when running or firing - pls implement some simple heat accumulation and cooldown").
+    /// <c>Signature = BaseSignature + Heat × (1 − BaseSignature)</c>, Heat in 0..1.
+    /// </summary>
+    public record ThermalSignatureDto
+    {
+        /// <summary>The signature of the entity at rest and cold (0..1).</summary>
+        [EditRange(0, 1)]
+        public float BaseSignature { get; init; } = 0.3f;
+
+        /// <summary>Heat gained per second while moving at <see cref="AcousticSignatureDto.ReferenceSpeed"/> or faster (scaled down when slower).</summary>
+        [EditRange(0, 1)]
+        public float RunningHeatPerSecond { get; init; } = 0.05f;
+
+        /// <summary>Heat gained per shot fired.</summary>
+        [EditRange(0, 1)]
+        public float FiringHeatPerShot { get; init; } = 0.02f;
+
+        /// <summary>Fraction of the heat lost per second (exponential cooldown).</summary>
+        [EditRange(0, 1)]
+        public float CooldownPerSecond { get; init; } = 0.02f;
+
+        /// <summary>The speed counted as "running" for heat (m/s); 0 ⇒ 5 m/s.</summary>
+        [EditUnit("m/s")]
+        public float ReferenceSpeed { get; init; } = 5f;
+
+        // ── ⭐ CE-4657 (thermal drivers TD-3, TD-14, TD-16; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4 "type data") — read by the calculator and
+        //    the writers, NEVER sent at runtime (a reader knows the type). APPENDED.
+
+        /// <summary>An ENGINE (a vehicle, an aircraft, a generator) — its <c>HeatSource</c> is Off · Idle · Running · Dead; false: a BODY (a person, an
+        /// animal) — Standing · Moving.</summary>
+        public bool HasPowerPlant { get; init; }
+
+        /// <summary>Its power class (car · truck · tank · aircraft) — how long the ground it warmed stays warm (terrain's one enum, ruling 9).</summary>
+        public Fdp.Toolkit.Terrain.ThermalPowerClass PowerClass { get; init; }
+
+        /// <summary>Which end carries the engine and exhaust — the hot end of the hull and of the ground mark it leaves (terrain's one enum).</summary>
+        public Fdp.Toolkit.Terrain.HeatMarkEnd HotEnd { get; init; }
+
+        /// <summary>Its heat (0..1) with the engine IDLING, warmed through — our sensor's calculator (a body: standing).</summary>
+        [EditRange(0, 1)]
+        public float IdleHeat { get; init; } = 0.35f;
+
+        /// <summary>Its heat (0..1) RUNNING at <see cref="ReferenceSpeed"/>, warmed through (a body: running).</summary>
+        [EditRange(0, 1)]
+        public float RunningHeat { get; init; } = 0.8f;
+
+        /// <summary>How long a destroyed one of this type burns (s); 0 ⇒ it does not burn (TD-16 ①: "a fuelled type destroyed").</summary>
+        [EditUnit("s")]
+        public float FireSeconds { get; init; }
+
+        /// <summary>A person's clothing class (0 = none / not a person) — the image generator's emissivity hint; our sensor ignores it.</summary>
+        public byte ClothingClass { get; init; }
+
+        // ── ⭐ CE-4670 (vehicle appearance VA-S4, VA-5; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4 "Gen.PowerPlant gains") — how
+        //    fast the engine (and a rotor / propeller with it) comes up to speed and runs down; read by <c>VehicleLook.RotorSpeed</c>, never sent. APPENDED.
+
+        /// <summary>Seconds from stopped to full speed (an engine start, a rotor run-up); 0 ⇒ instant.</summary>
+        [EditUnit("s")]
+        public float SpinUpSeconds { get; init; }
+
+        /// <summary>Seconds from full speed to stopped (a shutdown, a rotor run-down); 0 ⇒ instant.</summary>
+        [EditUnit("s")]
+        public float SpinDownSeconds { get; init; }
+    }
+
+    /// <summary>⭐ <c>CE-3062</c> — how far this entity's sounds carry (metres). 0 ⇒ that sound is not made.</summary>
+    public record AcousticSignatureDto
+    {
+        /// <summary>How far movement carries when moving at <see cref="ReferenceSpeed"/> (scaled with speed, below it).</summary>
+        [EditUnit("m")]
+        public float MovingAudibleRange { get; init; }
+
+        /// <summary>The speed at which movement is loudest (m/s); 0 ⇒ 5 m/s.</summary>
+        [EditUnit("m/s")]
+        public float ReferenceSpeed { get; init; } = 5f;
+
+        /// <summary>How far one of its shots carries.</summary>
+        [EditUnit("m")]
+        public float FiringAudibleRange { get; init; }
+
+        /// <summary>How far a detonation of its munition carries.</summary>
+        [EditUnit("m")]
+        public float DetonationAudibleRange { get; init; }
+
+        /// <summary>⭐ <c>CE-3063</c> (R-207) — what its movement SOUNDS like to a listener (footsteps, an engine…).</summary>
+        public SoundSourceClass MovingClass { get; init; }
+
+        /// <summary>⭐ <c>CE-3063</c> — what its shots sound like (small arms, a heavy weapon).
+        /// ⚠ One per entity type, not per weapon mount: a tank's coax reads as its main gun.</summary>
+        public SoundSourceClass FiringClass { get; init; }
+
+        /// <summary>⭐ <c>CE-3063</c> — what a detonation of its munition sounds like; <see cref="SoundSourceClass.Unknown"/> ⇒ an explosion.</summary>
+        public SoundSourceClass DetonationClass { get; init; }
+
+        /// <summary>⭐ <c>CE-3283</c> (Q95 A) — the weapon FAMILY a trained ear tells its shots and bursts by (a ZU-23 is an AA gun, not a heavy MG):
+        /// data, because the role is not in the weapon's category. A Regular hears the family; a Veteran the type itself.</summary>
+        public SoundFamily Family { get; init; }
+
+        /// <summary>⭐ <c>CE-3285</c> (Q95 B3) — the frequency band of its movement / shots / bursts: how much an obstacle stops it (World Query
+        /// Seam WQ-E scales its loss by it). <see cref="SoundBand.Unset"/> ⇒ <see cref="SoundBands.Of"/> the class's. ⛔ Read by nothing yet.</summary>
+        public SoundBand MovingBand { get; init; }
+
+        /// <summary>⭐ <c>CE-3285</c> — the band of its shots (see <see cref="MovingBand"/>).</summary>
+        public SoundBand FiringBand { get; init; }
+
+        /// <summary>⭐ <c>CE-3285</c> — the band of its bursts (see <see cref="MovingBand"/>).</summary>
+        public SoundBand DetonationBand { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3283</c> (Q95 A; Sensing §8.4) — the weapon family a Regular ear tells a shot or a burst by: finer than the class, coarser than the
+    /// type. 3 bits on the acoustic answer (flags 13–15) — at most 8 values.
+    /// </summary>
+    /// ⚠ The TKB DTOs become DDS IDL, where enumerators share ONE scope: no member may repeat another enum's (<c>SoundSourceClass</c> has
+    /// <c>Unknown</c> and <c>SmallArms</c> — hence <see cref="Untold"/> and <see cref="Rifle"/>).
+    public enum SoundFamily : byte
+    {
+        /// <summary>No family (the ear could not tell, or the source has none).</summary>
+        Untold    = 0,
+        Mortar    = 1,
+        /// <summary>A gun: a howitzer, a tank's or a field gun.</summary>
+        Gun       = 2,
+        HeavyMg   = 3,
+        /// <summary>An anti-aircraft gun (the ZU-23).</summary>
+        AaGun     = 4,
+        /// <summary>A rocket or missile launcher (an RPG, an ATGM, a MANPADS).</summary>
+        Launcher  = 5,
+        /// <summary>Small arms: a rifle, a pistol, a light machine gun.</summary>
+        Rifle     = 6,
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3285</c> (Q95 B3, approved) — a sound's band: bass bends round hills and passes walls, a faint high sound is stopped by them. One
+    /// propagation model scales its obstacle loss by the band (WQ-E): <see cref="Low"/> ×0.2, <see cref="Mid"/> ×0.6, <see cref="High"/> ×1.0.
+    /// </summary>
+    public enum SoundBand : byte
+    {
+        Unset = 0,
+        /// <summary>A blast, a gun's report.</summary>
+        Low   = 1,
+        /// <summary>A rifle, an engine.</summary>
+        Mid   = 2,
+        /// <summary>Footsteps, voices, a bolt worked.</summary>
+        High  = 3,
+    }
+
+    /// <summary>⭐ <c>CE-3285</c> — the band a sound class has when its TKB states none (Q95 B3's table).</summary>
+    public static class SoundBands
+    {
+        public static SoundBand Of(SoundSourceClass cls) => cls switch
+        {
+            SoundSourceClass.HeavyWeapon or SoundSourceClass.Explosion => SoundBand.Low,
+            SoundSourceClass.Footsteps => SoundBand.High,
+            SoundSourceClass.Unknown => SoundBand.Unset,
+            _ => SoundBand.Mid,   // small arms, engines, rotors
+        };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3063</c> (R-207, 🔒 user 2026-10-05: <i>"the vehicle engine or human steps or shot sounds usually carry at least
+    /// some kind-like identification, it is almost never a completely anonymous - and allows to estimate danger level"</i>) —
+    /// the COARSE class a listener can tell a sound by, never an identity. Carried from the emitter to the Brain's memory; the
+    /// memory merges only compatible classes and the AI judges danger from it at read time. <see cref="Unknown"/> is
+    /// compatible with every class. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6.1a.
+    /// </summary>
+    public enum SoundSourceClass : byte
+    {
+        Unknown       = 0,
+        Footsteps     = 1,
+        WheeledEngine = 2,
+        TrackedEngine = 3,
+        SmallArms     = 4,
+        HeavyWeapon   = 5,
+        Explosion     = 6,
+        /// <summary>⭐ M7 (DESIGN_FPV_Drone §2) — rotors: a drone or a helicopter, heard while it flies (hovering included).</summary>
+        Rotor         = 7,
+        /// <summary>⭐ CE-4623 AB-8 (Animals AR-7) — an animal's ALARM or a bark: heard by everyone, a fright to other animals (never to a civilian).</summary>
+        Animal        = 8,
+        /// <summary>⭐ <c>CE-4635</c> (DESIGN_Flame_Weapons §6) — a flamethrower's ROAR: weapon fire, heard once a second for as long as the burst lasts,
+        /// at a shorter range than a rifle.</summary>
+        Flame         = 9,
+        /// <summary>⭐ <c>CE-4634</c> (DESIGN_Dragon, the ui NOTE's sound) — a great BEAST's roar and wingbeat (a dragon): heard while it flies, far; the
+        /// listener's side plays the wingbeat by the wing pose and the roar on its own cues.</summary>
+        Roar          = 10,
+    }
+}

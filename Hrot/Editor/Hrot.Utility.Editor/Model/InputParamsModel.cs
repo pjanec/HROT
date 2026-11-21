@@ -3,14 +3,13 @@ namespace Hrot.Utility.Editor.Model;
 // Editor-side representation of per-consideration sensor parameters.
 public sealed class InputParamsModel
 {
-    // FNV-1a of asset GUID -- EQS sensor readers.
-    public uint  BlueprintId;
+    // The EQS template's AssetId GUID (e.g. FindCoverFromTarget.AssetId) -- EQS sensor readers. Empty for non-EQS inputs.
+    // ⭐ CE-2046: the ONE copy. The emitter writes In.EqsTopScore("<it>"); the preview derives the sensor id from it with
+    // In.EqsTemplateId -- the same function the emitted code runs. (It replaced a never-set BlueprintId the preview read
+    // and a TemplateName the emitter read.)
+    public string TemplateAssetId = string.Empty;
     // Maximum range in metres -- DistanceToContext readers.
     public float MaxRange;
     // Zero-based weapon mount index -- per-mount weapon readers.
     public int   MountIndex;
-    // Template name string for EQS inputs (e.g., "CoverQuery").
-    // Stored alongside BlueprintId so the emitter can reconstruct In.EqsTopScore("CoverQuery").
-    // Empty for non-EQS inputs.
-    public string TemplateName = string.Empty;
 }

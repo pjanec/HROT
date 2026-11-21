@@ -91,7 +91,14 @@ namespace Fhsm.Compiler.IO
             {
                 transition.ActionId = (ushort)action.GetInt32();
             }
-            
+
+            // ⭐ CE-381 — optional and absent by default, so every existing document parses to
+            //   exactly the same graph. ⛔ Not the same as omitting "event": see TransitionBuilder.Polled.
+            if (transJson.TryGetProperty("polled", out var polled))
+            {
+                transition.IsPolled = polled.ValueKind == System.Text.Json.JsonValueKind.True;
+            }
+
             sourceState.Transitions.Add(transition);
         }
     }

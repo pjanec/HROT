@@ -9,6 +9,7 @@ namespace Fdp.ModuleHost.Tests
     public class ModulePolicyApiTests
     {
         // Mock module implementing the new Policy API explicitly
+        [TickMode(TickPolicy.EveryFrame)]
         class ModernTestModule : IEcsModule
         {
             public string Name => "ModernModule";
@@ -20,6 +21,7 @@ namespace Fdp.ModuleHost.Tests
         }
         
         // Mock module implementing the OLD Tier API
+        [TickMode(TickPolicy.EveryFrame)]
         class LegacyTestModule : IEcsModule
         {
             public string Name => "LegacyModule";

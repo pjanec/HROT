@@ -24,17 +24,14 @@ public sealed class HsmShowcaseTests
     {
         get
         {
-            var asmDir = Path.GetDirectoryName(typeof(HsmShowcaseTests).Assembly.Location)!;
-            var dir = asmDir;
-            for (int i = 0; i < 7; i++)
-                dir = Path.GetDirectoryName(dir)!;
-            return dir;
+            // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not "walk up 7 levels".
+            return Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!;
         }
     }
 
     private static string ShowcaseJsonPath =>
-        Path.Combine(RepoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "HSMs", "HsmShowcase.hsm.json");
+        Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(RepoRoot, Fdp.Toolkit.Orchestration.ContentLayout.HsmsFolder),
+            "Samples", "HsmShowcase.hsm.json");
 
     private static string ReadShowcaseJson()
     {
@@ -162,22 +159,22 @@ public sealed class HsmShowcaseTests
             "Showcase must define ≥2 regions in AllRegions");
     }
 
+    /// <summary>
+    /// Q84 C1 — history is a property of the COMPOSITE being re-entered (the kernel's model). The showcase's old
+    /// childless "HistoryPseudo" node was folded into GuardComposite, and the transition that targeted it now
+    /// targets GuardComposite itself.
+    /// </summary>
     [Fact]
-    public void Showcase_Has_HistoryPseudoState_Inside_Composite()
+    public void Showcase_HistoryIsAPropertyOfAComposite_NotAPseudoState()
     {
         var asset = LoadShowcaseModel();
 
         var historyStates = asset.AllStates.Where(s => s.IsHistory || s.IsDeepHistory).ToList();
-        historyStates.Should().NotBeEmpty("Showcase must contain at least one history pseudo-state");
-
-        foreach (var h in historyStates)
-        {
-            h.Parent.Should().NotBeNull("History pseudo-state must have a parent");
-            h.Parent!.Children.Should().HaveCountGreaterThan(1,
-                "History pseudo-state must be inside a composite with multiple children");
-            // Must not be a direct child of the synthetic root (HistoryOutsideComposite guard).
-            h.Parent!.Parent.Should().NotBeNull("History pseudo-state must not be at root level");
-        }
+        historyStates.Should().NotBeEmpty("Showcase must demonstrate history");
+        historyStates.Should().OnlyContain(s => s.Children.Count > 1,
+            "history belongs on a composite with children to resume");
+        asset.AllStates.Should().NotContain(s => s.Name == "HistoryPseudo");
+        historyStates.Select(s => s.Name).Should().Contain("GuardComposite");
     }
 
     [Fact]
@@ -239,12 +236,12 @@ public sealed class HsmShowcaseTests
 
         foreach (var t in asset.AllTransitions)
         {
-            t.GuardFunction.Should().BeNull(
+            (t.Guard?.MethodFqn).Should().BeNull(
                 $"Transition {t.VisualId} must have GuardFunction=null (VE-DEBT-004)");
         }
         foreach (var g in asset.AllGlobalTransitions)
         {
-            g.GuardFunction.Should().BeNull(
+            (g.Guard?.MethodFqn).Should().BeNull(
                 $"Global transition {g.VisualId} must have GuardFunction=null (VE-DEBT-004)");
         }
     }
@@ -257,7 +254,7 @@ public sealed class HsmShowcaseTests
         var stubIdleFqn = "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle";
 
         var transitionsWithAction = asset.AllTransitions
-            .Where(t => t.ActionFunction == stubIdleFqn).ToList();
+            .Where(t => (t.Action?.MethodFqn) == stubIdleFqn).ToList();
         transitionsWithAction.Should().NotBeEmpty(
             $"Showcase must have ≥1 transition with ActionFunction bound to {stubIdleFqn}");
     }
@@ -270,10 +267,10 @@ public sealed class HsmShowcaseTests
         var stubIdleFqn = "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle";
 
         var statesWithStubIdle = asset.AllStates.Where(s =>
-            s.OnEntryAction == stubIdleFqn ||
-            s.OnExitAction == stubIdleFqn ||
-            s.ActivityAction == stubIdleFqn ||
-            s.TimerAction == stubIdleFqn).ToList();
+            (s.OnEntry?.MethodFqn) == stubIdleFqn ||
+            (s.OnExit?.MethodFqn) == stubIdleFqn ||
+            (s.Activity?.MethodFqn) == stubIdleFqn ||
+            (s.Timer?.MethodFqn) == stubIdleFqn).ToList();
 
         statesWithStubIdle.Should().NotBeEmpty(
             $"Showcase must have ≥1 state with an action bound to {stubIdleFqn}");

@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Replication.Tests
             => throw new NotImplementedException();
     }
 
-    class SlowMockTkbDatabase : ITkbDatabase
+    class CountingMockTkbDatabase : ITkbDatabase
     {
         public TkbTemplate TemplateToReturn;
         public int CallCount = 0;
@@ -43,7 +43,6 @@ namespace Fdp.Toolkit.Replication.Tests
         public TkbTemplate GetByType(long tkbType)
         {
             CallCount++;
-            System.Threading.Thread.Sleep(5); // 5ms per entity, exceeds 2ms budget
             return TemplateToReturn;
         }
         public TkbTemplate GetTemplateByEntityType(Fdp.Core.DISEntityType entityType) => null;
@@ -78,7 +77,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterEvent<ConstructionOrder>();
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 123 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(123) });
             repo.AddComponent(entity, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 
@@ -91,36 +90,40 @@ namespace Fdp.Toolkit.Replication.Tests
                 "GhostStateTracker must be removed on promotion.");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4044</c> — the promotion budget is a COUNT (<see cref="GhostPromotionSystem.PromotionsPerFrame"/>), not a wall-clock
+        /// slice: how many ghosts a frame promotes must not depend on how fast the machine is. ⛔ SUPERSEDED: this rail asserted a 2 ms
+        /// stopwatch budget (a 5 ms lookup ⇒ fewer than 10 of 10 promoted) — the very non-determinism CE-4044 removed.
+        /// </summary>
         [Fact]
-        public void Execute_RespectsTimeBudget()
+        public void Execute_PromotesAtMostTheCountBudget_PerFrame_TheRestNextFrame()
         {
             using var repo = new EntityRepository();
 
             var template = new TkbTemplate("Test", 123);
-            var slowTkb = new SlowMockTkbDatabase { TemplateToReturn = template };
-            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(slowTkb, Array.Empty<int>());
-            var sys = new GhostPromotionSystem(slowTkb, elm);
+            var tkb = new CountingMockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(tkb, elm);
 
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<ConstructionOrder>();
 
-            // Create 10 ghost entities; each GetByType call sleeps 5ms, well over the 2ms budget
-            for (int i = 0; i < 10; i++)
+            int ghosts = GhostPromotionSystem.PromotionsPerFrame + 10;
+            for (int i = 0; i < ghosts; i++)
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new TkbIdentity { TkbType = 123 });
+                repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(123) });
                 repo.AddComponent(e, new GhostStateTracker { FirstSeenFrame = 0 });
                 repo.SetLifecycleState(e, EntityLifecycle.Ghost);
             }
 
             sys.Execute(repo, 0f);
-
-            Assert.True(slowTkb.CallCount < 10,
-                $"Processed too many ghosts: {slowTkb.CallCount}. Should be limited by 2ms time budget.");
-            Assert.True(slowTkb.CallCount > 0, "Should have processed at least one ghost.");
+            Assert.Equal(GhostPromotionSystem.PromotionsPerFrame, tkb.CallCount);
+            sys.Execute(repo, 0f);
+            Assert.Equal(ghosts, tkb.CallCount);
         }
-        
+
         [Fact]
         public void Execute_DoesNotPromote_EntityNotInGhostLifecycle()
         {
@@ -138,7 +141,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterEvent<ConstructionOrder>();
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 123 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(123) });
             // Deliberately do NOT set lifecycle to Ghost (stays at default Active)
 
             sys.Execute(repo, 0f);
@@ -146,6 +149,167 @@ namespace Fdp.Toolkit.Replication.Tests
             // Entity should remain unpromoted — TkbIdentity still present, not Constructing
             Assert.True(repo.HasComponent<TkbIdentity>(entity));
             Assert.NotEqual(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
+        }
+
+        // ═══ CE-265 — THE DERIVED GATE ══════════════════════════════════════════════════════════════
+        //  📄 docs/designs/tkb-1/DESIGN.md §6.6a (design) · §6.6b (as-built).
+        //  ⭐ These live HERE, in this system's own suite, rather than in a new class: the unit-level
+        //    derivation has its own rails in MandatoryComponentResolverTests; what is asserted below is
+        //    that THIS SYSTEM actually gates on them.
+
+        private sealed class SpatialLikeTranslator : ITkbEntityTranslator
+        {
+            public IEnumerable<Type> GetConsumedDescriptors()
+            { yield return typeof(Fdp.Toolkit.Tkb.Domain.TkbMasterDto); }
+            public IEnumerable<Type> GetProducedComponents() { yield return typeof(SimTransform); }
+            public void Inject(EntityRepository repo, Entity entity, TkbTemplate template) { }
+        }
+
+        /// <summary>The vehicle shape plus the one descriptor pairing that makes <c>SimTransform</c>
+        /// ingressible, mirroring <c>GeoSpatialEgressTranslator.TargetComponentIds</c>.</summary>
+        private static (EntityRepository repo, GhostPromotionSystem sys, Entity ghost) GatedGhost()
+        {
+            var template = new TkbTemplate("VehicleShaped", 4242);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TkbMasterDto { CustomName = "VehicleShaped" });
+
+            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(
+                mockTkb, elm, new ITkbEntityTranslator[] { new SpatialLikeTranslator() });
+
+            var repo = new EntityRepository();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterEvent<ConstructionOrder>();
+
+            Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider
+                .GetDescriptorMap(repo)
+                .RegisterFromTranslator(10L, new[] { ComponentType<SimTransform>.ID });
+
+            var ghost = repo.CreateEntity();
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4242) });
+            repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
+            repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
+
+            return (repo, sys, ghost);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The gate now exists WITHOUT anyone authoring it.</b> This template's
+        /// <c>MandatoryComponents</c> list is EMPTY — exactly what <c>TkbDeserializer</c> produces for a
+        /// file-loaded template — and the ghost is still held back until its position arrives.
+        ///
+        /// <para>🔴 Before <c>CE-265</c> this promoted immediately: the file path could author no
+        /// requirements, so every file-loaded entity promoted at the origin and then jumped. ⛔ The failure
+        /// was SILENT, which is why the assertion message names it.</para>
+        /// </summary>
+        [Fact]
+        public void AGhostMissingADerivedComponent_IsHeldBack_EvenWithNoAuthoredRequirements()
+        {
+            var (repo, sys, ghost) = GatedGhost();
+            using (repo)
+            {
+                sys.Execute(repo, 0f);
+
+                Assert.Equal(EntityLifecycle.Ghost, repo.GetLifecycleState(ghost));
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>…and it is a GATE, not a block.</b> The same ghost promotes the moment the component the
+        /// derivation asked for actually arrives. ⛔ Without this half the rail above would also pass on a
+        /// resolver that simply never promotes anything.
+        /// </summary>
+        [Fact]
+        public void TheSameGhost_PromotesOnceTheDerivedComponentArrives()
+        {
+            var (repo, sys, ghost) = GatedGhost();
+            using (repo)
+            {
+                sys.Execute(repo, 0f);
+                Assert.Equal(EntityLifecycle.Ghost, repo.GetLifecycleState(ghost));
+
+                repo.AddComponent(ghost, new SimTransform());
+                sys.Execute(repo, 0f);
+
+                Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
+            }
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b>A host that does not REGISTER the component must not be gated on it</b> —
+        /// <c>GhostPromotionSystem</c> has no registration guard of its own, so a derived requirement it
+        /// could never satisfy would abort promotion every frame, forever. ⚠ This is the same repository
+        /// and template as the rail above, differing only in the registration.
+        /// </summary>
+        [Fact]
+        public void AHostThatDoesNotRegisterTheComponent_PromotesImmediately()
+        {
+            var template = new TkbTemplate("VehicleShaped", 4243);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TkbMasterDto { CustomName = "VehicleShaped" });
+
+            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(
+                mockTkb, elm, new ITkbEntityTranslator[] { new SpatialLikeTranslator() });
+
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
+            repo.RegisterEvent<ConstructionOrder>();
+            // ⛔ SimTransform deliberately NOT registered.
+
+            Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider
+                .GetDescriptorMap(repo)
+                .RegisterFromTranslator(10L, new[] { ComponentType<SimTransform>.ID });
+
+            var ghost = repo.CreateEntity();
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4243) });
+            repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
+            repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
+        }
+
+        /// <summary>
+        /// CE-4080 - a ghost promoted BEFORE its first WorldPos lands (the live late-joining Player: its descriptor pairings arrive on the
+        /// network module's first tick, after the first promotions, so nothing gates them) is stamped a pose by SpatialCoreTkbTranslator. That pose is
+        /// UNTURNED - identity - never default(SimTransform)'s zero quaternion, which is no rotation at all: Quaternion.Inverse of it is NaN and
+        /// the FPS crosshair's part test died on it (a Player node crashed seconds after possessing a tank).
+        /// Red-proof: stamping new SimTransform() again gives the rotation (0,0,0,0) and the assertion goes red.
+        /// </summary>
+        [Fact]
+        public void CE4080_AGhostPromotedBeforeItsPoseArrives_IsStampedUnturned_NotAZeroQuaternion()
+        {
+            var template = new TkbTemplate("VehicleShaped", 4244);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TkbMasterDto { CustomName = "VehicleShaped" });
+
+            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(
+                mockTkb, elm, new ITkbEntityTranslator[] { new Fdp.Toolkit.Spatial.SpatialCoreTkbTranslator() });
+
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterEvent<ConstructionOrder>();
+            // no descriptor pairing registered: the live ordering (the map fills on the network module's first tick) means NO gate, promoted at once
+
+            var ghost = repo.CreateEntity();
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4244) });
+            repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
+            repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
+            Assert.True(repo.HasComponent<SimTransform>(ghost));
+            Assert.Equal<System.Numerics.Quaternion>(System.Numerics.Quaternion.Identity, repo.GetComponentRO<SimTransform>(ghost).Rotation);
         }
     }
 }

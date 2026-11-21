@@ -234,7 +234,7 @@ during normalization).
 | `BlueprintAsset.cs` | Root asset object. Holds header, identity, dispatch kind, declarations, and graphs. |
 | `Declarations.cs` | `VariableDecl`, `ParameterDecl`, `EventDispatcherDecl`, `CustomEventDecl`, `BlueprintTypeRef`. |
 | `GraphTypes.cs` | `Graph`, `Pin`, `Link`, `GraphKind`, `NodeMetadata`, `AssetMetadata`, `Header`, `NodeStatus`. |
-| `Nodes.cs` | `Node` hierarchy (42 concrete node kinds, one `[JsonDerivedType]` entry per kind -- confirmed by direct count). Includes `PublishEvent`, `MakeStruct`, `BreakStruct`, `SetMembers`, `FlowForEach`, `Compare`, `BinaryOp`, `BooleanOp`, `Not`, `GetComponent`, `GetParameter`, `GetAllParameters`, `GetShared`, `SetShared`, `When`, `SpawnEqsSensor`, `ReadEqsResult`, `ScoreDecision`, `ReadRankedResult`, `CallPeerBlueprint`, and the squad quartet (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`). `FunctionCallNode` additionally carries a `TargetGraphId` + `TrailingContext` pair: when `TargetGraphId` is non-empty the node is an in-blueprint call to a local `Function` graph (lowers to `IrOp_GraphCall`, validated by `V_FunctionGraphCallRules`) rather than a CLR method call. |
+| `Nodes.cs` | `Node` hierarchy (42 concrete node kinds, one `[JsonDerivedType]` entry per kind -- confirmed by direct count). Includes `PublishEvent`, `MakeStruct`, `BreakStruct`, `SetMembers`, `FlowForEach`, `Compare`, `BinaryOp`, `BooleanOp`, `Not`, `GetComponent`, `GetParameter`, `GetAllParameters`, `GetAllVariables`, `SetVariables`, `When`, `SpawnEqsSensor`, `ReadEqsResult`, `ScoreDecision`, `ReadRankedResult`, `CallPeerBlueprint`, and the squad quartet (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`). `FunctionCallNode` additionally carries a `TargetGraphId` + `TrailingContext` pair: when `TargetGraphId` is non-empty the node is an in-blueprint call to a local `Function` graph (lowers to `IrOp_GraphCall`, validated by `V_FunctionGraphCallRules`) rather than a CLR method call. |
 
 ### `Compiler/` -- Pipeline root
 
@@ -285,9 +285,9 @@ during normalization).
 | `V_DeterminismOrdering` | (info only) | Checks that node/pin ordering in the JSON is stable. |
 | `V_WhenNodeRules` | BP2001-BP2014, BP2016, BP2017 | `WhenNode` payload fields are consistent with `Mode`; `BestEffort` events emit BP2016; Brain-targeted Blueprint subscribing to a Muscle-local event emits BP2017. |
 | `V_FlowForEachRules` | BP2050 | `FlowForEachNode`'s "Body" exec-subgraph must be latent-free (Branch nodes are allowed -- they lower to a nested inline `if`/`else`). |
-| `V_ReadEqsResultNodeRules` | BP2020, BP2021 | `ReadEqsResultNode` is only valid in Instance Blueprints (`BP2020`); `SensorVariableName` must reference a declared `EqsSensorHandle`-typed variable (`BP2021`). |
+| `V_ReadEqsResultNodeRules` | BP2020, BP2021 | `ReadEqsResultNode` is only valid in Instance Blueprints (`BP2020`); `SensorVariableName` must reference a declared `EqsSensorHandle`-typed variable (`BP2021`). ⭐ `CE-3054`: a non-zero `UnitSensorKind` (one `SensorModality` bit) replaces the variable — the unit's own sensor of that kind; the same rule holds for `When EqsResult` (BP2010). [Sensors §7.8a](../../../DESIGN_Sensors_And_Doctrine.md) |
 | `V_SpawnEqsSensorNodeRules` | BP2030, BP2031, BP2032 | `SpawnEqsSensorNode` is only valid in Instance Blueprints (`BP2030`); `TemplateAssetId` must be non-empty and present in `IEqsTemplateCatalog` when provided (`BP2031`); `InstanceId` derived from `node.Id.GetHashCode()` must not collide with another sensor in the same graph (`BP2032`). |
-| `V_SharedStateRules` | BP2040, BP2041, BP2042 | `GetSharedNode`/`SetSharedNode.SharedTypeId` must be non-empty (`BP2040`) and a well-formed dotted CLR type name (`BP2041`); forbidden in Library dispatch, which has no `self` in scope (`BP2042`). |
+| `V_SharedStateRules` | ⛔ **REMOVED by `CE-440`** — BP2040, BP2041, BP2042 | `GetSharedNode`/`SetSharedNode.SharedTypeId` must be non-empty (`BP2040`) and a well-formed dotted CLR type name (`BP2041`); forbidden in Library dispatch, which has no `self` in scope (`BP2042`). |
 | `V_FunctionGraphCallRules` | BP1650-BP1654 | Validates `FunctionCallNode.TargetGraphId` in-blueprint function calls: no latent nodes in the called graph (`BP1650`); target resolves to a `Function` graph (`BP1651`); caller arg count matches target `Inputs.Count` (`BP1652`); positional argument `TypeId` compatibility (`BP1653`); no call cycles (`BP1654`). |
 | `V_ExecOutFanOut` | BP1411 | Each exec-output pin may drive at most one successor (fan-out is silently dropped by the scheduler); use a `SequenceNode` to fan out. |
 
@@ -314,7 +314,7 @@ during normalization).
 | `ITypeRegistry.cs` | `ITypeRegistry`: `TryResolve(BlueprintTypeRef) -> IrTypeRef` + `TryGetCoercion(from, to) -> string`. |
 | `StaticTypeRegistry.cs` | Default registry: C# primitives, `System.Numerics` vectors, `Fdp.Core.Entity`, common aliases. Coercion table (8 widening numeric rules). |
 | `BuiltInNodeRegistry.cs` | Singleton stub for `INodeRegistry`. |
-| `BuiltInEngineEventCatalog.cs` | 11 built-in engine events in three categories: general (`HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`), animation lifecycle events (`MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`; all Reliable + propagates across nodes), and animation notify events (`FootstepEvent` muscle-local only, `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`). |
+| `BuiltInEngineEventCatalog.cs` | 11 built-in engine events in three categories: general (`HitEvent`, `BehaviorFinishedEvent`, `SensorChangedEvent`; `TargetVisibleEvent` retired by `CE-3052`), animation lifecycle events (`MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`; all Reliable + propagates across nodes), and animation notify events (`FootstepEvent` muscle-local only, `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`). |
 | `BuiltInChannelCommandCatalog.cs` | Five built-in channel commands: `MoveTo`, `FollowRoute`, `AimAndFire`, `OpenDoor`, `EjectPassengers`. |
 | `BuiltInWaitPrimitiveCatalog.cs` | Five built-in wait primitives for channel and event waits. |
 | `IClrSignatureResolver.cs` | `IClrSignatureResolver`, `ClrMethodSig`, `ClrParamInfo` -- reflection-free `FunctionCallNode` signature resolution for the netstandard2.0 generator host; implemented by a project that can load the target assembly (e.g. the editor). |
@@ -898,7 +898,7 @@ assembly, in-place memory patch is safe; if not, a full re-registration is requi
 | BP2001-BP2017 | Validate | Error/Warning | `WhenNode` payload/mode/edge consistency (`V_WhenNodeRules`); BP2016 (BestEffort QoS) and BP2017 (non-propagating event to a Brain node) are warnings/errors surfaced by the animation subsystem's DDS integration. |
 | BP2020-2021 | Validate | Error | `ReadEqsResultNode` dispatch/sensor-variable rules. |
 | BP2030-2032 | Validate | Error | `SpawnEqsSensorNode` dispatch/template/instance-id-collision rules. |
-| BP2040-2042 | Validate | Error | `GetSharedNode`/`SetSharedNode.SharedTypeId` empty, malformed, or used in unsupported (Library) dispatch. |
+| BP2040-2042 | ⛔ **REMOVED by `CE-440`** — Validate | Error | `GetSharedNode`/`SetSharedNode.SharedTypeId` empty, malformed, or used in unsupported (Library) dispatch. |
 | BP2050 | Validate | Error | `FlowForEachNode` body contains a latent node. |
 | BP3010 | Normalize | Warning | Orphan node eliminated. |
 | BP3011 | Normalize | Warning | Implicit cast inserted. |
@@ -918,4 +918,4 @@ assembly, in-place memory patch is safe; if not, a full re-registration is requi
 | `Fdp.Core` | Provides `Entity`, `EntityRepository`, and ECS interfaces referenced in `StaticTypeRegistry`, `EmissionContext.WorldVar`, and generated code. |
 | `Fdp.Toolkit.Behavior` | Provides `BehaviorRegistry`, `LocomotionChannel`, `WeaponChannel`, `BehaviorFinishedEvent`, and other types appearing in the built-in catalogs. |
 | `Fdp.Toolkit.Combat.Contracts` | Source of `HitEvent` referenced in `BuiltInEngineEventCatalog`. |
-| `Fdp.Toolkit.Perception.Events` | Source of `TargetVisibleEvent` referenced in `BuiltInEngineEventCatalog`. |
+| `Fdp.Toolkit.Perception.Events` | Source of `SensorChangedEvent` referenced in `BuiltInEngineEventCatalog` (`TargetVisibleEvent` retired, `CE-3052`). |

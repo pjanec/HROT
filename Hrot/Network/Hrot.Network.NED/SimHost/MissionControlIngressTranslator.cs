@@ -1,4 +1,5 @@
 using System;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Hrot.Map.Common.Dds;
@@ -32,13 +33,12 @@ namespace Hrot.Network.NED.SimHost
     /// all handled by <c>MissionControlExecutionSystem</c>.
     /// </para>
     /// </summary>
-    public sealed class MissionControlIngressTranslator : IDescriptorTranslator
+    public sealed class MissionControlIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MissionControlRequest";
 
         private readonly DdsReader<MissionControlRequest>? _reader;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MissionControlRequest>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMissionControlRequest;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -60,6 +60,12 @@ namespace Hrot.Network.NED.SimHost
         }
 
         /// <inheritdoc/>
+        /// <summary>⭐ R-4007 (Q91 §4-M) — a one-shot world event: discarded while the node is frozen for a join.</summary>
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+
+        /// <inheritdoc/>
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
@@ -80,6 +86,7 @@ namespace Hrot.Network.NED.SimHost
                     TargetEntityId = req.TargetEntityId,
                     BaseVersion    = req.BaseVersion,
                     Payload        = MapToNeutralPayload(req.Payload),
+                    IsRemote       = true,   // ⭐ F6 — never forwarded again
                 });
             }
         }
@@ -126,6 +133,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

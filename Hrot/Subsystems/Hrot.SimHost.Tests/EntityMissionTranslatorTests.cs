@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
             return world;
         }
 
-        private static EntityMission MakeMission(long entityId = 42)
+        private static EntityMission MakeMission(int entityId = 42)
         {
             return new EntityMission
             {
@@ -99,7 +99,7 @@ namespace Hrot.SimHost.Tests
                 "MissionPlanQueue must be present after ApplyToEntity.");
 
             var queue = ((ISimulationView)world).GetComponentRO<MissionPlanQueue>(entity);
-            Assert.Equal(mission.Plan.Tasks.Count, queue.PhaseCount);
+            Assert.Equal(mission.Plan.Tasks.Count, queue.TaskCount);
         }
 
         /// <summary>
@@ -132,7 +132,7 @@ namespace Hrot.SimHost.Tests
             var entity = world.CreateEntity();
 
             // Seed the component (represents a prior ingress sample).
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
             Assert.True(world.HasComponent<MissionPlanQueue>(entity));
 
             // Simulate the command-buffer playback that would result from
@@ -204,7 +204,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(42));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1)); // HasAuthority = true
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -226,7 +226,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(10));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1)); // HasAuthority = false
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -252,7 +252,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(7));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -279,7 +279,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(5));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -288,7 +288,7 @@ namespace Hrot.SimHost.Tests
             translator.ScanAndPublish(world);
 
             // Mutate the component â€” this advances GlobalVersion and marks the table dirty.
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var ex = Record.Exception(() => translator.ScanAndPublish(world));
             Assert.Null(ex);
@@ -312,9 +312,119 @@ namespace Hrot.SimHost.Tests
             var spawner     = new NetworkSpawningSystem(tkb, elm, entityMap, idAllocator, 1);
 
             // Note: SimHostModule constructor only receives the spawner â€” no participant, no systems.
-            var ex = Record.Exception(() => new SimHostModule(spawner));
+            var ex = Record.Exception(() => new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawner));
 
             Assert.Null(ex);
+        }
+
+        // ── CE-483 (egress half) — the wire carries the mission's progress ───────────────────────
+        // 📄 docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md §4c W1–W3.
+
+        private static MissionPlanQueue Queue(byte phaseCount, byte current, byte halted = 0, params MissionPhaseOutcome[] outcomes)
+        {
+            var q = new MissionPlanQueue { TaskCount = phaseCount, CurrentTask = current, Halted = halted };
+            for (int i = 0; i < outcomes.Length; i++) q.Outcomes[i] = outcomes[i];
+            return q;
+        }
+
+        private static eTaskState[] States(in MissionPlanQueue q)
+        {
+            var s = new eTaskState[q.TaskCount];
+            for (int i = 0; i < q.TaskCount; i++) s[i] = Hrot.Map.Common.Replication.MissionProgressWire.StateOf(in q, i);
+            return s;
+        }
+
+        /// <summary>W1: Done ⇒ ✓, Failed ⇒ ✗, the running phase ACTIVE, the rest PLANNED — not "everything but the current is
+        /// PLANNED", which sent a finished task as planned.</summary>
+        [Fact]
+        public void CE483_StateOf_RecordedOutcomeFirst_ThenActive()
+        {
+            var q = Queue(4, current: 2, halted: 0, MissionPhaseOutcome.Done, MissionPhaseOutcome.Failed);
+            Assert.Equal(new[] { eTaskState.TASK_DONE, eTaskState.TASK_FAILED, eTaskState.TASK_ACTIVE, eTaskState.TASK_PLANNED }, States(q));
+        }
+
+        /// <summary>W1: a halted plan has NO active task; its current (faulted) phase reads FAILED.</summary>
+        [Fact]
+        public void CE483_StateOf_Halted_NoActiveTask()
+        {
+            var q = Queue(3, current: 1, halted: 1, MissionPhaseOutcome.Done, MissionPhaseOutcome.Failed);
+            Assert.Equal(new[] { eTaskState.TASK_DONE, eTaskState.TASK_FAILED, eTaskState.TASK_PLANNED }, States(q));
+        }
+
+        /// <summary>W3: encode → decode restores the progress — running, halted and complete plans.</summary>
+        [Theory]
+        [InlineData(4, 2, 0)]   // running on phase 2 after a Done and a (3a) Failed
+        [InlineData(4, 1, 1)]   // halted on phase 1
+        [InlineData(2, 2, 0)]   // complete
+        public void CE483_Decode_RoundTripsProgress(byte count, byte current, byte halted)
+        {
+            var outcomes = new MissionPhaseOutcome[count];
+            for (int i = 0; i < current && i < count; i++) outcomes[i] = i % 2 == 0 ? MissionPhaseOutcome.Done : MissionPhaseOutcome.Failed;
+            if (halted != 0) outcomes[current] = MissionPhaseOutcome.Failed;
+            var sent = Queue(count, current, halted, outcomes);
+
+            var received = new MissionPlanQueue { TaskCount = count };
+            Hrot.Map.Common.Replication.MissionProgressWire.Decode(States(sent), ref received);
+
+            Assert.Equal(sent.CurrentTask, received.CurrentTask);
+            Assert.Equal(sent.Halted, received.Halted);
+            for (int i = 0; i < count; i++) Assert.Equal(sent.Outcomes[i], received.Outcomes[i]);
+        }
+
+        /// <summary>W3 through the real ingress: a replica no longer restarts the plan at phase 0.</summary>
+        [Fact]
+        public void CE483_Ingress_RestoresCurrentPhaseAndHalt()
+        {
+            using var world = CreateWorld();
+            var entity = world.CreateEntity();
+            var mission = MakeMission(entityId: 1);
+            var task = mission.Plan.Tasks[0];
+            mission.Plan.Tasks = new List<MissionTask>
+            {
+                task with { State = eTaskState.TASK_DONE },
+                task with { State = eTaskState.TASK_FAILED },
+                task with { State = eTaskState.TASK_PLANNED },
+            };
+
+            var entityMap = new NetworkEntityMap();
+            using var participant = new DdsParticipant();
+            var translator = new EntityMissionIngressTranslator(participant, entityMap, new BehaviorRegistry(), new GhostCreationSystem(entityMap));
+            translator.ApplyToEntity(entity, mission, world);
+
+            var q = ((ISimulationView)world).GetComponentRO<MissionPlanQueue>(entity);
+            Assert.Equal(1, q.CurrentTask);
+            Assert.Equal(1, q.Halted);
+            Assert.Equal(MissionPhaseOutcome.Done, q.Outcomes[0]);
+            Assert.Equal(MissionPhaseOutcome.Failed, q.Outcomes[1]);
+        }
+
+        /// <summary>W2: once published, a phase advance / outcome / halt re-publishes WITHOUT anyone calling MarkDirty
+        /// (MissionDirectorSystem never does); an unchanged plan does not.</summary>
+        [Fact]
+        public void CE483_Egress_RepublishesOnProgress_NotOtherwise()
+        {
+            using var world = CreateWorld();
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new NetworkIdentity(9));
+            world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            world.SetComponent(entity, Queue(3, current: 0));
+
+            var entityMap = new NetworkEntityMap();
+            using var participant = new DdsParticipant();
+            var translator = new EntityMissionEgressTranslator(participant, entityMap);
+
+            translator.ScanAndPublish(world);
+            Assert.Equal(1, translator.SentSampleCount);
+            translator.ScanAndPublish(world);
+            Assert.Equal(1, translator.SentSampleCount);              // unchanged ⇒ not re-sent
+
+            world.SetComponent(entity, Queue(3, current: 1, halted: 0, MissionPhaseOutcome.Done));
+            translator.ScanAndPublish(world);
+            Assert.Equal(2, translator.SentSampleCount);              // advanced ⇒ re-sent, no MarkDirty
+
+            world.SetComponent(entity, Queue(3, current: 1, halted: 1, MissionPhaseOutcome.Done, MissionPhaseOutcome.Failed));
+            translator.ScanAndPublish(world);
+            Assert.Equal(3, translator.SentSampleCount);              // halted ⇒ re-sent
         }
     }
 }

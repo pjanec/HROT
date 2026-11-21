@@ -1,11 +1,20 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using Fdp.Core.Logging;
 
 namespace Hrot.ClusterRunner.Presentation;
 
 internal sealed class RaylibPresentationShell : IPresentationShell
 {
+    /// <summary>
+    /// ⭐⭐ <b>The user layout folder's name</b> — 📌 <c>LayoutPaths</c> takes it as an argument so
+    /// <c>Fdp.Presentation</c> never learns what "HROT" is *(the design's constraint 1)*.
+    /// ⭐ <c>internal</c> so <c>LocalWindowController</c> names the same folder the ini went to, ⛔ rather
+    /// than repeating the literal and re-creating the split this batch is closing.
+    /// </summary>
+    internal const string AppFolderName = "HROT";
+
     private Raylib_cs.Texture2D _atlasTexture;
     private Raylib_cs.Font _gizmoFont;
     private IntPtr _iniFilenamePtr;
@@ -22,12 +31,18 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         // readability from larger baked fonts + the UI-scale slider instead. Revisit if/when the
         // ImGui backend gains proper framebuffer-scale handling.
         Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow);
+        bool hidden = Fdp.Presentation.Raylib.HiddenWindow.ApplyBeforeInit();   // ⭐ CE-4386 — HROT_HIDDEN_WINDOW=1: no window appears, takes focus or shows in the taskbar
         Raylib_cs.Raylib.InitWindow(width, height, title);
+        Fdp.Presentation.Raylib.HiddenWindow.AfterInit();
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);
+        Hrot.UI.Common.RunMode.FramePacing.Register(Raylib_cs.Raylib.SetTargetFPS, targetFps);   // ⭐ CE-4316 — Run to … lifts the cap here
         TrySetWindowIcon();
-        TryApplyTaskbarIcons();
+        if (!hidden) TryApplyTaskbarIcons();
     }
+
+    /// <inheritdoc/>
+    public void SetWindowTitle(string title) => Raylib_cs.Raylib.SetWindowTitle(title);
 
     // ── Windows taskbar icon (console + GUI windows) ─────────────────────────────
 
@@ -119,16 +134,15 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         }
     }
 
-    public void SetupImGui()
+    public void SetupImGui(string iniPath)
     {
-        rlImGui_cs.rlImGui.Setup(true);
+        Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
         var io = ImGuiNET.ImGui.GetIO();
         io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string configDir = Path.Combine(appData, "HROT");
-        Directory.CreateDirectory(configDir);
-        string iniPath = Path.Combine(configDir, "imgui.ini");
+        // ⭐⭐ Batch 103 (103a) — the same helper FdpApplication uses. 📌 See its remark: the two
+        //    computations were byte-identical and independent.
+        //    ⭐ CE-4260 — the path is the app's own layout's, passed in (the editor and the Replay Browser each have one).
         _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
         unsafe
         {
@@ -159,6 +173,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
             Raylib_cs.Raylib.UnloadTexture(_atlasTexture);
         if (_gizmoFont.Texture.Id != 0)
             Raylib_cs.Raylib.UnloadFont(_gizmoFont);
+        Fdp.Presentation.Raylib.HiddenWindow.Release();
         Raylib_cs.Raylib.CloseWindow();
     }
 
@@ -175,24 +190,38 @@ internal sealed class RaylibPresentationShell : IPresentationShell
     {
         byte[] pngBytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
         var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
+        // Dimensions from the DECODED image (a CPU operation, valid even if the GPU upload below
+        // fails) so the atlas UV math has a correct, non-zero divisor regardless.
+        int atlasWidth = img.Width, atlasHeight = img.Height;
         _atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
+        Raylib_cs.Raylib.UnloadImage(img);
+
+        // A headless machine whose Xvfb provides no GL driver returns texture id 0 here — the
+        // "null icon-atlas handle" case. It is not fatal: raylib's id 0 is the built-in 1x1 white
+        // texture, so icons draw as blank quads rather than crashing. Say so once, keep the decoded
+        // dimensions, and run on. (With a real GL context — hardware or Xvfb+Mesa/llvmpipe — id != 0
+        // and this path is not taken.)
+        if (_atlasTexture.Id == 0)
+        {
+            FdpLog<RaylibPresentationShell>.Warn(
+                "[Icons] The icon atlas texture failed to upload (GPU texture id 0). The editor will "
+              + "run with blank icons. On a headless Linux host, launch under Xvfb with a GL driver "
+              + "(e.g. LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe xvfb-run …).");
+            return new Fdp.Presentation.Icons.IconAtlas((nint)0, atlasWidth, atlasHeight, 16f);
+        }
+
         // Bilinear filtering so 16x16 silk cells resample smoothly when drawn larger than
         // native (DPI-scaled menu gutters, the blueprint node picker, etc.) instead of the
         // default nearest/point sampling that shows blocky pixels on upscale. At 1:1 (16px)
         // it is identical to point sampling, so no downside for native-size icons.
         Raylib_cs.Raylib.SetTextureFilter(_atlasTexture, Raylib_cs.TextureFilter.Bilinear);
-        Raylib_cs.Raylib.UnloadImage(img);
         return new Fdp.Presentation.Icons.IconAtlas(
             (nint)_atlasTexture.Id, _atlasTexture.Width, _atlasTexture.Height, 16f);
     }
 
     public void LoadGizmoFont()
     {
-        byte[] ttf = Fdp.Presentation.Fonts.EmbeddedFontResources.GetRobotoRegularTtfBytes();
-        // Load at 32-pixel base size for crisp downscaling to 9–13 px gizmo text.
-        // glyphCount = 0 → load the default character set (covers ASCII + Latin).
-        _gizmoFont = Raylib_cs.Raylib.LoadFontFromMemory(".ttf", ttf, 32, null, 0);
-        Raylib_cs.Raylib.SetTextureFilter(_gizmoFont.Texture, Raylib_cs.TextureFilter.Bilinear);
-        GizmoMap.Presentation.DebugPrimitiveRenderer2D.TextFont = _gizmoFont;
+        // ⭐ B-17 P7 ⑥b — the ONE loader (Roboto 32 px, ASCII + · ° — – × …), shared with PlayerApplication; it registers the font too.
+        _gizmoFont = Fdp.Presentation.Fonts.GizmoFont.Load();
     }
 }

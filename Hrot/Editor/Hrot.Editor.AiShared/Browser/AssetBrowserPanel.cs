@@ -1,8 +1,36 @@
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using Hrot.Editor.AiShared.Catalog;
 using NodeEditor.Core.Interfaces;
 
 namespace Hrot.Editor.AiShared.Browser;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — this panel's own state, dumped.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+/// §Example.
+///
+/// <para>⛔ <b>This panel has no id of its own</b> — the queue's "plain <c>*Panel</c>" gotcha:
+/// <see cref="AssetBrowserPanel"/> is built and owned by whichever host embeds it
+/// (<see cref="AssetBrowserDockedWindow"/> today; <c>AssetPickerModal</c> a second, per its options
+/// doc). ⇒ ⭐ <see cref="AssetBrowserPanel.BuildViewModel"/> takes <c>panelId</c>/<c>panelKind</c> as
+/// arguments rather than owning them, and the HOST does the actual <c>PanelSnapshot.Register</c> /
+/// <c>DeclareInstrumented</c> calls — the same caller-registers shape the queue's <c>NodeEdit</c> row
+/// describes, applied to an in-assembly generic panel rather than a cross-repo one.</para>
+/// </summary>
+public sealed record AssetBrowserPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    IReadOnlyList<string> Tabs,
+    string ActiveTab,
+    string Filter,
+    string? SelectedAssetName,
+    int    VisibleAssetCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Bitmask filter for <see cref="AssetKind"/> values used by
@@ -41,9 +69,16 @@ public static class AssetKindFilterMapping
         AssetKind.Blackboard => AssetKindFilter.Blackboard,
         AssetKind.Utility    => AssetKindFilter.Utility,
         AssetKind.Scenario   => AssetKindFilter.Scenario,
+        // ⭐ CE-4098 — a recording is listed by the master's exercise inventory, never by the catalog: no tab, no flag.
+        AssetKind.Recording  => throw new ArgumentOutOfRangeException(nameof(kind), kind,
+            $"{nameof(AssetKind)}.{kind} is not a catalog asset (it has no browser tab); the master's exercise inventory lists recordings."),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind,
             $"Unknown {nameof(AssetKind)} value: {kind}")
     };
+
+    /// <summary>⭐ CE-4098 — whether <paramref name="kind"/> lives in the <see cref="Catalog.IAssetCatalog"/> (every kind but
+    /// <see cref="AssetKind.Recording"/>) and so has an <see cref="AssetKindFilter"/> flag and a browser tab.</summary>
+    public static bool IsCatalogKind(AssetKind kind) => kind != AssetKind.Recording;
 
     /// <summary>
     /// Returns the permitted <see cref="AssetKind"/> values from <paramref name="filter"/>,
@@ -66,8 +101,58 @@ public static class AssetKindFilterMapping
 /// Options for <see cref="AssetBrowserPanel"/>. Define all fields now so later
 /// batches do not change the shape; only <see cref="Kinds"/> is wired in this batch.
 /// </summary>
+/// <summary>
+/// ⭐⭐⭐ <b>ONE right-click item on an asset row.</b>
+/// 🔒 <b>User ruling, <c>2026-08-22</c>:</b> <i>"asset related context menu items then, still nothing
+/// for a details panel view."</i> 📄 And the design agrees —
+/// <c>AI_Editor_Shared_Infrastructure.md</c> §16.1: <i>"Find References … Used by <b>the right-click
+/// menu</b>, the Find Results window, and indirectly by the rename preview."</i>
+///
+/// <para>⭐⭐ <b>A LIST of commands, not two hard-coded items.</b> §16.1 names <b>five</b> refactor
+/// operations *(find references · rename action · rename event · rename asset · delete with
+/// dangling-reference report)*; ⛔ hard-coding today's two would make the third a panel edit. ⭐ The
+/// panel stays ignorant of what a refactor IS — it draws labels and invokes callbacks.</para>
+///
+/// <para>⚠ <b>Greying carries a REASON</b> — 📌 the user's <c>2026-08-17</c> ruling: <i>"showing
+/// explanatory tooltip would be better than allowing user to click the button and then saying that it
+/// is not possible."</i> ⛔ A hidden item teaches nothing.</para>
+/// </summary>
+/// <param name="Label">⭐ What the menu shows.</param>
+/// <param name="Invoke">⭐ What it does to that asset.</param>
+/// <param name="IsEnabled">⚠ <see langword="null"/> ⇒ always enabled.</param>
+/// <param name="DisabledReason">
+///   ⭐ Shown as a tooltip when <paramref name="IsEnabled"/> says no. ⛔ A refusal without a reason is
+///   the thing the ruling above forbids.
+/// </param>
+public sealed record AssetRowCommand(
+    string                        Label,
+    Action<IEditableAsset>        Invoke,
+    Func<IEditableAsset, bool>?   IsEnabled      = null,
+    Func<IEditableAsset, string>? DisabledReason = null);
+
 public sealed class AssetBrowserPanelOptions
 {
+    /// <summary>
+    /// ⭐⭐⭐ <b>The asset-row right-click menu — OPT-IN, per host.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-22</c>:</b> <i>"picker should not have that menu."</i>
+    /// 📐 And that is why it is an OPTION rather than a panel feature: <b>one panel, two hosts</b> —
+    /// the docked Asset Browser MANAGES assets, the <c>AssetPickerModal</c> only PICKS one. ⛔ Offering
+    /// <i>"Rename…"</i> mid-pick is a different job wearing the same widget.</para>
+    ///
+    /// <para>⭐ Empty by default, so a host that says nothing gets no menu — ⚠ which makes the picker
+    /// correct by omission rather than by remembering to opt out.</para>
+    /// </summary>
+    public IReadOnlyList<AssetRowCommand> RowCommands { get; init; } = Array.Empty<AssetRowCommand>();
+
+    /// <summary>
+    /// ⭐ CE-4098 (AQ108 D19) — the user's Recent lists (one per kind, persisted in the user folder): the panel draws a <i>Recent</i>
+    /// section first in every tab and an activation pushes to it. ⭐ The SAME store the Open-Asset picker's
+    /// <c>PickerRegistry.Recent</c> reads, so a pick in either shows in both. <see langword="null"/> ⇒ no Recent section
+    /// (a headless rail, a host with no user folder) — ⚠ a production host that has the store must pass it.
+    /// </summary>
+    public NodeEditor.UI.Picker.RecentStore? Recent { get; init; }
+
     /// <summary>
     /// Which asset kinds are permitted. Defaults to <see cref="AssetKindFilter.All"/>.
     /// <b>Wired in this batch (MTB-P4-T3).</b>
@@ -114,6 +199,10 @@ public sealed class AssetBrowserPanel
     private readonly IAssetCatalog _catalog;
     private readonly IIconProvider _icons;
     private readonly AssetBrowserPanelOptions _options;
+
+    /// <summary>⭐ The options this panel was BUILT with — 📌 <c>R-67</c>: a rail asks the constructed
+    /// object which commands its host opted into, ⛔ never the call site that built it.</summary>
+    public AssetBrowserPanelOptions Options => _options;
     private int _activeTabIndex;
     private string _filter = "";
 
@@ -125,10 +214,16 @@ public sealed class AssetBrowserPanel
     private readonly Dictionary<AssetKind, bool> _kindChipsEnabled = new();
 
     // Last-opened-per-kind memory (§10.1).
-    private readonly Dictionary<AssetKind, string> _lastOpenedByKind = new();
+    // ⭐ CE-1441 (audit #15) — there is NO second "last opened" memory: the last-opened asset of a kind is the HEAD of that kind's
+    // Recent list in the one RecentStore (the host's persisted one when it passed it, else a private in-memory one so a headless
+    // panel still remembers). LastOpenedByKind / the initial reveal are read from it.
+    private readonly NodeEditor.UI.Picker.RecentStore _memory;
 
     // Expanded folder paths per kind (initial reveal from InitialFullPath / last-opened).
     private readonly Dictionary<AssetKind, HashSet<string>> _expandedFolders = new();
+
+    /// <summary>⭐ U-4 — the tree's open state, owned here (the shared <c>TreeRow</c> takes <c>ref open</c>): per kind, folder path → open. A folder not yet seen takes the initial-reveal default.</summary>
+    private readonly Dictionary<AssetKind, Dictionary<string, bool>> _folderOpen = new();
 
     /// <summary>
     /// The permitted kinds derived from <see cref="AssetBrowserPanelOptions.Kinds"/>.
@@ -187,14 +282,68 @@ public sealed class AssetBrowserPanel
         SetKindChip(kind, !IsKindChipEnabled(kind));
     }
 
+    // ── CE-4098: the Recent section ───────────────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-4098 (AQ108 D19) — the <b>Recent section</b> of <paramref name="kind"/>'s tab: the assets last activated, the latest
+    /// first, narrowed by the <see cref="Filter"/>. ⭐ Resolved against the CURRENT catalog, so a remembered asset that is no longer
+    /// there is not shown (no ghost row, no crash). Empty when the host passed no <see cref="AssetBrowserPanelOptions.Recent"/>.
+    /// </summary>
+    public IReadOnlyList<IEditableAsset> RecentFor(AssetKind kind)
+    {
+        if (_options.Recent is not { } store)
+            return Array.Empty<IEditableAsset>();
+
+        var result = new List<IEditableAsset>();
+        foreach (var (_, asset) in ResolveRecent(store, kind))
+            if (string.IsNullOrEmpty(_filter) || asset.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase))
+                result.Add(asset);
+        return result;
+    }
+
+    /// <summary>The Recent list of <paramref name="kind"/> resolved against the CURRENT catalog: (relative path, asset), latest first;
+    /// a key that no longer resolves is skipped.</summary>
+    private List<(string RelPath, IEditableAsset Asset)> ResolveRecent(NodeEditor.UI.Picker.RecentStore store, AssetKind kind)
+    {
+        var result = new List<(string, IEditableAsset)>();
+        if (!_leafMap.TryGetValue(kind, out var map)) return result;
+
+        var byId = new Dictionary<string, (string Rel, IEditableAsset Asset)>(map.Count);
+        foreach (var (rel, asset) in map) byId[AssetRecents.ItemKey(asset)] = (rel, asset);
+
+        foreach (var key in store.GetRecent(AssetRecents.ContextFor(kind)))
+            if (byId.TryGetValue(key, out var hit)) result.Add((hit.Rel, hit.Asset));
+        return result;
+    }
+
+    /// <summary>⭐ CE-4098 — the "All" tab's Recent section: every permitted kind's recents (chips respected), the most recently
+    /// picked first within each kind, kinds in tab order.</summary>
+    public IReadOnlyList<IEditableAsset> RecentFlat()
+    {
+        var result = new List<IEditableAsset>();
+        foreach (var kind in Tabs)
+            if (IsKindChipEnabled(kind))
+                result.AddRange(RecentFor(kind));
+        return result;
+    }
+
     // ── T5: Last-opened memory & initial reveal ───────────────────────
 
     /// <summary>
     /// A per-kind map of the last activated asset's relative path.
     /// The host persists this map across sessions (§10.1).
     /// </summary>
-    public IReadOnlyDictionary<AssetKind, string> LastOpenedByKind =>
-        new Dictionary<AssetKind, string>(_lastOpenedByKind);
+    public IReadOnlyDictionary<AssetKind, string> LastOpenedByKind
+    {
+        get
+        {
+            var map = new Dictionary<AssetKind, string>();
+            foreach (var kind in Tabs)
+                if (ResolveRecent(_memory, kind) is { Count: > 0 } recent)
+                    map[kind] = recent[0].RelPath;
+            return map;
+        }
+    }
 
     /// <summary>
     /// Restores last-opened-per-kind memory (e.g. from editor session prefs).
@@ -207,8 +356,12 @@ public sealed class AssetBrowserPanel
         if (map == null) return;
         foreach (var (kind, relPath) in map)
         {
-            if (Tabs.Contains(kind))
-                _lastOpenedByKind[kind] = relPath;
+            // ⭐ CE-1441 — seeds the ONE Recent store, and only a kind it has nothing for (the store is the truth);
+            // a path the catalog does not hold is dropped (it could not be revealed anyway).
+            if (Tabs.Contains(kind)
+                && _memory.GetRecent(AssetRecents.ContextFor(kind)).Count == 0
+                && _leafMap.TryGetValue(kind, out var leaves) && leaves.TryGetValue(relPath, out var asset))
+                _memory.Push(AssetRecents.ContextFor(kind), AssetRecents.ItemKey(asset));
         }
     }
 
@@ -254,10 +407,12 @@ public sealed class AssetBrowserPanel
         foreach (var kind in Tabs)
             _kindChipsEnabled[kind] = true;
 
-        // Restore last-opened memory (before rebuild so leaf maps exist).
-        RestoreLastOpened(lastOpened);
+        _memory = options.Recent ?? new NodeEditor.UI.Picker.RecentStore();
 
         RebuildTrees();
+
+        // Restore last-opened memory (after the rebuild: it resolves the paths against the leaf maps).
+        RestoreLastOpened(lastOpened);
         _catalog.Changed += OnCatalogChanged;
 
         // Apply initial reveal (InitialFullPath / last-opened → Selection + expanded folders).
@@ -448,6 +603,32 @@ public sealed class AssetBrowserPanel
     /// </summary>
     private int _lastDrawnTabLogicalIndex;
 
+    /// <summary>⭐ U-obs-5 — the last-drawn tab, as a label ("All" or a permitted kind's name). ⚠ Before
+    /// the first draw this reads as whatever tab logical index 0 resolves to (the default the tab bar
+    /// itself opens on) — "All" when shown, else <see cref="Tabs"/>[0].</summary>
+    public string ActiveTab
+    {
+        get
+        {
+            int idx = _lastDrawnTabLogicalIndex - (Options.ShowAllTab ? 1 : 0);
+            if (idx < 0) return "All";
+            return idx < Tabs.Count ? Tabs[idx].ToString() : "All";
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ U-obs-5: the pure projection this panel builds each frame — no ImGui, no side effects.
+    /// ⛔ Not registered here — see the class remarks on <see cref="AssetBrowserPanelViewModel"/> for why
+    /// the HOST supplies the address and does the actual publish.
+    /// </summary>
+    public AssetBrowserPanelViewModel BuildViewModel(string panelId, string panelKind) =>
+        new(panelId, panelKind,
+            Tabs.Select(t => t.ToString()).ToList(),
+            ActiveTab,
+            Filter,
+            Selection?.Name,
+            FilteredFlatList().Count);
+
     /// <summary>
     /// Raises the <see cref="AssetActivated"/> event with <paramref name="asset"/>
     /// (double-click / Enter) and updates <see cref="LastOpenedByKind"/> for the
@@ -457,10 +638,9 @@ public sealed class AssetBrowserPanel
     {
         if (asset == null) throw new ArgumentNullException(nameof(asset));
 
-        // Update last-opened-per-kind memory.
-        var baseFolder = BaseFolderFor(asset.Kind);
-        var relPath = AssetRelPath.RelPath(asset, baseFolder);
-        _lastOpenedByKind[asset.Kind] = relPath;
+        // ⭐ CE-4098 / CE-1441 — a pick pushes to the kind's Recent list (persisted when the host's store is); that list IS the
+        // last-opened memory (its head), there is no second one.
+        _memory.Push(AssetRecents.ContextFor(asset.Kind), AssetRecents.ItemKey(asset));
 
         AssetActivated?.Invoke(asset);
     }
@@ -557,6 +737,8 @@ public sealed class AssetBrowserPanel
         ImGui.NewLine();
         ImGui.Separator();
 
+        DrawRecentSection(RecentFlat());
+
         // Flat list.
         var assets = FilteredFlatList();
         if (assets.Count == 0)
@@ -571,9 +753,25 @@ public sealed class AssetBrowserPanel
         }
     }
 
+    /// <summary>⭐ CE-4098 — the Recent header and rows, FIRST in a tab (nothing when there are none). The same asset is drawn
+    /// again in its folder / the flat list, so the rows get their own ImGui ID scope.</summary>
+    private void DrawRecentSection(IReadOnlyList<IEditableAsset> recent)
+    {
+        if (recent.Count == 0) return;
+
+        ImGui.TextDisabled("↻ Recent");
+        ImGui.PushID("##recent");
+        foreach (var asset in recent)
+            DrawFlatRow(asset);
+        ImGui.PopID();
+        ImGui.Separator();
+    }
+
     private void DrawKindTab(AssetKind kind)
     {
         DrawFilterBox();
+
+        DrawRecentSection(RecentFor(kind));
 
         var tree = FilteredTreeFor(kind);
         if (tree.Children.Count == 0)
@@ -582,75 +780,86 @@ public sealed class AssetBrowserPanel
             return;
         }
 
-        var expandedSet = _expandedFolders.TryGetValue(kind, out var set) ? set : null;
-        foreach (var child in tree.Children)
+        // ⭐ CE-4398 — a non-empty filter lists the hits FLAT, each with its folder greyed after the name (a folder the user had collapsed hid its hits);
+        //   an empty filter brings the tree back.
+        if (!string.IsNullOrEmpty(_filter))
         {
-            DrawTreeNode(kind, child, expandedSet);
-        }
-    }
-
-    private void DrawTreeNode(AssetKind kind, FolderTreeNode node, HashSet<string>? expandedSet)
-    {
-        if (node.IsLeaf)
-        {
-            DrawLeafRow(kind, node);
+            foreach (var (asset, folder) in FilterHits(kind))
+                DrawFlatRow(asset, folder);
             return;
         }
 
-        // Folder node: DefaultOpen if in expanded set, or if expanded set is null (no
-        // initial reveal — backward-compatible "open all" behavior).
-        bool defaultOpen = expandedSet == null || expandedSet.Contains(node.FullPath);
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags.OpenOnArrow
-                                   | ImGuiTreeNodeFlags.OpenOnDoubleClick;
-        if (defaultOpen)
-            flags |= ImGuiTreeNodeFlags.DefaultOpen;
-
-        bool isOpen = ImGui.TreeNodeEx(node.Name, flags);
-
-        if (isOpen)
+        var expandedSet = _expandedFolders.TryGetValue(kind, out var set) ? set : null;
+        if (!_folderOpen.TryGetValue(kind, out var openFor)) _folderOpen[kind] = openFor = new Dictionary<string, bool>(StringComparer.Ordinal);
+        foreach (var child in tree.Children)
         {
-            foreach (var child in node.Children)
-            {
-                DrawTreeNode(kind, child, expandedSet);
-            }
-            ImGui.TreePop();
+            DrawTreeNode(kind, child, expandedSet, openFor, 0);
         }
     }
 
-    private void DrawLeafRow(AssetKind kind, FolderTreeNode leaf)
+    /// <summary>⭐ CE-4398 — the hits of the current <see cref="Filter"/> in <paramref name="kind"/>'s tab as a flat list: the asset and the folder it sits in (empty at the root).</summary>
+    public IReadOnlyList<(IEditableAsset Asset, string Folder)> FilterHits(AssetKind kind)
+    {
+        var hits = new List<(IEditableAsset, string)>();
+        void Walk(FolderTreeNode node)
+        {
+            foreach (var child in node.Children)
+            {
+                if (!child.IsLeaf) { Walk(child); continue; }
+                var asset = AssetForLeaf(kind, child);
+                if (asset == null) continue;
+                int slash = child.FullPath.LastIndexOf('/');
+                hits.Add((asset, slash > 0 ? child.FullPath.Substring(0, slash) : ""));
+            }
+        }
+        Walk(FilteredTreeFor(kind));
+        return hits;
+    }
+
+    private void DrawTreeNode(AssetKind kind, FolderTreeNode node, HashSet<string>? expandedSet, Dictionary<string, bool> openFor, int depth)
+    {
+        if (node.IsLeaf)
+        {
+            DrawLeafRow(kind, node, depth);
+            return;
+        }
+
+        // Folder node: open if in the expanded set, or if there is none (no initial reveal — backward-compatible "open all" behavior);
+        // after that the user's toggles are remembered here.
+        bool open = openFor.TryGetValue(node.FullPath, out var remembered)
+            ? remembered
+            : expandedSet == null || expandedSet.Contains(node.FullPath);
+
+        // ⭐ U-4 (DESIGN_UI_Conventions §2) — the shared TreeRow: chevron · icon · label.
+        var folderIcon = _icons.TryGet(open ? "folder_open" : "folder", out var fh) || _icons.TryGet("folder", out fh) ? RowIcon.Image(fh) : RowIcon.None;
+        TreeRow.Draw(node.FullPath, node.Name, folderIcon, depth, hasChildren: true, ref open, selected: false);
+        openFor[node.FullPath] = open;
+
+        if (open)
+        {
+            foreach (var child in node.Children)
+            {
+                DrawTreeNode(kind, child, expandedSet, openFor, depth + 1);
+            }
+        }
+    }
+
+    private void DrawLeafRow(AssetKind kind, FolderTreeNode leaf, int depth)
     {
         var asset = AssetForLeaf(kind, leaf);
         if (asset == null)
             return;
 
         var iconKey = RowIconKey(asset);
-        var hasIcon = _icons.TryGet(iconKey, out var icon);
+        var icon = _icons.TryGet(iconKey, out var handle) ? RowIcon.Image(handle) : RowIcon.None;
 
-        // Selection highlight
+        // ⭐ U-4 — a leaf is the same TreeRow without an arrow: it keeps the chevron's slot, so its label shares the x of its depth.
+        bool noOpen = false;
         bool isSelected = ReferenceEquals(Selection, asset);
-        if (isSelected)
-        {
-            var selectColor = ImGui.GetColorU32(ImGuiCol.Header);
-            var cursorPos = ImGui.GetCursorScreenPos();
-            var rowWidth = ImGui.GetContentRegionAvail().X;
-            ImGui.GetWindowDrawList().AddRectFilled(
-                cursorPos,
-                cursorPos + new System.Numerics.Vector2(rowWidth, ImGui.GetFrameHeight()),
-                selectColor);
-        }
-
-        // Icon (16x16 alongside text) — fall back to text if no icon.
-        if (hasIcon)
-        {
-            ImGui.Text(" * " + leaf.Name);
-        }
-        else
-        {
-            ImGui.Text("   " + leaf.Name);
-        }
+        bool clicked = TreeRow.Draw(leaf.FullPath, leaf.Name, icon, depth, hasChildren: false, ref noOpen, isSelected);
 
         // Click handling
-        if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
+        if (clicked)
         {
             SelectAsset(asset);
         }
@@ -658,9 +867,45 @@ public sealed class AssetBrowserPanel
         {
             ActivateAsset(asset);
         }
+        DrawRowContextMenu(asset);
     }
 
-    private void DrawFlatRow(IEditableAsset asset)
+    /// <summary>
+    /// ⭐⭐ <b>The right-click menu for one asset row.</b> ⚠ ONE implementation, called from BOTH row
+    /// draws *(the per-kind tree leaf and the flat "All" row)* — 📌 ruling 9; two copies is how one of
+    /// them quietly loses an item.
+    ///
+    /// <para>⛔ Draws nothing when the host registered no commands — see
+    /// <see cref="AssetBrowserPanelOptions.RowCommands"/> for why that is the picker's correct state.</para>
+    ///
+    /// <para>⚠ <b>Right-clicking also SELECTS</b>, so the menu and the highlight agree about which asset
+    /// is being acted on. ⛔ Without it a designer can right-click row B while row A is highlighted and
+    /// read the wrong name off the screen — 📌 <c>R-78</c>'s chameleon shape.</para>
+    /// </summary>
+    private void DrawRowContextMenu(IEditableAsset asset)
+    {
+        if (_options.RowCommands.Count == 0) return;
+
+        if (!ImGui.BeginPopupContextItem($"##asset_ctx_{asset.AssetId:N}")) return;
+
+        SelectAsset(asset);
+
+        foreach (var command in _options.RowCommands)
+        {
+            bool enabled = command.IsEnabled?.Invoke(asset) ?? true;
+
+            if (ImGui.MenuItem(command.Label, enabled: enabled) && enabled)
+                command.Invoke(asset);
+
+            if (!enabled && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)
+                         && command.DisabledReason is { } reason)
+                ImGui.SetTooltip(reason(asset));
+        }
+
+        ImGui.EndPopup();
+    }
+
+    private void DrawFlatRow(IEditableAsset asset, string folder = "")
     {
         var iconKey = RowIconKey(asset);
         var hasIcon = _icons.TryGet(iconKey, out var icon);
@@ -686,7 +931,6 @@ public sealed class AssetBrowserPanel
         {
             ImGui.Text("   " + asset.Name);
         }
-
         // Click handling
         if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
         {
@@ -695,6 +939,12 @@ public sealed class AssetBrowserPanel
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
             ActivateAsset(asset);
+        }
+        DrawRowContextMenu(asset);
+        if (folder.Length > 0)   // ⭐ CE-4398 — the folder, greyed, after the name
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled(folder.Replace("/", " › "));
         }
     }
 
@@ -746,9 +996,9 @@ public sealed class AssetBrowserPanel
 
         // Fall back to last-opened if no explicit path.
         if (string.IsNullOrEmpty(targetPath)
-            && _lastOpenedByKind.TryGetValue(targetKind, out var remembered))
+            && ResolveRecent(_memory, targetKind) is { Count: > 0 } recent)
         {
-            targetPath = remembered;
+            targetPath = recent[0].RelPath;
         }
 
         if (string.IsNullOrEmpty(targetPath))
@@ -757,7 +1007,12 @@ public sealed class AssetBrowserPanel
         // Compute ancestor folder paths for expansion.
         var ancestors = GetAncestorPaths(targetPath);
         if (ancestors.Count > 0)
+        {
             _expandedFolders[targetKind] = new HashSet<string>(ancestors);
+            // ⭐ U-4: the reveal opens the path (the open state is remembered here, not by ImGui)
+            if (!_folderOpen.TryGetValue(targetKind, out var openFor)) _folderOpen[targetKind] = openFor = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var a in ancestors) openFor[a] = true;
+        }
 
         // Set selection to the target asset.
         if (_leafMap.TryGetValue(targetKind, out var map)

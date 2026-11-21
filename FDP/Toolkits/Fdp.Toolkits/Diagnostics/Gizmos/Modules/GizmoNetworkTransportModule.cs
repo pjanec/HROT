@@ -18,12 +18,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
     // reader are absent; the module still functions and the tracker can be exercised directly.
     //
     // Design: DESIGN.md §4.2
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class GizmoNetworkTransportModule : IEcsModule, IDisposable
     {
         private readonly GizmoExecutionController _controller;
         private readonly GizmoUiStateHub _uiHub;
         private readonly IGizmoUiStatePublisher? _ddsUiPublisher;
         private readonly IEcsModuleSystem? _primitivePublisherSystem;
+        [Fdp.Core.NotState("translators created once in ctor from factory")]
         private readonly IReadOnlyList<INetworkTranslator> _translators;
 
         // Exposed so tests can drive lifecycle detection without a live DDS participant.
@@ -37,7 +39,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
             GizmoUiStateHub uiHub,
             IGizmoNetworkFactory networkFactory,
             DebugPrimitiveBuffer gizmoBuffer,
-            long localNodeId,
+            int localNodeId,
             FdpEventBus interactionBus)
         {
             _controller = controller ?? throw new ArgumentNullException(nameof(controller));
@@ -88,6 +90,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
 
         // Wraps an ingress translator as an IEcsModuleSystem executed in the Input phase.
         [UpdateInPhase(SystemPhase.Input)]
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class NetworkTranslatorIngressSystem : IEcsModuleSystem
         {
             private readonly INetworkTranslator _translator;
@@ -98,6 +101,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
 
         // Wraps an egress translator as an IEcsModuleSystem executed in the PostSimulation phase.
         [UpdateInPhase(SystemPhase.PostSimulation)]
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class NetworkTranslatorEgressSystem : IEcsModuleSystem
         {
             private readonly INetworkTranslator _translator;

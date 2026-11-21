@@ -176,5 +176,96 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.True(velAfterResume.Linear.X > 0f,
                 $"Expected resumed velocity after phase returns to Following; got {velAfterResume.Linear}");
         }
+
+        // ── S3: the two pose authorities, chosen PER ENTITY ──────────────────
+        //
+        // The Stride port's version of this system dropped the SimVelocity/SimTransform write
+        // entirely and wrote only CrowdMotorIntent. Correct on a Stride node (the reverse-sync
+        // owns the pose there); wrong anywhere FDP still owns it. These rails pin BOTH arms, and
+        // the mixed-world one pins that the choice is per entity rather than per node.
+
+        /// <summary>
+        /// `S3` arm A — an agent with no <c>CrowdMotorIntent</c> keeps the pre-port behaviour
+        /// exactly: SimVelocity written AND SimTransform integrated. This is the rail that fails
+        /// if anyone re-applies the port's version wholesale.
+        /// </summary>
+        [Fact]
+        public void WithoutMotorIntent_FdpStillOwnsThePose()
+        {
+            using var repo = CreateWorld();
+            var (entity, _, system) = CreateFollowingAgent(
+                repo, startPos: new Vector3(0, 0, 0), target: new Vector3(10, 0, 0));
+
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.1f);
+
+            Assert.True(repo.GetComponent<SimVelocity>(entity).Linear.X > 0f);
+            Assert.True(repo.GetComponent<SimTransform>(entity).Position.X > 0f,
+                "FDP authority must still integrate position — nothing that moved before may stop.");
+        }
+
+        /// <summary>
+        /// `S3` arm B — an agent WITH <c>CrowdMotorIntent</c> is under split authority: the intent
+        /// carries the steering and the pose is left alone for the physics reverse-sync. Writing
+        /// SimVelocity here would feed a physics RESULT back in as an input.
+        /// </summary>
+        [Fact]
+        public void WithMotorIntent_PhysicsOwnsThePose_AndOnlyTheIntentIsWritten()
+        {
+            using var repo = CreateWorld();
+            repo.RegisterComponent<CrowdMotorIntent>();
+
+            var (entity, _, system) = CreateFollowingAgent(
+                repo, startPos: new Vector3(0, 0, 0), target: new Vector3(10, 0, 0));
+            repo.AddComponent(entity, default(CrowdMotorIntent));
+
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.1f);
+
+            Assert.True(repo.GetComponent<CrowdMotorIntent>(entity).Velocity.X > 0f,
+                "The steering output must reach the motor intent.");
+            Assert.Equal(0f, repo.GetComponent<SimVelocity>(entity).Linear.X);
+            Assert.Equal(0f, repo.GetComponent<SimTransform>(entity).Position.X);
+        }
+
+        /// <summary>
+        /// `S3` — THE rail behind "per entity, not per node": both kinds in one repository, each
+        /// resolved on its own. A node-level flag could not express this, and getting it wrong
+        /// fails silently as an agent that simply stops moving.
+        /// </summary>
+        [Fact]
+        public void OneWorld_CanHoldBothAuthorities_ResolvedPerEntity()
+        {
+            using var repo = CreateWorld();
+            repo.RegisterComponent<CrowdMotorIntent>();
+
+            var (fdpAgent, crowd, system) = CreateFollowingAgent(
+                repo, startPos: new Vector3(0, 0, 0), target: new Vector3(10, 0, 0));
+
+            var physAgent = repo.CreateEntity();
+            repo.AddComponent(physAgent, new SimTransform { Position = new Vector3(0, 0, 0) });
+            repo.AddComponent(physAgent, new SimVelocity());
+            repo.AddComponent(physAgent, new NavigationStatus { Phase = NavigationPhase.Following });
+            repo.AddComponent(physAgent, default(CrowdAgent));
+            repo.AddComponent(physAgent, default(CrowdMotorIntent));
+            crowd.RegisterAgent(physAgent, new CrowdAgentParams
+            {
+                Radius = 0.4f, Height = 1.8f, MaxSpeed = 5f,
+                MaxAcceleration = 20f, SeparationWeight = 2,
+            });
+            crowd.SetAgentTarget(physAgent, new Vector3(10, 0, 0));
+
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.1f);
+
+            // FDP-authority agent: moved.
+            Assert.True(repo.GetComponent<SimTransform>(fdpAgent).Position.X > 0f);
+            Assert.True(repo.GetComponent<SimVelocity>(fdpAgent).Linear.X > 0f);
+
+            // Split-authority agent: intent only, pose untouched.
+            Assert.True(repo.GetComponent<CrowdMotorIntent>(physAgent).Velocity.X > 0f);
+            Assert.Equal(0f, repo.GetComponent<SimTransform>(physAgent).Position.X);
+            Assert.Equal(0f, repo.GetComponent<SimVelocity>(physAgent).Linear.X);
+        }
     }
 }

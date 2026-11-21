@@ -33,15 +33,18 @@ namespace Fdp.Toolkit.Vis2D.Gizmos;
 /// </summary>
 public sealed class EntityPickerGizmo : IEntityStatefulGizmo
 {
-    private const float CrosshairHalfSize  = 12f;
+    // ⭐ CE-1065 — half the size it was (user, 2026-10-14: "… entity picker gizmo 2 times smaller"); world metres, the line width in pixels.
+    // ⭐ CE-1337 — halved again, 6 m across (user, 2026-10-25: the aiming cross is "too big now").
+    private const float CrosshairHalfSize  = 3f;
     private const float CrosshairThickness = 1.5f;
-    private const float CrosshairGapRadius = 4f;
+    private const float CrosshairGapRadius = 1f;
 
     private readonly Func<Vector2, Entity>              _hitTest;
     private readonly Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter _filter;
     private readonly Action<Entity>        _onPicked;
     private readonly Action                _onCancelled;
     private readonly Action                _onRemove;
+    private readonly Action<Entity>?       _onRejected;
 
     private Vector2 _mouseWorldPos;
     private Entity  _hoveredEntity = Entity.Null;
@@ -49,6 +52,26 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
 
     /// <inheritdoc/>
     public bool RequiresExclusiveFocus => true;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>TRUE, and it is not optional for an exclusive-focus gizmo.</b> 📄
+    /// <c>docs/designs/gizmos-1/gizmo-input-focus-design.md</c> §5.1 · <c>§6.2c</c> · <c>CE-259k</c>.
+    ///
+    /// <para>🔴 <b>The defect this closes, measured <c>2026-09-09</c> by running the editor:</b> this gizmo
+    /// implements its ENTIRE behaviour in <see cref="OnMouseEvent"/> / <see cref="OnKeyEvent"/> — the RAW
+    /// handlers — while <c>OnInteractionStarted</c> / <c>OnCommit</c> are empty stubs. With
+    /// <c>WantsRawInput</c> left at its <see langword="false"/> default the terminal is told the opposite,
+    /// and the gizmo is DEAF ON BOTH PATHS: <c>DebugGizmoLayer.cs:126</c> withholds raw events, and
+    /// <c>:428</c> suppresses spatial hit-testing for everything not anchored to the capture token because
+    /// <c>RequiresExclusiveFocus</c> is set. ⇒ it DRAWS and ignores every click, and Escape too.</para>
+    ///
+    /// <para>🔒 <b>Design basis:</b> §5.1 defines <c>InputCaptureBinding</c> as <i>"a meta-primitive
+    /// declaring that the bound token wants raw hardware events streamed to it"</i>, with ONE flag —
+    /// <c>ConditionMask: 1 = Exclusive, 0 = Shared</c>. ⛔ There is no <c>wantsRawInput</c> bit in the
+    /// design at all; emitting the binding WAS the request. The second bit is an as-built divergence, and
+    /// reconciling it is <c>CE-259l</c> — until then every exclusive gizmo must say this explicitly.</para>
+    /// </summary>
+    public bool WantsRawInput => true;
 
     /// <inheritdoc/>
     public bool IsFocused { get; private set; }
@@ -72,13 +95,15 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
         Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter filter,
         Action<Entity>        onPicked,
         Action                onCancelled,
-        Action                onRemove)
+        Action                onRemove,
+        Action<Entity>?       onRejected = null)
     {
         _hitTest     = hitTest     ?? throw new ArgumentNullException(nameof(hitTest));
         _filter      = filter      ?? throw new ArgumentNullException(nameof(filter));
         _onPicked    = onPicked    ?? throw new ArgumentNullException(nameof(onPicked));
         _onCancelled = onCancelled ?? throw new ArgumentNullException(nameof(onCancelled));
         _onRemove    = onRemove    ?? throw new ArgumentNullException(nameof(onRemove));
+        _onRejected  = onRejected;   // ⭐ B-17 P4 — a click on something the filter refuses is reported, the pick stays
     }
 
     // ---- IEntityStatefulGizmo -- draw ----------------------------------------
@@ -127,9 +152,9 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Left released on valid target: fire <c>onPicked</c> then <c>onRemove</c>.
+    /// Left released on valid target: <c>onRemove</c>, then <c>onPicked</c> (remove first — the awaiting caller resumes on the pool).
     /// Left released with no valid target: do nothing (wait for a valid target).
-    /// Right pressed: fire <c>onCancelled</c> then <c>onRemove</c>.
+    /// Right pressed: <c>onRemove</c>, then <c>onCancelled</c>.
     /// </remarks>
     public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
     {
@@ -137,14 +162,16 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
         {
             if (_hoveredValid)
             {
-                _onPicked(_hoveredEntity);
-                _onRemove();
+                var picked = _hoveredEntity;
+                _onRemove();            // ⭐ remove first: a pool-thread continuation must see the tool underneath restored
+                _onPicked(picked);
             }
+            else if (!_hoveredEntity.IsNull) _onRejected?.Invoke(_hoveredEntity);   // ⭐ B-17 P4 — over something, but not a valid target
         }
         else if (button == MapMouseButton.Right && isPressed)
         {
-            _onCancelled();
             _onRemove();
+            _onCancelled();
         }
     }
 
@@ -153,9 +180,21 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
     {
         if (key == MapKeyboardKey.Escape && isPressed)
         {
-            _onCancelled();
             _onRemove();
+            _onCancelled();
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1346</c> (docs/UX/UX_Feature_Tool_Model.md §4.16) — a pick from ANOTHER source (an ORBAT row): the same filter a map click
+    /// meets and the same exit (<c>onRemove</c>, then <c>onPicked</c>). False (nothing happens) when the filter refuses it.
+    /// </summary>
+    public bool TryPick(Entity entity)
+    {
+        if (entity.IsNull || !_filter.IsMatch(entity)) return false;
+        _onRemove();
+        _onPicked(entity);
+        return true;
     }
 
     // ---- Unused IGizmoInteractionHandler methods -----------------------------

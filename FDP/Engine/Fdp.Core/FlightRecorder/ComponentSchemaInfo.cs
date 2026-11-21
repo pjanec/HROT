@@ -23,6 +23,12 @@ namespace Fdp.Core.FlightRecorder
         public string Name { get; set; } = string.Empty;
 
         /// <summary>
+        /// ⭐ <c>CE-4050</c> — the simple name of the assembly that declares the type (e.g. <c>Hrot.MuscleCharacter.Animation</c>), so a
+        /// replaying process can load it before resolving ids (<see cref="RecordedAssemblies"/>). Empty for recordings that pre-date it.
+        /// </summary>
+        public string Assembly { get; set; } = string.Empty;
+
+        /// <summary>
         /// <see cref="System.Runtime.InteropServices.Marshal.SizeOf"/> of the component struct
         /// at record time, in bytes.
         /// </summary>

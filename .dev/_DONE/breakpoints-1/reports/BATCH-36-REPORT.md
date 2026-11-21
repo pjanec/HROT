@@ -225,7 +225,7 @@ Run 5 times with identical results — no flakiness.
 ## Build Results
 
 ```
-dotnet build IOS-IG-SimHost.sln -c Debug
+dotnet build HROT.sln -c Debug
   Build succeeded.
   0 Error(s)
   1 Warning(s)  -- CS0618 IBlueprintTimeController [expected, one-batch grace period]

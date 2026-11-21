@@ -27,7 +27,6 @@ public class NedReplicationModuleTranslatorTests
                 participant:          null,
                 role:                 NodeRole.MuscleGround,
                 entityMap:            map,
-                geoTransform:         HrotEnvironment.CreateGeoTransform(),
                 eventBus:             bus,
                 localNodeId:          1,
                 domainId:             0,

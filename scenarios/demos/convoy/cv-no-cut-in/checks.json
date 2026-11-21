@@ -1,0 +1,104 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-3 / S-6): no cutting in, judged by the between cue (CE-9009). 'SUMO traffic' is declared later: the traffic replicas ('SUMO <id>') appear during the run. No golden yet (first run). The never-splits rows read POSITIONS (far, CE-9009), so they judge the same in both tiers (the trail lives only on the kinematic owner). A split is a pair more than 60 m apart = one gap + the three gaps of lag at which the lead's cap stops it (C-6): past that the cap failed to hold the column. 📌 Measured in the cluster tier (real time, longer frames): a follower falls ~40 m behind its predecessor for a few seconds at the 12 m junction kink at x 300 (CE-9011) and recovers by x 400 — the cap at work, not a split.",
+  "runFor": 75,
+  "golden": false,
+  "later": [
+    "SUMO traffic"
+  ],
+  "expect": [
+    {
+      "name": "the lead runs the convoy",
+      "on": "task",
+      "who": "Escort 1",
+      "is": "PlatformConvoy"
+    },
+    {
+      "name": "the lead is handed to SUMO",
+      "on": "field",
+      "who": "Escort 1",
+      "path": "NavigationIntent.Mode",
+      "op": "==",
+      "value": "Traffic"
+    },
+    {
+      "name": "traffic comes close to the column — a SUMO car within 12 m of any convoy vehicle (the never rows are not vacuous)",
+      "on": "close",
+      "who": "*SUMO ",
+      "from": "*Escort",
+      "m": 12
+    },
+    {
+      "name": "no car cuts in between Escort 1 and Escort 2",
+      "never": {
+        "on": "between",
+        "who": "*SUMO ",
+        "from": "Escort 1",
+        "to": "Escort 2",
+        "m": 1.6
+      },
+      "before": "the lead reaches its destination"
+    },
+    {
+      "name": "no car cuts in between Escort 2 and Escort 3",
+      "never": {
+        "on": "between",
+        "who": "*SUMO ",
+        "from": "Escort 2",
+        "to": "Escort 3",
+        "m": 1.6
+      },
+      "before": "the lead reaches its destination"
+    },
+    {
+      "name": "no car cuts in between Escort 3 and Escort 4",
+      "never": {
+        "on": "between",
+        "who": "*SUMO ",
+        "from": "Escort 3",
+        "to": "Escort 4",
+        "m": 1.6
+      },
+      "before": "the lead reaches its destination"
+    },
+    {
+      "name": "the column never splits (Escort 2 never more than 60 m behind Escort 1)",
+      "never": {
+        "on": "far",
+        "who": "Escort 2",
+        "from": "Escort 1",
+        "m": 60
+      },
+      "before": "the lead reaches its destination"
+    },
+    {
+      "name": "the column never splits (Escort 3 never more than 60 m behind Escort 2)",
+      "never": {
+        "on": "far",
+        "who": "Escort 3",
+        "from": "Escort 2",
+        "m": 60
+      },
+      "before": "the lead reaches its destination"
+    },
+    {
+      "name": "the column never splits (Escort 4 never more than 60 m behind Escort 3)",
+      "never": {
+        "on": "far",
+        "who": "Escort 4",
+        "from": "Escort 3",
+        "m": 60
+      },
+      "before": "the lead reaches its destination"
+    },
+    {
+      "name": "the lead reaches its destination",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        145.2,
+        975
+      ],
+      "within": 20
+    }
+  ]
+}

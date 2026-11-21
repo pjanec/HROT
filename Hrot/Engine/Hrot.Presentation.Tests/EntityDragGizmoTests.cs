@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using CarKinem.Core;
 using Fdp.Core;
@@ -28,17 +28,63 @@ public class EntityDragGizmoTests
 
         _entity = _repo.CreateEntity();
         _repo.AddComponent(_entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55L });
+        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55 });
     }
 
     // EDG-001: UpdateAndDraw emits a Box2D primitive with valid entity pick token.
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3147</c> — <b>the DRAG area must be the SELECT area: same extent, same unit.</b>
+    /// 🔒 User, <c>2026-10-09</c>: <i>"click-to-drag sensitive area is enormous now (no change) - should be
+    /// identical to click-to-select area."</i>
+    /// <para>📐 It was enormous because this gizmo carried its own <c>PickRadius = 8f</c> in WORLD METRES on a
+    /// <c>default(DebugPrimitive)</c> (⇒ <c>SizeMode.WorldMeters</c>) — 8 m, about 800 screen px at the zoom
+    /// ceiling of 100 — and being world-sized, the <c>SizeMode</c> hit-test fix could not shrink it.</para>
+    /// <para>⭐⭐ <b>CORRECTED <c>2026-10-09</c> after a second user report:</b> <i>"the sensitive interaction area
+    /// around the entity must scale as well"</i> — my first pass made both areas <c>40f</c> in
+    /// <c>ScreenPixels</c>, which is right at exactly ONE zoom. The size is now a QUERY on the entity
+    /// (<c>EntityFootprint.InteractionRadiusMetres</c>) in <b>world metres</b>, which is also the only way the two
+    /// areas stay identical for entities of DIFFERENT sizes — a shared constant made a truck and a man equally
+    /// clickable.</para>
+    /// <para>⚠ <b>Both halves are asserted, because either alone is insufficient:</b> the right number in the
+    /// wrong unit is a 3 px box, and the right unit with a stale number disagrees with the select area.</para>
+    /// </summary>
+    [Fact]
+    public void CE3147_TheDragPickArea_MatchesTheSelectPickArea_InExtentAndUnit()
+    {
+        var gizmo  = new EntityDragGizmo(_repo, _entity);
+        var buffer = new DebugPrimitiveBuffer(capacity: 16);
+        gizmo.UpdateAndDraw(_repo, 0f, buffer);
+
+        float expected = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint
+            .InteractionRadiusMetres(_repo, _entity);
+
+        bool found = false;
+        foreach (var prim in buffer.GetFrame())
+        {
+            if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
+
+            Assert.Equal(expected, prim.BoxExtentX);
+            Assert.Equal(expected, prim.BoxExtentY);
+            // ⭐ WORLD metres, so the area scales with zoom exactly as the drawn symbol does.
+            Assert.Equal(SizeMode.WorldMeters, prim.SizeMode);
+            found = true;
+        }
+
+        Assert.True(found, "the drag gizmo emitted no Box2D pick area at all");
+    }
+
     [Fact]
     public void UpdateAndDraw_EmitsSphereWithValidPickToken()
     {
         var gizmo   = new EntityDragGizmo(_repo, _entity);
         var buffer  = new DebugPrimitiveBuffer(capacity: 16);
 
-        gizmo.UpdateAndDraw(new EntityRepository(), 0f, buffer);
+        // ⭐ QA-011 — draw against the world the entity ACTUALLY lives in.
+        // ⛔ This passed `new EntityRepository()`, an empty world in which `_entity` is not alive, so
+        //    UpdateAndDraw returned at its first guard and emitted nothing. The rail then failed on
+        //    `frame.Length >= 1` and was read as a gizmo defect for many batches. The gizmo draws from
+        //    the view it is GIVEN — that is the contract, and it was being given an empty one.
+        gizmo.UpdateAndDraw(_repo, 0f, buffer);
 
         var frame = buffer.GetFrame();
         Assert.True(frame.Length >= 1);
@@ -50,7 +96,10 @@ public class EntityDragGizmoTests
             if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
             var token = prim.GetPickToken();
             if (!token.IsValid) continue;
-            Assert.Equal(_entity, token.Target);
+            // ⭐ §6.7 — the pick box is identified by the entity's NETWORK id, not its ECS handle.
+            Assert.Equal(
+                Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_repo, _entity),
+                token.AnchorId);
             found = true;
             break;
         }
@@ -58,11 +107,59 @@ public class EntityDragGizmoTests
     }
 
     // EDG-002: OnDragUpdate writes to SimTransform.Position.
+    /// <summary>
+    /// ⭐ <c>QA-011</c> — the grab happens ON the entity, so the drag offset is zero and the entity
+    /// lands under the cursor.
+    ///
+    /// <para>⛔ This used to grab at <c>Vector3.Zero</c> while the entity sat at <c>(10, 20)</c> and then
+    /// expect it to land exactly on the cursor — i.e. it assumed the gizmo TELEPORTS the entity's origin
+    /// to the pointer. 📐 It does not, and must not: <c>OnInteractionStarted</c> records
+    /// <c>_dragOffset = position - grabPoint</c> so the entity keeps its grab-relative offset, which is
+    /// how every drag gizmo behaves. The old expectation measured <c>(60, 80)</c> and called it a bug.
+    /// <see cref="OnDragUpdate_PreservesTheGrabOffset"/> now rails that behaviour explicitly.</para>
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-3154</c> — <b>the drag marker is a 1 px OUTLINE at the entity's own footprint.</b>
+    /// 🔒 User, <c>2026-10-10</c>: <i>"The drag and drop yellow marker circle is thick - should be 1 pixel
+    /// regardless of zoom."</i>
+    /// <para>📐 It was <c>DrawSphere(pos, 5f, color)</c> with no thickness — which this pipeline reads as a FILLED
+    /// disc plus a default 1-unit rim, and with <c>DrawSphere</c>'s <c>WorldMeters</c> default that rim was a
+    /// metre wide. ⇒ the two things pinned here are exactly what made it "thick": an explicit stroke of
+    /// <c>1</c> (<c>ThicknessU16 == 10</c>, which also switches the legacy fill off) and no fill colour.
+    /// ⚠ That the stroke is PIXELS is the renderer's rule and is railed there
+    /// (<c>DebugPrimitiveRenderer2DTests.CE3154_*</c>).</para>
+    /// </summary>
+    [Fact]
+    public void CE3154_WhileDragging_TheMarkerIsAOnePixelOutline_AtTheEntitysFootprint()
+    {
+        var gizmo  = new EntityDragGizmo(_repo, _entity);
+        var buffer = new DebugPrimitiveBuffer(capacity: 16);
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));
+        gizmo.UpdateAndDraw(_repo, 0f, buffer);
+
+        float expected = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint
+            .InteractionRadiusMetres(_repo, _entity);
+
+        bool found = false;
+        foreach (var prim in buffer.GetFrame())
+        {
+            if (prim.Shape != DebugPrimitiveShape.Sphere) continue;
+
+            Assert.Equal(expected, prim.SphereRadius);
+            Assert.Equal(10, prim.ThicknessU16);        // 1.0 px, stored ×10
+            Assert.Equal(0, prim.FillColor.A);          // an outline — no fill
+            found = true;
+        }
+
+        Assert.True(found, "no marker sphere was drawn while dragging");
+    }
+
     [Fact]
     public void OnDragUpdate_WritesToSimTransformPosition()
     {
         var gizmo = new EntityDragGizmo(_repo, _entity);
-        gizmo.OnInteractionStarted(default, Vector3.Zero);
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));   // grabbed ON the entity
 
         var newPos = new Vector3(50f, 60f, 0f);
         gizmo.OnDragUpdate(newPos);
@@ -70,6 +167,25 @@ public class EntityDragGizmoTests
         var tf = _repo.GetComponent<SimTransform>(_entity);
         Assert.Equal(50f, tf.Position.X, precision: 3);
         Assert.Equal(60f, tf.Position.Y, precision: 3);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>QA-011</c> — <b>the grab offset is a CONTRACT, so rail it.</b> Grabbing 10 m to the left of
+    /// an entity and moving the cursor to X must leave the entity 10 m to the right of X, not centred on
+    /// it. ⛔ Without this rail the behaviour is only implied by the corrected test above, and the next
+    /// session to see "expected 50, actual 60" would draw the same wrong conclusion.
+    /// </summary>
+    [Fact]
+    public void OnDragUpdate_PreservesTheGrabOffset()
+    {
+        var gizmo = new EntityDragGizmo(_repo, _entity);
+        gizmo.OnInteractionStarted(default, Vector3.Zero);   // grabbed at the origin, entity at (10, 20)
+
+        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));
+
+        var tf = _repo.GetComponent<SimTransform>(_entity);
+        Assert.Equal(60f, tf.Position.X, precision: 3);   // 50 + (10 - 0)
+        Assert.Equal(80f, tf.Position.Y, precision: 3);   // 60 + (20 - 0)
     }
 
     // EDG-003: OnCommit writes final position and fires OnDragCommitted.
@@ -81,9 +197,15 @@ public class EntityDragGizmoTests
 
         var gizmo = new EntityDragGizmo(_repo, _entity);
         gizmo.OnDragCommitted += (e, p) => { cbEntity = e; cbPos = p; };
-        gizmo.OnInteractionStarted(default, Vector3.Zero);
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));   // QA-011: grabbed ON the entity
 
         var finalPos = new Vector3(100f, 200f, 0f);
+        // ⭐ QA-011 — a drag must actually HAPPEN before it can be committed.
+        // ⛔ This went straight from OnInteractionStarted to OnCommit, and OnCommit is guarded by
+        //    `if (_isDragging)` — which only OnDragUpdate sets. So the entity kept its original X of 10
+        //    and the rail failed with "Expected: 100, Actual: 10". ⭐⭐ The guard is CORRECT and must not
+        //    be relaxed: without it every plain CLICK on an entity would move it to the cursor.
+        gizmo.OnDragUpdate(finalPos);
         gizmo.OnCommit(finalPos);
 
         var tf = _repo.GetComponent<SimTransform>(_entity);
@@ -142,5 +264,205 @@ public class EntityDragGizmoTests
         var def2 = new EntityDragGizmoDefinition();
         Assert.NotEqual(0u, def1.GizmoTypeId);
         Assert.Equal(def1.GizmoTypeId, def2.GizmoTypeId);
+    }
+}
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>AX-007</c> — the drag COMMITS through the same write router the rotate gizmo uses.</b>
+///
+/// <para>📄 <c>docs/DESIGN_Cgf_AxisB_Rotation_Slice.md</c> §11 · ruling 32 *(drag belongs on this path)*.</para>
+///
+/// <para>⭐⭐ <b>These rails use a FAKE writer, and that is not a shortcut.</b> The real
+/// <c>AttributeEntityComponentWriter</c> lives in <c>Hrot.Network.NED</c>, which this assembly ⛔ must not
+/// reference — 📌 that constraint is precisely why <c>IEntityComponentWriter</c> moved to
+/// <c>Fdp.Toolkits</c>. ⭐ The seam is what the gizmo depends on, so the seam is what it is railed against;
+/// the router's own behaviour is railed where it lives *(<c>TheGateCannotBeForgottenTests</c>)* and the two
+/// meet on a real cluster in <c>AttributeChangeRequestRoundTripTests</c>.</para>
+/// </summary>
+public class TheDragCommitsThroughTheWriteRouterTests
+{
+    private readonly EntityRepository _repo;
+    private readonly Entity           _entity;
+
+    public TheDragCommitsThroughTheWriteRouterTests()
+    {
+        _repo = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(_repo);
+        _repo.RegisterComponent<VehicleState>();
+
+        _entity = _repo.CreateEntity();
+        _repo.AddComponent(_entity, new SimTransform { Position = new Vector3(10f, 20f, 5f) });
+        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55 });
+        // ⭐ CE-4073 — NO IGeographicTransform singleton on purpose: the drag writes local ENU metres, so the world needs no geodetic
+        //   frame at all (it used to fall back to a direct write that never reached the owner when the frame was absent).
+    }
+
+    /// <summary>⭐ Records what the gizmo asked for, and answers a route the test chooses.</summary>
+    private sealed class FakeWriter : Fdp.Toolkit.Replication.Patching.IEntityComponentWriter
+    {
+        private readonly Fdp.Toolkit.Replication.Patching.EntityWriteRoute _route;
+        public FakeWriter(Fdp.Toolkit.Replication.Patching.EntityWriteRoute route) => _route = route;
+
+        public int Calls { get; private set; }
+        public System.Collections.Generic.List<Fdp.Toolkit.Replication.Patching.EntityAttributeChange> Last { get; }
+            = new();
+
+        public Fdp.Toolkit.Replication.Patching.EntityWriteRoute Write(Entity entity, ushort attributeId, double value)
+            => Write(entity, new[] { Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(attributeId, value) });
+
+        public Fdp.Toolkit.Replication.Patching.EntityWriteRoute Write(
+            Entity entity,
+            System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.Replication.Patching.EntityAttributeChange> changes)
+        {
+            Calls++;
+            Last.Clear();
+            Last.AddRange(changes);
+            return _route;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>ONE call, carrying BOTH coordinates — as the dragged LOCAL ENU metres (<c>CE-4073</c> rail (b)).</b>
+    ///
+    /// <para>⛔ Two single-attribute writes would reach the owner as two requests applied a round trip
+    /// apart, landing the entity on an east coordinate the operator chose and a north one they did not — see the
+    /// interface's remarks. ⭐ Asserted as a COUNT plus the pair, because either half alone would pass a
+    /// weaker rail. ⭐ And the VALUES: <c>Position.X</c> = the dragged east metres, <c>Position.Y</c> = the dragged north metres
+    /// — no geodetic conversion on the way, and a swap of the two reddens it.</para>
+    /// </summary>
+    [Fact]
+    public void ACommitSendsPositionXAndPositionYAsOneChange_WithTheDraggedMetres()
+    {
+        var writer = new FakeWriter(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested);
+        var gizmo  = new EntityDragGizmo(_repo, _entity, writer);
+
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(210f, 170f, 0f));
+        gizmo.OnCommit(new Vector3(210f, 170f, 0f));
+
+        Assert.Equal(1, writer.Calls);
+        Assert.Equal(2, writer.Last.Count);
+        var x = Assert.Single(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionX);
+        var y = Assert.Single(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionY);
+        Assert.Equal(210.0, x.Value.DoubleValue, 3);
+        Assert.Equal(170.0, y.Value.DoubleValue, 3);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The LIVE drag is NOT routed</b> — it is a local preview, and one request per mouse-move is
+    /// exactly what the design forbids. ⛔ A rail on the commit alone would not catch a future edit that
+    /// moved the routing into <c>OnDragUpdate</c>.
+    /// </summary>
+    [Fact]
+    public void TheLivePreviewNeverPublishesARequest()
+    {
+        var writer = new FakeWriter(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested);
+        var gizmo  = new EntityDragGizmo(_repo, _entity, writer);
+
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(60f, 70f, 0f));
+        gizmo.OnDragUpdate(new Vector3(80f, 90f, 0f));
+        gizmo.OnDragUpdate(new Vector3(99f, 99f, 0f));
+
+        Assert.Equal(0, writer.Calls);
+
+        // ⭐ …and the preview DID move the entity locally, so "no request" is not "nothing happened".
+        Assert.NotEqual<System.Numerics.Vector3>(new Vector3(10f, 20f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>A REFUSED write puts the preview back.</b> ⛔ Leaving the dragged position on screen after
+    /// nobody accepted it shows the operator a move that never happened — the same *"accepted and silently
+    /// discarded"* shape this programme keeps finding.
+    /// </summary>
+    [Fact]
+    public void ARefusedCommitRestoresTheOriginalPosition()
+    {
+        var writer = new FakeWriter(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused);
+        var gizmo  = new EntityDragGizmo(_repo, _entity, writer);
+
+        var original = _repo.GetComponent<SimTransform>(_entity).Position;
+
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(210f, 170f, 0f));
+        gizmo.OnCommit(new Vector3(210f, 170f, 0f));
+
+        var after = _repo.GetComponent<SimTransform>(_entity).Position;
+        Assert.Equal(original.X, after.X, 3);
+        Assert.Equal(original.Y, after.Y, 3);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The Z coordinate survives a 2D drag (<c>CE-4073</c> rail (b), the "current Z" half).</b> 📐 The gizmo commits
+    /// <c>Position.X</c>/<c>Position.Y</c> only — ⛔ taking Z from the drag would silently flatten every airborne entity to the map
+    /// plane, and ⛔ re-sending the replica's own Z would write a possibly stale height at the owner. ⭐ The three axes are independent
+    /// copies at the owner, so omitting <c>Position.Z</c> keeps the entity's current height there by construction: asserted by
+    /// applying the committed batch through the REAL binary interpreter onto the entity's own transform.
+    /// </summary>
+    [Fact]
+    public void AHorizontalDragDoesNotFlattenAltitude()
+    {
+        var writer = new FakeWriter(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested);
+        var gizmo  = new EntityDragGizmo(_repo, _entity, writer);
+
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(210f, 170f, 0f));
+        gizmo.OnCommit(new Vector3(210f, 170f, 0f));
+
+        Assert.DoesNotContain(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionZ);
+
+        // ⭐ What the OWNER does with the batch: apply it onto an entity at (10, 20, 5) — the height must still be 5.
+        _repo.SetAuthority<SimTransform>(_entity, true);
+        var interpreter = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.BuildBinaryInterpreter();
+        var ctx = interpreter.CreateContext(Fdp.Toolkit.Replication.Patching.EcsPatchContext.Create(_repo, _entity));
+        ctx.Repo = _repo; ctx.Entity = _entity;
+        _repo.GetComponentRW<SimTransform>(_entity).Position = new Vector3(10f, 20f, 5f);   // undo the local preview: the owner's copy
+        interpreter.Apply(ctx, writer.Last.ToArray());
+
+        Assert.Equal<System.Numerics.Vector3>(new Vector3(210f, 170f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-4073</c> rail (b), the owned-ELSEWHERE shape through the REAL router:</b> a drag release on an entity this node does NOT
+    /// own publishes the change request to the owner with <c>Position.X</c>/<c>Position.Y</c> = the dragged local metres — and no height —
+    /// while the replica's own height stays (nothing is converted, nothing is flattened).
+    /// </summary>
+    [Fact]
+    public void ADragReleaseOnAnEntityOwnedElsewhere_RequestsPositionXY_WithTheDraggedMetres()
+    {
+        _repo.SetAuthority<SimTransform>(_entity, false);   // owned by another node
+        var published = new System.Collections.Generic.List<Fdp.Toolkit.Replication.Patching.EntityAttributeChange>();
+        var writer = new Fdp.Toolkit.Replication.Attributes.AttributeEntityComponentWriter(
+            _repo,
+            Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.BuildBinaryInterpreter(),
+            publishRequest: (ent, recs) => published.AddRange(recs.ToArray()));
+        var gizmo = new EntityDragGizmo(_repo, _entity, writer);
+
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(210f, 170f, 0f));
+        gizmo.OnCommit(new Vector3(210f, 170f, 0f));
+
+        Assert.Equal(2, published.Count);
+        Assert.Equal(210.0, Assert.Single(published, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionX).Value.DoubleValue, 3);
+        Assert.Equal(170.0, Assert.Single(published, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionY).Value.DoubleValue, 3);
+        Assert.Equal(5f, _repo.GetComponent<SimTransform>(_entity).Position.Z);   // the current height is untouched
+    }
+
+    /// <summary>
+    /// ⚠ <b>With NO writer the gizmo keeps the direct write it always had</b> — the single-node editor
+    /// shape. ⭐ Railed so the fallback is a stated contract rather than an accident of a null check.
+    /// </summary>
+    [Fact]
+    public void WithNoWriterTheCommitStillWritesLocally()
+    {
+        var gizmo = new EntityDragGizmo(_repo, _entity);
+
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(210f, 170f, 0f));
+        gizmo.OnCommit(new Vector3(210f, 170f, 0f));
+
+        var after = _repo.GetComponent<SimTransform>(_entity).Position;
+        Assert.Equal(210f, after.X, 3);
+        Assert.Equal(170f, after.Y, 3);
     }
 }

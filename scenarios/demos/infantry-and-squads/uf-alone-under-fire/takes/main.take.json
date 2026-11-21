@@ -1,0 +1,88 @@
+{
+  "title": "Pinned in the open",
+  "caption": "One soldier crosses open ground under fire: a near miss drops him, he stays down while pinned, then goes on",
+  "clip": "F-61",
+  "chapter": 5,
+  "state": "ready",
+  "endAt": "m+30",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Hostile 1",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": 0.3,
+      "follow": "Runner",
+      "distance": 45,
+      "yaw": 200,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Runner",
+      "distance": 9,
+      "yaw": 150,
+      "pitch": -8,
+      "lift": 1.2,
+      "fov": 40,
+      "segment": "a"
+    },
+    {
+      "at": "m+6",
+      "follow": "Runner",
+      "distance": 14,
+      "yaw": 60,
+      "pitch": -12,
+      "lift": 1.2,
+      "fov": 45,
+      "segment": "b"
+    },
+    {
+      "at": "m+16",
+      "follow": "Runner",
+      "distance": 70,
+      "yaw": 100,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "c"
+    }
+  ],
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.3,
+      "to": "m+5"
+    },
+    {
+      "id": "b",
+      "from": "m+5",
+      "to": "m+15",
+      "speed": 2
+    },
+    {
+      "id": "c",
+      "from": "m+15",
+      "to": "m+30",
+      "speed": 2.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.3,
+      "until": "m+15",
+      "text": "Under fire in the open: a near miss, he is down and pinned"
+    },
+    {
+      "at": "m+15",
+      "until": "m+30",
+      "text": "The fire eases: he gets up and goes on"
+    }
+  ]
+}

@@ -93,7 +93,7 @@ CycloneBaseTranslator : INetworkTranslator (shared impl for all Cyclone translat
 
 **DO NOT** move to the next task until:
 - ✅ Current task implementation complete
-- ✅ **Build passes** (`dotnet build IOS-IG-SimHost.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`)
+- ✅ **Build passes** (`dotnet build HROT.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`)
 - ✅ **Relevant tests pass** (run Cyclone tests after each step)
 
 **No stopping to ask for permission. Fix any compilation errors before moving on. Work autonomously until all success criteria are met.**
@@ -119,7 +119,7 @@ This is a **pure addition** - no existing code is changed in this task.
 
 **Verify:**
 - File exists at `FDP/Engine/Fdp.Core/Abstractions/INetworkTranslator.cs`
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - No existing code is changed.
 
 ---
@@ -142,7 +142,7 @@ Because `CycloneTranslator<>` already implements all these methods, NO changes t
 
 **Verify:**
 - `IDescriptorTranslator` extends `INetworkTranslator`.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - `dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/Fdp.Network.Cyclone.Tests.csproj --no-build` - all 40 pass.
 
 ---
@@ -208,7 +208,7 @@ namespace Fdp.Interfaces
 - `CycloneBaseTranslator.cs` and `INetworkEventTranslator.cs` exist.
 - `CycloneTranslator` extends `CycloneBaseTranslator` and implements `IDescriptorTranslator`.
 - Neither event translator class exposes `DescriptorOrdinal`, `ApplyToEntity`, or `Dispose`.
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - `dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/Fdp.Network.Cyclone.Tests.csproj --no-build` - all tests pass (especially `CycloneManagedEventTranslatorTests`).
 
 ---
@@ -241,16 +241,16 @@ namespace Fdp.Interfaces
 - `CycloneNetworkIngressSystem` constructor accepts `INetworkTranslator[]`.
 - `CycloneEgressSystem` constructor accepts `INetworkTranslator[]`.
 - `CycloneNetworkCleanupSystem` still uses `IDescriptorTranslator[]`.
-- `dotnet build IOS-IG-SimHost.sln` passes.
-- `dotnet test IOS-IG-SimHost.sln --no-build` - all Cyclone system tests pass.
+- `dotnet build HROT.sln` passes.
+- `dotnet test HROT.sln --no-build` - all Cyclone system tests pass.
 
 ---
 
 ## 🧪 Testing Requirements
 
-1. **After every task:** `dotnet build IOS-IG-SimHost.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`
+1. **After every task:** `dotnet build HROT.sln` from `d:\Work\IOS-IG-SimHost-FDP-2`
 2. **After Task 2 and Task 3:** `dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/Fdp.Network.Cyclone.Tests.csproj --no-build`
-3. **Final sweep after Task 4:** `dotnet test IOS-IG-SimHost.sln --no-build`
+3. **Final sweep after Task 4:** `dotnet test HROT.sln --no-build`
 
 No new tests required by this batch (the refactoring is structural, not behavioral). Existing `CycloneManagedEventTranslatorTests` and `CycloneTranslatorTests` must continue to pass.
 
@@ -270,7 +270,7 @@ Submit your report to `.dev/module-phase-manual/reports/BATCH-03-REPORT.md`.
 - [ ] MPM-P3-T04: Update systems + remove GetDirectionLabel
 
 ## Build Status
-[Result of: dotnet build IOS-IG-SimHost.sln]
+[Result of: dotnet build HROT.sln]
 
 ## Test Status
 [Result of Cyclone tests + full suite]
@@ -303,7 +303,7 @@ This batch is DONE when:
 - [ ] Event translators implement `INetworkEventTranslator` and no longer expose `DescriptorOrdinal`, `ApplyToEntity`, `Dispose`
 - [ ] `CycloneNetworkIngressSystem` and `CycloneEgressSystem` accept `INetworkTranslator[]`
 - [ ] `GetDirectionLabel` method deleted from `ArchitectureDiagnosticsPanel`
-- [ ] `dotnet build IOS-IG-SimHost.sln` passes with zero errors
+- [ ] `dotnet build HROT.sln` passes with zero errors
 - [ ] `CycloneManagedEventTranslatorTests` and `CycloneTranslatorTests` pass
 - [ ] Report submitted
 

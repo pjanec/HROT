@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Common;
@@ -6,7 +6,7 @@ using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Map.Common;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using CycloneDDS.Runtime;
@@ -73,14 +73,18 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT1] SimHost spawned networkId={networkId}");
 
         bool appeared = harness.PumpUntil(
             () =>
             {
+                // ⭐ S3 — AND the creator's own entity. With push-only grants CGF can hold a ghost (built from the
+                //   pre-genesis grant) a frame BEFORE SimHost's own spawn lands, so "CGF has it" no longer implies
+                //   "SimHost spawned it".
                 var map = harness.Cgf!.GhostEntityMap;
-                return map != null && map.TryGetEntity(networkId, out _);
+                return map != null && map.TryGetEntity(networkId, out _)
+                    && harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out _);
             },
             SpawnTimeoutMs / 5);
 
@@ -104,14 +108,18 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.IFV_Bradley;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.41, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT2] SimHost spawned IFV networkId={networkId}");
 
         bool appeared = harness.PumpUntil(
             () =>
             {
+                // ⭐ S3 — AND the creator's own entity. With push-only grants CGF can hold a ghost (built from the
+                //   pre-genesis grant) a frame BEFORE SimHost's own spawn lands, so "CGF has it" no longer implies
+                //   "SimHost spawned it".
                 var map = harness.Cgf!.GhostEntityMap;
-                return map != null && map.TryGetEntity(networkId, out _);
+                return map != null && map.TryGetEntity(networkId, out _)
+                    && harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out _);
             },
             SpawnTimeoutMs / 5);
 
@@ -137,15 +145,19 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.42, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT3] SimHost spawned networkId={networkId}");
 
         // Wait for entity to appear in CGF ghost repo.
         bool appeared = harness.PumpUntil(
             () =>
             {
+                // ⭐ S3 — AND the creator's own entity. With push-only grants CGF can hold a ghost (built from the
+                //   pre-genesis grant) a frame BEFORE SimHost's own spawn lands, so "CGF has it" no longer implies
+                //   "SimHost spawned it".
                 var map = harness.Cgf!.GhostEntityMap;
-                return map != null && map.TryGetEntity(networkId, out _);
+                return map != null && map.TryGetEntity(networkId, out _)
+                    && harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out _);
             },
             SpawnTimeoutMs / 5);
         Assert.True(appeared, $"Entity {networkId} did not appear in CGF ghost repo.");
@@ -183,41 +195,40 @@ public sealed class CgfSubsystemHeadlessTests
     /// a tactical area that the IG map must display.
     /// </summary>
     [Fact]
-    public void IGOverlay_MapVisualOverlay_AppearsOnIgEntity()
+    public void PlayerOverlay_MapVisualOverlay_AppearsOnPlayerEntity()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var harness = new HrotRunnerHarness("simhost,ig", domainId);
+        using var harness = new HrotRunnerHarness("simhost,player", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
         // Spawn entity so there is a network entity for the overlay to attach to.
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for entity on IG.
-        bool igHasEntity = harness.PumpUntil(
-            () => IgHasNetworkEntity(harness, networkId),
+        bool playerHasEntity = harness.PumpUntil(
+            () => PlayerHasNetworkEntity(harness, networkId),
             300);
-        Assert.True(igHasEntity, $"IG did not receive entity {networkId} in time.");
-        _out.WriteLine($"[HT4] IG entity {networkId} appeared.");
+        Assert.True(playerHasEntity, $"Player did not receive entity {networkId} in time.");
+        _out.WriteLine($"[HT4] Player entity {networkId} appeared.");
 
         // Write a MapVisualOverlay DDS sample for this entity.
         using var participant   = new DdsParticipant((uint)harness.DomainId);
-        using var overlayWriter = new DdsWriter<MapVisualOverlay>(participant, "MapVisualOverlay");
+        using var overlayWriter = new DdsWriter<MapVisualOverlay>(participant);
 
         var overlay = new MapVisualOverlay
         {
-            EntityId  = (int)networkId,
+            EntityId  = networkId,
             IsEditable = false,
-            // Points are DELTA offsets (degrees) from the entity's reference position,
-            // NOT absolute geographic coordinates. The MapVisualOverlayIngressTranslator adds
-            // refGeo.lat + deltaLat when reconstructing Cartesian, so absolute coords would overflow.
-            Points    = new System.Collections.Generic.List<GeoPoint>
+            // ⭐ AQ107 B — Points are ABSOLUTE local-ENU positions (metres); the ingress makes them entity-relative.
+            //   A ~440 m square (the old ±0.002° deltas, in metres).
+            Points    = new System.Collections.Generic.List<Hrot.NED.Messages.Vec3d>
             {
-                new GeoPoint { Latitude = -0.002, Longitude = -0.002, Altitude = 0 },
-                new GeoPoint { Latitude =  0.002, Longitude = -0.002, Altitude = 0 },
-                new GeoPoint { Latitude =  0.002, Longitude =  0.002, Altitude = 0 },
-                new GeoPoint { Latitude = -0.002, Longitude =  0.002, Altitude = 0 },
+                new Hrot.NED.Messages.Vec3d { X = -220, Y = -220, Z = 0 },
+                new Hrot.NED.Messages.Vec3d { X = -220, Y =  220, Z = 0 },
+                new Hrot.NED.Messages.Vec3d { X =  220, Y =  220, Z = 0 },
+                new Hrot.NED.Messages.Vec3d { X =  220, Y = -220, Z = 0 },
             }
         };
         overlayWriter.Write(overlay);
@@ -225,12 +236,12 @@ public sealed class CgfSubsystemHeadlessTests
 
         // The MapVisualOverlayIngressTranslator should attach an EditablePolyline to the IG entity.
         bool overlayApplied = harness.PumpUntil(
-            () => IgEntityHasEditablePolyline(harness, networkId),
+            () => PlayerEntityHasEditablePolyline(harness, networkId),
             OverlayTimeoutMs);
 
-        _out.WriteLine($"[HT4] Overlay applied to IG entity: {overlayApplied}");
+        _out.WriteLine($"[HT4] Overlay applied to Player entity: {overlayApplied}");
         Assert.True(overlayApplied,
-            $"IG entity {networkId} did not receive EditablePolyline within {OverlayTimeoutMs} ms. " +
+            $"Player entity {networkId} did not receive EditablePolyline within {OverlayTimeoutMs} ms. " +
             $"MapVisualOverlayIngressTranslator or EditablePolyline registration is broken.");
     }
 
@@ -250,15 +261,19 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.523, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT5] Spawned entity {networkId}");
 
         // Wait for entity to propagate to CGF ghost repo.
         bool cgfHasEntity = harness.PumpUntil(
             () =>
             {
+                // ⭐ S3 — AND the creator's own entity. With push-only grants CGF can hold a ghost (built from the
+                //   pre-genesis grant) a frame BEFORE SimHost's own spawn lands, so "CGF has it" no longer implies
+                //   "SimHost spawned it".
                 var map = harness.Cgf!.GhostEntityMap;
-                return map != null && map.TryGetEntity(networkId, out _);
+                return map != null && map.TryGetEntity(networkId, out _)
+                    && harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out _);
             },
             SpawnTimeoutMs / 5);
         Assert.True(cgfHasEntity, $"CGF did not receive entity {networkId} in time.");
@@ -308,7 +323,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.520, Longitude = 13.405, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool entityReady = harness.PumpUntil(
             () => harness.SimHost.World?.EntityCount > 0,
@@ -317,8 +332,8 @@ public sealed class CgfSubsystemHeadlessTests
         _out.WriteLine($"[HT6] SimHost entity {networkId} ready.");
 
         using var participant   = new DdsParticipant((uint)harness.DomainId);
-        using var reqWriter     = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
-        using var ackReader     = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
+        using var reqWriter     = new DdsWriter<MissionControlRequest>(participant);
+        using var ackReader     = new DdsReader<MissionControlAck>(participant);
 
         var taskId = Guid.NewGuid();
         reqWriter.Write(new MissionControlRequest
@@ -373,7 +388,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.524, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool entityReady = harness.PumpUntil(
             () => harness.SimHost.World?.EntityCount > 0,
@@ -407,7 +422,7 @@ public sealed class CgfSubsystemHeadlessTests
 
     /// <summary>
     /// Regression test: verifies that the CGF node does NOT crash when it receives
-    /// DDS entity state updates that include <see cref="IgHealthState"/> (component 165)
+    /// DDS entity state updates that carry the authority's <c>Health</c> (CE-196; component 165 is retired)
     /// and <see cref="EntityInfo"/> (component 164) data, which previously caused an
     /// <see cref="InvalidOperationException"/> ("Component type 165 not registered")
     /// during <c>EntityCommandBuffer.Playback</c>.
@@ -421,34 +436,38 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.525, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for the entity to reach CGF.
         bool appeared = harness.PumpUntil(
             () =>
             {
+                // ⭐ S3 — AND the creator's own entity. With push-only grants CGF can hold a ghost (built from the
+                //   pre-genesis grant) a frame BEFORE SimHost's own spawn lands, so "CGF has it" no longer implies
+                //   "SimHost spawned it".
                 var map = harness.Cgf!.GhostEntityMap;
-                return map != null && map.TryGetEntity(networkId, out _);
+                return map != null && map.TryGetEntity(networkId, out _)
+                    && harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out _);
             },
             SpawnTimeoutMs / 5);
         Assert.True(appeared, $"Entity {networkId} did not appear in CGF.");
 
         // Publish EntityDamage and EntityInfo DDS samples to trigger the previously-crashing
-        // translators (EntityDamageIngressTranslator â†’ IgHealthState, EntityInfoIngressTranslator â†’ EntityInfo).
+        // translators (EntityDamageIngressTranslator -> Health, EntityInfoIngressTranslator -> EntityInfo).
         using var participant   = new DdsParticipant((uint)domainId);
-        using var damageWriter  = new DdsWriter<EntityDamage>(participant, "EntityDamage");
-        using var infoWriter    = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>(participant, "EntityInfo");
+        using var damageWriter  = new DdsWriter<EntityDamage>(participant);
+        using var infoWriter    = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>(participant);
 
-        damageWriter.Write(new EntityDamage { EntityId = (int)networkId, Damage = 25.0f });
+        damageWriter.Write(new EntityDamage { EntityId = networkId, Current = 75.0f, Max = 100.0f });
         infoWriter.Write(new Hrot.NED.Descriptors.EntityInfo
         {
-            EntityId        = (int)networkId,
+            EntityId        = networkId,
             Name            = "TestTank",
             ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY
         });
         _out.WriteLine($"[HT8] EntityDamage + EntityInfo written for entity {networkId}.");
 
-        // Pump frames â€” if CgfApplication crashes on component 165, it would throw here.
+        // Pump frames â€” if the CGF node crashes on component 165, it would throw here.
         var ex = Record.Exception(() => harness.PumpUntil(() => false, 2_000 / 5));
         Assert.Null(ex);
         _out.WriteLine("[HT8] PASS â€” no crash while processing EntityDamage and EntityInfo updates.");
@@ -483,14 +502,18 @@ public sealed class CgfSubsystemHeadlessTests
         // Spawn near the map reference origin so a ghost tick targeting (0,0) would
         // immediately report "arrived" without the entity moving -- the failing scenario.
         var spawnPos = new CoreGeoPoint { Latitude = 52.524, Longitude = 13.415, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for CGF ghost entity to appear.
         bool cgfReady = harness.PumpUntil(
             () =>
             {
+                // ⭐ S3 — AND the creator's own entity. With push-only grants CGF can hold a ghost (built from the
+                //   pre-genesis grant) a frame BEFORE SimHost's own spawn lands, so "CGF has it" no longer implies
+                //   "SimHost spawned it".
                 var map = harness.Cgf!.GhostEntityMap;
-                return map != null && map.TryGetEntity(networkId, out _);
+                return map != null && map.TryGetEntity(networkId, out _)
+                    && harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out _);
             },
             SpawnTimeoutMs / 5);
         Assert.True(cgfReady, $"CGF ghost entity {networkId} did not appear within {SpawnTimeoutMs} ms.");
@@ -499,6 +522,10 @@ public sealed class CgfSubsystemHeadlessTests
         // Record baseline SimHost position before the mission is sent.
         var initialPos = harness.SimHost.TestHook_GetSimTransform(networkId).Position;
         _out.WriteLine($"[HT9] Initial SimHost position: ({initialPos.X:F3}, {initialPos.Y:F3})");
+        // ⛔ TestHook_GetSimTransform answers default(SimTransform) for a missing entity, and a (0,0,0) baseline
+        //   would make any real position look like movement. The spawn is ~680 m from the origin, so a zero
+        //   baseline can only mean "not read".
+        Assert.NotEqual<System.Numerics.Vector3>(System.Numerics.Vector3.Zero, initialPos);
 
         // Send a MoveToLocation mission via DDS.  Full Brain pipeline exercised:
         //   MissionControlRequest (DDS) -> MissionControlExecutionSystem (CGF)
@@ -507,8 +534,8 @@ public sealed class CgfSubsystemHeadlessTests
         //   -> BehaviorIngressSystem -> BTree tick -> NavigationIntent (DDS)
         //   -> SimHost NavigationExecution -> entity movement.
         using var participant = new DdsParticipant((uint)harness.DomainId);
-        using var reqWriter   = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
-        using var ackReader   = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
+        using var reqWriter   = new DdsWriter<MissionControlRequest>(participant);
+        using var ackReader   = new DdsReader<MissionControlAck>(participant);
 
         var taskId = Guid.NewGuid();
         reqWriter.Write(new MissionControlRequest
@@ -528,9 +555,9 @@ public sealed class CgfSubsystemHeadlessTests
                         {
                             TaskId          = taskId,
                             BehaviorId      = "MoveToLocation",
-                            // Target ~1.2 km north-east: far enough that the entity cannot
+                            // Target ~2 km north-east (local metres; S0 item 5 retired targetLat/targetLon — was 52.535 N, 13.42 E): far enough that the entity cannot
                             // reach it within the test window even at maximum speed.
-                            BehaviorParams  = "{\"targetLat\":52.535,\"targetLon\":13.42,\"speed\":15,\"arrivalRadius\":5}",
+                            BehaviorParams  = "{\"target\":[1015,1668,0],\"speed\":15,\"arrivalRadius\":5}",
                             ExecutingEngine = "CGFX",
                             State           = eTaskState.TASK_ACTIVE,
                             Triggers        = new System.Collections.Generic.List<DdsMissionTrigger>
@@ -579,16 +606,56 @@ public sealed class CgfSubsystemHeadlessTests
         _out.WriteLine($"[HT9] initial=({initialPos.X:F3},{initialPos.Y:F3}), " +
                        $"final=({finalPos.X:F3},{finalPos.Y:F3}), dist={dist:F3} m, moved={moved}");
 
+        // ⭐ Name the broken link instead of one generic message (CE-500, design §5.2): the brain must hold the
+        //   intent's ownership and write it, and SimHost must receive it and drive.
+        string chain = DescribeMoveChain(harness, networkId);
+        _out.WriteLine("[HT9] " + chain);
+
         Assert.True(moved,
             $"Entity {networkId} did not move >= {MovedThresholdMetres} m after MoveToLocation mission " +
-            $"(dist={dist:F3} m). Ghost-tick regression: MissionDirectorSystem must not publish " +
-            $"AssignBehaviorHashEvent; only MissionAdapterSystem should emit cognitive-tier events.");
+            $"(dist={dist:F3} m). Chain: {chain}");
     }
 
 
     // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private static Vector3 GetCgfGhostPosition(HrotRunnerHarness harness, long networkId)
+    /// <summary>Each link of brain → intent → SimHost kinematics, as one line.</summary>
+    private static string DescribeMoveChain(HrotRunnerHarness harness, int networkId)
+    {
+        static string Node(Fdp.Core.EntityRepository? w, NetworkEntityMap? map, int id)
+        {
+            if (w == null || map == null || !map.TryGetEntity(id, out var e) || !w.IsAlive(e)) return "absent";
+            var parts = new System.Collections.Generic.List<string>();
+            int intentId = Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationIntent;
+            parts.Add($"ownsIntent={w.HasAuthority(e, intentId)}");
+            if (w.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(e))
+                parts.Add($"behaviour={w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(e).ActiveBehaviorHash}" +
+                          $" ownsBehaviour={w.HasAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(e)}" +
+                          $" ownsMission={w.HasAuthority(e, GlobalComponentIds.MissionPlanQueue)}");
+            if (w.HasComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(e))
+            {
+                var q = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(e);
+                parts.Add($"mission={q.CurrentTask}/{q.TaskCount} halted={q.Halted}");
+            }
+            if (w.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(e))
+            {
+                var plan = w.GetComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(e)?.Plan;
+                parts.Add($"plan={plan?.Tasks?.Count ?? -1}:{plan?.Tasks?.FirstOrDefault()?.BehaviorName}");
+            }
+            if (w.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e))
+            {
+                var n = w.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(e);
+                parts.Add($"intent={n.Mode}#{n.IntentId}->{n.FinalDestination}");
+            }
+            if (w.HasComponent<CarKinem.Core.NavState>(e))
+                parts.Add($"navState={w.GetComponentRO<CarKinem.Core.NavState>(e).Mode}");
+            return string.Join(" ", parts);
+        }
+        return $"CGF[{Node(harness.Cgf?.World, harness.Cgf?.GhostEntityMap, networkId)}] " +
+               $"SimHost[{Node(harness.SimHost.App.WorldOrNull, harness.SimHost.TestHook_EntityMap, networkId)}]";
+    }
+
+    private static Vector3 GetCgfGhostPosition(HrotRunnerHarness harness, int networkId)
     {
         var map   = harness.Cgf?.GhostEntityMap;
         var world = harness.Cgf?.World;
@@ -598,28 +665,28 @@ public sealed class CgfSubsystemHeadlessTests
         return world.GetComponent<SimTransform>(entity).Position;
     }
 
-    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, long networkId)
+    private static bool PlayerHasNetworkEntity(HrotRunnerHarness harness, int networkId)
     {
-        var map = harness.Ig.App.TestHook_EntityMap;
+        var map = harness.Player.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetPlayerSimTransform(HrotRunnerHarness harness, int networkId)
     {
-        var map = harness.Ig.App.TestHook_EntityMap;
+        var map = harness.Player.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return default;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity)) return default;
         return world.GetComponent<SimTransform>(entity);
     }
 
-    private static bool IgEntityHasEditablePolyline(HrotRunnerHarness harness, long networkId)
+    private static bool PlayerEntityHasEditablePolyline(HrotRunnerHarness harness, int networkId)
     {
-        var map = harness.Ig.App.TestHook_EntityMap;
+        var map = harness.Player.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity)) return false;
         return ((ISimulationView)world).HasManagedComponent<EditablePolyline>(entity);
     }

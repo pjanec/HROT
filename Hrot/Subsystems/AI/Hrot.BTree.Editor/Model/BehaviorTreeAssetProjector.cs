@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fbt;
 using Hrot.BTree.Editor.Layout;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Layout;
 
 namespace Hrot.BTree.Editor.Model;
@@ -23,7 +24,9 @@ internal static class BehaviorTreeAssetProjector
         bool isEditorOwned,
         string blackboardTypeName,
         string contextTypeName,
-        string targetNamespace = "")
+        string targetNamespace = "",
+        IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null,
+        Type? paramsBlock = null)
     {
         var asset = new BehaviorTreeAsset(
             assetId, name, sourceFilePath, isEditorOwned,
@@ -63,6 +66,7 @@ internal static class BehaviorTreeAssetProjector
         else
         {
             BTreeAutoLayout.Layout(asset);
+            asset.IsAutoLaidOut = true;   // ⭐ CE-1360 — redone with the real font when a document opens it
         }
 
         asset.LoadSyncBindings(layout?.SyncBindings);
@@ -81,6 +85,37 @@ internal static class BehaviorTreeAssetProjector
             {
                 asset.SetUnusedWarningSuppressed(variableName, true);
             }
+        }
+
+        // ⭐ W7b (§9.4) -- per-VARIABLE "allow concurrent writes".
+        if (layout?.ConcurrentWritesAllowed != null)
+        {
+            foreach (var variableName in layout.ConcurrentWritesAllowed)
+            {
+                asset.SetConcurrentWritesAllowed(variableName, true);
+            }
+        }
+
+        // ⭐ CE-1430 — the blackboard variables of a C#-built tree ARE its published manifest (SharedNodeBinder.PublishedVariablesOf, the
+        //   list the registry holds as ManagedBlackboardVariables): one row per manifest entry, its name and type, in manifest order — so
+        //   the Variables window, the Details rows and the Watch ask the live provider for exactly the names it answers. ⛔ No second list.
+        //   ⭐ CE-1433 — each row's DEFAULT is the block's constructor value for that field (ParamsDefaults.DefaultOf — the bake's own answer,
+        //   CE-3194), written as the editor's default-value JSON by the ONE serializer it already uses (DefaultValueAuthoring.TrySerialize), so
+        //   the planning cell shows what a JSON asset's authored default showed. No comment (the code is its documentation); read-only (CE-1252).
+        if (variables is { Count: > 0 })
+        {
+            bool wasDirty = asset.IsDirty;
+            object? block = paramsBlock != null ? Fdp.Toolkit.Behavior.ParamsDefaults.DefaultOf(paramsBlock) : null;
+            var entries = new List<Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry>(variables.Count);
+            foreach (var v in variables)
+            {
+                string? defaultJson = null;
+                var field = block != null ? paramsBlock!.GetField(v.Name) : null;
+                if (field != null) defaultJson = Hrot.Editor.AiShared.Inspector.DefaultValueAuthoring.TrySerialize(field.GetValue(block), v.Type);
+                entries.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(v.Name, v.Type, Comment: null, DefaultValueJson: defaultJson));
+            }
+            asset.SetBlackboardVariables(entries);
+            if (!wasDirty) asset.ClearDirty();   // a projection is not an edit
         }
 
         return asset;
@@ -145,23 +180,25 @@ internal static class BehaviorTreeAssetProjector
         switch (nodeDef.Type)
         {
             case NodeType.Action:
-                editorNode.Action = new BTreeActionPayload
-                {
-                    MethodFqn     = blob.MethodNames[nodeDef.PayloadIndex],
-                    DelegateShape = BTreeActionDelegateShape.FourParamFull,
-                };
+                editorNode.Action        = new BehaviorActionBinding { MethodFqn = blob.MethodNames[nodeDef.PayloadIndex] };
+                // ⭐ CE-504 slice 4 — a compiled blob carries the node's key, not its variable binding, so the projection
+                //   binds no variable (it was FourParamFull, the retired whole-block shape, for the same reason).
+                editorNode.DelegateShape = BTreeActionDelegateShape.NoParams;
                 break;
             case NodeType.Condition:
-                editorNode.Condition = new BTreeConditionPayload
-                {
-                    MethodFqn = blob.MethodNames[nodeDef.PayloadIndex],
-                };
+                editorNode.Condition = new BehaviorActionBinding { MethodFqn = blob.MethodNames[nodeDef.PayloadIndex] };
                 break;
             case NodeType.Wait:
                 editorNode.Wait = new BTreeWaitPayload
                 {
                     Duration = blob.FloatParams[nodeDef.PayloadIndex],
                 };
+                break;
+            case NodeType.Parallel:
+                // ⭐ CE-2073 — the compiler keeps a Parallel's policy in IntParams (TreeCompiler), so a compiled tree
+                //   projects with the policy it was authored with.
+                if (nodeDef.PayloadIndex >= 0 && nodeDef.PayloadIndex < blob.IntParams.Length)
+                    editorNode.ParallelPolicy = blob.IntParams[nodeDef.PayloadIndex];
                 break;
             case NodeType.Subtree:
                 editorNode.Subtree = new BTreeSubtreePayload
@@ -171,6 +208,13 @@ internal static class BehaviorTreeAssetProjector
                 };
                 break;
         }
+
+        // ⭐ CE-1360 (§3.4) — a leaf whose label is its registry KEY (every C#-built tree's: "Ns.Type.Method@24@936") shows the method's
+        //   name in words instead; the key stays its binding (MethodFqn). An authored label is kept as it is.
+        string? leafKey = editorNode.Action?.MethodFqn ?? editorNode.Condition?.MethodFqn;
+        if (!string.IsNullOrEmpty(leafKey) && BTreeNodeTitles.IsGenerated(label, leafKey))
+            editorNode.DisplayLabel = BTreeNodeTitles.For(leafKey, condition: editorNode.Condition != null,
+                Fdp.Toolkit.Behavior.SharedNodeBinder.ParamFieldOf(leafKey));
 
         nodes.Add(editorNode);
         byId[visualId] = editorNode;

@@ -1,0 +1,105 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CIV-5 the escalation ladder under a LETHAL ceiling. From the header's Judge (0)-(4). who '*st' = Instigator and the three Protesters (names containing 'st', case-sensitive; nothing else in the cast). 'Drawn' = Gunman's rifle IsEmbarkedTag.Seat 1 (the live reading); 'at ease' = Gunman WeaponPosture.Kind AtEase. Rifle silent = never a police-rifle round between the draw and his aiming (-0.25 s for the sampling step). The Warning cue is any policeman's Gesture (the take's 'warn' by the rifleman alone did not fire). TRIAGE (CE-4042): the draft's '*s' also matched \"Gunman's rifle\" and \"Stone source\" (no Health: read as hurt at t=0) \u2014 class A, now '*st'. The remaining reds are CE-4041 (measured, not a check error): in the editor's stepped preview the Police baton hits the Gunman at 0.78 s and he is dead at 2.5 s, before he draws; no policeman shows Warning. With the baton and launcher moved away (probe copy) every cue here fires: rifle Seat 1 at 4.25 s, Warning by Police rifleman 4.25 s, Aimed 11.25 s, police rifle round at and hit on the Gunman 12.35 s.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the riot starts",
+      "on": "field",
+      "who": "*st",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Riot"
+    },
+    {
+      "name": "the Gunman draws his rifle",
+      "on": "field",
+      "who": "Gunman's rifle",
+      "path": "IsEmbarkedTag.Seat",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "he holds it at ease",
+      "on": "field",
+      "who": "Gunman",
+      "path": "WeaponPosture.Kind",
+      "op": "==",
+      "value": "AtEase",
+      "after": "the Gunman draws his rifle"
+    },
+    {
+      "name": "a policeman warns him",
+      "on": "gesture",
+      "who": "*Police",
+      "is": "Warning",
+      "after": "the Gunman draws his rifle"
+    },
+    {
+      "name": "he raises the rifle (aimed)",
+      "on": "field",
+      "who": "Gunman",
+      "path": "WeaponPosture.Kind",
+      "op": "==",
+      "value": "Aimed",
+      "after": "the Gunman draws his rifle"
+    },
+    {
+      "name": "the police rifle stays silent while he is drawn and at ease",
+      "never": {
+        "on": "shot",
+        "by": "Police rifle"
+      },
+      "after": "the Gunman draws his rifle",
+      "before": "he raises the rifle (aimed)-0.25"
+    },
+    {
+      "name": "the police rifle fires at the Gunman",
+      "on": "shot",
+      "by": "Police rifle",
+      "at": "Gunman"
+    },
+    {
+      "name": "never a police rifle round at the Instigator",
+      "never": {
+        "on": "shot",
+        "by": "Police rifle",
+        "at": "Instigator"
+      }
+    },
+    {
+      "name": "never a police rifle round at a protester",
+      "never": {
+        "on": "shot",
+        "by": "Police rifle",
+        "at": "*Protester"
+      }
+    },
+    {
+      "name": "the Gunman is hit",
+      "on": "shot",
+      "by": "Police rifle",
+      "hit": "Gunman"
+    },
+    {
+      "name": "a rioter is stunned (non-lethal force)",
+      "on": "field",
+      "who": "*st",
+      "path": "EffectState.StunnedUntil",
+      "op": ">",
+      "value": "$now"
+    },
+    {
+      "name": "no rioter dies",
+      "never": {
+        "on": "field",
+        "who": "*st",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    }
+  ]
+}

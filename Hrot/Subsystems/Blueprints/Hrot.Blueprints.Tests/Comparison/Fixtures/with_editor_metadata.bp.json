@@ -1,4 +1,8 @@
 {
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
   "Header": {
     "SubsystemType": "Hrot.Blueprints",
     "SchemaVersion": "1.0"

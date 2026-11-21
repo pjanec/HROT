@@ -16,8 +16,6 @@ namespace Hrot.Editor.AiShared.Tests.Blackboard;
 public struct TestBTreeDto  { public int Value; }
 public struct TestHsmDto    { public float X; }
 public struct TestSharedDto { public bool Flag; }
-public struct TestHeavyDto  { public double D; }
-public struct TestHeavyContainer { public byte[] Data; }
 
 /// <summary>A DTO with two known public fields, used for S1-1 DtoFields tests.</summary>
 public struct FooDto { public int Health; public float Speed; }
@@ -51,24 +49,19 @@ public static class ActionFixtures
     [SharedAiCondition(typeof(TestSharedDto), "Flag")]
     public static void SharedConditionMethod(ref TestSharedDto dto) { }
 
-    [SharedAiHeavyAction(
-        typeof(TestSharedDto), "Flag",
-        typeof(TestHeavyContainer), "Data",
-        typeof(TestHeavyDto))]
-    public static void SharedHeavyActionMethod(ref TestSharedDto dto) { }
-
-    // Access annotation fixtures
-    [BTreeAction]
+    // Access annotation fixtures — ⭐ CE-504 residue: [SharedAiAction], the form a BTree binds (a bare [BTreeAction] is
+    //   no longer offered); the claims these pin (access annotations, DtoFields) are attribute-agnostic.
+    [SharedAiAction(typeof(TestBTreeDto), "Value")]
     public static void ReadOnlyParamMethod([BlackboardReadOnly] ref TestBTreeDto dto) { }
 
-    [BTreeAction]
+    [SharedAiAction(typeof(TestBTreeDto), "Value")]
     public static void ReadWriteParamMethod([BlackboardReadWrite] ref TestBTreeDto dto) { }
 
-    [BTreeAction]
+    [SharedAiAction(typeof(TestBTreeDto), "Value")]
     public static void UnannotatedParamMethod(ref TestBTreeDto dto) { }
 
-    // S1-1 fixture: BTree action with FooDto (used to verify DtoFields reflection)
-    [BTreeAction]
+    // S1-1 fixture: an action with FooDto (used to verify DtoFields reflection)
+    [SharedAiAction(typeof(FooDto), "Health")]
     public static void FooDtoAction(ref FooDto dto) { }
 
     // DEBT-01 fixtures: void* parameters with DtoType on the attribute
@@ -144,43 +137,29 @@ public sealed class ActionSchemaExporterTests
     // TASK-BB-1a-01: Reflection-based population
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// ⭐⭐ CE-504 residue — <b>a bare <c>[BTreeAction]</c>/<c>[BTreeCondition]</c> is NOT offered.</b> Since CE-504 binding
+    /// one reports BTREE0002, so the picker must not list it. ✅ Red-proof: restore the exporter's bare-attribute arm ⇒ red.
+    /// (⛔ HISTORY: this used to assert the opposite — discovered, BTree hosting, DtoType from the ref param.)
+    /// </summary>
     [Fact]
-    public void Rebuild_DiscoversBTreeAction_ByFqn()
+    public void Rebuild_ABareBTreeActionOrCondition_IsNotOffered()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        Assert.True(exporter.All.ContainsKey(Fqn(nameof(ActionFixtures.BTreeActionMethod))));
+        Assert.False(exporter.All.ContainsKey(Fqn(nameof(ActionFixtures.BTreeActionMethod))));
+        Assert.False(exporter.All.ContainsKey(Fqn(nameof(ActionFixtures.BTreeConditionMethod))));
     }
 
     [Fact]
-    public void Rebuild_BTreeAction_HasBTreeHosting()
+    public void Rebuild_SharedAction_DtoTypeExtractedFromRefParam()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
-        Assert.True(entry.Hosting.HasFlag(ActionHosting.BTree));
-    }
-
-    [Fact]
-    public void Rebuild_BTreeAction_DtoTypeExtractedFromRefParam()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
-        Assert.Equal(typeof(TestBTreeDto), entry.DtoType);
-    }
-
-    [Fact]
-    public void Rebuild_BTreeCondition_HasBTreeHosting()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeConditionMethod))];
-        Assert.True(entry.Hosting.HasFlag(ActionHosting.BTree));
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
+        Assert.Equal(typeof(TestSharedDto), entry.DtoType);
     }
 
     [Fact]
@@ -201,6 +180,57 @@ public sealed class ActionSchemaExporterTests
 
         var entry = exporter.All[Fqn(nameof(ActionFixtures.HsmGuardMethod))];
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Hsm));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-386</c> — the HSM ROLE survives into the schema.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.3.
+    ///
+    /// <para>🔴 <b>What was lost.</b> <c>[HsmAction]</c> and <c>[HsmGuard]</c> both set
+    /// <c>ActionHosting.Hsm</c> and nothing else ⇒ the two rails directly above this one were the
+    /// WHOLE story the schema could tell, and the HSM action and guard pickers could not be filtered
+    /// apart. The attributes always carried the distinction; the exporter discarded it.</para>
+    ///
+    /// <para>⛔ <c>IsCondition</c> was NOT reused for this: <c>BTreeNodeCatalog:104</c> turns it into
+    /// the persisted BTree node kind, so a method hosted as both a BTree action and an HSM guard
+    /// would have silently become a condition leaf.</para>
+    /// </summary>
+    [Fact]
+    public void Rebuild_HsmActionAndHsmGuard_CarryDistinctRoleFlags()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var action = exporter.All[Fqn(nameof(ActionFixtures.HsmActionMethod))];
+        Assert.True(action.Hosting.HasFlag(ActionHosting.HsmActivity));
+        Assert.False(action.Hosting.HasFlag(ActionHosting.HsmGuard));
+
+        var guard = exporter.All[Fqn(nameof(ActionFixtures.HsmGuardMethod))];
+        Assert.True(guard.Hosting.HasFlag(ActionHosting.HsmGuard));
+        Assert.False(guard.Hosting.HasFlag(ActionHosting.HsmActivity));
+
+        // ⚠ Both still carry the broad Hsm bit — the change is ADDITIVE, so the one production
+        //   reader (BehaviorActionCatalog.MapHosting) is untouched.
+        Assert.True(action.Hosting.HasFlag(ActionHosting.Hsm));
+        Assert.True(guard.Hosting.HasFlag(ActionHosting.Hsm));
+    }
+
+    /// <summary>⭐ A shared ACTION is an HSM activity; a shared CONDITION is an HSM guard. ⚠ The
+    /// condition keeps <c>IsCondition</c> as well — that flag means "a BTree condition leaf" and is
+    /// a different question.</summary>
+    [Fact]
+    public void Rebuild_SharedActionAndCondition_MapToTheMatchingHsmRole()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var action = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
+        Assert.True(action.Hosting.HasFlag(ActionHosting.HsmActivity));
+        Assert.False(action.Hosting.HasFlag(ActionHosting.HsmGuard));
+
+        var cond = exporter.All[Fqn(nameof(ActionFixtures.SharedConditionMethod))];
+        Assert.True(cond.Hosting.HasFlag(ActionHosting.HsmGuard));
+        Assert.True(cond.IsCondition, "IsCondition is the BTree node-kind signal and must survive");
     }
 
     [Fact]
@@ -227,26 +257,13 @@ public sealed class ActionSchemaExporterTests
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Shared));
     }
 
-    [Fact]
-    public void Rebuild_HeavyAction_HasHeavyFlag()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedHeavyActionMethod))];
-        Assert.True(entry.Hosting.HasFlag(ActionHosting.Heavy));
-    }
-
-    [Fact]
-    public void Rebuild_HeavyAction_HeavyDtoTypeNonNull()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedHeavyActionMethod))];
-        Assert.NotNull(entry.HeavyDtoType);
-        Assert.Equal(typeof(TestHeavyDto), entry.HeavyDtoType);
-    }
+    // ⛔ CE-327 (2026-09-23) — `Rebuild_HeavyAction_HasHeavyFlag` and
+    //   `Rebuild_HeavyAction_HeavyDtoTypeNonNull` are DELETED with the feature they pinned:
+    //   [SharedAiHeavyAction]/[SharedAiHeavyCondition] no longer exist.
+    //   📄 DESIGN_Occurrence_Scoped_Storage.md §30.29.
+    // ⭐ The rail goes with the feature — it asserted the exporter's heavy branch and nothing else.
+    // ⭐ CE-330 (2026-09-23) finished the job: `ActionSchemaEntry.HeavyDtoType` and
+    //   `ActionHosting.Heavy` are now DELETED too, across 62 call sites in 19 files.
 
     [Fact]
     public void Rebuild_ReadOnlyParam_AccessIsReadOnly()
@@ -293,7 +310,7 @@ public sealed class ActionSchemaExporterTests
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var fqn   = Fqn(nameof(ActionFixtures.BTreeActionMethod));
+        var fqn   = Fqn(nameof(ActionFixtures.SharedActionMethod));
         var entry = exporter.Lookup(fqn);
         Assert.NotNull(entry);
         Assert.Equal(fqn, entry.Fqn);
@@ -526,22 +543,22 @@ public sealed class ActionSchemaExporterTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void Rebuild_BTreeAction_IsCondition_False()
+    public void Rebuild_SharedAction_IsCondition_False()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
         Assert.False(entry.IsCondition);
     }
 
     [Fact]
-    public void Rebuild_BTreeCondition_IsCondition_True()
+    public void Rebuild_SharedCondition_IsCondition_True()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeConditionMethod))];
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedConditionMethod))];
         Assert.True(entry.IsCondition);
     }
 
@@ -602,7 +619,7 @@ public sealed class ActionSchemaExporterTests
         exporter.Rebuild();
 
         // Regression: hand-written attributed methods must keep IsAiPrimitive == false.
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
         Assert.False(entry.IsAiPrimitive);
     }
 }

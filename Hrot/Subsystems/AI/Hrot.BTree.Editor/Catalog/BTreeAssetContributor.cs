@@ -41,10 +41,21 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
                 var defAttr = method.GetCustomAttribute<BTreeDefinitionAttribute>();
                 if (defAttr is null) continue;
                 if (method.GetParameters().Length != 0) continue;
-                if (!typeof(BehaviorTreeBlob).IsAssignableFrom(method.ReturnType)) continue;
+                // ⭐ CE-3160 (R-266, R-137) — a C#-BUILT tree (the method returns its BTreeBuilder, R-223: CombatPosture,
+                //   WindowDuel, MoveToLocation …) is compiled here too, so it stays visible and debuggable on the canvas like a
+                //   JSON one. ⛔ Only blob-returning (generated) methods were listed, so porting a JSON tree to C# hid it.
+                bool returnsBuilder = method.ReturnType.IsGenericType
+                    && method.ReturnType.GetGenericTypeDefinition().FullName == "Fbt.Compiler.BTreeBuilder`2";   // by name: this editor does not reference the compiler
+                if (!returnsBuilder && !typeof(BehaviorTreeBlob).IsAssignableFrom(method.ReturnType)) continue;
 
                 BehaviorTreeBlob? blob;
-                try { blob = (BehaviorTreeBlob?)method.Invoke(null, null); }
+                try
+                {
+                    var made = method.Invoke(null, null);
+                    blob = returnsBuilder
+                        ? (BehaviorTreeBlob?)made?.GetType().GetMethod("Compile", new[] { typeof(string) })?.Invoke(made, new object[] { defAttr.TreeName })
+                        : (BehaviorTreeBlob?)made;
+                }
                 catch { blob = null; }
                 if (blob is null) continue;
 
@@ -57,7 +68,14 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
                 var layout = LayoutDiscovery.TryGetLayout<BTreeLayoutAttribute, BTreeEditorLayout>(
                     assembly, assetId);
 
-                RegisterBlobCore(blob, defAttr.TreeName, assetId, layout, type.Namespace ?? string.Empty);
+                // ⭐ CE-1430 — the variables the runtime publishes for this tree (the same rule and the same derivation the curated
+                //   registrar uses), so its Variables rows are the registry's manifest.
+                IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null;
+                try { variables = Fdp.Toolkit.Behavior.SharedNodeBinder.PublishedVariablesOf(blob, defAttr); }
+                catch { variables = null; }   // a block the layout reader refuses shows no rows rather than hiding the tree
+
+                RegisterBlobCore(blob, defAttr.TreeName, assetId, layout, type.Namespace ?? string.Empty, codeBuilt: returnsBuilder,
+                    variables: variables, paramsBlock: defAttr.ParamsType);
             }
         }
         ContributorChanged?.Invoke();
@@ -77,7 +95,8 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
         ContributorChanged?.Invoke();
     }
 
-    private void RegisterBlobCore(BehaviorTreeBlob blob, string treeName, Guid assetId, BTreeEditorLayout? layout, string ns)
+    private void RegisterBlobCore(BehaviorTreeBlob blob, string treeName, Guid assetId, BTreeEditorLayout? layout, string ns,
+        bool codeBuilt = false, IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null, Type? paramsBlock = null)
     {
         var asset = BehaviorTreeAssetProjector.Project(
             blob,
@@ -89,7 +108,10 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
             false,
             string.Empty,
             string.Empty,
-            ns);
+            ns,
+            variables,
+            paramsBlock);
+        asset.IsCodeBuilt = codeBuilt;   // ⭐ CE-1252 — a C#-built tree (CE-3160) opens read-only
 
         _assets.Add(asset);
 

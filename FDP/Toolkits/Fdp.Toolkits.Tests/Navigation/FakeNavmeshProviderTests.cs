@@ -6,7 +6,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 {
     /// <summary>
     /// Tests for <see cref="FakeNavmeshProvider"/>.
-    /// All polygons are squares in the (X, Z) plane for simplicity.
+    /// All polygons are squares in the (X, Y) ground plane (Z-up, Z = elevation) for simplicity.
     /// </summary>
     public class FakeNavmeshProviderTests
     {
@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Vertices = new[]
                 {
                     new Vector3(0, 0, 0), new Vector3(2, 0, 0),
-                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                    new Vector3(2, 2, 0), new Vector3(0, 2, 0),
                 },
             };
             var poly2 = new NavPolygon
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Vertices = new[]
                 {
                     new Vector3(2, 0, 0), new Vector3(4, 0, 0),
-                    new Vector3(4, 0, 2), new Vector3(2, 0, 2),
+                    new Vector3(4, 2, 0), new Vector3(2, 2, 0),
                 },
             };
             return new FakeNavLayer
@@ -53,8 +53,8 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Id       = 3,
                 Vertices = new[]
                 {
-                    new Vector3(10, 0, 10), new Vector3(12, 0, 10),
-                    new Vector3(12, 0, 12), new Vector3(10, 0, 12),
+                    new Vector3(10, 10, 0), new Vector3(12, 10, 0),
+                    new Vector3(12, 12, 0), new Vector3(10, 12, 0),
                 },
             };
             return new FakeNavLayer
@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var provider = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
             // Center of poly1
-            Assert.True(provider.IsWalkable(new Vector3(1, 0, 1)));
+            Assert.True(provider.IsWalkable(new Vector3(1, 1, 0)));
         }
 
         // ── Test 2: IsWalkable outside all polygons ──────────────────────────────
@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var provider = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
             // Well outside all polygons
-            Assert.False(provider.IsWalkable(new Vector3(100, 0, 100)));
+            Assert.False(provider.IsWalkable(new Vector3(100, 100, 0)));
         }
 
         // ── Test 3: IsWalkable blocked polygon ───────────────────────────────────
@@ -96,9 +96,9 @@ namespace Fdp.Toolkit.Navigation.Tests
             provider.BlockPolygon(1);
 
             // Center of poly1 should now be non-walkable
-            Assert.False(provider.IsWalkable(new Vector3(1, 0, 1)));
+            Assert.False(provider.IsWalkable(new Vector3(1, 1, 0)));
             // poly2 still walkable
-            Assert.True(provider.IsWalkable(new Vector3(3, 0, 1)));
+            Assert.True(provider.IsWalkable(new Vector3(3, 1, 0)));
         }
 
         // ── Test 4: PathExists connected polygons ────────────────────────────────
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void PathExists_ConnectedPolygons_ReturnsTrue()
         {
             var provider = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
-            Assert.True(provider.PathExists(new Vector3(1, 0, 1), new Vector3(3, 0, 1)));
+            Assert.True(provider.PathExists(new Vector3(1, 1, 0), new Vector3(3, 1, 0)));
         }
 
         // ── Test 5: PathExists disconnected polygons ─────────────────────────────
@@ -133,7 +133,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 },
             };
             var provider = new FakeNavmeshProvider(combined);
-            Assert.False(provider.PathExists(new Vector3(1, 0, 1), new Vector3(11, 0, 11)));
+            Assert.False(provider.PathExists(new Vector3(1, 1, 0), new Vector3(11, 11, 0)));
         }
 
         // ── Test 6: PlanPath includes off-mesh link waypoints ────────────────────
@@ -148,7 +148,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Vertices = new[]
                 {
                     new Vector3(0, 0, 0), new Vector3(2, 0, 0),
-                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                    new Vector3(2, 2, 0), new Vector3(0, 2, 0),
                 },
             };
             var poly3 = new NavPolygon
@@ -156,16 +156,16 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Id       = 3,
                 Vertices = new[]
                 {
-                    new Vector3(10, 0, 10), new Vector3(12, 0, 10),
-                    new Vector3(12, 0, 12), new Vector3(10, 0, 12),
+                    new Vector3(10, 10, 0), new Vector3(12, 10, 0),
+                    new Vector3(12, 12, 0), new Vector3(10, 12, 0),
                 },
             };
             var link = new OffMeshLink
             {
                 FromPolygonId = 1,
                 ToPolygonId   = 3,
-                StartPos      = new Vector3(2, 0, 1),
-                EndPos        = new Vector3(10, 0, 11),
+                StartPos      = new Vector3(2, 1, 0),
+                EndPos        = new Vector3(10, 11, 0),
                 Kind          = TraversalKind.Jump,
                 Cost          = 1f,
             };
@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             var provider = new FakeNavmeshProvider(layer);
 
             var buf = new NavWaypoint[10];
-            int n = provider.PlanPath(new Vector3(1, 0, 1), new Vector3(11, 0, 11), buf.AsSpan());
+            int n = provider.PlanPath(new Vector3(1, 1, 0), new Vector3(11, 11, 0), buf.AsSpan());
 
             Assert.True(n >= 3, $"Expected at least 3 waypoints (start + link end + dest), got {n}");
             // At least one waypoint should have TraversalKind.Jump (the off-mesh link end).
@@ -229,15 +229,15 @@ namespace Fdp.Toolkit.Navigation.Tests
                         Id       = 10,
                         Vertices = new[]
                         {
-                            new Vector3(20, 0, 20), new Vector3(22, 0, 20),
-                            new Vector3(22, 0, 22), new Vector3(20, 0, 22),
+                            new Vector3(20, 20, 0), new Vector3(22, 20, 0),
+                            new Vector3(22, 22, 0), new Vector3(20, 22, 0),
                         },
                     },
                 },
                 Adjacency = new[] { System.Array.Empty<int>() },
             };
             var provider = new FakeNavmeshProvider(vehicleLayer);
-            var point = new Vector3(21, 0, 21); // inside vehicleLayer poly
+            var point = new Vector3(21, 21, 0); // inside vehicleLayer poly
 
             // Infantry mask (1) excludes the vehicle layer (2).
             Assert.False(provider.IsWalkable(point, layerMask: 1u));
@@ -251,10 +251,11 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void ProjectToNavmesh_PointInPolygon_ReturnsSamePoint()
         {
             var provider = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
-            bool found = provider.ProjectToNavmesh(new Vector3(1, 0, 1), out var snapped);
+            bool found = provider.ProjectToNavmesh(new Vector3(1, 1, 0), out var snapped);
             Assert.True(found);
             Assert.Equal(1f, snapped.X);
-            Assert.Equal(1f, snapped.Z);
+            Assert.Equal(1f, snapped.Y);
+            Assert.Equal(0f, snapped.Z); // Z-up: elevation of the polygon (flat at 0)
         }
 
         // ── Test 11: ProjectToNavmesh - point outside returns false ──────────────
@@ -263,7 +264,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void ProjectToNavmesh_PointOutsidePolygon_ReturnsFalse()
         {
             var provider = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
-            bool found = provider.ProjectToNavmesh(new Vector3(100, 0, 100), out _);
+            bool found = provider.ProjectToNavmesh(new Vector3(100, 100, 0), out _);
             Assert.False(found);
         }
 
@@ -277,7 +278,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Id = 1, Vertices = new[]
                 {
                     new Vector3(0, 0, 0), new Vector3(2, 0, 0),
-                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                    new Vector3(2, 2, 0), new Vector3(0, 2, 0),
                 },
             };
             var poly2 = new NavPolygon
@@ -285,7 +286,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Id = 2, Vertices = new[]
                 {
                     new Vector3(2, 0, 0), new Vector3(4, 0, 0),
-                    new Vector3(4, 0, 2), new Vector3(2, 0, 2),
+                    new Vector3(4, 2, 0), new Vector3(2, 2, 0),
                 },
             };
             var poly3 = new NavPolygon
@@ -293,7 +294,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Id = 3, Vertices = new[]
                 {
                     new Vector3(4, 0, 0), new Vector3(6, 0, 0),
-                    new Vector3(6, 0, 2), new Vector3(4, 0, 2),
+                    new Vector3(6, 2, 0), new Vector3(4, 2, 0),
                 },
             };
             var layer = new FakeNavLayer
@@ -310,13 +311,13 @@ namespace Fdp.Toolkit.Navigation.Tests
             var provider = new FakeNavmeshProvider(layer);
 
             // Before block: reachable.
-            Assert.True(provider.PathExists(new Vector3(1, 0, 1), new Vector3(5, 0, 1)));
+            Assert.True(provider.PathExists(new Vector3(1, 1, 0), new Vector3(5, 1, 0)));
 
             // Block intermediate polygon.
             provider.BlockPolygon(2);
 
             // After block: unreachable.
-            Assert.False(provider.PathExists(new Vector3(1, 0, 1), new Vector3(5, 0, 1)));
+            Assert.False(provider.PathExists(new Vector3(1, 1, 0), new Vector3(5, 1, 0)));
         }
 
         // ── Test 13: PathCost - straight corridor equals Euclidean distance ──────
@@ -325,7 +326,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void PathCost_StraightCorridor_EqualsEuclideanDistance()
         {
             var provider = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
-            float cost = provider.PathCost(new Vector3(1, 0, 1), new Vector3(3, 0, 1));
+            float cost = provider.PathCost(new Vector3(1, 1, 0), new Vector3(3, 1, 0));
             Assert.True(MathF.Abs(cost - 2f) < 0.1f,
                 $"Expected PathCost ~2.0, got {cost}");
         }
@@ -340,23 +341,23 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Id = 1, Vertices = new[]
                 {
                     new Vector3(0, 0, 0), new Vector3(2, 0, 0),
-                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                    new Vector3(2, 2, 0), new Vector3(0, 2, 0),
                 },
             };
             var poly3 = new NavPolygon
             {
                 Id = 3, Vertices = new[]
                 {
-                    new Vector3(10, 0, 10), new Vector3(12, 0, 10),
-                    new Vector3(12, 0, 12), new Vector3(10, 0, 12),
+                    new Vector3(10, 10, 0), new Vector3(12, 10, 0),
+                    new Vector3(12, 12, 0), new Vector3(10, 12, 0),
                 },
             };
             var link = new OffMeshLink
             {
                 FromPolygonId = 1,
                 ToPolygonId   = 3,
-                StartPos      = new Vector3(2, 0, 1),
-                EndPos        = new Vector3(10, 0, 11),
+                StartPos      = new Vector3(2, 1, 0),
+                EndPos        = new Vector3(10, 11, 0),
                 Kind          = TraversalKind.Jump,
                 Cost          = 5f,
             };
@@ -369,7 +370,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             };
             var provider = new FakeNavmeshProvider(layer);
 
-            float cost = provider.PathCost(new Vector3(1, 0, 1), new Vector3(11, 0, 11));
+            float cost = provider.PathCost(new Vector3(1, 1, 0), new Vector3(11, 11, 0));
 
             Assert.True(cost > 0f && cost < float.MaxValue,
                 $"Expected a finite positive cost through the off-mesh link, got {cost}");
@@ -383,8 +384,8 @@ namespace Fdp.Toolkit.Navigation.Tests
             var p1 = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
             var p2 = new FakeNavmeshProvider(BuildTwoAdjacentLayer());
 
-            var from = new Vector3(1, 0, 1);
-            var to   = new Vector3(3, 0, 1);
+            var from = new Vector3(1, 1, 0);
+            var to   = new Vector3(3, 1, 0);
 
             Assert.Equal(p1.IsWalkable(from),     p2.IsWalkable(from));
             Assert.Equal(p1.PathExists(from, to), p2.PathExists(from, to));
@@ -407,7 +408,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Vertices = new[]
                 {
                     new Vector3(0, 0, 0), new Vector3(2, 0, 0),
-                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                    new Vector3(2, 2, 0), new Vector3(0, 2, 0),
                 },
             };
             var vehiclePoly = new NavPolygon
@@ -416,7 +417,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Vertices = new[]
                 {
                     new Vector3(0, 0, 0), new Vector3(2, 0, 0),
-                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                    new Vector3(2, 2, 0), new Vector3(0, 2, 0),
                 },
             };
 
@@ -434,7 +435,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             };
 
             var provider = new FakeNavmeshProvider(infantryLayer, vehicleLayer);
-            var center   = new Vector3(1f, 0f, 1f);
+            var center   = new Vector3(1f, 1f, 0f);
 
             // Both layers start walkable.
             Assert.True(provider.IsWalkable(center, (uint)NavLayerMask.Infantry), "Infantry walkable before block");
@@ -465,7 +466,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             uint versionBefore = provider.QueryVersion();
 
-            // Region that contains the centroid of poly1 (centroid ~(1,0,1) in XZ).
+            // Region that contains the centroid of poly1 (centroid ~(1,1,0) in XY).
             var region = new BoundingBox2D(
                 new System.Numerics.Vector2(0f, 0f),
                 new System.Numerics.Vector2(2f, 2f));
@@ -477,7 +478,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 $"Version should increase after BumpVersion; was {versionBefore}, now {versionAfter}");
 
             // Walkability must be unchanged.
-            Assert.True(provider.IsWalkable(new Vector3(1f, 0f, 1f)),
+            Assert.True(provider.IsWalkable(new Vector3(1f, 1f, 0f)),
                 "BumpVersion must not block any polygon");
         }
 

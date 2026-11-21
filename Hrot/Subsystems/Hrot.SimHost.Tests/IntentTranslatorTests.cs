@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -59,7 +60,7 @@ namespace Hrot.SimHost.Tests
         {
             var resolver = new StubResolver();
             for (int i = 0; i < entities.Length; i++)
-                resolver.Register(entities[i], $"guid-{i}");
+                resolver.Register(entities[i], new System.Guid(i + 1, 0, 0, new byte[8]).ToString());
             return resolver;
         }
 
@@ -79,26 +80,26 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(dom.ContainsKey("VisHierarchyNode"));
             var obj = (JsonObject)dom["VisHierarchyNode"];
-            Assert.Equal("guid-0", obj["Parent"]?.GetValue<string?>());
+            Assert.Equal(new System.Guid(1, 0, 0, new byte[8]).ToString(), obj["Parent"]?.GetValue<string?>());
         }
 
         [Fact]
         public void VisHierarchyNodeTranslator_Inject_WritesInitialHierarchyIntent()
         {
             var parent = _repo.CreateEntity();
-            _repo.SetComponent(parent, new NetworkIdentity { Value = 999L });
+            _repo.SetComponent(parent, new NetworkIdentity { Value = 999 });
 
             var entity = _repo.CreateEntity();
 
-            // GUID "guid-0" resolves to parent entity
+            // GUID new System.Guid(1, 0, 0, new byte[8]).ToString() resolves to parent entity
             var resolver = new StubResolver();
-            resolver.Register(parent, "guid-0");
+            resolver.Register(parent, new System.Guid(1, 0, 0, new byte[8]).ToString());
 
             var dom = new Dictionary<string, object>
             {
                 ["VisHierarchyNode"] = new JsonObject
                 {
-                    ["Parent"]      = "guid-0",
+                    ["Parent"]      = new System.Guid(1, 0, 0, new byte[8]).ToString(),
                     ["FirstChild"]  = (string?)null,
                     ["NextSibling"] = (string?)null,
                 }
@@ -109,9 +110,9 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(_repo.HasManagedComponent<InitialHierarchyIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialHierarchyIntent>(entity);
-            Assert.Equal(999L, intent!.ParentNetworkId);
-            Assert.Equal(0L, intent.FirstChildNetworkId);
-            Assert.Equal(0L, intent.NextSiblingNetworkId);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(new System.Guid(1, 0, 0, new byte[8])), intent!.ParentNetworkId.Spec);
+            Assert.True(intent.FirstChildNetworkId.IsNone);
+            Assert.True(intent.NextSiblingNetworkId.IsNone);
         }
 
         [Fact]
@@ -145,30 +146,30 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(dom.ContainsKey("IsEmbarkedTag"));
             var obj = (JsonObject)dom["IsEmbarkedTag"];
-            Assert.Equal("guid-0", obj["Vehicle"]?.GetValue<string?>());
+            Assert.Equal(new System.Guid(1, 0, 0, new byte[8]).ToString(), obj["Vehicle"]?.GetValue<string?>());
         }
 
         [Fact]
         public void IsEmbarkedTagTranslator_Inject_WritesInitialVehicleIntent()
         {
             var vehicle = _repo.CreateEntity();
-            _repo.SetComponent(vehicle, new NetworkIdentity { Value = 777L });
+            _repo.SetComponent(vehicle, new NetworkIdentity { Value = 777 });
 
             var entity = _repo.CreateEntity();
 
             var resolver = new StubResolver();
-            resolver.Register(vehicle, "guid-vehicle");
+            resolver.Register(vehicle, "a1d44232-99a1-5ce1-87ff-b5c86966c093");
 
             var dom = new Dictionary<string, object>
             {
-                ["IsEmbarkedTag"] = new JsonObject { ["Vehicle"] = "guid-vehicle" }
+                ["IsEmbarkedTag"] = new JsonObject { ["Vehicle"] = "a1d44232-99a1-5ce1-87ff-b5c86966c093" }
             };
 
             new IsEmbarkedTagTranslator().Inject(_repo, entity, dom, resolver);
 
             Assert.True(_repo.HasManagedComponent<InitialVehicleIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialVehicleIntent>(entity);
-            Assert.Equal(777L, intent!.VehicleNetworkId);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse("a1d44232-99a1-5ce1-87ff-b5c86966c093")), intent!.VehicleNetworkId.Spec);
         }
 
         [Fact]
@@ -192,30 +193,30 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(dom.ContainsKey("PersonalRouteRef"));
             var obj = (JsonObject)dom["PersonalRouteRef"];
-            Assert.Equal("guid-0", obj["Route"]?.GetValue<string?>());
+            Assert.Equal(new System.Guid(1, 0, 0, new byte[8]).ToString(), obj["Route"]?.GetValue<string?>());
         }
 
         [Fact]
         public void PersonalRouteRefTranslator_Inject_WritesInitialRouteIntent()
         {
             var route = _repo.CreateEntity();
-            _repo.SetComponent(route, new NetworkIdentity { Value = 555L });
+            _repo.SetComponent(route, new NetworkIdentity { Value = 555 });
 
             var entity = _repo.CreateEntity();
 
             var resolver = new StubResolver();
-            resolver.Register(route, "guid-route");
+            resolver.Register(route, "378acf61-8f50-5aae-8e7d-d9abc821ae0a");
 
             var dom = new Dictionary<string, object>
             {
-                ["PersonalRouteRef"] = new JsonObject { ["Route"] = "guid-route" }
+                ["PersonalRouteRef"] = new JsonObject { ["Route"] = "378acf61-8f50-5aae-8e7d-d9abc821ae0a" }
             };
 
             new PersonalRouteRefTranslator().Inject(_repo, entity, dom, resolver);
 
             Assert.True(_repo.HasManagedComponent<InitialRouteIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialRouteIntent>(entity);
-            Assert.Equal(555L, intent!.RouteNetworkId);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse("378acf61-8f50-5aae-8e7d-d9abc821ae0a")), intent!.RouteNetworkId.Spec);
         }
 
         [Fact]

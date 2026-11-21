@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 660" width="1000" height="660" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="1000" height="660" fill="#f7f8fa"/>
+  <text x="20" y="30" font-size="17" font-weight="600" fill="#1a1d21">HSM integration chain — from canvas to a ticking entity</text>
+  <text x="20" y="51" font-size="12.5" fill="#5a6270">Red markers are defects with a tracker row. Everything else is verified working.</text>
+
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7.5" refY="3.4" orient="auto">
+      <path d="M0,0 L8,3.4 L0,6.8 z" fill="#5b6474"/>
+    </marker>
+    <marker id="ared" markerWidth="9" markerHeight="9" refX="7.5" refY="3.4" orient="auto">
+      <path d="M0,0 L8,3.4 L0,6.8 z" fill="#b03030"/>
+    </marker>
+  </defs>
+
+  <!-- ================= LANE 1 : EDIT TIME ================= -->
+  <rect x="20" y="66" width="960" height="150" rx="8" fill="#eef2f7" stroke="#4a6a8a" stroke-width="1.6"/>
+  <text x="34" y="86" font-size="12.5" font-weight="600" fill="#2f4f6f">EDIT TIME — Hrot.Hsm.Editor (net8)</text>
+
+  <rect x="38" y="98" width="150" height="60" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="113" y="122" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">Canvas</text>
+  <text x="113" y="140" font-size="11" fill="#5a6270" text-anchor="middle">HsmGraphModel</text>
+
+  <rect x="218" y="98" width="150" height="60" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="293" y="122" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">HsmCommandSink</text>
+  <text x="293" y="140" font-size="11" fill="#5a6270" text-anchor="middle">edits HsmAsset</text>
+
+  <rect x="398" y="98" width="150" height="60" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="473" y="122" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">HsmAssetMapper</text>
+  <text x="473" y="140" font-size="11" fill="#5a6270" text-anchor="middle">model ⇄ DTO</text>
+
+  <rect x="578" y="98" width="170" height="60" rx="6" fill="#ffffff" stroke="#2f6f4f" stroke-width="2"/>
+  <text x="663" y="122" font-size="12" font-weight="600" fill="#2f6f4f" text-anchor="middle">*.hsm.json</text>
+  <text x="663" y="140" font-size="11" fill="#5a6270" text-anchor="middle">SOURCE OF TRUTH</text>
+
+  <line x1="190" y1="128" x2="214" y2="128" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+  <line x1="370" y1="128" x2="394" y2="128" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+  <line x1="550" y1="128" x2="574" y2="128" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+
+  <text x="790" y="116" font-size="11.5" fill="#b03030">⚠ regions lose their owner</text>
+  <text x="790" y="132" font-size="11.5" fill="#b03030">   on reload — HSM-004</text>
+  <text x="790" y="152" font-size="11.5" fill="#b03030">⚠ empty action picker — HSM-014</text>
+
+  <text x="34" y="182" font-size="11.5" fill="#3d2a1e">Author binds actions/guards <tspan font-weight="600">by name string</tspan> into the state's four slots</text>
+  <text x="34" y="199" font-size="11.5" fill="#3d2a1e">(OnEntry / OnExit / Activity / Timer) and the transition's Guard + Effect.</text>
+
+  <!-- ================= LANE 2 : BUILD TIME ================= -->
+  <rect x="20" y="230" width="960" height="176" rx="8" fill="#f2eef7" stroke="#6b4f8f" stroke-width="1.6"/>
+  <text x="34" y="250" font-size="12.5" font-weight="600" fill="#4b3070">BUILD TIME — Roslyn incremental generators</text>
+
+  <rect x="38" y="262" width="196" height="76" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="136" y="284" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">HsmJsonGenerator</text>
+  <text x="136" y="303" font-size="11" fill="#5a6270" text-anchor="middle">CreateBuilder() +</text>
+  <text x="136" y="319" font-size="11" fill="#5a6270" text-anchor="middle">[HsmDefinition] thunk</text>
+
+  <rect x="264" y="262" width="196" height="76" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="362" y="284" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">HsmFlattener</text>
+  <text x="362" y="303" font-size="11" fill="#5a6270" text-anchor="middle">names → ids via</text>
+  <text x="362" y="319" font-size="11" font-weight="600" fill="#2f6f4f" text-anchor="middle">ComputeHash(name)</text>
+
+  <rect x="490" y="262" width="180" height="76" rx="6" fill="#ffffff" stroke="#2f6f4f" stroke-width="2"/>
+  <text x="580" y="284" font-size="12" font-weight="600" fill="#2f6f4f" text-anchor="middle">HsmDefinitionBlob</text>
+  <text x="580" y="303" font-size="11" fill="#5a6270" text-anchor="middle">StateDef[] carries</text>
+  <text x="580" y="319" font-size="11" fill="#5a6270" text-anchor="middle">the hashed ids</text>
+
+  <rect x="700" y="262" width="264" height="76" rx="6" fill="#fdeeee" stroke="#b03030" stroke-width="1.8"/>
+  <text x="832" y="282" font-size="12" font-weight="600" fill="#8f2020" text-anchor="middle">HsmBridgeEmitCore</text>
+  <text x="832" y="300" font-size="11" fill="#7a2a2a" text-anchor="middle">[BlueprintRegistrar] bridge —</text>
+  <text x="832" y="316" font-size="11" font-weight="600" fill="#8f2020" text-anchor="middle">registers NO-OP STUBS at id 100+/200+</text>
+  <text x="832" y="331" font-size="10.5" fill="#8f2020" text-anchor="middle">HSM-016</text>
+
+  <line x1="236" y1="300" x2="260" y2="300" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+  <line x1="462" y1="300" x2="486" y2="300" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+
+  <text x="34" y="362" font-size="11.5" font-weight="600" fill="#4b3070">Three id spaces write into one ushort table — only the first is correct:</text>
+  <text x="46" y="380" font-size="11.5" fill="#1a1d21">✅ <tspan font-weight="600">ComputeHash(name)</tspan> — the blob, and HsmActionGenerator for hand-written [HsmAction]/[HsmGuard]</text>
+  <text x="46" y="396" font-size="11.5" fill="#b03030">❌ <tspan font-weight="600">100, 101 … / 200, 201 …</tspan> — the JSON bridge's stubs (HSM-016)    ❌ <tspan font-weight="600">(ushort)BlueprintIdHash(guid)</tspan> — AiPrimitives (HSM-013)</text>
+
+  <!-- ================= LANE 3 : RUN TIME ================= -->
+  <rect x="20" y="420" width="960" height="222" rx="8" fill="#edf5f0" stroke="#2f6f4f" stroke-width="1.6"/>
+  <text x="34" y="440" font-size="12.5" font-weight="600" fill="#1f5a3f">RUN TIME — Fdp.Toolkits.Behavior (ECS)</text>
+
+  <rect x="38" y="452" width="180" height="70" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="128" y="474" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">BehaviorRegistry</text>
+  <text x="128" y="492" font-size="11" fill="#5a6270" text-anchor="middle">BehaviorDefinition</text>
+  <text x="128" y="508" font-size="11" fill="#5a6270" text-anchor="middle">{ BrainTierHsm, blob }</text>
+
+  <rect x="248" y="452" width="190" height="70" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="343" y="474" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">BehaviorIngressSystem</text>
+  <text x="343" y="492" font-size="11" fill="#5a6270" text-anchor="middle">assigns behavior,</text>
+  <text x="343" y="508" font-size="11" fill="#5a6270" text-anchor="middle">resets BrainHsm64/128</text>
+
+  <rect x="468" y="452" width="190" height="70" rx="6" fill="#ffffff" stroke="#2f6f4f" stroke-width="2"/>
+  <text x="563" y="474" font-size="12" font-weight="600" fill="#2f6f4f" text-anchor="middle">HsmTickSystem&lt;T&gt;</text>
+  <text x="563" y="492" font-size="11" fill="#5a6270" text-anchor="middle">SystemPhase.Simulation</text>
+  <text x="563" y="508" font-size="11" fill="#5a6270" text-anchor="middle">HsmKernel.Update / entity</text>
+
+  <rect x="688" y="452" width="180" height="70" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="778" y="474" font-size="12" font-weight="600" fill="#1a1d21" text-anchor="middle">HsmActionDispatcher</text>
+  <text x="778" y="492" font-size="11" fill="#5a6270" text-anchor="middle">ushort → fn-ptr</text>
+  <text x="778" y="508" font-size="11" fill="#5a6270" text-anchor="middle">ExecuteAction / EvalGuard</text>
+
+  <line x1="220" y1="487" x2="244" y2="487" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+  <line x1="440" y1="487" x2="464" y2="487" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+  <line x1="660" y1="487" x2="684" y2="487" stroke="#5b6474" stroke-width="1.8" marker-end="url(#a)"/>
+
+  <!-- event pump -->
+  <rect x="38" y="540" width="410" height="86" rx="6" fill="#fdf3ec" stroke="#c8703f" stroke-width="1.6"/>
+  <text x="52" y="560" font-size="12" font-weight="600" fill="#8f3f14">The only external event pump</text>
+  <text x="52" y="578" font-size="11" fill="#3d2a1e">CanMove edge → CognitiveInterruptSystem →</text>
+  <text x="52" y="594" font-size="11" fill="#3d2a1e">BrainBlackboard.Interrupt_MobilityLost → HsmTickSystem</text>
+  <text x="52" y="610" font-size="11" fill="#3d2a1e">enqueues <tspan font-family="Consolas, monospace">MobilityLost</tspan>. One lever, two reserved slots.</text>
+
+  <rect x="468" y="540" width="400" height="86" rx="6" fill="#ffffff" stroke="#7d8899" stroke-width="1.4"/>
+  <text x="482" y="560" font-size="12" font-weight="600" fill="#1a1d21">Action / guard call contract</text>
+  <text x="482" y="578" font-size="11" fill="#1a1d21"><tspan font-family="Consolas, monospace">(void* instance, void* context, HsmCommandWriter*)</tspan></text>
+  <text x="482" y="595" font-size="11" fill="#5a6270"><tspan font-weight="600">context</tspan> = HsmKernelBridge → GCHandle → EntityRepository</text>
+  <text x="482" y="612" font-size="11" fill="#5a6270"><tspan font-weight="600">instance</tspan> = HSM instance memory — ignored by real actions</text>
+</svg>

@@ -1,0 +1,95 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Minefields MR-19 / R-4277: a march whose way is a known minefield halts short of it and calls the engineers (MS-B4). From the header's Judge (1)-(5). CE-2447 (2026-11-18): the march's objective is INSIDE the field (145, 80) - 'the order goes through it' (KG-7): since a route keeps its clearance round a known field (CE-4655) a march to (185, 80) went round. 'Nobody enters' is three never-near rows down the field's centre line (x 140; y 60, 80, 100; 10 m) - the old x > 130 row also caught a man walking the clearance ring OUTSIDE the field (measured: the leader at (131, 114.9), the outline ends at y 110).",
+  "runFor": 120,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the squad marches",
+      "on": "task",
+      "who": "Squad",
+      "is": "SquadMarch"
+    },
+    {
+      "name": "the squad reacts MinefieldAhead",
+      "on": "task",
+      "who": "Squad",
+      "is": "MinefieldAhead"
+    },
+    {
+      "name": "it halts SHORT of the field, not at the start (the leader ends at x >= 90)",
+      "on": "field",
+      "who": "Man Leader",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 90,
+      "atEnd": true
+    },
+    {
+      "name": "never the crossing drill",
+      "never": {
+        "on": "task",
+        "who": "Squad",
+        "is": "SquadDangerCrossing"
+      }
+    },
+    {
+      "name": "nobody enters the field (never within 10 m of its centre line at (140, 60))",
+      "never": {
+        "on": "near",
+        "who": "*Man",
+        "point": [
+          140,
+          60
+        ],
+        "within": 10
+      }
+    },
+    {
+      "name": "nobody enters the field (never within 10 m of its centre line at (140, 80))",
+      "never": {
+        "on": "near",
+        "who": "*Man",
+        "point": [
+          140,
+          80
+        ],
+        "within": 10
+      }
+    },
+    {
+      "name": "nobody enters the field (never within 10 m of its centre line at (140, 100))",
+      "never": {
+        "on": "near",
+        "who": "*Man",
+        "point": [
+          140,
+          100
+        ],
+        "within": 10
+      }
+    },
+    {
+      "name": "no mine goes off",
+      "never": {
+        "on": "blast"
+      }
+    },
+    {
+      "name": "nobody is hurt",
+      "never": {
+        "on": "field",
+        "who": "*Man",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "still halted at the end",
+      "on": "task",
+      "who": "Squad",
+      "is": "MinefieldAhead",
+      "atEnd": true
+    }
+  ]
+}

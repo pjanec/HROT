@@ -22,7 +22,22 @@ namespace Fdp.Core
         public static int ID
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ComponentTypeRegistry.GetOrRegister<T>();
+            get => System.Threading.Volatile.Read(ref s_generation) == ComponentTypeRegistry.Generation ? s_id : Resolve();
+        }
+
+        // ⭐ CE-2389 (DESIGN_Evaluation_Cost_And_Cadence §5 C1) — the id is cached per T: before, EVERY component access took the
+        //   registry lock + a Dictionary<Type> lookup. A registry Clear() (tests) bumps Generation, so the next access re-registers.
+        private static int s_id = -1;
+        private static int s_generation = -1;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Resolve()
+        {
+            int gen = ComponentTypeRegistry.Generation;
+            int id = ComponentTypeRegistry.GetOrRegister<T>();
+            s_id = id;
+            System.Threading.Volatile.Write(ref s_generation, gen);
+            return id;
         }
         
         /// <summary>
@@ -50,7 +65,20 @@ namespace Fdp.Core
         public static int ID
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ComponentTypeRegistry.GetOrRegisterManaged(typeof(T));
+            get => System.Threading.Volatile.Read(ref s_generation) == ComponentTypeRegistry.Generation ? s_id : Resolve();
+        }
+
+        private static int s_id = -1;
+        private static int s_generation = -1;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Resolve()
+        {
+            int gen = ComponentTypeRegistry.Generation;
+            int id = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T));
+            s_id = id;
+            System.Threading.Volatile.Write(ref s_generation, gen);
+            return id;
         }
         
         /// <summary>
@@ -77,8 +105,26 @@ namespace Fdp.Core
         private static readonly Dictionary<int, bool> _isRecordable = new Dictionary<int, bool>();
         private static readonly Dictionary<int, bool> _isSaveable = new Dictionary<int, bool>();
         private static readonly Dictionary<int, bool> _needsClone = new Dictionary<int, bool>();
+        // ⭐ M-4 (CE-4483) — the clone flag by id, READ WITHOUT THE LOCK: written only under _lock (registration, SetNeedsClone, Clear), a bool
+        //   write is atomic. 📐 Measured (Release, 1 000 men, 4 threads, dotnet-trace): every managed table's SyncDirtyChunks asked the flag
+        //   under the global lock — the sim thread's kernel syncs and the staging publish against the UI thread's pull — 3.1 s in 20 s, 2.3 s
+        //   of it on the sim thread (≈ 25 ms a tick), and growing with the threads that contend.
+        private static readonly bool[] _needsCloneById = new bool[FdpConfig.MAX_COMPONENT_TYPES];
+        private static void StoreNeedsClone(int id, bool value)
+        {
+            _needsClone[id] = value;
+            if ((uint)id < (uint)_needsCloneById.Length) System.Threading.Volatile.Write(ref _needsCloneById[id], value);
+        }
         /// <summary>Tracks which IDs were assigned via an explicit [ComponentId] attribute.</summary>
         private static readonly HashSet<int> _explicitIds = new HashSet<int>();
+        private static int _generation;
+        /// <summary>Bumped by <see cref="Clear"/>: a per-type cached id older than this re-registers.</summary>
+        public static int Generation => System.Threading.Volatile.Read(ref _generation);
+
+        private static int _recordableVersion;
+        /// <summary>⭐ CE-2392 — bumped whenever the recordable set can change (a registration, <see cref="SetRecordable"/>, <see cref="Clear"/>):
+        /// the recorder keeps its recordable mask until this moves, instead of asking <see cref="IsRecordable"/> (the lock) per table per frame.</summary>
+        public static int RecordableVersion => System.Threading.Volatile.Read(ref _recordableVersion);
         
         /// <summary>
         /// Checks if a type is a C# record (immutable by design).
@@ -153,10 +199,20 @@ namespace Fdp.Core
 
                 _typeToId[type] = id;
                 _idToType[id] = type;
-                _isSnapshotable[id] = true;  // Default: snapshotable
-                _isRecordable[id] = true;    // Default: recordable
-                _isSaveable[id] = true;      // Default: saveable
-                _needsClone[id] = false;     // Default: shallow copy
+
+                // ⭐⭐ D7 (R-3046) — the type's own [DataPolicy] decides from the FIRST registration. 📐 Measured (restore design
+                //   §6a M1): a SINGLETON is registered only here (SetSingleton* → ManagedComponentType<T>.ID), never through
+                //   EntityRepository.RegisterComponent, so every singleton was recordable whatever it declared — WorldEpoch
+                //   ([Transient]) and NetworkEntityMap were written into every keyframe, and a keyframe apply put a stale world
+                //   number back. Without an attribute the defaults stand (RegisterComponent still applies its conventions).
+                //   📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md D7.
+                var policy = type.GetCustomAttribute<DataPolicyAttribute>(inherit: false)?.Policy ?? DataPolicy.Default;
+                bool clone = policy.HasFlag(DataPolicy.SnapshotViaClone);
+                _isSnapshotable[id] = clone || !policy.HasFlag(DataPolicy.NoPreview);
+                _isRecordable[id]   = !policy.HasFlag(DataPolicy.NoReplay);
+                System.Threading.Interlocked.Increment(ref _recordableVersion);
+                _isSaveable[id]     = !policy.HasFlag(DataPolicy.NoScenario);
+                StoreNeedsClone(id, clone);
 
                 return id;
             }
@@ -213,6 +269,7 @@ namespace Fdp.Core
                 if (!_idToType.ContainsKey(typeId))
                     throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
                 _isRecordable[typeId] = value;
+                System.Threading.Interlocked.Increment(ref _recordableVersion);
             }
         }
 
@@ -288,7 +345,7 @@ namespace Fdp.Core
             {
                 if (!_idToType.ContainsKey(typeId))
                     throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
-                _needsClone[typeId] = value;
+                StoreNeedsClone(typeId, value);
             }
         }
 
@@ -297,6 +354,7 @@ namespace Fdp.Core
         /// </summary>
         public static bool NeedsClone(int typeId)
         {
+            if ((uint)typeId < (uint)_needsCloneById.Length) return System.Threading.Volatile.Read(ref _needsCloneById[typeId]);   // ⭐ M-4 — no lock
             lock (_lock)
             {
                 return _needsClone.TryGetValue(typeId, out bool v) && v;
@@ -314,9 +372,20 @@ namespace Fdp.Core
         
         /// <summary>
         /// Gets the component ID for a type (returns -1 if not registered).
+        ///
+        /// <para>
+        /// A <see langword="null"/> type is "not registered" and returns -1 as well. It used to
+        /// reach <c>Dictionary.TryGetValue</c> and throw <see cref="ArgumentNullException"/>,
+        /// which contradicted the contract on this very line: a lookup documented as total was in
+        /// fact partial. A single unresolvable component type in a persisted breakpoint predicate
+        /// was therefore enough to kill the editor on startup, every launch, with no way back
+        /// through the UI.
+        /// </para>
         /// </summary>
-        public static int GetId(Type type)
+        public static int GetId(Type? type)
         {
+            if (type is null) return -1;
+
             lock (_lock)
             {
                 if (_typeToId.TryGetValue(type, out int id))
@@ -337,6 +406,17 @@ namespace Fdp.Core
             }
         }
         
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B5 (restore design D10) — <b>the type a RECORDED id names, even when this process has not touched it.</b> A
+        /// component registered on first use (25 sites do) is in a recording made by a process that used it; a fresh process applying that
+        /// frame has never heard of it, and <see cref="GetType"/> answers null. ⇒ falls back to the loaded assemblies' <c>[ComponentId]</c>
+        /// attributes — the same id, by construction (the attribute is mandatory, <see cref="GetOrRegisterManaged"/>). Cached; rescanned
+        /// when more assemblies are loaded.
+        /// </summary>
+        public static Type? FindType(int id)
+            => GetType(id) ?? AttributeIdScan.Find<ComponentIdAttribute>(id, a => a.Id);   // ⭐ CE-1372 — the ONE scan, shared with events
+
         /// <summary>
         /// Gets all registered component type IDs.
         /// </summary>
@@ -376,7 +456,10 @@ namespace Fdp.Core
                 _isRecordable.Clear();
                 _isSaveable.Clear();
                 _needsClone.Clear();
+                Array.Clear(_needsCloneById, 0, _needsCloneById.Length);
                 _explicitIds.Clear();
+                System.Threading.Interlocked.Increment(ref _generation);
+                System.Threading.Interlocked.Increment(ref _recordableVersion);
             }
         }
         
@@ -434,6 +517,9 @@ namespace Fdp.Core
                 if (marshalAs != null && marshalAs.Value == UnmanagedType.I1)
                     continue;
 
+                // ⭐ CE-2044 (2026-10-03): the in-repo tools named below now read the MANAGED layout (Fdp.Core.TypeLayout /
+                //   ManagedLayout), so they no longer depend on this guard. ⭐ It is KEPT: a component's interop layout still
+                //   matters to anything that marshals it, and one rule both layouts agree on is the cheaper invariant.
                 // CRITICAL ECS MEMORY ALIGNMENT:
                 // By default, the .NET interop marshaller assumes a C# bool is a 4-byte Win32 BOOL, 
                 // whereas the CLR's internal managed memory model (Unsafe.SizeOf<T>) treats it as 1 byte.

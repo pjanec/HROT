@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<g transform="translate(0,-4)">
+<path d="M6,84 L6,58 L34,58 L40,38 L84,38 L94,56 L122,60 L122,84 Z" fill="url(#body)"/>
+<path d="M44,42 L62,42 L62,54 L44,54 Z" fill="url(#glass)" stroke-width="1.8"/>
+<path d="M66,42 L82,42 L89,54 L66,54 Z" fill="url(#glass)" stroke-width="1.8"/>
+<path d="M64,40 L64,80 M40,60 L40,80" fill="none" stroke-width="1.2"/>
+<path d="M112,64 L120,64 M112,68 L120,68 M112,72 L120,72" fill="none" stroke-width="1.2"/>
+<path d="M14,84 A16,16 0 0 1 46,84 Z M82,84 A16,16 0 0 1 114,84 Z" fill="#1B2027"/>
+<circle cx="30" cy="88" r="13" fill="url(#dark)"/>
+<circle cx="98" cy="88" r="13" fill="url(#dark)"/>
+<circle cx="30.0" cy="88" r="6" fill="url(#wheel)"/>
+<circle cx="30.0" cy="88" r="1.9" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="98.0" cy="88" r="6" fill="url(#wheel)"/>
+<circle cx="98.0" cy="88" r="1.9" fill="#3A434E" stroke-width="1.2"/>
+</g>
+</g>
+</svg>

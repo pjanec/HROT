@@ -22,7 +22,7 @@ public sealed class CrossAssetDependencyAttachmentTests
     public void Attachment_Glyph_IsLink()
     {
         var att = new CrossAssetDependencyAttachment(new NodeId(Guid.NewGuid()), "X");
-        Assert.Equal("🔗", att.Glyph);
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.Link, att.Glyph); // CE-1063: the emoji drew "?"
     }
 
     [Fact]

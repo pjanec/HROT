@@ -23,14 +23,13 @@ namespace Hrot.Network.NED.SimHost
     /// entity handles to spawn a bullet.
     /// </para>
     /// </summary>
-    public sealed class WeaponFireRequestIngressTranslator : IDescriptorTranslator
+    public sealed class WeaponFireRequestIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "WeaponFireRequest";
 
         private readonly DdsReader<WeaponFireRequest>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<WeaponFireRequest>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFireRequest;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -47,7 +46,7 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader    = participant is not null
-                ? new DdsReader<WeaponFireRequest>(participant, DdsTopicName)
+                ? new DdsReader<WeaponFireRequest>(participant)
                 : null;
         }
 
@@ -56,6 +55,12 @@ namespace Hrot.Network.NED.SimHost
         /// republishes each valid sample as a <see cref="WeaponFireIntent"/> on the local
         /// event bus via the command buffer.
         /// </summary>
+        /// <summary>⭐ R-4007 (Q91 §4-M) — a one-shot world event: discarded while the node is frozen for a join.</summary>
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+
+        /// <inheritdoc/>
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;    // test / no-participant mode
@@ -81,7 +86,9 @@ namespace Hrot.Network.NED.SimHost
         {
             // Both shooter and target must be known on this node for FireProcessingSystem to use.
             if (!_entityMap.TryGetEntity(request.ShooterEntityId, out var shooter)) return;
-            if (!_entityMap.TryGetEntity(request.TargetEntityId,  out var target))  return;
+            bool atPoint = request.TargetEntityId == 0;   // ⭐ CE-1032 W-8 — fire at a point
+            var target = Entity.Null;
+            if (!atPoint && !_entityMap.TryGetEntity(request.TargetEntityId, out target)) return;
 
             cmd.PublishEvent(new WeaponFireIntent
             {
@@ -89,6 +96,18 @@ namespace Hrot.Network.NED.SimHost
                 Target      = target,
                 WeaponIndex = request.WeaponIndex,
                 IsRemote    = true,
+                AtPoint     = atPoint,
+                TargetPoint = new System.Numerics.Vector3(request.PointX, request.PointY, request.PointZ),
+                AmmoGuid    = request.AmmoGuid,   // ⭐ M8
+                Charge      = request.Charge,     // ⭐ IF-1 (I3)
+                HighArc     = request.HighArc,
+                BodyStance  = request.BodyStance,   // ⭐ CE-2326
+                RaisedAt    = (SimInstant)request.RaisedAt,   // ⭐ CE-2180
+                FuzeSeconds = request.FuzeSeconds,   // ⭐ CE-3235
+                BurnSeconds = request.BurnSeconds,   // ⭐ CE-3236
+                RequestId   = request.RequestId,     // ⭐ Q94 A-1 (R-3018)
+                // ⭐ CE-4155 (SR-82) — a thrown-back round's first thrower; 0 / unknown here ⇒ Null (a first throw)
+                OriginalShooter = request.OriginalShooterEntityId != 0 && _entityMap.TryGetEntity(request.OriginalShooterEntityId, out var original) ? original : Entity.Null,
             });
         }
 
@@ -99,6 +118,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

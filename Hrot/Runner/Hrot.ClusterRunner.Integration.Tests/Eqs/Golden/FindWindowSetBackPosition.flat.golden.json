@@ -1,0 +1,24 @@
+{
+  "Name": "FindWindowSetBackPosition",
+  "BlueprintId": 3556667053,
+  "Count": 2,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": -27,
+      "PositionY": -6,
+      "Score": 1.0780456,
+      "Flags": 258,
+      "FlagsMeaningful": 258
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 28,
+      "PositionY": -3,
+      "Score": 1.0613248,
+      "Flags": 258,
+      "FlagsMeaningful": 258
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

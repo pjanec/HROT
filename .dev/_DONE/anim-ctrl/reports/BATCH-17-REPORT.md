@@ -146,7 +146,7 @@ Build succeeded.
     0 Warning(s)
 ```
 
-### Full Solution (IOS-IG-SimHost.sln)
+### Full Solution (HROT.sln)
 ```
 Build succeeded.
     0 Error(s)

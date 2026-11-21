@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- hrot-terrain-import: an input set -> an HROT terrain folder (docs/DESIGN_Terrain_Import_UTM.md §11, CE-4368). A thin shell over Hrot.Terrain.Import. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-terrain-import</AssemblyName>
+    <RootNamespace>Hrot.Tools.TerrainImport</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />
+  </ItemGroup>
+</Project>

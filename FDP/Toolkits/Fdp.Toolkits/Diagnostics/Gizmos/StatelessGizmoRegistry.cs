@@ -17,6 +17,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>Position of this rule in the registry; indexes the per-frame
         /// global-visibility cache.</summary>
         public int RuleIndex;
+        /// <summary>⭐ CE-4388 (D-3) — the projector's <see cref="GizmoProjectorAttribute.MaxMetresPerPixel"/> (0 = any zoom).</summary>
+        public float MaxMetresPerPixel;
+        /// <summary>⭐ CE-8610 — the projector's <see cref="GizmoProjectorAttribute.MinMetresPerPixel"/> (0 = no lower bound).</summary>
+        public float MinMetresPerPixel;
+        /// <summary>⭐ CE-4388 (D-4) — the projector's <see cref="GizmoProjectorAttribute.DrawsOffScreen"/>.</summary>
+        public bool DrawsOffScreen;
     }
 
     /// <summary>
@@ -35,6 +41,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     /// <see cref="Register"/> must only be called during application initialisation,
     /// before the first ECS frame tick. Not thread-safe.
     /// </summary>
+    [Fdp.Core.NotState("compiled rules registered at startup")]
     public sealed class StatelessGizmoRegistry
     {
         private readonly List<CompiledStatelessRule> _rules      = new List<CompiledStatelessRule>();
@@ -86,7 +93,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 RequiredMask     = mask,
                 VisibilityPolicy = visibilityPolicy ?? AlwaysVisiblePolicy.Instance,
                 RuleIndex        = _rules.Count,
+                // ⭐ CE-4388 — the view filter's per-rule settings, read once from the projector's attribute
+                MaxMetresPerPixel = ViewSettingsOf(projector).MaxMetresPerPixel,
+                MinMetresPerPixel = ViewSettingsOf(projector).MinMetresPerPixel,
+                DrawsOffScreen    = ViewSettingsOf(projector).DrawsOffScreen,
             });
+        }
+
+        private static (float MaxMetresPerPixel, float MinMetresPerPixel, bool DrawsOffScreen) ViewSettingsOf(IStatelessGizmo projector)
+        {
+            var attr = (GizmoProjectorAttribute?)Attribute.GetCustomAttribute(projector.GetType(), typeof(GizmoProjectorAttribute));
+            return attr == null ? (0f, 0f, false) : (attr.MaxMetresPerPixel, attr.MinMetresPerPixel, attr.DrawsOffScreen);
         }
 
         /// <summary>

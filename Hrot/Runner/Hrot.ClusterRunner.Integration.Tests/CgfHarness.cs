@@ -62,18 +62,15 @@ public sealed class CgfHarness : IDisposable
         var cgfFactory = new NedNetworkFactory(
             participant:  null,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.Brain);
         CgfSvc   = new CgfSubsystem(cgfFactory);
-        CgfSvc.Initialize(new SubsystemConfig
-        {
-            DomainId = domainId,
-            Headless = true,   // Run CGF headless in integration tests (no Raylib/ImGui window).
-                               // DDS is still active: CgfSubsystem.Initialize hardcodes
-                               // HrotNodeConfig.Headless = false regardless of this flag.
-        });
+        // ⭐ CE-3340 ③ — started through the ONE host start (SubsystemOrchestrator.Initialize), like every host: it seeds the NAS from the
+        // repository before CGF's Initialize reads it. Headless: no Raylib/ImGui window; DDS is still active (CgfSubsystem.Initialize
+        // hardcodes HrotNodeConfig.Headless = false regardless of this flag).
+        new SubsystemOrchestrator(new ISubsystem[] { CgfSvc }, new RunnerOptions { Headless = true, DomainId = domainId }).Initialize();
 
         Warmup();
     }
@@ -98,14 +95,22 @@ public sealed class CgfHarness : IDisposable
     /// Returns <c>true</c> if the condition was met before timeout.
     /// </summary>
     public bool PumpUntil(Func<bool> condition, int timeoutMs = 5000)
+        => PumpUntil(condition, timeoutMs, PumpSleepMs);
+
+    /// <summary>
+    /// PumpUntil with a caller-chosen per-frame sleep. A LARGER sleep advances FEWER simulation frames per
+    /// wall-clock second — used by the external-host STUCK rail so that a cross-process phase-1 ack lands
+    /// inside the creator's short frame-counted phase-1 window (CE-294).
+    /// </summary>
+    public bool PumpUntil(Func<bool> condition, int timeoutMs, int sleepMs)
     {
         if (condition()) return true;
 
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (DateTime.UtcNow < deadline)
         {
-            CgfSvc.Update(PumpSleepMs / 1000f);
-            Thread.Sleep(PumpSleepMs);
+            CgfSvc.Update(sleepMs / 1000f);
+            Thread.Sleep(sleepMs);
             if (condition()) return true;
         }
 

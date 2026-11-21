@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// <summary>
     /// 1024-byte unmanaged ring buffer of FastHSM trace records. Per-entity
     /// trace memory; opt-in via <c>DebugState.EnableTraceBuffer</c>. Recorded
-    /// by the Flight Recorder (NoSave keeps it out of scenario JSON only).
+    /// by the Flight Recorder (NoScenario keeps it out of scenario JSON only).
     /// </summary>
     /// <remarks>
     /// Identical layout to <see cref="BTreeTraceWorkingMemory1024"/>. All HSM
@@ -18,8 +18,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// here) so toggling verbosity does not dirty the ECS chunk.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
-    [ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [ComponentId(GlobalComponentIds.HsmTraceWorkingMemory)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct HsmTraceWorkingMemory1024
     {
         public const int RecordStride    = 16;

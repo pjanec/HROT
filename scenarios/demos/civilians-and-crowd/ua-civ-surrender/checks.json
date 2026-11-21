@@ -1,0 +1,54 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-13a (CE-2241): a covered hostile raises his hands and the AI holds. From the header's Judge (1), (2), (4), (5); (3) 'the rifleman is seen holding (hold: hands up)' is a weapon-status string, not a component, so it is expressed by its effect: no round for 10 s.",
+  "runFor": 70,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the rioter is Hostile after the blow",
+      "on": "field",
+      "who": "Rioter",
+      "path": "EntityInfo.ForceId",
+      "op": "==",
+      "value": "Hostile"
+    },
+    {
+      "name": "his hands go up",
+      "on": "gesture",
+      "who": "Rioter",
+      "is": "HandsUp",
+      "after": "the rioter is Hostile after the blow"
+    },
+    {
+      "name": "the rifleman fires no round for 10 s of raised hands",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman"
+      },
+      "after": "his hands go up",
+      "before": "his hands go up+10"
+    },
+    {
+      "name": "the rioter is not hurt for 10 s of raised hands",
+      "never": {
+        "on": "field",
+        "who": "Rioter",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      },
+      "after": "his hands go up",
+      "before": "his hands go up+10"
+    },
+    {
+      "name": "he stays Hostile",
+      "on": "field",
+      "who": "Rioter",
+      "path": "EntityInfo.ForceId",
+      "op": "==",
+      "value": "Hostile",
+      "atEnd": true
+    }
+  ]
+}

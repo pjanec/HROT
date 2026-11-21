@@ -1,0 +1,44 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Armour V7 / Missiles M4: a cycling tank denies the Javelin its lock, a tank in the open is hit. From the header's Judge (1), (2), (4); (3) 'Javelin A is seen aiming' is a weapon-status string, not a component. The take's hit at 9.4 s is proven.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "Javelin B hits the tank in the open",
+      "on": "hit",
+      "target": "Tank Open"
+    },
+    {
+      "name": "the open tank is hurt",
+      "on": "field",
+      "who": "Tank Open",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 3000
+    },
+    {
+      "name": "the cycling tank fires",
+      "on": "shot",
+      "by": "Tank Cycling"
+    },
+    {
+      "name": "Javelin A never hits the cycling tank",
+      "never": {
+        "on": "shot",
+        "by": "Javelin A",
+        "hit": "Tank Cycling"
+      }
+    },
+    {
+      "name": "the cycling tank is undamaged",
+      "on": "field",
+      "who": "Tank Cycling",
+      "path": "Health.Current",
+      "op": ">=",
+      "value": 3000,
+      "atEnd": true
+    }
+  ]
+}

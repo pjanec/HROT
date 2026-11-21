@@ -10,11 +10,13 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// is set in <see cref="NavigationIntent.Flags"/>; absent otherwise.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CorridorPreviewSystem : IEcsModuleSystem
     {
         private readonly IPathRegistry _registry;
 
         // Scratch buffer reused each tick to avoid per-frame heap allocation.
+        [Fdp.Core.WorldDerived("fixed scratch buffer")]
         private readonly NavWaypoint[] _waypointScratch = new NavWaypoint[8];
 
         public CorridorPreviewSystem(IPathRegistry registry)

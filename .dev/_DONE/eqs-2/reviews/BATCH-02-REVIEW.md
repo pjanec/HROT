@@ -10,7 +10,7 @@
 
 | Check | Result |
 |---|---|
-| `dotnet build IOS-IG-SimHost.sln` | Build succeeded, 0 errors |
+| `dotnet build HROT.sln` | Build succeeded, 0 errors |
 | All 7 new EQS integration tests | 7/7 PASSED |
 | Pre-existing EQS pool tests (EqsResultPoolTests + EqsComponentLayoutTests) | 7/7 PASSED |
 | Pre-existing failures | 32 failures in Hrot.SimHost.Tests (unrelated to EQS, verified pre-existing) |

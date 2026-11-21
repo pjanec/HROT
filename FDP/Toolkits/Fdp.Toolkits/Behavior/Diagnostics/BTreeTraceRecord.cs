@@ -45,7 +45,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         [FieldOffset(14)] public NodeStatus ChannelStatus;
 
         // Wait* — Duration sits at offset 12 to keep NodeIndex at offset 8 readable
-        [FieldOffset(12)] public float      Duration;
+        [FieldOffset(12)] public Fdp.Core.SimDuration      Duration;
 
         // Error
         [FieldOffset(10)] public ushort     ErrorCode;

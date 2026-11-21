@@ -83,7 +83,7 @@ internal static class ComponentFieldReflector
             decls.Add(new ReflectedComponentField
             {
                 Name      = f.Name,
-                TypeId    = f.FieldType.FullName ?? f.FieldType.Name,
+                TypeId    = PinTypeId(f.FieldType),
                 IsManaged = IsManagedFieldType(f.FieldType),
             });
         }
@@ -102,7 +102,9 @@ internal static class ComponentFieldReflector
         if (string.IsNullOrEmpty(fqn)) return null;
         var t = Type.GetType(fqn);
         if (t != null) return t;
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        // BP-62: searches EditorTypeResolutionScope, not AppDomain directly, so an assembly that is
+        // referenced but not yet lazily loaded is force-loaded first rather than silently missing.
+        foreach (var asm in EditorTypeResolutionScope.Assemblies())
         {
             try { t = asm.GetType(fqn); } catch { continue; }
             if (t != null) return t;
@@ -236,7 +238,7 @@ internal static class ComponentFieldReflector
             result.Add(new ReflectedComponentCollection
             {
                 Name             = name,
-                ElementTypeId    = itemMethod.ReturnType.FullName ?? itemMethod.ReturnType.Name,
+                ElementTypeId    = PinTypeId(itemMethod.ReturnType),
                 CountAccessorFqn = AccessorFqn(countMethod),
                 ItemAccessorFqn  = AccessorFqn(itemMethod),
             });
@@ -263,7 +265,7 @@ internal static class ComponentFieldReflector
                     result.Add(new ReflectedComponentCollection
                     {
                         Name                = f.Name,
-                        ElementTypeId       = elementType.FullName ?? elementType.Name,
+                        ElementTypeId       = PinTypeId(elementType),
                         CountAccessorFqn    = "",
                         ItemAccessorFqn     = "",
                         CollectionKind      = CollectionKind.ManagedMember,
@@ -281,7 +283,7 @@ internal static class ComponentFieldReflector
                     result.Add(new ReflectedComponentCollection
                     {
                         Name                = p.Name,
-                        ElementTypeId       = elementType.FullName ?? elementType.Name,
+                        ElementTypeId       = PinTypeId(elementType),
                         CountAccessorFqn    = "",
                         ItemAccessorFqn     = "",
                         CollectionKind      = CollectionKind.ManagedMember,
@@ -322,6 +324,130 @@ internal static class ComponentFieldReflector
         return false;
     }
 
+    // ── FC-1 (Q#20): write-accessor discovery + the two writability gates ──────
+
+    /// <summary>
+    /// FC-1 (Q#20-A) -- gate 1 of collection writability: true when <paramref name="fqn"/> resolves
+    /// to a type carrying <c>[BlueprintWritable]</c> (the same component-level opt-in the
+    /// SetComponent picker keys off, via <see cref="ReflectionWritableComponentTypeProvider"/>).
+    /// Unresolvable FQN -- false (an unresolved component is never writable; the stale-ref guard
+    /// reports it separately).
+    /// </summary>
+    internal static bool IsWritableComponent(string? fqn)
+        => GetWritability(fqn) == ComponentWritability.Writable;
+
+    /// <summary>
+    /// BP-62 — the three-way answer <see cref="IsWritableComponent"/> collapses into a bool.
+    ///
+    /// <para>
+    /// The distinction matters: <see cref="ComponentWritability.NotWritable"/> is a **decision**
+    /// (the type resolved and does not carry <c>[BlueprintWritable]</c>), whereas
+    /// <see cref="ComponentWritability.Unresolved"/> is an **absence of information** (the FQN did
+    /// not resolve at all — a typo, a deleted component, or an assembly that is not present).
+    /// Treating the second as the first is what let a collection-write bake silently no-op instead
+    /// of reporting a broken reference.
+    /// </para>
+    /// </summary>
+    internal static ComponentWritability GetWritability(string? fqn)
+    {
+        var type = ResolveType(fqn ?? "");
+        if (type == null) return ComponentWritability.Unresolved;
+        return type.GetCustomAttribute<BlueprintWritableAttribute>() != null
+            ? ComponentWritability.Writable
+            : ComponentWritability.NotWritable;
+    }
+
+    /// <summary>
+    /// FC-1 (Q#20 "G1 resolution") -- gate 2 of collection writability: discovers the
+    /// <c>[BlueprintCollectionWrite]</c> static accessors for (<paramref name="componentFqn"/>,
+    /// <paramref name="collectionName"/>) across the loaded assemblies (same scan shape as
+    /// <see cref="TryReflectCollections"/>), keyed by the ASSET-side
+    /// <see cref="CollectionWriteOp"/> (numerically mirrors <c>Fdp.Core.BlueprintCollectionOp</c> --
+    /// the editor converts here so the baked node never references the game-side enum). A method
+    /// whose signature does not match its op's pinned contract (see
+    /// <see cref="IsValidWriteAccessor"/>) is silently skipped -- same rule as a malformed read
+    /// accessor. A PARTIAL result is legitimate (per-op curation): the wire-bake only refuses the
+    /// specific op that is absent.
+    /// </summary>
+    internal static Dictionary<CollectionWriteOp, string> TryReflectWriteAccessors(
+        string? componentFqn, string collectionName)
+    {
+        var result = new Dictionary<CollectionWriteOp, string>();
+        if (string.IsNullOrEmpty(componentFqn) || string.IsNullOrEmpty(collectionName)) return result;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(t => t != null).Cast<Type>().ToArray();
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var t in types)
+            {
+                MethodInfo[] methods;
+                try
+                {
+                    methods = t.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var m in methods)
+                {
+                    var attr = m.GetCustomAttribute<BlueprintCollectionWriteAttribute>();
+                    if (attr is null
+                        || attr.ComponentType.FullName != componentFqn
+                        || !string.Equals(attr.Name, collectionName, StringComparison.Ordinal))
+                        continue;
+                    if (!IsValidWriteAccessor(m, attr.ComponentType, attr.Op)) continue;
+                    // Fdp.Core.BlueprintCollectionOp and Assets.CollectionWriteOp mirror each other
+                    // by declared numeric value (Add=0 .. Resize=5).
+                    result[(CollectionWriteOp)(int)attr.Op] = AccessorFqn(m);
+                }
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Validates a candidate <c>[BlueprintCollectionWrite]</c> method against its op's pinned
+    /// signature (Q#20 "G1 resolution"): first parameter a WRITABLE <c>ref</c> (byref, not
+    /// <c>in</c>) of the component type, then per op -- Add: <c>bool (ref C, Elem)</c> ·
+    /// SetAt/InsertAt: <c>bool (ref C, int, Elem)</c> · RemoveAt/Resize: <c>bool (ref C, int)</c> ·
+    /// Clear: <c>void (ref C)</c>. The element type itself is not cross-checked against the read
+    /// pair here (the compile gates catch a mismatch); arity/return/receiver are.
+    /// </summary>
+    private static bool IsValidWriteAccessor(MethodInfo m, Type componentType, BlueprintCollectionOp op)
+    {
+        var ps = m.GetParameters();
+        if (ps.Length == 0) return false;
+        var p0 = ps[0].ParameterType;
+        if (!p0.IsByRef || p0.GetElementType() != componentType) return false;
+        if (ps[0].IsIn) return false;   // must be a writable ref, not `in`
+
+        return op switch
+        {
+            BlueprintCollectionOp.Add      => m.ReturnType == typeof(bool) && ps.Length == 2,
+            BlueprintCollectionOp.SetAt    => m.ReturnType == typeof(bool) && ps.Length == 3 && ps[1].ParameterType == typeof(int),
+            BlueprintCollectionOp.InsertAt => m.ReturnType == typeof(bool) && ps.Length == 3 && ps[1].ParameterType == typeof(int),
+            BlueprintCollectionOp.RemoveAt => m.ReturnType == typeof(bool) && ps.Length == 2 && ps[1].ParameterType == typeof(int),
+            BlueprintCollectionOp.Clear    => m.ReturnType == typeof(void) && ps.Length == 1,
+            BlueprintCollectionOp.Resize   => m.ReturnType == typeof(bool) && ps.Length == 2 && ps[1].ParameterType == typeof(int),
+            _ => false,
+        };
+    }
+
     /// <summary>
     /// Validates a candidate <c>[BlueprintCollection]</c> method: public static (already guaranteed
     /// by the <see cref="BindingFlags"/> scan), returns <c>int</c>, and takes exactly one byref
@@ -358,7 +484,33 @@ internal static class ComponentFieldReflector
     /// FQN of a static accessor method as baked onto the node: <c>DeclaringType.FullName + "." +
     /// Name</c> -- no argument list, no <c>global::</c> prefix (mirrors how <c>FlowForEachNode</c>'s
     /// <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> are authored, e.g.
-    /// "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").
+    /// "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count").
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-2114 — a pin's TypeId for a CLR member type: an ENUM is spelled <c>global::Ns.Enum</c>, the compiler's AN2
+    /// enum sentinel (the <c>NodePinSchema.EnumStampedTypeFqn</c> / <c>SensorKindBaker</c> rule); a bare enum FQN does not
+    /// resolve in <c>Stage4_TypeResolve</c> (BP1500). Nested types use <c>.</c>, as C# spells them.
+    /// </summary>
+    private static string PinTypeId(Type type)
+        => type.IsEnum ? "global::" + (type.FullName ?? type.Name).Replace('+', '.') : type.FullName ?? type.Name;
+
     private static string AccessorFqn(MethodInfo m) => $"{m.DeclaringType!.FullName}.{m.Name}";
+}
+
+/// <summary>
+/// BP-62 — outcome of a component-writability check. Separates a decision ("resolved, and it is /
+/// is not writable") from missing information ("could not resolve at all"), which
+/// <c>bool IsWritableComponent</c> cannot express. See
+/// <see cref="ComponentFieldReflector.GetWritability"/>.
+/// </summary>
+internal enum ComponentWritability
+{
+    /// <summary>Type resolved and carries <c>[BlueprintWritable]</c>.</summary>
+    Writable,
+
+    /// <summary>Type resolved and deliberately does NOT carry <c>[BlueprintWritable]</c>.</summary>
+    NotWritable,
+
+    /// <summary>FQN did not resolve — unknown, not a negative answer.</summary>
+    Unresolved,
 }

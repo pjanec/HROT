@@ -7,13 +7,18 @@ namespace Fdp.Presentation.Editing;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
+/// <summary>⭐ S0 item 6 — draws a <see cref="Quaternion"/> or a <see cref="WorldRotation"/> field as Yaw / Pitch / Roll; the value goes in through
+/// <see cref="SemanticValueTypes.ToStorage"/> and comes back as the field's own type (<see cref="SemanticValueTypes.FromStorage"/>).</summary>
 public sealed class QuaternionEulerFieldDrawer : IImGuiFieldDrawer
 {
-    public Type TargetType => typeof(Quaternion);
+    public QuaternionEulerFieldDrawer() : this(typeof(Quaternion)) { }
+    public QuaternionEulerFieldDrawer(Type target) { TargetType = target; }
+
+    public Type TargetType { get; }
 
     public bool DrawInput(ref object value, EditNode node)
     {
-        Quaternion q = value is Quaternion qv ? qv : Quaternion.Identity;
+        Quaternion q = SemanticValueTypes.ToStorage(value) is Quaternion qv ? qv : Quaternion.Identity;
         var (yaw, pitch, roll) = SimMath.ToYawPitchRollDeg(q);
         Vector3 yprDeg = new Vector3(yaw, pitch, roll);
 
@@ -21,10 +26,10 @@ public sealed class QuaternionEulerFieldDrawer : IImGuiFieldDrawer
         if (ok)
         {
             const float Deg2Rad = MathF.PI / 180f;
-            value = SimMath.FromYawPitchRoll(
+            value = SemanticValueTypes.FromStorage(SimMath.FromYawPitchRoll(
                 yprDeg.X * Deg2Rad,
                 yprDeg.Y * Deg2Rad,
-                yprDeg.Z * Deg2Rad);
+                yprDeg.Z * Deg2Rad), TargetType)!;
         }
         return ok;
     }

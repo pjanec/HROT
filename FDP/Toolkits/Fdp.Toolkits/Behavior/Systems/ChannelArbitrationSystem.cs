@@ -2,7 +2,8 @@ using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
-using Fbt; 
+using Fbt;
+using Fbt.Kernel;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -10,8 +11,19 @@ namespace Fdp.Toolkit.Behavior.Systems
     // [UpdateBefore(typeof(LocomotionDispatcherSystem))] -- ordering maintained by array position in ActionDispatchModule.
     // [UpdateBefore(typeof(WeaponDispatcherSystem))] -- ordering maintained by array position in ActionDispatchModule.
     // [UpdateBefore(typeof(InteractionDispatcherSystem))] -- ordering maintained by array position in ActionDispatchModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class ChannelArbitrationSystem : IEcsModuleSystem
     {
+        /// <summary>
+        /// ⭐⭐⭐ <c>P3</c> step <c>3b</c> — the EXECUTION gate; see
+        /// <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.5. ⚠ Defaults to <c>false</c>: a promoted
+        /// ghost owns nothing until a policy or grant says otherwise, so enabling it before the node has
+        /// a policy would stop it processing every entity it did not create.
+        /// </summary>
+        private readonly bool _gateOnAuthority;
+
+        public ChannelArbitrationSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -20,8 +32,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
             // Process Locomotion Channels
+            // ⭐ P3 step 3b — WRITES cognitive state, so it is gated like the tick systems.
             var qLoco = repo.Query()
-                .With<BehaviorState>()
+                .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
                 .With<LocomotionChannel>()
                 .Build();
 
@@ -31,15 +44,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var channel = ref repo.GetComponentRW<LocomotionChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
-                {
-                    channel.ActiveAction = 0;
-                    unchecked { channel.ActionInstanceId++; }
-                }
+                    ChannelRelease.Release(repo, entity, ChannelKind.Locomotion);   // ⭐ CE-1432 — the one release
             }
 
             // Process Weapon Channels
             var qWpn = repo.Query()
-                .With<BehaviorState>()
+                .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
                 .With<WeaponChannel>()
                 .Build();
 
@@ -49,10 +59,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var channel = ref repo.GetComponentRW<WeaponChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
-                {
-                    channel.ActiveAction = 0;
-                    unchecked { channel.ActionInstanceId++; }
-                }
+                    ChannelRelease.Release(repo, entity, ChannelKind.Weapon);   // ⭐ CE-1432 — the one release
             }
 
             // Process Interaction Channels
@@ -67,10 +74,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var channel = ref repo.GetComponentRW<InteractionChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
-                {
-                    channel.ActiveAction = 0;
-                    unchecked { channel.ActionInstanceId++; }
-                }
+                    ChannelRelease.Release(repo, entity, ChannelKind.Interaction);   // ⭐ CE-1432 — the one release
             }
         }
     }

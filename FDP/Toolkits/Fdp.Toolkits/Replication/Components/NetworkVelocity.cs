@@ -3,7 +3,7 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Replication.Components
 {
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.NetworkVelocity)]
     public struct NetworkVelocity
     {

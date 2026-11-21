@@ -1,0 +1,36 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — the vehicle exposure cycle: rank the AT weapon first. Judge (1) the tank fires, (2) its first rounds go at the AT gunner, not the rifleman. NOT expressible: (3) 'fires from two points >= 4 m apart' and (4) 'moves > 5 m from its start' (a distance FROM a point is not a cue; only 'within').",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "fire": {
+      "on": "shot",
+      "by": "Tank",
+      "n": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "the tank fires",
+      "on": "shot",
+      "by": "Tank"
+    },
+    {
+      "name": "the tank fires at the AT gunner",
+      "on": "shot",
+      "by": "Tank",
+      "at": "AT Gunner"
+    },
+    {
+      "name": "the tank's first round is not at the rifleman",
+      "never": {
+        "on": "shot",
+        "by": "Tank",
+        "at": "Rifleman"
+      },
+      "before": "the tank fires at the AT gunner"
+    }
+  ]
+}

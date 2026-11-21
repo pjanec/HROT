@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Hrot.Map.Definitions
 {
     /// <summary>
@@ -9,53 +10,61 @@ namespace Hrot.Map.Definitions
     ///   <item><term>160–199</term><description>Application-level: SimHost + IG application components.</description></item>
     /// </list>
     /// </summary>
+    // ⛔ ALIASES ONLY (CE-4628 follow-up, user 2026-11-19: "all component ids ... written at one single place"): every id lives in
+    //   Fdp.Core GlobalComponentIds (values unchanged); a NEW id is added THERE, never here. Rail: ComponentIdCatalogueTests.
     public static class HrotComponentIds
     {
         // ── Application-level descriptor components (160–199) ────────────────────
 
         /// <summary><c>EntityDamage</c> — DDS damage descriptor stored as an ECS component for IG rendering.</summary>
-        public const byte EntityDamage        = 161;
+        public const byte EntityDamage        = GlobalComponentIds.EntityDamage;
 
         /// <summary><c>ActiveMissionPlan</c> — domain POCO mission plan (replaces EntityMissionHolder).</summary>
-        public const byte ActiveMissionPlan = 162;
+        public const byte ActiveMissionPlan = GlobalComponentIds.ActiveMissionPlan;
 
-        /// <summary><c>IgEntityData</c> — IG-internal entity metadata from EntityInfo.</summary>
-        public const byte IgEntityData        = 164;
 
-        /// <summary><c>IgHealthState</c> — IG-internal health state derived from EntityDamage.</summary>
-        public const byte IgHealthState       = 165;
+        /// <summary>
+        /// ⛔ RETIRED (CE-196) — was <c>IgHealthState</c>, an IG-internal damage percentage derived from
+        /// the <c>EntityDamage</c> descriptor. That component is deleted: the descriptor now carries
+        /// <c>Current</c>+<c>Max</c> and every consumer reads the real <c>Health</c> component.
+        /// ⚠ The id is kept RESERVED rather than freed — reusing 165 for a different component would
+        /// silently mis-decode any persisted or recorded data that still carries the old one.
+        /// </summary>
+        public const byte RetiredPlayerHealthState = GlobalComponentIds.RetiredPlayerHealthState;
 
         /// <summary>
         /// <c>ActivePerspective</c> — managed singleton component selecting the active presentation
         /// view.  Used by <c>SimMapRenderSystem</c> and the perspective coordinator in the cluster
         /// runner to gate rendering per active perspective tier (MOD1-P4T2).
         /// </summary>
-        public const byte ActivePerspective   = 166;
+        public const byte ActivePerspective   = GlobalComponentIds.ActivePerspective;
 
         /// <summary><c>IgSymbolOverride</c> — ExCon-sourced per-entity visual override (style-set, affiliation, texture; DB-MOD1-22).</summary>
-        public const byte IgSymbolOverride    = 167;
+        public const byte MapSymbolOverride    = GlobalComponentIds.MapSymbolOverride;
 
 
         // ── Route planning components (ROUTES1) ──────────────────────────────────
 
         /// <summary><c>RoutePlan</c> — managed component storing the ordered waypoint list and loop flag for a route entity.</summary>
-        public const byte RoutePlan            = 168;
+        public const byte RoutePlan            = GlobalComponentIds.RoutePlan;
 
         /// <summary><c>PersonalRouteRef</c> — blittable component on a vehicle entity providing an O(1) lookup to its personal child route entity.</summary>
-        public const byte PersonalRouteRef     = 169;
+        public const byte PersonalRouteRef     = GlobalComponentIds.PersonalRouteRef;
 
         /// <summary><c>RouteTrajectoryCache</c> — blittable component caching the compiled TrajectoryPoolManager entry for a route entity. Not replicated over DDS.</summary>
-        public const byte RouteTrajectoryCache = 170;
+        public const byte RouteTrajectoryCache = GlobalComponentIds.RouteTrajectoryCache;
 
 
-        // IDs 163 are reserved (see note below).
-        // NOTE: InFormationTag (formerly 163) has been moved to FDP.Toolkit.Navigation
-        //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration.
+        // ID 163 is now AnimalTasks (GlobalComponentIds.AnimalTasks, CE-4628): InFormationTag (formerly 163) was moved to FDP.Toolkit.Navigation
+        //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration, which freed the id.
 
         // ── Zone authoring components (PACK3 / A011) ────────────────────────
 
-        /// <summary><c>ZoneMembership</c> — managed component recording the zone name for an obstacle entity created by <c>SpawnZoneObstacleCommand</c>.</summary>
-        public const byte ZoneMembership = 171;
+        // ⛔ 171 is RETIRED, not reused (F1, 2026-09-17): ZoneMembership recorded which named zone an
+        //    obstacle belonged to. Zones and obstacles are both ordinary entities now, so membership is
+        //    geometry (does the zone polygon cover the obstacle?) rather than a stored name. A component
+        //    id is a scenario-file surface, so the value stays burned.
+        //    📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
 
 
         // ── Genesis Intent DTO components (cgf-scn-2 / Phase 4) ──────────────
@@ -63,42 +72,42 @@ namespace Hrot.Map.Definitions
         // Resolved to structural components by GenesisMaterializationSystem.
 
         /// <summary><c>InitialPassengersIntent</c> — stores passenger Network IDs at scenario load; resolved to <c>PassengerBuffer</c>.</summary>
-        public const byte InitialPassengersIntent = 177;
+        public const byte InitialPassengersIntent = GlobalComponentIds.InitialPassengersIntent;
 
         /// <summary><c>InitialVehicleIntent</c> — stores vehicle Network ID at scenario load; resolved to <c>IsEmbarkedTag</c>.</summary>
-        public const byte InitialVehicleIntent    = 178;
+        public const byte InitialVehicleIntent    = GlobalComponentIds.InitialVehicleIntent;
 
         /// <summary><c>InitialHierarchyIntent</c> — stores parent/first-child/next-sibling Network IDs; resolved to <c>VisHierarchyNode</c>.</summary>
-        public const byte InitialHierarchyIntent  = 179;
+        public const byte InitialHierarchyIntent  = GlobalComponentIds.InitialHierarchyIntent;
 
         /// <summary><c>InitialRouteIntent</c> — stores personal-route Network ID; resolved to <c>PersonalRouteRef</c>.</summary>
-        public const byte InitialRouteIntent      = 180;
+        public const byte InitialRouteIntent      = GlobalComponentIds.InitialRouteIntent;
 
         /// <summary><c>InitialTargetsIntent</c> — stores target-memory Network IDs + sensor data; resolved to <c>TargetMemory</c>.</summary>
-        public const byte InitialTargetsIntent    = 181;
+        public const byte InitialTargetsIntent    = GlobalComponentIds.InitialTargetsIntent;
 
 
         // ── Commander-Subordinate hierarchy components (commander-subordinates workstream) ──
 
-        /// <summary><c>UnitRoster</c> — fixed-capacity subordinate list on the commanding entity (AI tier); NoSave (derived from UnitSubordinate records).</summary>
-        public const byte UnitRoster = 182;
+        /// <summary><c>UnitRoster</c> — fixed-capacity subordinate list on the commanding entity (AI tier); NoScenario (derived from UnitSubordinate records).</summary>
+        public const byte UnitRoster = GlobalComponentIds.UnitRoster;
 
         /// <summary><c>UnitSubordinate</c> — generation-safe commander reference and tactical designation on subordinate entities (AI tier).</summary>
-        public const byte UnitSubordinate = 183;
+        public const byte UnitSubordinate = GlobalComponentIds.UnitSubordinate;
 
         /// <summary><c>InitialUnitSubordinateIntent</c> — genesis intent DTO storing network commander ID at scenario load; resolved to <c>UnitSubordinate</c> by <c>GenesisMaterializationSystem</c> (Phase 4).</summary>
-        public const byte InitialUnitSubordinateIntent = 184;
+        public const byte InitialUnitSubordinateIntent = GlobalComponentIds.InitialUnitSubordinateIntent;
 
 
         // ── IG debug visualization components (GZ015) ────────────────────────
 
         /// <summary><c>GlobalDebugSettings</c> — singleton struct controlling global gizmo visibility and layer mask for the IG subsystem.</summary>
-        public const byte GlobalDebugSettings = 185;
+        public const byte GlobalDebugSettings = GlobalComponentIds.GlobalDebugSettings;
 
         /// <summary><c>CanvasContextMenuState</c> — managed singleton holding empty map space menus.</summary>
-        public const byte CanvasContextMenuState = 186;
+        public const byte CanvasContextMenuState = GlobalComponentIds.CanvasContextMenuState;
 
         /// <summary><c>InitialBlueprintsIntent</c> — genesis intent DTO storing the list of Instance Blueprint AssetIds to attach at scenario load; resolved by BlueprintMaterializationSystem.</summary>
-        public const byte InitialBlueprintsIntent = 187;
+        public const byte InitialBlueprintsIntent = GlobalComponentIds.InitialBlueprintsIntent;
     }
 }

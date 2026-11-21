@@ -1,0 +1,321 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "Kind": "macro",
+    "description": "What: CE-6011 (city battle V-A, §4 prepared positions, D-3) - a ROADBLOCK at a road crossing (the anchor): two concrete blocks (8808) and two cars (8806) across an east-west road 14-27 m WEST of the anchor, an MG nest (an automatic rifleman 2009 behind sandbags 8807) 14 m each side of the road, an AT team (2 x 2006) behind. One macro so a variant keeps or drops a whole roadblock with one Presence roll. Params: side (default Hostile).",
+    "Anchor": {
+      "Position": [
+        0,
+        0,
+        0
+      ],
+      "Heading": 0
+    },
+    "Params": [
+      {
+        "Name": "side",
+        "TypeId": "ForceId",
+        "Default": "Hostile"
+      }
+    ]
+  },
+  "entities": {
+    "c6011a00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -14,
+          -2.2,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8808
+      },
+      "EntityInfo": {
+        "Name": "Roadblock block 1"
+      },
+      "ObstacleShape": {
+        "Length": 6,
+        "Width": 1,
+        "Height": 1
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -16,
+          2.6,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8808
+      },
+      "EntityInfo": {
+        "Name": "Roadblock block 2"
+      },
+      "ObstacleShape": {
+        "Length": 6,
+        "Width": 1,
+        "Height": 1
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -24,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.258819,
+          0.9659258
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Roadblock car 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.9,
+        "Height": 1.8
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          -27,
+          2.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.2164396,
+          0.976296
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Roadblock car 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.9,
+        "Height": 1.8
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          4,
+          -14,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8807
+      },
+      "EntityInfo": {
+        "Name": "MG Nest S sandbags"
+      },
+      "ObstacleShape": {
+        "Length": 4,
+        "Width": 0.8,
+        "Height": 1.2
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          6,
+          -14,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2009
+      },
+      "EntityInfo": {
+        "Name": "MG Nest S",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          4,
+          14,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8807
+      },
+      "EntityInfo": {
+        "Name": "MG Nest N sandbags"
+      },
+      "ObstacleShape": {
+        "Length": 4,
+        "Width": 0.8,
+        "Height": 1.2
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          6,
+          14,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2009
+      },
+      "EntityInfo": {
+        "Name": "MG Nest N",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          10,
+          -2.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2006
+      },
+      "EntityInfo": {
+        "Name": "AT Team Gunner 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6011a00-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          10,
+          2.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2006
+      },
+      "EntityInfo": {
+        "Name": "AT Team Gunner 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    }
+  }
+}

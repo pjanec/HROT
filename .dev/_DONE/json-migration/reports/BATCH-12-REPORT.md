@@ -25,7 +25,7 @@
 
 ## Build Results
 
-`dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4`
+`dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4`
 
 **Result:** Build FAILED — only pre-existing errors in `Hrot.Blueprints.Tests`
 (`IAnimationTkbQueries` not found, `Hrot.Editor` namespace not found).

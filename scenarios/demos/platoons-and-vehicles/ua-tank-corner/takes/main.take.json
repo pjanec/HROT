@@ -1,0 +1,97 @@
+{
+  "title": "Tank round a corner",
+  "caption": "The tank edges out, fires at the AT team, backs into cover",
+  "clip": "F-41",
+  "chapter": 9,
+  "state": "ready",
+  "endAt": "m+6",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Tank",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-5.5",
+      "follow": "Tank",
+      "distance": 60,
+      "yaw": 40,
+      "pitch": -20,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Tank",
+      "toward": "AT Gunner",
+      "back": 16,
+      "height": 5,
+      "lift": 2,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Tank",
+      "toward": "AT Gunner",
+      "back": 14,
+      "height": 4.5,
+      "lift": 2,
+      "fov": 32,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "AT Gunner",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "AT Gunner",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-5.5",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-5.5",
+      "until": "m+6",
+      "text": "The tank edges out, fires at the AT team, backs into cover"
+    }
+  ]
+}

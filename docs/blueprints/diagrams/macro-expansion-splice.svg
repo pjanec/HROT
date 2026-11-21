@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 640" width="980" height="640" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2a7ab0"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="980" height="640" fill="#fbfbfa"/>
+  <text x="24" y="34" font-size="19" font-weight="600" fill="#1a1a1a">Stage 2.5 — macro expansion: the boundary splice</text>
+  <text x="24" y="55" font-size="13" fill="#555">One exec-in, N exec-out (Q25-D3). The two boundary nodes collapse away; their outside links are re-tied, not dropped.</text>
+
+  <!-- ============ ROW 1 : authored host graph ============ -->
+  <rect x="16" y="74" width="948" height="152" rx="6" fill="#ffffff" stroke="#c9c9c4"/>
+  <text x="30" y="94" font-size="12" font-weight="600" fill="#3b6ea5">① AUTHORED — host graph</text>
+
+  <rect x="40" y="118" width="86" height="36" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="83" y="141" font-size="13" text-anchor="middle" fill="#1a1a1a">Start</text>
+
+  <rect x="196" y="104" width="176" height="106" rx="4" fill="#d6e4f7" stroke="#3b6ea5" stroke-width="2"/>
+  <text x="284" y="122" font-size="13" font-weight="600" text-anchor="middle" fill="#1a1a1a">MacroCallNode</text>
+  <text x="206" y="144" font-size="12" fill="#333">▸ exec</text>
+  <text x="206" y="162" font-size="12" fill="#2a7ab0">▸ A</text>
+  <text x="362" y="144" font-size="12" text-anchor="end" fill="#333">Then0 ▸</text>
+  <text x="362" y="162" font-size="12" text-anchor="end" fill="#333">Then1 ▸</text>
+  <text x="362" y="180" font-size="12" text-anchor="end" fill="#2a7ab0">R ▸</text>
+
+  <rect x="470" y="104" width="104" height="32" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="522" y="125" font-size="12" text-anchor="middle" fill="#1a1a1a">Then0 …</text>
+  <rect x="470" y="146" width="104" height="32" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="522" y="167" font-size="12" text-anchor="middle" fill="#1a1a1a">Then1 …</text>
+  <rect x="470" y="186" width="104" height="32" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="522" y="207" font-size="12" text-anchor="middle" fill="#1a1a1a">uses R</text>
+
+  <line x1="126" y1="136" x2="192" y2="140" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="372" y1="140" x2="466" y2="120" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="372" y1="158" x2="466" y2="162" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="372" y1="176" x2="466" y2="202" stroke="#2a7ab0" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#ad)"/>
+
+  <text x="640" y="124" font-size="12" fill="#666">exec wire</text>
+  <line x1="712" y1="120" x2="756" y2="120" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <text x="640" y="150" font-size="12" fill="#666">data wire</text>
+  <line x1="712" y1="146" x2="756" y2="146" stroke="#2a7ab0" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#ad)"/>
+  <text x="640" y="182" font-size="12" fill="#666">⚠ R is pulled on demand —</text>
+  <text x="640" y="198" font-size="12" fill="#666">see finding F2</text>
+
+  <!-- ============ ROW 2 : the macro graph ============ -->
+  <rect x="16" y="242" width="948" height="150" rx="6" fill="#ffffff" stroke="#c9c9c4"/>
+  <text x="30" y="262" font-size="12" font-weight="600" fill="#5a8a3c">② AUTHORED — GraphKind.Macro "Aim"</text>
+
+  <rect x="196" y="284" width="140" height="70" rx="4" fill="#e6f2d9" stroke="#5a8a3c" stroke-width="2"/>
+  <text x="266" y="304" font-size="13" font-weight="600" text-anchor="middle" fill="#1a1a1a">EventEntryNode</text>
+  <text x="326" y="324" font-size="12" text-anchor="end" fill="#333">exec ▸</text>
+  <text x="326" y="342" font-size="12" text-anchor="end" fill="#2a7ab0">A ▸</text>
+
+  <rect x="392" y="292" width="130" height="54" rx="4" fill="#eeeeea" stroke="#888" stroke-dasharray="4 3"/>
+  <text x="457" y="316" font-size="12" text-anchor="middle" fill="#333">body</text>
+  <text x="457" y="333" font-size="11" text-anchor="middle" fill="#777">(may be latent)</text>
+
+  <rect x="580" y="272" width="150" height="96" rx="4" fill="#e6f2d9" stroke="#5a8a3c" stroke-width="2"/>
+  <text x="655" y="292" font-size="13" font-weight="600" text-anchor="middle" fill="#1a1a1a">ReturnNode</text>
+  <text x="590" y="314" font-size="12" fill="#333">▸ Then0</text>
+  <text x="590" y="332" font-size="12" fill="#333">▸ Then1</text>
+  <text x="590" y="350" font-size="12" fill="#2a7ab0">▸ R</text>
+
+  <line x1="336" y1="318" x2="388" y2="318" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="522" y1="312" x2="576" y2="310" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="522" y1="330" x2="576" y2="346" stroke="#2a7ab0" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#ad)"/>
+
+  <text x="770" y="300" font-size="12" fill="#666">Boundary nodes are</text>
+  <text x="770" y="317" font-size="12" fill="#666"><tspan font-weight="600">reused, not new</tspan> — F3.</text>
+  <text x="770" y="340" font-size="12" fill="#666">Only Return's N exec-in</text>
+  <text x="770" y="357" font-size="12" fill="#666">pins are new projection.</text>
+
+  <!-- ============ ROW 3 : after expansion ============ -->
+  <rect x="16" y="408" width="948" height="212" rx="6" fill="#ffffff" stroke="#c9c9c4"/>
+  <text x="30" y="428" font-size="12" font-weight="600" fill="#b5732e">③ AFTER Stage 2.5 — one host graph, no macro left</text>
+
+  <rect x="40" y="472" width="86" height="36" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="83" y="495" font-size="13" text-anchor="middle" fill="#1a1a1a">Start</text>
+
+  <rect x="196" y="464" width="176" height="54" rx="4" fill="#f7e6d6" stroke="#b5732e" stroke-width="2"/>
+  <text x="284" y="486" font-size="13" font-weight="600" text-anchor="middle" fill="#1a1a1a">body′ — cloned</text>
+  <text x="284" y="504" font-size="11" text-anchor="middle" fill="#8a5a22">fresh GUIDs · OriginNodeId stamped</text>
+
+  <rect x="470" y="440" width="104" height="32" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="522" y="461" font-size="12" text-anchor="middle" fill="#1a1a1a">Then0 …</text>
+  <rect x="470" y="482" width="104" height="32" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="522" y="503" font-size="12" text-anchor="middle" fill="#1a1a1a">Then1 …</text>
+  <rect x="470" y="524" width="104" height="32" rx="4" fill="#d6e4f7" stroke="#3b6ea5"/>
+  <text x="522" y="545" font-size="12" text-anchor="middle" fill="#1a1a1a">uses R</text>
+
+  <line x1="126" y1="490" x2="192" y2="490" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="372" y1="484" x2="466" y2="458" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="372" y1="492" x2="466" y2="498" stroke="#333" stroke-width="2" marker-end="url(#ax)"/>
+  <line x1="372" y1="504" x2="466" y2="540" stroke="#2a7ab0" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#ad)"/>
+
+  <text x="640" y="452" font-size="12" fill="#666">The call node is <tspan font-weight="600">gone</tspan> before Stage 5 ⇒</text>
+  <text x="640" y="469" font-size="12" fill="#666">N exec-outs are N ordinary host links.</text>
+  <text x="640" y="486" font-size="12" fill="#666">BP1412 / GetSingleExecSuccessor</text>
+  <text x="640" y="503" font-size="12" fill="#666">never see a macro.</text>
+  <text x="640" y="530" font-size="12" fill="#b5732e">⚠ Same macro at 2 call sites ⇒</text>
+  <text x="640" y="547" font-size="12" fill="#b5732e">node→line becomes one-to-many (BP-83).</text>
+</svg>

@@ -1,0 +1,201 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: CE-3094 tutorial demo - a Rifleman (BasicInfantrySop, ROE FireAtWill + StayOnTask) on a two-leg CombatPosture mission along Main Street, (300,215) to (242,226) to (200,330), meets Hostile 1-3 advancing up the street from (200,290-320) to (200,150) at 1.2 m/s. Shows posture + approach + mission composing against a group. Judge: (1) the approach behind Block C keeps him unseen for most of the walk (first hit after ~f4000); (2) the mission reaches its second leg; (3) his rounds reach SimHost as bullets and at least one hostile loses health; (4) if hit, he picks a defensive posture and a wounded man keeps moving. He is not asserted to win. Fail: He is spotted early, never reaches leg two, or fires nothing. Check: none (no live check) - twin: PostureScenarioTests (CE3094_UniversalSoldier_MissionOfPostureLegs_AgainstAGroup)"
+  },
+  "entities": {
+    "a3094000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          215,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b3094000-0000-4000-8000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": {"advance":{"Objective":[242,226,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b3094000-0000-4000-8000-000000000002",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": {"advance":{"Objective":[200,330,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a3094000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          200,
+          290,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[200,150,0],"Speed":1.2,"ArrivalRadius":3,"CooldownSeconds":1.5}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a3094000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          198,
+          305,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[200,150,0],"Speed":1.2,"ArrivalRadius":3,"CooldownSeconds":1.5}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a3094000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          202,
+          320,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[200,150,0],"Speed":1.2,"ArrivalRadius":3,"CooldownSeconds":1.5}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

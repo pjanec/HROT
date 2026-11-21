@@ -66,7 +66,7 @@
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 ```
 
 **Result:** 0 errors, 0 warnings related to deleted types.

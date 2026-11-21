@@ -1,0 +1,1231 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using System.Threading;
+using Fdp.Core;
+
+namespace Fdp.Toolkit.Terrain
+{
+    /// <summary>What a solid terrain prism is — drives only the default draw style and label.</summary>
+    public enum TerrainPrismKind : byte { Building = 0, Wall = 1, Tree = 2 /* ⭐ CE-4369 — a lone tree trunk (R-4190 T-1) */ }
+
+    /// <summary>What a walkable terrain surface with its own Z is.</summary>
+    public enum TerrainWalkableKind : byte { Slab = 0, Ramp = 1 }
+
+    /// <summary>The ground cover of a flat surface area.</summary>
+    /// <summary>A ground surface's type. ⛔ <c>Road = 1</c> retired with CE-3128 (R-231): roads are the terrain's road graph.</summary>
+    public enum TerrainSurfaceType : byte { Open = 0, Forest = 2, Water = 3, /* ⭐ T-2 (CE-4429) — low brush: drawn, walkable, no concealment (yet) */ Scrub = 4 }
+
+    /// <summary>
+    /// A SOLID extruded polygon — a building or a wall: blocks movement and sight from <see cref="BaseZ"/>
+    /// to <see cref="TopZ"/>; its roof is walkable at <see cref="TopZ"/>.
+    /// </summary>
+    public sealed class TerrainPrism
+    {
+        public TerrainPrismKind Kind { get; init; }
+        /// <summary>Footprint, counter-clockwise, no repeated closing point (engine X east / Y north).</summary>
+        public Vector2[] Footprint { get; init; } = Array.Empty<Vector2>();
+        public float BaseZ { get; init; }
+        public float TopZ { get; init; }
+        /// <summary>Storeys, for the label only in v1 (a prism is solid).</summary>
+        public int Floors { get; init; }
+        public string? Label { get; init; }
+        /// <summary>Footprint triangulated once at parse (index triples into <see cref="Footprint"/>).</summary>
+        public int[] Triangles { get; init; } = Array.Empty<int>();
+        public Vector2 Min { get; init; }
+        public Vector2 Max { get; init; }
+        public float Height => TopZ - BaseZ;
+        /// <summary>⭐ Stage 1 — what it is made of (§3c); null only for a prism built in code without one (read as concrete).</summary>
+        public TerrainMaterial? Material { get; init; }
+        /// <summary>⭐ Stage 1 — the <see cref="TerrainWallPanel"/> this prism is a piece of (index into
+        /// <see cref="TerrainWorld.Panels"/>), −1 for a solid building/wall that is not a panel.</summary>
+        public int Panel { get; init; } = -1;
+        /// <summary>⭐ <c>CE-4391</c> S-2 (UTM §8.2 B-8) — the building (index into <see cref="TerrainWorld.Buildings"/>) this piece belongs to, −1 for none: set by
+        /// <see cref="TerrainBuildingExpander"/> for every piece of a building (panel prisms, the solid prism) and for a door leaf. A COLLAPSED building's pieces
+        /// are skipped by the traces and its rubble prism crossed instead.</summary>
+        public int Building { get; init; } = -1;
+        /// <summary>
+        /// ⭐ CE-4656 — this prism came from an ENTITY that draws its own body (a baked static obstacle of a platform type: the parked car): it is collision,
+        /// navmesh and sight only — the terrain mesh neither draws it nor cuts the ground under it. 📐 Before, the 3-D terrain drew a grey <c>car-body</c> box over
+        /// the car the entity layer already drew, once the obstacle bake committed (user observation).
+        /// </summary>
+        public bool DrawnByEntity { get; init; }
+    }
+
+    /// <summary>
+    /// A walkable polygon with its own per-vertex Z — a floor slab (multi-level) or a ramp linking levels.
+    /// Thin: it blocks a sight line that crosses it, and it is a surface an entity can stand on.
+    /// </summary>
+    public sealed class TerrainWalkable
+    {
+        public TerrainWalkableKind Kind { get; init; }
+        /// <summary>Outline, counter-clockwise in plan view, each vertex carrying its Z.</summary>
+        public Vector3[] Vertices { get; init; } = Array.Empty<Vector3>();
+        public int[] Triangles { get; init; } = Array.Empty<int>();
+        public Vector2 Min { get; init; }
+        public Vector2 Max { get; init; }
+        public float MinZ { get; init; }
+        public float MaxZ { get; init; }
+        /// <summary>⭐ <c>CE-4391</c> S-2 — the building this slab / ramp belongs to (index into <see cref="TerrainWorld.Buildings"/>), −1 for a free one.</summary>
+        public int Building { get; init; } = -1;
+    }
+
+    /// <summary>A flat ground-cover area at ground level (open, forest, water — roads are the road graph, CE-3128).</summary>
+    public sealed class TerrainSurface
+    {
+        public TerrainSurfaceType Type { get; init; }
+        public Vector2[] Polygon { get; init; } = Array.Empty<Vector2>();
+        public int[] Triangles { get; init; } = Array.Empty<int>();
+        public Vector2 Min { get; init; }
+        public Vector2 Max { get; init; }
+        /// <summary>⭐ CE-4369 (R-4190) — a forest's trees per hectare (the world file's <c>density</c>; <see cref="TerrainWoods.DefaultDensity"/>).</summary>
+        public float Density { get; init; } = TerrainWoods.DefaultDensity;
+        /// <summary>⭐ CE-4369 (R-4190 T-7) — a forest's canopy top above the ground, m (<c>canopy</c>; <see cref="TerrainWoods.DefaultCanopy"/>).</summary>
+        public float Canopy { get; init; } = TerrainWoods.DefaultCanopy;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ THE TERRAIN WORLD — the one in-memory model a terrain's world file is parsed into, on every
+    /// ECS node. Navigation (the navmesh is built from it), movement (the surface Z), perception (sight lines)
+    /// and the 2D map all read THIS, so they cannot disagree.
+    ///
+    /// <para>⭐ Engine space throughout: X east, Y north, Z up, local metres.</para>
+    /// <para>⛔ Never persisted — <c>[DataPolicy(NoScenario | NoReplay)]</c>: it is re-derived from the
+    /// named terrain asset on every load, like <see cref="TerrainDefinition"/>.</para>
+    /// 📄 docs/DESIGN_Terrain_World.md §2–§4.
+    /// </summary>
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node terrain service — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
+    [ComponentId(GlobalComponentIds.TerrainWorld)]
+    [Fdp.Core.NotState("static authored terrain data")]
+    public sealed class TerrainWorld
+    {
+        /// <summary>How far above its current Z an entity may step onto a surface (a kerb, a ramp start).</summary>
+        public const float StepHeight = 0.6f;
+
+        /// <summary>The terrain's catalog name (e.g. <c>test-town</c>), stamped at load; null for a world built in code.
+        /// ⭐ CE-3028 — so a reader of the singleton (<c>GET /world/info</c>) can name what is resident.</summary>
+        public string? Name { get; init; }
+
+        /// <summary>⭐ CE-4393 (UTM §12.1 N-1a) — the terrain folder this world was read from (null for a world built in code); a derived world
+        /// (obstacles, damage) keeps it. The navmesh bake reads the tiles the importer baked into <c>&lt;SourceFolder&gt;/navtiles</c>.</summary>
+        public string? SourceFolder { get; init; }
+
+        /// <summary>⭐ O-2 (CE-4416, DESIGN_Terrain_Authoring §18a) — every folder whose prefilled <c>navtiles/</c> seed this world's navmesh bake, in order
+        /// (the base terrain's, then an overlay's): defaults to <see cref="SourceFolder"/> alone; <see cref="TerrainWorldMerge.Merge"/> sets the list.</summary>
+        public IReadOnlyList<string> SeedFolders
+        {
+            get => _seedFolders ?? (SourceFolder is { } f ? new[] { f } : Array.Empty<string>());
+            init => _seedFolders = value;
+        }
+        private readonly IReadOnlyList<string>? _seedFolders;
+
+        public Vector2 BoundsMin { get; init; }
+        public Vector2 BoundsMax { get; init; }
+        public float GroundZ { get; init; }
+
+        /// <summary>⭐ CE-1034 H5a — what the parser found questionable but loaded (e.g. a ramp too steep for vehicles), also logged.</summary>
+        public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
+
+        /// <summary>⭐ CE-1034 H1 (TH-B) — the ground's relief, or null for the temporary flat ground at <see cref="GroundZ"/> (R-248).</summary>
+        public TerrainHeightGrid? Height { get; init; }
+
+        /// <summary>⭐ CE-1034 H1 — the ground's height at (x, y): the height grid where there is one, else <see cref="GroundZ"/>. Every
+        /// question about "the ground" goes through this — never read <see cref="GroundZ"/> as the ground (R-248).</summary>
+        public float GroundHeightAt(float x, float y) => GroundHeightOf(Height, x, y);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4 part 2, D-1) — the height grid WITHOUT the craters a bake laid into <see cref="Height"/> (null = <see cref="Height"/> holds none). The bake
+        /// writes the craters into <see cref="Height"/> as a CACHE for the navmesh, the 3-D mesh and every reader that has no view; the simulation's truth is this
+        /// bare ground + the craters of the caller's view (<see cref="DoorStates.Craters"/>) — so a crater is never counted twice, and one the view no longer holds
+        /// (a seek back) is gone the same tick.
+        /// </summary>
+        public TerrainHeightGrid? BareHeight { get; init; }
+
+        /// <summary>⭐ <c>CE-4591</c> — the craters baked into <see cref="Height"/> (null = none): the navmesh's crater areas and the bake's dirty rectangles read them.</summary>
+        public CraterTable? HeightCraters { get; init; }
+
+        /// <summary>⭐ <c>CE-4591</c> — the grid the simulation's ground answers start from: <see cref="BareHeight"/>, else <see cref="Height"/>.</summary>
+        public TerrainHeightGrid? SimHeight => BareHeight ?? Height;
+
+        /// <summary>⭐ <c>CE-4591</c> — <see cref="GroundHeightAt(float, float)"/> over <see cref="SimHeight"/>: the ground without any baked crater.</summary>
+        public float BareGroundHeightAt(float x, float y) => GroundHeightOf(SimHeight, x, y);
+
+        private float GroundHeightOf(TerrainHeightGrid? grid, float x, float y)
+        {
+            var r = Rect;
+            if (!r.Valid) return grid?.Sample(x, y) ?? GroundZ;   // no rectangle (a world built in code with no bounds): the ground as it always was
+            if (x >= r.MinX && x <= r.MaxX && y >= r.MinY && y <= r.MaxY) return grid?.Sample(x, y) ?? GroundZ;   // inside: unchanged
+            // ⭐ CE-4122 (§6ad-2) — outside the terrain: the edge height + the hills (+ an attached outside field, e.g. the SUMO net's)
+            float cx = Math.Clamp(x, r.MinX, r.MaxX), cy = Math.Clamp(y, r.MinY, r.MaxY);
+            float edge = grid?.Sample(cx, cy) ?? GroundZ;
+            float dx = x - cx, dy = y - cy;
+            return (_beyond ?? BeyondGround.Default).HeightAt(x, y, edge, MathF.Sqrt(dx * dx + dy * dy));
+        }
+
+        private BeyondGround? _beyond;
+
+        /// <summary>⭐ CE-4122 — the ground beyond this terrain's rectangle as attached by <see cref="AttachBeyond"/>, or null (edge + hills).</summary>
+        public BeyondGround? Beyond => _beyond;
+
+        /// <summary>
+        /// ⭐ CE-4122 (HB2) — attach the ground beyond the terrain (the SUMO net's height field). Set ONCE, before the world is published: the world
+        /// stays immutable after commit. A second call throws.
+        /// </summary>
+        public void AttachBeyond(BeyondGround beyond)
+        {
+            if (beyond == null) throw new ArgumentNullException(nameof(beyond));
+            if (Interlocked.CompareExchange(ref _beyond, beyond, null) != null)
+                throw new InvalidOperationException("The ground beyond this terrain is already attached (set once).");
+        }
+
+        /// <summary>⭐ CE-4122 — the rectangle the terrain's own ground covers (the ONE rule <c>TerrainWorldMesh</c> lays its ground out by): the
+        /// bounds, their minimum snapped down to the height grid's cells. Valid is false for degenerate bounds.</summary>
+        public (Vector2 Min, Vector2 Max, bool Valid) GroundRect => (new Vector2(Rect.MinX, Rect.MinY), new Vector2(Rect.MaxX, Rect.MaxY), Rect.Valid);
+
+        private GroundRectInfo Rect => _rect ??= ComputeRect();
+        private GroundRectInfo? _rect;
+
+        private GroundRectInfo ComputeRect()
+        {
+            var min = BoundsMin; var max = BoundsMax;
+            if (!(max.X > min.X && max.Y > min.Y)) return new GroundRectInfo(0, 0, 0, 0, false);
+            if (Height is { } g)
+            {
+                float cell = g.CellSize;
+                min = new Vector2(MathF.Floor((min.X - g.Origin.X) / cell) * cell + g.Origin.X,
+                                  MathF.Floor((min.Y - g.Origin.Y) / cell) * cell + g.Origin.Y);
+            }
+            return new GroundRectInfo(min.X, min.Y, max.X, max.Y, true);
+        }
+
+        private sealed record GroundRectInfo(float MinX, float MinY, float MaxX, float MaxY, bool Valid);
+        public IReadOnlyList<TerrainPrism> Prisms { get; init; } = Array.Empty<TerrainPrism>();
+        public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
+        public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();
+
+        /// <summary>⭐ <c>CE-4592</c> (P-5, G-14) — the authored GROUND shapes of this world (an overlay's), applied to the height grid where it is merged (before the pads, G-18).</summary>
+        public IReadOnlyList<GroundShape> GroundShapes { get; init; } = Array.Empty<GroundShape>();
+
+        /// <summary>⭐ <c>CE-4592</c> (P-5, G-24) — the base's road corridors an overlay's ground change touches (its <c>corridor</c> parts): re-levelled where the world is merged, after the shapes and the pads.</summary>
+        public IReadOnlyList<RoadCorridor> RoadCorridors { get; init; } = Array.Empty<RoadCorridor>();
+
+        /// <summary>⭐ Stage 1 — every wall/fence panel with its openings and material; each is ALSO expanded into
+        /// <see cref="Prisms"/> (its solid pieces), so consumers that only know prisms see doorways and windows as gaps.
+        /// 📄 docs/DESIGN_Building_Interiors.md §2, §3a, §3c.</summary>
+        public IReadOnlyList<TerrainWallPanel> Panels { get; init; } = Array.Empty<TerrainWallPanel>();
+        /// <summary>⭐ Stage 1 — the placed buildings (template, position, storey floors).</summary>
+        public IReadOnlyList<TerrainBuilding> Buildings { get; init; } = Array.Empty<TerrainBuilding>();
+        /// <summary>⭐ Stage 1 — the doors the terrain defines, by terrain-object key (§3b); door ENTITIES come with Stage 5.</summary>
+        public IReadOnlyList<TerrainDoorDef> Doors { get; init; } = Array.Empty<TerrainDoorDef>();
+        /// <summary>⭐ Stage 1 — the material library this world was parsed with (shared + terrain overrides).</summary>
+        public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
+
+        /// <summary>⭐ <c>CE-4391</c> S-3 — the buildings whose COLLAPSE is already baked into this world's geometry (a derived world from <see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?)"/>:
+        /// their pieces are gone and their rubble prism is among the <see cref="Prisms"/>), so the damage view does not skip or add them again. Empty on a content world.</summary>
+        public IReadOnlyList<int> BakedCollapsed { get; init; } = Array.Empty<int>();
+
+        /// <summary>⭐ <c>CE-4599</c> (B-2, V-10) — the plan boxes of the PASSAGE breaches baked into this world's geometry (a derived world), each padded by a metre: where the
+        /// navmesh bakes FINE cells, so a 0.8–1 m gap in a garden wall is resolved (CE-3111 measured a 0.8–0.9 m opening failing at the coarse cell). Empty on a content world.</summary>
+        public IReadOnlyList<(Vector2 Min, Vector2 Max)> BakedPassages { get; init; } = Array.Empty<(Vector2, Vector2)>();
+
+        /// <summary>⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-3) — the minefields of the world this bake was made for (a derived world from <see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?, CraterTable?, FelledTrees?, MinefieldSet?)"/>):
+        /// each with its outline and lanes. The navmesh bake stamps them as composite areas (<c>NavDoorways.Minefields</c>); who may USE a polygon is the query filter's job, by what the mover's side knows. Empty on a content world.</summary>
+        public IReadOnlyList<TerrainMinefield> Minefields { get; init; } = Array.Empty<TerrainMinefield>();
+
+        /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table this world was parsed with (the shared one overlaid by the terrain folder's own <c>breaches.json</c>; §8.2 B-6).</summary>
+        public BreachTable Breaches { get; init; } = BreachTable.Shared;
+
+        /// <summary>⭐ <c>CE-5025</c> BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2) — an OVERLAY's removals: the labels of BASE buildings it takes away (its <c>"remove"</c>
+        /// parts). <see cref="TerrainWorldMerge.Merge"/> drops them from the base before it appends the overlay; empty on a base world.</summary>
+        public IReadOnlyList<string> RemovedBuildings { get; init; } = Array.Empty<string>();
+
+        /// <summary>⭐ <c>CE-5030</c> BE-4 part 2 (📄 docs/DESIGN_Terrain_Base_Edits.md §5) — on a MERGED world, the base buildings the merge took away: each one's label, footprint and
+        /// floor height, as the base had them (the editor's "removed" ghost and the edit's Details read them — the merged world no longer holds the building). Empty elsewhere.</summary>
+        public IReadOnlyList<TerrainRemovedBuilding> Removed { get; init; } = Array.Empty<TerrainRemovedBuilding>();
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-1 — true when this terrain can have LIVE state a view's <see cref="DoorStates"/> must carry: it has doors, or buildings
+        /// whose walls can be breached. The gate every "build a <see cref="DoorStates"/> only when it matters" site reads (was <c>Doors.Count &gt; 0</c>).
+        /// </summary>
+        public bool HasLiveState => true;   // ⭐ CE-4591 (P-4, D-1) — a crater can land on ANY ground, so every world's view carries live state (doors, breaches, craters); DoorStates.Of is O(1) while nothing changed
+
+        /// <summary>⭐ <c>CE-4391</c> S-1 (§8.2 B-5) — the lazy grid of this world's BUILDING wall panels, for "the panels near this burst"; built on first use.</summary>
+        public BuildingPanelGrid BuildingPanels
+        {
+            get
+            {
+                if (_panelGrid is { } g) return g;
+                lock (_woodsGate) return _panelGrid ??= BuildingPanelGrid.Build(this);
+            }
+        }
+        private volatile BuildingPanelGrid? _panelGrid;
+
+        /// <summary>⭐ <c>CE-4391</c> S-2 — the lazy grid of the buildings' footprint boxes (the collapse test's candidates).</summary>
+        public BuildingFootprintGrid BuildingFootprints
+        {
+            get
+            {
+                if (_footGrid is { } g) return g;
+                lock (_woodsGate) return _footGrid ??= BuildingFootprintGrid.Build(this);
+            }
+        }
+        private volatile BuildingFootprintGrid? _footGrid;
+
+        // ── ⭐ Stage 5 (doors) — the door LEAVES and their live state ─────────────────────────────────────────────
+
+        /// <summary>The material a closed door leaf is (sight 0; a wooden door — a rifle round goes through).</summary>
+        public const string DoorMaterial = "door-wood";
+        /// <summary>A door leaf's thickness (m), centred in its wall.</summary>
+        public const float DoorLeafThickness = 0.05f;
+
+        /// <summary>
+        /// ⭐ Stage 5 (📄 docs/DESIGN_Building_Interiors.md §3a, §3j) — one closing leaf per door (index-aligned with <see cref="Doors"/>):
+        /// a thin piece across the doorway, from its sill to its head. ⛔ NOT in <see cref="Prisms"/> — the navmesh is baked with every
+        /// door OPEN (§3a), so nothing that reads prisms ever sees a leaf; the sight and fire queries add the leaves of doors that are
+        /// not open (in the caller's <see cref="DoorStates"/>).
+        /// </summary>
+        public IReadOnlyList<TerrainPrism> DoorLeaves => _doorLeaves.Value;
+
+        /// <summary>The material a window pane is (sight 1.0 — no visibility change, a round loses ≈ 0.3 mm through 1 cm, 20 dB of sound).</summary>
+        public const string PaneMaterial = "glass";
+        /// <summary>A pane's thickness (m), centred in its wall.</summary>
+        public const float PaneThickness = 0.01f;
+
+        /// <summary>
+        /// ⭐ <c>CE-5032</c> GW-1 (📄 docs/DESIGN_Glass_Windows.md D-2) — one thin PANE per GLAZED window (<see cref="TerrainOpening.Glazed"/>), index-aligned with
+        /// <see cref="Panes"/>: across the opening from its sill to its head, in the window's wall. ⛔ NOT in <see cref="Prisms"/> — exactly as the door leaves: the navmesh,
+        /// physics, cover and every other reader of prisms never see it; only the sight / fire / sound queries do (<see cref="QueryLeaves"/>). A pane is gone where its wall is
+        /// breached or its building collapsed (D-10), and — GW-2 — once its window is broken.
+        /// </summary>
+        public IReadOnlyList<TerrainPrism> PaneLeaves => _paneLeaves.Value;
+
+        /// <summary>The window of each pane: (its panel, the opening on it) — index-aligned with <see cref="PaneLeaves"/>.</summary>
+        public IReadOnlyList<(int Panel, int Opening)> Panes { get { _ = _paneLeaves.Value; return _panes!; } }
+
+        /// <summary>The extra thin pieces the sight / fire / sound queries add after the prisms: the door leaves, then the panes (the order the spatial index uses).</summary>
+        public IReadOnlyList<TerrainPrism> QueryLeaves => _queryLeaves.Value;
+
+        private Lazy<IReadOnlyList<TerrainPrism>> _paneLeaves => _paneLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(BuildPaneLeaves);
+        private Lazy<IReadOnlyList<TerrainPrism>>? _paneLeavesLazy;
+        private List<(int Panel, int Opening)>? _panes;
+        private Lazy<IReadOnlyList<TerrainPrism>> _queryLeaves => _queryLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(() =>
+        {
+            var doors = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            var panes = PaneLeaves;
+            if (panes.Count == 0) return doors;
+            var all = new List<TerrainPrism>(doors.Count + panes.Count); all.AddRange(doors); all.AddRange(panes); return all;
+        });
+        private Lazy<IReadOnlyList<TerrainPrism>>? _queryLeavesLazy;
+
+        private IReadOnlyList<TerrainPrism> BuildPaneLeaves()
+        {
+            var leaves = new List<TerrainPrism>();
+            var panes = new List<(int Panel, int Opening)>();
+            Materials.TryGet(PaneMaterial, out var material);
+            for (int pi = 0; pi < Panels.Count; pi++)
+            {
+                var panel = Panels[pi];
+                for (int oi = 0; oi < panel.Openings.Count; oi++)
+                {
+                    var o = panel.Openings[oi];
+                    if (!o.Glazed) continue;
+                    var dir = panel.B - panel.A;
+                    float len = dir.Length();
+                    dir = len > 0f ? dir / len : Vector2.UnitX;
+                    var n = new Vector2(-dir.Y, dir.X) * (PaneThickness * 0.5f);
+                    var p0 = panel.A + dir * o.At;
+                    var p1 = panel.A + dir * (o.At + o.Width);
+                    var fp = new[] { p0 - n, p1 - n, p1 + n, p0 + n };
+                    leaves.Add(new TerrainPrism
+                    {
+                        Kind = TerrainPrismKind.Wall, Footprint = fp, BaseZ = o.SillZ, TopZ = o.HeadZ, Label = $"{panel.Label}/pane{oi}",
+                        Min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3])),
+                        Max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3])),
+                        Material = material, Panel = pi, Building = panel.Building, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                    });
+                    panes.Add((pi, oi));
+                }
+            }
+            _panes = panes;
+            return leaves;
+        }
+
+        /// <summary>True when query leaf <paramref name="leaf"/> (an index into <see cref="QueryLeaves"/>) is a pane, not a door leaf.</summary>
+        private bool IsPaneLeaf(int leaf) => leaf >= (Doors.Count > 0 ? DoorLeaves.Count : 0);
+
+        /// <summary>
+        /// A query leaf the query passes: a door leaf whose door is not closed (R-219: the caller's <paramref name="doors"/>), or — ⭐ CE-5033 GW-2 (D-7) — a pane
+        /// whose window is broken in the caller's view (<see cref="DoorStates.Windows"/>). ⛔ No allocation.
+        /// </summary>
+        private bool LeafOpen(int leaf, DoorStates? doors)
+        {
+            if (!IsPaneLeaf(leaf)) return !DoorBlocks(leaf, doors);
+            if (doors?.Windows is not { } windows) return false;
+            var (panel, opening) = _panes![leaf - (Doors.Count > 0 ? DoorLeaves.Count : 0)];
+            return windows.PaneBroken(panel, opening);
+        }
+
+        /// <summary>⭐ CE-5033 — the window (panel, opening) of a query leaf that is a pane, else (−1, −1).</summary>
+        public (int Panel, int Opening) PaneOf(int leaf)
+            => leaf >= 0 && leaf < QueryLeaves.Count && IsPaneLeaf(leaf) ? Panes[leaf - (Doors.Count > 0 ? DoorLeaves.Count : 0)] : (-1, -1);
+
+        /// <summary>⭐ R-220 — the most vertices any prism or door leaf has: sizes the queries' stack scratch, computed once.</summary>
+        private int MaxFootprintVertices => _maxFootprintVertices >= 0 ? _maxFootprintVertices : (_maxFootprintVertices = ComputeMaxFootprintVertices());
+        private int _maxFootprintVertices = -1;
+        private int ComputeMaxFootprintVertices()
+        {
+            int m = 4;   // a door leaf
+            for (int i = 0; i < Prisms.Count; i++) m = Math.Max(m, Prisms[i].Footprint.Length);
+            return m;
+        }
+
+        /// <summary>The index of the door whose terrain-object key is <paramref name="key"/>, or −1.</summary>
+        public int DoorIndexOf(string key) => _doorIndex.Value.TryGetValue(key, out int i) ? i : -1;
+
+        private Lazy<Dictionary<string, int>> _doorIndex => _doorIndexLazy ??= new Lazy<Dictionary<string, int>>(() =>
+        {
+            var d = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; i < Doors.Count; i++) d[Doors[i].Key] = i;
+            return d;
+        });
+        private Lazy<Dictionary<string, int>>? _doorIndexLazy;
+
+        /// <summary>
+        /// A door blocks when it is closed or locked (an open or destroyed door is a gap). ⭐ R-219: the state comes from the CALLER's
+        /// <paramref name="doors"/> — the table built from the view it runs on; with none, the door is as the terrain authored it.
+        /// ⛔ <see cref="TerrainWorld"/> holds NO live state: it is shared by reference into every background snapshot.
+        /// </summary>
+        private bool DoorBlocks(int index, DoorStates? doors)
+            => (doors != null ? doors[index] : Doors[index].Initial) is TerrainDoorState.Closed or TerrainDoorState.Locked;
+
+        private Lazy<IReadOnlyList<TerrainPrism>> _doorLeaves => _doorLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(BuildDoorLeaves);
+        private Lazy<IReadOnlyList<TerrainPrism>>? _doorLeavesLazy;
+
+        private IReadOnlyList<TerrainPrism> BuildDoorLeaves()
+        {
+            var leaves = new List<TerrainPrism>(Doors.Count);
+            Materials.TryGet(DoorMaterial, out var material);
+            foreach (var d in Doors)
+            {
+                var panel = Panels[d.Panel];
+                var o = panel.Openings[d.Opening];
+                var dir = panel.B - panel.A;
+                float len = dir.Length();
+                dir = len > 0f ? dir / len : Vector2.UnitX;
+                var n = new Vector2(-dir.Y, dir.X) * (DoorLeafThickness * 0.5f);
+                var p0 = panel.A + dir * o.At;
+                var p1 = panel.A + dir * (o.At + o.Width);
+                var fp = new[] { p0 - n, p1 - n, p1 + n, p0 + n };
+                leaves.Add(new TerrainPrism
+                {
+                    Kind = TerrainPrismKind.Wall, Footprint = fp, BaseZ = o.SillZ, TopZ = o.HeadZ, Label = d.Key,
+                    Min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3])),
+                    Max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3])),
+                    Material = material, Panel = d.Panel, Building = Panels[d.Panel].Building, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                });
+            }
+            return leaves;
+        }
+
+        /// <summary>
+        /// ⭐ The Z an entity at (<paramref name="x"/>, <paramref name="y"/>) stands on — the ground, a roof or
+        /// a floor. <paramref name="zHint"/> is the entity's current Z: the highest surface no more than
+        /// <see cref="StepHeight"/> above it wins, so a unit on the second deck of a garage stays on that deck
+        /// and a unit walking under it stays on the ground. When every candidate is above the reach (a unit
+        /// spawned at Z=0 inside a building footprint), the LOWEST candidate wins.
+        /// </summary>
+        public float SurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: false);
+
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 D-4) — the surface a vehicle's HULL rests on: <see cref="SurfaceZ"/>
+        /// with no wall panel's top as a candidate. 📌 A panel's top within <see cref="StepHeight"/> was a surface, so a hull drove up onto a
+        /// 0.4 m garden wall and over it; a low wall is MET (the hull trace stops it), never climbed. A kerb (ground) and a slab are unchanged.
+        /// </summary>
+        public float HullSurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: true);
+
+        /// <summary>
+        /// ⭐ <c>CE-4600</c> (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.1 <c>BarrierHit</c>) — the SOLID piece (not a wall panel) that stands over (<paramref name="x"/>,
+        /// <paramref name="y"/>) and rises above <paramref name="zHint"/> + a few cm from no higher than a step above it: what a hull's step that "rose like a wall"
+        /// met (an obstacle's box, a trunk, a solid building); the tallest such, −1 for none. Allocation-free.
+        /// </summary>
+        public int SolidUnder(float x, float y, float zHint)
+        {
+            var p = new Vector2(x, y);
+            int best = -1; float top = float.NegativeInfinity;
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;
+                var prism = Prisms[i];
+                if (prism.Panel >= 0 || prism.BaseZ > zHint + StepHeight || prism.TopZ <= zHint + 0.05f) continue;
+                if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
+                if (prism.TopZ > top) { top = prism.TopZ; best = i; }
+            }
+            return best;
+        }
+
+        private float SurfaceZCore(float x, float y, float zHint, bool hull)
+        {
+            var p = new Vector2(x, y);
+            float best = float.NegativeInfinity;
+            float lowest = float.PositiveInfinity;
+            float reach = zHint + StepHeight;
+            bool insideSolid = false;
+
+            using var cand = PointCandidates(x, y);   // ⭐ CE-3279 (a) — every prism, or the index's candidates over (x, y)
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf: the point queries read the prisms only
+                var prism = Prisms[i];
+                if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
+                // ⭐ Buildings 5d-2 (live, bt-doors) — a piece that STARTS above reach (a door's lintel at 2.1 m, a window's head)
+                //   is OVERHEAD: you stand under it, so it does not take the ground away. ⛔ It did, and an agent walking through a
+                //   doorway under an upper floor came out at that floor's height (3 m).
+                // ⭐ CE-3111 (live, bt-doors with real 0.9 m doors) — a WALL PANEL (Panel ≥ 0) never takes the ground away: it is thin,
+                //   nobody stands inside it, and a mover turning through a narrow doorway clips a jamb by centimetres. ⛔ It did: the
+                //   wall's top (3 m) became the only surface, and the agent's Z hint then held it on the upper floor's slab. The same
+                //   rule as the ground mesh (TerrainWorldMesh: a panel keeps its ground). Its top is still a candidate surface.
+                if (prism.BaseZ <= reach && prism.Panel < 0) insideSolid = true;
+                if (hull && prism.Panel >= 0) continue;   // ⭐ CE-4598 (D-4) — a panel's top is never a hull's surface
+                Consider(prism.TopZ, reach, ref best, ref lowest);
+            }
+
+            for (int k = 0; k < cand.WalkableCount; k++)
+            {
+                var w = Walkables[cand.Walkable(k)];
+                if (!InBox(p, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    float? z = PolygonMath.HeightOnTriangle(x, y,
+                        w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
+                    if (z.HasValue) { Consider(z.Value, reach, ref best, ref lowest); break; }
+                }
+            }
+
+            // The ground is a candidate unless the point is inside a solid prism (you cannot stand under a
+            // building's footprint at ground level — it is solid in v1).
+            float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the ground HERE, not one flat height
+            if (!insideSolid) Consider(ground, reach, ref best, ref lowest);
+
+            if (!float.IsNegativeInfinity(best)) return best;
+            return float.IsPositiveInfinity(lowest) ? ground : lowest;
+        }
+
+        /// <summary>Surfaces closer than this merge into one LEVEL (a ramp foot meeting the ground is not a second level).</summary>
+        public const float LevelMergeDistance = 0.3f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the LEVELS at (<paramref name="x"/>, <paramref name="y"/>): every surface there, ascending,
+        /// merged within <see cref="LevelMergeDistance"/>. 🔒 Level 0 is ALWAYS <see cref="GroundZ"/> — in the open AND inside
+        /// a building footprint (the roof is an explicit +n); <paramref name="groundIndex"/> is its index in the result, so
+        /// level <c>n</c> is <c>result[groundIndex + n]</c>. A surface within the merge distance of the ground merges INTO
+        /// level 0; any other cluster stands at its HIGHEST member (so an entity never lands inside the thicker one).
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2b–§2c (D6b rev 4/5).
+        /// </summary>
+        public float[] SurfacesAt(float x, float y, out int groundIndex)
+        {
+            float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — level 0 is the ground at (x, y)
+            var p = new Vector2(x, y);
+            var below = new List<float>();
+            var above = new List<float>();
+            void Add(float z)
+            {
+                if (z < ground - LevelMergeDistance) below.Add(z);
+                else if (z > ground + LevelMergeDistance) above.Add(z);
+                // else: merges into the ground level
+            }
+
+            using var cand = PointCandidates(x, y);   // ⭐ CE-3279 (a)
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf
+                var prism = Prisms[i];
+                if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) Add(prism.TopZ);
+            }
+
+            for (int k = 0; k < cand.WalkableCount; k++)
+            {
+                var w = Walkables[cand.Walkable(k)];
+                if (!InBox(p, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    float? z = PolygonMath.HeightOnTriangle(x, y,
+                        w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
+                    if (z.HasValue) { Add(z.Value); break; }
+                }
+            }
+
+            var levels = new List<float>(below.Count + above.Count + 1);
+            MergeAscending(below, levels);
+            groundIndex = levels.Count;
+            levels.Add(ground);
+            MergeAscending(above, levels);
+            return levels.ToArray();
+        }
+
+        /// <inheritdoc cref="SurfacesAt(float, float, out int)"/>
+        public float[] SurfacesAt(float x, float y) => SurfacesAt(x, y, out _);
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the Z of <paramref name="level"/> at (<paramref name="x"/>, <paramref name="y"/>): 0 = the
+        /// ground, +n = the n-th level above, −n = the n-th below; past the top ⇒ the HIGHEST, past the bottom ⇒ the LOWEST.
+        /// The one function the creating node, the placement ghost and "move to level" share.
+        /// </summary>
+        public float ResolveLevel(float x, float y, int level)
+        {
+            var levels = SurfacesAt(x, y, out int ground);
+            long i = (long)ground + level;
+            if (i < 0) i = 0;
+            if (i >= levels.Length) i = levels.Length - 1;
+            return levels[i];
+        }
+
+        private static void MergeAscending(List<float> zs, List<float> into)
+        {
+            zs.Sort();
+            int start = 0;
+            for (int i = 1; i <= zs.Count; i++)
+            {
+                if (i < zs.Count && zs[i] - zs[start] <= LevelMergeDistance) continue;
+                if (i > start) into.Add(zs[i - 1]);   // the cluster's highest member
+                start = i;
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3279</c> (a) — true when (<paramref name="x"/>, <paramref name="y"/>) is inside ANY prism's footprint (a building is
+        /// solid at every height): the stand-in's "nobody stands here" rule (<see cref="TerrainWorldQuery.TryStandAt"/>), narrowed
+        /// through <see cref="SpatialIndex"/> like every point query.
+        /// </summary>
+        public bool InsideFootprint(float x, float y)
+        {
+            var p = new Vector2(x, y);
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf
+                var prism = Prisms[i];
+                if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4366</c> (L-4) — true when (<paramref name="x"/>, <paramref name="y"/>) is inside a prism's footprint whose height band
+        /// overlaps the open interval (<paramref name="zLo"/>, <paramref name="zHi"/>) — <c>TopZ &gt; zLo</c> and <c>BaseZ &lt; zHi</c>. Through
+        /// <see cref="SpatialIndex"/> like <see cref="InsideFootprint(float, float)"/>; the cover build's "something stands here" asked it by
+        /// scanning every prism (52 s on the scale terrain).
+        /// </summary>
+        public bool InsideFootprint(float x, float y, float zLo, float zHi)
+        {
+            var p = new Vector2(x, y);
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf
+                var prism = Prisms[i];
+                if (!InBox(p, prism.Min, prism.Max) || prism.TopZ <= zLo || prism.BaseZ >= zHi) continue;
+                if (PolygonMath.Contains(prism.Footprint, p)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>How far above and below a point query's vertical segment reaches (m) — past any terrain's height.</summary>
+        private const float PointQueryReach = 1e4f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3279</c> (a) — the pieces and walkables a POINT query visits: a vertical segment through (x, y) touches every box
+        /// that covers it, so the index's candidates are a superset of the pieces over the point, in ascending order — the same
+        /// construction as the segment queries, so the answers are identical. 📐 Without it a point placement on demo-city scanned
+        /// every prism (0.4 ms a point, 0.7 s of an EQS solve).
+        /// </summary>
+        private CandidateSet PointCandidates(float x, float y)
+            => new(this, new Vector3(x, y, -PointQueryReach), new Vector3(x, y, PointQueryReach),
+                   Prisms.Count + QueryLeaves.Count);
+
+        /// <summary>
+        /// ⭐ CE-1035 Q0 (<c>docs/DESIGN_World_Query_Seam.md</c> WQ-D) — an optional spatial index that narrows the pieces and
+        /// walkables a segment query (and, since CE-3279, a point query) examines. Null (the default) = every piece, exactly as before. It only ever NARROWS: the
+        /// per-piece maths below is unchanged, so an index that returns a superset of the true crossings, in ascending order,
+        /// gives identical answers. Set once after the world is built; a derived world (<see cref="StaticObstacles"/>) has none.
+        /// </summary>
+        public ITerrainSpatialIndex? SpatialIndex { get; set; }
+
+        /// <summary>The pieces (prisms, then door leaves when doors exist) and walkables one segment query visits.</summary>
+        private ref struct CandidateSet
+        {
+            private readonly int[]? _pieces;
+            private readonly int[]? _walkables;
+            public readonly int PieceCount;
+            public readonly int WalkableCount;
+
+            public CandidateSet(TerrainWorld world, Vector3 from, Vector3 to, int pieceTotal)
+            {
+                var index = world.SpatialIndex;
+                if (index == null)
+                {
+                    _pieces = null; _walkables = null;
+                    PieceCount = pieceTotal; WalkableCount = world.Walkables.Count;
+                    return;
+                }
+                _pieces = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Max(1, pieceTotal));   // ⭐ R-220 — pooled, no allocation once warm
+                _walkables = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Max(1, world.Walkables.Count));
+                index.Candidates(from, to, pieceTotal, _pieces, out int pc, _walkables, out int wc);
+                PieceCount = pc; WalkableCount = wc;
+            }
+
+            public readonly int Piece(int k) => _pieces == null ? k : _pieces[k];
+            public readonly int Walkable(int k) => _walkables == null ? k : _walkables[k];
+
+            public readonly void Dispose()
+            {
+                if (_pieces != null) System.Buffers.ArrayPool<int>.Shared.Return(_pieces);
+                if (_walkables != null) System.Buffers.ArrayPool<int>.Shared.Return(_walkables);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ True when the straight sight line <paramref name="from"/>→<paramref name="to"/> is blocked by the
+        /// terrain: its SIGHT TRANSMITTANCE is below <see cref="SightThreshold"/> — the product of the materials of the
+        /// solid pieces it passes within their height (concrete/brick 0, chain-link 0.85, hedge 0.3, §3c M3), with any
+        /// slab/ramp it crosses opaque. Dynamic obstacles (entities) are not part of the world — the LOS strategy adds them.
+        /// <para>⭐ Buildings programme Stage 3 (sight half): the SAME rule <see cref="QuerySight"/> reports, so
+        /// <c>GET /terrain/query</c> and perception agree. A prism with no material reads as opaque (concrete), so every
+        /// world built before materials behaves exactly as before.</para>
+        /// </summary>
+        /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4, D-1) — does the line dip under the GROUND as <paramref name="doors"/>' view sees it: the height grid, lowered and rimmed by
+        /// the view's craters (<see cref="DoorStates.Craters"/>). With no crater near the line this is the grid's own answer, unchanged. The yes/no form.
+        /// </summary>
+        public bool GroundCrosses(Vector3 from, Vector3 to, DoorStates? doors)
+        {
+            if (doors?.Craters is { } craters && !craters.Misses(from, to)) return craters.GroundCrosses(this, from, to, wholeCrest: false, out _, out _);
+            var grid = doors != null ? SimHeight : Height;   // ⭐ CE-4591 — a view's truth is the bare ground + ITS craters; no view reads the cache
+            return grid != null && grid.Crosses(from, to);
+        }
+
+        /// <summary>⭐ <c>CE-4591</c> — <see cref="GroundCrosses(Vector3, Vector3, DoorStates?)"/> with where the line enters the ground and the crest over its crossing.</summary>
+        public bool GroundCrosses(Vector3 from, Vector3 to, DoorStates? doors, out float t, out float crest)
+        {
+            if (doors?.Craters is { } craters && !craters.Misses(from, to)) return craters.GroundCrosses(this, from, to, wholeCrest: true, out t, out crest);
+            t = 1f; crest = float.NegativeInfinity;
+            var grid = doors != null ? SimHeight : Height;
+            return grid != null && grid.Crosses(from, to, out t, out crest);
+        }
+
+        /// <summary>⭐ <c>CE-4591</c> (D-1) — the ground at (<paramref name="x"/>, <paramref name="y"/>) as <paramref name="doors"/>' view sees it: the bare ground + its craters (no view: the cache).</summary>
+        public float GroundHeightAt(float x, float y, DoorStates? doors)
+            => doors == null ? GroundHeightAt(x, y)
+               : doors.Craters is { } craters ? BareGroundHeightAt(x, y) + craters.Offset(x, y) : BareGroundHeightAt(x, y);
+
+        public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            var r = SegmentBlockedCore(from, to, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_SegmentBlocked, t0);
+            return r;
+        }
+        private static readonly int S_SegmentBlocked = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.SegmentBlocked");   // ⭐ CE-3427
+
+        private bool SegmentBlockedCore(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
+            float transmittance = 1f;
+            // ⭐ CE-1034 H2 (TH-D) — a HILL blocks sight: the ground trace over the height grid (opaque). Without a grid the ground is
+            //   flat and no line between two points above it can dip under it. Under the ground at either end = malformed, ignored.
+            if (GroundCrosses(from, to, doors)) return true;   // ⭐ CE-4591 (D-1) — over the craters of the caller's view
+            // ⭐ CE-4369 (L-7, R-4190 T-2) — the WOODS: visibility lost per metre below the canopy, scaled by the trees per hectare
+            if (Woods is { } woods)
+            {
+                transmittance *= woods.Transmittance(from, to, this, out _);
+                if (transmittance < SightThreshold) return true;
+            }
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            var segMin = Vector2.Min(a, b);
+            var segMax = Vector2.Max(a, b);
+
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = QueryLeaves;   // ⭐ CE-5032 GW-1 — the door leaves, then the panes
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
+            int rubbleCount = dmg?.RubbleArray.Length ?? 0;
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
+            {
+                int pi = k < cand.PieceCount ? cand.Piece(k) : -1;
+                TerrainPrism prism;
+                if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
+                else
+                {
+                    if (pi >= Prisms.Count && LeafOpen(pi - Prisms.Count, doors)) continue;
+                    prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                    if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
+                }
+                if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
+                {
+                    float z0 = from.Z + ((to.Z - from.Z) * t0);
+                    float z1 = from.Z + ((to.Z - from.Z) * t1);
+                    if (MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)
+                    {
+                        if (pi >= 0 && (pi < Prisms.Count || IsPaneLeaf(pi - Prisms.Count)) && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: the line passes
+                        {
+                            float blo = t0, bhi = t1;
+                            ClipToHeight(prism, from.Z, to.Z - from.Z, ref blo, ref bhi);
+                            if (CrossingBreached(doors, prism.Panel, from, to, blo, bhi)) break;
+                        }
+                        transmittance *= prism.Material?.SightTransmittance ?? 0f;
+                        if (transmittance < SightThreshold) return true;
+                        break;   // one crossing per piece — as QuerySight counts it
+                    }
+                }
+            }
+
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
+            {
+                var w = Walkables[cand.Walkable(kw)];
+                if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
+                if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    if (PolygonMath.SegmentCrossesTriangle(from, to,
+                            w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-1 (§8.2 B-8) — true when a crossing of the WALL-PANEL piece <paramref name="panel"/> over the segment's parameter
+        /// interval [<paramref name="lo"/>, <paramref name="hi"/>] (already clipped to the piece's height) lies inside a breach of that panel in the
+        /// caller's view: its mid-point's along-panel coordinate and Z are tested. One bit lookup when the panel has no breach; ⛔ no allocation.
+        /// </summary>
+        private bool CrossingBreached(DoorStates? doors, int panel, Vector3 from, Vector3 to, float lo, float hi)
+        {
+            var damage = doors?.Damage;
+            if (damage == null || panel < 0 || panel >= Panels.Count || !damage.HasBreaches(panel)) return false;
+            var p = Panels[panel];
+            var d = p.B - p.A;
+            float len = d.Length();
+            if (len <= 1e-6f) return false;
+            float tm = (lo + hi) * 0.5f;
+            float x = from.X + (to.X - from.X) * tm, y = from.Y + (to.Y - from.Y) * tm, z = from.Z + (to.Z - from.Z) * tm;
+            float along = ((x - p.A.X) * d.X + (y - p.A.Y) * d.Y) / len;
+            return damage.Opens(panel, along, z);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-5) — does a breach let a HULL through this panel crossing? ⛔ Never in a
+        /// building's panel (a hull never enters a building — the tank stays out of its own bump, R-3025). In a free wall: when the breach is
+        /// open at the crossing's mid-point both just above the wall's base and at the line's height (clamped under the wall's top) — a gap a
+        /// hull drives through, not a hole above its wheels. Whether it is WIDE enough is the cut's size (B-3, V-9).
+        /// </summary>
+        private bool HullBreachOpen(DoorStates? doors, TerrainPrism prism, Vector3 from, Vector3 to, float lo, float hi)
+        {
+            var damage = doors?.Damage;
+            int panel = prism.Panel;
+            if (damage == null || panel < 0 || panel >= Panels.Count || !damage.HasBreaches(panel)) return false;
+            var p = Panels[panel];
+            if (p.Building >= 0) return false;
+            var d = p.B - p.A;
+            float len = d.Length();
+            if (len <= 1e-6f) return false;
+            float tm = (lo + hi) * 0.5f;
+            float x = from.X + (to.X - from.X) * tm, y = from.Y + (to.Y - from.Y) * tm, z = from.Z + (to.Z - from.Z) * tm;
+            float along = ((x - p.A.X) * d.X + (y - p.A.Y) * d.Y) / len;
+            const float inside = 0.05f;
+            return damage.Opens(panel, along, prism.BaseZ + inside)
+                && damage.Opens(panel, along, MathF.Max(prism.BaseZ + inside, MathF.Min(z, prism.TopZ - inside)));
+        }
+
+        /// <summary>Clips the parameter interval [<paramref name="lo"/>, <paramref name="hi"/>] to where the line is within <paramref name="prism"/>'s height.</summary>
+        private static void ClipToHeight(TerrainPrism prism, float fromZ, float dz, ref float lo, ref float hi)
+        {
+            if (MathF.Abs(dz) < 1e-6f) return;
+            float ta = (prism.BaseZ - fromZ) / dz, tb = (prism.TopZ - fromZ) / dz;
+            lo = MathF.Max(lo, MathF.Min(ta, tb));
+            hi = MathF.Min(hi, MathF.Max(ta, tb));
+        }
+
+        /// <summary>⭐ CE-4369 — the crossing kind the woods report in a sight trace.</summary>
+        public const string WoodsKind = "woods";
+
+        /// <summary>
+        /// ⭐ CE-4369 (L-7, R-4190) — the woods grid of this world's forest surfaces; null when it has none. Built once, on first use
+        /// (the terrain load's cover build or the first sight line), then read without allocation.
+        /// </summary>
+        public TerrainWoods? Woods
+        {
+            get
+            {
+                if (!System.Threading.Volatile.Read(ref _woodsBuilt))
+                {
+                    lock (_woodsGate)
+                    {
+                        if (!_woodsBuilt) { _woods = TerrainWoods.Build(this); System.Threading.Volatile.Write(ref _woodsBuilt, true); }
+                    }
+                }
+                return _woods;
+            }
+        }
+        private TerrainWoods? _woods;
+        private bool _woodsBuilt;
+        private readonly object _woodsGate = new();
+
+        /// <summary>⭐ Stage 1 — a line SEES THROUGH when its sight transmittance is at least this (§3c M3, v1).</summary>
+        public const float SightThreshold = 0.5f;
+
+        /// <summary>⭐ CE-1034 H2 — the crossing kind and material name a hill in the way reports (descriptive).</summary>
+        public const string GroundKind = "ground", GroundMaterial = "earth";
+        /// <summary>⭐ <c>CE-5032</c> GW-1 — the crossing kind of a window pane: no barrier, no blast shadow, no decal (its cracks are its window's state).</summary>
+        public const string PaneKind = "pane";
+
+        /// <summary>⭐ CE-1034 H2 — the resistance a hill presents to a round or a fragment: it stops anything.</summary>
+        public const float GroundResistanceMmRha = 1_000_000f;
+
+        /// <summary>One occluder a trace crossed.</summary>
+        public readonly record struct Crossing(float Along, string Kind, string? Label, string? Material, float Transmittance,
+            string? Building, int Storey);
+
+        /// <summary>A trace's answer: the product of the crossed transmittances, and the crossings in order along the line.</summary>
+        public readonly record struct TraceResult(float Transmittance, IReadOnlyList<Crossing> Crossed);
+
+        /// <summary>
+        /// ⭐ Buildings programme Stage 1 — the SIGHT trace with its evidence (📄 docs/DESIGN_Building_Interiors.md §3a "one
+        /// query, a solver per purpose", §3c M3): every solid piece the line passes within its height, at its material's
+        /// sight transmittance; every slab/ramp it crosses, opaque. Transmittance multiplies along the line.
+        /// <para>⚠ Stage 1 serves it for diagnostics (<c>GET /terrain/query</c>); perception still asks
+        /// <see cref="SegmentBlocked"/> until Stage 3 makes that <c>QuerySight(...) &lt; threshold</c>.</para>
+        /// </summary>
+        /// <param name="doors">⭐ R-219 — the door states of the caller's view; null = as authored.</param>
+        /// <remarks>⚠ R-220 — allocates its answer (the crossing list): a DIAGNOSTIC trace, not a per-tick query. Perception
+        /// asks <see cref="SegmentBlocked"/>, which allocates nothing.</remarks>
+        public TraceResult QuerySight(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            var r = QuerySightCore(from, to, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QuerySight, t0);
+            return r;
+        }
+        private static readonly int S_QuerySight = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QuerySight");   // ⭐ CE-3427
+
+        private TraceResult QuerySightCore(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
+            var crossed = new List<Crossing>();
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            var segMin = Vector2.Min(a, b);
+            var segMax = Vector2.Max(a, b);
+            float length = Vector3.Distance(from, to);
+            // ⭐ CE-1034 H2 — a hill in the way is an opaque crossing where the line enters the ground
+            if (GroundCrosses(from, to, doors, out float groundT, out _))   // ⭐ CE-4591 (D-1) — over the craters of the caller's view
+                crossed.Add(new Crossing(groundT * length, GroundKind, null, GroundMaterial, 0f, null, -1));
+            // ⭐ CE-4369 (L-7) — the woods as ONE crossing (their whole loss), where the line meets its first wooded cell's canopy
+            if (Woods is { } woods)
+            {
+                float tw = woods.Transmittance(from, to, this, out float metres);
+                if (metres > 0f) crossed.Add(new Crossing(0f, WoodsKind, null, TerrainWorldMesh.ForestMaterial, tw, null, -1));
+            }
+
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = QueryLeaves;   // ⭐ CE-5032 GW-1 — the door leaves, then the panes
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
+            int rubbleCount = dmg?.RubbleArray.Length ?? 0;
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
+            {
+                int pi = k < cand.PieceCount ? cand.Piece(k) : -1;
+                TerrainPrism prism;
+                if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
+                else
+                {
+                    if (pi >= Prisms.Count && LeafOpen(pi - Prisms.Count, doors)) continue;
+                    prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                    if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
+                }
+                if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
+                {
+                    float z0 = from.Z + ((to.Z - from.Z) * t0);
+                    float z1 = from.Z + ((to.Z - from.Z) * t1);
+                    if (!(MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)) continue;
+                    if (pi >= 0 && (pi < Prisms.Count || IsPaneLeaf(pi - Prisms.Count)) && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: no crossing
+                    {
+                        float blo = t0, bhi = t1;
+                        ClipToHeight(prism, from.Z, to.Z - from.Z, ref blo, ref bhi);
+                        if (CrossingBreached(doors, prism.Panel, from, to, blo, bhi)) break;
+                    }
+                    var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
+                    string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
+                    crossed.Add(new Crossing(t0 * length, pi >= Prisms.Count ? (IsPaneLeaf(pi - Prisms.Count) ? PaneKind : "door") : panel != null ? "panel" : "prism", prism.Label,
+                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, prism.Material?.SightTransmittance ?? 0f,
+                        building, panel?.Storey ?? -1));
+                    break;   // one entry per piece
+                }
+            }
+
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
+            {
+                var w = Walkables[cand.Walkable(kw)];
+                if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
+                if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    var p0 = w.Vertices[w.Triangles[t]]; var p1 = w.Vertices[w.Triangles[t + 1]]; var p2 = w.Vertices[w.Triangles[t + 2]];
+                    if (!PolygonMath.SegmentCrossesTriangle(from, to, p0, p1, p2)) continue;
+                    var n = Vector3.Cross(p1 - p0, p2 - p0);
+                    float denom = Vector3.Dot(n, to - from);
+                    float along = MathF.Abs(denom) < 1e-9f ? 0f : Vector3.Dot(n, p0 - from) / denom * length;
+                    crossed.Add(new Crossing(along, w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, null, 0f, null, -1));
+                    break;
+                }
+            }
+
+            crossed.Sort((x, y) => x.Along.CompareTo(y.Along));
+            float transmittance = 1f;
+            foreach (var c in crossed) transmittance *= c.Transmittance;
+            return new TraceResult(transmittance, crossed);
+        }
+
+        /// <summary>⭐ §3d P2 — the thickness (m) a floor slab or stair ramp presents to a round, of the default material (concrete):
+        /// a walkable is a surface with no thickness of its own. 0.2 m of concrete = 300 mm RHA with the starter table.</summary>
+        public const float SlabThicknessMetres = 0.2f;
+
+        /// <summary>
+        /// One piece a FIRE trace crossed: where the round enters it (<see cref="T"/>, 0..1 along the segment), the length of its
+        /// path inside (m), and the ballistic resistance that path presents (mm RHA = the material's per-metre value × the path).
+        /// </summary>
+        public readonly record struct FireCrossing(float T, float PathMetres, float ResistanceMmRha, string Kind, string? Label,
+            string Material, string? Building, int Storey)
+        {
+            /// <summary>⭐ <c>CE-1032</c> (W-7′) — the top of the piece crossed (a wall's top, a slab's level): how tall an obstacle a
+            /// blast wave diffracts over.</summary>
+            public float TopZ { get; init; }
+
+            /// <summary>⭐ <c>CE-1128</c> (docs/DESIGN_Visual_Effects.md §10 IM-4) — the outward normal of the face the line ENTERS (a prism's
+            /// side, its top or base, a slab's triangle, the ground's up); zero = unknown.</summary>
+            public Vector3 EntryNormal { get; init; }
+
+            /// <summary>⭐ <c>CE-1128</c> — the outward normal of the face the line LEAVES through; zero = unknown (it does not leave the ground).</summary>
+            public Vector3 ExitNormal { get; init; }
+
+            /// <summary>⭐ <c>CE-4600</c> (B-3) — the piece crossed: an index into <see cref="Prisms"/>, or <c>Prisms.Count + i</c> for door leaf i; −1 for the
+            /// ground, a slab, a rubble mound.</summary>
+            public int Piece { get; init; } = -1;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Buildings §3d P2 (R-217) — the FIRE purpose of the one terrain query (§3a "one query, a solver per purpose"): every
+        /// solid piece the segment passes within its height, with the length of the path INSIDE it (so a wall crossed obliquely
+        /// resists more than its thickness — the same rule as armour), and every slab/ramp it passes through as
+        /// <see cref="SlabThicknessMetres"/> of the default material. A piece with no material is the default material
+        /// (concrete — a solid building stops any round). Ordered along the line. ⛔ The ground is not an occluder (flat ground;
+        /// a shot line never dips below it between two points above it). What a round DOES with this is the combat rule
+        /// (<c>TerrainPenetration</c>), not the terrain's.
+        /// </summary>
+        public IReadOnlyList<FireCrossing> QueryFire(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
+            var list = new List<FireCrossing>();
+            QueryFire(from, to, list, doors);
+            return list;
+        }
+
+        /// <inheritdoc cref="QueryFire(Vector3, Vector3, DoorStates?)"/>
+        /// <param name="into">Cleared, then filled — a caller tracing every round each tick reuses one list.</param>
+        public void QueryFire(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            QueryFireCore(from, to, into, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QueryFire, t0);
+        }
+        private static readonly int S_QueryFire = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryFire");   // ⭐ CE-3427
+
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-5, D-4) — the HULL form of <see cref="QueryFire(Vector3, Vector3, List{FireCrossing}, DoorStates?)"/>:
+        /// the same crossings, except that ① a wall panel or a shut door leaf is met when the line runs up to <paramref name="bandM"/> above its
+        /// top (the hull's body below the probe line), and ② a breach in a BUILDING's panel never opens (a hull never enters a building, R-3025)
+        /// while a breach in a free wall opens when it is open from the wall's base to the line (or its top). ⛔ No allocation.
+        /// </summary>
+        public void QueryHull(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors, float bandM)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            QueryFireCore(from, to, into, doors, bandM > 0f ? bandM : 1e-4f);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QueryHull, t0);
+        }
+        private static readonly int S_QueryHull = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryHull");   // ⭐ CE-4598
+
+        private void QueryFireCore(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null, float hullBand = 0f)
+        {
+            bool hull = hullBand > 0f;
+            into.Clear();
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            var segMin = Vector2.Min(a, b);
+            var segMax = Vector2.Max(a, b);
+            float length = Vector3.Distance(from, to);
+            if (length <= 0f) return;
+            float dz = to.Z - from.Z;
+            Materials.TryGet(TerrainMaterialLibrary.DefaultMaterial, out var fallback);
+            float fallbackPerMetre = fallback?.ResistanceMmRhaPerMetre ?? 1500f;
+            // ⭐ CE-1034 H2 — a hill in the way stops any round: one crossing where the line enters the ground, its TopZ the crest
+            //   (a blast diffracts over the hill like over a wall — AreaEffect.TerrainShadow)
+            if (GroundCrosses(from, to, doors, out float groundT, out float crest))   // ⭐ CE-4591 (D-1) — over the craters of the caller's view
+                into.Add(new FireCrossing(groundT, (1f - groundT) * length, GroundResistanceMmRha, GroundKind, null, GroundMaterial, null, -1)
+                    { TopZ = crest, EntryNormal = Vector3.UnitZ });
+
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = QueryLeaves;   // ⭐ CE-5032 GW-1 — the door leaves, then the panes
+            int maxV = MaxFootprintVertices;
+            Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
+            Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
+            int rubbleCount = dmg?.RubbleArray.Length ?? 0;
+            using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
+            for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
+            {
+                int pi = k < cand.PieceCount ? cand.Piece(k) : -1;
+                TerrainPrism prism;
+                if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
+                else
+                {
+                    if (pi >= Prisms.Count && LeafOpen(pi - Prisms.Count, doors)) continue;
+                    prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                    if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
+                }
+                if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
+                foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
+                {
+                    // the part of [t0, t1] where the line is also within the piece's height
+                    float lo = t0, hi = t1;
+                    // ⭐ CE-4598 (D-4) — for a HULL a wall panel or a door leaf reaches the band above its top: the hull's body under the line
+                    bool banded = hull && pi >= 0 && (pi >= Prisms.Count || prism.Panel >= 0);
+                    // ⭐ R-4280 (R-5000 changed) — a panel lower than a kerb never meets a hull: it rolls over it
+                    if (hull && pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && prism.TopZ - prism.BaseZ < Fdp.Toolkit.World.HullTrace.MinPanelHeightM) continue;
+                    float top = banded ? prism.TopZ + hullBand : prism.TopZ;
+                    if (MathF.Abs(dz) < 1e-6f)
+                    {
+                        if (!(from.Z > prism.BaseZ && from.Z < top)) continue;
+                    }
+                    else
+                    {
+                        float ta = (prism.BaseZ - from.Z) / dz, tb = (top - from.Z) / dz;
+                        lo = MathF.Max(lo, MathF.Min(ta, tb));
+                        hi = MathF.Min(hi, MathF.Max(ta, tb));
+                    }
+                    if (hi <= lo) continue;
+                    if (hull && pi >= Prisms.Count && IsPaneLeaf(pi - Prisms.Count)) continue;   // ⭐ CE-5032 GW-1 — glass never stops a hull (its wall does)
+                    if (pi >= 0 && (pi < Prisms.Count || (!hull && IsPaneLeaf(pi - Prisms.Count))) && prism.Panel >= 0)
+                    {
+                        if (!hull) { if (CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue; }   // ⭐ CE-4391 B-8
+                        else if (HullBreachOpen(doors, prism, from, to, lo, hi)) continue;                    // ⭐ CE-4598 (V-5)
+                    }
+                    var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
+                    string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
+                    float path = (hi - lo) * length;
+                    float perMetre = prism.Material?.ResistanceMmRhaPerMetre ?? fallbackPerMetre;
+                    // ⭐ CE-1128 (IM-4) — the faces: a side where the footprint interval begins / ends, else the top or the base
+                    var dir = to - from;
+                    var entryN = lo > t0 + 1e-6f ? new Vector3(0f, 0f, dz > 0f ? -1f : 1f) : SideNormal(prism.Footprint, a + (b - a) * lo, dir, entering: true);
+                    var exitN = hi < t1 - 1e-6f ? new Vector3(0f, 0f, dz > 0f ? 1f : -1f) : SideNormal(prism.Footprint, a + (b - a) * hi, dir, entering: false);
+                    into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? (IsPaneLeaf(pi - Prisms.Count) ? PaneKind : "door") : panel != null ? "panel" : "prism", prism.Label,
+                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1)
+                        { TopZ = prism.TopZ, EntryNormal = entryN, ExitNormal = exitN, Piece = pi });
+                }
+            }
+
+            for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
+            {
+                var w = Walkables[cand.Walkable(kw)];
+                if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
+                if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    var p0 = w.Vertices[w.Triangles[t]]; var p1 = w.Vertices[w.Triangles[t + 1]]; var p2 = w.Vertices[w.Triangles[t + 2]];
+                    if (!PolygonMath.SegmentCrossesTriangle(from, to, p0, p1, p2)) continue;
+                    var n = Vector3.Cross(p1 - p0, p2 - p0);
+                    float denom = Vector3.Dot(n, to - from);
+                    float along = MathF.Abs(denom) < 1e-9f ? 0f : Vector3.Dot(n, p0 - from) / denom;
+                    // ⭐ CE-1128 (IM-4) — a slab's faces: its triangle's normal, toward where the line comes from, and away on the far side
+                    var nn = n.LengthSquared() > 1e-12f ? Vector3.Normalize(n) : Vector3.UnitZ;
+                    if (Vector3.Dot(nn, to - from) > 0f) nn = -nn;
+                    into.Add(new FireCrossing(along, SlabThicknessMetres, fallbackPerMetre * SlabThicknessMetres,
+                        w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, TerrainMaterialLibrary.DefaultMaterial, null, -1)
+                        { TopZ = MathF.Max(p0.Z, MathF.Max(p1.Z, p2.Z)), EntryNormal = nn, ExitNormal = -nn });
+                    break;
+                }
+            }
+
+            into.Sort(ByT);   // a cached static comparison — no delegate per call
+        }
+
+        private static readonly Comparison<FireCrossing> ByT = (x, y) => x.T.CompareTo(y.T);
+
+        /// <summary>
+        /// ⭐ <c>CE-1128</c> — the outward normal (horizontal) of the footprint edge nearest <paramref name="p"/>, turned to face the line
+        /// (against <paramref name="dir"/> where it <paramref name="entering"/>, along it where it leaves). A prism's sides are vertical.
+        /// </summary>
+        internal static Vector3 SideNormal(Vector2[] footprint, Vector2 p, Vector3 dir, bool entering)
+        {
+            int n = footprint.Length;
+            if (n < 2) return Vector3.Zero;
+            float best = float.MaxValue;
+            Vector2 edge = Vector2.Zero;
+            for (int i = 0; i < n; i++)
+            {
+                var e0 = footprint[i];
+                var e1 = footprint[(i + 1) % n];
+                var e = e1 - e0;
+                float len2 = e.LengthSquared();
+                float t = len2 > 1e-12f ? Math.Clamp(Vector2.Dot(p - e0, e) / len2, 0f, 1f) : 0f;
+                float d = Vector2.DistanceSquared(p, e0 + e * t);
+                if (d < best) { best = d; edge = e; }
+            }
+            if (edge.LengthSquared() < 1e-12f) return Vector3.Zero;
+            var normal = Vector2.Normalize(new Vector2(edge.Y, -edge.X));
+            float along = normal.X * dir.X + normal.Y * dir.Y;
+            if (entering ? along > 0f : along < 0f) normal = -normal;
+            return new Vector3(normal, 0f);
+        }
+
+        /// <summary>The surface type at a point (the last-listed surface wins on overlap), Open by default.</summary>
+        public TerrainSurfaceType SurfaceTypeAt(float x, float y)
+        {
+            var p = new Vector2(x, y);
+            var result = TerrainSurfaceType.Open;
+            foreach (var s in Surfaces)
+                if (InBox(p, s.Min, s.Max) && PolygonMath.Contains(s.Polygon, p)) result = s.Type;
+            return result;
+        }
+
+        private static void Consider(float z, float reach, ref float best, ref float lowest)
+        {
+            if (z <= reach && z > best) best = z;
+            if (z < lowest) lowest = z;
+        }
+
+        private static bool InBox(Vector2 p, Vector2 min, Vector2 max)
+            => p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
+
+        private static bool BoxesOverlap(Vector2 aMin, Vector2 aMax, Vector2 bMin, Vector2 bMax)
+            => aMin.X <= bMax.X && aMax.X >= bMin.X && aMin.Y <= bMax.Y && aMax.Y >= bMin.Y;
+    }
+}

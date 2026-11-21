@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<g transform="translate(0,-5)">
+<rect x="10" y="83" width="102" height="20" rx="10.0" fill="url(#dark)"/>
+<circle cx="22.0" cy="93" r="6.6" fill="url(#wheel)"/>
+<circle cx="22.0" cy="93" r="2.1" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="38.0" cy="93" r="6.6" fill="url(#wheel)"/>
+<circle cx="38.0" cy="93" r="2.1" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="54.0" cy="93" r="6.6" fill="url(#wheel)"/>
+<circle cx="54.0" cy="93" r="2.1" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="70.0" cy="93" r="6.6" fill="url(#wheel)"/>
+<circle cx="70.0" cy="93" r="2.1" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="86.0" cy="93" r="6.6" fill="url(#wheel)"/>
+<circle cx="86.0" cy="93" r="2.1" fill="#3A434E" stroke-width="1.2"/>
+<circle cx="102.0" cy="93" r="6.6" fill="url(#wheel)"/>
+<circle cx="102.0" cy="93" r="2.1" fill="#3A434E" stroke-width="1.2"/>
+<path d="M8,85 L8,58 L80,58 L110,70 L116,85 Z" fill="url(#body)"/>
+<path d="M8,72 L112,72 M30,58 L30,85 M54,58 L54,85 M78,58 L78,85" fill="none" stroke-width="1.2"/>
+<path d="M52,58 L56,46 L80,46 L86,58 Z" fill="url(#body)"/>
+<rect x="36" y="41" width="18" height="11" rx="2" fill="url(#body)" stroke-width="2"/>
+<circle cx="45" cy="46.5" r="2.5" fill="url(#dark)" stroke-width="1.2"/>
+<path d="M84,49 L112,49 L112,51.6 L84,51.6 Z" fill="url(#dark)" stroke-width="1.4"/>
+<rect x="64" y="41" width="9" height="5" rx="1" fill="url(#glass)" stroke-width="1.4"/>
+</g>
+</g>
+</svg>

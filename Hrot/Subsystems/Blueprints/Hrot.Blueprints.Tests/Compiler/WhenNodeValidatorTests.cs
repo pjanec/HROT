@@ -47,6 +47,22 @@ public sealed class WhenNodeValidatorTests
 
     // ---- BP2001: unsupported dispatch -----------------------------------
 
+    /// <summary>⭐ CE-446 — a blueprint BEHAVIOUR is an Instance body: When is allowed in its Tick (no BP2001).</summary>
+    [Fact]
+    public void CE446_Validate_BehaviorDispatch_AllowsWhen()
+    {
+        var asset = BlueprintAssetBuilder
+            .Behavior("BehWhen")
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        asset.Graphs[0].Nodes.Add(MakeValidValueChangedNode());
+
+        var sink = new DiagnosticSink();
+        Stage2_Validate.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2001);
+    }
+
     [Fact]
     [CoversDiagnosticCode("BP2001")]
     public void Validate_LibraryDispatch_BP2001()
@@ -338,6 +354,23 @@ public sealed class WhenNodeValidatorTests
         };
         var diags = ValidateInstance(node);
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2010);
+    }
+
+    /// <summary>🔴 <c>CE-3078</c> H3 (§10.4 guard) — <c>When EqsResult</c> refuses a kind of another result family (16
+    /// DangerArea) at compile time, naming <c>When SensorResult</c>.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP2010")]
+    public void CE3078_Validate_ADangerAreaKind_OnWhenEqsResult_IsRefused()
+    {
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EqsResult,
+            Edges = WhenEdge.RisingEdge,
+            EqsResult = new EqsResultPayload { SensorVariableName = "", UnitSensorKind = 16, Trigger = EqsTrigger.FirstReady },
+        };
+        var d = Assert.Single(ValidateInstance(node), x => x.Code == DiagnosticCodes.BP2010);
+        Assert.Contains("When SensorResult", d.Message);
     }
 
     // ---- BP2011: trigger requires threshold/max-age -------------------

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "_comment": "CE-4142 G1 - the Add Entity gallery's groups, in sidebar order. A side-bearing type lands in the group of the MOST SPECIFIC mask that matches its DIS type (a tie: the group listed first); a map graphic lands in the group whose tools list its placement tool; anything else is 'Other'. a group with \"macros\": true lists the macro FILES (CE-4210 MA-7), not TKB types. 'chips' names the level below the group that becomes the chip row: next (default: the first named DIS level below the mask) | kind | domain | category | none.",
+  "groups": [
+    { "name": "Recent & favourites", "recent": true },
+    { "name": "Soldiers", "masks": [ "3" ], "chips": "category" },
+    { "name": "Ground vehicles", "masks": [ "1.1" ] },
+    { "name": "Aircraft", "masks": [ "1.2" ] },
+    { "name": "Weapon systems", "masks": [ "1.1.*.50" ] },
+    { "name": "Units", "masks": [ "11.1", "11" ] },
+    { "name": "Civilians", "masks": [ "3.1.*.2" ], "chips": "none" },
+    { "name": "Tactical symbols", "tools": [ "None" ] },
+    { "name": "Areas & routes", "tools": [ "Area", "Route", "Zone", "Point" ] },
+    { "name": "Props", "masks": [ "2,4-9" ], "chips": "kind" },
+    { "name": "Macros", "macros": true }
+  ]
+}

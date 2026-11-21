@@ -18,7 +18,8 @@ internal static class PickerTreeBuilder
     /// each item supplies its filtered index, Category (nullable), and Name.
     /// Folders are created only for categories that actually contain leaves (so empty/filtered-out
     /// folders are absent). Uncategorized entries become leaves directly under the root.</summary>
-    public static Node Build(IReadOnlyList<(int FilteredIndex, string? Category, string Name)> items)
+    public static Node Build(IReadOnlyList<(int FilteredIndex, string? Category, string Name)> items,
+                             bool foldSingleChildFolders = false, IReadOnlyList<string>? folderOrder = null)
     {
         var root = new Node { Name = "" };
 
@@ -88,8 +89,48 @@ internal static class PickerTreeBuilder
 
         // Sort folders at every level (OrdinalIgnoreCase).
         SortFoldersRecursive(root);
+        if (folderOrder is { Count: > 0 })   // ⭐ CE-4359 — the listed folders first, in that order; the rest keep their alphabetical order after them
+            RankRecursive(root, folderOrder);   // ⭐ CE-4397 — an entry is a root folder's name ("demos") or a full path ("demos/air"), so a SUB-folder order is expressible too
+
+        if (foldSingleChildFolders)
+            FoldRecursive(root);
 
         return root;
+    }
+
+    /// <summary>Separator shown between the segments of a folded folder row ("Platform › Land").</summary>
+    public const string FoldSeparator = " › ";
+
+    /// <summary>CE-1017: a folder whose only content is one sub-folder merges with it into ONE row
+    /// (e.g. "Platform › Land › Russia" when nothing else sits on that chain), so a sparse catalog is
+    /// not a ladder of one-item folders. The merged row keeps the DEEPEST folder's
+    /// <see cref="Node.FullPath"/>, so reveal and open-state keys still name a real category.</summary>
+    private static void FoldRecursive(Node node)
+    {
+        for (int i = 0; i < node.Folders.Count; i++)
+        {
+            var folder = node.Folders[i];
+            while (folder.Leaves.Count == 0 && folder.Folders.Count == 1)
+            {
+                var only = folder.Folders[0];
+                only.Name = folder.Name + FoldSeparator + only.Name;
+                folder = only;
+            }
+            node.Folders[i] = folder;
+            FoldRecursive(folder);
+        }
+    }
+
+    /// <summary>⭐ CE-4397 — at every level the folders named in <paramref name="order"/> (by full category path, case-insensitive) come first, in that order;
+    /// the others keep their alphabetical order after them. A root folder's full path is its name, so CE-4359's root-only lists behave as before.</summary>
+    private static void RankRecursive(Node node, IReadOnlyList<string> order)
+    {
+        int Rank(Node n) { for (int i = 0; i < order.Count; i++) if (string.Equals(order[i], n.FullPath, StringComparison.OrdinalIgnoreCase)) return i; return int.MaxValue; }
+        var alphabetical = new List<Node>(node.Folders);
+        var ranked = new List<Node>(node.Folders);
+        ranked.Sort((a, b) => { int c = Rank(a).CompareTo(Rank(b)); return c != 0 ? c : alphabetical.IndexOf(a).CompareTo(alphabetical.IndexOf(b)); });
+        node.Folders = ranked;
+        foreach (var folder in node.Folders) RankRecursive(folder, order);
     }
 
     private static void SortFoldersRecursive(Node node)

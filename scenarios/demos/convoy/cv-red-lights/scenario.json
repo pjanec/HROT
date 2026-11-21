@@ -1,0 +1,181 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, with SUMO background traffic (the traffic settings: 600 cars, seed 1), four APCs ('Escort 1'..'Escort 4') stand in a column on the southbound three-lane avenue (SUMO edge e_axis_n_drop_d_3_6, lane 2 at x 145.2), 575 m north of the lit junction d_3_6 (stop line y 912). 'Escort 1' leads a road convoy (ConvoyOrder, Mode Traffic, Priority — handed to SUMO as the blue-light twin, H17) at 12 m/s to (145.2, 735), 175 m past the junction; the other three follow its path (Rank 1..3, Gap 15). The junction's straight-on light is green 0–41 s, yellow 41–45 s, red 45–90 s, so the column arrives in the red. Cars waiting at the red give way into the other lanes; the escort runs the red at the front, and its followers (our own bodies) never look at a light. Judge: (1) the lead runs PlatformConvoy; (2) it is handed to SUMO; (3) it crosses the junction while the light is red; (4) so does the tail; (5) the column never splits; (6) the lead reaches its destination. Check: scripts/scenario-regression.sh cv-red-lights"
+  },
+  "entities": {
+    "c0900000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            145.2,
+            735,
+            0
+          ],
+          "Rank": 0,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Priority": true,
+          "Speed": 12
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1515,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 2",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            145.2,
+            735,
+            0
+          ],
+          "Rank": 1,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Priority": true,
+          "Speed": 12,
+          "Lead": "c0900000-0000-4000-8000-000000000011"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1530,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 3",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            145.2,
+            735,
+            0
+          ],
+          "Rank": 2,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Priority": true,
+          "Speed": 12,
+          "Lead": "c0900000-0000-4000-8000-000000000011"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1545,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 4",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            145.2,
+            735,
+            0
+          ],
+          "Rank": 3,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Priority": true,
+          "Speed": 12,
+          "Lead": "c0900000-0000-4000-8000-000000000011"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000019": {
+      "TkbIdentity": {
+        "TkbType": 8850
+      },
+      "TrafficDemand": {
+        "TargetCars": 600,
+        "Seed": 1,
+        "StepSeconds": 0.5,
+        "TargetPedestrians": 0,
+        "CarSpawnPerStep": 40
+      }
+    }
+  }
+}

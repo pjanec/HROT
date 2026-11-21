@@ -41,7 +41,7 @@ public class RoutePlanTests
     public void RoutePlan_MutateApiAddsWaypointAndAutoIncrementsVersion()
     {
         var plan = new RoutePlan();
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = new Vector3(1, 2, 3), TargetSpeed = 5f }));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint { Position = new Vector3(1, 2, 3), TargetSpeed = 5f }));
 
         Assert.Single(plan.Waypoints);
         Assert.Equal(1, plan.Version);
@@ -53,9 +53,9 @@ public class RoutePlanTests
     public void RoutePlan_EachMutateCall_IncrementsVersionByOne()
     {
         var plan = new RoutePlan();
-        plan.Mutate(wps => wps.Add(new RouteWaypoint()));
-        plan.Mutate(wps => wps.Add(new RouteWaypoint()));
-        plan.Mutate(wps => wps.Add(new RouteWaypoint()));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint()));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint()));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint()));
 
         Assert.Equal(3, plan.Version);
         Assert.Equal(3, plan.Waypoints.Count);
@@ -79,7 +79,7 @@ public class RoutePlanTests
         var entity = world.CreateEntity();
 
         var plan = new RoutePlan { IsLoop = true };
-        plan.Mutate(wps => wps.Add(new RouteWaypoint
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint
         {
             Position      = new Vector3(10f, 20f, 30f),
             TargetSpeed   = 7.5f,

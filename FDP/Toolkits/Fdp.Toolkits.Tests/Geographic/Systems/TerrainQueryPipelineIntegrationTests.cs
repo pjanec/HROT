@@ -68,8 +68,8 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             });
             _world.AddComponent(_entity, new TerrainClampBaseline
             {
-                LastValidIgAltitude = 0f, // first-frame bootstrap
-                IgAltitudeBaselineEstablished = 0,
+                LastValidPlayerAltitude = 0f, // first-frame bootstrap
+                PlayerAltitudeBaselineEstablished = 0,
             });
 
             var provider = new FlatEarthTerrainProvider(TerrainHeight);
@@ -117,7 +117,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             Assert.Equal(TerrainHeight, tf.Position.Z, precision: 4);
 
             var state = _world.GetComponent<TerrainClampBaseline>(_entity);
-            Assert.Equal(TerrainHeight, state.LastValidIgAltitude, precision: 4);
+            Assert.Equal(TerrainHeight, state.LastValidPlayerAltitude, precision: 4);
         }
 
         /// <summary>

@@ -25,13 +25,22 @@ public readonly record struct HoverInfo
     public int CommentResizeHandle { get; init; }
     /// <summary>For containers: which zone of the container the cursor is over.</summary>
     public ContainerHoverZone ContainerZone { get; init; }
+    /// <summary>CE-1004: for <see cref="ContainerHoverZone.RegionDivider"/>, the band ABOVE (or left of) the divider.</summary>
+    public int ContainerRegionIndex { get; init; }
+    /// <summary>CE-1004: for <see cref="ContainerHoverZone.ResizeEdge"/>, which edge(s) the cursor is on.</summary>
+    public ContainerResizeEdge ContainerEdge { get; init; }
 
     public static HoverInfo None => default;
 }
 
-public enum HoverKind { None, Node, Pin, Link, Comment, Reroute, Attachment, Container, CustomElement }
+/// <summary>What the cursor is over. <see cref="NodeEdge"/> (CE-1000) is the link-start band just inside a node's border, used only by <c>LinkRouting.NodeToNode</c> graphs.</summary>
+public enum HoverKind { None, Node, Pin, Link, Comment, Reroute, Attachment, Container, CustomElement, NodeEdge }
 
 public enum CommentHoverZone { None, Header, Body, ResizeHandle }
 
 /// <summary>Zone of a container node that the cursor is over.</summary>
-public enum ContainerHoverZone { None, Header, CollapseArrow, Interior }
+public enum ContainerHoverZone { None, Header, CollapseArrow, Interior, RegionDivider, ResizeEdge }
+
+/// <summary>CE-1004: the container edge(s) a resize drag moves.</summary>
+[System.Flags]
+public enum ContainerResizeEdge { None = 0, Right = 1, Bottom = 2, Corner = Right | Bottom }

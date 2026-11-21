@@ -440,7 +440,7 @@ at least one test primitive (e.g. a `DrawText` label) when the entity has the re
 AND the relevant flag. The important constraints are: (a) zero primitives when flag is unset, and
 (b) the GizmoMap primitive API is used correctly. The rich visual fidelity of §7 comes in Phase 5+.
 
-### C4. Add both new projects to `IOS-IG-SimHost.sln`
+### C4. Add both new projects to `HROT.sln`
 
 Add `Hrot.Diagnostics.Overlays` and `Hrot.Diagnostics.Overlays.Tests` to the solution file with:
 - `Project(...)` entries using fresh GUIDs
@@ -498,7 +498,7 @@ Minimum total: 15 test methods. Each should assert actual values, not just "no e
 
 ## Part D — Build and test requirements
 
-1. `dotnet build IOS-IG-SimHost.sln` must succeed with zero errors and zero warnings.
+1. `dotnet build HROT.sln` must succeed with zero errors and zero warnings.
 2. `dotnet test Hrot\Editor\Hrot.Utility.Editor.Tests\Hrot.Utility.Editor.Tests.csproj` must pass
    all tests (original 35 + new corrective/cross-check tests).
 3. `dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj` must remain green

@@ -49,9 +49,9 @@ public class PerspectiveCoordinatorSystemTests
     [Fact]
     public void TogglePerspectiveEvent_StoresOldAndNewPerspective()
     {
-        var evt = new TogglePerspectiveEvent("IG", "SimHost");
+        var evt = new TogglePerspectiveEvent("Player", "SimHost");
 
-        Assert.Equal("IG",      evt.OldPerspective);
+        Assert.Equal("Player",      evt.OldPerspective);
         Assert.Equal("SimHost", evt.NewPerspective);
     }
 
@@ -70,9 +70,9 @@ public class PerspectiveCoordinatorSystemTests
     [Fact]
     public void ActivePerspective_NameCanBeSetAndRead()
     {
-        var comp = new ActivePerspective { Name = "IG" };
+        var comp = new ActivePerspective { Name = "Player" };
 
-        Assert.Equal("IG", comp.Name);
+        Assert.Equal("Player", comp.Name);
     }
 
     [Fact]
@@ -104,15 +104,15 @@ public class PerspectiveCoordinatorSystemTests
     [Fact]
     public void Coordinator_ProcessEvent_UpdatesCurrentPerspective()
     {
-        var sub  = new MockSubsystem("IG");
+        var sub  = new MockSubsystem("Player");
         var orch = CreateHeadlessOrchestrator(sub);
         orch.Initialize();
-        var coordinator = new PerspectiveCoordinatorSystem(orch, PerspMap(("IG", "IG")));
+        var coordinator = new PerspectiveCoordinatorSystem(orch, PerspMap(("Player", "Player")));
 
-        coordinator.Enqueue(new TogglePerspectiveEvent("Default", "IG"));
+        coordinator.Enqueue(new TogglePerspectiveEvent("Default", "Player"));
         coordinator.ProcessPendingEvents();
 
-        Assert.Equal("IG", coordinator.CurrentPerspective);
+        Assert.Equal("Player", coordinator.CurrentPerspective);
     }
 
     [Fact]
@@ -135,8 +135,8 @@ public class PerspectiveCoordinatorSystemTests
         orch.Initialize();
         var coordinator = new PerspectiveCoordinatorSystem(orch, PerspMap());
 
-        coordinator.Enqueue(new TogglePerspectiveEvent("Default", "IG"));
-        coordinator.Enqueue(new TogglePerspectiveEvent("IG",      "SimHost"));
+        coordinator.Enqueue(new TogglePerspectiveEvent("Default", "Player"));
+        coordinator.Enqueue(new TogglePerspectiveEvent("Player",      "SimHost"));
         coordinator.ProcessPendingEvents();
 
         Assert.Equal("SimHost", coordinator.CurrentPerspective);
@@ -160,24 +160,24 @@ public class PerspectiveCoordinatorSystemTests
         // Camera sync is only performed by SwitchMapOwner — if the SimHost camera
         // ends up with IG's zoom after the coordinator processes the event,
         // SwitchMapOwner was indeed called.
-        var igCam  = MakeCamera(zoom: 3.0f, x: 100f, y: 200f);
+        var playerCam  = MakeCamera(zoom: 3.0f, x: 100f, y: 200f);
         var shCam  = MakeCamera(zoom: 1.0f, x: 0f,   y: 0f);
 
-        var ig      = new MapCameraSubsystemMock("IG",      igCam);
+        var player      = new MapCameraSubsystemMock("Player",      playerCam);
         var simHost = new MapCameraSubsystemMock("SimHost", shCam);
 
-        var orch = CreateHeadlessOrchestrator(ig, simHost);
+        var orch = CreateHeadlessOrchestrator(player, simHost);
         orch.Initialize(); // first IMapCameraProvider (IG) is active owner
 
         var coordinator = new PerspectiveCoordinatorSystem(
             orch, PerspMap(("SimHost", "SimHost")));
 
-        coordinator.Enqueue(new TogglePerspectiveEvent("IG", "SimHost"));
+        coordinator.Enqueue(new TogglePerspectiveEvent("Player", "SimHost"));
         coordinator.ProcessPendingEvents();
 
         // SwitchMapOwner snaps SimHost camera to IG camera state.
-        Assert.Equal(igCam.Zoom,   shCam.Zoom,   precision: 4);
-        Assert.Equal(igCam.Target, shCam.Target);
+        Assert.Equal(playerCam.Zoom,   shCam.Zoom,   precision: 4);
+        Assert.Equal(playerCam.Target, shCam.Target);
     }
 }
 
@@ -275,14 +275,45 @@ public class GZH014_Tests
             new Dictionary<string, string> { ["SubA"] = "SubA" },
             controllables);
 
-        // SubA is the current perspective; switch to an unknown name.
+        // SubA is the current perspective (CE-4088: entered through the coordinator, so it holds its one listener); switch to an unknown name.
+        coordinator.Enqueue(new TogglePerspectiveEvent("", "SubA"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(1, ctrlA.ListenerCount);
         coordinator.Enqueue(new TogglePerspectiveEvent("SubA", "UnknownPersp"));
 
         // Must not throw even though "UnknownPersp" is not in the perspective map.
-        // The entire listener-transfer block is skipped (new perspective unknown),
-        // so neither RemoveListener nor AddListener fires.
+        // (CE-4088: the outgoing RemoveListener DOES fire — see GZH014_3 — and AddListener does not.)
         var ex = Record.Exception(() => coordinator.ProcessPendingEvents());
         Assert.Null(ex);
         Assert.Equal(0, ctrlA.ListenerCount);
+    }
+
+    // GZH014_3 / CE-4088: entering a perspective the coordinator does not map must still release the OUTGOING listener.
+    [Fact]
+    public void GZH014_3_EnteringAnUnmappedPerspective_RemovesTheOutgoingListener()
+    {
+        var ctrlA = MakeController();
+        var orch  = CreateHeadlessOrchestrator(new MockSubsystem("SubA"));
+        orch.Initialize();
+
+        var coordinator = new PerspectiveCoordinatorSystem(
+            orch,
+            new Dictionary<string, string> { ["SubA"] = "SubA" },
+            new Dictionary<string, IGizmoControllable> { ["SubA"] = new StubGizmoControllable(ctrlA) });
+
+        coordinator.Enqueue(new TogglePerspectiveEvent("", "SubA"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(1, ctrlA.ListenerCount);
+
+        // An editor document perspective / AQ108's Start: no subsystem, no controllable.
+        coordinator.Enqueue(new TogglePerspectiveEvent("SubA", "Start"));
+        coordinator.ProcessPendingEvents();
+
+        Assert.Equal(0, ctrlA.ListenerCount);                    // was 1 before the fix (leaked)
+
+        // ... and coming back adds it again (the listener count is balanced, not just zeroed).
+        coordinator.Enqueue(new TogglePerspectiveEvent("Start", "SubA"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(1, ctrlA.ListenerCount);
     }
 }

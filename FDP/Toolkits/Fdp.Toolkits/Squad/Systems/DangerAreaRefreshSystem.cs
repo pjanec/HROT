@@ -50,11 +50,14 @@ namespace Fdp.Toolkit.Squad.Systems
 
             ref var buffer = ref repo.GetComponentRW<DangerAreaCognitiveBuffer>(sensorChild);
             var dst = buffer.GetSpanRW();
+            DangerAreaCognitiveBuffer.KeepHandles(dst.Slice(0, Math.Min(buffer.Count, dst.Length)), stackBuf.Slice(0, count));   // CE-2224
             stackBuf.Slice(0, count).CopyTo(dst);
             buffer.Count = count;
 
             sensor.Epoch++;
-            sensor.LastRefreshSimTime = currentSimTime;
+            buffer.LastUpdateTick = sensor.Epoch == 0 ? 1u : sensor.Epoch;   // CE-3072 B0: the answer stamp (0 = none)
+            buffer.LastUpdateTimeSeconds = (float)currentSimTime;            // CE-3072 Q4: what BecomesStale reads
+            sensor.LastRefreshSimTime = (SimInstant)currentSimTime;
         }
     }
 }

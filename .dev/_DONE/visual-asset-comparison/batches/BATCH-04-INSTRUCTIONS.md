@@ -42,7 +42,7 @@
 
 ```powershell
 dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj" -c Debug
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 ```
 
 ### Report Submission
@@ -444,7 +444,7 @@ public void Parse_Fixture_ProducesExpectedCounts(string fixture, int expectedCha
 - [ ] TASK-C-17: `ComparisonSessionState` + `ComparisonSessionRegistry` with 7 tests
 - [ ] TASK-C-20: 9 fixture files created + 1 parametrized test with 9 cases
 - [ ] `dotnet test "Hrot/Editor/Hrot.Editor.AiShared.Tests/..."` passes
-- [ ] `dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
+- [ ] `dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4` — 0 errors
 - [ ] Report submitted to `.dev\visual-asset-comparison\reports\BATCH-04-REPORT.md`
 
 ---

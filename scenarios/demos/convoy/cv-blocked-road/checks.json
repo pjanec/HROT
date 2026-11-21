@@ -1,0 +1,115 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6): a breakdown blocks the lane; the convoy waits as one, then moves on, unsplit. No golden yet (first run).",
+  "runFor": 110,
+  "golden": false,
+  "do": [
+    {
+      "name": "the breakdown is cleared",
+      "at": 60,
+      "set": {
+        "who": "Broken truck",
+        "component": "SimTransform",
+        "patch": {
+          "Position": [
+            -900,
+            400,
+            0
+          ]
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the lead runs the convoy",
+      "on": "task",
+      "who": "Escort 1",
+      "is": "PlatformConvoy"
+    },
+    {
+      "name": "the lead is handed to SUMO",
+      "on": "field",
+      "who": "Escort 1",
+      "path": "NavigationIntent.Mode",
+      "op": "==",
+      "value": "Traffic"
+    },
+    {
+      "name": "the lead is behind the breakdown",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        -915,
+        148.4
+      ],
+      "within": 15
+    },
+    {
+      "name": "the lead stands behind it",
+      "on": "field",
+      "who": "Escort 1",
+      "path": "VehicleState.Speed",
+      "op": "<",
+      "value": 0.3,
+      "after": "the lead is behind the breakdown",
+      "before": "the breakdown is cleared"
+    },
+    {
+      "name": "the lead never passes the breakdown before it is cleared",
+      "never": {
+        "on": "field",
+        "who": "Escort 1",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": -905
+      },
+      "before": "the breakdown is cleared"
+    },
+    {
+      "name": "the column never splits (Escort 2 never more than 60 m behind Escort 1)",
+      "never": {
+        "on": "far",
+        "who": "Escort 2",
+        "from": "Escort 1",
+        "m": 60
+      }
+    },
+    {
+      "name": "the column never splits (Escort 3 never more than 60 m behind Escort 2)",
+      "never": {
+        "on": "far",
+        "who": "Escort 3",
+        "from": "Escort 2",
+        "m": 60
+      }
+    },
+    {
+      "name": "the column never splits (Escort 4 never more than 60 m behind Escort 3)",
+      "never": {
+        "on": "far",
+        "who": "Escort 4",
+        "from": "Escort 3",
+        "m": 60
+      }
+    },
+    {
+      "name": "once it is cleared the column moves on (the tail past x −880)",
+      "on": "field",
+      "who": "Escort 4",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": -880,
+      "after": "the breakdown is cleared"
+    },
+    {
+      "name": "the lead reaches its destination (SUMO ends a shadow up to 25 m short)",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        -700,
+        148.4
+      ],
+      "within": 25
+    }
+  ]
+}

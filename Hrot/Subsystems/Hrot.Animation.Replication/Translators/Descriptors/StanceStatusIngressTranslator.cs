@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Translators.Descriptors;
 
@@ -12,14 +13,13 @@ namespace Hrot.Animation.Replication.Translators.Descriptors;
 /// and updates the Brain ghost's <see cref="StanceStatus"/> component.
 /// All fields are Muscle-authored so the full component is replaced.
 /// </summary>
-internal sealed class StanceStatusIngressTranslator : INetworkTranslator
+internal sealed class StanceStatusIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/StanceStatus";
 
     private readonly DdsReader<DdsStanceStatus>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsStanceStatus>();
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -28,10 +28,13 @@ internal sealed class StanceStatusIngressTranslator : INetworkTranslator
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsStanceStatus>(participant, TopicNameConst)
+            ? new DdsReader<DdsStanceStatus>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {
@@ -56,6 +59,9 @@ internal sealed class StanceStatusIngressTranslator : INetworkTranslator
             Phase = (StanceTransitionPhase)msg.Phase,
             TransitionProgress = msg.TransitionProgress,
             AckVersion = msg.AckVersion,
+            TransitionStartedAt = (SimInstant)msg.TransitionStartedAt,   // ⭐ CE-11014
+            FromStance = (StanceId)msg.FromStance,
+            TransitionSeconds = new SimDuration(msg.TransitionSeconds),
         });
         ReceivedSampleCount++;
     }

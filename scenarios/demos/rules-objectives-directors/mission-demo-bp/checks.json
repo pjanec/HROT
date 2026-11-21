@@ -1,0 +1,45 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — A mission written as a blueprint (Advance, Defend, Return). Judge (1) the tank drives to about (600,427) (within 8 m; its arrival radius is 5), (2) it fires at the M1 Abrams and the hostile reaches Health 0, (3) it is home within 5 m of (446.3,420.9) by about 83 s (judged at the end of a 90 s run). Left out: 'the behaviour finished' (a MissionPlan end, not read).",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the tank drives to about (600,427)",
+      "on": "near",
+      "who": "Tank Platoon (Auto Spawn)-1",
+      "point": [
+        600,
+        427
+      ],
+      "within": 8
+    },
+    {
+      "name": "the tank fires at the M1 Abrams",
+      "on": "shot",
+      "by": "Tank Platoon (Auto Spawn)-1",
+      "at": "M1 Abrams",
+      "after": "the tank drives to about (600,427)"
+    },
+    {
+      "name": "the hostile M1 Abrams reaches Health 0",
+      "on": "field",
+      "who": "M1 Abrams",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "the tank is home within 5 m",
+      "on": "near",
+      "who": "Tank Platoon (Auto Spawn)-1",
+      "point": [
+        446.3,
+        420.9
+      ],
+      "within": 5,
+      "atEnd": true
+    }
+  ]
+}

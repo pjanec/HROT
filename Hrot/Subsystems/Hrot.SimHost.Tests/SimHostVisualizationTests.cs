@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Tests
 
             var intent = _repo.GetComponent<EcsNavigationIntent>(entity);
             Assert.Equal(EcsNavigationMode.DirectPoint, intent.Mode);
-            Assert.Equal(new Vector3(ClickPos.X, ClickPos.Y, 0f), intent.FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(ClickPos.X, ClickPos.Y, 0f), intent.FinalDestination);
             Assert.Equal(15f, intent.TargetSpeed);
             Assert.Equal(3.0f, intent.ArrivalRadius);
             Assert.Equal(6u, intent.IntentId); // 5 + 1
@@ -201,10 +201,13 @@ namespace Hrot.SimHost.Tests
             var vis = new SimHostVisualization();
             using var missionSender = new StubMissionSender();
             var eventHistoryService = new Fdp.Core.Diagnostics.DiagnosticEventHistoryService();
-            vis.Initialize(repo, kernel, road, traj, formations, missionSender, eventHistoryService);
+            vis.Initialize(repo, kernel, road, traj, formations, missionSender, eventHistoryService,
+                Hrot.TestShared.TestEntityCreation.For(repo, Hrot.Map.Common.HrotEnvironment.CreateTkb()));   // ⭐ CE-259ax — the spawners ask the creation pack
 
             var camera = vis.GetMapCamera();
             Assert.NotNull(camera);
+            // ⭐ CE-1441: the host no longer seeds Offset — the camera places it at the visible centre on its first update (MapCamera.Update)
+            camera.Update(0.016f);
             Assert.Equal(new Vector2(640f, 360f), camera.Offset);
 
             kernel.Dispose();
@@ -216,7 +219,7 @@ namespace Hrot.SimHost.Tests
     {
         public readonly List<(long EntityId, Vector2 Destination, float Speed, float ArrivalRadius)> Sent = new();
 
-        public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
+        public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
             => Sent.Add((entityNetworkId, destination, speed, arrivalRadius));
 
         public void Dispose() { }

@@ -127,7 +127,7 @@ Central ID catalog. The last assigned IDs are 203–206. New EQS component IDs g
 
 ```
 # Full solution build
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # FDP unit tests only
 dotnet test FDP\FDP.sln

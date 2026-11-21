@@ -1,3 +1,4 @@
+using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
 using Xunit;
@@ -42,7 +43,7 @@ namespace Hrot.DDS.DataModel.Tests
                 Start          = new RelativeVector3 { East = 0f, North = 0f, Up = 0f },
                 End            = new RelativeVector3 { East = 100f, North = 50f, Up = 0f },
                 LayerMask      = 0xFF,
-                IgnoreEntityId = -1L,
+                IgnoreEntityId = -1,
             };
             Assert.Equal(42L, req.RayId);
         }
@@ -61,13 +62,29 @@ namespace Hrot.DDS.DataModel.Tests
         {
             var cfg = new SensorConfig
             {
-                EntityId     = 1001L,
+                EntityId     = 1001,
                 VisionRange  = 500f,
                 HearingRange = 100f,
-                FovDegrees   = 60f,
+                FovRad       = System.MathF.PI / 3f,   // 60° — AQ107 I: radians on the wire
             };
             Assert.Equal(1001L, cfg.EntityId);
             Assert.Equal(500f, cfg.VisionRange);
+        }
+
+        /// <summary>
+        /// ⭐ AQ107 I — the field of view is RADIANS on the wire. A 90° field of view (the receptor holds cos 45°) leaves the egress as π/2
+        /// and the ingress turns it back into the same cosine. ✅ Red-proof: the old <c>* 180/π</c> left in the egress ⇒ 90 on the wire ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ107I_AFieldOfViewOf90Degrees_LeavesTheEgressAsHalfPiRadians_AndComesBackAsTheSameCosine()
+        {
+            float cos45 = System.MathF.Cos(System.MathF.PI / 4f);   // what PerceptionReceptor.FieldOfViewCos holds for a 90° field of view
+
+            float onTheWire = global::Hrot.Network.NED.SimHost.SensorConfigEgressTranslator.FovRadOf(cos45);
+            Assert.Equal(System.MathF.PI / 2f, onTheWire, 1e-5f);
+
+            float back = global::Hrot.Network.NED.SimHost.SensorConfigIngressTranslator.FovCosOf(onTheWire);
+            Assert.Equal(cos45, back, 1e-6f);
         }
 
         // ── Pathfinding pipeline ──────────────────────────────────────────────
@@ -106,7 +123,7 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new PathRequestBatch
             {
                 SourceNodeId = 3,
-                BatchOrigin  = new GeoPoint { Latitude = 0f, Longitude = 0f, Altitude = 0f },
+                BatchOrigin  = new Vec3d { X = 0, Y = 0, Z = 0 },
                 Requests     = new System.Collections.Generic.List<DdsPathRequest>(),
             };
             Assert.Equal(3, batch.SourceNodeId);
@@ -120,7 +137,7 @@ namespace Hrot.DDS.DataModel.Tests
         [Fact]
         public void PathResponseBatch_HasTargetNodeIdAndBatchOrigin()
         {
-            var origin = new GeoPoint { Latitude = 52.5f, Longitude = 13.4f, Altitude = 100f };
+            var origin = new Vec3d { X = 5250.5, Y = 1340.25, Z = 100 };   // AQ107 B: the anchor is local ENU metres
             var batch  = new PathResponseBatch
             {
                 TargetNodeId = 7,
@@ -128,7 +145,7 @@ namespace Hrot.DDS.DataModel.Tests
                 Results      = new System.Collections.Generic.List<DdsPathResult>(),
             };
             Assert.Equal(7, batch.TargetNodeId);
-            Assert.Equal(52.5f, batch.BatchOrigin.Latitude);
+            Assert.Equal(5250.5, batch.BatchOrigin.X);
         }
 
         /// <summary>
@@ -142,7 +159,7 @@ namespace Hrot.DDS.DataModel.Tests
             {
                 SourceNodeId       = 4,
                 BatchCorrelationId = 12u,
-                BatchOrigin        = new GeoPoint(),
+                BatchOrigin        = new Vec3d(),
                 Requests           = new System.Collections.Generic.List<DdsRaycastRequest>(),
             };
             Assert.Equal(4, batch.SourceNodeId);

@@ -66,7 +66,7 @@ by guessing — you must understand the existing selection/drag pipeline.
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q
+dotnet build HROT.sln -c Debug --nologo -v q
 ```
 
 ### Test Baseline (do not regress)
@@ -1050,14 +1050,14 @@ After completing all tasks, run:
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln -c Debug --nologo -v q
+dotnet build HROT.sln -c Debug --nologo -v q
 ```
 
 Zero build errors required.
 
 Then run tests:
 ```powershell
-dotnet test IOS-IG-SimHost.sln -c Debug --no-build --nologo -v q
+dotnet test HROT.sln -c Debug --no-build --nologo -v q
 ```
 
 Required test outcomes:

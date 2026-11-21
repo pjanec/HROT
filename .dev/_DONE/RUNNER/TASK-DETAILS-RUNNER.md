@@ -96,7 +96,7 @@ Create the main runner application project that will orchestrate all subsystems.
 **SC-1**: Project Structure Created
 - Create project: `dotnet new console -n Hrot.ClusterRunner -f net8.0`
 - Folder: `Hrot.ClusterRunner/` (at solution root)
-- Add to solution `IOS-IG-SimHost.sln`
+- Add to solution `HROT.sln`
 - Project compiles successfully
 
 **SC-2**: Dependencies Added
@@ -220,7 +220,7 @@ Implement `LoadFromJson(string path)` method:
 **SC-4**: Unit Tests
 - Create test project: `dotnet new mstest -n Hrot.ClusterRunner.Tests -f net8.0`
 - Folder: `Hrot.ClusterRunner.Tests/`
-- Add to solution `IOS-IG-SimHost.sln`
+- Add to solution `HROT.sln`
 - Add reference to `Hrot.ClusterRunner`
 - Implement tests:
 - `Test_ParseMode_All`: Verify "all" → `RunMode.All`

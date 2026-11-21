@@ -14,8 +14,9 @@ namespace Hrot.AI.Behaviors
     /// collection counterpart. No demo <c>.bp.json</c> yet (CA-07a) -- consumer nodes for the
     /// collection out-pin don't exist until CA-07b.
     /// </summary>
-    [ComponentId(189)] // Hrot application-level block (160-199, HrotComponentIds); next free after 188 (BpComponentDemo).
+    [ComponentId(GlobalComponentIds.BpCollectionDemo)] // Hrot application-level block (160-199, HrotComponentIds); next free after 188 (BpComponentDemo).
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct BpCollectionDemo
     {
         /// <summary>Maximum number of elements <see cref="Values"/> can hold.</summary>

@@ -282,7 +282,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // NodeId=0 is the legacy fallback sentinel — must not cause an error.
             var cfg = HeadlessConfig();
-            cfg.NodeId = 0;
+            cfg.NodeId = (Fdp.Core.NodeId)(0);
             var ex = Record.Exception(() => _subsystem.Initialize(cfg));
             Assert.Null(ex);
         }
@@ -292,7 +292,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // Passing a non-zero node ID must not cause initialization to fail.
             var cfg = HeadlessConfig();
-            cfg.NodeId = 10;
+            cfg.NodeId = (Fdp.Core.NodeId)(10);
             var ex = Record.Exception(() => _subsystem.Initialize(cfg));
             Assert.Null(ex);
         }

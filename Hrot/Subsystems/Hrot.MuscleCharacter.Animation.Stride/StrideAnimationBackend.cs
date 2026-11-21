@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Hrot.MuscleCharacter.Animation.Contracts;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Stride;
 

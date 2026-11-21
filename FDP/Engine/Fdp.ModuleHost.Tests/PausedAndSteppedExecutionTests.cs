@@ -1,0 +1,380 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Time;
+using Xunit;
+
+namespace Fdp.ModuleHost.Tests
+{
+    /// <summary>
+    /// ⭐⭐ CE-3293 S5 (R-3036) — the acceptance rails of docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §7: a step-only
+    /// system is not called on a paused frame and reads, at the next step, every event since its own last run — exactly once,
+    /// whatever the number of paused frames; an every-frame system reads each event once, on the frame it becomes readable; a
+    /// background module held over a long pause still gets every event.
+    /// </summary>
+    public class PausedAndSteppedExecutionTests
+    {
+        [EventId(932950)] public struct Ping { public int Value; }
+
+        private sealed class ScriptedClock : ITimeController
+        {
+            public float NextDelta;
+            public double Total;
+            public long Frame;
+            public long Epoch;
+            public GlobalTime Update()
+            {
+                Total += NextDelta;
+                if (NextDelta > 0f) Frame++;
+                var g = new GlobalTime { DeltaTime = NextDelta, TotalTime = Total, FrameNumber = Frame, TimeScale = 1f };
+                NextDelta = 0f;
+                return g;
+            }
+            public void SetTimeScale(float scale) { }
+            public float GetTimeScale() => 1f;
+            public TimeMode Mode = TimeMode.Deterministic;   // ⭐ R-4218 rails switch it
+            public TimeMode GetMode() => Mode;
+            public GlobalTime GetCurrentState() => new() { TotalTime = Total, FrameNumber = Frame };
+            public void SeedState(GlobalTime state) { Total = state.TotalTime; Frame = state.FrameNumber; }
+            public long TimelineEpoch => Epoch;
+            public void Dispose() { }
+        }
+
+        /// <summary>Records every <see cref="Ping"/> it reads, per call, with the call's delta.</summary>
+        private abstract class PingReader : IEcsModuleSystem
+        {
+            public readonly List<(float Dt, int[] Values)> Calls = new();
+            public void Execute(ISimulationView view, float deltaTime)
+                => Calls.Add((deltaTime, ((EntityRepository)view).ReadEvents<Ping>().ToArray().Select(p => p.Value).ToArray()));
+            public int[] AllRead => Calls.SelectMany(c => c.Values).ToArray();
+        }
+
+        [UpdateInPhase(SystemPhase.PostSimulation)]
+        [TickMode(TickPolicy.WhenTimeAdvances)]
+        private sealed class StepReader : PingReader { }
+
+        [UpdateInPhase(SystemPhase.PostSimulation)]
+        [TickMode(TickPolicy.EveryFrame)]
+        private sealed class FrameReader : PingReader { }
+
+        private static (ModuleHostKernel, EntityRepository, ScriptedClock) Kernel(params IEcsModuleSystem[] systems)
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            world.RegisterEvent<Ping>();
+            var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var clock = new ScriptedClock();
+            kernel.SetTimeController(clock);
+            foreach (var s in systems) kernel.RegisterGlobalSystem(s);
+            kernel.InitializeForTest();
+            return (kernel, world, clock);
+        }
+
+        private static void Frame(ModuleHostKernel kernel, ScriptedClock clock, float dt) { clock.NextDelta = dt; kernel.Update(); }
+
+        /// <summary>
+        /// ⭐ Acceptance ① and ② — an event published AT a step (readable on the paused frame after it) and one published DURING the
+        /// pause both reach the step-only system at the next step, once, in order; it is never called while paused. The every-frame
+        /// system reads each one once, on the frame it became readable. 🔴 Before: a step-only system was called on the paused
+        /// frame (reacting while paused) — or, with a hand gate (BrainTickSystem), missed the event for good.
+        /// </summary>
+        [Theory]
+        [InlineData(1)]
+        [InlineData(7)]
+        [InlineData(120)]
+        public void AStepOnlySystem_ReadsEverythingSinceItsLastRun_AtTheNextStep_Once(int pausedFrames)
+        {
+            var step = new StepReader();
+            var every = new FrameReader();
+            var (kernel, world, clock) = Kernel(step, every);
+            Frame(kernel, clock, 1f / 60f);                       // warm-up step
+
+            Frame(kernel, clock, 1f / 60f);                       // step N …
+            world.Bus.Publish(new Ping { Value = 1 });            // … late in it: readable on the paused frame after
+            for (int i = 0; i < pausedFrames; i++)
+            {
+                if (i == pausedFrames / 2) world.Bus.Publish(new Ping { Value = 2 });   // published while paused
+                Frame(kernel, clock, 0f);
+            }
+            Frame(kernel, clock, 1f / 60f);                       // the next step
+            Frame(kernel, clock, 1f / 60f);                       // and one more
+
+            Assert.All(step.Calls, c => Assert.True(c.Dt > 0f, "a step-only system was called on a paused frame"));
+            Assert.Equal(new[] { 1, 2 }, step.AllRead);
+            Assert.Equal(new[] { 1, 2 }, step.Calls[^2].Values);  // both at the first step after the pause
+            Assert.Equal(new[] { 1, 2 }, every.AllRead);          // the every-frame system: each once
+            Assert.Equal(1, every.Calls.First(c => c.Values.Length > 0).Values[0]);   // on the first paused frame (with 2 when 1 frame)
+            kernel.Dispose(); world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ The determinism the gate exists for (R-3035, §17): a step-only system sees the same events at the same steps whether the
+        /// steps come back to back or with any number of paused frames between them.
+        /// </summary>
+        [Fact]
+        public void AStepOnlySystem_SeesTheSameStepsWhateverThePausedFrames()
+        {
+            int[][] Run(int paused)
+            {
+                var step = new StepReader();
+                var (kernel, world, clock) = Kernel(step);
+                for (int s = 0; s < 30; s++)
+                {
+                    world.Bus.Publish(new Ping { Value = s });
+                    Frame(kernel, clock, 1f / 60f);
+                    for (int p = 0; p < paused; p++) Frame(kernel, clock, 0f);
+                }
+                kernel.Dispose(); world.Dispose();
+                return step.Calls.Select(c => c.Values).ToArray();
+            }
+
+            var backToBack = Run(0);
+            Assert.Equal(backToBack.Length, Run(5).Length);
+            Assert.Equal(backToBack, Run(5));
+            Assert.Equal(backToBack, Run(1));
+        }
+
+        /// <summary>
+        /// ⭐ The FIRST run after boot reads what every later run reads: events published on paused frames BEFORE a step-only
+        /// system's first step (a scenario load) reach that first step, whether the system has run before (a reload — its reader
+        /// already exists) or never (the first run). 🔴 Measured live (ua-tank-ammo, four loads): the first run's systems registered
+        /// their window at their first step and missed the load's events, so it differed from every reload from the first cut.
+        /// </summary>
+        [Fact]
+        public void TheFirstRun_ReadsTheLoadsEvents_LikeEveryLaterRun()
+        {
+            int[] FirstStep(bool ranBefore)
+            {
+                var step = new StepReader();
+                var (kernel, world, clock) = Kernel(step);
+                if (ranBefore)
+                {
+                    Frame(kernel, clock, 1f / 60f);
+                    Frame(kernel, clock, 1f / 60f);
+                    clock.Epoch++;                                 // the load snaps the clock: a new timeline
+                    step.Calls.Clear();
+                }
+                for (int i = 0; i < 3; i++)                        // the load publishes while paused
+                {
+                    world.Bus.Publish(new Ping { Value = 10 + i });
+                    Frame(kernel, clock, 0f);
+                }
+                Frame(kernel, clock, 1f / 60f);                    // the first step of the run
+                kernel.Dispose(); world.Dispose();
+                return step.Calls[0].Values;
+            }
+
+            Assert.Equal(new[] { 10, 11, 12 }, FirstStep(ranBefore: true));
+            Assert.Equal(new[] { 10, 11, 12 }, FirstStep(ranBefore: false));
+        }
+
+        /// <summary>⭐ Rule 7 — a SnapAndPause (the clock's timeline epoch) forgets every event from before it.</summary>
+        [Fact]
+        public void ASnap_ForgetsTheEventsBeforeIt()
+        {
+            var step = new StepReader();
+            var (kernel, world, clock) = Kernel(step);
+            Frame(kernel, clock, 1f / 60f);
+            world.Bus.Publish(new Ping { Value = 1 });
+            Frame(kernel, clock, 0f);                              // readable while paused …
+            Frame(kernel, clock, 0f);
+            clock.Epoch++;                                         // … then a load snaps the clock
+            world.Bus.Publish(new Ping { Value = 2 });
+            Frame(kernel, clock, 0f);
+            Frame(kernel, clock, 1f / 60f);
+            Assert.Equal(new[] { 2 }, step.AllRead);
+            kernel.Dispose(); world.Dispose();
+        }
+
+        /// <summary>A 10 Hz background module that counts every <see cref="Ping"/> its snapshot carries.</summary>
+        [TickMode(TickPolicy.WhenTimeAdvances)]
+        private sealed class CountingBackground : IEcsModule
+        {
+            public int Seen;
+            public int Runs;
+            public string Name => nameof(CountingBackground);
+            public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(2000);
+            public void Tick(ISimulationView view, float deltaTime)
+            {
+                Interlocked.Add(ref Seen, view.ReadEvents<Ping>().Length);
+                Interlocked.Increment(ref Runs);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ Acceptance ③ — a background module held over 120 paused frames, with an event on every one of them, still gets every
+        /// event at its next run. 🔴 Before: the history kept 60 frames, so half were trimmed before the module ran.
+        /// </summary>
+        [Fact]
+        public void ABackgroundModule_HeldOverALongPause_GetsEveryEvent()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            world.RegisterEvent<Ping>();
+            var history = new EventAccumulator();
+            var kernel = new ModuleHostKernel(world, history);
+            var clock = new ScriptedClock();
+            kernel.SetTimeController(clock);
+            var module = new CountingBackground();
+            kernel.RegisterModule(module);
+            kernel.InitializeForTest();
+
+            Frame(kernel, clock, 0.1f);                            // its first run
+            Frame(kernel, clock, 0.1f);
+            int before = Volatile.Read(ref module.Seen);
+            for (int i = 0; i < 120; i++)
+            {
+                world.Bus.Publish(new Ping { Value = i });
+                Frame(kernel, clock, 0f);
+            }
+            Frame(kernel, clock, 0.1f);                            // the next step: a new slot, the module runs
+            Frame(kernel, clock, 0.1f);                            // harvest
+
+            Assert.Equal(120, Volatile.Read(ref module.Seen) - before);
+            Assert.Equal(0, history.Overflow);
+            kernel.Dispose(); world.Dispose();
+        }
+
+        /// <summary>A background module slower than its own timeout: each run waits, then creates one entity through its command buffer.</summary>
+        [TickMode(TickPolicy.WhenTimeAdvances)]
+        private sealed class SlowerThanItsTimeout : IEcsModule
+        {
+            public int Runs;
+            public string Name => nameof(SlowerThanItsTimeout);
+            public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(20);
+            public void Tick(ISimulationView view, float deltaTime)
+            {
+                Thread.Sleep(150);                                  // past its 20 ms budget, as a loaded machine makes any module
+                view.GetCommandBuffer().CreateEntity();
+                Interlocked.Increment(ref Runs);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ F-3 (CE-4503) — a STEP never discards a run on the wall clock: a background module slower than its timeout, stepped, has
+        /// every run's output played back, and no timeout reaches its circuit breaker. 📌 Measured: a stepped 1 000-man run at 8 threads
+        /// logged "NavigationSolver timed out after 100ms. Task abandoned" and its world differed from the 1-thread run's.
+        /// 🔴 Red-proof: dispatch with <c>deterministic: false</c> — the runs time out, their entities never arrive.
+        /// </summary>
+        [Fact]
+        public void F3_ASteppedRun_IsNeverAbandonedOnTheWallClock_ItsOutputArrives()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var clock = new ScriptedClock();                       // Deterministic: every frame is a step
+            kernel.SetTimeController(clock);
+            var module = new SlowerThanItsTimeout();
+            kernel.RegisterModule(module);
+            kernel.InitializeForTest();
+            int before = world.EntityCount;
+
+            for (int i = 0; i < 4; i++) Frame(kernel, clock, 0.1f);   // four steps, each a new 10 Hz slot: four runs
+            Frame(kernel, clock, 0.1f);                                // harvest the last
+
+            Assert.True(Volatile.Read(ref module.Runs) >= 4, $"runs {module.Runs}");
+            Assert.Equal(Volatile.Read(ref module.Runs), world.EntityCount - before);   // every run's entity, none discarded
+            var stats = kernel.GetExecutionStats().Single(m => m.ModuleName == nameof(SlowerThanItsTimeout));
+            Assert.Equal(0, stats.FailureCount);                                         // the breaker saw no timeout
+            kernel.Dispose(); world.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ R-4218 (CE-4481; implements R-4207, R-4215) — THE SIMULATION MODE IS SET BY WHAT IS RUNNING: a kernel whose clock is stepped (stepping,
+    /// Run-to, filming, the regression all step it) runs its phases in Deterministic; continuous play in Throughput; ONE value for the process —
+    /// any kernel's Deterministic vote or a harness's pin wins; set at the kernel's tick boundary, before its phases run. 🔴 Red-proof: drop the
+    /// kernel's <c>Vote</c> ⇒ the mode never follows the clock ⇒ red.
+    /// </summary>
+    [CollectionDefinition(Name, DisableParallelization = true)]
+    public sealed class SimulationModeCollection { public const string Name = "SimulationMode"; }
+
+    [Collection(SimulationModeCollection.Name)]
+    public class SimulationModeFromWhatRunsTests
+    {
+        [UpdateInPhase(SystemPhase.PostSimulation)]   // a global system's phase — the kernel votes before its first phase
+        [TickMode(TickPolicy.EveryFrame)]
+        private sealed class ModeProbe : IEcsModuleSystem
+        {
+            public readonly List<Fdp.Core.Jobs.SimulationMode> Seen = new();
+            public void Execute(ISimulationView view, float deltaTime) => Seen.Add(Fdp.Core.Jobs.ParallelEntities.Mode);
+        }
+
+        private sealed class Clock : ITimeController
+        {
+            public TimeMode Mode = TimeMode.Continuous;
+            public double Total; public long Frame;
+            public GlobalTime Update() { Total += 0.016; Frame++; return new GlobalTime { DeltaTime = 0.016f, TotalTime = Total, FrameNumber = Frame, TimeScale = 1f }; }
+            public void SetTimeScale(float scale) { }
+            public float GetTimeScale() => 1f;
+            public TimeMode GetMode() => Mode;
+            public GlobalTime GetCurrentState() => new() { TotalTime = Total, FrameNumber = Frame };
+            public void SeedState(GlobalTime state) { Total = state.TotalTime; Frame = state.FrameNumber; }
+            public long TimelineEpoch => 0;
+            public void Dispose() { }
+        }
+
+        private static (ModuleHostKernel Kernel, Clock Clock, ModeProbe Probe) Kernel()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var clock = new Clock();
+            kernel.SetTimeController(clock);
+            var probe = new ModeProbe();
+            kernel.RegisterGlobalSystem(probe);
+            kernel.InitializeForTest();
+            return (kernel, clock, probe);
+        }
+
+        [Fact]
+        public void R4218_TheClocksModeSetsTheSimulationMode_BeforeTheTicksPhases()
+        {
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
+            var (kernel, clock, probe) = Kernel();
+            using (kernel)
+            {
+                kernel.Update();                                                   // continuous play
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probe.Seen[^1]);
+                clock.Mode = TimeMode.Deterministic;                               // the clock is stepped (a pause, a step, Run-to, a take)
+                kernel.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Deterministic, probe.Seen[^1]);   // already in THIS tick's phases
+                clock.Mode = TimeMode.Continuous;
+                kernel.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probe.Seen[^1]);
+            }
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
+        }
+
+        [Fact]
+        public void R4218_OneValueForTheProcess_AnyKernelStepped_OrAPinnedHarness_IsDeterministic()
+        {
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
+            var (a, clockA, probeA) = Kernel();
+            var (b, clockB, probeB) = Kernel();
+            using (a) using (b)
+            {
+                clockA.Mode = TimeMode.Deterministic;                              // --mode all: one kernel stepped, one not (yet)
+                a.Update(); b.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Deterministic, probeB.Seen[^1]);   // the continuous kernel runs Deterministic too
+                clockA.Mode = TimeMode.Continuous;
+                a.Update(); b.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probeB.Seen[^1]);
+                using (Fdp.Core.Jobs.SimulationModeSelector.RequireDeterministic())   // a harness that needs repeatability
+                {
+                    a.Update();
+                    Assert.Equal(Fdp.Core.Jobs.SimulationMode.Deterministic, probeA.Seen[^1]);
+                }
+                a.Update();
+                Assert.Equal(Fdp.Core.Jobs.SimulationMode.Throughput, probeA.Seen[^1]);
+            }
+            Fdp.Core.Jobs.SimulationModeSelector.ResetForTest();
+        }
+    }
+}

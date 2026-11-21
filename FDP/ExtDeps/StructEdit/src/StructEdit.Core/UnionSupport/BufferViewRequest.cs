@@ -74,8 +74,20 @@ public sealed class BufferViewRequest
     /// public field of <paramref name="viewType"/>.  Only works when the buffer is native
     /// (unmanaged blittable struct).
     /// </summary>
-    public BufferViewResult ProjectBufferAs(Type viewType, string viewName)
+    /// <param name="bufferOffset">
+    /// Byte offset WITHIN the fixed buffer at which <paramref name="viewType"/> begins.
+    /// Defaults to 0 — the buffer's first byte — which is every existing caller.
+    ///
+    /// <para>It exists because a provider may know that its DTO sits at a computed position inside
+    /// the buffer rather than at its start: an occurrence store keeps each tenant at a slot offset
+    /// resolved from a key. The CALLER supplies that base; this method still only composes
+    /// <c>NativeOffset + bufferOffset + Marshal.OffsetOf(viewType, field)</c>, so StructEdit learns
+    /// nothing about slots, keys or partitioning — the binding arithmetic is unchanged in kind.</para>
+    /// </param>
+    public BufferViewResult ProjectBufferAs(Type viewType, string viewName, int bufferOffset = 0)
     {
+        if (bufferOffset < 0) throw new ArgumentOutOfRangeException(nameof(bufferOffset));
+
         var nodeId = new EditNodeId(IdAlloc.Next());
         var children = new List<EditNode>();
         IValueBinding? viewBinding = null;
@@ -84,16 +96,16 @@ public sealed class BufferViewRequest
         {
             // Provide a root binding so the UI drawer sees a valid, populated object
             // rather than null when the BufferView node is opened as a whole.
-            viewBinding = new NativeViewBinding(native, NativeOffset, viewType);
+            viewBinding = new NativeViewBinding(native, NativeOffset + bufferOffset, viewType);
 
             foreach (var fi in viewType.GetFields(BindingFlags.Public | BindingFlags.Instance))
             {
                 if (!TryGetSizeOf(fi.FieldType, out int fieldSize)) continue;
 
-                int fieldOffset = NativeOffset;
+                int fieldOffset = NativeOffset + bufferOffset;
                 if (viewType.IsValueType)
                 {
-                    try { fieldOffset += (int)(nint)Marshal.OffsetOf(viewType, fi.Name); }
+                    try { fieldOffset += global::Fdp.Core.Layout.ManagedLayout.OffsetOf(viewType, fi.Name); }   // ⭐ CE-2044 — managed, like its sizes
                     catch { continue; }
                 }
 
@@ -108,6 +120,45 @@ public sealed class BufferViewRequest
         var node = new EditNode(nodeId, viewName, BufferPath.Value,
             EditNodeKind.BufferView, viewType, viewBinding, children);
         return new BufferViewResult { ViewName = viewName, ViewType = viewType, Node = node };
+    }
+
+    /// <summary>
+    /// Projects the buffer as a bounded ELEMENT WINDOW: a <see cref="EditNodeKind.BufferView"/>
+    /// node with one child per element index <c>[0, count)</c>, each bound natively at
+    /// <c>elementSize</c> strides. Designed for <see cref="EditNodeKind.InlineArray"/> buffers
+    /// whose logical length is smaller than their fixed capacity (e.g. a count-prefixed fixed
+    /// list) — the caller supplies the window size, typically read from a sibling count field
+    /// via <see cref="ReadSibling{T}"/>. <paramref name="count"/> is clamped to
+    /// <c>[0, capacity]</c> when <paramref name="capacity"/> is positive. Only works when the
+    /// buffer is native (unmanaged blittable struct); otherwise returns a childless view node.
+    /// </summary>
+    public BufferViewResult ProjectBufferAsElements(
+        Type elementType, int count, string viewName, int capacity = 0)
+    {
+        var nodeId = new EditNodeId(IdAlloc.Next());
+        var children = new List<EditNode>();
+        IValueBinding? viewBinding = null;
+
+        if (Buffer.IsNative && Buffer is NativeStructEditBuffer native
+            && TryGetSizeOf(elementType, out int elemSize))
+        {
+            viewBinding = BufferBinding;
+
+            int window = capacity > 0 ? Math.Min(Math.Max(count, 0), capacity) : Math.Max(count, 0);
+            var elemKind = SimpleKindOf(elementType);
+            for (int i = 0; i < window; i++)
+            {
+                var binding = new NativeFieldBinding(
+                    native, NativeOffset + i * elemSize, elemSize, elementType);
+                var childId = new EditNodeId(IdAlloc.Next());
+                children.Add(new EditNode(childId, $"[{i}]",
+                    $"{BufferPath.Value}[{i}]", elemKind, elementType, binding));
+            }
+        }
+
+        var node = new EditNode(nodeId, viewName, BufferPath.Value,
+            EditNodeKind.BufferView, elementType, viewBinding, children);
+        return new BufferViewResult { ViewName = viewName, ViewType = elementType, Node = node };
     }
 
     // ── Private helpers ────────────────────────────────────────────────────

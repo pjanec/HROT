@@ -1,19 +1,20 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Selection;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Editor.AiShared.Windows;
 
 /// <summary>
 /// Shell for the shared trace timeline. Renders swim lanes provided by
-/// the registered ITraceLaneProvider for the active asset kind.
-/// Subsystems provide ITraceLaneProvider implementations.
+/// the registered ITimelineLaneProvider (R-4078, now in Fdp.Toolkits) whose Applies() matches the active asset.
+/// Subsystems provide ITimelineLaneProvider implementations.
 /// </summary>
 public sealed class TraceTimelineWindow : ManagedWindow
 {
     private readonly EditorSelectionStore _store;
     private readonly IDebugSessionRegistry _registry;
-    private readonly List<ITraceLaneProvider> _providers = new();
+    private readonly List<ITimelineLaneProvider> _providers = new();
 
     /// <param name="store">Editor selection store for this perspective.</param>
     /// <param name="registry">Debug session registry.</param>
@@ -37,7 +38,7 @@ public sealed class TraceTimelineWindow : ManagedWindow
     }
 
     /// <summary>Register a subsystem-provided lane provider. Called at editor startup.</summary>
-    public void RegisterProvider(ITraceLaneProvider provider) => _providers.Add(provider);
+    public void RegisterProvider(ITimelineLaneProvider provider) => _providers.Add(provider);
 
     /// <summary>Number of registered providers. Exposed for test verification.</summary>
     internal int RegisteredProviderCount => _providers.Count;

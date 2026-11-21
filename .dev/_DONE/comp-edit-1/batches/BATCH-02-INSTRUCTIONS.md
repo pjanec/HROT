@@ -48,8 +48,8 @@ dotnet build FDP/FDP.sln --no-restore
 dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj
 
 # Verify full solution still builds (do this before submitting report)
-dotnet build IOS-IG-SimHost.sln --no-restore
-dotnet test IOS-IG-SimHost.sln
+dotnet build HROT.sln --no-restore
+dotnet test HROT.sln
 ```
 
 ### Report Submission
@@ -173,7 +173,7 @@ This batch is DONE when:
 - [ ] `PickerAttributes.cs` created, all CE04 tests pass
 - [ ] `IComponentPickerContext.cs` created, all CE05 tests pass
 - [ ] All pre-existing tests still pass
-- [ ] `dotnet test IOS-IG-SimHost.sln` exits with 0 failures
+- [ ] `dotnet test HROT.sln` exits with 0 failures
 - [ ] Report submitted
 
 ---

@@ -31,7 +31,7 @@ Before implementing, read the design references for these tasks in:
    other existing assembly.
 4. **COPY strategy:** All types migrated from `Fdp.Presentation` are COPIED, not moved. The
    originals in `Fdp.Presentation` remain intact.
-5. **Solution file:** Add all new projects to `IOS-IG-SimHost.sln` under the
+5. **Solution file:** Add all new projects to `HROT.sln` under the
    `ExtDeps/GizmoMap` solution folder.
 
 ---
@@ -574,7 +574,7 @@ The report must include for each task:
 
 Run the full solution build before submitting the report:
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 ```
 Confirm 0 errors in the report.
 

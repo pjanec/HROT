@@ -40,7 +40,7 @@ public sealed class BlueprintEventDispatchTests
 
         Span<byte> state = stackalloc byte[8];
         BlueprintEventDispatch.DispatchForSlot(
-            DefWithHandler(handler), state, repo.Bus,
+            DefWithHandler(handler), state, repo,
             view: null!, ecb: null!, self: default, time: 1f, deltaTime: 0.016f);
 
         Assert.Equal(42, received);
@@ -57,7 +57,7 @@ public sealed class BlueprintEventDispatchTests
 
         Span<byte> state = stackalloc byte[8];
         BlueprintEventDispatch.DispatchForSlot(
-            DefWithHandler(handler), state, repo.Bus, null!, null!, default, 1f, 0.016f);
+            DefWithHandler(handler), state, repo, null!, null!, default, 1f, 0.016f);
 
         Assert.False(ran);
     }

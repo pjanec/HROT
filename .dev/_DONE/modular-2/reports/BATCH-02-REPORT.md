@@ -68,7 +68,7 @@
 ### Task 7: Updated solution files
 - `FDP/FDP.sln`: Removed 38 old project entries, added `Fdp.Engine` and
   `Fdp.Engine.Tests` entries.
-- `IOS-IG-SimHost.sln`: Same removals and additions.
+- `HROT.sln`: Same removals and additions.
 
 ### Task 8: Updated project references across repository
 Updated all `<ProjectReference>` entries that pointed to any merged project,
@@ -222,7 +222,7 @@ None of the above failures exist in code that was changed by BATCH-02.
 ## 6. Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 **Build succeeded. 0 Error(s).**
@@ -256,7 +256,7 @@ dotnet build IOS-IG-SimHost.sln
 
 ### Solution files modified
 - `FDP/FDP.sln`
-- `IOS-IG-SimHost.sln`
+- `HROT.sln`
 
 ### Source files modified (namespace rename + WaitingRoomCoordinator removal)
 - `Hrot.ClusterRunner/Program.cs`

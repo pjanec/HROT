@@ -1,0 +1,133 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000099-0000-0000-0000-000000000001",
+  "Name": "SampleWiredDemo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000099-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": "Event",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "OnStart",
+          "Id": "20000099-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "20000099-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "WaitForChannel",
+          "ChannelType": "LocomotionChannel",
+          "Id": "20000099-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 700,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "WeaponChannel",
+          "ActionId": "AimAndFire",
+          "Id": "20000099-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1020,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000099-0000-0000-0000-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1340,
+            "Y": 220,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000001",
+          "FromPinId": "e0000099-0000-0000-0000-000000000001",
+          "ToNodeId": "20000099-0000-0000-0000-000000000002",
+          "ToPinId": "e0000099-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000002",
+          "FromPinId": "e0000099-0000-0000-0000-000000000003",
+          "ToNodeId": "20000099-0000-0000-0000-000000000003",
+          "ToPinId": "e0000099-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000003",
+          "FromPinId": "e0000099-0000-0000-0000-000000000005",
+          "ToNodeId": "20000099-0000-0000-0000-000000000004",
+          "ToPinId": "e0000099-0000-0000-0000-000000000006"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000004",
+          "FromPinId": "e0000099-0000-0000-0000-000000000007",
+          "ToNodeId": "20000099-0000-0000-0000-000000000005",
+          "ToPinId": "e0000099-0000-0000-0000-000000000008"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
+}

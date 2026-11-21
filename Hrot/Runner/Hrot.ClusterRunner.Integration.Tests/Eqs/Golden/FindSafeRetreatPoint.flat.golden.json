@@ -1,0 +1,136 @@
+{
+  "Name": "FindSafeRetreatPoint",
+  "BlueprintId": 3041783133,
+  "Count": 16,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": 0,
+      "PositionY": 25,
+      "Score": 1,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 15,
+      "PositionY": 20,
+      "Score": 0.9440307,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -15,
+      "PositionY": 20,
+      "Score": 0.9440307,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 10,
+      "PositionY": 20,
+      "Score": 0.9198039,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -10,
+      "PositionY": 20,
+      "Score": 0.9198039,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 5,
+      "PositionY": 20,
+      "Score": 0.9049876,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -5,
+      "PositionY": 20,
+      "Score": 0.9049876,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 0,
+      "PositionY": 20,
+      "Score": 0.9,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 20,
+      "PositionY": 15,
+      "Score": 0.8848858,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -20,
+      "PositionY": 15,
+      "Score": 0.8848858,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -15,
+      "PositionY": 15,
+      "Score": 0.8486833,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 15,
+      "PositionY": 15,
+      "Score": 0.8486833,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 10,
+      "PositionY": 15,
+      "Score": 0.8219544,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -10,
+      "PositionY": 15,
+      "Score": 0.8219544,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -5,
+      "PositionY": 15,
+      "Score": 0.8055385,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 5,
+      "PositionY": 15,
+      "Score": 0.8055385,
+      "Flags": 0,
+      "FlagsMeaningful": 2
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

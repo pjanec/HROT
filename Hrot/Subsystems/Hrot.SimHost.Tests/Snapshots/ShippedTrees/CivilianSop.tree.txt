@@ -1,0 +1,18 @@
+asset a2322000-0000-0000-0000-000000000002
+group Library/Sop
+sop-orders yes
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variables none
+parse (empty) -> no params region
+parse {} -> no params region
+parse {"bogus":1} -> no params region
+Selector c2322002-0000-0000-0000-000000000002 "Rows — first true wins"
+  # CE-2322 (AQ97 D2, R-2062): a civilian reacts under ANY task. His routine (CivilianHsm) keeps his fear itself, so the rows stand aside while it runs.
+  Sequence c2322002-0000-0000-0000-000000000010 "On another task, frightened or hurt → react"
+    Condition c2322002-0000-0000-0000-000000000011 call Hrot.AI.Behaviors.Brains.CivilianBehavior.NotOnHisRoutine "Not on his routine (CivilianHsm)"
+    Condition c2322002-0000-0000-0000-000000000012 call Hrot.AI.Behaviors.Brains.CivilianBehavior.FrightenedOrHurt "Frightened past the alarm, or wounded"
+    Action c2322002-0000-0000-0000-000000000013 sop React:CivilianReact:UnderFire "React: CivilianReact"
+      # Alarmed → panic → shelter / cower → calm: done, and his task restarts (R-199).
+  Action c2322002-0000-0000-0000-000000000020 sop DoWhenIdle:CivilianHsm:- "Idle: his routine (CivilianHsm)"
+    # An order finished: he goes back to his own life.

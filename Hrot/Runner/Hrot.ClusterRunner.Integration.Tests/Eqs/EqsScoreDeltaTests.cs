@@ -46,7 +46,7 @@ public sealed class EqsScoreDeltaTests : IDisposable
         {
             int count = Math.Min(Scores.Length, candidates.Length);
             for (int i = 0; i < count; i++)
-                candidates[i] = new EqsResult { EntityId = 0L, PositionX = (float)i, PositionY = 0f, Score = Scores[i] };
+                candidates[i] = new EqsResult { EntityId = 0, PositionX = (float)i, PositionY = 0f, Score = Scores[i] };
             return count;
         }
     }
@@ -105,7 +105,7 @@ public sealed class EqsScoreDeltaTests : IDisposable
             PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
             ScoreDeltaThreshold = 0.1f,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8400L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8400 });
 
         // Phase 1: pump until buffer has first result (initial publish).
         bool phase1 = _harness.PumpUntil(
@@ -135,6 +135,59 @@ public sealed class EqsScoreDeltaTests : IDisposable
             "Phase 3: LastUpdateTick must advance after large score change");
     }
 
+    // ── T-SD1b (CE-2097): TopChanged policy publishes only when the top candidate changes ──
+
+    /// <summary>
+    /// ⭐ <c>CE-2097</c> — under <see cref="EqsPublishPolicy.TopChanged"/> a score change that keeps the same top candidate
+    /// is suppressed, and a change of the top candidate is published. 🔴 Before: the solver filtered only ScoreDelta, so
+    /// TopChanged published every solve like AlwaysPush.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void TopChanged_SuppressesWhileTheTopStays_PublishesWhenItChanges_CE2097()
+    {
+        const uint blueprintId = 2210003u;
+        var generator = new MutableScoreGenerator();
+        var registry = new SimpleEqsTemplateRegistry();
+        registry.Register(new EqsQueryTemplate { BlueprintId = blueprintId, Generator = generator, MaxCandidates = 8 });
+        _harness.Repo.SetSingletonManaged<IEqsTemplateRegistry>(registry);
+
+        var observer = _harness.Repo.CreateEntity();
+        _harness.Repo.AddComponent(observer, new SimTransform
+        {
+            Position = System.Numerics.Vector3.Zero,
+            Rotation = System.Numerics.Quaternion.Identity,
+        });
+        _harness.Repo.AddComponent(observer, new EqsSensor
+        {
+            BlueprintId   = blueprintId,
+            Epoch         = 1u,
+            SearchRadius  = 50f,
+            PublishPolicy = (byte)EqsPublishPolicy.TopChanged,
+        });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8402 });
+
+        bool first = _harness.PumpUntil(
+            () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
+               && _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).IsReady
+               && _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).Count > 0,
+            timeoutMs: 5000);
+        Assert.True(first, "the first answer of an epoch is always published");
+        uint tick1 = _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).LastUpdateTick;
+
+        // Scores move a lot, but candidate 0 (PositionX 0) stays on top ⇒ suppressed.
+        generator.Scores = new float[] { 5.0f, 0.1f, 2.0f };
+        _harness.PumpFrames(40);
+        Assert.Equal(tick1, _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).LastUpdateTick);
+
+        // Candidate 2 (PositionX 2) takes the top ⇒ published, and the buffer's top is the new candidate.
+        generator.Scores = new float[] { 1.0f, 0.1f, 2.0f };
+        bool changed = _harness.PumpUntil(
+            () => _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).LastUpdateTick > tick1,
+            timeoutMs: 3000);
+        Assert.True(changed, "a new top candidate must be published");
+        Assert.Equal(2f, _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).GetTop().PositionX);
+    }
+
     // ── T-SD2: ScoreDeltaThreshold change increments Epoch ───────────────────
 
     /// <summary>
@@ -154,22 +207,22 @@ public sealed class EqsScoreDeltaTests : IDisposable
             var ctx    = new BTreeContext { Self = entity, World = repo };
 
             // First tick: sensor added with Epoch=1.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(0.1f, repo.GetComponentRO<EqsSensor>(entity).ScoreDeltaThreshold);
 
             // Second tick with same params: Epoch stays at 1.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
 
             // Third tick: change ScoreDeltaThreshold only. Epoch must increment to 2.
             p.ScoreDeltaThreshold = 0.25f;
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(0.25f, repo.GetComponentRO<EqsSensor>(entity).ScoreDeltaThreshold);
 
             // Fourth tick: same params again. Epoch stays at 2.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
         }
         finally
@@ -192,7 +245,7 @@ public sealed class EqsScoreDeltaTests : IDisposable
         int domainId = NextDomain();
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for Muscle ghost to appear.

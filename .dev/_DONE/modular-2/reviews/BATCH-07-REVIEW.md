@@ -19,7 +19,7 @@ Hrot.ClusterRunner.Tests (5), and Fdp.Engine.Tests (3) remain unchanged from pre
 ## Verification
 
 ### Build
-- `dotnet build IOS-IG-SimHost.sln --no-incremental` - Build succeeded (0 errors, 4 warnings all pre-existing).
+- `dotnet build HROT.sln --no-incremental` - Build succeeded (0 errors, 4 warnings all pre-existing).
 
 ### Files Created
 - `Hrot.Network.BDC/Hrot.Network.BDC.csproj` - correct project references, DDS code-gen import
@@ -32,7 +32,7 @@ Hrot.ClusterRunner.Tests (5), and Fdp.Engine.Tests (3) remain unchanged from pre
 - `Hrot.Network.BDC/Factory/BdcNetworkFactory.cs`
 - `Hrot.Network.BDC.Tests/Hrot.Network.BDC.Tests.csproj`
 - `Hrot.Network.BDC.Tests/BdcNetworkFactoryTests.cs`
-- Both projects added to `IOS-IG-SimHost.sln`
+- Both projects added to `HROT.sln`
 
 ### Test Results
 | Project | Passed | Failed | Notes |

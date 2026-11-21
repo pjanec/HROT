@@ -1,0 +1,91 @@
+{
+ "id": "checkpoint",
+ "radius": 25,
+ "elements": [
+  {
+   "type": "group",
+   "items": [
+    {
+     "type": "jersey-barrier",
+     "line": {
+      "from": [
+       0,
+       -5
+      ],
+      "to": [
+       0,
+       -0.5
+      ],
+      "count": [
+       2,
+       2
+      ]
+     },
+     "facing": "along"
+    },
+    {
+     "type": "jersey-barrier",
+     "line": {
+      "from": [
+       6,
+       0.5
+      ],
+      "to": [
+       6,
+       5
+      ],
+      "count": [
+       2,
+       2
+      ]
+     },
+     "facing": "along"
+    },
+    {
+     "type": "guard-booth",
+     "at": [
+      [
+       -3,
+       6.5,
+       0
+      ]
+     ]
+    },
+    {
+     "type": "sandbag-wall",
+     "at": [
+      [
+       -3,
+       9,
+       0
+      ],
+      [
+       -6.5,
+       6.5,
+       90
+      ],
+      [
+       0.5,
+       6.5,
+       90
+      ]
+     ]
+    },
+    {
+     "type": "car",
+     "at": [
+      [
+       12,
+       6,
+       8
+      ]
+     ]
+    }
+   ]
+  }
+ ],
+ "ui": {
+  "chip": "Military",
+  "line": "booth, barrier, sandbags"
+ }
+}

@@ -1,0 +1,130 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: rules S4 E-1 - the squad leader's standard in the infantry evaluation library: the default root and NoHarm, plus a nested MemberEvaluation over the leader's OWN roster (his men), same library - proves the recursion (SR-72). Judge: a platoon's evaluation serves the leader with this macro; this macro's nested evaluation serves his men.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "subject",
+    "TypeId": "EntityLink"
+   },
+   {
+    "Name": "parent",
+    "TypeId": "EntityLink"
+   }
+  ]
+ },
+ "entities": {
+  "e7a10000-0000-4000-8000-000000000001": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Member standards",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "WeightedMean",
+    "Params": "{\"common\": {\"title\": \"Member standards\", \"subject\": \"^subject\", \"parent\": \"^parent\"}}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000002": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "No harm",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "NoHarm",
+    "Params": "{\"common\": {\"title\": \"No harm\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\", \"required\": true, \"group\": \"conduct\"}, \"protected\": \"Neutral\", \"maxCount\": 0}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000003": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Squad's men",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "MemberEvaluation",
+    "Params": "{\"common\": {\"title\": \"Squad's men\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}, \"library\": \"macros/evaluation/infantry\"}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000256": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Hit ratio",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HitRatio",
+    "Params": "{\"common\": {\"group\": \"fire\", \"title\": \"Hit ratio\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000257": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "No fratricide",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"group\": \"conduct\", \"required\": true, \"title\": \"No fratricide\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}, \"what\": \"fratricide\"}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000258": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Report latency",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ReportLatency",
+    "Params": "{\"common\": {\"group\": \"reports\", \"title\": \"Report latency\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000259": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Reports made",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"group\": \"reports\", \"title\": \"Reports made\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}, \"what\": \"reports\", \"target\": 3}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}

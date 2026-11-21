@@ -45,7 +45,7 @@ public class IdAllocatorDiscoveryTests
 
         // Act — TestHook_SpawnEntity internally calls _idAllocator.AllocateId().
         // Before the fix this would hang / throw when initial DDS match hadn't completed.
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams, BerlinGeo);
 
         Assert.True(networkId > 0,
@@ -62,11 +62,11 @@ public class IdAllocatorDiscoveryTests
         using var harness = new HrotRunnerHarness();
 
         const int count = 10;
-        var seen = new HashSet<long>();
+        var seen = new HashSet<int>();
 
         for (int i = 0; i < count; i++)
         {
-            long id = harness.SimHost.TestHook_SpawnEntity(
+            int id = harness.SimHost.TestHook_SpawnEntity(
                 TkbEntityTypes.Tank_M1Abrams, BerlinGeo);
 
             Assert.True(id > 0, $"Allocation {i}: expected positive ID, got {id}.");
@@ -93,7 +93,7 @@ public class IdAllocatorDiscoveryTests
 
         for (int i = 0; i < count; i++)
         {
-            long id = harness.SimHost.TestHook_SpawnEntity(
+            int id = harness.SimHost.TestHook_SpawnEntity(
                 TkbEntityTypes.Tank_M1Abrams, BerlinGeo);
 
             Assert.True(id > previous,

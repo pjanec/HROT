@@ -9,7 +9,7 @@
 
 ## Build
 
-`dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors**.
+`dotnet build HROT.sln --no-incremental` → **0 errors**.
 Standalone builds also verified:
 - `ExtDeps/GizmoMap/GizmoMap.Contracts/GizmoMap.Contracts.csproj` — 0 errors (BCL-only)
 - `ExtDeps/GizmoMap/GizmoMap.Network/GizmoMap.Network.csproj` — 0 errors

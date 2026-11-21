@@ -119,7 +119,7 @@ transport-agnostic implementation to `FDP.Toolkit.Replication`, delete the copie
 
 ```powershell
 # Build the whole solution (from workspace root)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Or use the batch script
 .\build_all_standalone.bat

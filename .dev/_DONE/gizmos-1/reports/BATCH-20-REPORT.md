@@ -13,7 +13,7 @@ BATCH-20 implemented two tasks:
 - **GZ055** — `GizmoMap.Presentation` assembly: standalone 2D rendering layer for debug primitives using Raylib, with no dependency on `Fdp.Core`, `Fdp.ModuleHost`, or `Hrot.*`.
 - **GZ056** — `GizmoMap.Example` unified application: entry-point executable demonstrating local and DDS transport modes, with `IGizmoTransport` interface defined in `GizmoMap.Contracts`.
 
-All four new projects are registered in `IOS-IG-SimHost.sln` with correct GUIDs, solution folder nesting, and platform configuration entries.
+All four new projects are registered in `HROT.sln` with correct GUIDs, solution folder nesting, and platform configuration entries.
 
 ---
 
@@ -65,7 +65,7 @@ All four new projects are registered in `IOS-IG-SimHost.sln` with correct GUIDs,
 | `ExtDeps/GizmoMap/GizmoMap.Example.Tests/GizmoMap.Example.Tests.csproj` | xunit 2.9.3 test project |
 | `ExtDeps/GizmoMap/GizmoMap.Example.Tests/GizmoExampleTests.cs` | 6 tests SC-GZ056-1 through SC-GZ056-6 |
 
-### IOS-IG-SimHost.sln (modified)
+### HROT.sln (modified)
 
 - Added 4 `Project` entries: GUIDs A1000006, A1000007, A1000008, A1000009
 - Updated `GlobalSection(NestedProjects)`: all 4 nested under GizmoMap folder `{A1000001-B2C3-D4E5-F6A7-B8C9D0E1F2A3}`
@@ -119,7 +119,7 @@ Two files were missing `using System;`:
 ## Build Output
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 Build succeeded.
     0 Error(s)
 ```
@@ -171,6 +171,6 @@ Total tests: 6
 BATCH-20 is complete.
 
 - 21 new files created across 4 new projects + 1 contract extension
-- `IOS-IG-SimHost.sln` updated with full project registration
+- `HROT.sln` updated with full project registration
 - Full solution builds with 0 errors
 - 12/12 tests pass across GZ055 and GZ056 success criteria

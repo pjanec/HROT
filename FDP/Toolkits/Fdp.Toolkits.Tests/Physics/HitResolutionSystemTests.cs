@@ -38,11 +38,12 @@ namespace Fdp.Toolkit.Physics.Tests
         // ── Test 1 ────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// A hit with a LOS RayId (bit 63 = 0) must cause the system to publish a
-        /// <see cref="TargetVisibleEvent"/> with the correct observer and target entity handles.
+        /// ⭐ CE-3052 — a hit on a NON-bullet ray (bit 63 = 0) publishes nothing: the requester reads its own result.
+        /// It used to publish a <c>TargetVisibleEvent</c>, which for the only such rays left (EQS cover checks) meant the
+        /// line was BLOCKED — the opposite of the name.
         /// </summary>
         [Fact]
-        public void HitResolution_EmitsTargetVisibleEvent_ForLosHit()
+        public void HitResolution_ANonBulletHit_PublishesNothing()
         {
             // Arrange
             var observerEntity = new Entity(10, 1);
@@ -67,10 +68,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.Bus.SwapBuffers();
 
             // Assert
-            var events = _world.Bus.Read<TargetVisibleEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(observerEntity, events[0].Observer);
-            Assert.Equal(targetEntity,   events[0].Target);
+            Assert.Equal(0, _world.Bus.Read<HitEvent>().Length);
         }
 
         // ── Test 2 ────────────────────────────────────────────────────────────────
@@ -128,8 +126,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
 
-            // Assert: no TargetVisibleEvent or HitEvent emitted.
-            Assert.Equal(0, _world.Bus.Read<TargetVisibleEvent>().Length);
+            // Assert: no HitEvent emitted.
             Assert.Equal(0, _world.Bus.Read<HitEvent>().Length);
         }
     }

@@ -28,7 +28,7 @@ namespace Fdp.Network.Cyclone.Tests.Services
         private (DdsWriter<IdResponse>, DdsReader<IdRequest>) CreateMockServer()
         {
             // Server reads Requests and writes Responses
-            // Note: Topic names in DdsIdAllocator are hardcoded "IdAlloc_Request", etc.
+            // Note: the topic names are DERIVED from IdRequest / IdResponse / IdStatus (AQ107 A), one per type per domain.
             // This makes isolation hard if tests run in parallel or share domain.
             // Ideally DdsIdAllocator would accept topic prefix.
             // But strict requirement says follow spec.

@@ -1,0 +1,290 @@
+{
+  "$meta": {
+    "docType": "Fdp.RoadNetwork",
+    "schemaVersion": 1
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "position": {
+        "x": 0,
+        "y": 150
+      }
+    },
+    {
+      "id": 1,
+      "position": {
+        "x": 200,
+        "y": 150
+      }
+    },
+    {
+      "id": 2,
+      "position": {
+        "x": 400,
+        "y": 150
+      }
+    },
+    {
+      "id": 3,
+      "position": {
+        "x": 200,
+        "y": 15
+      }
+    },
+    {
+      "id": 4,
+      "position": {
+        "x": 200,
+        "y": 95
+      }
+    },
+    {
+      "id": 5,
+      "position": {
+        "x": 200,
+        "y": 135
+      },
+      "aboveGround": 6
+    },
+    {
+      "id": 6,
+      "position": {
+        "x": 200,
+        "y": 165
+      },
+      "aboveGround": 6
+    },
+    {
+      "id": 7,
+      "position": {
+        "x": 200,
+        "y": 205
+      }
+    },
+    {
+      "id": 8,
+      "position": {
+        "x": 200,
+        "y": 240
+      }
+    },
+    {
+      "id": 9,
+      "position": {
+        "x": 246,
+        "y": 240
+      }
+    }
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "startNodeId": 0,
+      "endNodeId": 1,
+      "controlPoints": {
+        "p0": {
+          "x": 0,
+          "y": 150
+        },
+        "t0": {
+          "x": 200,
+          "y": 0
+        },
+        "p1": {
+          "x": 200,
+          "y": 150
+        },
+        "t1": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      "speedLimit": 30.0,
+      "laneWidth": 3.75,
+      "laneCount": 4
+    },
+    {
+      "id": 1,
+      "startNodeId": 1,
+      "endNodeId": 2,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 150
+        },
+        "t0": {
+          "x": 200,
+          "y": 0
+        },
+        "p1": {
+          "x": 400,
+          "y": 150
+        },
+        "t1": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      "speedLimit": 30.0,
+      "laneWidth": 3.75,
+      "laneCount": 4
+    },
+    {
+      "id": 2,
+      "startNodeId": 3,
+      "endNodeId": 4,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 15
+        },
+        "t0": {
+          "x": 0,
+          "y": 80
+        },
+        "p1": {
+          "x": 200,
+          "y": 95
+        },
+        "t1": {
+          "x": 0,
+          "y": 80
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 3.5,
+      "laneCount": 2
+    },
+    {
+      "id": 3,
+      "startNodeId": 4,
+      "endNodeId": 5,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 95
+        },
+        "t0": {
+          "x": 0,
+          "y": 40
+        },
+        "p1": {
+          "x": 200,
+          "y": 135
+        },
+        "t1": {
+          "x": 0,
+          "y": 40
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 3.5,
+      "laneCount": 2
+    },
+    {
+      "id": 4,
+      "startNodeId": 5,
+      "endNodeId": 6,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 135
+        },
+        "t0": {
+          "x": 0,
+          "y": 30
+        },
+        "p1": {
+          "x": 200,
+          "y": 165
+        },
+        "t1": {
+          "x": 0,
+          "y": 30
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 3.5,
+      "laneCount": 2
+    },
+    {
+      "id": 5,
+      "startNodeId": 6,
+      "endNodeId": 7,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 165
+        },
+        "t0": {
+          "x": 0,
+          "y": 40
+        },
+        "p1": {
+          "x": 200,
+          "y": 205
+        },
+        "t1": {
+          "x": 0,
+          "y": 40
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 3.5,
+      "laneCount": 2
+    },
+    {
+      "id": 6,
+      "startNodeId": 7,
+      "endNodeId": 8,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 205
+        },
+        "t0": {
+          "x": 0,
+          "y": 35
+        },
+        "p1": {
+          "x": 200,
+          "y": 240
+        },
+        "t1": {
+          "x": 0,
+          "y": 35
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 3.5,
+      "laneCount": 2
+    },
+    {
+      "id": 7,
+      "startNodeId": 8,
+      "endNodeId": 9,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 240
+        },
+        "t0": {
+          "x": 46,
+          "y": 0
+        },
+        "p1": {
+          "x": 246,
+          "y": 240
+        },
+        "t1": {
+          "x": 46,
+          "y": 0
+        }
+      },
+      "speedLimit": 8.3,
+      "laneWidth": 3.5,
+      "laneCount": 2
+    }
+  ]
+}

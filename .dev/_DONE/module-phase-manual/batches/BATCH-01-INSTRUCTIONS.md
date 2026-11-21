@@ -75,7 +75,7 @@ After this batch, the solution builds cleanly with none of the deleted artifacts
 
 **DO NOT** move to the next task until:
 - ✅ Current task implementation complete
-- ✅ **Build passes** (run `dotnet build IOS-IG-SimHost.sln` from repo root)
+- ✅ **Build passes** (run `dotnet build HROT.sln` from repo root)
 - ✅ **Relevant tests pass** (run `dotnet test` on affected test projects)
 
 **No stopping to ask for permission. Fix any compilation errors you encounter before moving on. Work autonomously until all success criteria are met, then write the report.**
@@ -99,7 +99,7 @@ After this batch, the solution builds cleanly with none of the deleted artifacts
   - Remove any `using` directives that only referenced the namespaces of the deleted files.
 
 **Verify:**
-- Run `dotnet build IOS-IG-SimHost.sln` from repo root. Must succeed with no errors.
+- Run `dotnet build HROT.sln` from repo root. Must succeed with no errors.
 - Run `grep -r "PerceptionBroadphaseSystem\|ThreatEvaluationAdapterSystem" Hrot/` - must return zero results.
 
 ---
@@ -124,7 +124,7 @@ After this batch, the solution builds cleanly with none of the deleted artifacts
 **Note on AutoCycloneTranslator / ManagedAutoCycloneTranslator:** These also implement `INetworkReplayTarget` but will be deleted entirely in Task 3 below. Do NOT touch them now.
 
 **Verify:**
-- Run `dotnet build IOS-IG-SimHost.sln` from repo root. Must succeed.
+- Run `dotnet build HROT.sln` from repo root. Must succeed.
 - Run `grep -r "INetworkReplayTarget\|InjectReplayData" FDP/Network/Fdp.Network.Cyclone/` - must return zero results (excluding the NetworkDemo files which come next in Task 3).
 - Run `dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/Fdp.Network.Cyclone.Tests.csproj` - all existing tests must pass.
 
@@ -147,7 +147,7 @@ After this batch, the solution builds cleanly with none of the deleted artifacts
 **Solution files to update:**
 Remove the project entries for `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests` from both:
 - `FDP/FDP.sln`
-- `IOS-IG-SimHost.sln`
+- `HROT.sln`
 
 When removing from .sln files, you must remove:
 1. The `Project(...)...EndProject` block for each deleted project
@@ -155,7 +155,7 @@ When removing from .sln files, you must remove:
 3. Any entries in `GlobalSection(NestedProjects)` referencing those GUIDs
 
 **Verify:**
-- Run `dotnet build IOS-IG-SimHost.sln` from repo root. Must succeed with no errors.
+- Run `dotnet build HROT.sln` from repo root. Must succeed with no errors.
 - Run `dotnet build FDP/FDP.sln` from repo root. Must succeed with no errors.
 - Run `grep -r "AutoCycloneTranslator\|ManagedAutoCycloneTranslator\|ReplicationBootstrap\|FdpDescriptorAttribute\|\[FdpDescriptor" . --include="*.cs"` - must return zero results.
 - Run `dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/Fdp.Network.Cyclone.Tests.csproj` - all remaining tests must pass.
@@ -166,14 +166,14 @@ When removing from .sln files, you must remove:
 
 This batch is primarily deletion work. Testing focus:
 
-1. **Build verification** after every task: `dotnet build IOS-IG-SimHost.sln` from `d:\Work\IOS-IG-SimHost-FDP-2\`
+1. **Build verification** after every task: `dotnet build HROT.sln` from `d:\Work\IOS-IG-SimHost-FDP-2\`
 2. **Unit tests** for Cyclone translators after Task 2 and Task 3:
    ```
    dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/Fdp.Network.Cyclone.Tests.csproj
    ```
 3. **Full solution test run** after Task 3:
    ```
-   dotnet test IOS-IG-SimHost.sln --no-build
+   dotnet test HROT.sln --no-build
    ```
 
 **No new tests required** for this batch (you are deleting, not adding).
@@ -194,7 +194,7 @@ Structure:
 - [ ] MPM-P1-T03: Delete AutoCycloneTranslators and NetworkDemo
 
 ## Build Status
-[Result of: dotnet build IOS-IG-SimHost.sln]
+[Result of: dotnet build HROT.sln]
 
 ## Test Status
 [Result of: dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/...]
@@ -223,7 +223,7 @@ This batch is DONE when:
 - [ ] MPM-P1-T01: `PerceptionBroadphaseSystem.cs` and `ThreatEvaluationAdapterSystem.cs` deleted; `CombatModule.cs` cleaned up
 - [ ] MPM-P1-T02: `INetworkReplayTarget.cs` deleted; all 4 translator classes stripped of the interface and `InjectReplayData`; `DescriptorOrdinal = topicName.GetHashCode()` removed from `CycloneNativeEventTranslator`
 - [ ] MPM-P1-T03: All listed files/directories deleted; both SLN files updated; zero references to deleted symbols
-- [ ] `dotnet build IOS-IG-SimHost.sln` passes with zero errors
+- [ ] `dotnet build HROT.sln` passes with zero errors
 - [ ] `dotnet test FDP/Network/Fdp.Network.Cyclone.Tests/...` passes
 - [ ] Report submitted to `.dev/module-phase-manual/reports/BATCH-01-REPORT.md`
 

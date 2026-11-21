@@ -29,7 +29,7 @@ FDP.Toolkit.Physics.Tests:    Failed: 0, Passed: 25, Skipped: 0
 Hrot.SimHost.Tests:           Failed: 1, Passed: 421, Skipped: 0, Total: 422
   (1 pre-existing failure: GeoSpatialEgressTranslatorTests.Dispose_AlsoCallsBaseDispose — DDS timing flakiness, confirmed in HEAD before BATCH-03)
 
-dotnet build IOS-IG-SimHost.sln: Build succeeded. 0 Error(s)
+dotnet build HROT.sln: Build succeeded. 0 Error(s)
 ```
 
 ## Developer Insights

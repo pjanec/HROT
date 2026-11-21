@@ -1,0 +1,114 @@
+using System.Globalization;
+
+namespace Hrot.Tools.TerrainSynth;
+
+/// <summary>Command line of the tool: a preset plus optional overrides.</summary>
+public sealed record SynthOptions(
+    string Preset, ulong Seed, string OutDir,
+    double? Size, double? HeightSpacing, int? Buildings, int? Trees,
+    string? Noise = null, string? Terraces = null, string? Materials = null, bool Extras = false,
+    bool GroundOnly = false, double? ZRange = null, string? WaterMode = null, double? RoadScale = null, double? WoodsShare = null)
+{
+    // ⭐ CE-4428 F-2 (docs/DESIGN_Terrain_Authoring.md §18f) — the random-terrain wizard's GROUND: GroundOnly writes NO buildings (the houses are recipe blocks a layout places; Buildings then only sets how
+    //   many villages there are — BuildingCount / 60), ZRange is the height range in metres (ZMax = ZMin + ZRange: Relief), WaterMode "none" | "ponds" | "river" (null = both, as before) and RoadScale
+    //   multiplies the road km, WoodsShare is the share of the area the woods cover (the profile's 0.45 when null; ⚠ 0 would mean woods EVERYWHERE — the calibration reads it as "no target"). All default off: a default-options run is byte-for-byte what it was (CleanPinTests).
+
+    /// <summary>Opening noise on or off: real for the full preset and none for tiny unless given.</summary>
+    /// <summary>Terraced rows on or off: on for the full preset and off for tiny unless given.</summary>
+    public bool TerracesEnabled => (Terraces ?? (Preset == "full" ? "on" : "off")) == "on";
+
+    /// <summary>Building materials on or off: on for the full preset and off for tiny unless given.</summary>
+    public bool MaterialsEnabled => (Materials ?? (Preset == "full" ? "on" : "off")) == "on";
+
+    public bool NoiseEnabled => (Noise ?? (Preset == "full" ? "real" : "none")) == "real";
+
+    public static SynthOptions Parse(string[] args)
+    {
+        string preset = "tiny";
+        ulong seed = 1;
+        string? outDir = null;
+        double? size = null, spacing = null;
+        int? buildings = null, trees = null;
+        string? noise = null, terraces = null, materials = null;
+
+        bool extras = false;
+        for (int i = 0; i < args.Length; i++)
+        {
+            string a = args[i];
+            if (a == "--extras") { extras = true; continue; }
+            if (a is not ("--preset" or "--seed" or "--out" or "--size" or "--height-spacing" or "--buildings" or "--trees" or "--noise" or "--terraces" or "--materials"))
+                throw new ArgumentException($"unknown argument {a}");
+            if (i + 1 >= args.Length) throw new ArgumentException($"missing value for {a}");
+            string v = args[++i];
+            switch (a)
+            {
+                case "--preset": preset = v; break;
+                case "--seed": seed = ParseU64(a, v); break;
+                case "--out": outDir = v; break;
+                case "--size": size = ParseDouble(a, v); break;
+                case "--height-spacing": spacing = ParseDouble(a, v); break;
+                case "--buildings": buildings = ParseInt(a, v); break;
+                case "--trees": trees = ParseInt(a, v); break;
+                case "--terraces":
+                    if (v != "on" && v != "off") throw new ArgumentException($"bad value for {a}: {v} (on|off)");
+                    terraces = v;
+                    break;
+                case "--materials":
+                    if (v != "on" && v != "off") throw new ArgumentException($"bad value for {a}: {v} (on|off)");
+                    materials = v;
+                    break;
+                case "--noise":
+                    if (v != "real" && v != "none") throw new ArgumentException($"bad value for {a}: {v} (real|none)");
+                    noise = v;
+                    break;
+            }
+        }
+
+        if (preset != "tiny" && preset != "full") throw new ArgumentException($"unknown preset {preset} (tiny|full)");
+        if (size is <= 0) throw new ArgumentException("--size must be positive");
+        if (spacing is <= 0) throw new ArgumentException("--height-spacing must be positive");
+        if (buildings is < 0 || trees is < 0) throw new ArgumentException("counts must not be negative");
+
+        outDir ??= string.Create(CultureInfo.InvariantCulture, $"artifacts/terrain-synth/{preset}-{seed}");
+        return new SynthOptions(preset, seed, outDir, size, spacing, buildings, trees, noise, terraces, materials, extras);
+    }
+
+    /// <summary>The preset with the overrides applied. --size is the side length in metres; counts and road km scale by area.</summary>
+    public SynthProfile Resolve()
+    {
+        var p = Preset == "full" ? SynthProfile.Full : SynthProfile.Tiny;
+
+        if (Size is double side)
+        {
+            double k = side / p.Width;
+            double cx = (p.MinX + p.MaxX) / 2, cy = (p.MinY + p.MaxY) / 2;
+            double area = k * k;
+            p = p with
+            {
+                MinX = cx - side / 2, MaxX = cx + side / 2,
+                MinY = cy - side / 2, MaxY = cy + side / 2,
+                NodataRects = p.NodataRects.Select(r => new Rect(r.MinX * k, r.MinY * k, r.MaxX * k, r.MaxY * k)).ToArray(),
+                BuildingCount = (int)Math.Round(p.BuildingCount * area),
+                TreeCount = (int)Math.Round(p.TreeCount * area),
+                RoadKm = p.RoadKm.ToDictionary(e => e.Key, e => e.Value * area),
+            };
+        }
+        if (GroundOnly) p = p with { NodataRects = Array.Empty<Rect>() };   // a generated terrain has no hole in its heights
+        if (RoadScale is double rs) p = p with { RoadKm = p.RoadKm.ToDictionary(e => e.Key, e => e.Value * rs) };
+        if (WoodsShare is double ws) p = p with { WoodsShare = ws };
+        if (ZRange is double zr) p = p with { ZMax = p.ZMin + zr };
+        if (HeightSpacing is double s) p = p with { HeightSpacing = s };
+        if (Buildings is int b) p = p with { BuildingCount = b };
+        if (Trees is int t) p = p with { TreeCount = t };
+        return p;
+    }
+
+    private static ulong ParseU64(string name, string v) =>
+        ulong.TryParse(v, NumberStyles.None, CultureInfo.InvariantCulture, out var r) ? r : throw new ArgumentException($"bad value for {name}: {v}");
+
+    private static int ParseInt(string name, string v) =>
+        int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var r) ? r : throw new ArgumentException($"bad value for {name}: {v}");
+
+    private static double ParseDouble(string name, string v) =>
+        double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var r) && double.IsFinite(r) ? r : throw new ArgumentException($"bad value for {name}: {v}");
+}

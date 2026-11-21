@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Navigation.BTreeNodes
                     IsReachable         = false,
                     TotalDistanceMeters = 0f,
                     RouteHandle         = -1,
-                    SourceNodeId        = sourceNodeId,
+                    SourceNodeId        = (Fdp.Core.NodeId)(sourceNodeId),
                 };
             }
 
@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Navigation.BTreeNodes
                 Start           = from,
                 End             = to,
                 MobilityProfile = mobilityProfile,
-                SourceNodeId    = sourceNodeId,
+                SourceNodeId    = (Fdp.Core.NodeId)(sourceNodeId),
             });
 
             return requestId;

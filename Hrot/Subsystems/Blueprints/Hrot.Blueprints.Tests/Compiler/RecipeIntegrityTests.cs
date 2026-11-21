@@ -9,30 +9,43 @@ namespace Hrot.Blueprints.Tests.Compiler;
 
 public sealed class RecipeIntegrityTests
 {
+    /// <summary>
+    /// ⭐⭐ <b>Force the production assembly loaded — this suite's result used to depend on which
+    /// OTHER tests had run first.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>The defect, measured Batch 50.</b> <see cref="LoadRecipe"/> prefers
+    /// <c>Hrot.AI.Behaviors/Recipes/Blueprints</c> (⭐ CE-4089: now <c>recipes/behaviors/Blueprints</c>, no fallback) and used to fall back to <c>TestAssets/Recipes</c> *"if
+    /// assembly not loaded"* — but the fallback directory holds only <b>9 of the 16</b> recipes, and
+    /// has since long before this programme. So the suite passed only when something else in the run
+    /// had already loaded <c>Hrot.AI.Behaviors</c>, and threw <c>FileNotFoundException</c> on
+    /// <c>CollectionWriteDemo</c> and <c>ListVariableDemo</c> when nothing had.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Reproduced deterministically both ways:</b> the suite run alone fails those two; run
+    /// alongside <c>GoldenCorpusTests</c> — which force-loads the assembly for the same reason
+    /// (<c>BP1602</c>, Batch 44) — all 16 pass. ⭐ A green suite that depends on test ordering is not
+    /// reporting on the recipes; it is reporting on the schedule.
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// ⭐ <b>Batch 52: superseded by <c>TestAssemblyModuleInit</c></b>, which force-runs this
+    /// assembly's module constructor before any test in the suite. ⚠ <b>Kept anyway, and a new test
+    /// class needs nothing of its own.</b> Removing a guard because a broader one exists is only safe
+    /// when the broader one fails LOUDLY — this class of defect fails silently, which is the property
+    /// the whole batch is about.
+    /// </remarks>
+    public RecipeIntegrityTests() => _ = typeof(Hrot.AI.Behaviors.BpComponentDemo).Assembly;
+
     // ---- loading helpers -----------------------------------------------
 
     private static BlueprintAsset LoadRecipe(string name)
     {
-        // WHEN-M11-T4: Prefer production location (Hrot.AI.Behaviors/Recipes/Blueprints/)
-        // but fall back to test location if assembly not loaded.
-        var aiBehaviorsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-
-        string path;
-        if (aiBehaviorsAssembly != null)
-        {
-            // Production location: loaded from Hrot.AI.Behaviors assembly output
-            var assemblyLocation = Path.GetDirectoryName(aiBehaviorsAssembly.Location)
-                ?? throw new InvalidOperationException("Cannot determine Hrot.AI.Behaviors assembly location.");
-            var recipesPath = Path.Combine(assemblyLocation, "Recipes", "Blueprints");
-            path = Path.Combine(recipesPath, name + ".bp.json");
-        }
-        else
-        {
-            // Fallback: test location (for isolated test runs where assembly not loaded)
-            var dir = TestData.ResolveTestAssetsDir();
-            path = Path.Combine(dir, "Recipes", name + ".bp.json");
-        }
+        // ⭐ CE-4089 — the recipes live at the repository root (recipes/behaviors/Blueprints); read them from the source tree.
+        // (Was the Hrot.AI.Behaviors output folder, which the csproj no longer copies them into.)
+        var path = Path.Combine(
+            Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), name + ".bp.json");
 
         if (!File.Exists(path))
             throw new FileNotFoundException($"Recipe file not found: {path}");
@@ -99,6 +112,8 @@ public sealed class RecipeIntegrityTests
     [InlineData("LocomotionMoveToDemo")]
     [InlineData("EditorTypesDemo")]
     [InlineData("GateConditionDemo")]
+    [InlineData("ListVariableDemo")]
+    [InlineData("CollectionWriteDemo")]
     public void AllRecipes_Parse(string name)
     {
         var asset = LoadRecipe(name);
@@ -117,6 +132,8 @@ public sealed class RecipeIntegrityTests
     [InlineData("LocomotionMoveToDemo")]
     [InlineData("EditorTypesDemo")]
     [InlineData("GateConditionDemo")]
+    [InlineData("ListVariableDemo")]
+    [InlineData("CollectionWriteDemo")]
     public void AllRecipes_HaveDescriptionsAndConcepts(string name)
     {
         var asset = LoadRecipe(name);
@@ -135,6 +152,8 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadState")]
     [InlineData("EditorTypesDemo")]
     [InlineData("GateConditionDemo")]
+    [InlineData("ListVariableDemo")]
+    [InlineData("CollectionWriteDemo")]
     public void AllRecipes_ValidateOnly_NoErrors(string name)
     {
         var asset  = LoadRecipe(name);

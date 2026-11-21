@@ -8,7 +8,7 @@
 
 ## Summary
 
-All four tasks were implemented and verified.  The full build (`IOS-IG-SimHost.sln`) succeeds with 0 errors.  
+All four tasks were implemented and verified.  The full build (`HROT.sln`) succeeds with 0 errors.  
 All 117 gizmo/stateless/stringintern tests in `Fdp.Toolkits.Tests` pass.  
 466 of 470 tests in `Hrot.IG.Tests` pass; the 4 failures (CS011_*) are pre-existing `EntityInfoTranslatorTests` failures unrelated to this batch.
 

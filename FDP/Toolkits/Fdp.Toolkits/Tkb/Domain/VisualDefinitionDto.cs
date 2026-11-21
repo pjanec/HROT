@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Tkb.Domain
     /// Drives projection of <c>VisualData</c> and <c>EntityInfo</c> by
     /// <c>PresentationTkbTranslator</c> on IG nodes.
     /// </summary>
-    [TkbDescriptor("IG.VisualDef")]
+    [TkbDescriptor("Map.VisualDef")]
     public record VisualDefinitionDto
     {
         /// <summary>MIL-STD-2525 symbol code (e.g., "SFGPUCIZ-------").</summary>
@@ -27,5 +27,25 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>Optional explicit name of the 2-D map shape. Null uses the symbol renderer default.</summary>
         public string? MapShapeName { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S0 — the entity icon's name: <c>assets/icons/&lt;IconName&gt;.png</c>, keyed
+        /// <c>entity/&lt;IconName&gt;</c> by the entity icon library. Null ⇒ the picker falls back to a generic glyph for the
+        /// DIS kind/domain. 📄 docs/DESIGN_Add_Entity_Picker.md D3.
+        /// </summary>
+        public string? IconName { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-4142</c> (G4) — the type's explicit gallery thumbnail: a PNG in <c>assets/thumbnails/</c> (with or without <c>.png</c>).
+        /// Wins over the <c>map.json</c> mask match; null ⇒ the mask match, else the DIS glyph on a dashed tile.
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2f G4.
+        /// </summary>
+        public string? ThumbnailName { get; init; }
+
+        /// <summary>
+        /// ⭐ CE-1457 (§6ad-3, TC1) — a wheeled road vehicle's body style: a <see cref="CarBodyStyle"/> name (Sedan, Estate, SmallHatch, Suv, Van,
+        /// Bus, BoxTruck). Null ⇒ the family's own kit. The size stays the type's (its vehicle parameters).
+        /// </summary>
+        public string? BodyStyle { get; init; }
     }
 }

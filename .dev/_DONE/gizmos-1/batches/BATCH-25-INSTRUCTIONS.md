@@ -1441,8 +1441,8 @@ After completing all tasks:
 
 ```
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet build HROT.sln
+dotnet test HROT.sln --no-build
 ```
 
 Expected outcome:

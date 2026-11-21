@@ -9,10 +9,10 @@
   },
   "AssetId": "00000000-aaaa-0001-0000-000000000006",
   "Name": "LocomotionMoveToDemo",
-  "Dispatch": 1,
-  "TierHint": 0,
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
   "Primitive": {
-    "Intent": 0,
+    "Intent": "Action",
     "Hostings": [0]
   },
   "Parameters": [],
@@ -25,7 +25,7 @@
     {
       "Id": "e5000006-0001-0001-0001-000000000001",
       "Name": "Main",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
       "Nodes": [
@@ -53,7 +53,7 @@
         {
           "kind": "Return",
           "Id": "f5000006-0003-0003-0003-000000000001",
-          "Status": 0,
+          "Status": "Success",
           "Pins": [],
           "EditorMetadata": {
             "X": 760.0,

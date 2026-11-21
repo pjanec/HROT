@@ -1,3 +1,6 @@
+using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
+using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
@@ -41,6 +44,9 @@ internal sealed class WhenNodeSession : INodeEditSession
     private readonly IEditService _editService;
     private readonly IPredicateCompiler _predicateCompiler;
 
+    // ImGui view-state only (the EventFired picker's incremental filter box).
+    private string _eventFilterText = "";
+
     public bool IsDirty { get; private set; }
 
     public WhenNodeSession(
@@ -73,6 +79,7 @@ internal sealed class WhenNodeSession : INodeEditSession
             case WhenMode.EventFired:   DrawEventFiredForm();   break;
             case WhenMode.ConditionMet: DrawConditionMetForm(); break;
             case WhenMode.EqsResult:    DrawEqsResultForm();    break;
+            case WhenMode.SensorResult: DrawSensorResultForm(); break;   // ⭐ CE-3078 N4
         }
 
         ImGui.Separator();
@@ -99,8 +106,7 @@ internal sealed class WhenNodeSession : INodeEditSession
     {
         if (_parent.Dispatch != BlueprintDispatchKind.Instance)
         {
-            ImGui.TextColored(EditorColors.Error,
-                "⚠ WhenNode is only allowed in Instance Blueprints.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("WhenNode is only allowed in Instance Blueprints.");
             ImGui.Separator();
         }
     }
@@ -108,22 +114,21 @@ internal sealed class WhenNodeSession : INodeEditSession
     private void DrawModeSelector()
     {
         int modeIdx = (int)_node.Mode;
-        string[] labels = { "Value Changed", "Event Fired", "Condition Met", "EQS Result" };
-        if (ImGui.Combo("Mode", ref modeIdx, labels, labels.Length))
+        string[] labels = { "Value Changed", "Event Fired", "Condition Met", "EQS Result", "Sensor Result" };
+        FormGrid.BeginField("bp.node", "Mode"); if (ImGui.Combo("##Mode", ref modeIdx, labels, labels.Length))
         {
             _node.Mode = (WhenMode)modeIdx;
             IsDirty = true;
-        }
+        } FormGrid.EndField();
     }
 
     private void DrawEdgeSelector()
     {
-        ImGui.Text("Edges:");
-        ImGui.SameLine();
-
         bool rising  = _node.Edges.HasFlag(WhenEdge.RisingEdge);
         bool falling = _node.Edges.HasFlag(WhenEdge.FallingEdge);
 
+        // §3.1 — a field made of several flags: the field's label in column 1, each flag keeps its text after its box INSIDE column 2
+        FormGrid.BeginField("bp.node", "Edges");
         if (ImGui.Checkbox("Rising",  ref rising))
         {
             _node.Edges = rising
@@ -139,9 +144,10 @@ internal sealed class WhenNodeSession : INodeEditSession
                 : _node.Edges & ~WhenEdge.FallingEdge;
             IsDirty = true;
         }
+        FormGrid.EndField();
 
         if (_node.Edges == WhenEdge.None)
-            ImGui.TextColored(EditorColors.Warning, "(no edge selected — WhenNode will never fire)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(no edge selected — WhenNode will never fire)");
     }
 
     private void DrawPreviewPill()
@@ -155,8 +161,11 @@ internal sealed class WhenNodeSession : INodeEditSession
                 ? $"Event: {ef.EventTypeId}"
                 : "(unconfigured)",
             WhenMode.ConditionMet => "(predicate)",
+            WhenMode.SensorResult => _node.SensorResult is { Decl: { } sd } sr
+                ? $"{sd.KindName} {sr.Trigger}"
+                : "(unconfigured)",
             WhenMode.EqsResult => _node.EqsResult is { } er
-                ? $"EQS {er.Trigger}: {er.SensorVariableName}"
+                ? $"EQS {er.Trigger}: {EqsSensorSourcePicker.Describe(er.SensorVariableName, er.UnitSensorKind)}"
                 : "(unconfigured)",
             _ => "(unconfigured)",
         };
@@ -169,11 +178,162 @@ internal sealed class WhenNodeSession : INodeEditSession
         ImGui.TextDisabled("(Value Changed form — component/property picker)");
     }
 
+    // ── BP-10: EventFired form ────────────────────────────────────────────────
+
+    /// <summary>Test hook: the engine events the catalog exposes.</summary>
+    internal IReadOnlyList<EngineEventCatalogEntry> GetAvailableEventsForTest()
+        => _eventCatalog.GetEntries();
+
+    /// <summary>Test hook: events matching a filter over display name, name and type FQN.</summary>
+    internal IReadOnlyList<EngineEventCatalogEntry> GetFilteredEventsForTest(string filterText)
+    {
+        var all = _eventCatalog.GetEntries();
+        if (string.IsNullOrEmpty(filterText)) return all;
+        return all.Where(e =>
+                e.Name.Contains(filterText, StringComparison.OrdinalIgnoreCase)
+                || e.DisplayName.Contains(filterText, StringComparison.OrdinalIgnoreCase)
+                || e.EventTypeFqn.Contains(filterText, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    /// <summary>Test hook: simulates the designer picking an event to subscribe to.</summary>
+    internal void SetEventTypeIdForTest(string eventTypeId) => ApplyEventTypeId(eventTypeId);
+
+    /// <summary>Test hook: simulates toggling "only when the payload targets me".</summary>
+    internal void SetTargetFilterForTest(EventTargetFilter filter) => ApplyTargetFilter(filter);
+
+    /// <summary>
+    /// Test hook: true when an event type is named but no catalog entry matches — a subscription
+    /// that can never fire, which the form must surface rather than render as ordinary.
+    /// </summary>
+    internal bool IsCurrentEventUnlistedForTest()
+    {
+        var id = _node.EventFired?.EventTypeId;
+        if (string.IsNullOrEmpty(id)) return false;
+        return ResolveEntry(id!) is null;
+    }
+
+    private EngineEventCatalogEntry? ResolveEntry(string eventTypeId)
+        => _eventCatalog.GetEntries().FirstOrDefault(
+               e => string.Equals(e.EventTypeFqn, eventTypeId, StringComparison.Ordinal))
+           ?? _eventCatalog.GetEntries().FirstOrDefault(
+               e => string.Equals(e.Name, eventTypeId, StringComparison.Ordinal));
+
+    private static string EventLabel(EngineEventCatalogEntry e)
+        => string.IsNullOrEmpty(e.DisplayName) ? e.Name : e.DisplayName;
+
+    private void ApplyEventTypeId(string eventTypeId)
+    {
+        var payload = _node.EventFired ??= new EventFiredPayload();
+        if (eventTypeId == payload.EventTypeId) return;
+
+        var beforeType  = payload.EventTypeId;
+        var beforeField = payload.TargetFieldName;
+
+        // The target field belongs to the event's own payload shape, so it cannot survive a change
+        // of event. Adopt the new entry's declared field in the same edit — one gesture, one entry.
+        var afterField = ResolveEntry(eventTypeId)?.TargetFieldName;
+
+        _editService.RecordPropertyEdit(
+            _parent, $"Subscribe to '{eventTypeId}'",
+            apply: () =>
+            {
+                payload.EventTypeId     = eventTypeId;
+                payload.TargetFieldName = string.IsNullOrEmpty(afterField) ? null : afterField;
+                IsDirty = true;
+            },
+            undo: () =>
+            {
+                payload.EventTypeId     = beforeType;
+                payload.TargetFieldName = beforeField;
+                IsDirty = true;
+            });
+    }
+
+    private void ApplyTargetFilter(EventTargetFilter filter)
+    {
+        var payload = _node.EventFired ??= new EventFiredPayload();
+        if (filter == payload.TargetFilter) return;
+
+        var before = payload.TargetFilter;
+        _editService.RecordPropertyEdit(
+            _parent, $"Set Event Target Filter {filter}",
+            apply: () => { payload.TargetFilter = filter; IsDirty = true; },
+            undo:  () => { payload.TargetFilter = before; IsDirty = true; });
+    }
+
+    /// <summary>
+    /// BP-10 — the real form. The catalog was already injected and already queried here; only the
+    /// result was never rendered, so the node could be placed but never pointed at an event.
+    /// </summary>
     private void DrawEventFiredForm()
     {
-        _node.EventFired ??= new EventFiredPayload();
-        var entries = _eventCatalog.GetEntries();
-        ImGui.TextDisabled($"(Event Fired form — {entries.Count} events available)");
+        var payload  = _node.EventFired ??= new EventFiredPayload();
+        var entries  = _eventCatalog.GetEntries();
+        var current  = string.IsNullOrEmpty(payload.EventTypeId) ? null : ResolveEntry(payload.EventTypeId);
+        var unlisted = IsCurrentEventUnlistedForTest();
+
+        if (entries.Count == 0 && !unlisted)
+        {
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(no engine events discovered)");
+            return;
+        }
+
+        var comboLabel = current is not null ? EventLabel(current)
+                       : unlisted            ? $"{payload.EventTypeId} (unlisted)"
+                       : "(none)";
+
+        FormGrid.BeginField("bp.node", "Event"); if (ImGui.BeginCombo("##Event", comboLabel))
+        {
+            ImGui.InputTextWithHint("##WhenEventFilter", "Filter...", ref _eventFilterText, 256);
+
+            if (unlisted)
+            {
+                ImGui.Selectable($"{payload.EventTypeId} (current — not in catalog)", true);
+                ImGui.Separator();
+            }
+
+            foreach (var e in GetFilteredEventsForTest(_eventFilterText))
+            {
+                bool selected = current is not null && ReferenceEquals(e, current);
+                if (ImGui.Selectable($"{EventLabel(e)}##{e.EventTypeFqn}", selected))
+                    ApplyEventTypeId(e.EventTypeFqn);
+                if (selected) ImGui.SetItemDefaultFocus();
+            }
+
+            ImGui.EndCombo();
+        } FormGrid.EndField();
+
+        if (unlisted)
+        {
+            NodeEditor.Core.Widgets.RowMarks.WarningLine($"(no catalog entry matches '{payload.EventTypeId}' — this subscription can never fire)");
+        }
+        else if (current is not null)
+        {
+            ImGui.TextDisabled($"{current.EventTypeFqn}");
+
+            // Self-filtering needs a field on the payload naming the target entity. Offer the toggle
+            // only when the catalog says the event has one — otherwise "Self" would silently mean
+            // "everything", which is the opposite of what the checkbox promises.
+            if (!string.IsNullOrEmpty(current.TargetFieldName))
+            {
+                bool selfOnly = payload.TargetFilter == EventTargetFilter.Self;
+                FormGrid.BeginField("bp.node", "Targets me");
+                if (ImGui.Checkbox("##targetsme", ref selfOnly))
+                    ApplyTargetFilter(selfOnly ? EventTargetFilter.Self : EventTargetFilter.None);
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Only when the event targets this entity");
+                ImGui.SameLine();
+                ImGui.TextDisabled($"(via {current.TargetFieldName})");
+                FormGrid.EndField();
+            }
+            else
+            {
+                ImGui.TextDisabled("(this event carries no target field — fires for every entity)");
+            }
+
+            if (current.QoS == EventQoS.BestEffort)
+                NodeEditor.Core.Widgets.RowMarks.WarningLine("(BestEffort delivery — this event may be dropped; the compiler warns with BP2016)");
+        }
     }
 
     private void DrawConditionMetForm()
@@ -185,7 +345,74 @@ internal sealed class WhenNodeSession : INodeEditSession
     private void DrawEqsResultForm()
     {
         _node.EqsResult ??= new EqsResultPayload();
-        ImGui.TextDisabled("(EQS Result form — trigger and sensor picker)");
+        var er = _node.EqsResult;
+
+        // ⭐ CE-3054 D — the sensor: a variable, or the unit's own sensor of a kind (one picker with ReadEqsResult).
+        string name = er.SensorVariableName;
+        byte kind = er.UnitSensorKind;
+        if (EqsSensorSourcePicker.Draw("Sensor", _parent, ref name, ref kind))
+        {
+            er.SensorVariableName = name;
+            er.UnitSensorKind = kind;
+            IsDirty = true;
+        }
+
+        var triggers = (EqsTrigger[])System.Enum.GetValues(typeof(EqsTrigger));
+        var labels = System.Array.ConvertAll(triggers, t => t.ToString());
+        int ti = System.Array.IndexOf(triggers, er.Trigger);
+        FormGrid.BeginField("bp.node", "Trigger"); if (ImGui.Combo("##WhenEqsTrigger", ref ti, labels, labels.Length))
+        {
+            er.Trigger = triggers[ti];
+            IsDirty = true;
+        } FormGrid.EndField();
+
+        if (er.Trigger == EqsTrigger.ScoreCrossed)
+        {
+            float t = er.ScoreThreshold;
+            FormGrid.BeginField("bp.node", "Score threshold"); if (ImGui.InputFloat("##WhenEqsScore", ref t)) { er.ScoreThreshold = t; IsDirty = true; } FormGrid.EndField();
+        }
+        else if (er.Trigger == EqsTrigger.BecomesStale)
+        {
+            float a = er.MaxAgeSeconds;
+            FormGrid.BeginField("bp.node", "Max age (s)"); if (ImGui.InputFloat("##WhenEqsAge", ref a)) { er.MaxAgeSeconds = a; IsDirty = true; } FormGrid.EndField();
+        }
+    }
+
+    /// <summary>⭐ CE-3078 N4 — the kind (re-baked on pick), its trigger (from the baked decl), and the trigger's parameter.</summary>
+    private void DrawSensorResultForm()
+    {
+        _node.SensorResult ??= new SensorResultPayload();
+        var sr = _node.SensorResult;
+
+        var kinds = Fdp.Toolkit.Perception.Sensors.SensorKindRegistry.All
+            .Where(i => i.Kind != Fdp.Toolkit.Perception.Sensors.SensorKindRegistry.EqsQuery).Select(i => i.Kind).ToArray();
+        var kindLabels = kinds.Select(SensorKindBaker.KindName).ToArray();
+        int ki = sr.Decl is null ? -1 : System.Array.FindIndex(kinds, k => (byte)k == sr.Decl.Kind);
+        FormGrid.BeginField("bp.node", "Sensor kind"); if (ImGui.Combo("##WhenSensorKind", ref ki, kindLabels, kindLabels.Length) && ki >= 0)
+        {
+            sr.Decl = SensorKindBaker.Bake(kinds[ki]);
+            sr.Trigger = sr.Decl is null ? "" : SensorPaletteEntries.UsableTriggers(sr.Decl).FirstOrDefault()?.Name ?? "";
+            IsDirty = true;
+        } FormGrid.EndField();
+        if (sr.Decl is null) { NodeEditor.Core.Widgets.RowMarks.WarningLine("Pick a sensor kind."); return; }
+
+        var triggers = SensorPaletteEntries.UsableTriggers(sr.Decl).ToArray();
+        var labels = triggers.Select(t => t.Name).ToArray();
+        int ti = System.Array.FindIndex(triggers, t => t.Name == sr.Trigger);
+        FormGrid.BeginField("bp.node", "Trigger"); if (ImGui.Combo("##WhenSensorTrigger", ref ti, labels, labels.Length) && ti >= 0) { sr.Trigger = triggers[ti].Name; IsDirty = true; } FormGrid.EndField();
+
+        var current = triggers.FirstOrDefault(t => t.Name == sr.Trigger);
+        if (current?.Shape == "FieldCrossed")
+        {
+            float t = sr.Threshold;
+            FormGrid.BeginField("bp.node", "Threshold"); if (ImGui.InputFloat("##WhenSensorThreshold", ref t)) { sr.Threshold = t; IsDirty = true; }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"{current.ElementField} threshold"); FormGrid.EndField();
+        }
+        else if (current?.Name == "BecomesStale")
+        {
+            float a = sr.MaxAgeSeconds;
+            FormGrid.BeginField("bp.node", "Max age (s)"); if (ImGui.InputFloat("##WhenSensorAge", ref a)) { sr.MaxAgeSeconds = a; IsDirty = true; } FormGrid.EndField();
+        }
     }
 
     public void ResetDirty() => IsDirty = false;

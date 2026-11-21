@@ -77,6 +77,13 @@ public static class WhenNodePaletteEntries
                 new Pin { Id = Guid.NewGuid(), Name = "PublishPolicy",   Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Byte"    } },
                 new Pin { Id = Guid.NewGuid(), Name = "Priority",        Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Byte"    } },
                 new Pin { Id = Guid.NewGuid(), Name = "Handle",          Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "FDP.Eqs.EqsSensorHandle" } },
+                // Context slots (Self / Target / Leader by convention). The area query's EQS form
+                // (EntitiesOfForceInArea) reads its area from ContextSlot1.
+                new Pin { Id = Guid.NewGuid(), Name = "ContextSlot0",    Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "Fdp.Core.Entity" } },
+                new Pin { Id = Guid.NewGuid(), Name = "ContextSlot1",    Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "Fdp.Core.Entity" } },
+                new Pin { Id = Guid.NewGuid(), Name = "ContextSlot2",    Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "Fdp.Core.Entity" } },
+                // CE-485: one sensor per key from this node (e.g. per area in a loop); unconnected = the one default sensor.
+                new Pin { Id = Guid.NewGuid(), Name = "Key",             Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "Fdp.Core.Entity" } },
             ],
         },
     };

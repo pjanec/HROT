@@ -6,11 +6,11 @@ using Hrot.Editor.AiShared;
 namespace Hrot.AI.Behaviors
 {
     /// <summary>
-    /// Q#14 Option B demo struct: a blittable <c>[BlackboardDtoStruct]</c> value used by StructValueDemo.bp.json
+    /// Q#14 Option B demo struct: a blittable <c>[Dto]</c> value used by StructValueDemo.bp.json
     /// to exercise the Make / Break / SetMembers struct-value nodes (and struct-typed variables). All-int so
     /// the demo needs no float literals. Discoverable in the editor's struct pickers/palette.
     /// </summary>
-    [BlackboardDtoStruct]
+    [Dto]
     [StructLayout(LayoutKind.Sequential)]
     public struct StructDemoData
     {

@@ -20,7 +20,26 @@ public static class EditorBootstrap
     /// Root directory used for scenario files.
     /// Scenarios are stored as <c>{ScenariosRoot}\{scenarioName}\scenario.json</c>.
     /// </summary>
-    public static string ScenariosRoot => Path.Combine(ClusterConfiguration.Default.NasBasePath, OrchestrationConstants.ScenariosDirectoryName);
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>CE-346</c> — THE SHARED HELPER, not a hand-combined base.</b>
+    /// 🔒 Raised by the user, <c>2026-09-26</c>: <i>"why hosts differ in … scenario sources? I would
+    /// expect these to be same in both cgf and editor."</i> — 📐 <b>and they already were, spelled
+    /// twice.</b>
+    ///
+    /// <para>📐 <b>Measured identical by construction:</b> this was
+    /// <c>Path.Combine(ClusterConfiguration.Default.NasBasePath, ScenariosDirectoryName)</c>, and
+    /// <c>ClusterConfiguration.NasBasePath</c> is initialised to <c>OrchestrationConstants.GetSharedRoot()</c>
+    /// (<c>ClusterConfiguration.cs:34</c>) while <c>Default</c> is a get-only property that is never
+    /// reassigned (<c>:37</c>, grep-verified). ⇒ both hosts resolved <c>{staging}/shared/scenarios</c>
+    /// — CGF through <c>GetSharedScenariosRoot()</c>, the editor through its own <c>Path.Combine</c>.</para>
+    ///
+    /// <para>⛔ <b>That helper's own summary says it is the one to use:</b> <i>"the root the operator's
+    /// scenario list comes from on EVERY host"</i>. ⇒ this was under-adoption of an existing seam —
+    /// 🔒 the seam law — and a hand-combined base is the very shape ruling 67 and
+    /// <c>TheAssetRootsComeFromTheOneResolverTests</c> exist to stamp out for ASSET roots.
+    /// ⚠ Behaviour-preserving: same path, one source. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.20.</para>
+    /// </remarks>
+    public static string ScenariosRoot => OrchestrationConstants.GetSharedScenariosRoot();
 
     /// <summary>
     /// Builds a <see cref="ScenarioFileService"/> with an auto-serializer

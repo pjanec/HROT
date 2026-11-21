@@ -1,0 +1,81 @@
+{
+  "title": "Platoon attacks a house",
+  "caption": "AI on both sides: a base of fire goes up, the defence answers, the assault goes in",
+  "clip": "F-32",
+  "chapter": 7,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Blue Squad 1 Leader",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-8",
+      "follow": "Blue Squad 1 Leader",
+      "distance": 180,
+      "yaw": 20,
+      "pitch": -55,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Blue Squad 1 Leader",
+      "toward": "Red Squad 2 Leader",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Blue Squad 1 Leader",
+      "toward": "Red Squad 2 Leader",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Red Squad 2 Leader",
+      "distance": 70,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 50,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-8",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-8",
+      "until": "m+8",
+      "text": "AI on both sides: a base of fire goes up, the defence answers, the assault goes in"
+    }
+  ]
+}

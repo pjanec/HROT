@@ -1,0 +1,94 @@
+Trigger Edit:
+  2419 Edit
+  2420 Disable
+  ---
+  2422 Show on map
+  ---
+  2413 Fire now
+  2414 Disarm
+  2415 Re-arm
+  2416 Reset
+  ---
+  2421 Delete
+Trigger Preview:
+  2413 Fire now
+  2414 Disarm
+  2415 Re-arm
+  2416 Reset
+  ---
+  2422 Show on map
+Trigger Live:
+  2413 Fire now
+  2414 Disarm
+  2415 Re-arm
+  2416 Reset
+  ---
+  2422 Show on map
+Trigger Review:
+  2422 Show on map
+  2423 Show history
+  ---
+  2413 Fire now
+  2414 Disarm
+  2415 Re-arm
+  2416 Reset
+Objective Edit:
+  2419 Edit
+  2420 Disable
+  ---
+  2422 Show on map
+  ---
+  2417 Activate
+  2418 Deactivate
+  2416 Reset
+  ---
+  2421 Delete
+Objective Preview:
+  2417 Activate
+  2418 Deactivate
+  2416 Reset
+  ---
+  2422 Show on map
+Objective Live:
+  2417 Activate
+  2418 Deactivate
+  2416 Reset
+  ---
+  2422 Show on map
+Objective Review:
+  2422 Show on map
+  2423 Show history
+  ---
+  2417 Activate
+  2418 Deactivate
+  2416 Reset
+Measure Edit:
+  2419 Edit
+  2420 Disable
+  ---
+  2422 Show on map
+  ---
+  2417 Activate
+  2418 Deactivate
+  2416 Reset
+  ---
+  2421 Delete
+Measure Preview:
+  2417 Activate
+  2418 Deactivate
+  2416 Reset
+  ---
+  2422 Show on map
+Measure Live:
+  2417 Activate
+  2418 Deactivate
+  2416 Reset
+  ---
+  2422 Show on map
+Measure Review:
+  2422 Show on map
+  2423 Show history
+  ---
+  2417 Activate
+  2418 Deactivate
+  2416 Reset

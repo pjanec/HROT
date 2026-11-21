@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Numerics;
 using System.Text.Json;
@@ -6,66 +7,118 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
+using FixedString32 = Fdp.Core.FixedString32;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {
     // GZ058: mirrors MissionRenderLayer rendering logic via StatelessGizmoSystem.
-    // Draws orange gradient lines from each selected entity to its mission task targets.
-    // No [GizmoProjector] because the constructor requires IGeographicTransform;
-    // registered manually in composition roots (IgApplication and CgfSubsystem).
+    // ⭐ CE-3123 (R-228): a [GizmoProjector] now — the registrar hands the constructor the host's IGeographicTransform
+    //   (MapInteractionContext.Services), so it is no longer registered by hand on the two hosts that remembered. Family Path:
+    //   which units it draws for (selected / pinned / all) is the family policy's call, not a selection check of its own.
+    //   📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
+    /// <summary>
+    /// ⭐⭐ W-1 / P-8 8d (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.5 M3, §5.8 E2, §5.12; mockup <c>mission-plan-editor.svg</c>) — a unit's MISSION PLAN on
+    /// the map, the ONE drawing of it: the route from the unit through each task's place (solid to task 1, dashed after, in the unit's side colour)
+    /// and a numbered marker per task — done green, running amber, planned grey (<see cref="MissionPlanQueue"/>). A task's place is its order DTO's
+    /// first place field (<see cref="Hrot.Presentation.Orders.MissionPlanPlaces"/>), else a legacy behaviour's <c>"target"</c> point, else the
+    /// previous task's place (E2). ⛔ SUPERSEDED: the orange → blue gradient lines to the <c>"target"</c> points only (an order's <c>Location</c> drew nothing).
+    /// </summary>
+    [GizmoProjector(typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, DrawsOffScreen = true)]
     public sealed class MissionPresentationGizmo : IStatelessGizmo
     {
-        private static readonly Rgba32 StartColor = new Rgba32(255, 165, 0, 200);  // orange
-        private static readonly Rgba32 EndColor   = new Rgba32(0,   0, 139, 200);  // dark blue
+        private static readonly Rgba32 DoneColour = new(91, 208, 106), RunningColour = new(242, 192, 51), PlannedColour = new(60, 60, 70), Rim = new(255, 255, 255);
+        private static readonly FixedString32[] Numbers = BuildNumbers(MissionPlanQueue.MaxTasks);
 
-        private readonly IGeographicTransform _geoTransform;
-
+        /// <remarks>⭐ S0 item 5 (SR-135): a task's place is local metres — the transform is no longer needed to draw it; the parameter stays so hosts keep composing the gizmo unchanged.</remarks>
         public MissionPresentationGizmo(IGeographicTransform geoTransform)
         {
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+            if (geoTransform == null) throw new ArgumentNullException(nameof(geoTransform));
         }
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
-            if (!view.HasComponent<SelectionState>(entity)) return;
-            ref readonly var sel = ref view.GetComponentRO<SelectionState>(entity);
-            if (!sel.IsSelected) return;
-
+            if (!draw.IsLayerActive(DebugTraceLayers.Paths)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             if (!view.HasManagedComponent<ActiveMissionPlan>(entity)) return;
             var activePlan = view.GetManagedComponentRO<ActiveMissionPlan>(entity);
-            if (activePlan?.Plan?.Tasks == null) return;
+            if (activePlan?.Plan?.Tasks is not { Count: > 0 }) return;
+            var repo = view as EntityRepository;
+            var colour = repo != null && repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(entity)
+                ? Hrot.Common.Diagnostics.Gizmos.SidePalette.Of(repo.GetComponentRO<EntityInfo>(entity).ForceId)
+                : Hrot.Common.Diagnostics.Gizmos.SidePalette.Neutral;
+            int current = repo != null && repo.IsComponentTypeRegistered<MissionPlanQueue>() && repo.HasComponent<MissionPlanQueue>(entity) ? repo.GetComponentRO<MissionPlanQueue>(entity).CurrentTask : -1;
 
-            ref readonly var simTr = ref view.GetComponentRO<SimTransform>(entity);
-            var lastPos = new Vector3(simTr.Position.X, simTr.Position.Y, 0f);
-
-            foreach (var task in activePlan.Plan.Tasks)
+            Span<Vector3> at = stackalloc Vector3[MissionPlanQueue.MaxTasks];
+            int n = PositionsOf(view, entity, activePlan, at);
+            var previous = view.GetComponentRO<SimTransform>(entity).Position;
+            for (int i = 0; i < n; i++)
             {
-                if (string.IsNullOrEmpty(task.BehaviorParams)) continue;
+                if (at[i] != previous) draw.DrawLine(previous, at[i], colour, 2f, layer: DebugTraceLayers.Paths, style: i == 0 ? LineStyle.Solid : LineStyle.Dashed);
+                previous = at[i];
+            }
+            for (int i = 0; i < n; i++)   // the markers over the route, numbered from 1 (map text anchors at its top-left: the number sits below)
+            {
+                var fill = current < 0 ? PlannedColour : i < current ? DoneColour : i == current ? RunningColour : PlannedColour;
+                draw.DrawSphere(at[i], 10f, Rim, thickness: 1.2f, sizeMode: SizeMode.ScreenPixels, layer: DebugTraceLayers.Paths, fillColor: fill);
+                draw.DrawText(at[i].X, at[i].Y, Numbers[i], new Rgba32(240, 240, 245), layer: DebugTraceLayers.Paths, fontSizePx: 14f, lineOffsetPx: 12f);
+            }
+        }
 
-                float targetLat = float.NaN;
-                float targetLon = float.NaN;
+        /// <summary>
+        /// ⭐ W-1 / P-8 8d-2 — WHERE each task of <paramref name="plan"/> sits on the map (E2): its first place field, else a legacy <c>"target"</c>, else
+        /// the previous task's place (the unit's own position before task 1). ⭐ The ONE answer — the drawing above and the plan's edit handles
+        /// (<see cref="MissionPlanEditGizmo"/>) both read it, so a handle is always on its marker. Returns how many were written.
+        /// </summary>
+        public static int PositionsOf(ISimulationView view, Entity entity, ActiveMissionPlan plan, Span<Vector3> at)
+        {
+            if (plan?.Plan?.Tasks is not { Count: > 0 } tasks || !view.HasComponent<SimTransform>(entity)) return 0;
+            var places = Hrot.Presentation.Orders.MissionPlanPlaces.Of(plan);
+            var refs = view is EntityRepository world ? Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(world) : null;   // ⚠ ScopeOf is cached per world
+            var previous = view.GetComponentRO<SimTransform>(entity).Position;
+            int n = Math.Min(Math.Min(tasks.Count, Numbers.Length), at.Length);
+            var legacy = LegacyTargets.GetValue(plan, static p => LegacyTargetsOf(p));   // ⭐ CE-4385 — parsed once per plan, never per frame
+            for (int i = 0; i < n; i++)
+                at[i] = previous = Fdp.Presentation.Editing.MapPreviews.PlaceOf(places[i], refs) ?? legacy[i] ?? previous;   // E2
+            return n;
+        }
 
-                try
+        /// <summary>
+        /// ⭐ CE-4385 (handoff L-3) — each task's legacy <c>"target"</c>, per plan INSTANCE (a plan is replaced whole when it changes — the same assumption
+        /// <see cref="Hrot.Presentation.Orders.MissionPlanPlaces.Of"/> keys its cache on). 📐 Measured on Windows, 2026-11-10: parsed per draw it was 540 KB of garbage
+        /// a frame on an idle 5.5 km scenario (<c>JsonDocument.Parse</c> + a deserialise per task, per unit, per frame).
+        /// </summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ActiveMissionPlan, Vector3?[]> LegacyTargets = new();
+
+        private static Vector3?[] LegacyTargetsOf(ActiveMissionPlan plan)
+        {
+            var tasks = plan.Plan!.Tasks;
+            var a = new Vector3?[tasks.Count];
+            for (int i = 0; i < a.Length; i++) a[i] = LegacyTarget(tasks[i].BehaviorParams);
+            return a;
+        }
+
+        /// <summary>A behaviour task's legacy <c>"target"</c> point (local metres), else null.</summary>
+        private static Vector3? LegacyTarget(string? json)
+        {
+            if (string.IsNullOrEmpty(json) || !json.Contains("\"target\"", StringComparison.Ordinal)) return null;
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("target", out var targetEl))
                 {
-                    using var doc = JsonDocument.Parse(task.BehaviorParams);
-                    if (doc.RootElement.TryGetProperty("targetLat", out var latEl))
-                        targetLat = latEl.GetSingle();
-                    if (doc.RootElement.TryGetProperty("targetLon", out var lonEl))
-                        targetLon = lonEl.GetSingle();
-                }
-                catch { }
-
-                if (!float.IsNaN(targetLat) && !float.IsNaN(targetLon))
-                {
-                    var cartesian = _geoTransform.ToCartesian(targetLat, targetLon, 0.0);
-                    var targetPos = new Vector3((float)cartesian.X, (float)cartesian.Y, 0f);
-
-                    draw.DrawLineGradient(lastPos, targetPos, StartColor, EndColor, thickness: 2f, SizeMode.WorldMeters);
-
-                    lastPos = targetPos;
+                    var p = JsonSerializer.Deserialize<Fdp.Toolkit.Replication.PointLink>(targetEl.GetRawText(), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Local;   // the engine's options: a [x, y, z] is a Vector3 there
+                    return new Vector3(p.X, p.Y, 0f);
                 }
             }
+            catch (JsonException) { }
+            return null;
+        }
+
+        private static FixedString32[] BuildNumbers(int n)
+        {
+            var a = new FixedString32[n];
+            for (int i = 0; i < n; i++) a[i] = new FixedString32((i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return a;
         }
     }
 }

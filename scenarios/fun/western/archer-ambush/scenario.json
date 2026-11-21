@@ -1,0 +1,308 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "farm",
+  "description": "What: CE-4650 (NA-5, R-4281 fun pack) - an ARCHER AMBUSH. Four 'Patrol n' soldiers (type 2002) walk east along y=150 on the farm, starting about 40 m short of the ambush; three 'Ambusher n' warriors (type 2016, bows) lie in wait 35 m north of the road at x 120-140, each ordered to shoot one patrol soldier with silent arrows. Arrows make no gunshot, so the patrol reacts only on SEEING an archer or being hit. Judge: the ambushers hit the patrol (three or more arrows), at least two patrol soldiers fall, and the patrol never fires back (the arrows made no gunshot and the archers lie unseen - the one soldier not shot just walks on)."
+ },
+ "entities": {
+  "46500a02-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     120,
+     150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Patrol 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      260,
+      150,
+      0
+     ],
+     "speed": 2.0,
+     "arrivalRadius": 5
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46500a02-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     116,
+     150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Patrol 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      260,
+      150,
+      0
+     ],
+     "speed": 2.0,
+     "arrivalRadius": 5
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46500a02-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     112,
+     150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Patrol 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      260,
+      150,
+      0
+     ],
+     "speed": 2.0,
+     "arrivalRadius": 5
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46500a02-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     108,
+     150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Patrol 4",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      260,
+      150,
+      0
+     ],
+     "speed": 2.0,
+     "arrivalRadius": 5
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46500a02-0000-4000-8000-000000000030": {
+   "SimTransform": {
+    "Position": [
+     120,
+     185,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2016
+   },
+   "EntityInfo": {
+    "Name": "Ambusher 1",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "46500a02-0000-4000-8000-000000000010"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46500a02-0000-4000-8000-000000000031": {
+   "SimTransform": {
+    "Position": [
+     130,
+     188,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2016
+   },
+   "EntityInfo": {
+    "Name": "Ambusher 2",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "46500a02-0000-4000-8000-000000000011"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46500a02-0000-4000-8000-000000000032": {
+   "SimTransform": {
+    "Position": [
+     140,
+     186,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2016
+   },
+   "EntityInfo": {
+    "Name": "Ambusher 3",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "46500a02-0000-4000-8000-000000000012"
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

@@ -477,7 +477,7 @@ New tests pass:
 
 Expected total: approximately 175-185 pass (143 + ~35 new), 3 skip.
 
-Build: `dotnet build IOS-IG-SimHost.sln` completes with 0 errors, 0 warnings.
+Build: `dotnet build HROT.sln` completes with 0 errors, 0 warnings.
 
 ---
 

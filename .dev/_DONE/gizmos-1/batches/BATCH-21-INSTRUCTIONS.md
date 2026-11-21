@@ -56,7 +56,7 @@ this transitional batch.
 ### Build & Test Commands
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --filter "FullyQualifiedName~Gizmo"
 dotnet test Hrot/Subsystems/Hrot.IG.Tests/Hrot.IG.Tests.csproj --filter "FullyQualifiedName~Gizmo"
 ```
@@ -620,7 +620,7 @@ Assert.Equal(42, shape.AnchorIndex);
 
 Before submitting:
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 ```
 The build must produce **0 errors**. Pre-existing warnings in `Hrot.ClusterRunner.Tests`
 (xUnit2017) are acceptable.

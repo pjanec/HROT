@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -61,7 +62,7 @@ public sealed class HsmCommandSinkDeleteStateTests
             VisualId = visualId ?? Guid.NewGuid(),
             Source = source,
             Target = target,
-            ExpressionTargetField = expressionTargetField,
+            Action = new BehaviorActionBinding { ExpressionTargetField = expressionTargetField },   // CE-417: the action's field is the output
         };
         asset.RegisterTransition(t);
         return t;

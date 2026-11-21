@@ -47,7 +47,7 @@ Tackle **Part A** items **before** large **ClusterMaster** fan-out refactors so 
 ### A.4 — **Hygiene & infra**
 
 - **`TimeNetworkModule.RegisterTranslators`:** mark **`[Obsolete]`** with message pointing to **`CreateDescriptorTranslator`**, or remove if unused.  
-- **Parallel test domains:** reconcile **`TestDomainAllocator`** with fixed orchestrator domain **15** (or document single-thread CI); reduce flakes in full **`IOS-IG-SimHost.sln`** test.
+- **Parallel test domains:** reconcile **`TestDomainAllocator`** with fixed orchestrator domain **15** (or document single-thread CI); reduce flakes in full **`HROT.sln`** test.
 
 ### A.5 — **DEBT-TRACKER**
 

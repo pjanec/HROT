@@ -74,6 +74,13 @@ public sealed class SaveAsDialog : INameFolderDialog
     public FolderPickerState FolderPicker { get; }
 
     /// <summary>
+    /// ⭐ B-9 N3 — the user already answered <i>Replace?</i> in the Save-As browser (<c>SaveAsResult.Overwrite</c>): an asset at the EXACT target path is
+    /// written over instead of refused. The D5 CS↔JSON base-name guard still applies to every OTHER file (it already skips the target itself).
+    /// Default <see langword="false"/>: a caller that did not ask the question keeps the refusal.
+    /// </summary>
+    public bool Overwrite { get; set; }
+
+    /// <summary>
     /// Creates the Save-As dialog model.
     /// </summary>
     /// <param name="sourceAsset">
@@ -181,8 +188,8 @@ public sealed class SaveAsDialog : INameFolderDialog
                 if (collision != null)
                     return ConfirmResult.Fail(collision);
 
-                // Direct file-name collision (same exact path).
-                if (File.Exists(computedSavePath))
+                // Direct file-name collision (same exact path) — unless the user confirmed Replace? (Overwrite).
+                if (!Overwrite && File.Exists(computedSavePath))
                     return ConfirmResult.Fail(
                         $"An asset named '{Name}' already exists at '{computedSavePath}'.");
             }

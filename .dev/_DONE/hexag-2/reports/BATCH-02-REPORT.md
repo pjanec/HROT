@@ -26,7 +26,7 @@ Hrot.ExCon.Tests:                              Passed! - Failed: 0, Passed: 388,
 Hrot.ClusterRunner.Integration.Tests (full):   Failed:  2 (pre-existing timing flakiness)
 Hrot.ClusterRunner.Integration.Tests (solo):   Both failing tests pass individually
 
-dotnet build IOS-IG-SimHost.sln: 0 Warning(s), 0 Error(s)
+dotnet build HROT.sln: 0 Warning(s), 0 Error(s)
 ```
 
 The 2 failures in the integration suite (`ExCon_CommitMissionAsync_ResolvesWithAck_NotTimeout` and

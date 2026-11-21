@@ -37,5 +37,21 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <see cref="GizmoInteractionCommitEvent"/>.
         /// </summary>
         virtual IGizmoUndoRecord? CreateUndoRecord(GizmoInteractionCommitEvent commit) => null;
+
+        /// <summary>
+        /// ⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5) — the right-click MENU of an armed tool that holds the map's input (the drawing menu:
+        /// Finish · Remove last point · Cancel). <see cref="GlobalGizmoManager"/> binds it to the gizmo's own tool id so a right-click on the map opens
+        /// it, and routes the click back to <see cref="IGizmoInteractionHandler.OnMenuAction"/>. Null (the default) = no menu of its own.
+        /// </summary>
+        virtual string? ToolMenuJson => null;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1954</c> (DECIDED A, user 2026-11-18; docs/UX/DESIGN_Map_Interaction.md §2.5) — the gizmo a plain LEFT press on the entity's BODY
+    /// drives (its move): a press on an UNSELECTED unit selects it and the same drag moves it. ⭐ A body press arrives as a plain pick (the
+    /// presentation's pick box carries no gizmo type), so <c>DataDrivenGizmoSystem</c> routes it to the entity's gizmo carrying this marker —
+    /// the same in every host and in the serial and threaded editors, because both run that one routing. ⛔ Never for a right press or a
+    /// modifier press (Shift / Ctrl / Alt are selection gestures).
+    /// </summary>
+    public interface IBodyPressDragGizmo : IEntityStatefulGizmo { }
 }

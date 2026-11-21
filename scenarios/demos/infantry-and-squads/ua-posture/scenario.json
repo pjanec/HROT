@@ -1,0 +1,87 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: U1 (CP-1) - one Rifleman (Friend) advances on test-town toward (325,300) on CombatPosture, about 74 m from one armed Armed Hostile who stands still. Shows the utility posture decision reacting to health; the check script lowers and restores the Rifleman's Health over HTTP (nothing changes on its own). Judge: (1) healthy and armed against a matched enemy he fights (Suppress); (2) hurt (40 HP) and near death (10 HP) he picks a defensive posture (TakeCover or Flee); (3) healed to 100 HP he goes back to fighting (Suppress or AdvanceAndAttack); (4) with Health held the winner never flips back A->B->A. Fail: Healthy man defends, hurt man keeps fighting, or the posture flickers. Check: python3 scripts/utility-demo-check.py --launch ua-posture"
+  },
+  "entities": {
+    "a1010000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          295,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {"advance":{"Objective":[325,300,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1010000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          360,
+          320,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Armed Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

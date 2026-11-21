@@ -52,6 +52,9 @@ namespace Fdp.Toolkit.Squad.Maneuvers
                 new PhaseTransitionEntry { FromPhaseId = PhaseElement0Moving, EventKind = PhaseEventKind.Abort,         ToPhaseId = PhaseAborted        },
                 new PhaseTransitionEntry { FromPhaseId = PhaseElement1Moving, EventKind = PhaseEventKind.BoundComplete, ToPhaseId = PhaseElement0Moving },
                 new PhaseTransitionEntry { FromPhaseId = PhaseElement1Moving, EventKind = PhaseEventKind.Abort,         ToPhaseId = PhaseAborted        },
+                // ⭐ CE-2158 F-c — every mover set at his point ("Set!"); BoundComplete stays the timed-out bound
+                new PhaseTransitionEntry { FromPhaseId = PhaseElement0Moving, EventKind = PhaseEventKind.DefiladeReached, ToPhaseId = PhaseElement1Moving },
+                new PhaseTransitionEntry { FromPhaseId = PhaseElement1Moving, EventKind = PhaseEventKind.DefiladeReached, ToPhaseId = PhaseElement0Moving },
             };
 
         // --- Element partition ---

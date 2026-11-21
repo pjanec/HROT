@@ -1,0 +1,205 @@
+using System.Collections.Generic;
+using System.Linq;
+using CarKinem.Core;
+using Fdp.Core;
+using Fdp.Core.Logging;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
+using Hrot.Map.Common;
+using DescriptorOwnershipMap = Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap;
+using EDescriptorType        = Hrot.NED.Descriptors.EDescriptorType;
+
+namespace Hrot.Network.Replication;
+
+/// <summary>
+/// ⭐⭐ <b>NED's binding of the network-agnostic ownership groups to its descriptors.</b>
+/// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §2, §5.5 D-4, build steps S1 and S3. The grant is a contract
+/// every network implementation honours (R-165); this is how NED honours it.
+/// <list type="bullet">
+///   <item>⭐ Every descriptor that carries a group member is mapped HERE, role-independently — so every node binds
+///     the SAME groups whatever translators its role composed (a Muscle node has no NavigationIntent egress, but it
+///     must still know that granting <c>dtNavigationIntent</c> moves the brain).</item>
+///   <item>Five of them declared no components before (design §3 F-2): granting or transferring them moved no
+///     claim.</item>
+///   <item>The group anchors (D-4) carry each group's never-sent members.</item>
+///   <item>⭐ S3 — this is the ONE source of each role's descriptors: <see cref="GroupDescriptors"/> is what the
+///     creator's grant strategy hands out, and a rail asserts it equals every node's live binding.</item>
+/// </list>
+/// </summary>
+public static class NedOwnershipGroupBinding
+{
+    /// <summary>D-4 — per role, the descriptor that carries the group's never-sent members.</summary>
+    public static IReadOnlyDictionary<NodeRole, long> Anchors { get; } = new Dictionary<NodeRole, long>
+    {
+        [NodeRole.Brain]        = (long)EDescriptorType.dtNavigationIntent,
+        [NodeRole.MuscleGround] = (long)EDescriptorType.dtWorldPos,
+        [NodeRole.Perception]   = (long)EDescriptorType.dtEqsResult,
+    };
+
+    private static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>>? _groupDescriptors;
+
+    /// <summary>
+    /// ⭐ S3 — per role, the descriptors its group binds to (empty for an empty group). Computed once from
+    /// <see cref="Apply"/> over an empty map; the descriptor-map rails assert it equals the live binding on every
+    /// node role, so the strategy and the nodes cannot disagree.
+    /// </summary>
+    public static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>> GroupDescriptors
+        => _groupDescriptors ??= ComputeGroupDescriptors();
+
+    private static DescriptorOwnershipMap? _reviewMap;
+
+    /// <summary>
+    /// ⭐ G-7 S2 (I8, docs/UX/DESIGN_Review_Perspective.md §6.12) — the component → descriptor map the MERGED view (Replay Browser, editor Review) reads recorded
+    /// per-descriptor owners through (<c>OwnershipSource</c>): <see cref="Apply"/> over an empty map, i.e. every group descriptor and every explicit mapping,
+    /// built once and only read after. ⚠ It holds no translator-declared targets (those need a live module's translators): a component of a descriptor that is not
+    /// listed here is read from the entity's primary owner, the creator's remainder.
+    /// </summary>
+    public static DescriptorOwnershipMap ReviewMap
+    {
+        get
+        {
+            if (_reviewMap != null) return _reviewMap;
+            var map = new DescriptorOwnershipMap();
+            Apply(map);
+            return _reviewMap = map;
+        }
+    }
+
+    private static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>> ComputeGroupDescriptors()
+    {
+        var map = new DescriptorOwnershipMap();
+        Apply(map);
+        var result = new Dictionary<NodeRole, IReadOnlyList<long>>();
+        foreach (var role in HrotOwnershipGroups.Table.Groups.Keys)
+            result[role] = map.DescriptorsOf(role).ToArray();
+        return result;
+    }
+
+    /// <summary>
+    /// Registers the group descriptors and binds the groups. Call after every translator and explicit mapping is
+    /// registered. Violations are logged as errors; the descriptor-map rails assert there are none.
+    /// </summary>
+    public static void Apply(DescriptorOwnershipMap map, int localNodeId = 0)
+    {
+        // Brain group descriptors.
+        map.RegisterMapping((long)EDescriptorType.dtNavigationIntent, NavigationContractsComponentIds.NavigationIntent);
+        map.RegisterMapping((long)EDescriptorType.dtEntityMission,
+            GlobalComponentIds.MissionPlanQueue, BehaviorApplicationComponentIds.ActiveMissionPlan);
+        map.RegisterMapping((long)EDescriptorType.dtSensorConfig,
+            ComponentType<Fdp.Toolkit.Perception.Components.PerceptionReceptor>.ID);
+        map.RegisterMapping((long)EDescriptorType.dtEqsSensorConfig, GlobalComponentIds.EqsSensor);
+        map.RegisterMapping((long)EDescriptorType.dtEntityDamage, GlobalComponentIds.CombatHealth);
+        // ⭐ CE-3048 — the AI intent carries the slot state it projects (task slot stays linked on the anchor). 📄 Sensors §7.7
+        map.RegisterMapping((long)EDescriptorType.dtBrainIntent, GlobalComponentIds.SopState, GlobalComponentIds.Roe);
+
+        // ⭐ CE-2121 — body stance (was "dormant"): the Brain group's request and the Muscle group's report, so each crosses
+        //   the wire from the node that owns its GROUP (the Muscle never owns the entity's lifecycle). 📄 Decision Layer §3.3g.
+        map.RegisterMapping((long)EDescriptorType.dtStanceIntent, GlobalComponentIds.StanceIntent);
+        // ⭐ CE-4601 (B-4) — the dozer's blade-cut marker: the Brain group's, read by the Muscle that cuts
+        map.RegisterMapping((long)EDescriptorType.dtBladeCut, GlobalComponentIds.BladeCut);
+
+        // Perception group descriptor.
+        map.RegisterMapping((long)EDescriptorType.dtEqsResult, GlobalComponentIds.EqsCognitiveBuffer);
+
+        // MuscleGround group descriptors (moved here from NedReplicationModule in S3).
+        // dtWorldPos is the entire physical/kinematic authority block (R-170: it moves WHOLE). The
+        // GeoSpatialIngressTranslator writes NetworkTransform, but the authoritative components on the Muscle side are
+        // SimTransform + SimVelocity plus the CarKinem state CarKinematicsSystem writes. DeferredTakeoverSystem uses
+        // this mapping to claim them when a Muscle receives the grant. One call: a second would overwrite the first.
+        map.RegisterMapping(
+            (long)EDescriptorType.dtWorldPos,
+            ComponentType<SimTransform>.ID,
+            ComponentType<SimVelocity>.ID,
+            ComponentType<VehicleState>.ID,
+            ComponentType<VehicleParams>.ID,
+            ComponentType<NavState>.ID);
+        // dtNavigationStatus → NavigationStatus. The Brain's NavigationStatusIngressTranslator declares no target
+        // components, so without this OwnershipIngressSystem on the Brain would not clear NavigationStatus authority
+        // when a Muscle takes dtNavigationStatus.
+        map.RegisterMapping((long)EDescriptorType.dtNavigationStatus, NavigationContractsComponentIds.NavigationStatus);
+        // ⭐ Buildings Stage 5b — no group: the door's creator keeps it (the creator's remainder). The mapping lets a transfer
+        //   (5d door commands) move the DoorState write with the descriptor. 📄 docs/DESIGN_Building_Interiors.md §3j.
+        map.RegisterMapping((long)EDescriptorType.dtDoorState, GlobalComponentIds.DoorState);
+        // ⭐ CE-4391 S-1 — no group: the node that decided a building's breaches keeps its damage entity (the door's shape); the mapping makes it INGRESSIBLE.
+        map.RegisterMapping((long)EDescriptorType.dtBuildingDamage, GlobalComponentIds.BuildingDamage);
+        map.RegisterMapping((long)EDescriptorType.dtWindowDamage, GlobalComponentIds.WindowDamage);   // ⭐ CE-5033 — the same entity's windows
+        // ⭐ CE-4591 (P-4) — no group: the node that decided a cell's craters keeps its ground-damage entity (the breach's shape); the mapping makes it INGRESSIBLE.
+        map.RegisterMapping((long)EDescriptorType.dtGroundDamage, GlobalComponentIds.GroundDamage);
+        map.RegisterMapping((long)EDescriptorType.dtMinefield, GlobalComponentIds.Minefield);                 // ⭐ CE-4624 MS-T2
+        map.RegisterMapping((long)EDescriptorType.dtMinefieldStrikes, GlobalComponentIds.MinefieldStrikes);
+        map.RegisterMapping((long)EDescriptorType.dtMinefieldKnowledge, GlobalComponentIds.MinefieldKnowledge);
+        map.RegisterMapping((long)EDescriptorType.dtMinefieldLanes, GlobalComponentIds.MinefieldLanes);        // ⭐ CE-4624 MS-T4 — the runtime lanes record (no group: the clearing node keeps it)
+        map.RegisterMapping((long)EDescriptorType.dtRamOrder, GlobalComponentIds.RamOrder);                  // ⭐ CE-4622 K-2 — the hull's ram order: the Brain group's, read by the mover
+        map.RegisterMapping((long)EDescriptorType.dtMineClearing, GlobalComponentIds.MineClearing);          // ⭐ CE-4624 MS-T4 — the clearer's tool marker: the Brain group's, read by the Muscle that clears
+        map.RegisterMapping((long)EDescriptorType.dtTreeDamage, GlobalComponentIds.TreeDamage);
+        map.RegisterMapping((long)EDescriptorType.dtGroundHeatMarks, GlobalComponentIds.GroundHeatMarks);   // ⭐ CE-4664 (TD-14) — the crater shape: no group, the moving node keeps it   // ⭐ CE-4603 (B-6) — the same shape
+        // ⭐ CE-3136 P-7a — no group: the obstacle's creator keeps it. The mapping makes ObstacleShape INGRESSIBLE, so its
+        //   [PerInstanceValue] holds a ghost until the box has arrived (MandatoryComponentResolver). 📄 docs/DESIGN_Peek_And_Fire.md §9.
+        map.RegisterMapping((long)EDescriptorType.dtObstacleShape, GlobalComponentIds.ObstacleShape);
+        map.RegisterMapping((long)EDescriptorType.dtStanceStatus, GlobalComponentIds.StanceStatus);   // ⭐ CE-2121 — the body's report
+        // ⭐ WL-1b (CE-1049) — a turret part's pose; MuscleGround group, so a part's claim follows (dtTurretPose, 0). 📄 Weapon_Layers §5b.
+        map.RegisterMapping((long)EDescriptorType.dtTurretPose, GlobalComponentIds.TurretPose);
+        // ⭐ WL-2b (CE-1049, W-11 / R-267) — a turret's order (Brain group) and the muscle's report on it (MuscleGround group).
+        map.RegisterMapping((long)EDescriptorType.dtWeaponTask, GlobalComponentIds.WeaponTask);
+        map.RegisterMapping((long)EDescriptorType.dtWeaponTaskStatus, GlobalComponentIds.WeaponTaskStatus);
+        // ⭐ WL-6 (W-13d, R-272) — the weapon brain's posture of a unit's weapon (Brain group → every node).
+        map.RegisterMapping((long)EDescriptorType.dtWeaponPosture, GlobalComponentIds.WeaponPosture);
+        // ⭐ CE-3172 / CE-3173 S4e (§8c) — possession: the operator's axes and who holds the unit (both Brain group).
+        map.RegisterMapping((long)EDescriptorType.dtManualDrive, GlobalComponentIds.ManualDrive);
+        map.RegisterMapping((long)EDescriptorType.dtPossessedBy, GlobalComponentIds.PossessedBy);
+        map.RegisterMapping((long)EDescriptorType.dtWeaponAmmo, GlobalComponentIds.WeaponAmmo);   // ⭐ CE-3174 — the HUD's ammunition
+        map.RegisterMapping((long)EDescriptorType.dtOperatorUseStatus, GlobalComponentIds.OperatorUseStatus);   // ⭐ CE-1153 — the use verdict
+        map.RegisterMapping((long)EDescriptorType.dtRadarEmission, GlobalComponentIds.RadarEmission);           // ⭐ CE-4617 — a radar's emission
+        map.RegisterMapping((long)EDescriptorType.dtHeatSource, GlobalComponentIds.HeatSource);                 // ⭐ CE-4657 (TD-3) — the heat source (Muscle)
+        map.RegisterMapping((long)EDescriptorType.dtFireState, GlobalComponentIds.FireState);                   // ⭐ CE-4657 (TD-6) — the fire spots (Brain: the Health owner)
+        map.RegisterMapping((long)EDescriptorType.dtVehicleOpenings, GlobalComponentIds.VehicleOpenings);       // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps (Brain: the passenger list's owner)
+        map.RegisterMapping((long)EDescriptorType.dtVehicleLights, GlobalComponentIds.VehicleLights);           // ⭐ CE-4670 (VA-S3) — lights (Brain: the light rule)
+        map.RegisterMapping((long)EDescriptorType.dtHostileAct, GlobalComponentIds.HostileAct);                 // ⭐ CE-3238 — a man's hostile act
+        map.RegisterMapping((long)EDescriptorType.dtCustody, GlobalComponentIds.Custody);                       // ⭐ CE-3256 — a man in custody
+        map.RegisterMapping((long)EDescriptorType.dtLean, GlobalComponentIds.Lean);                             // ⭐ CE-3257 — a man leaning
+        map.RegisterMapping((long)EDescriptorType.dtCombatProficiency, GlobalComponentIds.CombatProficiency);   // ⭐ CE-3259 — what he CAN do
+        map.RegisterMapping((long)EDescriptorType.dtEngagementArea, GlobalComponentIds.EngagementArea);         // ⭐ CE-3261 — a sector
+        map.RegisterMapping((long)EDescriptorType.dtUtterance, GlobalComponentIds.Utterance);                   // ⭐ CE-3264 — speech
+        map.RegisterMapping((long)EDescriptorType.dtDemeanour, GlobalComponentIds.Demeanour);                   // ⭐ CE-3265 — mood
+        map.RegisterMapping((long)EDescriptorType.dtSpawnLevel, GlobalComponentIds.SpawnLevelRequest);          // ⭐ CE-3271 — birth level
+        map.RegisterMapping((long)EDescriptorType.dtAnimalState, GlobalComponentIds.AnimalState);               // ⭐ CE-4623 AB-3 — an animal's state (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFlockState, GlobalComponentIds.FlockState);                 // ⭐ CE-4623 AB-3 — a bird flock's state (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFormationController, GlobalComponentIds.FormationController);   // ⭐ CE-9007 — a formation leader's controller (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFormationFollower, GlobalComponentIds.FormationFollower);       // ⭐ CE-9007 — an explicit-leader slot (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtAggregateUnit, GlobalComponentIds.AggregateUnit);           // ⭐ CE-8001 — a stochastic unit's state (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtUnitSlotTable, GlobalComponentIds.UnitSlotTable);           // ⭐ CE-8001 — its slot table (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtUnitHoldings, GlobalComponentIds.UnitHoldings);             // ⭐ CE-8001 — its holdings (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtAirCombatSteer, GlobalComponentIds.AirCombatSteer);         // ⭐ CE-10000 (AC-2) — a fighter's order (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFighterPilotState, GlobalComponentIds.FighterPilotState);   // ⭐ CE-10000 (AC-2) — its motion node's report (Muscle group)
+        map.RegisterMapping((long)EDescriptorType.dtAirArena, GlobalComponentIds.AirArena);                     // ⭐ CE-10000 (AC-10) — the arena (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtUnderFire, GlobalComponentIds.UnderFire);                   // ⭐ CE-1223 — when a man was last under fire
+        // ⭐ CE-3219 part 3 — no group: the cloud's creator keeps it (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
+        map.RegisterMapping((long)EDescriptorType.dtAreaEffectCloud, GlobalComponentIds.AreaEffectCloud);
+        map.RegisterMapping((long)EDescriptorType.dtEffectState, GlobalComponentIds.EffectState);               // ⭐ CE-3219 — non-lethal effects
+        map.RegisterMapping((long)EDescriptorType.dtPartDamage, GlobalComponentIds.PartDamage);   // ⭐ CE-3210 — wounds, beside Health
+        map.RegisterMapping((long)EDescriptorType.dtLookState, GlobalComponentIds.LookState);     // ⭐ CE-3252 — where a person looks
+        map.RegisterMapping((long)EDescriptorType.dtHitMarks, GlobalComponentIds.HitMarks);       // ⭐ CE-3210 — where rounds struck
+        map.RegisterMapping((long)EDescriptorType.dtDescent, GlobalComponentIds.Descent);          // ⭐ airborne B-1 — a man coming down
+        // ⭐ CE-4153 — no group: the entity's creator keeps its stable scenario key (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
+        map.RegisterMapping((long)EDescriptorType.dtEntityGuid, GlobalComponentIds.EntityGuid);
+        // ⭐ macros S3a ③ — no group, as dtEntityGuid: the instance's creator keeps its macro instance, expansion verdict and origin stamps.
+        map.RegisterMapping((long)EDescriptorType.dtMacroInstance, GlobalComponentIds.MacroInstance);
+        map.RegisterMapping((long)EDescriptorType.dtMacroExpansionStatus, GlobalComponentIds.MacroExpansionStatus);
+        map.RegisterMapping((long)EDescriptorType.dtMacroOrigin, GlobalComponentIds.MacroOrigin);
+        map.RegisterMapping((long)EDescriptorType.dtRefKey, GlobalComponentIds.RefKey);   // ⭐ macros wire fix — no group: the entity's creator keeps its authored name "@Key"
+        map.RegisterMapping((long)EDescriptorType.dtPassengerBuffer, GlobalComponentIds.PassengerBuffer);   // ⭐ CE-3110 I-2b — the vehicle's passengers (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtWeaponSystemState, GlobalComponentIds.WeaponSystemState);
+        map.RegisterMapping((long)EDescriptorType.dtTrafficDemand, GlobalComponentIds.TrafficDemand);   // ⭐ AQ93 N4 — the traffic settings (Traffic group)
+        map.RegisterMapping((long)EDescriptorType.dtObjectiveStatus, GlobalComponentIds.ObjectiveStatus);   // ⭐ rules S1-a — an objective's status (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtExerciseResult, GlobalComponentIds.ExerciseResult);   // ⭐ rules S2-e — the exercise's phase and outcome (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtRuleLeaves, GlobalComponentIds.RuleLeaves);   // ⭐ rules V-3 — a trigger's when-leaves with their live values (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtScenarioClock, GlobalComponentIds.ScenarioClock);   // ⭐ CE-3216 S1-0 — the scenario clock (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtWeather, GlobalComponentIds.WeatherConditions);   // ⭐ CE-3216 S1 — authored weather (Brain group)   // ⭐ Weapon systems WS-1 — a weapon's deploy state (Brain group)
+
+        map.BindGroups(HrotOwnershipGroups.Table, Anchors);
+
+        foreach (var violation in map.GroupBindingViolations)
+            FdpLog<DescriptorOwnershipMap>.Error(
+                "[Node-{0}] Ownership group binding: {1}", localNodeId, violation);
+    }
+}

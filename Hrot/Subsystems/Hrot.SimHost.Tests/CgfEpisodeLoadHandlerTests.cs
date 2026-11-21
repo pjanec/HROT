@@ -54,7 +54,7 @@ namespace Hrot.SimHost.Tests
 
         private CgfEpisodeLoadHandler MakeHandler(
             string? json,
-            ScenarioEntityCreationRequestSource source,
+            BusEntityCreationRequestSource source,   // ⭐ CE-3228 — the handler publishes on _world.Bus; the test reads it here
             out StubIdAllocator allocator)
         {
             allocator = new StubIdAllocator(200);
@@ -62,7 +62,6 @@ namespace Hrot.SimHost.Tests
                 new ScenarioSerializerBuilder(SubsystemType).Build(),
                 new LambdaScenarioLoader(_ => json),
                 new StagingEntityExtractor(),
-                source,
                 allocator,
                 _world);
         }
@@ -71,18 +70,18 @@ namespace Hrot.SimHost.Tests
             => new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), scenarioId, IsStart: true),
             };
 
         private static ExecuteNodeOpIntent MakeStopIntent(Guid txId, Guid episodeId)
             => new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = NodeOpType.StopEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, null, IsStart: false),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), null, IsStart: false),
             };
 
         private string SerializeGold()
@@ -101,7 +100,7 @@ namespace Hrot.SimHost.Tests
             _goldRepo.CreateEntity();
             _goldRepo.CreateEntity();
             var json   = SerializeGold();
-            var source = new ScenarioEntityCreationRequestSource();
+            var source = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(json, source, out _);
             var txId    = Guid.NewGuid();
             var episodeId = Guid.NewGuid();
@@ -111,6 +110,7 @@ namespace Hrot.SimHost.Tests
             handler.Commit(intent, null);
 
             var collected = new List<EntityCreationRequest>();
+            _world.Bus.SwapBuffers();   // ⭐ CE-3228 — visible after the frame's swap
             source.ProcessRequests(r => collected.Add(r));
             Assert.Equal(3, collected.Count);
 
@@ -139,22 +139,22 @@ namespace Hrot.SimHost.Tests
 
             // Create 2 episode entities in the world with NetworkIdentity.
             var e1 = _world.CreateEntity();
-            _world.SetComponent(e1, new EpisodeTag { EpisodeId = episodeId });
-            _world.SetComponent(e1, new NetworkIdentity(101L));
+            _world.SetComponent(e1, new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(episodeId) });
+            _world.SetComponent(e1, new NetworkIdentity(101));
 
             var e2 = _world.CreateEntity();
-            _world.SetComponent(e2, new EpisodeTag { EpisodeId = episodeId });
-            _world.SetComponent(e2, new NetworkIdentity(102L));
+            _world.SetComponent(e2, new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(episodeId) });
+            _world.SetComponent(e2, new NetworkIdentity(102));
 
             // Create 3 entities NOT belonging to the episode.
             for (int i = 0; i < 3; i++)
             {
                 var e = _world.CreateEntity();
-                _world.SetComponent(e, new EpisodeTag { EpisodeId = Guid.NewGuid() });
-                _world.SetComponent(e, new NetworkIdentity(999L + i));
+                _world.SetComponent(e, new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(Guid.NewGuid()) });
+                _world.SetComponent(e, new NetworkIdentity(999 + i));
             }
 
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(null, source, out _);
             var txId    = Guid.NewGuid();
             var intent  = MakeStopIntent(txId, episodeId);
@@ -168,7 +168,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(2, commands.Count);
             var publishedIds = commands.Select(c => c.NetworkId).OrderBy(x => x).ToList();
-            Assert.Equal(new List<long> { 101L, 102L }, publishedIds);
+            Assert.Equal(new List<int> { 101, 102 }, publishedIds);
         }
 
         // ── Test 3: CanHandle ─────────────────────────────────────────────────
@@ -181,7 +181,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CanHandle_ReturnsTrue_ForStartAndStopEpisode()
         {
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(null, source, out _);
 
             Assert.True(handler.CanHandle(NodeOpType.StartEpisode));
@@ -201,7 +201,7 @@ namespace Hrot.SimHost.Tests
         {
             _goldRepo.CreateEntity();
             var json    = SerializeGold();
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(json, source, out _);
             var txId    = Guid.NewGuid();
             var episodeId = Guid.NewGuid();
@@ -212,6 +212,7 @@ namespace Hrot.SimHost.Tests
             handler.Commit(intent, null);  // must be a no-op
 
             var collected = new List<EntityCreationRequest>();
+            _world.Bus.SwapBuffers();   // ⭐ CE-3228 — visible after the frame's swap
             source.ProcessRequests(r => collected.Add(r));
             Assert.Empty(collected);
         }
@@ -225,7 +226,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task StartEpisode_MissingJson_NoRequestsEnqueued()
         {
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(null, source, out _);  // loader always returns null
             var txId    = Guid.NewGuid();
             var episodeId = Guid.NewGuid();
@@ -235,6 +236,7 @@ namespace Hrot.SimHost.Tests
             handler.Commit(intent, null);
 
             var collected = new List<EntityCreationRequest>();
+            _world.Bus.SwapBuffers();   // ⭐ CE-3228 — visible after the frame's swap
             source.ProcessRequests(r => collected.Add(r));
             Assert.Empty(collected);
         }

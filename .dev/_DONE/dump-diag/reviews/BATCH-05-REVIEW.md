@@ -20,7 +20,7 @@ all builds are clean, and the test suite grew from 127 to 131 passing tests with
 ### DD-P8-T02 — MergeLogsIntent and LogMergeCompletedEvent ✅
 
 `Events/DiagnosticsMergeEvents.cs` correctly defines both event structs as
-`[EventId] + [DataPolicy(DataPolicy.NoRecord)]`. EventIds 9059/9060 are the next available
+`[EventId] + [DataPolicy(DataPolicy.NoReplay)]`. EventIds 9059/9060 are the next available
 IDs after 9058 (`ExecuteDiagnosticDumpIntent`). Both structs have `{ get; init; }` properties
 consistent with the immutable value pattern used throughout the codebase.
 

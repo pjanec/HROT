@@ -42,14 +42,26 @@ public sealed class HsmFacetDispatcherTests
         return HsmAssetProjector.Project(blob, meta, null, Guid.NewGuid(), "Simple", "", false, "");
     }
 
-    private static InspectorWindow MakeInspectorWindow(
-        EditorSelectionStore store, IFacetDispatcher? dispatcher = null)
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet now resolves through
+    /// <c>NodePropertiesSource</c>, not through <c>InspectorWindow</c>.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ②: the node arms were EXTRACTED to
+    /// <c>details.nodeproperties</c>. ⚠ The claim each test below makes is UNCHANGED — it was always
+    /// about the MAPPER; the window was only a convenient driver.
+    /// <para>⭐ And the port is closer to production: the context is built by
+    /// <c>DetailsContextBuilder</c>, the same call the shell makes every frame.</para>
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeFacetSource(
+        IFacetDispatcher? dispatcher = null)
     {
-        var refactor = new StubRefactor();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher: dispatcher);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        return source;
     }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "HSM", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
     // ── tests ─────────────────────────────────────────────────────────────────
 
@@ -72,6 +84,30 @@ public sealed class HsmFacetDispatcherTests
         facet.Should().BeOfType<StateFacet>();
         var sf = (StateFacet)facet!;
         sf.Name.Should().Be("Idle");
+    }
+
+    /// <summary>⭐ CE-2088 — the event picker offers the ENGINE-RAISED events the asset has not declared; picking one on a
+    /// transition declares it (reserved id) and the save carries it.</summary>
+    [Fact]
+    public void CE2088_PickingABuiltInSensorEvent_DeclaresIt_AndTheSaveCarriesTheReservedId()
+    {
+        var asset = MakeSimpleAsset();
+        var picker = new HsmEventPickerDrawer(asset);
+        picker.GetItems().Should().Contain(new[] { "Fire", "Sensor.FirstThreat", "Sensor.Hit" });
+        Hrot.AiEditor.Persistence.Emit.HsmEventIds.TryGetBuiltIn("Sensor.FirstThreat", out ushort threat).Should().BeTrue();
+
+        var disp = new HsmFacetDispatcher(asset);
+        var transition = asset.AllTransitions.First();
+        var sel = new HsmTransitionSelection(transition.VisualId);
+        var facet = (TransitionFacet)disp.GetFacet(sel)!;
+        facet.EventId = threat;
+        disp.ApplyFacet(sel, facet);
+
+        transition.EventId.Should().Be(threat);
+        asset.FindEventById(threat)!.Name.Should().Be("Sensor.FirstThreat");
+        picker.GetItems().Count(n => n == "Sensor.FirstThreat").Should().Be(1, "declared once, not offered twice");
+        var dto = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(asset);
+        dto.Events.Should().Contain(e => e.Name == "Sensor.FirstThreat" && e.EventId == threat);
     }
 
     [Fact]
@@ -140,9 +176,9 @@ public sealed class HsmFacetDispatcherTests
         store.ActiveAsset = asset;
         // No sub-selection.
 
-        var window = MakeInspectorWindow(store, disp);
+        var source = MakeFacetSource(disp);
 
-        window.GetCurrentFacet().Should().BeNull(
+        source.FacetFor(ContextOf(store)).Should().BeNull(
             "no sub-selection means no facet");
     }
 

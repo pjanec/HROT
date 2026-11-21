@@ -13,7 +13,7 @@
 | `Hrot.SimHost.Tests` | ✅ 0 failed / 412 passed |
 | `FDP.Toolkit.CarKinem.Tests` | ✅ 0 failed / 127 passed |
 | `FDP.Toolkit.Navigation.Tests` | ✅ 0 failed / 41 passed |
-| `dotnet build IOS-IG-SimHost.sln` | ✅ 0 errors (328 pre-existing xUnit warnings) |
+| `dotnet build HROT.sln` | ✅ 0 errors (328 pre-existing xUnit warnings) |
 
 ## Task Verification
 

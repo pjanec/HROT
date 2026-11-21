@@ -1,5 +1,10 @@
+using System;
+using System.Linq;
+using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Presentation.Tests;
 
@@ -7,6 +12,7 @@ namespace Hrot.Presentation.Tests;
 /// Tests for <see cref="MainToolbarTimeControlSection"/> — headless logic seams
 /// and gating behaviour, using a fake <see cref="ITimeTransportFacade"/>.
 /// </summary>
+[Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
 public class MainToolbarTimeControlTests
 {
     [Fact]
@@ -140,5 +146,909 @@ public class MainToolbarTimeControlTests
 
         ImGuiNET.ImGui.End();
         fixture.Render();
+    }
+
+    // ── ⭐ CE-3330 E3 — mode indicator, menu, ■ → ⏏, F15, the axis icon (DAR §9a) ─────────────────────────────
+
+    private static FakeTimeTransportFacade In(TransportMode mode, ReplayAxis axis = ReplayAxis.Sim, double total = 0, double? livePoint = null,
+                                              ReplaySession? session = null)
+        => new() { Mode = mode, Axis = axis, TotalTime = total, LivePoint = livePoint, Session = session };
+
+    [Theory]
+    [InlineData(TransportMode.Edit,    Fdp.Presentation.Fonts.IconsFontAwesome6.Pen, 0.96f, 0.82f, 0.25f)]
+    [InlineData(TransportMode.Preview, Fdp.Presentation.Fonts.IconsFontAwesome6.Eye, 0.66f, 0.45f, 0.92f)]
+    [InlineData(TransportMode.Live,    Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, 0.25f, 0.80f, 0.30f)]
+    [InlineData(TransportMode.Review,  Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, 1.00f, 0.70f, 0.20f)]
+    [InlineData(TransportMode.Replay,  Fdp.Presentation.Fonts.IconsFontAwesome6.Play, 0.30f, 0.60f, 1.00f)]
+    public void ModeGlyph_IsTheFontAwesomeGlyphAndColourPerMode(TransportMode mode, string glyph, float r, float g, float b)
+    {
+        var ind = MainToolbarTimeControlSection.ModeGlyph(mode)!;
+        Assert.Equal(glyph, ind.Glyph);
+        Assert.Equal(new System.Numerics.Vector4(r, g, b, 1f), ind.Color);
+    }
+
+    [Theory]
+    [InlineData(TransportMode.Edit,    "")]   // Pen
+    [InlineData(TransportMode.Preview, "")]   // Eye (CE-3394, presets D9)
+    [InlineData(TransportMode.Live,    "")]   // Circle
+    [InlineData(TransportMode.Review,  "")]   // ClockRotateLeft
+    [InlineData(TransportMode.Replay,  "")]   // Play
+    public void ModeIcon_IsTheFontAwesomeGlyphPerMode(TransportMode mode, string expected)
+        => Assert.Equal(expected, MainToolbarTimeControlSection.ModeIcon(mode));
+
+    [Fact]
+    public void ModeIcon_IdleHasNone()
+        => Assert.Null(MainToolbarTimeControlSection.ModeIcon(TransportMode.Idle));
+
+    [Fact]
+    public void ModeGlyph_IdleHasNone()
+        => Assert.Null(MainToolbarTimeControlSection.ModeGlyph(TransportMode.Idle));
+
+    [Theory]
+    [InlineData(TransportMode.Edit)]
+    [InlineData(TransportMode.Preview)]
+    [InlineData(TransportMode.Replay)]
+    [InlineData(TransportMode.Idle)]
+    public void ModeMenu_HasNoMenuOutsideLiveAndReview(TransportMode mode)
+        => Assert.Null(new MainToolbarTimeControlSection(In(mode)).ModeMenu());
+
+    [Fact]
+    public void LiveMenu_OffersTheReviewWindowsAndTheStart()
+    {
+        var menu = new MainToolbarTimeControlSection(In(TransportMode.Live, total: 754)).ModeMenu()!;
+        Assert.Equal(new[] { "DAR — the last 30 s", "DAR — the last 2 min", "DAR — the last 10 min", "DAR from the start" },
+                     menu.Items.Select(i => i.Label).ToArray());
+        Assert.StartsWith("Live", menu.Header);
+    }
+
+    /// <summary>⭐ CE-4321 (L-5, LC-16) — the ⏪ Review button beside ▶ shows in a live run only and offers the SAME DAR choices as the mode menu (one list), which act the same.
+    /// ✅ Red-proof: <c>ShowsReviewButton</c> true in every mode ⇒ the Edit row ⇒ red.</summary>
+    [Fact]
+    public void CE4321_TheReviewButton_ShowsInLiveOnly_WithTheModeMenusDarChoices()
+    {
+        var fake = In(TransportMode.Live, total: 754);
+        var section = new MainToolbarTimeControlSection(fake);
+        Assert.True(section.ShowsReviewButton);
+        Assert.Equal(section.ModeMenu()!.Items.Select(i => i.Label), section.ReviewChoices().Select(i => i.Label));
+        section.ReviewChoices()[1].Invoke!();
+        Assert.Equal(754 - 120, fake.LastEnterReviewAtSim);
+        foreach (var mode in new[] { TransportMode.Edit, TransportMode.Preview, TransportMode.Review, TransportMode.Replay, TransportMode.Idle })
+        {
+            var other = new MainToolbarTimeControlSection(In(mode));
+            Assert.False(other.ShowsReviewButton, mode.ToString());
+            Assert.Empty(other.ReviewChoices());
+        }
+    }
+
+    /// <summary>⭐ CE-4321 (L-5, LC-16) — the Player's banner: shown for the whole DAR (and only then), in the design's words.</summary>
+    [Fact]
+    public void CE4321_ThePlayersReviewBanner_ShowsForTheWholeDarOnly()
+    {
+        Assert.True(Hrot.UI.Common.RunMode.ReviewBanner.Shows(TransportMode.Review));
+        foreach (var mode in new TransportMode?[] { TransportMode.Live, TransportMode.Edit, TransportMode.Preview, TransportMode.Replay, TransportMode.Idle, null })
+            Assert.False(Hrot.UI.Common.RunMode.ReviewBanner.Shows(mode));
+        Assert.Equal("REVIEW — the exercise is paused", Hrot.UI.Common.RunMode.ReviewBanner.Text);
+    }
+
+    [Fact]
+    public void LiveMenu_Review2Min_EntersBySimMinus120_ClampedAtZero()
+    {
+        var fake = In(TransportMode.Live, total: 754);
+        new MainToolbarTimeControlSection(fake).ModeMenu()!.Items[1].Invoke!();
+        Assert.Equal(754 - 120, fake.LastEnterReviewAtSim);
+
+        var young = In(TransportMode.Live, total: 50);
+        new MainToolbarTimeControlSection(young).ModeMenu()!.Items[1].Invoke!();
+        Assert.Equal(0d, young.LastEnterReviewAtSim);
+
+        var start = In(TransportMode.Live, total: 754);
+        new MainToolbarTimeControlSection(start).ModeMenu()!.Items[3].Invoke!();
+        Assert.Equal(0d, start.LastEnterReviewAtSim);
+    }
+
+    private static ReplaySession SessionWithCheckpoint() => new()
+    {
+        Active = true, IsReview = true, ZeroWallTicks = 100 * TimeSpan.TicksPerSecond, LivePointSimSeconds = 600,
+        Checkpoints = new[] { new CheckpointMark { Label = "cp-1", TotalTime = 42.5, WallTicks = 160 * TimeSpan.TicksPerSecond } },
+    };
+
+    [Fact]
+    public void ReviewMenu_Items_HeaderAndBackToLive()
+    {
+        var fake = In(TransportMode.Review, total: 273, livePoint: 600, session: SessionWithCheckpoint());
+        var menu = new MainToolbarTimeControlSection(fake).ModeMenu()!;
+        Assert.Equal("DAR · 5:27 behind live", menu.Header);
+        Assert.Equal(new[] { "Restart from 30 s before live", "Restart from 2 min before live", "Restart from a checkpoint", "⏏ Back to live" },
+                     menu.Items.Select(i => i.Label).ToArray());
+
+        menu.Items[3].Invoke!();
+        Assert.Equal(1, fake.ExitReviewCallCount);
+
+        menu.Items[1].Invoke!();
+        Assert.Equal(600 - 120, fake.LastSeek);
+    }
+
+    [Fact]
+    public void ReviewMenu_WithoutALivePoint_OffersNoRestartFromLive()
+    {
+        var menu = new MainToolbarTimeControlSection(In(TransportMode.Review, livePoint: null)).ModeMenu()!;
+        Assert.DoesNotContain(menu.Items, i => i.Label.StartsWith("Restart from 30"));
+        Assert.False(menu.Items.Single(i => i.Label == "Restart from a checkpoint").Enabled);   // no checkpoints either
+    }
+
+    [Theory]
+    [InlineData(ReplayAxis.Sim, 42.5)]    // Sim: the checkpoint's sim time
+    [InlineData(ReplayAxis.Wall, 60.0)]   // Wall: seconds after the session's zero ((160 - 100) s)
+    public void ReviewMenu_CheckpointSeeksToTheValueOnTheActiveAxis(ReplayAxis axis, double expected)
+    {
+        var fake = In(TransportMode.Review, axis, total: 10, livePoint: 600, session: SessionWithCheckpoint());
+        var sub = new MainToolbarTimeControlSection(fake).ModeMenu()!.Items.Single(i => i.Label == "Restart from a checkpoint");
+        Assert.True(sub.Enabled);
+        var item = Assert.Single(sub.Children!);
+        Assert.Equal("cp-1", item.Label);
+        item.Invoke!();
+        Assert.Equal(expected, fake.LastSeek);
+    }
+
+    [Fact]
+    public void StopFace_InAReviewIsBackToLive_ElsewhereStop()
+    {
+        Assert.Equal(MainToolbarTimeControlSection.StopFaceKind.BackToLive, MainToolbarTimeControlSection.StopFace(TransportMode.Review));
+        foreach (var m in new[] { TransportMode.Live, TransportMode.Replay, TransportMode.Preview, TransportMode.Edit, TransportMode.Idle })
+            Assert.Equal(MainToolbarTimeControlSection.StopFaceKind.Stop, MainToolbarTimeControlSection.StopFace(m));
+    }
+
+    /// <summary>⭐ The ▶ tooltip names what a press does (user, 2026-10-30): in Edit ALWAYS the Preview (⭐ CE-3405 — the armed mode no longer decides); in a run, resume or pause by the mode.</summary>
+    [Fact]
+    public void PlayTooltip_NamesThePreviewInEdit_AndTheRunningModeOtherwise()
+    {
+        foreach (var armed in new[] { RunArmed.Live, RunArmed.Preview, RunArmed.AAR })
+        {
+            var rig = RunChoiceRig.With(ClusterState.OperatingEdit, armed);
+            Assert.StartsWith("Play Preview", new MainToolbarTimeControlSection(rig.F, choice: rig.Choice).PlayTooltip(isPaused: true));
+        }
+        Assert.Equal("Play DAR — resume", new MainToolbarTimeControlSection(In(TransportMode.Review)).PlayTooltip(isPaused: true));
+        Assert.Equal("Pause AAR", new MainToolbarTimeControlSection(In(TransportMode.Replay)).PlayTooltip(isPaused: false));
+        Assert.Equal("Play Live — resume", new MainToolbarTimeControlSection(In(TransportMode.Live)).PlayTooltip(isPaused: true));
+    }
+
+    [Fact]
+    public void StopTooltip_PerMode()
+    {
+        Assert.Equal("Stop the exercise", new MainToolbarTimeControlSection(In(TransportMode.Live)).StopTooltip());
+        Assert.Equal("Leave the AAR", new MainToolbarTimeControlSection(In(TransportMode.Replay)).StopTooltip());
+        Assert.Equal("Back to edit", new MainToolbarTimeControlSection(In(TransportMode.Preview)).StopTooltip());
+        Assert.Equal("Back to live — 5:27 ahead",
+            new MainToolbarTimeControlSection(In(TransportMode.Review, total: 273, livePoint: 600)).StopTooltip());
+    }
+
+    [Fact]
+    public void F15_StopIsIgnoredFor3SecondsAfterAReviewReturnsToLive_ThenStops()
+    {
+        var clock = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+        var fake = In(TransportMode.Review);
+        var section = new MainToolbarTimeControlSection(fake, () => clock);
+        section.Observe();                 // a frame in the review
+
+        fake.Mode = TransportMode.Live;    // the return landed
+        section.Observe();                 // the next frame sees it
+        clock = clock.AddSeconds(2.9);
+        Assert.Contains("Just returned", section.StopTooltip());
+        section.OnStop();
+        Assert.Equal(0, fake.StopCallCount);   // the second press of a double press: ignored
+
+        clock = clock.AddSeconds(0.2);     // 3.1 s after the return
+        Assert.Equal("Stop the exercise", section.StopTooltip());
+        section.OnStop();
+        Assert.Equal(1, fake.StopCallCount);
+    }
+
+    [Fact]
+    public void F15_AStopInLiveThatFollowsNoReview_IsNeverGuarded()
+    {
+        var fake = In(TransportMode.Live);
+        var section = new MainToolbarTimeControlSection(fake, () => DateTime.UnixEpoch);
+        section.Observe();
+        section.OnStop();
+        Assert.Equal(1, fake.StopCallCount);
+    }
+
+    [Fact]
+    public void AxisToggle_CallsSetAxisWithTheOtherAxis_AndIsDisabledInEdit()
+    {
+        var live = In(TransportMode.Live, ReplayAxis.Sim);
+        var s = new MainToolbarTimeControlSection(live);
+        Assert.Equal("S", MainToolbarTimeControlSection.AxisFace(ReplayAxis.Sim));
+        Assert.Equal("W", MainToolbarTimeControlSection.AxisFace(ReplayAxis.Wall));
+        Assert.Equal("Sim time — pauses skipped", MainToolbarTimeControlSection.AxisTooltip(ReplayAxis.Sim));
+        Assert.Equal("Wall time — pauses shown", MainToolbarTimeControlSection.AxisTooltip(ReplayAxis.Wall));
+        Assert.True(s.IsAxisEnabled);
+        s.OnToggleAxis();
+        Assert.Equal(ReplayAxis.Wall, live.Axis);
+        s.OnToggleAxis();
+        Assert.Equal(ReplayAxis.Sim, live.Axis);
+
+        foreach (var m in new[] { TransportMode.Edit, TransportMode.Preview, TransportMode.Idle })
+        {
+            var f = In(m, ReplayAxis.Sim);
+            var sec = new MainToolbarTimeControlSection(f);
+            Assert.False(sec.IsAxisEnabled);
+            sec.OnToggleAxis();
+            Assert.Equal(ReplayAxis.Sim, f.Axis);
+        }
+    }
+
+    [Theory]
+    [InlineData(TransportMode.Edit)]
+    [InlineData(TransportMode.Live)]
+    [InlineData(TransportMode.Review)]
+    [InlineData(TransportMode.Replay)]
+    public void Render_EachMode_NoThrow(TransportMode mode)
+    {
+        using var fixture = new ImGuiTestFixture();
+        fixture.NewFrame();
+        var fake = In(mode, total: 12, livePoint: 600, session: SessionWithCheckpoint());
+        var section = new MainToolbarTimeControlSection(fake);
+        ImGuiNET.ImGui.Begin("test_toolbar_modes", ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
+        ImGuiNET.ImGui.SetWindowSize(new System.Numerics.Vector2(700, 80));
+        section.Render();
+        ImGuiNET.ImGui.End();
+        fixture.Render();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+    // ⭐⭐⭐ CE-4097 (AQ108 §2.8) — the toolbar over the run choice: the indicator, the menu's moves with their confirmations, ■ = the facade's Stop.
+    // Real adapter + real bus + a run choice (RunChoiceRig); the model is asserted without ImGui, the draw only for "does not throw".
+    // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+    private static MainToolbarTimeControlSection Bar(RunChoiceRig.Rig rig) => new(rig.F, choice: rig.Choice);
+    private static MainToolbarTimeControlSection Bar(RunChoiceRig.CheckRig rig) => new(rig.F, choice: rig.Choice);
+
+    private static RunArmed Armed(RunChoiceRig.Rig rig) => rig.Choice.Armed;
+
+    private static ClusterState StateOf(Hrot.UI.Common.Facades.TransportMode mode) => mode switch
+    {
+        TransportMode.Edit => ClusterState.OperatingEdit, TransportMode.Preview => ClusterState.OperatingPreview, TransportMode.Live => ClusterState.OperatingLive,
+        TransportMode.Review => ClusterState.OperatingReview, _ => ClusterState.OperatingReplay,
+    };
+
+    /// <summary>
+    /// ⭐ AQ108 D1 / §1a — the indicator is DIM before a run (the armed mode, what ▶ will start), BLINKS while a run plays, is BRIGHT and steady while it
+    /// is paused; the words are the user's (Preview / Live / DAR / AAR).
+    /// 🔴 Red-proof: <c>Indicator</c>'s level swapped (paused ⇒ Blink) / a word changed.
+    /// </summary>
+    [Theory]
+    [InlineData(TransportMode.Edit,    RunArmed.Preview, false, "Edit", IndicatorLevel.Bright)]   // ⭐ CE-3406: the current mode, steady — no dim "armed" level
+    [InlineData(TransportMode.Edit,    RunArmed.Live,    false, "Edit", IndicatorLevel.Bright)]   // whatever is armed
+    [InlineData(TransportMode.Preview, RunArmed.Preview, true,  "Preview", IndicatorLevel.Blink)]
+    [InlineData(TransportMode.Preview, RunArmed.Preview, false, "Preview", IndicatorLevel.Bright)]
+    [InlineData(TransportMode.Live,    RunArmed.Live,    true,  "Live",    IndicatorLevel.Blink)]
+    [InlineData(TransportMode.Live,    RunArmed.Live,    false, "Live",    IndicatorLevel.Bright)]
+    [InlineData(TransportMode.Review,  RunArmed.Live,    true,  "DAR",     IndicatorLevel.Blink)]
+    [InlineData(TransportMode.Replay,  RunArmed.AAR,     false, "AAR",     IndicatorLevel.Bright)]
+    public void CE4097_TheIndicator_IsDimInEdit_BlinksWhilePlaying_SteadyWhilePaused_WithTheUsersWords(
+        TransportMode mode, RunArmed host, bool running, string word, IndicatorLevel level)
+    {
+        var rig = RunChoiceRig.With(StateOf(mode), host == RunArmed.AAR ? RunArmed.Preview : host, running: running);
+        var ind = rig.Choice.Indicator;
+        Assert.Equal(word, ind.Word);
+        Assert.Equal(level, ind.Level);
+        Assert.False(string.IsNullOrEmpty(ind.Glyph));
+    }
+
+    /// <summary>⭐ CE-4090 / D14 — Live is RED when runs are recorded, GREEN when not: in a run from the run's own flag, before one (armed) from the setting.
+    /// 🔴 Red-proof: the colours swapped in <c>Of(Live)</c>.</summary>
+    [Fact]
+    public void CE4097_TheLiveIndicator_IsRedWhenRecording_GreenWhenNot()
+    {
+        static bool Red(RunChoiceRig.Rig r) { var c = r.Choice.Indicator.Color; return c.X > 0.8f && c.Y < 0.4f; }
+        static bool Green(RunChoiceRig.Rig r) { var c = r.Choice.Indicator.Color; return c.Y > 0.7f && c.X < 0.4f; }
+
+        Assert.True(Red(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live)));
+        Assert.True(Green(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true)));
+        Assert.True(Red(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, running: true)));                    // ⭐ CE-3405: in Edit the indicator is the authoring one (R-3); the briefing / run carry the recording colour
+    }
+
+    /// <summary>The blink pulses between 0.3 and 1; dim and bright are steady.</summary>
+    [Fact]
+    public void CE4097_TheIndicatorAlpha_DimAndBrightAreSteady_BlinkPulses()
+    {
+        Assert.Equal(RunModeIndicator.Alpha(IndicatorLevel.Dim, 0), RunModeIndicator.Alpha(IndicatorLevel.Dim, 5.3));
+        Assert.Equal(1f, RunModeIndicator.Alpha(IndicatorLevel.Bright, 1.7));
+        var samples = Enumerable.Range(0, 100).Select(i => RunModeIndicator.Alpha(IndicatorLevel.Blink, i * 0.01)).ToList();
+        Assert.True(samples.Max() > 0.95f && samples.Min() < 0.4f, $"blink must pulse (min {samples.Min()}, max {samples.Max()})");
+        Assert.True(RunModeIndicator.Alpha(IndicatorLevel.Dim, 0) < RunModeIndicator.Alpha(IndicatorLevel.Bright, 0));
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 §3 / D10 — the moves that START from the current state, each with its exact confirmation: Live running → Preview / AAR; Preview running →
+    /// Live / AAR; AAR → Live / Preview; Edit → all three with none (R3); a DAR has none of its own here. A live run that was not recorded cannot open AAR.
+    /// 🔴 Red-proof: any one text edited / a confirmation dropped from a move.
+    /// </summary>
+    [Fact]
+    public void CE4097_TheMenusMoves_AndTheirConfirmationTexts_PerAQ108Section3()
+    {
+        const string previewStop = "Stops the preview and returns to the scenario's start";
+
+        var live = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live).Choice.Moves();
+        Assert.Equal("Ends the live session; you return to editing the scenario at its start", live.Single(m => m.Target == RunArmed.Preview).ConfirmText);
+        Assert.Equal("Ends the live session; its recording opens for AAR", live.Single(m => m.Target == RunArmed.AAR).ConfirmText);
+        Assert.True(live.Single(m => m.Target == RunArmed.Live).IsShown);
+        Assert.Null(live.Single(m => m.Target == RunArmed.Live).ConfirmText);   // the current mode is no move
+
+        var notRecorded = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true).Choice.Moves().Single(m => m.Target == RunArmed.AAR);
+        Assert.False(notRecorded.Enabled);
+        Assert.Equal("this run was not recorded", notRecorded.DisabledReason);
+
+        var previewRig = RunChoiceRig.With(ClusterState.OperatingPreview, RunArmed.Preview);
+        previewRig.Choice.PickRecording = () => { };   // ⭐ CE-3405: the AAR switch needs a last exercise or a picker
+        var preview = previewRig.Choice.Moves();
+        Assert.Equal(previewStop, preview.Single(m => m.Target == RunArmed.Live).ConfirmText);
+        Assert.Equal(previewStop, preview.Single(m => m.Target == RunArmed.AAR).ConfirmText);
+
+        var replay = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.AAR, clock: 424).Choice.Moves();
+        Assert.Equal("A new exercise starts from 7:04; this recording stays unchanged", replay.Single(m => m.Target == RunArmed.Live).ConfirmText);
+        Assert.Equal("Ends the AAR; you return to editing hill-attack at its start", replay.Single(m => m.Target == RunArmed.Preview).ConfirmText);
+
+        var editRig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var edit = editRig.Choice.Moves();
+        Assert.Equal(3, edit.Count);
+        Assert.Equal("Edit", edit.Single(m => m.Target == RunArmed.Preview).Label);   // ⭐ CE-3405: the authoring item
+        Assert.All(edit, m => Assert.Null(m.ConfirmText));                            // R3: the switch's only question is the DOOR's (unsaved), not ours
+        Assert.True(edit.Single(m => m.Target == RunArmed.Live).Enabled);
+        Assert.False(edit.Single(m => m.Target == RunArmed.AAR).Enabled);             // no exercise to review yet, no picker: greyed with its reason
+        Assert.Equal("No exercise for an AAR yet — open a recording first", edit.Single(m => m.Target == RunArmed.AAR).DisabledReason);
+        editRig.Choice.PickRecording = () => { };
+        Assert.True(editRig.Choice.Moves().Single(m => m.Target == RunArmed.AAR).Enabled);
+
+        Assert.Empty(RunChoiceRig.With(ClusterState.OperatingReview, RunArmed.Live).Choice.Moves());
+    }
+
+    /// <summary>
+    /// ⭐ R3 + R1 — a move that ends something ASKS first and changes nothing until its button is pressed (Cancel leaves everything); a move from Edit and
+    /// ■ never ask. Each confirmed move does exactly its §3 action: Live → Preview = <c>OpenForEdit(the run's scenario)</c>; Live → AAR = <c>OpenRecording(the run)</c>;
+    /// Preview running → Live = the dry run's exit, Live armed; AAR → Live = the branch intent; AAR → Preview = <c>OpenForEdit(the recording's scenario)</c>.
+    /// 🔴 Red-proof: <c>Choose</c> arming at once without the confirmation / the confirmed action dropped.
+    /// </summary>
+    [Fact]
+    public void CE4097_AMoveThatEndsARun_AsksFirst_AndOnlyItsButtonActs()
+    {
+        // Live → Preview
+        var live = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live);
+        live.Choice.Choose(RunArmed.Preview);
+        var ask = live.Choice.Pending!;
+        Assert.Equal("Ends the live session; you return to editing the scenario at its start", ask.Text);
+        Assert.Equal("Cancel", ask.Buttons[^1].Label);
+        Assert.Equal(RunArmed.Live, live.Choice.Armed);                     // nothing yet (R1: Armed changes only when the move happens)
+        Assert.Empty(live.C.Calls);
+        ask.Resolve(ask.Buttons[^1]);
+        Assert.Empty(live.C.Calls); Assert.Equal(RunArmed.Live, live.Choice.Armed); Assert.Null(live.Choice.Pending);
+        live.Choice.Choose(RunArmed.Preview);
+        live.Choice.Pending!.Resolve(live.Choice.Pending.Buttons[0]);
+        Assert.Equal(new[] { "OpenForEdit:hill-attack" }, live.C.Calls);
+        Assert.Equal(RunArmed.Preview, live.Choice.Armed);
+        Assert.Equal(RunChoiceRig.RunId, live.Choice.LastExercise);
+
+        // Live → AAR
+        var toAar = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live);
+        toAar.Choice.Choose(RunArmed.AAR);
+        toAar.Choice.Pending!.Resolve(toAar.Choice.Pending.Buttons[0]);
+        Assert.Equal(new[] { $"OpenRecording:{RunChoiceRig.RunId}" }, toAar.C.Calls);
+        Assert.Equal(RunArmed.AAR, toAar.Choice.Armed);
+
+        // Preview running → Live
+        var pv = RunChoiceRig.With(ClusterState.OperatingPreview, RunArmed.Preview);
+        pv.Choice.Choose(RunArmed.Live);
+        Assert.Equal(RunArmed.Preview, pv.Choice.Armed);
+        Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(pv));
+        pv.Choice.Pending!.Resolve(pv.Choice.Pending.Buttons[0]);
+        Assert.Equal(ClusterState.OperatingEdit, RunChoiceRig.Sent<TransitionStateIntent>(pv).Single().TargetState);   // the dry run's exit
+        Assert.Empty(pv.C.Calls);                                                          // ⭐ CE-3405: the switch waits for editing to be back (the restore)
+        RunChoiceRig.Hear(pv, ClusterState.OperatingEdit);
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, pv.C.Calls);                    // …then the unsaved question (none) and the load, paused
+        Assert.Equal(RunArmed.Live, pv.Choice.Armed);
+
+        // AAR → Live (the branch) and AAR → Preview
+        var branch = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.AAR);
+        branch.Choice.Choose(RunArmed.Live);
+        branch.Choice.Pending!.Resolve(branch.Choice.Pending.Buttons[0]);
+        Assert.Equal(ClusterState.OperatingLive, RunChoiceRig.Sent<TransitionStateIntent>(branch).Single().TargetState);
+        Assert.Equal(RunArmed.Live, branch.Choice.Armed);
+        var edit = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.AAR);
+        edit.Choice.Choose(RunArmed.Preview);
+        edit.Choice.Pending!.Resolve(edit.Choice.Pending.Buttons[0]);
+        Assert.Equal(new[] { "OpenForEdit:hill-attack" }, edit.C.Calls);
+
+        // R3: from Edit nothing asks; ■ in Live never asks
+        var rest = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        rest.Choice.Choose(RunArmed.Live);
+        Assert.Null(rest.Choice.Pending);
+        Assert.Equal(RunArmed.Live, rest.Choice.Armed);
+        var stop = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live);
+        stop.F.Stop();
+        Assert.Null(stop.Choice.Pending);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4100 (AQ108 D15, §3 "■ in Live with ask to keep recordings ON") — ■ in a RECORDED live run asks <i>"Keep this recording? (12:34, hill-attack)"</i> when the seam says so: Keep (the default,
+    /// first button) publishes nothing, Discard publishes exactly ONE storage-delete for the run's exercise, Cancel closes it. OFF (the default): no prompt, as before. Outside Live: never.
+    /// 🔴 Red-proofs: <c>DiscardRecording</c> publishing nothing ⇒ the Discard row; the prompt shown when OFF ⇒ the off row.
+    /// </summary>
+    [Fact]
+    public void CE4100_StopInLive_AsksToKeepTheRecording_OnlyWhenTheSeamSaysSo()
+    {
+        // off (the default): today's ■ — no prompt, nothing deleted
+        var off = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        off.F.Stop();
+        Assert.Null(off.Choice.Pending);
+        Assert.Empty(RunChoiceRig.Sent<ExecuteStorageOpIntent>(off.Bus));
+
+        // on: the exact text, Keep first
+        var keep = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        keep.Choice.AskToKeep = () => true;
+        keep.F.Stop();
+        var ask = keep.Choice.Pending!;
+        Assert.NotNull(ask);
+        Assert.Equal("Keep this recording? (12:34, hill-attack)", ask.Text);
+        Assert.Equal(new[] { "Keep", "Discard", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label).ToArray());
+        Assert.Empty(RunChoiceRig.Sent<ExecuteStorageOpIntent>(keep.Bus));          // asking deletes nothing
+        ask.Resolve(ask.Buttons[0]);                                                // Keep
+        Assert.Null(keep.Choice.Pending);
+        Assert.Empty(RunChoiceRig.Sent<ExecuteStorageOpIntent>(keep.Bus));
+
+        // Discard: exactly one delete request, for this run's exercise
+        var discard = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        discard.Choice.AskToKeep = () => true;
+        discard.F.Stop();
+        var ask2 = discard.Choice.Pending!;
+        ask2.Resolve(ask2.Buttons.Single(b => b.Label == "Discard"));
+        var sent = RunChoiceRig.Sent<ExecuteStorageOpIntent>(discard.Bus);
+        var one = Assert.Single(sent);
+        Assert.Equal(RunChoiceRig.RunId, one.ExerciseId);
+        Assert.Equal(StorageOpType.Delete, one.Operation);
+
+        // outside Live: never a prompt
+        foreach (var state in new[] { ClusterState.OperatingPreview, ClusterState.OperatingReplay, ClusterState.OperatingReview })
+        {
+            var rig = RunChoiceRig.With(state, RunArmed.Live, clock: 754);
+            rig.Choice.AskToKeep = () => true;
+            rig.F.Stop();
+            Assert.Null(rig.Choice.Pending);
+        }
+    }
+
+    /// <summary>⭐ CE-4100 ① (AQ108 D15) — the REAL adapter wires the seam to the cluster's <i>Ask to keep recordings</i> setting off the master's broadcast (<c>ClusterView.AskToKeepRecordings</c>):
+    /// with it OFF (the default) ■ in Live does not ask; once the master broadcasts it ON, the same ■ asks. 🔴 Mutation: the adapter's <c>AskToKeep</c> back to <c>() =&gt; false</c> ⇒ red.</summary>
+    [Fact]
+    public void CE4100_TheAdapterReadsTheAskToKeepSettingOffTheClusterView()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        Assert.False(rig.Choice.AskToKeep());                                       // nothing broadcast: keep silently
+
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(RunChoiceRig.RunId), ArmedMode = rig.View.ArmedMode, AskToKeepRecordings = true });
+        rig.Bus.SwapBuffers(); rig.View.Update(); rig.F.Update(); rig.Bus.SwapBuffers();
+        Assert.True(rig.Choice.AskToKeep());
+
+        rig.F.Stop();
+        Assert.Equal("Keep this recording? (12:34, hill-attack)", rig.Choice.Pending!.Text);
+    }
+
+    /// <summary>A confirmation resolves once: a second press is ignored (no second action), a foreign button is refused.</summary>
+    [Fact]
+    public void CE4097_AConfirmationResolvesOnce()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live);
+        rig.Choice.Choose(RunArmed.Preview);
+        var ask = rig.Choice.Pending!;
+        ask.Resolve(ask.Buttons[0]);
+        ask.Resolve(ask.Buttons[0]);
+        Assert.Single(rig.C.Calls);
+        Assert.Throws<ArgumentException>(() => ask.Resolve(new RunModeConfirmation.Button("Other", null)));
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 D22 / success 3 — the toolbar's ■ and <c>facade.Stop()</c> (what <c>POST /sim/stop</c> ends in) are ONE rail: the same session calls and the same
+    /// intents, in every state ■ works from.
+    /// 🔴 Red-proof: <c>ClusterTimeTransportAdapter.Stop</c> bypassing the choice ⇒ the Live row publishes Idle instead of <c>OpenForEdit</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(TransportMode.Live)]
+    [InlineData(TransportMode.Preview)]
+    [InlineData(TransportMode.Review)]
+    [InlineData(TransportMode.Replay)]
+    public void CE4097_TheToolbarsStop_AndTheFacadesStop_AreTheSameCalls(TransportMode mode)
+    {
+        var viaFacade = RunChoiceRig.With(StateOf(mode), RunArmed.Live, clock: 5);   // (clock 0 + paused is the Live briefing, whose ■ is greyed at the toolbar — CE-3413)
+        var viaToolbar = RunChoiceRig.With(StateOf(mode), RunArmed.Live, clock: 5);
+
+        viaFacade.F.Stop();
+        Bar(viaToolbar).OnStop();
+
+        Assert.Equal(viaFacade.C.Calls, viaToolbar.C.Calls);
+        Assert.Equal(RunChoiceRig.Sent<TransitionStateIntent>(viaFacade).Select(i => i.TargetState),
+                     RunChoiceRig.Sent<TransitionStateIntent>(viaToolbar).Select(i => i.TargetState));
+        Assert.Equal(viaFacade.Choice.LastExercise, viaToolbar.Choice.LastExercise);
+        if (mode == TransportMode.Live) Assert.Equal(new[] { "OpenForEdit:hill-attack" }, viaToolbar.C.Calls);   // and it is R2, not a plain Idle
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4111</c> (AQ108 §2.16) — the indicator and its menu show ONE mode. (a) Armed Preview, a recording open (mode Replay): the icon says AAR, the AAR item is
+    /// checked AND enabled, Preview is not checked. (b) the same in Edit: Preview dim and checked. 🔴 Red-proof: <c>Moves()</c> putting back <c>Armed == target</c> ⇒ Preview checked / AAR unchecked under an AAR icon.
+    /// </summary>
+    [Fact]
+    public void CE4111_TheIconTheCheckAndTheEnabledState_AgreeOnTheShownMode()
+    {
+        var replay = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.Preview);   // armed Preview, a recording opened (R-1043: the open does not arm AAR)
+        Assert.Equal("AAR", replay.Choice.Indicator.Word);
+        Assert.Equal(RunArmed.AAR, replay.Choice.Shown);
+        var moves = replay.Choice.Moves();
+        var aar = moves.Single(m => m.Target == RunArmed.AAR);
+        Assert.True(aar.IsShown);
+        Assert.True(aar.Enabled);
+        Assert.False(moves.Single(m => m.Target == RunArmed.Preview).IsShown);
+        Assert.Equal(1, moves.Count(m => m.IsShown));
+        var items = Bar(replay).ModeMenu()!.Items;
+        Assert.Equal(new[] { false, false, true }, items.Take(3).Select(i => i.Selected));   // the three moves (⭐ A6: then the playhead's Go live from here — TheRunModeMovesAreDeclaredOnceTests)
+        Assert.True(items.Single(i => i.Label == "AAR").Enabled);
+
+        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live);   // ⭐ CE-3405: even with Live armed, Edit shows (and checks) the authoring item
+        Assert.Equal("Edit", edit.Choice.Indicator.Word);
+        Assert.Equal(IndicatorLevel.Bright, edit.Choice.Indicator.Level);
+        Assert.Equal(new[] { true, false, false }, Bar(edit).ModeMenu()!.Items.Select(i => i.Selected));
+        Assert.True(edit.Choice.Moves().Single(m => m.Target == RunArmed.Preview).Enabled);
+    }
+
+    /// <summary>⭐ <c>CE-4111</c> (c) — choosing the SHOWN item does nothing: no <c>Choose</c> (nothing armed, nothing pending, no confirmation), no session call, no intent sent.
+    /// 🔴 Red-proof: the section invoking <c>_choice.Choose(target)</c> for the shown item ⇒ AAR would be armed / a confirmation pending.</summary>
+    [Fact]
+    public void CE4111_ChoosingTheShownItem_DoesNothing()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.Preview);
+        var sentBefore = RunChoiceRig.Sent<TransitionStateIntent>(rig).Count();
+
+        Bar(rig).ModeMenu()!.Items.Single(i => i.Label == "AAR").Invoke!();
+
+        Assert.Equal(RunArmed.Preview, rig.Choice.Armed);   // nothing armed
+        Assert.Null(rig.Choice.Pending);                    // no confirmation asked
+        Assert.Empty(rig.C.Calls);
+        Assert.Equal(sentBefore, RunChoiceRig.Sent<TransitionStateIntent>(rig).Count());
+
+        // in Edit the shown item IS the armed one: choosing it publishes no run-settings intent (it would re-arm what is armed)
+        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var armedBefore = RunChoiceRig.Sent<SetRunSettingsIntent>(edit).Count();
+        Bar(edit).ModeMenu()!.Items.Single(i => i.Label == "Edit").Invoke!();
+        Assert.Equal(armedBefore, RunChoiceRig.Sent<SetRunSettingsIntent>(edit).Count());
+        Assert.Null(edit.Choice.Pending);
+        Assert.Empty(edit.C.Calls);
+    }
+
+    /// <summary>⭐ <c>CE-4111</c> (d) — a running menu's header also names the ARMED mode (a load during a run goes into it, R-1043); Edit says <c>Edit · ▶ previews</c> (CE-3405).
+    /// 🔴 Red-proof: the header suffix dropped ⇒ no <c>loads go into: Preview</c>.</summary>
+    [Fact]
+    public void CE4111_TheRunningHeader_NamesTheArmedMode()
+    {
+        var replay = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.Preview, clock: 12);
+        var header = Bar(replay).ModeMenu()!.Header;
+        Assert.StartsWith("AAR · ", header);
+        Assert.EndsWith(" · loads go into: Preview", header);
+        Assert.Contains("loads go into: Live", Bar(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90)).ModeMenu()!.Header);
+        Assert.Equal("Edit · ▶ previews", Bar(RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview)).ModeMenu()!.Header);
+    }
+
+    /// <summary>
+    /// ⭐ The section's menu with a choice: Edit offers the three modes (Edit selected, choosing one switches to it at once); a live run keeps the DAR windows AND adds the
+    /// moves (the confirmation opens as the pending dialog); without a choice the menu is the pre-4097 one (no menu in Edit).
+    /// </summary>
+    [Fact]
+    public void CE4097_TheSectionsMenu_IsTheChoicesMoves()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        rig.Choice.PickRecording = () => { };
+        var menu = Bar(rig).ModeMenu()!;
+        Assert.Equal("Edit · ▶ previews", menu.Header);
+        Assert.Equal(new[] { "Edit", "Live", "AAR — open a recording…" }, menu.Items.Select(i => i.Label));
+        Assert.Equal(new[] { true, false, false }, menu.Items.Select(i => i.Selected));
+        menu.Items.Single(i => i.Label == "Live").Invoke!();
+        Assert.Equal(RunArmed.Live, Armed(rig));                           // ⭐ CE-3405: choosing it SWITCHES (and arms): the load went out
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, rig.C.Calls);
+
+        var live = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90);
+        var liveMenu = Bar(live).ModeMenu()!;
+        Assert.Contains(liveMenu.Items, i => i.Label.StartsWith("DAR — the last 30 s"));   // the DAR windows stay
+        liveMenu.Items.Single(i => i.Label == "AAR").Invoke!();
+        Assert.Equal("Ends the live session; its recording opens for AAR", live.Choice.Pending!.Text);
+
+        Assert.Null(new MainToolbarTimeControlSection(RunChoiceRig.With(ClusterState.OperatingEdit).F).ModeMenu());   // the section built WITHOUT a choice: as before
+        // a DAR keeps its own menu: ⏏ Back to live is still there, no move was added
+        var review = RunChoiceRig.With(ClusterState.OperatingReview, RunArmed.Live);
+        Assert.Contains(Bar(review).ModeMenu()!.Items, i => i.Label == "⏏ Back to live");
+        Assert.DoesNotContain(Bar(review).ModeMenu()!.Items, i => i.Label == "AAR");
+    }
+
+    /// <summary>⭐ CE-3405 — on a host with no session ▶ stays greyed in Edit with its reason (the facade's own answer is RAW: an HTTP play still works there); the Live item is greyed with its reason too.</summary>
+    [Fact]
+    public void CE3405_PlayOnAHostWithNoSession_IsDisabledAtTheToolbar_AndTheLiveItemIsGreyed()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false);
+        Assert.True(rig.F.IsPlayPauseEnabled);                              // ⭐ D22: the facade's answer is RAW (an HTTP play still works here) …
+        Assert.False(Bar(rig).IsPlayEnabled);                               // … the USER's ▶ is the one that is disabled
+        Assert.False(Bar(rig).IsStepEnabled);
+        var live = Bar(rig).ModeMenu()!.Items.Single(i => i.Label.StartsWith("Live"));
+        Assert.False(live.Enabled);
+        Assert.Contains("No scenario session", live.Label);
+        Bar(rig).OnPlayPause();
+        Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(rig));
+        Assert.Empty(rig.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 D22 / CE-3405 — the TOOLBAR's ▶ and Step (and the status bar's, and the timeline's Space) are the Preview from Edit whatever is armed (the mode is switched at the indicator); the facade's own play (an HTTP route) too.
+    /// 🔴 Red-proof: <c>Play</c> dispatching on <c>Armed</c> again ⇒ Live armed loads live.
+    /// </summary>
+    [Fact]
+    public void CE3405_TheToolbarsPlayAndStep_FromEdit_AreThePreview_WhateverIsArmed()
+    {
+        var live = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        Bar(live).OnPlayPause();
+        Assert.Empty(live.C.Calls);
+        var play = RunChoiceRig.Sent<TransitionStateIntent>(live).Single();
+        Assert.Equal(ClusterState.OperatingPreview, play.TargetState);
+        Assert.Equal("Continuous", play.TimeMode);
+
+        var step = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        Bar(step).OnStep();
+        Assert.Empty(step.C.Calls);
+        Assert.Equal("Deterministic", RunChoiceRig.Sent<TransitionStateIntent>(step).Single().TimeMode);
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 D20 / the NOTE — the menu-driven go-live (the indicator's switch to Live) and an HTTP load of the same scenario each cause exactly ONE <c>CheckUnsaved</c> round; the switch publishes
+    /// the intent through the facade's bus and waits for the answer without blocking. (The HTTP half — <c>POST /scenario/load/live</c> — is
+    /// <c>TheRunModeRoutesTests</c> in Hrot.Editor.Tests/DebugApi.) 🔴 Red-proof: <c>the switch</c> asking twice (once before, once after Save) ⇒ two intents.
+    /// </summary>
+    [Fact]
+    public void CE4097_TheMenuDrivenGoLive_PublishesExactlyOneCheckUnsaved()
+    {
+        var rig = RunChoiceRig.WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
+        rig.Choice.Choose(RunArmed.Live);
+        var asked = RunChoiceRig.Sent<CheckUnsavedIntent>(rig);
+        Assert.Single(asked);
+        rig.R.Answer(asked, changed: true);
+        RunChoiceRig.Frame(rig);
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);         // Save
+        Assert.Equal(new[] { "SaveCurrent", "LoadForLive:hill-attack" }, rig.C.Calls);
+        Assert.Empty(RunChoiceRig.Sent<CheckUnsavedIntent>(rig));           // …and no second round for the same move
+    }
+
+    /// <summary>⭐ D14 — in a live run that was not recorded the DAR items are greyed with the reason (the master refuses them too); in a recorded one they are enabled.</summary>
+    [Fact]
+    public void CE4097_TheLiveMenu_GreysDar_WhenTheRunWasNotRecorded()
+    {
+        var unrecorded = Bar(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true, clock: 90)).ModeMenu()!;
+        var dar = unrecorded.Items.Where(i => i.Label.StartsWith("DAR")).ToList();
+        Assert.Equal(4, dar.Count);
+        Assert.All(dar, i => { Assert.False(i.Enabled); Assert.EndsWith("this run was not recorded", i.Label); });
+
+        var recorded = Bar(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90)).ModeMenu()!;
+        Assert.All(recorded.Items.Where(i => i.Label.StartsWith("DAR")), i => Assert.True(i.Enabled));
+    }
+
+    /// <summary>⭐ CE-3409 (R-4, D27; REPLACES L-11 / CE-4319) — ▶ / ⏸ wears the INDICATOR's colour: in Edit / Idle the Preview's violet (▶ previews), in a run the run's own (the indicator's: Live red / green by recording, a DAR amber, an AAR blue).
+    /// 🔴 Red-proof: <c>PlayColour</c> ignoring the indicator colour ⇒ the run rows ⇒ red.</summary>
+    [Fact]
+    public void CE3409_PlayWearsTheIndicatorsColour()
+    {
+        var violet = MainToolbarTimeControlSection.ModeGlyph(TransportMode.Preview)!.Color;
+        Assert.Equal(violet, MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, new System.Numerics.Vector4(1, 1, 0, 1)));   // the pen's yellow is NOT ▶'s colour
+        Assert.Equal(violet, MainToolbarTimeControlSection.PlayColour(TransportMode.Idle, null));
+        var red = new System.Numerics.Vector4(0.90f, 0.22f, 0.22f, 1f);
+        Assert.Equal(red, MainToolbarTimeControlSection.PlayColour(TransportMode.Live, red));
+        foreach (var (rig, colour) in new[] { (RunChoiceRig.With(ClusterState.OperatingLive, clock: 5), red),
+                                              (RunChoiceRig.With(ClusterState.OperatingLive, clock: 5, runNotRecorded: true), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Live)!.Color),
+                                              (RunChoiceRig.With(ClusterState.OperatingReview, clock: 5), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Review)!.Color),
+                                              (RunChoiceRig.With(ClusterState.OperatingReplay, clock: 5), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Replay)!.Color) })
+            Assert.Equal(colour, MainToolbarTimeControlSection.PlayColour(rig.F.Mode, rig.Choice.Indicator.Color));
+    }
+
+    /// <summary>⭐ D11 — the status-bar note shows while a Preview or a Live run goes, and only then.</summary>
+    [Theory]
+    [InlineData(TransportMode.Preview, "Preview — changes are thrown away on Stop")]   // ⭐ L-1 (LC-8, R-4166): a Preview keeps nothing
+    [InlineData(TransportMode.Live, "Running — edits are not saved unless you save")]
+    [InlineData(TransportMode.Edit, null)]
+    [InlineData(TransportMode.Idle, null)]
+    [InlineData(TransportMode.Review, null)]
+    [InlineData(TransportMode.Replay, null)]
+    public void CE4097_TheStatusBarNote_ShowsWhileAPreviewOrLiveRunGoes(TransportMode mode, string? expected)
+    {
+        var note = new RunNoteStatusBarSection(new FakeTimeTransportFacade { Mode = mode }).NoteNow();
+        Assert.Equal(expected, note);
+    }
+
+    /// <summary>The draw with a pending confirmation and a toast does not throw (the modal and the note render headless).</summary>
+    [Fact]
+    public void CE4097_Render_WithAPendingConfirmationAndAToast_NoThrow()
+    {
+        using var fixture = new ImGuiTestFixture();
+        fixture.NewFrame();
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Changed);
+        rig.Choice.Choose(RunArmed.Live);                                   // → pending "Save / Discard / Cancel"
+        Assert.NotNull(rig.Choice.Pending);
+        var done = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 12);
+        done.F.Stop();                                                      // → the toast
+        Assert.NotNull(done.Choice.Toast);
+
+        foreach (var r in new[] { rig, done })
+        {
+            var section = Bar(r);
+            ImGuiNET.ImGui.Begin("test_toolbar_choice_" + ReferenceEquals(r, rig), ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
+            ImGuiNET.ImGui.SetWindowSize(new System.Numerics.Vector2(900, 80));
+            section.Render();
+            ImGuiNET.ImGui.End();
+        }
+        fixture.Render();
+    }
+
+    // ── ⭐ W-4 — Run to … in the mode menu (LC-10, 📄 DESIGN_Scenario_Lifecycle_Review.md §2.8; mockup run-to-visual.svg) ─────────
+
+    private static RunToController RunToOver(ITimeTransportFacade f, RunModeChoice? choice, Func<bool>? inPreview = null)
+        => new(f, () => false, inPreview ?? (() => f.Mode == TransportMode.Preview), () => new Fdp.Core.EntityRepository(),
+               enterPreview: choice is null ? null : choice.EnterPreviewPaused);
+
+    /// <summary>
+    /// ⭐ W-4 — the mode menu offers <i>Run to …</i> in Edit (the host can start a Preview) and in Preview, under a separator, with the
+    /// hourglass in Preview's violet; never in Live, DAR or AAR, nor in Edit on a host that cannot start a Preview. A click opens the popup.
+    /// 🔴 Red-proof: <c>OffersRunTo</c> true in every mode ⇒ the Live row fails.
+    /// </summary>
+    [Fact]
+    public void W4_TheModeMenuOffersRunTo_InEditAndPreview_Only()
+    {
+        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var section = new MainToolbarTimeControlSection(edit.F, choice: edit.Choice, runTo: RunToOver(edit.F, edit.Choice));
+        var items = section.ModeMenu()!.Items;
+        var item = items.Single(i => i.Label == "Run to …");
+        Assert.True(items[items.ToList().IndexOf(item) - 1].IsSeparator);
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.HourglassHalf, item.Glyph);
+        Assert.Equal(MainToolbarTimeControlSection.ModeGlyph(TransportMode.Preview)!.Color, item.GlyphColor);
+        item.Invoke!();
+        Assert.True(section.RunToOpenRequested);
+
+        var preview = In(TransportMode.Preview, total: 30);
+        Assert.Contains(new MainToolbarTimeControlSection(preview, runTo: RunToOver(preview, null)).ModeMenu()!.Items, i => i.Label == "Run to …");
+
+        foreach (var mode in new[] { TransportMode.Live, TransportMode.Review, TransportMode.Replay })
+        {
+            var f = In(mode, livePoint: 100);
+            var menu = new MainToolbarTimeControlSection(f, runTo: RunToOver(f, null)).ModeMenu();
+            Assert.True(menu is null || menu.Items.All(i => i.Label != "Run to …"), mode.ToString());
+        }
+        var noDoor = In(TransportMode.Edit);
+        Assert.Null(new MainToolbarTimeControlSection(noDoor, runTo: RunToOver(noDoor, null)).ModeMenu());
+        Assert.Null(new MainToolbarTimeControlSection(In(TransportMode.Edit)).ModeMenu());   // a host with none: nothing changes
+    }
+
+    /// <summary>
+    /// ⭐ W-4 — <b>from Edit, <i>Run to 10:00</i> starts the Preview PAUSED</b> (the dry run's deterministic entry) whatever is armed, and ⛔ never
+    /// changes the armed mode (R1); while it starts or runs, the menu shows its status and <i>Stop Run to</i>, which cancels it.
+    /// 🔴 Red-proof: <c>EnterPreviewPaused</c> entering the dry run RUNNING ⇒ the TimeMode row fails.
+    /// </summary>
+    [Fact]
+    public void W4_RunToFromEdit_StartsThePreviewPaused_KeepsTheArmedMode_AndTheMenuOffersStop()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        var run = RunToOver(rig.F, rig.Choice);
+        var section = new MainToolbarTimeControlSection(rig.F, choice: rig.Choice, runTo: run);
+
+        Assert.Null(section.RunToTimeProblem("10:00", out double t));
+        Assert.Equal(600, t);
+        Assert.True(section.RunToTime("10:00"));
+        var enter = RunChoiceRig.Sent<TransitionStateIntent>(rig).Single();
+        Assert.Equal(ClusterState.OperatingPreview, enter.TargetState);
+        Assert.Equal("Deterministic", enter.TimeMode);            // paused at the first frame
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);            // R1: the armed mode stays
+        Assert.Empty(rig.C.Calls);                                // never the Live load
+        Assert.True(run.IsStarting);
+
+        var items = section.ModeMenu()!.Items;
+        Assert.Contains(items, i => i.Label == "starting the Preview…" && !i.Enabled);
+        var stop = items.Single(i => i.Label == "Stop Run to");
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.Xmark, stop.Glyph);
+        Assert.DoesNotContain(items, i => i.Label == "Run to …");
+        stop.Invoke!();
+        Assert.False(run.IsStarting);
+        Assert.Contains(section.ModeMenu()!.Items, i => i.Label == "Run to …");
+    }
+
+    /// <summary>⭐ W-4 — the typed time: not a time, or not ahead of the clock in a Preview, is refused with the reason (the Run button greys).</summary>
+    [Fact]
+    public void W4_TheTypedTime_IsCheckedAgainstTheClock()
+    {
+        var f = In(TransportMode.Preview, total: 300);
+        var section = new MainToolbarTimeControlSection(f, runTo: RunToOver(f, null));
+        Assert.Equal("type a time: m:ss, h:mm:ss, or minutes", section.RunToTimeProblem("soon", out _));
+        Assert.Equal("4:00 is not ahead of the clock (5:00)", section.RunToTimeProblem("4:00", out _));
+        Assert.Null(section.RunToTimeProblem("10:00", out _));
+    }
+
+    /// <summary>⭐ W-4 — the popup's presets: each phase (by number) and each other trigger (by title), read from the world when it opens.</summary>
+    [Fact]
+    public void W4_ThePresets_AreThePhasesAndTheRulesThatFire()
+    {
+        var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        void Rule(int id, string kind, string title, byte phase)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = id });
+            w.AddComponent(e, new Fdp.Toolkit.ScenarioRules.ObjectiveStatus { Kind = new(kind), Title = new(title), Phase = phase,
+                Role = kind == "Trigger" ? Fdp.Toolkit.ScenarioRules.ObjectiveRole.Trigger : Fdp.Toolkit.ScenarioRules.ObjectiveRole.Objective });
+        }
+        Rule(11, "Trigger", "Assault", 2);
+        Rule(12, "Trigger", "Approach", 1);
+        Rule(13, "Trigger", "Brief Blue", 0);
+        Rule(14, "HoldArea", "Hold the bridge", 0);   // an objective: it does not fire
+        var phases = new System.Collections.Generic.List<RunToChoices.Choice>();
+        var rules = new System.Collections.Generic.List<RunToChoices.Choice>();
+        RunToChoices.Collect(w, phases, rules);
+        Assert.Equal(new[] { "Phase 1 · Approach", "Phase 2 · Assault" }, phases.Select(p => p.Label));
+        Assert.Equal(new[] { "Brief Blue" }, rules.Select(r => r.Label));
+    }
+
+    /// <summary>⭐ W-4 — the menu and the popup on a real frame (fidelity: <c>HROT_RAIL_SHOTS</c> renders <c>runto-menu.png</c> and <c>runto-popup.png</c>).</summary>
+    [Xunit.SkippableFact]
+    public void W4_TheMenuAndThePopup_OnARealFrame()
+    {
+        Xunit.Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var section = new MainToolbarTimeControlSection(rig.F, choice: rig.Choice, runTo: RunToOver(rig.F, rig.Choice));
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(720, 360);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        bool openMenu = true;
+        void Draw()
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero); ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(720, 40));
+            ImGuiNET.ImGui.Begin("##toolbar", ImGuiNET.ImGuiWindowFlags.NoDecoration);
+            if (openMenu) { ImGuiNET.ImGui.OpenPopup("##mt_mode_popup"); openMenu = false; }
+            section.Render();
+            ImGuiNET.ImGui.End();
+        }
+        for (int i = 0; i < 3; i++) frame.Step(Draw);
+        var dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
+        if (dir is { Length: > 0 }) frame.Screenshot(System.IO.Path.Combine(dir, "runto-menu.png"));
+        section.OpenRunTo();
+        for (int i = 0; i < 3; i++) frame.Step(Draw);
+        if (dir is { Length: > 0 }) frame.Screenshot(System.IO.Path.Combine(dir, "runto-popup.png"));
+        Assert.False(section.RunToOpenRequested);   // the popup took the request
+    }
+
+    /// <summary>
+    /// ⭐ CE-4317 (L-10) — the Edit menu with <i>Run setup ▸</i> on a real frame (fidelity: <c>HROT_RAIL_SHOTS</c> renders <c>runsetup-menu.png</c>; the harness has no mouse, so the sub-menu is not drawn). The entry's row sits after <i>Run to …</i> and before Close, on the other rows' glyph column. Skipped without a display (<c>xvfb-run -a</c>) — ⛔ a skip is not a gate row.
+    /// </summary>
+    [Xunit.SkippableFact]
+    public void L10_TheRunSetupEntry_OnARealFrame()
+    {
+        Xunit.Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        rig.Choice.PresetsOf = _ => new[] { new Fdp.Toolkit.Scenario.ScenarioPreset(Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName, Fdp.Toolkit.Scenario.PresetVariant.AsAuthored),
+                                            new Fdp.Toolkit.Scenario.ScenarioPreset("Easy", Fdp.Toolkit.Scenario.PresetVariant.AsAuthored, new System.Text.Json.Nodes.JsonObject { ["count"] = 5 }),
+                                            new Fdp.Toolkit.Scenario.ScenarioPreset("Night attack", new Fdp.Toolkit.Scenario.PresetVariant(Fdp.Toolkit.Scenario.PresetVariantKind.Number, 3)) };
+        var section = new MainToolbarTimeControlSection(rig.F, choice: rig.Choice, runTo: RunToOver(rig.F, rig.Choice));
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(720, 360);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        bool openMenu = true;
+        void Draw()
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero); ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(720, 40));
+            ImGuiNET.ImGui.Begin("##toolbar", ImGuiNET.ImGuiWindowFlags.NoDecoration);
+            if (openMenu) { ImGuiNET.ImGui.OpenPopup("##mt_mode_popup"); openMenu = false; }
+            section.Render();
+            ImGuiNET.ImGui.End();
+        }
+        for (int i = 0; i < 3; i++) frame.Step(Draw);
+        var dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
+        if (dir is { Length: > 0 }) frame.Screenshot(System.IO.Path.Combine(dir, "runsetup-menu.png"));
+        var model = section.ModeMenu()!;
+        Assert.Equal(MainToolbarTimeControlSection.RunSetupLabel, model.Items[^3].Label);
+        Assert.Equal("Close", model.Items[^1].Label);
     }
 }

@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
         {
             using var repo = CreateTestWorld();
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.MilitaryApc) });
 
             var result = new DefendAreaMapper().TryMap(entity, repo, "{}", out var assignment);
 
@@ -49,21 +49,89 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// InfantrySoldier entity must map to the "InfantryCombat" behavior.
+        /// ⭐ <c>CE-2275</c> D-1 (DA-39) — a unit with men under it (a squad commander, no TKB type needed) defends with its SQUAD:
+        /// <c>SquadDefend</c> at the area's centre, the radius its posts' search radius. ✅ Red-proof: the roster arm removed ⇒ no mapping.
         /// </summary>
         [Fact]
-        public void TryMap_InfantrySoldier_ReturnsInfantryCombat()
+        public void TryMap_AUnitWithMen_DefendsWithSquadDefend_AtTheAreaCentre()
         {
             using var repo = CreateTestWorld();
-            var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.InfantrySoldier });
+            repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(50.0, 14.0, 0.0);
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var centre = geo.ToCartesian(50.001, 14.001, 0.0);
+            var commander = repo.CreateEntity();
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, repo.CreateEntity());
+            repo.AddComponent(commander, roster);
 
-            var result = new DefendAreaMapper().TryMap(entity, repo, "{}", out var assignment);
+            Assert.True(new DefendAreaMapper().TryMap(commander, repo,
+                System.FormattableString.Invariant($"{{\"Center\":[{centre.X},{centre.Y},0],\"RadiusMeters\":25}}"), out var assignment));
+            Assert.Equal(Hrot.Map.Definitions.Behavior.BehaviorNames.SquadDefend, assignment.BehaviorName);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.SquadDefendParamsJsonDto>(
+                assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(centre.X, dto.Position.Local.X, 2);
+            Assert.Equal(centre.Y, dto.Position.Local.Y, 2);
+            Assert.Equal(25f, dto.SearchRadius);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2276</c> E-2 (DA-64) — a unit whose members are UNITS (a platoon) defends with its squads: <c>PlatoonDefend</c> at the area's
+        /// centre, the radius its squads' search radius. ✅ Red-proof: the platoon arm removed ⇒ <c>SquadDefend</c>.
+        /// </summary>
+        [Fact]
+        public void TryMap_AUnitOfUnits_DefendsWithPlatoonDefend_AtTheAreaCentre()
+        {
+            using var repo = CreateTestWorld();
+            repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(50.0, 14.0, 0.0);
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var centre = geo.ToCartesian(50.001, 14.001, 0.0);
+            var platoon = repo.CreateEntity();
+            var squad = repo.CreateEntity();
+            repo.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitEntity());
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, squad);
+            repo.AddComponent(platoon, roster);
+
+            Assert.True(new DefendAreaMapper().TryMap(platoon, repo,
+                System.FormattableString.Invariant($"{{\"Center\":[{centre.X},{centre.Y},0],\"RadiusMeters\":25}}"), out var assignment));
+            Assert.Equal(Hrot.Map.Definitions.Behavior.BehaviorNames.PlatoonDefend, assignment.BehaviorName);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.PlatoonDefendParamsJsonDto>(
+                assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(centre.X, dto.Position.Local.X, 2);
+            Assert.Equal(centre.Y, dto.Position.Local.Y, 2);
+            Assert.Equal(25f, dto.SearchRadius);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3160</c> (L4, R-266) — an infantry soldier (and an insurgent) defends an area with the LIBRARY's
+        /// <c>CombatPosture</c>, advancing to the area's centre and holding within its radius. ⛔ It mapped to <c>InfantryCombat</c>,
+        /// the UrbanCombat example's tree registered on the editor only, so the order was silently dropped on CGF.
+        /// </summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.InfantrySoldier)]
+        [InlineData(TkbEntityTypes.Insurgent)]
+        public void TryMap_Infantry_DefendsWithCombatPosture_AtTheAreaCentre(long tkbType)
+        {
+            using var repo = CreateTestWorld();
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(50.0, 14.0, 0.0);
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var centre = geo.ToCartesian(50.001, 14.001, 0.0);
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
+
+            var result = new DefendAreaMapper().TryMap(entity, repo,
+                System.FormattableString.Invariant($"{{\"Center\":[{centre.X},{centre.Y},0],\"RadiusMeters\":25}}"), out var assignment);
 
             Assert.True(result);
-            Assert.NotNull(assignment);
-            Assert.Equal("InfantryCombat", assignment.BehaviorName);
-            Assert.Equal(entity, assignment.Entity);
+            Assert.Equal("CombatPosture", assignment.BehaviorName);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto>(
+                assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(centre.X, dto.Advance.Objective.Local.X, 2);
+            Assert.Equal(centre.Y, dto.Advance.Objective.Local.Y, 2);
+            Assert.Equal(25f, dto.Advance.ArrivalRadius);
         }
 
         /// <summary>
@@ -74,7 +142,7 @@ namespace Hrot.SimHost.Tests
         {
             using var repo = CreateTestWorld();
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 999L });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(999L) });
 
             var result = new DefendAreaMapper().TryMap(entity, repo, "{}", out var assignment);
 

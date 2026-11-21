@@ -1,0 +1,97 @@
+{
+  "title": "Convoy hit",
+  "caption": "An IED under the convoy: the Bradley pushes through with its squad aboard",
+  "clip": "F-47",
+  "chapter": 9,
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "blast",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-14",
+      "follow": "Convoy APC",
+      "distance": 55,
+      "yaw": 30,
+      "pitch": -50,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "Convoy APC",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Convoy APC",
+      "distance": 28,
+      "yaw": 120,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Convoy APC",
+      "distance": 45,
+      "yaw": 60,
+      "pitch": -55,
+      "lift": 2,
+      "fov": 50,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Convoy APC",
+      "distance": 26,
+      "yaw": 220,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 40,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m+8",
+      "text": "An IED under the convoy: the Bradley pushes through with its squad aboard"
+    }
+  ]
+}

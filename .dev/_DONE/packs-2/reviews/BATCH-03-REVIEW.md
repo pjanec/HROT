@@ -11,7 +11,7 @@
 ## 1. Build Verification
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental
+dotnet build HROT.sln --no-incremental
 ```
 
 **Result:** Build **succeeded** — 0 errors. 336 pre-existing xUnit1030 warnings only.
@@ -44,7 +44,7 @@ binary. Confirmed not a regression from this batch.
 | **E001** | `Hrot.ScenarioEditor/Hrot.ScenarioEditor.csproj` — no CycloneDDS/Hrot.NED direct refs | ✅ |
 | **E001** | `Hrot.ScenarioEditor/ScenarioEditorModule.cs` — IEcsModule stub, Synchronous policy | ✅ |
 | **E001** | `Hrot.ScenarioEditor.Tests` project + `ScenarioEditorModuleTests.cs` (2 tests) | ✅ |
-| **E001** | Both projects added to `IOS-IG-SimHost.sln` | ✅ |
+| **E001** | Both projects added to `HROT.sln` | ✅ |
 | **DEBT-05** | `SpawnEntityCommandEgressTranslatorTests.cs` — 2 tests (standard path + prebuilt side-channel) | ✅ |
 | **DEBT-05** | `DestroyEntityCommandEgressTranslatorTests.cs` — 1 test | ✅ |
 

@@ -81,5 +81,5 @@ Points to watch in later batches when rendering entities:
 | `Hrot.IG/Components/.gitkeep` … `Adapters/.gitkeep` | Created — folder structure markers |
 | `Hrot.IG.Tests/Hrot.IG.Tests.csproj` | Created — xunit 2.5.3 test project |
 | `Hrot.IG.Tests/MapCameraTests.cs` | Created — 15 behavioral tests (zoom clamping, pan, input-capture suppression) |
-| `IOS-IG-SimHost.sln` | Modified — added both new projects + 24 build config entries |
+| `HROT.sln` | Modified — added both new projects + 24 build config entries |
 | `FDP/ExtDeps/FastCycloneDds/artifacts/native/win-x64/` | Created — native CycloneDDS artifacts (populated by running `build/native-win.ps1`) |

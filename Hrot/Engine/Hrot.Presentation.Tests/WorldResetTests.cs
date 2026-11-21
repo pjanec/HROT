@@ -1,5 +1,5 @@
 using Fdp.Core;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Common.Events;
 using Hrot.ScenarioEditor.Systems;
 using Xunit;

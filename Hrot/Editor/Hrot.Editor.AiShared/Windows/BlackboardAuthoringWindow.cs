@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.AiEditor.Persistence;
 using Hrot.Editor.AiShared.Blackboard;
@@ -26,12 +28,54 @@ public sealed record VariableViewModel(
     bool   IsUnused,
     bool   IsAutoManaged         = false,
     bool   IsReadOnly            = false,
-    BlackboardVariableRole Role  = BlackboardVariableRole.Input,
-    WorkingStateScope Scope      = WorkingStateScope.Node)
+    // ⭐ Row 58 — the declaration's persisted default, so the Value column's INITIAL arm has a
+    //   source. ⚠ Trailing and optional: every existing construction site is unchanged.
+    string? DefaultValueJson     = null,
+    // ⭐ CE-1061 (U3) — the reserved Params row's fields (read-only child rows); null on every other row.
+    IReadOnlyList<ParamsFieldRow>? ParamsFields = null)
+;   // ⛔ CE-3193 — Role / Scope / ShowScopeSelector went with the authored variable kind
+
+/// <summary>
+/// ⭐ <c>CE-1061</c> (U3, design §13.10b D3; §13.10c E7) — one field of the behaviour's params DTO, listed under the reserved <c>Params</c>
+/// row: what a <c>Params.&lt;field&gt;</c> binding reaches (<see cref="Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf"/>),
+/// with its EFFECTIVE default (<c>ParamsDefaults.Effective</c>: the DTO's initialisers, then the asset's overrides) and whether the asset
+/// overrides it.
+/// </summary>
+public sealed record ParamsFieldRow(string Name, string TypeName, string? ValueJson, bool IsOverridden)
 {
-    /// <summary>True when the Scope selector should be shown (i.e. Role == State).</summary>
-    public bool ShowScopeSelector => Role == BlackboardVariableRole.State;
-};
+    /// <summary>The fields of <paramref name="dto"/> with their effective defaults under <paramref name="assetDefaultJson"/> (keys matched
+    /// case-insensitively, as the params JSON reads). A malformed override shows no values rather than throwing in a panel.</summary>
+    public static IReadOnlyList<ParamsFieldRow> Of(Type dto, string? assetDefaultJson)
+    {
+        System.Text.Json.Nodes.JsonObject? overrides = null, effective = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(assetDefaultJson))
+                overrides = System.Text.Json.Nodes.JsonNode.Parse(assetDefaultJson!) as System.Text.Json.Nodes.JsonObject;
+            if (Fdp.Toolkit.Behavior.ParamsDefaults.Effective(dto, assetDefaultJson) is { } value)
+                effective = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(value, dto,
+                    Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions)) as System.Text.Json.Nodes.JsonObject;
+        }
+        catch (System.Text.Json.JsonException) { }
+        catch (NotSupportedException) { }
+        var rows = new List<ParamsFieldRow>();
+        foreach (var f in Hrot.Editor.AiShared.Inspector.ActionBinding.ActionBindingCompatibility.BindableFieldsOf(dto))
+        {
+            string key = f.GetCustomAttributes(typeof(System.Text.Json.Serialization.JsonPropertyNameAttribute), true)
+                             is { Length: > 0 } a ? ((System.Text.Json.Serialization.JsonPropertyNameAttribute)a[0]).Name : f.Name;
+            rows.Add(new ParamsFieldRow(f.Name, BlackboardTypeHelper.GetDisplayName(f.FieldType), ValueOf(effective, key), ValueOf(overrides, key) != null));
+        }
+        return rows;
+    }
+
+    private static string? ValueOf(System.Text.Json.Nodes.JsonObject? o, string key)
+    {
+        if (o == null) return null;
+        foreach (var kv in o)
+            if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)) return kv.Value?.ToJsonString() ?? "null";
+        return null;
+    }
+}
 
 /// <summary>
 /// Display data for one unbound sub-tree DTO requirement row (BB SS5.6).
@@ -53,10 +97,7 @@ public sealed record BlackboardWindowViewModel(
     bool HasActiveAsset,
     bool IsBlackboardEditorManaged,
     int  TotalInlineBytes,
-    int  TotalHeavyBytes,
     int  InlineBudget,
-    int  HeavyBudget,
-    bool RequiresHeavyComponent,
     PackWarning Warning,
     IReadOnlyList<VariableViewModel> Variables,
     IReadOnlyList<VariableTypeChoice> KnownTypeNames,
@@ -70,15 +111,40 @@ public sealed record BlackboardWindowViewModel(
 /// The drawing logic delegates to a testable static view-model builder so that unit
 /// tests never touch ImGui.
 /// </summary>
-public sealed class BlackboardAuthoringWindow : ManagedWindow
+public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsViewSource
 {
+    /// <summary>
+    /// ⭐ <c>U-obs-5</c> — THE KIND. ⛔ Single-host: no other assembly shows this exact panel, so it stays
+    /// a LOCAL literal rather than a <c>PanelIds</c> constant (📄 the queue's identity rule — cross-host
+    /// kinds live in <c>PanelIds</c>, single-host kinds stay local).
+    /// </summary>
+    internal const string Kind = "blackboard-authoring";
+
     private readonly EditorSelectionStore _store;
     private readonly IRefactorService _refactorService;
     private readonly ComparisonToolbarAction? _comparisonToolbar;
     private readonly ComparisonSessionRegistry? _sessionRegistry;
     private readonly BlackboardAggregatorService? _aggregatorService;
     private IActionSchemaExporter? _actionSchemaExporter;
+
+    /// <summary>
+    /// ⭐⭐ <c>DEBT-AIB-009</c> — whether this window actually received a schema exporter.
+    /// ⛔ <b>Exists so the rail can ask the OBJECT instead of guessing from the call site's IL.</b>
+    /// 🔴 An earlier version of that rail inspected the caller's SIGNATURE, which
+    /// <c>PerspectiveWorkspaceRegistrar</c> satisfies whether or not it passes the argument on —
+    /// so the probe did not redden and the rail was vacuous.
+    /// </summary>
+    internal bool HasSchemaExporter => _actionSchemaExporter is not null;
     private readonly ILiveBlackboardValueProvider? _liveValueProvider;
+
+    /// <summary>
+    /// ⭐⭐ <c>88a</c> — whether this window actually received a live-value provider.
+    /// ⛔ <b>Same shape and same reason as <see cref="HasSchemaExporter"/> above</b>: 📌 <c>R-67</c>,
+    /// the omission IS the defect, and it is invisible from the call site's signature. 🔴 Blueprint
+    /// shipped with <c>null</c> here while BTree and HSM did not, and the Value column's
+    /// <c>(pending)</c> — the DESIGNED output for a source with no reader — made that look intended.
+    /// </summary>
+    internal bool HasLiveValueProvider => _liveValueProvider is not null;
 
     // Inline rename state
     
@@ -147,7 +213,23 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         _liveValueProvider = liveValueProvider;
         if (sanitizerRegistry != null && exportBuilder != null && sessionRegistry != null)
             _comparisonToolbar = new ComparisonToolbarAction(sanitizerRegistry, exportBuilder, sessionRegistry);
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled. Mirrors
+        //    EntityBlueprintsPanel (the pilot) / AiVariablesWindow / AiWatchWindow — the address is this
+        //    window's own id, unique among the per-perspective instances (idOverride).
+        PanelSnapshot.DeclareInstrumented(Id);
     }
+
+    private Func<AiCanvasContext?>? _canvasContext;
+
+    /// <summary>⭐ <c>CE-1062</c> (§13.10c E5) — how this window reaches the active document's view (its undo stack): installed by the
+    /// registrar from the perspective's canvas window, exactly as the outline's (<see cref="AiMyBlueprintWindow.SetCanvasContextResolver"/>).
+    /// ⭐ Derived, not passed: there is nothing for a composition root to forget.</summary>
+    public void SetCanvasContextResolver(Func<AiCanvasContext?> resolver)
+        => _canvasContext = resolver ?? throw new ArgumentNullException(nameof(resolver));
+
+    /// <summary>True once <see cref="SetCanvasContextResolver"/> ran.</summary>
+    public bool HasCanvasContextResolver => _canvasContext != null;
 
     // ---- View-model building (unit-testable) --------------------------------
 
@@ -159,7 +241,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     /// <param name="knownTypeNames">
     /// Optional override for the Add-Variable type choice list. When null, the default list is
     /// built via <see cref="BlackboardTypeChoiceBuilder.BuildDefault"/>, unioning primitives,
-    /// <c>[BlackboardDtoStruct]</c> types, and (when <paramref name="actionSchemaExporter"/> is
+    /// <c>[Dto]</c> types, and (when <paramref name="actionSchemaExporter"/> is
     /// supplied) action-schema DTO types.
     /// </param>
     /// <param name="aggregationResult">Optional sub-tree aggregation result (AIE-052).</param>
@@ -190,10 +272,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 HasActiveAsset:            false,
                 IsBlackboardEditorManaged: false,
                 TotalInlineBytes:          0,
-                TotalHeavyBytes:           0,
                 InlineBudget:              BlackboardBinPacker.MaxInlineBytes,
-                HeavyBudget:               BlackboardBinPacker.MaxHeavyBytes,
-                RequiresHeavyComponent:    false,
                 Warning:                   PackWarning.None,
                 Variables:                 Array.Empty<VariableViewModel>(),
                 KnownTypeNames:            typeNames,
@@ -208,10 +287,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 HasActiveAsset:            true,
                 IsBlackboardEditorManaged: false,
                 TotalInlineBytes:          0,
-                TotalHeavyBytes:           0,
                 InlineBudget:              BlackboardBinPacker.MaxInlineBytes,
-                HeavyBudget:               BlackboardBinPacker.MaxHeavyBytes,
-                RequiresHeavyComponent:    false,
                 Warning:                   PackWarning.None,
                 Variables:                 Array.Empty<VariableViewModel>(),
                 KnownTypeNames:            typeNames,
@@ -250,10 +326,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 HasActiveAsset:            true,
                 IsBlackboardEditorManaged: true,
                 TotalInlineBytes:          0,
-                TotalHeavyBytes:           0,
                 InlineBudget:              BlackboardBinPacker.MaxInlineBytes,
-                HeavyBudget:               BlackboardBinPacker.MaxHeavyBytes,
-                RequiresHeavyComponent:    false,
                 Warning:                   PackWarning.None,
                 Variables:                 Array.Empty<VariableViewModel>(),
                 KnownTypeNames:            typeNames,
@@ -261,8 +334,10 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 HardcodedDtoFields:        hardcodedDtoFields);
         }
 
+        // ⭐ CE-3193 — working state is derived from the bindings (the block's St half never joins the params region)
+        var working = (bbAsset as IStatefulScopeAsset)?.WorkingStateVariableNames();
         var descriptors = rawVars
-            .Select(v => new BlackboardVariableDescriptor(v.Name, v.FieldType))
+            .Select(v => new BlackboardVariableDescriptor(v.Name, v.FieldType, working?.Contains(v.Name) == true))
             .ToList();
 
         // Derive aggregated descriptors from the aggregation requirements for packing.
@@ -300,19 +375,18 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                     : (IReadOnlyList<(string, Guid, Guid)>)Array.Empty<(string, Guid, Guid)>(),
                 isUnused,
                 IsAutoManaged: v.IsAutoManaged,
-                IsReadOnly:    false,
-                Role:          v.Role,
-                Scope:         v.Scope));
+                IsReadOnly:    v.IsReservedParams,   // ⭐ CE-2135 — the reserved Params is the named DTO, not authored here
+                // ⭐ Row 58 — the INITIAL arm's source for the AI hosts.
+                DefaultValueJson: v.DefaultValueJson,
+                // ⭐ CE-1061 (U3) — the DTO's fields under the reserved row: what a Params.<field> binding reaches.
+                ParamsFields:  v.IsReservedParams && v.FieldType is { } dto ? ParamsFieldRow.Of(dto, v.DefaultValueJson) : null));
         }
 
         return new BlackboardWindowViewModel(
             HasActiveAsset:            true,
             IsBlackboardEditorManaged: true,
             TotalInlineBytes:          pack.TotalInlineBytes,
-            TotalHeavyBytes:           pack.TotalHeavyBytes,
             InlineBudget:              BlackboardBinPacker.MaxInlineBytes,
-            HeavyBudget:               BlackboardBinPacker.MaxHeavyBytes,
-            RequiresHeavyComponent:    pack.RequiresHeavyComponent,
             Warning:                   pack.Warning,
             Variables:                 rows,
             KnownTypeNames:            typeNames,
@@ -371,14 +445,75 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
 
     // ---- ImGui rendering ---------------------------------------------------
 
-    private VariablesPanelControl? _variablesControl;
+    private VariablesPanelHost? _variablesControl;
     private IEditableAsset? _lastAssetBase;
 
-    protected override void DrawClientArea()
+    protected override void DrawClientArea() => DrawContent();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — THE CONTENT, split from the WINDOW so a Details view can host it.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L3</c>'s table.
+    /// ⭐ Same ROUTING move as <c>L3.2</c>'s <c>GraphSignatureWindow.DrawContent</c>: the body is
+    /// unchanged and there is still exactly ONE of it — ⛔ not a duplicate.
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — this window CONTRIBUTES the Blackboard view to its perspective's
+    /// catalogue.</b> 📄 §6 <c>L3</c> · §6 <c>L1.2</c>'s claim chain *(<c>R-67</c> — no new root
+    /// argument)*.
+    /// <para>⚠ Built in the registrar's CONSTRUCTOR *(<c>:288</c>)*, like <c>Details</c>, so its arm is
+    /// mirrored there rather than reached through <c>RegisterExtraWindow</c> — ⭐ the SAME
+    /// <c>_viewSources</c> guard covers both paths, so a window reaching both registers once.</para>
+    /// </summary>
+    public IEnumerable<Shell.DetailsViewDescriptor> DetailsViews
+    {
+        get { yield return Shell.BlackboardDetailsViewDescriptor.For(this); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example,
+    /// mirroring <c>EntityBlueprintsPanel.DrawUI</c> / <c>AiVariablesWindow.BuildAndPublish</c>.
+    ///
+    /// <para>⛔⛔ Extracted from <see cref="DrawContent"/> so it runs with NO ImGui context required — the
+    /// prune + aggregation + <see cref="BuildViewModel"/> calls below are ImGui-free; capture is
+    /// published <b>before</b> the render guard so a headless run still observes this window. 📌 Same
+    /// deviation as §Example's AS-BUILT ①.</para>
+    /// </summary>
+    private BlackboardWindowViewModel BuildAndPublish()
     {
         // Prune stale alias bindings before building the view-model (DEBT-06).
         if (_store.ActiveAsset is IBlackboardManagedAsset bbAssetForPrune)
             bbAssetForPrune.PruneStaleAliasBindings(bbAssetForPrune.GetKnownSubAssetIds());
+
+        // AIE-052: aggregate sub-tree DTO requirements so bin-packing can surface budget warnings.
+        var aggregationResult = (_aggregatorService != null && _store.ActiveAsset != null)
+            ? _aggregatorService.Aggregate(_store.ActiveAsset)
+            : (AggregationResult?)null;
+
+        var vm = BuildViewModel(_store.ActiveAsset, aggregationResult: aggregationResult, actionSchemaExporter: _actionSchemaExporter);
+
+        if (PanelSnapshot.CaptureEnabled)
+            PanelSnapshot.Register(new BlackboardWindowPanelViewModel(Id, Kind, vm));
+
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context. 📌 Mirrors
+    /// <c>AiGraphCanvasWindow.SimulateDrawClientArea</c> / <c>AiWatchWindow.DrawContent</c>.</summary>
+    internal BlackboardWindowViewModel SimulateDrawContent() => BuildAndPublish();
+
+    /// <summary>⭐ <c>CE-1277</c> — the variables table is read-only when the blackboard did not load cleanly OR the graph is built in C#
+    /// (<see cref="Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt"/> — the one read-only gate, <c>CE-1252</c>): a code-built graph
+    /// takes no new variables; its values are still shown.</summary>
+    internal static bool IsReadOnlyAsset(IBlackboardManagedAsset bbAsset)
+        => bbAsset.LoadState == BlackboardLoadState.StructParseFailed
+        || bbAsset.LoadState == BlackboardLoadState.SpanCaptureFailed
+        || (bbAsset is IEditableAsset editable && Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(editable));
+
+    public void DrawContent()
+    {
+        var vm = BuildAndPublish();
+
+        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
         // Comparison toolbar (shown when comparison services are available).
         if (_comparisonToolbar != null && _store.ActiveAsset != null)
@@ -401,13 +536,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
             return;
         }
 
-        // AIE-052: aggregate sub-tree DTO requirements so bin-packing can surface budget warnings.
-        var aggregationResult = (_aggregatorService != null && _store.ActiveAsset != null)
-            ? _aggregatorService.Aggregate(_store.ActiveAsset)
-            : (AggregationResult?)null;
-
-        var vm = BuildViewModel(_store.ActiveAsset, aggregationResult: aggregationResult, actionSchemaExporter: _actionSchemaExporter);
-
+        // ⭐ vm already built + captured in BuildAndPublish() above — reused here, not rebuilt, so the
+        //    dump and the draw can never see two different frames' state.
         if (!vm.HasActiveAsset)
         {
             ImGuiNET.ImGui.TextDisabled("Select an asset to begin.");
@@ -431,8 +561,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         var asset   = _store.ActiveAsset!;
 
         // State-aware banners for StructParseFailed and SpanCaptureFailed (1f-07).
-        bool isReadOnly = bbAsset.LoadState == BlackboardLoadState.StructParseFailed
-                       || bbAsset.LoadState == BlackboardLoadState.SpanCaptureFailed;
+        bool isReadOnly = IsReadOnlyAsset(bbAsset);   // ⭐ CE-1277 — also a code-built graph
         if (bbAsset.LoadState == BlackboardLoadState.StructParseFailed)
         {
             ImGuiNET.ImGui.TextColored(
@@ -467,23 +596,13 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
             }
         }
 
-        var schema = new BTreeHsmSchemaSource(bbAsset, vm, isReadOnly);
-        var section = new VariablesPanelSection(
-            "Variables",
-            "##bb_vars",
-            schema,
-            vm.TotalInlineBytes,
-            vm.InlineBudget,
-            vm.TotalHeavyBytes,
-            vm.HeavyBudget,
-            vm.RequiresHeavyComponent,
-            vm.Warning,
-            AliasingEnabled: true
-        );
-
         if (_variablesControl == null || _lastAssetBase != asset)
         {
-            _variablesControl = new VariablesPanelControl(_refactorService, asset, vm.KnownTypeNames);
+            _variablesControl = new VariablesPanelHost(_refactorService, asset, vm.KnownTypeNames)
+            {
+                // ⭐ CE-1062 (§13.10c E5) — the active document's undo stack, only when its document IS this asset.
+                UndoView = () => _canvasContext?.Invoke() is { } ctx && ReferenceEquals(ctx.AssetRef, asset) ? ctx.View.Undo : null,
+            };
             _lastAssetBase = asset;
         }
 
@@ -500,14 +619,14 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         if (_liveValueProvider != null && asset != null)
             liveValues = _liveValueProvider.GetLiveVariableValues(asset);
 
-        _variablesControl.DrawSingle(section, rowDec, liveValues);
+        _variablesControl.Draw(vm, isReadOnly, aliasingEnabled: true, rowDec, liveValues);
 
         // Sub-tree allocations section (1e-05): auto-managed slots for Approach B nodes.
         var autoAllocs = (asset as IBTreeSyncableAsset)?.GetAutoAllocatedVariables();
         if (autoAllocs is { Count: > 0 })
         {
             ImGuiNET.ImGui.Separator();
-            if (ImGuiNET.ImGui.CollapsingHeader("SUB-TREE ALLOCATIONS (auto-managed)",
+            if (NodeEditor.Core.Widgets.SectionHeader.Draw("hdr.subtree_allocs", "SUB-TREE ALLOCATIONS (auto-managed)", "section/allocations",
                 ImGuiNET.ImGuiTreeNodeFlags.DefaultOpen))
             {
                 ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.Alpha, 0.5f);
@@ -519,5 +638,91 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 ImGuiNET.ImGui.PopStyleVar();
             }
         }
+    }
+}
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — THE THIN WRAPPER that makes <see cref="BlackboardWindowViewModel"/> dumpable.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Adoption, mirroring
+/// <c>VariableTablePanelViewModel</c>'s shape exactly: the identity the model itself cannot carry.
+///
+/// <para>⛔⛔ <b>Hand-written <see cref="Dump"/>, not <c>PanelDump.Of(this)</c> — and it is load-bearing,
+/// not a style choice.</b> 📐 <see cref="VariableViewModel"/> carries a <c>Type FieldType</c> field ⇒
+/// reflecting over it either throws or emits noise no assertion could use. ⇒ ⭐ the dump projects the
+/// DISPLAYED shape by hand — the same gotcha the queue names, the same fix
+/// <c>VariableTablePanelViewModel.Dump</c> already uses.</para>
+/// </summary>
+public sealed class BlackboardWindowPanelViewModel : IPanelViewModel
+{
+    private readonly BlackboardWindowViewModel _vm;
+
+    /// <param name="panelId">⭐ The ADDRESS — the host window's own id, unique among live instances.</param>
+    /// <param name="panelKind">⭐ The KIND — <see cref="BlackboardAuthoringWindow.Kind"/>.</param>
+    /// <param name="vm">The frame's built view-model. ⚠ Wrapped, never copied.</param>
+    public BlackboardWindowPanelViewModel(string panelId, string panelKind, BlackboardWindowViewModel vm)
+    {
+        if (string.IsNullOrWhiteSpace(panelId))   throw new ArgumentException("A panel address is required.", nameof(panelId));
+        if (string.IsNullOrWhiteSpace(panelKind)) throw new ArgumentException("A panel kind is required.", nameof(panelKind));
+
+        PanelId   = panelId;
+        PanelKind = panelKind;
+        _vm       = vm ?? throw new ArgumentNullException(nameof(vm));
+    }
+
+    /// <inheritdoc/>
+    public string PanelId { get; }
+
+    /// <inheritdoc/>
+    public string PanelKind { get; }
+
+    /// <summary>⭐ The wrapped model, for a host that needs it back.</summary>
+    public BlackboardWindowViewModel Model => _vm;
+
+    /// <inheritdoc/>
+    public JsonNode Dump()
+    {
+        var variables = new JsonArray();
+        foreach (var v in _vm.Variables)
+        {
+            variables.Add(new JsonObject
+            {
+                ["name"]             = v.Name,
+                ["typeName"]         = v.TypeName,
+                ["byteSize"]         = v.ByteSize,
+                ["comment"]          = v.Comment,
+                ["isUnused"]         = v.IsUnused,
+                ["isAutoManaged"]    = v.IsAutoManaged,
+                ["isReadOnly"]       = v.IsReadOnly,
+                ["aliasCount"]       = v.AliasedBy.Count,
+                ["defaultValueJson"] = v.DefaultValueJson,
+            });
+        }
+
+        var unbound = new JsonArray();
+        foreach (var u in _vm.UnboundRequirements)
+        {
+            unbound.Add(new JsonObject
+            {
+                ["dtoTypeName"]    = u.DtoTypeName,
+                ["requiredByPath"] = u.RequiredByPath,
+                ["assetName"]      = u.RequiringAssetName,
+            });
+        }
+
+        return new JsonObject
+        {
+            ["panelId"]                   = PanelId,
+            ["panelKind"]                 = PanelKind,
+            ["hasActiveAsset"]            = _vm.HasActiveAsset,
+            ["isBlackboardEditorManaged"] = _vm.IsBlackboardEditorManaged,
+            ["totalInlineBytes"]          = _vm.TotalInlineBytes,
+            ["inlineBudget"]              = _vm.InlineBudget,
+            ["warning"]                   = _vm.Warning.ToString(),
+            ["variableCount"]             = _vm.Variables.Count,
+            ["variables"]                 = variables,
+            ["unboundRequirementCount"]   = _vm.UnboundRequirements.Count,
+            ["unboundRequirements"]       = unbound,
+            ["hardcodedDtoFieldCount"]    = _vm.HardcodedDtoFields?.Count ?? 0,
+        };
     }
 }

@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
                 new EqsResult { EntityId = (long)friendEnt.PackedValue },
                 new EqsResult { EntityId = (long)hostileEnt.PackedValue },
                 new EqsResult { EntityId = (long)neutralEnt.PackedValue },
-                new EqsResult { EntityId = 0L }, // positional
+                new EqsResult { EntityId = 0 }, // positional
             };
 
             // FactionFilter = 0b100 = 4 => only Hostile (bit 2) accepted.
@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = -1L },
+                new EqsResult { EntityId = -1 },
             };
 
             var sensor = new EqsSensor { FactionFilter = 4u };
@@ -93,8 +93,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = -1L, Score = 0f, PositionX = 0f, PositionY = 0f }, // rejected
-                new EqsResult { EntityId = 0L,  Score = 0f, PositionX = 5f, PositionY = 0f }, // positional at (5,0)
+                new EqsResult { EntityId = -1, Score = 0f, PositionX = 0f, PositionY = 0f }, // rejected
+                new EqsResult { EntityId = 0,  Score = 0f, PositionX = 5f, PositionY = 0f }, // positional at (5,0)
             };
 
             var sensor = new EqsSensor { SearchRadius = 10f };
@@ -120,8 +120,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 1L, Score = 0f, PositionX = 2f, PositionY = 0f }, // distance 2
-                new EqsResult { EntityId = 2L, Score = 0f, PositionX = 8f, PositionY = 0f }, // distance 8
+                new EqsResult { EntityId = 1, Score = 0f, PositionX = 2f, PositionY = 0f }, // distance 2
+                new EqsResult { EntityId = 2, Score = 0f, PositionX = 8f, PositionY = 0f }, // distance 8
             };
 
             var sensor = new EqsSensor { SearchRadius = 10f };

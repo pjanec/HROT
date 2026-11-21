@@ -1,0 +1,32 @@
+{
+  "Name": "FindEnterableShelter",
+  "BlueprintId": 3309359867,
+  "Count": 3,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": 7.3999996,
+      "PositionY": -19,
+      "Score": 0.49024516,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 4.2,
+      "PositionY": 22,
+      "Score": 0.44006693,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 7.3999996,
+      "PositionY": 26,
+      "Score": 0.32418567,
+      "Flags": 0,
+      "FlagsMeaningful": 0
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

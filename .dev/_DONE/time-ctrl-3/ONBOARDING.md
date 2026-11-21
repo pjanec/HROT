@@ -61,7 +61,7 @@ d:\Work\IOS-IG-SimHost-FDP\
 ├── Hrot.ClusterRunner.Integration.Tests/    ← REGRESSION GUARD (Phase 6)
 │   └── TimeControlIntegrationTests.cs       ← Must stay green; no modifications needed
 │
-└── IOS-IG-SimHost.sln                       ← Main solution
+└── HROT.sln                       ← Main solution
 ```
 
 **Application files to watch but NOT modify in this workstream:**
@@ -119,7 +119,7 @@ conclusions.
 Open a terminal at `d:\Work\IOS-IG-SimHost-FDP\` and build the full solution:
 
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Or build just the time toolkit and its tests:

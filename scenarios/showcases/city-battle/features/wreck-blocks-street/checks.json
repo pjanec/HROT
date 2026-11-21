@@ -1,0 +1,19 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-6005 wreck-blocks-street (see scenario.json's header). The wreck obstacle and the gate's navmesh have no cue in the grammar (§9); what is judged: the M1 kills the T-72, then the charge bursts. The blocking and the clearing are judged by the rail (WreckBlocksStreetScenarioTests). ⚠ No golden: the obstacle bake's wall-clock debounce (R-244, CE-6004).",
+  "runFor": 110,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the tank fires",
+      "on": "shot",
+      "by": "Tank"
+    },
+    {
+      "name": "the charge bursts",
+      "on": "blast",
+      "by": "Charge Man",
+      "after": "the tank fires"
+    }
+  ]
+}

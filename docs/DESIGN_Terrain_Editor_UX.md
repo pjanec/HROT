@@ -1,0 +1,501 @@
+<!--STATUS
+state: LIVE
+build-state: BUILT `2026-11-16` — S-1…S-7 (CE-5006…CE-5012) built, §7 proven in 3-D frames (`TerrainEditorFrameRail`); as-built notes in §6 · was READY-TO-BUILD — ✅ APPROVED by the user 2026-11-16 (R-5034 … R-5038)
+updated: 2026-11-16 (TE-19 RULED R-5038: split toolbars on one shared strip; ONE Toolbars split icon (a shared widget) + the Layers toggle; the Terrain toolbar is the key) · 2026-11-16 (R-5037: the key is the Editor Toolbar window, no auto-close, two main-toolbar icons; TE-18 the map with it closed / open) · 2026-11-16 (TE-17 RULED R-5036: placed terrain is not selectable unless the Terrain tools are open; placing stays free) · 2026-11-16 (TE-16: 3-D is the PRIMARY view, R-5035) · 2026-11-16 (✅ APPROVED R-5034; TE-15 move / rotate / reshape added) · 2026-11-16 (TE-6 ruled R-5033) · 2026-11-15 (REVISED to §8 + R-5032 + R-4264; the first §3 / §5 / §6 / §7 moved to HISTORY) · 2026-11-15 (R-4264 folded: TE-5 obstacles are entities) · 2026-11-15 (first version — terrain lane, close-out item 4)
+current-answer: §5 the decisions (revised) · §3 the diagrams · §7 acceptance · §8 the review they answer · §2 the friction measured
+stale-below: ## ⛔ HISTORY (the first version's §3 / §5 / §6 / §7 — superseded by the review, kept for the reasoning; ⛔ not to be built)
+known-rot: none in the live sections; §8's findings are answered in §5 (each row names its R-n)
+known-conflict: none — TE-6's snap ON for terrain LINE tools deviates from Map Interaction §2.5's "off by default" (written for units) BY RULING (R-5033)
+related-designs:
+  - DESIGN_Terrain_Base_Edits.md — OWNS the Terrain toolbar's BUILDINGS family (remove / make enterable / add door a baked-in building) and its terrain pick
+  - DESIGN_Ground_Patches_And_Road_Blockage.md — §4d BINDS this design (G-30 one feature family, G-31 one patch type, G-32 the stack, G-33 expand on the patched ground); OWNS the Earthworks tools (P-5, P-6) this design only re-homes on the toolbar
+  - DESIGN_Terrain_Authoring.md — OWNS the feature machinery this design gives a UX to: the picks and the draw panel (§15a U-1, U-2, U-7, §15a-2 C), the live bake (§18e), the scatter (§18g T-2), blocks (§11, §18h)
+  - UX/DESIGN_Map_Interaction.md — OWNS drawing / shape editing (§2.5 D11: finish / cancel, insert, centre-drag, delete), snapping (the row TE-6 is the FIRST build of — unbuilt there), always-multi placement (D5) and multi-select
+  - UX/UX_Feature_Tool_Model.md — OWNS the tool arbiter (ToolController) and "the toolbar marks the armed tool" (step 5) the Terrain row rides on
+  - UX/UX_Feature_Multi_Select.md — OWNS selection; ⚠ its NOT-BUILT status is stale: Map Interaction P5 built Shift / Ctrl / band / Alt-click (2026-11-08)
+  - UX/DESIGN_Editing_UX.md — §3 wants layers that "lock against accidental moves" (line 251) — TE-17 is that lock for terrain; §3 also places the tool palette in the shell toolbar region; ⭐ for TERRAIN tools the user ruled the Editor Toolbar window instead (R-5032: "There is not enough place") — the snap toggles of §3 are what TE-6 builds the terrain half of
+  - DESIGN_Vehicle_Breaching.md — B-6 OWNS what a lone tree does (felled, blocks); B-2 / B-3 what a wall does — the Contents lines of TE-8 quote them
+  - blueprints/batches/NOTE_Coordinator_To_Terrain_Obstacle_Tool.md — R-4264: TE-5 RULED, drawn obstacles are obstacle entities (option a)
+  - designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md — RM-5 (R-4260): a ram breaches a drawn barrier, so drawn obstacles must be breakable entities
+  - DESIGN_Add_Entity_Picker.md — OWNS the picker the terrain groups live in; stays the search / gallery door
+-->
+
+# DESIGN — the terrain editor, the user-friendly way (CE-4594)
+
+🔒 User, `2026-11-14`: *"we might need some tool to define where the forest area is … create walls along a defined line … plant trees and various
+obstacles … These deserve a new design with a lot of thinking what would be the user-friendly way how to do that"*. Row:
+[CE-4594](blueprints/Blueprint_Issues_Tracker.md). Mockup: [terrain-editor.svg](UX/terrain-editor.svg) (generator `scripts/gen-terrain-editor-mockup.py`).
+
+⭐ **The machinery exists** (Terrain Authoring T-2 / U-7, P-5, P-6: every kind, the draw panel, the live bake). **This design is only the
+WAY a user reaches and repeats it.** It adds no storage: every change below is a `TerrainFeature` (G-30).
+
+## 1. INVENTORY — measured `2026-11-15`
+
+| query (graph via `scripts/cbm.sh`, then grep) | total | what it says |
+|---|---|---|
+| `search_graph name_pattern=".*Terrain.*(Pick\|Draw\|Ghost\|Birth\|Placement\|Details\|Gizmo\|Ops\|Palette\|Tool).*" label=Class` | **23** (has_more false) | `TerrainPickCatalog`, `TerrainDrawPanel` / `TerrainDrawOptions`, `TerrainGhost*`, `TerrainBirth`, `TerrainPlacement`, `TerrainBlockGizmo`, `TerrainZoneGizmo`, `TerrainBlockOps`, `TerrainBlockDetailsView` — ⛔ **no palette, no terrain-FEATURE gizmo, no feature Details** (grep adds `GroundFeatureDetailsView`, Ground kind only) |
+| `search_graph ".*(Toolbar\|ToolController\|ToolDescriptor\|ShapeEditSession\|AreaAuthoring\|PointSequence\|Snap).*" Class` | 116 (76 read; the rest `*Snapshot`) | `EditorToolbarPanel` (+ `EditorToolbarWindow`), `MainToolbarManager` (the shell's command toolbar), `AreaAuthoringArm` / `AreaAuthoringRequest`, `PointSequenceGizmo`, `ShapeEditSession` — ⛔ **no snap class** |
+| `search_graph ".*(Scatter\|FeatureExpander\|OverlayExpansion\|ClutterType).*" Class` | 7 | `FeatureExpander` (3 partials), `OverlayExpansion`, `ClutterTypes`, `TerrainRecipe.ScatterItem` |
+| `search_graph ".*(Snap\|Terrain\|Tool).*" Interface` | 13 | `IToolController`, `ITerrainDrawSource`, the terrain services — ⛔ no snap seam |
+| `search_graph ".*(Brush\|Eyedropper\|Stamp\|Gate).*" Class` | 83 | none for terrain (gates are flow gates) |
+| ⭐ added by the review (§8 R-3) — grep `FeatureElements.cs` | — | the recipe elements `group` (items along a line / in an area, `count`, `facing`), `enclosure` (a closed wall with a gate gap), `fields` (a hedge round a gap), `orchard` (trees on a grid) — `FeatureElements.cs:242-335` |
+| ⭐ added — `search_graph ".*(MacroInstance\|EntityGroup\|GroupMember).*" Class` | 7 | `MacroInstance` (+ its translators and `MacroInstanceDetailsView`) — the only parent-with-member-entities mechanism (TE-5's group candidate) |
+| ⭐ added — grep `RegisterObstacle` | — | the obstacle TKB types are built FROM `ClutterTypes` (`NedTkbCatalog.cs:1362-1370`): Car, Sandbag wall, Concrete block, Crate — one table already (R-4264); Barrel, Jersey barrier, Guard booth are clutter only |
+
+⚠ `check_index_coverage` is not available through the CLI — the absences above are "not in the graph or in grep", not proven.
+
+## 2. The friction, measured — what a user meets today
+
+| the job | today, measured | file:line |
+|---|---|---|
+| reach a terrain tool | right-click ▸ Add Entity ▸ group ▸ tile ▸ *Place on map*: a modal gallery per item | `TerrainPicks.cs:79-108`, §15a U-1 |
+| draw the 2nd, 3rd hedge | ⛔ a line / area tool **removes itself after Finish** — back to the picker each time; point placement stays armed (D5) | `AreaAuthoringArm.cs:119-160` (`onRemove`) vs `EntityPlacementGizmo.cs:392` |
+| plant trees | one click per tree, or a WOOD (a canopy mass); ⛔ no row, no small group | picks `TerrainPicks.cs:89` |
+| a row of obstacles | one click per obstacle (Add Entity's obstacle types, always-multi) — or a whole shipped block (*roadblock*, *checkpoint*, *defensive position* place rows in one click) | `TerrainPicks.cs:105-106`, `assets/terrain-recipes/roadblock.recipe.json` |
+| street clutter | ⛔ the tile is greyed: no scatter recipe ships | `TerrainPicks.cs:95`, `assets/terrain-recipes/` (11, none with `scatter`) |
+| a wall along a road, onto a house | free-hand clicks; ⛔ no snap of any kind | INVENTORY rows 2, 4 |
+| a wall round a plot, a gate | a line is open; ⛔ no gate | `TerrainPicks.cs:90-92` |
+| change a hedge into a wall, its height | only the raw component in *Properties…* (`TerrainFeature.Pad`); no friendly tab for a non-ground feature (Ground and Block only) | `EditorSubsystem.cs:3975-3977`, `ScenarioComponentsView.cs:128` |
+| find / pick a placed tree or item | ⚠ only the generic entity symbol (`EntityPresentationGizmo`, TKB 8818 "a map graphic, no body") — no terrain look; **not run in a frame — S-6 measures it first** | `EntityPresentationGizmo.cs:37`, `NedTkbCatalog.cs:1234-1238` |
+| see what a line will make while drawing | the generic polyline look (U-7's own deviation) | §15a U-7 |
+| edit a drawn shape | ✅ Edit Shape (E): vertex drag, insert on a segment, centre-drag, Delete — a feature with a polyline is an Area target | `MapMenuActions.cs:119`, `:265-274`; Map Interaction §2.5 |
+| undo | ✅ one edit = one step by construction | Terrain Authoring §18h |
+| select many | ✅ built — Shift / Ctrl / band / Alt-click (cycle) and multi-delete (Map Interaction P5, 2026-11-08) | `MapGestures.cs:27` |
+
+## 3. The diagrams
+
+### 3.1 Classes — existing (`<<existing>>`) and what this adds (`<<new>>`)
+
+```mermaid
+classDiagram
+  class EditorToolbarPanel { <<existing>> DrawContent() ActiveTool }
+  class TerrainToolRow { <<new TE-1>> family buttons, wraps to the window width }
+  class TerrainPickCatalog { <<existing>> FeaturePicks() Build() }
+  class PlacementToolRegistry { <<existing>> ArmTerrain(spawn, pick) }
+  class ScenarioSpawnAdapter { <<existing>> StartAreaAuthoringMode() StartPlacementMode() }
+  class ArmedTerrain { <<new TE-1>> the armed pick's spec, read by the row }
+  class AreaAuthoringArm { <<existing>> Arm(request) }
+  class AreaAuthoringRequest { <<existing>> Closed Born Underlay }
+  class EntityPlacementGizmo { <<existing>> always-multi, Renew() }
+  class PointSequenceGizmo { <<existing>> Underlay }
+  class ShapeEditSession { <<existing>> insert / delete / centre-drag, Menu }
+  class TerrainDrawOptions { <<existing>> Kind Height Seed Born }
+  class TerrainGhostContext { <<existing>> Base Assets Roads, cached }
+  class BuildingPanelGrid { <<existing>> Near() }
+  class TerrainSnap { <<new TE-6>> Snap(point) road edge / wall / line end }
+  class LineEndIndex { <<new TE-6>> feature line ends, rebuilt on edit }
+  class FeatureElements { <<existing>> group / enclosure / orchard placement }
+  class LinePlaces { <<new TE-4/5>> the group element's placement, extracted, shared }
+  class FeatureKinds { <<existing>> OfKind() + Row 14, Group 15 }
+  class ObstacleRowBirth { <<new TE-5>> N obstacle entities, one EditSteps bracket }
+  class MacroInstance { <<existing>> parent of member entities }
+  class TerrainFeatureDetailsView { <<new TE-8>> }
+  class TerrainFeatureGizmo { <<new TE-9>> on the TerrainBlockGizmo template }
+  class DrawGhost { <<new TE-10>> 0 B geometry, recomputed on a committed point }
+
+  EditorToolbarPanel *-- TerrainToolRow
+  TerrainToolRow --> TerrainPickCatalog : the SAME picks
+  TerrainToolRow --> PlacementToolRegistry : ArmTerrain
+  TerrainToolRow ..> ArmedTerrain : lights the family
+  PlacementToolRegistry --> ScenarioSpawnAdapter
+  ScenarioSpawnAdapter --> AreaAuthoringArm : line / area
+  ScenarioSpawnAdapter --> EntityPlacementGizmo : point
+  ScenarioSpawnAdapter --> ArmedTerrain
+  AreaAuthoringArm --> AreaAuthoringRequest
+  AreaAuthoringRequest : +Repeat (new TE-2)
+  AreaAuthoringArm --> PointSequenceGizmo
+  PointSequenceGizmo --> ShapeEditSession
+  PointSequenceGizmo ..> TerrainSnap : each placed point
+  PointSequenceGizmo ..> DrawGhost : Underlay
+  TerrainSnap --> TerrainGhostContext
+  TerrainSnap --> BuildingPanelGrid
+  TerrainSnap --> LineEndIndex
+  FeatureElements --> LinePlaces
+  FeatureKinds --> LinePlaces : Row / Group trees
+  ObstacleRowBirth --> LinePlaces : where each obstacle goes
+  ObstacleRowBirth ..> MacroInstance : the group (to measure, S-3)
+  AreaAuthoringArm --> TerrainDrawOptions
+```
+*What the picture shows that prose hid: the row arms through the door that ALREADY arms every terrain pick (`ArmTerrain`), and reads the armed
+pick back to light itself — no per-pick tool ids. Trees in a row and obstacles in a row share ONE placement (`LinePlaces`, extracted from the
+recipe `group` element) but are born differently: trees as one baked feature, obstacles as entities (R-4264).*
+
+### 3.2 Sequence — three hedges, then a row of concrete blocks
+
+```mermaid
+sequenceDiagram
+  actor U as user
+  participant TB as Editor Toolbar (Terrain row)
+  participant PR as PlacementToolRegistry
+  participant SA as ScenarioSpawnAdapter
+  participant G as PointSequenceGizmo
+  participant SN as TerrainSnap
+  participant OB as ObstacleRowBirth
+  participant B as live bake / road blockage
+  U->>TB: Walls (last: Hedge)
+  TB->>PR: ArmTerrain(hedge pick)
+  PR->>SA: StartAreaAuthoringMode(spec, Repeat)
+  loop each hedge
+    U->>G: click points
+    G->>SN: Snap(point)
+    SN-->>G: line end of Hedge 2
+    U->>G: Enter
+    G->>SA: one SpawnEntityCommand (one undo)
+    SA->>SA: Repeat: new seed, re-arm
+  end
+  U->>G: Esc (drops the shape in progress)
+  U->>G: Esc (disarms, the row unlights)
+  U->>TB: Obstacles (Concrete block)
+  U->>G: drag a line across the road, Enter
+  G->>OB: the line
+  OB->>OB: LinePlaces: 4 positions
+  OB->>SA: 4 obstacle entities in ONE EditSteps bracket
+  SA->>B: StaticObstacle x4 -> the road closes (SUMO + our graph)
+```
+
+### 3.3 Modules — who registers it, who calls it each frame
+
+```mermaid
+graph TD
+  ED[EditorSubsystem] -->|registers| TW[EditorToolbarWindow - Scenario perspective, open by default]
+  TW -->|draws each frame| TP[EditorToolbarPanel + TerrainToolRow]
+  ED -->|registers DetailsViews| DV[TerrainFeatureDetailsView]
+  TP -->|ArmTerrain| SA[ScenarioSpawnAdapter]
+  SA --> PG[PointSequenceGizmo]
+  PG -->|frame thread, per placed point, 0 B| SN[TerrainSnap on TerrainGhostContext]
+  MIP[MapInteractionPack: every map host] -->|gizmo projectors, reflection| FG[TerrainFeatureGizmo]
+  FG -.->|draws only where LiveTerrainBakeInfo exists: Player / SimHost / Replay have none| X[other hosts]
+  OB[ObstacleRowBirth] -->|StaticObstacle entities| RB[BridgeClosureSystem -> RoadBlockage.Blockers]
+  SA --> OB
+  style X fill:#555,stroke:#999
+```
+*What it shows: the row and the Details tab are editor-only by registration; the gizmo is in the shared pack but gated on the editor's live
+bake info (the `TerrainBlockGizmo` precedent); an obstacle row reaches road blockage through the entity path it already reads — no engine change.*
+
+## 4. The proven solution, and what we take from it
+
+Map editors that do this well (game level editors, GIS editing) share four habits: **a persistent tool palette** (not a modal per object) ·
+**sticky tools** (stay armed until Esc) · **snapping to the things that matter** (edges, ends, angles) · **objects along a path / in an area**
+(one object, many instances, spacing). Sculpt brushes and per-instance painting are the fifth habit — ⛔ **rejected here**: our ground is
+parametric patches re-applied on every node (G-31, G-32) and every placed thing is a replicated entity, so a brush stroke of hundreds of
+entities breaks the entity budget (B-2: one entity per block).
+
+## 5. Decisions — revised `2026-11-15` (§8 answered; ✅ = ruled by the user)
+
+| # | question | ⭐ decision / lean | why · blast radius |
+|---|---|---|---|
+| **TE-1** | where do the terrain tools live? | ✅ **RULED R-5032** — a **Terrain row in the Editor Toolbar window** (`EditorToolbarPanel`), ⛔ not the main toolbar. Seven FAMILY buttons — *Wood · Trees · Walls · Obstacles · Earthworks · Water · Scatter* — each opens its variants; the label is the family (the last variant is the tooltip and the hint line, R-12 of the review); the row WRAPS to the window's width. A button calls `PlacementToolRegistry.ArmTerrain(pick)` — the door every terrain pick already uses — and lights from the ARMED pick the adapter holds (`ArmedTerrain`), not from a tool id (§8 R-7). Add Entity keeps the gallery and search | 🔒 user: *"Terrain tools can live in the editor toolbar, not in the main menu. There is not enough place."* The window is open by default in the Scenario perspective. Blast: editor UI only |
+| **TE-2** | after Finish? | ⭐ a terrain LINE / AREA tool **stays armed** (`AreaAuthoringRequest.Repeat`, terrain requests only) with a **new seed per shape** (the placement gizmo's `Renew` precedent); **Esc twice**: the first drops the shape in progress, the second disarms (through the central Esc); the scatter panel's *Done* ends the SHAPE, not the tool | §8 R-8 |
+| **TE-3** | planting trees | ⭐ one *Trees* family: **One** (click — today's Tree) · **Row** (a line, spacing) · **Group** (an area, a count); lone trunks, ⛔ never a wood | the user means trunks they can see and fell (B-6) |
+| **TE-4** | a row / a group of trees in data | ⭐ two NEW `TerrainFeature` kinds, **Row = 14, Group = 15** (`Template` = the item — `tree` in v1; `Pad` = spacing on a Row, the count in a Group; `Seed`); an older build SKIPS an unknown kind (`IsKnown`) instead of throwing; Scatter keeps "an area + a recipe". The placement is the recipe `group` element's, **extracted into one shared `LinePlaces`** (ruling 9), not a second algorithm. ⛔ Species / size: no field in v1 (cut from the mockup) | §8 R-3, R-4. Blast: `FeatureKinds`, the compile, the parser; saved scenarios unaffected |
+| **TE-5** | obstacles | ✅ **RULED R-4264 (option a)** — the *Obstacles* family places **real obstacle ENTITIES**: click = one (as today), drag a line = a row facing along or across, positions from `LinePlaces`; ⭐ **a row is ONE undo step (one `EditSteps` bracket, the Unpack precedent) and selects as ONE group** — ⭐ **the group, MEASURED `2026-11-16` (R-5041, lane decision):** ⛔ `MacroInstance` does NOT fit — its members are TRANSIENT, re-expanded from a macro file at load and never saved (`MacroTypes.cs:13-60`, SR-170 / SR-178), while a drawn row's blocks are saved one by one; no other grouping component exists (graph: `.*(EntityGroup\|GroupMember\|PlacedGroup\|GroupId).*` → none). ⇒ a small **unmanaged, saved `PlacementGroup { uint Id }`** on every member; selecting one member selects the whole group (Alt-click still cycles single units, P5), the group moves / turns with the built group transform. ⭐ The row is armed by ONE more Obstacles member, *Row of obstacles…*, a LINE tool whose draw panel picks the type, the gap and the facing (mockup D); the single types stay one-click placements as today. The types are the ONE `ClutterTypes` table (already: `NedTkbCatalog.cs:1362-1370`); ⭐ Barrel, Jersey barrier and Guard booth become obstacle types too (new TKB ids — allocated by the lane that owns `TkbEntityTypes`) | obstacle entities already block roads, are crushed, bulldozed and re-open the road (CE-4590, CE-4600, CE-4601); RM-5 needs them breakable. Cost: a checkpoint ≈ 10–40 entities |
+| **TE-6** | snapping | ✅ **RULED R-5033** (user `2026-11-16`: *"Snapping on by default, yes"*) — the FIRST snap (Map Interaction's row is unbuilt — §8 R-10): **road edges** (+ an offset, from `TerrainRoads.Corridors` half-widths), **building walls** (`BuildingPanelGrid.Near`), **line ends** (a new index of feature line ends, rebuilt on edit) — inputs from the cached `TerrainGhostContext`; ⭐ ON for LINE tools only (walls, rows, ditches), off for areas; **Ctrl** suspends it for one point, **Shift** = 15° steps (keymap rows, never literal keys — the modifier table below); the active target named on the hint line; 0 B per moved point | the jobs are "along this road", "continue that hedge". ON by default deviates from Map Interaction's off-default (units) — ruled |
+| **TE-7** | a wall round a plot; a gate | ⭐ the `enclosure` precedent: *Wall around a plot* stores a closed line (the first point repeated); **Add gate here** (Edit Shape's segment menu) ROTATES the line's start into a 3 m gap — one entity, one label, one undo; a breach recorded in Live has its ranks re-mapped (said in the slice). ⭐ One gate per wall in v1 (a second gate = a second wall) | §8 R-5: a split would mint a new key and orphan B-2 breaches |
+| **TE-8** | changing what was placed | ⭐ ONE **Terrain** Details tab for every non-ground feature: Kind (only kinds of the SAME shape — a point never becomes a line, §8 R-16), material, height, spacing / count + seed dice, a Contents line of what it does; beside the Ground and Block tabs. Obstacle entities keep their entity Details | *Properties…* shows only the raw component today |
+| **TE-9** | finding what was placed | ⭐ `TerrainFeatureGizmo` on the `TerrainBlockGizmo` template (pick segments, chip, 0 B steady), gated on `LiveTerrainBakeInfo`: a point feature a handle dot, a line / area its outline, selected as ONE; bulk delete / Kind change through the BUILT multi-select. ⚠ S-6 first measures what the generic entity symbol shows for TKB 8818 today | §8 R-12 |
+| **TE-10** | seeing it before and while it is made | ⭐ the draw ghost has its OWN 0 B geometry (reused buffers, the item resolved at arm), recomputed only when a COMMITTED point changes, the cursor segment drawn plain; ⭐ after Finish the ghost STAYS until the bake holds that feature (`LiveTerrainBakeInfo`), so ten repeated hedges never vanish; the count line says when a Row / Group hit its cap | §8 R-9, R-14 |
+| ~~TE-11~~ | "another one like that" | ⛔ **dropped**: Copy / Paste / Duplicate (Ctrl+C / V / D) already exist for any entity (`MapMenuActions.cs:115-117`); Alt-click is *select the next overlapped unit* | §8 R-6 |
+| **TE-12** | a berm | ⭐ kept, re-costed: a ground mode + the parser + a TERRAIN-class line + its slot in the G-32 stack — a small backend item, not a preset | §8 R-11 |
+| **TE-13** | the greyed *Street clutter* | ⭐ ship two scatter recipes: *Street clutter* and *Undergrowth* (baked, inert — R-4264 keeps generated clutter scenery) | data only |
+| **TE-14** | what v1 leaves OUT, said | erasing everything in an area · a clearing inside a wood · deleting part of a line (Edit Shape deletes points) · single-letter shortcuts (`W` is *move forward* in 3-D — `EmbodiedKeys.cs:134`) | §8 R-15: each is a later item if asked for |
+
+| **TE-15** | moving, turning and reshaping what was placed — in 2-D AND 3-D | ✅ **RULED R-5034** — 🔒 user `2026-11-16`: *"Line can be of course.bettwr to be editable by dragging endpoinys, no wxtra rotation needed tgen"*. ⭐ A LINE (wall, hedge, tree Row, ditch) is moved by Edit Shape's centre handle and reshaped — "turned" included — by dragging its points (P6, built: drag a point, insert on a segment, Delete); ⛔ **no rotate for lines**. ⭐ An OBSTACLE ROW (entities) moves and turns as a group with the built group move / rotate (P5 `GroupTransform`: about the group's centre, or each piece about its own; one undo) once it selects as one group (TE-5). An AREA (wood, Group, ground shape) the same as a line. A block keeps its own Move / Rotate (U-3). ⭐ 3-D: the same handles — the 3-D view turns the mouse ray into a ground point and runs the 2-D hit test (P7: handles draped and pickable), band select works in 3-D (CE-1136); ⚠ not yet proven for terrain features in a 3-D frame — acceptance 9 | measured: the Rotate action is units-only (`MapMenuActions.cs:118`) and a line's shape is its points, not the entity's rotation (`OverlayCompiler.cs:95-99`) — so dragging points is the ONE way, no second mechanism |
+
+| **TE-16** | where is terrain edited? | ✅ **RULED R-5035** — 🔒 user `2026-11-16`: *"Will all the terrain enditing work in 3d which is the primary place for that?"* ⭐ **3-D is the PRIMARY authoring view; 2-D must work too.** Measured: the 3-D view already draws and picks what the tools use — points picked on ground / roof / wall top (`Picking.cs`, Map 3D M17 / M22), lines, filled triangles and boxes DRAPED on the relief (`GizmoRenderer3D.cs:133, :229-232, :270-281`), handles hit-tested at the ray's ground point (Map Interaction P7), band select (CE-1136), chunks rebuilt by area after a bake (U-6); snapping works on the picked XY, so it is free in 3-D. ⚠ **Two gaps the slices close:** ① **picking a placed TREE / tree Row in 3-D** — the picker holds the terrain mesh and entity boxes, not trees, so a click on a canopy lands on the ground BEHIND it (metres off from an oblique view): the feature gizmo (TE-9) must test the feature's own volume (a trunk + canopy cylinder, a wall's height band) along the RAY, not only the ground point; ② **right-click = the drawing menu vs right-drag = look** (`MapCamera3D.cs:344-378`) — prove a right CLICK opens the menu while a terrain tool is armed | the user's primary view; every slice's frame rails run in a 3-D frame FIRST, then 2-D |
+
+| **TE-17** | stop accidental edits of PLACED terrain | ✅ **RULED R-5036 + R-5037** — 🔒 user `2026-11-16`: *"simply disallow selecting these features without the toolbar"* · *"No automatic closing, please … bind the editing features to the presence of this toolbar as a whole … one toggle icon for toggling this editor toolbar and another toggle icon for toggling the layers panel"*. ⭐ **The KEY is the TERRAIN TOOLBAR** (TE-19, R-5038 — was the Editor Toolbar window, R-5037) (open = terrain editable; closed = locked). ⛔ No automatic closing; its open state persists like any window's; ⭐ lean: CLOSED on a first run (exercise-safe). ⭐ Main toolbar, right of the existing entries (`MainToolbarManager.RegisterEntry`, a sort order after the last): the **Toolbars** split icon and the **Tactical Map Layers** toggle (TE-19 ④). The toolbar's current content may change freely (user: never used). ⭐ **While the Editor Toolbar is closed, a PLACED terrain thing cannot be selected or picked** — a terrain feature, a block, a placed obstacle entity — enforced in the TWO places every path goes through: ① the selection store's write (`EcsSelectionState` → `SelectionStore`, `EcsSelectionState.cs:109-166`) — the map click, band select, the Outliner, select-all, and so Edit Shape, Rotate, Delete, Details; ② the map's pick in 2-D and 3-D — hover, the right-click menu (built for the PICKED entity), the start of a drag; the click goes to what is beneath. ⭐ NOT affected: placing NEW things (Add Entity always; the Terrain row while open), the simulation, an ORDER's own target pick. Per-station UI state, never replicated |
+
+| **TE-18** | what the map shows with the Editor Toolbar closed / open (2-D and 3-D) | ✅ **RULED R-5037** (the answer the user approved with the key). Measured today: a drawn terrain line / area has NO gizmo (`MapOverlayGizmo` needs a `MapOverlayStyle`, which a terrain birth drops — U-7); a block's dashed outline + chip draw ALWAYS in the editor (`TerrainBlockGizmo.cs:40-67`); a point item goes through the generic entity symbol (unmeasured in a frame — S-6). ⭐ **CLOSED:** the terrain itself only (baked trees, walls, houses, craters, obstacle bodies); NO authoring marks — block outlines and chips HIDDEN, no feature symbols; nothing placed is selectable. ⭐ **OPEN, nothing selected:** every PLACED feature carries a faint mark — a point item a small dot, a line / area a thin outline in its kind's colour, a block its dashed outline + chip — which also tells PLACED (editable) from BASE terrain (imported, not editable); hover highlights. ⭐ **OPEN, selected:** the outline solid blue; a line / area shows its point handles with Edit Shape (E); an obstacle row the group move / rotate ring. All draped in 3-D (TE-16) | the user: *"what would change in the 3D or 2D map when I turn the editor toolbar on?"* — authoring marks are authoring state, so they follow the authoring key |
+
+| **TE-19** | split the toolbar; icons, docking, orientation | 🔒 user `2026-11-16`: *"splitting the toolbar into multiple toolbars and replacing the ugly text buttons with colorful toggle icons with tooltip … terrain features would become editable when we open the terrain editor toolbar … a dockable window … horizontal layout as well as vertical layout"*. ✅ **RULED R-5038** — 🔒 user `2026-11-16`: *"Agreed … just one single icon on the main menu toolbar. A split icon with the down arrow that opens a list of all available toolbars with check mark for those that are enabled … I hope it is a shared code or will be … the layer panel is not a toolbar, so I think it still deserves its own toggle icon"*. ① **ONE reusable dockable tool strip** — every toolbar is an instance given its entries: a coloured toggle icon per tool (`IconWidgets.ToggleIcon`, lit while armed — Tool Model step 5), a tooltip with the name and key (`IconWidgets.Tooltip`), a FAMILY as one dropdown icon showing its last variant (`IconWidgets.DropdownFaceIcon`); its layout follows its own shape each frame — taller than wide ⇒ a column, else a row, wrapping when out of room; dockable as any window (docking is on, `FdpApplication.cs:106`). ② **Two toolbars to start**: *Scenario tools* (its content per ⑥, R-5039) — ⛔ it locks nothing (R-4162: units move in Live) — and *Terrain* (the seven families of TE-1) — ⭐ **its open state IS the terrain key** (R-5037's key moves from the Editor Toolbar to the Terrain toolbar). ③ **The rule, not a list:** a toolbar MAY declare a feature family that is selectable only while it is open (TE-17's selection-write + pick filter, generalised); a new toolbar gets one only when the user asks. ④ **Main toolbar: ONE split icon *Toolbars*** — its face toggles the toolbar toggled last (lit while any toolbar is open), its narrow ▾ opens the list of every toolbar with a ✓ on each open one; ⭐ the split icon is the ▶ / ▾ preset picker's pattern (CE-3393, `MainToolbarTimeControlSection.cs:144-160`) — today INLINE in that section (and repeated by its other ▾ popups), so it is **extracted into ONE shared widget** (beside `IconWidgets`) that both the preset picker and *Toolbars* use. ⭐ **Tactical Map Layers keeps its OWN toggle icon** (a panel, not a toolbar). ⑥ ✅ **R-5039 (CE-5013): a toolbar holds only tools that CREATE something or need no target** — editing an existing thing stays on right-click, the keys and Details (Edit Shape / Edit Route / Edit plan / Rotate are entity-scoped and already in the map menu, `MapMenuActions.cs:118-124`): *Scenario tools* = Add Entity · Draw area · Draw route · Place zone · Measure; dropped: Select (Esc), Edit Shape, Edit Route, Edit Plan, Rotate, the old Place Entity. ⑤ *Reload BTrees* leaves the editing toolbar for the AI menu (beside the main toolbar's *Full Rebuild*, `EditorSubsystem.cs:5459`) | the shared-and-unified rule: one strip component, not one per toolbar; the colour-icon rule R-4139 |
+
+**Modifier keys while a terrain tool is armed** (checked against Map Interaction §2.5 and `MapGestures`):
+
+| key | does | already bound to |
+|---|---|---|
+| Enter · the ✓ · menu *Finish* | finish the shape | D11 — unchanged |
+| Esc | 1st: drop the shape in progress · 2nd: disarm | D11's cancel, made two-stage (TE-2) |
+| Backspace · Delete | remove the last / the selected point | D11 — unchanged |
+| Ctrl (held) | no snap for this point | a NEW keymap row; Ctrl-click (toggle select) does not apply while drawing |
+| Shift (held) | 15° steps | Map Interaction's snap row (designed, unbuilt) |
+| Alt-click | — not used by terrain tools | *select the next overlapped unit* (P5) |
+
+**Rejected — one line each:** a separate terrain-editor mode or app (a second storage) · the main toolbar (R-5032: no room) · sculpt brushes (the
+ground is parametric patches, G-31) · paint-brush trees (hundreds of entities a stroke) · per-tree editing in a wood (a seeded mass) · obstacles
+as baked clutter the road step learns to see (R-4264: indestructible, a second policy) · a gate by splitting the wall (new key, orphaned breaches)
+· Row / Group as new meanings on Scatter (ambiguous data; older builds throw) · an eyedropper (Copy / Paste exist).
+
+**Design docs checked:** Ground §4d — binds it (one family, one patch type, the stack). · Terrain Authoring §11, §15a, §18e, §18g, §18i — owns
+the machinery and the recipe elements TE-4 / TE-5 reuse. · Map Interaction §2.5 — finish / cancel and shape editing settled; its snap row is
+designed, unbuilt (TE-6 builds the terrain half). · Editing UX §3 — the palette's region; overridden for terrain tools by R-5032. · Tool Model —
+the toolbar marks the armed tool; the terrain row reads the armed PICK instead of a tool id. · Multi-select — built (P5). · R-4264 note —
+settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. · Breaching B-2, B-3, B-4, B-6 — what walls, obstacles and trees do.
+
+## 6. Slices *(proposed; each mockup-checked, R-4146)*
+
+| slice | builds | lane |
+|---|---|---|
+| S-1 [CE-5006](blueprints/Blueprint_Issues_Tracker.md) | TE-19 the shared tool strip + the shared split widget (the preset picker moved onto it) + the two toolbars + the main-toolbar icons; TE-1 the Terrain toolbar's families (families, wrap, lit from the armed pick) + TE-2 repeat, new seed, two-stage Esc + TE-17 / TE-18 the key (the two main-toolbar icons, the selection-write refusal, the pick filter, the marks on / off) | ui |
+| S-2 [CE-5007](blueprints/Blueprint_Issues_Tracker.md) | TE-4 `LinePlaces` extracted from the `group` element; kinds Row / Group; TE-13 the two recipes | backend (terrain) |
+| S-3 [CE-5008](blueprints/Blueprint_Issues_Tracker.md) | TE-5 the obstacle row (entities, one bracket, the group — `MacroInstance` measured first) + the three missing obstacle types | ui + backend |
+| S-4 [CE-5009](blueprints/Blueprint_Issues_Tracker.md) | TE-6 snapping + the modifier rows | ui + backend |
+| S-5 [CE-5010](blueprints/Blueprint_Issues_Tracker.md) | TE-8 the Terrain Details tab | ui |
+| S-6 [CE-5011](blueprints/Blueprint_Issues_Tracker.md) | TE-9 (measure the generic symbol, then the gizmo — with its 3-D volume pick, TE-16 ①) + TE-10 the ghost and its stay-until-baked | ui |
+| S-7 [CE-5012](blueprints/Blueprint_Issues_Tracker.md) | TE-7 the closed wall and the gate rotation; TE-12 the berm | backend + ui |
+
+**As built — S-2 (CE-5007).** `TerrainFeature.Row = 14` (Pad = spacing, 0 ⇒ 8 m) and `Group = 15` (Pad = count, 0 ⇒ 10; Seed) in `TerrainBlock.cs`; `FeatureExpander.IsKnown` widened to `<= Group`, both kinds in `NeedsShape`, so an older build skips them. ONE placement in the new `Terrain/LinePlaces.cs`:
+`LinePlacesEven` (n places at `(i+0.5)/n` of a polyline — the recipe `group` element's `line` now CALLS it; on one segment it is the old `a + d·t`, byte for byte), `LinePlacesSpaced` (a place every `spacing` m, the first half a spacing in — the Row), and `AreaSampler`
+(the scatter's seeded in-polygon rejection sampling, extracted — `Scatter` and the Group both call it). A rail hashes every shipped block recipe (3 seeds) and a fixed-seed scatter, captured BEFORE the refactor: identical. Shipped `street-clutter` and `undergrowth` scatter recipes;
+deviation: `TerrainPickCatalog.Build` no longer lists a scatter-only recipe (no houses / woods / elements) as a Block tile — it is the scatter tool's — and the two picker rails that assumed "every recipe is a tile / no scatter shipped" were updated. The Row / Group authoring tools (the picks, S-2's UI half) are not built here.
+
+### As built — S-1 (CE-5006) *(terrain lane `2026-11-16`; the Sonnet worker built W1 / W2, the lane built W3 and TE-2, every piece reviewed)*
+
+| piece | as built | where |
+|---|---|---|
+| the shared strip | `ToolStripWindow` (a `ManagedWindow`): entries laid out by `ToolStripLayout.Compute` from its own client size — a COLUMN when taller than wide, else a ROW, wrapping; framed `glyph_toggle` tiles (≈ 30 × 26, lit = framed bright), a family = one tile with a ▾ mark opening a vertical list (glyph · label · ✓); no title-bar pin (`ManagedWindow.ShowPinButton`) | `Fdp.Presentation/ImGui/WindowManager/` |
+| the split widget | `SplitArrow` — ▾ + a ✓ list + trailing actions; the ▶ / ▾ preset picker now uses it (behaviour unchanged) | `Fdp.Presentation/ImGui/Icons/SplitArrow.cs` |
+| the toolbars | *Scenario tools* (Add Entity ▾ Friendly · Hostile · Neutral · Map graphic — the existing handlers 203-206; Measure 200), *Terrain* (Wood · Trees · Walls · Obstacles — obstacle ENTITIES, R-4264 · Earthworks · Water · Scatter); the old Editor Toolbar deleted | `Hrot.Editor/Windows/EditorToolStrips.cs` |
+| the main toolbar | the *Toolbars* split icon (95) and the *Tactical Map Layers* toggle (96, `LayerControlGizmo.IsEditing`); *Rebuild & Reload Behaviours* moved to a new AI menu | `EditorToolbarsSection` |
+| the key (TE-17 / 18) | `Fdp.Toolkit.Terrain.TerrainLock` — ONE predicate read by `EcsSelectionState.Write`, the hover, `MapMenuActions.JsonFor`, `TerrainBlockGizmo` and the entity symbol of a feature / block (a placed obstacle keeps its symbol); ONE writer per frame: `TerrainLock.SetOpen(world, terrainStrip.IsOpen && BelongsTo(current perspective))` | `TerrainLock.cs`, `EditorSubsystem` |
+| sticky tools (TE-2) | `AreaAuthoringRequest.Repeat` (terrain features only): `PointSequenceGizmo` restarts its session after a finish and calls `OnRepeated` (the draw options' `Reroll` — a new seed); `ShapeEditSession.EscDropsShapeFirst`: the first Esc drops the shape, the second disarms | `AreaAuthoringArm.cs`, `PointSequenceGizmo.cs`, `ShapeEditSession.cs` |
+| ⚠ deviations | a new top-level AI menu (the editor had none); the main-toolbar icons are plain glyph toggles, not tiles; the family list is unframed menu rows | — |
+
+Rails: `ToolStripLayoutTests`, `IconWidgetsTests` (SplitArrow), `EditorToolStripsTests`, `EditorToolbarsSectionTests`, `TerrainLockTests`, `AreaAuthoringArmTests.TE2_*`, `ShapeEditSessionTests.TE2_*` — each red-proved.
+
+### Build notes — S-4 snapping (CE-5009) *(terrain lane `2026-11-16`, decided before the build — the claim table rows are measured)*
+
+| claim | code — how it is | decision |
+|---|---|---|
+| the inputs exist and are cached per terrain | `TerrainGhostContext` holds `Base` (a `TerrainWorld`) and `Roads` (`TerrainGhost.cs:7-21`); `TerrainRoads.Corridors` = centre lines + `HalfWidth` (`GroundPatches.cs:153`); `BuildingPanelGrid.Near` (`BuildingPanelGrid.cs:44`, 16 m cells) | ONE `TerrainSnap` built from the context when it changes: the road EDGE lines (each corridor's centre offset by ±(HalfWidth + offset)) and the house footprint edges in one grid; the line ENDS of the placed terrain features in a second, rebuilt when the world's feature set changes |
+| the drawing tool is generic (FDP) | `PointSequenceGizmo` / `ShapeEditSession` know no terrain | the gizmo gains ONE optional hook `Func<Vector2, SnapHit?>? Snap` (FDP-generic: a point and what it snapped to); the Hrot adapter passes `TerrainSnap` for terrain LINE features only (R-5033); areas get none |
+| priority and reach | — | a line END (a point) wins over a WALL, a wall over a ROAD EDGE; the reach is ~12 screen px converted to metres at the current zoom (so it feels the same at every zoom) |
+| suspend / angle | modifiers reach a click packed in `MapMouseButton`'s high bits; hover has none | Ctrl held (tracked from the gizmo's key events, a keymap row) frees the next point; Shift held quantises the segment's direction to 15° from the previous point |
+| feedback | `GizmoEditStyle` draws the tool | a ring at the snapped point, the target drawn dashed (the road edge / wall / end), the hint line *"snapped: road edge +1 m"* (TE-6 mockup C) |
+| cost | R-2084 | 0 B per moved point: the grids and result buffers are reused; queries scan only the cells within reach |
+
+**As built — S-3 (CE-5008), trees and obstacle row.** Tree *One · Row · Group*: two Vegetation picks (`Tree row` = `TerrainFeature.Row`, a line; `Tree group` = `Group`, an area), listed in the Terrain strip's Trees family; `TerrainDrawOptions.Born` writes Pad = spacing (default 8) / count (default 10); the draw panel's "16 trees · 124 m" is `FeatureExpander.CountAlong` — the expander's own placement (`LinePlacesSpaced` is now public). The panel has no *Plant* One/Row/Group segment (the mockup's): the strip's family member IS the choice (a deviation, said).
+*Obstacle row (R-4264, R-5041):* new unmanaged saved `PlacementGroup { uint Id }` (`GlobalComponentIds` **500**, registered beside `TerrainFeature`; `Fdp.Toolkits/Terrain/PlacementGroup.cs`). `ObstacleRowOptions` (`AddEntity/ObstacleRow.cs`): the Obstacles family's fifth member *Row of obstacles…* arms the area tool with the spec `obstacles:row` (line, 2 points, sticky); `ScenarioSpawnAdapter.CommitObstacleRow` turns the drawn line into N spawn commands at `LinePlacesSpaced` (spacing = type length (Along) or width (Across, +90°) + gap, default 1.5 m) — each carrying the SAME `PlacementGroup` and a numbered name — sent inside ONE `EditSteps` bracket (one undo). `SelectionInteractionSystem.GroupOf`: a click (plain, Shift, Ctrl, the narrowing release) on one member selects every live member; Alt-click stays single. ⚠ Not built here: Barrel / Jersey barrier / Guard booth as obstacle TKB types (TE-5's last clause — needs the lane that owns `TkbEntityTypes`).
+
+**As built — S-5 (CE-5010) + the obstacle types.** `TerrainFeatureDetailsView` (`Hrot.Editor.AiShared/Shell`) is the ONE *Terrain* tab (rank 39, beside Block 37 / Ground 38) for one selected NON-ground `TerrainFeature`, its writes in `TerrainFeatureOps` (`AddEntity/`, one edit step each, like `GroundFeatureOps`): Kind only within the shape's family (Wall · Fence · Hedge / Wood · Scrub — a line never becomes a point; a kind change resets material and height to the new kind's defaults), Material (the wall-material library), Height with "the kind's default" shown when Pad is 0, Density, Spacing, Count, Recipe, Seed + dice, Heading, then *Contents*. Deviation: the mockup's *Add gate here* hint is not drawn (the gate is TE-7).
+*Obstacle types:* `Obstacle_Barrel / JerseyBarrier / GuardBooth` = TKB **8820 / 8821 / 8822** (free in every origin branch), registered from the same `ClutterTypes` entries (starter MaxHealth 50 / 400 / 120), in `TkbEntityTypes.Obstacles` — seven types in the Terrain strip and the row's Item list.
+
+### As built — S-4 snapping (CE-5009) *(terrain lane `2026-11-16`)*
+
+`SnapHit` + the hook `PointSequenceGizmo.Snap` (FDP-generic; `SnapPoint` applies Shift's 15° step, then the hook unless Ctrl is held; a click on the ✓ or the first
+point is never snapped away); `AreaAuthoringRequest.Snap`, set by `ScenarioSpawnAdapter` for terrain LINE features only (R-5033); `TerrainSnap` — one per adapter, walls
+from the template houses' footprints AND the solid `Building` prisms (a rail found the solid ones missing), road edges = each corridor offset by half-width + `RoadOffset`,
+line ends of placed walls / fences / hedges / rows re-read on a world-version change; priority end > wall > road edge; 0 B per query (a rail). The mark: a ring at the
+snapped point, the target segment dashed. ⚠ Deviations from the build notes, said: the reach is a FIXED 3 m (not ~12 px by zoom); Ctrl / Shift are held-key checks in the
+gizmo (a modifier is no keymap chord); the hint line and the draw panel's Snap row were built in the remainder (below). Rails: `TerrainSnapTests` (3 + 2), `AreaAuthoringArmTests.TE6_*` — red-proved (priority reversed; the click ignoring the snap).
+**Remainder (CE-5009 second pass).** `TerrainDrawOptions.Snap` (default ON) and `RoadOffset` (default 1 m, 0…10): the LINE panel (not the closed wall) draws a *Snap* toggle and a *Road offset* drag field (`%.1f m`, greyed when Snap is off); `TerrainSnap.SnapWith(options, …)` returns nothing when Snap is off
+(the click lands raw) and re-indexes the road edges at `HalfWidth + RoadOffset` otherwise. The hint line: while a terrain line is drawn the adapter's underlay reads the gizmo's `LastSnap.Kind` and `TerrainSnap.HintTracker` puts "snapped: road edge +1 m · Ctrl: free" (or the end / wall text) on the
+tool's hint (`ToolController.SetHint`) ONLY when the kind or the offset changes — a steady frame is a compare, 0 B (a rail) — and `SetHint(null)` restores the tool's own hint when the snap ends. The Terrain Details tab (CE-5010) adds, for a CLOSED wall / fence / hedge (`WallGate.IsClosed`), the line
+"a closed wall — Edit Shape, right-click a side ▸ Add gate here (3 m)".
+
+**As built — S-6 A+B (CE-5011), the feature gizmo and the drawing ghost.** 📐 Measured `2026-11-16` with the Terrain strip OPEN, before the gizmo: a placed point feature (a tree) AND a line feature (a wall) each showed ONE generic entity symbol — `SpatialAnchor` + pick box + `SemanticShape` of TKB 8818 — at the entity's position: no handle, no outline, a wall's length unmarked and unpickable.
+Now `TerrainFeatureGizmo` (`[GizmoProjector(typeof(TerrainFeature))]`, the block gizmo's template; colours / point-vs-line table `TerrainFeatureLook`) draws ONLY while `TerrainLock.IsOpen`: a single item (tree, clutter, house, foxhole) a handle dot in its family colour with a white centre (blue ring selected), a line / area its outline (dashed idle, solid blue selected) with the pick segments of the whole feature; `EntityPresentationGizmo` draws nothing for a `TerrainFeature` (one mark). The drawing ghost `TerrainDrawGhost` is the `PointSequenceGizmo.Underlay` of a wall / fence / hedge (a thick line), a tree Row (a dot per tree at `LinePlacesSpaced`'s places, rebuilt only when the points / spacing change) and a tree Group / scatter (the area tinted); `ScenarioSpawnAdapter` records each finish (`Ghost.Committed`) and the shape stays, fainter, until `LiveTerrainBakeInfo` lists the new entity's guid (matched by kind and place) or 30 s pass. ⚠ The ghost is drawn by the armed tool (sticky since TE-2): after Esc disarms it only the feature's own gizmo remains.
+
+**As built — S-6 C (CE-5011), the 3-D volume pick (TE-16 ①).** 📐 Measured: the 3-D pickers held the terrain mesh and the entity boxes, never a tree, so a click on a canopy fell through to the ground behind it. `TerrainFeaturePicker3D` (an `IBodyPicker3D`, registered in `MapInteractionPack` beside `EntityPartPicker`) indexes the live terrain's tree prisms whose label `"<feature guid>/<i>"` names a placed feature and casts the ray against each as a vertical canopy cylinder (r 2.4 m — the 2-D canopy; side entry and crown cap); a hit answers the FEATURE's entity, so a Row or a Group is picked as ONE. Active only while `TerrainLock.IsOpen` (R-5036); the index is rebuilt when the live terrain or the world version moves; a pick allocates nothing. Rails: `TerrainFeaturePicker3DTests` (red-proved: the lock ignored ⇒ `Closed_*` red; the label unmapped ⇒ `Open_*` red).
+
+**As built — S-7 (CE-5012), the closed wall, its gate, the berm.** *Wall around a plot* is a Walls pick of shape AREA; `TerrainBirth.CloseRing` stores it as a CLOSED line (the first point repeated, idempotent) — the expander's LineString walls every side, no new data. Edit Shape (`VertexEditGizmo`) now tells a terrain LINE apart (`TerrainFeatureLook.IsLine`): an open line is edited OPEN (two points least, no closing side, no fill — 📐 before this it was edited as a closed AREA, its ends joined); a closed wall as a ring of its corners whose write-back restores the repeated point, with the menu row **Add gate here (3 m)**: `WallGate.Open` (`Fdp.Toolkits/Terrain`) rotates the ring's start into a 3 m gap on the side nearest the right-click (kept 0.25 m from each corner; a side too short says so on the hint line) — one entity, one key, one `EditSteps` step "Add gate"; the tool ends (the shape is a line now). ⭐ Breaches: `BuildingPanelIndex.TryMapBreach` is the ONE remap rule (`BuildingDamages.Remap` and `BuildingDamageTable.RemapTo` both call it): the same rank when the panel kept its ends; for a free-wall line the new panel holding the breach's MIDDLE, re-measured from its start and clipped; a breach in the gap is dropped (the gate covers it); a moved wall keeps the old rank rule. Content-derived from the two worlds, so every node agrees. *Berm* (TE-12): a fourth line preset `DitchPresets.Of("berm")` = 3 m × 1.5 m with `Raise` true, mode Raise on the ditch's strip (the ground-shape slot of G-32), no obstacle area — its slopes are what the navmesh sees, and it adds no cover points of its own (said in its Details rows). Rails: `BuildingBreachTests.CE5012_*`, `TerrainWorldMergeTests.CE5012_ABerm_*`, `VertexEditGizmoTests.CE5012_*` (2), `TerrainAuthoringPickerTests.CE5012_*` — each red-proved by a compiling mutation (rank-only remap; berm mapped to the ditch mode; the line test dropped; the ring's repeated point dropped; `CloseRing` skipped). ⚠ One gate per wall (v1, as ruled): *Add gate here* is offered only on a CLOSED wall.
+
+**As built — TE-9 bulk edit (CE-5017).** 📐 Measured before: the Delete key and the menu's *Delete* (a per-entity action fanned over the selection, A4) already deleted every selected one — but ONE submit per entity with no bracket, so a 4-block row or ten trees was ten undo steps; and the Terrain tab offered itself for ONE feature only. Now ① the dispatcher (`GlobalActionDispatchSystem`) brackets a run of the same per-entity action of one frame as ONE edit step (every host, every per-entity action, labelled by the catalogue — `ActionCatalogue.LabelOf`), and the Delete key brackets several the same way; ② `TerrainFeatureOps.Apply` runs an op over several features as one step and `CommonFamily` says when they can be edited together; the Terrain tab opens for SEVERAL features of ONE family (walls · fences · hedges, or woods · scrub — never across shapes) with Kind (lit when shared), Material and Height (walls) or Trees per ha (woods), each change one undo step (the per-entity steps nest; `WorldUndoRecorder` keeps the outer pair). Rails: `SelectionInteractionSystemTests.CE5017_*`, `ContextActionRotateHandlerTests.CE5017_*`, `TerrainFeatureDetailsViewTests.CE5017_*` + the AppliesTo rail (two of one family now offered) — red-proved (each bracket dropped).
+
+## 7. Acceptance
+
+1. Three hedges are drawn after ONE click on the row's *Walls*; each has its own seed; one Esc drops a half-drawn hedge, a second disarms; the row lights *Walls* while armed.
+2. A Row of 16 trees along a road is ONE feature, one undo; each tree fells like a lone tree (B-6); an older build loading the scenario skips the Row and does not throw.
+3. Four concrete blocks dragged across a road are four obstacle ENTITIES (R-4264), one undo step, selected as one group; the road closes for SUMO and our road graph (P-2) and re-opens when the row is deleted; a heavy hull crushes one (B-3), the bulldozer clears one (B-4).
+4. A wall drawn near a road snaps to its edge + 1 m; Ctrl draws one point free; a hedge started at another's end joins it; drawing a WOOD does not snap.
+5. A closed wall round a house, then *Add gate here*: still ONE feature with a 3 m gap, one undo; a breach made before the gate survives it.
+6. Selecting a placed wall shows the Terrain tab; Kind → Hedge changes it after one bake; Kind offers no point kinds.
+7. While drawing and until its bake lands, the ghost shows what the bake will make; the frames match [the mockup](UX/terrain-editor.svg) (R-4146).
+8. ⭐ (TE-16) Items 1–7 are proven in a 3-D frame first: points picked on the relief, the ghost and handles draped, a tree in a Row picked by a click on its CANOPY from an oblique view, the drawing menu opened by a right click while right-drag still looks around.
+8c. ⭐ (TE-17, TE-18) With the Editor Toolbar CLOSED — in Edit, Preview and Live, 2-D and 3-D: no block outline, chip or feature mark is drawn; a click on a placed tree, wall, house or sandbag selects nothing (a unit behind it is selected instead), no hover, the right-click menu is the ground's, band select and the Outliner skip them; Add Entity still places a new tree; a bulldozer can still be ORDERED to clear an obstacle. Opening the Terrain toolbar (the main toolbar's Toolbars ▾ list, ✓) shows the faint marks and makes them selectable; it stays open across Preview and Live until closed. The Tactical Map Layers icon toggles the layer editor. ⭐ (TE-19) The Terrain toolbar docked to a side lays its icons out as a column, docked to the top as a row; each icon's tooltip names it; the preset picker and the Toolbars icon are ONE shared split widget.
+8b. A steady drawing frame allocates 0 B (snap, ghost — R-2084); every sim-touching rail runs under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`.
+9. In a 3-D frame FIRST, then a 2-D one (`xvfb-run -a`, TE-16): a wall moved by its centre handle and one end dragged to a new point; a tree Row's end dragged; an obstacle row moved and turned about its centre as one group — each one undo step, and the bake follows (TE-15).
+
+**As proven — CE-4594 acceptance in real 3-D frames** (`Hrot.Presentation.Tests/Map3D/TerrainEditorFrameRail`, xvfb; `basic-desert`: ground −3 … 10 m, 10 m grid, site mean slope 0.22; the steep run `city-battle`: 2 … 40 m, mean 0.39). The production layers, the camera's `ScreenToWorld3D` / `Pick` / `WorldToScreen`, `ScenarioSpawnAdapter` + `PointSequenceGizmo`, `LiveOverlay` + `TerrainResidency.BakeObstacles / CommitObstacles`, `TerrainFeaturePicker3D`, `VertexEditGizmo`, `TerrainLock`. **7:** three oblique clicks → fence points stored on the picked relief points (0.000 m), baked ends on them (0.0005 m), every piece's base inside its ends' ground (0.000 m), each baked base end projected back within **1.75 px** of the click (basic-desert); on the steep relief **8.6 px**, vertical only — a piece is ONE height (CE-5015's ≤ 2 m steps), so a piece ending downhill of a vertex sits `slope × step` below the ground there. **8 / 8c:** the outline / ghost / Edit Shape handles are within 0.06 m of the relief in 3-D; a tree Row's canopy click picks the Row (open), nothing closed, no mark closed. **9:** Edit Shape centre drag 9.98 m then an end point = 2 undo steps (3 with the 2-D drag), the re-baked pieces stand on the ground (0.000 m) and end on the new points. ⚠ Found and fixed: the drawing tool's rubber band to the cursor carried the terrain pick's height while placed points carry 0, so on a slope it was a slanted line 9.8 m under the relief (`PointSequenceGizmo.CursorAt`). ⚠ Found, not fixed: a pick taken the frame after a bake falls to the look-at plane (6.8 m off on basic-desert, 12.9 m on city-battle) until the picker's grid is rebuilt (1–3 frames, 42–115 ms); the 3-D drawer draws a pixel-width line as a hairline, so the 4 px ghost line was not thick in 3-D — ⭐ FIXED: the ghost adds a 1 m band in METRES (`TerrainDrawGhost.GhostBandMetres`), which 3-D drapes as a ribbon (`GizmoRenderer3D.RibbonFromMetres`), under the 4 px line 2-D keeps (rail `TheDrawingGhost_…`, red-proved). The 3-D *Done* mark stays as it is: a shared look ruled for every drawing tool (B-17 P7-C), not the terrain lane's to resize. **As proven — item 3 (an obstacle row's gameplay; `BridgeClosureTests`, `CarKinematicsSystemTests`, `ClearObstacleBehaviorTests`, each red-proved):** a row of four concrete blocks (`LinePlacesSpaced`, gap 0) across a road closes it (Blocked = 1, SUMO edge closed) and deleting the whole group re-opens it; deleting one member depends on which — an outer one leaves it closed, a MIDDLE one re-opens it (a 2 m hole in the 3.5 m road), and the planner's default 1.5 m gap row leaves the road open — exactly the full-width geometry of single obstacles. A 60 t tank drives into one member and crushes only it (one damage event, the other three keep 600 hp) through the sandbag wall's obstacle-damage path; by the material table a tank breaks all seven obstacle types, an IFV only the sandbag wall and the crate. The bulldozer ordered at a point by one member clears that member and the others stand.
+
+## 8. ⛔ Critical review `2026-11-15` — three independent reviewers *(engine / data · the author's workflow · claims vs code; every headline finding re-measured)*
+
+⭐ **Verdict: the direction holds (one family, no new storage, a toolbar door, sticky tools, rows, Details, a ghost); seven rows of §5 were built
+on a wrong or missing measurement.** Rows marked ✔ were re-measured by the lane after the review.
+
+| # | finding | evidence | ⭐ revised lean |
+|---|---|---|---|
+| **R-1** ✔ ✅ R-5032 | TE-1 rejects the shell's toolbar, but the APPROVED Editing UX §3 puts *"the tool palette (select, place, route, area, draw, rotate)"* in the toolbar region | `UX/DESIGN_Editing_UX.md:274` (D2–D9 approved 2026-11-06) | the Terrain row follows Editing UX §3: it joins the tool palette wherever that palette lands (today the editor's *Editor Toolbar* window); ⚠ **the user rules** whether the palette moves to the shell toolbar first |
+| **R-2** ✔ | BLOCKER — a clutter row does NOT close a road: P-2 reads only `StaticObstacle` entities; a clutter / scatter feature is an overlay prism, not crushable, not clearable | `RoadBlockage.cs:18-31`, `FeatureKinds.cs:138-147` | ✅ **RULED R-4264 (option a, user `2026-11-15`)** — the Obstacle tool places obstacle entities; folded into TE-5 and §7 item 3. ⛔ the lane's lean (b) is rejected: indestructible, and a second policy over the same pieces |
+| **R-3** ✔ | the line / grid placement ALREADY EXISTS (⚠ for obstacles now only the GEOMETRY is reused — where along the line each entity is spawned — R-4264): recipe `group` (items along a line, `count`, `facing: along \| across`, or `area{count}`), `orchard` (trees on a grid), `enclosure` (a closed wall with a gate gap), `fields` (a hedge split round a gap) — missed by §1 | `FeatureElements.cs:242-335` | Row / Group / obstacle rows CALL these element routines (ruling 9); §1's query gains `Group\|Enclosure\|Orchard\|Element` |
+| **R-4** | TE-4's data is ambiguous: a polyline has no open / closed flag, so a 3-point Scatter cannot say Row or Group; `Pad` would carry three meanings; an older build reads `item:tree` as a recipe id and THROWS | `EditablePolyline` (Points, Version only), `TerrainRecipe.Find`, `FeatureKinds.cs:66` | ⭐ two NEW kinds, **Row = 14, Group = 15** (Template = the item, Pad = spacing / count) — older builds skip an unknown kind (`IsKnown`) instead of throwing; Scatter keeps "area + recipe" |
+| **R-5** | TE-7 split is wrong: splitting a ring gives ONE open line, not two; the second half's new guid changes its wall key and segment ranks (B-2), orphaning a breach made in Live (Edit Shape is enabled in Live) | `FeatureKinds.cs:74-83`, `MapMenuActions.cs:119`, Breaching §7.9 | ⭐ the `enclosure` precedent: a closed wall repeats its first point; a gate ROTATES the polyline's start into the gap — one entity, one label; ranks re-mapped (said) for an edit in Live; one undo bracket (the Unpack precedent) |
+| **R-6** ✔ | Alt is taken: Alt-click = *select the next overlapped unit* (P5, built); TE-6 (Alt = no snap) and TE-11 (Alt-click = copy) collide with it and each other | `MapGestures.cs:27, :83` | TE-6: hold **Ctrl** for no snap (a keymap row, never a literal); TE-11 dropped — Copy / Paste / Duplicate (Ctrl+C / V / D) already exist (`MapMenuActions.cs:115-117`); a §5 table of every modifier, checked against Map Interaction §2.5 |
+| **R-7** ✔ | the toolbar cannot light the right terrain button: every terrain line / area tool arms ONE id (`PlaceArea`), points arm *Place Entity*; the real arming path is `PlacementToolRegistry.ArmTerrain` → `ScenarioSpawnAdapter.ArmAreaAuthoring`, not `ToolController.Activate(terrain.hedge)` (§3 is wrong there) | `ScenarioSpawnAdapter.cs:125-129, :394-435`, `PlacementToolRegistry.cs:124-137` | the row reads the ARMED PICK (the adapter's current spec) to light its button; §3's diagrams redrawn on `ArmTerrain` + the adapter |
+| **R-8** ✔ | TE-2: one Esc on a half-drawn wall drops the wall AND the tool; and `TerrainDrawOptions.From` rolls its seed ONCE, so every repeated group / row gets the same pattern | `ShapeEditSession.cs:337`, `TerrainDrawPanel.cs:28`, `EntityPlacementGizmo.cs:392` (`Renew`) | two-stage Esc (the shape, then the tool) through the central Esc; a new seed per repeat (the placement gizmo's `Renew` precedent) |
+| **R-9** | TE-10's ghost cannot be 0 B through `FeatureExpander` (JsonObject trees, LINQ, the recipe re-read from disk, throws under 2–3 points) | `FeatureKinds.cs:76, :121, :194`, `TerrainRecipe.Find` | the ghost has its own allocation-free geometry (reused buffers, the item resolved at arm), recomputed only when a COMMITTED point changes; the cursor segment drawn plain |
+| **R-10** ✔ | TE-6 does not EXTEND a snap: Map Interaction's snap row is unbuilt (no snap type exists); but the queries exist — `TerrainRoads.Corridors` (half-width), `TryNearestNode`, `TryAlign`, `BuildingPanelGrid.Near`, all cached in `TerrainGhostContext`; bridge ends already snap to road nodes within 25 m | `DESIGN_Map_Interaction.md:47`, `TerrainGhost.cs:7-21`, `GroundPatches.cs:153`, Terrain Authoring §18k | TE-6 BUILDS the first snap, on `TerrainGhostContext` + an index of feature line ends; road edges + line ends ON only for LINE tools (not areas); the active snap target on the hint line |
+| **R-11** | TE-12 is not "no new code path": a ground LINE is honoured only for ditch presets; a berm needs a mode, the parser, a TERRAIN-class line and a stack slot | `GroundPatches.cs:420-425`, `TerrainWorldParser.cs:294` | kept, re-costed: a small backend item, not a preset |
+| **R-12** ✔ | TE-9: multi-select IS built (P5, 2026-11-08); what blocks bulk edit is only that features are not pickable. The gizmo's gate should be `LiveTerrainBakeInfo` (the `TerrainBlockGizmo` precedent), not "Edit mode" | `DESIGN_Map_Interaction.md:315`, `TerrainBlockGizmo.cs:40` | TE-9 on the `TerrainBlockGizmo` template; bulk delete / kind change in the same slice |
+| **R-13** ✔ | the mockup breaks R-4151: the existing toolbar drawn with icons, an amber armed style and the title "Tools" (real: text buttons, teal `ArmedColour`, *Editor Toolbar*, a *Reload BTrees* button); the obstacle list invents types (real: Car, Sandbag wall, Concrete block, Crate, Barrel, Jersey barrier, Guard booth); the draw panel drawn 420 px (real 260 px); Species / Size / "2 m off the road" have nowhere to live in data | `EditorToolbarPanel.cs:36-66`, `EditorWindows.cs:42`, `ClutterTypes.cs:20-27`, `TerrainDrawPanel.cs:205` | redraw the context from the real frame; cut Species / Size until a field is designed (or encode them in R-4's Template); the real obstacle list — and per R-4264 the Obstacle panel spawns ENTITIES |
+| **R-14** | the pending bake (≈ 5 s warm) has no state, worst with sticky tools; no error states (MaxScatterItems = 2000 cap, a missing recipe, a greyed reason) | Terrain Authoring §18e-1, `FeatureKinds.cs:18` | the ghost stays until its bake lands; the count line says when a row is capped |
+| **R-15** | missing jobs: erase in an area, a clearing in a wood, delete part of a line, 3-D / roof drawing, keyboard; the mockup's `W` for Wall is *move forward* in 3-D | `EmbodiedKeys.cs:134` | each gets a decision or an explicit out-of-scope row in the revision; no single-letter shortcuts without the keymap check |
+| R-16 | TE-8: changing Kind across shapes (a Tree point ↔ a Row line) must add / remove the polyline | `NeedsShape` | the Kind list offers only kinds of the same shape |
+| R-17 | a generic Components view exists (*Properties…*) and U-7 says `TerrainFeature.Pad` is editable there — TE-8 is a friendlier tab, not the first editor | `ScenarioComponentsView.cs:128`, Terrain Authoring §15a U-7 | §2's row corrected to "only the raw component" |
+
+⭐ **Sound as written (all three agree or none objected):** TE-3 (trunks, not a wood), the one-family / no-new-storage frame, TE-8's single tab,
+the G-33 / G-34 ordering (rows expand on the patched ground; felling keys on position, so label shifts do not break B-6), the rejected sculpt and
+paint brushes, shipping the two scatter recipes.
+
+⇒ ✅ **Answered `2026-11-15`:** R-1 ruled (R-5032 — the Editor Toolbar window), R-2 ruled (R-4264); §3, §5, §6, §7 and the mockup are revised to this table; the first version's sections are under HISTORY below.
+
+## ⛔ HISTORY — the first version's §3, §5, §6, §7 *(superseded `2026-11-15` by the review and R-5032 / R-4264; ⛔ not to be built — kept for the reasoning)*
+
+### (was) 3. The diagrams
+
+#### (was) 3.1 Classes — existing (grey) and what this adds (green)
+
+```text
+classDiagram
+  class EditorToolbarPanel { <<existing>> DrawContent() ActiveTool }
+  class ToolController { <<existing>> Activate(id) ActiveModal }
+  class TerrainPickCatalog { <<existing>> FeaturePicks() Build() }
+  class TerrainDrawOptions { <<existing>> Kind Height Born }
+  class TerrainDrawPanel { <<existing>> rows per pick }
+  class AreaAuthoringArm { <<existing>> Arm(request) }
+  class AreaAuthoringRequest { <<existing>> Closed Born Underlay }
+  class PointSequenceGizmo { <<existing>> Underlay }
+  class ShapeEditSession { <<existing>> insert / delete / centre-drag }
+  class FeatureExpander { <<existing>> Expand() Scatter() }
+  class TerrainFeature { <<existing>> Kind Template Pad Seed HeadingDeg }
+  class GroundFeatureDetailsView { <<existing>> }
+  class TerrainBlockDetailsView { <<existing>> }
+
+  class TerrainToolRow { <<new TE-1>> buttons = picks, last variant per family }
+  class TerrainSnap { <<new TE-6>> Snap(point, targets) RoadEdge BuildingWall LineEnd }
+  class TerrainFeatureDetailsView { <<new TE-8>> Kind Material Height Spacing Seed Contents }
+  class TerrainFeatureGizmo { <<new TE-9>> handle per feature, Edit mode }
+  class GateSplit { <<new TE-7>> Split(feature, segment, at) }
+
+  EditorToolbarPanel *-- TerrainToolRow
+  TerrainToolRow --> TerrainPickCatalog : lists the SAME picks
+  TerrainToolRow --> ToolController : arms through
+  ToolController --> AreaAuthoringArm
+  AreaAuthoringArm --> AreaAuthoringRequest
+  AreaAuthoringRequest : +Repeat (new TE-2)
+  AreaAuthoringArm --> PointSequenceGizmo
+  PointSequenceGizmo --> ShapeEditSession
+  PointSequenceGizmo ..> TerrainSnap : each point (new TE-6)
+  PointSequenceGizmo ..> FeatureExpander : the ghost, Underlay (TE-10)
+  TerrainDrawPanel --> TerrainDrawOptions
+  TerrainDrawOptions --> TerrainFeature : Born
+  FeatureExpander --> TerrainFeature : Scatter gains a LINE + one item (TE-4)
+  TerrainFeatureDetailsView ..> TerrainFeature
+  TerrainFeatureGizmo ..> TerrainFeature
+  GateSplit ..> TerrainFeature
+```
+*What the picture shows that prose hid: every new box hangs off an existing seam — the row off the Tools toolbar, the snap off the point gizmo,
+the Details beside the two existing tabs; the only DATA change is the scatter's line shape (TE-4), on the record that already exists.*
+
+#### (was) 3.2 Sequence — three hedges along a road (TE-1, TE-2, TE-6, TE-10)
+
+```text
+sequenceDiagram
+  actor U as user
+  participant TB as Tools toolbar (Terrain row)
+  participant TC as ToolController
+  participant AA as AreaAuthoringArm
+  participant G as PointSequenceGizmo
+  participant S as TerrainSnap
+  participant E as FeatureExpander
+  participant B as live bake (§18e)
+  U->>TB: click Hedge
+  TB->>TC: Activate(terrain.hedge)
+  TC->>AA: Arm(request with Repeat)
+  loop each hedge
+    U->>G: click points
+    G->>S: Snap(point)
+    S-->>G: road edge + 1 m
+    G->>E: Expand(points so far) for the ghost
+    U->>G: Enter
+    G->>AA: onFinish(points)
+    AA->>B: SpawnEntityCommand (one edit, one undo)
+    AA->>AA: Repeat: re-arm, same options
+  end
+  U->>TC: Esc or Select
+  TC->>AA: cancel, the toolbar unlights
+```
+
+#### (was) 3.3 Modules — who registers it, who calls it each frame
+
+```text
+graph TD
+  ED[EditorSubsystem] -->|registers| TW[EditorToolbarWindow]
+  TW -->|draws each frame| TP[EditorToolbarPanel + TerrainToolRow]
+  ED -->|registers DetailsViews| DV[TerrainFeatureDetailsView]
+  MIP[MapInteractionPack: every map host] -->|ToolController| TC[ToolController]
+  TP --> TC
+  MIP -->|gizmo projectors each frame| FG[TerrainFeatureGizmo]
+  FG -.->|Edit mode only: Player / SimHost / Replay draw nothing| X[other hosts]
+  TC --> AA[AreaAuthoringArm]
+  AA -->|frame thread| PG[PointSequenceGizmo]
+  PG -->|frame thread, cached per point| SN[TerrainSnap: road graph + TerrainWorld]
+  BK[StaticObstacleBakeSystem] -->|after a commit| LB[live bake]
+  style X fill:#555,stroke:#999
+```
+*What it shows: the row and the Details tab are editor-only (the editor registers them); the gizmo is in the shared pack but draws only while
+authoring; snap runs on the frame thread on cached inputs — it must allocate 0 B per moved point (R-2084).*
+
+### (was) 5. Decisions — a lean for each
+
+| # | question | ⭐ lean | why · blast radius |
+|---|---|---|---|
+| **TE-1** | where do the terrain tools live? | ⭐ a **Terrain row on the editor's Tools toolbar**: Wood · Tree · Wall-family · Obstacle · Earthworks · Scatter; each button shows its last variant, its arrow opens the family; the buttons ARE `TerrainPickCatalog` picks armed through `ToolController`; Add Entity keeps the gallery and search | one door, one click; ⭐ the Tools window already marks the armed tool (Tool Model step 5). ⛔ not the shell's `MainToolbarManager` — that holds commands, not map tools. Blast: editor UI only |
+| **TE-2** | after Finish? | ⭐ a terrain **line / area tool stays armed** with the same options until Esc or another tool (`AreaAuthoringRequest.Repeat`, terrain requests only) | point placement already is always-multi (D5); drawing ten hedges should not be ten trips. Other area tools unchanged |
+| **TE-3** | how are trees planted? | ⭐ one Tree tool, three gestures: **One** (click) · **Row** (a line, spacing) · **Group** (an area, a count) — lone trunks, ⛔ never a wood | the user means trunks they can see and fell (B-6); a wood is a canopy mass |
+| **TE-4** | what is a row / a group in data? | ⭐ the existing **Scatter** feature gains a **line shape** and a **single-item** mode (`Template = item:<tree \| clutter type>`, `Pad` = spacing on a line / count in an area); the expander already scatters lone trees (`FeatureKinds.cs:216`) | ⭐ one mechanism for tree rows, obstacle rows and street clutter (shared, not three kinds); ⚠ a data change on a recorded component — a NEW meaning of existing fields, no new field. Blast: `FeatureKinds.Scatter`, the compile, saved scenarios (old ones unchanged: an area + recipe id) |
+| **TE-5** | obstacles? | ✅ **RULED `2026-11-15` (R-4264, option a; [note](blueprints/batches/NOTE_Coordinator_To_Terrain_Obstacle_Tool.md))**: the Obstacle tool places **real obstacle ENTITIES** (concrete block, jersey barrier, sandbag wall …) — click = one, drag a line = a row facing along or across; ⭐ **a drawn row is ONE undo step and selects as ONE group**. Generated street clutter (scatter, blocks, towns) stays baked, inert scenery. ONE size / material table for both (`ClutterTypes` ⇄ the obstacle TKB shapes — never two definitions of a concrete block). ⛔ The row is NOT a TE-4 feature | 🔒 user: *"Option A"*. Obstacle entities already block roads (SUMO + ours, CE-4590), are crushed by a heavy hull (CE-4600), cleared by the bulldozer (CE-4601) and re-open the road when removed — no engine change; Checkpoint & Ramming RM-5 (R-4260) needs them breakable. Cost: a checkpoint ≈ 10–40 entities, a 50 m sandbag line ≈ 17. ⚠ The GROUP mechanism is open: the candidate is the macro instance (`MacroInstance`, a parent with member entities and its own Details view) — the slice measures whether it fits before adding anything |
+| **TE-6** | snapping? | ⭐ extend Map Interaction's snap row with three terrain targets: **road edges** (+ an offset), **building walls**, **line ends**; ON by default for terrain lines, Alt suspends for one point, Shift = 15° | the jobs are "along this road", "up to this house", "continue that hedge". ⚠ deviates from "off by default" (units) — **the user rules** |
+| **TE-7** | a wall round a plot; a gate? | ⭐ *Wall around a plot* = a CLOSED line; a gate = **Add gate here** on a segment in Edit Shape, which SPLITS the feature into two with a 3 m gap (one undo) | no new data (a gate is the absence of wall, G-30); a breach stays a runtime record (B-2) |
+| **TE-8** | changing what was placed? | ⭐ ONE **Terrain** Details tab for every non-ground feature — Kind within its family, material, height, spacing / count, species / size, seed + dice, a Contents line of what it does — beside the Ground and Block tabs | the Details seam exists (`DetailsViewDescriptor`); one tab, not one per kind |
+| **TE-9** | finding what was placed | ⭐ a `TerrainFeatureGizmo` draws each feature's handle in Edit mode (a tree: a dot; a line / area: its outline, selected as ONE) — usable before the bake lands; bulk delete / kind change waits on multi-select | ⚠ **measure first (S-6):** what the generic entity symbol shows for TKB 8818 today |
+| **TE-10** | seeing it before it is made | ⭐ the drawing **ghost** is `FeatureExpander` on the points so far (a wall in its colour, tree dots, items) + a count line (*Row of 16 trees · 124 m*) — the placement ghost's pattern (U-2) | closes U-7's own deviation; the same pure expansion as the compile, so the ghost cannot lie |
+| **TE-11** | "another one like that" | Alt-click a placed feature while a terrain tool is armed copies its kind and settings into the tool | cheap; ⚠ optional — build only if wanted |
+| **TE-12** | a berm (raised line) | ⭐ the Earthworks family gains **Berm** = a Line · Raise ground shape | G-30 names it; one preset, no new code path |
+| + | ship the first scatter recipes | ⭐ *Street clutter* and *Undergrowth* | the tile is greyed today only for want of data |
+
+**Rejected — one line each:**
+- a separate terrain-editor mode or app — the compile and the live bake already run in the scenario editor (R-4204); a second editor is a second storage.
+- sculpt brushes — the ground is parametric patches re-applied on every node (G-31); a painted raster has no place in the stack (G-32).
+- paint-brush tree placement — hundreds of entities per stroke; Row / Group are one entity each.
+- per-tree editing inside a wood — a wood is a seeded mass of thousands; Unpack is for blocks.
+- Add Entity as the only door — the measured friction of §2 rows 1–2.
+- the shell's main toolbar — commands, perspective-filtered, not map tools (`MainToolbarManager`).
+
+**Design docs checked:** Ground §4d — binds it (one family, one patch type, the stack). · Terrain Authoring §11, §15a, §18e, §18g — owns
+the machinery; settles every "what is built". · Map Interaction §2.5 — settles finish / cancel and shape editing; its snap row is extended,
+not replaced. · Tool Model — settles how a button arms a tool. · Multi-select — not built, so bulk edit (TE-9) waits. · Breaching B-2, B-3,
+B-6 — settle what a wall and a lone tree do (the Contents lines). · Add Entity Picker — stays the gallery; does not settle a palette.
+
+### (was) 6. Slices *(proposed; each mockup-checked, R-4146)*
+
+| slice | builds | lane |
+|---|---|---|
+| S-1 | TE-1 the Terrain row + TE-2 sticky line / area tools | ui |
+| S-2 | TE-4 the scatter's line + single item, the two recipes | backend (terrain) |
+| S-3 | TE-3 / TE-5 the Tree and Obstacle draw-panel rows on S-2 | ui |
+| S-4 | TE-6 snapping (road edges from the road graph, walls from `TerrainWorld`, line ends from the features) | ui + backend |
+| S-5 | TE-8 the Terrain Details tab | ui |
+| S-6 | TE-9 measure the generic symbol, then the feature gizmo; TE-10 the ghost | ui |
+| S-7 | TE-7 the gate split, TE-12 the berm | backend + ui |
+
+### (was) 7. Acceptance
+
+1. Three hedges are drawn with ONE click on the toolbar; Esc stops the tool; the toolbar lights the armed one.
+2. A row of 16 trees along a road is one entity, one undo; each tree fells like a lone tree (B-6); 2 m off the road edge.
+3. Four concrete blocks dragged across a road are four obstacle ENTITIES (R-4264), one undo step, selected as one group; the road closes for SUMO and our road graph (P-2) and re-opens when the row is deleted; a heavy hull crushes one (B-3), the bulldozer clears one (B-4).
+4. A wall drawn near a road snaps to its edge + 1 m; Alt draws free; a hedge started at another's end joins it.
+5. A closed wall round a house, then *Add gate here*: two features, a 3 m gap, one undo.
+6. Selecting a placed wall shows the Terrain tab; Kind → Hedge changes it after one bake.
+7. While drawing, the ghost shows what the bake will make, and the frames match [the mockup](UX/terrain-editor.svg).
+8. Steady drawing frames allocate 0 B (snap, ghost — R-2084); every rail runs under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` where it touches the sim.
+

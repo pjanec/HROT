@@ -14,9 +14,11 @@ namespace Hrot.Diagnostics.Breakpoints;
 /// <see cref="Execute"/> returns after a single branch — zero allocation, zero work.
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class DebugSnapshotProvider : IEcsModuleSystem
 {
     private readonly EntityRepository _preTickSnapshot;
+    [Fdp.Core.WorldDerived("debugger snapshot gate set by breakpoint manager; no sim effect")]
     private volatile int _isEnabled;
 
     /// <summary>

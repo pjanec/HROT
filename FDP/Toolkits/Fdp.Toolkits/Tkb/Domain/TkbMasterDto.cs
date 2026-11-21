@@ -16,5 +16,19 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>SISO-REF-010-2015 DIS Entity Type (e.g. 1.1.225.1.1.1.0).</summary>
         [Description("SISO-REF-010-2015 DIS Entity Type (e.g. 1.1.225.1.1.1.0)")]
         public string DisType { get; init; } = string.Empty;
+
+        /// <summary>
+        /// ⭐ <c>CE-4142</c> (G3) — the ONE line under a gallery tile (<i>"Main battle tank, 125 mm gun"</i>). Empty ⇒ the picker composes
+        /// <i>class · main weapon</i> from the TKB.
+        /// </summary>
+        [Description("The one line under this type's tile in the Add Entity gallery (empty: composed from the class and main weapon)")]
+        public string ShortDescription { get; init; } = string.Empty;
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S0 — true for a type an operator never places by hand (an internal part, a sensor or mount
+        /// child, a test fixture): the Add Entity picker leaves it out. 📄 docs/DESIGN_Add_Entity_Picker.md D7.
+        /// </summary>
+        [Description("Hide this type from the Add Entity picker (internal parts, children, fixtures)")]
+        public bool HideFromPalette { get; init; }
     }
 }

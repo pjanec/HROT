@@ -1,0 +1,75 @@
+{
+  "$doc": "\u00a723.6 ST-3. The mission is the ArtilleryUnitStrike of ua-indirect-fire (a physical battery fires on a point; no observer needed). 'Never hit by a round that missed its footprint' = the clear platoon's slots all stay whole (Health 25, none below 24.9) and its SuppressedShare stays 0 for the whole run.",
+  "runFor": 150,
+  "golden": {
+    "every": 25
+  },
+  "expect": [
+    {
+      "name": "the guns fire bursts on the aim point",
+      "on": "blast",
+      "by": "*M109",
+      "n": 3,
+      "where": {
+        "burst.0": [
+          ">",
+          240
+        ],
+        "burst.1": [
+          "<",
+          400
+        ]
+      }
+    },
+    {
+      "name": "the platoon in the open takes a hit (a slot is down)",
+      "on": "field",
+      "who": "Red Platoon In The Open",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "before": 145,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      }
+    },
+    {
+      "name": "it is suppressed",
+      "on": "field",
+      "who": "Red Platoon In The Open",
+      "path": "AggregateUnit.SuppressedShare",
+      "op": ">",
+      "value": 0,
+      "before": 145
+    },
+    {
+      "name": "the platoon the rounds missed loses no health",
+      "never": {
+        "on": "field",
+        "who": "Red Platoon Clear",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 24.9,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        }
+      }
+    },
+    {
+      "name": "the platoon the rounds missed is never suppressed",
+      "never": {
+        "on": "field",
+        "who": "Red Platoon Clear",
+        "path": "AggregateUnit.SuppressedShare",
+        "op": ">",
+        "value": 0
+      }
+    }
+  ]
+}

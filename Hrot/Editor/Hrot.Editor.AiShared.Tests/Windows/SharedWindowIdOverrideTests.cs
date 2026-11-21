@@ -40,76 +40,20 @@ public class SharedWindowIdOverrideTests
             Task.FromResult(ApplyRename(p));
     }
 
-    // ── InspectorWindow ───────────────────────────────────────────────────────
+    // ⛔⛔ S5 (2026-08-22): the three InspectorWindow id rails are GONE WITH THEIR SUBJECT.
+    //    📄 §7.6 ⑤ — the window is retired; all six arms are Details views or asset-row menu items.
+    //    ⚠ The PROPERTY they guarded (a per-perspective id override yields distinct dock slots) is NOT
+    //      lost: the rails below still assert it for RuntimeInspector, TraceTimeline, FindResults and
+    //      the rest, and the shell's own id rails cover the Details panel.
 
-    [Fact]
-    public void InspectorWindow_DefaultCtor_UsesDefaultIdAndPerspective()
-    {
-        var w = new InspectorWindow(
-            new EditorSelectionStore(),
-            StubRefactor(),
-            new FindResultsWindow());
 
-        Assert.Equal("ai_inspector", w.Id);
-        Assert.Equal("Authoring", w.OwningPerspective);
-    }
-
-    [Fact]
-    public void InspectorWindow_IdOverride_ProducesDistinctId()
-    {
-        var w1 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
-            idOverride: "ai_inspector_btree", owningPerspective: "BTree");
-
-        var w2 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
-            idOverride: "ai_inspector_hsm", owningPerspective: "HSM");
-
-        Assert.Equal("ai_inspector_btree", w1.Id);
-        Assert.Equal("BTree",              w1.OwningPerspective);
-
-        Assert.Equal("ai_inspector_hsm", w2.Id);
-        Assert.Equal("HSM",              w2.OwningPerspective);
-
-        Assert.NotEqual(w1.Id, w2.Id);
-    }
 
     // ── SharedWindow_IdOverride_ProducesDistinctId (all window types) ─────────
 
-    [Fact]
-    public void SharedWindow_IdOverride_ProducesDistinctId_InspectorWindow()
-    {
-        var registry = new DebugSessionRegistry();
-        var w1 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
-            idOverride: "ai_inspector_btree", owningPerspective: "BTree");
-        var w2 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
-            idOverride: "ai_inspector_hsm", owningPerspective: "HSM");
 
-        Assert.NotEqual(w1.Id, w2.Id);
-        Assert.Equal("BTree", w1.OwningPerspective);
-        Assert.Equal("HSM",   w2.OwningPerspective);
-        Assert.Equal(WindowScope.PerspectiveBound, w1.Scope);
-        Assert.Equal(WindowScope.PerspectiveBound, w2.Scope);
-    }
-
-    [Fact]
-    public void SharedWindow_IdOverride_ProducesDistinctId_RuntimeInspectorWindow()
-    {
-        var registry = new DebugSessionRegistry();
-        var w1 = new RuntimeInspectorWindow(
-            new EditorSelectionStore(), registry,
-            idOverride: "ai_runtime_inspector_btree", owningPerspective: "BTree");
-        var w2 = new RuntimeInspectorWindow(
-            new EditorSelectionStore(), registry,
-            idOverride: "ai_runtime_inspector_hsm", owningPerspective: "HSM");
-
-        Assert.NotEqual(w1.Id, w2.Id);
-        Assert.Equal("BTree", w1.OwningPerspective);
-        Assert.Equal("HSM",   w2.OwningPerspective);
-    }
-
+    // ⛔ CE-303: the RuntimeInspectorWindow id-override case is GONE with the window itself
+    //    (§4's Q-iii — it dissolved into three predicated details views). ⚠ The RULE it
+    //    checked is unchanged and still covered by the other window types below.
     [Fact]
     public void SharedWindow_IdOverride_ProducesDistinctId_TraceTimelineWindow()
     {
@@ -130,9 +74,9 @@ public class SharedWindowIdOverrideTests
     public void SharedWindow_IdOverride_ProducesDistinctId_FindResultsWindow()
     {
         var w1 = new FindResultsWindow(
-            idOverride: "ai_find_results_btree", owningPerspective: "BTree");
+            owningPerspective: "BTree", idOverride: "ai_find_results_btree");
         var w2 = new FindResultsWindow(
-            idOverride: "ai_find_results_hsm", owningPerspective: "HSM");
+            owningPerspective: "HSM", idOverride: "ai_find_results_hsm");
 
         Assert.NotEqual(w1.Id, w2.Id);
         Assert.Equal("BTree", w1.OwningPerspective);
@@ -178,18 +122,20 @@ public class SharedWindowIdOverrideTests
         var registry = new DebugSessionRegistry();
         var catalog  = new AssetCatalog();
 
-        var inspector  = new InspectorWindow(new EditorSelectionStore(), StubRefactor(), new FindResultsWindow());
-        var runtime    = new RuntimeInspectorWindow(new EditorSelectionStore(), registry);
+        // ⛔ CE-303: RuntimeInspectorWindow is dissolved — no window, no default id to assert.
         var timeline   = new TraceTimelineWindow(new EditorSelectionStore(), registry);
-        var findResult = new FindResultsWindow();
+        // ⭐⭐ A6 — there is no longer a "no overrides" case for this window: owningPerspective is
+        //    REQUIRED, so the old ?? "Authoring" default it used to assert BELOW cannot exist.
+        //    📄 DESIGN_Perspective_Unification.md §1c — that default is §1c's "LATENT generator", and
+        //    "Global" is what it looked like when it fired. ⇒ the back-compat pair is replaced by an
+        //    explicit pair, and the two REFUSAL rails live in FindResultsWindowScopeTests.
+        var findResult = new FindResultsWindow("Authoring");
         var blackboard = new BlackboardAuthoringWindow(new EditorSelectionStore(), StubRefactor());
         var diag       = new DiagnosticsWindow(catalog, Array.Empty<IAssetValidator>());
 
-        Assert.Equal("ai_inspector",            inspector.Id);
-        Assert.Equal("Authoring",               inspector.OwningPerspective);
+        // ⛔ S5: the Inspector's two back-compat assertions are GONE with the window (§7.6 ⑤).
+        //    ⚠ Every other default below is UNCHANGED — that is the point of keeping this rail.
 
-        Assert.Equal("ai_runtime_inspector",    runtime.Id);
-        Assert.Equal("Authoring",               runtime.OwningPerspective);
 
         Assert.Equal("ai_trace_timeline",       timeline.Id);
         Assert.Equal("Authoring",               timeline.OwningPerspective);

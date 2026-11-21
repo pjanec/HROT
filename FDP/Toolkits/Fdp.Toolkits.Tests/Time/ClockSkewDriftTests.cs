@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Time.Tests
             long masterTick, long slaveTick)
         {
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent
             {
                 Rtt       = 0L,
@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Time.Tests
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
         }
 
         [Fact]
@@ -71,12 +71,11 @@ namespace Fdp.Toolkit.Time.Tests
                 // processing the slave's periodic TimeSyncRequest.
                 if (frame > 0 && frame % 60 == 0)
                 {
-                    slaveBus.Publish(new TimeSyncResponse
+                    // CE-4208: the translator's output (the controller reads only this event, never the wire TimeSyncResponse).
+                    slaveBus.Publish(new TimeSyncOffsetCalculatedEvent
                     {
-                        ClientNodeId        = 1,
-                        ClientSendTicks     = slaveTicks - SlaveTicksPerFrame,
-                        MasterReceiveTicks  = masterTicks - MasterTicksPerFrame,
-                        MasterTransmitTicks = masterTicks - MasterTicksPerFrame,
+                        Rtt       = 0L,
+                        NewOffset = (masterTicks - MasterTicksPerFrame) - (slaveTicks - SlaveTicksPerFrame),
                     });
                     slaveBus.SwapBuffers(); // response → slaveBus.current
                 }
@@ -87,7 +86,7 @@ namespace Fdp.Toolkit.Time.Tests
 
                 slave.Update();            // DrainTimeSyncResponses (may apply offset)
                 slaveBus.SwapBuffers();    // any new request → current
-                slaveBus.Read<TimeSyncRequest>(); // drain outbound requests
+                slaveBus.Read<TimeSyncProbeEvent>(); // drain outbound requests
             }
 
             // After 600 frames with periodic re-sync, SyncedWallTicks should track masterTicks
@@ -116,18 +115,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Establish offset=0 at start
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
-            slaveBus.Publish(new TimeSyncResponse
-            {
-                ClientNodeId        = 1,
-                ClientSendTicks     = 0,
-                MasterReceiveTicks  = 0,
-                MasterTransmitTicks = 0,
-            });
+            slaveBus.Read<TimeSyncProbeEvent>();
+            slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });   // CE-4208: the translator's output, not the wire response
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             for (int frame = 0; frame < FrameCount; frame++)
             {
@@ -136,7 +129,7 @@ namespace Fdp.Toolkit.Time.Tests
                 slaveBus.SwapBuffers();
                 slave.Update();
                 slaveBus.SwapBuffers();
-                slaveBus.Read<TimeSyncRequest>();
+                slaveBus.Read<TimeSyncProbeEvent>();
             }
 
             // Without re-sync, SyncedWallTicks = slaveTicks + offset = 606_000 + 0 = 606_000

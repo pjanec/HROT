@@ -1,3 +1,4 @@
+using StructEdit.Reflection;
 using System;
 using System.Numerics;
 using Fdp.Core;
@@ -65,7 +66,7 @@ public sealed class DataBreakpointGizmoViewTests
         var preTick  = new EntityRepository();
         var tc       = new MockDebugTimeController();
         var provider = new DebugSnapshotProvider(preTick);
-        var manager  = new DataBreakpointManager(liveRepo, preTick, provider, tc);
+        var manager  = new DataBreakpointManager(liveRepo, preTick, provider, tc, new PredicateCompiler(new ComponentEditServiceBuilder().Build()));
 
         // Before pause: ActiveView must be the live repo.
         Assert.Equal((ISimulationView)liveRepo, manager.ActiveView);

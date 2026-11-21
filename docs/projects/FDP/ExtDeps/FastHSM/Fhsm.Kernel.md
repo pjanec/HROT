@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-16
+current-answer: "Transition Execution Across Regions (CE-1005)" for how a transition exits and enters states; the rest is the 2026-05 project survey
+stale-below: none
+known-rot: the survey's description of ExecuteTransition (exit from the source, one active leaf written) predates CE-1005 — the section below supersedes it
+related-designs:
+  - FDP/ExtDeps/FastHSM/docs/design/HSM-Implementation-Design.md — the original kernel design (§2.2–2.4 regions, §3 per-region transitions)
+  - docs/blueprints/Architect_Question_84_Hsm_Region_Initial_History_Model.md — declared regions (A0, CE-1003); found CE-1005
+  - docs/blueprints/DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — the HSM authoring side that compiles to this kernel
+-->
 # Fhsm.Kernel
 
 **Project Path**: `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/Fhsm.Kernel.csproj`
@@ -199,7 +210,7 @@ Fhsm.Kernel/
     +-- HsmInstance64.cs        64-byte Tier 1 instance struct
     +-- HsmInstance128.cs       128-byte Tier 2 instance struct
     +-- HsmInstance256.cs       256-byte Tier 3 instance struct (see Data/ list)
-    +-- InstanceHeader.cs       Common header: MachineId, Generation, Phase, Flags, RngState
+    +-- InstanceHeader.cs       Common header: MachineId (= HsmDefinitionBlob.MachineId, CE-2001), Generation, Phase, Flags, RngState
     +-- CommandPage.cs          Fixed-size command buffer page
     +-- HsmCommandWriter.cs     Writes commands into a CommandPage
     +-- Enums.cs                InstancePhase, InstanceFlags, EventPriority, EventFlags,
@@ -371,8 +382,10 @@ public sealed class HsmDefinitionAttribute : Attribute
     public bool BlackboardManaged { get; set; }
 
     /// <summary>
-    /// When set, the source generator wires BehaviorIngressSystem to provision a
-    /// Blackboard1024 component for this behavior. Null means no heavy component.
+    /// Vestigial. Previously wired BehaviorIngressSystem to provision a heavy-state
+    /// component for this behavior when set; that overflow path no longer exists — a DTO
+    /// needing more room than the inline case simply lands on a larger occurrence-store
+    /// tier automatically. This property has no runtime effect.
     /// </summary>
     public Type? HeavyDtoType { get; set; }
 
@@ -380,9 +393,10 @@ public sealed class HsmDefinitionAttribute : Attribute
 }
 ```
 
-The `[BlackboardDtoStruct]`, `[BlackboardReadOnly]`, and `[BlackboardReadWrite]` parameter
+The `[BlackboardReadOnly]` and `[BlackboardReadWrite]` parameter
 attributes are defined in `Fbt.Kernel` (namespace `Fbt.Kernel`) and apply equally to HSM
-action methods. See the `Fbt.Kernel` documentation for their full API and usage.
+action methods. See the `Fbt.Kernel` documentation for their full API and usage. (A variable-type struct is marked
+`[Dto]` from `Fdp.Core`; `[BlackboardDtoStruct]` retired 2026-10-13, CE-3185.)
 
 ---
 
@@ -446,6 +460,49 @@ public struct TransitionDef
 ```
 
 ---
+
+## Transition Execution Across Regions (CE-1005, `2026-10-16`)
+
+📐 **Measured before** (probe in `Fhsm.Tests`, `ProbeCe1005Tests` — now the rails below): three defects in `ExecuteTransition`,
+all from computing the exit/entry path between the transition's SOURCE and TARGET only, and writing one active leaf:
+
+| # | case | was | meant (UML; HSM-Implementation-Design §2.2–§3) |
+|---|---|---|---|
+| D1 | `Idle → P` (P parallel, regions A / B) | leaves `A, -, -` — region B never starts, P is no slot's leaf | `P, A, B` — every region of P starts at its initial, as at instance start |
+| D2 | `Idle → C.Second` (C composite, initial `First`) | lands on `First` | lands on `Second` |
+| D3 | a transition declared on composite `C` while `C.First` is active | `First`'s exit action never runs | active descendants exit first, innermost first |
+
+📐 **Blast radius, measured:** all 10 `.hsm.json` assets and both code-built machines (`CuratedMachines`, `ClassOrderBehaviors`)
+have **no** transition that reaches any of the three cases ⇒ no shipped behaviour changes.
+
+```mermaid
+sequenceDiagram
+    participant RTC as ProcessRTCPhase
+    participant X as ExecuteTransition
+    participant S as activeLeafIds (one leaf per region slot)
+    participant I as InitializeRegions
+    RTC->>X: transition, selected in slot r
+    X->>X: path = ComputeLCA(source, target), L = LCA
+    X->>S: exit anchors: X1 = outermost exited state, X2 = target-side child of L in the target's slot
+    X->>X: exit every state on every slot's leaf chain up to its anchor, deepest first (exit action, history)
+    X->>S: those slots = empty
+    X->>X: transition action
+    X->>X: entry path L to target (entry actions), then drill the target to its initial leaf
+    X->>S: slot RegionSlot(leaf) = leaf, slot RegionSlot(P) = P for each parallel P entered on the way
+    X->>I: start every empty region slot whose parallel parent is now active
+```
+*What the picture shows that prose hid: the transition is no longer "one leaf in, one leaf out" — it exits by SLOT (every
+region under the exited state) and enters by slot (the target's region, plus every region of a parallel state it enters).*
+
+| ⭐ rule | |
+|---|---|
+| `StateDef.RegionSlot` (byte 29, was reserved) — the region slot that owns a state | written by `HsmFlattener` from the same grouping `RegionInitials` uses (a declared region's members share one slot; an undeclared child of a parallel state is its own slot); 0 = the root slot. ⚠ A blob built by hand reads 0 everywhere ⇒ the old single-slot behaviour |
+| the exit set | for each anchor (X1 when the path exits anything; X2 when the target's slot holds a leaf strictly under L), every slot whose leaf lies under the anchor exits its chain up to and including the anchor; all exits ordered deepest-first, each state once |
+| the entry | entry path as before, then a composite target drills to its initial leaf running each entry (`InitializeSlot`); a parallel target is its own slot's leaf; every empty region slot whose parent is active is started (`InitializeRegions`, shared with instance start) |
+| history | a restored history writes the slot that owns the history composite (`RegionSlot`), not the slot the transition was selected in |
+| a transition between two regions of one parallel state | exits only the two regions involved (UML calls this ill-formed; this is the deterministic reading) |
+
+Rails: `Fhsm.Tests/Kernel/TransitionAcrossRegionsTests`.
 
 ## Known Limitations / Deferred Items
 

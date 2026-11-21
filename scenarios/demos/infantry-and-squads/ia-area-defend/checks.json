@@ -1,0 +1,63 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K (CE-2371) \u2014 ia-area-defend, the scenario's Judge list: (1)+(2) the guard fires at each attacker, and the attacker is not within 30 m of the centre (105.6,97) / has not fired before it (the guard 'sees' = engages first). \u26a0 'Sees' is read as 'fires at' (the sight itself is not a cue); (3) the printed trace is not a condition.",
+  "runFor": 240,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the guard fires at Blue South",
+      "on": "shot",
+      "by": "Guard",
+      "at": "Blue South"
+    },
+    {
+      "name": "(1) Blue South is not within 30 m of the centre before the guard fires at him",
+      "never": {
+        "on": "near",
+        "who": "Blue South",
+        "point": [
+          105.6,
+          97
+        ],
+        "within": 30
+      },
+      "before": "the guard fires at Blue South"
+    },
+    {
+      "name": "(2) Blue South does not fire before the guard",
+      "never": {
+        "on": "shot",
+        "by": "Blue South"
+      },
+      "before": "the guard fires at Blue South"
+    },
+    {
+      "name": "the guard fires at Blue East",
+      "on": "shot",
+      "by": "Guard",
+      "at": "Blue East"
+    },
+    {
+      "name": "(1) Blue East is not within 30 m of the centre before the guard fires at him",
+      "never": {
+        "on": "near",
+        "who": "Blue East",
+        "point": [
+          105.6,
+          97
+        ],
+        "within": 30
+      },
+      "before": "the guard fires at Blue East"
+    },
+    {
+      "name": "(2) Blue East does not fire before the guard",
+      "never": {
+        "on": "shot",
+        "by": "Blue East"
+      },
+      "before": "the guard fires at Blue East"
+    }
+  ]
+}

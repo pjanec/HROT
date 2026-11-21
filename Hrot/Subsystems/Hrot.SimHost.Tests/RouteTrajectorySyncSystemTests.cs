@@ -42,10 +42,10 @@ public class RouteTrajectorySyncSystemTests : IDisposable
     private static RoutePlan MakePlan(int waypointCount, bool isLoop = false)
     {
         var plan = new RoutePlan { IsLoop = isLoop };
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             for (int i = 0; i < waypointCount; i++)
-                wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, 0f, i * 10f), TargetSpeed = 5f });
+                wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, i * 10f, 0f), TargetSpeed = 5f });
         });
         return plan;
     }
@@ -72,6 +72,60 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         Assert.True(cache.TrajectoryId > 0, "TrajectoryId must be a positive integer after sync.");
         Assert.True(_pool.TryGetTrajectory(cache.TrajectoryId, out _),
             "Trajectory must be findable in the pool.");
+    }
+
+    /// <summary>
+    /// CE-3013: a route waypoint is Sim Z-up (ENU) and must reach the trajectory pool unchanged — north
+    /// stays north, altitude stays altitude. The old swizzle drove every route with north = 0.
+    /// </summary>
+    [Fact]
+    public void Sync_KeepsZUpWaypointsUnchanged_CE3013()
+    {
+        var plan = new RoutePlan { IsLoop = false };
+        plan = plan.WithWaypoints(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = new Vector3(10f, 300f, 2f), TargetSpeed = 5f });
+            wps.Add(new RouteWaypoint { Position = new Vector3(40f, 320f, 5f), TargetSpeed = 5f });
+        });
+        var entity = CreateRouteEntity(plan);
+
+        _system.Execute(_repo, 0.016f);
+
+        var cache = _repo.GetComponent<RouteTrajectoryCache>(entity);
+        Assert.True(_pool.TryGetTrajectory(cache.TrajectoryId, out var traj));
+        Assert.Equal(new Vector3(10f, 300f, 2f), traj.Waypoints[0].Position);
+        Assert.Equal(new Vector3(40f, 320f, 5f), traj.Waypoints[1].Position);
+    }
+
+    /// <summary>
+    /// ⭐ <c>R-3039</c> S2 (docs/DESIGN_System_State_Inventory.md §7b/§7d) — a checkpoint restored into a FRESH process (a new world, a new
+    /// pool, a new system; <c>AfterRestore.Run</c> as every restore runs it): each restored route is compiled again under the id its cache
+    /// names, with its own waypoints, and a route the restored world adds takes a NEW id, never one a restored vehicle drives.
+    /// 🔴 Red-proof: before, the restored cache said "compiled" and was skipped ⇒ the fresh pool had no trajectory at that id; and without the
+    /// pre-pass the new route took id 1 and was then overwritten.
+    /// </summary>
+    [Fact]
+    public void R3039_RestoredRoutes_AreCompiledAgainUnderTheirIds_InAFreshProcess()
+    {
+        var a = CreateRouteEntity(MakePlan(3));
+        var b = CreateRouteEntity(MakePlan(5, isLoop: true));
+        _system.Execute(_repo, 0.016f);
+        int idA = _repo.GetComponent<RouteTrajectoryCache>(a).TrajectoryId, idB = _repo.GetComponent<RouteTrajectoryCache>(b).TrajectoryId;
+
+        var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+        using var freshPool = new TrajectoryPoolManager();
+        using var fresh = CreateWorld();
+        Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+        Fdp.Toolkit.Replay.AfterRestore.Run(fresh);
+        var c = fresh.CreateEntity();
+        fresh.SetManagedComponent(c, MakePlan(2));   // created after the restore, before the first tick
+
+        new RouteTrajectorySyncSystem(freshPool).Execute(fresh, 0.016f);
+
+        Assert.True(freshPool.TryGetTrajectory(idA, out var ta) && ta.Waypoints.Length == 3, "route A is back under its id");
+        Assert.True(freshPool.TryGetTrajectory(idB, out var tb) && tb.Waypoints.Length == 5 && tb.IsLooped == 1, "route B is back under its id");
+        int idC = fresh.GetComponent<RouteTrajectoryCache>(c).TrajectoryId;
+        Assert.True(idC > Math.Max(idA, idB), $"the new route took id {idC}, which a restored route names");
     }
 
     [Fact]
@@ -111,7 +165,8 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var firstId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
 
         // Mutate: adds a waypoint and bumps version.
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 100f), TargetSpeed = 5f }));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint { Position = new Vector3(100f, 100f, 0f), TargetSpeed = 5f }));
+        _repo.SetManagedComponent(entity, plan);   // CE-4046 — the new value must be Set (a change is a new value, not an in-place edit)
 
         _system.Execute(_repo, 0.016f);
         var newCache = _repo.GetComponent<RouteTrajectoryCache>(entity);
@@ -164,7 +219,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
     public void RouteWith1Waypoint_DoesNotThrow_TrajectoryIdIsZero()
     {
         var plan = new RoutePlan { IsLoop = false };
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = Vector3.Zero, TargetSpeed = 5f }));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint { Position = Vector3.Zero, TargetSpeed = 5f }));
         var entity = CreateRouteEntity(plan);
 
         var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));

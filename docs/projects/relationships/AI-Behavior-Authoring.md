@@ -77,7 +77,7 @@ one cache line) or `HsmInstance64/128/256` structs.
 
 Simulation entities in the HROT Combat Game Framework (CGF) hold a `Brain` component.
 `AiBehaviorFactory` maps integer behavior IDs to `BehaviorDefinition` records, each holding
-either a compiled `Interpreter<BrainBlackboard, BTreeContext>` (for BTrees) or a
+either a compiled `Interpreter<byte, BTreeContext>` (for BTrees) or a
 `HsmDefinitionBlob` (for HSMs). The `BrainTier` field distinguishes which execution path
 is taken each tick.
 
@@ -85,7 +85,7 @@ Tactical orders flow in via `AssignTacticalIntentEvent`. Tactical mappers (e.g.
 `DefendAreaMapper`) translate the intent name + unit type into an `AssignBehaviorEvent`
 that carries the behavior ID and JSON parameters. The Brain system looks up the
 `BehaviorDefinition`, parses parameters via `ParseParamsDelegate`, and writes them into
-the entity's `BrainBlackboard` parameter slots before the next tick.
+the entity's root params occurrence slot before the next tick.
 
 ---
 
@@ -664,7 +664,7 @@ It is annotated with `[BlueprintRegistrar]` for attribute-driven discovery.
 The design uses a two-phase pattern to avoid stalling the 60 Hz UI loop during hot reload:
 
 **Phase 1 (background thread)** -- `BuildRegistrationAction(geoTransform, entityMap)`:
-1. Creates a fresh `ActionRegistry<BrainBlackboard, BTreeContext>`.
+1. Creates a fresh `ActionRegistry<byte, BTreeContext>`.
 2. Calls `FbtActionRegistrar.RegisterAll(actionRegistry)` to bind all `[BTreeAction]`-annotated
    delegates by name.
 3. Compiles all `BehaviorTreeBlob` instances by calling the generated `FbtTreeCatalog`
@@ -675,7 +675,7 @@ The design uses a two-phase pattern to avoid stalling the 60 Hz UI loop during h
 **Phase 2 (main thread)** -- execute the returned lambda:
 1. Calls `registry.Register(id, name, definition)` for each behavior.
 2. Each `BehaviorDefinition` carries exactly one of:
-   - `BTreeInterpreter` -- a fully constructed `Interpreter<BrainBlackboard, BTreeContext>`
+   - `BTreeInterpreter` -- a fully constructed `Interpreter<byte, BTreeContext>`
    - `HsmDefinition` + `HsmMetadata` -- a compiled blob plus name tables
 
 The `FbtAssemblyHotReloader.DrainPendingCallbacks()` method invokes the staged lambda
@@ -692,7 +692,7 @@ public class BehaviorDefinition
     public Type ParamsDtoType;
 
     // BTree path
-    public Interpreter<BrainBlackboard, BTreeContext> BTreeInterpreter;
+    public Interpreter<byte, BTreeContext> BTreeInterpreter;
 
     // HSM path
     public HsmDefinitionBlob HsmDefinition;
@@ -739,9 +739,10 @@ When the Brain system processes an `AssignBehaviorEvent`:
 1. **Create asset**: In the editor, invoke "New BTree Asset". The editor mints a new
    `Guid AssetId` and creates a `BehaviorTreeAsset` with a single Root node.
 
-2. **Set blackboard and context types**: In the asset inspector, specify the C# type
-   names for `TBlackboard` (e.g. `BrainBlackboard`) and `TContext` (e.g. `BTreeContext`).
-   This determines which action catalog is shown in the palette.
+2. **Set the context type**: In the asset inspector, specify the C# type name for
+   `TContext` (e.g. `BTreeContext`); `TBlackboard` is always `byte` -- the tree ticks
+   against the root params occurrence slot's bytes, not a per-entity component.
+   The context type determines which action catalog is shown in the palette.
 
 3. **Build the tree**: Drag nodes from the BTree palette onto the canvas. Connect children
    to composites using the Exec pin system. Add decorator pills by right-clicking a node
@@ -902,7 +903,7 @@ Game System    HsmEventQueue     HsmKernel          HsmInstance       StateDef (
                                                  |
                                       +----------v--------------+
                                       |  ActionRegistry         |
-                                      |  Interpreter<BB, Ctx>   |
+                                      |  Interpreter<byte, Ctx> |
                                       +----------+--------------+
                                                  |
                                         registry.Register()
@@ -917,7 +918,7 @@ Game System    HsmEventQueue     HsmKernel          HsmInstance       StateDef (
                                       +----------v--------------+
                                       |  Interpreter.Tick()     |
                                       |  BehaviorTreeState      |
-                                      |  BrainBlackboard        |
+                                      |  Root Params Occ. Slot  |
                                       +-------------------------+
 ```
 
@@ -1023,8 +1024,8 @@ using Fbt.Runtime;
 using Hrot.AI.Behaviors.Brains;
 
 // Build a simple "patrol and attack" behavior tree using the fluent API.
-// TBlackboard = BrainBlackboard, TContext = BTreeContext.
-var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+// TBlackboard = byte (the root params occurrence slot's bytes), TContext = BTreeContext.
+var builder = new BTreeBuilder<byte, BTreeContext>();
 
 builder.Selector(sel =>
 {
@@ -1048,18 +1049,18 @@ builder.Selector(sel =>
 BehaviorTreeBlob blob = builder.Build("OrcPatrolAndAttack");
 
 // Wire up action delegates (normally done once via FbtActionRegistrar).
-var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+var registry = new ActionRegistry<byte, BTreeContext>();
 registry.Register("HasTarget",     CgfNodes.HasTarget);
 registry.Register("TargetInRange", CgfNodes.TargetInRange);
 registry.Register("AimAndFire",    CgfNodes.AimAndFire);
 registry.Register("MoveToWaypoint", CgfNodes.MoveToWaypoint);
 
 // Create interpreter shared by all entities with this behavior.
-var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+var interpreter = new Interpreter<byte, BTreeContext>(blob, registry);
 
 // Per-entity state (one per entity, allocated in a component pool).
 var state = new BehaviorTreeState();
-var blackboard = new BrainBlackboard();
+byte blackboard = 0; // stands in for a `ref` into the entity's root params occurrence slot
 var context = new BTreeContext(deltaTime: 0.016f);
 
 // Tick once per frame.

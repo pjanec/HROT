@@ -88,6 +88,17 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                     OrchestrationJsonOptions.Default),
             });
 
+        // ⭐ New scenario N2 — a blank create goes out BEFORE this frame's load requests (the master runs it before the loads too), so
+        //   "create X, then load X" sent in one frame reaches a remote master in that order by construction.
+        foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
+            if (intent.Operation == StorageOpType.CreateBlankScenario)
+                _writer.Write(new ClusterOpRequest
+                {
+                    RequestId     = intent.RequestId,
+                    OperationType = NedClusterOpType.CreateBlankScenario,
+                    PayloadJson   = SaveScenarioRequestJson.Encode(intent.ScenarioName, null, intent.HeaderJson),
+                });
+
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
             _writer.Write(new ClusterOpRequest
             {
@@ -106,18 +117,34 @@ public sealed class ClusterOpEgressTranslator : IDisposable
 
         foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
         {
+            if (intent.Operation == StorageOpType.CreateBlankScenario) continue;   // ⭐ N2 — sent above, before the loads
             NedClusterOpType opType = intent.Operation switch
             {
-                StorageOpType.Export       => NedClusterOpType.ExportArchive,
-                StorageOpType.Import       => NedClusterOpType.ImportArchive,
+                StorageOpType.Export           => NedClusterOpType.ExportArchive,
+                StorageOpType.Import           => NedClusterOpType.ImportArchive,
                 StorageOpType.SaveScenario => NedClusterOpType.SaveScenario,
-                _                          => NedClusterOpType.SaveScenario,
+                StorageOpType.Delete           => NedClusterOpType.DeleteExercise,   // ⭐ CE-4090 D15 — ArchivePayloadDto carries the id
+                // CE-278: SaveScenario=2 retired; reject an unmapped storage op instead of silently
+                // routing it to the dead op (previously the default fell through to SaveScenario).
+                _ => throw new System.ArgumentOutOfRangeException(
+                         nameof(intent.Operation), intent.Operation,
+                         "Unsupported storage op for egress (SaveScenario=2 retired, CE-278)."),
             };
+
+            // ⭐⭐ CE-277(c0, HTTP): the distributed JSON save carries its relative NAME, not an ExerciseId. It
+            //    is serialized as {"ScenarioName": name} so BOTH master-side paths read it identically — the
+            //    in-process ClusterOpRequestAdapter.ToExecuteStorageOpIntent and the networked
+            //    ClusterOpMasterTranslator below. ⛔ The ArchivePayloadDto used by Export/Import has
+            //    no name field, so a SaveScenarioJson routed through it would silently lose the target name.
+            string payload = intent.Operation == StorageOpType.SaveScenario
+                ? SaveScenarioRequestJson.Encode(intent.ScenarioName, intent.OnlyGuids, intent.HeaderJson)   // ⭐ CE-4210 MA-9 — OnlyGuids / HeaderJson ride only when set
+                : ArchivePayloadJson.Encode(intent);   // ⭐ CE-4330 — the one encoding (AskedBy, FromArchive ride too)
+
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = intent.RequestId,
                 OperationType = opType,
-                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: intent.ExerciseId), OrchestrationJsonOptions.Default),
+                PayloadJson   = payload,
             });
         }
 
@@ -126,6 +153,38 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.TakeCheckpoint,
+                PayloadJson   = intent.Note == null ? LabelJson(intent.Label) : TakeCheckpointPayloadDto.Encode(intent.Label, intent.Note),   // ⭐ CE-3299 B3 · ⭐ CE-1467 (e) the mark's note rides it
+            });
+
+        foreach (var intent in _bus.ReadManaged<CollectCheckpointIntent>())   // ⭐ CE-3299 B3
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.CollectCheckpoint,
+                PayloadJson   = LabelJson(intent.Label),
+            });
+
+        foreach (var intent in _bus.ReadManaged<RestoreCheckpointIntent>())   // ⭐ CE-3299 B4
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.RestoreCheckpoint,
+                PayloadJson   = LabelJson(intent.Label),
+            });
+
+        foreach (var intent in _bus.ReadManaged<NoteEditIntent>())   // ⭐ CE-4325 — the ONE note CRUD message
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.EditExerciseNote,
+                PayloadJson   = JsonSerializer.Serialize(NoteEditPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
+        foreach (var intent in _bus.ReadManaged<CheckUnsavedIntent>())   // ⭐ CE-4093 D20 — no payload
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.CheckUnsavedChanges,
                 PayloadJson   = string.Empty,
             });
 
@@ -134,7 +193,31 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.ReplaySeek,
-                PayloadJson   = JsonSerializer.Serialize(new SeekReplayPayloadDto(TargetWallTicks: intent.TargetWallTicks), OrchestrationJsonOptions.Default),
+                PayloadJson   = JsonSerializer.Serialize(SeekReplayPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
+        foreach (var intent in _bus.ReadManaged<SetReplayAxisIntent>())   // ⭐ CE-3329 R-3058
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.SetReplayAxis,
+                PayloadJson   = JsonSerializer.Serialize(SetReplayAxisPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
+        foreach (var intent in _bus.ReadManaged<SetRunSettingsIntent>())   // ⭐ CE-4090 D14
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.SetRunSettings,
+                PayloadJson   = JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
+        foreach (var intent in _bus.ReadManaged<SetReplayLoopIntent>())   // ⭐ CE-3329 §12n
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.SetReplayLoop,
+                PayloadJson   = JsonSerializer.Serialize(SetReplayLoopPayloadDto.From(intent), OrchestrationJsonOptions.Default),
             });
 
         foreach (var intent in _bus.ReadManaged<CancelOperationIntent>())
@@ -143,6 +226,38 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 RequestId     = intent.TargetRequestId,
                 OperationType = NedClusterOpType.CancelOperation,
                 PayloadJson   = string.Empty,
+            });
+
+        // ⭐ CE-3022 — E4's build op never crossed the wire: the panel published this intent on the remote path and
+        //   nothing forwarded it, so the button did nothing unless the panel held the master.
+        foreach (var intent in _bus.ReadManaged<BuildTerrainAssetIntent>())
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.BuildTerrainAsset,
+                PayloadJson   = JsonSerializer.Serialize(
+                    new TerrainAssetBuildPayloadDto(intent.Kinds), OrchestrationJsonOptions.Default),
+            });
+
+        // ⭐ CE-3024 — a zone load from a host that does not hold the master: the master translator already turned a
+        //   LoadZone request into this intent (`ClusterOpMasterTranslator`), but nothing ever wrote one.
+        foreach (var intent in _bus.ReadManaged<LoadZoneIntent>())
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.LoadZone,
+                PayloadJson   = JsonSerializer.Serialize(new ZonePayloadDto(intent.ZoneId ?? string.Empty),
+                                                         OrchestrationJsonOptions.Default),
+            });
+
+        // ⭐ CE-3021 — publish / refresh (docs/DESIGN_Asset_Management.md §10 D7).
+        foreach (var intent in _bus.ReadManaged<AssetOpIntent>())
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = intent.Refresh ? NedClusterOpType.RefreshAssets : NedClusterOpType.PublishAssets,
+                PayloadJson   = JsonSerializer.Serialize(
+                    new AssetOpPayloadDto(intent.Kind ?? string.Empty, intent.NodeId), OrchestrationJsonOptions.Default),
             });
 
         foreach (var intent in _bus.ReadManaged<ExecuteDiagnosticDumpIntent>())
@@ -159,12 +274,13 @@ public sealed class ClusterOpEgressTranslator : IDisposable
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    // ⭐ CE-3299 B3 — a checkpoint's label as the request payload ({"label": …}); empty when none.
+    private static string LabelJson(string? label)
+        => string.IsNullOrWhiteSpace(label) ? string.Empty : System.Text.Json.JsonSerializer.Serialize(new { label }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
     private static string SerializeTransitionPayload(TransitionStateIntent intent)
     {
-        var nedState = (Hrot.NED.Descriptors.Orchestration.ClusterState)(int)intent.TargetState;
-        return JsonSerializer.Serialize(
-            new TransitionPayloadDto(TargetState: nedState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode),
-            OrchestrationJsonOptions.Default);
+        return JsonSerializer.Serialize(TransitionPayloadDto.From(intent), OrchestrationJsonOptions.Default);
     }
 
     private static string SerializeManageEpisodePayload(ManageEpisodeIntent intent)

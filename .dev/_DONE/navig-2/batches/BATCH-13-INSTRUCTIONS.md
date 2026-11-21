@@ -29,7 +29,7 @@ Reference files (read before implementing):
 - Do NOT use Unicode characters in comments or string literals — use ASCII equivalents
 - Preserve existing comments exactly
 - Minimize textual diffs — only change lines required for the task
-- Ensure `dotnet build IOS-IG-SimHost.sln` passes with 0 errors before finishing
+- Ensure `dotnet build HROT.sln` passes with 0 errors before finishing
 
 ---
 
@@ -150,7 +150,7 @@ If you implement Option C (ImGui-only), no unit test is needed — just ensure t
 For each sub-task:
 1. Read the referenced source files FIRST before writing any code
 2. Write the minimal implementation
-3. Build: `cd d:\Work\IOS-IG-SimHost-FDP-2 ; dotnet build IOS-IG-SimHost.sln 2>&1 | Select-Object -Last 20`
+3. Build: `cd d:\Work\IOS-IG-SimHost-FDP-2 ; dotnet build HROT.sln 2>&1 | Select-Object -Last 20`
 4. Fix all errors
 5. Run navigation tests: `cd FDP\Toolkits ; dotnet test Fdp.Toolkits.Tests --filter "FullyQualifiedName~Navigation" 2>&1 | Select-Object -Last 10`
 6. Verify test count >= 255 (existing tests must not break)
@@ -162,7 +162,7 @@ For each sub-task:
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln 2>&1 | Select-Object -Last 20
+dotnet build HROT.sln 2>&1 | Select-Object -Last 20
 
 cd FDP\Toolkits
 dotnet test Fdp.Toolkits.Tests --filter "FullyQualifiedName~Navigation" 2>&1 | Select-Object -Last 10
@@ -186,7 +186,7 @@ Include:
 
 ## Success criteria
 
-- `dotnet build IOS-IG-SimHost.sln` = 0 errors
+- `dotnet build HROT.sln` = 0 errors
 - Navigation tests >= 255 passing
 - "Snapshot JSON" button present in `FakeNavigationInspectorWindow` — clicking it does not crash
 - Snapshot JSON has correct top-level keys matching DD-Fake-Nav §9 schema

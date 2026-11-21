@@ -2,6 +2,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.NED.Messages;
+using Fdp.Core;
 
 namespace Hrot.Network.NED.Attributes
 {
@@ -14,12 +15,14 @@ namespace Hrot.Network.NED.Attributes
     /// first successful publish are no-ops gated by the <c>_published</c> flag.
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class EntityAttributeSchemaPublisherSystem : IEcsModuleSystem
     {
-        private readonly int                                    _nodeId;
+        private readonly NodeId                                    _nodeId;
         private readonly JsonAttributeCompiler?                 _compiler;
         private readonly IDdsWriter<EntityAttributeSchema>?     _writer;
         private readonly bool                                   _isDefaultProcessor;
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): publish-schema-once latch; empty republishes schema, harmless")]
         private bool                                            _published;
 
         public EntityAttributeSchemaPublisherSystem(
@@ -28,7 +31,7 @@ namespace Hrot.Network.NED.Attributes
             IDdsWriter<EntityAttributeSchema>? writer,
             bool isDefaultProcessor)
         {
-            _nodeId             = nodeId;
+            _nodeId             = (Fdp.Core.NodeId)(nodeId);
             _compiler           = compiler;
             _writer             = writer;
             _isDefaultProcessor = isDefaultProcessor;

@@ -28,10 +28,11 @@ internal sealed class NedSimHostAuxiliaryTranslators : ISimHostAuxiliaryTranslat
         NetworkEntityMap entityMap,
         FdpEventBus      eventBus,
         int              localNodeId,
-        NodeRole         role)
+        NodeRole         role,
+        Hrot.Network.Routing.IClusterStateCache? clusterCache = null)
     {
         _translators = SimHostAuxiliaryTranslatorPack.Create(
-            participant, entityMap, eventBus, localNodeId, role);
+            participant, entityMap, eventBus, localNodeId, role, clusterCache);
     }
 
     public void RegisterOn(ModuleHostKernel kernel)

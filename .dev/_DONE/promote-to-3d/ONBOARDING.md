@@ -93,13 +93,13 @@ to silently reintroduce the flat-earth bug.
 ## 4. Building and testing
 
 The repository is .NET. Two solutions matter:
-- `IOS-IG-SimHost.sln` (repo root) — the **full** solution; build this to compile everything this PR
+- `HROT.sln` (repo root) — the **full** solution; build this to compile everything this PR
   touches (`Fdp.*`, `Hrot.*`).
 - `FDP/FDP.sln` — the toolkit/engine subset (faster for `Fdp.Toolkits`/`Fdp.Core` iteration).
 
 ```powershell
 # Full build (run from repo root)
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Toolkit-only iteration
 dotnet build FDP\FDP.sln
@@ -108,7 +108,7 @@ dotnet build FDP\FDP.sln
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj
 ```
 
-Every task in [TASK-DETAIL.md](./TASK-DETAIL.md) ends with `dotnet build IOS-IG-SimHost.sln succeeds` as a
+Every task in [TASK-DETAIL.md](./TASK-DETAIL.md) ends with `dotnet build HROT.sln succeeds` as a
 success condition; most also specify the unit tests that must pass.
 
 ---

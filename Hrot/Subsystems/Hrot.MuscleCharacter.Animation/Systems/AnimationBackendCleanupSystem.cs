@@ -25,6 +25,8 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class AnimationBackendCleanupSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

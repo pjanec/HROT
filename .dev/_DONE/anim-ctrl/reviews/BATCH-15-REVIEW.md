@@ -41,7 +41,7 @@ Commands executed by reviewer:
   - Passed: 31, Failed: 0
 - `dotnet test Hrot/Subsystems/Hrot.Animation.Replication.Tests/Hrot.Animation.Replication.Tests.csproj -c Debug --no-build`
   - Passed: 42, Failed: 0
-- `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4`
+- `dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4`
   - Build succeeded, 0 warnings, 0 errors
 
 ---

@@ -26,8 +26,8 @@ namespace Fdp.Tests
         [ComponentId(100)]
         private struct IdC_100 { public int X; }
 
-        [ComponentId(200)]
-        private struct IdD_200 { public long Timestamp; }
+        [ComponentId(253)]   // CE-2045: was 200 — ComponentTypeRegistryPolicyTests owns 200–209 and registers without Clear()
+        private struct IdD_253 { public long Timestamp; }
 
         private struct NoAttributeStruct { public int Data; }
 
@@ -42,6 +42,24 @@ namespace Fdp.Tests
         private struct IdJ_300_Collision { public int Z; }
 
         // ── Tests ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ CE-2389 (DESIGN_Evaluation_Cost_And_Cadence §5 C1) — <c>ComponentType&lt;T&gt;.ID</c> caches the id per T. A registry
+        /// <c>Clear()</c> must not leave the cache answering for a type the registry no longer holds: the next access re-registers it.
+        /// </summary>
+        [Fact]
+        public void CE2389_TheCachedId_ReRegistersAfterAClear()
+        {
+            ComponentTypeRegistry.Clear();
+            Assert.Equal(100, ComponentType<IdC_100>.ID);
+            Assert.Equal(100, ComponentTypeRegistry.GetId(typeof(IdC_100)));
+
+            ComponentTypeRegistry.Clear();
+            Assert.Equal(-1, ComponentTypeRegistry.GetId(typeof(IdC_100)));
+
+            Assert.Equal(100, ComponentType<IdC_100>.ID);                          // served from the cache, AND…
+            Assert.Equal(100, ComponentTypeRegistry.GetId(typeof(IdC_100)));      // …registered again
+        }
 
         /// <summary>
         /// Two component structs that both declare [ComponentId(42)] must cause an
@@ -109,13 +127,13 @@ namespace Fdp.Tests
         {
             // First registration.
             ComponentTypeRegistry.Clear();
-            var firstId = ComponentTypeRegistry.GetOrRegister<IdD_200>();
-            Assert.Equal(200, firstId);
+            var firstId = ComponentTypeRegistry.GetOrRegister<IdD_253>();
+            Assert.Equal(253, firstId);
 
             // Clear and re-register — must get the same explicit ID.
             ComponentTypeRegistry.Clear();
-            var secondId = ComponentTypeRegistry.GetOrRegister<IdD_200>();
-            Assert.Equal(200, secondId);
+            var secondId = ComponentTypeRegistry.GetOrRegister<IdD_253>();
+            Assert.Equal(253, secondId);
         }
 
         /// <summary>
@@ -129,13 +147,13 @@ namespace Fdp.Tests
             ComponentTypeRegistry.Clear();
 
             var idC = ComponentTypeRegistry.GetOrRegister<IdC_100>();
-            var idD = ComponentTypeRegistry.GetOrRegister<IdD_200>();
+            var idD = ComponentTypeRegistry.GetOrRegister<IdD_253>();
 
             Assert.Equal(100, idC);
-            Assert.Equal(200, idD);
+            Assert.Equal(253, idD);
 
             Assert.Equal(typeof(IdC_100), ComponentTypeRegistry.GetType(100));
-            Assert.Equal(typeof(IdD_200), ComponentTypeRegistry.GetType(200));
+            Assert.Equal(typeof(IdD_253), ComponentTypeRegistry.GetType(253));
         }
 
         /// <summary>

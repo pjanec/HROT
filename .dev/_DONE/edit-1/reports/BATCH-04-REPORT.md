@@ -69,7 +69,7 @@ Pre-existing failures confirmed by `git stash` / restore verification — they e
 No structural issues. The main thing to watch was the pre-existing xUnit2013 analyzer rule — it warns about `Assert.Equal(n, collection.Count)` and suggests `Assert.Single`. I caught this early and wrote the round-trip tests using `Assert.Single(events.ToArray())` for the managed-event tests (which return `IReadOnlyList<T>`) and likewise for the `ReadOnlySpan<T>` returned by `Consume<T>()`.
 
 One naming subtlety: I placed `SeedTargetCommand` tests in `FDP.Toolkit.Perception.Tests` rather than `FDP.Toolkit.Behavior.Tests` because that project already references `FDP.Toolkit.Perception`. The Behavior.Tests project does NOT reference Perception, so adding a Perception test there would have required adding a project reference — unnecessary coupling.  
-Note that `FDP.Toolkit.Perception.Tests` is only in `FDP/FDP.sln`, not in `IOS-IG-SimHost.sln`. This was addressed pragmatically: the batch instructions said "similar to EmbarkEntityCommand tests" but did not mandate using Behavior.Tests for the Perception event. The natural home is Perception.Tests.
+Note that `FDP.Toolkit.Perception.Tests` is only in `FDP/FDP.sln`, not in `HROT.sln`. This was addressed pragmatically: the batch instructions said "similar to EmbarkEntityCommand tests" but did not mandate using Behavior.Tests for the Perception event. The natural home is Perception.Tests.
 
 **Q2: Did you find any inconsistency between the TASK-DETAIL spec and the actual FDP kernel API (e.g. `RegisterManagedEvent` not existing)?**
 
@@ -124,5 +124,5 @@ The highest-risk item is the **managed-event consumption pattern** in the Editor
 ## ⚠️ Outstanding Issues / Next Steps
 
 - [ ] `CgfComponentRegistry` and the Editor's equivalent registry do not register the three new unmanaged events. This is acceptable now (no CGF code uses ECBs for embarkation/seeding), but should be tracked and addressed when CGF adapters are implemented.
-- [ ] `FDP.Toolkit.Perception.Tests` is not in `IOS-IG-SimHost.sln`. A future cleanup batch should either add it or add `SeedTargetCommandTests` to a project that is in the main solution.
+- [ ] `FDP.Toolkit.Perception.Tests` is not in `HROT.sln`. A future cleanup batch should either add it or add `SeedTargetCommandTests` to a project that is in the main solution.
 - [ ] Five pre-existing test failures in `Hrot.SimHost.Tests` and three in `Hrot.ClusterRunner.Tests` remain from previous batches (time-mode, action-dispatch, geo-spatial). These are not BATCH-04 regressions.

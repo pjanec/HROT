@@ -1,0 +1,152 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000000-aaaa-0001-0000-000000000005",
+  "Name": "SquadState",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "a5000001-0001-0001-0001-000000000001",
+      "Name": "ThreatLevel",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "a5000001-0002-0002-0002-000000000002",
+      "Name": "SquadSize",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "a5000001-0003-0003-0003-000000000003",
+      "Name": "Formation",
+      "Type": {
+        "TypeId": "System.Byte",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b5000001-0001-0001-0001-000000000001",
+      "Name": "GetThreatLevel",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "d5000001-0001-0001-0001-000000000001",
+          "Name": "ThreatLevel",
+          "Type": {
+            "TypeId": "System.Single",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
+      ],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c5000001-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "a5000001-0001-0001-0001-000000000001",
+          "Id": "c5000001-0002-0002-0002-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "c5000001-0003-0003-0003-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Squad Shared State (template)",
+      "Category": "Shared",
+      "Description": "Holds cross-cutting squad state with pure getter graphs. Other Instance Blueprints declare this in callablePeers and read state via peer calls or WhenNode Value Changed (peer source). Use this pattern for any shared singleton entity state.",
+      "Difficulty": "Intermediate",
+      "ConceptsTaught": [
+        "Instance Blueprint as a state container",
+        "Pure-function graphs with output parameters",
+        "Designed to be referenced via callablePeers",
+        "The EntityState/SquadState shared-state pattern"
+      ]
+    }
+  }
+}

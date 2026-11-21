@@ -19,20 +19,18 @@ internal sealed class BTreeBreakpointContextMenuProvider : ICustomElementContext
     public BTreeBreakpointContextMenuProvider(IDataBreakpointManager manager)
         => _manager = manager;
 
+    /// <summary>⭐ CE-1324 — the document's asset (set when the node menu is wired): the dot's node is looked up in it. 🔴 It used a stub node with blob index 0, so every dot watched node 0.</summary>
+    public BehaviorTreeAsset? Asset { get; set; }
+
     public string RendererId => "btree.breakpoint_gutter";
 
     public IReadOnlyList<ContextMenuItem> GetItemsFor(string elementKey, CustomElementHit hit)
     {
         // elementKey is the node VisualId string encoded by the gutter renderer.
-        var stubNode = new BTreeEditorNode
-        {
-            VisualId        = Guid.TryParse(elementKey, out var g) ? g : Guid.Empty,
-            KernelBlobIndex = 0,
-            DisplayLabel    = elementKey,
-        };
-
+        if (Asset is null || !Guid.TryParse(elementKey, out var id) || Asset.FindNode(id) is not { } node)
+            return Array.Empty<ContextMenuItem>();
         var collector = new ContextMenuItemCollector();
-        BTreeBreakpointMenuPopulator.PopulateMenu(stubNode, collector, _manager);
+        BTreeBreakpointMenuPopulator.PopulateMenu(Asset, node, collector, _manager);
         return collector.Items;
     }
 }

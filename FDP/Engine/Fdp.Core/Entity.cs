@@ -5,7 +5,7 @@ namespace Fdp.Core
 {
     /// <summary>
     /// Lightweight entity handle (Index + Generation).
-    /// 48-bit total: 32-bit index + 16-bit generation.
+    /// 48-bit total: 32-bit index + 16-bit generation, then two bytes always zero (8 bytes, none undefined — R-4222).
     /// Designed to catch stale references via generation mismatch.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -22,11 +22,21 @@ namespace Fdp.Core
         /// Used to detect stale entity handles.
         /// </summary>
         public readonly ushort Generation;
-        
+
+        /// <summary>
+        /// ⭐⭐ R-4222 (E-1, CE-4507) — the two bytes after <see cref="Generation"/>, ALWAYS zero: an <see cref="Entity"/> has no undefined
+        /// bytes. 📌 Measured (M-D12): as implicit padding they were whatever the destination held before — the JIT stores a register-promoted
+        /// Entity field by field (Index, Generation) — so the same world hashed differently, and an opaque buffer holding an Entity (the
+        /// weapon channel's State) differed between runs. ⭐ Private: every UI and serializer reflects PUBLIC fields only (the inspector's
+        /// StructEdit builder, the scenario serializer, System.Text.Json's IncludeFields), so nothing shows it. Size stays 8: recordings read.
+        /// </summary>
+        private readonly ushort _zero;
+
         public Entity(int index, ushort generation)
         {
             Index = index;
             Generation = generation;
+            _zero = 0;
         }
         
         /// <summary>
@@ -36,6 +46,7 @@ namespace Fdp.Core
         {
             Index = (int)(packed & 0xFFFFFFFF);
             Generation = (ushort)((packed >> 32) & 0xFFFF);
+            _zero = 0;
         }
         
         /// <summary>

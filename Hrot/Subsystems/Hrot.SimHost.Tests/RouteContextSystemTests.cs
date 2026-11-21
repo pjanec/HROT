@@ -12,7 +12,7 @@ namespace Hrot.SimHost.Tests;
 /// Unit tests for <see cref="RouteContextSystem"/> -- ROUTES1-T014 / PACK-N004.
 ///
 /// The system is a pure Brain-tier system: it queries <see cref="NavigationIntent"/>,
-/// <see cref="NavigationStatus"/>, and <see cref="BrainBlackboard"/>. It does NOT
+/// <see cref="NavigationStatus"/>, and <c>BrainBlackboard</c>. It does NOT
 /// query <see cref="CarKinem.Core.NavState"/> (Muscle-tier) after the PACK-N004 refactor.
 ///
 /// <see cref="RouteContextSystem.TickIntervalSeconds"/> is set to 0 so the throttle
@@ -38,7 +38,7 @@ public class RouteContextSystemTests
         var repo = new EntityRepository();
         repo.RegisterComponent<NavigationIntent>();
         repo.RegisterComponent<NavigationStatus>();
-        repo.RegisterComponent<BrainBlackboard>();
+        repo.RegisterComponent<BrainInterrupts>();
         repo.RegisterComponent<PersonalRouteRef>();
         repo.RegisterComponent<RouteTrajectoryCache>();
         repo.RegisterManagedComponent<RoutePlan>();
@@ -50,7 +50,7 @@ public class RouteContextSystemTests
     /// <summary>
     /// Creates a vehicle entity with <see cref="NavigationIntent"/> (FollowRoute),
     /// <see cref="NavigationStatus"/> with the supplied <paramref name="progressS"/>,
-    /// and a <see cref="BrainBlackboard"/>.
+    /// and a <c>BrainBlackboard</c>.
     /// Optionally attaches a personal route with the given ExtensionJson.
     /// </summary>
     private Entity CreateVehicle(
@@ -70,13 +70,13 @@ public class RouteContextSystemTests
             ProgressS = progressS,
             IntentId  = 1u,
         });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         if (personalRouteJson != null)
         {
             var routeEntity = _repo.CreateEntity();
             var plan = new RoutePlan();
-            plan.Mutate(wps =>
+            plan = plan.WithWaypoints(wps =>
             {
                 wps.Add(new RouteWaypoint
                 {
@@ -108,7 +108,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(42, (int)bb.ExpectedThreatLevel);
     }
 
@@ -122,7 +122,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(255, (int)bb.ExpectedThreatLevel);
     }
 
@@ -136,7 +136,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
@@ -156,7 +156,7 @@ public class RouteContextSystemTests
         var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));
 
         Assert.Null(ex);
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
@@ -175,10 +175,25 @@ public class RouteContextSystemTests
 
         _system.TickIntervalSeconds = 1f;
 
-        _system.Execute(_repo, 0f); // deltaTime=0 => _elapsed=0 => 0 < 1.0 => skip
+        _system.Execute(_repo, 0f); // deltaTime=0 => no interval boundary crossed => skip (R-3039: no accumulator)
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #8) — the cadence lives in the SIM clock, not in the system: a FRESH
+    /// system (as after a checkpoint restored into a new process) stepping 0.4 → 0.6 s on a 0.5 s interval runs, as the old one would have.
+    /// 🔴 Red-proof: an accumulator again ⇒ the fresh one has gathered 0.2 s ⇒ skips ⇒ red.
+    /// </summary>
+    [Fact]
+    public void R3039_AFreshSystem_KeepsTheCadence_OfTheRestoredClock()
+    {
+        var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":77}");
+        _repo.SetSingletonUnmanaged(new Fdp.Core.GlobalTime { TotalTime = 0.6, DeltaTime = 0.2f, TimeScale = 1f });
+        var fresh = new RouteContextSystem { TickIntervalSeconds = 0.5f };
+        fresh.Execute(_repo, 0.2f);
+        Assert.Equal(77, (int)_repo.GetComponent<BrainInterrupts>(vehicle).ExpectedThreatLevel);
     }
 
     // =========================================================================
@@ -213,7 +228,7 @@ public class RouteContextSystemTests
             CompiledVersion = 1,
         });
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint
             {
@@ -232,11 +247,11 @@ public class RouteContextSystemTests
             IntentId     = 1u,
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(7, (int)bb.ExpectedThreatLevel);
     }
 
@@ -249,7 +264,7 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0.016f);
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(55, (int)bb.ExpectedThreatLevel);
     }
 
@@ -276,7 +291,7 @@ public class RouteContextSystemTests
             CompiledVersion = 1,
         });
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint
             {
@@ -296,11 +311,11 @@ public class RouteContextSystemTests
             IntentId     = 1u,
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(expectedDanger, (int)bb.ExpectedThreatLevel);
     }
 
@@ -321,7 +336,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(33, (int)bb.ExpectedThreatLevel);
     }
 
@@ -340,7 +355,7 @@ public class RouteContextSystemTests
             IntentId     = 1u,
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 5f, IntentId = 1u });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         // Attach a route with danger level so we'd detect mutation if it happened.
         var routeEntity = _repo.CreateEntity();
@@ -350,7 +365,7 @@ public class RouteContextSystemTests
             CompiledVersion = 1,
         });
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint { Position = Vector3.Zero, ExtensionJson = @"{""dangerLevel"":99}" });
             wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 0f) });
@@ -359,7 +374,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 }

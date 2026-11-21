@@ -73,10 +73,10 @@ internal sealed class ChannelCommandNodeSession : INodeEditSession
         var shortName   = dotIdx >= 0 ? fqn[(dotIdx + 1)..] : fqn;
         var typePortion = dotIdx > 0  ? fqn[..dotIdx]       : "";
 
-        ImGui.LabelText("Action", shortName);
+        LabelRow("Action", shortName);
         if (!string.IsNullOrEmpty(typePortion))
-            ImGui.LabelText("Type",   typePortion);
-        ImGui.LabelText("FQN",    fqn);
+            LabelRow("Type", typePortion);
+        LabelRow("FQN", fqn);
 
         ImGui.Spacing();
         ImGui.TextDisabled("(compile lowering via AN8 — not yet emittable)");
@@ -99,8 +99,16 @@ internal sealed class ChannelCommandNodeSession : INodeEditSession
             return;
         }
 
-        ImGui.LabelText("Channel", string.IsNullOrEmpty(_node.ChannelType) ? "(none)" : _node.ChannelType);
-        ImGui.LabelText("Action",  string.IsNullOrEmpty(_node.ActionId)    ? "(none)" : _node.ActionId);
+        LabelRow("Channel", string.IsNullOrEmpty(_node.ChannelType) ? "(none)" : _node.ChannelType);
+        LabelRow("Action", string.IsNullOrEmpty(_node.ActionId)    ? "(none)" : _node.ActionId);
+    }
+
+    /// <summary>⭐ CE-3396 — a read-only label / value row on the one label column (was ImGui.LabelText).</summary>
+    private static void LabelRow(string label, string value)
+    {
+        NodeEditor.Core.Widgets.FormGrid.BeginField("bp.node", label);
+        ImGui.TextUnformatted(value);
+        NodeEditor.Core.Widgets.FormGrid.EndField();
     }
 
     public void ResetDirty() { }

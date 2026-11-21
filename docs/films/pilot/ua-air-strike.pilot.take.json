@@ -1,0 +1,159 @@
+{
+  "title": "Level bomb",
+  "caption": "The A-10 releases on the weapon's cue; the bomb hits the target, the truck 120 m off survives",
+  "endAt": "blast#1+4",
+  "anchors": {
+    "blast#1": {
+      "on": "blast",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "blast#1": 33.1193
+    },
+    "tickHz": 60,
+    "scenarioHash": "",
+    "buildSha": ""
+  },
+  "shots": [],
+  "keys": [
+    {
+      "at": "blast#1-19",
+      "eye": [
+        620,
+        280,
+        6
+      ],
+      "target": [
+        -1300,
+        300,
+        300
+      ],
+      "fov": 5,
+      "segment": "approach"
+    },
+    {
+      "at": "blast#1-9",
+      "eye": [
+        -420,
+        180,
+        5
+      ],
+      "target": [
+        -520,
+        300,
+        290
+      ],
+      "fov": 55,
+      "segment": "release"
+    },
+    {
+      "at": "blast#1-6.5",
+      "eye": [
+        560,
+        170,
+        20
+      ],
+      "target": [
+        330,
+        300,
+        110
+      ],
+      "fov": 28,
+      "segment": "fall"
+    },
+    {
+      "at": "blast#1-2",
+      "eye": [
+        540,
+        170,
+        22
+      ],
+      "target": [
+        615,
+        330,
+        0
+      ],
+      "fov": 26,
+      "segment": "impact"
+    },
+    {
+      "at": "blast#1+2",
+      "eye": [
+        520,
+        250,
+        60
+      ],
+      "target": [
+        610,
+        320,
+        0
+      ],
+      "fov": 45,
+      "segment": "impact"
+    },
+    {
+      "at": "blast#1-0.7",
+      "eye": [
+        520,
+        330,
+        8
+      ],
+      "target": [
+        605,
+        300,
+        8
+      ],
+      "fov": 35,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "approach",
+      "from": "blast#1-19",
+      "to": "blast#1-9",
+      "speed": 4
+    },
+    {
+      "id": "release",
+      "from": "blast#1-9",
+      "to": "blast#1-6.5"
+    },
+    {
+      "id": "fall",
+      "from": "blast#1-6.5",
+      "to": "blast#1-2",
+      "speed": 2.5
+    },
+    {
+      "id": "impact",
+      "from": "blast#1-2",
+      "to": "blast#1+4"
+    },
+    {
+      "id": "replay",
+      "from": "blast#1-0.7",
+      "to": "blast#1+1.5",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "blast#1-19",
+      "until": "blast#1-6.5",
+      "text": "The A-10 releases on the weapon's cue"
+    },
+    {
+      "at": "blast#1-2",
+      "until": "blast#1+4",
+      "text": "The bomb hits its target; the truck 120 m away survives"
+    }
+  ],
+  "clip": "F-49",
+  "chapter": 10,
+  "state": "ready",
+  "scenario": "ua-air-strike",
+  "take": "pilot"
+}

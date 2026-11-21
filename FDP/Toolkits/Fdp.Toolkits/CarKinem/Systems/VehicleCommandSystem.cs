@@ -16,10 +16,12 @@ namespace CarKinem.Systems
     /// Runs early to update NavState before physics.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class VehicleCommandSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(VehicleCommandSystem)} requires direct EntityRepository access " +
@@ -34,7 +36,7 @@ namespace CarKinem.Systems
         
         private void ProcessSpawnCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdSpawnVehicle>();
+            var events = repo.ReadEvents<CmdSpawnVehicle>();
             
             foreach (var cmd in events)
             {
@@ -51,17 +53,22 @@ namespace CarKinem.Systems
                 repo.AddComponent(entity, new VehicleState
                 {
                     Speed = 0f,
-                    SteerAngle = 0f,
+                    SteerAngle = (Fdp.Core.Angle)(0f),
                     Accel = 0f,
                     CurrentLaneIndex = -1
                 });
                 
                 // Add SimTransform and SimVelocity
-                // Note: Z=0 by default for 2D->3D bridge
+                // ⭐ CE-1034 H3 (TH-F) — the command is 2-D: the vehicle is born on the ground THERE, never at Z = 0 (R-248)
+                var worldQuery = Fdp.Toolkit.World.WorldQuery.Of(repo);
+                float groundZ = worldQuery?.ResolveLevel(cmd.Position.X, cmd.Position.Y, 0) ?? 0f;
+                // ⭐ CE-1034 H5c (TH-L) — born ON A ROAD, the vehicle takes the road's height there (a car placed on a bridge's road
+                //   stands on the deck, not on the valley floor under it)
+                if (OnRoadHeight(repo, cmd.Position, worldQuery) is { } roadZ) groundZ = roadZ;
                 float yaw = MathF.Atan2(cmd.Heading.Y, cmd.Heading.X);
                 repo.AddComponent(entity, new SimTransform
                 {
-                    Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0),
+                    Position = new Vector3(cmd.Position.X, cmd.Position.Y, groundZ),
                     Rotation = SimMath.FromYaw(yaw)
                 });
                 repo.AddComponent(entity, new SimVelocity
@@ -72,7 +79,6 @@ namespace CarKinem.Systems
                 
                 // Add VehicleParams component (use preset)
                 var preset = VehiclePresets.GetPreset(cmd.Class);
-                preset.Class = cmd.Class;  // Set class field
                 repo.AddComponent(entity, preset);
                 
                 // Add NavState component (idle)
@@ -84,7 +90,7 @@ namespace CarKinem.Systems
                     CurrentSegmentId = -1,
                     ProgressS = 0f,
                     TargetSpeed = 0f,
-                    FinalDestination = new Vector3(cmd.Position.X, cmd.Position.Y, 0f),
+                    FinalDestination = new Vector3(cmd.Position.X, cmd.Position.Y, groundZ),
                     ArrivalRadius = 2.0f,
                     SpeedErrorInt = 0f,
                     LastSteerCmd = 0f,
@@ -97,7 +103,7 @@ namespace CarKinem.Systems
 
         private void ProcessCreateFormationCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdCreateFormation>();
+            var events = repo.ReadEvents<CmdCreateFormation>();
             
             foreach (var cmd in events)
             {
@@ -134,7 +140,7 @@ namespace CarKinem.Systems
 
         private void ProcessJoinFormationCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdJoinFormation>();
+            var events = repo.ReadEvents<CmdJoinFormation>();
             
             foreach (var cmd in events)
             {
@@ -171,7 +177,7 @@ namespace CarKinem.Systems
         
         private void ProcessLeaveFormationCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdLeaveFormation>();
+            var events = repo.ReadEvents<CmdLeaveFormation>();
             
             foreach (var cmd in events)
             {
@@ -192,7 +198,7 @@ namespace CarKinem.Systems
 
         private void ProcessAssignSubordinateRejected(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdAssignSubordinateRejected>();
+            var events = repo.ReadEvents<CmdAssignSubordinateRejected>();
 
             foreach (var evt in events)
             {
@@ -205,5 +211,19 @@ namespace CarKinem.Systems
                 repo.SetComponent(sub, channel);
             }
         }
-    }
+    
+        /// <summary>⭐ CE-1034 H5c — the road's height at <paramref name="p"/> when <paramref name="p"/> lies on a road's carriageway, else null.</summary>
+        internal static float? OnRoadHeight(EntityRepository repo, Vector2 p, Fdp.Toolkit.World.IWorldQuery? world)
+        {
+            if (!repo.HasSingletonManaged<CarKinem.Road.RoadNetworkHolder>()) return null;
+            using var lease = repo.GetSingletonManaged<CarKinem.Road.RoadNetworkHolder>()!.Borrow();
+            var roads = lease.Value;
+            if (!Fdp.Toolkit.Navigation.RoadGraphRouter.HasRoads(roads)) return null;
+            var access = Fdp.Toolkit.Navigation.RoadGraphRouter.NearestAccess(roads, p, 20f);
+            if (!access.IsValid) return null;
+            var seg = roads.Segments[access.Segment];
+            if (access.Distance > seg.LaneWidth * Math.Max(1, seg.LaneCount) * 0.5f + 0.5f) return null;
+            return Fdp.Toolkit.Navigation.RoadHeights.At(roads, access.Segment, access.Along, access.Point, world);
+        }
+}
 }

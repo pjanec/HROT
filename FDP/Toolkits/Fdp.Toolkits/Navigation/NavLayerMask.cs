@@ -14,6 +14,8 @@ namespace Fdp.Toolkit.Navigation
         Vehicle  = 2u,
         Naval    = 4u,
         Air      = 8u,
-        All      = 0xFFFFFFFFu,
+        // ⭐ Every DEFINED layer — not 0xFFFFFFFF: an IDL enumerator must fit a signed 32-bit value, and Cyclone DDS 11's idlc rejects
+        //   @value(4294967295) (CycloneDDS.NET 0.4 fails the build). Only compared by identity (FakeNavmeshProvider), never masked.
+        All      = Infantry | Vehicle | Naval | Air,
     }
 }

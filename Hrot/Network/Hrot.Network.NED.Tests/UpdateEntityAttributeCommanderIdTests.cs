@@ -7,6 +7,7 @@ using Hrot.Map.Common.Systems;
 using Hrot.NED.Common;
 using Hrot.NED.Messages;
 using Xunit;
+using NodeId = Hrot.NED.Common.NodeId;
 
 namespace Hrot.DDS.DataModel.Tests;
 
@@ -35,25 +36,6 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         }
     }
 
-    private sealed class RecordingAckSink : IUpdateEntityAttributeAckSink
-    {
-        public Guid? LastAckRequestId { get; private set; }
-        public bool  WasAckWritten    { get; private set; }
-        public bool  WasErrorWritten  { get; private set; }
-
-        public void WriteAck(Guid requestId, int errorCode, NodeId respondingNode, ReadOnlySpan<byte> opaqueData)
-        {
-            LastAckRequestId = requestId;
-            WasAckWritten    = true;
-        }
-
-        public void WriteErrorAck(Guid requestId, int errorCode)
-        {
-            LastAckRequestId = requestId;
-            WasErrorWritten  = true;
-        }
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static EntityRepository CreateRepo()
@@ -67,11 +49,9 @@ public sealed class UpdateEntityAttributeCommanderIdTests
 
     private static UpdateEntityAttributeRequestSystem CreateSystem(
         QueuedRequestSource  source,
-        RecordingAckSink     sink,
         NetworkEntityMap     entityMap)
         => new UpdateEntityAttributeRequestSystem(
             requestSource:        source,
-            ackSink:              sink,
             entityMap:            entityMap,
             jsonAttributeCompiler: null);
 
@@ -89,17 +69,15 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         entityMap.Register(netId: 42, entity: commander);
 
         var source = new QueuedRequestSource();
-        var sink   = new RecordingAckSink();
 
         source.Enqueue(new UpdateEntityAttributeRequest
         {
             RequestId          = Guid.NewGuid(),
             EntityId           = 1,
             AttributePatchJson = "{\"CommanderId\":42}",
-            RequireAck         = false,
         });
 
-        var system = CreateSystem(source, sink, entityMap);
+        var system = CreateSystem(source, entityMap);
         system.Execute(repo, 0f);
 
         repo.Bus.SwapBuffers();
@@ -122,17 +100,15 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         entityMap.Register(netId: 5, entity: target);
 
         var source = new QueuedRequestSource();
-        var sink   = new RecordingAckSink();
 
         source.Enqueue(new UpdateEntityAttributeRequest
         {
             RequestId          = Guid.NewGuid(),
             EntityId           = 5,
             AttributePatchJson = "{\"CommanderId\":0}",
-            RequireAck         = false,
         });
 
-        var system = CreateSystem(source, sink, entityMap);
+        var system = CreateSystem(source, entityMap);
         system.Execute(repo, 0f);
 
         repo.Bus.SwapBuffers();
@@ -153,17 +129,15 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         entityMap.Register(netId: 7, entity: target);
 
         var source = new QueuedRequestSource();
-        var sink   = new RecordingAckSink();
 
         source.Enqueue(new UpdateEntityAttributeRequest
         {
             RequestId          = Guid.NewGuid(),
             EntityId           = 7,
             AttributePatchJson = "{\"CommanderId\":0}",
-            RequireAck         = false,
         });
 
-        var system = CreateSystem(source, sink, entityMap);
+        var system = CreateSystem(source, entityMap);
         system.Execute(repo, 0f);
 
         repo.Bus.SwapBuffers();
@@ -188,17 +162,15 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         entityMap.Register(netId: 99, entity: commander);
 
         var source = new QueuedRequestSource();
-        var sink   = new RecordingAckSink();
 
         source.Enqueue(new UpdateEntityAttributeRequest
         {
             RequestId          = Guid.NewGuid(),
             EntityId           = 10,
             AttributePatchJson = "{\"Name\":\"Bravo\",\"CommanderId\":99}",
-            RequireAck         = false,
         });
 
-        var system = CreateSystem(source, sink, entityMap);
+        var system = CreateSystem(source, entityMap);
         system.Execute(repo, 0f);
 
         // CommanderId was intercepted and stripped — assign event should fire.
@@ -208,10 +180,10 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         Assert.Equal(commander, assigns[0].Commander);
     }
 
-    // ── CS024-T05: ACK sent when only CommanderId was in the patch ────────────
+    // ── CS024-T05 (⭐ edit framework F2): a CommanderId-only patch is ANSWERED (EntityEditOutcome, Applied) when the requester asks ──────────
 
     [Fact]
-    public void CommanderIdOnlyPatch_RequireAck_AckSinkCalled()
+    public void CommanderIdOnlyPatch_WantOutcome_IsAnsweredApplied()
     {
         var repo      = CreateRepo();
         var target    = repo.CreateEntity();
@@ -223,21 +195,52 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         entityMap.Register(netId: 42, entity: commander);
 
         var source = new QueuedRequestSource();
-        var sink   = new RecordingAckSink();
-
         source.Enqueue(new UpdateEntityAttributeRequest
         {
             RequestId          = reqId,
             EntityId           = 3,
             AttributePatchJson = "{\"CommanderId\":42}",
-            RequireAck         = true,
+            WantOutcome        = true,
         });
 
-        var system = CreateSystem(source, sink, entityMap);
-        system.Execute(repo, 0f);
+        CreateSystem(source, entityMap).Execute(repo, 0f);
 
-        Assert.True(sink.WasAckWritten,  "WriteAck should have been called");
-        Assert.False(sink.WasErrorWritten, "WriteErrorAck should NOT have been called");
-        Assert.Equal(reqId, sink.LastAckRequestId);
+        Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).TryGet(reqId, out var o));
+        Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Applied, o.Status);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S2b — a non-owner is a silent bystander for a CommanderId patch.</b> Since S2b every host runs this
+    /// handler, and the request reaches all of them. A node that does not own the entity must neither assign the
+    /// subordinate nor send a Success ack for a change it did not make. Before the fix it set
+    /// <c>intercepted</c> before the authority check and acked. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.
+    /// </summary>
+    [Fact]
+    public void CommanderIdPatch_OnANonOwner_PublishesNothing_AndSendsNoAck()
+    {
+        var repo = CreateRepo();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+        var target    = repo.CreateEntity();
+        var commander = repo.CreateEntity();
+        repo.AddComponent(target, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 5));
+
+        var entityMap = new NetworkEntityMap();
+        entityMap.Register(netId: 3,  entity: target);
+        entityMap.Register(netId: 42, entity: commander);
+
+        var source = new QueuedRequestSource();
+        source.Enqueue(new UpdateEntityAttributeRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            EntityId           = 3,
+            AttributePatchJson = "{\"CommanderId\":42}",
+            WantOutcome        = true,
+        });
+
+        CreateSystem(source, entityMap).Execute(repo, 0f);
+
+        repo.Bus.SwapBuffers();
+        Assert.Empty(repo.Bus.Read<CmdAssignSubordinate>().ToArray());
+        Assert.Equal(0, Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).Count);   // a bystander does not answer: the owner does
     }
 }

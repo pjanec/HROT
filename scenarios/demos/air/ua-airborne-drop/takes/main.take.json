@@ -1,0 +1,97 @@
+{
+  "title": "Parachute drop",
+  "caption": "A stick of eight leaves the helicopter one a second",
+  "clip": "F-56",
+  "chapter": 10,
+  "state": "ready",
+  "endAt": "m+16",
+  "anchors": {
+    "m": {
+      "on": "embark",
+      "who": "Paratrooper 8",
+      "is": false
+    }
+  },
+  "keys": [
+    {
+      "at": "m-8",
+      "follow": "UH-60 (doors off)",
+      "distance": 120,
+      "yaw": 60,
+      "pitch": 15,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "UH-60 (doors off)",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Paratrooper 8",
+      "distance": 25,
+      "yaw": 120,
+      "pitch": 10,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Paratrooper 4",
+      "distance": 60,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "moment"
+    },
+    {
+      "at": "m+6",
+      "follow": "Paratrooper 4",
+      "distance": 90,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "tail"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-8",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    },
+    {
+      "id": "tail",
+      "from": "m+6",
+      "to": "m+16",
+      "speed": 2
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-8",
+      "until": "m+16",
+      "text": "A stick of eight leaves the helicopter one a second"
+    }
+  ]
+}

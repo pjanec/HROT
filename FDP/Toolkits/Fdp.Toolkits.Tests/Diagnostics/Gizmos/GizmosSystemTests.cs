@@ -149,10 +149,32 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             repo.RegisterComponent<GizmoTestCompA>();
             repo.RegisterComponent<GizmoTestCompB>();
             repo.RegisterComponent<GizmoSelectedTag>();
+            // ⭐⭐ §6.7 — interaction routing resolves an anchor NETWORK ID to a local entity, so every
+            //   fixture that publishes an interaction event needs this component registered.
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             repo.RegisterEvent<ConstructionOrder>();
             repo.RegisterEvent<DestructionOrder>();
             repo.RegisterEvent<ClearBehaviorEvent>();
             return repo;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ §6.7 — an entity that a gizmo interaction can actually be ROUTED to.
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+        ///
+        /// <para>⛔ Before §6.7 a pick token carried the producer's ECS handle, so a bare
+        /// <c>repo.CreateEntity()</c> was routable and these fixtures used one. Identity is now the
+        /// network id and <c>DataDrivenGizmoSystem</c> resolves it against the world — so an entity with
+        /// no <see cref="Fdp.Toolkit.Replication.Components.NetworkIdentity"/> is, correctly,
+        /// <b>not interactive</b>. ⭐ That is the production rule too:
+        /// <c>EntityPresentationGizmoShared.EmitPickBox</c> emits no pick box without one (constraint
+        /// <c>C2</c>), so a rail using a bare entity was testing a state production cannot reach.</para>
+        /// </summary>
+        public static Entity CreateNetworkedEntity(EntityRepository repo, int networkId)
+        {
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+            return e;
         }
 
         /// <summary>
@@ -216,21 +238,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.True(rule.RequiredMask.IsSet(idB));
         }
 
-        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite when static ComponentTypeRegistry has UnregisteredComp[248] registered by a prior test in the process
-        [Trait("Stability", "Flaky")]
+        /// ⭐ <c>QA-009</c> — the STABILITY(Flaky) trait and its order-dependence note are GONE: the
+        /// sentinel no longer carries a <c>[ComponentId]</c>, so no prior test in the process can put it
+        /// in the registry. See the type's own comment for why that is the invariant.
         [Fact]
         public void SC_GZ004_2_Register_UnregisteredComponent_Throws()
         {
-            // Do NOT register GizmoUnknownComp with the repo.
-            // Its type has no [ComponentId] attribute, so GetId will return -1
-            // and GizmoRegistry.Register must throw.
             var registry = new GizmoRegistry();
-            var def = new MockGizmoDefinition(new[] { typeof(GizmoTestCompA) });
-
-            // To ensure GizmoTestCompA is not registered (rare case in a fresh static registry),
-            // we test with a type that is deliberately never registered:
-            // we use an anonymous/local type trick via a wrapper.
             var defBad = new MockGizmoDefinition(new[] { typeof(UnregisteredComp) });
+
+            // ⭐ State the precondition. Without it a regression reads only as "no exception was thrown",
+            //    which is what sent three previous sessions looking in the wrong place.
+            Assert.Equal(-1, ComponentTypeRegistry.GetId(typeof(UnregisteredComp)));
 
             Assert.Throws<InvalidOperationException>(() => registry.Register(defBad));
         }
@@ -278,9 +297,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(2, registry.Rules[2].RuleIndex);
         }
 
-        // Helper: a type that is never passed to repo.RegisterComponent<T>(),
-        // so ComponentTypeRegistry.GetId(typeof(UnregisteredComp)) returns -1.
-        [ComponentId(248)]
+        // ⭐⭐⭐ QA-009 — a sentinel that CANNOT be registered, by construction.
+        //
+        // ⛔ This used to carry [ComponentId(248)], which made it registerable — and something in a
+        //    full-suite run registered it, after which GetId returned 248 and SC_GZ004_2 could not
+        //    throw. That is the whole of this file's own "STABILITY(Flaky): order-dependent" note, and
+        //    it is why the case passed in isolation and rotated in the suite.
+        //
+        // ⭐ ComponentTypeRegistry.GetOrRegisterManaged REQUIRES a [ComponentId] and throws without
+        //    one, so an attribute-less struct can never enter the registry by ANY path. The absence of
+        //    the attribute IS the invariant this test rests on — do not "fix" it by adding one back.
         private struct UnregisteredComp { }
     }
 
@@ -829,7 +855,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     // ==========================================================================
 
     // Gizmo mock that tracks interaction calls for routing tests.
-    internal sealed class TrackingGizmo : IEntityStatefulGizmo
+    internal class TrackingGizmo : IEntityStatefulGizmo
     {
         public int InteractionStartedCount;
         public int MenuActionCount;
@@ -855,16 +881,22 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void OnStructUpdate(string payloadJson) { StructUpdateCount++; LastStructUpdateJson = payloadJson; }
     }
 
+    // ⭐ CE-1954 — a TrackingGizmo that is the entity's body-press move gizmo.
+    internal sealed class TrackingBodyPressDragGizmo : TrackingGizmo, IBodyPressDragGizmo { }
+
     // IGizmoDefinition that produces TrackingGizmo instances.
     internal sealed class TrackingGizmoDefinition : IGizmoDefinition
     {
         private readonly List<TrackingGizmo> _instances = new();
 
-        public TrackingGizmoDefinition(Type[] requiredComponents, uint gizmoTypeId)
+        public TrackingGizmoDefinition(Type[] requiredComponents, uint gizmoTypeId, bool bodyPressDrag = false)
         {
             RequiredComponents = requiredComponents;
             GizmoTypeId = gizmoTypeId;
+            _bodyPressDrag = bodyPressDrag;
         }
+
+        private readonly bool _bodyPressDrag;
 
         public Type[] RequiredComponents { get; }
         public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
@@ -873,7 +905,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
         public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
         {
-            var g = new TrackingGizmo();
+            var g = _bodyPressDrag ? new TrackingBodyPressDragGizmo() : new TrackingGizmo();
             _instances.Add(g);
             return g;
         }
@@ -881,6 +913,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
     public class DataDrivenGizmoSystemRoutingTests
     {
+        /// <summary>⭐ §6.7 — the anchor id every rail below routes on. A real network id, not an
+        /// ECS index: 41 is deliberately far from any index this fixture will allocate.</summary>
+        private const int NetId = 7041;
+
         private static (EntityRepository repo, DataDrivenGizmoSystem sys, TrackingGizmoDefinition def1, TrackingGizmoDefinition def2, Entity entity, FdpEventBus interactionBus)
             CreateRoutingFixture()
         {
@@ -905,7 +941,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
             var sys = new DataDrivenGizmoSystem(registry, buffer, interactionBus: interactionBus);
 
-            var entity = repo.CreateEntity();
+            // ⭐⭐ §6.7 — the entity carries a NetworkIdentity, because that is what an interaction is
+            //   routed by now. ⛔ A bare CreateEntity() is not interactive, and production agrees:
+            //   EmitPickBox emits no pick box without a network id (C2).
+            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, NetId);
             repo.AddComponent(entity, new GizmoTestCompA { Value = 1 });
 
             // Init both gizmos.
@@ -917,6 +956,46 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             return (repo, sys, def1, def2, entity, interactionBus);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1954</c> (DECIDED A) — a plain LEFT press on an entity's BODY (a pick with no gizmo type — the presentation's box,
+        /// drawn for every unit, selected or not) reaches the entity's MOVE gizmo (<c>IBodyPressDragGizmo</c>), never its first gizmo; a
+        /// right press and a modifier press do not; a typed pick still reaches its own gizmo. One routing ⇒ the serial and threaded editors
+        /// agree. ✅ Red-proof: the Started routing without the body-press arm ⇒ the press reaches the first gizmo (def1) and the drag none.
+        /// </summary>
+        [Fact]
+        public void CE1954_APlainLeftPressOnTheBody_DrivesTheMoveGizmo_NotTheFirst_RightOrModifiedDoNot()
+        {
+            var repo = GizmoTestRepo.Create();
+            var bus = new FdpEventBus();
+            bus.Register<GizmoInteractionStartedEvent>(); bus.Register<GizmoDragUpdateEvent>(); bus.Register<GizmoInteractionCommitEvent>();
+            bus.Register<GizmoInteractionCancelEvent>(); bus.Register<GizmoMenuActionEvent>(); bus.Register<GizmoMouseEvent>(); bus.Register<GizmoKeyEvent>();
+            var registry = new GizmoRegistry();
+            var first = new TrackingGizmoDefinition(new[] { typeof(GizmoTestCompA) }, gizmoTypeId: 0xAA01u);
+            var move = new TrackingGizmoDefinition(new[] { typeof(GizmoTestCompA) }, gizmoTypeId: 0xAA02u, bodyPressDrag: true);
+            registry.Register(first);
+            registry.Register(move);
+            var sys = new DataDrivenGizmoSystem(registry, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(),
+                isSelectedPredicate: (_, _) => false, interactionBus: bus);                                  // the unit is NOT selected
+            var unit = GizmoTestRepo.CreateNetworkedEntity(repo, NetId);
+            repo.AddComponent(unit, new GizmoTestCompA { Value = 1 });
+            repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = unit });
+            repo.Bus.SwapBuffers(); sys.Execute(repo, 0f); repo.Bus.SwapBuffers();
+
+            void Press(MapMouseButton button, uint type)
+            {
+                bus.Publish(new GizmoInteractionStartedEvent { Token = new PickToken { AnchorId = NetId, GizmoTypeId = type }, Button = button });
+                bus.SwapBuffers(); sys.Execute(repo, 0f);
+            }
+            Press(MapMouseButton.Left, 0);
+            Assert.Equal((0, 1), (first.Instances[0].InteractionStartedCount, move.Instances[0].InteractionStartedCount));
+            Press(MapMouseButton.Right, 0);
+            Press(MapMouseButton.Left | MapMouseButton.ShiftMask, 0);
+            Assert.Equal(1, move.Instances[0].InteractionStartedCount);                                     // neither moves it (they reach the first gizmo, as before)
+            int before = first.Instances[0].InteractionStartedCount;
+            Press(MapMouseButton.Left, 0xAA01u);
+            Assert.Equal((before + 1, 1), (first.Instances[0].InteractionStartedCount, move.Instances[0].InteractionStartedCount));   // a typed pick: its own gizmo
+        }
+
         // SC-GZ066-1: Two gizmos on same entity; GizmoInteractionStartedEvent with def1's
         // GizmoTypeId reaches def1's gizmo only; def2 receives nothing.
         [Fact]
@@ -926,7 +1005,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             bus.Publish(new GizmoInteractionStartedEvent
             {
-                Token = new PickToken { Target = entity, GizmoTypeId = 0xAA01u },
+                Token = new PickToken { AnchorId = NetId, GizmoTypeId = 0xAA01u },
             });
             bus.SwapBuffers();
             sys.Execute(repo, 0f);
@@ -935,9 +1014,50 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(0, def2.Instances[0].InteractionStartedCount);
         }
 
+        // CE-1300 — a drag (or a menu) started on an entity ATTACHED to a vehicle is routed to the CARRIER's gizmo, never the attached entity's own: the interaction's anchor resolves
+        // through the one anchor rule (NetworkIdResolver.ResolveAnchorId → CarrierOf), so a mounted gun cannot be dragged off its vehicle. An unattached entity still gets its own.
+        // 🔴 Red-proof: ResolveAnchorId without CarrierOf ⇒ the gun's own gizmo receives it ⇒ red.
+        [Fact]
+        public void CE1300_AnInteractionOnAMountedGun_ReachesItsCarriersGizmo_NeverTheGuns()
+        {
+            var (repo, sys, def1, _, vehicle, bus) = CreateRoutingFixture();   // the vehicle (NetId 7041): def1's instance 0
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var gun = GizmoTestRepo.CreateNetworkedEntity(repo, 7042);
+            repo.AddComponent(gun, new GizmoTestCompA { Value = 1 });
+            repo.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Seat = 0 });
+            var free = GizmoTestRepo.CreateNetworkedEntity(repo, 7043);
+            repo.AddComponent(free, new GizmoTestCompA { Value = 1 });
+            foreach (var e in new[] { gun, free })
+            {
+                repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });
+                repo.Bus.SwapBuffers();
+                sys.Execute(repo, 0f);
+                repo.Bus.SwapBuffers();
+            }
+            Assert.Equal(3, def1.Instances.Count);   // vehicle, gun, free — each has its own gizmo instance
+
+            bus.Publish(new GizmoInteractionStartedEvent { Token = new PickToken { AnchorId = 7042, GizmoTypeId = 0xAA01u } });
+            bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            Assert.Equal(1, def1.Instances[0].InteractionStartedCount);   // the vehicle's
+            Assert.Equal(0, def1.Instances[1].InteractionStartedCount);   // never the gun's
+
+            bus.Publish(new GizmoInteractionStartedEvent { Token = new PickToken { AnchorId = 7043, GizmoTypeId = 0xAA01u } });
+            bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            Assert.Equal(1, def1.Instances[2].InteractionStartedCount);   // an unattached entity: its own
+        }
+
         // SC-GZ066-2: GizmoStructUpdateEvent with def2's GizmoTypeId reaches def2 only.
-        // Fixed (D-6): index-only editor events now use FindGizmoByIndex, which matches on Index
-        // and allows index 0 (previously dropped by FindGizmo's entity.IsNull/gen-0 guard).
+        // ⭐⭐⭐ REWRITTEN 2026-09-11 (§6.7) — AND THIS RAIL WAS ASSERTING THE DEFECT.
+        //   ⛔ It published `AnchorId = entity.Index` and its comment read "Fixed (D-6): index-only
+        //     editor events now use FindGizmoByIndex, which matches on Index". That was true of the
+        //     code and FALSE of the contract: GizmoStructUpdateEvent.AnchorId is documented as a
+        //     "stable gizmo anchor id" and S5 made it a NETWORK id in fact. ⇒ the rail pinned the
+        //     narrow-a-network-id-to-an-index comparison in place, which is defect D1.
+        //   ⭐ It now publishes the network id, which is what every producer sends.
+        //   ⛔ RED-PROOF SHAPE: route these events through an index comparison again and this reddens
+        //     (NetId 7041 is not this entity's ECS index).
         [Fact]
         public void SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo()
         {
@@ -945,7 +1065,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent
             {
-                AnchorId    = entity.Index,
+                AnchorId    = NetId,
                 GizmoTypeId = 0xAA02u,
                 PayloadJson = "{\"x\":1}",
             });
@@ -958,7 +1078,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ066-5: GizmoMenuActionEvent with def2's GizmoTypeId — only def2 receives it.
-        // Fixed (D-6): index-only routing via FindGizmoByIndex (see SC_GZ066_2).
+        // ⭐⭐ §6.7 — routed by the NETWORK id; see SC_GZ066_2 for why the old `(uint)entity.Index`
+        //   form was the defect rather than the fix.
         [Fact]
         public void SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only()
         {
@@ -966,7 +1087,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             bus.Publish(new GizmoMenuActionEvent
             {
-                AnchorId    = (uint)entity.Index,
+                AnchorId    = NetId,
                 ActionId    = 7,
                 GizmoTypeId = 0xAA02u,
             });

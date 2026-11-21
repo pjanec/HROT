@@ -23,7 +23,8 @@ public sealed class ReplaySeekAggregator : INodeResponseAggregator
     /// <inheritdoc/>
     public object? Aggregate(IReadOnlyDictionary<int, Dictionary<NodeOpType, string>> nodeResponses)
     {
-        foreach (var nodeDict in nodeResponses.Values)
+        ReplaySeekResult? first = null;
+        foreach (var (nodeId, nodeDict) in nodeResponses)
         {
             if (!nodeDict.TryGetValue(NodeOpType.NodeReplaySeek, out var json)) continue;
             if (string.IsNullOrWhiteSpace(json)) continue;
@@ -32,8 +33,12 @@ public sealed class ReplaySeekAggregator : INodeResponseAggregator
             {
                 var result = JsonSerializer.Deserialize<ReplaySeekResult>(
                     json, OrchestrationJsonOptions.Default);
-                if (result.RestoredTime.TotalWallTicks != 0)
-                    return result;
+                // ⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — a node whose retraction disposes were not acknowledged in time
+                //   still answered; the master says so for EVERY node and goes on (a timeout is reported, never fatal).
+                if (result.RetractionAckTimeout is { } ackNote)
+                    Fdp.Core.Logging.FdpLog<ReplaySeekAggregator>.Warn("[Orchestrator] node {0}'s seek answered with unacknowledged retraction disposes: {1}", nodeId, ackNote);
+                if (first == null && result.RestoredTime.TotalWallTicks != 0)
+                    first = result;
             }
             catch
             {
@@ -41,6 +46,6 @@ public sealed class ReplaySeekAggregator : INodeResponseAggregator
             }
         }
 
-        return null;
+        return first;
     }
 }

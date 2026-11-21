@@ -77,22 +77,31 @@ internal sealed class BTreeNodeContextMenuProvider : INodeContextMenuProvider
         if (editorNode is null)
             return null;
 
-        string? methodFqn = editorNode.KernelType switch
+        var binding = editorNode.KernelType switch
         {
-            NodeType.Action when editorNode.Action?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
-                => editorNode.Action.MethodFqn,
-            NodeType.Condition when editorNode.Condition?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
-                => editorNode.Condition.MethodFqn,
+            NodeType.Action when (editorNode.Action is not null && editorNode.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
+                => editorNode.Action,
+            NodeType.Condition when (editorNode.Condition is not null && editorNode.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
+                => editorNode.Condition,
             _ => null,
         };
-        if (methodFqn is null)
-            return null;
 
-        return ComposedBlueprintResolver.Resolve(methodFqn, _assetCatalog);
+        // ⭐ CE-417 B-1 — by the binding's asset id first, a legacy generated FQN second.
+        return ComposedBlueprintResolver.ResolveBinding(binding, _assetCatalog);
     }
 
     public IReadOnlyList<ContextMenuItem> GetItemsFor(NodeId node, IReadOnlyList<NodeId> selection)
     {
+        // ⭐ CE-1276 — a read-only (code-built) tree is not decorated: no "Add Decorator"; "Open Blueprint" is navigation and stays.
+        if (_asset is not null && Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset))
+        {
+            var viewOnly = new List<ContextMenuItem>();
+            var target   = ResolveOpenBlueprintTarget(node);
+            if (target != null && _openAsset != null)
+                viewOnly.Add(new ContextMenuItem("Open Blueprint", () => _openAsset(target), true));
+            return viewOnly;
+        }
+
         // Part 4 (L3 prevention): check whether this node already has a Repeater pill.
         bool hasRepeater = false;
         foreach (var att in _model.GetAttachmentsForNode(node))

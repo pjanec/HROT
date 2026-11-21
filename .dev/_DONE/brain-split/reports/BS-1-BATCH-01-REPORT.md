@@ -22,7 +22,7 @@
 
 **`FDP.Toolkit.Combat.Tests` (focused):** Passed 37 / 37 (0 failed, 0 skipped)
 
-**Full solution (`dotnet test IOS-IG-SimHost.sln`):**
+**Full solution (`dotnet test HROT.sln`):**
 - All relevant test assemblies passed.
 - 3 test assemblies (`Hrot.SimHost.Tests`, `ModuleHost.Core.Tests`, `Hrot.ExCon.Tests`) show intermittent failures when run together but pass consistently in isolation — confirmed pre-existing flakiness unrelated to this batch (likely shared static state / xUnit parallelism).
 

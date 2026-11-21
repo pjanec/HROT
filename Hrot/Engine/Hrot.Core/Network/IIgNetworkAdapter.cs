@@ -20,59 +20,16 @@ namespace Hrot.Core.Network
     {
         // ── Egress (IG -> network) ────────────────────────────────────────────
 
-        /// <summary>Publishes a map-click event.</summary>
-        void WriteMapClick(MapClickEventDto dto);
 
-        /// <summary>Publishes a selection-changed event.</summary>
-        void WriteSelectionChanged(SelectionChangedEventDto dto);
 
-        /// <summary>Publishes a map-command ACK (response to ExCon tool-activation commands).</summary>
-        void WriteMapCommandAck(MapCommandAckDto dto);
 
-        /// <summary>
-        /// Publishes a ContextMenuRequest so ExCon can push back an action list when
-        /// the IG has no cached actions for an entity.
-        /// </summary>
-        void WriteContextMenuRequest(Guid requestId, int mapId, IReadOnlyList<int> forSelection);
 
-        /// <summary>
-        /// Publishes the IG capabilities announcement (layer tree, supported tools).
-        /// Called once on startup.
-        /// </summary>
-        void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson);
 
         // ── Ingress (network -> IG) -- polled once per frame ─────────────────
+        // ⛔ R-3067 / AQ109 X3 — none left: ExCon's map-command, map-config and context-menu topics, and the entity-ack poll that fed the retired MapCommandController, are gone.
 
-        /// <summary>
-        /// Polls the MapInteractionConfig topic.
-        /// Returns null when there is no new sample.
-        /// </summary>
-        MapConfigDto? PollMapConfig();
 
-        /// <summary>
-        /// Polls the MapCommandRequest topic.
-        /// Returns null when there is no new command.
-        /// </summary>
-        MapCommandDto? PollMapCommand();
 
-        /// <summary>
-        /// Polls the CreateUpdateDeleteEntityAck topic.
-        /// Returns null when there is no new ACK.
-        /// </summary>
-        EntityLifecycleAckDto? PollEntityLifecycleAck();
-
-        // ── Route entity creation ─────────────────────────────────────────────
-
-        /// <summary>
-        /// Creates a route entity with the given waypoints and returns the assigned entity ID.
-        /// Returns 0 on failure.
-        /// </summary>
-        Task<int> CreateRouteEntityAsync(
-            long tkbRouteType,
-            IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
-            double anchorLat, double anchorLon, double anchorAlt,
-            int commanderEntityId,
-            CancellationToken ct = default);
 
         // ── Command gateway ───────────────────────────────────────────────────
 
@@ -98,36 +55,25 @@ namespace Hrot.Core.Network
     }
 
     /// <summary>No-op implementation used in offline / headless / editor mode.</summary>
-    public sealed class NullIgNetworkAdapter : IIgNetworkAdapter
+    public sealed class NullPlayerNetworkAdapter : IIgNetworkAdapter
     {
         /// <summary>Shared singleton instance.</summary>
-        public static readonly NullIgNetworkAdapter Instance = new();
+        public static readonly NullPlayerNetworkAdapter Instance = new();
 
-        private NullIgNetworkAdapter() { }
+        private NullPlayerNetworkAdapter() { }
 
-        public void WriteMapClick(MapClickEventDto dto) { }
-        public void WriteSelectionChanged(SelectionChangedEventDto dto) { }
-        public void WriteMapCommandAck(MapCommandAckDto dto) { }
-        public void WriteContextMenuRequest(Guid requestId, int mapId, IReadOnlyList<int> forSelection) { }
-        public void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson) { }
-        public MapConfigDto? PollMapConfig() => null;
-        public MapCommandDto? PollMapCommand() => null;
-        public EntityLifecycleAckDto? PollEntityLifecycleAck() => null;
-        public Task<int> CreateRouteEntityAsync(long tkbRouteType, IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
-            double anchorLat, double anchorLon, double anchorAlt, int commanderEntityId, CancellationToken ct = default)
-            => Task.FromResult(0);
-        public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
+        public ICommandGateway CommandGateway => NullPlayerCommandGateway.Instance;
         public IDdsWriter<GizmoMap.Network.GizmoInteractionBatch>? GizmoInteractionWriter => null;
         public IDdsReader<GizmoMap.Network.DebugPrimitivesBatch>? DebugPrimitivesReader => null;
         public void Dispose() { }
     }
 
-    /// <summary>No-op command gateway used by <see cref="NullIgNetworkAdapter"/>.</summary>
-    internal sealed class NullIgCommandGateway : ICommandGateway
+    /// <summary>No-op command gateway used by <see cref="NullPlayerNetworkAdapter"/>.</summary>
+    internal sealed class NullPlayerCommandGateway : ICommandGateway
     {
-        public static readonly NullIgCommandGateway Instance = new();
+        public static readonly NullPlayerCommandGateway Instance = new();
 
-        private NullIgCommandGateway() { }
+        private NullPlayerCommandGateway() { }
 
         public Task<int> CreateEntityAsync(CreateEntityCommand cmd, CancellationToken ct = default)
             => Task.FromResult(0);

@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Squad.Tests
     /// P0-05: Thin integration slice that exercises the three cross-cutting concerns
     /// introduced by BATCH-20 together:
     /// <list type="bullet">
-    ///   <item>Blackboard write-through via <see cref="SquadCognitiveState.Project"/>.</item>
+    ///   <item>Squad state round-trips through its OWN component (O1 — it was a blackboard projection).</item>
     ///   <item>Danger-area sensor filling a full-capacity buffer.</item>
     ///   <item><see cref="DecisionKind.ManeuverSelect"/> having the correct numeric value.</item>
     /// </list>
@@ -21,17 +21,22 @@ namespace Fdp.Toolkit.Squad.Tests
     public unsafe class SquadPhase0IntegrationTests
     {
         [Fact]
-        public void SquadCognitiveState_WriteThroughBb()
+        public void SquadCognitiveState_RoundTripsThroughItsOwnComponent()
         {
-            // Write a sentinel value via the projection and confirm it appears in raw bb bytes.
-            Blackboard1024 bb = default;
-            ref SquadCognitiveState scs = ref SquadCognitiveState.Project(ref bb);
+            // ⭐ O1 (2026-09-20) — this used to write through SquadCognitiveState.Project(ref bb) and
+            //   confirm the bytes appeared in a raw Blackboard1024. That aliasing is exactly what O1
+            //   removed; the claim that survives is the round trip itself.
+            using var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<SquadCognitiveState>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, default(SquadCognitiveState));
+
+            ref SquadCognitiveState scs = ref repo.GetComponentRW<SquadCognitiveState>(e);
             scs.ManeuverKind   = 7;
             scs.PhaseId        = 3;
             scs.ActiveFeatureId = 0xDEAD_C0DEu;
 
-            // Re-project and read back.
-            ref SquadCognitiveState readBack = ref SquadCognitiveState.Project(ref bb);
+            ref SquadCognitiveState readBack = ref repo.GetComponentRW<SquadCognitiveState>(e);
             Assert.Equal((ushort)7,          readBack.ManeuverKind);
             Assert.Equal((ushort)3,          readBack.PhaseId);
             Assert.Equal(0xDEAD_C0DEu,       readBack.ActiveFeatureId);

@@ -212,9 +212,9 @@ namespace Fhsm.Tests.Compiler
             var data = HsmFlattener.Flatten(graph);
             
             var def = data.Transitions[0];
-            // Priority is in bits 8-11.
-            int encoded = (int)def.Flags >> 8;
-            Assert.Equal(5, encoded & 0x0F);
+            // ⭐ CE-395 — a full-byte field. ⛔ This test used to pin the writer's bits 8-11 while the kernel read 12-15;
+            //   each half of the mismatch had its own green test, which is how the bug survived.
+            Assert.Equal(5, def.Priority);
         }
 
         [Fact]
@@ -268,6 +268,39 @@ namespace Fhsm.Tests.Compiler
             Assert.NotEqual(0u, blob.Header.StructureHash);
             // ParameterHash might be hash of empty string if no actions? 
             // Or non-zero if seeds used.
+        }
+
+        // ⭐ CE-2001 — the SHAPE (StructureHash) and the MACHINE (MachineId) are two values (S8j).
+        [Fact]
+        public void CE2001_TwoMachinesOfOneShape_ShareAStructureHash_ButNotAMachineId()
+        {
+            HsmDefinitionBlob Build(string name)
+            {
+                var g = new StateMachineGraph(name);
+                var s = new StateNode("Only");
+                g.AddState(s);
+                g.RootState.AddChild(s);
+                HsmNormalizer.Normalize(g);
+                return HsmEmitter.Emit(HsmFlattener.Flatten(g));
+            }
+
+            var a = Build("MachineA");
+            var b = Build("MachineB");
+            var a2 = Build("MachineA");
+
+            Assert.Equal(a.Header.StructureHash, b.Header.StructureHash);   // the shape — hot reload's question
+            Assert.NotEqual(a.MachineId, b.MachineId);                      // the machine — every "which machine" table's
+            Assert.Equal(a.MachineId, a2.MachineId);                        // deterministic
+            Assert.NotEqual(0u, a.MachineId);
+        }
+
+        [Fact]
+        public void CE2001_AnUnnamedBlob_KeepsMachineIdEqualToItsStructureHash()
+        {
+            var blob = new HsmDefinitionBlob();
+            blob.Header.StructureHash = 0x12345678;   // hand-built, set AFTER construction: MachineId is computed
+            Assert.Equal(0u, blob.IdentityHash);
+            Assert.Equal(0x12345678u, blob.MachineId);
         }
 
         [Fact]

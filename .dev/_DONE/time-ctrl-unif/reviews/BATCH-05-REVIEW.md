@@ -65,7 +65,7 @@ All 6 phases of time-ctrl-unif workstream complete:
 - Deleted: 8 obsolete controller classes + FrameLockstepDescriptorTranslator
 - E2E test: FullCycle_Pause_Step_Resume_NoPllLoss confirms PLL warm-start and sim-time snap
 - Bugfix: SlaveSyncController stale tick baseline on Stepping->Continuous transition
-- IOS-IG-SimHost.sln: 0 build errors
+- HROT.sln: 0 build errors
 - 70 FDP time tests pass; 7/7 time integration tests pass
 ```
 

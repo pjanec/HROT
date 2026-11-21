@@ -5,7 +5,9 @@ namespace Hrot.Editor.AiShared.Tests.Selection;
 
 public sealed class EditorSelectionStoreTests
 {
-    private sealed class FakeAsset : IEditableAsset
+    /// <summary>⭐ <c>internal</c> since <c>L0</c> so <c>TheSelectionIsASetTests</c> uses the SAME fake —
+    /// ⛔ a second one would be two answers to "what is an editable asset here" (ruling 9).</summary>
+    internal sealed class FakeAsset : IEditableAsset
     {
         public Guid AssetId { get; init; } = Guid.NewGuid();
         public string Name { get; init; } = "Test";

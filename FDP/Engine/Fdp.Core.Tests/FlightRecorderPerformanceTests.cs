@@ -58,7 +58,8 @@ namespace Fdp.Tests
             public int[] Inventory { get; set; } = Array.Empty<int>();
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock FPS and elapsed thresholds")]
+        [Trait("Category", "Flaky")]
         public void RecordingPerformance_1000Entities_MeasuresFPS()
         {
             // Benchmark: Recording 1000 entities with MIXED components over 300 frames
@@ -152,7 +153,8 @@ namespace Fdp.Tests
             Assert.True(sw.ElapsedMilliseconds < 15000, $"Recording should complete in < 15s (took {sw.ElapsedMilliseconds}ms)");
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock FPS threshold")]
+        [Trait("Category", "Flaky")]
         public void PlaybackPerformance_SequentialPlayback_MeasuresFPS()
         {
             // First record a test scenario with mixed components
@@ -245,7 +247,8 @@ namespace Fdp.Tests
             Assert.True(p95 < 50, $"P95 seek time ({p95}ms) should be < 50ms");
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock latency threshold")]
+        [Trait("Category", "Flaky")]
         public void RewindPerformance_LargeJumpsBackward_MeasuresLatency()
         {
             const int entityCount = 500;

@@ -31,14 +31,11 @@ namespace Fdp.Toolkit.Commands
         /// Creates a new command client.
         /// </summary>
         /// <param name="participant">DDS Participant</param>
-        /// <param name="requestTopic">Topic name for requests</param>
-        /// <param name="ackTopic">Topic name for acks</param>
+        // ⭐ AQ107 A — no topic-name parameters: both names are DERIVED from <typeparamref name="TRequest"/> / <typeparamref name="TAck"/> (DdsTopicName.Of).
         /// <param name="requestIdExtractor">Function to extract the correlation ID from a request object</param>
         /// <param name="ackIdExtractor">Function to extract the correlation ID from an ack object</param>
         public DdsCommandClient(
             DdsParticipant participant,
-            string requestTopic,
-            string ackTopic,
             Func<TRequest, Guid> requestIdExtractor,
             Func<TAck, Guid> ackIdExtractor)
         {
@@ -49,8 +46,8 @@ namespace Fdp.Toolkit.Commands
 
             // Create Writer and Reader
             // Note: CycloneDDS.NET uses DdsWriter/DdsReader directly or via participant.
-            _writer = new DdsWriter<TRequest>(participant, requestTopic);
-            _reader = new DdsReader<TAck>(participant, ackTopic);
+            _writer = new DdsWriter<TRequest>(participant);
+            _reader = new DdsReader<TAck>(participant);
 
             // Start listener on a dedicated long-running thread so AckListenerLoop
             // is immune to thread-pool saturation that can occur during parallel test runs.

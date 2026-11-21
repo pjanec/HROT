@@ -67,8 +67,8 @@ The IOS uses this to display entities as "pending" (locked from operator interac
 
 ```powershell
 # From the workspace root:
-dotnet restore IOS-IG-SimHost.sln
-dotnet build IOS-IG-SimHost.sln
+dotnet restore HROT.sln
+dotnet build HROT.sln
 ```
 
 Run tests for the affected projects:

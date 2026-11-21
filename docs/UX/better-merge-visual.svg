@@ -1,0 +1,102 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='680' viewBox='0 0 1240 680'>
+<rect x='0' y='0' width='1240' height='680' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The better merge — what the merged view adds (DESIGN_Review_Perspective.md §6.11)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
+<text x='20' y='74' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>① Details — a component's value on EVERY node (I5): the owner's and each replica's</text>
+<line x1='538.8' y1='70' x2='600' y2='70' stroke='#4A4A55' stroke-width='1'/>
+<rect x='20' y='86' width='580' height='250' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='86' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Bravo 2-3</text>
+<path d='M28 133 L28 116 Q28 112 32 112 L91.4 112 Q95.4 112 95.4 116 L95.4 133 Z' fill='#24242C'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#5AA9FF' fill-opacity='1' transform='translate(36,127.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='55' y='127' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Unit</text>
+<path d='M97.4 133 L97.4 116 Q97.4 112 101.4 112 L207.8 112 Q211.8 112 211.8 116 L211.8 133 Z' fill='#3A3A48'/>
+<rect x='99.4' y='112' width='110.4' height='2' fill='#3369AD' rx='0' opacity='1'/>
+<path d='M393 447Q380 450 368 444Q357 438 353 425L225 -23Q222 -36 228 -48Q234 -59 247 -63Q260 -66 272 -60Q283 -54 287 -41L415 407Q418 420 412 432Q406 443 393 447ZM473 327Q464 317 464 304Q464 291 473 281L563 192L473 103Q464 93 464 80Q464 67 473 57Q483 48 496 48Q509 48 519 57L631 169Q640 179 640 192Q640 205 631 215L519 327Q509 336 496 336Q483 336 473 327ZM167 327Q157 336 144 336Q131 336 121 327L9 215Q0 205 0 192Q0 179 9 169L121 57Q131 48 144 48Q157 48 167 57Q176 67 176 80Q176 93 167 103L77 192L167 281Q176 291 176 304Q176 317 167 327Z' fill='#A0A0AA' fill-opacity='1' transform='translate(105.4,127.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='124.4' y='127' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Components</text>
+<rect x='28' y='133' width='564' height='1.5' fill='#3369AD' rx='0' opacity='1'/>
+<rect x='28' y='142' width='564' height='21' fill='#2B2F38' rx='2' opacity='1'/>
+<path d='M34 149 l10 0 -5 6 z' fill='#FFFFFF'/>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#3EC6B0' fill-opacity='1' transform='translate(50,157.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='69' y='157' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Position</text>
+<text x='38' y='184' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>value</text>
+<rect x='158' y='170' width='420' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='163' y='184' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>668.2 · 427.9 m</text>
+<rect x='38' y='198' width='544' height='21' fill='#2B2F38' rx='2' opacity='1'/>
+<path d='M44 205 l10 0 -5 6 z' fill='#FFFFFF'/>
+<path d='M208 368Q209 388 222 402Q236 415 256 416H320Q340 415 354 402Q367 388 368 368V304Q367 284 354 270Q340 257 320 256H312V216H464Q488 215 504 200Q519 184 520 160V128H528Q548 127 562 114Q575 100 576 80V16Q575 -4 562 -18Q548 -31 528 -32H464Q444 -31 430 -18Q417 -4 416 16V80Q417 100 430 114Q444 127 464 128H472V160Q471 167 464 168H312V128H320Q340 127 354 114Q367 100 368 80V16Q367 -4 354 -18Q340 -31 320 -32H256Q236 -31 222 -18Q209 -4 208 16V80Q209 100 222 114Q236 127 256 128H264V168H112Q105 167 104 160V128H112Q132 127 146 114Q159 100 160 80V16Q159 -4 146 -18Q132 -31 112 -32H48Q28 -31 14 -18Q1 -4 0 16V80Q1 100 14 114Q28 127 48 128H56V160Q57 184 72 200Q88 215 112 216H264V256H256Q236 257 222 270Q209 284 208 304V368Z' fill='#3EC6B0' fill-opacity='1' transform='translate(60,213.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='79' y='213' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>By node</text>
+<path d='M309 342Q327 354 328 376Q328 393 316 404Q305 416 288 416Q271 416 260 404Q248 393 248 376Q249 353 267 342L210 227Q202 214 188 210Q174 207 161 217L72 288Q80 298 80 312Q80 329 68 340Q57 352 40 352Q23 352 12 340Q0 329 0 312Q0 295 12 284Q23 272 40 272Q40 272 40 272Q41 272 41 272L86 21Q91 -3 108 -17Q126 -32 149 -32H427Q450 -32 468 -17Q485 -3 490 21L535 272Q535 272 536 272Q536 272 536 272Q553 272 564 284Q576 295 576 312Q576 329 564 340Q553 352 536 352Q519 352 508 340Q496 329 496 312Q496 298 504 288L415 217Q402 207 388 210Q374 214 366 227L309 342Z' fill='#F2C033' fill-opacity='1' transform='translate(50,238.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='70' y='240' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>CGF-1 (Brain)</text>
+<text x='280' y='240' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>668.2 · 427.9</text>
+<text x='420' y='240' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>owner</text>
+<text x='70' y='264' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SimHost-1 (Muscle)</text>
+<text x='280' y='264' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>668.2 · 427.9</text>
+<text x='420' y='264' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>—</text>
+<text x='70' y='288' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>IG-1 (Map2D)</text>
+<text x='280' y='288' fill='#F2C033' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>667.1 · 427.4</text>
+<text x='420' y='288' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1.2 m</text>
+<text x='70' y='312' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Player-1</text>
+<text x='280' y='312' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>668.2 · 427.9</text>
+<text x='420' y='312' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>—</text>
+<text x='20' y='352' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the crown = the owner (from the recorded ownership, I8)</text>
+<text x='20' y='366' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>amber = differs from the owner beyond the existing diff ε (0.001)</text>
+<text x='20' y='380' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>shown only in the merged view, for the selected unit's components</text>
+<text x='620' y='74' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>③ the Source menu — local entities from every node (I7)</text>
+<line x1='971.7' y1='70' x2='1220' y2='70' stroke='#4A4A55' stroke-width='1'/>
+<rect x='620' y='86' width='300' height='22' fill='#1D2F48' rx='3' stroke='#3EC6B0' stroke-width='1' opacity='1'/>
+<path d='M208 368Q209 388 222 402Q236 415 256 416H320Q340 415 354 402Q367 388 368 368V304Q367 284 354 270Q340 257 320 256H312V216H464Q488 215 504 200Q519 184 520 160V128H528Q548 127 562 114Q575 100 576 80V16Q575 -4 562 -18Q548 -31 528 -32H464Q444 -31 430 -18Q417 -4 416 16V80Q417 100 430 114Q444 127 464 128H472V160Q471 167 464 168H312V128H320Q340 127 354 114Q367 100 368 80V16Q367 -4 354 -18Q340 -31 320 -32H256Q236 -31 222 -18Q209 -4 208 16V80Q209 100 222 114Q236 127 256 128H264V168H112Q105 167 104 160V128H112Q132 127 146 114Q159 100 160 80V16Q159 -4 146 -18Q132 -31 112 -32H48Q28 -31 14 -18Q1 -4 0 16V80Q1 100 14 114Q28 127 48 128H56V160Q57 184 72 200Q88 215 112 216H264V256H256Q236 257 222 270Q209 284 208 304V368Z' fill='#3EC6B0' fill-opacity='1' transform='translate(627,100.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='646' y='101' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Merged · 4 participants</text>
+<text x='908' y='101' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>▾</text>
+<rect x='620' y='112' width='340' height='127' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<text x='630' y='131' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Source of the world</text>
+<path d='M208 368Q209 388 222 402Q236 415 256 416H320Q340 415 354 402Q367 388 368 368V304Q367 284 354 270Q340 257 320 256H312V216H464Q488 215 504 200Q519 184 520 160V128H528Q548 127 562 114Q575 100 576 80V16Q575 -4 562 -18Q548 -31 528 -32H464Q444 -31 430 -18Q417 -4 416 16V80Q417 100 430 114Q444 127 464 128H472V160Q471 167 464 168H312V128H320Q340 127 354 114Q367 100 368 80V16Q367 -4 354 -18Q340 -31 320 -32H256Q236 -31 222 -18Q209 -4 208 16V80Q209 100 222 114Q236 127 256 128H264V168H112Q105 167 104 160V128H112Q132 127 146 114Q159 100 160 80V16Q159 -4 146 -18Q132 -31 112 -32H48Q28 -31 14 -18Q1 -4 0 16V80Q1 100 14 114Q28 127 48 128H56V160Q57 184 72 200Q88 215 112 216H264V256H256Q236 257 222 270Q209 284 208 304V368Z' fill='#3EC6B0' fill-opacity='1' transform='translate(630,153.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='650' y='153' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Merged — every part</text>
+<path d='M320 448Q334 448 343 439Q352 430 352 416V352H472Q503 351 523 331Q543 311 544 280V8Q543 -23 523 -43Q503 -63 472 -64H168Q137 -63 117 -43Q97 -23 96 8V280Q97 311 117 331Q137 351 168 352H288V416Q288 430 297 439Q306 448 320 448ZM208 64Q193 63 192 48Q193 33 208 32H240Q255 33 256 48Q255 63 240 64H208ZM304 64Q289 63 288 48Q289 33 304 32H336Q351 33 352 48Q351 63 336 64H304ZM400 64Q385 63 384 48Q385 33 400 32H432Q447 33 448 48Q447 63 432 64H400ZM264 192Q263 215 244 227Q224 237 204 227Q185 215 184 192Q185 169 204 157Q224 147 244 157Q263 169 264 192ZM416 152Q439 153 451 172Q461 192 451 212Q439 231 416 232Q393 231 381 212Q371 192 381 172Q393 153 416 152ZM48 224H64H48H64V32H48Q28 33 14 46Q1 60 0 80V176Q1 196 14 210Q28 223 48 224ZM592 224Q612 223 626 210Q639 196 640 176V80Q639 60 626 46Q612 33 592 32H576V224H592Z' fill='#5AA9FF' fill-opacity='1' transform='translate(630,175.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='650' y='175' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>CGF-1's part</text>
+<path d='M235 442Q256 450 278 442L470 374Q489 366 500 350Q512 334 512 313V71Q512 50 500 34Q489 18 470 10L278 -58Q256 -66 234 -58L42 10Q23 17 12 34Q0 50 0 71V313Q0 334 12 350Q23 366 43 374L235 442ZM256 382 82 320 256 382 82 320 256 258 430 320 256 382ZM288 13 448 70 288 13 448 70V258L288 201V13Z' fill='#F2C033' fill-opacity='1' transform='translate(630,197.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='650' y='197' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SimHost-1's part</text>
+<line x1='626' y1='208' x2='954' y2='208' stroke='#4A4A55' stroke-width='1'/>
+<text x='630' y='228' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Local entities shown from (no network id)</text>
+<rect x='620' y='235' width='340' height='136' fill='#141418' rx='0' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<rect x='632' y='241' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M636 251 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='660' y='255' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>CGF-1 — markers</text>
+<rect x='632' y='265' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<path d='M636 275 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='660' y='279' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SimHost-1 — effects</text>
+<rect x='632' y='289' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='660' y='303' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>IG-1</text>
+<rect x='632' y='313' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='660' y='327' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Player-1</text>
+<rect x='620' y='339' width='340' height='1' fill='#4A4A55' rx='0' opacity='1'/>
+<text x='632' y='359' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Offsets…  (expert — a manual slider per node, default 0)</text>
+<text x='620' y='389' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a local entity is tagged with its node in Details ("local to SimHost-1")</text>
+<text x='620' y='403' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Offsets… opens the Federation window (debug): each node's measured latency, overridable</text>
+<text x='20' y='448' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>② the Event Timeline gains one lane for the selected unit (I5) · ④ ▶ plays in Merged (I3)</text>
+<line x1='567.8000000000001' y1='444' x2='1220' y2='444' stroke='#4A4A55' stroke-width='1'/>
+<rect x='20' y='460' width='1200' height='130' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='460' width='1200' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='474' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Event Timeline</text>
+<rect x='1070' y='462' width='24' height='16' fill='#23415F' rx='3' opacity='1'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(1077,473.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='1102' y='474' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>▶ enabled in Merged</text>
+<text x='32' y='503' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Shot</text>
+<rect x='220' y='492' width='986' height='18' fill='#16161B' rx='0' opacity='1'/>
+<circle cx='417.20000000000005' cy='501' r='4' fill='#F2C033'/>
+<circle cx='525.6600000000001' cy='501' r='4' fill='#F2C033'/>
+<circle cx='831.32' cy='501' r='4' fill='#F2C033'/>
+<text x='32' y='533' fill='#F29B38' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hit</text>
+<rect x='220' y='522' width='986' height='18' fill='#16161B' rx='0' opacity='1'/>
+<circle cx='545.38' cy='531' r='4' fill='#F29B38'/>
+<circle cx='841.18' cy='531' r='4' fill='#F29B38'/>
+<text x='32' y='563' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Replica differs · Bravo 2-3</text>
+<rect x='220' y='552' width='986' height='18' fill='#16161B' rx='0' opacity='1'/>
+<rect x='611.4000000000001' y='554' width='6' height='14' fill='#F2C033' rx='1' opacity='1'/>
+<rect x='621.26' y='554' width='6' height='14' fill='#F2C033' rx='1' opacity='1'/>
+<rect x='631.12' y='554' width='6' height='14' fill='#F2C033' rx='1' opacity='1'/>
+<rect x='917.06' y='554' width='6' height='14' fill='#F2C033' rx='1' opacity='1'/>
+<line x1='663.7' y1='484' x2='663.7' y2='584' stroke='#E65555' stroke-width='1.5'/>
+<text x='20' y='606' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the lane marks frames where any replica of the selected unit differs from its owner (the same ε) · click = seek there</text>
+<text x='20' y='620' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>④ ▶ enabled once the merge is incremental (S4, 0 B steady — R-2084); until then ui's A-9 greys it with the reason</text>
+</svg>

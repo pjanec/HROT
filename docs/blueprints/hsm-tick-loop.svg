@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 430" width="940" height="430" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="940" height="430" fill="#f7f8fa"/>
+  <text x="20" y="30" font-size="17" font-weight="600" fill="#1a1d21">One tick of one unit — where your actions actually fire</text>
+  <text x="20" y="52" font-size="13" fill="#5a6270">FastHSM `HsmKernelCore.ProcessInstancePhase`. Each unit sits in one phase; the phase advances at most one step per tick.</text>
+
+  <!-- IDLE -->
+  <rect x="24" y="78" width="196" height="150" rx="7" fill="#ffffff" stroke="#8a93a3" stroke-width="1.6"/>
+  <rect x="24" y="78" width="196" height="28" rx="7" fill="#5b6474"/>
+  <rect x="24" y="96" width="196" height="10" fill="#5b6474"/>
+  <text x="122" y="97" font-size="14" font-weight="600" fill="#ffffff" text-anchor="middle">1 · Idle</text>
+  <text x="38" y="128" font-size="12.5" fill="#1a1d21">Timers tick down.</text>
+  <text x="38" y="148" font-size="12.5" fill="#1a1d21">Expired timer → posts</text>
+  <text x="38" y="164" font-size="12.5" fill="#1a1d21">an event to the queue.</text>
+  <text x="38" y="192" font-size="12.5" font-weight="600" fill="#a33a1f">Queue empty?</text>
+  <text x="38" y="209" font-size="12.5" font-weight="600" fill="#a33a1f">Stay here. Forever.</text>
+
+  <!-- ENTRY -->
+  <rect x="256" y="78" width="196" height="150" rx="7" fill="#ffffff" stroke="#8a93a3" stroke-width="1.6"/>
+  <rect x="256" y="78" width="196" height="28" rx="7" fill="#5b6474"/>
+  <rect x="256" y="96" width="196" height="10" fill="#5b6474"/>
+  <text x="354" y="97" font-size="14" font-weight="600" fill="#ffffff" text-anchor="middle">2 · Entry</text>
+  <text x="270" y="128" font-size="12.5" fill="#1a1d21">Dequeue one event.</text>
+  <text x="270" y="152" font-size="12.5" fill="#5a6270">(First ever tick instead</text>
+  <text x="270" y="168" font-size="12.5" fill="#5a6270">runs the initial-state</text>
+  <text x="270" y="184" font-size="12.5" fill="#5a6270">chain, firing OnEntry</text>
+  <text x="270" y="200" font-size="12.5" fill="#5a6270">down to the first leaf.)</text>
+
+  <!-- RTC -->
+  <rect x="488" y="78" width="196" height="150" rx="7" fill="#ffffff" stroke="#2f6f4f" stroke-width="2.2"/>
+  <rect x="488" y="78" width="196" height="28" rx="7" fill="#2f6f4f"/>
+  <rect x="488" y="96" width="196" height="10" fill="#2f6f4f"/>
+  <text x="586" y="97" font-size="14" font-weight="600" fill="#ffffff" text-anchor="middle">3 · RTC</text>
+  <text x="502" y="126" font-size="12.5" fill="#1a1d21">Match the event to a</text>
+  <text x="502" y="142" font-size="12.5" fill="#1a1d21">transition, then run</text>
+  <text x="502" y="158" font-size="12.5" font-weight="600" fill="#2f6f4f">its guard.</text>
+  <text x="502" y="181" font-size="12.5" fill="#1a1d21">If it passes:</text>
+  <text x="502" y="198" font-size="12.5" fill="#1a1d21">OnExit ↑ · effect ·</text>
+  <text x="502" y="214" font-size="12.5" fill="#1a1d21">OnEntry ↓</text>
+
+  <!-- ACTIVITY -->
+  <rect x="720" y="78" width="196" height="150" rx="7" fill="#ffffff" stroke="#8a93a3" stroke-width="1.6"/>
+  <rect x="720" y="78" width="196" height="28" rx="7" fill="#5b6474"/>
+  <rect x="720" y="96" width="196" height="10" fill="#5b6474"/>
+  <text x="818" y="97" font-size="14" font-weight="600" fill="#ffffff" text-anchor="middle">4 · Activity</text>
+  <text x="734" y="128" font-size="12.5" fill="#1a1d21">Every active leaf fires</text>
+  <text x="734" y="144" font-size="12.5" fill="#1a1d21">its Activity action.</text>
+  <text x="734" y="172" font-size="12.5" fill="#5a6270">This is your per-frame</text>
+  <text x="734" y="188" font-size="12.5" fill="#5a6270">work: steer, aim, scan.</text>
+
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="3.4" orient="auto">
+      <path d="M0,0 L8,3.4 L0,6.8 z" fill="#5b6474"/>
+    </marker>
+  </defs>
+  <line x1="222" y1="153" x2="250" y2="153" stroke="#5b6474" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="454" y1="153" x2="482" y2="153" stroke="#5b6474" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="686" y1="153" x2="714" y2="153" stroke="#5b6474" stroke-width="2" marker-end="url(#ar)"/>
+  <path d="M818,230 L818,262 L122,262 L122,232" fill="none" stroke="#5b6474" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="470" y="279" font-size="12" fill="#5a6270" text-anchor="middle">next tick</text>
+
+  <!-- the punchline -->
+  <rect x="24" y="300" width="892" height="106" rx="7" fill="#fdf3ec" stroke="#c8703f" stroke-width="1.6"/>
+  <text x="42" y="326" font-size="14" font-weight="600" fill="#8f3f14">A guard is a filter on an event — never a poller.</text>
+  <text x="42" y="350" font-size="12.5" fill="#3d2a1e">Nothing in the queue means the unit never leaves Idle, so RTC never runs and no guard is ever evaluated. A transition</text>
+  <text x="42" y="368" font-size="12.5" fill="#3d2a1e">like “flee when health &lt; 20%” therefore does NOT fire on its own. Something outside the machine must post an event.</text>
+  <text x="42" y="392" font-size="12.5" fill="#3d2a1e">The usual fix is one periodic <tspan font-family="Consolas, monospace" font-weight="600">Tick</tspan> event posted every frame, with the real condition living in the guard.</text>
+</svg>

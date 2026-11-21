@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Presentation.Abstractions;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Presentation.Panels;
 
@@ -333,7 +334,7 @@ public sealed class WinFormsFileDialogService : IFileDialogService
         try
         {
             string json = File.ReadAllText(_settingsFilePath, Encoding.UTF8);
-            FileDialogState? state = JsonSerializer.Deserialize<FileDialogState>(json);
+            FileDialogState? state = JsonSerializer.Deserialize<FileDialogState>(json, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (state == null)
                 return;
 
@@ -365,10 +366,7 @@ public sealed class WinFormsFileDialogService : IFileDialogService
                 SaveDirectories = new Dictionary<string, string>(_saveDirectories)
             };
 
-            string json = JsonSerializer.Serialize(state, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            string json = JsonSerializer.Serialize(state, FdpJsonOptionsRegistry.Indented);
 
             lock (_stateFileLock)
             {

@@ -40,6 +40,13 @@ namespace Fdp.ModuleHost.Time
         /// Initialize controller with specific time state.
         /// </summary>
         void SeedState(GlobalTime state);
+
+        /// <summary>
+        /// ⭐ CE-3293 (R-3036 rule 7) — bumped by every time DISCONTINUITY this clock makes (<c>SnapAndPause</c>: a load, a
+        /// preview Stop, a seek). The kernel restarts the event history and every step window when it changes. A clock that never
+        /// snaps keeps 0.
+        /// </summary>
+        long TimelineEpoch => 0;
     }
     
     /// <summary>

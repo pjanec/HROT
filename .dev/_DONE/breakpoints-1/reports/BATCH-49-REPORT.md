@@ -77,7 +77,7 @@ Extra tests added (not required, free coverage):
 ## Build Output
 
 ```
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 
   0 Error(s)
   4 Warning(s) (all pre-existing CS0618 obsolete IBlueprintTimeController warnings)

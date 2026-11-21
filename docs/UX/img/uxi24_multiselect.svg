@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="470" viewBox="0 0 880 470" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    .cap  { font-size: 13px; font-weight: 600; fill: #111; }
+    .sub  { font-size: 11px; fill: #666; }
+    .t    { font-size: 11.5px; fill: #222; }
+    .tb   { font-size: 11.5px; fill: #222; font-weight: 600; }
+    .ts   { font-size: 10.5px; fill: #666; }
+    .ok   { fill: #e8f2e6; stroke: #4b8b3b; stroke-width: 1.2; }
+    .dead { fill: #f2f2f2; stroke: #aaa; stroke-width: 1.2; stroke-dasharray: 4 3; }
+    .bad  { fill: #fdeaea; stroke: #c62828; stroke-width: 1.2; }
+    .badt { font-size: 10.5px; font-weight: 600; fill: #c62828; }
+    .okt  { font-size: 10.5px; font-weight: 600; fill: #4b8b3b; }
+    .arr  { stroke: #4a5a6a; stroke-width: 1.6; fill: none; }
+    .arrx { stroke: #c62828; stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 z" fill="#4a5a6a"/>
+    </marker>
+    <marker id="ax" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 z" fill="#c62828"/>
+    </marker>
+  </defs>
+
+  <text x="16" y="20" class="cap">Multi-select: four stores, and four complete mechanisms nothing reaches</text>
+  <text x="16" y="37" class="sub">green = works today · red = built but unreachable · grey dashed = declared, zero readers</text>
+
+  <!-- ── column headers ── -->
+  <text x="16"  y="66" class="tb">INPUT</text>
+  <text x="300" y="66" class="tb">STORE</text>
+  <text x="622" y="66" class="tb">MENU / EXECUTION</text>
+
+  <!-- ══ inspector row ══ -->
+  <rect x="16" y="78" width="236" height="70" class="ok"/>
+  <text x="26" y="96" class="tb">Inspector list</text>
+  <text x="26" y="112" class="ts">HandleRowClick(list, i, ctrl, shift)</text>
+  <text x="26" y="126" class="ts">ctrl-toggle · shift-range · Select All</text>
+  <text x="26" y="141" class="okt">✔ complete, unit-tested</text>
+
+  <rect x="300" y="78" width="230" height="70" class="bad"/>
+  <text x="310" y="96" class="tb">_selectedEntities</text>
+  <text x="310" y="112" class="ts">HashSet&lt;Entity&gt;, private to the panel</text>
+  <text x="310" y="127" class="badt">store #3 — invisible to every</text>
+  <text x="310" y="141" class="badt">other surface</text>
+
+  <rect x="578" y="78" width="286" height="70" class="ok"/>
+  <text x="588" y="96" class="tb">PopulateMenu(IReadOnlyCollection…)</text>
+  <text x="588" y="112" class="ts">panel routes here when selCount &gt; 1</text>
+  <text x="588" y="127" class="badt">…but the only overrides are empty,</text>
+  <text x="588" y="141" class="badt">so the multi menu is blank</text>
+
+  <line x1="252" y1="113" x2="296" y2="113" class="arr" marker-end="url(#a)"/>
+  <line x1="530" y1="113" x2="574" y2="113" class="arr" marker-end="url(#a)"/>
+
+  <!-- chain-to-map, gated -->
+  <path d="M415,148 L415,175 L415,196" class="arrx" marker-end="url(#ax)"/>
+  <text x="424" y="170" class="badt">only when exactly 1 selected</text>
+
+  <!-- ══ map row ══ -->
+  <rect x="16" y="200" width="236" height="86" class="bad"/>
+  <text x="26" y="218" class="tb">Map click</text>
+  <text x="26" y="234" class="ts">SelectionInteractionSystem :82</text>
+  <text x="26" y="249" class="badt">TODO(P2) — always clear-then-select-one</text>
+  <text x="26" y="265" class="ts">rubber-band is the only route to N</text>
+  <text x="26" y="280" class="badt">…and it never notifies the object store</text>
+
+  <rect x="300" y="200" width="230" height="86" class="ok"/>
+  <text x="310" y="218" class="tb">SelectionState component</text>
+  <text x="310" y="234" class="ts">IsSelected + IsPrimarySelection</text>
+  <text x="310" y="250" class="okt">✔ already models many + one primary</text>
+  <text x="310" y="271" class="ts">store #1 — the intended truth</text>
+
+  <rect x="578" y="200" width="286" height="86" class="bad"/>
+  <text x="588" y="218" class="tb">ContextMenuProjectorGizmo</text>
+  <text x="588" y="234" class="ts">runs per entity, every frame</text>
+  <text x="588" y="250" class="badt">the menu is decided BEFORE the click,</text>
+  <text x="588" y="265" class="badt">from one entity — selection-blind</text>
+  <text x="588" y="281" class="ts">⇒ no place to intersect</text>
+
+  <line x1="252" y1="240" x2="296" y2="240" class="arr" marker-end="url(#a)"/>
+  <line x1="530" y1="240" x2="574" y2="240" class="arr" marker-end="url(#a)"/>
+
+  <!-- ══ object store row ══ -->
+  <rect x="300" y="304" width="230" height="76" class="bad"/>
+  <text x="310" y="322" class="tb">ISelectionState</text>
+  <text x="310" y="338" class="ts">store #2 — the shared interface</text>
+  <text x="310" y="354" class="badt">only mutator is PrimarySelected,</text>
+  <text x="310" y="369" class="badt">which collapses to ONE. No Add().</text>
+
+  <rect x="578" y="304" width="286" height="76" class="bad"/>
+  <text x="588" y="322" class="tb">"Mark Target for N Units…"</text>
+  <text x="588" y="338" class="ts">reads _selectionState.SelectedEntities</text>
+  <text x="588" y="354" class="badt">N is always 0 or 1 — and the item is</text>
+  <text x="588" y="369" class="badt">hidden the moment selCount &gt; 1</text>
+
+  <line x1="530" y1="342" x2="574" y2="342" class="arr" marker-end="url(#a)"/>
+  <path d="M415,286 L415,300" class="arrx" marker-end="url(#ax)"/>
+
+  <!-- ══ the four dead seams ══ -->
+  <rect x="16" y="304" width="236" height="76" class="dead"/>
+  <text x="26" y="322" class="tb">The channel already exists</text>
+  <text x="26" y="338" class="ts">byte stateFlags — bits 1-6 free,</text>
+  <text x="26" y="352" class="ts">threaded to both publishers,</text>
+  <text x="26" y="369" class="badt">documented as "always 0" for clicks</text>
+
+  <line x1="134" y1="304" x2="134" y2="290" class="arrx" marker-end="url(#ax)"/>
+
+  <!-- footer strip -->
+  <rect x="16" y="398" width="848" height="56" class="dead"/>
+  <text x="26" y="416" class="tb">Also declared, also unread</text>
+  <text x="26" y="433" class="ts">Vis2DInputMap.MultiSelectMod = LeftShift / BoxSelectMod = LeftControl — zero readers, and the type hangs off two owners</text>
+  <text x="26" y="448" class="ts">PushContextActions(mapId, forSelection: IReadOnlyList&lt;int&gt;, json) — fed the whole id list, while the menu beside it is built from [0]</text>
+</svg>

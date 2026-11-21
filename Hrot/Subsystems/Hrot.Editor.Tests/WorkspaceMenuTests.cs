@@ -1,3 +1,4 @@
+using Hrot.Common;
 using Fdp.Toolkit.DER;
 using Hrot.Editor;
 using Hrot.Editor.AiShared;
@@ -23,20 +24,15 @@ public sealed class WorkspaceMenuTests
         public void Update() { }
         public void NewScenario() { }
         public void SaveScenario(string filePath) { }
-        public void LoadScenario(string filePath) { }
         public void LoadScenarioByName(string scenarioName) { }
         public void SaveCurrentScenario() { }
         public void SaveScenarioAs(string scenarioName) { }
         public IReadOnlyList<string> AvailableScenarios => Array.Empty<string>();
         public void ActivateTool(EditorTool tool) { }
-        public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents) { }
-        public IDerRepo View => null!;
-        public Task SwitchToExternalAsync() => Task.CompletedTask;
-        public Task SwitchToInternalAsync() => Task.CompletedTask;
-        public SimHostMode CurrentMode => SimHostMode.Internal;
-        public void CenterOnEntity(long entityId) { }
-        public void SelectEntity(long entityId) { }
-        public void OpenRenameDialog(long entityId) { }
+        public void CommitPropertyEdit(int networkId, IReadOnlyList<object> updatedComponents) { }
+        public void CenterOnEntity(int entityId) { }
+        public void SelectEntity(int entityId) { }
+        public void OpenRenameDialog(int entityId) { }
         public void RebuildAndReloadAI() { }
         public bool IsScenarioDegraded => false;
         public IReadOnlyList<Fdp.Core.Serialization.Migrations.SidecarFileInfo> GetMigrationSidecarsForCurrentScenario()

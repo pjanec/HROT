@@ -68,10 +68,10 @@ dotnet build FDP/FDP.sln --no-restore
 dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj
 
 # Full solution build — required before report
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 
 # Full solution tests — required before report
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 ### Known pre-existing failure
@@ -491,7 +491,7 @@ This batch is DONE when:
 - [ ] `ComponentEditWindow.cs` created, all CE08 tests pass
 - [ ] All pre-existing tests still pass (minus the known failure)
 - [ ] `dotnet build FDP/FDP.sln --no-restore` exits with 0 errors
-- [ ] `dotnet test IOS-IG-SimHost.sln` exits with 0 new failures
+- [ ] `dotnet test HROT.sln` exits with 0 new failures
 - [ ] Report submitted
 
 ---

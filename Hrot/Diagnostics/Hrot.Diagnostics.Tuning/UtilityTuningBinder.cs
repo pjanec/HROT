@@ -45,7 +45,7 @@ namespace Hrot.Diagnostics.Tuning
                 {
                     var old = option.Considerations[ci];
                     option.Considerations[ci] = new UtilityConsideration(
-                        old.InputId, old.Context, v, old.Curve, old.Params);
+                        old.InputId, old.Context, v, old.Curve, old.Params, old.Flags);
                 },
             });
 
@@ -66,7 +66,7 @@ namespace Hrot.Diagnostics.Tuning
                     option.Considerations[ci] = new UtilityConsideration(
                         old.InputId, old.Context, old.Weight,
                         new ResponseCurve(c.Kind, v, c.Exponent, c.XShift),
-                        old.Params);
+                        old.Params, old.Flags);
                 },
             });
 
@@ -87,7 +87,7 @@ namespace Hrot.Diagnostics.Tuning
                     option.Considerations[ci] = new UtilityConsideration(
                         old.InputId, old.Context, old.Weight,
                         new ResponseCurve(c.Kind, c.Slope, v, c.XShift),
-                        old.Params);
+                        old.Params, old.Flags);
                 },
             });
 
@@ -108,7 +108,7 @@ namespace Hrot.Diagnostics.Tuning
                     option.Considerations[ci] = new UtilityConsideration(
                         old.InputId, old.Context, old.Weight,
                         new ResponseCurve(c.Kind, c.Slope, c.Exponent, v),
-                        old.Params);
+                        old.Params, old.Flags);
                 },
             });
 
@@ -125,7 +125,7 @@ namespace Hrot.Diagnostics.Tuning
                     option.Considerations[ci] = new UtilityConsideration(
                         old.InputId, old.Context, old.Weight,
                         uc.ToResponseCurve(),
-                        old.Params);
+                        old.Params, old.Flags);
                 },
             });
         }

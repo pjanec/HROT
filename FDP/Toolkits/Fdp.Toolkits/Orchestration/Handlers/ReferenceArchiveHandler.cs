@@ -10,12 +10,15 @@ namespace Fdp.Toolkit.Orchestration.Handlers;
 /// <summary>
 /// Payload for <see cref="ReferenceArchiveHandler"/> commands.
 /// </summary>
-public record struct ArchiveHandlerPayload(Guid ExerciseId);
+public record struct ArchiveHandlerPayload(ExerciseId ExerciseId);
 
 /// <summary>
-/// Result published by <see cref="ReferenceArchiveHandler"/> after a successful archive.
+/// Result published by a <see cref="NodeOpType.SerializeLocal"/> handler after writing its local file(s).
+/// <para>⭐ <paramref name="DocType"/> (CE-277(c1)) carries the slice's <c>$meta.docType</c> so the
+/// orchestrator can classify it after the pull — a compatible scenario slice is merged, a foreign one
+/// (e.g. ExCon's) is routed verbatim. It is <c>null</c> for the <c>.fdp</c> archive path, which is not merged.</para>
 /// </summary>
-public record struct FileManifestResult(string SourceUnc, string RelativeDest);
+public record struct FileManifestResult(string SourceUnc, string RelativeDest, string? DocType = null);
 
 /// <summary>
 /// Node-side archive handler (CGF1-S0505).
@@ -30,19 +33,30 @@ public record struct FileManifestResult(string SourceUnc, string RelativeDest);
 public sealed class ReferenceArchiveHandler : IClusterStateHandler
 {
     private readonly string _localTempRoot;
-    private readonly int    _nodeId;
+    private readonly NodeId    _nodeId;
 
     public ReferenceArchiveHandler(
         string                   localTempRoot,
         int                      nodeId)
     {
         _localTempRoot = localTempRoot ?? throw new ArgumentNullException(nameof(localTempRoot));
-        _nodeId        = nodeId;
+        _nodeId        = (Fdp.Core.NodeId)(nodeId);
     }
 
     /// <inheritdoc />
     public bool CanHandle(NodeOpType operation)
         => operation == NodeOpType.SerializeLocal;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// ⭐ CE-279 Layer C — <c>SerializeLocal</c> is SHARED with the scenario-JSON save. Selection is payload-aware:
+    /// this handler claims ONLY an <see cref="ArchiveHandlerPayload"/> (the <c>.fdp</c> archive), so it never
+    /// shadows a scenario save handler on a <see cref="ScenarioSaveHandlerPayload"/> fan-out, regardless of
+    /// registration order. ⛔ The default operation-only overload let the first-registered handler win regardless
+    /// of payload — measured: it swallowed every scenario slice.
+    /// </remarks>
+    public bool CanHandle(ExecuteNodeOpIntent intent)
+        => intent.Operation == NodeOpType.SerializeLocal && intent.DomainPayload is ArchiveHandlerPayload;
 
     /// <inheritdoc />
     /// <remarks>
@@ -79,8 +93,37 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
                 RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, fileName + ".meta.json")));
         }
 
+        // ⭐ CE-4058 ③ — the recording's timeline sidecar (its event index) is kept with it, so a kept film recording opens indexed
+        var timeline = Fdp.Toolkit.ReplayBrowser.Timeline.TimelineSidecar.PathFor(file);
+        if (File.Exists(timeline))
+        {
+            manifest.Add(new FileManifestResult(
+                SourceUnc:    timeline,
+                RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, Path.GetFileName(timeline))));
+        }
+
+        // ⭐ CE-1371 — the director's TAKES saved beside the recording before it was kept (<scenario>/takes/<take>.take.json, the Replay Browser's store
+        //   next to its local copy) go with it: once the exercise is kept the browser reads the kept folder only, so takes left in the temp folder
+        //   would vanish from its list. The one copy rule — the keep carries everything a recording owns.
+        var exerciseDir = Path.GetDirectoryName(file)!;
+        foreach (var scenarioDir in Directory.EnumerateDirectories(exerciseDir))
+        {
+            var takes = Path.Combine(scenarioDir, TakesFolder);
+            if (!Directory.Exists(takes)) continue;
+            foreach (var take in Directory.EnumerateFiles(takes, "*" + TakeSuffix))
+            {
+                manifest.Add(new FileManifestResult(
+                    SourceUnc:    take,
+                    RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText,
+                                               Path.GetFileName(scenarioDir), TakesFolder, Path.GetFileName(take))));
+            }
+        }
         return Task.FromResult<object?>(manifest.ToArray());
     }
+
+    // The director's take store layout (Hrot.UI.Common.Map3D.Director.TakeStore.TakesFolder / TakeSuffix) — this toolkit cannot reference the UI assembly.
+    private const string TakesFolder = "takes";
+    private const string TakeSuffix = ".take.json";
 
     /// <inheritdoc />
     public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }

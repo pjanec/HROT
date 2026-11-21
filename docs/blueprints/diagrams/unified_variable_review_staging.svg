@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 430" width="940" height="430" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#5b6470"/>
+    </marker>
+    <marker id="arrRed" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#c0392b"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="940" height="430" fill="#ffffff"/>
+
+  <text x="20" y="30" font-size="17" font-weight="600" fill="#1f2933">Unified variable model — proposed staging vs. reviewed staging</text>
+
+  <!-- ── proposed ───────────────────────────────────────────────── -->
+  <text x="20" y="66" font-size="13" font-weight="600" fill="#5b6470">AS PROPOSED</text>
+
+  <g>
+    <rect x="20" y="78" width="120" height="46" rx="6" fill="#eef2f7" stroke="#b6c2cf"/>
+    <text x="80" y="99" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">A</text>
+    <text x="80" y="115" font-size="10.5" text-anchor="middle" fill="#5b6470">3rd schema source</text>
+
+    <rect x="170" y="78" width="120" height="46" rx="6" fill="#eef2f7" stroke="#b6c2cf"/>
+    <text x="230" y="99" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">B</text>
+    <text x="230" y="115" font-size="10.5" text-anchor="middle" fill="#5b6470">details hosts table</text>
+
+    <rect x="320" y="78" width="120" height="46" rx="6" fill="#eef2f7" stroke="#b6c2cf"/>
+    <text x="380" y="99" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">B&#8242;</text>
+    <text x="380" y="115" font-size="10.5" text-anchor="middle" fill="#5b6470">struct type choices</text>
+
+    <rect x="470" y="78" width="120" height="46" rx="6" fill="#eef2f7" stroke="#b6c2cf"/>
+    <text x="530" y="99" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">C</text>
+    <text x="530" y="115" font-size="10.5" text-anchor="middle" fill="#5b6470">(kind, index)</text>
+
+    <rect x="620" y="78" width="120" height="46" rx="6" fill="#eef2f7" stroke="#b6c2cf"/>
+    <text x="680" y="99" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">D</text>
+    <text x="680" y="115" font-size="10.5" text-anchor="middle" fill="#5b6470">one list + migration</text>
+
+    <line x1="140" y1="101" x2="167" y2="101" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="290" y1="101" x2="317" y2="101" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="440" y1="101" x2="467" y2="101" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="590" y1="101" x2="617" y2="101" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+  </g>
+
+  <text x="765" y="96" font-size="11" fill="#c0392b" font-weight="600">BP-226 stays open</text>
+  <text x="765" y="112" font-size="11" fill="#c0392b">underneath all of A, B, B&#8242;</text>
+
+  <!-- ── reviewed ───────────────────────────────────────────────── -->
+  <text x="20" y="176" font-size="13" font-weight="600" fill="#5b6470">AS REVIEWED</text>
+
+  <g>
+    <rect x="20" y="188" width="120" height="52" rx="6" fill="#e7f4ea" stroke="#5aa06e" stroke-width="1.6"/>
+    <text x="80" y="209" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">C</text>
+    <text x="80" y="224" font-size="10.5" text-anchor="middle" fill="#3d6b4c">4 call sites</text>
+    <text x="80" y="236" font-size="10.5" text-anchor="middle" fill="#3d6b4c">closes BP-226</text>
+
+    <rect x="170" y="188" width="120" height="52" rx="6" fill="#fdece9" stroke="#c0392b" stroke-width="1.6"/>
+    <text x="230" y="209" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">0</text>
+    <text x="230" y="224" font-size="10.5" text-anchor="middle" fill="#8e2f22">compile owns its</text>
+    <text x="230" y="236" font-size="10.5" text-anchor="middle" fill="#8e2f22">graphs — BP-229</text>
+
+    <rect x="320" y="188" width="120" height="52" rx="6" fill="#eef2f7" stroke="#b6c2cf"/>
+    <text x="380" y="209" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">A</text>
+    <text x="380" y="224" font-size="10.5" text-anchor="middle" fill="#5b6470">3rd schema source</text>
+    <text x="380" y="236" font-size="10.5" text-anchor="middle" fill="#5b6470">2 lines, unchanged</text>
+
+    <rect x="470" y="188" width="120" height="52" rx="6" fill="#fdece9" stroke="#c0392b" stroke-width="1.6"/>
+    <text x="530" y="209" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">R</text>
+    <text x="530" y="224" font-size="10.5" text-anchor="middle" fill="#8e2f22">type-id rail</text>
+    <text x="530" y="236" font-size="10.5" text-anchor="middle" fill="#8e2f22">BP-228 — new</text>
+
+    <rect x="620" y="188" width="120" height="52" rx="6" fill="#eef2f7" stroke="#b6c2cf"/>
+    <text x="680" y="209" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">B&#8242;</text>
+    <text x="680" y="224" font-size="10.5" text-anchor="middle" fill="#5b6470">struct type choices</text>
+    <text x="680" y="236" font-size="10.5" text-anchor="middle" fill="#5b6470">now has a guarantee</text>
+
+    <rect x="770" y="188" width="150" height="52" rx="6" fill="#fdece9" stroke="#c0392b" stroke-width="1.6"/>
+    <text x="845" y="209" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2933">B</text>
+    <text x="845" y="224" font-size="10.5" text-anchor="middle" fill="#8e2f22">blocked: role/scope</text>
+    <text x="845" y="236" font-size="10.5" text-anchor="middle" fill="#8e2f22">are stubs — BP-230</text>
+
+    <line x1="140" y1="214" x2="167" y2="214" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="290" y1="214" x2="317" y2="214" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="440" y1="214" x2="467" y2="214" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="590" y1="214" x2="617" y2="214" stroke="#c0392b" stroke-width="1.8" marker-end="url(#arrRed)"/>
+    <line x1="740" y1="214" x2="767" y2="214" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+  </g>
+
+  <!-- ── D split ───────────────────────────────────────────────── -->
+  <text x="20" y="286" font-size="13" font-weight="600" fill="#5b6470">D IS NOT A STAGE — it is four</text>
+
+  <g>
+    <rect x="20" y="298" width="200" height="50" rx="6" fill="#f6f1e7" stroke="#c8a86b"/>
+    <text x="120" y="318" font-size="13" font-weight="600" text-anchor="middle" fill="#1f2933">D1 · tagged type</text>
+    <text x="120" y="335" font-size="10.5" text-anchor="middle" fill="#7a6134">old lists become views · revertible</text>
+
+    <rect x="240" y="298" width="200" height="50" rx="6" fill="#f6f1e7" stroke="#c8a86b"/>
+    <text x="340" y="318" font-size="13" font-weight="600" text-anchor="middle" fill="#1f2933">D2 · migrator PAIR</text>
+    <text x="340" y="335" font-size="10.5" text-anchor="middle" fill="#7a6134">envelope 1&#8594;2 · the revert IS the pair</text>
+
+    <rect x="460" y="298" width="200" height="50" rx="6" fill="#f6f1e7" stroke="#c8a86b"/>
+    <text x="560" y="318" font-size="13" font-weight="600" text-anchor="middle" fill="#1f2933">D3 · move consumers</text>
+    <text x="560" y="335" font-size="10.5" text-anchor="middle" fill="#7a6134">~34 semantic sites, one subsystem</text>
+
+    <rect x="680" y="298" width="200" height="50" rx="6" fill="#f6f1e7" stroke="#c8a86b"/>
+    <text x="780" y="318" font-size="13" font-weight="600" text-anchor="middle" fill="#1f2933">D4 · restate rails</text>
+    <text x="780" y="335" font-size="10.5" text-anchor="middle" fill="#7a6134">BP1024 retired · BP1031 split</text>
+
+    <line x1="220" y1="323" x2="237" y2="323" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="440" y1="323" x2="457" y2="323" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+    <line x1="660" y1="323" x2="677" y2="323" stroke="#5b6470" stroke-width="1.6" marker-end="url(#arr)"/>
+  </g>
+
+  <!-- ── footnote ──────────────────────────────────────────────── -->
+  <line x1="20" y1="372" x2="920" y2="372" stroke="#e2e8f0"/>
+  <text x="20" y="392" font-size="11.5" fill="#5b6470">Order is load-bearing for memory: order &#8594; FieldLayout offsets &#8594; StructureHash &#8594; the emitted BTreeTick wipes the blackboard on mismatch.</text>
+  <text x="20" y="410" font-size="11.5" fill="#5b6470">Shared state (GetShared/SetShared &#8212; 61 references in the shipped corpus) fits no cell of Role &#215; Scope and is not mentioned by either design document.</text>
+</svg>

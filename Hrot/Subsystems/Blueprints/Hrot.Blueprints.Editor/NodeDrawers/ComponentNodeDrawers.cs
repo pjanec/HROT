@@ -1,3 +1,5 @@
+using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -91,51 +93,85 @@ internal sealed class GetComponentNodeSession : INodeEditSession
     private void ApplyComponentTypeFqn(string fqn)
     {
         if (fqn == _node.ComponentTypeFqn) return;
-        _node.ComponentTypeFqn = fqn;
-        // A component isn't a single pin value -- always (re-)bake the FULL field set for the newly
-        // selected type (unlike GetShared's Q#14 toggle, there is no collapsed shape to preserve).
-        var reflected = ComponentFieldReflector.TryReflect(fqn);
-        var fields = reflected is { Count: > 0 }
-            ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
-            : new List<ComponentFieldDecl>();
 
-        // CA-07a (R1 curated-accessor): APPEND one collection decl per discovered
-        // [BlueprintCollection]/[BlueprintCollectionItem] accessor pair, after the scalar fields
-        // (append order = Fields order = pin order, kept in lockstep with NodePinSchema/Stage0).
-        foreach (var c in ComponentFieldReflector.TryReflectCollections(fqn))
+        RecordChange($"Set Component Type '{fqn}'", () =>
         {
-            fields.Add(new ComponentFieldDecl
-            {
-                Name                = c.Name,
-                TypeId              = "",
-                IsCollection        = true,
-                ElementTypeId       = c.ElementTypeId,
-                CountAccessorFqn    = c.CountAccessorFqn,
-                ItemAccessorFqn     = c.ItemAccessorFqn,
-                CollectionKind      = c.CollectionKind,
-                CollectionFieldName = c.CollectionKind == CollectionKind.ManagedMember ? c.CollectionFieldName : null,
-            });
-        }
+            _node.ComponentTypeFqn = fqn;
+            // A component isn't a single pin value -- always (re-)bake the FULL field set for the newly
+            // selected type (unlike GetShared's Q#14 toggle, there is no collapsed shape to preserve).
+            var reflected = ComponentFieldReflector.TryReflect(fqn);
+            var fields = reflected is { Count: > 0 }
+                ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
+                : new List<ComponentFieldDecl>();
 
-        // Non-null (multi-pin mode) whenever there is ANYTHING to expose -- scalar fields and/or
-        // collections; a component with ONLY collections (no scalar fields) must still take the
-        // multi-pin path, not fall back to the legacy single-"Value" shape.
-        _node.Fields = fields.Count > 0 ? fields : null;
-        // CA-05 (Slice 1b): bake whether the picked component TYPE itself is managed (a class) --
-        // drives Stage5's GetManagedComponentRO vs GetComponentRO emit choice.
-        _node.IsManaged = ComponentFieldReflector.IsManagedComponent(fqn);
-        MarkChanged();
+            // CA-07a (R1 curated-accessor): APPEND one collection decl per discovered
+            // [BlueprintCollection]/[BlueprintCollectionItem] accessor pair, after the scalar fields
+            // (append order = Fields order = pin order, kept in lockstep with NodePinSchema/Stage0).
+            foreach (var c in ComponentFieldReflector.TryReflectCollections(fqn))
+            {
+                fields.Add(new ComponentFieldDecl
+                {
+                    Name                = c.Name,
+                    TypeId              = "",
+                    IsCollection        = true,
+                    ElementTypeId       = c.ElementTypeId,
+                    CountAccessorFqn    = c.CountAccessorFqn,
+                    ItemAccessorFqn     = c.ItemAccessorFqn,
+                    CollectionKind      = c.CollectionKind,
+                    CollectionFieldName = c.CollectionKind == CollectionKind.ManagedMember ? c.CollectionFieldName : null,
+                });
+            }
+
+            // Non-null (multi-pin mode) whenever there is ANYTHING to expose -- scalar fields and/or
+            // collections; a component with ONLY collections (no scalar fields) must still take the
+            // multi-pin path, not fall back to the legacy single-"Value" shape.
+            _node.Fields = fields.Count > 0 ? fields : null;
+            // CA-05 (Slice 1b): bake whether the picked component TYPE itself is managed (a class) --
+            // drives Stage5's GetManagedComponentRO vs GetComponentRO emit choice.
+            _node.IsManaged = ComponentFieldReflector.IsManagedComponent(fqn);
+        });
     }
 
-    private void MarkChanged()
+    /// <summary>
+    /// BP-11: the node's undo-relevant state. A whole-value snapshot rather than a per-field diff
+    /// because selecting a component type is one gesture that rewrites three things at once — which
+    /// is also why <c>GraphCommand.SetNodeProperty</c> (one key, one value) cannot carry it.
+    /// <c>Fields</c> is captured by reference, which is sound because every mutation below
+    /// <em>replaces</em> the list rather than editing it in place.
+    /// </summary>
+    private readonly record struct NodeState(string ComponentTypeFqn, List<ComponentFieldDecl>? Fields, bool IsManaged);
+
+    private NodeState Capture() => new(_node.ComponentTypeFqn, _node.Fields, _node.IsManaged);
+
+    private void Restore(NodeState s)
+    {
+        _node.ComponentTypeFqn = s.ComponentTypeFqn;
+        _node.Fields           = s.Fields;
+        _node.IsManaged        = s.IsManaged;
+    }
+
+    /// <summary>
+    /// BP-11: runs <paramref name="mutate"/> as an undoable edit. The baseline is snapshotted before
+    /// the mutation and the inverse restores it, so Ctrl+Z reverses a Details-panel edit in the same
+    /// chronological order as a canvas edit — they share one stack.
+    /// </summary>
+    private void RecordChange(string label, Action mutate)
+    {
+        var before = Capture();
+        _editService.RecordPropertyEdit(
+            _parent, label,
+            apply: () => { mutate();        AfterChange(); },
+            undo:  () => { Restore(before); AfterChange(); });
+    }
+
+    private void AfterChange()
     {
         IsDirty = true;
-        _editService.MarkDirty(_parent);
         // Selecting a component type changes the node's projected pins, so signal a STRUCTURAL
         // change: the canvas graph model re-projects itself. Data-driven -- this drawer never
         // references the canvas; the composition root wires the refresh (see BlueprintDocumentFactory,
         // mirrors SharedNodeDrawers/NotifyStructureChanged).
-        (_editService as EditService)?.NotifyStructureChanged(_parent);
+        _editService.NotifyStructureChanged(_parent);
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────
@@ -150,7 +186,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
 
         ImGui.TextDisabled("(self, or an optional Target entity -- BlueprintSharedState is NOT involved: reads view.GetComponentRO<T>)");
         if (string.IsNullOrEmpty(_node.ComponentTypeFqn))
-            ImGui.TextColored(EditorColors.Warning, "(pick a Component Type)");
+            ImGui.TextColored(StatusPalette.Warning, "(pick a Component Type)");
     }
 
     /// <summary>See <see cref="GetSharedNodeSession.DrawSharedTypePicker"/> for the rationale.</summary>
@@ -160,7 +196,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         var unlisted = IsCurrentComponentTypeFqnUnlistedForTest();
         var comboLabel = current.Length > 0 ? current : "(none)";
 
-        if (ImGui.BeginCombo("Component Type", comboLabel))
+        FormGrid.BeginField("bp.node", "Component Type"); if (ImGui.BeginCombo("##Component_Type", comboLabel))
         {
             ImGui.InputTextWithHint("##GetComponentTypeFilter", "Filter...", ref _typeFilterText, 256);
 
@@ -179,10 +215,10 @@ internal sealed class GetComponentNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unlisted)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"(current value not in the discovered type list — kept as-is: {current})");
     }
 
@@ -207,7 +243,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         ImGui.TextDisabled($"({fields.Count} field pin(s) + Target(in)/Found(out))");
 
         if (_node.IsManaged)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 "  managed component — all fields are read-only: cannot be stored in a Variable/" +
                 "WorkingState/Shared, pass to a library/function call only");
 
@@ -215,7 +251,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         if (reflected is null) return;
 
         foreach (var f in reflected.Where(f => f.IsManaged))
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"  {f.Name} ({f.TypeId}): managed — read/pass-through only, never persisted or mutated");
     }
 
@@ -317,39 +353,63 @@ internal sealed class SetComponentNodeSession : INodeEditSession
     private void ApplyComponentTypeFqn(string fqn)
     {
         if (fqn == _node.ComponentTypeFqn) return;
-        _node.ComponentTypeFqn = fqn;
-        // CA-06 (Slice W2, Q#16-C): bake whether the picked component TYPE itself is managed --
-        // drives Stage5's whole-replace-via-ECB emit choice (mirrors
-        // GetComponentNodeSession.ApplyComponentTypeFqn's CA-05 IsManaged bake).
-        _node.IsManaged = ComponentFieldReflector.IsManagedComponent(fqn);
-        if (_node.IsManaged)
+
+        RecordChange($"Set Component Type '{fqn}'", () =>
         {
-            // Managed write is WHOLE-REPLACE ONLY -- never bake per-field Fields (Stage2's BP2064
-            // rejects a managed node that carries them). Stage0/NodePinSchema project a single
-            // "Value" pin from ComponentTypeFqn directly; there is nothing to reflect per-field here.
-            _node.Fields = null;
-        }
-        else
-        {
-            // Unmanaged (CA-03/CA-04, unchanged): always (re-)bake the FULL field set for the newly
-            // selected type -- a component write isn't a single pin value.
-            var reflected = ComponentFieldReflector.TryReflect(fqn);
-            _node.Fields = reflected is { Count: > 0 }
-                ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
-                : null;
-        }
-        MarkChanged();
+            _node.ComponentTypeFqn = fqn;
+            // CA-06 (Slice W2, Q#16-C): bake whether the picked component TYPE itself is managed --
+            // drives Stage5's whole-replace-via-ECB emit choice (mirrors
+            // GetComponentNodeSession.ApplyComponentTypeFqn's CA-05 IsManaged bake).
+            _node.IsManaged = ComponentFieldReflector.IsManagedComponent(fqn);
+            if (_node.IsManaged)
+            {
+                // Managed write is WHOLE-REPLACE ONLY -- never bake per-field Fields (Stage2's BP2064
+                // rejects a managed node that carries them). Stage0/NodePinSchema project a single
+                // "Value" pin from ComponentTypeFqn directly; there is nothing to reflect per-field here.
+                _node.Fields = null;
+            }
+            else
+            {
+                // Unmanaged (CA-03/CA-04, unchanged): always (re-)bake the FULL field set for the newly
+                // selected type -- a component write isn't a single pin value.
+                var reflected = ComponentFieldReflector.TryReflect(fqn);
+                _node.Fields = reflected is { Count: > 0 }
+                    ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
+                    : null;
+            }
+        });
     }
 
-    private void MarkChanged()
+    /// <summary>BP-11: undo-relevant node state — see <c>GetComponentNodeSession.NodeState</c>.</summary>
+    private readonly record struct NodeState(string ComponentTypeFqn, List<ComponentFieldDecl>? Fields, bool IsManaged);
+
+    private NodeState Capture() => new(_node.ComponentTypeFqn, _node.Fields, _node.IsManaged);
+
+    private void Restore(NodeState s)
+    {
+        _node.ComponentTypeFqn = s.ComponentTypeFqn;
+        _node.Fields           = s.Fields;
+        _node.IsManaged        = s.IsManaged;
+    }
+
+    /// <summary>BP-11: runs <paramref name="mutate"/> as an undoable edit on the shared undo stack.</summary>
+    private void RecordChange(string label, Action mutate)
+    {
+        var before = Capture();
+        _editService.RecordPropertyEdit(
+            _parent, label,
+            apply: () => { mutate();        AfterChange(); },
+            undo:  () => { Restore(before); AfterChange(); });
+    }
+
+    private void AfterChange()
     {
         IsDirty = true;
-        _editService.MarkDirty(_parent);
         // Selecting a component type changes the node's projected pins, so signal a STRUCTURAL
         // change: the canvas graph model re-projects itself. Data-driven -- this drawer never
         // references the canvas; the composition root wires the refresh (see BlueprintDocumentFactory,
         // mirrors SharedNodeDrawers/NotifyStructureChanged).
-        (_editService as EditService)?.NotifyStructureChanged(_parent);
+        _editService.NotifyStructureChanged(_parent);
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────
@@ -367,7 +427,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         else
             ImGui.TextDisabled("(self only, write-if-present -- writes view.GetComponentRW<T>, guarded by HasComponent<T>; no implicit add)");
         if (string.IsNullOrEmpty(_node.ComponentTypeFqn))
-            ImGui.TextColored(EditorColors.Warning, "(pick a Component Type)");
+            ImGui.TextColored(StatusPalette.Warning, "(pick a Component Type)");
     }
 
     /// <summary>See <see cref="GetComponentNodeSession.DrawComponentTypePicker"/> for the rationale.</summary>
@@ -377,7 +437,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         var unlisted = IsCurrentComponentTypeFqnUnlistedForTest();
         var comboLabel = current.Length > 0 ? current : "(none)";
 
-        if (ImGui.BeginCombo("Component Type", comboLabel))
+        FormGrid.BeginField("bp.node", "Component Type"); if (ImGui.BeginCombo("##Component_Type", comboLabel))
         {
             ImGui.InputTextWithHint("##SetComponentTypeFilter", "Filter...", ref _typeFilterText, 256);
 
@@ -396,10 +456,10 @@ internal sealed class SetComponentNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unlisted)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"(current value not in the discovered type list — kept as-is: {current})");
     }
 
@@ -431,7 +491,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         if (reflected is null) return;
 
         foreach (var f in reflected.Where(f => f.IsManaged))
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"  {f.Name} ({f.TypeId}): managed — write path not yet wired (CA-06); this pin has no effect until then");
     }
 

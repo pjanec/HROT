@@ -1,58 +1,87 @@
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Presentation.WindowManager;
-using Fdp.Toolkit.DER;
-using Hrot.Editor;
+using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Scenarios;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.UI.Picker;
+using System.Linq;
 using Xunit;
 
 namespace Hrot.Editor.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="ScenarioMenuCommands"/> — MTB-P7-T1 success conditions.
-/// Pure logic tests using recording fakes; no ImGui or real filesystem required.
+/// Unit tests for <see cref="ScenarioMenuCommands"/> — MTB-P7-T1 success conditions, carried forward to
+/// <c>CE-046</c>'s distinct-item structure.
+///
+/// <para>⭐⭐⭐ <b><c>CE-046</c> — this file was rewritten against <see cref="IScenarioSession"/>, and the
+/// menu-structure rails MOVED with the items.</b> 📄
+/// <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3a; <c>AQ60</c> ruling <b>R2</b>.</para>
+///
+/// <para>⭐⭐ <b>CE-1443 (U2a, AQ108 §2.15a) — the submenus are GONE again.</b> The File menu is ONE flat list (<c>FileMenuLayout</c>): <i>Load Scenario… · New Scenario… · Load Checkpoint… · Open Exercise Recording… · Save Checkpoint · the editing group · Close · Exit</i>;
+/// <i>New Exercise</i> is replaced by <i>Close</i> and its confirmation controller is deleted. The rails below were rewritten to that contract (the old assertions are named in the report).</para>
+///
+/// <para>⚠⚠ <b>(history) THE LABEL/PATH CHANGE WAS DELIBERATE AND VISIBLE — argued, not slipped in.</b> The old flat
+/// <c>File/Scenario/*</c> group went; items then lived under <c>File/Live</c>, <c>File/Edit</c> and
+/// <c>File/Checkpoint</c> (⛔ superseded by CE-1443). 📐 The old <c>Load Scenario…</c> was the chameleon R2 names: it was labelled
+/// generically and meant <i>load for AUTHORING</i>. ⇒ the design's §6 gate anticipates exactly this
+/// *("if the editor's existing item labels change, that IS a visible change — argue it in the report")*.
+/// ⭐ <b>Every command ID is unchanged</b>, so hotkeys, MCP identity and every id-keyed rail still
+/// resolve; only the human-facing text moved.</para>
+///
+/// <para>Pure logic tests using recording fakes; no ImGui or real filesystem required.</para>
 /// </summary>
 public sealed class ScenarioMenuTests
 {
     // ── Fakes ────────────────────────────────────────────────────────────────
 
-    /// <summary>Recording fake for <see cref="IEditorLogic"/>.</summary>
-    private sealed class FakeEditorLogic : IEditorLogic
+    /// <summary>
+    /// ⭐ Recording fake for <see cref="IScenarioSession"/> — replaces the old <c>FakeEditorLogic</c>.
+    /// ⭐⭐ Note it is far SMALLER: the registrar used to bind to the whole 20-member editor facade to
+    /// reach six scenario verbs, which is precisely why it could not be called from CGF.
+    /// </summary>
+    private sealed class FakeScenarioSession : IScenarioSession
     {
-        public int NewScenarioCallCount;
-        public int SaveCurrentScenarioCallCount;
-        public readonly List<string> SaveScenarioAsCalls = new();
-        public readonly List<string> LoadScenarioByNameCalls = new();
+        public int UpdateCallCount;
+        public int ClearWorldCallCount;
+        public int CloseCallCount;
+        public ClusterState State = ClusterState.Idle;
+        public readonly List<string> LoadScenarioCalls = new();
+        public readonly List<string> RestoreCheckpointCalls = new();
+        public int SaveCurrentCallCount;
+        public int TakeCheckpointCallCount;
+        public readonly List<string> SaveAsCalls      = new();
+        public readonly List<string> SaveToCalls      = new();
+        public readonly List<string> OpenForEditCalls = new();
+        public readonly List<string> LoadForLiveCalls = new();
         public string? LoadedScenarioNameValue;
+        public string? NoSave;   // ⭐ CE-3407 — the one save reason the surfaces read
+        string? IScenarioSession.SaveDisabledReason => NoSave;
 
-        public string? LoadedScenarioName => LoadedScenarioNameValue;
-        public IReadOnlyList<string> AvailableScenarios => Array.Empty<string>();
         public IReadOnlyList<SidecarFileInfo> MigrationSidecars { get; set; } = Array.Empty<SidecarFileInfo>();
-        public bool IsScenarioDegraded => false;
 
-        public void Update() { }
-        public void NewScenario() => NewScenarioCallCount++;
-        public void SaveScenario(string filePath) { }
-        public void LoadScenario(string filePath) { }
-        public void LoadScenarioByName(string scenarioName) => LoadScenarioByNameCalls.Add(scenarioName);
-        public void SaveCurrentScenario() => SaveCurrentScenarioCallCount++;
-        public void SaveScenarioAs(string scenarioName) => SaveScenarioAsCalls.Add(scenarioName);
-        public void ActivateTool(EditorTool tool) { }
-        public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents) { }
-        public IDerRepo View => null!;
-        public Task SwitchToExternalAsync() => Task.CompletedTask;
-        public Task SwitchToInternalAsync() => Task.CompletedTask;
-        public SimHostMode CurrentMode => SimHostMode.Internal;
-        public void CenterOnEntity(long entityId) { }
-        public void SelectEntity(long entityId) { }
-        public void OpenRenameDialog(long entityId) { }
-        public void RebuildAndReloadAI() { }
+        public ClusterState CurrentClusterState => State;
+        public string? LoadedScenarioName => LoadedScenarioNameValue;
+        public bool IsDegraded => false;
 
-        public IReadOnlyList<SidecarFileInfo> GetMigrationSidecarsForCurrentScenario()
-            => MigrationSidecars;
+        public void Update()                        => UpdateCallCount++;
+        public void ClearWorld()                    => ClearWorldCallCount++;
+        public void Close()                         => CloseCallCount++;
+        public void LoadScenario(string name)       => LoadScenarioCalls.Add(name);
+        public void RestoreCheckpoint(string label) => RestoreCheckpointCalls.Add(label);
+        public void LoadForLive(string name)        => LoadForLiveCalls.Add(name);
+        public void OpenForEdit(string name)        => OpenForEditCalls.Add(name);
+        public void SaveCurrent()                   => SaveCurrentCallCount++;
+        public void SaveAs(string name)             => SaveAsCalls.Add(name);
+        public void SaveTo(string filePath)         => SaveToCalls.Add(filePath);
+        public void TakeCheckpoint()                => TakeCheckpointCallCount++;
+        public readonly List<Guid> OpenRecordingCalls = new();
+        public void OpenRecording(Guid exerciseId)  => OpenRecordingCalls.Add(exerciseId);
+
+        public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => MigrationSidecars;
     }
 
     /// <summary>
@@ -105,235 +134,602 @@ public sealed class ScenarioMenuTests
     // ── Helper ───────────────────────────────────────────────────────────────
 
     private static (
-        FakeEditorLogic EditorLogic,
+        FakeScenarioSession Session,
         RecordingCommandSet Commands,
-        GlobalMenuRegistry Menu,
-        Action<AssetKindFilter, Action<IEditableAsset?>>? PickerCapture,
-        Action<Action<string>>? SaveAsCapture,
-        Action<IReadOnlyList<SidecarFileInfo>>? MigrationCapture)
-        CreateRegistrar(string? loadedScenarioName = null)
+        GlobalMenuRegistry Menu)
+        CreateRegistrar(
+            string?                                          loadedScenarioName = null,
+            Action<AssetKindFilter, Action<IEditableAsset?>>? openPicker         = null,
+            Action<Action<string>>?                          openSaveAsDialog   = null,
+            Action<IReadOnlyList<SidecarFileInfo>>?           showMigrationHistory = null,
+            FakeScenarioSession?                             session            = null,
+            Action?                                          openNewScenario    = null)
     {
-        var editorLogic = new FakeEditorLogic { LoadedScenarioNameValue = loadedScenarioName };
+        var s        = session ?? new FakeScenarioSession { LoadedScenarioNameValue = loadedScenarioName };
         var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
-
-        Action<AssetKindFilter, Action<IEditableAsset?>>? pickerCapture = null;
-        Action<Action<string>>? saveAsCapture = null;
-        Action<IReadOnlyList<SidecarFileInfo>>? migrationCapture = null;
+        var menu     = new GlobalMenuRegistry();
 
         ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) => pickerCapture?.Invoke(kinds, cb),
-            openSaveAsDialog:   cb => saveAsCapture?.Invoke(cb),
-            showMigrationHistory: list => migrationCapture?.Invoke(list));
+            registerCommand:      (desc, handler) => commands.Register(desc, handler),
+            menu:                 menu,
+            commands:             commands,
+            session:              s,
+            openPicker:           openPicker       ?? ((kinds, cb) => { }),
+            openSaveAsDialog:     openSaveAsDialog ?? (cb => { }),
+            showMigrationHistory: showMigrationHistory,
+            openNewScenario:      openNewScenario);
 
-        return (editorLogic, commands, menu, pickerCapture, saveAsCapture, migrationCapture);
+        return (s, commands, menu);
     }
 
-    // ── MenuItems_Registered_UnderFileScenario ──────────────────────────────
+    // ══ ① The ONE flat File menu (AQ108 §2.15 / §2.15a) ═════════════════════
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> S1 — <b>the File menu this registrar draws has NO submenus</b>: the items it registers are exactly §2.15's, flat under <c>File</c>, and <c>File/Live</c> · <c>File/Edit</c> · <c>File/Checkpoint</c> · <i>New Exercise</i> are gone.
+    /// 🔴 Red-proof: re-registering any item under a submenu (e.g. <c>File/Edit/Save Scenario</c>) ⇒ the submenu assertion; re-adding <c>New Exercise</c> ⇒ the exact-set assertion.
+    /// </summary>
     [Fact]
-    public void MenuItems_Registered_UnderFileScenario()
+    public void CE1443_S1_TheFileMenu_IsFlat_AndExactlyTheDesignedItems()
     {
-        var (_, _, menu, _, _, _) = CreateRegistrar();
+        var (_, _, menu) = CreateRegistrar();
+        var file = menu.Root.Children["File"];
 
-        // Verify "File" top-level menu node exists.
-        Assert.True(menu.Root.Children.ContainsKey("File"));
+        // ⭐ CE-4255 — no submenu under File EXCEPT the one New (user, 2026-11-03: it supersedes the 2026-10-29 "no submenus")
+        Assert.All(file.Children.Where(kv => kv.Key != "New").Select(kv => kv.Value), c => Assert.Empty(c.Children));
+        Assert.True(file.Children.TryGetValue("New", out var newMenu), "File/New");
+        Assert.Contains("Scenario…", newMenu!.Children.Keys);
+        foreach (var gone in new[] { "Live", "Edit", "Checkpoint", "Scenario", "Terrain…", "New Exercise", "Open Scenario", "New Scenario", "Open Recording", "Take Checkpoint" })
+            Assert.False(file.Children.ContainsKey(gone), $"File/{gone} must be gone");
+
+        // the items THIS registrar owns (the asset items, Save / Save As… / Save All and Exit are other registrars')
+        var mine = new[]
+        {
+            FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.NewTerrainFromOsm, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.SaveCheckpoint,
+            FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.SaveScenarioAsRecipe, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.Close,
+        };
+        var registered = LeafPaths(menu).Where(x => !x.Contains("/sep-")).ToArray();
+        Assert.Equal(mine.OrderBy(x => x, StringComparer.Ordinal), registered.OrderBy(x => x, StringComparer.Ordinal));
+    }
+
+    /// <summary>The leaf paths of the <c>File</c> menu in DRAW order (<see cref="MenuItemNode.OrderedChildren"/>), whatever their visibility.</summary>
+    private static string[] LeafPaths(GlobalMenuRegistry menu)
+    {
+        static IEnumerable<string> Leaves(MenuItemNode n, string path) => n.Children.Count == 0 ? new[] { path } : n.OrderedChildren().SelectMany(c => Leaves(c, path + "/" + c.Name));   // ⭐ CE-4255: depth-first, the New submenu's children where New is
+        return menu.Root.Children["File"].OrderedChildren().SelectMany(c => Leaves(c, "File/" + c.Name)).ToArray();
+    }
+
+    /// <summary>⭐ <c>CE-1443</c> — the draw order is the layout table's (rank), not the registration order: registered here in a different order, drawn as <see cref="FileMenuLayout.InOrder"/> says.</summary>
+    [Fact]
+    public void CE1443_TheFileMenu_IsDrawnInTheLayoutTablesOrder()
+    {
+        var (_, _, menu) = CreateRegistrar();
+        var drawn = LeafPaths(menu);
+        var expected = FileMenuLayout.InOrder.Where(drawn.Contains).ToArray();
+        Assert.Equal(expected, drawn);
+        Assert.Equal(FileMenuLayout.LoadScenario, drawn[0]);
+        Assert.Equal(FileMenuLayout.Close, drawn[^1]);   // (Exit is the window controller's own registration)
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>NO <c>File/Save</c> item is registered here.</b> 📐 Measured <c>2026-08-26</c>:
+    /// <c>CgfEditorShellToolbar</c>'s shared slot table already emits <c>File/Save</c> → <c>shell.save</c>,
+    /// and that handler already branches to the scenario. ⇒ registering a second item at the same path
+    /// would be two controls for one action *(ruling 9)*, and would change the toolbar's own menu row —
+    /// which R3 forbids.
+    /// </summary>
+    [Fact]
+    public void NoSecondFileSaveItemIsRegistered()
+    {
+        var (_, _, menu) = CreateRegistrar();
+
         var fileNode = menu.Root.Children["File"];
-
-        // Verify "Scenario" submenu exists under File.
-        Assert.True(fileNode.Children.ContainsKey("Scenario"));
-        var scenarioNode = fileNode.Children["Scenario"];
-
-        // Five sub-items expected: New Scenario, Load Scenario, Save Scenario, Save Scenario As, Migration History.
-        Assert.Equal(5, scenarioNode.Children.Count);
-        Assert.True(scenarioNode.Children.ContainsKey("New Scenario"));
-        Assert.True(scenarioNode.Children.ContainsKey("Load Scenario"));
-        Assert.True(scenarioNode.Children.ContainsKey("Save Scenario"));
-        Assert.True(scenarioNode.Children.ContainsKey("Save Scenario As"));
-        Assert.True(scenarioNode.Children.ContainsKey("Migration History"));
+        Assert.False(fileNode.Children.ContainsKey("Save"));
     }
 
-    // ── FiveCommands_Registered_InCommandSet ─────────────────────────────────
-
+    /// <summary>⭐ Every command reaches the command set, keyed by its unchanged id.
+    /// ⚠⚠ <b>No count in the NAME</b> — 📌 a count in a test name is a rail that lies the moment the count
+    /// moves, which is exactly how this file's predecessor went stale twice.</summary>
     [Fact]
-    public void FiveCommands_Registered_InCommandSet()
+    public void AllCommands_Registered_InCommandSet()
     {
-        var (_, commands, _, _, _, _) = CreateRegistrar();
+        var (_, commands, _) = CreateRegistrar();
 
-        Assert.Equal(5, commands.RegisterCallCount);
+        Assert.Equal(12, commands.RegisterCallCount);   // ⭐ CE-4375 — + Terrain from OpenStreetMap…; ⭐ CE-1443 — New Exercise is gone; Load Checkpoint, Close and (B2) Save Scenario as Recipe are new
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.OpenRecordingId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadCheckpointId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.CloseId));
+        Assert.Null(commands.Get("scenario.newExercise"));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsRecipeId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.MigrationHistoryId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.TakeCheckpointId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.UpdateCuratedId));
     }
 
+    // ══ ② THE ROUTING RAIL — Load Scenario is the ONE load (R-1043) ════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> S3 (R-1043) — <b>Load Scenario… ends in the session's ONE <c>LoadScenario</c></b> (which resolves the cluster's armed mode): ⛔ not in <c>OpenForEdit</c>, not in <c>LoadForLive</c> — no host seam, no per-item mode.
+    /// The picker is the scenario-filtered one; a cancelled pick loads nothing.
+    /// 🔴 Red-proof: the handler calling <c>session.OpenForEdit</c> (the withdrawn "Open always opens into editing") ⇒ the empty-list assertions; calling <c>LoadForLive</c> ⇒ the same.
+    /// </summary>
     [Fact]
-    public void New_Invoke_CallsEditorLogicNewScenario()
+    public void CE1443_S3_LoadScenario_EndsInTheSessionsOneLoad()
     {
-        var (editorLogic, commands, _, _, _, _) = CreateRegistrar();
-        var result = commands.Invoke(ScenarioMenuCommands.NewId);
-        Assert.True(result.Success);
-        Assert.Equal(1, editorLogic.NewScenarioCallCount);
+        var (session, commands, _) = CreateRegistrar(
+            openPicker: (kinds, cb) => cb(new FakeScenarioAsset("PickedScenario")));
+
+        Assert.True(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
+
+        Assert.Equal("PickedScenario", Assert.Single(session.LoadScenarioCalls));
+        Assert.Empty(session.OpenForEditCalls);                             // the menu names no mode: the armed mode decides, once, in the choice
+        Assert.Empty(session.LoadForLiveCalls);
+        Assert.Null(commands.Get("scenario.loadLive"));
+        Assert.Equal("File/Load Scenario…", ScenarioMenuCommands.LoadScenarioMenuPath);
     }
 
-    // ── Load ─────────────────────────────────────────────────────────────────
-
     [Fact]
-    public void Load_OpensScenarioFilteredModal_AndCallsLoadScenarioByName()
+    public void Load_OpensScenarioFilteredModal_AndLoadsThePick()
     {
         AssetKindFilter? capturedFilter = null;
-        var editorLogic = new FakeEditorLogic();
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
-
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) =>
+        var (session, commands, _) = CreateRegistrar(
+            openPicker: (kinds, cb) =>
             {
                 capturedFilter = kinds;
-                // Simulate user picking a scenario asset.
                 cb(new FakeScenarioAsset("PickedScenario"));
-            },
-            openSaveAsDialog:   cb => { },
-            showMigrationHistory: null);
+            });
 
         var result = commands.Invoke(ScenarioMenuCommands.LoadId);
         Assert.True(result.Success);
         Assert.Equal(AssetKindFilter.Scenario, capturedFilter);
-        var loadCall = Assert.Single(editorLogic.LoadScenarioByNameCalls);
-        Assert.Equal("PickedScenario", loadCall);
+        Assert.Equal("PickedScenario", Assert.Single(session.LoadScenarioCalls));   // ⭐ CE-1443: the one load, not OpenForEdit
     }
 
     [Fact]
-    public void Load_PickerCancelled_DoesNotCallLoadScenarioByName()
+    public void Load_PickerCancelled_DoesNotLoad()
     {
-        var editorLogic = new FakeEditorLogic();
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
-
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) =>
-            {
-                // Simulate user cancelling the picker.
-                cb(null);
-            },
-            openSaveAsDialog:   cb => { },
-            showMigrationHistory: null);
+        var (session, commands, _) = CreateRegistrar(openPicker: (kinds, cb) => cb(null));
 
         var result = commands.Invoke(ScenarioMenuCommands.LoadId);
         Assert.True(result.Success);
-        Assert.Empty(editorLogic.LoadScenarioByNameCalls);
+        Assert.Empty(session.LoadScenarioCalls);
+        Assert.Empty(session.OpenForEditCalls);
+        Assert.Empty(session.LoadForLiveCalls);
     }
 
-    // ── Save ─────────────────────────────────────────────────────────────────
+    // ══ ③ CLOSE — back to Idle through the one door (replaces New Exercise) ═══
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> S6 — <b>Close calls the session's ONE <c>Close</c></b> (= <c>Door.Leave(LeaveReason.Close)</c>), is NEVER gated (enabled while the run gate is closed and the cluster is in error — it is how an operator leaves) and is offered on Start;
+    /// and it is not New Scenario (the LOCAL wipe stays apart).
+    /// 🔴 Red-proofs: the handler calling <c>ClearWorld</c> ⇒ the count; registering Close with the gate's <c>closedReason</c> ⇒ the closed-gate assertions; <c>allowedInIdle</c> false ⇒ the Idle assertion.
+    /// </summary>
+    [Fact]
+    public void CE1443_S6_Close_IsTheSessionsOneClose_NeverGated_AndOnStart()
+    {
+        var session = new FakeScenarioSession();
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        string? closed = "waiting for: Brain (CGF)";
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, closedReason: () => closed);
+
+        Assert.True(commands.Invoke(ScenarioMenuCommands.CloseId).Success);       // the gate is CLOSED (and an error would close it the same way): Close still works
+        Assert.Equal(1, session.CloseCallCount);
+        Assert.Equal(0, session.ClearWorldCallCount);                              // not New Scenario: no local wipe
+        Assert.Null(commands.Get(ScenarioMenuCommands.CloseId)!.DynamicDisplayName);   // no gate label on Close
+
+        // while the gate is closed a GATED item is disabled with the reason — Close, by contrast, is the one that is not
+        Assert.False(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
+
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == FileMenuLayout.Close);   // offered on Start
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b>NEW SCENARIO IS NOT CLOSE, and this rail is why both ids exist</b> (it kept the New-Exercise rail's point). 📐 The deferred-load state machine calls the LOCAL wipe as step 1 of its own sequence, so if <c>scenario.new</c> had been pointed at the
+    /// cluster-wide leave every load would publish a second <c>Idle</c> intent from inside the handler for the first. ⇒ two verbs, asserted apart.
+    /// ⭐ <c>CE-4140</c> — New Scenario… is no longer the local wipe at all (it opens the scenario-recipe picker): neither verb wipes here, and Close still only leaves.
+    /// </summary>
+    [Fact]
+    public void NewScenarioOpensTheRecipePicker_WhileCloseLeavesTheCluster_AndNeitherWipesLocally()
+    {
+        int opened = 0;
+        var (session, commands, _) = CreateRegistrar(openNewScenario: () => opened++);
+
+        Assert.True(commands.Invoke(ScenarioMenuCommands.NewId).Success);
+        Assert.Equal(1, opened);
+        Assert.Equal(0, session.ClearWorldCallCount);   // ⭐ CE-4140 — it WAS the local wipe, which on the Start screen (no world) did nothing
+        Assert.Equal(0, session.CloseCallCount);
+
+        Assert.True(commands.Invoke(ScenarioMenuCommands.CloseId).Success);
+        Assert.Equal(1, session.CloseCallCount);
+        Assert.Equal(0, session.ClearWorldCallCount);   // Close did not wipe locally
+        Assert.Equal(1, opened);
+    }
+
+    // ══ ③a New Scenario… from a recipe (CE-4140) ═══════════════════════════════
+
+    private sealed class FakeNewService : Hrot.Editor.AiShared.Recipes.INewAssetService
+    {
+        private readonly List<IEditableAsset> _recipes;
+        public FakeNewService(AssetKind kind, params string[] recipes)
+        {
+            Kind = kind;
+            _recipes = recipes.Select(n => (IEditableAsset)new Hrot.Editor.ScenarioEditableAssetAdapter(Guid.Empty, n, string.Empty, isRecipe: true)).ToList();
+        }
+        public AssetKind Kind { get; }
+        public IEditableAsset CreateNew(IEditableAsset? recipe, string name, string relPath) => throw new NotSupportedException();
+        public IReadOnlyList<IEditableAsset> AvailableRecipes() => _recipes;
+        public bool IsBlankTemplate(IEditableAsset recipe) => false;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4140</c> (a) — <b>New Scenario… from the Start screen opens the New picker for the SCENARIO kind, listing exactly the scenario recipes</b> (a BTree recipe in the same registry is not listed), each with its
+    /// description; the command is offered in Idle and enabled with nothing loaded. 🔴 Red-proof: the old handler (<c>session.ClearWorld()</c>) ⇒ no request is ever opened (the user's "does nothing").
+    /// </summary>
+    [Fact]
+    public void CE4140_NewScenario_FromIdle_OpensThePickerOverExactlyTheScenarioRecipes()
+    {
+        var services = new Dictionary<AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>
+        {
+            [AssetKind.Scenario] = new FakeNewService(AssetKind.Scenario, "basic-desert", "demo-city"),
+            [AssetKind.BTree]    = new FakeNewService(AssetKind.BTree, "patrol"),
+        };
+        var requests = new List<PickerRequest>();
+        var launcher = new NewAssetLauncher((r, cb) => requests.Add(r), services, (k, r) => { },
+                                            describe: a => $"about {a.Name}");
+        var (session, commands, menu) = CreateRegistrar(openNewScenario: () => launcher.Open(AssetKind.Scenario));
+        Assert.Equal(ClusterState.Idle, session.CurrentClusterState);                       // nothing loaded: the Start screen
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == FileMenuLayout.NewScenario);
+        Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+
+        Assert.True(commands.Invoke(ScenarioMenuCommands.NewId).Success);
+
+        var request = Assert.Single(requests);
+        Assert.Equal("New Scenario", request.Title);
+        var entries = request.ItemsProvider!();
+        Assert.Equal(new[] { "basic-desert", "demo-city" }, entries.Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal));
+        Assert.All(entries, e => Assert.Equal(AssetKind.Scenario, ((RecipeChoice)e.Tag!).Kind));
+        Assert.Equal("about basic-desert", entries.Single(e => e.Name == "basic-desert").Description);   // the description shows
+        Assert.Equal(0, session.ClearWorldCallCount);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4140</c> (b) — <b>picking a recipe creates a NEW scenario under the chosen name and leaves the recipe untouched.</b> The pick reaches the host's naming dialog; <c>ScenarioNewAssetService.CreateNew</c> then
+    /// loads the recipe BY ITS RECIPE NAME and saves what it loaded under the NEW name (never the recipe's own) — so a later Save cannot overwrite the recipe; the recipe's <c>scenario.json</c> is byte-identical afterwards.
+    /// The description a recipe shows is its <c>scenario.json</c> header's. 🔴 Red-proof: <c>SaveScenarioAs(recipe name)</c> in <c>CreateNew</c> ⇒ the save-name assertion.
+    /// </summary>
+    [Fact]
+    public void CE4140_PickingARecipe_CreatesANewScenarioUnderTheNewName_AndTheRecipeFileIsUntouched()
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ce4140-" + Guid.NewGuid().ToString("N"));
+        var dir = System.IO.Path.Combine(root, "basic-desert");
+        System.IO.Directory.CreateDirectory(dir);
+        var file = System.IO.Path.Combine(dir, "scenario.json");
+        System.IO.File.WriteAllText(file, "{\"header\":{\"terrainName\":\"basic-desert\",\"description\":\"What: the empty seed.\"}}");
+        var before = System.IO.File.ReadAllBytes(file);
+        try
+        {
+            var creation = new FakeScenarioCreationSession();
+            var service = new Hrot.Editor.ScenarioNewAssetService(creation, new[] { "basic-desert" });
+            var services = new Dictionary<AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService> { [AssetKind.Scenario] = service };
+            (AssetKind Kind, IEditableAsset Recipe)? named = null;
+            PickerRequest? request = null; Action<PickerResult>? answer = null;
+            var launcher = new NewAssetLauncher((r, cb) => { request = r; answer = cb; }, services, (k, r) => named = (k, r),
+                                                describe: a => Hrot.Editor.ScenarioNewAssetService.DescribeRecipe(a, root));
+            launcher.Open(AssetKind.Scenario);
+
+            var entry = Assert.Single(request!.ItemsProvider!());
+            Assert.Equal("What: the empty seed.", entry.Description);                       // the header's description
+            answer!(new PickerResult(new[] { entry }));                              // the user picks it
+            Assert.Equal((AssetKind.Scenario, "basic-desert"), (named!.Value.Kind, named.Value.Recipe.Name));
+
+            // the host's naming dialog confirms "MyScenario": the ONE create-core
+            var created = service.CreateNew(named.Value.Recipe, "MyScenario", "Combat");
+            Assert.False(created.IsEditorOwned && created.Name == "basic-desert");
+            Assert.Equal("MyScenario", created.Name);
+            Assert.Equal(new[] { "Combat/MyScenario" }, creation.SaveScenarioAsCalls);        // saved under the NEW name …
+            Assert.DoesNotContain("basic-desert", creation.SaveScenarioAsCalls);               // … never the recipe's own
+            Assert.Equal(new[] { Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName("basic-desert") }, creation.LoadScenarioByNameCalls);
+            Assert.Equal(before, System.IO.File.ReadAllBytes(file));                          // the recipe file is untouched
+        }
+        finally { System.IO.Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>⭐ <c>CE-4140</c> (c) — a host with no scenario-recipes dialog (CGF, the Orchestrator host) shows New Scenario… GREYED with its reason, like Load Scenario…; it does not wipe or do nothing silently.</summary>
+    [Fact]
+    public void CE4140_AHostWithNoDialog_ShowsNewScenarioGreyed_WithItsReason()
+    {
+        var (session, commands, _) = CreateRegistrar();   // openNewScenario: null
+        var d = commands.Get(ScenarioMenuCommands.NewId)!;
+        Assert.False(d.IsEnabled());
+        Assert.Contains("unavailable", d.DynamicDisplayName!(), StringComparison.Ordinal);
+        Assert.Contains("no scenario recipes", d.DynamicDisplayName!(), StringComparison.Ordinal);
+        Assert.False(commands.Invoke(ScenarioMenuCommands.NewId).Success);
+        Assert.Equal(0, session.ClearWorldCallCount);
+    }
+
+    // ══ ④ Checkpoint ════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1443</c> — <b>Save Checkpoint</b> reaches the session's checkpoint verb when the host passes no run choice, and the host's own (the choice's, with its toast) when it does; its reason — the choice's — disables it with the words.
+    /// ⭐ <b>Load Checkpoint…</b> is registered on every host: with a picker it hands the chosen label to the session's <c>RestoreCheckpoint</c> (the existing restore); with none (every host today — the live run's marks are not on the cluster view) it is DISABLED and says why.
+    /// </summary>
+    [Fact]
+    public void CE1443_SaveCheckpoint_And_LoadCheckpoint_ReachTheSession()
+    {
+        var (session, commands, _) = CreateRegistrar();
+        Assert.True(commands.Invoke(ScenarioMenuCommands.TakeCheckpointId).Success);
+        Assert.Equal(1, session.TakeCheckpointCallCount);                          // no choice passed: the session's own
+
+        var s2 = new FakeScenarioSession();
+        var c2 = new RecordingCommandSet();
+        var taken = 0;
+        string? why = "this run was not recorded";
+        ScenarioMenuCommands.Register((d, h) => c2.Register(d, h), new GlobalMenuRegistry(), c2, s2, (k, cb) => { }, cb => { },
+            takeCheckpoint: () => taken++, checkpointDisabledReason: () => why,
+            openCheckpointPicker: pick => pick("cp-1"));
+        Assert.False(c2.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());          // the choice's reason greys it …
+        Assert.Contains("this run was not recorded", c2.Get(ScenarioMenuCommands.TakeCheckpointId)!.DynamicDisplayName!());   // … and says it
+        why = null;
+        Assert.True(c2.Invoke(ScenarioMenuCommands.TakeCheckpointId).Success);
+        Assert.Equal(1, taken);                                                    // the host's (the choice's) checkpoint, not the session's
+        Assert.Equal(0, s2.TakeCheckpointCallCount);
+
+        Assert.True(c2.Invoke(ScenarioMenuCommands.LoadCheckpointId).Success);
+        Assert.Equal("cp-1", Assert.Single(s2.RestoreCheckpointCalls));            // the existing restore, by the picked label
+
+        var none = commands.Get(ScenarioMenuCommands.LoadCheckpointId)!;
+        Assert.False(none.IsEnabled());                                            // no picker on this host: registered, disabled …
+        Assert.Contains("unavailable", none.DynamicDisplayName!());                // … and saying why (ruling 49)
+    }
+
+    // ══ ③a VISIBILITY — the editing group only while editing, Save Checkpoint only in a live run (S2) ═══
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> S2 — <b>the context groups are HIDDEN (not greyed) outside their state</b>, whoever registered the item and in whatever order: the asset items and Save / Save All are other registrars' (here registered BEFORE and AFTER the scenario
+    /// registrar, like the shell toolbar and the editor), and the layout rule still hides them. The editing group draws ONLY in <c>OperatingEdit</c>; <i>Save Checkpoint</i> ONLY in <c>OperatingLive</c>; the first four, Close and Exit always; the separator
+    /// before Close only when a context group above it is drawn. The published model (<c>BuildViewModel</c>) says the same, and on Start (the Idle-only bar) the surface offers exactly the first four + Close + Exit, in draw order.
+    /// 🔴 Red-proofs: the editing rule dropped from <c>FileMenuLayout.Apply</c> ⇒ the Idle / Live rows draw the group; <c>SaveCheckpoint</c>'s rule dropped ⇒ the Edit row draws it; the separator's rule dropped ⇒ the Idle row draws a lone separator.
+    /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-1443</c> part B (AQ108 §2.15 "Save names what it saves") — <c>File/Save</c> and <c>File/Save As…</c> (the shell's: a DOCUMENT's) are drawn only while a document is the save target; the scenario's own
+    /// <i>Save Scenario 'x'</i> / <i>… As…</i> stay — so the menu never shows two items saving the scenario. A host with no document saver (the Orchestrator: null) never draws them. The scenario items NAME the scenario.
+    /// 🔴 Mutation: the <c>Save or SaveAs</c> rule dropped from <c>FileMenuLayout.Apply</c> ⇒ File/Save drawn with no document ⇒ red.
+    /// </summary>
+    /// <summary>
+    /// ⭐ CE-3407 (AQ108 §0 D27) — File › Save, Save As and Save as Recipe read the ONE <see cref="IScenarioSession.SaveDisabledReason"/>: greyed together, Save naming the reason.
+    /// 🔴 Red-proof: Save as Recipe's <c>isEnabled</c> without the reason (as it was) ⇒ it stays enabled ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3407_EverySaveItem_ReadsTheOneReason()
+    {
+        var session = new FakeScenarioSession { State = ClusterState.OperatingEdit, LoadedScenarioNameValue = "hill-attack" };
+        var commands = new RecordingCommandSet();
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), new GlobalMenuRegistry(), commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { });
+        string[] ids = { ScenarioMenuCommands.SaveId, ScenarioMenuCommands.SaveAsId, ScenarioMenuCommands.SaveAsRecipeId };
+        foreach (var id in ids) Assert.True(commands.Get(id)!.IsEnabled(), id);
+
+        session.NoSave = "a live run is not the scenario — Save takes a checkpoint";
+        foreach (var id in ids) Assert.False(commands.Get(id)!.IsEnabled(), id);
+        Assert.Contains(session.NoSave, commands.Get(ScenarioMenuCommands.SaveId)!.DynamicDisplayName!());
+        Assert.Contains(session.NoSave, commands.Get(ScenarioMenuCommands.SaveAsRecipeId)!.DynamicDisplayName!());
+    }
 
     [Fact]
-    public void Save_WithLoadedScenario_CallsSaveCurrentScenario()
+    public void CE1443_TheShellSave_IsDrawnOnlyForADocument_AndTheScenarioItemsNameTheScenario()
     {
-        var (editorLogic, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: "MyScenario");
+        var session = new FakeScenarioSession { State = ClusterState.OperatingEdit };
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        menu.RegisterItem(FileMenuLayout.Save, () => { });
+        menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
+        bool document = false;
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => document);
+
+        MenuItemNode Node(string path) => path["File/".Length..].Split('/').Aggregate(menu.Root.Children["File"], (n, seg) => n.Children[seg]);
+        bool Drawn(string path) => menu.Offers(Node(path), null);
+
+        Assert.False(Drawn(FileMenuLayout.Save));
+        Assert.False(Drawn(FileMenuLayout.SaveAs));
+        Assert.True(Drawn(FileMenuLayout.SaveScenario));
+        document = true;
+        Assert.True(Drawn(FileMenuLayout.Save));
+        Assert.True(Drawn(FileMenuLayout.SaveAs));
+
+        session.LoadedScenarioNameValue = "hill-attack";
+        Assert.Equal("Save Scenario 'hill-attack'", commands.Get(ScenarioMenuCommands.SaveId)!.DynamicDisplayName!());
+        Assert.Equal("Save Scenario 'hill-attack' As…", commands.Get(ScenarioMenuCommands.SaveAsId)!.DynamicDisplayName!());
+
+        // the Orchestrator: no document saver ⇒ the shell's items are never drawn
+        var orchestratorMenu = new GlobalMenuRegistry();
+        orchestratorMenu.RegisterItem(FileMenuLayout.Save, () => { });
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), orchestratorMenu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { });
+        Assert.False(orchestratorMenu.Offers(orchestratorMenu.Root.Children["File"].Children["Save"], null));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1443 B2 — <i>Save Scenario 'x' as Recipe…</i> is the scenario's Save As under the recipe name <c>recipes/scenarios/&lt;name&gt;</c> (which New Scenario re-reads), named in its label.
+    /// 🔴 Mutation: the handler calling <c>session.SaveAs(name)</c> (no recipe name) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1443_B2_SaveScenarioAsRecipe_SavesUnderTheRecipeName()
+    {
+        var session = new FakeScenarioSession { State = ClusterState.OperatingEdit, LoadedScenarioNameValue = "hill-attack" };
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => cb("hill-template"), openRecordingPicker: () => { });
+
+        var item = commands.Get(ScenarioMenuCommands.SaveAsRecipeId)!;
+        Assert.Equal("Save Scenario 'hill-attack' as Recipe…", item.DynamicDisplayName!());
+        commands.Invoke(ScenarioMenuCommands.SaveAsRecipeId);
+        Assert.Equal("recipes/scenarios/hill-template", Assert.Single(session.SaveAsCalls));
+    }
+
+    [Fact]
+    public void CE1443_S2_TheEditingGroup_And_SaveCheckpoint_AreDrawnOnlyInTheirState_AndStartShowsTheFirstFourPlusCloseAndExit()
+    {
+        var session = new FakeScenarioSession();
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+
+        // other registrars' items, BEFORE the scenario registrar (the shell toolbar) …
+        foreach (var path in new[] { FileMenuLayout.NewAsset, FileMenuLayout.OpenAsset, FileMenuLayout.NewBehavior, FileMenuLayout.NewAction, FileMenuLayout.NewCondition, FileMenuLayout.Save, FileMenuLayout.SaveSelectionAsMacro })
+            menu.RegisterItem(path, () => { });
+        menu.RegisterItem(FileMenuLayout.NewMacro, () => { }, allowedInIdle: false);   // ⭐ CE-4255 / CE-4253 — the editor's own registration
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => true, openSaveTerrainAs: () => { }, openSaveTerrain: () => { }, openEditTerrain: () => { });   // ⭐ U-5 / E-2 — the editor passes the dialogs, so their items are in the editing group
+        // … and AFTER it (the editor's Save As / Save All, the window controller's Exit)
+        menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
+        menu.RegisterItem(FileMenuLayout.SaveAsRecipe, () => { });
+        menu.RegisterItem(FileMenuLayout.SaveAll, () => { });
+        menu.RegisterItem(FileMenuLayout.Exit, () => { }, allowedInIdle: true);
+
+        MenuItemNode Node(string path) => path["File/".Length..].Split('/').Aggregate(menu.Root.Children["File"], (n, seg) => n.Children[seg]);
+        bool Drawn(string path) => menu.Offers(Node(path), null);
+
+        var alwaysDrawn = new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.NewTerrainFromOsm, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit, FileMenuLayout.SeparatorAfterLoads };
+        foreach (var state in new[] { ClusterState.Idle, ClusterState.OperatingEdit, ClusterState.OperatingPreview, ClusterState.OperatingLive, ClusterState.OperatingReplay })
+        {
+            session.State = state;
+            var editing = state == ClusterState.OperatingEdit;
+            var live = state == ClusterState.OperatingLive;
+
+            foreach (var path in alwaysDrawn) Assert.True(Drawn(path), $"{state}: {path} is always drawn");
+            foreach (var path in FileMenuLayout.EditingGroup) Assert.Equal(editing, Drawn(path));
+            Assert.True(Drawn(FileMenuLayout.NewMacro), $"{state}: Macro… is drawn as it was (Idle-disallowed only)");   // ⭐ CE-4255 — its visibility is today's
+            Assert.Equal(live, Drawn(FileMenuLayout.SaveCheckpoint));
+            Assert.Equal(editing || live, Drawn(FileMenuLayout.SeparatorBeforeClose));
+
+            // the published model is the same truth (it reads the very Offers)
+            var model = menu.BuildViewModel("Scenario").Items.ToDictionary(i => i.Path, i => i.Visible);
+            foreach (var path in FileMenuLayout.EditingGroup) Assert.Equal(editing, model[path]);
+            Assert.Equal(live, model[FileMenuLayout.SaveCheckpoint]);
+        }
+
+        // Start: the Idle-only bar — exactly the first four + Close + Exit, in the table's order
+        session.State = ClusterState.Idle;
+        menu.IdleOnlyWhen = () => true;
+        var offered = menu.AllowedInIdleItems().Select(a => a.Path).ToArray();
+        Assert.Equal(new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit }, offered);
+        Assert.DoesNotContain(FileMenuLayout.NewMacro, offered);   // ⭐ CE-4255 — Macro… is not allowed in Idle
+        foreach (var path in FileMenuLayout.EditingGroup.Append(FileMenuLayout.SaveCheckpoint)) Assert.False(Drawn(path));
+        // ⭐ CE-4255 — ONE New node: its six children in the designed order, whatever the registration order was
+        session.State = ClusterState.OperatingEdit;
+        menu.IdleOnlyWhen = null;
+        Assert.Equal(new[] { "Scenario…", "Terrain from OpenStreetMap…", "Asset…", "Behavior…", "Action…", "Condition…", "Macro…" }, menu.Root.Children["File"].Children["New"].OrderedChildren().Select(c => c.Name).ToArray());
+        Assert.Equal(1, menu.Root.Children["File"].Children.Keys.Count(k => k.StartsWith("New", StringComparison.Ordinal)));   // no loose "New …" item under File
+        Assert.DoesNotContain("Scenario", menu.Root.Children.Keys);                                                        // ⭐ CE-4253 — no Scenario top-level menu from this registrar
+    }
+
+    // ══ ⑤ Save / Save-As ════════════════════════════════════════════════════
+
+    [Fact]
+    public void Save_WithLoadedScenario_CallsSaveCurrent()
+    {
+        var (session, commands, _) = CreateRegistrar(loadedScenarioName: "MyScenario");
 
         var result = commands.Invoke(ScenarioMenuCommands.SaveId);
         Assert.True(result.Success);
-        Assert.Equal(1, editorLogic.SaveCurrentScenarioCallCount);
-        Assert.Empty(editorLogic.SaveScenarioAsCalls);
+        Assert.Equal(1, session.SaveCurrentCallCount);
+        Assert.Empty(session.SaveAsCalls);
     }
 
     [Fact]
     public void Save_WithoutLoadedScenario_OpensSaveAsDialog()
     {
-        var editorLogic = new FakeEditorLogic { LoadedScenarioNameValue = null }; // no loaded scenario
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
-
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) => { },
-            openSaveAsDialog:   cb =>
-            {
-                // Simulate user entering a name and confirming.
-                cb("NewName");
-            },
-            showMigrationHistory: null);
+        var (session, commands, _) = CreateRegistrar(
+            loadedScenarioName: null,
+            openSaveAsDialog:   cb => cb("NewName"));
 
         var result = commands.Invoke(ScenarioMenuCommands.SaveId);
         Assert.True(result.Success);
-        // Should NOT call SaveCurrentScenario (no loaded scenario).
-        Assert.Equal(0, editorLogic.SaveCurrentScenarioCallCount);
-        // Should call SaveScenarioAs via the save-as dialog.
-        var saveAsCall = Assert.Single(editorLogic.SaveScenarioAsCalls);
-        Assert.Equal("NewName", saveAsCall);
+        Assert.Equal(0, session.SaveCurrentCallCount);
+        Assert.Equal("NewName", Assert.Single(session.SaveAsCalls));
     }
 
-    // ── Save As ──────────────────────────────────────────────────────────────
-
     [Fact]
-    public void SaveAs_OpensSaveAsDialog_AndCallsSaveScenarioAs()
+    public void SaveAs_OpensSaveAsDialog_AndCallsSaveAs()
     {
-        var editorLogic = new FakeEditorLogic();
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
-
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) => { },
-            openSaveAsDialog:   cb =>
-            {
-                // Simulate user entering a name and confirming.
-                cb("RenamedScenario");
-            },
-            showMigrationHistory: null);
+        var (session, commands, _) = CreateRegistrar(openSaveAsDialog: cb => cb("RenamedScenario"));
 
         var result = commands.Invoke(ScenarioMenuCommands.SaveAsId);
         Assert.True(result.Success);
-        var saveAsCall = Assert.Single(editorLogic.SaveScenarioAsCalls);
-        Assert.Equal("RenamedScenario", saveAsCall);
+        Assert.Equal("RenamedScenario", Assert.Single(session.SaveAsCalls));
     }
 
-    // ── All five commands are always-enabled ─────────────────────────────────
+    // ══ ⑥ SERVICEABILITY — ruling 49 / VC-3 ════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A host with no picker gets the items REGISTERED, DISABLED, and SAYING WHY.</b>
+    /// 🔒 Ruling 49 — the menu shows every serviceable item; 🔒 VC-3 *(user, <c>2026-08-17</c>)* — an
+    /// explanatory label beats a control that looks broken. ⛔ This is the CGF shape, and the failure it
+    /// pins is a live-looking <c>Load Scenario</c> on a node that cannot pick one.
+    /// </summary>
+    [Fact]
+    public void WithNoPicker_TheLoadItemsAreDisabledAndExplainThemselves()
+    {
+        var (_, commands, _) = CreateRegistrar(openPicker: null, openSaveAsDialog: null);
+
+        // ⚠ CreateRegistrar substitutes no-op seams for null, so register directly for this rail.
+        var session  = new FakeScenarioSession();
+        var cmds     = new RecordingCommandSet();
+        var menu     = new GlobalMenuRegistry();
+        ScenarioMenuCommands.Register(
+            registerCommand: (d, h) => cmds.Register(d, h),
+            menu: menu, commands: cmds, session: session,
+            openPicker: null, openSaveAsDialog: null);
+
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId,
+                                   ScenarioMenuCommands.SaveAsId })
+        {
+            var descriptor = cmds.Get(id);
+            Assert.NotNull(descriptor);
+            Assert.False(descriptor!.IsEnabled(), $"{id} must be DISABLED with no seam to service it.");
+            Assert.NotNull(descriptor.DynamicDisplayName);
+            Assert.Contains("unavailable", descriptor.DynamicDisplayName!(), StringComparison.Ordinal);
+        }
+
+        // ⭐ And the always-serviceable ones stay live — a blanket disable would be just as wrong.
+        Assert.True(cmds.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
+        Assert.False(cmds.Get(ScenarioMenuCommands.NewId)!.IsEnabled());   // ⭐ CE-4140 — New Scenario… needs the host's recipe picker: greyed with no seam
+        Assert.True(cmds.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());
+    }
+
+    /// <summary>
+    /// ⭐ A SERVICEABLE item carries NO dynamic label, so nothing about its rendering changes.
+    /// ⚠ Worth pinning: the cheap way to write <see cref="ScenarioMenuCommands"/>'s VC-3 helper would have
+    /// been to always return a label, which would silently take over every item's display name.
+    /// </summary>
+    [Fact]
+    public void WithSeamsSupplied_TheItemsCarryNoOverrideLabel()
+    {
+        var (_, commands, _) = CreateRegistrar(
+            openPicker:       (k, cb) => { },
+            openSaveAsDialog: cb => { });
+
+        Assert.Null(commands.Get(ScenarioMenuCommands.LoadId)!.DynamicDisplayName);
+        // ⭐ CE-1443 part B (AQ108 §2.15): a SAVE item always names what it saves — its label is the naming rule, not an "unavailable" override
+        Assert.Equal("Save Scenario As…", commands.Get(ScenarioMenuCommands.SaveAsId)!.DynamicDisplayName!());
+    }
 
     [Fact]
-    public void AllFiveCommands_AreEnabled()
+    public void EveryAlwaysServiceableCommand_IsEnabled_WhenScenarioLoaded()
     {
-        var (_, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: null);
+        var (_, commands, _) = CreateRegistrar(loadedScenarioName: "LoadedScenario", openNewScenario: () => { });
 
         Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.SaveId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.SaveAsId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.MigrationHistoryId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());
     }
 
-    [Fact]
-    public void AllFiveCommands_AreEnabled_WhenScenarioLoaded()
-    {
-        var (_, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: "LoadedScenario");
-
-        Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
-        Assert.True(commands.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
-        Assert.True(commands.Get(ScenarioMenuCommands.SaveId)!.IsEnabled());
-        Assert.True(commands.Get(ScenarioMenuCommands.SaveAsId)!.IsEnabled());
-        Assert.True(commands.Get(ScenarioMenuCommands.MigrationHistoryId)!.IsEnabled());
-    }
-
-    // ── Migration History ────────────────────────────────────────────────────
+    // ══ ⑦ Migration history ════════════════════════════════════════════════
 
     [Fact]
     public void MigrationHistory_WhenScenarioLoaded_ListsSidecars()
@@ -345,21 +741,14 @@ public sealed class ScenarioMenuTests
         };
 
         IReadOnlyList<SidecarFileInfo>? capturedSidecars = null;
-        var editorLogic = new FakeEditorLogic
+        var session = new FakeScenarioSession
         {
             LoadedScenarioNameValue = "MyScenario",
-            MigrationSidecars = sidecars,
+            MigrationSidecars       = sidecars,
         };
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
 
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) => { },
-            openSaveAsDialog:   cb => { },
+        var (_, commands, _) = CreateRegistrar(
+            session:              session,
             showMigrationHistory: list => capturedSidecars = list);
 
         var result = commands.Invoke(ScenarioMenuCommands.MigrationHistoryId);
@@ -370,47 +759,37 @@ public sealed class ScenarioMenuTests
         Assert.Equal(SidecarKind.Snapshot, capturedSidecars[0].Kind);
     }
 
-    // ── Menu leaf nodes have correct OnClick handlers ───────────────────────
+    /// <summary>⭐ A null history seam must not throw — the item is registered either way.</summary>
+    [Fact]
+    public void MigrationHistory_WhenSeamIsNull_DoesNotThrow()
+    {
+        var session = new FakeScenarioSession
+        {
+            LoadedScenarioNameValue = "HasScenario",
+            MigrationSidecars       = new[] { new SidecarFileInfo("f", SidecarKind.Snapshot, 1, "h") },
+        };
+        var (_, commands, _) = CreateRegistrar(session: session, showMigrationHistory: null);
+
+        var result = commands.Invoke(ScenarioMenuCommands.MigrationHistoryId);
+        Assert.True(result.Success);
+    }
+
+    // ══ ⑧ The menu leaf actually invokes the command ════════════════════════
 
     [Fact]
     public void New_MenuItem_OnClick_InvokesCommand()
     {
-        var (editorLogic, commands, menu, _, _, _) = CreateRegistrar();
+        int opened = 0;
+        var (session, _, menu) = CreateRegistrar(openNewScenario: () => opened++);
 
         Assert.True(menu.Root.Children.TryGetValue("File", out var fileNode));
-        Assert.True(fileNode.Children.TryGetValue("Scenario", out var scenarioNode));
-        Assert.True(scenarioNode.Children.TryGetValue("New Scenario", out var leaf));
+        Assert.True(fileNode.Children.TryGetValue("New", out var newNode));   // ⭐ CE-4255: File/New/Scenario…
+        Assert.True(newNode!.Children.TryGetValue("Scenario…", out var leaf));
         Assert.NotNull(leaf.OnClick);
 
         leaf.OnClick();
-        Assert.Equal(1, editorLogic.NewScenarioCallCount);
-    }
-
-    // ── Edge case: MigrationHistory handler is no-op when seam is null ──────
-
-    [Fact]
-    public void MigrationHistory_WhenSeamIsNull_DoesNotThrow()
-    {
-        var editorLogic = new FakeEditorLogic
-        {
-            LoadedScenarioNameValue = "HasScenario",
-            MigrationSidecars = new[] { new SidecarFileInfo("f", SidecarKind.Snapshot, 1, "h") },
-        };
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
-
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) => { },
-            openSaveAsDialog:   cb => { },
-            showMigrationHistory: null); // null seam
-
-        // Invoking should not throw.
-        var result = commands.Invoke(ScenarioMenuCommands.MigrationHistoryId);
-        Assert.True(result.Success);
+        Assert.Equal(1, opened);   // ⭐ CE-4140 — it opens the scenario-recipe picker (it was ClearWorld)
+        Assert.Equal(0, session.ClearWorldCallCount);
     }
 
     // ── BATCH-26: scenario.load → unified modal opens ──────────────────────
@@ -424,84 +803,53 @@ public sealed class ScenarioMenuTests
     [Fact]
     public void Load_Invoke_OpensUnifiedModal()
     {
-        var editorLogic = new FakeEditorLogic();
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
         var catalog = new FakeAssetCatalog();
-        var icons = new FakeIconProvider();
-        var modal = new AssetPickerModal(catalog, icons);
+        var icons   = new FakeIconProvider();
+        var modal   = new AssetPickerModal(catalog, icons);
 
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) =>
-            {
-                // BATCH-26: opens the unified modal (same as production).
-                modal.Open(
-                    new AssetBrowserPanelOptions
-                    {
-                        Kinds = kinds,
-                        ShowAllTab = kinds == AssetKindFilter.All
-                    },
-                    cb);
-            },
-            openSaveAsDialog:   cb => { },
-            showMigrationHistory: null);
+        var (_, commands, _) = CreateRegistrar(
+            openPicker: (kinds, cb) => modal.Open(
+                new AssetBrowserPanelOptions
+                {
+                    Kinds      = kinds,
+                    ShowAllTab = kinds == AssetKindFilter.All,
+                },
+                cb));
 
         Assert.False(modal.IsOpen);
 
-        // Invoke scenario.load — this should open the modal.
         var result = commands.Invoke(ScenarioMenuCommands.LoadId);
         Assert.True(result.Success);
         Assert.True(modal.IsOpen, "Expected modal.IsOpen = true after scenario.load invoked.");
 
-        // Verify the picker is scenario-filtered.
         Assert.NotNull(modal.Panel);
         Assert.Contains(AssetKind.Scenario, modal.Panel!.Tabs);
     }
 
     /// <summary>
     /// BATCH-26: When the scenario picker is cancelled (callback(null)),
-    /// the modal closes and LoadScenarioByName is NOT called.
+    /// the modal closes and no load is requested.
     /// </summary>
     [Fact]
     public void Load_UnifiedModal_Cancel_DoesNotLoad()
     {
-        var editorLogic = new FakeEditorLogic();
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
         var catalog = new FakeAssetCatalog();
-        var icons = new FakeIconProvider();
-        var modal = new AssetPickerModal(catalog, icons);
+        var icons   = new FakeIconProvider();
+        var modal   = new AssetPickerModal(catalog, icons);
 
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) =>
+        var (session, commands, _) = CreateRegistrar(
+            openPicker: (kinds, cb) =>
             {
-                modal.Open(
-                    new AssetBrowserPanelOptions
-                    {
-                        Kinds = kinds,
-                        ShowAllTab = false
-                    },
-                    cb);
+                modal.Open(new AssetBrowserPanelOptions { Kinds = kinds, ShowAllTab = false }, cb);
                 // Simulate user cancelling via Esc / X button.
                 modal.HandleCancel();
-            },
-            openSaveAsDialog:   cb => { },
-            showMigrationHistory: null);
+            });
 
         var result = commands.Invoke(ScenarioMenuCommands.LoadId);
         Assert.True(result.Success);
 
-        // Modal must be closed after cancel.
         Assert.False(modal.IsOpen);
-        Assert.Empty(editorLogic.LoadScenarioByNameCalls);
+        Assert.Empty(session.LoadScenarioCalls);
     }
 
     // ── Fake catalog + icon provider for BATCH-26 unified modal tests ────

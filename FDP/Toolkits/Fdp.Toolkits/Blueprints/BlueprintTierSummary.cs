@@ -10,7 +10,10 @@ public readonly record struct SlotSummary(
     string Name,
     uint InstanceVersion,
     ushort PayloadOffset,
-    ushort PayloadSize);
+    ushort PayloadSize,
+    // ⭐ CE-1326 — what the slot IS: an attached blueprint, or a behaviour's own occurrence (the task's, the SOP's, a hosted child's), which
+    //   shares the store and counts toward its capacity but is no blueprint
+    Partitioning.OccurrenceKind Kind = Partitioning.OccurrenceKind.Blueprint);
 
 /// <summary>
 /// Read-only, allocation-free scanner that extracts blueprint slot summaries
@@ -63,7 +66,8 @@ public static unsafe class BlueprintTierSummary
                 name,
                 slot.InstanceVersion,
                 slot.PayloadOffset,
-                slot.PayloadSize));
+                slot.PayloadSize,
+                BlueprintBlackboardPartitions.GetSlotKind(memory, i)));
         }
     }
 }

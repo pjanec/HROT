@@ -1,0 +1,211 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "Kind": "macro",
+    "description": "What: CE-6009 (city battle M-1, §4) - a DEFENDER COMPANY: three militia-platoon macros (nested, 60 m apart) and two technicals (104) as its support element. ⚠ NO company commander until CE-7002. Params: side (default Hostile), p1 / p2 / p3 (the platoons' RefKeys).",
+    "Anchor": {
+      "Position": [
+        0,
+        0,
+        0
+      ],
+      "Heading": 0
+    },
+    "Params": [
+      {
+        "Name": "side",
+        "TypeId": "ForceId",
+        "Default": "Hostile"
+      },
+      {
+        "Name": "p1",
+        "TypeId": "string",
+        "Default": "Platoon1"
+      },
+      {
+        "Name": "p2",
+        "TypeId": "string",
+        "Default": "Platoon2"
+      },
+      {
+        "Name": "p3",
+        "TypeId": "string",
+        "Default": "Platoon3"
+      }
+    ]
+  },
+  "entities": {
+    "c6009d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -60.0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8813
+      },
+      "EntityInfo": {
+        "Name": "city-battle/militia-platoon"
+      },
+      "MacroInstance": {
+        "Macro": "city-battle/militia-platoon",
+        "Args": {
+          "name": "1st Platoon"
+        }
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p1"
+        }
+      }
+    },
+    "c6009d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8813
+      },
+      "EntityInfo": {
+        "Name": "city-battle/militia-platoon"
+      },
+      "MacroInstance": {
+        "Macro": "city-battle/militia-platoon",
+        "Args": {
+          "name": "2nd Platoon"
+        }
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p2"
+        }
+      }
+    },
+    "c6009d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          60.0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8813
+      },
+      "EntityInfo": {
+        "Name": "city-battle/militia-platoon"
+      },
+      "MacroInstance": {
+        "Macro": "city-battle/militia-platoon",
+        "Args": {
+          "name": "3rd Platoon"
+        }
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p3"
+        }
+      }
+    },
+    "c6009d00-0000-4000-8000-000000000040": {
+      "SimTransform": {
+        "Position": [
+          -30,
+          -30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 104
+      },
+      "EntityInfo": {
+        "Name": "Technical 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009d00-0000-4000-8000-000000000041": {
+      "SimTransform": {
+        "Position": [
+          30,
+          -30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 104
+      },
+      "EntityInfo": {
+        "Name": "Technical 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    }
+  }
+}

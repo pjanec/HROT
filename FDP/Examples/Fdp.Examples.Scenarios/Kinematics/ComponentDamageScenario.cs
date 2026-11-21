@@ -85,11 +85,11 @@ namespace Fdp.Examples.Scenarios.Kinematics
             // ── Component registration ────────────────────────────────────────
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<Health>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>();   // CE-3092
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
-            world.RegisterComponent<BrainHsm128>();
 
             // ── Event registration ────────────────────────────────────────────
             world.RegisterEvent<DetonationNotification>();
@@ -221,6 +221,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
             });
 
             world.AddComponent(e, new Health  { Current = MaxHealth, Max = MaxHealth });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.MobilityKill { BelowFraction = 1f });   // CE-3092 — an APC: any hit stops it
 
             world.AddComponent(e, new ActorCapabilityState
             {
@@ -248,14 +249,17 @@ namespace Fdp.Examples.Scenarios.Kinematics
                 Status           = NodeStatus.Running
             });
 
-            // BrainHsm128: required for HsmDamageBridgeSystem to inject MobilityLost event.
-            world.AddComponent(e, new BrainHsm128());
+            // ⛔ O7c-④d (2026-09-23): the BrainHsm128 attach is gone with the component. Its comment
+            //   claimed HsmDamageBridgeSystem needed it — 📐 measured: no such class exists anywhere
+            //   in the tree, only comments referring to it. This scenario asserts on capability
+            //   stripping, which HealthApplicationSystem does; it never ran a machine.
 
             return e;
         }
 
         // ── Inner module helper (shared pattern) ──────────────────────────────
 
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class DirectSystemsModule : IEcsModule
         {
             private readonly IEcsModuleSystem[] _systems;
@@ -290,6 +294,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
         /// to a MobilityLost event without requiring a full HSM state-machine definition.
         /// Must run after <see cref="HsmDamageBridgeSystem"/>.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class LocomotionClearOnMobilityKillSystem : IEcsModuleSystem
         {
             public void Execute(ISimulationView view, float deltaTime)

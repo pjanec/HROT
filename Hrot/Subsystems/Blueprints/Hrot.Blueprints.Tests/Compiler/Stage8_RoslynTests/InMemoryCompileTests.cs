@@ -15,6 +15,8 @@ namespace Hrot.Blueprints.Tests.Compiler;
 /// <summary>
 /// Tests for Stage8 in-memory Roslyn compilation. Covers BP7001.
 /// </summary>
+// Batch 52 §1 — see RoslynFinalizerCollection.
+[Collection("RoslynFinalizer")]
 public sealed class InMemoryCompileTests
 {
     private static MetadataReferenceResolver MakeResolver() =>

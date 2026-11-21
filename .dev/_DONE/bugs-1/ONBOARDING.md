@@ -81,16 +81,16 @@ before touching any code.
 
 ```powershell
 # Restore all NuGet packages
-dotnet restore IOS-IG-SimHost.sln
+dotnet restore HROT.sln
 
 # Build entire solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Run the full test suite:
 
 ```powershell
-dotnet test IOS-IG-SimHost.sln --no-restore -v q
+dotnet test HROT.sln --no-restore -v q
 ```
 
 Run tests for a specific project:

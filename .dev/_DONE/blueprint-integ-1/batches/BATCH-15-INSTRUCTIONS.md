@@ -30,7 +30,7 @@ Classify each dangling reference in `PreviewDelete` as **Critical** (removal bre
 
 ## Success Criteria
 - [ ] AIE-053 per success conditions; **Phase 5 complete → entire integration done.**
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 warnings (GizmoMap.Contracts on 0.2.2).
+- [ ] `dotnet build HROT.sln` 0 errors / 0 warnings (GizmoMap.Contracts on 0.2.2).
 - [ ] Green: `Hrot.Editor.AiShared.Tests`, `Hrot.Blueprints.Tests` (no new failures beyond DEBT-006's 10), `Hrot.BTree.Editor.Tests`, `Hrot.Hsm.Editor.Tests`, `EditorSubsystemBoot` filter.
 - [ ] No leftover TODO/debug; docs.
 - [ ] Report at `.dev/blueprint-integ-1/reports/BATCH-15-REPORT.md`.

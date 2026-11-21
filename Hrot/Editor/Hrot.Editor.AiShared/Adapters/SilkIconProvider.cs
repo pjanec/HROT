@@ -99,6 +99,7 @@ public sealed class SilkIconProvider : IIconProvider
             ["status/error"]          = "v13",   // error badge
             ["status/warning"]        = "l7",   // warning badge
             ["status/info"]           = "c23",   // information badge
+            ["help"]                  = "v5",    // ⭐ CE-4114: the question mark (help.png) — the Help menu's icon-only top-level entry
             ["status/ok"]             = "af12",   // tick badge
             ["status/running"]        = "j14",   // spinner/running
 
@@ -121,6 +122,7 @@ public sealed class SilkIconProvider : IIconProvider
             ["asset/hsm"]             = "p5",  // state machine
             ["asset/blackboard"]      = "w31",  // blackboard
             ["asset/utility"]         = "ad32",   // utility
+            ["asset/recording"]       = "d8",     // play triangle → a recording (CE-4098)
 
             // ── Generic / browser (§5.1) ────────────────────────────────────
             ["browser/open"]          = "d4",   // folder → open browser

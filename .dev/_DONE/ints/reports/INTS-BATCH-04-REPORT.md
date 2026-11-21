@@ -67,14 +67,14 @@ Result: PASS
 ### Full Solution Build
 Command:
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 Result: PASS with warnings (external/toolkit warnings only).
 
 ### Full Solution Tests
 Command:
 ```
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 ```
 Result: FAIL (4 total). Failing tests observed:
 - FDP.Toolkit.Lifecycle.Tests: `LifecycleCleanupSystemTests.Execute_RemovesTransientComponents_WhenActive`

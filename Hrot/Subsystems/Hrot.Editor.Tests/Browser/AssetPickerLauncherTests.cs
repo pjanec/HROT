@@ -1,7 +1,9 @@
+using Fdp.Testing;
 using Hrot.Editor;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
+using System.IO;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 
@@ -285,5 +287,521 @@ public sealed class AssetPickerLauncherTests
         Assert.All(entries, e => Assert.Equal(AssetKind.Scenario, ((IEditableAsset)e.Tag!).Kind));
         Assert.Contains(entries, e => ((IEditableAsset)e.Tag!).Name == "Scen1");
         Assert.Contains(entries, e => ((IEditableAsset)e.Tag!).Name == "Scen2");
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    //  CE-4098 (AQ108 D19) — the Open-Asset / Open-Scenario picker shows Recent first, per kind
+    // ═════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐ CE-4098 success 1+2 — through the REAL <see cref="PickerRegistry"/>: a pick is pushed to ITS KIND's Recent list (so File › Open Scenario
+    /// and File › Open Asset share the scenario list and kinds do not mix), the open picker's Recent section lists it first, and after a "restart"
+    /// (fresh store from the file) the picked scenario is still first. 🔴 Red-proof: drop <c>RecentContext:</c> from
+    /// <c>AssetPickerSource.ToEntry</c> ⇒ the pick lands under the picker's own <c>assets.open.*</c> key and the kind-list assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4098_APick_IsPushedToItsKindsList_ShownFirstAfterARestart_AndKindsDoNotMix()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "asset-recent-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "recent-picks.json");
+        try
+        {
+            var s1 = new StubAsset { Kind = AssetKind.Scenario,  Name = "Scen1" };
+            var s2 = new StubAsset { Kind = AssetKind.Scenario,  Name = "Scen2" };
+            var bp = new StubAsset { Kind = AssetKind.Blueprint, Name = "BP1" };
+            var catalog = new FakeCatalog(s1, s2, bp);
+
+            AssetPickerLauncher Launcher(PickerRegistry r) => new(r.OpenPicker, catalog, MakeRouter(), baseFolderResolver: _ => "");
+
+            var registry = new PickerRegistry { Recent = RecentStore.Load(file) };
+            IEditableAsset? picked = null;
+            Launcher(registry).Open(AssetKindFilter.Scenario, a => picked = a);
+            Assert.Empty(registry.RecentSection());
+            Assert.True(registry.ConfirmEntry(s2.AssetId.ToString()));
+            Assert.Same(s2, picked);
+
+            // File › Open Asset (all kinds) picks a blueprint: its own kind's list, not the scenario list
+            Launcher(registry).Open(AssetKindFilter.All, _ => { });
+            Assert.True(registry.ConfirmEntry(bp.AssetId.ToString()));
+
+            var reloaded = RecentStore.Load(file);
+            Assert.Equal(new[] { s2.AssetId.ToString() }, reloaded.GetRecent(AssetRecents.ContextFor(AssetKind.Scenario)));
+            Assert.Equal(new[] { bp.AssetId.ToString() }, reloaded.GetRecent(AssetRecents.ContextFor(AssetKind.Blueprint)));
+
+            // "restart": a fresh registry over the reloaded store — both the scenario picker and the all-kinds picker show s2 first
+            var second = new PickerRegistry { Recent = reloaded };
+            Launcher(second).Open(AssetKindFilter.Scenario);
+            Assert.Equal(new[] { s2.AssetId.ToString() }, second.RecentSection().Select(e => e.Id));
+            Launcher(second).Open(AssetKindFilter.All);
+            Assert.Equal(new[] { s2.AssetId.ToString(), bp.AssetId.ToString() }.OrderBy(x => x),
+                         second.RecentSection().Select(e => e.Id).OrderBy(x => x));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4098 success 3 — a scenario that is no longer in the catalog (deleted, or moved by the content-folder change and not found there) is
+    /// not shown as Recent: the picker lists only what resolves, so there is no ghost row and no crash.
+    /// </summary>
+    [Fact]
+    public void CE4098_AScenarioThatNoLongerResolves_IsNotShownAsRecent()
+    {
+        var kept  = new StubAsset { Kind = AssetKind.Scenario, Name = "Kept" };
+        var other = new StubAsset { Kind = AssetKind.Scenario, Name = "NeverPicked" };
+        var gone  = new StubAsset { Kind = AssetKind.Scenario, Name = "Gone" };
+        var store = new RecentStore();
+        store.Push(AssetRecents.ContextFor(AssetKind.Scenario), gone.AssetId.ToString());
+        store.Push(AssetRecents.ContextFor(AssetKind.Scenario), kept.AssetId.ToString());
+
+        var registry = new PickerRegistry { Recent = store };
+        new AssetPickerLauncher(registry.OpenPicker, new FakeCatalog(kept, other), MakeRouter(), baseFolderResolver: _ => "")
+            .Open(AssetKindFilter.Scenario);
+
+        // only what the picker lists AND was picked: not the deleted one, not the never-picked one
+        Assert.Equal(new[] { kept.AssetId.ToString() }, registry.RecentSection().Select(e => e.Id));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1442</c> (U1, §11.7 ⑤) — a picker that lists SCENARIOS (the cluster's list) leads with the disabled "waiting for the cluster's list…" row until the
+    /// list has arrived, so an empty picker never reads as "no scenarios"; files on disk (a BTree-only picker) are unaffected, and once the list arrives the row is gone.
+    /// 🔴 Mutation: the <c>_hasInventory()</c> check dropped from <c>Entries</c> ⇒ no waiting row ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1442_AScenarioPicker_SaysItIsWaitingForTheClustersList_UntilItArrives()
+    {
+        bool arrived = false;
+        var catalog = new FakeCatalog(new StubAsset { Name = "Patrol", Kind = AssetKind.BTree });
+        var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, catalog, new AssetPickActionRouter(_ => { }, _ => { }), hasInventory: () => arrived);
+
+        var waiting = launcher.Entries(AssetKindFilter.Scenario);
+        Assert.Equal(AssetPickerLauncher.WaitingEntryId, waiting[0].Id);
+        Assert.False(waiting[0].IsEnabled);
+        Assert.DoesNotContain(launcher.Entries(AssetKindFilter.BTree), e => e.Id == AssetPickerLauncher.WaitingEntryId);
+
+        arrived = true;
+        Assert.DoesNotContain(launcher.Entries(AssetKindFilter.Scenario), e => e.Id == AssetPickerLauncher.WaitingEntryId);
+    }
+
+    // ═══ CE-4141 (AQ108 D25) — the scenario picker as the first source of the generic side pane ═══════════════════════════════════
+    // Red-proof (compiles): the go-live branch of Open dropped (the action id ignored) ⇒ CE4141_OpenAndGoLive_… fails.
+
+    private sealed class RecordingControl : Hrot.UI.Common.RunMode.IRunScenarioControl
+    {
+        public List<string> LiveLoads { get; } = new();
+        public List<string> EditOpens { get; } = new();
+        public string? LoadedScenarioName => "s";
+        public void LoadForLive(string scenarioName) => LiveLoads.Add(scenarioName);
+        public List<(string Name, string? Args)> LiveLoadArgs { get; } = new();
+        public void LoadForLive(string scenarioName, string? argsJson) { LiveLoads.Add(scenarioName); LiveLoadArgs.Add((scenarioName, argsJson)); }   // ⭐ AQ108 D24
+        public void OpenForEdit(string scenarioName) => EditOpens.Add(scenarioName);
+        public void OpenRecording(Guid exerciseId) { }
+        public void SaveCurrent() { }
+        public void TakeCheckpoint() { }
+    }
+
+    private static Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceOver(RecordingControl control)
+        => Hrot.UI.Common.RunMode.NodeRunControls.For(new Fdp.Core.FdpEventBus(), () => null, () => 0.0, null,
+               new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Editor, control)).RunChoice;
+
+    private static string TempScenario(out string json, string name = "alpha", bool withPreview = false, string headerJson = "\"terrainName\":\"Hill\",\"description\":\"A hill attack.\",\"subsystemType\":\"CGF\"")
+    {
+        string root = Path.Combine(Path.GetTempPath(), "pk4141-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, name));
+        json = Path.Combine(root, name, "scenario.json");
+        File.WriteAllText(json, "{\"header\":{" + headerJson + "},\"entities\":{\"a\":{},\"b\":{},\"c\":{}}}");
+        if (withPreview) File.WriteAllBytes(Path.Combine(root, name, "preview.png"), new byte[] { 1 });
+        return root;
+    }
+
+    [Fact]
+    public void CE4141_AScenarioRequest_HasTheSidePane_TheTwoActions_AndThePreviewKeyOnlyWhenTheFileExists()
+    {
+        string root = TempScenario(out var json, "with", withPreview: true);
+        TempScenarioAt(root, "without", out var json2);
+        try
+        {
+            var catalog = new FakeCatalog(new StubAsset { Kind = AssetKind.Scenario, Name = "with", SourceFilePath = json },
+                                          new StubAsset { Kind = AssetKind.Scenario, Name = "without", SourceFilePath = json2 });
+            var picker = new FakeOpenPicker();
+            new AssetPickerLauncher(picker.OpenPicker, catalog, MakeRouter(), baseFolderResolver: _ => "").Open(AssetKindFilter.Scenario);
+
+            var req = picker.CapturedRequest!;
+            Assert.True(req.ShowSidePane);
+            Assert.Equal(new System.Numerics.Vector2(1000f, 640f), req.DefaultSize);   // D25's wide picker: the preview must be readable
+            Assert.Equal(560f, req.SidePaneWidth);
+            Assert.NotNull(req.DrawPane);
+            Assert.Equal(new[] { "open", "go-live" }, req.Actions!.Select(a => a.Id).ToArray());
+            Assert.True(req.Actions![0].IsDefault);
+            var entries = req.ItemsProvider().ToList();
+            Assert.EndsWith("preview.png", entries.Single(e => e.Name == "with").ImageKey);
+            Assert.Null(entries.Single(e => e.Name == "without").ImageKey);
+
+            // a picker of other kinds is the classic one: no pane, no actions
+            var other = new FakeOpenPicker();
+            new AssetPickerLauncher(other.OpenPicker, new FakeCatalog(new StubAsset { Kind = AssetKind.BTree, Name = "p" }), MakeRouter(), baseFolderResolver: _ => "").Open(AssetKindFilter.BTree);
+            Assert.False(other.CapturedRequest!.ShowSidePane);
+            Assert.Null(other.CapturedRequest.Actions);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static void TempScenarioAt(string root, string name, out string json)
+    {
+        Directory.CreateDirectory(Path.Combine(root, name));
+        json = Path.Combine(root, name, "scenario.json");
+        File.WriteAllText(json, "{\"header\":{},\"entities\":{}}");
+    }
+
+    [Fact]
+    public void CE4141_TheFactsAreReadFromScenarioJson_LazilyAndCached_AndAbsentFieldsStayAbsent()
+    {
+        string root = TempScenario(out var json);
+        try
+        {
+            int before = ScenarioPaneFacts.Parses;
+            var f = ScenarioPaneFacts.Get(json, nowMs: 1_000)!;
+            Assert.Equal(("A hill attack.", "Hill", "CGF", 3), (f.Description, f.TerrainName, f.SubsystemType, f.EntityCount));
+            Assert.Same(f, ScenarioPaneFacts.Get(json, nowMs: 1_500));          // a frame later: the cache, no parse
+            Assert.Equal(before + 1, ScenarioPaneFacts.Parses);
+            Assert.Same(f, ScenarioPaneFacts.Get(json, nowMs: 9_000));          // re-checked, the write time unchanged ⇒ still no parse
+            Assert.Equal(before + 1, ScenarioPaneFacts.Parses);
+
+            string root2 = TempScenario(out var json2, headerJson: "");
+            try
+            {
+                var bare = ScenarioPaneFacts.Get(json2)!;
+                Assert.Null(bare.TerrainName); Assert.Null(bare.Description);   // only what the file has — no placeholder
+            }
+            finally { Directory.Delete(root2, true); }
+            Assert.Null(ScenarioPaneFacts.Get(Path.Combine(root, "missing", "scenario.json")));
+            Assert.Null(ScenarioPaneFacts.Get(""));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    /// <summary>
+    /// ⭐ B-9 N1 pane — a TERRAIN's facts come from its terrain.json through the same cached reader as a scenario's (parsed by the ONE <c>TerrainDefinitionParser</c>, never per frame); its still
+    /// is the same <c>PreviewOf</c> rule; "recipes on it" are the recipes (the lister New Scenario reads) whose header names that terrain. ✅ Red-proof: <c>RecipesOn</c> comparing the wrong field ⇒ red.
+    /// </summary>
+    [Fact]
+    public void B9_TerrainFacts_AreReadFromTerrainJson_Cached_AndRecipesOnItAreCounted()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "b9t-" + Guid.NewGuid().ToString("N"));
+        var saved = AssetRoots.ConfiguredRoot;
+        Directory.CreateDirectory(root);
+        AssetRoots.Configure(root);
+        try
+        {
+            var terrain = Path.Combine(root, "assets", "terrain", "berlin");
+            Directory.CreateDirectory(terrain);
+            var json = Path.Combine(terrain, "terrain.json");
+            File.WriteAllText(json, "{\"schemaVersion\":2,\"name\":\"berlin\",\"origin\":{\"lat\":52.52,\"lon\":13.405,\"alt\":34.0},\"roadNetworks\":[\"roads.json\"]}");
+            int before = ScenarioPaneFacts.Parses;
+            var f = ScenarioPaneFacts.GetTerrain(json, nowMs: 1_000)!;
+            Assert.Equal(("berlin", 52.52, 13.405, 34.0), (f.Name, f.Lat, f.Lon, f.Alt));
+            Assert.Equal(new[] { "roads.json" }, f.RoadNetworks);
+            Assert.Same(f, ScenarioPaneFacts.GetTerrain(json, nowMs: 1_500));
+            Assert.Same(f, ScenarioPaneFacts.GetTerrain(json, nowMs: 9_000));
+            Assert.Equal(before + 1, ScenarioPaneFacts.Parses);                  // parsed once
+            Assert.Null(ScenarioPaneFacts.TerrainPreviewOf(json));
+            File.WriteAllBytes(Path.Combine(terrain, "preview.jpg"), new byte[] { 1 });
+            Assert.EndsWith("preview.jpg", ScenarioPaneFacts.TerrainPreviewOf(json));
+
+            File.WriteAllText(Path.Combine(terrain, "bad.json"), "{ nope");
+            Assert.Null(ScenarioPaneFacts.GetTerrain(Path.Combine(terrain, "bad.json")));   // malformed ⇒ no facts, no throw
+            Assert.Null(ScenarioPaneFacts.GetTerrain(Path.Combine(terrain, "missing.json")));
+
+            foreach (var (name, on) in new[] { ("sop-demo", "berlin"), ("other", "test-town"), ("mine", "berlin") })
+            {
+                Directory.CreateDirectory(Path.Combine(AssetRoots.ScenariosRecipesRoot, name));
+                File.WriteAllText(Path.Combine(AssetRoots.ScenariosRecipesRoot, name, "scenario.json"), "{\"header\":{\"terrainName\":\"" + on + "\"},\"entities\":{}}");
+            }
+            Assert.Equal(new[] { "mine", "sop-demo" }, ScenarioPaneFacts.RecipesOn("berlin").OrderBy(n => n, StringComparer.Ordinal));
+            Assert.Empty(ScenarioPaneFacts.RecipesOn("basic-desert"));
+        }
+        finally { AssetRoots.Configure(saved); try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [Fact]
+    public void CE4141_OpenAndGoLive_RoutesToTheRunChoice_AndOpenStaysTheRouter()
+    {
+        var control = new RecordingControl();
+        var choice = RunChoiceOver(control);
+        var asset = new StubAsset { Kind = AssetKind.Scenario, Name = "alpha" };
+        var picker = new FakeOpenPicker();
+        var opened = new List<string>();
+        new AssetPickerLauncher(picker.OpenPicker, new FakeCatalog(asset), MakeRouter(onLoad: opened.Add), baseFolderResolver: _ => "", runChoice: () => choice)
+            .Open(AssetKindFilter.Scenario);
+
+        picker.InvokeHandler(new PickerResult(new[] { EntryFor(asset) }) { ActionId = AssetPickerLauncher.GoLiveActionId });
+        Assert.Equal(new[] { "alpha" }, control.LiveLoads);                      // the door loaded it for LIVE
+        Assert.Empty(opened);                                                     // and the Open router did not run
+
+        picker.InvokeHandler(new PickerResult(new[] { EntryFor(asset) }) { ActionId = AssetPickerLauncher.OpenActionId });
+        Assert.Equal(new[] { "alpha" }, opened);                                  // Open = today's route
+        Assert.Single(control.LiveLoads);
+    }
+
+    // ═══ AQ108 D24 (the ui half) — the picker's Run setup ═══════════════════════════════════════════════════════════════════════════
+    // Red-proof (compiles): the facts reader returning UsesVariants always false ⇒ the variant-facts rail fails; OpenAndGoLive not passing RunArgsFor ⇒ the frame rail's args assert fails.
+
+    [Fact]
+    public void D24_TheFacts_CarryTheHeadersParams_AndWhetherTheFileUsesVariants()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "pkd24-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "v")); Directory.CreateDirectory(Path.Combine(root, "plain"));
+            File.WriteAllText(Path.Combine(root, "v", "scenario.json"),
+                "{\"header\":{\"description\":\"d\",\"Params\":[{\"Name\":\"count\",\"TypeId\":\"int\",\"Default\":2},{\"Name\":\"side\",\"TypeId\":\"ForceId\",\"Default\":\"Hostile\"}]},\"entities\":{\"a\":{\"Presence\":0.6}}}");
+            File.WriteAllText(Path.Combine(root, "plain", "scenario.json"), "{\"header\":{\"description\":\"d\"},\"entities\":{\"a\":{}}}");
+
+            var v = ScenarioPaneFacts.Get(Path.Combine(root, "v", "scenario.json"))!;
+            Assert.True(v.UsesVariants);
+            Assert.Equal(new[] { "count", "side" }, v.Params!.Select(p => p.Name));
+            var plain = ScenarioPaneFacts.Get(Path.Combine(root, "plain", "scenario.json"))!;
+            Assert.False(plain.UsesVariants);                       // no variant row for it
+            Assert.Null(plain.Params);                              // and no param rows
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void D24_AStartThatNeverOpenedTheExpander_PassesNothingExtra()
+    {
+        var control = new RecordingControl();
+        var choice = RunChoiceOver(control);
+        var asset = new StubAsset { Kind = AssetKind.Scenario, Name = "alpha" };
+        var picker = new FakeOpenPicker();
+        var launcher = new AssetPickerLauncher(picker.OpenPicker, new FakeCatalog(asset), MakeRouter(), baseFolderResolver: _ => "", runChoice: () => choice);
+        launcher.Open(AssetKindFilter.Scenario);
+        Assert.Null(launcher.RunArgsFor("alpha"));
+        picker.InvokeHandler(new PickerResult(new[] { EntryFor(asset) }) { ActionId = AssetPickerLauncher.GoLiveActionId });
+        Assert.Equal(new[] { "alpha" }, control.LiveLoads);
+        Assert.Empty(control.LiveLoadArgs);                         // the plain load: no args, no interaction
+    }
+
+    [Fact]
+    public void CE4141_GoLive_IsDisabledWithAReason_WhenTheHostHasNoRunChoice_OrPicksNoScenario()
+    {
+        var asset = new StubAsset { Kind = AssetKind.Scenario, Name = "alpha" };
+        var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(asset), MakeRouter(), baseFolderResolver: _ => "");
+        Assert.Contains("no run controls", launcher.GoLiveDisabledReason(EntryFor(asset)));
+        Assert.Equal("Pick a scenario first", launcher.GoLiveDisabledReason(null));
+
+        var withChoice = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(asset), MakeRouter(), baseFolderResolver: _ => "", runChoice: () => RunChoiceOver(new RecordingControl()));
+        Assert.Null(withChoice.GoLiveDisabledReason(EntryFor(asset)));
+        Assert.Equal("Pick a scenario first", withChoice.GoLiveDisabledReason(EntryFor(new StubAsset { Kind = AssetKind.BTree, Name = "p" })));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4271 (§2j) — a scenario's still is a small <c>preview.jpg</c> (generated, 320 × 180): BOTH readers — the picker's tile (<c>AssetPickerLauncher</c>) and the pane — go through <c>ScenarioPaneFacts.PreviewOf</c>, which tries <c>preview.jpg</c>
+    /// first and then <c>preview.png</c> (a hand-made one still works), and gives null when neither is there. 🔴 Red-proof (compiles): the order reversed (png first) ⇒ the "both present" row goes red.
+    /// </summary>
+    [Fact]
+    public void CE4271_AScenarioPicture_IsPreviewJpg_ThenPreviewPng()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "pk4271-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string Dir(string n) { var d = Path.Combine(root, n); Directory.CreateDirectory(d); File.WriteAllText(Path.Combine(d, "scenario.json"), "{}"); return d; }
+            File.WriteAllBytes(Path.Combine(Dir("jpg"), "preview.jpg"), new byte[] { 1 });
+            File.WriteAllBytes(Path.Combine(Dir("png"), "preview.png"), new byte[] { 1 });
+            var both = Dir("both"); File.WriteAllBytes(Path.Combine(both, "preview.jpg"), new byte[] { 1 }); File.WriteAllBytes(Path.Combine(both, "preview.png"), new byte[] { 1 });
+            Dir("none");
+            string Json(string n) => Path.Combine(root, n, "scenario.json");
+
+            Assert.EndsWith("preview.jpg", ScenarioPaneFacts.PreviewOf(Json("jpg")));
+            Assert.EndsWith("preview.png", ScenarioPaneFacts.PreviewOf(Json("png")));        // a hand-made png still shows
+            Assert.EndsWith("preview.jpg", ScenarioPaneFacts.PreviewOf(Json("both")));       // the generated jpg first
+            Assert.Null(ScenarioPaneFacts.PreviewOf(Json("none")));
+
+            // and the picker's tile asks the same function (one reader)
+            var catalog = new FakeCatalog(new StubAsset { Kind = AssetKind.Scenario, Name = "both", SourceFilePath = Json("both") });
+            var picker = new FakeOpenPicker();
+            new AssetPickerLauncher(picker.OpenPicker, catalog, MakeRouter(), baseFolderResolver: _ => "").Open(AssetKindFilter.Scenario);
+            Assert.EndsWith("preview.jpg", picker.CapturedRequest!.ItemsProvider().Single().ImageKey);
+        }
+        finally { try { Directory.Delete(root, true); } catch (IOException) { } }
+    }
+
+    [Fact]
+    public void CE4141_ARemoteHost_HasNoFileToRead_SoItsPaneSaysSo()
+    {
+        Assert.Equal("preview and description not available on this host", AssetPickerLauncher.NoPreviewNotice);
+        Assert.Null(ScenarioPaneFacts.PreviewOf(""));                              // an empty SourceFilePath (no local root) ⇒ no preview, no facts
+        Assert.Null(ScenarioPaneFacts.Get(""));
+    }
+
+    /// <summary>⭐ CE-4141 (the silent-default rule) — the hosts that build the launcher AND hold a run choice must pass it, or <i>Open and go live</i> is dead there.</summary>
+    [Fact]
+    public void CE4141_EveryHostThatBuildsTheLauncher_PassesItsRunChoice()
+    {
+        string root = TestRepo.Root;   // CE-3343: the ONE test-side repository-root walk-up
+        foreach (var rel in new[] { "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.Orchestrator/OrchestratorSubsystem.cs" })
+        {
+            var text = File.ReadAllText(Path.Combine(root, rel));
+            int at = text.IndexOf("new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(", StringComparison.Ordinal);
+            Assert.True(at >= 0, rel);
+            string call = text.Substring(at, Math.Min(900, text.Length - at));
+            Assert.Contains("runChoice:", call);
+        }
+    }
+
+    /// <summary>⭐ AQ108 D24 (the silent-default rule) — the Editor and CGF HOLD a component edit service and a scenario world: they must pass the former to the launcher (else the Run setup's param rows are dead there) and override
+    /// <c>IProvidesRunControls.RunSetupLines</c> (else the indicator's menu never names the run's variant).</summary>
+    [Fact]
+    public void D24_TheEditorAndCgf_PassTheEditServiceToTheLauncher_AndOfferTheRunSetupLines()
+    {
+        string root = TestRepo.Root;   // CE-3343: the ONE test-side repository-root walk-up
+        foreach (var rel in new[] { "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs" })
+        {
+            var text = File.ReadAllText(Path.Combine(root, rel));
+            int at = text.IndexOf("new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(", StringComparison.Ordinal);
+            Assert.Contains("paramEditService:", text.Substring(at, Math.Min(1500, text.Length - at)));
+            Assert.Contains("IProvidesRunControls.RunSetupLines", text);
+        }
+        var local = File.ReadAllText(Path.Combine(root, "Hrot/Runner/Hrot.ClusterRunner/Presentation/LocalWindowController.cs"));
+        Assert.Contains("runSetupLines:", local);   // the ONE toolbar registration forwards the owner's lines
+    }
+
+    // ── ⭐ CE-4210 MA-6 — the Macros group ────────────────────────────────────────────────────────
+
+    private static string MakeMacrosRoot(params string[] paths)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "macros-" + Guid.NewGuid().ToString("N"));
+        foreach (var p in paths)
+        {
+            var dir = Path.Combine(root, p.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "scenario.json"), "{}");
+        }
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    [Fact]
+    public void TheMacrosGroup_ListsExactlyTheMacroFolders_AndNoneOfTheScenarios()
+    {
+        string root = MakeMacrosRoot("test/fire-team", "forces/squad");
+        try
+        {
+            var scenario = new StubAsset { Kind = AssetKind.Scenario, Name = "Combat/mine" };
+            var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(scenario), MakeRouter(), _ => "",
+                macroPaths: () => ScenarioEnumeration.EnumerateRelPaths(root), macrosRoot: () => root);
+
+            var entries = launcher.Entries(AssetKindFilter.Scenario);
+            var macros = entries.Where(e => e.Category is { } c && (c == "Macros" || c.StartsWith("Macros/"))).ToList();
+
+            Assert.Equal(new[] { "macros/forces/squad", "macros/test/fire-team" }, macros.Select(e => ((IEditableAsset)e.Tag!).Name).OrderBy(n => n).ToArray());
+            Assert.All(macros, e => Assert.Equal(AssetKind.Scenario, ((IEditableAsset)e.Tag!).Kind));   // a pick is the ordinary scenario open of "macros/<path>"
+            Assert.Contains(entries, e => e.Tag == scenario);                                            // the scenario list is untouched
+            Assert.DoesNotContain(macros, e => ((IEditableAsset)e.Tag!).Name.Contains("Combat"));
+            var asset = (MacroPickerEntries.MacroAsset)macros.First(e => e.Name == "fire-team").Tag!;
+            Assert.Equal(Path.Combine(root, "test", "fire-team", "scenario.json"), asset.SourceFilePath);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void AnEmptyMacrosRoot_SaysSo_AndNeverFallsBackToTheRepo()
+    {
+        string root = MakeMacrosRoot();
+        try
+        {
+            var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(), MakeRouter(), _ => "",
+                macroPaths: () => ScenarioEnumeration.EnumerateRelPaths(root), macrosRoot: () => root);
+            var hint = Assert.Single(launcher.Entries(AssetKindFilter.Scenario));
+            Assert.Equal("No macros on the server — see macros/ seeding", hint.Name);
+            Assert.False(hint.IsEnabled);
+            Assert.Null(hint.Tag);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void AHostWithNoMacroListing_OffersNoMacrosGroup()
+    {
+        var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(), MakeRouter(), _ => "");
+        Assert.Empty(launcher.Entries(AssetKindFilter.Scenario));
+        Assert.False(launcher.OpenMacros(_ => { }));
+    }
+
+    [Fact]
+    public void PickingAMacroInTheMacrosPicker_ReturnsItsPath()
+    {
+        string root = MakeMacrosRoot("test/fire-team");
+        try
+        {
+            var picker = new FakeOpenPicker();
+            var launcher = new AssetPickerLauncher(picker.OpenPicker, new FakeCatalog(), MakeRouter(), _ => "",
+                macroPaths: () => ScenarioEnumeration.EnumerateRelPaths(root), macrosRoot: () => root);
+            string? got = null;
+            Assert.True(launcher.OpenMacros(p => got = p));
+            var entry = picker.CapturedRequest!.ItemsProvider().Single();
+            picker.InvokeHandler(ConfirmResult(entry));
+            Assert.Equal("test/fire-team", got);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void TheWindowTitle_NamesAMacro()
+    {
+        Assert.Equal("Macro: test/fire-team", EditorWindowTitle.Detail("macros/test/fire-team"));
+        Assert.Equal("Combat/mine", EditorWindowTitle.Detail("Combat/mine"));
+        Assert.Null(EditorWindowTitle.Detail(null));
+    }
+
+    /// <summary>⭐ New scenario N4 (docs/UX/DESIGN_New_Scenario_And_Recipe.md §4) — the title names the terrain the scenario is on, through the ONE rule
+    /// (<c>Hrot.Common.Scenarios.ScenarioWindowTitle</c>, CGF's too); a repeated read returns the same string (0 B a frame). 🔴 Red-proof (compiles):
+    /// the terrain suffix dropped ⇒ red.</summary>
+    [Fact]
+    public void N4_TheWindowTitle_NamesTheTerrain()
+    {
+        Assert.Equal("Combat/mine · on highway-rest", EditorWindowTitle.Detail("Combat/mine", "highway-rest"));
+        Assert.Same(EditorWindowTitle.Detail("Combat/mine", "highway-rest"), EditorWindowTitle.Detail(new string("Combat/mine".ToCharArray()), "highway-rest"));
+        Assert.Equal("Macro: test/fire-team · on berlin", Hrot.Common.Scenarios.ScenarioWindowTitle.Detail("macros/test/fire-team", "berlin"));
+        Assert.Equal("Combat/mine", EditorWindowTitle.Detail("Combat/mine", null));
+    }
+
+    // ═══ CE-4360 — scenarios in SUB-FOLDERS (docs/DESIGN_Content_Layout.md §6; done by the behaviors lane) ═════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ Q-S1/Q-S2/Q-S3 — the scenario picker lists each scenario by its LEAF name, files it under its sub-folder path (none at the top level), and hides the ones under
+    /// <c>tests/</c> behind the <i>Show tests</i> tick (the same <see cref="PickerHideToggle"/> the task picker uses, CE-4359). The asset's file is its REAL path.
+    /// 🔴 Mutation: <c>AssetPickerSource.ToEntry</c> ignoring <c>ICategorizedAsset</c> ⇒ every category is null; <c>HideToggle</c> removed ⇒ the toggle assert fails.
+    /// </summary>
+    [Fact]
+    public void CE4360_TheScenarioPicker_NamesByLeaf_FilesBySubFolder_AndHidesTestsBehindTheTick()
+    {
+        string scenarios = Path.Combine(Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "ce4360-" + Guid.NewGuid().ToString("N"))).FullName, "scenarios");
+        foreach (var rel in new[] { "mine", "demos/air/ua-air-assault", "tests/perf/perf-1" })
+        {
+            Directory.CreateDirectory(Path.Combine(scenarios, rel));
+            File.WriteAllText(Path.Combine(scenarios, rel, "scenario.json"), "{}");
+        }
+        var contributor = new ScenarioCatalogContributor(() => ScenarioEnumeration.EnumerateNames(scenarios), () => scenarios);
+        var fakePicker = new FakeOpenPicker();
+        var launcher = new AssetPickerLauncher(fakePicker.OpenPicker, new FakeCatalog(contributor.Enumerate().ToArray()), MakeRouter(), baseFolderResolver: _ => "");
+
+        launcher.Open(AssetKindFilter.Scenario);
+
+        var request = fakePicker.CapturedRequest!;
+        var entries = request.ItemsProvider().ToDictionary(e => e.Name);
+        Assert.Equal(new[] { "mine", "perf-1", "ua-air-assault" }, entries.Keys.OrderBy(n => n, StringComparer.Ordinal).ToArray());   // the LEAF names
+        Assert.Equal(AssetPickerSource.MyScenarios, entries["mine"].Category);   // ⭐ CE-4397 — the top level is the folder "My scenarios" (it was null: loose at the root)
+        Assert.Equal("demos/air", entries["ua-air-assault"].Category);
+        Assert.Equal("tests/perf", entries["perf-1"].Category);
+        Assert.Equal(Path.Combine(scenarios, "demos", "air", "ua-air-assault", "scenario.json"), ((IEditableAsset)entries["ua-air-assault"].Tag!).SourceFilePath);
+
+        Assert.NotNull(request.HideToggle);
+        Assert.Equal(AssetPickerLauncher.HideTestsLabel, request.HideToggle!.Label);
+        Assert.True(request.HideToggle.Hides(entries["perf-1"]));                // under tests/ ⇒ hidden while the tick is off
+        Assert.False(request.HideToggle.Hides(entries["ua-air-assault"]));
+        Assert.False(request.HideToggle.Hides(entries["mine"]));
     }
 }

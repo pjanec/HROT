@@ -8,6 +8,7 @@ using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
 using NedNodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType = Fdp.Toolkit.Orchestration.NodeOpType;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Network.Orchestration;
 
@@ -86,13 +87,17 @@ public sealed class NodeOpMasterTranslator
             if (!sample.IsValid) continue;
             var status        = sample.Data;
             var fdpOp         = (FdpNodeOpType)(int)status.Operation;
-            var resultPayload = DeserializeResultPayload(fdpOp, status.ResultJson);
+            var statusCode    = (OrchestrationStatusCode)status.StatusCode;
+            // ⭐ CE-3345 (R-3070) — an ERROR ack's result is the node's REASON (a JSON string on the wire), whatever the op: ⛔ the per-op decoders below would read it as a malformed result.
+            var resultPayload = statusCode.IsError() && TryReadReason(status.ResultJson) is { } reason
+                ? reason
+                : DeserializeResultPayload(fdpOp, status.ResultJson);
             _bus.PublishManaged(new NodeOpCompletedEvent
             {
                 TransactionId   = status.TransactionId,
                 Operation       = fdpOp,
-                NodeId          = status.NodeId,
-                StatusCode      = (OrchestrationStatusCode)status.StatusCode,
+                NodeId          = (Fdp.Core.NodeId)(status.NodeId),
+                StatusCode      = statusCode,
                 IsParticipating = status.IsParticipating,
                 ResultPayload   = resultPayload,
             });
@@ -100,6 +105,14 @@ public sealed class NodeOpMasterTranslator
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>⭐ CE-3345 — a node's failure reason: the JSON string the slave wrote (<c>"cancelled by the user on node 2"</c>), or the text itself when it is not JSON; <see langword="null"/> when empty.</summary>
+    internal static string? TryReadReason(string? resultJson)
+    {
+        if (string.IsNullOrWhiteSpace(resultJson)) return null;
+        try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed) ?? resultJson; }
+        catch (JsonException) { return resultJson; }
+    }
 
     /// <summary>
     /// Serialises a typed <paramref name="domainPayload"/> to a JSON string suitable for
@@ -118,13 +131,21 @@ public sealed class NodeOpMasterTranslator
             ReplaySeekPayload       rsp => JsonSerializer.Serialize(rsp, _jsonOptions),
             AbortTransactionPayload atp => JsonSerializer.Serialize(atp, _jsonOptions),
 
+            // ⭐ L1 — the shared content names cross the wire with the rest of the transition payload.
             EditLoadHandlerPayload p => JsonSerializer.Serialize(
                 new NodeTransitionPayloadDto(
                     TargetState: p.TargetState != 0
                         ? (Hrot.NED.Descriptors.Orchestration.ClusterState?)p.TargetState
                         : null,
                     ScenarioId:  p.ScenarioId,
-                    ExerciseId:  p.ExerciseId),
+                    ExerciseId:  p.ExerciseId,
+                    TerrainName: p.TerrainName,
+                    IsWorldBoundary: p.IsWorldBoundary,    // CE-2101
+                    IsCatchUp:       p.IsCatchUp,          // C7
+                    CheckpointingSeconds: p.CheckpointingSeconds,   // D17
+                    RecordingOff: p.RecordingOff,                   // CE-4090 D14
+                    FeatureConfigsAtLoad: p.FeatureConfigsAtLoad is null ? null : new Dictionary<string, string>(p.FeatureConfigsAtLoad),   // Node Features F-14
+                    ScenarioArgs: p.ScenarioArgsJson),   // macros S3a ⑦
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(
@@ -142,6 +163,20 @@ public sealed class NodeOpMasterTranslator
                     TargetState: null,
                     ScenarioId:  null,
                     ExerciseId:  p.ExerciseId),
+                _jsonOptions),
+
+            // ⭐ CE-279 Layer B — the distributed scenario save shares the SerializeLocal op with the .fdp
+            //   archive. Carry the scenario NAME (as ScenarioId) so the remote node reconstructs a
+            //   ScenarioSaveHandlerPayload, not an (empty) ArchiveHandlerPayload. Without this the scenario
+            //   payload was silently rebuilt as an archive payload on the wire and no slice was ever written.
+            Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload p => JsonSerializer.Serialize(
+                new NodeTransitionPayloadDto(
+                    TargetState: null,
+                    ScenarioId:  p.ScenarioName,
+                    ExerciseId:  Guid.Empty,
+                    OnlyGuids:       p.OnlyGuids is { Count: > 0 } og ? new System.Collections.Generic.List<Guid>(og) : null,   // ⭐ CE-4210 MA-9
+                    MacroHeaderJson: string.IsNullOrWhiteSpace(p.HeaderJson) ? null : p.HeaderJson,
+                    Autosave:        p.Autosave),   // ⭐ CE-4099
                 _jsonOptions),
 
             _ => JsonSerializer.Serialize(domainPayload, domainPayload.GetType(), _jsonOptions),
@@ -166,7 +201,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     var entries = System.Text.Json.JsonSerializer.Deserialize<List<FileManifestEntry>>(
                         resultJson!,
-                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                     return entries;
                 }
                 catch
@@ -181,7 +216,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<List<FileManifestEntry>>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                 }
                 catch
                 {
@@ -195,12 +230,43 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<ReplayPrepareResult>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                 }
                 catch
                 {
                     return resultJson;
                 }
+            }
+
+            // ⭐ CE-3299 B4 — a node's restore answer: the clock its checkpoint was written at (the master snaps to the earliest).
+            //   ⛔ Without this case it fell to `default: null` and the cluster never moved its clock back.
+            case FdpNodeOpType.RestoreSnapshot:
+            {
+                try { return JsonSerializer.Deserialize<CheckpointRestoreResult>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
+            // ⭐ CE-3312 — a node's live-branch answer: the replay clock at the branch (the master restores time and snaps to it).
+            //   ⛔ Without this case it fell to `default: null`: on a multi-process cluster a branch left time frozen.
+            case FdpNodeOpType.PrepareLive:
+            {
+                try { return JsonSerializer.Deserialize<LiveBranchResult>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
+            // ⭐ CE-3299 B3 — a node's export answer is the path it wrote (a JSON string).
+            case FdpNodeOpType.ExportCheckpoint:
+            {
+                try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
+            // ⭐ CE-4093 — a node's check answer is the string "changed" | "unchanged" | "no-baseline" (a JSON string on the wire). ⛔ Without
+            //   this case it fell to `default: null` and the master read every node as silent.
+            case FdpNodeOpType.CheckUnsaved:
+            {
+                try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
             }
 
             case FdpNodeOpType.NodeReplaySeek:
@@ -209,7 +275,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<ReplaySeekResult>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        FdpJsonOptionsRegistry.DefaultRelaxed);
                 }
                 catch
                 {

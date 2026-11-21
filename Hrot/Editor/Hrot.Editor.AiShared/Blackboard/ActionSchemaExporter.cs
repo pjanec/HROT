@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Fbt;
 using Fbt.Kernel;
+using Fdp.Toolkit.ScenarioRules.Actions;
 using Fhsm.Kernel.Attributes;
 
 namespace Hrot.Editor.AiShared.Blackboard;
@@ -46,48 +47,26 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
     // Internal helpers
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// ⭐ rules S2-d (CE-4160) — the assembly walk is the RUNTIME catalogue's (<see cref="ActionCatalogue.Discover"/>): ONE reflection pass finds
+    /// every method, registers the stateful shared actions a trigger step can run, and hands each method to the schema logic below.
+    /// ⛔ No second scan beside it (ruling 9).
+    /// </summary>
     private static void ScanAssembly(
         Assembly assembly,
         Dictionary<string, ActionSchemaEntry> collected)
     {
-        Type[] types;
-        try
+        ActionCatalogue.Discover(assembly, method =>
         {
-            types = assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            // Partial load: process the types that did load.
-            types = ex.Types.Where(t => t != null).ToArray()!;
-        }
-
-        foreach (var type in types)
-        {
-            MethodInfo[] methods;
             try
             {
-                methods = type.GetMethods(
-                    BindingFlags.Public | BindingFlags.NonPublic |
-                    BindingFlags.Static | BindingFlags.Instance |
-                    BindingFlags.DeclaredOnly);
+                ProcessMethod(method, collected);
             }
-            catch
+            catch (Exception ex) when (ex is TypeLoadException or BadImageFormatException or InvalidOperationException)
             {
-                continue;
+                // Skip methods from assemblies with incompatible type references.
             }
-
-            foreach (var method in methods)
-            {
-                try
-                {
-                    ProcessMethod(method, collected);
-                }
-                catch (Exception ex) when (ex is TypeLoadException or BadImageFormatException or InvalidOperationException)
-                {
-                    // Skip methods from assemblies with incompatible type references.
-                }
-            }
-        }
+        });
     }
 
     private static void ProcessMethod(
@@ -96,7 +75,6 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
     {
         // Determine which AI system(s) host this method.
         var hosting = ActionHosting.None;
-        Type? heavyDtoType = null;
         bool isCondition = false;
         bool isAiPrimitive = false;
 
@@ -110,62 +88,55 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
             isAiPrimitive = true;
             if (aiPrimitive.BTreeAction)    hosting |= ActionHosting.BTree;
             if (aiPrimitive.BTreeCondition) { hosting |= ActionHosting.BTree; isCondition = true; }
-            if (aiPrimitive.HsmAction)      hosting |= ActionHosting.Hsm;
-            if (aiPrimitive.HsmGuard)       hosting |= ActionHosting.Hsm;
+            // ⭐⭐ CE-386 — the ROLE bit is set beside Hsm. 🔴 Both flags used to fold into Hsm
+            //    alone, so nothing downstream could tell an HSM activity from an HSM guard and the
+            //    two HSM pickers could not be filtered apart. The attribute always carried them
+            //    separately; only the schema lost the distinction.
+            if (aiPrimitive.HsmAction)      hosting |= ActionHosting.Hsm | ActionHosting.HsmActivity;
+            if (aiPrimitive.HsmGuard)       hosting |= ActionHosting.Hsm | ActionHosting.HsmGuard;
             if (aiPrimitive.BlueprintCall)  hosting |= ActionHosting.Shared;
         }
 
-        // BTree attributes
-        if (method.IsDefined(typeof(BTreeActionAttribute), inherit: false))
-            hosting |= ActionHosting.BTree;
+        // ⛔ CE-504 residue (2026-10-02) — a BARE [BTreeAction]/[BTreeCondition] is no longer offered. Since CE-504 a
+        //   BTree node binds only the shared forms ([SharedAiAction]/[SharedAiCondition], below) or a blueprint; binding a
+        //   bare-attributed method reports BTREE0002. Listing it in the BTree picker offered a choice the build refuses.
+        //   📐 No production method carries one; the kernel-form registrations (FDP/Examples, the analyzer's 4-param arm)
+        //   register directly and never went through this picker. 📄 DESIGN_BTree_Node_Call_Shapes.md §5 slice 4.
 
-        if (method.IsDefined(typeof(BTreeConditionAttribute), inherit: false))
-        {
-            hosting |= ActionHosting.BTree;
-            isCondition = true;
-        }
-
-        // HSM attributes
+        // HSM attributes — CE-386: the role bit beside Hsm, exactly as for the AiPrimitive above.
         if (method.IsDefined(typeof(HsmActionAttribute), inherit: false))
-            hosting |= ActionHosting.Hsm;
+            hosting |= ActionHosting.Hsm | ActionHosting.HsmActivity;
 
         if (method.IsDefined(typeof(HsmGuardAttribute), inherit: false))
-            hosting |= ActionHosting.Hsm;
+            hosting |= ActionHosting.Hsm | ActionHosting.HsmGuard;
 
         // Shared AI attributes -- AllowMultiple, gather all instances
         foreach (SharedAiActionAttribute attr in
             method.GetCustomAttributes<SharedAiActionAttribute>(inherit: false))
         {
-            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared;
+            // CE-386: a shared ACTION is an HSM activity, not a guard.
+            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.HsmActivity
+                     | ActionHosting.Shared;
             _ = attr; // DtoType is on the attribute but we take DtoType from the ref param
         }
 
         foreach (SharedAiConditionAttribute attr in
             method.GetCustomAttributes<SharedAiConditionAttribute>(inherit: false))
         {
-            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared;
+            // ⭐ CE-386: a shared CONDITION is exactly what an HSM transition guard needs, so it
+            //   earns the guard bit. ⚠ IsCondition stays too — it is the BTree node-kind signal
+            //   (BTreeNodeCatalog:104) and means something different.
+            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.HsmGuard
+                     | ActionHosting.Shared;
             isCondition = true;
             _ = attr;
         }
 
-        foreach (SharedAiHeavyActionAttribute attr in
-            method.GetCustomAttributes<SharedAiHeavyActionAttribute>(inherit: false))
-        {
-            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared | ActionHosting.Heavy;
-            // Prefer the first non-null HeavyDtoType encountered.
-            if (heavyDtoType == null && attr.HeavyDtoType != null)
-                heavyDtoType = attr.HeavyDtoType;
-        }
-
-        foreach (SharedAiHeavyConditionAttribute attr in
-            method.GetCustomAttributes<SharedAiHeavyConditionAttribute>(inherit: false))
-        {
-            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared | ActionHosting.Heavy;
-            isCondition = true;
-            if (heavyDtoType == null && attr.HeavyDtoType != null)
-                heavyDtoType = attr.HeavyDtoType;
-            _ = attr;
-        }
+        // ⛔⛔ CE-327 (2026-09-23) — the [SharedAiHeavyAction]/[SharedAiHeavyCondition] branches are
+        //   DELETED with the attributes they read. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.29.
+        // ⭐ CE-330 (2026-09-23) completed the removal §30.29.5 deferred: `ActionSchemaEntry
+        //   .HeavyDtoType` and `ActionHosting.Heavy` are GONE, so there is no longer a
+        //   permanently-null parameter to carry. 62 call sites across 19 files were rewritten.
 
         // No relevant attribute found -- skip this method.
         if (hosting == ActionHosting.None)
@@ -175,13 +146,21 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         // If the method has no ref parameter, fall back to the DtoType property on the HSM
         // attribute (DEBT-01 fix for void* unsafe interop signatures).
         Type? dtoType = ExtractFirstRefParamType(method);
+        // ⭐ CE-504 C-3 — a shared param-less node (Entity, EntityRepository) binds no variable: typeof(void) says so, and keeps
+        //   it pickable (it would otherwise be skipped for having no ref parameter).
+        if (dtoType == null && (hosting & ActionHosting.Shared) != 0)
+            dtoType = typeof(void);
         if (dtoType == null)
         {
             dtoType = ExtractHsmAttributeDtoType(method);
             if (dtoType == null)
                 return;
             // Force Hsm-only hosting for the attribute-based fallback path.
-            hosting = ActionHosting.Hsm;
+            // ⚠ CE-386: KEEP the role bits. This arm is only reached because an [HsmAction]/
+            //   [HsmGuard] supplied the DtoType, so the role is already known — a bare
+            //   `hosting = Hsm` would throw it away and put the entry in neither picker.
+            hosting &= ActionHosting.HsmActivity | ActionHosting.HsmGuard;
+            hosting |= ActionHosting.Hsm;
         }
 
         // Read access annotation from the first parameter.
@@ -196,7 +175,9 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
 
         // Last-write wins for duplicate FQNs (can happen with AllowMultiple across overloads).
         collected[fqn] = new ActionSchemaEntry(
-            fqn, dtoType, hosting, access, heavyDtoType, isCondition, dtoFields, isAiPrimitive);
+            fqn, dtoType, hosting, access, isCondition, dtoFields, isAiPrimitive,
+            WorkingStateType: isAiPrimitive ? null : ExtractSecondRefParamType(method),   // ⭐ CE-2099
+            Method: method);                                                               // ⭐ CE-1011
     }
 
     /// <summary>
@@ -220,12 +201,24 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         return result;
     }
 
+    /// <summary>⭐ <c>CE-2099</c> — the working-state type of the stateful shared form: the SECOND leading <c>ref</c>
+    /// parameter when the method is <c>(ref P, ref WS, Entity, EntityRepository)</c>; otherwise null.</summary>
+    private static Type? ExtractSecondRefParamType(MethodInfo method)
+    {
+        // ⭐ CE-3137 U-2 — the trailing unit-memory group is not part of the shape.
+        var ps = Hrot.AiEditor.Persistence.Emit.UnitMemoryParams.Core(method);
+        return ps.Length == 4 && ps[0].ParameterType.IsByRef && ps[1].ParameterType.IsByRef
+            ? ps[1].ParameterType.GetElementType()
+            : null;
+    }
+
     /// <summary>
     /// Returns the CLR type of the first <c>ref</c> parameter, or null if none exists.
     /// </summary>
     private static Type? ExtractFirstRefParamType(MethodInfo method)
     {
-        foreach (var param in method.GetParameters())
+        // ⭐ CE-3137 U-2 — a unit-memory `ref` binds to the unit's memory, never to a variable: it is never the DtoType.
+        foreach (var param in Hrot.AiEditor.Persistence.Emit.UnitMemoryParams.Core(method))
         {
             var pt = param.ParameterType;
             if (pt.IsByRef)

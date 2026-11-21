@@ -1,14 +1,14 @@
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// ECS component tracking interactive selection state for a renderable entity.
 ///
-/// Written by <see cref="Hrot.IG.Tools.StandardInteractionTool"/> in response to
+/// Written by <see cref="Hrot.Player.Tools.StandardInteractionTool"/> in response to
 /// operator clicks and box-select gestures, and read by
-/// <see cref="Hrot.IG.Systems.SelectionRenderSystem"/> to draw per-entity
+/// <see cref="Hrot.Player.Systems.SelectionRenderSystem"/> to draw per-entity
 /// selection overlays.
 ///
 /// Rendering convention:
@@ -31,7 +31,10 @@ namespace Hrot.IG.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.SelectionState)]
-[DataPolicy(DataPolicy.NoSave)]
+// ⭐ CE-4049 — UI state, never recorded: a seek must not overwrite what the operator selected. The truth is SelectionStore (a world singleton
+//   keyed by network id); this per-entity copy is rewritten from it every frame (EcsSelectionState.Sync). Was NoScenario only — recorded by
+//   default, never by decision (the coordinator's replay census, CE-4045 §2).
+[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
 public struct SelectionState
 {
     /// <summary>
@@ -45,7 +48,7 @@ public struct SelectionState
     /// <c>true</c> when this entity is the primary (first) entity in the selection.
     /// Only one entity holds <c>IsPrimarySelection = true</c> at a time.
     /// Drives the green fill / green outline ring colour in
-    /// <see cref="Hrot.IG.Systems.SelectionRenderSystem"/>.
+    /// <see cref="Hrot.Player.Systems.SelectionRenderSystem"/>.
     /// </summary>
     [MarshalAs(UnmanagedType.I1)]
     public bool IsPrimarySelection;

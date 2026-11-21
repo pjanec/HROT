@@ -472,25 +472,39 @@ public sealed class WhenNodeHotReloadTests
         var entryExecOut = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
         entry.Pins.Add(entryExecOut);
 
+        // ⭐ CE-475: ReadEqsResult is a PURE node (its registry pins are data only). This used to wire hand-made exec
+        //   pins into the chain, so Stage 5 dropped the node (BP4004 warning) and the hash equality below was trivially
+        //   true. Its IsReady output now drives a Branch, so the read really is emitted.
         var readNode    = new ReadEqsResultNode { Id = Guid.NewGuid(), SensorVariableName = sensorVar.Name };
-        var readExecIn  = new Pin { Id = Guid.NewGuid(), Name = "In",          Direction = "In",  IsExec = true,  TypeRef = new() };
-        var readExecOut = new Pin { Id = Guid.NewGuid(), Name = "Out",         Direction = "Out", IsExec = true,  TypeRef = new() };
         var handleIn    = new Pin { Id = Guid.NewGuid(), Name = "Handle",      Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "FDP.Eqs.EqsSensorHandle" } };
         var indexIn     = new Pin { Id = Guid.NewGuid(), Name = "ResultIndex", Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Int32" } };
-        readNode.Pins.AddRange(new[] { readExecIn, readExecOut, handleIn, indexIn });
+        var isReadyOut  = new Pin { Id = Guid.NewGuid(), Name = "IsReady",     Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Boolean" } };
+        readNode.Pins.AddRange(new[] { handleIn, indexIn, isReadyOut });
+
+        var branch       = new BranchNode { Id = Guid.NewGuid() };
+        var branchIn     = new Pin { Id = Guid.NewGuid(), Name = "In",        Direction = "In",  IsExec = true,  TypeRef = new() };
+        var branchTrue   = new Pin { Id = Guid.NewGuid(), Name = "True",      Direction = "Out", IsExec = true,  TypeRef = new() };
+        var branchFalse  = new Pin { Id = Guid.NewGuid(), Name = "False",     Direction = "Out", IsExec = true,  TypeRef = new() };
+        var branchCond   = new Pin { Id = Guid.NewGuid(), Name = "Condition", Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Boolean" } };
+        branch.Pins.AddRange(new[] { branchIn, branchTrue, branchFalse, branchCond });
 
         var ret   = new ReturnNode { Id = Guid.NewGuid() };
         var retIn = new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() };
         ret.Pins.Add(retIn);
+        var ret2   = new ReturnNode { Id = Guid.NewGuid() };
+        var ret2In = new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() };
+        ret2.Pins.Add(ret2In);
 
         var graph = new Graph
         {
             Id    = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
-            Nodes = { entry, readNode, ret },
+            Nodes = { entry, readNode, branch, ret, ret2 },
             Links =
             {
-                new Link { FromNodeId = entry.Id,    FromPinId = entryExecOut.Id, ToNodeId = readNode.Id, ToPinId = readExecIn.Id },
-                new Link { FromNodeId = readNode.Id, FromPinId = readExecOut.Id,  ToNodeId = ret.Id,      ToPinId = retIn.Id },
+                new Link { FromNodeId = entry.Id,    FromPinId = entryExecOut.Id, ToNodeId = branch.Id, ToPinId = branchIn.Id },
+                new Link { FromNodeId = branch.Id,   FromPinId = branchTrue.Id,   ToNodeId = ret.Id,    ToPinId = retIn.Id },
+                new Link { FromNodeId = branch.Id,   FromPinId = branchFalse.Id,  ToNodeId = ret2.Id,   ToPinId = ret2In.Id },
+                new Link { FromNodeId = readNode.Id, FromPinId = isReadyOut.Id,   ToNodeId = branch.Id, ToPinId = branchCond.Id },
             },
         };
         var asset = new BlueprintAsset
@@ -740,6 +754,7 @@ public sealed class WhenNodeHotReloadTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
         var assetId     = Guid.NewGuid();
         var sensorVarId = Guid.NewGuid();
         var sensorVar   = new VariableDecl
@@ -776,6 +791,7 @@ public sealed class WhenNodeHotReloadTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
         var assetId     = Guid.NewGuid();
         var sensorVarId = Guid.NewGuid();
         var sensorVar   = new VariableDecl

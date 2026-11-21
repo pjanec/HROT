@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     /// <see cref="Register"/> must only be called during application initialisation,
     /// before the first ECS frame tick. Not thread-safe.
     /// </summary>
+    [Fdp.Core.NotState("compiled gizmo rules registered at startup")]
     public sealed class GizmoRegistry
     {
         private readonly List<CompiledGizmoRule> _rules = new List<CompiledGizmoRule>();

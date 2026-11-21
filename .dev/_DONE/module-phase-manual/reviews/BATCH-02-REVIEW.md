@@ -57,7 +57,7 @@ All four tasks completed correctly. Build clean. The developer did thorough swee
 ## Build Verification
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 Build succeeded. 0 Error(s)
 ```
 
@@ -110,5 +110,5 @@ MPM-P2-T03: Create TimeDescriptorType + update 5 time translators
 MPM-P2-T04: Create BdcDescriptorType + update 2 BDC translators
 - New: Hrot/Network/Hrot.Network.BDC/BdcDescriptorType.cs
 
-Build: IOS-IG-SimHost.sln succeeds with 0 errors
+Build: HROT.sln succeeds with 0 errors
 ```

@@ -1,0 +1,103 @@
+{
+  "title": "No shot through bystanders",
+  "caption": "A civilian stands in the line of fire: the rifleman holds, then fires once the line is clear",
+  "clip": "F-09",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+4",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Rifleman",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-14",
+      "follow": "Rifleman",
+      "distance": 80,
+      "yaw": 35,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Rifleman",
+      "toward": "Insurgent",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rifleman",
+      "toward": "Insurgent",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Insurgent",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Insurgent",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+4"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m-1.5",
+      "text": "Civilians in the line: the rifleman holds"
+    },
+    {
+      "at": "m-1.5",
+      "until": "m+4",
+      "text": "The line is clear: he fires"
+    }
+  ]
+}

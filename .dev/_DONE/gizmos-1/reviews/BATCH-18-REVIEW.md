@@ -9,7 +9,7 @@
 
 ## Build
 
-`dotnet build IOS-IG-SimHost.sln --no-incremental` → **0 errors**.
+`dotnet build HROT.sln --no-incremental` → **0 errors**.
 
 ---
 

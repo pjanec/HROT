@@ -1,0 +1,63 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='520' viewBox='0 0 1240 520'>
+<rect x='0' y='0' width='1240' height='520' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Run to … — skip the start of the scenario (Lifecycle LC-10; scope: the mode menu item + its popup; the rest is unchanged context)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
+<text x='20' y='70' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A — click the mode indicator · Edit (Preview armed)</text>
+<rect x='20' y='78' width='300' height='127' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<text x='30' y='97' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>▶ will start: Preview</text>
+<text x='50' y='119' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
+<text x='50' y='141' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Live</text>
+<text x='50' y='163' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>AAR</text>
+<line x1='26' y1='174' x2='314' y2='174' stroke='#4A4A55' stroke-width='1'/>
+<path d='M32 448Q18 448 9 439Q0 430 0 416Q0 402 9 393Q18 384 32 384V373Q33 307 79 260L147 192L79 124Q33 77 32 11V0Q18 0 9 -9Q0 -18 0 -32Q0 -46 9 -55Q18 -64 32 -64H64H352Q366 -64 375 -55Q384 -46 384 -32Q384 -18 375 -9Q366 0 352 0V11Q351 77 305 124L237 192L305 260Q351 307 352 373V384Q366 384 375 393Q384 402 384 416Q384 430 375 439Q366 448 352 448H320ZM96 373V384V373V384H288V373Q288 344 272 320H112Q96 344 96 373ZM112 64Q117 72 124 79L192 147L260 79Q267 72 272 64H112Z' fill='#B07CF0' fill-opacity='1' transform='translate(30,194.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='50' y='194' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Run to …</text>
+<path d='M320 203 L334 203' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='340' y='207' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>NEW: Run to … — under the moves; offered in</text>
+<text x='340' y='221' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Edit and in Preview (from Edit it starts the</text>
+<text x='340' y='235' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview, paused, then runs). Never in Live,</text>
+<text x='340' y='249' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>DAR or AAR (R-4166: a Preview is the dry run)</text>
+<text x='640' y='70' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B — the Run to popup</text>
+<rect x='640' y='78' width='360' height='262' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='78' width='360' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='92' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Run to</text>
+<text x='652' y='118' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Run the Preview as fast as it steps, then pause.</text>
+<text x='652' y='150' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Time</text>
+<rect x='710' y='136' width='120' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='715' y='150' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>10:00</text>
+<rect x='840' y='136' width='70' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#B07CF0' fill-opacity='1' transform='translate(847,150.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='864' y='150.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Run</text>
+<line x1='650' y1='170' x2='990' y2='170' stroke='#4A4A55' stroke-width='1'/>
+<text x='652' y='190' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>When a phase begins</text>
+<path d='M64 416Q64 430 55 439Q46 448 32 448Q18 448 9 439Q0 430 0 416V384V80V-32Q0 -46 9 -55Q18 -64 32 -64Q46 -64 55 -55Q64 -46 64 -32V96L128 112Q192 127 251 99Q320 65 393 91L427 104Q447 113 448 134V382Q447 400 433 408Q420 417 403 410L394 405Q358 387 320 387Q282 387 247 405Q192 431 133 417L64 400V416Z' fill='#F2C033' fill-opacity='1' transform='translate(654,208.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='674' y='210' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Phase 1 · Approach</text>
+<path d='M64 416Q64 430 55 439Q46 448 32 448Q18 448 9 439Q0 430 0 416V384V80V-32Q0 -46 9 -55Q18 -64 32 -64Q46 -64 55 -55Q64 -46 64 -32V96L128 112Q192 127 251 99Q320 65 393 91L427 104Q447 113 448 134V382Q447 400 433 408Q420 417 403 410L394 405Q358 387 320 387Q282 387 247 405Q192 431 133 417L64 400V416Z' fill='#F2C033' fill-opacity='1' transform='translate(654,230.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='674' y='232' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Phase 2 · Assault</text>
+<line x1='650' y1='244' x2='990' y2='244' stroke='#4A4A55' stroke-width='1'/>
+<path d='M349 403Q358 426 339 442Q318 455 299 440L43 216Q27 201 34 181Q43 161 64 160H176L99 -19Q90 -42 109 -58Q130 -71 149 -56L405 168Q421 183 414 203Q406 223 384 224H273L349 403Z' fill='#F29B38' fill-opacity='1' transform='translate(654,262.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='674' y='264' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>When a rule fires</text>
+<text x='980' y='264' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>▸</text>
+<rect x='1000' y='246' width='230' height='74' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<path d='M349 403Q358 426 339 442Q318 455 299 440L43 216Q27 201 34 181Q43 161 64 160H176L99 -19Q90 -42 109 -58Q130 -71 149 -56L405 168Q421 183 414 203Q406 223 384 224H273L349 403Z' fill='#F29B38' fill-opacity='1' transform='translate(1010,265.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='1030' y='265' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Blue reaches the bridge</text>
+<path d='M349 403Q358 426 339 442Q318 455 299 440L43 216Q27 201 34 181Q43 161 64 160H176L99 -19Q90 -42 109 -58Q130 -71 149 -56L405 168Q421 183 414 203Q406 223 384 224H273L349 403Z' fill='#F29B38' fill-opacity='1' transform='translate(1010,287.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='1030' y='287' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Red loses the house</text>
+<path d='M349 403Q358 426 339 442Q318 455 299 440L43 216Q27 201 34 181Q43 161 64 160H176L99 -19Q90 -42 109 -58Q130 -71 149 -56L405 168Q421 183 414 203Q406 223 384 224H273L349 403Z' fill='#F29B38' fill-opacity='1' transform='translate(1010,309.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='1030' y='309' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Brief Blue</text>
+<line x1='650' y1='278' x2='990' y2='278' stroke='#4A4A55' stroke-width='1'/>
+<text x='652' y='298' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>It pauses there. Stop Run to (this menu) stops it sooner.</text>
+<path d='M910 146 L934 108' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='940' y='112' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>m:ss or h:mm:ss; a bare number</text>
+<text x='940' y='126' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>is minutes; greyed with the reason</text>
+<text x='940' y='140' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>when not ahead of the clock</text>
+<text x='20' y='322' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C — while it runs (the same menu)</text>
+<rect x='20' y='330' width='300' height='74' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<text x='30' y='349' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview · 3:12</text>
+<text x='30' y='371' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>running to 10:00 …</text>
+<path d='M343 297Q352 307 352 320Q352 333 343 343Q333 352 320 352Q307 352 297 343L192 237L87 343Q77 352 64 352Q51 352 41 343Q32 333 32 320Q32 307 41 297L147 192L41 87Q32 77 32 64Q32 51 41 41Q51 32 64 32Q77 32 87 41L192 147L297 41Q307 32 320 32Q333 32 343 41Q352 51 352 64Q352 77 343 87L237 192L343 297Z' fill='#E65555' fill-opacity='1' transform='translate(30,393.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='50' y='393' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Stop Run to</text>
+<path d='M320 370 L334 370' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='340' y='374' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the status line, then Stop Run to — it pauses where</text>
+<text x='340' y='388' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>it is. When it ends, the line says why ("reached 10:00",</text>
+<text x='340' y='402' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>"the condition held at 8:34") until the next run</text>
+</svg>

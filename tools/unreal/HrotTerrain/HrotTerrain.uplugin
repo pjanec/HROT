@@ -1,0 +1,16 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "HROT Terrain",
+	"Description": "Imports a HROT terrain package (exported by scripts/terrain-to-unreal.py) into Unreal exactly: the landscape's vertices on HROT's height posts (CE-4651).",
+	"Category": "HROT",
+	"CanContainContent": false,
+	"Modules": [
+		{
+			"Name": "HrotTerrain",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}

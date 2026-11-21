@@ -4,91 +4,9 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Perception.Events
 {
-    // ── AudioStimulusEvent ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Published when an entity emits a sound that other entities can potentially hear.
-    /// Consumed by <see cref="Systems.AudioPerceptionSystem"/> on the main thread.
-    /// </summary>
-    [EventId(PerceptionConstants.AudioStimulusEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct AudioStimulusEvent
-    {
-        /// <summary>World-space origin of the sound (XYZ; Z is elevation).</summary>
-        public Vector3 Origin;
-
-        /// <summary>
-        /// Effective radius (meters) of the event.
-        /// Used as the spatial-hash query radius to find candidate listeners.
-        /// Listeners outside this radius cannot hear the event regardless of their own
-        /// <see cref="Components.PerceptionReceptor.HearingRange"/>.
-        /// </summary>
-        public float Intensity;
-
-        /// <summary>Entity index of the entity that produced the sound.</summary>
-        public int SourceEntityIndex;
-    }
-
-    // ── LosCheckRequestEvent ──────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Emitted by <see cref="Systems.VisionBroadphaseSystem"/> when a potential target
-    /// passes the faction + FOV broadphase filter.
-    /// Consumed by <see cref="Systems.LosRequestBatchingSystem"/> to queue a line-of-sight
-    /// ray or (in mock mode) to directly emit <see cref="TargetVisibleEvent"/>.
-    /// </summary>
-    [EventId(PerceptionConstants.LosCheckRequestEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct LosCheckRequestEvent
-    {
-        /// <summary>The observer entity performing the LOS check (full handle: index + generation).</summary>
-        public Entity Observer;
-
-        /// <summary>The potential target entity (full handle: index + generation).</summary>
-        public Entity Target;
-    }
-
-    // ── TargetVisibleEvent ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Published when line-of-sight from an observer to a target is confirmed (or assumed in
-    /// mock mode). Consumed by <see cref="Systems.ThreatEvaluationSystem"/> to boost the
-    /// observer's <see cref="Components.TargetMemory"/>.
-    /// </summary>
-    [EventId(PerceptionConstants.TargetVisibleEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct TargetVisibleEvent
-    {
-        /// <summary>The observer entity that has confirmed LOS to <see cref="Target"/>.</summary>
-        public Entity Observer;
-
-        /// <summary>The target entity confirmed visible to <see cref="Observer"/>.</summary>
-        public Entity Target;
-    }
-
-    // ── TargetHeardEvent ──────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Published by <see cref="Systems.AudioPerceptionSystem"/> when an entity successfully
-    /// detects an audio stimulus.
-    /// Consumed by <see cref="Systems.ThreatEvaluationSystem"/> to update
-    /// <see cref="Components.TargetMemory"/> on the Brain tier.
-    /// </summary>
-    [EventId(PerceptionConstants.TargetHeardEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct TargetHeardEvent
-    {
-        /// <summary>The entity that heard the sound.</summary>
-        public Entity Listener;
-
-        /// <summary>Entity index of the entity that produced the sound (same as <see cref="AudioStimulusEvent.SourceEntityIndex"/>).</summary>
-        public int SourceEntityIndex;
-
-        // 4-byte pad implicit from Entity (8 bytes) + int (4 bytes) = 12 bytes → aligns Origin to 16.
-
-        /// <summary>World-space origin of the detected sound.</summary>
-        public Vector3 Origin;
-    }
+    // ⛔ CE-3062 — AudioStimulusEvent and TargetHeardEvent are RETIRED with AudioPerceptionSystem: nothing in production published
+    //   a stimulus or read a heard event. Hearing is the acoustic sensor now (Sensors/AcousticPerception.cs → SoundContactEvent).
+    //   📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 A.
 
     // ── SensorTrackStatus ─────────────────────────────────────────────────────────
 
@@ -111,10 +29,9 @@ namespace Fdp.Toolkit.Perception.Events
     /// Global FDP event that bridges the Muscle-tier sensor debounce result to the
     /// Brain-tier cognitive buffer, replacing the DDS transport in networkless setups.
     /// <para>
-    /// Published by <see cref="Systems.SensorTrackDebounceSystem"/> when a contact
-    /// transitions to <see cref="SensorTrackStatus.Acquired"/> or
-    /// <see cref="SensorTrackStatus.Lost"/>. Forwarded from the module-private scoped bus
-    /// to the global world bus by <c>AutonomousPerceptionModule.Tick</c>.
+    /// Published by the EQS solver's memory stage (<c>SensorMemoryStage</c>) when the UNION of a unit's acquired
+    /// contacts over all its perception sensors gains or loses a target — <see cref="SensorTrackStatus.Acquired"/> or
+    /// <see cref="SensorTrackStatus.Lost"/> (docs/DESIGN_Sensors_And_Doctrine.md §5.4).
     /// </para>
     /// <para>
     /// In networked deployments the egress translator converts this event to a DDS
@@ -144,6 +61,10 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>Last-known Y position of the target (metres, ground plane).</summary>
         public float PositionY;
+
+        /// <summary>⭐ <c>CE-3060</c> — the kinds of the unit's sensors that hold this target (OR). 0 on a Lost; a reader treats
+        /// 0 on an Acquired as Visual (an older writer).</summary>
+        public Components.SensorModality Modality;
     }
 
     // ── SeedTargetCommand ─────────────────────────────────────────────────────────
@@ -169,5 +90,12 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>Additive threat-score boost applied on top of any existing score.</summary>
         public float ScoreBoost;
+
+        /// <summary>⭐ B-5 S3 (R-4137) — set by the interaction ingress: this command came off the network (never sent on again). APPENDED.</summary>
+        public bool IsRemote;
+
+        /// <summary>⭐ B-5 S3 (edit framework F4) — the user's request id (<c>Edits.Submit</c> / <c>EditOp.Interact</c>); the applying node answers with an
+        /// <c>EntityEditOutcome</c> under it. <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
+        public System.Guid RequestId;
     }
 }

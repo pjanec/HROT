@@ -44,7 +44,7 @@ Created `FDP/Toolkits/Fdp.Toolkit.Geographic/GeographicComponentIds.cs` with num
 ### New Projects
 - `FDP.Toolkit.Replay` — library with RecordingConfiguration, ReplayComponentIds, StoryTag, StoryReplayTag, RecorderTickSystem, RecordingModule, StoryRecorderModule, PlaybackTickSystem, ReplayModule.
 - `FDP.Toolkit.Replay.Tests` — 13 tests covering P8T2/P8T3/P8T4 success conditions.
-- Both projects added to `IOS-IG-SimHost.sln`.
+- Both projects added to `HROT.sln`.
 
 ---
 
@@ -144,4 +144,4 @@ All pre-existing test suites continued to pass. Pre-existing flaky tests (timing
 - `Hrot.SimHost.Tests/SimulationLogicModuleTests.cs` — updated system count 20→19
 - `Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj` — added `FDP.Toolkit.Replay` reference
 - `Hrot.IG.Tests/IgGroundClampingModuleTests.cs` — updated `CapturingRegistry` to generic `RegisterSystem<T>`
-- `IOS-IG-SimHost.sln` — added `FDP.Toolkit.Replay` and `FDP.Toolkit.Replay.Tests` projects
+- `HROT.sln` — added `FDP.Toolkit.Replay` and `FDP.Toolkit.Replay.Tests` projects

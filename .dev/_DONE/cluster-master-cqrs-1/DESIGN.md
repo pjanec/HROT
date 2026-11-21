@@ -176,11 +176,11 @@ namespace FDP.Toolkit.Orchestration
 
 > **No JSON inside the FDP domain:** Neither `ExecuteNodeOpIntent` nor any result event carries a `string PayloadJson` or `string ResultJson` field. All operation-specific data travels as a strongly-typed `object? DomainPayload` / `object? ResultPayload`. JSON serialization and deserialization is the exclusive responsibility of the network translators in the Hrot application layer (see Section 6). This ensures `System.Text.Json` never appears inside `FDP.Toolkit.Orchestration`.
 
-These three structs form the backbone of the two independent CQRS loops. They are `[DataPolicy(DataPolicy.NoRecord)]` so they are never saved to exercise recordings.
+These three structs form the backbone of the two independent CQRS loops. They are `[DataPolicy(DataPolicy.NoReplay)]` so they are never saved to exercise recordings.
 
 ```csharp
 [EventId(9011)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ClusterOpCompletedEvent
 {
     public Guid RequestId;
@@ -190,7 +190,7 @@ public struct ClusterOpCompletedEvent
 }
 
 [EventId(9012)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ExecuteNodeOpIntent
 {
     public Guid TransactionId;
@@ -202,7 +202,7 @@ public struct ExecuteNodeOpIntent
 }
 
 [EventId(9013)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct NodeOpCompletedEvent
 {
     public Guid TransactionId;
@@ -222,12 +222,12 @@ public struct NodeOpCompletedEvent
 
 - **Node Ops loop (Master → Slaves):** The generic `ExecuteNodeOpIntent` (Section 3.2) is retained so the `ClusterSlave` can act as a generic 2PC router without needing to know every operation type. However, it does **not** carry JSON. It carries an `object? DomainPayload` — a pure, strongly-typed payload struct placed there by the `ClusterMaster` (e.g., `TransitionNodePayload`). Network translators handle all JSON serialization/deserialization at the edge. `IClusterStateHandler` implementations access their data via safe type-casting: `if (intent.DomainPayload is TransitionNodePayload p) { ... }`. Zero JSON parsing anywhere in the FDP domain.
 
-All cluster-op intents are `[DataPolicy(DataPolicy.NoRecord)]`. Even operations with no payload get a dedicated intent struct so `ClusterMaster` can consume them cleanly via a typed event.
+All cluster-op intents are `[DataPolicy(DataPolicy.NoReplay)]`. Even operations with no payload get a dedicated intent struct so `ClusterMaster` can consume them cleanly via a typed event.
 
 #### TransitionStateIntent
 ```csharp
 [EventId(9050)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct TransitionStateIntent
 {
     public Guid TransactionId;
@@ -242,7 +242,7 @@ public struct TransitionStateIntent
 #### ManageEpisodeIntent
 ```csharp
 [EventId(9051)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ManageEpisodeIntent
 {
     public Guid TransactionId;
@@ -255,7 +255,7 @@ public struct ManageEpisodeIntent
 #### SeekReplayIntent
 ```csharp
 [EventId(9052)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct SeekReplayIntent
 {
     public Guid RequestId;
@@ -266,7 +266,7 @@ public struct SeekReplayIntent
 #### CancelOperationIntent
 ```csharp
 [EventId(9053)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct CancelOperationIntent
 {
     public Guid TargetRequestId;
@@ -278,7 +278,7 @@ public struct CancelOperationIntent
 public enum StorageOpType { Export, Import, SaveScenario }
 
 [EventId(9054)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ExecuteStorageOpIntent
 {
     public Guid RequestId;
@@ -287,7 +287,7 @@ public struct ExecuteStorageOpIntent
 }
 
 [EventId(9055)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct StorageOpCompletedEvent
 {
     public Guid RequestId;
@@ -300,7 +300,7 @@ public struct StorageOpCompletedEvent
 #### TakeCheckpointIntent
 ```csharp
 [EventId(9056)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct TakeCheckpointIntent
 {
     public Guid RequestId;
@@ -311,7 +311,7 @@ public struct TakeCheckpointIntent
 #### LoadZoneIntent
 ```csharp
 [EventId(9057)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct LoadZoneIntent
 {
     public Guid RequestId;

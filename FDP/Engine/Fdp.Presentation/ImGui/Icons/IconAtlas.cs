@@ -95,6 +95,16 @@ public class IconAtlas : IDisposable
         return (uv0, uv1);
     }
 
+    /// <summary>
+    /// ⭐ CE-4271 — the UV pair of a pixel RECTANGLE of the page (<paramref name="x"/>, <paramref name="y"/> its top-left, <paramref name="w"/> × <paramref name="h"/> its size): the
+    /// lookup an atlas of non-square cells (a 320 × 180 thumbnail grid) needs, where <see cref="GetUvCoordinates"/>'s square cells do not apply. A degenerate rectangle gives the whole page.
+    /// </summary>
+    public (Vector2 uv0, Vector2 uv1) GetUvForRect(float x, float y, float w, float h)
+    {
+        if (w <= 0f || h <= 0f || _atlasWidth <= 0f || _atlasHeight <= 0f) return (Vector2.Zero, Vector2.One);
+        return (new Vector2(x / _atlasWidth, y / _atlasHeight), new Vector2((x + w) / _atlasWidth, (y + h) / _atlasHeight));
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

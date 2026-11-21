@@ -1,0 +1,87 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §3 C-10, §5 S-6): an ambush switches the convoy to action without re-creating a vehicle. 📐 Measured (editor, traced): the hit lead's SOP reacts (VehicleFightFromCover — the order paused), finds no target and ends within a tick; the order resumes and re-issues its move (CE-9015), and the whole column drives out of the kill zone together. A one-tick reaction is too short for a sampled task row, so the rows state the OUTCOME: hit, still under its order, out of the kill zone together, never split, arrived. No golden yet.",
+  "runFor": 60,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the lead runs the convoy",
+      "on": "task",
+      "who": "Escort 1",
+      "is": "PlatformConvoy"
+    },
+    {
+      "name": "the lead is at the charge",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        652,
+        200
+      ],
+      "within": 15
+    },
+    {
+      "name": "the charge never goes off before the lead is at it",
+      "never": {
+        "on": "blast",
+        "by": "Trigger man"
+      },
+      "before": "the lead is at the charge"
+    },
+    {
+      "name": "the charge goes off",
+      "on": "blast",
+      "by": "Trigger man"
+    },
+    {
+      "name": "the IED hits the lead",
+      "on": "health",
+      "who": "Escort 1",
+      "below": 0.999,
+      "after": "the charge goes off"
+    },
+    {
+      "name": "the hit lead drives on under its convoy order",
+      "on": "task",
+      "who": "Escort 1",
+      "is": "PlatformConvoy",
+      "after": "the IED hits the lead"
+    },
+    {
+      "name": "the whole column drives out of the kill zone (the tail 100 m past the charge)",
+      "on": "field",
+      "who": "Escort 3",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 300,
+      "after": "the charge goes off"
+    },
+    {
+      "name": "the column never splits (Escort 2 never more than 60 m behind Escort 1)",
+      "never": {
+        "on": "far",
+        "who": "Escort 2",
+        "from": "Escort 1",
+        "m": 60
+      }
+    },
+    {
+      "name": "the column never splits (Escort 3 never more than 60 m behind Escort 2)",
+      "never": {
+        "on": "far",
+        "who": "Escort 3",
+        "from": "Escort 2",
+        "m": 60
+      }
+    },
+    {
+      "name": "the lead reaches its destination",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        652,
+        420
+      ],
+      "within": 20
+    }
+  ]
+}

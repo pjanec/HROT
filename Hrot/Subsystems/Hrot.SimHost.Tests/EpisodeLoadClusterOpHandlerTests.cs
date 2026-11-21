@@ -55,9 +55,9 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, "s1", IsStart: true),  // EpisodeId is Guid.Empty -> not valid
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(Guid.Empty), "s1", IsStart: true),  // EpisodeId is Guid.Empty -> not valid
             };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -83,9 +83,9 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(Guid.NewGuid(), ScenarioId: null, IsStart: true),  // no ScenarioId
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(Guid.NewGuid()), ScenarioId: null, IsStart: true),  // no ScenarioId
             };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -122,9 +122,9 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), scenarioId, IsStart: true),
             };
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);
@@ -147,9 +147,9 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
-                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, ScenarioId: null, IsStart: false),  // empty EpisodeId
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(Guid.Empty), ScenarioId: null, IsStart: false),  // empty EpisodeId
             };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -173,9 +173,9 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), ScenarioId: null, IsStart: false),
             };
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);
@@ -187,7 +187,7 @@ namespace Hrot.SimHost.Tests
         }
     }
 
-    [ComponentId(220)]
+    [ComponentId(497)]   // ⭐ was 220 = AnimationChannel: collided once SimHost tests registered the animation components (CE-2121 merge). 497: free, test-only, below the 512-bit mask.
     internal struct EpisodeTagForTest
     {
         public float X;

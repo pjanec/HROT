@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = CreateController_Bus(out var ctrl, () => ticks);
 
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Advance 100 ms — no TimePulse, no NTP needed.
             ticks += TicksFromSeconds(0.1);
@@ -154,7 +154,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = CreateController_Bus(out var ctrl, () => ticks);
 
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Establish a non-zero NTP offset: master is 1 full second of ticks ahead.
             // Inject the pre-computed offset (what the translator would produce for zero-RTT).
@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.SwapBuffers();
             ctrl.Update(); // applies offset: _masterWallClockOffset = masterOffset
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Advance 1 second of local ticks.
             ticks += TimeSpan.TicksPerSecond;
@@ -189,11 +189,11 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync first so _isTimeSynced = true.
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
             InjectSyncResponse(bus, ticks);
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Advance two frames so controller has a non-zero baseline.
             ticks += TicksFromSeconds(0.016);
@@ -232,11 +232,11 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync first so _isTimeSynced = true.
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
             InjectSyncResponse(bus, ticks);
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Run one frame so _virtualWallTicks > 0.
             ticks += TicksFromSeconds(0.016);
@@ -275,15 +275,15 @@ namespace Fdp.Toolkit.Time.Tests
 
         private static void TransitionToStepping(SlaveSyncController ctrl, FdpEventBus bus, ref long ticks, int nodeId = NodeId)
         {
-            // Drain the initial TimeSyncRequest published by the constructor.
+            // Drain the initial TimeSyncProbeEvent published by the constructor.
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Inject a zero-offset sync so _isTimeSynced = true (required for mode-switch events).
             InjectSyncResponse(bus, ticks, nodeId);
             ctrl.Update(); // drains sync response → _isTimeSynced = true
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>(); // drain any re-sync request
+            bus.Read<TimeSyncProbeEvent>(); // drain any re-sync request
 
             // Barrier at 0: SyncedWallTicks = ticks + 0; adding 1 tick crosses it immediately.
             SendDeterministicSwitch(bus, barrierWallTicks: 0);
@@ -380,7 +380,7 @@ namespace Fdp.Toolkit.Time.Tests
             long frameTicks = TicksFromSeconds(0.016);
 
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Run 20 frames to establish a baseline.
             GlobalTime lastContinuousState = default;
@@ -447,11 +447,11 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync first so _isTimeSynced = true.
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
             InjectSyncResponse(bus, ticks);
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // ── First cycle ──────────────────────────────────────────────────
             // Warm PLL.
@@ -542,7 +542,7 @@ namespace Fdp.Toolkit.Time.Tests
             var ctrl = CreateController(bus, tickSource: () => ticks);
 
             bus.SwapBuffers();
-            var requests = bus.Read<TimeSyncRequest>().ToArray();
+            var requests = bus.Read<TimeSyncProbeEvent>().ToArray();
 
             Assert.Single(requests);
             Assert.Equal(NodeId, requests[0].ClientNodeId);
@@ -583,7 +583,7 @@ namespace Fdp.Toolkit.Time.Tests
             var ctrl = CreateController(bus, tickSource: () => ticks);
             // Drain initial request
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Publish response: pre-computed offset=500, RTT=0
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 500L });
@@ -608,7 +608,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, config: config, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // RTT = 200 > MaxRttTicks (100) → discarded
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 200L, NewOffset = 100L });
@@ -629,7 +629,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Inject pre-computed offset=300_000, RTT=0 → hard-snap (first sync)
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 300_000L });
@@ -653,14 +653,14 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // First sync: hard-snap to 300_000
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 300_000L });
             bus.SwapBuffers();
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>(); // drain any periodic request
+            bus.Read<TimeSyncProbeEvent>(); // drain any periodic request
 
             // Second sync: newOffset = 310_000 → gentle steer
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 310_000L });
@@ -683,14 +683,14 @@ namespace Fdp.Toolkit.Time.Tests
             var ctrl = CreateController(bus, tickSource: () => ticks);
             // Drain the initial request
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Advance ticks past SyncRefreshIntervalTicks
             ticks = TimeSpan.TicksPerSecond + 1; // > 1 second
 
             ctrl.Update();
             bus.SwapBuffers();
-            var requests = bus.Read<TimeSyncRequest>().ToArray();
+            var requests = bus.Read<TimeSyncProbeEvent>().ToArray();
 
             Assert.Single(requests);
             Assert.Equal(NodeId, requests[0].ClientNodeId);
@@ -703,7 +703,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             var isTimeSyncedField = typeof(SlaveSyncController)
                 .GetField("_isTimeSynced", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -725,7 +725,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, config: config, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // RTT = 200 > MaxRttTicks (100) → rejected, _isTimeSynced stays false
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 200L, NewOffset = 100L });
@@ -749,7 +749,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Publish a SwitchTimeModeEvent without syncing first
             bus.Publish(new SwitchTimeModeEvent
@@ -774,13 +774,13 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Sync first
             InjectSyncResponse(bus, ticks);
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Publish a SwitchTimeModeEvent with barrier = 0 (already past)
             bus.Publish(new SwitchTimeModeEvent
@@ -807,7 +807,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Inject offset = -500_000_000 (computed by NTP translator: master domain is 500_000_000 ticks BEHIND slave)
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = -500_000_000L });
@@ -815,7 +815,7 @@ namespace Fdp.Toolkit.Time.Tests
             // t4 is no longer needed here (offset already pre-computed)
             ctrl.Update(); // applies sync: _masterWallClockOffset = -500_000_000
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Master issues barrier at 100_000 (in master domain / SyncedWallTicks domain)
             bus.Publish(new SwitchTimeModeEvent
@@ -848,7 +848,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Sync so _isTimeSynced = true
             InjectSyncResponse(bus, ticks);
@@ -873,13 +873,13 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Sync
             InjectSyncResponse(bus, ticks);
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Transition to BarrierPending with a far-future barrier
             bus.Publish(new SwitchTimeModeEvent
@@ -909,13 +909,13 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => ticks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Sync
             InjectSyncResponse(bus, ticks);
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Transition to Stepping (barrier = 0, already past)
             bus.Publish(new SwitchTimeModeEvent
@@ -967,15 +967,15 @@ namespace Fdp.Toolkit.Time.Tests
             long slaveTick    = 0;
             var  bus          = CreateController_Bus(out var ctrl, () => slaveTick);
 
-            // Drain the initial TimeSyncRequest emitted by the constructor.
+            // Drain the initial TimeSyncProbeEvent emitted by the constructor.
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // ── Slave runs for 0.5 s without NTP ────────────────────────────
             slaveTick += TicksFromSeconds(0.5);
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>(); // drain any periodic re-sync
+            bus.Read<TimeSyncProbeEvent>(); // drain any periodic re-sync
 
             // ── NTP handshake arrives ────────────────────────────────────────
             // Inject pre-computed offset = masterOffset (what the translator produces for zero-RTT).
@@ -1014,7 +1014,7 @@ namespace Fdp.Toolkit.Time.Tests
             long frameTicks = TicksFromSeconds(0.016);
 
             var bus = CreateController_Bus(out var ctrl, () => ticks);
-            bus.SwapBuffers(); bus.Read<TimeSyncRequest>();
+            bus.SwapBuffers(); bus.Read<TimeSyncProbeEvent>();
 
             // Run 5 frames to build up _prevFrameStartTicks = 5*frameTicks.
             for (int i = 0; i < 5; i++)
@@ -1065,14 +1065,14 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Inject NTP offset so SyncedWallTicks = slaveTicks + masterOffset.
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = masterOffset });
             bus.SwapBuffers();
             ctrl.Update(); // applies offset
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Barrier in the past: BarrierWallTicks < SyncedWallTicks.
             long syncedTicks      = ctrl.GetCurrentState().TotalWallTicks;
@@ -1106,13 +1106,13 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = masterOffset });
             bus.SwapBuffers();
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             long syncedTicks      = ctrl.GetCurrentState().TotalWallTicks;
             long barrierWallTicks = syncedTicks - 1_000L;
@@ -1163,13 +1163,13 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var ctrl = CreateController(bus, tickSource: () => slaveTicks);
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = masterOffset });
             bus.SwapBuffers();
             ctrl.Update();
             bus.SwapBuffers();
-            bus.Read<TimeSyncRequest>();
+            bus.Read<TimeSyncProbeEvent>();
 
             // Barrier at SyncedWallTicks - 1 (already elapsed).
             long barrierWallTicks = slaveTicks - 1L;

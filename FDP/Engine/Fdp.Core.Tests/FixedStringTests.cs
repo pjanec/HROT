@@ -141,11 +141,53 @@ namespace Fdp.Tests
         public void FixedString32_Numbers()
         {
             var str = new FixedString32("12345");
-            
+
             Assert.Equal("12345", str.ToString());
         }
+
+        [Fact]
+        public void FixedString32_SpanCtor_RoundTrip()
+        {
+            var str = new FixedString32("Hello".AsSpan());
+
+            Assert.False(str.IsEmpty);
+            Assert.Equal(5, str.Length);
+            Assert.Equal("Hello", str.ToString());
+        }
+
+        [Fact]
+        public void FixedString32_SpanCtor_EmptySpan()
+        {
+            var str = new FixedString32(ReadOnlySpan<char>.Empty);
+
+            Assert.True(str.IsEmpty);
+            Assert.Equal(0, str.Length);
+            Assert.Equal(string.Empty, str.ToString());
+        }
+
+        [Fact]
+        public void FixedString32_SpanCtor_Truncation()
+        {
+            // 50 characters - should truncate to 31, same as the string ctor.
+            var tooLong = new string('Y', 50);
+            var str = new FixedString32(tooLong.AsSpan());
+
+            Assert.Equal(31, str.Length);
+            Assert.Equal(new string('Y', 31), str.ToString());
+        }
+
+        [Fact]
+        public void FixedString32_SpanCtor_MatchesStringCtor()
+        {
+            const string input = "Hello, FixedString32!";
+            var fromSpan = new FixedString32(input.AsSpan());
+            var fromString = new FixedString32(input);
+
+            Assert.Equal(fromString, fromSpan);
+            Assert.Equal(fromString.ToString(), fromSpan.ToString());
+        }
     }
-    
+
     public class FixedString64Tests
     {
         [Fact]
@@ -225,12 +267,190 @@ namespace Fdp.Tests
             // String that fits in 64 but not 32
             var mediumStr = new string('A', 40);
             var str = new FixedString64(mediumStr);
-            
+
             Assert.Equal(40, str.Length);
             Assert.Equal(mediumStr, str.ToString());
         }
+
+        [Fact]
+        public void FixedString64_SpanCtor_RoundTrip()
+        {
+            var str = new FixedString64("Hello World".AsSpan());
+
+            Assert.False(str.IsEmpty);
+            Assert.Equal(11, str.Length);
+            Assert.Equal("Hello World", str.ToString());
+        }
+
+        [Fact]
+        public void FixedString64_SpanCtor_EmptySpan()
+        {
+            var str = new FixedString64(ReadOnlySpan<char>.Empty);
+
+            Assert.True(str.IsEmpty);
+            Assert.Equal(0, str.Length);
+            Assert.Equal(string.Empty, str.ToString());
+        }
+
+        [Fact]
+        public void FixedString64_SpanCtor_Truncation()
+        {
+            // 100 characters - should truncate to 63, same as the string ctor.
+            var tooLong = new string('Y', 100);
+            var str = new FixedString64(tooLong.AsSpan());
+
+            Assert.Equal(63, str.Length);
+            Assert.Equal(new string('Y', 63), str.ToString());
+        }
+
+        [Fact]
+        public void FixedString64_SpanCtor_MatchesStringCtor()
+        {
+            const string input = "Hello, FixedString64!";
+            var fromSpan = new FixedString64(input.AsSpan());
+            var fromString = new FixedString64(input);
+
+            Assert.Equal(fromString, fromSpan);
+            Assert.Equal(fromString.ToString(), fromSpan.ToString());
+        }
     }
-    
+
+    public class FixedString128Tests
+    {
+        [Fact]
+        public void FixedString128_EmptyConstruction()
+        {
+            var str = new FixedString128();
+
+            Assert.True(str.IsEmpty);
+            Assert.Equal(0, str.Length);
+            Assert.Equal(string.Empty, str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_SimpleString()
+        {
+            var str = new FixedString128("Hello World");
+
+            Assert.False(str.IsEmpty);
+            Assert.Equal(11, str.Length);
+            Assert.Equal("Hello World", str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_MaxLength()
+        {
+            // 127 characters (max)
+            var longStr = new string('X', 127);
+            var str = new FixedString128(longStr);
+
+            Assert.Equal(127, str.Length);
+            Assert.Equal(longStr, str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_Truncation()
+        {
+            // 200 characters - should truncate to 127
+            var tooLong = new string('Y', 200);
+            var str = new FixedString128(tooLong);
+
+            Assert.Equal(127, str.Length);
+            Assert.Equal(new string('Y', 127), str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_NullString()
+        {
+            var str = new FixedString128(null!);
+
+            Assert.True(str.IsEmpty);
+            Assert.Equal(string.Empty, str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_Equality()
+        {
+            var str1 = new FixedString128("Testing 123");
+            var str2 = new FixedString128("Testing 123");
+            var str3 = new FixedString128("Different");
+
+            Assert.True(str1 == str2);
+            Assert.False(str1 == str3);
+        }
+
+        [Fact]
+        public void FixedString128_ImplicitConversions()
+        {
+            FixedString128 str = "Test String";
+            string regular = str;
+
+            Assert.Equal("Test String", regular);
+        }
+
+        [Fact]
+        public void FixedString128_Size_Is128Bytes()
+        {
+            unsafe
+            {
+                Assert.Equal(128, sizeof(FixedString128));
+            }
+        }
+
+        [Fact]
+        public void FixedString128_LongerThanFixedString64()
+        {
+            // String that fits in 128 but not 64
+            var mediumStr = new string('A', 100);
+            var str = new FixedString128(mediumStr);
+
+            Assert.Equal(100, str.Length);
+            Assert.Equal(mediumStr, str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_SpanCtor_RoundTrip()
+        {
+            var str = new FixedString128("Hello World".AsSpan());
+
+            Assert.False(str.IsEmpty);
+            Assert.Equal(11, str.Length);
+            Assert.Equal("Hello World", str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_SpanCtor_EmptySpan()
+        {
+            var str = new FixedString128(ReadOnlySpan<char>.Empty);
+
+            Assert.True(str.IsEmpty);
+            Assert.Equal(0, str.Length);
+            Assert.Equal(string.Empty, str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_SpanCtor_Truncation()
+        {
+            // 200 characters - should truncate to 127, same as the string ctor.
+            var tooLong = new string('Y', 200);
+            var str = new FixedString128(tooLong.AsSpan());
+
+            Assert.Equal(127, str.Length);
+            Assert.Equal(new string('Y', 127), str.ToString());
+        }
+
+        [Fact]
+        public void FixedString128_SpanCtor_MatchesStringCtor()
+        {
+            const string input = "Hello, FixedString128!";
+            var fromSpan = new FixedString128(input.AsSpan());
+            var fromString = new FixedString128(input);
+
+            Assert.Equal(fromString, fromSpan);
+            Assert.Equal(fromString.ToString(), fromSpan.ToString());
+        }
+    }
+
     [Collection("ComponentTests")]
     public class FixedStringIntegrationTests
     {

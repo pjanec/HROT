@@ -1,0 +1,76 @@
+{
+  "$doc": "docs/DESIGN_Temperament_And_Stress.md \u00a76 (CE-2272) \u2014 ts-three-defenders, the scenario's Judge list: (1) the Coward breaks (Stress.Broken) and runs (task Break), he does not surrender; (2) the Waverer breaks with a rifle on him and surrenders (task Surrender); (3) the Fanatic never breaks or surrenders and fires back. \u26a0 Left out: (4) the printed stress/time figures (not a condition). The Coward and Waverer rows are the same ones the rail CE2272_TsThreeDefenders pins in-process.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(1) the Coward breaks",
+      "on": "field",
+      "who": "Coward",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1,
+      "before": 60
+    },
+    {
+      "name": "(1) the Coward runs (the Break task)",
+      "on": "task",
+      "who": "Coward",
+      "is": "Break"
+    },
+    {
+      "name": "(1) the Coward never surrenders",
+      "never": {
+        "on": "task",
+        "who": "Coward",
+        "is": "Surrender"
+      }
+    },
+    {
+      "name": "(2) the Waverer breaks",
+      "on": "field",
+      "who": "Waverer",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1,
+      "before": 60
+    },
+    {
+      "name": "(2) the Waverer surrenders",
+      "on": "task",
+      "who": "Waverer",
+      "is": "Surrender"
+    },
+    {
+      "name": "(2) the Waverer's hands go up",
+      "on": "gesture",
+      "who": "Waverer",
+      "is": "HandsUp"
+    },
+    {
+      "name": "(3) the Fanatic never breaks",
+      "never": {
+        "on": "field",
+        "who": "Fanatic",
+        "path": "Stress.Broken",
+        "op": "==",
+        "value": 1
+      }
+    },
+    {
+      "name": "(3) the Fanatic never surrenders",
+      "never": {
+        "on": "task",
+        "who": "Fanatic",
+        "is": "Surrender"
+      }
+    },
+    {
+      "name": "(3) the Fanatic fires back",
+      "on": "shot",
+      "by": "Fanatic"
+    }
+  ]
+}

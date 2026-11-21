@@ -1,0 +1,695 @@
+using System;
+using NodeEditor.Core.Widgets;
+using System.Collections.Generic;
+using System.Linq;
+using Fdp.Presentation.WindowManager;
+using ImGuiNET;
+
+namespace Hrot.UI.Common.Map3D.Director
+{
+    /// <summary>
+    /// ⭐ <c>CE-4038</c> B6 (docs/DESIGN_Film_Director.md §4 "The panel") — <i>View › Director</i>: pick a reel or a scenario's take · Play /
+    /// Stop / Next / Pause · <i>Replay this take</i> · <i>Prepare</i> (scout: bake the anchor times) · speed · a row per item with its last
+    /// report (✅ / ⚠ mismatch / ⛔ beat missing). 🔒 <i>"also from some ui panel for the user without ai debug http"</i> — it calls the SAME
+    /// <see cref="DirectorRunner"/> methods the <c>/director/*</c> routes call. Capture is the routes' (a cloud VM has no one at the panel).
+    /// <para>⭐ <c>CE-4042</c> — <i>Verify</i>: a scenario with a <c>checks.json</c> is run as the regression check runs it (judged, compared
+    /// with its golden), and its row says pass/fail with every verdict. 🔒 <i>"Verify button ok, per scenario."</i> ⚠ In this editor each
+    /// verify after the first is a reload (CE-3294) — the command line's <c>--verify</c> is the regression verdict.</para>
+    /// </summary>
+    public sealed class DirectorWindow : ManagedWindow, IDirectorTabContext
+    {
+        public const string WindowId = "editor_director";
+
+        private readonly Func<DirectorRunner?> _runner;
+        private readonly Func<TakeStore?> _store;
+        private readonly IReadOnlyList<IDirectorWindowTab> _tabs;   // ⭐ CE-1303 P1 — contributed by the host, drawn after the film tabs
+        /// <summary>The tabs the host contributed, after the film tabs.</summary>
+        public IReadOnlyList<IDirectorWindowTab> Tabs => _tabs;
+        private const int PickReel = 0, PickTake = 1;   // 2 + i = _tabs[i]
+        private int _pick = PickReel;
+        private int _reel, _scenario, _take;
+        private DirectorRunner? _ctxRunner;
+        private TakeStore? _ctxStore;
+        private readonly DirectorTakeSession _takes;
+        private string? _message;
+
+        // ⭐ CE-1364 T3 — the playback rate is the session's (the timeline's J / L change the same number)
+        private float _speed { get => _takes.Speed; set => _takes.Speed = value; }
+
+        private readonly Func<double>? _playhead;
+        private readonly TakePromotion? _promotion;
+        private bool _promoteOverwrite;
+
+        /// <param name="perspective">⭐ CE-1303 P2a (§11m D11) — the host's perspective ("Scenario" in the editor, "ReplayBrowser" in the RB).</param>
+        /// <param name="playhead">⭐ CE-1303 P2a — the source's sim second now (the host's playhead): <i>Play from playhead</i> starts the take there.</param>
+        public DirectorWindow(Func<DirectorRunner?> runner, Func<TakeStore?> store, DirectorTakeSession takes,
+                              IReadOnlyList<IDirectorWindowTab>? tabs = null, System.Numerics.Vector4? titleBarColor = null,
+                              string perspective = "Scenario", Func<double>? playhead = null, TakePromotion? promotion = null,
+                              DirectorRenders? renders = null, ReelComposer? composer = null)
+            : base(WindowId, "Director", perspective, WindowScope.PerspectiveBound)
+        {
+            Renders = renders;
+            Composer = composer ?? new ReelComposer(store);
+            _playhead = playhead;
+            _promotion = promotion;
+            _runner = runner;
+            _store = store;
+            _takes = takes ?? throw new ArgumentNullException(nameof(takes));
+            _tabs = tabs ?? Array.Empty<IDirectorWindowTab>();
+            IsOpen = false;
+            if (titleBarColor is { } c) TitleBarColor = c;
+        }
+
+        protected override void DrawClientArea()
+        {
+            var runner = _runner();
+            var store = _store();
+            if (runner == null || store == null) { ImGui.TextDisabled("The director is not available on this host."); return; }
+
+            if (_takes.Opened != _openedSeen && _takes.Editor != null) _pick = PickTake;   // ⭐ CE-4059 — a take opened elsewhere (a draft): show it
+            if (ImGui.RadioButton("Reel", _pick == PickReel)) _pick = PickReel;
+            ImGui.SameLine();
+            if (ImGui.RadioButton("One take", _pick == PickTake)) _pick = PickTake;
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                ImGui.SameLine();
+                if (ImGui.RadioButton(_tabs[i].Name, _pick == 2 + i)) _pick = 2 + i;
+            }
+
+            if (_pick >= 2 && _pick - 2 < _tabs.Count)
+            {
+                _ctxRunner = runner; _ctxStore = store;
+                _tabs[_pick - 2].Draw(this);
+                DrawStatus(runner);
+                return;
+            }
+
+            Reel? chosen = null;
+            if (_pick == PickReel && Composer.IsOpen) chosen = DrawComposer(store);   // ⭐ CE-1306 — the reel AS COMPOSED (unsaved edits played)
+            else if (_pick == PickReel)
+            {
+                var reels = store.ReelNames();
+                if (reels.Count == 0) ImGui.TextDisabled($"No reels (films/*.reel.json{(store.FilmsRoot == null ? " — no films/ folder found" : "")}).");
+                else
+                {
+                    _reel = Math.Clamp(_reel, 0, reels.Count - 1);
+                    var names = reels.ToArray();
+                    ImGui.Combo("##reel", ref _reel, names, names.Length);
+                    var loaded = store.LoadReel(reels[_reel]);
+                    chosen = loaded.Value;
+                    if (loaded.Problems.Count > 0) ImGui.TextColored(new System.Numerics.Vector4(1f, 0.6f, 0.2f, 1f), loaded.Problems[0]);
+                    ImGui.SameLine();
+                    if (ImGui.Button("Compose")) _message = Composer.Open(reels[_reel]) is { Count: > 0 } p ? string.Join("\n", p) : null;
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Edit this reel: add takes, remove and reorder items, set their titles and chapter cards, save.");
+                }
+                ImGui.SetNextItemWidth(160f);
+                ImGui.InputText("##newreel", ref _newReelName, 64);
+                ImGui.SameLine();
+                if (ImGui.Button("New reel")) _message = Composer.New(_newReelName.Trim()) is { Count: > 0 } np ? string.Join("\n", np) : null;
+            }
+            else
+            {
+                var all = WithOpenTake(store.AllTakes());
+                if (all.Count == 0) ImGui.TextDisabled("No takes (scenarios/<name>/takes/*.take.json).");
+                else
+                {
+                    _scenario = Math.Clamp(_scenario, 0, all.Count - 1);
+                    var scenarios = all.Select(x => x.Scenario).ToArray();
+                    var takes = all[Math.Clamp(_scenario, 0, all.Count - 1)].Takes.ToArray();
+                    if (FormGrid.Begin("dir.pick"))
+                    {
+                        FormGrid.Row("Scenario");
+                        if (ImGui.Combo("##scenario", ref _scenario, scenarios, scenarios.Length)) { _take = 0; takes = all[_scenario].Takes.ToArray(); }
+                        _take = Math.Clamp(_take, 0, takes.Length - 1);
+                        FormGrid.Row("Take");
+                        ImGui.Combo("##take", ref _take, takes, takes.Length);
+                        FormGrid.End();
+                    }
+                    _take = Math.Clamp(_take, 0, takes.Length - 1);
+                    chosen = Reel.Of(scenarios[_scenario], takes[_take]);
+                }
+            }
+
+            float speed = _speed;
+            if (FormGrid.Begin("dir.speed"))
+            {
+                FormGrid.Row("Speed");
+                ImGui.SliderFloat("##speed", ref speed, 0.25f, 2f, "%.2fx");
+                _speed = speed;
+                if (runner.Busy && ImGui.IsItemDeactivatedAfterEdit()) runner.SetSpeed(_speed);
+                FormGrid.End();
+            }
+            if (_pick == PickTake && chosen != null) DrawEdit(chosen.Items[0].Scenario, chosen.Items[0].Take);
+
+            ImGui.BeginDisabled(chosen == null || chosen.Items.Count == 0 || Renders is { Busy: true });   // ⭐ CE-1306 — a render holds the director
+            if (ImGui.Button("Play")) Start(runner, new PlayRequest(chosen!, _speed));
+            ImGui.SameLine();
+            if (ImGui.Button("Prepare (scout)")) Start(runner, new PlayRequest(chosen!, Scout: true));
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Runs each take once, stepped as the film will be, and bakes its anchor times into the take.");
+            // ⭐ CE-1303 P2a — CR-4 (§11m D5–D7): iterate on the take — play it from the playhead, the panels kept on screen to edit it, and loop the
+            //   shot so the next pass shows the edit (a recording seeks; the editor fast-forwards to the playhead and cannot loop)
+            if (_pick == PickTake && _playhead != null)
+            {
+                ImGui.SameLine();
+                if (ImGui.Button("Play from playhead"))
+                {
+                    // ⭐ CE-1303 P2b (§11o S5) — the playhead is a SOURCE second; the film second that shows it comes from the take's segments
+                    var request = new PlayRequest(chosen!, _speed, Cinema: false);
+                    StartFrom(runner, request, runner.FilmTimeAt(request, _playhead()));
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Plays this take from the playhead's time, the timeline kept on screen: the open take's unsaved edits are played.");
+            }
+            ImGui.EndDisabled();
+            if (Renders != null && chosen != null) DrawQueueRender(chosen);
+            bool loop = runner.LoopShot;
+            if (ImGui.Checkbox("Loop shot", ref loop)) runner.LoopShot = loop;
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("At the end of the shot on screen, go back to its start (a recording only) — an edit shows on the next pass.");
+            ImGui.SameLine();
+            ImGui.BeginDisabled(!runner.Busy);
+            if (ImGui.Button("Stop")) runner.Stop();
+            ImGui.SameLine();
+            if (ImGui.Button("Next")) runner.Next();
+            ImGui.SameLine();
+            if (ImGui.Button(runner.Paused ? "Resume" : "Pause")) { if (runner.Paused) runner.Resume(); else runner.Pause(); }
+            ImGui.EndDisabled();
+
+            DrawStatus(runner);
+        }
+
+        private int _openedSeen;
+
+        /// <summary>
+        /// ⭐ CE-4059 (§11q D2) — the takes to pick from: the store's, plus the session's OPEN take when it is not saved yet (a draft); and when the session has opened
+        /// a take since the last frame, the pick moves to it (One take), so a draft opened from the Event Timeline is the one Play plays.
+        /// </summary>
+        private IReadOnlyList<(string Scenario, IReadOnlyList<string> Takes)> WithOpenTake(IReadOnlyList<(string Scenario, IReadOnlyList<string> Takes)> all)
+        {
+            var list = all.ToList();
+            if (_takes.Editor?.Take is { } open)
+            {
+                int si = list.FindIndex(x => x.Scenario == open.Scenario);
+                if (si < 0) { list.Add((open.Scenario, new[] { open.Name })); list = list.OrderBy(x => x.Scenario, StringComparer.Ordinal).ToList(); si = list.FindIndex(x => x.Scenario == open.Scenario); }
+                else if (!list[si].Takes.Contains(open.Name)) list[si] = (open.Scenario, list[si].Takes.Append(open.Name).ToList());
+                if (_takes.Opened != _openedSeen)
+                {
+                    _openedSeen = _takes.Opened;
+                    _pick = PickTake;
+                    _scenario = si;
+                    _take = list[si].Takes.ToList().IndexOf(open.Name);
+                }
+            }
+            return list;
+        }
+
+        /// <summary>⭐ CE-1364 T3 — open the picked take on the Event Timeline's Camera / Time tracks (one <see cref="TakeEditor"/>, shared with the panel); save · close · undo · redo.</summary>
+        private void DrawEdit(string scenario, string take)
+        {
+            var editor = _takes.Editor;
+            bool isOpen = editor != null && editor.Take.Scenario == scenario && editor.Take.Name == take;
+            if (!isOpen)
+            {
+                if (ImGui.Button("Edit on the timeline")) _message = _takes.Open(scenario, take) is { Count: > 0 } p ? string.Join("\n", p) : null;
+                return;
+            }
+            ImGui.TextUnformatted($"Editing {scenario}/{take}{(editor!.Dirty ? " * (unsaved - Play plays these edits)" : "")} - Event Timeline: K adds a key, drag to move, Ctrl+Z undoes");
+            ImGui.BeginDisabled(!editor.Dirty);
+            if (ImGui.Button("Save")) _message = _takes.Save() is not null ? null : "nothing to save";
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            ImGui.BeginDisabled(!_takes.CanUndo);
+            if (ImGui.Button("Undo")) _takes.UndoLast();
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            ImGui.BeginDisabled(!_takes.CanRedo);
+            if (ImGui.Button("Redo")) _takes.RedoLast();
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            if (ImGui.Button("Close")) _takes.Close();
+            DrawPromote(scenario, take, editor.Dirty);
+
+            // ⭐ CE-1303 P2b (§11o S11) — the camera of the selected key (else the key on screen at the playhead) from the pilot's view; the pilot ⇄ program view
+            if (_takes.Director is not { } tracks) return;
+            if (ImGui.Button("Update key from view") && !tracks.UpdateKeyFromView(_playhead?.Invoke() ?? 0d))
+                _message = "no key to update (select one, or put the playhead after one) or no 3-D pilot camera";
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("The selected camera key (else the key on screen at the playhead) takes the view you flew to. U on the timeline. Ctrl+Z undoes.");
+            DrawTemplates(tracks);
+            ImGui.SameLine();
+            bool pilot = FilmStudio.Pilot;
+            ImGui.BeginDisabled(IsCapturing());
+            if (ImGui.Checkbox("Pilot view", ref pilot)) FilmStudio.Pilot = pilot;
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("On: you fly the map camera while the take plays (the program keeps running). Off: the director's camera.");
+            // ⭐ Seats H4 (§3.4) — the director shares the camera: a camera gesture takes it, the director retakes it at its next shot unless this is off
+            ImGui.SameLine();
+            bool directorCamera = FilmStudio.DirectorCamera;
+            if (ImGui.Checkbox("Director camera", ref directorCamera)) FilmStudio.DirectorCamera = directorCamera;
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("On: when you move the camera during the playback, the director takes it back at its next shot. Off: it never takes it back.");
+            if (FilmStudio.UserHoldsCamera)
+                ImGui.TextDisabled(FilmStudio.DirectorCamera ? "You have the camera — the director retakes it at its next shot" : "You have the camera");
+            DrawSelected(editor!, tracks);
+        }
+
+        private int _template;
+
+        /// <summary>⭐ <c>CE-1305</c> (§11v T2) — a shot template and <i>Add key from template</i> at the playhead (the Camera track's right-click menu offers the same):
+        /// the drafter's camera for the event before the playhead, one undo step.</summary>
+        private void DrawTemplates(DirectorTracks tracks)
+        {
+            ImGui.SameLine();
+            var labels = Drafter.Templates.Select(Drafter.LabelOf).ToArray();
+            ImGui.SetNextItemWidth(220f);
+            ImGui.Combo("##template", ref _template, labels, labels.Length);
+            ImGui.SameLine();
+            double at = _playhead?.Invoke() ?? 0d;
+            var template = Drafter.Templates[Math.Clamp(_template, 0, Drafter.Templates.Count - 1)];
+            ImGui.BeginDisabled(!tracks.CanAddTemplateKey(template, at));
+            if (ImGui.Button("Add key from template")) _message = AddTemplateKey(tracks, template, at);
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip("A camera key at the playhead framed by the drafter's rule on the event before it (a shot, hit or blast). Ctrl+Z undoes.");
+        }
+
+        /// <summary>The window's <i>Add key from template</i> (test seam): null when added, else why not.</summary>
+        internal static string? AddTemplateKey(DirectorTracks tracks, ShotTemplate template, double playhead)
+            => tracks.AddTemplateKey(template, playhead) ? null : "no shot, hit or blast before the playhead to frame (or this host has no timeline index)";
+
+        /// <summary>⭐ CE-1304 P4 (§11s) — "Promote to scenario": the saved take copied into the scenario's own takes (a recording host only); a take of that
+        /// name already there needs "replace" ticked.</summary>
+        private void DrawPromote(string scenario, string take, bool dirty)
+        {
+            if (_promotion is not { Available: true } promotion) return;
+            ImGui.SameLine();
+            ImGui.BeginDisabled(dirty);
+            if (ImGui.Button("Promote to scenario"))
+            {
+                var r = promotion.Promote(scenario, take, _promoteOverwrite);
+                _message = r.Written
+                    ? $"promoted to {r.To} (bake {r.Bake}{(r.Overwrote ? ", replaced the scenario's take" : "")})"
+                      + (r.FixedKeys.Count > 0 ? " - keys at a fixed time: " + string.Join(", ", r.FixedKeys) : "")
+                    : string.Join("\n", r.Problems);
+                _promoteOverwrite = false;
+            }
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copies this saved take into the scenario's own takes: its keys hang on events, so it plays on any later run (live or recorded).");
+            ImGui.SameLine();
+            ImGui.Checkbox("replace", ref _promoteOverwrite);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Replace the scenario's take of the same name.");
+        }
+
+        private bool IsCapturing() => _runner() is { Busy: true, Mode: DirectorMode.Capture };
+
+        /// <summary>⭐ CE-1303 P2b — the selected time segment's speed and gap, or the selected subtitle's text, position and fade (each change one undo step).</summary>
+        private void DrawSelected(TakeEditor editor, DirectorTracks tracks)
+        {
+            var take = editor.Take;
+            if (tracks.SelectedSegment is { } si && si < take.Segments.Count)
+            {
+                var seg = take.Segments[si];
+                float speed = (float)seg.Speed;
+                bool dip = seg.Gap == SegmentGap.Dip;
+                if (FormGrid.Begin("dir.segment"))
+                {
+                    FormGrid.Row("Segment speed");
+                    ImGui.SliderFloat("##speed", ref speed, 0.1f, 8f, "%.2fx", ImGuiSliderFlags.Logarithmic);
+                    if (ImGui.IsItemDeactivatedAfterEdit() && speed > 0f) editor.Apply(new TakeEdit.SetSegment(si, seg with { Speed = Math.Round(speed, 2) }));
+                    FormGrid.Row("Dip into it");
+                    if (ImGui.Checkbox("##dip", ref dip)) editor.Apply(new TakeEdit.SetSegment(si, seg with { Gap = dip ? SegmentGap.Dip : SegmentGap.Cut }));
+                    FormGrid.End();
+                }
+            }
+            else if (tracks.SelectedSubtitle is { } ui && TakeSubtitles.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)) is { } subs && ui < subs.Count)
+            {
+                var sub = subs[ui];
+                if (_subtitleEdit?.Index != ui || _subtitleEdit.Value.Version != editor.Version) _subtitleEdit = (ui, editor.Version, sub.Text);
+                string text = _subtitleEdit.Value.Text;
+                int pos = (int)sub.Position;
+                float fade = (float)sub.Fade;
+                if (FormGrid.Begin("dir.subtitle"))
+                {
+                    FormGrid.Row("Subtitle");
+                    if (ImGui.InputText("##text", ref text, 512)) _subtitleEdit = (ui, editor.Version, text);
+                    if (ImGui.IsItemDeactivatedAfterEdit() && text != sub.Text) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Text = text }));
+                    FormGrid.Row("Position");
+                    if (ImGui.Combo("##position", ref pos, SubtitlePositions, SubtitlePositions.Length)) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Position = (SubtitlePosition)pos }));
+                    FormGrid.Row("Fade");
+                    ImGui.SliderFloat("##fade", ref fade, 0f, 2f, "%.1f s");
+                    if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Fade = Math.Round(fade, 2) }));
+                    FormGrid.End();
+                }
+            }
+            else if (tracks.SelectedView is { } vi && TakeViews.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)) is { } views && vi < views.Count)
+                DrawSelectedView(editor, vi, views[vi]);
+            else if (tracks.SelectedGraphic is { } gi && gi < take.Graphics.Count)
+                DrawSelectedGraphic(editor, tracks, gi, take.Graphics[gi]);
+        }
+
+        /// <summary>⭐ CE-1304 P6 (§11t V3) — the selected view item: its map (2-D / 3-D / as before) and its layer set — one checkbox per layer the Layers panel has
+        /// (the rows a film keeps from the user's set are ticked unless the item turns them off). Each change one undo step.</summary>
+        private static void DrawSelectedView(TakeEditor editor, int index, ViewChange view)
+        {
+            int map = view.TwoD is null ? 0 : view.TwoD.Value ? 1 : 2;
+            bool own = view.Layers != null;
+            if (FormGrid.Begin("dir.view"))
+            {
+                FormGrid.Row("Map");
+                if (ImGui.Combo("##map", ref map, ViewMaps, ViewMaps.Length))
+                    editor.Apply(new TakeEdit.SetView(index, view with { TwoD = map == 0 ? null : map == 1 }));
+                FormGrid.Row("Sets layers");
+                if (ImGui.Checkbox("##setslayers", ref own))
+                    editor.Apply(new TakeEdit.SetView(index, view with { Layers = own ? LayerChange.None : null }));
+                FormGrid.End();
+            }
+            if (view.Layers is not { } layers) return;
+            var scene = Hrot.Common.Diagnostics.Gizmos.LayerControlSets.SceneRows;
+            int column = 0;
+            foreach (var (name, display, _) in Hrot.Common.Diagnostics.Gizmos.LayerControlSets.RowNames)
+            {
+                bool isScene = scene.Contains(name, StringComparer.OrdinalIgnoreCase);
+                bool on = isScene ? !layers.Off.Contains(name, StringComparer.OrdinalIgnoreCase) : layers.On.Contains(name, StringComparer.OrdinalIgnoreCase);
+                if (column++ % 4 != 0) ImGui.SameLine();
+                if (!ImGui.Checkbox(display + "##view-" + name, ref on)) continue;
+                var onList = layers.On.Where(n => !string.Equals(n, name, StringComparison.OrdinalIgnoreCase)).ToList();
+                var offList = layers.Off.Where(n => !string.Equals(n, name, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (on && !isScene) onList.Add(name);
+                if (!on && isScene) offList.Add(name);
+                editor.Apply(new TakeEdit.SetView(index, view with { Layers = new LayerChange(onList, offList) }));
+            }
+        }
+
+        private static readonly string[] ViewMaps = { "as before", "2-D map", "3-D map" };
+        private static readonly string[] GraphicKinds = Enum.GetNames(typeof(GraphicKind)).Select(n => n.ToLowerInvariant()).ToArray();
+        private (int Index, int Version, string Text, string Who, string Toward)? _graphicEdit;
+
+        /// <summary>⭐ CE-1305 P6 (§11t G4) — the selected graphic: kind, the units it is on, its text, radius and fade; its points from the pilot camera's look-at.</summary>
+        private void DrawSelectedGraphic(TakeEditor editor, DirectorTracks tracks, int index, FilmGraphic g)
+        {
+            int kind = (int)g.Kind;
+            if (_graphicEdit?.Index != index || _graphicEdit.Value.Version != editor.Version)
+                _graphicEdit = (index, editor.Version, g.Text ?? "", g.Who ?? "", g.Toward ?? "");
+            var (_, version, text, who, toward) = _graphicEdit.Value;
+            float radius = g.Radius, fade = (float)g.Fade;
+            if (FormGrid.Begin("dir.graphic"))
+            {
+                FormGrid.Row("Kind");
+                if (ImGui.Combo("##kind", ref kind, GraphicKinds, GraphicKinds.Length)) editor.Apply(new TakeEdit.SetGraphic(index, g with { Kind = (GraphicKind)kind }));
+                FormGrid.Row("Unit");
+                if (ImGui.InputText("##unit", ref who, 128)) _graphicEdit = (index, version, text, who, toward);
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Who = who.Length == 0 ? null : who }));
+                if (g.Kind == GraphicKind.Arrow)
+                {
+                    FormGrid.Row("Toward");
+                    if (ImGui.InputText("##toward", ref toward, 128)) _graphicEdit = (index, version, text, who, toward);
+                    if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Toward = toward.Length == 0 ? null : toward }));
+                }
+                FormGrid.Row("Text");
+                if (ImGui.InputText("##text", ref text, 256)) _graphicEdit = (index, version, text, who, toward);
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Text = text.Length == 0 ? null : text }));
+                FormGrid.Row("Radius");
+                ImGui.SliderFloat("##radius", ref radius, 1f, 100f, "%.0f m");
+                if (ImGui.IsItemDeactivatedAfterEdit() && radius > 0f) editor.Apply(new TakeEdit.SetGraphic(index, g with { Radius = MathF.Round(radius, 1) }));
+                FormGrid.Row("Fade");
+                ImGui.SliderFloat("##fade", ref fade, 0f, 2f, "%.1f s");
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Fade = Math.Round(fade, 2) }));
+                FormGrid.End();
+            }
+            ImGui.Text($"{g.Points.Count} point(s)");
+            ImGui.SameLine();
+            if (ImGui.Button("Add the camera's look-at as a point") && tracks.PilotLookAt is { } look)
+                editor.Apply(new TakeEdit.SetGraphic(index, g with { Points = g.Points.Append(look).ToList() }));
+            ImGui.SameLine();
+            if (ImGui.Button("Clear points") && g.Points.Count > 0) editor.Apply(new TakeEdit.SetGraphic(index, g with { Points = Array.Empty<System.Numerics.Vector3>() }));
+        }
+
+        private static readonly string[] SubtitlePositions = { "bottom", "top", "middle" };
+        private (int Index, int Version, string Text)? _subtitleEdit;
+
+        // ── ⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the reel composer and the render queue ─────────────────────────
+
+        /// <summary>The reel composer this window draws (the pack's: the one reel editing model).</summary>
+        public ReelComposer Composer { get; }
+
+        /// <summary>The render queue this window queues into and lists (null: a host built without one — no render controls).</summary>
+        public DirectorRenders? Renders { get; }
+
+        /// <summary>The render sizes and frame rates the window offers.</summary>
+        public static readonly (int W, int H)[] RenderSizes = { (640, 360), (1280, 720), (1920, 1080) };
+        public static readonly int[] RenderRates = { 15, 24, 30, 60 };
+        private static readonly string[] RenderSizeNames = RenderSizes.Select(x => $"{x.W}x{x.H}").ToArray();
+        private static readonly string[] RenderRateNames = RenderRates.Select(x => $"{x} fps").ToArray();
+
+        /// <summary>The picked render size (an index into <see cref="RenderSizes"/>) and rate (into <see cref="RenderRates"/>).</summary>
+        public int RenderSize { get; set; } = 1;
+        public int RenderRate { get; set; } = 2;
+
+        private static readonly string[] ReelHeaders = { "take", "title", "chapter card" };
+        private static readonly NodeEditor.Core.Widgets.ListOptions ReelOptions = new()
+        {
+            AddLabel = "Add take",
+            Disabled = NodeEditor.Core.Widgets.ListCmd.InsertAbove | NodeEditor.Core.Widgets.ListCmd.InsertBelow | NodeEditor.Core.Widgets.ListCmd.Duplicate
+                     | NodeEditor.Core.Widgets.ListCmd.Copy | NodeEditor.Core.Widgets.ListCmd.Paste | NodeEditor.Core.Widgets.ListCmd.Reset,
+        };
+        private (string Scenario, string Take)? _addPick;
+
+        /// <summary>The reel grid's op applied to the composer (a test seam).</summary>
+        internal void ApplyReelOp(NodeEditor.Core.Widgets.ListOp op)
+        {
+            switch (op.Kind)
+            {
+                case NodeEditor.Core.Widgets.ListOpKind.MoveUp: Composer.Move(op.Index, op.Index - 1); break;
+                case NodeEditor.Core.Widgets.ListOpKind.MoveDown: Composer.Move(op.Index, op.Index + 1); break;
+                case NodeEditor.Core.Widgets.ListOpKind.Move: Composer.Move(op.Index, op.Target); break;
+                case NodeEditor.Core.Widgets.ListOpKind.Delete: Composer.Remove(op.Index); break;
+                case NodeEditor.Core.Widgets.ListOpKind.Add: if (_addPick is { } pick) Composer.Add(pick.Scenario, pick.Take); break;
+            }
+        }
+
+        private string _newReelName = "";
+        private int _addScenario, _addTake;
+        private (int Index, string Title, string Card)? _itemEdit;
+
+        /// <summary>
+        /// The render the window queues for <paramref name="chosen"/>: the ONE take picked (One take) is that take, rendered beside it; a reel is rendered AS IT
+        /// STANDS (the composer's, unsaved edits included) — at the picked size and rate. ⭐ The window's <i>Queue render</i> button is this plus
+        /// <see cref="DirectorRenders.Enqueue"/> (<see cref="QueueRender"/>).
+        /// </summary>
+        public RenderRequest RenderRequestFor(Reel chosen)
+        {
+            if (chosen == null) throw new ArgumentNullException(nameof(chosen));
+            var (w, h) = RenderSizes[Math.Clamp(RenderSize, 0, RenderSizes.Length - 1)];
+            int fps = RenderRates[Math.Clamp(RenderRate, 0, RenderRates.Length - 1)];
+            bool oneTake = chosen.Items.Count == 1 && chosen.Name == chosen.Items[0].Scenario + "/" + chosen.Items[0].Take;   // Reel.Of's name
+            return oneTake
+                ? new RenderRequest { Scenario = chosen.Items[0].Scenario, Take = chosen.Items[0].Take, Width = w, Height = h, Fps = fps }
+                : new RenderRequest { Reel = chosen, Width = w, Height = h, Fps = fps };
+        }
+
+        /// <summary>Queues <paramref name="chosen"/>'s render; null when queued, else why not.</summary>
+        public string? QueueRender(Reel chosen)
+        {
+            if (Renders is not { } renders) return "no render queue on this host";
+            var (job, refused) = renders.Enqueue(RenderRequestFor(chosen));
+            return job == null ? refused : null;
+        }
+
+        /// <summary>What Play plays and Queue render renders on the Reel pick: the reel being composed (as it stands) when one is open, else
+        /// <paramref name="picked"/> (the saved reel picked in the list).</summary>
+        public Reel? ReelToPlay(Reel? picked) => Composer.IsOpen ? Composer.Reel : picked;
+
+        /// <summary>The composer: the reel's options, a row per item (move up / down, remove, its title and chapter card), add a take, save, close.
+        /// Returns the reel as it stands (what Play plays and Queue render renders).</summary>
+        private Reel? DrawComposer(TakeStore store)
+        {
+            var reel = Composer.Reel!;
+            ImGui.TextUnformatted($"Composing reel '{reel.Name}'{(Composer.Dirty ? " * (unsaved - Play plays it as it stands)" : "")}");
+            string title = reel.Title ?? "";
+            float gap = (float)reel.GapSeconds;
+            bool loopReel = reel.Loop;
+            if (FormGrid.Begin("dir.reel"))
+            {
+                FormGrid.Row("Title");
+                if (ImGui.InputText("##reeltitle", ref title, 256)) Composer.SetOptions(title, reel.Transition, reel.GapSeconds, reel.Loop);
+                FormGrid.Row("Gap");
+                ImGui.SliderFloat("##gap", ref gap, 0f, 5f, "%.1f s");
+                if (ImGui.IsItemDeactivatedAfterEdit()) Composer.SetOptions(reel.Title, reel.Transition, Math.Round(gap, 2), reel.Loop);
+                FormGrid.Row("Loop (live)");
+                if (ImGui.Checkbox("##reelloop", ref loopReel)) Composer.SetOptions(reel.Title, reel.Transition, reel.GapSeconds, loopReel);
+                FormGrid.End();
+            }
+
+            _addPick = null;
+            var all = store.AllTakes();
+            if (all.Count > 0)
+            {
+                _addScenario = Math.Clamp(_addScenario, 0, all.Count - 1);
+                var scenarios = all.Select(x => x.Scenario).ToArray();
+                ImGui.SetNextItemWidth(220f);
+                if (ImGui.Combo("##addscenario", ref _addScenario, scenarios, scenarios.Length)) _addTake = 0;
+                var takes = all[_addScenario].Takes.ToArray();
+                _addTake = Math.Clamp(_addTake, 0, takes.Length - 1);
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(120f);
+                ImGui.Combo("##addtake", ref _addTake, takes, takes.Length);
+                _addPick = (scenarios[_addScenario], takes[_addTake]);   // ⭐ CE-3395 — the grid's Add button adds THIS take
+            }
+            else ImGui.TextDisabled("No takes to add (scenarios/<name>/takes/*.take.json).");
+            // ⭐ CE-3395 — the reel's items are the kit's GRID block (⋮⋮ drag, ⋮ menu: Move up / down · Delete); its ops go to the composer's own Move / Remove / Add.
+            if (NodeEditor.Core.Widgets.GridBlock.Begin("##reelitems", ReelHeaders, reel.Items.Count, ReelOptions))
+            {
+                for (int i = 0; i < reel.Items.Count; i++)
+                {
+                    var it = reel.Items[i];
+                    NodeEditor.Core.Widgets.GridBlock.Row(i);
+                    NodeEditor.Core.Widgets.GridBlock.Cell(0);
+                    ImGui.AlignTextToFramePadding();
+                    ImGui.TextUnformatted($"{it.Scenario}/{it.Take}");
+                    // ⭐ CE-1391 — the recording the item plays over (its own; none: the one the play starts on)
+                    if (it.Recording is { } rec)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextDisabled("@ " + System.IO.Path.GetFileName(rec.TrimEnd('/', '\\')));
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip(rec);
+                    }
+                    var (_, t, c) = _itemEdit is { } e && e.Index == i ? e : (i, it.Title ?? "", it.ChapterCard ?? "");
+                    NodeEditor.Core.Widgets.GridBlock.Cell(1);
+                    if (ImGui.InputText("##title", ref t, 256)) _itemEdit = (i, t, c);
+                    if (ImGui.IsItemDeactivatedAfterEdit()) { Composer.SetItem(i, it with { Title = t.Length == 0 ? null : t }); _itemEdit = null; }
+                    NodeEditor.Core.Widgets.GridBlock.Cell(2);
+                    if (ImGui.InputText("##card", ref c, 256)) _itemEdit = (i, t, c);
+                    if (ImGui.IsItemDeactivatedAfterEdit()) { Composer.SetItem(i, it with { ChapterCard = c.Length == 0 ? null : c }); _itemEdit = null; }
+                }
+            }
+            ApplyReelOp(NodeEditor.Core.Widgets.GridBlock.End());
+            ImGui.BeginDisabled(!Composer.Dirty || reel.Items.Count == 0);
+            if (ImGui.Button("Save reel")) _message = Composer.Save(out var problem) is { } path ? "saved " + path : problem;
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            if (ImGui.Button("Close reel")) Composer.Close();
+            return ReelToPlay(null);
+        }
+
+        /// <summary>The render options and <i>Queue render</i> (the take or the reel on screen).</summary>
+        private void DrawQueueRender(Reel chosen)
+        {
+            int size = RenderSize, rate = RenderRate;
+            ImGui.SetNextItemWidth(110f);
+            if (ImGui.Combo("##rsize", ref size, RenderSizeNames, RenderSizeNames.Length)) RenderSize = size;
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(80f);
+            if (ImGui.Combo("##rrate", ref rate, RenderRateNames, RenderRateNames.Length)) RenderRate = rate;
+            ImGui.SameLine();
+            ImGui.BeginDisabled(chosen.Items.Count == 0 || Renders!.Refusal != null);
+            if (ImGui.Button("Queue render")) _message = QueueRender(chosen);
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip(Renders!.Refusal ?? "Renders this to an MP4 in the background, after the renders queued before it (a recording seeks; a live run plays). The queue is listed below.");
+        }
+
+        /// <summary>The queue: a row per job, newest first (state, what, progress, result) with Cancel.</summary>
+        private void DrawRenderQueue()
+        {
+            if (Renders is not { } renders || renders.Jobs.Count == 0) return;
+            if (!NodeEditor.Core.Widgets.SectionHeader.Draw("director.renders", $"Render queue ({renders.Queued} queued{(renders.Running is { } r ? ", " + r.Id + " running" : "")})", "section/render")) return;
+            if (!ImGui.BeginTable("##renders", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp)) return;
+            ImGui.TableSetupColumn("id");
+            ImGui.TableSetupColumn("state");
+            ImGui.TableSetupColumn("what");
+            ImGui.TableSetupColumn("result");
+            ImGui.TableSetupColumn("");
+            for (int k = renders.Jobs.Count - 1; k >= 0; k--)
+            {
+                var job = renders.Jobs[k];
+                ImGui.PushID(job.Id);
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(job.Id);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(job.State == RenderState.Running
+                    ? $"running {job.Frames} fr" + (job.Items > 1 && job.Item >= 0 ? $" item {job.Item + 1}/{job.Items}" : "")
+                    : job.State.ToString().ToLowerInvariant());
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted($"{job.Request.What} {job.Request.Width}x{job.Request.Height}");
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(job.Output ?? job.Waiting ?? (job.Problems.Count > 0 ? job.Problems[^1] : ""));
+                if (ImGui.IsItemHovered() && job.Problems.Count > 0) ImGui.SetTooltip(string.Join("\n", job.Problems.Take(12)));
+                ImGui.TableNextColumn();
+                ImGui.BeginDisabled(job.Ended);
+                if (ImGui.SmallButton("Cancel")) renders.Cancel(job.Id);
+                ImGui.EndDisabled();
+                ImGui.PopID();
+            }
+            ImGui.EndTable();
+        }
+
+        DirectorRunner IDirectorTabContext.Runner => _ctxRunner!;
+        TakeStore IDirectorTabContext.Store => _ctxStore!;
+        void IDirectorTabContext.Start(PlayRequest request) { if (_ctxRunner != null) Start(_ctxRunner, request); }
+
+        private void DrawStatus(DirectorRunner runner)
+        {
+            if (_message != null) ImGui.TextColored(new System.Numerics.Vector4(1f, 0.5f, 0.4f, 1f), _message);
+            DrawRenderQueue();
+            var st = runner.Status();
+            ImGui.Separator();
+            ImGui.Text($"{st["phase"]}  {st["mode"]}  item {(int?)st["item"] + 1}/{st["items"]}  shot {st["shot"]}  t {st["simTime"]}  ×{st["realtimeFactor"]}");
+            if (st["error"] is { } err) ImGui.TextColored(new System.Numerics.Vector4(1f, 0.4f, 0.4f, 1f), err.ToString());
+
+            if (ImGui.BeginTable("##reports", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+            {
+                ImGui.TableSetupColumn("");
+                ImGui.TableSetupColumn("take");
+                ImGui.TableSetupColumn("report");
+                ImGui.TableSetupColumn("");
+                for (int i = 0; i < runner.Reports.Count; i++)
+                {
+                    var r = runner.Reports[i];
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted(r.Status switch
+                    {
+                        "ok" when r.Mismatches.Count == 0 && r.Problems.Count == 0 => "OK",
+                        "ok" => "!",
+                        "pass" => "OK",
+                        "beat-missing" or "failed" or "fail" => "X",
+                        "playing" or "loading" => ">",
+                        _ => "-",
+                    });
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted($"{r.Scenario}/{r.Take}");
+                    ImGui.TableNextColumn();
+                    IDirectorWindowTab? owner = null;
+                    string? owned = null;
+                    foreach (var tab in _tabs) if ((owned = tab.ReportLine(r)) != null) { owner = tab; break; }
+                    var line = owned
+                        ?? r.Status + (r.Missing.Count > 0 ? $" · missing {string.Join(", ", r.Missing)}" : "")
+                                   + (r.Mismatches.Count > 0 ? $" · {r.Mismatches.Count} drifted" : "")
+                                   + (r.Steps > 0 ? $" · ×{r.RealtimeFactor:0.00}" : "");
+                    ImGui.TextUnformatted(line);
+                    if (ImGui.IsItemHovered() && owner?.ReportDetail(r) is { } detail)
+                        ImGui.SetTooltip(string.Join("\n", detail));
+                    else if (ImGui.IsItemHovered() && (r.Problems.Count + r.Mismatches.Count + r.Unresolved.Count) > 0)
+                        ImGui.SetTooltip(string.Join("\n", r.Problems.Concat(r.Mismatches).Concat(r.Unresolved)));
+                    ImGui.TableNextColumn();
+                    ImGui.PushID(i);
+                    ImGui.BeginDisabled(runner.Busy);
+                    if (ImGui.SmallButton(owner != null ? "Again" : "Replay"))
+                        Start(runner, owner?.Again(r) ?? new PlayRequest(Reel.Of(r.Scenario, r.Take), _speed));
+                    ImGui.EndDisabled();
+                    ImGui.PopID();
+                }
+                ImGui.EndTable();
+            }
+        }
+
+        private void Start(DirectorRunner runner, PlayRequest request)
+        {
+            var problems = runner.Play(request);
+            _message = problems.Count == 0 ? null : string.Join("\n", problems.Take(6));
+        }
+
+        private void StartFrom(DirectorRunner runner, PlayRequest request, double filmTime)
+        {
+            var problems = runner.PlayFrom(request, filmTime);
+            _message = problems.Count == 0 ? null : string.Join("\n", problems.Take(6));
+        }
+    }
+}

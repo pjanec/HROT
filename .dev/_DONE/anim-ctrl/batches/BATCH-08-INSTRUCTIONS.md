@@ -231,7 +231,7 @@ Wait, the task says ANIM008–ANIM012 (5 rules) but DD-5 lists ANIM008–ANIM011
 - **Tests:**
   - `Hrot.MuscleCharacter.Animation.Tests/Phase5GettersAndValidatorsTests.cs`
   - `Hrot.Blueprints.Tests/Compiler/AnimationValidatorTests.cs` (ANIM008–011)
-- **Build clean:** `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore` produces 0 errors.
+- **Build clean:** `dotnet build HROT.sln -c Debug --no-restore` produces 0 errors.
 - **Tests pass:** `dotnet test Hrot.MuscleCharacter.Animation.Tests --no-build -v minimal` shows 160+ passing.
 - **Batch report:** `.dev/anim-ctrl/reports/BATCH-08-REPORT.md` with all insight questions answered.
 

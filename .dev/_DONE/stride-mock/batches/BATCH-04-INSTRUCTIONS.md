@@ -229,8 +229,8 @@ Create `Hrot\Runner\Hrot.FakeStrideApp\Hrot.FakeStrideApp.Tests\Hrot.FakeStrideA
 </Project>
 ```
 
-Add the test project to `IOS-IG-SimHost.sln` (check if FDP.sln also needs it; FakeStrideApp
-is in the Hrot subsystem, so IOS-IG-SimHost.sln is the primary target).
+Add the test project to `HROT.sln` (check if FDP.sln also needs it; FakeStrideApp
+is in the Hrot subsystem, so HROT.sln is the primary target).
 
 #### FakeStrideAppTests.cs
 

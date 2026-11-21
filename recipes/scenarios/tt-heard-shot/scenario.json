@@ -1,0 +1,139 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Rifleman' (Friend, BasicInfantrySop) stands at (315,215) south of the Tower; north of it 'Hidden Shooter' (Hostile, (315,290)) fires at 'Decoy' (Friend, unarmed, (345,295)). The Tower hides both from the Rifleman, so he only HEARS the shots. Judge: (1) the Hidden Shooter fires (his ammunition falls); (2) the Rifleman holds a heard, anonymous contact and never sees the shooter; (3) his SOP reacts with TakeCover aimed at a point (within 40 m of the shooter's position, not an entity); (4) he moves to cover and ends hidden from the shooter. Fail: he never hears the shots, reacts to a seen entity, or stays exposed. Check: none (no live check); rail HeardShotScenarioTests (CE-2106, Hrot.ClusterRunner.Integration.Tests)."
+  },
+  "entities": {
+    "2a960000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          315,
+          215,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a960000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          315,
+          290,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hidden Shooter",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "2a960000-0000-4000-8000-000000000003",
+            "PosX": 345,
+            "PosY": 295,
+            "Score": 1,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "2a9600f1-0000-4000-8000-000000007103",
+              "executingEngine": "",
+              "behaviorName": "FireAtTarget",
+              "behaviorParams": {"targetNetworkId":"2a960000-0000-4000-8000-000000000003","maxRounds":30,"cooldownSeconds":1},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a960000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          345,
+          295,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Decoy",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

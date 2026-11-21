@@ -12,8 +12,8 @@ namespace Hrot.Map.Common.Components;
 /// When <c>TrajectoryId == 0</c> the route has not been compiled yet.
 /// </para>
 /// </summary>
-[ComponentId(HrotComponentIds.RouteTrajectoryCache)]
-[DataPolicy(DataPolicy.NoSave)]
+[ComponentId(GlobalComponentIds.RouteTrajectoryCache)]
+[DataPolicy(DataPolicy.NoScenario)]
 public struct RouteTrajectoryCache
 {
     /// <summary>

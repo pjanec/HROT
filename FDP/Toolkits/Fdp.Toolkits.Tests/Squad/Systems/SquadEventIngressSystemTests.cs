@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         {
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
-            _repo.RegisterComponent<Blackboard1024>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<WeaponState>();
             _repo.RegisterComponent<NavigationStatus>();
             _repo.RegisterComponent<UnitSubordinate>();
@@ -37,19 +37,19 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
 
             _commander = _repo.CreateEntity();
             _repo.AddComponent(_commander, new UnitRoster());
-            _repo.AddComponent(_commander, new Blackboard1024());
+            _repo.AddComponent(_commander, default(SquadCognitiveState));
 
             _member0 = _repo.CreateEntity();
             _repo.AddComponent(_member0, new WeaponState { Ammo = 10, MaxAmmo = 10 });
             _repo.AddComponent(_member0, new NavigationStatus());
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(_commander);
-            UnitRoster.Add(ref roster, (long)_member0.PackedValue);
+            UnitRoster.Add(ref roster, _member0);
 
             _member1 = _repo.CreateEntity();
             _repo.AddComponent(_member1, new WeaponState { Ammo = 10, MaxAmmo = 10 });
             _repo.AddComponent(_member1, new NavigationStatus());
             ref var roster2 = ref _repo.GetComponentRW<UnitRoster>(_commander);
-            UnitRoster.Add(ref roster2, (long)_member1.PackedValue);
+            UnitRoster.Add(ref roster2, _member1);
         }
 
         public void Dispose() => _repo.Dispose();

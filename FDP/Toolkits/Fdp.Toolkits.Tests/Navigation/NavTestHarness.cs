@@ -132,13 +132,16 @@ namespace Fdp.Toolkit.Navigation.Tests
             Unsafe.WriteUnaligned(ref ch.Params[0], p);
 
             ref var intent = ref Repo.GetComponentRW<NavigationIntent>(e);
-            intent.Mode             = NavigationMode.DirectPoint;
+            // ⭐ CE-3026 — what MoveToExecutor writes: the vehicle side plans from THIS intent (the channel above is the
+            //   Brain's own record and no longer drives the bridge).
+            intent.Mode             = NavigationMode.PathToPoint;
             intent.FinalDestination = new Vector3(destination.X, destination.Y, 0f);
             intent.IntentId         = instanceId;
             intent.ArrivalRadius    = 1.5f;
             intent.TargetSpeed      = 5.0f;
             intent.Flags            = flags;
             intent.RouteHandle      = routeHandle;
+            intent.LayerMask        = layerMask;
 
             // Pre-set status.IntentId so NavigationExecutionSystem sees no mismatch
             // on the same tick that PathfindingResultMaterializationSystem writes
@@ -375,7 +378,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 for (int i = 0; i < traj.Waypoints.Length; i++)
                     wps[i] = new NavWaypoint
                     {
-                        Position  = new Vector3(traj.Waypoints[i].Position.X, 0f, traj.Waypoints[i].Position.Y),
+                        Position  = new Vector3(traj.Waypoints[i].Position.X, traj.Waypoints[i].Position.Y, 0f), // engine space, Z-up (no swizzle)
                         Traversal = TraversalKind.Walk,
                     };
                 PathRegistry.Muscle.RegisterOrReplace(muscle.RouteHandle, wps, 0f, 0, 0, 0);

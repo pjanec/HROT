@@ -1,0 +1,53 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4622 K-8 the ram through a barrier.",
+ "runFor": 60,
+ "golden": {
+  "every": 10
+ },
+ "anchors": {
+  "runIn": {
+   "on": "field",
+   "who": "Rammer",
+   "path": "SimTransform.Position.0",
+   "op": ">",
+   "value": 352
+  }
+ },
+ "expect": [
+  {
+   "name": "a threat",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Threats",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the car goes through the barrels",
+   "on": "field",
+   "who": "Rammer",
+   "path": "SimTransform.Position.0",
+   "op": ">",
+   "value": 368
+  },
+  {
+   "name": "once it rams (a lethal act) it is fired on",
+   "on": "field",
+   "who": "Rammer",
+   "path": "Health.Current",
+   "op": "<",
+   "value": 300
+  },
+  {
+   "name": "the ladder never fires before the car enters its run-in (the ROE is Warn)",
+   "never": {
+    "on": "field",
+    "who": "Checkpoint",
+    "path": "CheckpointWatch.MaxRung",
+    "op": ">=",
+    "value": 2
+   },
+   "before": "runIn"
+  }
+ ]
+}

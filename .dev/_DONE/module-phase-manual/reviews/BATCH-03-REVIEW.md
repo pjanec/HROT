@@ -11,7 +11,7 @@
 
 | Check | Result |
 |-------|--------|
-| `dotnet build IOS-IG-SimHost.sln` | Build succeeded. 0 Error(s), 0 Warning(s) |
+| `dotnet build HROT.sln` | Build succeeded. 0 Error(s), 0 Warning(s) |
 | Cyclone tests (40) | 40/40 Passed |
 | Pre-existing integration failures | 10 (unchanged from BATCH-02 baseline) |
 

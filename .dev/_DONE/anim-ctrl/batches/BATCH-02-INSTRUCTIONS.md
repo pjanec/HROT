@@ -74,7 +74,7 @@ If you need clarification, create `.dev/anim-ctrl/questions/BATCH-02-QUESTIONS.m
 **Define the unmanaged Tier-1 component:**
 ```csharp
 [ComponentId(240)]
-[DataPolicy(NoSave)]
+[DataPolicy(NoScenario)]
 public struct FakeAnimBackendState : IComponentData
 {
     // Per §2.1–2.4: Handle table, slot buffer, aim state, stance state, notify buffer, etc.
@@ -92,7 +92,7 @@ public struct FakeAnimBackendState : IComponentData
 **Layout:** ~1 KB total (deterministic, fixed-size), <64 KB.
 
 **Success criteria:**
-- Component compiles with `[ComponentId(240)]` and `[DataPolicy(NoSave)]`
+- Component compiles with `[ComponentId(240)]` and `[DataPolicy(NoScenario)]`
 - Size test: ≈1 KB, deterministic layout
 - Sub-structs are `unmanaged` (no managed references)
 

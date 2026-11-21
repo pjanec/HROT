@@ -88,10 +88,10 @@ Hrot/Subsystems/Hrot.ExCon/Adapters/ExConOrbatAdapter.cs      -- CS021
 
 ```powershell
 # Build the full solution
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet
+dotnet build HROT.sln --no-restore -v quiet
 
 # Run all tests
-dotnet test IOS-IG-SimHost.sln --no-build --nologo
+dotnet test HROT.sln --no-build --nologo
 
 # Run only the command-hierarchy relevant test projects
 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build
@@ -132,7 +132,7 @@ Before implementing, familiarise yourself with:
 
 3. **`ComponentId` + `DataPolicy` attributes** — every component must carry both. IDs 0–159 are
    FDP/toolkit-owned; 160–199 are application-owned (use `HrotComponentIds` for new values).
-   `DataPolicy.NoSave` excludes a component from scenario JSON serialization.
+   `DataPolicy.NoScenario` excludes a component from scenario JSON serialization.
 
 4. **Event bus pattern** — `repo.Bus.Read<TEvent>()` in a system; `_bus.Publish(new TEvent{...})`
    from UI/adapters. Events are processed in the same tick they are published.

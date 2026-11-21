@@ -74,6 +74,13 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Force a specific backend (0 = Auto, 1 = NavMesh, 2 = RoadGraph, 3 = Volumetric).</summary>
         public byte BackendForce;
+
+        /// <summary>⭐ CE-3128 — the order's road use, packed in <see cref="Flags"/> bits 5–7 (the struct is at its 32-byte limit).</summary>
+        public RoadUse RoadUse
+        {
+            readonly get => NavigationConstants.RoadUseOf(Flags);
+            set => Flags = NavigationConstants.WithRoadUse(Flags, value);
+        }
     }
 
     /// <summary>
@@ -122,7 +129,7 @@ namespace Fdp.Toolkit.Navigation
     /// Instructs the executor to follow a pre-computed trajectory from the trajectory pool.
     /// </summary>
     /// <remarks>
-    /// <b>Size:</b> int (4 bytes) + byte (1 byte) + 3 bytes implicit padding = 8 bytes.
+    /// <b>Size:</b> int (4) + byte (1) + 3 padding + long (8, CE-2171) = 16 bytes — within the 32-byte action-params blob.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct FollowRouteParams
@@ -133,7 +140,14 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Non-zero if the route should loop back to the start on completion.</summary>
         public byte IsLooped;
 
-        // 3 bytes of implicit Sequential padding; struct total = 8 bytes (int + byte + 3 pad).
+        /// <summary>⭐ <c>CE-2171</c> — the route entity's network id (appended): it rides the intent to the motion side, which resolves its
+        /// own trajectory from it. 0 = only the local <see cref="TrajectoryId"/>.</summary>
+        public int RouteEntityId;
+
+        /// <summary>⭐ Air Ops slice 3 (docs/designs/air-attack/DESIGN_Air_Operations.md §9b) — 1 while the Brain's condition for the
+        /// aircraft's current Unload / Pickup hold is met (appended): <see cref="Executors.FollowRouteExecutor"/> mirrors it onto
+        /// <see cref="NavigationIntent.ReleaseHold"/> every tick, so the level drops — and re-arms — when the condition does.</summary>
+        public byte ReleaseHold;
     }
 
     /// <summary>
@@ -186,8 +200,10 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>When 1, populates <c>NavigationPathDetailsBuffer</c> with full waypoint data.</summary>
         public byte IncludeFullPathDetails;
 
-        // 2 bytes of explicit padding to reach 32 bytes total.
-        private byte _pad0;
+        /// <summary>⭐ CE-3128 — the order's road use (in what was the first explicit padding byte; the struct stays 32 bytes).</summary>
+        public RoadUse RoadUse;
+
+        // 1 byte of explicit padding to reach 32 bytes total.
         private byte _pad1;
     }
 

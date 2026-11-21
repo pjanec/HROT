@@ -32,7 +32,7 @@ Tests: **FND-T13** (10 valid cases) + **FND-T14** (7 invalid cases) — 17 tests
 **New project**: `Hrot/Subsystems/Hrot.ReplayBrowser/Hrot.ReplayBrowser.csproj`
 **Main class**: `Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs`
 **Test project**: `Hrot/Subsystems/Hrot.ReplayBrowser.Tests/Hrot.ReplayBrowser.Tests.csproj`
-**Solution**: Both projects added to `IOS-IG-SimHost.sln`
+**Solution**: Both projects added to `HROT.sln`
 
 - Implements `ISubsystem` + `IWindowRegistrar`.
 - `Name` returns `"ReplayBrowser"`.
@@ -160,7 +160,7 @@ Tests: 5 tests in `ComponentDiffPanelTests`, all pass.
 | Path | Change |
 |------|--------|
 | `FDP/Engine/Fdp.Presentation/ImGui/Panels/EventBrowserPanel.cs` | Added `OnEntityLinkClicked` property |
-| `IOS-IG-SimHost.sln` | Added Hrot.ReplayBrowser + Tests projects and configurations |
+| `HROT.sln` | Added Hrot.ReplayBrowser + Tests projects and configurations |
 | All 5 window shell files | Changed `internal sealed` -> `public sealed` for cross-assembly access |
 
 ---

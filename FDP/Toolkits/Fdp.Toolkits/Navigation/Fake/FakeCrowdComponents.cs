@@ -7,10 +7,11 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Per-agent state stored in the fake crowd simulation.
     /// ECS component; ComponentId = <see cref="NavFakeIds.FakeCrowdAgentState"/>.
     /// </summary>
-    [ComponentId(NavFakeIds.FakeCrowdAgentState)]
+    [ComponentId(GlobalComponentIds.FakeCrowdAgentState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct FakeCrowdAgentState
     {
-        public Vector3 Target;
+        public WorldPoint Target;
         public Vector3 Velocity;
         public bool    HasTarget;
         public bool    ReachedTarget;
@@ -20,7 +21,8 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Global crowd simulation state (one per crowd provider instance).
     /// ECS component; ComponentId = <see cref="NavFakeIds.FakeCrowdGlobalState"/>.
     /// </summary>
-    [ComponentId(NavFakeIds.FakeCrowdGlobalState)]
+    [ComponentId(GlobalComponentIds.FakeCrowdGlobalState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct FakeCrowdGlobalState
     {
         public int AgentCount;

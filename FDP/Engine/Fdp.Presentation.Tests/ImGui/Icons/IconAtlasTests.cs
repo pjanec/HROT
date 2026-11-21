@@ -148,4 +148,49 @@ public class IconAtlasTests
         using var atlas = new IconAtlas(new IntPtr(42), 256f, 256f, 16f);
         Assert.NotEqual(IntPtr.Zero, atlas.TextureId);
     }
+
+    // ── ⭐ CE-4271 (docs/DESIGN_Add_Entity_Picker.md §2j) — a RECTANGLE of a page, and the pure index of a fixed-cell atlas ─────────────────
+
+    /// <summary>🔴 Red-proof (compiles): the V of the rectangle taken from its X (or the far corner left at the near one) ⇒ red.</summary>
+    [Fact]
+    public void CE4271_GetUvForRect_IsThePixelRectangleOverThePage()
+    {
+        using var atlas = CreateAtlas(2048f, 2048f, 320f);
+        var (uv0, uv1) = atlas.GetUvForRect(320f, 360f, 320f, 180f);          // the cell at col 1, row 2 of a 320 x 180 grid
+        Assert.Equal(new Vector2(320f / 2048f, 360f / 2048f), uv0);
+        Assert.Equal(new Vector2(640f / 2048f, 540f / 2048f), uv1);
+        Assert.Equal((Vector2.Zero, Vector2.One), atlas.GetUvForRect(0f, 0f, 0f, 10f));   // a degenerate rectangle is the whole page
+    }
+
+    private const string Index = """
+        { "version": 1, "cell": [320, 180], "page": [2048, 2048], "pages": ["entities-0.jpg", "entities-1.jpg"],
+          "items": { "Rifleman": [0, 0, 0], "T-72": [0, 1, 0], "BoxTruck": [1, 5, 10] } }
+        """;
+
+    [Fact]
+    public void CE4271_AtlasIndex_AnswersWhereANamesCellIs_AndWhatItDoesNotHold()
+    {
+        var index = AtlasIndex.Parse(Index);
+        Assert.Equal((320, 180, 2048, 2048, 6, 11), (index.CellW, index.CellH, index.PageW, index.PageH, index.Columns, index.Rows));
+        Assert.Equal(new[] { "entities-0.jpg", "entities-1.jpg" }, index.Pages);
+        Assert.Equal(3, index.Count);
+        Assert.True(index.TryGet("BoxTruck", out int page, out int x, out int y, out int w, out int h));
+        Assert.Equal((1, 5 * 320, 10 * 180, 320, 180), (page, x, y, w, h));
+        Assert.True(index.Contains("T-72"));
+        Assert.False(index.Contains("Tank"));
+        Assert.False(index.TryGet("Tank", out _, out _, out _, out _, out _));
+        Assert.Equal(0, AtlasIndex.Empty.Count);
+    }
+
+    [Theory]
+    [InlineData("{ not json")]
+    [InlineData("""{ "version": 2, "cell": [320,180], "page": [2048,2048], "pages": [], "items": {} }""")]
+    [InlineData("""{ "version": 1, "cell": [320], "page": [2048,2048], "pages": [], "items": {} }""")]
+    [InlineData("""{ "version": 1, "cell": [4000,180], "page": [2048,2048], "pages": [], "items": {} }""")]
+    [InlineData("""{ "version": 1, "cell": [320,180], "page": [2048,2048], "pages": ["a.jpg"], "items": { "X": [1, 0, 0] } }""")]       // page 1 does not exist
+    [InlineData("""{ "version": 1, "cell": [320,180], "page": [2048,2048], "pages": ["a.jpg"], "items": { "X": [0, 6, 0] } }""")]       // col 6 is off the page
+    [InlineData("""{ "version": 1, "cell": [320,180], "page": [2048,2048], "pages": ["a.jpg"], "items": { "X": [0, 0, 0], "Y": [0, 0, 0] } }""")]   // two names, one cell
+    [InlineData("""{ "version": 1, "cell": [320,180], "page": [2048,2048], "pages": ["a.jpg"] }""")]
+    public void CE4271_AtlasIndex_RefusesAMalformedIndex(string json)
+        => Assert.Throws<FormatException>(() => AtlasIndex.Parse(json));
 }

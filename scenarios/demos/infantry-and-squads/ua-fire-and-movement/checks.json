@@ -1,0 +1,30 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S5 (CE-2158 F-b): a squad closes in contact by halves. From the header's Judge: the drill runs, the men fire, (5) the squad closes >= 30 m (read as >= 3 riflemen past y 195, centre start y 165). The halves, rush length, 'Covering!' and swap counts (1)-(4), (6) live in the squad's /squad maneuver route, not in a component.",
+  "runFor": 100,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the squad runs FireAndMovement",
+      "on": "task",
+      "who": "Squad",
+      "is": "FireAndMovement"
+    },
+    {
+      "name": "the riflemen open fire in contact",
+      "on": "shot",
+      "by": "*Rifleman"
+    },
+    {
+      "name": "the squad closes 30 m (3+ riflemen past y 195)",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 195,
+      "quantifier": "atLeast:3",
+      "atEnd": true
+    }
+  ]
+}

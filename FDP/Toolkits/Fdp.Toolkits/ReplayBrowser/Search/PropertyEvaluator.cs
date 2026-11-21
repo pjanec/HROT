@@ -92,7 +92,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── Expression-tree delegate compilation ────────────────────────────
 
-        private static Func<object, object?> BuildGetter(Type componentType, string propertyPath)
+        internal static Func<object, object?> BuildGetter(Type componentType, string propertyPath)
         {
             // Param: object obj
             var param = Expression.Parameter(typeof(object), "obj");

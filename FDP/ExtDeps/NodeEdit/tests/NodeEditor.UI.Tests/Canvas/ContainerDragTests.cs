@@ -78,12 +78,16 @@ public sealed class ContainerDragTests
         public RegionLayoutOrientation RegionOrientation => RegionLayoutOrientation.VerticalStack;
         public Vector2 MinimumInteriorSize => new(200f, 100f);
         public NodeId? ParentContainerId { get; }
-        public int GetRegionIndexForChild(NodeId childId) => -1;
+        private readonly Dictionary<NodeId, int> _regionOf = new();
+        public int GetRegionIndexForChild(NodeId childId) => _regionOf.TryGetValue(childId, out var r) ? r : -1;
 
-        public void AddChild(NodeId childId)
+        public void AddChild(NodeId childId, int region = -1)
         {
             if (!_childIds.Contains(childId)) _childIds.Add(childId);
+            if (region >= 0) _regionOf[childId] = region;
         }
+
+        public void AddRegion(string name) => _regions.Add(new RegionDescriptor(_regions.Count, name, 0, null));
     }
 
     private sealed class FakeGraphModel : IGraphModel
@@ -427,4 +431,162 @@ public sealed class ContainerDragTests
         cmd.Moves.Select(m => m.NodeId).Should().BeEquivalentTo(new[] { id1, id2, id3 },
             because: "BPF-030: all independent nodes are included");
     }
+
+    // ── CE-1004: free placement inside a container, detaching, author-sized bands ──
+
+    private sealed class ScriptedInput : IInputSource
+    {
+        public Vector2 Mouse;
+        public bool Released;
+        public Vector2     MousePosition   => Mouse;
+        public Vector2     MouseDelta      => Vector2.Zero;
+        public float       WheelDelta      => 0f;
+        public KeyModifiers Modifiers      => KeyModifiers.None;
+        public ReadOnlySpan<char> TextThisFrame => ReadOnlySpan<char>.Empty;
+        public bool IsMouseDown(MouseButton btn)              => !Released;
+        public bool IsMousePressed(MouseButton btn)           => false;
+        public bool IsMouseReleased(MouseButton btn)          => Released;
+        public bool IsMouseDoubleClicked(MouseButton btn)     => false;
+        public bool IsKeyDown(EditorKey k)                    => false;
+        public bool IsKeyPressed(EditorKey k, bool r = false) => false;
+        public bool IsKeyReleased(EditorKey k)                => false;
+    }
+
+    /// <summary>Container C at (100,100) holding A at local (0,0) and B at local (0,50).</summary>
+    private static (FakeGraphModel model, NodeId c, NodeId a, NodeId b) TwoChildContainer()
+    {
+        var model = new FakeGraphModel();
+        var c = IdGenerator.NewNodeId();
+        var a = IdGenerator.NewNodeId();
+        var b = IdGenerator.NewNodeId();
+        var container = model.AddContainer(c, new Vector2(100f, 100f));
+        model.AddNode(a, Vector2.Zero, c);
+        model.AddNode(b, new Vector2(0f, 50f), c);
+        container.AddChild(a);
+        container.AddChild(b);
+        return (model, c, a, b);
+    }
+
+    [Fact]
+    public void CE1004_DraggingTheTopChildDown_LeavesTheContainerWhereItIs()
+    {
+        // ⭐ CE-1004 (C): the drop used to shift the container so its top-left child sat at local (0,0) — moving the
+        //    whole state on every drop and snapping the dragged child back to the top.
+        var (model, c, a, _) = TwoChildContainer();
+        var sink = new SpySink();
+        var view = MakeView(model, sink);
+        view.Selection.Add(SelectionEntry.OfNode(a));
+        view.Interaction.DragOverridePositions[a] = view.NodeCanvasPosition(a) + new Vector2(40f, 80f);
+        view.Interaction.DropTargetContainerId = c;
+
+        CanvasInput.CommitNodeDrop(view, new StubInput());
+
+        var cmd = sink.Log.Should().ContainSingle().Which.Should().BeOfType<GraphCommand.ChangeParentMultiple>().Subject;
+        cmd.Moves.Should().ContainSingle(because: "only the dragged state moves — not the container, not its sibling");
+        cmd.Moves[0].NodeId.Should().Be(a);
+        cmd.Moves[0].NewParentContainerId.Should().Be(c);
+        cmd.Moves[0].NewLocalPosition.Should().Be(new Vector2(40f, 80f));
+    }
+
+    [Fact]
+    public void CE1004_DraggingAChildAboveTheInterior_GrowsTheContainerUp_AndKeepsEveryCanvasPlace()
+    {
+        var (model, c, a, b) = TwoChildContainer();
+        var sink = new SpySink();
+        var view = MakeView(model, sink);
+        var aCanvas = view.NodeCanvasPosition(a) + new Vector2(0f, -30f);
+        view.Selection.Add(SelectionEntry.OfNode(a));
+        view.Interaction.DragOverridePositions[a] = aCanvas;
+        view.Interaction.DropTargetContainerId = c;
+
+        CanvasInput.CommitNodeDrop(view, new StubInput());
+
+        var moves = ((GraphCommand.ChangeParentMultiple)sink.Log.Single()).Moves.ToDictionary(m => m.NodeId);
+        moves[c].NewLocalPosition.Should().Be(new Vector2(100f, 70f), because: "the container grows UP by 30");
+        moves.Should().NotContainKey(a, because: "A lands back on local (0,0) — the top of the grown interior — so it has no move");
+        moves[b].NewLocalPosition.Should().Be(new Vector2(0f, 80f), because: "B keeps its canvas place");
+    }
+
+    [Fact]
+    public void CE1004_DroppingAChildOutsideItsContainer_StillDetachesIt()
+    {
+        // ⭐ User condition for CE-1004: a state dropped outside the container (no drop target under the cursor)
+        //    leaves it — the container no longer moves on drop, but detaching must keep working.
+        var (model, c, a, _) = TwoChildContainer();
+        var sink = new SpySink();
+        var view = MakeView(model, sink);
+        var target = new Vector2(600f, 40f);
+        view.Selection.Add(SelectionEntry.OfNode(a));
+        view.Interaction.DragOverridePositions[a] = target;
+        view.Interaction.DropTargetContainerId = null;
+
+        CanvasInput.CommitNodeDrop(view, new StubInput());
+
+        var move = ((GraphCommand.ChangeParentMultiple)sink.Log.Single()).Moves.Single(m => m.NodeId == a);
+        move.NewParentContainerId.Should().BeNull();
+        move.NewLocalPosition.Should().Be(target, because: "a root node's position is its canvas position");
+    }
+
+    [Fact]
+    public void CE1004_DraggingABandDivider_CommitsOneUndoableRegionResize()
+    {
+        var model = new FakeGraphModel();
+        var c = IdGenerator.NewNodeId();
+        var container = model.AddContainer(c, Vector2.Zero);
+        container.AddRegion("R0");
+        container.AddRegion("R1");
+        var sink = new SpySink();
+        var view = MakeView(model, sink);
+        var input = new ScriptedInput { Mouse = new Vector2(10f, 10f) };
+
+        CanvasInput.BeginContainerResize(view, input, new HoverInfo
+        {
+            Kind = HoverKind.Container, Node = c,
+            ContainerZone = ContainerHoverZone.RegionDivider, ContainerRegionIndex = 0,
+        }, _ => null);
+        view.Interaction.Mode.Should().Be(InteractionMode.ResizingContainer);
+
+        input.Mouse = new Vector2(10f, 60f);
+        CanvasInput.HandleResizingContainer(view, input);
+        view.Interaction.RegionSizePreview(c, 0).Should().Be(RegionLayoutComputerMin + 50f, because: "the drag previews live");
+        sink.Log.Should().BeEmpty(because: "nothing commits until release");
+
+        input.Released = true;
+        CanvasInput.HandleResizingContainer(view, input);
+
+        sink.Log.Should().ContainSingle().Which.Should().Be(
+            new GraphCommand.SetRegionPreferredSize(c, 0, RegionLayoutComputerMin + 50f));
+        view.Undo.UndoCount.Should().Be(1);
+        view.Interaction.Mode.Should().Be(InteractionMode.Idle);
+        view.UndoLast();
+        sink.Log.Last().Should().Be(new GraphCommand.SetRegionPreferredSize(c, 0, null),
+            because: "undo restores the band to content-sized");
+    }
+
+    [Fact]
+    public void CE1004_DraggingTheCornerGrip_CommitsOneUndoableContainerResize()
+    {
+        var model = new FakeGraphModel();
+        var c = IdGenerator.NewNodeId();
+        model.AddContainer(c, Vector2.Zero);
+        var sink = new SpySink();
+        var view = MakeView(model, sink);
+        var input = new ScriptedInput { Mouse = new Vector2(300f, 200f) };
+
+        CanvasInput.BeginContainerResize(view, input, new HoverInfo
+        {
+            Kind = HoverKind.Container, Node = c,
+            ContainerZone = ContainerHoverZone.ResizeEdge, ContainerEdge = ContainerResizeEdge.Corner,
+        }, id => id == c ? new Vector2(300f, 200f) : null);
+        input.Mouse = new Vector2(380f, 260f);
+        input.Released = true;
+        CanvasInput.HandleResizingContainer(view, input);
+
+        sink.Log.Should().ContainSingle().Which.Should().Be(
+            new GraphCommand.SetContainerSize(c, new Vector2(380f, 260f)));
+        view.UndoLast();
+        sink.Log.Last().Should().Be(new GraphCommand.SetContainerSize(c, null));
+    }
+
+    private const float RegionLayoutComputerMin = NodeEditor.Core.Layout.RegionLayoutComputer.MinRegionSize;
 }

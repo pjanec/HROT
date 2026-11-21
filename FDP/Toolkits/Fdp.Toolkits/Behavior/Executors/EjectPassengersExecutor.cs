@@ -7,67 +7,52 @@ using Fdp.Toolkit.Behavior.Executors;
 namespace Fdp.Toolkit.Behavior.Executors
 {
     /// <summary>
-    /// Executor for the <c>EjectPassengers</c> interaction action
-    /// (<see cref="BehaviorConstants.ActionIdEjectPassengers"/> = 3).
-    /// Registered with <see cref="Systems.InteractionDispatcherSystem"/> by the host application.
-    ///
-    /// <para>Runs on the <b>vehicle</b> entity.  Iterates the vehicle's
-    /// <see cref="PassengerBuffer"/>, restores capabilities on every live passenger, removes
-    /// their <see cref="IsEmbarkedTag"/>, scatters them to offset positions beside the vehicle,
-    /// then clears the buffer.</para>
-    ///
-    /// <para><b>Dead passenger guard:</b> if a passenger entity is no longer alive (killed
-    /// while embarked), the slot is skipped without error.</para>
-    ///
-    /// <para><b>Slot-offset formula:</b>
-    /// <c>offset = new Vector3((i - buffer.Count / 2f) * 1.5f, -4f, 0f)</c> —
-    /// places passengers in a row along the vehicle's side (negative-Y = side in ENU).
-    /// For 2 passengers: offsets are −1.5 m and 0.0 m on X.
-    /// For 4 passengers: offsets are −3.0 m, −1.5 m, 0.0 m, +1.5 m on X.</para>
+    /// ⭐ <c>CE-3110</c> I-2a — the vehicle's <c>EjectPassengers</c> interaction action (<see cref="BehaviorConstants.ActionIdEjectPassengers"/>):
+    /// RAISES <see cref="Events.EjectPassengersCommand"/> once and waits for the answer — the vehicle's own <see cref="PassengerBuffer"/>
+    /// empty. The vehicle's owner (<c>EmbarkationSystem</c>, through <see cref="Embarkation.EjectAll"/>) puts every live passenger in a
+    /// column beside the hull (CE-321) and gives back their capabilities. ⛔ It used to do all of that itself, on whichever node ran it.
+    /// 📄 docs/DESIGN_Entity_Interactions.md §7.
     /// </summary>
     public class EjectPassengersExecutor : IActionExecutor<InteractionChannel>
     {
-        /// <inheritdoc/>
-        public void OnEnter(Entity entity, ref InteractionChannel channel, EntityRepository world)
+        /// <inheritdoc cref="Embarkation.DefaultHullRadius"/>
+        public const float DefaultHullRadius = Embarkation.DefaultHullRadius;
+        /// <inheritdoc cref="Embarkation.DismountClearance"/>
+        public const float DismountClearance = Embarkation.DismountClearance;
+        /// <inheritdoc cref="Embarkation.DismountSpacing"/>
+        public const float DismountSpacing = Embarkation.DismountSpacing;
+        /// <summary>How long the vehicle waits for the owner's answer (s).</summary>
+        public const float ResultTimeoutSeconds = 5f;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct EjectState
         {
+            public float SinceSent;
+            public byte Sent;
+        }
+
+        /// <inheritdoc/>
+        public unsafe void OnEnter(Entity entity, ref InteractionChannel channel, EntityRepository world)
+        {
+            fixed (byte* p = channel.State) *(EjectState*)p = default;
             channel.Status = NodeStatus.Running;
         }
 
         /// <inheritdoc/>
-        public void Execute(Entity entity, ref InteractionChannel channel, EntityRepository world, float dt)
+        public unsafe void Execute(Entity entity, ref InteractionChannel channel, EntityRepository world, float dt)
         {
-            ref var buffer     = ref world.GetComponentRW<PassengerBuffer>(entity);
-            Vector3 vehiclePos = world.GetComponent<SimTransform>(entity).Position;
-
-            for (int i = 0; i < buffer.Count; i++)
+            if (!world.HasComponent<PassengerBuffer>(entity)) { channel.Status = NodeStatus.Failure; return; }
+            if (world.GetComponentRO<PassengerBuffer>(entity).Count == 0) { channel.Status = NodeStatus.Success; return; }
+            EjectState s;
+            fixed (byte* p = channel.State) s = *(EjectState*)p;
+            if (s.Sent == 0)
             {
-                Entity passenger = buffer.Passengers[i];
-
-                // Dead-passenger guard — skip silently.
-                if (!world.IsAlive(passenger))
-                    continue;
-
-                // Scatter to side of vehicle.
-                var offset       = new Vector3((i - buffer.Count / 2f) * 1.5f, -4f, 0f);
-                ref var tf       = ref world.GetComponentRW<SimTransform>(passenger);
-                tf.Position      = vehiclePos + offset;
-
-                // Restore locomotion and weapon capabilities.
-                if (world.HasComponent<ActorCapabilityState>(passenger))
-                {
-                    ref var caps = ref world.GetComponentRW<ActorCapabilityState>(passenger);
-                    caps.Capabilities |= ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
-                }
-
-                // Remove the embarked tag.
-                if (world.HasComponent<IsEmbarkedTag>(passenger))
-                    world.RemoveComponent<IsEmbarkedTag>(passenger);
+                world.Bus.Publish(new Events.EjectPassengersCommand { Vehicle = entity });
+                s.Sent = 1;
+                channel.Status = NodeStatus.Running;
             }
-
-            // Clear the passenger buffer.
-            buffer.Count = 0;
-
-            channel.Status = NodeStatus.Success;
+            else channel.Status = (s.SinceSent += dt) > ResultTimeoutSeconds ? NodeStatus.Failure : NodeStatus.Running;
+            fixed (byte* p = channel.State) *(EjectState*)p = s;
         }
 
         /// <inheritdoc/>

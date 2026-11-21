@@ -24,6 +24,12 @@ public sealed class BTreeEditorLayout
     public IReadOnlyList<string> UnusedWarningSuppressions { get; init; } =
         Array.Empty<string>();
 
+    /// <summary>⭐ <c>W7b</c> (§9.4) — variables whose cross-region concurrent writes the designer
+    /// explicitly allowed. ⛔ PER VARIABLE, unlike the per-(variable, writer-pair) conflict
+    /// suppressions above.</summary>
+    public IReadOnlyList<string> ConcurrentWritesAllowed { get; init; } =
+        Array.Empty<string>();
+
     /// <summary>
     /// Per-child-node waypoints for the edge from that child up to its parent.
     /// Key = child node's VisualId. Empty when no reroute points exist.

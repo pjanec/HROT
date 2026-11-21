@@ -1,0 +1,79 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: SHOWCASE Crossfire (docs/SHOWCASE_Scenarios.md \u00a72) - a respawn-wave BOT: one soldier of side 'side' who advances 125 m ahead of his anchor (along its heading; the expander turns the point with the instance) and fights what he meets (BasicInfantrySop). Judge: inserted at a team's base facing the centre, he runs AdvanceTo towards the middle capture point.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "side",
+    "TypeId": "ForceId",
+    "Default": "Friend"
+   },
+   {
+    "Name": "name",
+    "TypeId": "string",
+    "Default": "Bot"
+   }
+  ]
+ },
+ "entities": {
+  "cf0b0000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     0,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bot",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side",
+     "EntityInfo.Name": "name"
+    }
+   },
+   "Behavior": {
+    "Name": "AdvanceTo",
+    "Params": "{\"Objective\": [0, 125, 0], \"Speed\": 3, \"ArrivalRadius\": 6}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicInfantrySop",
+    "Params": "{}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}

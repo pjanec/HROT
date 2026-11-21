@@ -148,19 +148,23 @@ public sealed class AssetSelectionDialog
             var pathA = _state.PathA;
             var pathB = _state.PathB;
 
-            ImGui.TextDisabled("Version A (older):");
+            NodeEditor.Core.Widgets.FormGrid.BeginField("compare.rows", "Version A (older)");   // ⭐ CE-3396 — label-first rows
+            ImGui.SetNextItemWidth(420f);
             if (ImGui.InputText("##pathA", ref pathA, 2048))
             {
                 _state.PathA = pathA;
                 _validated = false;
             }
+            NodeEditor.Core.Widgets.FormGrid.EndField();
 
-            ImGui.TextDisabled("Version B (newer):");
+            NodeEditor.Core.Widgets.FormGrid.BeginField("compare.rows", "Version B (newer)");
+            ImGui.SetNextItemWidth(420f);
             if (ImGui.InputText("##pathB", ref pathB, 2048))
             {
                 _state.PathB = pathB;
                 _validated = false;
             }
+            NodeEditor.Core.Widgets.FormGrid.EndField();
 
             if (ImGui.Button("Reverse A<->B"))
             {
@@ -171,9 +175,9 @@ public sealed class AssetSelectionDialog
             ImGui.Separator();
 
             if (_state.ValidationError != null)
-                ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), _state.ValidationError);
+                NodeEditor.Core.Widgets.RowMarks.ErrorLine(_state.ValidationError);
             else if (_state.ValidationWarning != null)
-                ImGui.TextColored(new Vector4(1f, 0.85f, 0.3f, 1f), _state.ValidationWarning);
+                NodeEditor.Core.Widgets.RowMarks.WarningLine(_state.ValidationWarning);
 
             if (ImGui.Button("Validate"))
             {

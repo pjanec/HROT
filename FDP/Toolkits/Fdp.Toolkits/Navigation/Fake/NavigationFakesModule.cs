@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Construct the module, call <see cref="RegisterProviders"/> once with the
     /// <see cref="EntityRepository"/>, then drive the simulation manually.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class NavigationFakesModule : IEcsModule, IDisposable
     {
         /// <summary>Fake navmesh provider. Exposed for direct manipulation in tests.</summary>

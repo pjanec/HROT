@@ -1,0 +1,87 @@
+{
+  "title": "Protest, police, riot",
+  "caption": "Placards and fists: the police walk up and charge with batons — one protester riots",
+  "clip": "F-07",
+  "chapter": 3,
+  "state": "ready",
+  "endAt": "m+6",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Police shield",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-40",
+      "follow": "Police shield",
+      "distance": 90,
+      "yaw": 35,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Police shield",
+      "toward": "Protester 6",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Police shield",
+      "toward": "Protester 6",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Protester 6",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-40",
+      "to": "m-4",
+      "speed": 6
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-40",
+      "until": "m-4",
+      "text": "A protest; the police walk up and hold the line"
+    },
+    {
+      "at": "m-4",
+      "until": "m+6",
+      "text": "The baton charge: one protester riots"
+    }
+  ]
+}

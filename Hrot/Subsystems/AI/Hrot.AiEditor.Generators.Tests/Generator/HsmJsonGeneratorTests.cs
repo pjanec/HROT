@@ -230,4 +230,173 @@ public sealed class HsmJsonGeneratorTests
         full.Should().Contain("[HsmDefinition(",
             "full emit must include [HsmDefinition]");
     }
+
+    // ── ⭐ CE-506 — a global transition's guard, action and priority are emitted, never dropped ─────────────
+
+    private static HsmAssetDto WithGlobal(Hrot.AiEditor.Persistence.BehaviorActionBindingDto? guard,
+                                          Hrot.AiEditor.Persistence.BehaviorActionBindingDto? action, byte priority)
+    {
+        var dto = HsmAssetMapper.ToDto(LoadSampleGuard());
+        if (dto.Events.Count == 0) dto.Events.Add(new EventDefinitionDto { Name = "Ce506Go" });
+        dto.GlobalTransitions.Add(new GlobalTransitionNodeDto
+        {
+            VisualId       = new Guid("50600000-0000-0000-0000-000000000001"),
+            TargetStableId = dto.States[0].StableId,
+            EventName      = dto.Events[0].Name,
+            Guard          = guard,
+            Action         = action,
+            Priority       = priority,
+        });
+        return dto;
+    }
+
+    /// <summary>
+    /// 🔴 CE-506 — RED before: the emitter wrote <c>builder.GlobalTransition(event, target, visualId)</c> and nothing else,
+    /// so a bound global guard/action was saved and never ran. ⭐ Now both, and the priority, reach the builder — named by
+    /// the SAME rule <c>CollectGuards</c>/<c>CollectActions</c> register them under.
+    /// </summary>
+    [Fact]
+    public void CE506_AGlobalTransitionsGuardActionAndPriority_AreEmitted()
+    {
+        var dto = WithGlobal(new Hrot.AiEditor.Persistence.BehaviorActionBindingDto { MethodFqn = "Ce506.Nodes.CanGo" },
+                             new Hrot.AiEditor.Persistence.BehaviorActionBindingDto { MethodFqn = "Ce506.Nodes.OnGo" }, 7);
+
+        string core = HsmEmitCore.EmitTopologyCore(dto);
+
+        core.Should().Contain("guard: \"Ce506.Nodes.CanGo\"")
+            .And.Contain("action: \"Ce506.Nodes.OnGo\"")
+            .And.Contain("priority: 7");
+        core.Should().Contain("RegisterGuard(\"Ce506.Nodes.CanGo\")", "the guard name the global uses is registered");
+        core.Should().Contain("RegisterAction(\"Ce506.Nodes.OnGo\")", "the action name the global uses is registered");
+    }
+
+    /// <summary>⛔ CE-506 — a global transition has no source state to seed a blueprint from: a blueprint on it is HSM0004,
+    /// and the asset is not emitted (never a silently dropped binding).</summary>
+    [Fact]
+    public void CE506_AGlobalTransitionBindingABlueprint_IsHsm0004()
+    {
+        var dto = WithGlobal(new Hrot.AiEditor.Persistence.BehaviorActionBindingDto
+                             { BlueprintAssetId = new Guid("50600000-0000-0000-0000-0000000000bb") }, null, 0);
+
+        var result = RunGenerator(MakeAdditionalText("/p/Ce506.hsm.json", HsmJsonServices.Serialize(dto)));
+
+        result.Diagnostics.Should().Contain(d => d.Id == HsmJsonGenerator.GlobalBlueprintErrorId);
+        result.GeneratedTrees.Should().BeEmpty();
+    }
+
+    // ── ⭐ CE-423 — a State variable that would get NO storage is an error, never a silent skip ─────────────
+
+    // ⛔ HISTORY — CE-423's HSM0002 rail: CE-3193 derives working state from the bindings, so the case cannot arise.
+
+    // ── ⭐⭐ CE-439 — a hosting state's seed binding, sized from a SIBLING behaviour's Inputs struct ─────────────
+
+    /// <summary>
+    /// 🔴 RED before (two holes): the HSM registrar passed no bindings to <c>HsmHostedSubtrees.Register</c>, AND the host
+    /// variable typed as the child's generated Inputs struct was unsizeable in this generator run (Roslyn cannot see a type
+    /// the same run emits), so <c>Pack</c> threw and the host emitted no params at all. ⭐ Now
+    /// <c>GeneratedTypeCatalog</c> (then <c>GeneratedBehaviorSchemaCatalog</c>) sizes it from the child's <c>.btree.json</c> and the shared
+    /// <c>EmitSiteBindings</c> bakes <c>[stableId] = new(offset, size)</c>.
+    /// </summary>
+    [Fact]
+    public void CE439_AHostingStatesBinding_IsSizedFromTheSiblingChild_AndEmitted()
+    {
+        // The child: a managed BTree publishing two Role=Input fields (4 + 4 bytes).
+        var child = new Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = "PatrolTree" };
+        child.Blackboard.Managed = true;
+        foreach (var (n, t) in new[] { ("Speed", "System.Single"), ("Laps", "System.Int32") })
+            child.Blackboard.Variables.Add(new Hrot.AiEditor.Persistence.BTree.BlackboardVariableDto
+            { Name = n, Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = t } });
+        string childInputs = BTreeEmitCore.InputsStructTypeId(child)!;
+
+        // The host: SampleGuard, one state hosting the child, bound to a host variable of the child's Inputs type.
+        var host  = HsmAssetMapper.ToDto(LoadSampleGuard());
+        var state = host.States.First(s => s.Name != null && !s.Name.StartsWith("__", StringComparison.Ordinal));
+        state.SubtreeAssetId        = child.AssetId;
+        state.SubtreeName           = "PatrolTree";
+        state.SubtreeParamsVariable = "PatrolTreeParams";
+        host.Blackboard.Managed = true;
+        host.Blackboard.Variables.Add(new HsmBlackboardVariableDto
+        { Name = "PatrolTreeParams", Type = new HsmBlackboardTypeRefDto { TypeId = childInputs } });
+
+        var result = RunGenerator(
+            MakeAdditionalText("/p/SampleGuard.hsm.json", HsmJsonServices.Serialize(host)),
+            MakeAdditionalText("/p/PatrolTree.btree.json", Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(child)));
+
+        string registrar = result.GeneratedTrees.First(t => t.FilePath.Contains("SampleGuard.Registrar")).ToString();
+        registrar.Should().Contain($"[new global::System.Guid(\"{state.StableId:D}\")] = new(0, 8)",
+            "the binding is the host variable's (offset, size), and its size came from the sibling's own packing");
+        // ⭐ CE-2133: the host's ONE Input is a struct, so its params parse FLAT (OverlayFlat), not keyed by "PatrolTreeParams".
+        registrar.Should().Contain("BehaviorParams.OverlayFlat(", "the host's params path is emitted — Pack did not throw");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2026</c> (S8c) — the same binding when the child is an HSM.</b> 🔴 RED before: the sibling catalogue read
+    /// <c>*.btree.json</c> only, so a host variable typed as an HSM child's Inputs struct was unsizeable, <c>Pack</c> threw and the
+    /// host emitted no params. ⭐ <c>GeneratedTypeCatalog</c> reads the HSM through <c>HsmBridgeEmitCore.BlackboardOwner</c> — the
+    /// view the child's own generator packs its struct with — so the name and the size cannot disagree.
+    /// </summary>
+    [Fact]
+    public void S8c_AHostingStatesBinding_IsSizedFromASiblingHsmChild()
+    {
+        // The child: an HSM publishing two Role=Input fields (4 + 4 bytes).
+        var child = HsmAssetMapper.ToDto(LoadSampleGuard());
+        child.AssetId = Guid.NewGuid();
+        child.Name    = "PatrolMachine";
+        child.Blackboard.Managed = true;
+        child.Blackboard.Variables.Clear();
+        foreach (var (n, t) in new[] { ("Speed", "System.Single"), ("Laps", "System.Int32") })
+            child.Blackboard.Variables.Add(new HsmBlackboardVariableDto { Name = n, Type = new HsmBlackboardTypeRefDto { TypeId = t } });
+        string childInputs = BTreeEmitCore.InputsStructTypeId(HsmBridgeEmitCore.BlackboardOwner(child))!;
+
+        var host  = HsmAssetMapper.ToDto(LoadSampleGuard());
+        var state = host.States.First(s => s.Name != null && !s.Name.StartsWith("__", StringComparison.Ordinal));
+        state.SubtreeAssetId        = child.AssetId;
+        state.SubtreeName           = "PatrolMachine";
+        state.SubtreeParamsVariable = "PatrolMachineParams";
+        host.Blackboard.Managed = true;
+        host.Blackboard.Variables.Add(new HsmBlackboardVariableDto
+        { Name = "PatrolMachineParams", Type = new HsmBlackboardTypeRefDto { TypeId = childInputs } });
+
+        var result = RunGenerator(
+            MakeAdditionalText("/p/SampleGuard.hsm.json", HsmJsonServices.Serialize(host)),
+            MakeAdditionalText("/p/PatrolMachine.hsm.json", HsmJsonServices.Serialize(child)));
+
+        string registrar = result.GeneratedTrees.First(t => t.FilePath.Contains("SampleGuard.Registrar")).ToString();
+        registrar.Should().Contain($"[new global::System.Guid(\"{state.StableId:D}\")] = new(0, 8)",
+            "the binding's size came from the sibling HSM's own packing");
+        // ⭐ CE-2133: the host's ONE Input is a struct, so its params parse FLAT (OverlayFlat), not keyed by "PatrolMachineParams".
+        registrar.Should().Contain("BehaviorParams.OverlayFlat(", "the host's params path is emitted — Pack did not throw");
+    }
+
+    // ── ⭐ CE-2039 (S8g G4/G5) — an HSM's class, registrar and structs come from ONE name ─────────────────────────────
+
+    /// <summary>
+    /// 🔴 The class used the "replace with _" sanitizer while the <c>_Block</c>/<c>_Blackboard</c> structs (via
+    /// <c>BlackboardOwner</c> → <c>BTreeEmitCore</c>) used "strip": <c>Guard-Patrol</c> emitted class <c>Guard_Patrol</c> but struct
+    /// <c>GuardPatrol_Block</c>, and a second HSM <c>GuardPatrol</c> collided on that struct (CS0101). ⭐ Now one shape.
+    /// </summary>
+    [Theory]
+    [InlineData("Guard-Patrol", "GuardPatrol")]
+    [InlineData("class",        "_class")]      // a bare keyword class name gets '_' (it emitted `class class`)
+    public void CE2039_AnHsmsClassAndRegistrar_UseTheStructsShape(string assetName, string expectedClass)
+    {
+        // the shipped .hsm.json (it owns a managed blackboard, so the structs are emitted)
+        var dto = HsmJsonServices.Deserialize(
+            Hrot.AiEditor.Generators.Tests.Golden.AiAssetCorpus.ReadAsset(
+                Hrot.AiEditor.Generators.Tests.Golden.AiAssetKind.Hsm, "HsmResolverDemo"))!;
+        dto.Name = assetName;
+
+        string core   = HsmEmitCore.EmitTopologyCore(dto);
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+
+        core.Should().Contain($"public static class {expectedClass}");
+        bridge.Should().Contain($"public static class {expectedClass}Registrar");
+        bridge.Should().Contain($"var blob = {expectedClass}.Compile();");
+        bridge.Should().NotContain("Guard_Patrol");
+        // the structs come from the SAME emitter the generator calls (HsmJsonGenerator → BlackboardOwner → BTreeEmitCore)
+        string? structs = BTreeEmitCore.EmitBlackboardStructSource(HsmBridgeEmitCore.BlackboardOwner(dto), out _);
+        structs.Should().NotBeNull("HsmResolverDemo owns a managed blackboard");
+        if (assetName == "Guard-Patrol")
+            structs!.Should().Contain("public struct GuardPatrol_Block", "the struct and the class now share one sanitized name");
+    }
 }

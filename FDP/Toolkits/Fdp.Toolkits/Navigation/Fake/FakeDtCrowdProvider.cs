@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Processing order is deterministic (sorted by entity Index, ascending).
     /// Separation avoids NaN via <c>SafeNormalize</c> (zero vector stays zero).
     /// </summary>
+    [Fdp.Core.NotState("test fake: NavigationFakesModule is built by no production host (grep)")]
     public sealed class FakeDtCrowdProvider : IDtCrowdProvider, IFakeDtCrowdProviderTestApi
     {
         // ── Separation constants (DD-Fake-Nav §4.3) ──────────────────────────────
@@ -79,6 +80,11 @@ namespace Fdp.Toolkit.Navigation.Fake
             };
             return true;
         }
+
+        /// <inheritdoc/>
+        /// <remarks>Start position is ignored by the fake; falls back to the no-position overload.</remarks>
+        public bool RegisterAgent(Entity entity, in CrowdAgentParams parameters, Vector3 startPositionFdp)
+            => RegisterAgent(entity, in parameters);
 
         /// <inheritdoc/>
         public void UnregisterAgent(Entity entity)

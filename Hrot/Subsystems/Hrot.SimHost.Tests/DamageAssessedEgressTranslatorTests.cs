@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Messages;
@@ -38,11 +39,11 @@ namespace Hrot.SimHost.Tests
             BuildTranslator()
         {
             var writer     = new CapturingWriter<EntityHitDamage>();
-            var translator = new DamageAssessedEgressTranslator(writer, _entityMap);
+            var translator = new DamageAssessedEgressTranslator(writer, _entityMap, localNodeId: 1);
             return (translator, writer);
         }
 
-        private Entity RegisterEntity(long netId)
+        private Entity RegisterEntity(int netId)
         {
             var entity = _world.CreateEntity();
             _entityMap.Register(netId, entity);
@@ -69,7 +70,7 @@ namespace Hrot.SimHost.Tests
         public void ScanAndPublish_WritesEntityHitDamage_ForSingleEvent()
         {
             var (translator, writer) = BuildTranslator();
-            var entity = RegisterEntity(netId: 7L);
+            var entity = RegisterEntity(netId: 7);
 
             PublishEvent(hitEntity: entity, totalDamage: 25.5f);
 
@@ -78,6 +79,54 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, writer.Written.Count);
             Assert.Equal(7L,    writer.Written[0].HitEntityId);
             Assert.Equal(25.5f, writer.Written[0].TotalDamage);
+        }
+
+        /// <summary>⭐ <c>CE-3210</c> — the part it landed on crosses as its id + 1; a hit with no part sends 0.</summary>
+        [Fact]
+        public void CE3210_ThePartCrosses_AsIdPlusOne_NoPartIsZero()
+        {
+            var (translator, writer) = BuildTranslator();
+            var entity = RegisterEntity(netId: 7);
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 5f, HasBodyPart = 1, BodyPart = 0 /* ThighL */ });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 5f });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            Assert.Equal(new byte[] { 1, 0 }, new[] { writer.Written[0].BodyPart, writer.Written[1].BodyPart });
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3237</c> (civilians B-15, DS-2) — who caused it crosses as his network id; an unknown source, or one this node has no
+        /// network id for, sends 0. ✅ Red-proof: the egress without the source ⇒ 0 for the shooter ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3237_TheSourceCrosses_AsItsNetworkId_UnknownIsZero()
+        {
+            var (translator, writer) = BuildTranslator();
+            var victim = RegisterEntity(netId: 7);
+            var shooter = RegisterEntity(netId: 42);
+            var unmapped = _world.CreateEntity();
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = shooter });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = unmapped });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            Assert.Equal(new[] { 42, 0, 0 }, new[] { writer.Written[0].SourceEntityId, writer.Written[1].SourceEntityId, writer.Written[2].SourceEntityId });
+        }
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — a rethrown round's FIRST thrower crosses as his network id too; none (or unmapped) sends 0.
+        /// ✅ Red-proof: the egress without it ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void CE4155_TheOriginalSourceCrosses_AsItsNetworkId_NoneIsZero()
+        {
+            var (translator, writer) = BuildTranslator();
+            var victim = RegisterEntity(netId: 7);
+            var last = RegisterEntity(netId: 42);
+            var first = RegisterEntity(netId: 43);
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = last, OriginalSource = first });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = last });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            Assert.Equal(new[] { (42, 43), (42, 0) }, writer.Written.Select(w => (w.SourceEntityId, w.OriginalSourceEntityId)).ToArray());
         }
 
         // ── SC-2: Zero events → no write ─────────────────────────────────────

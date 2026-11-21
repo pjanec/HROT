@@ -24,17 +24,28 @@ public static class BlueprintEventDispatch
     /// with the instance's <paramref name="stateBytes"/> and the event's payload byte-span.
     /// </summary>
     public static void DispatchForSlot(
-        BlueprintDefinition def, Span<byte> stateBytes, FdpEventBus bus,
+        BlueprintDefinition def, Span<byte> stateBytes, EntityRepository world,
         ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)
-    {
-        if (bus is null || def?.EventHandlers is null || def.EventHandlers.Count == 0) return;
+        => Dispatch(def?.EventHandlers, stateBytes, world, view, ecb, self, time, deltaTime);
 
-        foreach (var kv in def.EventHandlers)
+    /// <summary>
+    /// ⭐ <c>CE-446</c> — the same dispatch over a bare handler table: a blueprint BEHAVIOUR has no
+    /// <see cref="BlueprintDefinition"/> (it is registered as a behaviour, not an Instance), so its generated tick passes
+    /// its handlers directly. One loop, two callers.
+    /// </summary>
+    public static void Dispatch(
+        System.Collections.Generic.IReadOnlyDictionary<string, EventHandlerDelegate>? handlers, Span<byte> stateBytes,
+        EntityRepository world, ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)
+    {
+        // ⭐ CE-3293 S3 (R-3036 rule 4) — through the repository's reads, never the bus: from S4 they answer the caller's window.
+        if (world is null || handlers is null || handlers.Count == 0) return;
+
+        foreach (var kv in handlers)
         {
             int typeId = ResolveTypeId(kv.Key);
-            if (!bus.HasEvent(typeId)) continue;
+            if (!world.HasEventsByTypeId(typeId)) continue;
 
-            var raw = bus.ReadRawByTypeId(typeId, out int elementSize);
+            var raw = world.ReadRawEventsByTypeId(typeId, out int elementSize);
             if (elementSize <= 0 || raw.Length < elementSize) continue;
 
             int count = raw.Length / elementSize;
@@ -46,7 +57,7 @@ public static class BlueprintEventDispatch
     /// <summary>
     /// Resolves an event key (the Event graph's name = the event identity — an event-type FQN, or a custom
     /// event name) to its runtime bus type-id: <c>[EventId].Id</c> for a typed event (matching
-    /// <c>EventType&lt;T&gt;.Id</c>), else the FQN hash (matching the bus's custom/untyped fallback).
+    /// <c>EventType&lt;T&gt;.Id</c>), else the FQN's stable hash (matching the bus's managed-type id, <see cref="Fdp.Core.StableHash"/>).
     /// </summary>
     public static int ResolveTypeId(string eventKey) => _typeIdCache.GetOrAdd(eventKey, ResolveUncached);
 
@@ -55,7 +66,7 @@ public static class BlueprintEventDispatch
         var type = FindType(eventKey);
         var attr = type?.GetCustomAttribute<EventIdAttribute>();
         if (attr != null) return attr.Id;
-        return eventKey.GetHashCode() & 0x7FFFFFFF;
+        return Fdp.Core.StableHash.NonNegativeId(eventKey);   // ⭐ CE-3302 — the bus's managed-type id formula, the same in every process
     }
 
     private static Type? FindType(string fqn)

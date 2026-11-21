@@ -47,7 +47,8 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// <para>Uses the fluent <see cref="HsmBuilder"/> API, then normalises,
         /// validates, flattens, and emits the blob in one call.  The blob is
         /// stored in the <see cref="BehaviorRegistry"/> at startup and consumed
-        /// by <c>HsmTickSystem&lt;BrainHsm128&gt;</c> each frame.</para>
+        /// by <c>BrainTickSystem</c>'s HSM arm each frame, from the entity's root HSM slot
+        /// (<c>O7c</c>-④).</para>
         /// </summary>
         public static HsmDefinitionBlob Build()
         {
@@ -58,16 +59,19 @@ namespace Fdp.Examples.UrbanCombat.Brains
 
             // ── Action name registration (required before state definition) ──
             builder
-                .RegisterAction("Activity_Cruise")
-                .RegisterAction("OnEnter_Disabled");
+                // ⭐ E6 ruling (A), 2026-08-17: an HSM action id is FNV(FULLY QUALIFIED name).
+                //   The registrar keys on the method's FQN, so the machine must address it the
+                //   same way -- a simple name now hashes to an id nothing registers.
+                .RegisterAction("Fdp.Examples.UrbanCombat.Brains.ApcHsmActions.Activity_Cruise")
+                .RegisterAction("Fdp.Examples.UrbanCombat.Brains.ApcHsmActions.OnEnter_Disabled");
 
             // ── States ──
             var cruising = builder.State("Cruising")
-                .Activity("Activity_Cruise")
+                .Activity("Fdp.Examples.UrbanCombat.Brains.ApcHsmActions.Activity_Cruise")
                 .Initial();
 
             var disabled = builder.State("Disabled")
-                .OnEntry("OnEnter_Disabled");
+                .OnEntry("Fdp.Examples.UrbanCombat.Brains.ApcHsmActions.OnEnter_Disabled");
 
             // ── Transitions ──
             // Cruising → Disabled on MobilityLost (EventId = 1)

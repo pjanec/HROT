@@ -1,0 +1,214 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: CE-6008 (city battle L-1, lethality as scenario settings) - weapon ACCURACY is a scenario setting through the EXISTING side skill amplifier (SetSkillAmplifier, SR-100): the trigger 'Lethality: accuracy' sets Friend +2 tiers (Elite, spread x0.65) and Hostile -2 tiers (Untrained, spread x2.5) at 0 s. On open basic-desert two identical lanes 80 m apart: 'Blue Gunner' (Friend rifleman, InertSop) at (400,200) fires 30 rounds, one a second (FireAtPoint), at 'Red Target' 100 m north at (400,300); 'Red Gunner' (Hostile rifleman) at (480,200) fires the same at 'Blue Target' (480,300). Everyone immortal (100000 health). Judge (40 s): (1) both gunners fire all their rounds (2) Red Target loses far more health than Blue Target - the better-amplified side hits more. Change the tiers in the trigger to tune lethality per side (0 = everyone's own level). Fail: the two targets lose about the same. Check: the rail LethalityAccuracyScenarioTests; checks.json judges the targets stay put."
+  },
+  "entities": {
+    "c6008e00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          400,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Gunner",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": {
+          "x": 400,
+          "y": 300,
+          "z": 1.1,
+          "mount": 0,
+          "rounds": 30,
+          "cooldownSeconds": 1.0
+        }
+      }
+    },
+    "c6008e00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          400,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Target",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c6008e00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          480,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Gunner",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": {
+          "x": 480,
+          "y": 300,
+          "z": 1.1,
+          "mount": 0,
+          "rounds": 30,
+          "cooldownSeconds": 1.0
+        }
+      }
+    },
+    "c6008e00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          480,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Target",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c6008e00-0000-4000-8000-000000000005": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Lethality: accuracy",
+        "ForceId": "Neutral"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Origin": "Superior",
+        "Params": {
+          "common": {
+            "title": "Lethality: accuracy",
+            "subject": "c6008e00-0000-4000-8000-000000000001"
+          },
+          "when": {
+            "$type": "ScenarioTime",
+            "fromSeconds": 0
+          },
+          "do": [
+            {
+              "act": "SetSkillAmplifier",
+              "args": {
+                "side": "Friend",
+                "tiers": 2
+              }
+            },
+            {
+              "act": "SetSkillAmplifier",
+              "args": {
+                "side": "Hostile",
+                "tiers": -2
+              }
+            }
+          ],
+          "fireIfTrueWhenArmed": true
+        }
+      }
+    }
+  }
+}

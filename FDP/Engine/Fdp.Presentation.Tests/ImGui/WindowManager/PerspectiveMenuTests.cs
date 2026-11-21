@@ -84,7 +84,7 @@ public class PerspectiveMenuTests : IDisposable
     public void GetPerspectives_ExcludesGlobalWindows()
     {
         var wm = CreateManager();
-        wm.RegisterWindow(new TestPerspWindow("pb", "IG"));
+        wm.RegisterWindow(new TestPerspWindow("pb", "Player"));
         // Global window should not appear in GetPerspectives.
         var globalWin = new TestPerspWindow("g1", "GlobalScopePersp");
         // We can't directly set Scope (it's read-only constructor param), so we use
@@ -95,7 +95,7 @@ public class PerspectiveMenuTests : IDisposable
         var perspectives = wm.GetPerspectives();
 
         Assert.Single(perspectives);
-        Assert.Equal("IG", perspectives[0]);
+        Assert.Equal("Player", perspectives[0]);
     }
 
     private sealed class GlobalTestWindow : ManagedWindow
@@ -111,18 +111,18 @@ public class PerspectiveMenuTests : IDisposable
     [Fact]
     public void Select_CallsSwitchPerspective()
     {
-        var wm = CreateManager();
+        var wm = SetupPerspectives(("w-Player", "Player"));   // ⭐ CE-3166 — A0 (ec0a2da5f): only a CLAIMED perspective can be switched to
         Assert.Equal("Default", wm.CurrentPerspective);
 
-        wm.SelectPerspective("IG");
+        wm.SelectPerspective("Player");
 
-        Assert.Equal("IG", wm.CurrentPerspective);
+        Assert.Equal("Player", wm.CurrentPerspective);
     }
 
     [Fact]
     public void SelectPerspective_FiresOnPerspectiveChanged()
     {
-        var wm = CreateManager();
+        var wm = SetupPerspectives(("w-ExCon", "ExCon"));   // ⭐ CE-3166 — A0 (ec0a2da5f): only a CLAIMED perspective can be switched to
         string? old = null, @new = null;
         wm.OnPerspectiveChanged += (o, n) => { old = o; @new = n; };
 
@@ -152,25 +152,25 @@ public class PerspectiveMenuTests : IDisposable
     [Fact]
     public void Checked_EqualsCurrent()
     {
-        var wm = SetupPerspectives(("w1", "Default"), ("w2", "IG"), ("w3", "ExCon"));
-        wm.SwitchPerspective("IG");
+        var wm = SetupPerspectives(("w1", "Default"), ("w2", "Player"), ("w3", "ExCon"));
+        wm.SwitchPerspective("Player");
 
         var model = wm.BuildPerspectiveMenuModel();
 
         Assert.Equal(3, model.Count);
         foreach (var (perspective, isChecked) in model)
         {
-            Assert.Equal(perspective == "IG", isChecked);
+            Assert.Equal(perspective == "Player", isChecked);
         }
     }
 
     [Fact]
     public void IsPerspectiveActive_MatchesCurrent()
     {
-        var wm = CreateManager();
-        wm.SwitchPerspective("IG");
+        var wm = SetupPerspectives(("w-Player", "Player"));   // ⭐ CE-3166 — A0 (ec0a2da5f): only a CLAIMED perspective can be switched to
+        wm.SwitchPerspective("Player");
 
-        Assert.True(wm.IsPerspectiveActive("IG"));
+        Assert.True(wm.IsPerspectiveActive("Player"));
         Assert.False(wm.IsPerspectiveActive("Default"));
         Assert.False(wm.IsPerspectiveActive("ExCon"));
     }
@@ -182,14 +182,14 @@ public class PerspectiveMenuTests : IDisposable
     [Fact]
     public void BuildPerspectiveMenuModel_ReturnsTuplesWithPerspectiveAndChecked()
     {
-        var wm = SetupPerspectives(("w1", "Default"), ("w2", "IG"));
+        var wm = SetupPerspectives(("w1", "Default"), ("w2", "Player"));
         wm.SwitchPerspective("Default");
 
         var model = wm.BuildPerspectiveMenuModel();
 
         Assert.Equal(2, model.Count);
         Assert.Equal(("Default", true), model[0]);
-        Assert.Equal(("IG", false), model[1]);
+        Assert.Equal(("Player", false), model[1]);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -219,7 +219,7 @@ public class PerspectiveMenuTests : IDisposable
         var wm = SetupPerspectives(
             ("w1", "Default"),
             ("w2", "Default"),
-            ("w3", "IG"));
+            ("w3", "Player"));
 
         // The old RenderPerspectiveSwitcher pushed custom button colours per
         // perspective. The new RenderPerspectiveMenu delegates to
@@ -229,7 +229,7 @@ public class PerspectiveMenuTests : IDisposable
 
         Assert.Equal(2, model.Count);
         Assert.Contains(model, e => e.Perspective == "Default" && e.IsChecked);
-        Assert.Contains(model, e => e.Perspective == "IG" && !e.IsChecked);
+        Assert.Contains(model, e => e.Perspective == "Player" && !e.IsChecked);
 
         // Verify that the WM.Render() path compiles — i.e., the call site
         // in BeginMainMenuBar calls RenderPerspectiveMenu, not

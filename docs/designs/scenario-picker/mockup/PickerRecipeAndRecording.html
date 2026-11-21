@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Scenario picker mockup (AQ108 D24 / D25, CE-4141). Static, self-contained: open in a browser. Live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>New from recipe and Open recording</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1280px; height: 820px; box-sizing: border-box; padding: 30px; background: #121417; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: flex; gap: 30px;">
+
+  <div style="flex: 1; border-radius: 10px; background: #202328; border: 1px solid #3a3e46; display: flex; flex-direction: column; overflow: hidden;">
+    <div style="padding: 12px 16px; border-bottom: 1px solid #353941; display: flex; gap: 10px; align-items: center;"><span style="font-size: 15px; font-weight: 600;">New scenario from a recipe</span></div>
+    <div style="flex-grow: 1; display: flex; min-height: 0;">
+      <div style="width: 200px; border-right: 1px solid #353941; padding: 8px 0; display: flex; flex-direction: column; gap: 1px;">
+        <div style="padding: 6px 14px;">▤ empty-flat <span style="color: #8a9099; font-size: 11px;">(first)</span></div>
+        <div style="padding: 6px 14px;">▤ basic-desert</div>
+        <div style="padding: 6px 14px; background: #2a3342; border-left: 3px solid #5aa8ff;"><b>▤ demo-city</b></div>
+        <div style="padding: 6px 14px;">▤ sop-demo</div>
+        <div style="padding: 6px 14px;">▸ tt-* <span style="color: #8a9099;">· 7</span></div>
+      </div>
+      <div style="flex-grow: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="padding: 14px; border-radius: 8px; border: 1px dashed #3c4048; color: #8a9099; font-size: 12px;">No preview.png in this recipe — the description alone is shown (no placeholder art).</div>
+        <span style="font-size: 18px; font-weight: 700;">demo-city</span>
+        <span style="color: #c9ccd2; line-height: 1.5;">A 1 km city block with avenues, 34 enterable houses and traffic. Starts empty — a base for urban scenarios.</span>
+        <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; font-size: 12px; color: #9aa0a8;">Terrain demo-city · 0 entities · traffic on</div>
+      </div>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid #353941; display: flex; justify-content: flex-end; gap: 10px;">
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Cancel</button>
+      <button style="background: #2f6fd6; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 600;">Create</button>
+    </div>
+  </div>
+
+  <div style="flex: 1.25; border-radius: 10px; background: #202328; border: 1px solid #3a3e46; display: flex; flex-direction: column; overflow: hidden;">
+    <div style="padding: 12px 16px; border-bottom: 1px solid #353941; display: flex; gap: 10px; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Open recording (AAR)</span></div>
+    <div style="flex-grow: 1; display: flex; min-height: 0;">
+      <div style="width: 230px; border-right: 1px solid #353941; padding: 8px 0; display: flex; flex-direction: column; gap: 1px;">
+        <span style="padding: 6px 14px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.05em;">TODAY</span>
+        <div style="padding: 6px 14px; background: #2a3342; border-left: 3px solid #5aa8ff;"><b>Bridgehead</b> <span style="color: #8a9099; font-size: 11px;">10:02 · 46 min</span></div>
+        <div style="padding: 6px 14px;">Crossfire <span style="color: #8a9099; font-size: 11px;">09:20 · 15 min</span></div>
+        <span style="padding: 10px 14px 6px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.05em;">YESTERDAY</span>
+        <div style="padding: 6px 14px;">Bridgehead <span style="color: #8a9099; font-size: 11px;">14:40</span></div>
+        <div style="padding: 6px 14px;">Crossfire ×3</div>
+      </div>
+      <div style="flex-grow: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="height: 200px; border-radius: 8px; background: linear-gradient(160deg, #6c7d5b 0%, #3a4630 100%); position: relative;">
+          <span style="position: absolute; left: 10px; bottom: 8px; padding: 3px 8px; border-radius: 4px; background: rgba(10,12,14,0.7); font-size: 11px;">the scenario's preview.png</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 10px;"><span style="font-size: 18px; font-weight: 700;">Bridgehead</span><span style="color: #9aa0a8;">today 10:02 · 46 min</span><span style="margin-left: auto; padding: 2px 8px; border-radius: 10px; background: #3a1f1f; color: #ff8a80; font-size: 11px;">NO-GO 0.42</span></div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Variant · params</span>3 · QRF 8, delay 120 s, Red −1</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Players</span>Novak, Dvorak, Holub, Kral</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Objectives</span>4 achieved · 1 failed</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Branched from</span>— (a fresh run)</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid #353941; display: flex; justify-content: flex-end; gap: 10px;">
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Cancel</button>
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Rerun variant 3 live</button>
+      <button style="background: #2f6fd6; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 600;">Open in AAR</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

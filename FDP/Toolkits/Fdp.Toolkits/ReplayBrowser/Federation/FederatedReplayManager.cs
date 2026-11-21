@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.ReplayBrowser.Federation
 {
@@ -26,12 +27,19 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         private readonly Dictionary<int, ReplayBrowserContext> _contexts;
         private readonly Dictionary<int, long> _nodeOffsets;
         private bool _disposed;
+        private ReplayBrowserContext[] _ctxArr = Array.Empty<ReplayBrowserContext>();
+        private int[] _idArr = Array.Empty<int>();
+
+        /// <summary>⭐ G-7 S4 — the nodes as ARRAYS (ascending node id), so the per-frame merge walks them without an enumerator (0 B, R-2084). Fixed once the group is loaded.</summary>
+        internal int NodeCount => _ctxArr.Length;
+        internal int NodeIdAt(int i) => _idArr[i];
+        internal ReplayBrowserContext ContextAt(int i) => _ctxArr[i];
 
         /// <summary>Per-node <see cref="ReplayBrowserContext"/> instances keyed by NodeId.</summary>
         public IReadOnlyDictionary<int, ReplayBrowserContext> Contexts { get; }
 
         /// <summary>Distributed exercise identifier shared by all loaded nodes.</summary>
-        public Guid ExerciseId { get; }
+        public ExerciseId ExerciseId { get; }
 
         /// <summary>Base wall-clock tick origin applied to every node seek.</summary>
         public long BaseWallTicks { get; private set; }
@@ -40,10 +48,29 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         public IReadOnlyDictionary<int, long> NodeOffsets { get; }
 
         /// <summary>
-        /// NodeId of the context considered the canonical source of local entities.
-        /// Defaults to the lowest NodeId in the loaded group.
+        /// ⭐ G-7 S5 (I7) — the PRIMARY node: the one whose frames drive the group's clock, the timeline and Recording info (and a part's source in the editor). Defaults to the lowest NodeId.
+        /// ⛔ SUPERSEDED: "the canonical source of local entities" — the merge now takes the local (no network id) entities of EVERY node whose <see cref="IsLocalEntitiesShown"/> is on.
+        /// (The name is kept: ~15 callers and rails; it no longer decides which locals show.)
         /// </summary>
-        public int LocalEntitiesProviderNodeId { get; private set; }
+        public NodeId LocalEntitiesProviderNodeId { get; private set; }
+
+        private readonly HashSet<int> _localsHidden = new();   // nodes whose local entities are NOT merged (default: none — every node's are shown)
+
+        /// <summary>⭐ G-7 S5 (I7) — are the local (no network id) entities of <paramref name="nodeId"/> merged into the world? Default: yes, every node's.</summary>
+        public bool IsLocalEntitiesShown(int nodeId) => !_localsHidden.Contains(nodeId);
+
+        /// <summary>
+        /// ⭐ G-7 S5 (I7) — the Source menu's <i>Local entities shown from</i> checkbox: shows or hides node <paramref name="nodeId"/>'s local entities in the merged world.
+        /// Fires <see cref="OnTimeChanged"/> (the hosts re-merge) but does NOT seek.
+        /// </summary>
+        public void SetLocalEntitiesShown(int nodeId, bool shown)
+        {
+            ThrowIfDisposed();
+            if (!_contexts.ContainsKey(nodeId))
+                throw new ArgumentOutOfRangeException(nameof(nodeId), $"NodeId {nodeId} is not in the loaded group.");
+            if (shown ? !_localsHidden.Remove(nodeId) : !_localsHidden.Add(nodeId)) return;
+            OnTimeChanged?.Invoke();
+        }
 
         /// <summary>Fired after every seek or after a local-entities-provider change.</summary>
         public event Action? OnTimeChanged;
@@ -57,8 +84,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             _nodeOffsets = new Dictionary<int, long>();
             Contexts = _contexts;
             NodeOffsets = _nodeOffsets;
-            ExerciseId = exerciseId;
-            LocalEntitiesProviderNodeId = lowestNodeId;
+            ExerciseId = (Fdp.Core.ExerciseId)exerciseId;
+            LocalEntitiesProviderNodeId = (Fdp.Core.NodeId)(lowestNodeId);
+            _idArr = _contexts.Keys.OrderBy(k => k).ToArray();
+            _ctxArr = new ReplayBrowserContext[_idArr.Length];
+            for (int i = 0; i < _idArr.Length; i++) _ctxArr[i] = _contexts[_idArr[i]];
         }
 
         /// <summary>
@@ -144,7 +174,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         }
 
         /// <summary>
-        /// Changes the local-entities provider to the given node.
+        /// Changes the PRIMARY node (the clock / timeline / Recording-info node — see <see cref="LocalEntitiesProviderNodeId"/>) to the given node.
         /// Fires <see cref="OnTimeChanged"/> but does NOT seek.
         /// </summary>
         /// <exception cref="ArgumentOutOfRangeException">
@@ -156,7 +186,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             if (!_contexts.ContainsKey(nodeId))
                 throw new ArgumentOutOfRangeException(
                     nameof(nodeId), $"NodeId {nodeId} is not in the loaded group.");
-            LocalEntitiesProviderNodeId = nodeId;
+            LocalEntitiesProviderNodeId = (Fdp.Core.NodeId)(nodeId);
             OnTimeChanged?.Invoke();
         }
 
@@ -226,6 +256,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
                 ctx.Dispose();
             _contexts.Clear();
             _nodeOffsets.Clear();
+            _ctxArr = Array.Empty<ReplayBrowserContext>();
+            _idArr = Array.Empty<int>();
         }
 
         private void ThrowIfDisposed()

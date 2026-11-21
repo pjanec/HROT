@@ -1,0 +1,43 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — WL-4 (U-W7): a grenade or the rifle against a hidden target (twin: GrenadeOrRifleScenarioTests). From the header's Judge (1)-(3): the Grenadier's M67 bursts, the Rifleman fires blind without hurting the man until then, the burst hurts him (1000 HP). The take's blast at 8.4 s is proven.",
+  "runFor": 25,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the Rifleman fires blind",
+      "on": "shot",
+      "by": "Rifleman"
+    },
+    {
+      "name": "the grenade bursts",
+      "on": "blast",
+      "by": "Grenadier",
+      "where": {
+        "warheadSource": [
+          "contains",
+          "M67"
+        ]
+      }
+    },
+    {
+      "name": "the Rifleman's rounds do not reach the hostile before the burst",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman",
+        "hit": "Hostile behind the sandbags"
+      },
+      "before": "the grenade bursts-0.1"
+    },
+    {
+      "name": "the grenade hurts the hostile",
+      "on": "field",
+      "who": "Hostile behind the sandbags",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 1000,
+      "after": "the grenade bursts"
+    }
+  ]
+}

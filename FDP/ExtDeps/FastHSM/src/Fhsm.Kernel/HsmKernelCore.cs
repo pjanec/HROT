@@ -74,7 +74,7 @@ namespace Fhsm.Kernel
         
         private static bool ValidateInstance(InstanceHeader* header, HsmDefinitionBlob definition)
         {
-            if (header->MachineId != definition.Header.StructureHash) return false;
+            if (header->MachineId != definition.MachineId) return false;   // ⭐ CE-2001 — the machine identity, not just its shape
             if ((header->Flags & InstanceFlags.Terminated) != 0) return false;
             if ((header->Flags & InstanceFlags.Paused) != 0) return false;
             if (header->Phase > InstancePhase.Activity) return false;
@@ -113,6 +113,48 @@ namespace Fhsm.Kernel
                     if (HsmEventQueue.GetCount(instancePtr, instanceSize) > 0)
                     {
                         header->Phase = InstancePhase.Entry;
+                    }
+                    else
+                    {
+                        // ⭐⭐⭐ CE-334 (2026-09-26) — AN ACTIVE STATE'S ACTIVITY RUNS EVERY TICK.
+                        //
+                        // 🔴 What this used to be: nothing. `Idle` with an empty queue was a FIXED
+                        //    POINT, so after the one `Entry → Activity → Idle` round that follows
+                        //    initialisation, a quiescent machine NEVER dispatched an activity again.
+                        //    ⇒ `ActivityActionId` was a ONE-SHOT with a per-frame name.
+                        //
+                        // ⛔⛔ WHY NOT `header->Phase = InstancePhase.Activity` INSTEAD. The phase
+                        //    machine advances ONE PHASE PER TICK — `UpdateBatchCore` is a `for` over
+                        //    instances with no inner loop. Parking in `Activity` would give
+                        //    Idle→Activity→Idle→Activity…, i.e. an activity every OTHER tick, which
+                        //    is not a frame hook either. ⭐ Running it HERE and staying `Idle` is
+                        //    what makes "every tick" true.
+                        //
+                        // ⭐ `ProcessActivityPhase` sets `Phase = Idle` on exit, so the phase is
+                        //    unchanged and every existing phase rail keeps its meaning. An un-entered
+                        //    machine (all leaves 0xFFFF) skips every region, so §31.18's
+                        //    "Idle + un-entered is a fixed point" also still holds.
+                        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.2.1; rail
+                        //    Fhsm.Tests.Kernel.ActivitySteadyStateTests.CE334_R1.
+
+                        // ⭐⭐⭐ CE-382 — POLLED TRANSITIONS, EVALUATED HERE AND BEFORE THE ACTIVITIES.
+                        //
+                        // ⭐ ORDER IS LOAD-BEARING: a polled transition taken this tick is followed by
+                        //   the NEWLY ENTERED state's activity IN THE SAME TICK. Running activities
+                        //   first would tick the state the machine is about to leave.
+                        //
+                        // ⛔⛔ WHY NOT A TICK EVENT. Measured: the phase machine advances ONE PHASE PER
+                        //   TICK, so an event round is Idle→Entry→RTC→Activity→Idle = FOUR ticks, and
+                        //   the CE-334 activity above runs ONLY on an empty queue ⇒ a permanent tick
+                        //   event would cut activities to ~1 tick in 4 and add ~3 ticks of transition
+                        //   latency. 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.1, §10 ①.
+                        TryTakePolledTransition(
+                            definition, instancePtr, instanceSize, contextPtr,
+                            ref cmdWriter, traceCtx);
+
+                        ProcessActivityPhase(
+                            definition, instancePtr, instanceSize, contextPtr, deltaTime,
+                            ref cmdWriter, traceCtx);
                     }
                     break;
 
@@ -168,8 +210,26 @@ namespace Fhsm.Kernel
             InitializeSlot(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, traceCtx, 0, 0, 0xFFFF);
             
             // 2. Initialize Orthogonal Regions
+            InitializeRegions(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, traceCtx);
+        }
+
+        /// <summary>
+        /// Starts every region slot that has no leaf yet and whose parallel parent is active, repeatedly, so a region nested in a
+        /// region starts too. ⭐ CE-1005 — shared by instance start and <see cref="ExecuteTransition"/>: a transition that enters a
+        /// parallel state starts its regions exactly as the start of the instance does.
+        /// </summary>
+        private static void InitializeRegions(
+            HsmDefinitionBlob definition,
+            byte* instancePtr,
+            int instanceSize,
+            void* contextPtr,
+            ushort* activeLeafIds,
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
+        {
             var regions = definition.Regions;
-            int totalSlots = definition.Header.RegionCount;
+            GetActiveLeafIds(instancePtr, instanceSize, out int capacity);
+            int totalSlots = Math.Min(definition.Header.RegionCount, capacity);
             
             // Iterative initialization: if parent of a region becomes active, initialize that region
             bool changed = true;
@@ -182,14 +242,7 @@ namespace Fhsm.Kernel
                 
                 for (int r = 1; r < regions.Length; r++) // Skip 0 (Root/Default)
                 {
-                    // Assuming RegionDef array order matches Slot Indices 1..N ?
-                    // Actually, FlattenRegions logic creates RegionDefs in order.
-                    // If we assume RegionDef[i] -> Slot[i].
-                    // activeLeafIds has size of Header.RegionCount.
-                    // If RegionCount > regions.Length (because Root not in array?),
-                    // In FlattenRegions I added root at index 0.
-                    // So RegionDef[i] corresponds directly to Slot[i].
-                    
+                    // RegionDef[i] corresponds directly to Slot[i] (HsmFlattener.FlattenRegions puts the root at index 0).
                     if (r >= totalSlots) break;
                     if (activeLeafIds[r] != 0xFFFF) continue; // Already initialized
 
@@ -303,7 +356,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, slotIndex, stateId);
                 }
             }
             
@@ -418,6 +471,81 @@ namespace Fhsm.Kernel
             header->Phase = InstancePhase.Idle;
         }
 
+        // --- CE-382: Polled transitions ---
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-382</c> — take a POLLED transition if one's guard passes, on a quiescent tick.</b>
+        /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.1, §5.
+        ///
+        /// <para>⭐⭐ <b>It adds no selection logic, and that is the point.</b> <c>CE-381</c> normalises
+        /// every polled transition onto <see cref="ReservedEventIds.Polled"/>, so
+        /// <see cref="SelectTransition"/> with that id already matches <b>exactly</b> the polled set —
+        /// guards, priority and region handling all come from the one existing implementation. ⛔ A
+        /// second selection walk would be a duplicate of the thing it copied.</para>
+        ///
+        /// <para>⭐⭐⭐ <b>And delegating to <see cref="ProcessRTCPhase"/> is what gives polling FULL
+        /// run-to-completion semantics.</b> That loop executes the winner, then sets
+        /// <c>currentEventId = 0</c> and keeps going, so the COMPLETION transitions of the newly
+        /// entered state fire in the same tick — exactly as they do after an event-driven transition.
+        /// ⚠ Hand-rolling "execute one transition" here would have given polled transitions
+        /// second-class semantics that differ from every other transition in the machine.</para>
+        ///
+        /// <para>⭐ <b>THE GATE IS WHAT MAKES THIS FREE.</b> The <c>HasPolledTransition</c> bit
+        /// (<c>CE-381</c>, DERIVED by the flattener) is tested on the leaf→root walk the activity
+        /// phase performs anyway ⇒ a machine with no polled transition pays <b>one bit test per
+        /// active state</b> and never reaches <c>ProcessRTCPhase</c>.</para>
+        ///
+        /// <para>⚠ <b>Phase bookkeeping:</b> <c>ProcessRTCPhase</c> exits by setting
+        /// <c>Phase = Activity</c> (or <c>Idle</c> on the RTC-loop guard). Either way the caller runs
+        /// <see cref="ProcessActivityPhase"/> next, which sets <c>Phase = Idle</c> ⇒ the instance is
+        /// left exactly as <c>CE-334</c> leaves it and every existing phase rail keeps its meaning.</para>
+        /// </summary>
+        private static void TryTakePolledTransition(
+            HsmDefinitionBlob definition,
+            byte* instancePtr,
+            int instanceSize,
+            void* contextPtr,
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
+        {
+            if (!AnyActiveStateHasAPolledTransition(definition, instancePtr, instanceSize))
+                return;
+
+            ProcessRTCPhase(
+                definition, instancePtr, instanceSize, contextPtr,
+                ReservedEventIds.Polled, ref cmdWriter, traceCtx);
+        }
+
+        /// <summary>
+        /// ⭐ The cheap gate: does any state in the active configuration own a polled transition?
+        /// ⛔ Deliberately a BIT TEST over the same leaf→root walk the activity phase does — no
+        /// transition array is touched unless some state says there is something to find.
+        /// </summary>
+        private static bool AnyActiveStateHasAPolledTransition(
+            HsmDefinitionBlob definition, byte* instancePtr, int instanceSize)
+        {
+            ushort* activeLeafIds = GetActiveLeafIds(instancePtr, instanceSize, out int regionCount);
+            if (activeLeafIds == null) return false;
+
+            for (int r = 0; r < regionCount; r++)
+            {
+                ushort current = activeLeafIds[r];
+                while (current != 0xFFFF)
+                {
+                    // ⚠ Same bounds guard as ProcessActivityPhase, and for the same reason (CE-334):
+                    //   this runs from Idle, which reaches instances nothing has entered yet.
+                    if (current >= definition.Header.StateCount) break;
+
+                    ref readonly var state = ref definition.GetState(current);
+                    if ((state.Flags & StateFlags.HasPolledTransition) != 0) return true;
+
+                    current = state.ParentIndex;
+                }
+            }
+
+            return false;
+        }
+
         // --- Task 4: Activity Phase ---
 
         private static void ProcessActivityPhase(
@@ -442,12 +570,25 @@ namespace Fhsm.Kernel
                 ushort current = leafId;
                 while (current != 0xFFFF)
                 {
+                    // ⭐⭐ CE-334 (2026-09-26) — BOUNDS-CHECK THE LEAF ID, and this is a REAL HOLE the
+                    //    same change EXPOSED rather than created. Before, activities ran only after
+                    //    Entry/RTC, by which point the instance had been initialised; running them
+                    //    from Idle reaches instances nothing has entered yet. 🔴 A default instance
+                    //    has ActiveLeafIds all-ZERO, so an empty or small blob was indexed at state 0
+                    //    and GetState THREW — `Fhsm.Tests.Kernel.EventPipelineTests
+                    //    .Timer_Fires_And_Trigger_Workflow` caught it immediately.
+                    // ⛔ Skip rather than throw: this runs inside a per-frame loop over every
+                    //    instance, and a malformed one must not take the frame down. ⚠ Deliberately
+                    //    only a BOUNDS check — a cyclic ParentIndex would still spin, but that was
+                    //    reachable before this change too and is not in scope here.
+                    if (current >= definition.Header.StateCount) break;
+
                     ref readonly var state = ref definition.GetState(current);
 
                     // Execute activity if present
                     if (state.ActivityActionId != 0 && state.ActivityActionId != 0xFFFF)
                     {
-                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, r, current);
                     }
 
                     current = state.ParentIndex;
@@ -502,7 +643,9 @@ namespace Fhsm.Kernel
                     regionCount,
                     currentEventId,
                     contextPtr,
-                    traceCtx);
+                    traceCtx,
+                    ref cmdWriter,
+                    out int selectedRegion);
 
                 if (selectedTransition == null)
                 {
@@ -510,7 +653,7 @@ namespace Fhsm.Kernel
                     break;
                 }
 
-                ExecuteTransition(definition, instancePtr, instanceSize, selectedTransition.Value, activeLeafIds, regionCount, contextPtr, ref cmdWriter, traceCtx);
+                ExecuteTransition(definition, instancePtr, instanceSize, selectedTransition.Value, activeLeafIds, regionCount, selectedRegion, contextPtr, ref cmdWriter, traceCtx);
                 
                 // Event consumed - subsequent iterations check for Epsilon (0) transitions
                 currentEventId = 0;
@@ -520,6 +663,8 @@ namespace Fhsm.Kernel
             header->Phase = InstancePhase.Activity;
         }
 
+        // ⭐ O6 — `cmdWriter` is threaded in ONLY so a guard can be stamped with its occurrence
+        //   before it is evaluated. Selection itself does not write commands.
         private static TransitionDef? SelectTransition(
             HsmDefinitionBlob definition,
             byte* instancePtr,
@@ -528,8 +673,15 @@ namespace Fhsm.Kernel
             int regionCount,
             ushort eventId,
             void* contextPtr,
-            HsmTraceContext* traceCtx)
+            HsmTraceContext* traceCtx,
+            ref HsmCommandWriter cmdWriter,
+            out int regionIndex)
         {
+            // The region the winning transition was selected in. ExecuteTransition needs it to write
+            // the RIGHT region's active leaf; before this it received regionCount but no index and
+            // wrote slot 0 unconditionally.
+            regionIndex = 0;
+
             // 1. Global transitions
             var globalSpan = definition.GlobalTransitions;
             for (int i = 0; i < globalSpan.Length; i++)
@@ -537,7 +689,7 @@ namespace Fhsm.Kernel
                 ref readonly var gt = ref globalSpan[i];
                 if (gt.EventId == eventId)
                 {
-                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId, traceCtx))
+                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId, traceCtx, ref cmdWriter, 0, activeLeafIds[0]))
                     {
                         return new TransitionDef
                         {
@@ -547,7 +699,8 @@ namespace Fhsm.Kernel
                             GuardId = gt.GuardId,
                             ActionId = gt.ActionId,
                             Flags = gt.Flags,
-                            Cost = 0
+                            Cost = 0,
+                            Priority = gt.Priority,
                         };
                     }
                 }
@@ -577,15 +730,19 @@ namespace Fhsm.Kernel
                             // Match event
                             if (trans.EventId == eventId)
                             {
-                                // Priority is top 4 bits (12-15) of Flags
-                                byte priority = (byte)((ushort)(trans.Flags) >> 12);
+                                // ⭐ CE-395 — a full byte, the same field a global transition carries
+                                byte priority = trans.Priority;
 
-                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx))
+                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx, ref cmdWriter, r, current))
                                 {
                                     if (bestTransition == null || priority > highestPriority)
                                     {
                                         bestTransition = trans;
                                         highestPriority = priority;
+                                        // The loop already knows which region it is scanning; this is
+                                        // the only place that knowledge existed, and it used to be
+                                        // dropped on the way out.
+                                        regionIndex = r;
                                     }
                                 }
                             }
@@ -599,9 +756,34 @@ namespace Fhsm.Kernel
             return bestTransition;
         }
         
-        private static bool EvaluateGuard(ushort guardId, byte* instancePtr, void* contextPtr, ushort eventId, HsmTraceContext* traceCtx)
+        /// <summary>
+        /// O6 / <c>D2</c> — THE ONE STAMPING SITE FOR GUARDS, and the reason
+        /// <c>HsmActionDispatcher.EvaluateGuard</c> now carries the writer.
+        /// <para>
+        /// ⛔ <c>Q35</c> accepted "guards are unserved" on the strength of a census that counted
+        /// HAND-AUTHORED guards and missed the EMITTER: <c>AiPrimitiveHosting.HsmGuard</c> is a
+        /// first-class hosting mode, so "blueprint as an HSM condition" is exactly the composition
+        /// an unserved guard cannot deliver. One mechanism for actions and guards alike — the
+        /// occurrence arrives the same way in both, so there is no second route to keep in step.
+        /// </para>
+        /// </summary>
+        private static bool EvaluateGuard(
+            ushort guardId,
+            byte* instancePtr,
+            void* contextPtr,
+            ushort eventId,
+            HsmTraceContext* traceCtx,
+            ref HsmCommandWriter cmdWriter,
+            int regionSlotIndex,
+            ushort stateId)
         {
-            bool result = HsmActionDispatcher.EvaluateGuard(guardId, instancePtr, contextPtr, eventId);
+            cmdWriter.StampOccurrence(regionSlotIndex, stateId);
+
+            bool result;
+            fixed (HsmCommandWriter* writerPtr = &cmdWriter)
+            {
+                result = HsmActionDispatcher.EvaluateGuard(guardId, instancePtr, contextPtr, eventId, writerPtr);
+            }
 
             if (traceCtx != null)
             {
@@ -624,6 +806,7 @@ namespace Fhsm.Kernel
             TransitionDef transition,
             ushort* activeLeafIds,
             int regionCount,
+            int regionIndex,
             void* contextPtr,
             ref HsmCommandWriter cmdWriter,
             HsmTraceContext* traceCtx)
@@ -651,41 +834,19 @@ namespace Fhsm.Kernel
                     transition.EventId);
             }
 
-            // 1. Execute exit actions (leaf -> LCA)
-            for (int i = 0; i < path.ExitCount; i++)
-            {
-                ushort stateId = path.ExitPath[i];
-
-                if (traceCtx != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
-                {
-                    traceCtx->WriteStateChange(header->MachineId, stateId, false);
-                }
-
-                ref readonly var state = ref definition.GetState(stateId);
-
-                // Cancel timers owned by this state (clears all for now)
-                CancelTimers(instancePtr, instanceSize);
-
-                if (state.OnExitActionId != 0 && state.OnExitActionId != 0xFFFF)
-                {
-                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
-                }
-
-                // Save history if this state has history
-                if ((state.Flags & StateFlags.IsHistory) != 0 || state.HistorySlotIndex != 0xFFFF)
-                {
-                    SaveHistory(definition, instancePtr, instanceSize, stateId, activeLeafIds[0]);
-                }
-            }
+            // 1. Exit (CE-1005): every active state below the exit anchors, slot by slot, deepest first — not only the states
+            //    between the transition's source and the LCA. A transition on a composite exits its active child; leaving a parallel
+            //    state exits every one of its regions. 📄 docs/projects/FDP/ExtDeps/FastHSM/Fhsm.Kernel.md "Transition Execution".
+            ExitBelowAnchors(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, regionCount, regionIndex,
+                ref path, targetStateId, ref cmdWriter, traceCtx);
 
             // 2. Execute transition action
             if (transition.ActionId != 0 && transition.ActionId != 0xFFFF)
             {
-                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, regionIndex, sourceStateId);
             }
 
-            // 3. Execute entry actions (LCA -> leaf)
-            ushort finalLeafId = targetStateId;
+            // 3. Execute entry actions (LCA -> target)
             bool historyRestored = false;
 
             for (int i = 0; i < path.EntryCount; i++)
@@ -702,52 +863,75 @@ namespace Fhsm.Kernel
                 // Check if history state
                 if ((state.Flags & StateFlags.IsHistory) != 0)
                 {
-                    // Restore history
+                    // Restore history — into the slot that OWNS the history composite (CE-1005), which is not the slot the
+                    // transition was selected in when it crosses a region boundary.
                     bool isDeep = (state.Flags & StateFlags.IsDeepHistory) != 0;
-                    if (RestoreHistory(definition, instancePtr, instanceSize, stateId, isDeep))
+                    int historySlot = SlotOf(definition, stateId, regionCount);
+                    if (RestoreHistory(definition, instancePtr, instanceSize, stateId, isDeep, historySlot))
                     {
                         historyRestored = true;
                         break;
                     }
                 }
 
+                int slot = SlotOf(definition, stateId, regionCount);
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, slot, stateId);
                 }
-                
-                // If composite, resolve to initial child
-                if ((state.Flags & StateFlags.IsComposite) != 0)
-                {
-                    ushort initialChild = state.FirstChildIndex;
-                    if (initialChild != 0xFFFF)
-                    {
-                        finalLeafId = initialChild;
-                    }
-                }
+
+                // ⭐ CE-1005 — a parallel state entered on the way to a target inside one of its regions is its own slot's leaf
+                //   (as at instance start); its other regions start below.
+                if ((state.Flags & StateFlags.IsParallel) != 0 && i < path.EntryCount - 1)
+                    activeLeafIds[slot] = stateId;
             }
             
-            // 4. Update active state
+            // 4. Update active state: the target's own slot gets the target — drilled to its initial leaf when it is a plain
+            //    composite (D2: it used to land on the PARENT's initial child instead), kept as the leaf when it is parallel.
             if (!historyRestored)
             {
-                activeLeafIds[0] = finalLeafId;
-
-                // Check for terminal state.
-                ref readonly var finalStateDef = ref definition.GetState(finalLeafId);
-                if ((finalStateDef.Flags & StateFlags.IsFinal) != 0)
-                    header->Flags |= InstanceFlags.Terminated;
+                int slot = SlotOf(definition, targetStateId, regionCount);
+                ref readonly var targetDef = ref definition.GetState(targetStateId);
+                bool drill = (targetDef.Flags & StateFlags.IsComposite) != 0
+                          && (targetDef.Flags & StateFlags.IsParallel) == 0
+                          && targetDef.FirstChildIndex != 0xFFFF;
+                if (drill)
+                {
+                    InitializeSlot(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, traceCtx,
+                        slot, targetStateId, targetStateId);
+                }
+                else
+                {
+                    activeLeafIds[slot] = targetStateId;
+                    if ((targetDef.Flags & StateFlags.IsFinal) != 0)
+                        header->Flags |= InstanceFlags.Terminated;
+                }
             }
+
+            // 4b. Start every region of a parallel state the transition entered (and any nested region under it).
+            if (definition.Header.RegionCount > 1)
+                InitializeRegions(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, traceCtx);
             
             // 5. Recall Deferred Events
             HsmEventQueue.RecallDeferredEvents(instancePtr, instanceSize);
         }
 
+        /// <summary>
+        /// O6 — THE ONE STAMPING SITE FOR ACTIONS. Every action dispatch funnels through here, so
+        /// the occurrence pair is written in exactly one place and cannot go out of step with the
+        /// dispatch it describes. Callers supply <paramref name="regionSlotIndex"/> and
+        /// <paramref name="stateId"/> because only they know which region and which state this
+        /// action belongs to; the kernel supplies IDENTITY, the thunk does the LOOKUP.
+        /// DESIGN_Occurrence_Scoped_Storage.md §4.2.
+        /// </summary>
         private static void ExecuteAction(
             ushort actionId,
             byte* instancePtr,
             void* contextPtr,
             ref HsmCommandWriter cmdWriter,
-            HsmTraceContext* traceCtx)
+            HsmTraceContext* traceCtx,
+            int regionSlotIndex,
+            ushort stateId)
         {
             if (traceCtx != null)
             {
@@ -757,6 +941,8 @@ namespace Fhsm.Kernel
                     traceCtx->WriteActionExecuted(header->MachineId, actionId);
                 }
             }
+
+            cmdWriter.StampOccurrence(regionSlotIndex, stateId);
 
             fixed(HsmCommandWriter* writerPtr = &cmdWriter)
             {
@@ -813,6 +999,139 @@ namespace Fhsm.Kernel
                     combinedMask |= laneMask;
                 }
             }
+        }
+
+        /// <summary>The region slot that owns <paramref name="stateId"/> (<see cref="StateDef.RegionSlot"/>), clamped to the slots this
+        /// instance has — a hand-built blob carries 0 everywhere, which is the old single-slot behaviour.</summary>
+        private static int SlotOf(HsmDefinitionBlob definition, ushort stateId, int regionCount)
+        {
+            int slot = definition.GetState(stateId).RegionSlot;
+            return slot < regionCount ? slot : 0;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1005 — the exit half of a transition. The anchors are the outermost state the source→LCA path exits (X1) and, when
+        /// the target's slot holds a leaf strictly below the LCA, that leaf's ancestor directly below the LCA (X2 — a transition into
+        /// a sibling branch of its own region, or onto an enclosing state). Every slot whose leaf lies under an anchor exits its
+        /// chain up to and including the anchor; the exits run deepest first (a child before its parent, across regions), each state
+        /// once, and the slots are emptied afterwards — their leaves are read for history first.
+        /// </summary>
+        private static void ExitBelowAnchors(
+            HsmDefinitionBlob definition,
+            byte* instancePtr,
+            int instanceSize,
+            void* contextPtr,
+            ushort* activeLeafIds,
+            int regionCount,
+            int regionIndex,
+            ref TransitionPath path,
+            ushort targetStateId,
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
+        {
+            ushort lca = path.LCA;
+            ushort* anchors = stackalloc ushort[2];
+            int anchorCount = 0;
+            if (path.ExitCount > 0) anchors[anchorCount++] = path.ExitPath[path.ExitCount - 1];
+
+            int targetSlot = SlotOf(definition, targetStateId, regionCount);
+            ushort targetSlotLeaf = activeLeafIds[targetSlot];
+            if (targetSlotLeaf != 0xFFFF && targetSlotLeaf != lca && (lca == 0xFFFF || IsAncestor(definition, targetSlotLeaf, lca)))
+            {
+                ushort below = targetSlotLeaf;
+                while (true)
+                {
+                    ushort parent = definition.GetState(below).ParentIndex;
+                    if (parent == lca || parent == 0xFFFF) break;
+                    below = parent;
+                }
+                if (anchorCount == 0 || anchors[0] != below) anchors[anchorCount++] = below;
+            }
+
+            const int MaxExits = 64;
+            ushort* exitState = stackalloc ushort[MaxExits];
+            int* exitSlot = stackalloc int[MaxExits];
+            ushort* exitLeaf = stackalloc ushort[MaxExits];
+            int exitCount = 0;
+            ulong clearedSlots = 0;
+
+            for (int a = 0; a < anchorCount; a++)
+            {
+                ushort anchor = anchors[a];
+                for (int s = 0; s < regionCount && s < 64; s++)
+                {
+                    ushort leaf = activeLeafIds[s];
+                    if (leaf == 0xFFFF || !IsAncestor(definition, leaf, anchor)) continue;
+                    clearedSlots |= 1UL << s;
+                    for (ushort cur = leaf; cur != 0xFFFF; cur = definition.GetState(cur).ParentIndex)
+                    {
+                        bool seen = false;
+                        for (int k = 0; k < exitCount; k++) if (exitState[k] == cur) { seen = true; break; }
+                        if (!seen && exitCount < MaxExits)
+                        {
+                            exitState[exitCount] = cur; exitSlot[exitCount] = s; exitLeaf[exitCount] = leaf; exitCount++;
+                        }
+                        if (cur == anchor) break;
+                    }
+                }
+            }
+
+            // The source→LCA path itself, in case its source is on no active chain (it always is today; kept so nothing the old
+            // path exited can be skipped).
+            for (int i = 0; i < path.ExitCount; i++)
+            {
+                ushort cur = path.ExitPath[i];
+                bool seen = false;
+                for (int k = 0; k < exitCount; k++) if (exitState[k] == cur) { seen = true; break; }
+                if (!seen && exitCount < MaxExits)
+                {
+                    exitState[exitCount] = cur; exitSlot[exitCount] = regionIndex; exitLeaf[exitCount] = activeLeafIds[regionIndex]; exitCount++;
+                }
+            }
+
+            // Deepest first; ties keep discovery order (insertion sort — a handful of entries).
+            for (int i = 1; i < exitCount; i++)
+            {
+                ushort st = exitState[i]; int sl = exitSlot[i]; ushort lf = exitLeaf[i];
+                byte depth = definition.GetState(st).Depth;
+                int j = i - 1;
+                while (j >= 0 && definition.GetState(exitState[j]).Depth < depth)
+                {
+                    exitState[j + 1] = exitState[j]; exitSlot[j + 1] = exitSlot[j]; exitLeaf[j + 1] = exitLeaf[j];
+                    j--;
+                }
+                exitState[j + 1] = st; exitSlot[j + 1] = sl; exitLeaf[j + 1] = lf;
+            }
+
+            InstanceHeader* header = (InstanceHeader*)instancePtr;
+            for (int i = 0; i < exitCount; i++)
+            {
+                ushort stateId = exitState[i];
+
+                if (traceCtx != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
+                {
+                    traceCtx->WriteStateChange(header->MachineId, stateId, false);
+                }
+
+                ref readonly var state = ref definition.GetState(stateId);
+
+                // Cancel timers owned by this state (clears all for now)
+                CancelTimers(instancePtr, instanceSize);
+
+                if (state.OnExitActionId != 0 && state.OnExitActionId != 0xFFFF)
+                {
+                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, exitSlot[i], stateId);
+                }
+
+                // Save history: the leaf of the slot this state was exited from.
+                if ((state.Flags & StateFlags.IsHistory) != 0 || state.HistorySlotIndex != 0xFFFF)
+                {
+                    SaveHistory(definition, instancePtr, instanceSize, stateId, exitLeaf[i]);
+                }
+            }
+
+            for (int s = 0; s < regionCount && s < 64; s++)
+                if ((clearedSlots & (1UL << s)) != 0) activeLeafIds[s] = 0xFFFF;
         }
 
         private static TransitionPath ComputeLCA(
@@ -947,7 +1266,8 @@ namespace Fhsm.Kernel
             HsmDefinitionBlob definition,
             byte* instancePtr,
             int instanceSize,
-            ushort stateIndex)
+            ushort stateIndex,
+            int regionIndex)
         {
             ref readonly var state = ref definition.GetState(stateIndex);
             
@@ -958,7 +1278,7 @@ namespace Fhsm.Kernel
                 {
                     if (child.HistorySlotIndex != 0xFFFF)
                     {
-                        RestoreHistory(definition, instancePtr, instanceSize, i, true);
+                        RestoreHistory(definition, instancePtr, instanceSize, i, true, regionIndex);
                     }
                 }
             }
@@ -969,7 +1289,8 @@ namespace Fhsm.Kernel
             byte* instancePtr,
             int instanceSize,
             ushort stateIndex,
-            bool isDeep)
+            bool isDeep,
+            int regionIndex)
         {
             ref readonly var state = ref definition.GetState(stateIndex);
             if (state.HistorySlotIndex == 0xFFFF) return false;
@@ -987,8 +1308,8 @@ namespace Fhsm.Kernel
             // Restore
             if (isDeep)
             {
-                SetActiveLeafId(instancePtr, instanceSize, 0, savedStateId);
-                RestoreDeepHistory(definition, instancePtr, instanceSize, savedStateId);
+                SetActiveLeafId(instancePtr, instanceSize, regionIndex, savedStateId);
+                RestoreDeepHistory(definition, instancePtr, instanceSize, savedStateId, regionIndex);
             }
             else
             {
@@ -1011,12 +1332,12 @@ namespace Fhsm.Kernel
                 if (target != 0xFFFF)
                 {
                     ushort leaf = DrillDownToInitial(definition, target);
-                    SetActiveLeafId(instancePtr, instanceSize, 0, leaf);
+                    SetActiveLeafId(instancePtr, instanceSize, regionIndex, leaf);
                 }
                 else
                 {
                     // Fallback (shouldn't happen if IsAncestor check passed)
-                    SetActiveLeafId(instancePtr, instanceSize, 0, savedStateId);
+                    SetActiveLeafId(instancePtr, instanceSize, regionIndex, savedStateId);
                 }
             }
             
@@ -1069,7 +1390,9 @@ namespace Fhsm.Kernel
             }
         }
 
-        private static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
+        // ⭐ O7c-④ (2026-09-23): internal rather than private so HsmKernel can expose the ONE public
+        //   facade over it. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.16.1. The body is unchanged.
+        internal static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
         {
             switch (instanceSize)
             {

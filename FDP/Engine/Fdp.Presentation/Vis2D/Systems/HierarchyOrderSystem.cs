@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Vis2D.Systems;
 /// INCLUDES CYCLE DETECTION to prevent infinite loops.
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
+[TickMode(TickPolicy.EveryFrame)]
 public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
 {
     /// <summary>
@@ -23,12 +24,17 @@ public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
         public uint TopologyVersion; // Dirty flag
     }
 
+    [Fdp.Core.WorldDerived("sort-dirty flag; starts true, recompute from VisHierarchyNode")]
     private bool _isDirty = true;
+    [Fdp.Core.WorldDerived("topological-sort output buffer rebuilt from VisHierarchyNode")]
     private NativeArray<Entity> _buffer;
+    [Fdp.Core.WorldDerived("count of sorted buffer; reset and refilled on each sort")]
     private int _bufferCount;
     
     // Cycle detection
+    [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
     private readonly HashSet<Entity> _visited = new();
+    private int _epoch;   // ⭐ CE-3294 — the world the sorted buffer describes
 
     public HierarchyOrderSystem()
     {
@@ -41,6 +47,7 @@ public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
     public void Execute(ISimulationView view, float deltaTime)
     {
         var repo = (EntityRepository)view;
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) _isDirty = true;   // ⭐ CE-3294 — a new world re-sorts
         if (!_isDirty) return; // OPTIMIZATION: Skip when nothing changed
 
         // 1. Perform Topological Sort (Bottom-Up)

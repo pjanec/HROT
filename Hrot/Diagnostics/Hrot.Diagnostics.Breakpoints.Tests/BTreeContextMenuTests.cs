@@ -74,6 +74,14 @@ public sealed class BTreeContextMenuTests
             DisplayLabel   = "TestAction",
         };
 
+    /// <summary>⭐ CE-1324 — the document the node lives in (the step names its behaviour).</summary>
+    private static BehaviorTreeAsset MakeAsset(BTreeEditorNode node)
+    {
+        var asset = new BehaviorTreeAsset(Guid.NewGuid(), "TestTree", "", false, "", "", new BehaviorTreeBlob());
+        asset.ReplaceAll(new List<BTreeEditorNode> { node }, new List<BTreeEditorPill>(), new BehaviorTreeBlob());
+        return asset;
+    }
+
     // -------------------------------------------------------------------------
     // 1. "Break on Activation (Enter)" callback registers the correct predicate
     // -------------------------------------------------------------------------
@@ -84,21 +92,25 @@ public sealed class BTreeContextMenuTests
         var node    = MakeNode();
         var builder = new RecordingContextMenuBuilder();
 
-        BTreeBreakpointMenuPopulator.PopulateMenu(node, builder, _manager);
+        BTreeBreakpointMenuPopulator.PopulateMenu(MakeAsset(node), node, builder, _manager);
         builder.GetCallback("Break on Activation (Enter)");
+        builder.GetCallback("Break on Completion (Exit)");
+        builder.GetCallback("Break on Interruption (Abort)");
 
-        Assert.Equal(1, _manager.AllBreakpoints.Count);
-
-        var bp = _manager.AllBreakpoints[0];
-        Assert.IsType<TraceBufferScanPredicateDto>(bp.Condition);
-        var scan = (TraceBufferScanPredicateDto)bp.Condition!;
-        Assert.Equal(typeof(BTreeTraceWorkingMemory1024), scan.ComponentType);
-        Assert.Equal((byte)BTreeTraceOpCode.NodeEvaluated, scan.OpCode);
-        Assert.Equal((ushort)node.KernelBlobIndex, scan.IndexField);
-        Assert.True(scan.MatchIndexField);
-        Assert.Equal((byte)NodeStatus.Running, scan.StatusField);
-        Assert.True(scan.MatchStatusField);
-        Assert.Equal(node.VisualId, bp.SourceElementId);
+        // ⭐ CE-1324 — each item is the BEHAVIOUR STEP (not the whole-ring scan): the real node, the behaviour's name, the outcome
+        Assert.Equal(3, _manager.AllBreakpoints.Count);
+        void Check(int at, BehaviourNodeOutcome outcome)
+        {
+            var step = Assert.IsType<BehaviourStepPredicateDto>(_manager.AllBreakpoints[at].Condition);
+            Assert.Equal(BehaviourStepKind.NodeRuns, step.Kind);
+            Assert.Equal("TestTree", step.Behaviour);
+            Assert.Equal(node.VisualId, step.Node);
+            Assert.Equal(outcome, step.Outcome);
+            Assert.Equal(node.VisualId, _manager.AllBreakpoints[at].SourceElementId);
+        }
+        Check(0, BehaviourNodeOutcome.Running);      // activation
+        Check(1, BehaviourNodeOutcome.Completes);    // completion: Success or Failure
+        Check(2, BehaviourNodeOutcome.Aborted);      // abort: a scope popped
     }
 
     // -------------------------------------------------------------------------
@@ -119,14 +131,14 @@ public sealed class BTreeContextMenuTests
             inspectorDto = dto;
         };
 
-        BTreeBreakpointMenuPopulator.PopulateMenu(node, builder, _manager, onOpen);
+        BTreeBreakpointMenuPopulator.PopulateMenu(MakeAsset(node), node, builder, _manager, onOpen);
         builder.GetCallback("Add Conditional Data Breakpoint...");
 
         Assert.NotNull(inspectorId);
         var compound = Assert.IsType<CompoundPredicateDto>(inspectorDto);
         Assert.Equal(LogicalOperator.And, compound.Operator);
         Assert.Equal(2, compound.Conditions.Count);
-        Assert.IsType<TraceBufferScanPredicateDto>(compound.Conditions[0]);
+        Assert.Equal(BehaviourNodeOutcome.Running, Assert.IsType<BehaviourStepPredicateDto>(compound.Conditions[0]).Outcome);   // ⭐ CE-1324 — the step, not the ring scan
         Assert.IsType<BehaviorParamPredicateDto>(compound.Conditions[1]);
         Assert.Single(compound.ReadOnlyChildIndices);
         Assert.Equal(0, compound.ReadOnlyChildIndices[0]);
@@ -154,7 +166,7 @@ public sealed class BTreeContextMenuTests
         renderer.SetManager(_manager);
 
         var builder = new RecordingContextMenuBuilder();
-        BTreeBreakpointMenuPopulator.PopulateMenu(node, builder, _manager);
+        BTreeBreakpointMenuPopulator.PopulateMenu(asset, node, builder, _manager);
         builder.GetCallback("Break on Activation (Enter)");
 
         Assert.Equal(1, renderer.CountManagerBreakpoints());

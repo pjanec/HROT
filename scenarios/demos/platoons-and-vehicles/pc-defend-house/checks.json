@@ -1,0 +1,55 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a75 \u2014 a DEMO (two platoons, 40 men): conditions only, no golden. The chain it must show, from its header's Judge (1)-(3); (4) the assault comes ~290 s in and is left to the long run \u2b50 D-11 B (2026-11-19): the bound's window 60 \u2192 90 s \u2014 the base of fire now takes covered posts from the squad's own plan before it fires, so its Set (which opens the bound) comes ~12 s later (measured 56.5 \u2192 69 s).",
+  "runFor": 180,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Red defends (PlatoonDefend)",
+      "on": "task",
+      "who": "Red Platoon",
+      "is": "PlatoonDefend",
+      "before": 5
+    },
+    {
+      "name": "Blue attacks (PlatoonAttack)",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonAttack",
+      "before": 5
+    },
+    {
+      "name": "Red's line, holding fire first, opens fire",
+      "on": "shot",
+      "by": "*Red"
+    },
+    {
+      "name": "Blue sets a base of fire and bounds (BoundingOverwatch)",
+      "on": "task",
+      "who": "*Blue Squad",
+      "is": "BoundingOverwatch",
+      "before": 90
+    },
+    {
+      "name": "Blue fires back",
+      "on": "shot",
+      "by": "*Blue",
+      "before": 60
+    },
+    {
+      "name": "no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue",
+        "hit": "*Blue"
+      }
+    },
+    {
+      "name": "no Red round hits a Red man",
+      "never": {
+        "on": "shot",
+        "by": "*Red",
+        "hit": "*Red"
+      }
+    }
+  ]
+}

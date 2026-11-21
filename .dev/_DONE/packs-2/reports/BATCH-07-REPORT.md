@@ -19,7 +19,7 @@
 | A.6 | Create `Hrot.Editor.Tests/Hrot.Editor.Tests.csproj` | ✅ Done |
 | A.7 | Create panel tests (ScenarioBrowserPanelTests, EditorToolbarPanelTests, EntityPropertyInspectorTests) | ✅ Done |
 | A.8 | Create `EditorDependencyTests.cs` (no-NED compile-time check) | ✅ Done |
-| A.9 | Add both projects to `IOS-IG-SimHost.sln` | ✅ Done |
+| A.9 | Add both projects to `HROT.sln` | ✅ Done |
 | B.1 | Create `Hrot.Editor/EditorBootstrap.cs` | ✅ Done |
 | B.2 | Create `Hrot.Editor.Tests/EditorBootstrapTests.cs` | ✅ Done |
 
@@ -108,7 +108,7 @@ Located at `FDP/Toolkits/FDP.Toolkit.DER/IDerEntity.cs`. Accessible properties a
 ## Build Result
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -v quiet
+dotnet build HROT.sln --no-incremental -v quiet
   0 Error(s)
   336 Warning(s)  (pre-existing xUnit1030 warnings in TimeControlIntegrationTests)
 Time Elapsed: 00:00:28
@@ -150,4 +150,4 @@ Time Elapsed: 00:00:28
 | `Hrot.Editor.Tests/EditorDependencyTests.cs` | Constraint test |
 | `Hrot.Editor.Tests/EditorBootstrapTests.cs` | Tests |
 
-**Modified:** `IOS-IG-SimHost.sln` (added Hrot.Editor and Hrot.Editor.Tests)
+**Modified:** `HROT.sln` (added Hrot.Editor and Hrot.Editor.Tests)

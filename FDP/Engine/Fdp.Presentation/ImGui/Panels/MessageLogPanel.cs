@@ -4,11 +4,56 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Text.Json.Nodes;
 using Fdp.Core.Logging;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Panels
 {
+    /// <summary>⭐ One log row, projected for the dump. ⚠ <see cref="Timestamp"/> is round-trip ISO 8601,
+    /// not the render's <c>HH:mm:ss.fff</c> — the dump needs the full instant, the UI only the clock
+    /// time.</summary>
+    public sealed record MessageLogRowViewModel(string Timestamp, string LoggerName, string Severity, string Message);
+
+    /// <summary>⭐ One tab's state and (capped) filtered content. 📌 <see cref="FilteredMessages"/> is
+    /// capped at <see cref="MessageLogPanelViewModel.MaxRowsPerTab"/> — the raw sources can hold
+    /// thousands of entries and the dump is for assertions/conformance, not a full log export.</summary>
+    public sealed record MessageLogTabViewModel(
+        string SourceId,
+        string DisplayName,
+        int TotalCount,
+        int FilteredCount,
+        bool HasUnobservedAttention,
+        bool NotificationsEnabled,
+        string FilterText,
+        IReadOnlyList<string> HiddenSeverities,
+        IReadOnlyList<MessageLogRowViewModel> FilteredMessages);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="MessageLogWindow"/> shows, this frame.</b>
+    /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    ///
+    /// <para>⚠⚠ <b>Dumps EVERY tab, not only the ImGui-active one.</b> ⛔ Which tab is "active" is owned
+    /// by ImGui's own tab-bar state, not by <see cref="MessageLogPanel"/> — there is no headless notion
+    /// of "the selected tab" to key a single-tab dump off. ⭐ Since each tab's filter state is independent
+    /// and already tracked outside ImGui (<c>TabState</c>), dumping all of them is a superset of what a
+    /// single frame paints, never a mismatch with it — 📌 the rendering itself is UNCHANGED by this.</para>
+    /// </summary>
+    public sealed record MessageLogPanelViewModel(
+        string PanelId,
+        string PanelKind,
+        bool ShowTimestamp,
+        bool ShowLogger,
+        IReadOnlyList<MessageLogTabViewModel> Tabs) : IPanelViewModel
+    {
+        /// <summary>⭐ Cap applied per tab when building <see cref="MessageLogTabViewModel.FilteredMessages"/>.</summary>
+        public const int MaxRowsPerTab = 500;
+
+        /// <inheritdoc/>
+        public JsonNode Dump() => PanelDump.Of(this);
+    }
+
     /// <summary>
     /// Embeddable ImGui panel that displays a tabbed message log.
     ///
@@ -70,9 +115,8 @@ namespace Fdp.Presentation.Panels
             public readonly HashSet<string> HiddenLoggers = new();
             public string LoggerSearchText = string.Empty;
 
-            // Original-list indices of selected messages (unsorted during editing)
-            public readonly List<int> SelectedIndices = new();
-            public int LastClickedFilteredIndex = -1;
+            // ⭐ W-H3 — the selection is keyed by the MESSAGE, not its index (a trim or a filter change shifts indices)
+            public readonly MessageSelection Selection = new();
 
             // One-shot flag: set by the "scroll to bottom" button to force a
             // single jump even when the user has scrolled up.
@@ -129,6 +173,68 @@ namespace Fdp.Presentation.Panels
         public void SelectTab(string sourceId)
         {
             _forceSelectTabId = sourceId;
+        }
+
+        // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+        /// <summary>
+        /// ⭐⭐⭐ <b>BUILD — a pure projection of every tab's filtered content. No ImGui.</b>
+        /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ Mirrors the same filter logic
+        /// <see cref="DrawMessageList"/> applies per row — kept in sync by hand since <c>TabState</c> is
+        /// private to this class and the two must agree on what "filtered" means.
+        /// </summary>
+        public MessageLogPanelViewModel BuildViewModel(string panelId, string panelKind)
+        {
+            // Lazily subscribe to sources that were registered after construction — mirrors DrawContent
+            // so a headless caller sees every registered source even before a frame has ever drawn.
+            foreach (var source in _registry.Sources)
+                EnsureTabState(source);
+
+            var tabs = new List<MessageLogTabViewModel>(_registry.Sources.Count);
+            foreach (var source in _registry.Sources)
+            {
+                if (!_tabStates.TryGetValue(source.SourceId, out var state))
+                    continue;
+
+                var messages = source.GetMessages();
+                var rows = new List<MessageLogRowViewModel>();
+                foreach (var msg in messages)
+                {
+                    if (state.HiddenSeverities.Contains(msg.Severity))
+                        continue;
+                    if (!string.IsNullOrEmpty(state.FilterText) &&
+                        !msg.Message.Contains(state.FilterText, StringComparison.OrdinalIgnoreCase) &&
+                        !msg.LoggerName.Contains(state.FilterText, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    bool loggerHidden;
+                    lock (state.HiddenLoggers)
+                        loggerHidden = state.HiddenLoggers.Contains(msg.LoggerName);
+                    if (loggerHidden) continue;
+
+                    if (rows.Count < MessageLogPanelViewModel.MaxRowsPerTab)
+                        rows.Add(new MessageLogRowViewModel(
+                            msg.Timestamp.ToString("O"), msg.LoggerName, msg.Severity.ToString(), msg.Message));
+                }
+
+                // ⚠ HiddenSeverities is read unlocked here, exactly as DrawMessageList already does —
+                //   it is only ever mutated from the UI thread (the severity-filter popup).
+                var hiddenSeverities = state.HiddenSeverities
+                    .Select(s => s.ToString())
+                    .OrderBy(s => s, StringComparer.Ordinal)
+                    .ToList();
+
+                tabs.Add(new MessageLogTabViewModel(
+                    SourceId:               source.SourceId,
+                    DisplayName:            source.DisplayName,
+                    TotalCount:             messages.Count,
+                    FilteredCount:          rows.Count,
+                    HasUnobservedAttention: state.HasUnobservedAttention,
+                    NotificationsEnabled:   state.NotificationsEnabled,
+                    FilterText:             state.FilterText,
+                    HiddenSeverities:       hiddenSeverities,
+                    FilteredMessages:       rows));
+            }
+
+            return new MessageLogPanelViewModel(panelId, panelKind, _showTimestamp, _showLogger, tabs);
         }
 
         // ── Public draw entry point ──────────────────────────────────────────
@@ -256,7 +362,7 @@ namespace Fdp.Presentation.Panels
                 if (Gui.MenuItem("Clear"))
                 {
                     source.Clear();
-                    state.SelectedIndices.Clear();
+                    state.Selection.Clear();
                     state.HasUnobservedAttention = false;
                 }
                 Gui.EndPopup();
@@ -319,7 +425,7 @@ namespace Fdp.Presentation.Panels
             if (Gui.SmallButton($"Clear##{source.SourceId}"))
             {
                 source.Clear();
-                state.SelectedIndices.Clear();
+                state.Selection.Clear();
                 state.HasUnobservedAttention = false;
             }
             Gui.SameLine();
@@ -467,13 +573,22 @@ namespace Fdp.Presentation.Panels
 
         // ── Private: message list ────────────────────────────────────────────
 
+        private readonly List<MessageLogEntry> _messages = new();
+        private readonly List<int> _filtered = new();
+
         private void DrawMessageList(IMessageLogSource source, TabState state)
         {
-            var messages = source.GetMessages();
+            // ⭐ CE-2403 (R-2084) — the messages and the filtered indices go into lists this panel reuses: a snapshot array of up to
+            //   10 000 entries plus a fresh index list every frame were ≈ 120 KB of garbage per frame on Crossfire.
+            var messages = _messages;
+            source.CopyMessagesTo(messages);
 
-            // Build filtered index list for this frame
-            var filtered = new List<int>(messages.Count);
-            for (int i = 0; i < messages.Count; i++)
+            // Build filtered index list for this frame — ⭐ CE-4561 (render-perf G-7): only when the messages or the filter changed (the same entries, the same
+            //   filter ⇒ the same rows; their heights' running total is kept with them, so the visible band is found by a binary search, not a sum of every row)
+            var filtered = _filtered;
+            bool unchanged = SameAsLastFrame(source, messages, state);
+            if (!unchanged) filtered.Clear();
+            for (int i = 0; !unchanged && i < messages.Count; i++)
             {
                 var msg = messages[i];
                 if (state.HiddenSeverities.Contains(msg.Severity))
@@ -525,11 +640,39 @@ namespace Fdp.Presentation.Panels
                 bool ctrl  = Gui.GetIO().KeyCtrl;
                 bool shift = Gui.GetIO().KeyShift;
 
-                for (int fi = 0; fi < filtered.Count; fi++)
+                // ⭐ W-P1 — VIRTUALISED: only the rows in (or one viewport from) the visible band are built. Every row used to be (a Selectable, a popup, 3+ coloured texts and
+                //   three string allocations each, for ALL messages, every frame) — the cost the editor slowed to ~1 s per frame on. A row is `lines × text height + item spacing`
+                //   tall (a multi-line message is several lines); the rows outside the band are two Dummy items of their summed height, so the scroll bar, the sticky-bottom
+                //   snap and the selection indices are unchanged.
+                float lineH = Gui.GetTextLineHeight(), spacing = Gui.GetStyle().ItemSpacing.Y;
+                float scrollY = Gui.GetScrollY(), viewH = Gui.GetWindowHeight();
+                float from = scrollY - viewH, to = scrollY + 2f * viewH;   // a viewport of margin each side: a frame's lag in the scroll never shows a gap
+                // ⭐ CE-4561 — the rows' tops as a running total (_rowTop[fi] = the summed heights before row fi), rebuilt only with the rows or the font
+                if (!unchanged || lineH != _rowLineH || spacing != _rowSpacing || _rowTop.Count != filtered.Count + 1)
+                {
+                    _rowLineH = lineH; _rowSpacing = spacing;
+                    _rowTop.Clear();
+                    float acc = 0f;
+                    _rowTop.Add(0f);
+                    for (int fi = 0; fi < filtered.Count; fi++) { acc += LinesOf(messages[filtered[fi]]) * lineH + spacing; _rowTop.Add(acc); }
+                }
+                // the first row whose bottom reaches `from`, the last whose top is at or before `to` — the same band the sum found, by binary search
+                int first = UpperBound(_rowTop, from) - 1, last = UpperBound(_rowTop, to) - 1;
+                first = Math.Clamp(first, 0, filtered.Count);
+                last = Math.Min(last, filtered.Count - 1);
+                if (first < filtered.Count && _rowTop[first + 1] < from) first++;
+                float topH = first < filtered.Count ? _rowTop[first] : _rowTop[filtered.Count];
+                float bottomH = last >= first ? _rowTop[filtered.Count] - _rowTop[last + 1] : 0f;
+                if (last < first) { topH = _rowTop[Math.Min(first, filtered.Count)]; bottomH = _rowTop[filtered.Count] - topH; first = 0; last = -1; }   // none in the band: the scroll height kept
+                if (topH > 0f) Gui.Dummy(new Vector2(1f, Math.Max(0f, topH - spacing)));
+                RowsDrawn = 0;
+                for (int fi = first; fi <= last; fi++)
                 {
                     int msgIdx = filtered[fi];
                     DrawMessageRow(fi, msgIdx, messages[msgIdx], messages, filtered, state, ctrl, shift);
+                    RowsDrawn++;
                 }
+                if (bottomH > 0f) Gui.Dummy(new Vector2(1f, Math.Max(0f, bottomH - spacing)));
             }
 
             // Sticky bottom: snap to tail when the view was already at the bottom
@@ -544,6 +687,52 @@ namespace Fdp.Presentation.Panels
             Gui.EndChild();
         }
 
+        /// <summary>⭐ W-P1 — the rows built in the last frame (the rail that bounds the draw cost as the log grows reads it).</summary>
+        public int RowsDrawn { get; private set; }
+
+        /// <summary>⭐ CE-4561 — how many times the filtered rows were rebuilt (a rail: a log that does not change rebuilds nothing).</summary>
+        public int RowBuilds { get; private set; }
+
+        // ⭐ CE-4561 (render-perf G-7) — what the rows were built from last frame
+        private readonly List<float> _rowTop = new();
+        private float _rowLineH = float.NaN, _rowSpacing = float.NaN;
+        private string? _rowSource, _rowFilter;
+        private int _rowCount = -1, _rowSeverities, _rowLoggers;
+        private MessageLogEntry? _rowFirst, _rowLast;
+
+        /// <summary>⭐ CE-4561 — the same messages (count, first and last entry — a log only appends and trims) and the same filter as last frame.</summary>
+        private bool SameAsLastFrame(IMessageLogSource source, List<MessageLogEntry> messages, TabState state)
+        {
+            int severities = 0;
+            foreach (var sev in state.HiddenSeverities) severities |= 1 << (int)sev;
+            int loggers = 0;
+            lock (state.HiddenLoggers) { foreach (var l in state.HiddenLoggers) loggers ^= l.GetHashCode(); loggers ^= state.HiddenLoggers.Count * 397; }
+            var firstMsg = messages.Count > 0 ? messages[0] : null;
+            var lastMsg = messages.Count > 0 ? messages[^1] : null;
+            bool same = ReferenceEquals(source.SourceId, _rowSource) && messages.Count == _rowCount && ReferenceEquals(firstMsg, _rowFirst)
+                        && ReferenceEquals(lastMsg, _rowLast) && string.Equals(state.FilterText, _rowFilter, StringComparison.Ordinal)
+                        && severities == _rowSeverities && loggers == _rowLoggers;
+            if (same) return true;
+            _rowSource = source.SourceId; _rowCount = messages.Count; _rowFirst = firstMsg; _rowLast = lastMsg; _rowFilter = state.FilterText;
+            _rowSeverities = severities; _rowLoggers = loggers;
+            RowBuilds++;
+            return false;
+        }
+
+        /// <summary>The index of the first element of the ascending <paramref name="tops"/> greater than <paramref name="y"/> (its count when none is).</summary>
+        private static int UpperBound(List<float> tops, float y)
+        {
+            int lo = 0, hi = tops.Count;
+            while (lo < hi) { int mid = (lo + hi) >> 1; if (tops[mid] <= y) lo = mid + 1; else hi = mid; }
+            return lo;
+        }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MessageLogEntry, object> s_lines = new();
+
+        /// <summary>The text lines a message occupies (1 + its newlines), cached per entry — a message is immutable.</summary>
+        private static int LinesOf(MessageLogEntry e)
+            => (int)s_lines.GetValue(e, m => { int n = 1; foreach (char c in ((MessageLogEntry)m).Message) if (c == '\n') n++; return n; });
+
         // ── Private: individual row ──────────────────────────────────────────
 
         private void DrawMessageRow(
@@ -556,7 +745,7 @@ namespace Fdp.Presentation.Panels
             bool ctrl,
             bool shift)
         {
-            bool isSelected = state.SelectedIndices.Contains(msgIdx);
+            bool isSelected = state.Selection.Contains(msg);
 
             // 1. Save cursor so we can overlay colored text after the selectable.
             var startPos = Gui.GetCursorPos();
@@ -569,7 +758,7 @@ namespace Fdp.Presentation.Panels
                     isSelected,
                     ImGuiSelectableFlags.AllowOverlap))
             {
-                HandleRowClick(filteredList, filteredIdx, ctrl, shift, state);
+                state.Selection.Click(allMessages, filteredList, filteredIdx, ctrl, shift);
             }
 
             // Right-click context menu on the row
@@ -577,7 +766,7 @@ namespace Fdp.Presentation.Panels
             {
                 if (Gui.MenuItem("Copy"))
                 {
-                    if (state.SelectedIndices.Contains(msgIdx) && state.SelectedIndices.Count > 1)
+                    if (state.Selection.Contains(msg) && state.Selection.Count > 1)
                         CopySelectedToClipboard(allMessages, state);
                     else
                         Gui.SetClipboardText(msg.Message);
@@ -645,46 +834,12 @@ namespace Fdp.Presentation.Panels
         private static void CopySelectedToClipboard(
             IReadOnlyList<MessageLogEntry> messages, TabState state)
         {
-            if (state.SelectedIndices.Count == 0) return;
+            if (state.Selection.Count == 0) return;
 
-            var sorted = state.SelectedIndices.OrderBy(i => i).ToList();
             var sb = new StringBuilder();
-            foreach (int idx in sorted)
-            {
-                if (idx < messages.Count)
-                    sb.AppendLine(messages[idx].Message);
-            }
+            foreach (var m in state.Selection.InOrder(messages))
+                sb.AppendLine(m.Message);
             Gui.SetClipboardText(sb.ToString().TrimEnd('\r', '\n'));
-        }
-
-        private static void HandleRowClick(List<int> viewList, int clickedFilteredIndex, bool ctrl, bool shift, TabState state)
-        {
-            if (clickedFilteredIndex < 0 || clickedFilteredIndex >= viewList.Count) return;
-
-            if (shift && state.LastClickedFilteredIndex >= 0 && state.LastClickedFilteredIndex < viewList.Count)
-            {
-                int lo = Math.Min(state.LastClickedFilteredIndex, clickedFilteredIndex);
-                int hi = Math.Max(state.LastClickedFilteredIndex, clickedFilteredIndex);
-                for (int i = lo; i <= hi; i++)
-                {
-                    int msgIdx = viewList[i];
-                    if (!state.SelectedIndices.Contains(msgIdx))
-                        state.SelectedIndices.Add(msgIdx);
-                }
-            }
-            else if (ctrl)
-            {
-                int msgIdx = viewList[clickedFilteredIndex];
-                if (!state.SelectedIndices.Remove(msgIdx))
-                    state.SelectedIndices.Add(msgIdx);
-                state.LastClickedFilteredIndex = clickedFilteredIndex;
-            }
-            else
-            {
-                state.SelectedIndices.Clear();
-                state.SelectedIndices.Add(viewList[clickedFilteredIndex]);
-                state.LastClickedFilteredIndex = clickedFilteredIndex;
-            }
         }
 
         private static void TryOpenInEditor(string filePath)

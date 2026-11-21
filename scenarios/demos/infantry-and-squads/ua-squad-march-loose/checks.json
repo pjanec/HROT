@@ -1,0 +1,108 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S11 (CE-2159 §6.1a): followers close up on the lead's trail. Judge (1) the lead reaches (175,60) within 6 m inside 200 s, (2) march pace >= 0.9 m/s (the front man starts at x 84 => 91 m in <= 101 s), (3) every man within 35 m of the goal (checked per man, within 60 s of the lead's arrival as the old live check waited). '*e' = any of Leader/Rifleman 1-6 (the Squad entity has no 'e'), standing in for 'the lead' = whoever is in front.",
+  "runFor": 165,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the lead reaches the objective",
+      "on": "near",
+      "who": "*e",
+      "point": [
+        175,
+        60
+      ],
+      "within": 6,
+      "before": 200
+    },
+    {
+      "name": "the lead keeps a march pace (91 m inside 101 s = 0.9 m/s)",
+      "on": "near",
+      "who": "*e",
+      "point": [
+        175,
+        60
+      ],
+      "within": 6,
+      "before": 101
+    },
+    {
+      "name": "Leader is within 35 m of the objective",
+      "on": "near",
+      "who": "Leader",
+      "point": [
+        175,
+        60
+      ],
+      "within": 35,
+      "before": "the lead reaches the objective+60"
+    },
+    {
+      "name": "Rifleman 1 is within 35 m of the objective",
+      "on": "near",
+      "who": "Rifleman 1",
+      "point": [
+        175,
+        60
+      ],
+      "within": 35,
+      "before": "the lead reaches the objective+60"
+    },
+    {
+      "name": "Rifleman 2 is within 35 m of the objective",
+      "on": "near",
+      "who": "Rifleman 2",
+      "point": [
+        175,
+        60
+      ],
+      "within": 35,
+      "before": "the lead reaches the objective+60"
+    },
+    {
+      "name": "Rifleman 3 is within 35 m of the objective",
+      "on": "near",
+      "who": "Rifleman 3",
+      "point": [
+        175,
+        60
+      ],
+      "within": 35,
+      "before": "the lead reaches the objective+60"
+    },
+    {
+      "name": "Rifleman 4 is within 35 m of the objective",
+      "on": "near",
+      "who": "Rifleman 4",
+      "point": [
+        175,
+        60
+      ],
+      "within": 35,
+      "before": "the lead reaches the objective+60"
+    },
+    {
+      "name": "Rifleman 5 is within 35 m of the objective",
+      "on": "near",
+      "who": "Rifleman 5",
+      "point": [
+        175,
+        60
+      ],
+      "within": 35,
+      "before": "the lead reaches the objective+60"
+    },
+    {
+      "name": "Rifleman 6 is within 35 m of the objective",
+      "on": "near",
+      "who": "Rifleman 6",
+      "point": [
+        175,
+        60
+      ],
+      "within": 35,
+      "before": "the lead reaches the objective+60"
+    }
+  ]
+}

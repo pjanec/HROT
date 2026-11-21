@@ -1,0 +1,18 @@
+{
+  "$comment": "UI-9 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters, offered) — a MARKET HALL: 24 x 16 m, an OPEN ground floor under a 5 m flat roof carried on 0.4 m concrete pillars every 6 m round the edge and two inside. No walls, no doors. Local metres; origin = the south-west corner.",
+  "name": "market-hall",
+  "material": "concrete",
+  "footprint": [[0,0],[24,0],[24,16],[0,16]],
+  "storeys": [
+    { "height": 5.0,
+      "walls": [
+        { "from": [0.0,0.2],  "to": [0.4,0.2],  "thickness": 0.4 }, { "from": [5.8,0.2],  "to": [6.2,0.2],  "thickness": 0.4 },
+        { "from": [11.8,0.2], "to": [12.2,0.2], "thickness": 0.4 }, { "from": [17.8,0.2], "to": [18.2,0.2], "thickness": 0.4 },
+        { "from": [23.6,0.2], "to": [24.0,0.2], "thickness": 0.4 },
+        { "from": [0.0,15.8],  "to": [0.4,15.8],  "thickness": 0.4 }, { "from": [5.8,15.8],  "to": [6.2,15.8],  "thickness": 0.4 },
+        { "from": [11.8,15.8], "to": [12.2,15.8], "thickness": 0.4 }, { "from": [17.8,15.8], "to": [18.2,15.8], "thickness": 0.4 },
+        { "from": [23.6,15.8], "to": [24.0,15.8], "thickness": 0.4 },
+        { "from": [0.0,8.0],  "to": [0.4,8.0],  "thickness": 0.4 }, { "from": [23.6,8.0], "to": [24.0,8.0], "thickness": 0.4 },
+        { "from": [7.8,8.0],  "to": [8.2,8.0],  "thickness": 0.4 }, { "from": [15.8,8.0], "to": [16.2,8.0], "thickness": 0.4 } ] } ],
+  "roof": "flat"
+}

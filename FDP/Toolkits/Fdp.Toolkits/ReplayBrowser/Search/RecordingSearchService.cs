@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -45,6 +46,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             if (root is TransientEventPredicateDto eventPred)
                 return RunEventScan(fdpPath, eventPred, entityFilter, ct);
 
+            // ⭐ R-4077 extension (DESIGN_Director_Timeline_Editor.md §9c ③) — a ring's new entries, the same scanner the timeline indexes with.
+            if (root is RingEntryPredicateDto ringPred)
+                return RunRingScan(fdpPath, ringPred, entityFilter, ct);
+
             if (root is LifecyclePredicateDto lifecyclePred)
             {
                 var ranges = ExecuteLifecycleSearch(fdpPath, lifecyclePred, entityFilter, ct);
@@ -58,6 +63,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             // All other types (component, structural, spatial, compound) use the frame-step loop.
             return RunFrameStepScan(fdpPath, root, entityFilter, ct);
         }
+
+        /// <summary>Does the condition (or any part of a compound) use <see cref="SearchOperator.Changed"/>?</summary>
+        public static bool UsesChanged(SearchPredicateDto p) => p switch
+        {
+            PropertyMatchDto m => m.Operator == SearchOperator.Changed,
+            CompoundPredicateDto c => c.Conditions.Exists(UsesChanged),
+            _ => false,
+        };
 
         /// <inheritdoc/>
         public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(
@@ -104,13 +117,28 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             }
 
             // Specialized state for structural and spatial modes (allocated once before loop).
-            var structuralState = root is StructuralPredicateDto ? new HashSet<Entity>() : null;
+            // ⭐ CE-1302 — the ONE structural evaluation, shared with the timeline's Life lanes (StructuralScanner).
+            var structuralScanner = root is StructuralPredicateDto structuralPred ? new StructuralScanner(structuralPred) : null;
             var spatialState = root is SpatialBoundingPredicateDto ? new HashSet<Entity>() : null;
+            // ⭐ CE-4205: "is inside" is the one compiler's level arm (compiled after the replay's components are registered); the enter / exit edge stays here
+            var spatialLevel = root is SpatialBoundingPredicateDto { PositionComponentType: not null } sp ? _predicateCompiler.CompileLevelPredicate(sp) : null;
 
             // Build EntityQuery for component and compound modes.
             EntityQuery? deltaQuery = BuildDeltaQuery(repo, root, mandatory);
             var frameCandidates = new List<Entity>(32);
             var previousMatches = new HashSet<int>();
+
+            // ⭐ CE-1266 — "Changed" over a recording compares each frame with the ONE BEFORE: a second playback of the same file steps one
+            //   frame behind and is the baseline (the breakpoint's pre-tick copy, live). ⛔ Without it Changed matched every frame the
+            //   record was written — measured live `2026-10-23`: 8581 hits for a unit that changed its task nine times.
+            using var lag = deltaQuery != null && UsesChanged(root) ? new PlaybackController(fdpPath) : null;
+            EntityRepository? lagRepo = null;
+            if (lag != null)
+            {
+                lagRepo = new EntityRepository();
+                RegisterAllComponents(lagRepo, lag);
+                lag.EventBus = new FdpEventBus();
+            }
 
             while (playback.StepForward(repo))
             {
@@ -122,16 +150,20 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (deltaQuery != null)
                 {
                     frameCandidates.Clear();
-                    foreach (var entity in deltaQuery)
+                    using (PredicateChangeBaseline.Use(lagRepo))
                     {
-                        if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
-                        if (compiledFn(repo, entity))
+                        foreach (var entity in deltaQuery)
                         {
-                            frameCandidates.Add(entity);
-                            results.Add(new SearchResultDto(frame, ticks, entity,
-                                BuildComponentContext(root, repo, entity)));
+                            if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
+                            if (compiledFn(repo, entity))
+                            {
+                                frameCandidates.Add(entity);
+                                results.Add(new SearchResultDto(frame, ticks, entity,
+                                    BuildComponentContext(root, repo, entity)));
+                            }
                         }
                     }
+                    if (lag != null) lag.StepForward(lagRepo!);   // the baseline catches up: it now holds this frame
 
                     previousMatches.Clear();
                     for (int i = 0; i < frameCandidates.Count; i++)
@@ -139,16 +171,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 }
 
                 // ── Spatial mode ─────────────────────────────────────────────
-                if (root is SpatialBoundingPredicateDto spatial && spatialState != null)
+                if (root is SpatialBoundingPredicateDto spatial && spatialState != null && spatialLevel != null)
                 {
-                    RunSpatialFrame(repo, frame, ticks, spatial, spatialState, results, entityFilter);
+                    RunSpatialFrame(repo, frame, ticks, spatial, spatialLevel, spatialState, results, entityFilter);
                 }
 
                 // ── Structural mode ──────────────────────────────────────────
-                if (root is StructuralPredicateDto structural && structuralState != null)
-                {
-                    RunStructuralFrame(repo, frame, ticks, structural, structuralState, results, entityFilter);
-                }
+                structuralScanner?.Scan(repo, frame, ticks, results, entityFilter);
 
                 // Per-frame cleanup: remove destroyed entities from state sets.
                 var destroyed = repo.GetDestructionLog();
@@ -158,21 +187,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     {
                         Entity dead = destroyed[i];
                         spatialState?.Remove(dead);
-                        structuralState?.Remove(dead);
-                    }
-                    // Structural: also emit "Lost (Destroyed)" for entities in the set.
-                    if (root is StructuralPredicateDto strDead && structuralState != null)
-                    {
-                        for (int i = 0; i < destroyed.Count; i++)
-                        {
-                            Entity dead = destroyed[i];
-                            if (structuralState.Contains(dead))
-                            {
-                                results.Add(new SearchResultDto(frame, ticks, dead,
-                                    "Lost " + strDead.ComponentType.Name + " (Destroyed)"));
-                                structuralState.Remove(dead);
-                            }
-                        }
                     }
                 }
 
@@ -191,11 +205,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             using var playback = new PlaybackController(fdpPath);
             var repo = new EntityRepository();
-            var bus = new FdpEventBus();
 
             RegisterAllComponents(repo, playback);
-            // CRITICAL: set EventBus BEFORE the loop so ApplyFrame injects events.
-            playback.EventBus = bus;
+            // CRITICAL: set EventBus BEFORE the loop so ApplyFrame injects events. ⭐ CE-3293 S3 — the repository's own bus, so
+            //   the scanner reads them through the repository (rule 4).
+            playback.EventBus = repo.Bus;
 
             // Per DESIGN.md §6.4 strict contract: step first, then scan, no ClearCurrentBuffers.
             while (playback.StepForward(repo))
@@ -205,10 +219,28 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
                 // Step 1 already happened (StepForward injected events into bus).
                 // Step 2: scan immediately without clearing the bus.
-                scanner(bus, frame, ticks, results, repo, entityFilter);
+                scanner(repo, frame, ticks, results, entityFilter);
                 // Deliberately NO bus.ClearCurrentBuffers() here — this is the SR-T38 invariant.
             }
 
+            return results;
+        }
+
+        // ── Ring-entry scan (R-4077 extension) ───────────────────────────────
+
+        private List<SearchResultDto> RunRingScan(string fdpPath, RingEntryPredicateDto predicate, TargetEntityFilter? entityFilter, CancellationToken ct)
+        {
+            var scanner = RingEntryScanner.Compile(predicate);
+            var results = new List<SearchResultDto>(64);
+            using var playback = new PlaybackController(fdpPath);
+            var repo = new EntityRepository();
+            RegisterAllComponents(repo, playback);
+            while (playback.StepForward(repo))
+            {
+                if (ct.IsCancellationRequested) break;
+                int frame = playback.CurrentFrame;
+                scanner.Scan(repo, frame, playback.GetFrameMetadata(frame).WallClockTicks, results, entityFilter);
+            }
             return results;
         }
 
@@ -227,6 +259,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var repo = new EntityRepository();
 
             RegisterAllComponents(repo, playback);
+            var matches = _predicateCompiler.CompileLevelPredicate(criteria);   // ⭐ CE-4205: "matches the criteria" = the one compiler's level arm
 
             int eofFrame = 0;
 
@@ -245,7 +278,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
                     if (activeRanges.ContainsKey(entity)) continue;
 
-                    if (MatchesLifecycleCriteria(entity, repo, criteria))
+                    if (matches(repo, entity))
                         activeRanges[entity] = frame;
                 }
 
@@ -284,6 +317,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             int frame,
             long ticks,
             SpatialBoundingPredicateDto predicate,
+            Func<EntityRepository, Entity, bool> insideLevel,
             HashSet<Entity> insideZone,
             List<SearchResultDto> results,
             TargetEntityFilter? entityFilter)
@@ -295,7 +329,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             // Build a query for entities with the position component.
             EntityQuery posQuery = repo.Query().WithComponentId(typeId).Build();
-            BoundingBox2D bounds = predicate.Bounds;
             BoundaryEvent trigger = predicate.TriggerEvent;
 
             repo.QueryDelta(posQuery, 0, entity =>
@@ -303,11 +336,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (entityFilter != null && !entityFilter.Passes(repo, entity)) return;
                 if (!repo.HasComponentByTypeId(entity, typeId)) return;
 
-                // Read X and Y from the position component using direct reflection.
-                // (Expression-tree approach would be faster; this is acceptable for spatial mode.)
-                Vector2 pos = ReadPosition2D(repo, entity, predicate);
-
-                bool nowInside = IsInBounds(pos, bounds);
+                bool nowInside = insideLevel(repo, entity);
                 bool wasInside = insideZone.Contains(entity);
 
                 if (nowInside && !wasInside)
@@ -327,205 +356,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── Structural frame processing ──────────────────────────────────────
 
-        private static void RunStructuralFrame(
-            EntityRepository repo,
-            int frame,
-            long ticks,
-            StructuralPredicateDto predicate,
-            HashSet<Entity> hasComponent,
-            List<SearchResultDto> results,
-            TargetEntityFilter? entityFilter)
-        {
-            int typeId = ComponentTypeRegistry.GetId(predicate.ComponentType);
-            if (typeId < 0) return;
-
-            string typeName = predicate.ComponentType.Name;
-
-            int maxIdx = repo.MaxEntityIndex;
-            for (int i = 0; i <= maxIdx; i++)
-            {
-                ref var compRSS = ref repo.GetComponentMask(i);
-                ref var metaRSS = ref repo.GetMetadata(i);
-                if (!metaRSS.IsActive) continue;
-
-                // Scan all active entities: version-based filtering is unreliable during
-                // playback because RestoreChunkFromBuffer does not update chunk versions.
-                // State transitions are detected correctly by the hasComponent HashSet.
-
-                Entity entity = repo.GetEntityByIndex(i);
-                if (entity.IsNull) continue;
-                if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
-
-                bool present = ComputeEffectivePresence(ref compRSS, ref metaRSS, typeId, predicate.AuthorityRequirement);
-                bool was = hasComponent.Contains(entity);
-
-                if (present && !was)
-                {
-                    hasComponent.Add(entity);
-                    if (predicate.ModificationType == StructuralModification.Added ||
-                        predicate.ModificationType == StructuralModification.AnyChange)
-                    {
-                        results.Add(new SearchResultDto(frame, ticks, entity, "Gained " + typeName));
-                    }
-                }
-                else if (!present && was)
-                {
-                    hasComponent.Remove(entity);
-                    if (predicate.ModificationType == StructuralModification.Removed ||
-                        predicate.ModificationType == StructuralModification.AnyChange)
-                    {
-                        results.Add(new SearchResultDto(frame, ticks, entity, "Lost " + typeName));
-                    }
-                }
-            }
-        }
-
-        // ── Authority helper ─────────────────────────────────────────────────
-
-        private static bool ComputeEffectivePresence(
-            ref BitMask512 componentMask,
-            ref EntityMetadataCold meta,
-            int typeId,
-            AuthorityRequirement req)
-        {
-            return req switch
-            {
-                AuthorityRequirement.RequireAuthority =>
-                    componentMask.IsSet(typeId) && meta.AuthorityMask.IsSet(typeId),
-                AuthorityRequirement.RequireGhost =>
-                    componentMask.IsSet(typeId) && !meta.AuthorityMask.IsSet(typeId),
-                _ => componentMask.IsSet(typeId)
-            };
-        }
-
-        // ── Spatial helpers ──────────────────────────────────────────────────
-
-        private static Vector2 ReadPosition2D(
-            EntityRepository repo,
-            Entity entity,
-            SpatialBoundingPredicateDto predicate)
-        {
-            Type compType = predicate.PositionComponentType;
-            int typeId = ComponentTypeRegistry.GetId(compType);
-            if (typeId < 0) return Vector2.Zero;
-
-            object? comp = null;
-            if (compType.IsValueType)
-            {
-                // Box the unmanaged component using pointer + Marshal.
-                unsafe
-                {
-                    void* ptr = repo.GetComponentPointer(entity, typeId);
-                    if (ptr == null) return Vector2.Zero;
-                    comp = System.Runtime.InteropServices.Marshal.PtrToStructure(
-                        new IntPtr(ptr), compType);
-                }
-            }
-            else
-            {
-                comp = repo.GetManagedComponentByTypeId(entity, typeId);
-            }
-
-            if (comp == null) return Vector2.Zero;
-
-            float x = ReadFloatField(comp, predicate.PositionXPath);
-            float y = ReadFloatField(comp, predicate.PositionYPath);
-            return new Vector2(x, y);
-        }
-
-        private static float ReadFloatField(object obj, string fieldPath)
-        {
-            object? cur = obj;
-            string[] segments = fieldPath.Split('.');
-            foreach (string seg in segments)
-            {
-                if (cur == null) return 0f;
-                Type t = cur.GetType();
-                FieldInfo? fi = t.GetField(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (fi != null) { cur = fi.GetValue(cur); continue; }
-                PropertyInfo? pi = t.GetProperty(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (pi != null) { cur = pi.GetValue(cur); continue; }
-                return 0f;
-            }
-            return cur is float f ? f : (cur is double d ? (float)d : 0f);
-        }
-
-        private static bool IsInBounds(Vector2 pos, BoundingBox2D bounds)
-        {
-            return pos.X >= bounds.Min.X && pos.X <= bounds.Max.X
-                && pos.Y >= bounds.Min.Y && pos.Y <= bounds.Max.Y;
-        }
-
-        // ── Lifecycle helpers ────────────────────────────────────────────────
-
-        private static bool MatchesLifecycleCriteria(
-            Entity entity,
-            EntityRepository repo,
-            LifecyclePredicateDto criteria)
-        {
-            switch (criteria.IdentifierType)
-            {
-                case EntityIdentifierType.EcsHandle:
-                    return int.TryParse(criteria.TargetValue, out int idx) && entity.Index == idx;
-
-                case EntityIdentifierType.NetworkId:
-                    // Simplified: treat NetworkId as entity index for test compatibility.
-                    return int.TryParse(criteria.TargetValue, out int netId) && entity.Index == netId;
-
-                case EntityIdentifierType.NameSubstring:
-                {
-                    if (criteria.NameComponentType == null) return false;
-                    int typeId = ComponentTypeRegistry.GetId(criteria.NameComponentType);
-                    if (typeId < 0 || !repo.HasComponentByTypeId(entity, typeId)) return false;
-
-                    object? comp = null;
-                    if (criteria.NameComponentType.IsValueType)
-                    {
-                        unsafe
-                        {
-                            void* ptr = repo.GetComponentPointer(entity, typeId);
-                            if (ptr == null) return false;
-                            comp = System.Runtime.InteropServices.Marshal.PtrToStructure(
-                                new IntPtr(ptr), criteria.NameComponentType);
-                        }
-                    }
-                    else
-                    {
-                        comp = repo.GetManagedComponentByTypeId(entity, typeId);
-                    }
-
-                    if (comp == null) return false;
-
-                    string? name = ReadStringField(comp, criteria.NamePropertyPath);
-                    return name != null &&
-                           name.Contains(criteria.TargetValue, StringComparison.OrdinalIgnoreCase);
-                }
-
-                default:
-                    return false;
-            }
-        }
-
-        private static string? ReadStringField(object obj, string fieldPath)
-        {
-            object? cur = obj;
-            string[] segments = fieldPath.Split('.');
-            foreach (string seg in segments)
-            {
-                if (cur == null) return null;
-                Type t = cur.GetType();
-                FieldInfo? fi = t.GetField(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (fi != null) { cur = fi.GetValue(cur); continue; }
-                PropertyInfo? pi = t.GetProperty(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (pi != null) { cur = pi.GetValue(cur); continue; }
-                return null;
-            }
-            return cur?.ToString();
-        }
 
         private static string BuildLifecycleContext(Entity entity, LifecyclePredicateDto criteria)
         {

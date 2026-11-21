@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 [StructLayout(LayoutKind.Sequential, Size = 4)]
 [JsonConverter(typeof(Color32ArrayConverter))]

@@ -1,0 +1,270 @@
+{
+  "$doc": "\u00a723.6 ST-5 (\u00a723.6g). Merge (\u00a716b, D-P7, F-23): beyond band + lead + margin (400 + 200 + 200 = 800 m), quiet for 30 s, UNOBSERVED and with no man in CONTACT; then BusResolutionSwitch.Merge sums each child back (X-4) - a slot with no child is down. No resolution policy (the R-8336 workaround is gone, R-8350). The second split is the instructor's pin, a do-set of AggregateUnit.Pin = PinPhysical (SV-14). Children by NAME <platoon>/<composite slot> (F-22, R-8349), listed in `later`; the same names come back on the second split. \u26a0 Measured (\u00a723.6d): a few whole men come back slightly hurt from their time as soldiers; the rows judge the losses (3 down, never a 4th, 27 up, the 2 hurt still hurt), not exact health.",
+  "runFor": 280,
+  "golden": {
+    "every": 40
+  },
+  "do": [
+    {
+      "name": "the instructor pins it Physical",
+      "at": 250,
+      "set": {
+        "who": "Blue Stochastic Platoon",
+        "component": "AggregateUnit",
+        "patch": {
+          "Pin": "PinPhysical"
+        }
+      }
+    }
+  ],
+  "later": [
+    "Blue Stochastic Platoon/1",
+    "Blue Stochastic Platoon/2",
+    "Blue Stochastic Platoon/3",
+    "Blue Stochastic Platoon/1/1",
+    "Blue Stochastic Platoon/1/2",
+    "Blue Stochastic Platoon/1/3",
+    "Blue Stochastic Platoon/1/7",
+    "Blue Stochastic Platoon/1/8",
+    "Blue Stochastic Platoon/1/9",
+    "Blue Stochastic Platoon/1/10",
+    "Blue Stochastic Platoon/2/1",
+    "Blue Stochastic Platoon/2/2",
+    "Blue Stochastic Platoon/2/3",
+    "Blue Stochastic Platoon/2/4",
+    "Blue Stochastic Platoon/2/5",
+    "Blue Stochastic Platoon/2/6",
+    "Blue Stochastic Platoon/2/7",
+    "Blue Stochastic Platoon/2/8",
+    "Blue Stochastic Platoon/2/9",
+    "Blue Stochastic Platoon/2/10",
+    "Blue Stochastic Platoon/3/1",
+    "Blue Stochastic Platoon/3/2",
+    "Blue Stochastic Platoon/3/3",
+    "Blue Stochastic Platoon/3/4",
+    "Blue Stochastic Platoon/3/5",
+    "Blue Stochastic Platoon/3/6",
+    "Blue Stochastic Platoon/3/7",
+    "Blue Stochastic Platoon/3/8",
+    "Blue Stochastic Platoon/3/9",
+    "Blue Stochastic Platoon/3/10"
+  ],
+  "expect": [
+    {
+      "name": "contact: the platoon splits (the patrol 550 m off)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 15
+    },
+    {
+      "name": "merged back: contact ends (the patrol walks away past the merge line, 800 m, and 30 s pass unobserved), the men merge",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Stochastic",
+      "after": 20,
+      "before": 245
+    },
+    {
+      "name": "F-23: not before the patrol is past the 800 m merge line (band 400 + lead 200 + margin 200)",
+      "never": {
+        "on": "near",
+        "who": "*Red Patrol",
+        "point": [
+          300,
+          300,
+          0
+        ],
+        "within": 800
+      },
+      "after": "merged back: contact ends (the patrol walks away past the merge line, 800 m, and 30 s pass unobserved), the men merge"
+    },
+    {
+      "name": "the merge kept every loss (the table at the end is the merged one - a split never writes it): the 3 dead slots are down",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 3,
+      "atEnd": true
+    },
+    {
+      "name": "... never a 4th (no man lost or invented by the round trip)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 4
+      }
+    },
+    {
+      "name": "... and the 2 hurt men come back hurt (health 12.5 of 25)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "==",
+      "value": 12.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 2,
+      "atEnd": true
+    },
+    {
+      "name": "... and 27 men up: none lost, none invented by the round trip",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 27,
+      "atEnd": true
+    },
+    {
+      "name": "... never 28 up (a dead man is never re-created)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": ">=",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 28
+      }
+    },
+    {
+      "name": "the instructor pins it Physical (t = 250 s): it splits AGAIN at once",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "after": 250,
+      "before": 255
+    },
+    {
+      "name": "no second split before the pin: the merge lies past the split trigger (F-23)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "AggregateUnit.Splitting",
+        "op": "==",
+        "value": "Materialising"
+      },
+      "after": 30,
+      "before": 250
+    },
+    {
+      "name": "first split: the squad Blue Stochastic Platoon/1 carries the stable key uuid5(platoon, child:1)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "34c98ac7-285a-5e72-9057-2528e5cd4951",
+      "after": 0
+    },
+    {
+      "name": "first split: the squad Blue Stochastic Platoon/2 carries the stable key uuid5(platoon, child:2)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/2",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "4da4fb7c-06ce-57e0-99cd-fd97923a82ef",
+      "after": 0
+    },
+    {
+      "name": "first split: the squad Blue Stochastic Platoon/3 carries the stable key uuid5(platoon, child:3)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/3",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5d32b5b5-bb61-5deb-81fd-67b97d95225d",
+      "after": 0
+    },
+    {
+      "name": "the pin's split: the SAME key: the squad Blue Stochastic Platoon/1 carries the stable key uuid5(platoon, child:1)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "34c98ac7-285a-5e72-9057-2528e5cd4951",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: the squad Blue Stochastic Platoon/2 carries the stable key uuid5(platoon, child:2)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/2",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "4da4fb7c-06ce-57e0-99cd-fd97923a82ef",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: the squad Blue Stochastic Platoon/3 carries the stable key uuid5(platoon, child:3)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/3",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5d32b5b5-bb61-5deb-81fd-67b97d95225d",
+      "after": 250
+    },
+    {
+      "name": "CE-8307: the platoon splits ONE level - its roster is its 3 squads",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitRoster.Count",
+      "op": "==",
+      "value": 3,
+      "before": 20
+    },
+    {
+      "name": "... squad 1 carries its 3 dead",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 3,
+      "before": 20
+    }
+  ]
+}

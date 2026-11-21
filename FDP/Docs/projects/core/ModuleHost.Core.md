@@ -654,6 +654,10 @@ Frame N:
     - refCount = 0 → return snapshot to pool
 ```
 
+> ⚠ **As built, only `FrameSynced` modules convoy; `Asynchronous` ones (`SlowBackground`) each keep an `OnDemandProvider`** —
+> an early finisher would re-acquire the snapshot a slower member still holds (stale, its events read twice). The example
+> below pairing two `SlowBackground` modules is SUPERSEDED. See `docs/projects/FDP/Core/Fdp.ModuleHost.md` (`TM-023`).
+
 **Use Cases:**
 - Multiple slow modules with identical frequency (e.g., all 10Hz AI modules)
 - Memory optimization when modules can share stale data

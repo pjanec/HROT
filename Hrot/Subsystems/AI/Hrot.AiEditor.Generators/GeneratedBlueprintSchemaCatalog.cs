@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
@@ -38,19 +39,30 @@ namespace Hrot.AiEditor.Generators;
 /// </summary>
 internal sealed class GeneratedBlueprintSchema
 {
+    /// <summary>⭐ <c>CE-384</c> — the asset's own GUID. The catalog already parsed it to derive
+    /// <see cref="BlueprintId"/>; carrying it lets a consumer match by the handle an ASSET can
+    /// author, instead of re-implementing <c>ComputeBlueprintId</c> at the call site.</summary>
+    public Guid AssetId { get; }
+
     public string SanitizedName { get; }
     public int BlueprintId { get; }
     public bool IsAiPrimitive { get; }
     public IReadOnlyList<(string Name, string TypeId)> Parameters { get; }
 
+    /// <summary>⭐ <c>CE-2135</c> P4 (R-2004) — the asset's named params DTO, or null. Named, the asset declares no Parameters: its
+    /// generated <c>Params</c> mirrors the DTO's fields (<see cref="GeneratedBlueprintSchemaCatalog.ParamsDtoFieldsOf"/>).</summary>
+    public string? ParamsDtoTypeId { get; }
+
     public GeneratedBlueprintSchema(
-        string sanitizedName, int blueprintId, bool isAiPrimitive,
-        IReadOnlyList<(string Name, string TypeId)> parameters)
+        Guid assetId, string sanitizedName, int blueprintId, bool isAiPrimitive,
+        IReadOnlyList<(string Name, string TypeId)> parameters, string? paramsDtoTypeId = null)
     {
+        AssetId        = assetId;
         SanitizedName = sanitizedName;
         BlueprintId   = blueprintId;
         IsAiPrimitive = isAiPrimitive;
         Parameters    = parameters;
+        ParamsDtoTypeId = paramsDtoTypeId;
     }
 
     /// <summary>The generated class name: "{SanitizedName}_{BlueprintId:X8}_Bp" (mirrors <c>AiPrimitiveEmitter.EmitClass</c>).</summary>
@@ -101,26 +113,52 @@ internal static class GeneratedBlueprintSchemaCatalog
                     isAiPrimitive = string.Equals(dispProp.GetString(), "AiPrimitive", StringComparison.OrdinalIgnoreCase);
             }
 
+            // ⭐⭐ U-10 step 3 — v2 stores declarations as ONE tagged array, so the parameters live
+            //   under `Declarations` filtered by Kind == "Parameter". v1's `parameters` is still read
+            //   so a not-yet-migrated file keeps working.
+            //
+            // ⛔⛔ This catalog is a SECOND, independent parser of *.bp.json — it does not go through
+            //   BlueprintJsonServices. When the corpus moved to v2 it did not fail: it returned a
+            //   schema with ZERO parameters, so StructSizeResolver sized the Params struct wrong and
+            //   a composed BTree wrote shared state at the wrong slot count. ⚠ "Silently skipped"
+            //   understates what the class does — it silently returns a WRONG schema. See BP-242.
             var parameters = new List<(string Name, string TypeId)>();
-            if (TryGetPropCI(root, "parameters", out var paramsProp) && paramsProp.ValueKind == JsonValueKind.Array)
+            if (TryGetPropCI(root, Hrot.Blueprints.Core.BlueprintSchemaV2.DeclarationsProperty,
+                             out var declProp) && declProp.ValueKind == JsonValueKind.Array)
             {
-                foreach (var item in paramsProp.EnumerateArray())
+                var parameterTag = Hrot.Blueprints.Core.BlueprintSchemaV2.DeclarationTags[0];
+                foreach (var item in declProp.EnumerateArray())
                 {
-                    string pName = TryGetPropCI(item, "name", out var np) ? (np.GetString() ?? "") : "";
-                    string pType = "System.Object";
-                    if (TryGetPropCI(item, "type", out var tp) && TryGetPropCI(tp, "typeid", out var tid))
-                        pType = tid.GetString() ?? "System.Object";
-                    if (!string.IsNullOrEmpty(pName))
-                        parameters.Add((pName, pType));
+                    if (!TryGetPropCI(item, Hrot.Blueprints.Core.BlueprintSchemaV2.KindProperty, out var kp))
+                        continue;
+                    if (!string.Equals(kp.GetString(), parameterTag, StringComparison.Ordinal)) continue;
+                    AddParameter(item, parameters);
                 }
             }
+            else if (TryGetPropCI(root, "parameters", out var paramsProp) && paramsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in paramsProp.EnumerateArray())
+                    AddParameter(item, parameters);
+            }
 
-            return new GeneratedBlueprintSchema(sanitizedName, blueprintId, isAiPrimitive, parameters);
+            string? paramsDto = TryGetPropCI(root, "paramsDtoTypeId", out var dtoProp) && dtoProp.ValueKind == JsonValueKind.String
+                ? dtoProp.GetString()?.Trim() : null;
+            return new GeneratedBlueprintSchema(assetId, sanitizedName, blueprintId, isAiPrimitive, parameters,
+                string.IsNullOrEmpty(paramsDto) ? null : paramsDto);
         }
         catch
         {
             return null;
         }
+    }
+
+    private static void AddParameter(JsonElement item, List<(string Name, string TypeId)> into)
+    {
+        string pName = TryGetPropCI(item, "name", out var np) ? (np.GetString() ?? "") : "";
+        string pType = "System.Object";
+        if (TryGetPropCI(item, "type", out var tp) && TryGetPropCI(tp, "typeid", out var tid))
+            pType = tid.GetString() ?? "System.Object";
+        if (!string.IsNullOrEmpty(pName)) into.Add((pName, pType));
     }
 
     /// <summary>
@@ -149,25 +187,54 @@ internal static class GeneratedBlueprintSchemaCatalog
         if (schema == null)
             return null;
 
-        // Compute each parameter field's managed size: known primitive/vector table first (mirrors
-        // BTreeBlackboardPackHelper.Pack's own lookup order), then the Roslyn resolver (handles
-        // project enum types authored as a blueprint Parameter type).
-        var fieldSizes = new List<int>(schema.Parameters.Count);
-        foreach (var param in schema.Parameters)
+        // ⭐ CE-2135 P4 (R-2004) — a named params DTO's fields ARE the Parameters (the blueprint compiler's ParamsDtoFields): read
+        //   them from the DTO's symbol, the same walk the generator's field source uses, so the host sizes the Params the build emits.
+        IEnumerable<(string Name, string TypeId)> parameters = schema.Parameters;
+        if (schema.Parameters.Count == 0 && schema.ParamsDtoTypeId is { } dtoId)
         {
-            if (Hrot.AiEditor.Persistence.Emit.BTreeBlackboardPackHelper.TryGetSize(param.TypeId, out int known))
-            {
-                fieldSizes.Add(known);
-                continue;
-            }
-
-            int? resolved = StructSizeResolver.ResolveFieldSize(param.TypeId, compilation);
-            if (!resolved.HasValue)
-                return null;
-            fieldSizes.Add(resolved.Value);
+            if (compilation.GetTypeByMetadataName(dtoId) is not { } dto) return null;   // unknown here ⇒ loud (BTREE0002), never a guess
+            parameters = ParamsDtoFieldsOf(dto).Select(f => (f.Name, f.TypeId));
         }
 
-        return StructSizeResolver.ComputeSequentialSize(fieldSizes);
+        // Each parameter field's managed (size, alignment) — the known-type table first, then the Roslyn resolver (handles
+        // project enum and struct types authored as a blueprint Parameter type). ⭐ CE-2027: the ALIGNMENT is the field's own
+        // (a Vector3 is 4-aligned), not min(size, 8) — the Params struct is a Sequential C# struct the CLR lays out.
+        var fields = new List<(int Size, int Align)>();
+        foreach (var param in parameters)
+        {
+            var layout = StructSizeResolver.ResolveFieldLayout(param.TypeId, compilation);
+            if (!layout.HasValue)
+                return null;
+            fields.Add(layout.Value);
+        }
+
+        return global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.SequentialSize(fields);
+    }
+
+    /// <summary>The <c>[ParamsDto]</c> attribute, by name (this project cannot reference <c>Fdp.Core</c>).</summary>
+    public const string ParamsDtoAttributeName = "Fdp.Core.ParamsDtoAttribute";
+    private const string JsonIgnoreAttributeName = "System.Text.Json.Serialization.JsonIgnoreAttribute";
+
+    /// <summary>
+    /// ⭐ <c>CE-2135</c> P4 (R-2004) — a params DTO's public instance fields in declaration order, minus <c>[JsonIgnore]</c> ones (not in
+    /// the JSON contract), each with its <see cref="System.Type.FullName"/>-spelled type id: what the blueprint compiler makes the
+    /// Parameters from. ⭐ The ONE Roslyn walk — the generator's field source and the host size path both read it; its reflection twin
+    /// is <c>ReflectionParamsDtoFieldSource</c> (same filter, same spelling).
+    /// </summary>
+    public static IReadOnlyList<(string Name, string TypeId)> ParamsDtoFieldsOf(INamedTypeSymbol dto)
+        => dto.GetMembers().OfType<IFieldSymbol>()
+            .Where(f => f.DeclaredAccessibility == Accessibility.Public && !f.IsStatic && !f.IsConst && !f.IsImplicitlyDeclared)
+            .Where(f => !f.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == JsonIgnoreAttributeName))
+            .Select(f => (f.Name, FullNameOf(f.Type)))
+            .ToList();
+
+    /// <summary><see cref="System.Type.FullName"/> of a type symbol: namespace-qualified, <c>+</c> for nesting, no keyword aliases.</summary>
+    public static string FullNameOf(ITypeSymbol t)
+    {
+        if (t is IArrayTypeSymbol arr) return FullNameOf(arr.ElementType) + "[]";
+        if (t is INamedTypeSymbol { ContainingType: { } outer }) return FullNameOf(outer) + "+" + t.MetadataName;
+        var ns = t.ContainingNamespace;
+        return (ns is null || ns.IsGlobalNamespace ? "" : ns.ToDisplayString() + ".") + t.MetadataName;
     }
 
     /// <summary>
@@ -206,6 +273,16 @@ internal static class GeneratedBlueprintSchemaCatalog
         return true;
     }
 
+    /// <summary>⭐ <c>CE-417</c> B-1 — the schema of the blueprint asset with this id, or <c>null</c>. ⭐ By id, not name: two
+    /// blueprints may share a name (<c>EnumDemo</c> exists twice), never an id.</summary>
+    public static GeneratedBlueprintSchema? FindByAssetId(
+        IReadOnlyList<GeneratedBlueprintSchema> schemas, Guid assetId)
+    {
+        foreach (var s in schemas)
+            if (s.AssetId == assetId) return s;
+        return null;
+    }
+
     /// <summary>Finds the schema matching a (SanitizedName, BlueprintId) pair, or <c>null</c>.</summary>
     public static GeneratedBlueprintSchema? Find(
         IReadOnlyList<GeneratedBlueprintSchema> schemas, string sanitizedName, int blueprintId)
@@ -221,41 +298,12 @@ internal static class GeneratedBlueprintSchemaCatalog
 
     // ── Mirrors of Hrot.Blueprints.Core.Compiler helpers (kept in sync manually — see class remarks) ──
 
-    /// <summary>Mirrors <c>Hrot.Blueprints.Core.Compiler.Emit.Sanitizer.SanitizeName</c>.</summary>
+    // ⭐ CE-428: the two compiler mirrors live in ONE place now — Persistence's BlueprintClassNaming.
     private static string SanitizeName(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        bool capitalizeNext = true;
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c))
-            {
-                sb.Append(capitalizeNext ? char.ToUpperInvariant(c) : c);
-                capitalizeNext = false;
-            }
-            else
-            {
-                capitalizeNext = true;
-            }
-        }
-        return sb.Length > 0 ? sb.ToString() : "UnknownBlueprint";
-    }
+        => global::Hrot.AiEditor.Persistence.Emit.BlueprintClassNaming.SanitizeName(name);
 
-    /// <summary>Mirrors <c>Hrot.Blueprints.Core.Compiler.BlueprintIdHash.Compute</c> (FNV-1a 32-bit over <c>Guid.ToByteArray()</c>).</summary>
     private static int ComputeBlueprintId(Guid assetId)
-    {
-        const uint offsetBasis = 2166136261u;
-        const uint fnvPrime    = 16777619u;
-
-        byte[] bytes = assetId.ToByteArray();
-        uint hash = offsetBasis;
-        foreach (byte b in bytes)
-        {
-            hash ^= b;
-            hash *= fnvPrime;
-        }
-        return unchecked((int)hash);
-    }
+        => global::Hrot.AiEditor.Persistence.Emit.BlueprintClassNaming.ComputeBlueprintId(assetId);
 
     private static bool TryGetPropCI(JsonElement el, string name, out JsonElement value)
     {

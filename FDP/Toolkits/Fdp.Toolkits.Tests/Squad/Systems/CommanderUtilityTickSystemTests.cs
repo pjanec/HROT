@@ -32,8 +32,8 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         {
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
-            _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<UtilityResultBuffer>();
             _repo.RegisterComponent<UtilityTraceWorkingMemory1024>();
 
@@ -53,8 +53,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         private Entity CreateCommander(bool withTrace = false)
         {
             var e = _repo.CreateEntity();
-            _repo.AddComponent(e, new Blackboard1024());
-            _repo.AddComponent(e, new SquadStateMarker());
+            _repo.AddComponent(e, default(SquadCognitiveState));
             _repo.AddComponent(e, new UtilityResultBuffer());
             if (withTrace)
                 _repo.AddComponent(e, new UtilityTraceWorkingMemory1024());
@@ -106,8 +105,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
 
             CommanderUtilityTickSystem.Run(_repo, commander, in def, currentTick: 1);
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             Assert.Equal(0, state.ManeuverKind);
         }
 
@@ -120,8 +118,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             s_stubLowScore  = 0.1f;
 
             var commander = CreateCommander();
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             state.ManeuverKind = 99;
             state.Flags |= 1u;  // MissionOverrideBit
 
@@ -145,8 +142,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             // Tick 1: first run — option 0 wins.
             CommanderUtilityTickSystem.Run(_repo, commander, in def, currentTick: 1, tickInterval: 6);
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             Assert.Equal(0, state.ManeuverKind);
 
             // Swap: option 1 now has a higher raw score.

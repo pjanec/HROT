@@ -354,7 +354,7 @@ When the Orchestrator's `ClusterOpMasterTranslator` receives the `ClusterOpReque
 
 ```
 [EventId(9058)] // Next available ID [8-10]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ExecuteDiagnosticDumpIntent
 {
     public Guid RequestId;

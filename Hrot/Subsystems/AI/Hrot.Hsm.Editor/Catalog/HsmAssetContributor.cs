@@ -13,6 +13,12 @@ namespace Hrot.Hsm.Editor.Catalog;
 public sealed class HsmAssetContributor : IAssetCatalogContributor
 {
     private readonly List<IEditableAsset> _assets = new();
+    private readonly Hrot.Hsm.Editor.Debug.HsmDebugSession? _debugSession;
+
+    public HsmAssetContributor(Hrot.Hsm.Editor.Debug.HsmDebugSession? debugSession = null)
+    {
+        _debugSession = debugSession;
+    }
 
     public AssetKind Kind => AssetKind.Hsm;
     public event Action? ContributorChanged;
@@ -34,10 +40,21 @@ public sealed class HsmAssetContributor : IAssetCatalogContributor
                 var defAttr = method.GetCustomAttribute<Fhsm.Kernel.Attributes.HsmDefinitionAttribute>();
                 if (defAttr is null) continue;
                 if (method.GetParameters().Length != 0) continue;
-                if (!typeof(HsmDefinitionBlob).IsAssignableFrom(method.ReturnType)) continue;
+                // ⭐ CE-1252 (BV-18, R-1028) — a C#-BUILT machine (the method returns its StateMachineGraph: CivilianHsm,
+                //   PlatoonDefend, Surrender …) is compiled here, in memory, so it opens as a read-only graph like a C# BTree
+                //   (CE-3160). ⛔ Only blob-returning (generated) methods were listed, so the 12 hand-built machines never reached
+                //   the HSM editor. Nothing is written to disk.
+                bool returnsGraph = method.ReturnType.FullName == "Fhsm.Compiler.Graph.StateMachineGraph";   // by name, as the BTree side
+                if (!returnsGraph && !typeof(HsmDefinitionBlob).IsAssignableFrom(method.ReturnType)) continue;
 
                 HsmDefinitionBlob? blob;
-                try { blob = (HsmDefinitionBlob?)method.Invoke(null, null); }
+                try
+                {
+                    var made = method.Invoke(null, null);
+                    blob = returnsGraph
+                        ? (HsmDefinitionBlob?)made?.GetType().GetMethod("Compile", Type.EmptyTypes)?.Invoke(made, null)
+                        : (HsmDefinitionBlob?)made;
+                }
                 catch { blob = null; }
                 if (blob is null) continue;
 
@@ -62,7 +79,11 @@ public sealed class HsmAssetContributor : IAssetCatalogContributor
                     false,
                     type.Namespace ?? string.Empty);
 
+                asset.IsCodeBuilt = returnsGraph;   // ⭐ CE-1252 — read-only in the editor
                 _assets.Add(asset);
+                // ⭐ CE-1253 (BV-20) — the session maps a running machine's state indices through THIS compile's metadata, so the ids
+                //   match the graph on the canvas (a C#-built machine draws new stable ids at every compile).
+                _debugSession?.RegisterMachine(defAttr.MachineName, assetId, blob.Metadata);
             }
         }
         ContributorChanged?.Invoke();

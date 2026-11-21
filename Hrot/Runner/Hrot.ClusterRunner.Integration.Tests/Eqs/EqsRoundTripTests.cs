@@ -60,8 +60,8 @@ public sealed class EqsRoundTripTests : IDisposable
         public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => true;
         public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
         {
-            float dx = from.X - to.X; float dz = from.Z - to.Z;
-            return MathF.Sqrt(dx * dx + dz * dz);
+            float dx = from.X - to.X; float dy = from.Y - to.Y; // XY ground plane (Z-up)
+            return MathF.Sqrt(dx * dx + dy * dy);
         }
         public uint QueryVersion() => 1;
         public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
@@ -79,12 +79,12 @@ public sealed class EqsRoundTripTests : IDisposable
         {
             int count = Math.Min(Xs.Length, candidates.Length);
             for (int i = 0; i < count; i++)
-                candidates[i] = new EqsResult { EntityId = 0L, PositionX = Xs[i], PositionY = 0f };
+                candidates[i] = new EqsResult { EntityId = 0, PositionX = Xs[i], PositionY = 0f };
             return count;
         }
     }
 
-    // Rejects candidates at indices 1 and 3 (X=20 and X=40) by setting EntityId = -1L.
+    // Rejects candidates at indices 1 and 3 (X=20 and X=40) by setting EntityId = -1.
     private sealed class SentinelRejectionFilterTest : IEqsTest
     {
         public EqsTestPhase Phase => EqsTestPhase.FilterCheap;
@@ -92,8 +92,8 @@ public sealed class EqsRoundTripTests : IDisposable
         public void ExecuteBatch(Entity observer, ref EqsSensor sensor,
             ISimulationView view, Span<EqsResult> candidates)
         {
-            if (candidates.Length > 1) candidates[1].EntityId = -1L;
-            if (candidates.Length > 3) candidates[3].EntityId = -1L;
+            if (candidates.Length > 1) candidates[1].EntityId = -1;
+            if (candidates.Length > 3) candidates[3].EntityId = -1;
         }
     }
 
@@ -124,10 +124,10 @@ public sealed class EqsRoundTripTests : IDisposable
 
     // ── T-RT3a / T-RT3b helpers ────────────────────────────────────────────────
 
-    // HasCheapLineOfSight always returns true (all candidates exposed to threat).
+    // HasLineOfSight always returns true (all candidates exposed to threat).
     private sealed class ExposedLosServiceMock : ILosService
     {
-        public bool HasCheapLineOfSight(Vector2 from, Vector2 to) => true;
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => true;
     }
 
     // ── Fixture ────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9200L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9200 });
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = blueprintId,
@@ -229,7 +229,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9300L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9300 });
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = blueprintId,
@@ -311,7 +311,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9400L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9400 });
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = blueprintId,
@@ -326,7 +326,8 @@ public sealed class EqsRoundTripTests : IDisposable
         unsafe
         {
             mem.Count           = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.EntityIds[0]    = (long)threatEntity.PackedValue;   // CE-3046 — a LIVE target: a dead one is forgotten
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 30f;
             mem.PositionsY[0]   = 0f;
         }
@@ -377,7 +378,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9500L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9500 });
 
         // Threat entity: provides the slot-based threat position for CheapLineOfSightTest.
         var threatEntity = _harness.Repo.CreateEntity();
@@ -401,7 +402,8 @@ public sealed class EqsRoundTripTests : IDisposable
         unsafe
         {
             mem.Count           = 1;
-            mem.ThreatScores[0] = 10f;
+            mem.EntityIds[0]    = (long)threatEntity.PackedValue;   // CE-3046 — a LIVE target: a dead one is forgotten
+            mem.Freshness[0] = 10f;
             mem.PositionsX[0]   = 30f;
             mem.PositionsY[0]   = 0f;
         }

@@ -14,6 +14,7 @@ namespace CarKinem.Systems
     /// Runs before CarKinematicsSystem.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class FormationTargetSystem : IEcsModuleSystem
     {
         private readonly FormationTemplateManager _templateManager;
@@ -27,6 +28,7 @@ namespace CarKinem.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(FormationTargetSystem)} requires direct EntityRepository access " +
@@ -41,20 +43,27 @@ namespace CarKinem.Systems
                 if (follower.IsInFormation == 0)
                     continue;
 
-                // Get leader from UnitSubordinate component (leader reference removed from FormationFollower)
-                if (!repo.HasComponent<UnitSubordinate>(followerEntity))
-                    continue;
-                var leaderEntity = repo.GetComponent<UnitSubordinate>(followerEntity).Commander;
+                // The leader: the follower's own Leader when set (⭐ CE-9004), else its commander (UnitSubordinate)
+                var leaderEntity = LeaderOf(repo, followerEntity, in follower);
                 if (!repo.IsAlive(leaderEntity))
                     continue;
                 if (!repo.HasComponent<FormationController>(leaderEntity))
                     continue;
 
                 var controller = repo.GetComponent<FormationController>(leaderEntity);
+                if (!follower.Leader.IsNull && controller.Type == FormationType.Column) continue;   // ⭐ CE-9004 — a ROAD column (an explicit leader) drives the leader's path: ConvoyFollowSystem; a commander-led column keeps its slots
                 UpdateFollower(repo, followerEntity, ref follower, leaderEntity, ref controller);
             }
         }
         
+        /// <summary>⭐ CE-9004 — whom a follower keeps station on: its own <see cref="FormationFollower.Leader"/> when set, else its commander.</summary>
+        public static Entity LeaderOf(EntityRepository repo, Entity follower, in FormationFollower ff)
+        {
+            if (!ff.Leader.IsNull) return ff.Leader;
+            return repo.IsComponentTypeRegistered<UnitSubordinate>() && repo.HasComponent<UnitSubordinate>(follower)
+                ? repo.GetComponentRO<UnitSubordinate>(follower).Commander : Entity.Null;
+        }
+
         private void UpdateFollower(
             EntityRepository repo,
             Entity followerEntity,

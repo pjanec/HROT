@@ -17,6 +17,13 @@ namespace CarKinem.Road
         
         [JsonPropertyName("metadata")]
         public RoadMetadataJson? Metadata { get; set; }
+
+        /// <summary>⭐ CE-9003 (C-7, R-9011; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §6) — the segments run along the CARRIAGEWAY CENTRE (a hand-drawn road
+        /// net), so a vehicle keeping its lane drives <c>LaneWidth · (LaneCount − 1) / 2</c> to its right. ⛔ Absent / false (the default): the lines are already a
+        /// driving lane — 📌 a net imported from SUMO is written along each edge's lane 0 (<c>NetRoadNetwork</c>), and offsetting it put a convoy on the
+        /// roadside hedge (<c>cv-offroad-join-leave</c>).</summary>
+        [JsonPropertyName("linesAreCentres")]
+        public bool LinesAreCentres { get; set; }
     }
     
     /// <summary>
@@ -29,6 +36,11 @@ namespace CarKinem.Road
         
         [JsonPropertyName("position")]
         public Vector2Json Position { get; set; } = new();
+
+        /// <summary>⭐ CE-1034 H5c (TH-L) — the road's height here above the ground (m), optional; 0 = on the ground. Additive: a file
+        /// without it is read as before, so the road-network schema version is unchanged.</summary>
+        [JsonPropertyName("aboveGround")]
+        public float AboveGround { get; set; }
     }
     
     /// <summary>

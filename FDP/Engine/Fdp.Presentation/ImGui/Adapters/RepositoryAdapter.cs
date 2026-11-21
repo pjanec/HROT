@@ -4,6 +4,7 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Utils;
+using Fdp.Toolkit.Replication.Edits;
 
 namespace Fdp.Presentation.Adapters
 {
@@ -37,10 +38,15 @@ namespace Fdp.Presentation.Adapters
             return _repo.IsAlive(e);
         }
 
+        // ⭐ CE-2403 (R-2084) — refilled per call, not re-allocated (the inspector asks every frame). ⚠ The returned list is valid until the
+        //   next call — every caller enumerates it at once or copies it (ParamUsage: ToList).
+        private readonly List<Entity> _entities = new();
+
         public IEnumerable<Entity> GetEntities()
         {
             // Singleton pseudo-entity is always the first entry.
-            var list = new List<Entity>();
+            var list = _entities;
+            list.Clear();
             list.Add(SingletonEntity);
             foreach(var e in _repo.Query().Build())
             {
@@ -67,6 +73,17 @@ namespace Fdp.Presentation.Adapters
                 RepoReflector.SetSingleton(_repo, componentType, componentData);
             else
                 RepoReflector.SetComponent(_repo, e, componentType, componentData);
+        }
+
+        /// <summary>⭐ CE-3386 (docs/DESIGN_Struct_Editor.md §10.4) — the inspector's write is ONE step of the editor's history where one is recorded (Edit mode: the recorder
+        /// is installed and on; Live / Preview / replay: no recorder, or it is off ⇒ the bracket is a no-op). Managed and unmanaged alike: the step is the world before / after.
+        /// ⛔ Only the user's own commit calls this — a plain <see cref="SetComponent"/> made inside another step (ParamUsage.Rename under a parameter rename) records nothing.</summary>
+        public void SetComponentAsUserStep(Entity e, Type componentType, object componentData, string label)
+        {
+            EditSteps.Begin(_repo, label);
+            try { SetComponent(e, componentType, componentData); }
+            catch { EditSteps.Cancel(_repo); throw; }
+            EditSteps.End(_repo);
         }
 
         public IEnumerable<Type> GetAllComponentTypes()

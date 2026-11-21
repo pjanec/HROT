@@ -105,7 +105,7 @@ This is less integrated than per-row coloring but achieves the same information 
 ## Build and Test Output
 
 ```
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4
 Build succeeded.
     0 Warning(s)
     0 Error(s)

@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Replication.Patching;
 /// attribute compiler.
 /// </para>
 /// </remarks>
+[Fdp.Core.WorldDerived("reusable per-create scratch slots, reset between uses")]
 public sealed class ListPatchContext : IEntityPatchContext
 {
     // ── Internal slot types ──────────────────────────────────
@@ -90,6 +91,10 @@ public sealed class ListPatchContext : IEntityPatchContext
 
         return ref ((ComponentSlot<T>)slotObj).Value;
     }
+
+    /// <inheritdoc/>
+    public void SetManagedComponent<T>(T value) where T : class
+        => _managedComponents[typeof(T)] = value ?? throw new ArgumentNullException(nameof(value));
 
     /// <inheritdoc/>
     public T GetManagedComponent<T>() where T : class

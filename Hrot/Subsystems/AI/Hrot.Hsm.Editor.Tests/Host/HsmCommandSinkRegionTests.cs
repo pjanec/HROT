@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
@@ -234,5 +235,41 @@ public sealed class HsmCommandSinkRegionTests
             new[] { new ChangeParentMove(new NodeId(state.StableId), null, null, new System.Numerics.Vector2(5f, 5f)) }));
 
         asset.IsDirty.Should().BeTrue();
+    }
+
+    // ---- CE-1004 (R1): author-sized bands and containers ---------------------
+
+    [Fact]
+    public void CE1004_SetRegionPreferredSize_SizesTheBand_AndRoundTripsThroughTheFile()
+    {
+        var (asset, sink, pState) = BuildTestAsset();
+        var id = new NodeId(pState.StableId);
+        sink.Apply(new GraphCommand.AddRegion(id, 0, "A", 0));
+        sink.Apply(new GraphCommand.AddRegion(id, 1, "B", 0));
+
+        sink.Apply(new GraphCommand.SetRegionPreferredSize(id, 1, 180f)).Success.Should().BeTrue();
+        sink.Apply(new GraphCommand.SetContainerSize(id, new System.Numerics.Vector2(420f, 300f))).Success.Should().BeTrue();
+
+        pState.Regions[1].PreferredSize.Should().Be(180f, "the descriptor the canvas lays out from carries it");
+        pState.Regions[0].PreferredSize.Should().BeNull();
+        pState.SizeOverride.Should().Be(new System.Numerics.Vector2(420f, 300f));
+
+        var json = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(asset));
+        var dto  = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Deserialize(json)!;
+        dto.Regions.Single(r => r.RegionIndex == 1).PreferredSize.Should().Be(180f);
+        dto.Regions.Single(r => r.RegionIndex == 0).PreferredSize.Should().BeNull();
+        json.Split("PreferredSize", StringSplitOptions.None).Length.Should().Be(2,
+            "a content-sized band writes nothing — existing files do not move");
+
+        sink.Apply(new GraphCommand.SetRegionPreferredSize(id, 1, null));
+        pState.Regions[1].PreferredSize.Should().BeNull("the undo inverse clears it");
+    }
+
+    [Fact]
+    public void CE1004_SetRegionPreferredSize_OnAMissingRegion_Fails()
+    {
+        var (_, sink, pState) = BuildTestAsset();
+        sink.Apply(new GraphCommand.SetRegionPreferredSize(new NodeId(pState.StableId), 3, 100f))
+            .Success.Should().BeFalse();
     }
 }

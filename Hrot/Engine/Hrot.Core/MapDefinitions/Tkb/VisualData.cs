@@ -8,6 +8,7 @@ namespace Hrot.Map.Definitions.Tkb
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     [ComponentId(GlobalComponentIds.VisualData)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct VisualData
     {
         /// <summary>

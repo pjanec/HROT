@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Scenario picker mockup (AQ108 D24 / D25, CE-4141). Static, self-contained: open in a browser. Live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Open scenario — run setup expanded</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1280px; height: 820px; box-sizing: border-box; padding: 40px; background: #121417; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: flex; align-items: center; justify-content: center;">
+  <div style="width: 1200px; height: 740px; border-radius: 10px; background: #202328; border: 1px solid #3a3e46; display: flex; flex-direction: column; overflow: hidden;">
+
+    <div style="padding: 12px 16px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 15px; font-weight: 600;">Open scenario</span>
+      <input type="search" value="bridge" aria-label="Search scenarios" style="flex-grow: 1; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 7px 10px; font: inherit;">
+      <div style="display: flex; border: 1px solid #3c4048; border-radius: 6px; overflow: hidden;">
+        <button aria-label="List view" style="background: #3a4150; color: #fff; border: 0; padding: 5px 10px; font: inherit;">☰</button>
+        <button aria-label="Thumbnail view" style="background: transparent; color: #b8bcc4; border: 0; padding: 5px 10px; font: inherit;">▦</button>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; min-height: 0;">
+      <div style="width: 320px; border-right: 1px solid #353941; padding: 8px 0; display: flex; flex-direction: column; gap: 1px;">
+        <span style="padding: 6px 16px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.05em;">MATCHING "bridge"</span>
+        <div style="padding: 6px 16px 6px 28px; display: flex; gap: 8px; background: #2a3342; border-left: 3px solid #5aa8ff;"><span>▤</span><b>showcase-bridgehead</b></div>
+        <div style="padding: 6px 16px 6px 28px; display: flex; gap: 8px;"><span>▤</span>pc-attack-dry <span style="color: #8a9099; font-size: 11px;">· description</span></div>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; gap: 18px; padding: 16px 20px; min-width: 0;">
+        <div style="width: 360px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="height: 200px; border-radius: 8px; background: linear-gradient(160deg, #6c7d5b 0%, #4c5a3e 45%, #3a4630 100%);"></div>
+          <div style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 18px; font-weight: 700;">Bridgehead</span><span style="margin-left: auto; padding: 2px 8px; border-radius: 10px; background: #1d3a2b; color: #8fe0b0; font-size: 11px;">TRAINING</span></div>
+          <span style="color: #c9ccd2; line-height: 1.45; font-size: 12px;">A Blue platoon seizes a village crossroads, holds it against a counter-attack and handles a civilian vehicle at its checkpoint.</span>
+          <span style="color: #9aa0a8; font-size: 12px;">cqb-village · 4 seats · 26 AI · 7 objectives</span>
+        </div>
+
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+          <div style="border: 1px solid #3c4a63; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-weight: 600;">▾ Variant <span style="color: #8a9099; font-weight: 400;">· random</span></span>
+            <label style="display: flex; gap: 8px; align-items: center;"><input type="radio" name="v" checked>Random <span style="color: #8a9099;">— drawn at start, shown</span></label>
+            <label style="display: flex; gap: 8px; align-items: center;"><input type="radio" name="v">Number <input value="3" aria-label="Variant number" style="width: 70px; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 4px 6px; font: inherit;"></label>
+            <label style="display: flex; gap: 8px; align-items: center;"><input type="radio" name="v">As authored <span style="color: #8a9099;">(0)</span></label>
+          </div>
+          <div style="border: 1px solid #3c4a63; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-weight: 600;">▾ Parameters <span style="color: #8a9099; font-weight: 400;">· 2 changed</span></span>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+              <label style="display: flex; flex-direction: column; gap: 3px; color: #9aa0a8; font-size: 12px;">QRF size<input value="12" style="background: #2b2f35; color: #ffd27a; border: 1px solid #6b5422; border-radius: 4px; padding: 4px 6px; font: inherit;"></label>
+              <label style="display: flex; flex-direction: column; gap: 3px; color: #9aa0a8; font-size: 12px;">Counter-attack delay<input value="120 s" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 4px 6px; font: inherit;"></label>
+              <label style="display: flex; flex-direction: column; gap: 3px; color: #9aa0a8; font-size: 12px;">Red skill<select style="background: #2b2f35; color: #ffd27a; border: 1px solid #6b5422; border-radius: 4px; padding: 4px; font: inherit;"><option>−1</option></select></label>
+              <label style="display: flex; flex-direction: column; gap: 3px; color: #9aa0a8; font-size: 12px;">Civilians<select style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 4px; font: inherit;"><option>yes</option></select></label>
+              <label style="display: flex; flex-direction: column; gap: 3px; color: #9aa0a8; font-size: 12px;">Time limit<input value="45 min" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 4px 6px; font: inherit;"></label>
+              <label style="display: flex; flex-direction: column; gap: 3px; color: #9aa0a8; font-size: 12px;">Pass mark<input value="0.60" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 4px 6px; font: inherit;"></label>
+            </div>
+            <button style="align-self: flex-start; background: transparent; color: #7fb6ff; border: 0; padding: 0; font: inherit;">Reset to defaults</button>
+          </div>
+          <span style="color: #8a9099; font-size: 11px;">Changed values are highlighted. Remembered for this scenario; recorded with the run.</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 12px 16px; border-top: 1px solid #353941; display: flex; align-items: center; gap: 10px;">
+      <span style="color: #9aa0a8; font-size: 12px;">One page: pick, adjust if you want, go.</span>
+      <div style="flex-grow: 1;"></div>
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Cancel</button>
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Open</button>
+      <button style="background: #c2412f; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 600;">● Open and go live</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

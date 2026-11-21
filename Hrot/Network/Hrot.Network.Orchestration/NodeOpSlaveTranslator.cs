@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
@@ -11,6 +12,7 @@ using NedClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedNodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType    = Fdp.Toolkit.Orchestration.NodeOpType;
 using FdpClusterState  = Fdp.Toolkit.Orchestration.ClusterState;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Common.Orchestration;
 
@@ -28,16 +30,19 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     private readonly DdsReader<NodeOpCommand>   _commandReader;
     private readonly DdsWriter<NodeOpStatus>    _statusWriter;
     private readonly DdsWriter<NodeHeartbeat>   _heartbeatWriter;
+    private readonly DdsWriter<NodeCapabilitiesTopic>? _capabilitiesWriter;   // CE-285 (C-cap): null in tests / offline.
+
+    /// <summary>⭐ P6 N5 — tokens describing how this node can be REACHED (the share it advertises); added to whatever the host advertises.</summary>
+    private readonly string[] _transportCapabilities;
+    /// <summary>⭐ CE-1436 — the ONE ingress of the cluster's facts (state/session C2, inventory R-3055, replay session CE-3329, op status), the same class
+    /// ExCon's observer owns; its readers are null in tests / offline.</summary>
+    private readonly ClusterFactsIngress       _facts;
     private readonly FdpEventBus                _bus;
-    private readonly int                        _nodeId;
+    private readonly NodeId                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
 
-    private static readonly JsonSerializerOptions DefaultOptions = new()
-    {
-        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-        IncludeFields = true
-    };
+    // CE-3187 (R-2005 / R-2007): the shared options — enums as names, fields, null-omitting, case-insensitive.
+    private static readonly JsonSerializerOptions DefaultOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     /// <summary>Initialises a new <see cref="NodeOpSlaveTranslator"/>.</summary>
     public NodeOpSlaveTranslator(
@@ -46,14 +51,27 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         DdsWriter<NodeHeartbeat>   heartbeatWriter,
         FdpEventBus                bus,
         int                        nodeId,
-        JsonSerializerOptions?     jsonOptions = null)
+        JsonSerializerOptions?     jsonOptions = null,
+        DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null,
+        DdsReader<ClusterStateTopic>?     clusterStateReader = null,
+        DdsReader<AssetInventoryTopic>?   inventoryReader = null,
+        string[]?                         transportCapabilities = null,
+        DdsReader<ReplaySessionTopic>?    sessionReader = null,
+        DdsReader<ClusterOpStatus>?       opStatusReader = null,
+        DdsReader<OrchestratorContextTopic>? contextReader = null,
+        DdsReader<StorageJobsTopic>?      storageJobsReader = null,
+        DdsReader<ExerciseNotesTopic>?    notesReader = null)
     {
+        _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
         _heartbeatWriter = heartbeatWriter ?? throw new ArgumentNullException(nameof(heartbeatWriter));
+        _capabilitiesWriter = capabilitiesWriter;
         _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
-        _nodeId          = nodeId;
+        _progress        = LoadProgress.For(_bus);   // ⭐ CE-2417 — the SAME instance the node's ClusterSlave reports into (keyed on the shared bus)
+        _nodeId          = (Fdp.Core.NodeId)(nodeId);
         _jsonOptions     = jsonOptions ?? DefaultOptions;
+        _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader, contextReader, storageJobsReader, notesReader);
     }
 
     /// <summary>
@@ -61,6 +79,12 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// </summary>
     public void Tick()
     {
+        // ⭐⭐ CE-1436 (R-3066) — the cluster's FACTS on every node's bus, through the ONE ingress (the observer owns the same class): the replay inventory
+        //   (R-3055), the replay session layer (CE-3329), the state broadcast with its SESSION and MasterGone (C2), and the master's op status — so the node's
+        //   ClusterView folds every fact by construction. ⛔ The monitoring topics (other nodes' heartbeats, capabilities, command/status mirror) are NOT read
+        //   here: they would drive THIS node's own egress below (design V2).
+        _facts.Tick();
+
         // ── Ingress: DDS NodeOpCommand → Bus ExecuteNodeOpIntent ─────────────
         using var scope = _commandReader.Take();
         foreach (var sample in scope)
@@ -75,7 +99,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             _bus.PublishManaged(new ExecuteNodeOpIntent
             {
                 TransactionId = cmd.TransactionId,
-                TargetNodeId  = cmd.TargetNodeId,
+                TargetNodeId  = (Fdp.Core.NodeId)(cmd.TargetNodeId),
                 Operation     = (FdpNodeOpType)(int)cmd.Operation,
                 DomainPayload = domainPayload,
             });
@@ -84,17 +108,30 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         // ── Heartbeat egress: Bus NodeHeartbeatEvent → DDS NodeHeartbeat ─────
         foreach (var hb in _bus.ReadManaged<NodeHeartbeatEvent>())
         {
-            _heartbeatWriter.Write(new NodeHeartbeat
+            var sample = NodeHeartbeatWire.ToTopic(hb);   // ⭐ CE-3345 — the ONE mapping
+            lock (_beatLock)
             {
-                NodeId            = hb.NodeId,
-                SubsystemName     = hb.SubsystemName ?? string.Empty,
-                LocalClusterState = (NedClusterState)hb.LocalStateId,
-                WallTicksUtc      = hb.WallTicksUtc,
-                CpuUsagePercent   = 0f,
-                RamUsedBytes      = 0L,
-                SimTickAdvancing  = false,
-                SubsystemsJson    = string.Empty,
-            });
+                _heartbeatWriter.Write(sample);
+                _lastBeat = sample;
+                _lastBeatWrittenAt = System.Diagnostics.Stopwatch.GetTimestamp();
+            }
+        }
+        _pump ??= new System.Threading.Timer(static s => ((NodeOpSlaveTranslator)s!).PumpBeat(), this, 250, 250);   // ⭐ checked 4×/s: a beat ~1 s after the last write, never skipping a second on timer phase
+
+        // ── Capabilities egress: Bus NodeCapabilitiesEvent → durable DDS NodeCapabilities (CE-285) ──
+        // Published once at join by ClusterSlave; the durable descriptor retains the last sample per node.
+        if (_capabilitiesWriter != null)
+        {
+            foreach (var caps in _bus.ReadManaged<NodeCapabilitiesEvent>())
+            {
+                _capabilitiesWriter.Write(new NodeCapabilitiesTopic
+                {
+                    NodeId           = caps.NodeId,
+                    CapabilitiesJson = JsonSerializer.Serialize(
+                        (caps.Capabilities ?? Array.Empty<string>()).Concat(_transportCapabilities).Distinct().ToArray(),
+                        FdpJsonOptionsRegistry.DefaultRelaxed),
+                });
+            }
         }
 
         // ── Status egress: Bus NodeOpCompletedEvent → DDS NodeOpStatus ───────
@@ -116,12 +153,48 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// <remarks>Calls <see cref="Tick"/> to pump the DDS read/publish cycle.</remarks>
     public void Update() => Tick();
 
+    // ⭐⭐⭐ CE-2417 — while the frame is inside one long load pass (no Tick), the heartbeat follows the LOAD, not the frame. 🔒 User: "the thread cant
+    //   be automaticly repeating last status - useless. it must be watching the entity load progress - if it gets stuck, no more hearbeat shall be
+    //   sent" · "Nothing should be interruptible for 5 seconds". 📐 The CE-2408 stress brain created 1 128 scenario entities in ONE frame, beat
+    //   nothing for > 5 s and was EJECTED. ⇒ four times a second a pump checks: the frame silent ≥ 1 s, the node loading (its last beat says Loading /
+    //   CatchingUp, or a load step works), AND the node's LoadProgress moved in the last second — only then it beats (the frame's phase and step,
+    //   a fresh time). No progress ⇒ no beat ⇒ the master's existing 5 s rule ejects a hung load. ⛔ No timeout of its own.
+    // 📄 docs/DESIGN_Cluster_Load_Phase.md §12 · docs/blueprints/Blueprint_Issues_Tracker.md CE-2417.
+    private readonly object _beatLock = new();
+    private NodeHeartbeat? _lastBeat;
+    private long _lastBeatWrittenAt;
+    private System.Threading.Timer? _pump;
+    private bool _disposed;
+    private readonly LoadProgress _progress;
+
+    /// <summary>⭐ CE-2417 — beats the pump sent while the frame was silent and the load advanced (a rail reads it).</summary>
+    public int PumpedBeats { get; private set; }
+
+    private void PumpBeat()
+    {
+        lock (_beatLock)
+        {
+            if (_disposed || _lastBeat is not { } beat) return;
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(_lastBeatWrittenAt, now).TotalSeconds < 1.0) return;   // the frame beat recently
+            bool loading = beat.Phase is (int)NodePhase.Loading or (int)NodePhase.CatchingUp || _progress.IsActive;
+            if (!loading || !_progress.MovedWithin(1.0)) return;                                                     // ⛔ no progress, no beat
+            beat.WallTicksUtc = DateTimeOffset.UtcNow.Ticks;
+            try { _heartbeatWriter.Write(beat); } catch (ObjectDisposedException) { return; }
+            _lastBeatWrittenAt = now;
+            PumpedBeats++;
+        }
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {
+        lock (_beatLock) { _disposed = true; _pump?.Dispose(); _pump = null; }
         _commandReader.Dispose();
         _statusWriter.Dispose();
         _heartbeatWriter.Dispose();
+        _capabilitiesWriter?.Dispose();
+        _facts.Dispose();   // ⭐ CE-1436 — the ingress owns the fact readers
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -149,7 +222,16 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     ScenarioId:    dto?.ScenarioId,
                     IsNewScenario: false,
                     TargetState:   dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
-                    ExerciseId:    dto?.ExerciseId ?? Guid.Empty);
+                    ExerciseId:    (Fdp.Core.ExerciseId)(dto?.ExerciseId ?? Guid.Empty),
+                    // ⭐ L1 — null when the sender omitted it (an older peer, or a scenario naming none).
+                    //   The load steps treat a null name as "this scenario names none", which is legal.
+                    TerrainName:   dto?.TerrainName,
+                    IsWorldBoundary: dto?.IsWorldBoundary ?? false,    // CE-2101
+                    IsCatchUp:       dto?.IsCatchUp ?? false,          // C7
+                    CheckpointingSeconds: dto?.CheckpointingSeconds ?? 0,   // D17
+                    RecordingOff: dto?.RecordingOff ?? false,               // CE-4090 D14
+                    FeatureConfigsAtLoad: dto?.FeatureConfigsAtLoad,        // Node Features F-14
+                    ScenarioArgsJson: dto?.ScenarioArgs);                   // macros S3a ⑦
             }
 
             case NedNodeOpType.StartEpisode:
@@ -159,7 +241,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 if (!hasPayload) return null;
                 var dto = JsonSerializer.Deserialize<NodeEpisodePayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
                 return new EpisodeHandlerPayload(
-                    EpisodeId:  dto?.EpisodeId ?? Guid.Empty,
+                    EpisodeId:  (Fdp.Core.EpisodeId)(dto?.EpisodeId ?? Guid.Empty),
                     ScenarioId: dto?.ScenarioId,
                     IsStart:    dto?.IsStart ?? false);
             }
@@ -174,8 +256,13 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             case NedNodeOpType.SerializeLocal:
             {
                 if (!hasPayload) return null;
-                var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
-                return new ArchiveHandlerPayload(dto?.ExerciseId ?? Guid.Empty);
+                // ⭐ CE-279 Layer B — SerializeLocal carries EITHER the scenario save (ScenarioId = the scenario
+                //   name) OR the .fdp archive (ExerciseId). Discriminate so the scenario payload survives the wire
+                //   as a ScenarioSaveHandlerPayload instead of being flattened to an empty ArchiveHandlerPayload.
+                var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
+                if (!string.IsNullOrWhiteSpace(dto?.ScenarioId))
+                    return new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(dto!.ScenarioId!, dto.OnlyGuids is { Count: > 0 } ? dto.OnlyGuids : null, string.IsNullOrWhiteSpace(dto.MacroHeaderJson) ? null : dto.MacroHeaderJson, dto.Autosave);   // ⭐ CE-4210 MA-9 · CE-4099 autosave
+                return new ArchiveHandlerPayload((Fdp.Core.ExerciseId)(dto?.ExerciseId ?? Guid.Empty));
             }
 
             case NedNodeOpType.CommitState:
@@ -215,6 +302,30 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 {
                     return JsonSerializer.Deserialize<DiagnosticDumpPayloadDto>(payloadJson!, DefaultOptions);
                 }
+                catch { return null; }
+            }
+
+            // ⭐ CE-3299 B3 (R-3044) — a checkpoint: its label and the wall time every node writes it at; an export names it.
+            case NedNodeOpType.TakeSnapshot:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<CheckpointPayload>(payloadJson!, DefaultOptions); }
+                catch { return null; }
+            }
+
+            case NedNodeOpType.ExportCheckpoint:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<ExportCheckpointPayload>(payloadJson!, DefaultOptions); }
+                catch { return null; }
+            }
+
+            // ⭐ CE-3299 B4 — both phases of a checkpoint restore carry the label and the exercise the node records on as.
+            case NedNodeOpType.PrepareRestore:
+            case NedNodeOpType.RestoreSnapshot:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<RestoreCheckpointPayload>(payloadJson!, DefaultOptions); }
                 catch { return null; }
             }
 

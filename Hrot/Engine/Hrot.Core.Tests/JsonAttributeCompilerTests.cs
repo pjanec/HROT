@@ -54,7 +54,7 @@ public class AttributeCompilerBuilderTests
     public void AttributeCompilerBuilder_RegisterValuePath_CanBuildAndCompile()
     {
         var compiler = new AttributeCompilerBuilder()
-            .RegisterValuePath<SimTransform>("GeoPosition",
+            .RegisterValuePath<SimTransform>("Position",
                 (ref SimTransform c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Position = new System.Numerics.Vector3((float)r.GetDouble(), 0f, 0f))
             .Build();
@@ -212,6 +212,17 @@ public class EcsPatchContextTests
         return repo;
     }
 
+    /// <summary>
+    /// ⭐ CE-518 ③ — Q59-E: the ordinals a patch dirties come from the WORLD's descriptor map, which the network
+    /// layer fills (<c>EcsPatchContext</c> ctor, <c>AttributeInterpreterProvider.GetDescriptorMap</c>) — ⛔ not
+    /// from the builder's <c>descriptorOrdinal:</c> argument these facts used to rely on. So the fixture says
+    /// what the network layer would, through the same call the translators feed (<c>RegisterFromTranslator</c>,
+    /// the only registration that fills the reverse index the patch reads).
+    /// </summary>
+    private static void CarryOnTheWire<T>(EntityRepository repo, long ordinal) where T : struct
+        => Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo)
+               .RegisterFromTranslator(ordinal, new[] { ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)) });
+
     [Fact]
     public void EcsPatchContext_GetUnmanagedComponent_ReturnsRefToEcs()
     {
@@ -240,6 +251,7 @@ public class EcsPatchContextTests
         var repo = CreateRepo();
         var entity = repo.CreateEntity();
         repo.SetComponent(entity, new EntityInfo { Name = "alpha" });
+        CarryOnTheWire<EntityInfo>(repo, TestOrdinal);
 
         var compiler = new AttributeCompilerBuilder()
             .RegisterValuePath<EntityInfo>("Name",
@@ -270,6 +282,7 @@ public class EcsPatchContextTests
         var repo = CreateRepo();
         var entity = repo.CreateEntity();
         repo.SetComponent(entity, new EntityInfo { Name = "beta" });
+        CarryOnTheWire<EntityInfo>(repo, SharedOrdinal);
 
         // Both "Name" and "Affiliation" map to the same ordinal (like dtEntityInfo).
         var compiler = new AttributeCompilerBuilder()
@@ -348,23 +361,23 @@ public class JsonAttributeCompilerTests
     [Fact]
     public void JsonAttributeCompiler_NestedProperty_InvokesCorrectDelegate()
     {
-        double capturedLat = 0;
+        double capturedX = 0;
         int invocations = 0;
 
         var compiler = new AttributeCompilerBuilder()
-            .RegisterValuePath<SimTransform>("GeoPosition.Latitude",
+            .RegisterValuePath<SimTransform>("Position.X",
                 (ref SimTransform c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                 {
-                    capturedLat = r.GetDouble();
+                    capturedX = r.GetDouble();
                     invocations++;
                 })
             .Build();
 
         var ctx = new ListPatchContext(null);
-        compiler.Compile("{\"GeoPosition\":{\"Latitude\":32.5,\"Longitude\":34.8,\"Altitude\":0}}", ctx);
+        compiler.Compile("{\"Position\":{\"X\":32.5,\"Y\":34.8,\"Z\":0}}", ctx);
 
         Assert.Equal(1, invocations);
-        Assert.Equal(32.5, capturedLat, precision: 5);
+        Assert.Equal(32.5, capturedX, precision: 5);
     }
 
     [Fact]
@@ -470,6 +483,33 @@ public class FnvHashTests
         Assert.True(cInvoked,
             "Top-level path 'C' should have been invoked after depth was restored by EndObject.");
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-2038</c> — a key written with a JSON escape routes like the plain key. Registration hashes the UNESCAPED
+    /// UTF-8 (<see cref="JsonAttributeCompiler.HashPath"/>); the streaming compile hashed <c>reader.ValueSpan</c> — the raw,
+    /// still-escaped bytes — so <c>{"\u0043":1}</c> (which IS <c>{"C":1}</c>) and an escaped non-ASCII key never reached their
+    /// routes. Any JSON writer may escape (System.Text.Json escapes non-ASCII by default).
+    /// </summary>
+    [Theory]
+    [InlineData("{\"\\u0043\":1}", "C")]
+    [InlineData("{\"A\":{\"\\u0042\":1}}", "A.B")]
+    [InlineData("{\"Gr\\u00f6\\u00dfe\":1}", "Gr\u00f6\u00dfe")]
+    public void CE2038_AnEscapedKey_RoutesLikeThePlainKey(string json, string path)
+    {
+        bool invoked = false;
+        var compiler = new AttributeCompilerBuilder()
+            .RegisterValuePath<TestWeaponState>(path,
+                (ref TestWeaponState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    invoked = true;
+                    c.Count = r.GetInt32();
+                })
+            .Build();
+
+        compiler.Compile(json, new ListPatchContext(null));
+
+        Assert.True(invoked, $"'{json}' names '{path}' and must reach its route.");
+    }
 }
 // ─────────────────────────────────────────────────────────────
 // EcsPatchContext authority tests
@@ -565,6 +605,7 @@ internal sealed class SplitAuthorityContext : IEntityPatchContext
 
     public ref T GetUnmanagedComponent<T>() where T : struct => ref _inner.GetUnmanagedComponent<T>();
     public T GetManagedComponent<T>() where T : class => _inner.GetManagedComponent<T>();
+    public void SetManagedComponent<T>(T value) where T : class => _inner.SetManagedComponent(value);
     public void FlushDirtyMarks() => _inner.FlushDirtyMarks();
     public bool CanWrite<T>() where T : struct => _ownedTypes.Contains(typeof(T));
     public bool CanWriteManaged<T>() where T : class => _ownedTypes.Contains(typeof(T));
@@ -777,19 +818,19 @@ public class JsonAttributeCompilerSpanOverloadTests
     [Fact]
     public void Compile_SpanOverload_NestedProperty_InvokesDelegate()
     {
-        double capturedLat = 0;
+        double capturedX = 0;
 
         var compiler = new AttributeCompilerBuilder()
-            .RegisterValuePath<SimTransform>("GeoPosition.Latitude",
+            .RegisterValuePath<SimTransform>("Position.X",
                 (ref SimTransform c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
-                    capturedLat = r.GetDouble())
+                    capturedX = r.GetDouble())
             .Build();
 
         var ctx = new ListPatchContext(null);
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(
-            "{\"GeoPosition\":{\"Latitude\":55.5,\"Longitude\":0}}");
+            "{\"Position\":{\"X\":55.5,\"Y\":0}}");
         compiler.Compile(new ReadOnlySpan<byte>(bytes), ctx);
 
-        Assert.Equal(55.5, capturedLat, precision: 5);
+        Assert.Equal(55.5, capturedX, precision: 5);
     }
 }

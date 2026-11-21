@@ -36,7 +36,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
 
     public void Dispose() => _world.Dispose();
 
-    private Entity SpawnEntity(long netId)
+    private Entity SpawnEntity(int netId)
     {
         var entity = _world.CreateEntity();
         _world.AddComponent(entity, new NetworkIdentity(netId));
@@ -51,7 +51,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsMontageQueue>();
         var translator = new AnimationMontageQueueEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(800L);
+        var entity = SpawnEntity(800);
 
         _world.AddComponent(entity, new AnimationMontageQueue { Count = 2, QueueVersion = 1 });
 
@@ -70,7 +70,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsMontageQueue>();
         var translator = new AnimationMontageQueueEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(801L);
+        var entity = SpawnEntity(801);
 
         _world.AddComponent(entity, new AnimationMontageQueue { QueueVersion = 5, Count = 1 });
         translator.ScanAndPublish(_world);
@@ -104,7 +104,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsMontageQueue>();
         var translator = new AnimationMontageQueueEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(802L);
+        var entity = SpawnEntity(802);
 
         // Build a queue with 3 live entries and stale data in tail slots
         var q = new AnimationMontageQueue { Count = 3, QueueVersion = 2 };
@@ -144,7 +144,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
     {
         var egressWriter = new CapturingWriter<DdsMontageQueue>();
         var egressTranslator = new AnimationMontageQueueEgressTranslator(egressWriter, _entityMap);
-        var entity = SpawnEntity(900L);
+        var entity = SpawnEntity(900);
 
         // Build a queue with 3 entries
         var q = new AnimationMontageQueue { Count = 3, QueueVersion = 7 };
@@ -166,7 +166,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<AnimationMontageQueue>();
         var ingressEntity = ingressWorld.CreateEntity();
-        ingressMap.Register(900L, ingressEntity);
+        ingressMap.Register(900, ingressEntity);
         ingressWorld.AddComponent(ingressEntity, new AnimationMontageQueue());
 
         var ingressTranslator = new AnimationMontageQueueIngressTranslator(participant: null, ingressMap);
@@ -201,7 +201,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsMontageQueueState>();
         var translator = new AnimationMontageQueueStateEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(1000L);
+        var entity = SpawnEntity(1000);
 
         _world.AddComponent(entity, new AnimationMontageQueueState
         {
@@ -225,7 +225,7 @@ public sealed class MontageQueueTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsMontageQueueState>();
         var translator = new AnimationMontageQueueStateEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(1001L);
+        var entity = SpawnEntity(1001);
 
         _world.AddComponent(entity, new AnimationMontageQueueState
         {
@@ -258,13 +258,13 @@ public sealed class MontageQueueTranslatorTests : IDisposable
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<AnimationMontageQueueState>();
         var ingressEntity = ingressWorld.CreateEntity();
-        ingressMap.Register(1002L, ingressEntity);
+        ingressMap.Register(1002, ingressEntity);
         ingressWorld.AddComponent(ingressEntity, new AnimationMontageQueueState { ObservedQueueVersion = 42 });
 
         var ingressTranslator = new AnimationMontageQueueStateIngressTranslator(participant: null, ingressMap);
         var msg = new DdsMontageQueueState
         {
-            EntityId = 1002L,
+            EntityId = 1002,
             CurrentEntryIndex = 2,
             InBlendOutWindow = 1,
             EntryElapsedSeconds = 1.25f,

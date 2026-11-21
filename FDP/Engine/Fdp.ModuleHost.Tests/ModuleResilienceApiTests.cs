@@ -7,6 +7,7 @@ namespace Fdp.ModuleHost.Tests
 {
     public class ModuleResilienceApiTests
     {
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class BasicTestModule : IEcsModule
         {
             public string Name => "Basic";
@@ -16,6 +17,7 @@ namespace Fdp.ModuleHost.Tests
             public void RegisterSystems(ISystemRegistry registry) { }
         }
 
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class CustomTimeoutModule : IEcsModule
         {
             public string Name => "Custom";

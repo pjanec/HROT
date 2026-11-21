@@ -1255,7 +1255,7 @@ public static UpdateEntityDescriptorRequest ToUpdateDescriptorRequest(UpdateEnti
 
 After all tasks are complete:
 
-1. `dotnet build IOS-IG-SimHost.sln -v quiet` → 0 errors
+1. `dotnet build HROT.sln -v quiet` → 0 errors
 2. `dotnet list Hrot.IG\Hrot.IG.csproj reference` → no `Hrot.Network.NED` entry
 3. `dotnet list Hrot.CGF\Hrot.CGF.csproj reference` → no `Hrot.Network.NED` entry
 4. `dotnet test Hrot.CGF.Tests\Hrot.CGF.Tests.csproj --no-build` → all pass
@@ -1303,7 +1303,7 @@ Submit `.dev/modular-2/reports/BATCH-16-REPORT.md` with:
 
 1. **Phase summary table**: which tasks completed, which had blockers
 2. **Reference verification**: output of `dotnet list Hrot.IG reference` and `dotnet list Hrot.CGF reference`
-3. **Build result**: full output of `dotnet build IOS-IG-SimHost.sln -v quiet` (warnings count)
+3. **Build result**: full output of `dotnet build HROT.sln -v quiet` (warnings count)
 4. **Test results**: test pass/fail counts for each affected project
 5. **Blockers/decisions**: any design decisions made beyond the spec, or issues encountered
 6. **Deferred items**: anything that could not be completed, with root cause

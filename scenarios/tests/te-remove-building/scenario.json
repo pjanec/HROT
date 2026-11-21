@@ -1,0 +1,79 @@
+{
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: bt-range (CE-5027 / CE-5030, base edits BE-1; docs/DESIGN_Terrain_Base_Edits.md §7): the scenario carries ONE building edit — 'Remove building' on House A (baked into the terrain, x 100..110 on the west-east line y 103.5) — and 'Walker' (Friend rifleman at (93,103.5)) is ordered to (117,103.5), straight through where the house stood. Judge: with the house gone (bare levelled ground, no walls) he walks the straight line — never more than 1.5 m off y 103.5 — crosses the old footprint (x past 105) and ends within 1.5 m of (117,103.5). With the house still there he would have to go round it (its walls run across the line), so the line check is what proves the removal."
+  },
+  "entities": {
+    "5e010001-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "EntityInfo": {
+        "Name": "Remove House A",
+        "ForceId": "Neutral"
+      },
+      "TerrainFeature": {
+        "Kind": 16,
+        "Template": "remove",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0,
+        "Target": "House A"
+      },
+      "SimTransform": {
+        "Position": [
+          105,
+          103.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    "5e010002-0000-4000-8000-000000000002": {
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Walker",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "SimTransform": {
+        "Position": [
+          93,
+          103.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            117,
+            103.5,
+            0
+          ],
+          "speed": 1.5,
+          "arrivalRadius": 1
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

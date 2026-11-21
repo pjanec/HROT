@@ -163,7 +163,7 @@ Check its current constructor and update all instantiation sites.
 - Add `ExecuteDiagnosticDumpIntent` struct to `ClusterOpIntents.cs`:
   ```csharp
   [EventId(9058)]
-  [DataPolicy(DataPolicy.NoRecord)]
+  [DataPolicy(DataPolicy.NoReplay)]
   public struct ExecuteDiagnosticDumpIntent
   {
       public Guid   RequestId;

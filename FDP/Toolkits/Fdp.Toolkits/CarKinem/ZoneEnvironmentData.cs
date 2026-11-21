@@ -16,7 +16,15 @@ namespace CarKinem.Road
     /// <see cref="CarKinem.Systems.CarKinematicsSystem"/> falls back to an empty
     /// <see cref="RoadNetworkBlob"/> so that non-road vehicle physics continue to run normally.
     /// </para>
+    /// <para>
+    /// ⭐ <c>CE-3118</c> — <c>NoScenario | NoReplay</c>, like <c>TerrainWorld</c>: the blob is native memory of THIS process.
+    /// ⛔ It used to default to recordable, so a recording of a terrain with roads carried the recording process's pointers and
+    /// a replay restored them into the world the map reads. The terrain is a NAME in a recording (R-226); the Replay Browser
+    /// loads it (docs/DESIGN_Geo_Origin.md §5).
+    /// </para>
     /// </summary>
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): per-node zone query state holding this node's entity handles — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.ZoneEnvironmentData)]
     public struct ZoneEnvironmentData
     {

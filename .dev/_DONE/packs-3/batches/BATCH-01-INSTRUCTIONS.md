@@ -203,7 +203,7 @@ All three streams are largely independent of each other and of the DTOs/services
 
 Run all tests before submitting the report:
 ```
-dotnet build d:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln
+dotnet build d:\Work\IOS-IG-SimHost-FDP-2\HROT.sln
 dotnet test Hrot.ClusterRunner.Integration.Tests --filter "CgfSubsystemHeadless|DistributedBrainMuscle|UrbanCombat" --no-build
 ```
 

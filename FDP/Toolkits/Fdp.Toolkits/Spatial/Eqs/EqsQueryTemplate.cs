@@ -10,9 +10,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// </summary>
     public enum EqsTestPhase : byte
     {
-        /// <summary>Fast data-driven filters (faction, FOV). No allocations. Reject with EntityId = -1L.</summary>
+        /// <summary>Fast data-driven filters (faction, FOV). No allocations. Reject with EntityId = -1.</summary>
         FilterCheap = 0,
-        /// <summary>Slow filters (navmesh reachability). Reject with EntityId = -1L.</summary>
+        /// <summary>Slow filters (navmesh reachability). Reject with EntityId = -1.</summary>
         FilterExpensive = 1,
         /// <summary>Fast scoring (distance falloff). Additive to EqsResult.Score.</summary>
         ScoreCheap = 2,
@@ -30,6 +30,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// Fills <paramref name="candidates"/> with initial results and returns the valid count.
         /// Entity-shaped results store <c>entity.PackedValue</c> in EntityId.
         /// Positional results set EntityId = 0.
+        /// <para>Return a NEGATIVE value when the query cannot be evaluated yet (e.g. a context entity
+        /// it needs has not arrived on this node): the solver then publishes NOTHING, so a reader keeps
+        /// waiting instead of seeing an empty result that would read as "nothing there".</para>
         /// </summary>
         int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates);
     }
@@ -45,7 +48,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         /// <summary>
         /// Executes the test over <paramref name="candidates"/>.
-        /// Filters reject by setting EntityId = -1L.
+        /// Filters reject by setting EntityId = -1.
         /// Scorers accumulate into EqsResult.Score additively.
         /// </summary>
         void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates);
@@ -77,6 +80,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         /// <summary>Maximum candidates the generator may populate. Must be &lt;= EqsResultPool.MaxTopK * some factor.</summary>
         public int MaxCandidates;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2164</c> (R-3004) — when the filters reject EVERY candidate, keep them all: the filters become a preference, and the
+        /// score phases rank the whole set. ⭐ For a query that must always answer — a retreat: 📌 live, on open ground no point within
+        /// 60 m was hidden from the enemy, the retreat answered nothing, and a squad (and a lone soldier's <c>FallBack</c>) stood in the
+        /// open being shot. ⚠ Only when nothing passes: a candidate that passes always beats one that does not.
+        /// </summary>
+        public bool KeepAllWhenFilteredOut;
 
         /// <summary>
         /// FNV-1a 64-bit hash over the fully-qualified type names of the Generator and all Tests.
@@ -119,7 +130,57 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <summary>
     /// Registry allowing the solver to look up a compiled template by BlueprintId.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-3143</c> — a template's FILTER phases (cheap, then expensive) over generated candidates: a rejected candidate is marked
+    /// <c>EntityId = -1</c>. ONE pipeline for the solver and the map's EQS verdict (<c>EqsSensorGizmo</c>), so the map shows exactly what
+    /// the AI concluded. ⚠ The filter tests are pure (they read the view, mark candidates); the SCORE phases are not run here — one of
+    /// them submits raycasts (<c>AccurateLineOfSightTest</c>).
+    /// </summary>
+    public static class EqsFilters
+    {
+        /// <summary>Runs <paramref name="template"/>'s filter tests over <paramref name="candidates"/>; returns their cost (<see cref="EqsCost"/>).</summary>
+        public static int Run(in EqsQueryTemplate template, Entity entity, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
+        {
+            int cost = 0;
+            // ⭐ CE-2164 (R-3004) — remember who was a candidate, to give them all back if the filters leave nobody
+            Span<long> before = template.KeepAllWhenFilteredOut && candidates.Length <= MaxKeptOnStack
+                ? stackalloc long[candidates.Length] : Span<long>.Empty;
+            for (int i = 0; i < before.Length; i++) before[i] = candidates[i].EntityId;
+            if (template.FilterCheap != null)
+                foreach (var test in template.FilterCheap)
+                {
+                    long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — each test's cost, by type
+                    long bt = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
+                    test.ExecuteBatch(entity, ref sensor, view, candidates);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt, bt);
+                    cost += EqsCost.Charged(test, candidates.Length);   // ⭐ CE-3279 (c) — after the batch: a test may count its own work
+                }
+            if (template.FilterExpensive != null)
+                foreach (var test in template.FilterExpensive)
+                {
+                    long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — each test's cost, by type
+                    long bt = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
+                    test.ExecuteBatch(entity, ref sensor, view, candidates);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt, bt);
+                    cost += EqsCost.Charged(test, candidates.Length);   // ⭐ CE-3279 (c) — after the batch: a test may count its own work
+                }
+            if (!before.IsEmpty)
+            {
+                bool any = false;
+                foreach (var c in candidates) if (c.EntityId != -1L) { any = true; break; }
+                if (!any)
+                    for (int i = 0; i < before.Length; i++) candidates[i].EntityId = before[i];
+            }
+            return cost;
+        }
+
+        /// <summary>The most candidates <see cref="EqsQueryTemplate.KeepAllWhenFilteredOut"/> remembers (on the stack); a larger
+        /// span filters hard.</summary>
+        public const int MaxKeptOnStack = 1024;
+    }
+
     [ComponentId(GlobalComponentIds.IEqsTemplateRegistry)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public interface IEqsTemplateRegistry
     {
         /// <summary>

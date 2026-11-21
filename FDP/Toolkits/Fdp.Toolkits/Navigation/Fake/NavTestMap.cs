@@ -15,15 +15,16 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Consumed by <see cref="FakeNavmeshProvider"/>, <see cref="FakeVolumetricPathProvider"/>,
     /// and loaded from JSON by <see cref="NavTestMapLoader"/>.
     /// </summary>
+    [Fdp.Core.NotState("declarative test map data")]
     public sealed class NavTestMap
     {
         /// <summary>Nav layers in the map.</summary>
         public FakeNavLayer[] Layers = Array.Empty<FakeNavLayer>();
 
-        /// <summary>Lower altitude bound for aerial navigation (metres above sea level).</summary>
+        /// <summary>Lower altitude bound for aerial navigation (the Z coordinate, metres; engine space is Z-up).</summary>
         public float MinAltitude = 0f;
 
-        /// <summary>Upper altitude bound for aerial navigation (metres above sea level).</summary>
+        /// <summary>Upper altitude bound for aerial navigation (the Z coordinate, metres; engine space is Z-up).</summary>
         public float MaxAltitude = 5000f;
 
         /// <summary>No-fly zones. Aerial paths must route around these volumes.</summary>

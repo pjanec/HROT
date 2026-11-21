@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Fbt.Runtime
 {
@@ -15,15 +16,44 @@ namespace Fbt.Runtime
         // Used for diagnostics/debugging -- not currently used in tick but available for hot reload introspection.
         private readonly int _blobStructureHash;
 
+        private readonly string[] _unboundMethodNames;
+
         /// <summary>Exposes the compiled blob for diagnostic/visualizer tools.</summary>
         public BehaviorTreeBlob Blob => _blob;
+
+        /// <summary>
+        /// The blob method names the registry could NOT resolve at construction, so
+        /// <c>BindActions</c> substituted the <see cref="NodeStatus.Failure"/> fallback.
+        /// Empty when every node is bound.
+        ///
+        /// <para>
+        /// This exists because the fallback is otherwise INVISIBLE: it is a silent behavioural
+        /// change announced only by a <c>Console.WriteLine</c>. A registrar that is skipped —
+        /// e.g. because a reflection <c>typeof(ActionRegistry&lt;,&gt;)</c> filter disagrees with
+        /// the generator about <c>TBlackboard</c>, or because a registrar body threw and was
+        /// swallowed — produces a tree that ticks, returns <c>Failure</c> forever, and compiles
+        /// cleanly. Exposing the miss list lets a rail assert ZERO fallbacks instead of scraping
+        /// console output, which is the symptom rather than the definition.
+        /// </para>
+        /// </summary>
+        public IReadOnlyList<string> UnboundMethodNames => _unboundMethodNames;
+
+        /// <summary>
+        /// CE-365 -- what runs a <c>NodeType.Subtree</c> node. Null (the default) keeps the historical
+        /// behaviour: a Subtree node returns Failure.
+        /// <para>
+        /// Settable rather than a constructor argument because the host resolves its per-site keys
+        /// from the BLOB, which does not exist until this interpreter has been built around it.
+        /// </para>
+        /// </summary>
+        public ISubtreeHost<TBlackboard, TContext>? SubtreeHost { get; set; }
 
         public Interpreter(BehaviorTreeBlob blob, ActionRegistry<TBlackboard, TContext> registry)
         {
             _blob = blob ?? throw new ArgumentNullException(nameof(blob));
             if (registry == null) throw new ArgumentNullException(nameof(registry));
-            
-            _actionDelegates = BindActions(blob, registry);
+
+            _actionDelegates = BindActions(blob, registry, out _unboundMethodNames);
             _registry = registry;
             _blobStructureHash = blob.StructureHash;
 
@@ -83,6 +113,16 @@ namespace Fbt.Runtime
             // === EXECUTE TREE ===
             if (_blob.Nodes.Length == 0) return NodeStatus.Success; // Empty tree safety
 
+            // ⭐ CE-2117 -- NodeIndexStack is this tick's RUNNING SET: every resource-owning leaf (and hosting Subtree)
+            //   still Running when the tick ends (NoteRunning). RunningNodeIndex alone holds ONE index, and a running
+            //   Parallel overwrites it with its own -- so a branch switch BENEATH a Parallel was invisible to the sweep and
+            //   the abandoned leaf's deactivator never ran (measured: CombatPosture kept firing / moving after TakeCover won).
+            unsafe
+            {
+                for (int i = 0; i < 8; i++)
+                    state.NodeIndexStack[i] = 0;
+            }
+
             var result = ExecuteNode(0, ref blackboard, ref state, ref context);
             
             // === CLEANUP ===
@@ -109,6 +149,34 @@ namespace Fbt.Runtime
         }
 
         // Sweeps oldPath for entries not present in newPath and invokes deactivators for each.
+        /// <summary>
+        /// ⭐ <c>CE-2116</c> — the run is ABANDONED by its host (a Behaviour Task's Abort, an HSM state's exit, a BTree host
+        /// leaving the hosting node, a behaviour change) while it is still LIVE (the caller asserts that): every node on the
+        /// active path leaves, so each resource-owning one's deactivator runs — what a tick that moves the path away would do.
+        /// ⚠ The root itself is swept too: index 0 is the root, and a one-leaf tree's running leaf IS the root, which the
+        /// cursor cannot record (0 means "none"). A Parallel root sweeps its whole subtree (and nothing is swept twice). The
+        /// state is left as it was; the caller zeroes it.
+        /// </summary>
+        public void Abort(ref TBlackboard blackboard, ref BehaviorTreeState state, ref TContext context)
+        {
+            if (_blob.Nodes.Length == 0) return;
+            if (_blob.Nodes[0].Type == NodeType.Parallel)
+            {
+                SweepExitedNode(0, ref blackboard, ref state, ref context);   // its children, at any depth
+                return;
+            }
+            Span<ushort> oldPath = stackalloc ushort[9];
+            unsafe
+            {
+                for (int i = 0; i < 8; i++)
+                    oldPath[i] = state.NodeIndexStack[i];
+            }
+            oldPath[8] = state.RunningNodeIndex;
+            Span<ushort> emptyPath = stackalloc ushort[9];
+            SweepExitedNodes(oldPath, emptyPath, ref blackboard, ref state, ref context);
+            SweepExitedNode(0, ref blackboard, ref state, ref context);       // a leaf (or hosting) root
+        }
+
         private void SweepExitedNodes(
             Span<ushort> oldPath,
             Span<ushort> newPath,
@@ -121,8 +189,24 @@ namespace Fbt.Runtime
                 ushort old = oldPath[i];
                 if (old == 0) continue;
                 if (newPath.Contains(old)) continue;
+                if (oldPath[..i].Contains(old)) continue;   // CE-2117: a leaf is in the running set AND the cursor -- once
+                if (InsideExitingParallel(old, oldPath, newPath)) continue;   // CE-2117: that Parallel's block sweep covers it
                 SweepExitedNode(old, ref blackboard, ref state, ref context);
             }
+        }
+
+        /// <summary>CE-2117 -- true when <paramref name="index"/> lies inside a Parallel that is itself leaving the path: its
+        /// block sweep (<see cref="SweepParallelChildren"/>) already runs every still-running leaf beneath it.</summary>
+        private bool InsideExitingParallel(ushort index, Span<ushort> oldPath, Span<ushort> newPath)
+        {
+            for (int k = 0; k < oldPath.Length; k++)
+            {
+                ushort p = oldPath[k];
+                if (p == 0 || p == index || newPath.Contains(p) || (uint)p >= (uint)_blob.Nodes.Length) continue;
+                ref var node = ref _blob.Nodes[p];
+                if (node.Type == NodeType.Parallel && index > p && index < p + node.SubtreeOffset) return true;
+            }
+            return false;
         }
 
         // Invokes the deactivator for nodeIndex if it is resource-owning, and handles
@@ -135,6 +219,17 @@ namespace Fbt.Runtime
         {
             if ((uint)nodeIndex >= (uint)_blob.Nodes.Length) return;
             ref var node = ref _blob.Nodes[nodeIndex];
+
+            // CE-365 / F14 -- a Subtree node's deactivation CANNOT go through the lookup below:
+            // its PayloadIndex indexes SubtreeAssetIds, not MethodNames, so that read would hit the
+            // wrong array. The host owns the reset. Without this the abandoned child keeps its
+            // cursor and the next entry resumes mid-tree.
+            if (node.Type == NodeType.Subtree)
+            {
+                SubtreeHost?.Reset(ref context, _blob, nodeIndex);
+                return;
+            }
+
             if (node.IsResourceOwning)
             {
                 int pi = node.PayloadIndex;
@@ -224,11 +319,9 @@ namespace Fbt.Runtime
                 case NodeType.UntilFailure:
                     return ExecuteUntilFailure(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.ObserverSelector:
-                    // ObserverSelector uses standard selector semantics in the interpreter.
-                    return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                    return ExecuteObserverSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.Subtree:
-                    // Subtree execution requires external orchestration; return Failure as a safe stub.
-                    return NodeStatus.Failure;
+                    return ExecuteSubtree(nodeIndex, ref bb, ref state, ref ctx);
                 default:
                     return NodeStatus.Failure; // Unknown/Unimplemented node type
             }
@@ -538,7 +631,21 @@ namespace Fbt.Runtime
                     
                     // Child succeeded, increment counter
                     currentIteration++;
-                    
+
+                    // CE-450: a FOREVER repeater YIELDS after each completed iteration — one iteration per tick.
+                    //   Looping in the same tick never returned when the child succeeds immediately (a hang, not a
+                    //   slow frame). RunningNodeIndex = this node makes the next tick resume here (ancestors skip
+                    //   finished siblings by index), and the child starts fresh because it no longer matches
+                    //   RunningNodeIndex. At the root (index 0) that is simply "not running" ⇒ the next tick re-enters
+                    //   the root, which is the same thing for a forever loop (its count is never read).
+                    //   ⚠ A BOUNDED repeater keeps its in-tick semantics (Repeater_ExecutesCorrectly: Repeat(3) runs
+                    //   three times in one tick) — it always terminates.
+                    if (repeatCount < 0)
+                    {
+                        state.RunningNodeIndex = (ushort)nodeIndex;
+                        return NodeStatus.Running;
+                    }
+
                     // If more iterations remain, continue
                     if (repeatCount < 0 || currentIteration < repeatCount)
                     {
@@ -640,6 +747,123 @@ namespace Fbt.Runtime
             return NodeStatus.Failure;
         }
 
+        /// <summary>
+        /// CE-3041 -- the priority-abort selector (<c>Fbt.Kernel.md</c>: "Selector with abort-on-priority-change").
+        /// 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.3a.
+        ///
+        /// <para>
+        /// While a LOWER branch runs, each tick re-checks the GUARD of every HIGHER branch (the branch's leading
+        /// Condition -- see <see cref="TryEvaluateGuard"/>). A guard that passes runs its branch fresh; if that
+        /// branch takes over (Running or Success) the lower branch is abandoned and the post-tick sweep fires its
+        /// deactivator, exactly as any other exit. If the higher branch FAILS anyway, the lower branch resumes where
+        /// it was -- a branch that cannot take over aborts nothing.
+        /// </para>
+        /// <para>
+        /// Only guards are evaluated speculatively: a higher branch with no leading Condition is not observed (it
+        /// behaves as in a plain selector), so no Action ever runs just to find out whether it would succeed.
+        /// With nothing running inside this node it IS a plain selector.
+        /// </para>
+        /// </summary>
+        private NodeStatus ExecuteObserverSelector(
+            int nodeIndex,
+            ref NodeDefinition node,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx)
+        {
+            ushort running = state.RunningNodeIndex;
+            bool runningInside = running > nodeIndex && running < nodeIndex + node.SubtreeOffset;
+            if (!runningInside)
+                return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
+
+            int childCount = node.ChildCount;
+            int currentChildIndex = nodeIndex + 1;
+
+            for (int i = 0; i < childCount; i++)
+            {
+                ref var childNode = ref _blob.Nodes[currentChildIndex];
+                int childEnd = currentChildIndex + childNode.SubtreeOffset;
+
+                if (running >= childEnd)
+                {
+                    // A HIGHER branch than the running one: observed through its guard.
+                    if (TryEvaluateGuard(currentChildIndex, ref bb, ref state, ref ctx, out bool passes) && passes)
+                    {
+                        state.RunningNodeIndex = 0;                          // run the higher branch fresh
+                        var taken = ExecuteNode(currentChildIndex, ref bb, ref state, ref ctx);
+                        if (taken != NodeStatus.Failure)
+                            return taken;                                    // the lower branch is abandoned
+                        state.RunningNodeIndex = running;                    // it could not take over: resume
+                    }
+                    currentChildIndex = childEnd;
+                    continue;
+                }
+
+                var status = ExecuteNode(currentChildIndex, ref bb, ref state, ref ctx);
+                if (status != NodeStatus.Failure)
+                    return status;
+                currentChildIndex = childEnd;
+            }
+
+            return NodeStatus.Failure;
+        }
+
+        /// <summary>
+        /// CE-3041 -- a branch's GUARD: the Condition it starts with. A Condition is its own guard; a Sequence's guard
+        /// is its first child's; an Inverter's is its child's, inverted (Running stays Running). Anything else has no
+        /// guard and the method returns false. A guard passes only on Success. The running cursor is left exactly as
+        /// it was found.
+        /// </summary>
+        private bool TryEvaluateGuard(
+            int nodeIndex,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx,
+            out bool passes)
+        {
+            bool observed = TryEvaluateGuardStatus(nodeIndex, ref bb, ref state, ref ctx, out var status);
+            passes = observed && status == NodeStatus.Success;
+            return observed;
+        }
+
+        private bool TryEvaluateGuardStatus(
+            int nodeIndex,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx,
+            out NodeStatus status)
+        {
+            ref var node = ref _blob.Nodes[nodeIndex];
+            switch (node.Type)
+            {
+                case NodeType.Condition:
+                {
+                    ushort saved = state.RunningNodeIndex;
+                    status = ExecuteAction(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                    state.RunningNodeIndex = saved;
+                    return true;
+                }
+                case NodeType.Sequence when node.ChildCount > 0:
+                    return TryEvaluateGuardStatus(nodeIndex + 1, ref bb, ref state, ref ctx, out status);
+                case NodeType.Inverter:
+                    if (!TryEvaluateGuardStatus(nodeIndex + 1, ref bb, ref state, ref ctx, out var inner))
+                    {
+                        status = NodeStatus.Failure;
+                        return false;
+                    }
+                    status = inner switch
+                    {
+                        NodeStatus.Success => NodeStatus.Failure,
+                        NodeStatus.Failure => NodeStatus.Success,
+                        _ => inner,
+                    };
+                    return true;
+                default:
+                    status = NodeStatus.Failure;
+                    return false;
+            }
+        }
+
         private NodeStatus ExecuteAction(
             int nodeIndex,
             ref NodeDefinition node,
@@ -661,6 +885,61 @@ namespace Fbt.Runtime
             if (status == NodeStatus.Running)
             {
                 state.RunningNodeIndex = (ushort)nodeIndex;
+                if (node.IsResourceOwning) NoteRunning(nodeIndex, ref state);
+            }
+            else if (state.RunningNodeIndex == nodeIndex)
+            {
+                state.RunningNodeIndex = 0;
+            }
+
+            return status;
+        }
+
+        /// <summary>
+        /// ⭐ CE-2117 -- records a still-Running node that owns something to release (a resource-owning leaf, a hosting
+        /// Subtree) in this tick's running set (<see cref="BehaviorTreeState.NodeIndexStack"/>), so the post-tick sweep sees
+        /// it LEAVE even when a Parallel holds the cursor. ⚠ Eight slots: a ninth concurrently-running owner is not tracked
+        /// (it still exits through <see cref="BehaviorTreeState.RunningNodeIndex"/> when that is its path).
+        /// </summary>
+        private static unsafe void NoteRunning(int nodeIndex, ref BehaviorTreeState state)
+        {
+            ushort n = (ushort)nodeIndex;
+            for (int i = 0; i < 8; i++)
+            {
+                if (state.NodeIndexStack[i] == n) return;
+                if (state.NodeIndexStack[i] == 0) { state.NodeIndexStack[i] = n; return; }
+            }
+        }
+
+        /// <summary>
+        /// CE-365 -- a hosting node. Dispatches to <see cref="SubtreeHost"/>, or keeps the historical
+        /// Failure stub when none is set.
+        ///
+        /// <para>
+        /// THE RUNNING BOOKKEEPING BELOW IS NOT OPTIONAL and mirrors ExecuteAction's. The post-tick
+        /// sweep diffs NodeIndexStack + RunningNodeIndex to find nodes that LEFT the active path, so
+        /// a hosting node that never records itself as running is never swept -- and F14 (the host
+        /// abandons a still-Running child) silently does nothing. Measured: E6_R3 read a non-zero
+        /// child cursor after an abandonment until this was added.
+        /// </para>
+        /// </summary>
+        private NodeStatus ExecuteSubtree(
+            int nodeIndex,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx)
+        {
+            if (SubtreeHost is not { } host)
+                return NodeStatus.Failure;
+
+            var status = host.Tick(ref bb, ref ctx, _blob, nodeIndex);
+
+            ctx.TraceNodeEvaluated(nodeIndex, status);
+
+            if (status == NodeStatus.Running)
+            {
+                state.RunningNodeIndex = (ushort)nodeIndex;
+                NoteRunning(nodeIndex, ref state);   // CE-2117
             }
             else if (state.RunningNodeIndex == nodeIndex)
             {
@@ -689,13 +968,19 @@ namespace Fbt.Runtime
         }
 
         private NodeLogicDelegate<TBlackboard, TContext>[] BindActions(
-            BehaviorTreeBlob blob, 
-            ActionRegistry<TBlackboard, TContext> registry)
+            BehaviorTreeBlob blob,
+            ActionRegistry<TBlackboard, TContext> registry,
+            out string[] unbound)
         {
-            if (blob.MethodNames == null) return Array.Empty<NodeLogicDelegate<TBlackboard, TContext>>();
+            if (blob.MethodNames == null)
+            {
+                unbound = Array.Empty<string>();
+                return Array.Empty<NodeLogicDelegate<TBlackboard, TContext>>();
+            }
 
             var delegates = new NodeLogicDelegate<TBlackboard, TContext>[blob.MethodNames.Length];
             var fallback = new NodeLogicDelegate<TBlackboard, TContext>((ref TBlackboard bb, ref BehaviorTreeState st, ref TContext ctx, int p) => NodeStatus.Failure);
+            List<string>? misses = null;
 
             for (int i = 0; i < blob.MethodNames.Length; i++)
             {
@@ -707,10 +992,12 @@ namespace Fbt.Runtime
                 else
                 {
                     Console.WriteLine($"[FastBTree] Warning: Action '{name}' not found in registry. Using fallback Failure.");
+                    (misses ??= new List<string>()).Add(name);
                     delegates[i] = fallback;
                 }
             }
 
+            unbound = misses?.ToArray() ?? Array.Empty<string>();
             return delegates;
         }
     }

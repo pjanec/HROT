@@ -167,7 +167,7 @@ and presence of synthesized fields).
 
 ### Full solution build
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.  0 Error(s)
 ```
 

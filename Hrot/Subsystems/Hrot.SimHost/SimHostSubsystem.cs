@@ -35,26 +35,72 @@ namespace Hrot.SimHost
     /// <para>This follows the same "thin adapter" pattern as <see cref="IgSubsystem"/>:
     /// the core application class is the single source of truth for its own wiring.</para>
     /// </summary>
-    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+        Hrot.Common.EntityCreation.IEntityCreationHost,
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
         /// <inheritdoc/>
         public string Name => "SimHost";
 
+        /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
+        public Hrot.Common.EntityCreation.EntityCreation? EntityCreation => _app?.EntityCreation;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>Q54</c> — SimHost's debug surface.</b> 📄 <c>Architect_Question_54</c> Q54-2.
+        /// ⭐ Its perspective and its subsystem name agree here; the drive facade is its own cluster adapter
+        /// *(the one that publishes <c>StepTimeIntent</c> onto its bus)*.
+        /// <para>⚠ <c>World</c> is null until <c>Initialize</c> has run — the provider is built after boot,
+        /// which is why <c>CreateDebugProvider</c> exists instead of the subsystem BEING a provider.</para>
+        /// </summary>
+        public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+            // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider) — only what SimHost genuinely adds is passed.
+            => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "SimHost", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
+            {
+                Drive       = () => _clusterTimeAdapter,
+                RunChoice   = () => _clusterTimeAdapter?.RunChoice,
+                GizmoBuffer = () => _app?.Visualization?.GizmoBuffer,
+            });
+
         /// <inheritdoc/>
-        /// <remarks>Dark red — distinct from IG (green) and ExCon (violet).</remarks>
-        public System.Numerics.Vector4 TitleBarColor =>
-            new System.Numerics.Vector4(0.40f, 0.08f, 0.08f, 1f);
+        /// <remarks>
+        /// Dark red — distinct from IG (green) and ExCon (violet).
+        /// ⭐⭐⭐ <c>CE-083</c> — RETURNS <c>SimHostWindowColor.TitleBar</c> instead of repeating a
+        /// literal. 📐 It used to be <c>(0.40,0.08,0.08)</c> while every SimHost WINDOW used
+        /// <c>(0.50,0.10,0.10)</c>, so spawned "Inspect…" watch windows were a different shade.
+        /// ⇒ one value per subsystem, true by construction.
+        /// </remarks>
+        public System.Numerics.Vector4 TitleBarColor => Hrot.SimHost.Windows.SimHostWindowColor.TitleBar;
 
         // ── Core application ──────────────────────────────────────────────────
 
-        private readonly NodeRole _role = NodeRole.MuscleGround | NodeRole.Perception;
+
+        // ⭐ CE-197 — the node's role is declared ONCE, on SimHostApp. See its remarks.
+        private readonly NodeRole _role = SimHostApp.DefaultRole;
         private readonly INetworkFactory? _networkFactory;
         private SimHostApp? _app;
         private bool _headless;
-        private int _nodeId;
+        private NodeId _nodeId;
         private ClusterTimeTransportAdapter? _clusterTimeAdapter;
+        /// <summary>⭐ CE-4097 — this host's one run choice (no scenario session; default Live), for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
+
+        // ⭐ CE-1437 (AQ108 §2.10) — SimHost OFFERS its transport + choice; the window composer registers the ONE toolbar time control (alone, SimHost's wins).
+        /// <summary>
+        /// ⭐ CE-1437 — SimHost's ONE adapter + run choice (the single <c>AttachRunChoice</c> site of this host), a static so a rail can build it without the graphics window
+        /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (the master's initial armed mode, R-1043) and ▶ from Edit is disabled with its reason.
+        /// </summary>
+        internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<Fdp.Toolkit.Orchestration.ClusterView?> view, Func<double> simTime, Action<string?>? cancelLoad = null)
+            => Hrot.UI.Common.RunMode.NodeRunControls.For(bus, view, simTime, cancelLoad, SimHostProfile);   // ⭐ CE-1445 — the ONE factory; a rail without a node context reaches it through here
+
+        /// <summary>⭐ CE-1445 — what differs for SimHost: its kind (⇒ Operator policy) and no scenario session.</summary>
+        private static readonly Hrot.UI.Common.RunMode.NodeRunProfile SimHostProfile = new(Hrot.UI.Common.RunMode.RunHostKind.SimHost);
+
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.SimHost;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _clusterTimeAdapter?.RunChoice;
 
         /// <summary>
         /// Initialises SimHost with the specified node role.
@@ -121,11 +167,16 @@ namespace Hrot.SimHost
             => App.TestHook_BehaviorRegistry;
 
         /// <summary>TestHook: spawns an entity and returns its network ID.</summary>
-        internal long TestHook_SpawnEntity(long tkbType, GeoPoint position)
+        internal int TestHook_SpawnEntity(long tkbType, GeoPoint position)
             => App.TestHook_SpawnEntity(tkbType, position);
 
         /// <summary>TestHook: current kernel simulation time in seconds.</summary>
         internal double TestHook_CurrentSimTime => App.TestHook_CurrentSimTime;
+
+        /// <summary>⭐ CE-103: the kernel's own per-system execution counter. See
+        /// <c>SimHostApp.TestHook_SystemScheduler</c>.</summary>
+        internal Fdp.ModuleHost.Scheduling.SystemScheduler? TestHook_SystemScheduler
+            => App.TestHook_SystemScheduler;
 
         /// <summary>
         /// TestHook: runtime type of the currently active time controller in the SimHost kernel.
@@ -140,7 +191,7 @@ namespace Hrot.SimHost
         internal Fdp.ModuleHost.Time.TimeMode? TestHook_TimeControllerMode => App.TestHook_TimeControllerMode;
 
         /// <summary>TestHook: teleports entity to <paramref name="worldPos"/> (simulates IG drag).</summary>
-        internal void TestHook_SimulateDrag(long networkId, System.Numerics.Vector2 worldPos)
+        internal void TestHook_SimulateDrag(int networkId, System.Numerics.Vector2 worldPos)
             => App.TestHook_SimulateDrag(networkId, worldPos);
 
         /// <summary>TestHook: exposes the gizmo primitive buffer for integration tests.</summary>
@@ -152,23 +203,38 @@ namespace Hrot.SimHost
             => App.TestHook_GizmoIngressTranslator;
 
         /// <summary>TestHook: attaches a MoveTo NavigationIntent to the entity, triggering movement.</summary>
-        internal void TestHook_SetMovementIntent(long networkId, System.Numerics.Vector2 destination, float speed = 15f)
+        internal void TestHook_SetMovementIntent(int networkId, System.Numerics.Vector2 destination, float speed = 15f)
             => App.TestHook_SetMovementIntent(networkId, destination, speed);
 
         /// <summary>TestHook: returns the current <see cref="SimTransform"/>, or default.</summary>
-        internal SimTransform TestHook_GetSimTransform(long networkId)
+        internal SimTransform TestHook_GetSimTransform(int networkId)
             => App.TestHook_GetSimTransform(networkId);
 
         /// <summary>TestHook: returns child entities that reference the given parent.</summary>
         internal List<Entity> TestHook_GetChildEntities(Entity parentEntity)
             => App.TestHook_GetChildEntities(parentEntity);
 
+        // ── QA-018: test-only system injection ────────────────────────────────
+        private readonly List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _pendingTestSystems = new();
+
         /// <summary>
-        /// TestHook: registers a custom ECS system on the kernel after initialization.
-        /// For use by in-process E2E test fixtures only.
+        /// ⭐⭐ <c>QA-018</c> — queues a custom ECS system to be registered while the node is still
+        /// booting. For in-process E2E fixtures only.
+        ///
+        /// <para>⛔ Replaces <c>TestHook_AddSystem</c>, which forwarded to a hook that could only be
+        /// called after <c>Initialize</c> — the exact moment the kernel starts refusing registrations.
+        /// ⚠ Call this BEFORE the orchestrator initialises this subsystem; the queue is handed to the
+        /// app in <see cref="Initialize"/>, one line before <c>InitializeEmbedded</c>.</para>
         /// </summary>
-        internal void TestHook_AddSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system)
-            => App.TestHook_AddSystem(system);
+        internal void TestHook_QueueSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system)
+        {
+            if (_app != null)
+                throw new InvalidOperationException(
+                    "TestHook_QueueSystem must be called before SimHostSubsystem.Initialize — after it, "
+                    + "the kernel no longer accepts global systems.");
+
+            _pendingTestSystems.Add(system ?? throw new ArgumentNullException(nameof(system)));
+        }
 
         // ── ISubsystem ────────────────────────────────────────────────────────
 
@@ -181,8 +247,18 @@ namespace Hrot.SimHost
             _headless = config.Headless;
             int? domainOverride = config.DomainId;
             _nodeId = config.NodeId;
-            _app = new SimHostApp(domainOverride, _role);
+            _app = new SimHostApp(domainOverride, _role) { NodeName = config.NodeName };   // ⭐ CE-3354 ②
+            // QA-018: hand the queued test systems over BEFORE the boot, so they land in Phase 6d.
+            foreach (var pending in _pendingTestSystems)
+                _app.TestHook_QueueSystem(pending);
             _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId, networkFactory: _networkFactory);
+
+            // ⭐⭐ CE-3352 — SimHost's run controls (the drive + the run choice) are NOT UI: built ONCE here, headless included. 📐 Measured: they were created in
+            //   `RegisterWindows`, which returns when there is no visualization, so a headless SimHost had no drive and its debug provider's `Drive` was null.
+            var bus = _app.OrchestrationEventBus;
+            if (bus != null)
+                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app?.ClusterSlave?.View, () => _app!.CurrentSimTime,
+                    cancelLoad: reason => _app?.ClusterSlave?.CancelLoad(reason));   // ⭐ CE-1436 — the node's ONE cluster view
         }
 
         /// <summary>
@@ -223,50 +299,82 @@ namespace Hrot.SimHost
                     () => vis.GetScenario()));
             }
 
-            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-                "simhost_fdp_inspector", "SimHost Entity Inspector", "SimHost",
-                vis.FdpEntityInspector,
-                () => vis.GetFdpRepoAdapter(),
-                () => vis.FdpInspectorState,
-                SimHostWindowColor.TitleBar));
+            // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window: SimHost runs the staff, so its log is the one that fills today.
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
+                () => vis.GetRepo(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.SimHostReports, "SimHost", SimHostWindowColor.TitleBar));
 
-            // Wire component-editor reflector and "Inspect..." context menu.
-            var simhostPickBridge = vis.GetMapPickBridge();
-            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
-                vis.FdpEntityInspector,
-                windowManager,
-                "SimHost",
-                () => vis.GetFdpRepoAdapter(),
-                simhostPickBridge,
-                TitleBarColor);
+            // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,
+            //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle` (20 sites across 4 hosts before
+            //    this). ⭐ Also this host's FIRST `UiBundleHost.Compose` call.
+            // ⭐⭐ CE-083 (user ruling) — ONE colour per subsystem, applied to each of its windows.
+            //   📐 This host used to pass a SECOND shade to the "Inspect…" helper; its `TitleBarColor`
+            //   property now RETURNS the window constant, so there is one value and no way to drift.
+            // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                new Fdp.Toolkit.Runner.IUiBundle[]
+                {
+                    new DiagnosticsWindowsBundle(new DiagnosticsHostServices(
+                        IdPrefix:       "simhost_",
+                        TitlePrefix:    "SimHost",
+                        Perspective:    "SimHost",
+                        Inspector:      vis.FdpEntityInspector,
+                        RepoAdapter:    () => vis.GetFdpRepoAdapter(),
+                        InspectorState: () => vis.FdpInspectorState,
+                        EventBrowser:   vis.FdpEventBrowser,
+                        TitleBarColor:  SimHostWindowColor.TitleBar,
+                        Host:           () => _app?.HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => vis.GetRepo(),
+                        // ⭐ This host builds its own service, so its lazy `() => _app?.Kernel` binding
+                        //   is untouched (design §5c.7 F2).
+                        ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                            new ArchitectureDiagnosticsService(() => _app?.Kernel)),
+                        // BP-327 — the module/system execution-stats profiler.
+                        ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
+                        // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
+                        PickBroker:     vis.GetMapPickBroker(),
+                        WireParticipant: () => _app?.NodeContext?.Participant)),   // ⭐ AQ109 X5
+                    // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
+                    //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on SimHost.
+                    //   ⭐ The world ticks from boot (no planning state, as on CGF); frozen = the clock is halted.
+                    new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                        WindowId:    "simhost_details",
+                        Perspective: "SimHost",
+                        World:       () => vis.GetRepo(),
+                        Inspector:   () => vis.FdpEntityInspector,
+                        Session:     () => vis.GetFdpRepoAdapter(),
+                        RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
+                                         () => vis.GetRepo() != null,
+                                         () => Fdp.Toolkit.Time.SimClock.Of(vis.GetRepo()).IsHalted),
+                        Host:        () => _app?.HostActions,
+                        Pick:        () => vis.GetMapPickBroker())),   // ⭐ U-23 / D4 — Put aboard… picks on the map
+                },
+                new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
-            windowManager.RegisterWindow(new FdpEventBrowserWindow(
-                "simhost_fdp_events", "SimHost Event Browser", "SimHost",
-                vis.FdpEventBrowser,
-                SimHostWindowColor.TitleBar));
-
-            windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-                "simhost_architecture_diagnostics", "SimHost Architecture Diagnostics", "SimHost",
-                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
-                    new ArchitectureDiagnosticsService(() => _app?.Kernel)),
-                SimHostWindowColor.TitleBar));
-
-            windowManager.RegisterWindow(new FakeNavigationInspectorWindow(
-                () => _app?.WorldOrNull));
+            // ⛔ CE-255 — FakeNavigationInspectorWindow REMOVED 🔒 (user, 2026-09-09: "remove
+            //    fake_nav_inspector"). Three of its four tabs were "(not yet implemented)" stubs, and
+            //    its Navmesh tab matched only EngineBacked and Fake providers — so on any host running
+            //    DotRecastNavmeshProvider it printed "No navmesh provider registered" while a navmesh
+            //    was loaded. ⚠ It STATED SOMETHING FALSE, which is worse than being absent.
 
             vis.SetPanelsWindowManaged();
+            vis.RegisterMainMenu(windowManager.GlobalMenu, "SimHost");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
 
-            // ── Time transport controls in status bar ─────────────────────────
-            var bus = _app?.OrchestrationEventBus;
-            if (bus != null)
+            // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+            Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => vis.Canvas, "SimHost");
+
+            // ── Time transport (toolbar) ─────────────────────────
+            // ⭐ CE-3352 — the adapter is built in Initialize (headless included); here it only reaches the panel.
+            if (_clusterTimeAdapter != null)
             {
-                _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
-                var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
-                windowManager.StatusBar.RegisterSection(
-                    id:             "simhost_time_controls",
-                    sortOrder:      100,
-                    renderDelegate: timeSection.Render,
-                    perspective:    "SimHost");
+                // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
+                // It had its own private pause flag that nothing read, so its Play/Pause/Step did
+                // nothing at all. Two surfaces, one implementation — the caller HAS the dependency,
+                // so it passes it.
+                if (vis.UI != null)
+                    vis.UI.TimeFacade = _clusterTimeAdapter;
+
+                // ⭐ CE-1437 (AQ108 §2.10) — the toolbar time control is NOT registered here: this host offers it (IProvidesRunControls) and
+                //   LocalWindowController.ComposeRunControls registers the ONE entry for the process (⛔ was CE-4083's RegisterTimeTransport).
             }
         }
 

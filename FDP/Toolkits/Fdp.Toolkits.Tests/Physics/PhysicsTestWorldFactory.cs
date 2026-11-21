@@ -45,7 +45,6 @@ namespace Fdp.Toolkit.Physics.Tests
             // HitEvent was migrated to FDP.Toolkit.Combat in BATCH-09 (DEBT-023),
             // then moved to Fdp.Core in BATCH-10 to break the Combat<->Physics circular dep.
             world.RegisterEvent<HitEvent>();
-            world.RegisterEvent<TargetVisibleEvent>();
             world.RegisterEvent<RaycastRequestEvent>();
             world.RegisterEvent<RaycastResultEvent>();
 

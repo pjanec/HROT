@@ -1,0 +1,436 @@
+#nullable enable
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replication.Services;   // ⚠ NOT Fdp.Network.Cyclone.Services — two types share this name
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
+using Hrot.CGF;
+using Hrot.Core.Network;
+using Hrot.Common;
+using Hrot.Common.Infrastructure;
+using Hrot.Editor;
+using Hrot.SimHost;
+using Hrot.SimHost.Modules;
+using Xunit;
+
+namespace Hrot.Editor.Tests;
+
+/// <summary>
+/// Rails for <see cref="EditorCapabilities"/> — host (d) on the capability axis
+/// (<c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1ac).
+///
+/// <para>
+/// <b>The load-bearing test here is the DIFFERENTIAL one.</b> Everything else is a sanity check. The
+/// risk in putting a live composition root on the seam is not that the declaration is wrong — it is
+/// that the resolved set differs from the hand-written block in some way nobody notices, because
+/// registration order is execution order and a reordered system list fails silently. So the rail
+/// builds <b>both</b> paths from the same pack instances and asserts the resulting system sequences
+/// are identical, type for type, position for position. That is the precondition for switching the
+/// composition over; without it the switch would be a hope.
+/// </para>
+///
+/// <para>
+/// ⚠ This mirrors what <c>B4b</c> step 3 did for SimHost, and it exists because that step found the
+/// opposite of what was assumed: SimHost declared <c>MuscleGround|Perception</c> while composing
+/// <c>NavigationSolver</c> too, so narrowing to the declaration would have silently dropped two
+/// modules (§4.1v).
+/// </para>
+/// </summary>
+public class EditorCapabilitiesTests : IDisposable
+{
+    /// <summary>
+    /// Everything these rails construct, disposed when the test ends.
+    ///
+    /// <para>
+    /// ⚠ <b>Not hygiene theatre — measured.</b> <c>SimHostCoreLogicPack</c> is <c>IDisposable</c> and
+    /// holds native-backed pools. Leaving five of them alive for the rest of the run made
+    /// <c>AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected</c> — which asserts an
+    /// <c>AssemblyLoadContext</c> actually gets collected — fail deterministically in the full suite
+    /// while passing in isolation. That is a real interaction caused by these tests, not a
+    /// pre-existing flake, and disposing is the honest fix rather than quarantining someone else's rail.
+    /// </para>
+    /// </summary>
+    private readonly List<IDisposable> _disposables = new();
+
+    public void Dispose()
+    {
+        for (int i = _disposables.Count - 1; i >= 0; i--)
+        {
+            try { _disposables[i].Dispose(); } catch { /* a rail must not fail in teardown */ }
+        }
+        _disposables.Clear();
+    }
+
+    private (CgfLogicPack cgf, MuscleRoleInputs.Parts muscle)
+        BuildPacks(EntityRepository world)
+    {
+        var entityMap  = new NetworkEntityMap();
+        var mapper     = new TacticalIntentMapperRegistry();
+        var cgf        = new CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), entityMap, mapper, new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+        // ⭐ CE-4270 B9 — the Muscle's parts from the ONE step every Muscle host uses (the editor's included), over one pool and one navmesh.
+        _pool = new TrajectoryPoolProvider();
+        var muscle     = MuscleRoleInputs.Build(entityMap, default, _pool, new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider(), () => null);
+        Track(cgf); Track(muscle.CoreLogicPack); Track(_pool);
+        return (cgf, muscle);
+    }
+
+    private TrajectoryPoolProvider? _pool;
+
+    /// <summary>⭐ CE-4270 B9 — the editor's default row of the ONE role table: the fused set, traffic served, no gameplay server.</summary>
+    private NodeCompositionPlan Default(CgfLogicPack cgf, MuscleRoleInputs.Parts muscle)
+        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = new CgfCapabilities.Brain(cgf), Muscle = muscle, TrajectoryPool = _pool, Traffic = Traffic() });
+
+    /// <summary>⭐ CE-4270 B9 — the editor's injected row (Stride's mode 1): the supplied tier in the Muscle's slot, no traffic.</summary>
+    private static NodeCompositionPlan Injected(CgfLogicPack cgf, IReadOnlyList<INodeCapability> injected)
+        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = new CgfCapabilities.Brain(cgf), InjectedMuscle = injected });
+
+    private void Track(object o)
+    {
+        if (o is IDisposable d) _disposables.Add(d);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3017 — the editor's role DECLARES <c>NavigationSolver</c>; the resolved set must CARRY it, after the EQS solver
+    /// (it adds modules only, so the pinned system sequences above are untouched). Before this, nothing answered an
+    /// editor path request and every MoveTo steered <c>Direct</c>.
+    /// </summary>
+    /// <summary>⭐ AQ93 R-4047 — the default arm's SUMO pack, over a residency of its own (nothing loads in these rails).</summary>
+    private Hrot.Traffic.TrafficPack Traffic()
+    {
+        var pack = Hrot.Traffic.TrafficPack.Serving();
+        Track(pack);
+        return pack;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4013 — the simulation systems the plan's cross-role infrastructure contributes, in plan order (UnitHierarchy → EQS results →
+    /// Interactions), asked of the capabilities themselves rather than copied: a new applier joins the tail without editing this rail.
+    /// </summary>
+    /// <summary>⭐ CE-6003 — the shared plan HEAD's systems, in order, read from the capability itself (HealthApplicationSystem, BleedOutSystem,
+    /// ObstacleRemovalSystem) — the head is pinned FIRST by the rails below, its contents by the capability.</summary>
+    private static IEnumerable<Type> HealthApplicationHead()
+        => new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.HealthApplication().Systems.Select(s => s.GetType()).ToArray();
+
+    private static IEnumerable<Type> InfrastructureSimulationTail()
+    {
+        var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
+        foreach (INodeCapability c in new INodeCapability[]
+                 {
+                     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy(),
+                     new Hrot.SimHost.EqsResultUpdateCapability(),
+                     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions(),
+                 })
+            c.PopulateSystems(context: null!, input, sim, post);
+        return sim.Select(s => s.GetType()).ToArray();
+    }
+
+    /// <summary>⭐ AQ93 R-4047 — the editor composes SUMO traffic, last (its systems need the node context, so the null-context shape rails see none).</summary>
+    [Fact]
+    public void DefaultArm_ComposesTraffic_Last_AQ93()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        var keys = Default(cgf, muscle)
+                                     .Resolve(EditorCapabilities.DefaultRole)
+                                     .Select(c => c.Key).ToList();
+
+        Assert.Equal(CapabilityKeys.Traffic, keys[^1]);
+    }
+
+    [Fact]
+    public void DefaultArm_ComposesTheNavigationSolver_AfterThePerceptionSolvers_CE3017()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        var keys = Default(cgf, muscle)
+                                     .Resolve(EditorCapabilities.DefaultRole)
+                                     .Select(c => c.Key).ToList();
+
+        int nav = keys.IndexOf(CapabilityKeys.NavigationSolver);
+        Assert.True(nav >= 0, "the editor must compose the NavigationSolver capability its role declares");
+        Assert.True(nav > keys.IndexOf(CapabilityKeys.Perception),
+            "appended after the EQS solver, so every module registered before it keeps its slot");
+    }
+
+    /// <summary>
+    /// ⭐ THE ONE THAT MATTERS. The resolved capability set must produce the same three system
+    /// sequences the hand-written block produces — same types, same order, after the same
+    /// de-duplication. If this passes, switching <c>EditorSubsystem</c> onto the plan is
+    /// behaviour-preserving by construction rather than by inspection.
+    /// </summary>
+    [Fact]
+    public void ResolvedSet_ProducesTheSameSystemSequencesAsTheHandWrittenBlock()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        // ── The hand-written block, as EditorSubsystem builds it today ──────────────
+        //    Note the argument order: CGF first, muscle second. DistinctByType keeps the FIRST
+        //    occurrence, so a type carried by both packs resolves to CGF's instance.
+        Type[] handInput = Fdp.ModuleHost.Scheduling.SystemComposition
+            .DistinctByType(cgf.InputSystems, muscle.CoreLogicPack.InputSystems).Select(s => s.GetType()).ToArray();
+        Type[] handSim = Fdp.ModuleHost.Scheduling.SystemComposition
+            .DistinctByType(cgf.SimulationSystems, muscle.CoreLogicPack.SimulationSystems).Select(s => s.GetType()).ToArray();
+        Type[] handPostSim = muscle.CoreLogicPack.PostSimulationSystems.Select(s => s.GetType()).ToArray();
+
+        // ── The same thing, resolved from the plan ─────────────────────────────────
+        IReadOnlyList<INodeCapability> resolved =
+            Default(cgf, muscle)
+                              .Resolve(EditorCapabilities.DefaultRole);
+
+        var input = new List<IEcsModuleSystem>();
+        var sim = new List<IEcsModuleSystem>();
+        var postSim = new List<IEcsModuleSystem>();
+        foreach (INodeCapability c in resolved)
+            c.PopulateSystems(context: null!, input, sim, postSim);
+
+        Type[] planInput = Fdp.ModuleHost.Scheduling.SystemComposition
+            .DistinctByType(input, Array.Empty<IEcsModuleSystem>()).Select(s => s.GetType()).ToArray();
+        Type[] planSim = Fdp.ModuleHost.Scheduling.SystemComposition
+            .DistinctByType(sim, Array.Empty<IEcsModuleSystem>()).Select(s => s.GetType()).ToArray();
+        Type[] planPostSim = postSim.Select(s => s.GetType()).ToArray();
+
+        // ⭐ CE-3110 (2026-10-12) — the interaction appliers are cross-role infrastructure (CoreInfrastructureCapabilities.Interactions): they left
+        //   CgfLogicPack, so the hand-written block no longer carries it, and the plan appends its derivation at the input tail.
+        Assert.Equal(handInput.Concat(new[] { typeof(Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem) }), planInput);
+        Assert.Equal(handPostSim, planPostSim);
+
+        // ⭐⭐⭐ CE-221 — THE EXPECTATION CHANGED DELIBERATELY, and this is the argued deviation.
+        //    UnitHierarchySystem and EqsResultUpdateSystem are cross-role INFRASTRUCTURE: they used
+        //    to be carried by BOTH packs, so the hand-written block resolved them to CGF's copy at
+        //    the tail of CGF's list — i.e. AHEAD of the entire muscle tier. They are now declared
+        //    once, LAST in the plan, so they land at the tail of the Simulation phase, which is
+        //    where every carrier had always put them and where SimHost has always run them.
+        //    ⛔ This is NOT a re-baseline of a red rail: the sequence below is the hand-written
+        //       block with that tail appended, so every other position is still pinned exactly.
+        //    ⭐ CE-3061 / CE-3062 — and the PERCEPTION capability now adds heat and sound to the main loop
+        //       (EqsSolverStartup.PopulateSystems, the ONE composition point for every perception host), after the
+        //       muscle tier and before the infrastructure tail. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §7.
+        // ⭐⭐ CE-2144 (R-2008) — HealthApplicationSystem left CgfLogicPack for the shared plan HEAD: it is FIRST, ahead of the Brain.
+        // ⭐ CE-2155 (R-2011 I3) — the bleed-out rides the same capability, right behind it.
+        // ⭐ CE-6003 — the head is DERIVED from the capability's own list (HealthApplicationSystem first, then BleedOut, ObstacleRemoval), as the tail is
+        Type[] expectedSim = HealthApplicationHead()
+            .Concat(handSim)
+            .Concat(new[] { typeof(Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem),
+                            typeof(Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem) })
+            // ⭐ The cross-role infrastructure tail, DERIVED from the infrastructure capabilities themselves (CE-4013): ⛔ it used to be
+            //   a hand-copied list that reddened every time a lane added an applier to Interactions (WS-1, B-8, CE-3219, CE-3235, B-11/12).
+            //   The rail still pins WHERE the tail sits (after the muscle tier and the perception stimuli) and that it is these, in order.
+            .Concat(InfrastructureSimulationTail())
+            .ToArray();
+        Assert.Equal(expectedSim, planSim);
+
+        // ⭐⭐ The PROPERTY the reordering exists for, asserted directly so it cannot rot into a
+        //    bare sequence match: VehicleCommandSystem (GroundKinematicsModule, muscle tier)
+        //    PUBLISHES CmdAssignSubordinate and UnitHierarchySystem CONSUMES it. Running the
+        //    consumer first cost a frame on the editor and nowhere else.
+        int publisher = Array.IndexOf(planSim, typeof(CarKinem.Systems.VehicleCommandSystem));
+        int consumer  = Array.IndexOf(planSim, typeof(Hrot.Common.Systems.UnitHierarchySystem));
+        Assert.True(publisher >= 0, "VehicleCommandSystem must be in the editor's simulation list.");
+        Assert.True(consumer > publisher,
+            $"CE-221: UnitHierarchySystem (index {consumer}) must run AFTER VehicleCommandSystem " +
+            $"(index {publisher}) so CmdAssignSubordinate is consumed the same frame it is published.");
+    }
+
+    /// <summary>
+    /// The Brain must come first in the plan. Both packs carry <c>UnitHierarchySystem</c> and
+    /// <c>EqsResultUpdateSystem</c>; de-duplication keeps the first, so reversing the two capabilities
+    /// would silently swap which pack's instance runs — a change no count-based assertion would see.
+    /// </summary>
+    [Fact]
+    public void BrainResolvesBeforeMuscleGround()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        IReadOnlyList<INodeCapability> resolved =
+            Default(cgf, muscle)
+                              .Resolve(EditorCapabilities.DefaultRole);
+
+        int brain  = resolved.ToList().FindIndex(c => c.Key == CapabilityKeys.Brain);
+        int muscleI = resolved.ToList().FindIndex(c => c.Key == CapabilityKeys.MuscleGround);
+
+        Assert.True(brain >= 0, "the Brain capability must resolve");
+        Assert.True(muscleI >= 0, "the MuscleGround capability must resolve");
+        Assert.True(brain < muscleI, "Brain must resolve before MuscleGround — DistinctByType keeps the first");
+    }
+
+    /// <summary>The declared role must resolve to something. An empty resolution is the silent failure.</summary>
+    [Fact]
+    public void DefaultRole_ResolvesToANonEmptySet()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        Assert.NotEmpty(Default(cgf, muscle)
+                                          .Resolve(EditorCapabilities.DefaultRole));
+    }
+
+    /// <summary>
+    /// The injected arm must carry the Brain and the area queries but contribute NO muscle systems —
+    /// the supplying host owns that tier. A capability that quietly contributed SimHost's systems here
+    /// would double the muscle on a Stride node.
+    /// </summary>
+    [Fact]
+    public void InjectedArm_ContributesNoMuscleSystemsOfItsOwn()
+    {
+        using var world = new EntityRepository();
+        var (cgf, _) = BuildPacks(world);
+
+        IReadOnlyList<INodeCapability> resolved =
+            Injected(cgf, Array.Empty<INodeCapability>())
+                              .Resolve(EditorCapabilities.DefaultRole);
+
+        var input = new List<IEcsModuleSystem>();
+        var sim = new List<IEcsModuleSystem>();
+        var postSim = new List<IEcsModuleSystem>();
+        foreach (INodeCapability c in resolved)
+            c.PopulateSystems(context: null!, input, sim, postSim);
+
+        // Everything contributed as SYSTEMS on this arm comes from the Brain pack — plus the embarkation derivation (CE-3110, infrastructure).
+        Assert.Equal(cgf.InputSystems.Select(s => s.GetType()).Concat(new[] { typeof(Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem) }),
+                     input.Select(s => s.GetType()));
+        // ⭐ CE-221 — plus the cross-role infrastructure tail, which is NOT muscle: it is declared by
+        //   this plan itself, once, and the supplying host's identical declaration de-duplicates
+        //   against it by Key. That is what stopped the hosted Stride editor registering two
+        //   UnitHierarchySystems and dying on [SingleInstance] in BeginRun().
+        Assert.Equal(
+            HealthApplicationHead()   // ⭐ CE-2144 the shared plan head, first · CE-2155 its bleed-out · CE-6003 its obstacle removal (derived)
+               .Concat(cgf.SimulationSystems.Select(s => s.GetType()))
+               .Concat(InfrastructureSimulationTail()),   // ⭐ CE-4013 — derived, as above
+            sim.Select(s => s.GetType()));
+        // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
+        // either — the supplying host owns that tier.
+        Assert.Empty(postSim);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3110</c> (R-224; 🔒 user, 2026-10-12: "any node that can own live entities … should be able to use the features, so I
+    /// hope you do no per-host initializations") — the interaction appliers (doors, embarkation) are ONE cross-role capability, never pack
+    /// content: both editor arms resolve it exactly once, and an injected muscle tier that declares it too (Stride does) de-duplicates
+    /// against it by Key.
+    /// </summary>
+    [Fact]
+    public void CE3110_EmbarkationIsCrossRoleInfrastructure_ResolvedOnceOnEveryArm()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        Assert.DoesNotContain(cgf.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+        Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
+        Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
+
+        var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.Interactions() };
+        foreach (var plan in new[] { Default(cgf, muscle),
+                                     Injected(cgf, injected) })
+        {
+            var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
+            Assert.Single(resolved, c => c.Key == CapabilityKeys.Interactions);
+            var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
+            foreach (var c in resolved) c.PopulateSystems(context: null!, input, sim, post);
+            Assert.Single(input, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+            Assert.Single(sim, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
+            Assert.Single(sim, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2144</c> (R-2008; 🔒 user, 2026-10-13: "provided it runs unified on any ECS enabled node running live simulation - shared
+    /// code, shared bootstrap") — damage application is the shared plan HEAD on both arms: resolved FIRST and once, its system first in the
+    /// simulation list (ahead of the cognitive runtime and the dispatchers that read the capabilities it strips), and an injected plan that
+    /// starts from the same head (Stride's) de-duplicates against it by Key.
+    /// </summary>
+    [Fact]
+    public void CE2144_HealthApplicationIsTheSharedPlanHead_FirstAndOnceOnEveryArm()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
+
+        var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.HealthApplication() };
+        foreach (var plan in new[] { Default(cgf, muscle),
+                                     Injected(cgf, injected) })
+        {
+            var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
+            Assert.Equal(CapabilityKeys.HealthApplication, resolved[0].Key);
+            Assert.Single(resolved, c => c.Key == CapabilityKeys.HealthApplication);
+            var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
+            foreach (var c in resolved) c.PopulateSystems(context: null!, input, sim, post);
+            Assert.IsType<Fdp.Toolkit.Combat.Systems.HealthApplicationSystem>(sim[0]);
+            Assert.Single(sim, s => s is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The user's role ruling, asserted so a later edit cannot quietly narrow it: CGF ∪ SimHost,
+    /// and NOT ImageGenerator (the editor's 2-D map is not the IG presentation tier).
+    /// </summary>
+    [Fact]
+    public void DeclaredRoleIsCgfUnionSimHost_AndNotImageGenerator()
+    {
+        Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.Brain));
+        Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.MuscleGround));
+        Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.Perception));
+        Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.NavigationSolver));
+        Assert.False(EditorCapabilities.DefaultRole.HasFlag(NodeRole.Map2D));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4270 B9 — a node has ONE muscle tier: the table refuses the table's own Muscle and a supplied one together, and the Muscle without the node's
+    /// one trajectory pool (CE-180). ⛔ The silent-default shape: two tiers, or a second pool, would compose without a sound.
+    /// </summary>
+    [Fact]
+    public void CE4270_TheRoleTable_RefusesTwoMuscleTiers_AndAMuscleWithoutItsPool()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs
+            { Brain = new CgfCapabilities.Brain(cgf), Muscle = muscle, TrajectoryPool = _pool, InjectedMuscle = Array.Empty<INodeCapability>() }));
+        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = new CgfCapabilities.Brain(cgf), Muscle = muscle }));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4270 B9 — the editor's row and the fused server's row are the SAME table: resolved for the fused server's role, the editor's inputs give the
+    /// fused server's keys minus only the gameplay server (a value the editor does not pass). ⛔ A key on one and not the other means a second table grew back.
+    /// </summary>
+    [Fact]
+    public void CE4270_TheEditorRow_IsTheFusedRow_WithoutTheGameplayServer()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+        const NodeRole fused = NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+        var editorKeys = Default(cgf, muscle).Resolve(EditorCapabilities.DefaultRole).Select(c => c.Key).ToList();
+        var fusedKeys  = Default(cgf, muscle).Resolve(fused).Select(c => c.Key).ToList();
+        Assert.Equal(fusedKeys, editorKeys);
+        Assert.DoesNotContain(CapabilityKeys.Perception + ":eqs", editorKeys);   // the editor's own EQS wrapper is gone; SimHost's solver serves it
+    }
+
+    /// <summary>
+    /// ⭐ CE-4270 B10 — SimHost's row of the ONE table (no brain): the head, the Muscle entries, the cross-role infrastructure keyed by the MuscleGround,
+    /// the report inbox (CE-2301: a node with no brain logs every report), the body and traffic — and no Brain. ⛔ The cross-role entries keyed by the
+    /// Brain on a brainless row would resolve to nothing (Resolve keeps an entry only when the declared role contains its key).
+    /// </summary>
+    [Fact]
+    public void CE4270_TheSimHostRow_IsTheMuscleWithTheInbox_AndNoBrain()
+    {
+        using var world = new EntityRepository();
+        var (_, muscle) = BuildPacks(world);
+        const NodeRole simHost = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+        var mirror = Hrot.Traffic.TrafficPack.Mirroring(); Track(mirror);
+        var keys = RoleCapabilityTable.Plan(new RoleTableInputs { Muscle = muscle, TrajectoryPool = _pool, Traffic = mirror })
+                                      .Resolve(simHost).Select(c => c.Key).ToList();
+
+        Assert.Equal(new[] { CapabilityKeys.HealthApplication, CapabilityKeys.MuscleGround, CapabilityKeys.Perception, CapabilityKeys.NavigationSolver,
+                             CapabilityKeys.UnitHierarchy, CapabilityKeys.EqsResultUpdate, CapabilityKeys.Interactions, CapabilityKeys.ReportInbox,
+                             CapabilityKeys.AnimationMuscle, CapabilityKeys.TrafficMirror }, keys);
+        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs()));   // neither a brain nor a muscle
+    }
+}

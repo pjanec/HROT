@@ -58,9 +58,9 @@ public class NodeBootstrapperMigrationTests
     // ── T03: IG profile ─────────────────────────────────────────────────────
 
     [Fact]
-    public void BuildIg_RegistersScenarioTkbOrchestratorContextMapInteractionConfig()
+    public void BuildPlayer_RegistersScenarioTkbOrchestratorContextMapInteractionConfig()
     {
-        var ms = HrotMigrationBootstrap.BuildIg();
+        var ms = HrotMigrationBootstrap.BuildPlayer();
 
         var types = ms.Registry.RegisteredDocTypes.ToList();
         Assert.Contains(HrotDocumentTypes.Scenario,             types);
@@ -70,9 +70,9 @@ public class NodeBootstrapperMigrationTests
     }
 
     [Fact]
-    public void BuildIg_DoesNotRegisterBlueprintOrRoadNetwork()
+    public void BuildPlayer_DoesNotRegisterBlueprintOrRoadNetwork()
     {
-        var ms = HrotMigrationBootstrap.BuildIg();
+        var ms = HrotMigrationBootstrap.BuildPlayer();
 
         var types = ms.Registry.RegisteredDocTypes.ToList();
         Assert.DoesNotContain(HrotDocumentTypes.Blueprint,  types);
@@ -82,9 +82,9 @@ public class NodeBootstrapperMigrationTests
     // ── T04: M-2 fail-loud -- IG pipeline rejects Blueprint docType ──────────
 
     [Fact]
-    public void BuildIg_Pipeline_ThrowsMigrationException_ForBlueprintDocType()
+    public void BuildPlayer_Pipeline_ThrowsMigrationException_ForBlueprintDocType()
     {
-        var ms = HrotMigrationBootstrap.BuildIg();
+        var ms = HrotMigrationBootstrap.BuildPlayer();
 
         var dom = System.Text.Json.Nodes.JsonNode.Parse(
             @"{""$meta"":{""docType"":""Hrot.Blueprints"",""schemaVersion"":1},""data"":""""}")!

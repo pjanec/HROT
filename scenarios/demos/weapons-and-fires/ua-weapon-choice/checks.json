@@ -1,0 +1,44 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — W4/W5: the 25 mm at the man, the TOW at the tank. Judge (1) the T-72 loses >= 1000 HP (max 2500 => <= 1500), (2) the Insurgent is killed, (3) the 25 mm (weaponIndex 0, the owner's mount 0) fires but fewer than 60 rounds (never the 60th). The run length (60 s) is a guess from the take (TOW hit at 5.85 s); the live check waited up to 120 s per beat.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Bradley fires its 25 mm",
+      "on": "shot",
+      "by": "Bradley",
+      "where": {
+        "weaponIndex": 0
+      }
+    },
+    {
+      "name": "the T-72 loses at least 1000 HP (a TOW; the 25 mm only grazes)",
+      "on": "field",
+      "who": "T-72",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 1500
+    },
+    {
+      "name": "the Insurgent is killed",
+      "on": "field",
+      "who": "Insurgent",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "the 25 mm is a burst: never 60 rounds",
+      "never": {
+        "on": "shot",
+        "by": "Bradley",
+        "n": 60,
+        "where": {
+          "weaponIndex": 0
+        }
+      }
+    }
+  ]
+}

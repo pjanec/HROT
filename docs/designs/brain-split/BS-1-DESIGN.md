@@ -1,0 +1,766 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-19 (§5.4c note — Q94 A-3: every per-shot round but a dispenser release is spent by the muscle's answer, ShotLedger) · 2026-10-19 (§6.4a NEW — CE-3246: a hit reaches the Health owner from any node; the EntityHitDamage pair in the shared pack, SourceNodeId appended, one ownership rule) · 2026-10-15 (§5.4c: the dispenser is a weapon mount — no magic slot, no split; the interface for ui's drawing. §5.4b CE-1111 / R-1002: the fire notification carries the shot)
+current-answer: whole document; §6.4a supersedes §6.3/§6.4/§7.2's role placement of the EntityHitDamage pair (now every node, CE-3246); §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction, §5.4b the fire notification's fields (CE-1111, R-1002 — supersedes §4.1's "POC simplified" WeaponFire).
+stale-below: nothing marked; the "Currently …" phrasing in §5 describes the pre-BS-1 state.
+known-rot: §5.4b's F4 slot (`WeaponSlots.Countermeasures = -1`) and its "Split" — superseded by §5.4c. §5.6 — the IG ingress publishes WeaponFireNotification (IsRemote), not IgWeaponFireEvent (registered, never published).
+known-conflict: none.
+related-designs:
+  - ../vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS flares / chaff and the decoy's seduction (§3c, CE-2188); their RELEASE travels as §5.4b's fire.
+  - ../../DESIGN_Visual_Effects.md — OWNS the effects made from fire events on every map host (VE-A); §5.4b gives them the round actually fired and the expendable's look.
+  - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance; proposes the aim deflection on the Muscle's FireProcessingSystem, per §2.1.
+  - ../hill-attack/DESIGN.md — owns the CE-466 combat-death rule (CombatLife.IsAlive) that §5.1a's first guard reuses.
+  - ../../DESIGN_Node_Roles_And_Policies.md — OWNS R-3015 (one translator set on every node; an event ingress drops its own samples), §3.5 — §6.4a is that rule applied to the hit pair.
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — OWNS the blow (§5i) and the gas cloud whose hits §6.4a carries off a CGF brain.
+  - ../../DESIGN_Decision_Layer.md — owns the ROE (R-200, §4.4) and RecentSenses (§4.3) that §5.1a's ROE guard enforces.
+-->
+# BS-1 Design: Brain / Muscle Node Separation
+
+**Workstream prefix:** `BS-1`  
+**Design talk source:** [`docs/brain-split/design-talk.md`](./design-talk.md)  
+**Task details:** [`BS-1-TASK-DETAIL.md`](./BS-1-TASK-DETAIL.md)  
+**Task tracker:** [`BS-1-TASK-TRACKER.md`](./BS-1-TASK-TRACKER.md)
+
+---
+
+## 1. Context and Problem Statement
+
+The simulation engine is designed around a distributed multi-node topology where different
+simulation concerns can run on separate physical (or logical) processes connected via DDS:
+
+- **Brain node** (`NodeRole.Brain`) — AI behaviors, mission management, behaviour trees / HSMs
+- **Muscle node** (`NodeRole.MuscleGround`) — vehicle kinematics, physics, weapon simulation
+- **Perception node** (`NodeRole.Perception`) — spatial queries, line-of-sight raycasting
+- **Navigation Solver node** (`NodeRole.NavigationSolver`) — pathfinding over road graphs
+- **AllInOne** (`NodeRole.AllInOne`) — all of the above in one process (development / testing)
+
+The Brain → Muscle CQRS contract is already established for locomotion:
+
+| Layer | Command | Status |
+|---|---|---|
+| Brain emits | `NavigationIntent` | via DDS |
+| Muscle executes physics | `CarKinematicsSystem` | — |
+| Muscle reports back | `NavigationStatus` | via DDS |
+
+**However, several subsystems violate this separation:**
+
+### 1.1 Combat Module on the Brain Node
+
+`NodeBootstrapper.cs` registers `CombatModule` on every simulation role including `NodeRole.Brain`.
+This means the Brain node independently runs ballistics, hit resolution, and damage application —
+work that belongs exclusively on the physics / Muscle node.
+
+### 1.2 No HasAuthority Guard in DamageSystem
+
+`DamageSystem` (in `FDP.Toolkit.Combat`) consumes `HitEvent`s and unconditionally decrements
+`Health.Current` without checking `view.HasAuthority(evt.HitEntity)`. In an `AllInOne` topology
+this is harmless. In a Brain/Muscle split every node that receives a `HitEvent` computes damage
+independently, breaking the single-source-of-truth principle.
+
+### 1.3 EntityDamageEgressTranslator Does Not Exist
+
+The `EntityDamage` DDS topic exists and the IG has an ingress translator ready
+(`EntityDamageIngressTranslator` → `IgHealthState`), but SimHost never publishes
+it. Health updates are never sent over the network.
+
+### 1.4 Navigation Executors Bypass NavigationIntent
+
+Several locomotion executors running on the Brain tier directly mutate or poll the
+`NavState` Muscle-tier component instead of going through the `NavigationIntent` CQRS
+channel. Because `NavState` is never replicated over DDS, these executors silently
+fail in a distributed topology:
+
+| Executor | Violation |
+|---|---|
+| `FleeExecutor` | Writes `NavState.Mode`, `.FinalDestination`, `.TargetSpeed` |
+| `FollowRoadGraphExecutor` | Writes `NavState.Mode`, `.RoadPhase`, `.CurrentSegmentId`; polls `HasArrived` |
+| `FollowRouteExecutor` | Writes `NavState.Mode`, `.TrajectoryId`; polls `HasArrived` |
+| `SimHostNodes.Action_Wander` | Polls `NavState.HasArrived` as secondary arrival signal |
+
+### 1.5 MissionTrigger.ReachedDestination Bug
+
+`MissionDirectorSystem` evaluates the `ReachedDestination` mission trigger by polling
+`NavState.HasArrived` directly. When the Brain runs on a separate node from the Muscle,
+`NavState` is never updated and the mission phase will never advance — hanging indefinitely.
+
+The UI code that generates `MoveToLocation` missions (`HandleRightClickForEntity`) also
+hardcodes the `ReachedDestination` trigger.
+
+---
+
+## 2. Target Architecture
+
+After this workstream the **Brain node is a pure cognitive tier**:
+
+```
+┌──────────────────────────────────────────────┐
+│  Brain Node                                  │
+│  • Mission management (MissionDirectorSystem)│
+│  • BTree / HSM behavior runtime              │
+│  • Sensor data consumption (TargetMemory)    │
+│  • Navigation intents (NavigationIntent)     │
+│  • Weapon fire intents (WeaponFireIntent)    │
+│  NO bullets, NO damage, NO NavState         │
+└────────────────┬─────────────────────────────┘
+                 │ DDS: WeaponFireRequest, NavigationIntent
+                 ▼
+┌──────────────────────────────────────────────┐
+│  Muscle Node (Physics Tier)                  │
+│  • Vehicle kinematics (CarKinematicsSystem)  │
+│  • Ballistics + CCD pipeline                 │
+│  • Fire processing (spawns bullets)          │
+│  • Hit resolution                            │
+│  • Navigation execution (NavState)           │
+└────────────────┬─────────────────────────────┘
+                 │ DDS: WeaponFire (muzzle flash), MunitionDetonation
+                 ▼
+┌──────────────────────────────────────────────┐
+│  Damage Assessment Module                    │
+│  (collocated with Muscle or standalone node) │
+│  • DamageCalculationSystem                  │
+│  • Armor penetration curves (POC: flat hp)  │
+└────────────────┬─────────────────────────────┘
+                 │ DDS: EntityHitDamage → EntityDamage
+                 ▼
+┌──────────────────────────────────────────────┐
+│  Brain / Authority Node                      │
+│  • Apply damage to Health component          │
+│  • Update HealthData mirror                  │
+│  • MissionTrigger.HealthCritical still works │
+└──────────────────────────────────────────────┘
+```
+
+### 2.1 Communication Contract (full pipeline)
+
+```
+Brain                    DDS                     Muscle
+  │── WeaponFireIntent ──► WeaponFireRequest ──►│
+  │                                             │── spawns bullet
+  │                                             │── fires → WeaponFireNotification
+  │                       WeaponFire ◄──────────│   (IG draws muzzle flash)
+  │                                             │── bullet hits → DetonationNotification
+  │                       MunitionDetonation ◄──│   (IG draws explosion)
+  │                                   │
+  │                             DamageAssessment Module
+  │                                   │── DamageCalculationSystem
+  │                       EntityHitDamage ◄─────│
+  │◄── EntityDamage ──────────────────────────── │
+  │   (Brain updates Health/HealthData)
+```
+
+---
+
+## 3. Design Principles
+
+1. **CQRS across node boundaries.** The Brain writes intents; the Muscle executes them and reports
+   status. Neither tier reads the other's local ECS components directly.
+
+2. **Single source of truth for health.** Only the authoritative node (checked via
+   `view.HasAuthority(entity)`) applies damage. Other nodes receive health state via DDS.
+
+3. **Proof-of-concept scope.** Message types (WeaponFireRequest, WeaponFire, MunitionDetonation,
+   EntityHitDamage) are simplified C# structs — not the full IDL schema. Topic names match the
+   target contract; attributes are minimal.
+
+4. **Backward compatibility with AllInOne.** The `AllInOne` role must continue to work without a
+   network round-trip. The unified node runs both the Brain and Muscle systems, so the local ECS
+   event bus serves as the transport and no actual DDS round-trip is needed.
+
+5. **NavigationIntent as the single locomotion command.** All Brain-tier locomotion executors must
+   write `NavigationIntent` (not `NavState`). The existing `NavigationIntentBridgeSystem` on the
+   Muscle translates this intent into `NavState`.
+
+---
+
+## 4. Phase 1: Event & Contract Foundations
+
+**Goal:** Define the data contracts (ECS event structs and DDS message types) that the entire
+pipeline depends on, and immediately guard the `DamageSystem` against authority violations.
+
+### 4.1 WeaponFire Pipeline Contracts
+
+Four new C# types for the weapon-fire CQRS chain (POC-simplified):
+
+| ECS Event | Direction | DDS Message | Purpose |
+|---|---|---|---|
+| `WeaponFireIntent` | Brain internal | `WeaponFireRequest` | Brain issues fire command |
+| `WeaponFireNotification` | Muscle internal | `WeaponFire` | Muscle confirms shot fired (IG: muzzle flash) |
+
+Struct definitions — see Task **BS1-T001**.
+
+### 4.2 Detonation & Damage Pipeline Contracts
+
+| ECS Event | Direction | DDS Message | Purpose |
+|---|---|---|---|
+| `DetonationNotification` | Muscle internal | `MunitionDetonation` | Bullet impact (IG: explosion) |
+| `DamageAssessedEvent` | DamageAssessment internal | `EntityHitDamage` | Computed HP loss |
+
+Struct definitions — see Task **BS1-T002**.
+
+### 4.3 DamageSystem Authority Guard
+
+`DamageSystem.OnUpdate` must check `view.HasAuthority(evt.HitEntity)` before applying
+damage. In the current codebase (`FDP/Toolkits/FDP.Toolkit.Combat/Systems/DamageSystem.cs`)
+there is no such check. See Task **BS1-T003**.
+
+---
+
+## 5. Phase 2: Weapon Fire CQRS Pipeline
+
+**Goal:** Replace the local `FireRequestEvent`-based firing loop with a network-transparent
+CQRS chain — Brain emits intent, Muscle executes and reports back.
+
+### 5.1 AimAndFireExecutor → WeaponFireIntent
+
+Currently `AimAndFireExecutor` publishes `FireRequestEvent` which is consumed locally by
+`FireProcessingSystem`. After the change it publishes `WeaponFireIntent` instead.
+`FireRequestEvent` is removed. See Task **BS1-T004**.
+
+#### ⭐ 5.1a — CE-321: **when the executor does NOT fire** *(as-built, `2026-10-04`)*
+
+| guard, in order | status | why |
+|---|---|---|
+| target gone **or knocked out** — `CombatLife.IsAlive` | `Success` | ⚠ was `world.IsAlive` only; since the `CE-267` revert the body stays in the world, so a squad emptied its rifles into a corpse. Same rule `CE-466` applied to the hill-attack nodes |
+| `Ammo == 0` | `Failure` | unchanged |
+| cooldown > 0 | `Running` | unchanged |
+| ⭐ **a friendly on the line** — `LineOfFire.BlockedByFriendly` | `Running`, **no round spent** | 🔒 user `2026-10-04` *"A+B approved"*. Any OTHER entity of the shooter's `ForceId` with a `PhysicsCollider` (alive or wrecked) whose circle the flat shooter→target segment crosses strictly between the ends. Holding, not failing, lets the unit fire again once either side moves |
+| ⭐ **the unit's ROE** — `AimAndFireExecutor.RoePermitsFire` (`CE-2075`, R-200) | `Running`, **no round spent** | `HoldFire` ⇒ never; `ReturnFire` ⇒ only when `RecentSensesOf.Within(Hit, 5 s)`; `FireAtWill` / unset / no `Roe` in the world ⇒ fires. Enforced HERE, once, so no behaviour can forget it (`DESIGN_Decision_Layer.md` §4.4). ⚠ the 5 s is a constant (`ReturnFireWindowSeconds`, the §4.3 example's window) until the ROE carries one; ⚠ a near miss is not sensed (no `SensorChange` kind), so ReturnFire answers hits only |
+
+⭐⭐ **AS BUILT `2026-11-02` — CE-2379 (the hold counts a PERSON by his parts).** The friendly row's "circle" is no longer the bare `PhysicsCollider.Radius` for a person: `LineOfFire.StrikeRadius` = max(collider radius, `PersonBody.HorizontalReach(pose)` × `PersonBody.ScaleOf(height)` + his lean shift when leaning), the pose being his CURRENT `PersonBody.PoseOf` — the same pose, scale and lean `BodyPartRay.Person` tests a round against. `HorizontalReach` is computed lazily beside `PersonBody.Bound` from the generated box tables. 📌 Why: `showcase-bridgehead` — a Red round hit a Red man's UpperArmL at 497.6 s because the hold tested his collider while the round meets his arm box (backend's report). The CE-2338 skip of a person down is unchanged; the same helper widens `BlockedByNeutral` (AW-20).
+
+⭐ The companion half lives in `EjectPassengersExecutor`: passengers dismount in a column on the vehicle's **right, relative to
+its heading**, at `hull radius (PhysicsCollider, else 2 m) + 1.5 m` from its centre. 📌 It used to drop them at a fixed WORLD
+offset (−4 m in Y) — 0.5 m outside the APC's 3.5 m collider with the hull between them and the threat — and `UrbanCombatNew`'s
+soldiers killed their own APC (`475 → 0` by tick 36). ⚠ The bullet's swept raycast still ignores only its shooter; the hold-fire
+rule is the guard, not the ballistics.
+
+⛔⛔ **Measured `2026-10-05` on the SPLIT topology (CGF Brain + SimHost Muscle, `UrbanCombatFileLifecycleTests`, `CE-502`):**
+
+| hop | state |
+|---|---|
+| the Brain dispatches interaction commands | 🔴 → ✅ CGF's `ActionDispatchModule` had **no** interaction executors (`CgfLogicPack.cs`), so the APC's `OnEnter_Disabled` EjectPassengers did nothing. Now registers `EjectPassengers` + `OpenDoor`, the example hosts' set |
+| the eject's column placement reaches the authority | ⛔ **NO.** The executor writes `SimTransform` on the BRAIN; position belongs to the MUSCLE, and both nodes end with all four soldiers on ONE point (±1e-4 m). Each soldier's bullet then spawns inside a squad-mate's collider: 90 rounds, 0 on the insurgent, one soldier killed by the squad. Open as `CE-3059` |
+
+⚠ So the column rule above holds where the executor's world IS the position authority (one-world hosts: `--mode editor`, the
+examples) and **not** on a split cluster.
+
+⭐ **Simplification in force (`CE-3059`, 🔒 user `2026-10-05`):** *"brain deciding where to place the dismounting soldiers to
+avoid friendly fire is a non trivial task. Could we for now simplify that the bullets are starting their trajectoey around 1
+meter from the soldier"*. `FireProcessingSystem` spawns the bullet `CombatConstants.MuzzleOffsetMeters` (1 m) along the aim
+line, capped at half the distance to the target, and the swept ray starts there. ⇒ squad-mates on the shooter's own spot are
+not hit; ⚠ a friendly further out on the line still is (the hold-fire guard above covers that). Correct dismount placement on a
+split cluster stays deferred.
+
+### 5.2 Brain Egress — WeaponFireIntentEgressTranslator
+
+A new translator on the Brain node watches the local event bus for `WeaponFireIntent` and
+publishes a `WeaponFireRequest` DDS message. See Task **BS1-T005**.
+
+### 5.3 Muscle Ingress — WeaponFireRequestIngressTranslator
+
+A new translator on the Muscle node receives `WeaponFireRequest` from DDS and re-publishes
+a local `WeaponFireIntent` into the Muscle's ECS event bus. See Task **BS1-T006**.
+
+### 5.4 FireProcessingSystem — emit WeaponFireNotification
+
+`FireProcessingSystem` currently consumes `FireRequestEvent`. After the refactor it consumes
+`WeaponFireIntent` (the same struct regardless of origin) and, after spawning the bullet, also
+publishes a `WeaponFireNotification` event. See Task **BS1-T007**.
+
+#### ⛔⛔⛔ 5.4a — CE-198: **`FireProcessingSystem` MUST NOT gate on `NetworkAuthority`** *(as-built correction, `2026-09-05`)*
+
+⚠ **`TD-6` (`BS-1-BATCH-04`) added exactly such a gate** — *"only spawns bullets if the node is
+authoritative over the shooter"* — and it **could never pass on the only node that runs the system**,
+silently disabling the whole kill chain on **every DISTRIBUTED** topology.
+
+⚠⚠ **SCOPE — corrected `2026-09-05`; an earlier version of this section said "every topology" and that was
+too strong.** ⭐ In **`--mode editor`** there is **one world at node 0** and the entities are created
+locally, so `NetworkAuthority` reads `{PrimaryOwnerId: 0, LocalNodeId: 0}` ⇒ the gate **passed** and kills
+always worked — measured `2026-09-04` and reproduced exactly `2026-09-05`
+*(`1001 50/50 Ammo 41 · 1002 50/50 Ammo 41 · 1006 0/50 · 1007 0/50`)*. ⛔ **The gate bit only where the
+Muscle's combatants are ghosts** — the 4-process cluster and `--mode all`. ⇒ 🔒 **that asymmetry is why the
+defect survived: the topology exercised most often is the one it did not affect**, and the product's
+shipping topology is the one it killed.
+
+📐 **Measured live on `hill-attack-close`, 4-process cluster AND `--mode all`:**
+
+| what | measurement |
+|---|---|
+| `NetworkAuthority` on the **Muscle**, every combatant | `{ HasAuthority: false, PrimaryOwnerId: -1, LocalNodeId: 1 }` |
+| …because `EntityMasterIngressTranslator.cs:147` stamps ghosts with the **unknown-owner sentinel** `-1` | by design — see its own comment |
+| `NetworkAuthority` on the **Brain** | `{ PrimaryOwnerId: 400, LocalNodeId: 400 }` ⇒ `HasAuthority` true |
+| ⇒ with the gate: `WeaponFire`(81) **sent 0**, `MunitionDetonation`(82) **0**, `EntityHitDamage`(83) **0**, hostiles `50/50` after 6 engagements | — |
+| ⇒ gate removed, same scenario: `WeaponFire` **5→5**, `MunitionDetonation` **6→6**, `EntityHitDamage` **6→6**, both hostiles **`0/50` on Brain AND IG** | causation proven |
+
+⛔⛔ **The Brain must stay `PrimaryOwnerId`** — §6.4's `HealthApplicationSystem` applies damage behind
+that very flag (`HealthApplicationSystem.cs:61`), and it worked in the probe run. ⇒ **making the Muscle
+the owner would break damage application instead.** ⭐ §2.1's contract is the authority here: *"Brain ──
+`WeaponFireIntent` ─► `WeaponFireRequest` ─► Muscle ── spawns bullet"* — **the Muscle executes the order
+it was given; it is CORRECTLY not the owner.**
+
+⭐⭐ **`TD-6`'s real concern — several nodes spawning duplicate bullets — is a COMPOSITION property**, and
+is now structurally enforced by the capability seam: only the node whose `NodeRole` composes the combat
+capability schedules these systems *(measured on `--mode all`: exactly one of three subsystems carries
+`FireProcessingSystem`, `HitResolutionSystem`, `BallisticsSystem`, `DamageCalculationSystem`)*.
+⛔ **A runtime flag that is false by construction cannot express it.**
+
+⚠ **Why the suite never caught it:** `FireProcessingSystemTests`' two `TD-6` rails hand-built
+`NetworkAuthority` with `primaryOwnerId` **2** (a *known* other owner) and **1** (self). Production on
+the Muscle produces **neither** — it produces `-1`. ⇒ ⭐ the replacement rails
+(`..._ForAGhostShooterWithTheUnknownOwnerSentinel`, `..._WhenAnotherNodeOwnsTheShooter`) build the shape
+production actually has, and redden under inverse edit.
+
+⇒ 🔒 **§4.3's `DamageSystem` guard and §6.4's `HealthApplicationSystem` guard are UNCHANGED and correct.**
+The authority rule governs **who applies damage**, never **who executes a shot**.
+
+#### ⭐⭐ 5.4b — `CE-1111` (R-1002): **the fire notification carries the SHOT, as DIS's Fire PDU does — and a countermeasure release is a fire** *(ui, `2026-10-15`; build-state: READY-TO-BUILD)*
+
+🔒 **User, `2026-10-15`:** *"Weaponfire notification can not be missing the crucial parameters, same like DIS does not. It must be a
+bug. Regarding countermeasures no specific message please. We need something for generic single shot effect activation. If dis can do
+it as fire, why not us?"*
+
+📐 **The defect.** The brain → SimHost request carries the loaded round (`WeaponFireRequest.AmmoGuid`, M8) and the SimHost flies and
+scores it with that round (`FireProcessingSystem.cs:174-177`). The SimHost → everyone notification carried only shooter, target and slot
+(§4.1 "POC simplified"), so every viewer GUESSED the round from the slot's default: `EffectSystems.cs:68-69` (a fired HE from an
+APFSDS-default gun drew the APFSDS flash), and sound and heat know no round at all. DIS's Fire PDU carries what was fired, from where,
+how fast and how many; ours did not.
+
+**INVENTORY** (`search_graph name_pattern=".*WeaponFire.*"`, 185 hits, production code below; grep `ReadEvents<WeaponFireNotification>`
+confirms the readers):
+
+| role | site |
+|---|---|
+| publish (SimHost) | `FireProcessingSystem.cs:365` |
+| egress → `WeaponFire` | `NED/SimHost/WeaponFireNotificationEgressTranslator.cs` |
+| ingress → the same notification, `IsRemote` | `NED/IG/WeaponFireIngressTranslator.cs:78` *(⚠ §5.6 says `IgWeaponFireEvent` — known rot: that struct is registered, nothing publishes it)* |
+| read: effects (every map host) | `Hrot.Presentation/Effects/EffectSystems.cs:65` |
+| read: legacy IG effects | `Hrot.IG/Systems/EventToEffectSystem.cs:54` |
+| read: sound | `Fdp.Toolkits/Perception/Signatures/SoundEmissionSystem.cs:55` |
+| read: heat | `Fdp.Toolkits/Perception/Signatures/ThermalHeatSystem.cs:26` |
+
+```mermaid
+classDiagram
+  class WeaponFireNotification {
+    <<event, Fdp.Toolkits Combat>>
+    Entity Shooter
+    Entity Target
+    int WeaponIndex
+    bool IsRemote
+    +long AmmoGuid
+    +Entity Round
+    +Vector3 Origin
+    +Vector3 Velocity
+    +ushort Quantity
+    +double FiredAt
+  }
+  class WeaponFire {
+    <<DDS, NED - fields APPENDED, R-169>>
+    long ShooterEntityId
+    long TargetEntityId
+    int WeaponIndex
+    +long AmmoGuid
+    +long RoundEntityId
+    +float OriginX_Y_Z
+    +float VelocityX_Y_Z
+    +ushort Quantity
+    +double FiredAt
+  }
+  class WeaponSlots {
+    <<new, Fdp.Toolkits Combat>>
+    +const int Countermeasures = -1
+  }
+  class Munitions {
+    <<new helper, Fdp.Toolkits Combat>>
+    +IsExpendable(tkb, type) bool
+  }
+  class DecoyFlight {
+    <<new, Fdp.Toolkits Combat - CE-2188, backend>>
+    +At(origin, velocity, i, t) Vector3
+  }
+  WeaponFireNotification --> WeaponFire : egress / ingress
+  WeaponFireNotification ..> WeaponSlots : WeaponIndex
+  WeaponFireNotification ..> Munitions : DIS kind 8 = expendable
+  Munitions ..> DecoyFlight : an expendable's path
+```
+*What the picture shows that prose hid: one event serves a shot AND a decoy release, and the only branch any reader needs is "is this
+munition an expendable" — one helper, not a second message with its own translators.*
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (aircraft)
+  participant S as SimHost
+  participant N as NED WeaponFire
+  participant V as every map host
+  B->>S: WeaponFireIntent / WeaponFireRequest (WeaponIndex=Countermeasures, AmmoGuid=flare) - the existing request path
+  S->>S: FireProcessingSystem skips the Countermeasures slot, CountermeasureSystem takes it
+  S->>S: spawn Quantity Decoy entities, each at DecoyFlight.At(origin, v, i, t)
+  S->>S: publish WeaponFireNotification(Shooter=aircraft, WeaponIndex=Countermeasures, AmmoGuid=flare 8.2.2, Origin, Velocity, Quantity)
+  S->>N: egress (as every fire)
+  N->>V: ingress, IsRemote
+  V->>V: EffectSpawnSystem: expendable, so Quantity moving flare effects (Lifespan), no muzzle flash
+  V->>V: Sound / Heat: expendable, so skipped
+  Note over S,V: a gun shot runs the same path, AmmoGuid = the round actually fired, so the flash is the fired round's
+```
+
+```mermaid
+graph TD
+  FPS["FireProcessingSystem (SimHost, combat capability)"] -->|publishes| EV["WeaponFireNotification"]
+  REQ["WeaponFireIntent (ingressed WeaponFireRequest)"] --> FPS
+  REQ -->|WeaponIndex = Countermeasures| CMS["CountermeasureSystem (SimHost, CE-2188)"]
+  CMS -->|publishes| EV
+  EV --> EG["WeaponFireNotificationEgressTranslator (SimHost pack)"]
+  EG --> WIRE["DDS WeaponFire"]
+  WIRE --> IN["WeaponFireIngressTranslator (viewer nodes)"]
+  IN --> EV2["WeaponFireNotification IsRemote"]
+  EV --> FX["EffectSpawnSystem (MapInteractionPack, every map host)"]
+  EV2 --> FX
+  EV --> SND["SoundEmissionSystem"]
+  EV --> HEAT["ThermalHeatSystem"]
+  EV2 --> IGFX["EventToEffectSystem (IG, legacy)"]
+```
+*Who calls it each frame: the SimHost publishes (combat capability only, §5.4a); every map host's `EffectSpawnSystem` reads the local
+event or the ingressed one — the one-world editor reads the local event and has no egress.*
+
+| # | decision | why |
+|---|---|---|
+| F1 | ⭐ the notification carries **`AmmoGuid`** (the round actually fired, the tracer when it was one), **`Round`** (the spawned round, null when none), **`Origin`**, **`Velocity`**, **`Quantity`** (1 per shot), **`FiredAt`** (sim time) | DIS Fire PDU parity: munition descriptor type + quantity, location, velocity, munition id. ⛔ Warhead / fuze are NOT copied: they are the munition TYPE's (`ParameterResolver`), as DIS's descriptor names them by type |
+| F1a | ⭐ the round's type is named **`AmmoGuid`** on the notification and the wire, as on `WeaponFireIntent` / `WeaponFireRequest` and the mount | 🔒 user, `2026-10-15`: *"Use AmmoGuid."* — one name along the fire pipeline (request, notification, mount). The detonation side's `Ammo` / `MunitionType` is a separate rename, not in CE-1111 |
+| F2 | appended at the END of both structs | R-169; the precedent is `WeaponFireRequest`'s appended M8 / IF-1 / CE-2180 fields |
+| F3 | every reader uses `AmmoGuid`, never the slot's default | the defect |
+| F4 | ⭐ a countermeasure release IS a fire, BOTH ways: the brain asks with the existing `WeaponFireIntent` / `WeaponFireRequest` (`WeaponIndex = WeaponSlots.Countermeasures`, `AmmoGuid` = flare or chaff type), and the SimHost reports with the notification (`AmmoGuid` = the expendable, DIS kind 8: flare 8.2.2, chaff 8.2.1; `Quantity` = the salvo) | 🔒 the user's ruling; DIS 7 sends it as a Fire PDU with an expendable descriptor. ⛔ no countermeasure message either way — this SUPERSEDES Missiles & Ammo §3c's `DispenseCountermeasureIntent` / `DispenseCountermeasure` (dt 134) and its two translators |
+| F5 | one check, `Munitions.IsExpendable` (DIS kind 8), at each reader: effects draw the expendable's own look, sound and heat skip it | a dispenser is not a gun: no flash, no report, no barrel heat |
+| F6 | the flare's path is ONE function of the event (`DecoyFlight.At`), used by the SimHost's decoy AND the viewers' effect | every node draws the flare where the seeker sees it, with no streamed positions |
+
+**Rejected:** a `CountermeasureDispensed` message — duplicates the Fire PDU's shape for one case (the user's ruling) · each flare as a
+`LightweightRound` (R-271) — streams positions a known start already fixes · leaving `WeaponFire` thin and deriving the round on the
+viewer — the defect itself.
+
+~~**Split:** `CE-1111` (ui) builds F1–F3 and F5 and the flare / chaff looks; `CE-2188` (backend, running) publishes its release by F4 and
+owns `DecoyFlight` (F6)~~ — ⛔ **SUPERSEDED by §5.4c** (user, `2026-10-15`: no split; no magic slot).
+
+#### ⭐⭐ 5.4c — **the dispenser is a WEAPON; backend builds everything but the drawing** *(backend, `2026-10-15`; build-state: BUILT — 🔒 user: "approved"; as-built deviations in the table at the end of this section)*
+
+> 🔒 **User, `2026-10-15`:** *"No splitting. Ui lane will only add rendering the effect, you do all the rest."* · *"And no magic numbers
+> for weapon slot. Chaff launcher can be weapon type and slot could be normal one, couldnt it?"* · *"approved, write the design so ui
+> branch knows what to interface its rendering part to"*
+
+⭐ **What changes against §5.4b:** F4's `WeaponSlots.Countermeasures = -1` is GONE. A flare / chaff **dispenser is a weapon mount** of the
+aircraft type (`WeaponCategory.Countermeasure`), on an ordinary slot, with a loadout of flare and chaff rounds. Its rounds are counted,
+spent, reloaded and shown exactly as any weapon's (`WeaponState` + `AmmoLoadout` on the brain, `Magazine.Spend`, the `WeaponAmmo` mirror to
+the HUD). A **salvo is the action's round count**, as a burst is; the interval is the mount's rate of fire. **One release = one decoy =
+one `WeaponFireNotification` with `Quantity = 1`** (DIS sends one Fire PDU per expendable launch). This also SUPERSEDES Missiles & Ammo
+§3c's `CountermeasuresDto` / `CountermeasureState` (the SimHost-side count) — one counter, the brain's, as for every round.
+
+> ⭐ **`2026-10-19` — Q94 A-3 (R-3018) moved the spend MOMENT of every OTHER per-shot round, not the counter:** the brain now only ASKS
+> (`WeaponFireIntent.RequestId`), the round is RESERVED, and the muscle's `WeaponFireNotification` — fired, or REFUSED with a reason —
+> is what spends it (`Combat/ShotLedger.cs`, run by `WeaponDispatcherSystem`). The counter is still the brain's one `WeaponState`. ⛔ A
+> DISPENSER release keeps its spend at the release (`Countermeasures.Release`): the muscle never answers a dispenser
+> (`FireProcessingSystem` skips it). 📄 [Architect Question 94 §4.1](../../blueprints/Architect_Question_94_Brain_Geometry_Sites.md).
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponCategory { <<existing, grows>> +Countermeasure }
+  class WeaponMountDto { <<existing, grows>> Category Loadout +RateOfFire }
+  class ExpendableDto { <<new TKB, on the flare / chaff munition>> LifeSeconds SinkMps }
+  class Munitions { <<new, Fdp.Toolkits Combat>> +IsExpendable(tkb, ammoGuid) bool +DecoyOf(tkb, ammoGuid) DecoyKind +ExpendableOf(tkb, ammoGuid) ExpendableDto }
+  class DecoyFlight { <<new, Fdp.Toolkits Combat>> +At(origin, velocity, sinkMps, t) Vector3 }
+  class Countermeasures { <<new, Fdp.Toolkits Combat - the brain's one way to release>> +Release(world, unit, DecoyKind) bool +Left(world, unit, DecoyKind) int +IsDispenser(world, owner, mount) bool +DispenserOnly(view, unit) bool }
+  class WeaponFireIntent { <<existing>> WeaponIndex = the dispenser mount, AmmoGuid = flare or chaff }
+  class WeaponFireNotification { <<existing, grows F1>> AmmoGuid Round Origin Velocity Quantity FiredAt }
+  class CountermeasureSystem { <<existing, SimHost - now reads the fire request>> spawn the decoy, seduce, publish the fire }
+  class FireProcessingSystem { <<existing>> skips a Countermeasure mount }
+  Countermeasures --> WeaponFireIntent : one per release
+  WeaponFireIntent --> CountermeasureSystem : the dispenser mount
+  WeaponFireIntent --> FireProcessingSystem : every other mount
+  CountermeasureSystem --> WeaponFireNotification : Quantity 1
+  CountermeasureSystem ..> DecoyFlight
+  Munitions ..> ExpendableDto
+```
+
+*What the picture shows that prose hid: there is no countermeasure message and no countermeasure counter — the dispenser rides the
+weapon path end to end, and the ONLY new branch anywhere is "this mount is a Countermeasure / this AmmoGuid is an expendable".*
+
+```mermaid
+sequenceDiagram
+  participant B as aircraft brain (CE-2191 behaviour)
+  participant S as SimHost
+  participant N as DDS WeaponFire
+  participant V as every map host (ui rendering)
+  B->>B: Countermeasures.Release(unit, Flare) - the dispenser mount ready? spend 1 flare (Magazine.Spend)
+  B->>S: WeaponFireIntent / WeaponFireRequest (WeaponIndex = dispenser mount, AmmoGuid = flare 6034) - the existing path
+  S->>S: FireProcessingSystem skips it, CountermeasureSystem takes it
+  S->>S: Decoy entity at DecoyFlight.At(origin, velocity, sink, t), seduction draw for IR rounds that see it
+  S->>S: WeaponFireNotification(Shooter = aircraft, AmmoGuid = 6034, Origin, Velocity, Quantity = 1, FiredAt)
+  S->>N: egress, as every fire
+  N->>V: ingress, IsRemote
+  V->>V: Munitions.IsExpendable(6034): draw the flare at DecoyFlight.At(Origin, Velocity, sink, now - FiredAt) for LifeSeconds, no flash
+```
+
+| who | builds |
+|---|---|
+| **backend** (CE-1111's engine half + CE-2188's rework) | F1–F3 (the fields, the wire, egress / ingress, every non-drawing reader uses `AmmoGuid`), F5 for sound and heat, `WeaponCategory.Countermeasure`, the dispenser mounts, flare 6034 / chaff 6035 with `ExpendableDto`, `Munitions`, `DecoyFlight`, `Countermeasures.Release`, the slot skip, `CountermeasureSystem` on the request; removing dt 134, its translators, `DispenseCountermeasureIntent`, `CountermeasuresDto` and `CountermeasureState`; and the "a Countermeasure mount is not a weapon" check at the four readers that mean "armed" (`ThreatDanger.cs:28`, `:226`, `WeaponChoice` / `AmmoChoice` value 0, `UtilityScorer.cs:299`) |
+| **ui** | ⭐ the DRAWING only — the interface below |
+
+##### ⭐ The interface the ui rendering builds against
+
+| you read | what it is | notes |
+|---|---|---|
+| `WeaponFireNotification` (local, or `IsRemote` from the `WeaponFire` ingress) | `Shooter` (the aircraft), `AmmoGuid` (6034 flare / 6035 chaff — or the round fired, for a gun), `Origin`, `Velocity` (the aircraft's at release), `Quantity` (1 per release), `FiredAt` (sim time, s), `Round` (null for an expendable) | the same event every gun shot raises; `EffectSpawnSystem` already reads it |
+| `Munitions.IsExpendable(ITkbDatabase? tkb, long ammoGuid)` | true for DIS kind 8 (flare 8.2.2, chaff 8.2.1) | ⇒ no muzzle flash, no tracer; draw the decoy instead |
+| `Munitions.ExpendableOf(tkb, ammoGuid)` → `ExpendableDto { LifeSeconds, SinkMps }` | how long it burns / hangs, how fast it sinks | ⭐ the SAME numbers the SimHost's decoy uses |
+| `DecoyFlight.At(Vector3 origin, Vector3 velocity, float sinkMps, float t)` → `Vector3` | where the decoy is `t` seconds after `FiredAt` | ⭐ THE path: the seeker chases exactly this point, so draw it here — never stream or guess |
+| the look | yours: a flare (bright, burning, smoke trail) / a chaff cloud (a spreading grey bloom) | add it as a `MunitionVisualDto` in `MunitionTkbCatalog.BuiltInLooks` for 6034 / 6035 (a named cross-lane edit), or key your effect on `AmmoGuid` — your call |
+| the legacy IG reader (`Hrot.IG/Systems/EventToEffectSystem.cs`) | yours, if the IG should draw flares | it gets the same notification |
+
+⚠ **Timing:** a viewer's `now − FiredAt` uses the synced sim clock (R-2015's `RaisedAt` precedent); a late-joining viewer that sees a
+notification after `LifeSeconds` draws nothing.
+⚠ **Not on the wire:** the decoy entity itself (it lives on the SimHost only, like the round that chases it) — the notification is enough.
+
+##### ⭐ As built *(backend, `2026-10-15`)* — where the build differs from the picture above, and why
+
+| as designed | as built | why |
+|---|---|---|
+| `ExpendableDto { LifeSeconds, SinkMps, Decoys }` | **`{ LifeSeconds, SinkMps }`**; which seeker it fools is **`Munitions.DecoyOf`** — from the munition's **DIS type** (8.2.2 flare, 8.2.1 chaff) | one source: the DIS category already says it |
+| `DecoyFlight.At(origin, velocity, sinkMps, t)` | the same signature; the decoy keeps the aircraft's velocity **decaying** with `DecoyFlight.SlowSeconds` = 1.5 s, then sinks | a flare does not fly on at 150 m/s for 5 s; the constant lives inside the one function, so ui's drawing gets it for free |
+| "the interval is the mount's rate of fire" | **`WeaponMountDto.RateOfFire`** (rpm, new, copied from the catalog's `WeaponMount.RateOfFire`); interval = 60 ÷ it, else 0.5 s | the mount DTO had no rate of fire |
+| "dispenser mounts on every crewed aircraft" | the **UH-60 ×2, AH-64, A-10** (`NedTkbCatalog.Dispenser`, the LAST mount; 30/30 · 30/30 · 60/60 · 120/240) | ⚠ the F-16 and the C-130 have no combat block and **no brain** — nothing could release |
+| the "not a weapon" check at four readers | those four (`ThreatDanger` ×2, `AmmoChoice` value 0 — which `WeaponChoice` and `WeaponEffectivenessVsTarget` read — `UtilityScorer`) **plus** `WeaponSystems.PrimaryMount` / `WeaponOf` and the two fire executors | ⚠ the unarmed UH-60's ONLY mount is the dispenser, so mount 0 became it: without `PrimaryMount` skipping it the doors-off UH-60's primary would no longer be its door gun, and an `AimAndFire` / `FireAtPoint` on mount 0 would have "fired" a flare |
+| the release's request | `WeaponFireIntent { AtPoint = true, TargetPoint = the aircraft }` | the existing egress drops a target-less request that is not at a point |
+| one seduction draw per salvo | **one per decoy** (salt `0x2188` + the decoy's index) | a salvo is now N releases; N flares are N chances |
+
+
+### 5.5 Muscle Egress — WeaponFireNotificationEgressTranslator
+
+A new translator on the Muscle publishes a `WeaponFire` DDS message for each
+`WeaponFireNotification`. The IG listens to this topic to trigger the muzzle-flash effect.
+See Task **BS1-T008**.
+
+### 5.6 IG Ingress — WeaponFireIngressTranslator
+
+The IG receives `WeaponFire` DDS messages and publishes a local `IgWeaponFireEvent` for the
+visual layer to draw muzzle flashes and tracers. See Task **BS1-T009**.
+
+---
+
+## 6. Phase 3: Detonation & Damage Assessment Pipeline
+
+**Goal:** Establish the detonation → damage → health-update CQRS chain, create the Damage
+Assessment Module, and add the missing `EntityDamageEgressTranslator`.
+
+### 6.1 HitResolutionSystem — emit DetonationNotification
+
+`HitResolutionSystem` (in `FDP.Toolkit.Combat`) currently emits a `HitEvent`. After the
+refactor it additionally emits a `DetonationNotification` capturing the hit position and
+entity identifiers. See Task **BS1-T010**.
+
+### 6.2 Muscle Egress — MunitionDetonationEgressTranslator
+
+Translates the local `DetonationNotification` event to the `MunitionDetonation` DDS message.
+Also consumed by the IG for explosion particle effects. See Task **BS1-T011**.
+
+### 6.3 Damage Assessment Module
+
+A new `DamageAssessmentModule` (in `FDP.Toolkit.Combat` or as a collocated SimHost module)
+contains:
+
+- `MunitionDetonationIngressTranslator`: DDS `MunitionDetonation` → local `DetonationNotification`
+- `DamageCalculationSystem`: computes HP loss (POC: flat value from `BallisticProjectile.Damage`),
+  publishes `DamageAssessedEvent`
+- `DamageAssessedEgressTranslator`: publishes `EntityHitDamage` DDS message
+
+The module is registered on a node with authority over the target entity; in the POC this is
+the same node as the Muscle (collocated). See Task **BS1-T012** and **BS1-T013**.
+
+### 6.4 Health Application Pipeline
+
+When `EntityHitDamage` is received:
+
+- `EntityHitDamageIngressTranslator` (on the authority node) deserialises the DDS message
+  and publishes a local `DamageAssessedEvent`.
+- An entity-type-agnostic `HealthApplicationSystem` consumes the event, checks
+  `HasAuthority`, decrements `Health.Current`, and strips
+  `ActorCapabilities` if the entity is destroyed.
+
+> ⚠ **CORRECTED 2026-09-05.** This step said the system *"updates the `HealthData` mirror"*.
+> 📐 `HealthData` was **deleted** by `BUG2-A001`; only a reserved id remains in `GlobalComponentIds`.
+> The system has no mirror to update, and `MissionDirectorSystem.cs:150` says so in its own words.
+
+In the future, entity-type-specific damage modules can replace or override this system.
+See Task **BS1-T014**.
+
+### 6.4a ⭐⭐ A hit reaches the `Health` owner from ANY node — `CE-3246` *(backend, `2026-10-19`; build-state: BUILT; R-3015's shape, Node Roles §3.5)*
+
+⛔ **Before:** §6.4's pair was registered by ROLE — the egress on `MuscleGround` (and `Traffic`), the ingress on `Brain` (and
+`Traffic`) (`SimHostAuxiliaryTranslatorPack`). It was built for bullets: SimHost resolves, CGF owns. 📐 Measured: a `DamageAssessedEvent`
+raised anywhere else — a blow (`Melee.Strike`) or a gas cloud (`AreaEffectCloudSystem`) on a CGF brain, on a victim whose `Health`
+SimHost, a player node or another CGF owns — never left its node and was dropped. ⚠ And the editor (`Brain | MuscleGround`, R-4057: it
+replicates) had both halves, with no own-sample skip ⇒ a hit it raised came back off the wire and its owner applied it TWICE.
+
+**INVENTORY** *(2026-10-19)*: readers of `DamageAssessedEvent` (grep, production): `HealthApplicationSystem` (authority-gated, on every
+live-simulation node — `CoreInfrastructureCapabilities.LiveSimulationPlan`), `TrafficPanicSystem` (a hit on a SUMO replica, deduped per
+agent), the egress. Writers: `DamageCalculationSystem`, `Melee.Strike`, `AreaEffectCloudSystem`, `DescentModels` (a fall),
+`EjectionSystem`, `TrafficPanicSystem.Deliver`, the ingress. Registration: `CgfComponentRegistry`, SimHost's `CombatComponentRegistry`,
+`TrafficPack` — ⛔ not the shared registry.
+
+```mermaid
+graph TD
+  subgraph BEFORE
+    MG[MuscleGround or Traffic] --> EG1[DamageAssessedEgress: every local hit]
+    BR[Brain or Traffic] --> IN1[EntityHitDamageIngress]
+    CGFH[a hit raised on a CGF brain]:::dead
+    CGFH -. no egress on Brain .-> LOST[lost]:::dead
+  end
+  subgraph AFTER
+    ANY[every NED node] --> SHP[SharedTranslatorPack]
+    SHP --> EG2[egress: a local hit this node cannot apply, SourceNodeId = self]
+    SHP --> IN2[ingress: drops SourceNodeId == self]
+    IN2 --> HA[HealthApplicationSystem on the Health owner]
+  end
+  classDef dead fill:#f88
+```
+*What the picture shows that prose hid:* the hit's route depended on the ROLE of the node that raised it; afterwards it depends only on
+who owns the victim's `Health` — the one question `HealthApplicationSystem` already asks.
+
+```mermaid
+classDiagram
+  class HealthOwnership { <<NEW static>> AppliesHere(view, entity) }
+  class HealthApplicationSystem { <<EXISTING>> applies where AppliesHere }
+  class DamageAssessedEgressTranslator { <<EXISTING, moved>> sends a local hit where NOT AppliesHere }
+  class EntityHitDamageIngressTranslator { <<EXISTING, moved>> drops its own node's sample }
+  class EntityHitDamage { <<wire, appended>> SourceNodeId }
+  class SharedTranslatorPack { <<EXISTING, grows>> }
+  class SimHostAuxiliaryTranslatorPack { <<EXISTING, shrinks>> }
+  HealthApplicationSystem ..> HealthOwnership
+  DamageAssessedEgressTranslator ..> HealthOwnership
+  SharedTranslatorPack --> DamageAssessedEgressTranslator
+  SharedTranslatorPack --> EntityHitDamageIngressTranslator
+  DamageAssessedEgressTranslator ..> EntityHitDamage
+  EntityHitDamageIngressTranslator ..> EntityHitDamage
+```
+*The one rule — "this node applies a hit on this entity" — has ONE body, read by the system that applies and by the egress that
+decides not to send; the two can never disagree, so a hit is applied exactly once.*
+
+```mermaid
+sequenceDiagram
+  participant A as node A (CGF brain of the striker)
+  participant D as DDS
+  participant B as node B (owns the victim's Health)
+  A->>A: Melee.Strike: DamageAssessedEvent (IsRemote false)
+  A->>A: HealthApplicationSystem: not the owner, skips
+  A->>D: EntityHitDamage (SourceNodeId = A), A does not own the Health
+  D-->>A: own sample, dropped
+  D-->>B: sample
+  B->>B: DamageAssessedEvent (IsRemote true): HealthApplicationSystem applies it once
+  Note over B: a hit raised ON B is applied locally and never sent
+```
+
+| id | decision | why | rejected — one line each |
+|---|---|---|---|
+| **HD-1** | the pair joins `SharedTranslatorPack`; `SimHostAuxiliaryTranslatorPack`'s three role branches go | R-3015: what a node receives never depends on its host kind | adding `Brain` to the egress list (a player node, a map node still lose their hits) |
+| **HD-2** | the egress sends a local hit only where `!HealthOwnership.AppliesHere` | the owner applies its own (§6.4); one apply, never a loop-back for it | sending every hit (a sample to every node for a hit its owner already applied — the old Muscle egress's habit) |
+| **HD-3** | `SourceNodeId` APPENDED on `EntityHitDamage`; the ingress drops its own node's sample | R-3015's event shape (`WeaponFire`, `MunitionDetonation`, `MeleeStrike`); without it the sender's bus carried every hit it sent twice | ⛔ the row's lean "no message change — the ingress already skips own samples": 📐 false, `EntityHitDamage` had no node id |
+| **HD-4** | `HrotSharedComponentRegistry` registers `DamageAssessedEvent` | every node now runs the ingress (the shared-registry rail, CE-4013 D19) | per-host registration (a map or traffic node would throw on the first hit) |
+
+### 6.5 EntityDamageEgressTranslator (authority node → IG)
+
+> ⚠⚠ **CORRECTED 2026-09-05 (CE-196).** This heading said *"SimHost → IG"*. 📐 Measured on a live
+> `--mode all`: the translator is **authority-gated** (`view.HasAuthority`), and the authority for
+> descriptor 30 is **CGF** — SimHost published **0** samples, CGF published all of them. The publisher is
+> whichever node owns the entity, which for `hill-attack` is the Brain.
+>
+> ⚠ **And the payload changed.** It no longer carries a precomputed 0–100 damage level; it carries
+> `Current` + `Max`, and each consumer derives its own fraction.
+> 🔒 User ruling, 2026-09-05: *"having both Max and Current makes sense as ECS component AND network
+> descriptor, no precalculated percentages."*
+
+A new `EntityDamageEgressTranslator` tracks dirty `Health` components and publishes
+`EntityDamage` DDS messages so the IG updates health bars. Registered in `SimHostApp.cs`.
+See Task **BS1-T015**.
+
+---
+
+## 7. Phase 4: Node Role Reconfiguration
+
+**Goal:** Enforce the correct module assignments per node role and wire up the new translators.
+
+### 7.1 NodeBootstrapper Changes
+
+| Role | Before | After |
+|---|---|---|
+| `Brain` | MissionControl, CognitiveRuntime, ActionDispatch, **Combat** | MissionControl, CognitiveRuntime, ActionDispatch |
+| `MuscleGround` | ActionDispatch, GroundKinematics, Combat | ActionDispatch, GroundKinematics, Combat, **DamageAssessment** |
+| `AllInOne` | All | All (unchanged — AllInOne gets everything) |
+
+ActionDispatch on the Brain keeps `AimAndFireExecutor` (which now emits `WeaponFireIntent`).
+See Task **BS1-T016**.
+
+### 7.2 Translator Registration in SimHostApp
+
+Register the new translators in `SimHostApp.cs` for each applicable node role:
+
+- Brain role: `WeaponFireIntentEgressTranslator` (egress)
+- Muscle role: `WeaponFireRequestIngressTranslator` (ingress), `WeaponFireNotificationEgressTranslator` (egress), `MunitionDetonationEgressTranslator` (egress)
+- Authority / Muscle role: `EntityHitDamageIngressTranslator` (ingress), `EntityDamageEgressTranslator` (egress)
+- IG: `WeaponFireIngressTranslator` (ingress)
+
+See Task **BS1-T017**.
+
+---
+
+## 8. Phase 5: Navigation CQRS Compliance
+
+**Goal:** Remove all direct `NavState` mutations from Brain-tier executors and fix the
+`MissionDirectorSystem.ReachedDestination` trigger.
+
+The infrastructure is already in place: `NavigationIntent` has modes for `DirectPoint`,
+`FollowRoute`, and `RoadGraph`. `NavigationIntentBridgeSystem` on the Muscle translates
+intents into `NavState`. `NavigationStatus` carries `Arrived`, `InProgress`, and `Failed*`
+results back to the Brain.
+
+### 8.1 FleeExecutor
+
+Replace direct `NavState` writes with a `NavigationIntent` of mode `NAV_DIRECT_POINT`
+and use `LocomotionChannel.Status` / `NavigationStatus` for exit detection.
+See Task **BS1-T018**.
+
+### 8.2 FollowRoadGraphExecutor
+
+Replace `NavState.Mode = KinematicsMode.RoadGraph` etc. with a `NavigationIntent` of
+mode `NAV_ROAD_GRAPH`. Use `NavigationStatus.Result` for arrival polling.
+See Task **BS1-T019**.
+
+### 8.3 FollowRouteExecutor
+
+Replace `NavState.Mode = KinematicsMode.CustomTrajectory` etc. with a `NavigationIntent`
+of mode `NAV_FOLLOW_ROUTE`. Use `NavigationStatus.Result` for loop-reset detection.
+See Task **BS1-T020**.
+
+### 8.4 Action_Wander — Remove NavState Poll
+
+The secondary `NavState.HasArrived` check inside `SimHostNodes.Action_Wander` is
+redundant and breaks the Brain/Muscle boundary. Remove it; the primary check on
+`LocomotionChannel.Status` is sufficient. See Task **BS1-T021**.
+
+### 8.5 MissionDirectorSystem.ReachedDestination + UI Generator
+
+`MissionTrigger.ReachedDestination` must be removed (or aliased to `BehaviorFinished` for
+backward compatibility). The UI right-click handler that creates `MoveToLocation` missions
+must emit `MissionTrigger.BehaviorFinished` instead. See Task **BS1-T022**.
+
+---
+
+## 9. Out of Scope
+
+The following topics were discussed in the design talk but are **deferred** to later
+workstreams:
+
+- **Perception node** (`AutonomousPerceptionModule`, `SensorConfig`, `SensorTargets`) — already
+  correctly designed for Brain/Muscle separation; no changes needed.
+- **NavMesh / Navigation Solver node** — already correctly designed; path computation via
+  `PathRequestBatch` / `RouteHandle` is network-transparent.
+- **Full IDL-compliant message schemas** (BDC.SST.Msg.idl) — POC uses simplified structs.  
+- **Entity-type-specific damage calculators** (tracked vs wheeled vs infantry) — basic
+  `DamageCalculationSystem` is sufficient for the POC.
+- **HsmDamageBridgeSystem / mobility-kill via HSM** — depends on the Damage pipeline being
+  complete first.

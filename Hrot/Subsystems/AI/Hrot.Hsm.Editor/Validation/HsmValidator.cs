@@ -21,7 +21,7 @@ public sealed class HsmValidator
     /// i.e. it contains at least one stateful node that maintains per-instance WorkingState.
     /// Defaults to <c>_ => false</c> (all Subtrees treated as stateless) so existing callers
     /// compile and run unchanged.  Production should wire this to check the referenced
-    /// BTree/HSM asset for any <c>ThreeParamReusableStateful</c> action (or WorkingState).
+    /// BTree/HSM asset for any <c>Stateful</c> action (or WorkingState).
     /// </summary>
     private readonly Func<Guid, bool> _isStatefulSubtree;
 
@@ -34,13 +34,50 @@ public sealed class HsmValidator
     /// </summary>
     private readonly Func<Guid, IReadOnlyCollection<int>> _sharedScopeKeys;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5</c> item 7 — the asset catalogue, for the <c>A</c> hosts <c>B</c> hosts <c>A</c>
+    /// walk.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⛔⛔ <b>A CATALOGUE rather than a third <c>Func&lt;Guid, …&gt;</c> resolver, deliberately.</b>
+    /// 📐 <c>BTreeValidator.Validate</c> already takes an <c>IAssetCatalog?</c>, so the BTree arm of the
+    /// same rule needs no new plumbing at all; and the catalogue→hosted-ids adapter then lives ONCE,
+    /// inside <c>SubtreeCycleDetector</c>, instead of being rewritten at every composition root. ⭐ The
+    /// edge is read through <c>ISubtreeHostingAsset</c>, so this assembly still never sees
+    /// <c>BehaviorTreeAsset</c> — the constraint that shaped <c>CE-338</c>.</para>
+    ///
+    /// <para>⚠ <b>Null skips the rule</b>, exactly as <c>BTreeValidator</c> skips its dangling-reference
+    /// check without one. ⛔ That IS a silent default, so the control is a forwarding rail asserted on
+    /// the CONSTRUCTED object — not a promise in this comment.</para>
+    /// </summary>
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
+
     public HsmValidator(IActionSchemaExporter? schema = null,
         Func<Guid, bool>? isStatefulSubtree = null,
-        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         _schema = schema;
-        _isStatefulSubtree = isStatefulSubtree ?? (_ => false);
-        _sharedScopeKeys = sharedScopeKeys ?? (_ => System.Array.Empty<int>());
+        _catalog = catalog;
+
+        // ⭐⭐⭐ ONE DEFINITION OF THE TWO PREDICATES, DERIVED FROM THE CATALOGUE.
+        //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.17.
+        // 🔴 Until 2026-09-26 the production hosts each carried their own BYTE-IDENTICAL copy of these
+        //    two expressions (EditorSubsystem and CgfSubsystem) and passed them in. ⛔ Two copies of one
+        //    policy is the thing ruling 9 forbids, and it is the same mechanism that had left CGF
+        //    silently without rules 8/8b before CE-338.
+        // ⭐ IStatefulScopeAsset (CE-338) is what makes deriving them here possible at all: the
+        //    predicate no longer needs to see BehaviorTreeAsset, so it no longer has to be computed
+        //    in the one assembly that does.
+        // ⚠ The delegates SURVIVE as an override seam — the E4 rails drive rules 8/8b with precise
+        //    stub resolvers, and a test must be able to say "pretend this id is stateful" without
+        //    building a catalogue. ⛔ Production passes the catalogue and nothing else.
+        // ⭐ A null catalogue answers false/empty, reproducing the historical defaults exactly.
+        // ⚠ Called STATICALLY rather than as an extension: the receiver is deliberately nullable
+        //    (a host without a catalogue must behave as before), and the static form says so.
+        _isStatefulSubtree = isStatefulSubtree ?? new Func<Guid, bool>(
+            id => Hrot.Editor.AiShared.StatefulScopeQueries.IsStatefulSubtree(catalog, id));
+        _sharedScopeKeys = sharedScopeKeys ?? new Func<Guid, IReadOnlyCollection<int>>(
+            id => Hrot.Editor.AiShared.StatefulScopeQueries.SharedScopeKeysOf(catalog, id));
     }
 
     public IReadOnlyList<HsmDiagnostic> Validate(HsmAsset asset,
@@ -49,6 +86,7 @@ public sealed class HsmValidator
         var diagnostics = new List<HsmDiagnostic>();
 
         CheckInitialChildren(asset, diagnostics);
+        CheckDuplicateStateNames(asset, diagnostics);   // CE-1001 / HSM-006
         CheckHistoryOutsideComposite(asset, diagnostics);
         CheckFinalStateWithChildren(asset, diagnostics);
         CheckFinalStateWithOutgoingTransitions(asset, diagnostics);
@@ -57,6 +95,12 @@ public sealed class HsmValidator
         CheckOutputLaneConflicts(asset, diagnostics);
         CheckConcurrentStatefulSubtrees(asset, diagnostics);
         CheckConcurrentSharedScopeKeys(asset, diagnostics);
+        CheckSubtreeAssetCycles(asset, diagnostics);
+        CheckSubtreeReferenceDangling(asset, diagnostics);
+        CheckMethodAndBlueprintBothBound(asset, diagnostics);
+        CheckSopOrders(asset, diagnostics);   // CE-2083
+        CheckTimerActionNotImplemented(asset, diagnostics);   // HSM-012
+        CheckResolverShape(asset, diagnostics);
 
         if (blackboard != null)
             CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
@@ -75,6 +119,26 @@ public sealed class HsmValidator
         foreach (var s in asset.AllStates)
         {
             if (s.Children.Count == 0) continue;
+
+            // ⭐ CE-1003 (Q84 B) — HSM-001 / HSM-002: a parallel state's start states belong to its REGIONS. Counting
+            //    the per-child flag across the whole parallel state flagged every correct two-region machine and let
+            //    a region with no start state through. Each declared region with members needs its own initial state.
+            if (s.IsParallel)
+            {
+                foreach (var r in s.RegionNodes)
+                {
+                    var members = s.Children.Where(c => c.RegionIndex == r.RegionIndex).ToList();
+                    if (members.Count == 0) continue;
+                    if (r.InitialChild is null || !members.Contains(r.InitialChild))
+                        out_.Add(new HsmDiagnostic(
+                            HsmDiagnosticCode.RegionWithoutInitialState,
+                            HsmDiagnosticSeverity.Error,
+                            $"Region '{r.Name}' of parallel state '{s.Name}' has no initial state.",
+                            new[] { s.StableId }));
+                }
+                continue;
+            }
+
             int initialCount = s.Children.Count(c => c.IsInitial);
             if (initialCount == 0)
             {
@@ -95,6 +159,23 @@ public sealed class HsmValidator
         }
     }
 
+    // CE-1001 / HSM-006: DuplicateStateName. Names are load-bearing in emit (`.GoTo("Name")`). The synthetic root
+    // is not a state an author names, so it is skipped.
+    private static void CheckDuplicateStateNames(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var group in asset.AllStates
+                     .Where(s => !ReferenceEquals(s, asset.RootState))
+                     .GroupBy(s => s.Name, StringComparer.Ordinal)
+                     .Where(g => g.Count() > 1))
+        {
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.DuplicateStateName,
+                HsmDiagnosticSeverity.Error,
+                $"{group.Count()} states are named '{group.Key}'; transitions bind their target by name, so every state needs a unique name.",
+                group.Select(s => s.StableId).ToArray()));
+        }
+    }
+
     // Rule 2: HistoryOutsideComposite.
     // A history pseudo-state is only meaningful inside a composite with at least one other child.
     // Flag if: parent is null, parent is RootState, or parent has <= 1 child total.
@@ -103,12 +184,14 @@ public sealed class HsmValidator
         foreach (var s in asset.AllStates)
         {
             if (!s.IsHistory && !s.IsDeepHistory) continue;
-            if (s.Parent == null || s.Parent == asset.RootState || s.Parent.Children.Count <= 1)
+            // ⭐ Q84 C1: history is a property of the composite being re-entered. A state with NO children has
+            //    nothing to resume — the leftover shape of the old history pseudo-state.
+            if (s.Children.Count == 0)
             {
                 out_.Add(new HsmDiagnostic(
                     HsmDiagnosticCode.HistoryOutsideComposite,
                     HsmDiagnosticSeverity.Warning,
-                    $"History state '{s.Name}' is not inside a composite with multiple children.",
+                    $"State '{s.Name}' has history but no child states to resume; history belongs on a composite.",
                     new[] { s.StableId }));
             }
         }
@@ -194,6 +277,165 @@ public sealed class HsmValidator
         }
     }
 
+
+    /// <summary>
+    /// ⭐⭐ <b>§11.1a — a hosted-subtree reference that resolves to nothing.</b> The HSM twin of
+    /// BTree's Rule 6 (<c>Subtree with IsResolved == false</c>).
+    ///
+    /// <para>⛔⛔ <b>NULL CATALOGUE SKIPS THE RULE</b>, exactly as rule 10 above does. 🔴 An earlier
+    /// draft read the derived <c>IsSubtreeResolved</c> flag instead, on the premise that
+    /// <c>HsmSubtreeResolver</c> had already run. 📐 <b>Measured, and the premise was false:</b> the
+    /// flag defaults to <c>false</c>, so a validator handed no catalogue reported EVERY hosted
+    /// subtree as dangling — <c>CE-338</c>/<c>CE-339</c>'s control arms caught it. ⚠ Without a
+    /// catalogue you cannot know whether a reference resolves; reporting it as broken is a guess.</para>
+    ///
+    /// <para>⭐ <b>It asks <see cref="SubtreeReferenceResolver"/>, not the stored flag.</b> That is
+    /// the SAME function the walker uses, so this is one rule with two callers, not two rules — and
+    /// it removes the dependency on someone having run the walker first, which is precisely the
+    /// silent-default shape.</para>
+    ///
+    /// <para>⚠ A state that hosts NOTHING is skipped: an empty reference is the ordinary case, not a
+    /// dangling one.</para>
+    /// </summary>
+    private void CheckSubtreeReferenceDangling(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        if (_catalog is null) return;
+
+        foreach (var s in asset.AllStates)
+        {
+            bool hostsSomething =
+                !string.IsNullOrEmpty(s.SubtreeName) || s.SubtreeAssetId != Guid.Empty;
+
+            if (!hostsSomething)
+                continue;
+
+            var r = Hrot.Editor.AiShared.References.SubtreeReferenceResolver.Resolve(
+                _catalog, s.SubtreeName, s.SubtreeAssetId, Hrot.Editor.AiShared.AssetKind.BTree);
+
+            if (r.IsResolved)
+                continue;
+
+            string what = !string.IsNullOrEmpty(s.SubtreeName)
+                ? $"'{s.SubtreeName}'"
+                : $"asset id {s.SubtreeAssetId}";
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.SubtreeReferenceDangling,
+                HsmDiagnosticSeverity.Error,
+                $"State '{s.Name}' hosts subtree {what}, which no longer resolves to a BTree asset "
+              + "— reselect or clear it.",
+                new[] { s.StableId }));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rule 12 (design §9 ③) — <c>MethodAndBlueprintBothBound</c>: one slot, one host.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §9 ③.
+    ///
+    /// <para>🔴 <b>Without this rule the asset COMPILES and one binding silently wins.</b> A named
+    /// activity/guard resolves through <c>FNV1a16(FQN)</c>; a blueprint-hosted one is baked as an
+    /// explicit id, and <c>HsmFlattener</c>'s override (<c>CE-383</c>) PREFERS the explicit id. ⇒
+    /// authoring both is not "belt and braces", it is a binding the designer cannot see being
+    /// discarded.</para>
+    ///
+    /// <para>⚠ <b>Keyed on the Guid, not the name.</b> The name is display-only and may be stale
+    /// after a rename; the Guid is what the emitter bakes, so it is what decides whether a blueprint
+    /// is really bound here. ⭐ Same reasoning as <c>SubtreeReferenceDangling</c>'s pair.</para>
+    ///
+    /// <para>⛔ <b>Checks BOTH transition kinds?</b> No — a GLOBAL transition has no blueprint guard
+    /// field: <c>CE-385</c> deliberately stopped at <c>TransitionNodeDto</c>, mirroring the DTO the
+    /// emitter reads. ⚠ If a global ever gains one, this rule gains a third arm.</para>
+    /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-503</c> — a bound resolver whose recorded shape hash no longer matches this HSM's block (the BTree's
+    /// <c>CheckResolverShape</c>, over the SAME shape: the HSM's <c>BlackboardOwner</c> view). ⚠ A hash of <c>0</c> was never
+    /// recorded (a hand-authored ref) — nothing to compare.
+    /// </summary>
+    private static void CheckResolverShape(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        if (asset.Resolver is not { ShapeHash: not 0 } r) return;
+        uint now = Hrot.AiEditor.Persistence.Emit.BehaviorResolverShape.Of(
+            Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.BlackboardOwner(
+                global::Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(asset))).ShapeHash;
+        if (now == r.ShapeHash) return;
+
+        out_.Add(new HsmDiagnostic(
+            HsmDiagnosticCode.ResolverOutOfDate,
+            HsmDiagnosticSeverity.Warning,
+            $"Resolver '{r.Name}' was derived for a different blackboard than this behaviour now has. "
+            + "Re-derive it, pick another resolver, or clear the binding.",
+            Array.Empty<Guid>()));
+    }
+
+    /// <summary>⭐ <c>CE-2083</c> — a state's SOP order names a behaviour, and is the state's only activity (§4.10 D3).</summary>
+    private static void CheckSopOrders(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if (s.SopOrder is not { } order) continue;
+            if (string.IsNullOrWhiteSpace(order.BehaviorName))
+                out_.Add(new HsmDiagnostic(HsmDiagnosticCode.SopOrderInvalid, HsmDiagnosticSeverity.Error,
+                    $"State '{s.Name}' issues an SOP order with no behaviour — pick one.", new[] { s.StableId }));
+            if (s.Activity is { IsEmpty: false })
+                out_.Add(new HsmDiagnostic(HsmDiagnosticCode.SopOrderInvalid, HsmDiagnosticSeverity.Error,
+                    $"State '{s.Name}' issues an SOP order AND binds an Activity — the order runs as the activity; remove one.",
+                    new[] { s.StableId }));
+        }
+    }
+
+    // ⛔ HSM-012: a Timer binding is EMITTED and NEVER FIRES.
+    // 📐 Measured 2026-10-06: HsmFlattener.cs:182 packs StateDef.TimerActionId and HsmEmitter writes it, but
+    //    HsmKernelCore never reads it and every production write of TimerDeadlines[] is zero (cancel-on-exit at
+    //    HsmKernelCore.cs:1319/1325/1331, hot-reload reset at HotReloadManager.cs:139-167). There is no arming API
+    //    in Fhsm.Kernel and no duration field anywhere, so the binding cannot do anything.
+    // ⭐ The editor no longer OFFERS the field (HsmFacets.StateFacet). This rule exists so an asset that already
+    //    carries one says so out loud instead of looking wired.
+    private static void CheckTimerActionNotImplemented(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if (s.Timer is not { IsEmpty: false }) continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.TimerActionNotImplemented,
+                HsmDiagnosticSeverity.Warning,
+                $"State '{s.Name}' binds a Timer action, but the HSM kernel never arms a timer — it will never fire. "
+              + "Move the work to Activity (tick), or remove the binding.",
+                new[] { s.StableId }));
+        }
+    }
+
+    private static void CheckMethodAndBlueprintBothBound(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if ((s.Activity?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty) continue;   // CE-417: one binding, both halves
+            if (string.IsNullOrEmpty(s.Activity!.MethodFqn))                    continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.MethodAndBlueprintBothBound,
+                HsmDiagnosticSeverity.Error,
+                $"State '{s.Name}' binds BOTH the activity action '{s.Activity.MethodFqn}' and an "
+              + "activity blueprint — the blueprint would win and the action be discarded silently. "
+              + "Clear one.",
+                new[] { s.StableId }));
+        }
+
+        foreach (var t in asset.AllTransitions)
+        {
+            if ((t.Guard?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty) continue;
+            if (string.IsNullOrEmpty(t.Guard!.MethodFqn))                    continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.MethodAndBlueprintBothBound,
+                HsmDiagnosticSeverity.Error,
+                $"Transition '{t.Source.Name}' → '{t.Target.Name}' binds BOTH the guard function "
+              + $"'{t.Guard.MethodFqn}' and a guard blueprint — the blueprint would win and the "
+              + "function be discarded silently. Clear one.",
+                new[] { t.Source.StableId }));
+        }
+    }
+
     // Rule 7: OutputLaneConflict.
     // For each parallel state with at least two regions, check whether any two regions
     // produce commands on the same CommandLane (overlapping OutputLaneMask bits).
@@ -203,14 +445,22 @@ public sealed class HsmValidator
         {
             if (!s.IsParallel || s.RegionNodes.Count < 2) continue;
 
-            // Compute OR-mask per region index from direct children.
+            // ⭐⭐⭐ HSM-008 — OR THE LEAVES OF EACH REGION, NOT THE DIRECT CHILDREN.
+            // 📄 HSM_Editor_NodeEditor_Host_Design.md §12.2: "Compute the union of OutputLaneMask across all
+            //    LEAF states in R1." ⛔ This used to OR `s.Children` only, so a conflict one level down was
+            //    invisible — a region whose direct child is a composite contributed the composite's own mask
+            //    and nothing from the states that actually run.
+            // ⭐ Leaves, specifically, because that is what the kernel arbitrates: ArbitrateOutputLanes reads
+            //    `definition.GetState(activeLeafIds[i])` (HsmKernelCore.cs:971) — the ACTIVE LEAF of each region.
+            // ⚠ A region's index comes from its TOP-LEVEL child under the parallel; nested descendants do not
+            //    re-declare it, so the walk carries the index down rather than reading it off each node.
             var regionMasks = new Dictionary<int, byte>();
             foreach (var child in s.Children)
             {
-                if (!regionMasks.TryGetValue(child.RegionIndex, out byte existing))
-                    regionMasks[child.RegionIndex] = child.OutputLaneMask;
-                else
-                    regionMasks[child.RegionIndex] = (byte)(existing | child.OutputLaneMask);
+                byte mask = UnionOfLeafLaneMasks(child);
+                regionMasks[child.RegionIndex] = regionMasks.TryGetValue(child.RegionIndex, out byte existing)
+                    ? (byte)(existing | mask)
+                    : mask;
             }
 
             var indices = regionMasks.Keys.ToList();
@@ -231,6 +481,24 @@ public sealed class HsmValidator
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>HSM-008</c> — the union of <c>OutputLaneMask</c> over every LEAF state at or under <paramref name="root"/>.
+    ///
+    /// <para>A state with no children IS the leaf and contributes its own mask; a composite contributes only
+    /// through its leaves, because the kernel arbitrates on each region's ACTIVE LEAF
+    /// (<c>HsmKernelCore.ArbitrateOutputLanes</c>). ⛔ Shaped like <c>SubtreeHostsUnder</c> on purpose — the walk
+    /// is over the STATE TREE, so it cannot cycle and wants no depth cap.</para>
+    /// </summary>
+    private static byte UnionOfLeafLaneMasks(StateNode root)
+    {
+        if (root.Children.Count == 0) return root.OutputLaneMask;
+
+        byte mask = 0;
+        foreach (var child in root.Children)
+            mask |= UnionOfLeafLaneMasks(child);
+        return mask;
+    }
+
     // Rule 8 (S2-4): ConcurrentStatefulSubtree.
     // For each parallel composite with ≥2 regions, collect every state that has a non-empty
     // SubtreeAssetId, grouped by (compositeId, referencedAssetId) → set of distinct RegionIndex
@@ -243,19 +511,28 @@ public sealed class HsmValidator
         {
             if (!composite.IsParallel || composite.RegionNodes.Count < 2) continue;
 
-            // Collect (subtreeAssetId → HashSet<regionIndex>) for all states under this
-            // composite that carry a non-empty SubtreeAssetId.
-            // We walk only DIRECT children of the composite so the region index is meaningful.
+            // Collect (subtreeAssetId → HashSet<regionIndex>) for every state ANYWHERE under this
+            // composite that carries a non-empty SubtreeAssetId.
+            //
+            // ⭐⭐ DEBT-AIB-029 (Batch 76): this used to walk DIRECT CHILDREN ONLY, so a host nested
+            //    one level deeper escaped the rule entirely. ⚠ Theoretical until Batch 75 persisted
+            //    SubtreeAssetId — after which a designer could author the escape and SAVE it.
             var subtreeRegions = new Dictionary<Guid, HashSet<int>>();
             foreach (var child in composite.Children)
             {
-                if (child.SubtreeAssetId == Guid.Empty) continue;
-                if (!subtreeRegions.TryGetValue(child.SubtreeAssetId, out var regionSet))
+                // ⭐⭐⭐ The REGION INDEX comes from the DIRECT CHILD and is carried down.
+                // ⛔ Reading RegionIndex off a deep descendant would be the wrong space: inside a
+                //    NESTED parallel composite that field means the INNER composite's region, so a
+                //    descendant could report region 0 while living in this composite's region 1.
+                foreach (var host in SubtreeHostsUnder(child))
                 {
-                    regionSet = new HashSet<int>();
-                    subtreeRegions[child.SubtreeAssetId] = regionSet;
+                    if (!subtreeRegions.TryGetValue(host, out var regionSet))
+                    {
+                        regionSet = new HashSet<int>();
+                        subtreeRegions[host] = regionSet;
+                    }
+                    regionSet.Add(child.RegionIndex);
                 }
-                regionSet.Add(child.RegionIndex);
             }
 
             // Emit a hard error for every stateful subtree that spans ≥2 distinct regions.
@@ -278,6 +555,94 @@ public sealed class HsmValidator
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ Every non-empty <c>SubtreeAssetId</c> on <paramref name="root"/> or any of its descendants.
+    ///
+    /// <para>
+    /// ⚠ <b>On the CYCLE question the handoff asked to have named.</b> This walk is over the STATE
+    /// TREE, which is a tree — so it cannot cycle by construction, and no depth cap is wanted. ⭐ The
+    /// visited set is here for a different reason: a <b>malformed</b> model (a hand-edited or
+    /// corrupted file whose parent/child wiring disagrees) would otherwise hang the editor, and a
+    /// validator that hangs on bad input is worse than one that misses a case.
+    /// </para>
+    ///
+    /// <para>
+    /// ✅ <b><c>E5</c> item 7 ANSWERED IT — see <see cref="CheckSubtreeAssetCycles"/>.</b> ⭐ The note
+    /// below is kept because it states correctly why THIS walk is not that one.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>The REAL cycle question is a different one and this rule does not answer it:</b> asset
+    /// <c>A</c> hosting <c>B</c> which hosts <c>A</c>. That is a walk over ASSETS, needs a resolver
+    /// this validator does not have, and belongs to whoever builds subtree hosting for real — ⭐ it is
+    /// named here rather than half-handled.
+    /// </para>
+    /// </summary>
+    private static IEnumerable<Guid> SubtreeHostsUnder(StateNode root)
+    {
+        var seen  = new HashSet<Guid>();
+        var stack = new Stack<StateNode>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (!seen.Add(node.StableId)) continue;   // malformed graph guard, not a depth cap
+
+            if (node.SubtreeAssetId != Guid.Empty) yield return node.SubtreeAssetId;
+
+            foreach (var child in node.Children) stack.Push(child);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rule 10 (<c>E5</c> item 7) — <c>SubtreeAssetCycle</c>: this asset hosts a sub-tree that
+    /// hosts this asset again.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⛔ <b>Why it is an ERROR and not a warning.</b> Hosting is expanded INLINE —
+    /// <c>HsmRunner.TickHostedChildren</c> ticks the child in the host's own frame — so a ring
+    /// has no base case: it does not loop forever at a bounded cost, it recurses until the stack dies.
+    /// ⚠ There is no runtime guard, and §32.8 item 7 says there should not be one; this is the guard.</para>
+    ///
+    /// <para>⭐ <b>The walk lives in <c>SubtreeCycleDetector</c>, shared with <c>BTreeValidator</c>,</b>
+    /// because a cycle is a property of the ASSET GRAPH and not of whichever editor happens to be
+    /// open. ⛔ An HSM-only rule would report <c>A→B→A</c> from one end of the ring and stay silent
+    /// from the other.</para>
+    ///
+    /// <para>⭐⭐ <b>It targets THE HOSTING STATES THAT SIT ON THE RING</b> — the states of this asset
+    /// whose <c>SubtreeAssetId</c> is the ring's next hop. 🔴 <b>The first cut of this rule targeted
+    /// nothing</b>, reasoning that <i>"for <c>A→B→A</c> opened at <c>B</c>, no state of <c>B</c> is at
+    /// fault."</i> ⛔ Wrong — a ring has no innocent edge, and the empty target list meant
+    /// <c>HsmGraphModel</c> had nothing to badge, so the rule was invisible on the canvas. ⚠ Found by
+    /// the forwarding rail, not by review.</para>
+    ///
+    /// <para>⚠ <b>When this asset is only on the APPROACH path</b> — <c>A→B→C→B</c> validated from
+    /// <c>A</c> — nothing here is at fault and the diagnostic stays asset-level, with no target.</para>
+    /// </summary>
+    private void CheckSubtreeAssetCycles(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        if (_catalog is null) return;
+
+        var cycle = Hrot.Editor.AiShared.SubtreeCycleDetector.FindCycleFrom(_catalog, asset.AssetId);
+        if (cycle.Count == 0) return;
+
+        // ⭐ The edge to cut, if this asset is on the ring at all.
+        var nextHop = Hrot.Editor.AiShared.SubtreeCycleDetector.NextHopInRing(cycle, asset.AssetId);
+
+        var targets = nextHop is null
+            ? System.Array.Empty<Guid>()
+            : asset.AllStates.Where(s => s.SubtreeAssetId == nextHop.Value)
+                             .Select(s => s.StableId).ToArray();
+
+        out_.Add(new HsmDiagnostic(
+            HsmDiagnosticCode.SubtreeAssetCycle,
+            HsmDiagnosticSeverity.Error,
+            $"Sub-tree hosting forms a cycle: " +
+            $"{Hrot.Editor.AiShared.SubtreeCycleDetector.DescribeCycle(_catalog, cycle)}. " +
+            $"Hosted sub-trees are expanded inline every tick, so a cycle recurses without a base case.",
+            targets));
+    }
+
     // Rule 8b (S3-6): ConcurrentSharedScopeKey — the shared-slot analogue of Rule 8.
     // Rule 8 catches the SAME subtree asset in ≥2 regions (its per-node Node-scope keys collide).
     // This rule catches DIFFERENT subtree assets (or nodes) that resolve to the SAME Behavior/
@@ -293,10 +658,12 @@ public sealed class HsmValidator
 
             // scopeKey → set of distinct region indices whose direct-child subtree writes it.
             var keyRegions = new Dictionary<int, HashSet<int>>();
+            // ⭐ DEBT-AIB-029: the same deep walk as rule 8, with the same region-index rule —
+            //   the direct child fixes the region, the descendants contribute the hosts.
             foreach (var child in composite.Children)
             {
-                if (child.SubtreeAssetId == Guid.Empty) continue;
-                foreach (var scopeKey in _sharedScopeKeys(child.SubtreeAssetId))
+                foreach (var host in SubtreeHostsUnder(child))
+                foreach (var scopeKey in _sharedScopeKeys(host))
                 {
                     if (!keyRegions.TryGetValue(scopeKey, out var regionSet))
                     {
@@ -324,11 +691,48 @@ public sealed class HsmValidator
         }
     }
 
-    // Rule 9: CrossRegionBlackboardConflict.
-    // For each variable in the blackboard, check whether two alias bindings land in different
-    // parallel regions of the same composite state. Only Approach A aliases are scanned here.
-    // TODO TASK-BB-1f-01: add Approach B sync-out scan when BTree sync-out metadata is
-    // accessible from HsmAsset (deferred — requires inter-asset catalog wiring).
+    /// <summary>
+    /// Rule 9: <c>CrossRegionBlackboardConflict</c> — two writers of one blackboard variable in
+    /// DIFFERENT parallel regions of the same composite state.
+    ///
+    /// <para>
+    /// ⭐⭐⭐ <b><c>W7c</c> — the writer set is the UNION of binding styles, not just aliases.</b>
+    /// 📄 §9.2 says the writer set is <i>"every action method that mutates this variable"</i> —
+    /// ⛔ <b>not "every alias"</b>. This walked <c>GetAliasesFor</c> alone, so the
+    /// <b>locally-bound</b> style was invisible: a transition carrying an
+    /// <c>ExpressionTargetField</c> writes the named variable directly and records NO alias.
+    /// ⇒ 🔴 <b>the rule read as guarded while leaving the other style open</b> — <c>BP-240</c>'s
+    /// shape a third time: green because of what it happens to look at.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Only the ENUMERATION was short, not the classification.</b> <see cref="HasWritingAction"/>
+    /// already implements §9.6 correctly (conservative on a null schema, an unknown FQN, and any
+    /// non-<c>ReadOnly</c> access), so it is reused for both styles rather than re-derived.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔⛔ <b>The §9.5 Approach-B Sync-Out arm is NOT here, and it is BLOCKED — not skipped.</b>
+    /// 📐 Measured: <c>SubtreeSyncBinding</c> hangs off <c>IBTreeSyncableAsset</c>, which only
+    /// <c>BehaviorTreeAsset</c> implements, and this validator is handed the <c>HsmAsset</c> plus its
+    /// own blackboard — it cannot reach a hosted sub-tree's bindings.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>Batch 92 (<c>92e</c>) — the SECOND half of this note had ROTTED and is corrected here.</b>
+    /// It used to add <i>"and it could not resolve one if it could: <c>StateNode.SubtreeAssetId</c>
+    /// has no counterpart on <c>StateNodeDto</c>"</i>. ⛔ <b>That is false.</b> 📐 The field exists at
+    /// <c>HsmAssetDto.cs:73</c> and <c>DEBT-AIB-028(a)</c> was <b>resolved in Batch 75</b> — a reloaded
+    /// asset DOES know which sub-tree a state hosts.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The real blocker is the FIRST half alone, and it has a name: <c>M-24</c></b> —
+    /// <c>HsmAsset</c> does not implement <c>IBTreeSyncableAsset</c>, so there is no API on an HSM
+    /// through which a sub-tree's sync bindings could be reached at all. ⇒ ⭐ widening this arm is a
+    /// question about that interface, ⛔ not about persistence.
+    /// </para>
+    /// </summary>
     private void CheckBlackboardRegionConflicts(
         HsmAsset asset,
         IBlackboardManagedAsset blackboard,
@@ -339,72 +743,122 @@ public sealed class HsmValidator
 
         foreach (var variable in blackboard.BlackboardVariables)
         {
-            var aliases = blackboard.GetAliasesFor(variable.Name);
-            if (aliases.Count < 2) continue;   // Need at least 2 to conflict.
+            // ⭐⭐⭐ W7b (§9.4) — the designer has said the race on THIS VARIABLE is intended:
+            //     "they go to the variable's ⋮ menu → 'Allow concurrent writes' → checkbox."
+            // ⛔⛔ This is PER VARIABLE and is checked BEFORE the writer set is even built, which is
+            //     precisely what distinguishes it from W7a's per-PAIR suppression below. §9.3: a per-pair
+            //     suppression is deliberately narrow, so "a new aliasing relationship on the same
+            //     variable would surface a fresh diagnostic"; W7b is the wide one, and covers pairs that
+            //     do not exist yet. ⇒ two mechanisms, on purpose. Collapsing them would either silence
+            //     future writers nobody reviewed, or make "allow" need re-clicking per new alias.
+            if (blackboard.IsConcurrentWritesAllowed(variable.Name)) continue;
 
-            // For each alias, find the parallel-region index (if any).
-            // A binding is "in region R of parallel P" if:
-            //   - stateById[RequiringElementId] exists AND
-            //   - that state's Parent is a parallel composite (IsParallel) AND
-            //   - RegionIndex is the child's RegionIndex.
-            var regionsByCompositeId =
-                new Dictionary<Guid, List<(int RegionIndex, BlackboardAliasBinding Binding)>>();
+            // ⭐ W7c: the union. A "writer site" is anything that mutates this variable and sits in a
+            //   region of a parallel composite, whichever binding style put it there.
+            var writers = new List<WriterSite>();
 
-            foreach (var binding in aliases)
+            // ── style 1: Approach-A alias bindings, keyed by variable name ──────────────
+            foreach (var binding in blackboard.GetAliasesFor(variable.Name))
             {
-                if (!stateById.TryGetValue(binding.RequiringElementId, out var state))
-                    continue;
-                if (state.Parent == null || !state.Parent.IsParallel)
-                    continue;   // Not in a parallel composite -- no conflict risk.
-
-                var compositeId = state.Parent.StableId;
-                if (!regionsByCompositeId.TryGetValue(compositeId, out var list))
-                {
-                    list = new List<(int, BlackboardAliasBinding)>();
-                    regionsByCompositeId[compositeId] = list;
-                }
-                list.Add((state.RegionIndex, binding));
+                if (!stateById.TryGetValue(binding.RequiringElementId, out var state)) continue;
+                if (!TryRegionOf(state, out var compositeId, out int regionIndex)) continue;
+                writers.Add(new WriterSite(
+                    compositeId, regionIndex, state.Name, "alias",
+                    IsWriter: HasWritingAction(state), ElementId: binding.RequiringElementId));
             }
 
-            // Check each parallel composite for multi-region writers.
-            foreach (var (compositeId, regionList) in regionsByCompositeId)
+            // ── style 2: locally-bound writers — ExpressionTargetField names the variable ──
+            // ⚠ The region of a TRANSITION is the region of its SOURCE state: that is where the
+            //   transition is live. A global transition has no source, so it belongs to no region
+            //   and cannot participate in a cross-region conflict — excluded, deliberately.
+            foreach (var t in asset.AllTransitions)
             {
-                if (regionList.Count < 2) continue;
-
-                // Emit a diagnostic if and only if at least one state in the list has writing action
-                bool hasWriter = false;
-                foreach (var r in regionList)
-                {
-                    if (HasWritingAction(stateById[r.Binding.RequiringElementId]))
-                    {
-                        hasWriter = true;
-                        break;
-                    }
-                }
-                if (!hasWriter) continue;
-
-                // Check all pairs for distinct region indices.
-                for (int i = 0; i < regionList.Count; i++)
-                for (int j = i + 1; j < regionList.Count; j++)
-                {
-                    if (regionList[i].RegionIndex != regionList[j].RegionIndex)
-                    {
-                        var composite = stateById[compositeId];
-                        out_.Add(new HsmDiagnostic(
-                            HsmDiagnosticCode.CrossRegionBlackboardConflict,
-                            HsmDiagnosticSeverity.Warning,
-                            $"Variable '{variable.Name}' is written by sub-trees in regions " +
-                            $"{regionList[i].RegionIndex} and {regionList[j].RegionIndex} of " +
-                            $"parallel composite '{composite.Name}' -- concurrent writes are " +
-                            $"non-deterministic.",
-                            new[] { composite.StableId }));
-                        goto nextVariable;   // One diagnostic per variable is enough.
-                    }
-                }
-                nextVariable:;
+                // ⭐ CE-417: bound when EITHER binding targets the variable; a WRITER only through the ACTION (its field is
+                //   the output; a guard's is the input its blueprint seeds from).
+                bool actionTargets = IsLocallyBoundTo(t.Action?.ExpressionTargetField, variable.Name);
+                if (!actionTargets && !IsLocallyBoundTo(t.Guard?.ExpressionTargetField, variable.Name)) continue;
+                if (t.Source == null) continue;
+                if (!TryRegionOf(t.Source, out var compositeId, out int regionIndex)) continue;
+                writers.Add(new WriterSite(
+                    compositeId, regionIndex, $"{t.Source.Name} → {t.Target?.Name}", "expression target",
+                    IsWriter: actionTargets && IsWritingFqn(t.Action?.MethodFqn), ElementId: t.VisualId));
             }
+
+            // ── the pair check, over the UNION ──────────────────────────────────────────
+            foreach (var group in writers.GroupBy(w => w.CompositeId))
+            {
+                var sites = group.ToList();
+                if (sites.Count < 2) continue;
+
+                // ⚠⚠ The writer test is per-GROUP, not per-site, and that is the SHIPPED semantics —
+                //    restored after W7c's first draft filtered per site and reddened
+                //    Validate_MixedAccess_OneReadOnlyOneReadWrite_ProducesConflict.
+                //    §9.6 permits concurrent READERS ("only read by both regions and never written");
+                //    it does NOT permit a reader racing a writer, which is equally non-deterministic.
+                //    ⇒ at least one writer in the composite, then any cross-region PAIR conflicts.
+                if (!sites.Any(w => w.IsWriter)) continue;
+
+                for (int i = 0; i < sites.Count; i++)
+                for (int j = i + 1; j < sites.Count; j++)
+                {
+                    if (sites[i].RegionIndex == sites[j].RegionIndex) continue;
+
+                    // ⭐⭐ W7a — the suppression is authored, persisted, emitted… and this rule never
+                    //    read it. `IsConflictSuppressed` was consulted ONLY by
+                    //    BlackboardAliasDropValidator, so clicking Suppress silenced the DROP TARGET
+                    //    while the PANEL WARNING persisted. ⚠ An affordance that half-works is worse
+                    //    than one that is absent: the designer clicks and nothing appears to happen.
+                    // ⛔ PER-PAIR, never per-variable (§9.3) — hence `continue`, not `goto`: another
+                    //    pair on the SAME variable must still be reported.
+                    if (blackboard.IsConflictSuppressed(
+                            variable.Name,
+                            BlackboardConflictKey.ForWriterPair(sites[i].ElementId, sites[j].ElementId)))
+                        continue;
+
+                    var composite = stateById[group.Key];
+                    out_.Add(new HsmDiagnostic(
+                        HsmDiagnosticCode.CrossRegionBlackboardConflict,
+                        HsmDiagnosticSeverity.Warning,
+                        $"Variable '{variable.Name}' is written by sub-trees in regions " +
+                        $"{sites[i].RegionIndex} and {sites[j].RegionIndex} of " +
+                        $"parallel composite '{composite.Name}' -- concurrent writes are " +
+                        $"non-deterministic.",
+                        new[] { composite.StableId }));
+                    goto nextVariable;   // One diagnostic per variable is enough.
+                }
+            }
+            nextVariable:;
         }
     }
+
+    /// <summary>⭐ <c>W7c</c> — one writer of one variable, wherever it came from.</summary>
+    private readonly record struct WriterSite(
+        Guid CompositeId, int RegionIndex, string Label, string Style, bool IsWriter, Guid ElementId);
+
+    /// <summary>
+    /// The parallel composite and region a state sits in, or <c>false</c> when it is not a direct
+    /// child of a parallel composite — in which case there is no concurrency to conflict over.
+    /// </summary>
+    private static bool TryRegionOf(StateNode state, out Guid compositeId, out int regionIndex)
+    {
+        compositeId = Guid.Empty;
+        regionIndex = 0;
+        if (state.Parent == null || !state.Parent.IsParallel) return false;
+        compositeId = state.Parent.StableId;
+        regionIndex = state.RegionIndex;
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ Locally bound to THIS variable. ⚠ Ordinal, case-insensitive: the field picker writes the
+    /// variable's own name, and a case difference between the two would silently mean "not a writer"
+    /// — the failure mode this whole rule exists to remove.
+    /// </summary>
+    // ⭐ E7b — ONE definition, on the model. This rule and HsmAsset.CountNodesReferencingVariable ask
+    //   the same question ("is this ExpressionTargetField bound to that variable"), and two spellings
+    //   of one predicate is how a conflict rule and a usage count drift apart.
+    private static bool IsLocallyBoundTo(string? expressionTargetField, string variableName)
+        => Model.HsmAsset.IsExpressionTargetOf(expressionTargetField, variableName);
 
     // ---- Helpers -----------------------------------------------
 
@@ -413,22 +867,42 @@ public sealed class HsmValidator
     // A state with ONLY ReadOnly actions is safe to skip from conflict detection.
     private bool HasWritingAction(StateNode state)
     {
+        // ⚠⚠ RESTORED after W7c's refactor briefly dropped it, and the existing suite caught it.
+        //    NO SCHEMA ⇒ EVERY state is a writer — maximally conservative, and it short-circuits
+        //    BEFORE the per-FQN walk. ⛔ Without it a state with ZERO actions stops being a writer
+        //    even when nothing is known, which silently narrows the rule exactly where it has the
+        //    least information. (The comment below about "no FQNs ⇒ not a writer" only ever applied
+        //    when a schema WAS present.)
         if (_schema == null) return true;
+
         string?[] fqns = {
-            state.OnEntryAction,
-            state.OnExitAction,
-            state.ActivityAction,
-            state.TimerAction,
+            state.OnEntry?.MethodFqn,
+            state.OnExit?.MethodFqn,
+            state.Activity?.MethodFqn,
+            state.Timer?.MethodFqn,
         };
         foreach (var fqn in fqns)
-        {
-            if (fqn == null) continue;
-            var entry = _schema.Lookup(fqn);
-            if (entry == null) return true;                              // unknown -> conservative
-            if (entry.Access != BlackboardAccess.ReadOnly) return true;  // non-ReadOnly -> writer
-        }
+            if (IsWritingFqn(fqn)) return true;
+
         // Either no FQNs (zero actions) or all known FQNs are ReadOnly -> not a writer.
         return false;
+    }
+
+    /// <summary>
+    /// ⭐ <c>W7c</c> — §9.6's classification for ONE action FQN, extracted so the alias walk and the
+    /// locally-bound walk share it. ⛔ <b>Extracted, not re-derived</b>: the conservative arms (null
+    /// schema · unknown FQN · any non-<c>ReadOnly</c> access) are the design's, and a second copy is
+    /// how the two styles would come to disagree about what a writer is.
+    ///
+    /// <para>⚠ A <c>null</c> FQN is <b>not</b> a writer — that is "no action here", not "unknown".</para>
+    /// </summary>
+    private bool IsWritingFqn(string? fqn)
+    {
+        if (fqn == null) return false;
+        if (_schema == null) return true;                            // no schema -> conservative
+        var entry = _schema.Lookup(fqn);
+        if (entry == null) return true;                              // unknown -> conservative
+        return entry.Access != BlackboardAccess.ReadOnly;            // non-ReadOnly -> writer
     }
 
     // Computes the depth of state s relative to rootState.

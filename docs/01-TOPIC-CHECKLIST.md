@@ -64,14 +64,14 @@ in the project documentation under `docs/projects/`.
   - Affected docs: `docs/projects/Hrot/Subsystems/Hrot.AI.Behaviors.md`
 
 - [ ] **ai-hsm-btree-vis-edit** — Blackboard Authoring (HSM/BTree with managed blackboard state)
-  - Source: `.dev/ai-hsm-btree-vis-edit/`
+  - Source: `.dev/_DONE/ai-hsm-btree-vis-edit/`
   - Key docs: `Blackboard_Authoring_Detailed_Design.md`, `TASK-DETAIL.md`
   - Affected docs: `docs/projects/Hrot/AI/Hrot.BTree.Editor.md`,
     `docs/projects/Hrot/AI/Hrot.Hsm.Editor.md`,
     `docs/projects/Hrot/Editor/Hrot.Editor.AiShared.md`
 
 - [ ] **ai-hsm-fixes-1** — HSM fixes and deferred enhancements (orthogonal region arbitration, replay)
-  - Source: `.dev/ai-hsm-fixes-1/`
+  - Source: `.dev/_DONE/ai-hsm-fixes-1/`
   - Key docs: `design-talk.md`
   - Affected docs: `docs/projects/Hrot/Subsystems/Hrot.AI.Behaviors.md`
 

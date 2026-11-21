@@ -65,6 +65,20 @@ namespace GizmoMap.Presentation
             Console.WriteLine($"[Debug] ImGui.BeginPopup returned: {isOpen}");
             if (isOpen)
             {
+                // ⭐⭐ CE-3155 — ESCAPE CLOSES THE MENU. 🔒 User, 2026-10-10: "Context menu once open can not be
+                //   closed by ESC key."
+                //   📐 Measured: this popup had exactly two exits — picking an item, or clicking outside. ImGui's own
+                //   "Escape closes a popup" only fires with keyboard NAVIGATION on, and every shell here sets
+                //   ImGuiConfigFlags.DockingEnable alone (RaylibPresentationShell.cs:131-135). The gizmo raw-input
+                //   route cannot deliver it either: this menu is terminal-side ImGui state, not a gizmo handler.
+                //   ⭐ So it is handled here, the way every other popup in the repo already does it
+                //   (WindowManager.cs:650,665 · EntityRenameModal.cs:97) — IsKeyPressed needs no nav flag.
+                //   ⚠ A CENTRAL Escape is designed and unbuilt (UX_Feature_Tool_Model.md migration step 6,
+                //   UX_Issues.md:68); when it lands this folds into it. Until then a menu that cannot be dismissed
+                //   from the keyboard is the worse state.
+                if (ImGui.IsKeyPressed(ImGuiKey.Escape))
+                    ImGui.CloseCurrentPopup();
+
                 DrawMenuItems(_pendingMenuJson, _pendingAnchorId, onAction);
                 ImGui.EndPopup();
             }
@@ -85,7 +99,7 @@ namespace GizmoMap.Presentation
 
             using (doc)
             {
-                bool reserve = IconResolver != null && LevelHasIcon(doc.RootElement);
+                bool reserve = (IconResolver != null || MenuIconRenderer.GlyphResolver != null) && LevelHasIcon(doc.RootElement);
                 foreach (var item in doc.RootElement.EnumerateArray())
                     DrawItem(item, anchorId, onAction, reserve);
             }
@@ -127,11 +141,10 @@ namespace GizmoMap.Presentation
             if (item.TryGetProperty("children", out var children)
                 && children.ValueKind == JsonValueKind.Array)
             {
-                bool open = ImGui.BeginMenu(label, enabled);
-                MenuIconRenderer.DrawIcon(IconResolver, iconKey, p0, gutter);
+                bool open = MenuIconRenderer.BeginMenu(label, enabled, IconResolver, iconKey, p0, gutter);   // ⭐ CE-1027
                 if (open)
                 {
-                    bool childReserve = IconResolver != null && LevelHasIcon(children);
+                    bool childReserve = (IconResolver != null || MenuIconRenderer.GlyphResolver != null) && LevelHasIcon(children);
                     foreach (var child in children.EnumerateArray())
                         DrawItem(child, anchorId, onAction, childReserve);
                     ImGui.EndMenu();
@@ -142,7 +155,9 @@ namespace GizmoMap.Presentation
             // Leaf item
             if (!enabled) ImGui.BeginDisabled();
 
-            bool clicked = ImGui.MenuItem(label, shortcut);
+            // ⭐ CE-1347 — a checked item (a pinned gizmo family, the trace switch) draws its check mark; the menu READ "checked" and dropped it
+            bool isChecked = item.TryGetProperty("checked", out var ck) && ck.ValueKind == JsonValueKind.True;
+            bool clicked = ImGui.MenuItem(label, shortcut, isChecked);
             MenuIconRenderer.DrawIcon(IconResolver, iconKey, p0, gutter);
 
             if (!enabled) ImGui.EndDisabled();

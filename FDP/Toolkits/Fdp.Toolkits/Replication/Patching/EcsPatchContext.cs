@@ -30,10 +30,21 @@ public sealed class EcsPatchContext : IEntityPatchContext
     private readonly Entity _entity;
 
     /// <summary>
-    /// Maps component type → descriptor ordinal, derived from the routing table at construction.
-    /// Used to look up which ordinal to dirty when a component is accessed.
+    /// ⭐⭐⭐ <b><c>Q59-E</c> — the world's component→descriptor map, supplied by the NETWORK layer.</b>
+    ///
+    /// <para>🔒 User ruling <c>2026-08-26</c>: *"attributes are entity-related, network agnostic. In contrary,
+    /// descriptors are Ned network concept."</para>
+    ///
+    /// <para>⛔ This used to be a <c>Dictionary&lt;Type, long&gt;</c> built from the JSON routing table's
+    /// <c>descriptorOrdinal:</c> argument — i.e. FDP code naming a NED grouping. ⭐ Now the applier records the
+    /// COMPONENT it wrote and <see cref="DescriptorOwnershipMap"/> — the EXISTING single source of truth,
+    /// fed by <c>IDescriptorTranslator.{DescriptorOrdinal, TargetComponentIds}</c> — says which descriptors
+    /// cover it. ⇒ <c>Fdp.Toolkit.Replication.DescriptorOrdinal</c> and its conversion were deleted outright.</para>
+    ///
+    /// <para>⚠ A component maps to a SET of ordinals — measured: <c>SimTransform</c> was covered by both
+    /// the BDC stack's world-position translator (removed since, R-4095) and <c>GeoSpatialEgressTranslator</c>.</para>
     /// </summary>
-    private readonly Dictionary<Type, long> _ordinalByType;
+    private readonly Services.DescriptorOwnershipMap _descriptorMap;
 
     /// <summary>
     /// Ordinals that have been touched during this compilation session.
@@ -48,6 +59,16 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// </summary>
     private readonly HashSet<int> _appliedComponentIds = new();
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3003</c> — component type IDs whose write was REFUSED by the authority gate during this
+    /// session: a key matched a route, and this node does not own the component it targets.
+    /// <para>⭐ Recorded at <see cref="CanWrite{T}"/> / <see cref="CanWriteManaged{T}"/>, which is exactly where both
+    /// apply paths gate *(<c>JsonAttributeCompiler</c>'s dispatch, <c>BinaryInterpreterBuilder</c>'s handler)*.
+    /// ⇒ it separates *"nothing landed because another node owns it"* from *"nothing landed because no key
+    /// matched"* — two outcomes <see cref="HasAppliedAny"/> alone cannot tell apart.</para>
+    /// </summary>
+    private readonly HashSet<int> _refusedComponentIds = new();
+
     // ── Standalone factory (no routing table) ────────────────────────────
 
     /// <summary>
@@ -59,13 +80,16 @@ public sealed class EcsPatchContext : IEntityPatchContext
         new Dictionary<ulong, RoutingEntry>(0);
 
     /// <summary>
-    /// Creates a bare <see cref="EcsPatchContext"/> bound to the specified entity,
-    /// with no ordinal mappings.  Suitable for binary-interpreter paths where
-    /// ordinal tracking and egress flushing are handled by the interpreter's own
-    /// flushers (<see cref="BinaryInterpreter.Apply"/> calls
-    /// <see cref="FlushDirtyMarks"/> via the <c>IEntityPatchContext</c> contract,
-    /// but the ordinal map is empty so the call is a no-op for dirty-descriptor
-    /// propagation — the installers drive <c>SmartEgress</c> themselves).
+    /// ⭐ Creates a bare <see cref="EcsPatchContext"/> for the binary-interpreter path.
+    ///
+    /// <para>⭐⭐⭐ <b><c>Q59-E</c> — this is no longer the crippled factory it was.</b> Its doc used to say
+    /// *"the ordinal map is empty so the call is a no-op for dirty-descriptor propagation — the installers
+    /// drive SmartEgress themselves"*. 🔴 That described the <c>AX-015</c> DEFECT as if it were the design:
+    /// nothing reached SmartEgress and a binary rename was never republished.</para>
+    ///
+    /// <para>⭐ Both factories now resolve the SAME per-world map, so the binary and JSON paths are identical
+    /// in this respect — there is no longer a "with routing table" and a "without" variant as far as egress
+    /// is concerned.</para>
     /// </summary>
     /// <param name="repo">Live ECS world.</param>
     /// <param name="entity">Entity being patched.</param>
@@ -92,13 +116,10 @@ public sealed class EcsPatchContext : IEntityPatchContext
         _repo = repo;
         _entity = entity;
 
-        // Pre-compute a type→ordinal lookup from the routing table.
-        _ordinalByType = new Dictionary<Type, long>();
-        foreach (var (_, entry) in routes)
-        {
-            if (entry.DescriptorOrdinal != 0)
-                _ordinalByType[entry.ComponentType] = entry.DescriptorOrdinal;
-        }
+        // ⭐⭐⭐ Q59-E — the ordinals come from the WORLD (contributed by the network layer), not from the
+        //    routing table. ⛔ The `routes` argument no longer carries any descriptor information; it is
+        //    retained only because the JSON compiler hands its table in for future use.
+        _descriptorMap = Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo);
     }
 
     // ── IEntityPatchContext ──────────────────────────────────
@@ -131,6 +152,16 @@ public sealed class EcsPatchContext : IEntityPatchContext
     }
 
     /// <inheritdoc/>
+    /// <remarks>⭐ R1 — <c>repo.SetManagedComponent</c> (the table's version moves, so the recorder / change detection see it); the ordinal and the
+    /// component id are recorded exactly as <see cref="GetManagedComponent{T}"/> does.</remarks>
+    public void SetManagedComponent<T>(T value) where T : class
+    {
+        RecordOrdinal(typeof(T));
+        _appliedComponentIds.Add(ManagedComponentType<T>.ID);
+        _repo.SetManagedComponent(_entity, value);
+    }
+
+    /// <inheritdoc/>
     /// <remarks>
     /// Iterates all distinct touched descriptor ordinals and calls
     /// <see cref="SmartEgressUtil.MarkDirty"/> once per ordinal, guaranteeing per-entity
@@ -142,6 +173,7 @@ public sealed class EcsPatchContext : IEntityPatchContext
             SmartEgressUtil.MarkDirty(_repo, _entity, ordinal);
     }
 
+
     /// <inheritdoc/>
     /// <remarks>
     /// Looks up the ECS component type ID via the registry (O(1) cached fast-path) and
@@ -150,7 +182,7 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// guard and the kernel write-protection boundary.
     /// </remarks>
     public bool CanWrite<T>() where T : struct
-        => _repo.HasAuthority(_entity, ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)));
+        => Gate(ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)));
 
     /// <inheritdoc/>
     /// <remarks>
@@ -159,7 +191,15 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// a managed component slot is protected.
     /// </remarks>
     public bool CanWriteManaged<T>() where T : class
-        => _repo.HasAuthority(_entity, ManagedComponentType<T>.ID);
+        => Gate(ManagedComponentType<T>.ID);
+
+    /// <summary>The authority check both gates share, recording a refusal (<c>CE-3003</c>).</summary>
+    private bool Gate(int componentId)
+    {
+        if (_repo.HasAuthority(_entity, componentId)) return true;
+        _refusedComponentIds.Add(componentId);
+        return false;
+    }
 
     // ── Additional API (used by UpdateEntityAttributeRequestSystem) ──────
 
@@ -172,15 +212,30 @@ public sealed class EcsPatchContext : IEntityPatchContext
 
     /// <summary>
     /// The set of ECS component type IDs that were authorised and written during this session.
-    /// Used by <see cref="UpdateEntityAttributeRequestSystem"/> to build the 32-byte OpaqueData bitmask.
+    /// Used by <see cref="UpdateEntityAttributeRequestSystem"/> to build the OpaqueData bitmask (64 bytes, CE-1047).
     /// </summary>
     public IReadOnlyCollection<int> AppliedComponentIds => _appliedComponentIds;
 
+    /// <summary>
+    /// ⭐ <c>CE-3003</c> — true when a matched key targeted a component this node does not own, so part (or all)
+    /// of the patch belongs to another node. See <see cref="RefusedComponentIds"/>.
+    /// </summary>
+    public bool HasRefusedAny => _refusedComponentIds.Count > 0;
+
+    /// <summary>⭐ <c>CE-3003</c> — the component type IDs the authority gate refused during this session.</summary>
+    public IReadOnlyCollection<int> RefusedComponentIds => _refusedComponentIds;
+
     // ── Helpers ──────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐ Records every descriptor that covers <paramref name="componentType"/>.
+    /// ⚠ Zero matches is normal — a networkless host has no translators, so nothing is republishable.
+    /// </summary>
     private void RecordOrdinal(Type componentType)
     {
-        if (_ordinalByType.TryGetValue(componentType, out long ordinal))
+        int componentId = ComponentTypeRegistry.GetOrRegisterManaged(componentType);
+
+        foreach (long ordinal in _descriptorMap.GetDescriptorsForComponentId(componentId))
             _touchedOrdinals.Add(ordinal);
     }
 }

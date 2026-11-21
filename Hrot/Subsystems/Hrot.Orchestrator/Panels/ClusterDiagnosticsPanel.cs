@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -146,29 +147,34 @@ public sealed class ClusterDiagnosticsPanel
 
         ImGui.Separator();
 
-        ImGui.Text("Dump kinds:");
-        ImGui.SameLine();
-        ImGui.Checkbox("Events##kind",       ref _dumpEvents);
-        ImGui.SameLine();
-        ImGui.Checkbox("Entities##kind",     ref _dumpEntities);
-        ImGui.SameLine();
-        ImGui.Checkbox("Architecture##kind", ref _dumpArchitecture);
-        ImGui.SameLine();
-        ImGui.Checkbox("Logs##kind",         ref _dumpLogs);
+        if (FormGrid.Begin("diag.form", DiagLabels))
+        {
+            // §3.1 — a field made of several flags: the label in column 1, each flag keeps its text inside column 2
+            FormGrid.Row("Dump kinds");
+            ImGui.Checkbox("Events",       ref _dumpEvents);
+            ImGui.SameLine();
+            ImGui.Checkbox("Entities",     ref _dumpEntities);
+            ImGui.SameLine();
+            ImGui.Checkbox("Architecture", ref _dumpArchitecture);
+            ImGui.SameLine();
+            ImGui.Checkbox("Logs",         ref _dumpLogs);
 
-        ImGui.InputText(
-            "Event providers (comma-sep)##evtprov",
-            ref _eventProvidersInput,
-            512);
+            FormGrid.Row("Event providers");
+            ImGui.InputText("##evtprov", ref _eventProvidersInput, 512);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Comma-separated.");
 
-        ImGui.SliderFloat("Max log age (hours)##maxage", ref _maxAgeHours, 0f, 168f);
-        ImGui.Combo("Severity threshold##sev", ref _severityThreshold, s_severityNames, s_severityNames.Length);
+            FormGrid.Row("Max log age (hours)"); ImGui.SliderFloat("##maxage", ref _maxAgeHours, 0f, 168f);
+            FormGrid.Row("Severity threshold"); ImGui.Combo("##sev", ref _severityThreshold, s_severityNames, s_severityNames.Length);
+            FormGrid.End();
+        }
 
         ImGui.Separator();
         RenderSubsystemMatrix();
         ImGui.Separator();
         RenderExecuteButton();
     }
+
+    private static readonly string[] DiagLabels = { "Dump kinds", "Event providers", "Max log age (hours)", "Severity threshold" };
 
     private void RenderSubsystemMatrix()
     {

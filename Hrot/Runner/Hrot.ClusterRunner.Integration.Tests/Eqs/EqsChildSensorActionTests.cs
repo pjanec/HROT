@@ -70,7 +70,8 @@ public sealed class EqsChildSensorActionTests : IDisposable
         foreach (var candidate in query)
         {
             var meta = _repo.GetComponent<PartMetadata>(candidate);
-            if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
+            if (meta.ParentEntity.Equals(parent) && _repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate)
+                && _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate).SiteId == instanceId)
                 return candidate;
         }
         return Entity.Null;
@@ -83,15 +84,16 @@ public sealed class EqsChildSensorActionTests : IDisposable
         foreach (var candidate in query)
         {
             var meta = _repo.GetComponent<PartMetadata>(candidate);
-            if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
+            if (meta.ParentEntity.Equals(parent) && _repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate)
+                && _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate).SiteId == instanceId)
                 count++;
         }
         return count;
     }
 
-    // Computes the same deterministic localChildIndex used by Action_SpawnEqsSensorChild.
-    private static int LocalChildIndex(Entity parent, byte slot)
-        => (int)(((uint)parent.Index << 8) | slot);
+    // ⭐ CE-485: the node's sensor is identified by its SITE (= ChildSlotIndex, the BehaviorOwnedPart stamp); the part id
+    //   (PartMetadata.InstanceId, the DDS key) is allocated. The old (Index << 8) | slot part id is retired.
+    private static int LocalChildIndex(Entity parent, byte slot) => slot;
 
     // Default spawn params for a given slot.
     private EqsSpawnParams MakeParams(byte slot = 0) => new EqsSpawnParams
@@ -114,11 +116,10 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Tick 1: queues CreateEntity + AddComponent via ECB.
-        var result = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        var result = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
 
         Assert.Equal(NodeStatus.Success, result);
 
@@ -129,7 +130,8 @@ public sealed class EqsChildSensorActionTests : IDisposable
 
         var meta = _repo.GetComponent<PartMetadata>(child);
         Assert.Equal(_parent, meta.ParentEntity);
-        Assert.Equal(expectedInstanceId, meta.InstanceId);
+        Assert.Equal(expectedInstanceId, _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(child).SiteId);
+        Assert.True(meta.InstanceId >= 1, "CE-485: an allocated part id (>= 1).");
 
         var sensor = _repo.GetComponent<EqsSensor>(child);
         Assert.Equal(p.SensorConfig.BlueprintId, sensor.BlueprintId);
@@ -149,11 +151,10 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Tick 1: spawn via ECB.
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         Entity realChild = FindChildByMeta(_parent, expectedInstanceId);
@@ -163,7 +164,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         p.SpawnedHandle = new EqsSensorHandle(realChild);
 
         // Tick 2 (steady-state): valid handle -- must return Success without queuing anything.
-        var result2 = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        var result2 = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, result2);
 
         // ECB must be empty (no new CreateEntity).
@@ -182,17 +183,16 @@ public sealed class EqsChildSensorActionTests : IDisposable
     [Fact]
     public void SpawnAction_TwoDifferentSlots_TwoDistinctChildren()
     {
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Slot 0.
         var p0 = MakeParams(0);
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p0, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p0, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         // Slot 1.
         var p1 = MakeParams(1);
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p1, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p1, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         int id0 = LocalChildIndex(_parent, 0);
@@ -219,11 +219,10 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Spawn and materialise.
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         Entity child = FindChildByMeta(_parent, expectedInstanceId);
@@ -233,7 +232,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         p.SpawnedHandle = new EqsSensorHandle(child);
 
         // Deactivate: queues DestroyEntity via ECB, clears handle.
-        EqsLifecycleNodes.Deactivate_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Deactivate_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
 
         Assert.False(p.SpawnedHandle.IsValid, "SpawnedHandle must be cleared to default.");
 
@@ -255,11 +254,10 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Spawn and materialise.
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         Entity child = FindChildByMeta(_parent, expectedInstanceId);

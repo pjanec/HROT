@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Scenario picker mockup (AQ108 D24 / D25, CE-4141). Static, self-contained: open in a browser. Live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Open scenario — wide picker</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1280px; height: 820px; box-sizing: border-box; padding: 40px; background: #121417; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: flex; align-items: center; justify-content: center;">
+  <div style="width: 1200px; height: 740px; border-radius: 10px; background: #202328; border: 1px solid #3a3e46; display: flex; flex-direction: column; overflow: hidden;">
+
+    <div style="padding: 12px 16px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 15px; font-weight: 600;">Open scenario</span>
+      <input type="search" placeholder="Search name, description, terrain…" aria-label="Search scenarios" style="flex-grow: 1; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 7px 10px; font: inherit;">
+      <button aria-label="Close" style="background: transparent; color: #9aa0a8; border: 0; font-size: 18px; padding: 2px 8px;">×</button>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; min-height: 0;">
+      <div style="width: 380px; border-right: 1px solid #353941; padding: 8px 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden;">
+        <span style="padding: 6px 16px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.05em;">↻ RECENT</span>
+        <div style="padding: 6px 16px 6px 28px; display: flex; gap: 8px; background: #2a3342; border-left: 3px solid #5aa8ff;"><span style="color: #c9ccd2;">▤</span><b>showcase-bridgehead</b><span style="margin-left: auto; color: #8a9099; font-size: 11px;">today</span></div>
+        <div style="padding: 6px 16px 6px 28px; display: flex; gap: 8px;"><span style="color: #c9ccd2;">▤</span>showcase-crossfire<span style="margin-left: auto; color: #8a9099; font-size: 11px;">yesterday</span></div>
+        <div style="padding: 6px 16px 6px 28px; display: flex; gap: 8px;"><span style="color: #c9ccd2;">▤</span>uc-urban-battle<span style="margin-left: auto; color: #8a9099; font-size: 11px;">29 Oct</span></div>
+        <span style="padding: 10px 16px 6px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.05em;">ALL SCENARIOS</span>
+        <div style="padding: 5px 16px; color: #c9ccd2;">▾ showcase</div>
+        <div style="padding: 5px 16px 5px 34px; display: flex; gap: 8px;"><span>▤</span>showcase-bridgehead<span style="margin-left: auto; color: #6fd6a0; font-size: 11px;">training</span></div>
+        <div style="padding: 5px 16px 5px 34px; display: flex; gap: 8px;"><span>▤</span>showcase-crossfire<span style="margin-left: auto; color: #f0b33f; font-size: 11px;">game</span></div>
+        <div style="padding: 5px 16px; color: #c9ccd2;">▸ platoon (pc-*) <span style="color: #8a9099;">· 7</span></div>
+        <div style="padding: 5px 16px; color: #c9ccd2;">▸ urban (uc-*) <span style="color: #8a9099;">· 6</span></div>
+        <div style="padding: 5px 16px; color: #c9ccd2;">▸ feature demos (ua-*) <span style="color: #8a9099;">· 63</span></div>
+        <div style="padding: 5px 16px; color: #c9ccd2;">▸ tests <span style="color: #8a9099;">· 12</span></div>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; flex-direction: column; padding: 18px 22px; gap: 14px; min-width: 0;">
+        <div style="height: 280px; border-radius: 8px; background: linear-gradient(160deg, #6c7d5b 0%, #4c5a3e 45%, #3a4630 100%); position: relative; overflow: hidden;">
+          <div style="position: absolute; left: 40%; top: 0; width: 34px; height: 330px; background: #7c8a93; opacity: 0.6;"></div>
+          <div style="position: absolute; left: 0; top: 52%; width: 100%; height: 26px; background: #8c8c80; opacity: 0.5;"></div>
+          <div style="position: absolute; left: 34%; top: 30%; width: 70px; height: 50px; background: #9a8f7a;"></div>
+          <div style="position: absolute; left: 52%; top: 26%; width: 60px; height: 44px; background: #a39883;"></div>
+          <div style="position: absolute; left: 40%; top: 80%; width: 110px; height: 16px; background: #2f6fd6; border-radius: 3px;"></div>
+          <span style="position: absolute; left: 12px; bottom: 10px; padding: 3px 8px; border-radius: 4px; background: rgba(10,12,14,0.7); font-size: 11px; color: #d9dde2;">preview.png · cqb-village</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 10px;"><span style="font-size: 20px; font-weight: 700;">Bridgehead</span><span style="color: #9aa0a8;">showcase-bridgehead</span><span style="margin-left: auto; padding: 2px 8px; border-radius: 10px; background: #1d3a2b; color: #8fe0b0; font-size: 11px;">TRAINING</span></div>
+        <span style="color: #c9ccd2; line-height: 1.5;">A Blue platoon seizes a village crossroads, holds it against a counter-attack and handles a civilian vehicle at its new checkpoint — scored against real-world standards per person, squad and platoon.</span>
+        <div style="display: flex; gap: 10px;">
+          <button style="flex: 1; text-align: left; background: #262a30; color: #c9ccd2; border: 1px solid #353941; border-radius: 6px; padding: 8px 12px; font: inherit;">▸ Variant <span style="color: #8a9099;">· random</span></button>
+          <button style="flex: 1; text-align: left; background: #262a30; color: #c9ccd2; border: 1px solid #353941; border-radius: 6px; padding: 8px 12px; font: inherit;">▸ Parameters <span style="color: #8a9099;">· defaults (6)</span></button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Terrain</span>cqb-village</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Players</span>4 seats · 26 AI</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Objectives</span>7 · 8 triggers</div>
+          <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Variants</span>yes · 4 params</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 12px 16px; border-top: 1px solid #353941; display: flex; align-items: center; gap: 10px;">
+      <span style="color: #9aa0a8; font-size: 12px;">Open = into editing · Open and go live = starts at once with the variant and parameters shown — no second page.</span>
+      <div style="flex-grow: 1;"></div>
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Cancel</button>
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Open</button>
+      <button style="background: #c2412f; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 600;">● Open and go live</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -396,7 +396,7 @@ After all changes, run:
 cd d:\Work\IOS-IG-SimHost-FDP-2
 
 # 1. Build
-dotnet build IOS-IG-SimHost.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
+dotnet build HROT.sln --no-restore -v quiet 2>&1 | Select-String "error CS|Build succeeded|FAILED"
 
 # 2. SimHost tests  
 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build 2>&1 | Select-String "Passed!|Failed!" | Select-Object -Last 2

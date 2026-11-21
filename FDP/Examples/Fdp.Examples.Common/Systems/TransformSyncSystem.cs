@@ -27,6 +27,7 @@ namespace Fdp.Examples.Common.Systems
     /// NetworkDemo retains its own copy for its internal pipeline.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class TransformSyncSystem : IEcsModuleSystem
     {
         private const long CHASSIS_KEY = 5; // Chassis descriptor ordinal

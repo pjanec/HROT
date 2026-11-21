@@ -1,0 +1,202 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Catalog;
+using Hrot.AiEditor.Persistence;
+
+namespace Hrot.Editor.AiShared.Inspector.ActionBinding;
+
+/// <summary>
+/// ⭐⭐ <b><c>CE-417</c> slice 4b — what the ONE binding drawer lists, for either host.</b>
+/// 📄 <c>docs/blueprints/DESIGN_Behavior_Action_Binding.md</c> §5.4.
+///
+/// <para>The hosts differ in ONE place only — which methods a slot offers — so that is the one thing a host supplies
+/// (<c>methods</c>): both offer the exporter's methods hosted for the slot unioned with the names the asset already binds
+/// (<c>CE-386</c>; ⭐ <c>CE-1167</c> the BTree too — it listed behaviour NAMES — through the one <see cref="ActionBindingMethods"/>). Everything else — the blueprint list, which variables fit a binding,
+/// promote — is the same rule on both hosts and lives here once. ⛔ It replaces <c>BehaviorHashPickerDrawer</c>,
+/// <c>HsmActionPickerDrawer</c>, <c>HsmGuardPickerDrawer</c>, <c>BlackboardFieldPickerDrawer</c> and
+/// <c>HsmBlackboardFieldPickerDrawer</c>, whose variable rules were two copies of one rule.</para>
+///
+/// <para>Headless: every list is testable without an ImGui context.</para>
+/// </summary>
+public sealed class ActionBindingSources
+{
+    private readonly IBlackboardManagedAsset                       _asset;
+    private readonly Func<BindingSlotKind, IEnumerable<string>>    _methods;
+    private readonly IActionSchemaExporter?                        _exporter;
+    private readonly IAssetCatalog?                                _catalog;
+
+    /// <param name="asset">The open asset whose blackboard the variables come from.</param>
+    /// <param name="methods">The host's one difference: the method names a slot of this kind may bind.</param>
+    /// <param name="exporter">Resolves a method / blueprint to its parameter type. ⚠ Optional for headless fixtures — without
+    /// it every variable is listed and nothing can be promoted. ⛔ A production host HAS one and passes it.</param>
+    /// <param name="catalog">Lists the blueprints. ⚠ Optional — without it a blueprint site offers none.</param>
+    public ActionBindingSources(
+        IBlackboardManagedAsset asset,
+        Func<BindingSlotKind, IEnumerable<string>> methods,
+        IActionSchemaExporter? exporter = null,
+        IAssetCatalog? catalog = null)
+    {
+        _asset    = asset   ?? throw new ArgumentNullException(nameof(asset));
+        _methods  = methods ?? throw new ArgumentNullException(nameof(methods));
+        _exporter = exporter;
+        _catalog  = catalog;
+    }
+
+    /// <summary>The exporter this source resolves through (null in a headless fixture).</summary>
+    public IActionSchemaExporter? Exporter => _exporter;
+
+    /// <summary>The catalogue this source lists blueprints from (null in a headless fixture).</summary>
+    public IAssetCatalog? Catalog => _catalog;
+
+    /// <summary>The methods a slot of <paramref name="kind"/> offers, distinct and sorted.</summary>
+    public IReadOnlyList<string> GetMethods(BindingSlotKind kind)
+        => _methods(kind)
+               .Where(n => !string.IsNullOrEmpty(n))
+               .Distinct(StringComparer.Ordinal)
+               .OrderBy(n => n, StringComparer.Ordinal)
+               .ToList();
+
+    /// <summary>
+    /// ⭐ <c>CE-1011</c> (AI_Editor_Shared_Infrastructure §7.1c G-2, G-3) — where <paramref name="fqn"/> is written: the exporter's
+    /// reflected method (<see cref="ActionSchemaEntry.Method"/>) through its portable PDB. Null with no exporter, an unknown method, or no
+    /// PDB (a dynamic or hot-reloaded assembly).
+    /// </summary>
+    public Source.ClrSourceLocator.SourceLocation? SourceOf(string? fqn)
+        => string.IsNullOrEmpty(fqn) || _exporter?.Lookup(fqn)?.Method is not { } method ? null : Source.ClrSourceLocator.Resolve(method);
+
+    /// <summary>⭐ <c>CE-1011</c> — opens <paramref name="fqn"/>'s source at its line (Visual Studio first, <see cref="Source.SourceFileOpener"/>);
+    /// false when there is none to open.</summary>
+    public bool GoToDefinition(string? fqn) => SourceOf(fqn) is { } at && OpenSource(at.File, at.Line);
+
+    /// <summary>⭐ <c>CE-1011</c> — the opener <see cref="GoToDefinition"/> calls: <see cref="Source.SourceFileOpener.Open"/> (a rail swaps it,
+    /// so a test opens no editor).</summary>
+    public Func<string, int, bool> OpenSource { get; set; } = Source.SourceFileOpener.Open;
+
+    /// <summary>⭐ <c>CE-462</c> — the SHOWN text of a method (name + technology); the stored value stays the FQN.</summary>
+    public string MethodLabel(string fqn) => AiPrimitiveNaming.PickerLabel(fqn, _exporter);
+
+    /// <summary>The catalogue's blueprints, sorted — the same list the <c>[AiAssetPicker(Blueprint)]</c> drawer shows.</summary>
+    public IReadOnlyList<string> GetBlueprints()
+        => _catalog is null
+            ? Array.Empty<string>()
+            : new AiAssetPickerDrawer(_catalog, AssetKind.Blueprint).GetItems();
+
+    /// <summary>The variables that fit <paramref name="binding"/> (<see cref="ActionBindingCompatibility"/>).</summary>
+    public IReadOnlyList<string> GetVariables(in BehaviorActionBindingFacet binding)
+        => ActionBindingCompatibility.CompatibleVariables(
+               ActionBindingCompatibility.ParameterType(_exporter, binding.MethodFqn, binding.BlueprintName),
+               _asset.BlackboardVariables);
+
+    /// <summary>⭐ <c>CE-2099</c> — the working-state type of a STATEFUL C# method, or null (not stateful, a blueprint,
+    /// an unknown FQN, no exporter).</summary>
+    public Type? WorkingStateType(in BehaviorActionBindingFacet binding)
+        => _exporter is null || string.IsNullOrEmpty(binding.MethodFqn) || !string.IsNullOrEmpty(binding.BlueprintName)
+            ? null
+            : _exporter.Lookup(binding.MethodFqn!)?.WorkingStateType;
+
+    /// <summary>⭐ <c>CE-2099</c> — the variables of the binding's working-state type, sorted. ⭐ <c>CE-3193</c>: any variable of
+    /// that type — naming it as the working state is what makes it working state.</summary>
+    public IReadOnlyList<string> GetWorkingStateVariables(in BehaviorActionBindingFacet binding)
+    {
+        var ws = WorkingStateType(binding);
+        if (ws is null) return Array.Empty<string>();
+        return _asset.BlackboardVariables
+            .Where(v => v.FieldType == ws && !v.IsReservedParams)
+            .Select(v => v.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>⭐ <c>CE-2099</c> — creates a variable of the binding's working-state type, for other nodes to bind too (every
+    /// node naming it shares it); returns its name, or null when the method is not stateful.</summary>
+    public string? PromoteWorkingState(in BehaviorActionBindingFacet binding)
+    {
+        var ws = WorkingStateType(binding);
+        return ws is null ? null
+            : AutoManagedVariables.Create(_asset, char.ToLowerInvariant(ws.Name[0]) + ws.Name.Substring(1), ws);
+    }
+
+    /// <summary>
+    /// True when the binding's parameter type is known and no variable has it — the state in which the drawer offers
+    /// "Promote to new variable". ⛔ Never for a whole-blackboard binding: it has no per-binding variable.
+    /// </summary>
+    public bool HasNoCompatibleVariables(in BehaviorActionBindingFacet binding)
+        => !binding.TargetsWholeBlackboard
+        && ActionBindingCompatibility.ParameterType(_exporter, binding.MethodFqn, binding.BlueprintName) is not null
+        && GetVariables(binding).Count == 0;
+
+    /// <summary>
+    /// ⭐ Creates this binding's own variable, typed by its parameter type, and returns its name — or null when the type
+    /// is unknown, the binding targets the whole blackboard, or the site has no Guid id.
+    /// </summary>
+    public string? Promote(in BehaviorActionBindingFacet binding)
+    {
+        if (binding.TargetsWholeBlackboard) return null;
+        var type = ActionBindingCompatibility.ParameterType(_exporter, binding.MethodFqn, binding.BlueprintName);
+        return type is null ? null : AutoManagedVariables.PromoteForSite(_asset, binding.SiteId, binding.SiteSlot, type);
+    }
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-417</c> slice 4b — THE rule for which blackboard variables a binding may target, both hosts.
+///
+/// <para>A binding's parameter type is its method's <c>DtoType</c>, or — for a blueprint binding — the blueprint's
+/// generated <c>Params</c> (the <c>CE-414</c> compose type). A variable fits when its type IS that type. ⚠ When the type
+/// is unknown (no method yet, an FQN the exporter does not know, no exporter) every variable is offered: an unknown is
+/// not a reason to hide what the author may legitimately pick. ⛔ Was two copies — BTree's
+/// <c>BlackboardFieldPickerAttribute.GetCompatibleVariables</c> and HSM's inline drawer rule — which agreed only by care.</para>
+/// </summary>
+public static class ActionBindingCompatibility
+{
+    /// <summary>Display string shown when a binding's type is known and no variable has it.</summary>
+    public const string NoCompatibleVariablesDisplay = "(no compatible variables)";
+
+    /// <summary>The binding's parameter type, or null when it cannot be resolved.</summary>
+    public static Type? ParameterType(IActionSchemaExporter? exporter, string? methodFqn, string? blueprintName)
+    {
+        if (exporter is null) return null;
+        if (!string.IsNullOrEmpty(methodFqn))
+            return exporter.Lookup(methodFqn!)?.DtoType;
+        return AiPrimitiveNaming.TryFindAiPrimitiveByName(exporter, blueprintName, out var entry) ? entry.DtoType : null;
+    }
+
+    /// <summary>
+    /// The targets of <paramref name="parameterType"/>, sorted: every variable of that type, and ⭐ <c>CE-3182</c> every FIELD of a
+    /// struct variable that has it, as a path (<c>Params.walk</c>, <c>Cfg.sensor.Range</c> — <see cref="BindingPath"/>); every
+    /// variable name when the type is unknown (no paths then: an unknown type is not a reason to list every field).
+    /// </summary>
+    public static IReadOnlyList<string> CompatibleVariables(
+        Type? parameterType, IEnumerable<BlackboardVariableEntry> variables)
+    {
+        var result = new List<string>();
+        foreach (var v in variables)
+        {
+            if (parameterType is null || v.FieldType == parameterType) result.Add(v.Name);
+            if (parameterType is not null && v.FieldType is not null) AddFieldPaths(v.Name, v.FieldType, parameterType, result, depth: 0);
+        }
+        result.Sort(StringComparer.Ordinal);
+        return result;
+    }
+
+    /// <summary>How deep a field path may go (<c>Var.a.b.c</c>).</summary>
+    public const int MaxFieldDepth = 3;
+
+    /// <summary>
+    /// ⭐ <c>CE-1061</c> (U3, design §13.10b D3) — the fields a binding can reach inside <paramref name="owner"/>: its public instance
+    /// fields (a <c>Var.field</c> path). ⭐ THE one walk — the bindings below and the variables panel's <c>Params</c> rows both read
+    /// it, so the panel lists exactly what an author can bind.
+    /// </summary>
+    public static System.Reflection.FieldInfo[] BindableFieldsOf(Type owner)
+        => owner.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+    private static void AddFieldPaths(string path, Type owner, Type parameterType, List<string> into, int depth)
+    {
+        if (depth >= MaxFieldDepth || !owner.IsValueType || owner.IsPrimitive || owner.IsEnum) return;
+        foreach (var f in BindableFieldsOf(owner))
+        {
+            string fieldPath = BindingPath.Compose(path, f.Name);
+            if (f.FieldType == parameterType) into.Add(fieldPath);
+            AddFieldPaths(fieldPath, f.FieldType, parameterType, into, depth + 1);
+        }
+    }
+}

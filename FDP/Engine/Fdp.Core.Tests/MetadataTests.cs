@@ -45,7 +45,7 @@ namespace Fdp.Tests
         public void RBF_P1T1_Metadata_RoundTripsExerciseId()
         {
             var expected = Guid.NewGuid();
-            var meta = new RecordingMetadata { ExerciseId = expected };
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(expected) };
             var json = MetadataSerializer.Serialize(meta);
             var result = MetadataSerializer.Deserialize(json);
             Assert.Equal(expected, result.ExerciseId);
@@ -54,7 +54,7 @@ namespace Fdp.Tests
         [Fact]
         public void RBF_P1T1_Metadata_RoundTripsNodeId()
         {
-            var meta = new RecordingMetadata { NodeId = 7 };
+            var meta = new RecordingMetadata { NodeId = (Fdp.Core.NodeId)(7) };
             var json = MetadataSerializer.Serialize(meta);
             var result = MetadataSerializer.Deserialize(json);
             Assert.Equal(7, result.NodeId);
@@ -123,8 +123,8 @@ namespace Fdp.Tests
                 var config = new RecordingConfiguration
                 {
                     FilePath   = fdpPath,
-                    ExerciseId = exerciseId,
-                    NodeId     = 0,
+                    ExerciseId = (Fdp.Core.ExerciseId)(exerciseId),
+                    NodeId     = (Fdp.Core.NodeId)(0),
                 };
                 var module = new RecordingModule(config);
                 var registry = new CapturingRegistry();
@@ -162,8 +162,8 @@ namespace Fdp.Tests
                 var config = new RecordingConfiguration
                 {
                     FilePath   = fdpPath,
-                    ExerciseId = Guid.NewGuid(),
-                    NodeId     = 7,
+                    ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
+                    NodeId     = (Fdp.Core.NodeId)(7),
                 };
                 var module = new RecordingModule(config);
                 var registry = new CapturingRegistry();
@@ -214,6 +214,21 @@ namespace Fdp.Tests
                 }
             }
             Assert.True(found, "AsyncRecorder must expose a public ctor(string, RecordingMetadata?)");
+        }
+
+        /// <summary>⭐ O-8 (CE-4420) — <c>OverlayHash</c> / <c>TerrainHash</c> round-trip; a metadata file from before them reads both as empty (never null, never a throw). 🔴 Red-proof: drop either property ⇒ the round trip fails.</summary>
+        [Fact]
+        public void O8_OverlayHashAndTerrainHash_RoundTrip_AndOldMetadataReadsThemEmpty()
+        {
+            var meta = new RecordingMetadata { TerrainName = "t", OverlayHash = "aa11", TerrainHash = "bb22" };
+            var back = MetadataSerializer.Deserialize(MetadataSerializer.Serialize(meta));
+            Assert.Equal("aa11", back.OverlayHash);
+            Assert.Equal("bb22", back.TerrainHash);
+
+            var old = MetadataSerializer.Deserialize("{\"TerrainName\":\"t\"}");
+            Assert.Equal("t", old.TerrainName);
+            Assert.Equal("", old.OverlayHash);
+            Assert.Equal("", old.TerrainHash);
         }
 
         // ── Helper ────────────────────────────────────────────────────────────────

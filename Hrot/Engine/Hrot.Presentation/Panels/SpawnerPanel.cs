@@ -1,7 +1,15 @@
 using Hrot.Core.Mission;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Fdp.Interfaces;
+using Hrot.UI.Common.AddEntity;
+using NodeEditor.UI.Picker;
+using Fdp.Core.Serialization;
+using Fdp.Core;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -12,7 +20,17 @@ namespace Hrot.UI.Common.Panels;
 /// </summary>
 /// <param name="TkbId">TKB type identifier (matches <c>TkbTemplate.TkbType</c>).</param>
 /// <param name="Name">Display name shown in the spawner list.</param>
-public sealed record TkbCatalogEntry(long TkbId, string Name);
+public sealed record TkbCatalogEntry(TkbTypeId TkbId, string Name);
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="SpawnerPanel"/> shows, this frame. ⚠ See
+/// <c>ConfigPanel</c>'s remarks for the group-5 twin finding.</summary>
+public sealed record SpawnerPanelViewModel(
+    string PanelId, string PanelKind, string SearchFilter, long SelectedType,
+    string SelectedAffiliation, IReadOnlyList<TkbCatalogEntry> FilteredEntries) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shared UI panel that lets the operator browse the TKB entity type catalog,
@@ -70,6 +88,50 @@ public sealed class SpawnerPanel
     /// <summary>Creates a panel with an empty catalog (useful in unit tests).</summary>
     public SpawnerPanel() : this(Array.Empty<TkbCatalogEntry>()) { }
 
+    // ── Add Entity picker (CE-1017 S4) ────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1017</c> S4 — the host's TKB, for the type picker. With <see cref="OpenPicker"/> set, the
+    /// "Entity Type" control opens the grouped Add Entity picker instead of the flat combo, and a pick arms the
+    /// placement tool straight away (D4). 📄 docs/DESIGN_Add_Entity_Picker.md S4.</summary>
+    public Func<ITkbDatabase?>? Tkb { get; init; }
+
+    /// <summary>The host's <c>PickerRegistry.OpenPicker</c>, resolved at call time; null ⇒ the flat combo.</summary>
+    public Func<Action<PickerRequest, Action<PickerResult>>?>? OpenPicker { get; init; }
+
+    /// <summary>True when the type picker can open now.</summary>
+    public bool HasPicker => Tkb?.Invoke() is not null && OpenPicker?.Invoke() is not null;
+
+    /// <summary>
+    /// Handles the "Entity Type" button: opens the Add Entity picker for the selected side; the pick becomes the
+    /// selected type AND arms the placement tool (the same arm as <see cref="HandleActivatePlacementTool"/>).
+    /// Returns false when no picker is available.
+    /// </summary>
+    public bool HandleChooseType(ISpawnController spawn)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        var tkb = Tkb?.Invoke();
+        var open = OpenPicker?.Invoke();
+        if (tkb is null || open is null) return false;
+
+        var request = AddEntityAction.BuildRequest(tkb, _affiliation);
+        open(new PickerRequest
+        {
+            ContextKey             = request.ContextKey,
+            Title                  = request.Title,
+            Layout                 = request.Layout,
+            ItemsProvider          = request.ItemsProvider,
+            FoldSingleChildFolders = true,
+            ShowPreview            = true,
+            InitialSelectionId     = _selectedType == 0 ? null : _selectedType.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        }, result =>
+        {
+            if (result.First?.Tag is not EntityTypeEntry e) return;
+            HandleTypeSelected(e.TkbType);
+            HandleActivatePlacementTool(spawn);
+        });
+        return true;
+    }
+
     // ── Public state accessors ────────────────────────────────────────────────
 
     /// <summary>
@@ -98,6 +160,11 @@ public sealed class SpawnerPanel
     /// </summary>
     public IReadOnlyList<TkbCatalogEntry> FilteredEntries => _filteredEntries;
 
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public SpawnerPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _searchFilter, _selectedType, _affiliation.ToString(), FilteredEntries);
+
     // ── Button / control handlers (public for testability) ────────────────────
 
     /// <summary>
@@ -124,7 +191,7 @@ public sealed class SpawnerPanel
     public void HandleActivatePlacementTool(ISpawnController spawn)
     {
         ArgumentNullException.ThrowIfNull(spawn);
-        var propsJson = JsonSerializer.Serialize(new { Affiliation = _affiliation.ToString() });
+        var propsJson = JsonSerializer.Serialize(new { Affiliation = _affiliation.ToString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
         spawn.StartPlacementMode(_selectedType, propsJson);
     }
 
@@ -139,7 +206,7 @@ public sealed class SpawnerPanel
         {
             FillColor     = _fillColorHex,
             LineThickness = _lineThickness
-        });
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
         spawn.StartAreaAuthoringMode(styleJson);
     }
 
@@ -151,6 +218,27 @@ public sealed class SpawnerPanel
     {
         ArgumentNullException.ThrowIfNull(spawn);
         spawn.StartRouteAuthoringMode();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>E5</c> — handles the "DRAW ZONE" button press. Calls
+    /// <see cref="ISpawnController.StartZoneAuthoringMode"/>, which authors a
+    /// <c>TkbEntityTypes.TerrainZone</c> (<c>B1</c>) through the same mechanism as "DRAW AREA".
+    ///
+    /// <para>⭐ This is the operator's entry point into stage <c>E</c>: without it <c>E1</c>'s zone
+    /// gizmo, <c>E2</c>'s "Load zone" menu item and <c>E3</c>'s zones view would all be surfaces on
+    /// entities nothing could create. 🔒 The <c>U6</c> ruling is *"nothing of it should be IG host
+    /// only"*, and this panel is shared by the editor and ExCon.</para>
+    /// </summary>
+    public void HandleStartZoneAuthoring(ISpawnController spawn)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        string styleJson = JsonSerializer.Serialize(new
+        {
+            FillColor     = _fillColorHex,
+            LineThickness = _lineThickness
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
+        spawn.StartZoneAuthoringMode(styleJson);
     }
 
     // ── Draw ──────────────────────────────────────────────────────────────────
@@ -174,41 +262,60 @@ public sealed class SpawnerPanel
     /// </summary>
     public void DrawContent(ISpawnController spawn)
     {
-        string filterBuf = _searchFilter;
-        if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
-            SearchFilter = filterBuf;
-
-        string previewText = GetSelectedPreviewText();
-        if (ImGui.BeginCombo("Entity Type", previewText))
-        {
-            for (int i = 0; i < _filteredEntries.Count; i++)
-            {
-                var entry       = _filteredEntries[i];
-                bool isSelected = entry.TkbId == _selectedType;
-                if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})", isSelected))
-                    HandleTypeSelected(entry.TkbId);
-                if (isSelected)
-                    ImGui.SetItemDefaultFocus();
-            }
-            ImGui.EndCombo();
-        }
-
-        ImGui.Separator();
-
         int aff = (int)_affiliation;
         if (ImGui.RadioButton("Friend",  ref aff, (int)eForceIdentifier.FORCE_FRIENDLY))
             HandleAffiliationChange((eForceIdentifier)aff);
         ImGui.SameLine();
         if (ImGui.RadioButton("Hostile", ref aff, (int)eForceIdentifier.FORCE_OPPOSING))
             HandleAffiliationChange((eForceIdentifier)aff);
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Neutral", ref aff, (int)eForceIdentifier.FORCE_NEUTRAL))   // CE-1017 S4 (D6)
+            HandleAffiliationChange((eForceIdentifier)aff);
+
+        string previewText = GetSelectedPreviewText();
+        if (HasPicker)
+        {
+            // ⭐ CE-1017 S4 — the grouped, searchable type picker; a pick arms the tool at once.
+            if (ImGui.Button($"{previewText}##choose_type", new System.Numerics.Vector2(-1f, 0f)))
+                HandleChooseType(spawn);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Choose an entity type, then click on the map to place it (right-click/Esc: done)");
+        }
+        else
+        {
+            string filterBuf = _searchFilter;
+            if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
+                SearchFilter = filterBuf;
+
+            bool typeOpen = false, typeForm = FormGrid.Begin("spawner.type");
+            if (typeForm) { FormGrid.Row("Entity Type"); typeOpen = ImGui.BeginCombo("##entitytype", previewText); }
+            if (typeOpen)
+            {
+                for (int i = 0; i < _filteredEntries.Count; i++)
+                {
+                    var entry       = _filteredEntries[i];
+                    bool isSelected = entry.TkbId == _selectedType;
+                    if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})", isSelected))
+                        HandleTypeSelected(entry.TkbId);
+                    if (isSelected)
+                        ImGui.SetItemDefaultFocus();
+                }
+                ImGui.EndCombo();
+            }
+            if (typeForm) FormGrid.End();
+        }
 
         if (ImGui.Button("ACTIVATE PLACEMENT TOOL"))
             HandleActivatePlacementTool(spawn);
 
         ImGui.Separator();
         ImGui.Text("Area Style");
-        ImGui.InputText("Fill Colour", ref _fillColorHex, 16);
-        ImGui.SliderFloat("Line Thickness", ref _lineThickness, 1.0f, 10.0f);
+        if (FormGrid.Begin("spawner.area"))
+        {
+            FormGrid.Row("Fill Colour");     ImGui.InputText("##fill", ref _fillColorHex, 16);
+            FormGrid.Row("Line Thickness");  ImGui.SliderFloat("##thickness", ref _lineThickness, 1.0f, 10.0f);
+            FormGrid.End();
+        }
 
         if (ImGui.Button("DRAW AREA"))
             HandleStartAreaAuthoring(spawn);
@@ -217,13 +324,21 @@ public sealed class SpawnerPanel
 
         if (ImGui.Button("DRAW ROUTE"))
             HandleStartRouteAuthoring(spawn);
+
+        ImGui.SameLine();
+
+        // ⭐⭐ E5 — the operator's way into stage E. Same style controls: a zone IS drawn geometry.
+        if (ImGui.Button("DRAW ZONE"))
+            HandleStartZoneAuthoring(spawn);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private string GetSelectedPreviewText()
     {
-        if (_selectedType == 0) return "(none)";
+        if (_selectedType == 0) return HasPicker ? "Choose entity type..." : "(none)";
+        if (HasPicker && Tkb?.Invoke() is { } tkb && tkb.TryGetByType(_selectedType, out var t))
+            return t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.TkbMasterDto>()?.CustomName is { Length: > 0 } n ? n : t.Name;
         for (int i = 0; i < _catalog.Count; i++)
         {
             if (_catalog[i].TkbId == _selectedType)

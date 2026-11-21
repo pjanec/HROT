@@ -433,5 +433,31 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             }
             finally { File.Delete(file); }
         }
+
+        // ⭐ CE-1203 — an int and a float setting survive SaveToDisk → LoadFromDisk. 🔴 Red-proof: SaveToDisk wrote "CsInt32" /
+        // "CsFloat32" (SettingType.ToString()) and the loader knew only "Int32" / "Float32", so both came back as default — the map's
+        // family scopes and navmesh choice, the first production users of this path, would have reloaded as 0.
+        [Fact]
+        public void CE1203_IntAndFloatSettings_SurviveTheDiskRoundTrip()
+        {
+            string file = Path.GetTempFileName();
+            try
+            {
+                var src = new GizmoSettingsRegistry();
+                src.RegisterSetting("n", GizmoSettingValue.From(1));
+                src.RegisterSetting("f", GizmoSettingValue.From(0.5f));
+                src.Write(GizmoSettingsRegistry.ComputeHash("n"), GizmoSettingValue.From(7));
+                src.Write(GizmoSettingsRegistry.ComputeHash("f"), GizmoSettingValue.From(2.25f));
+                src.SaveToDisk(file);
+
+                var dst = new GizmoSettingsRegistry();
+                dst.RegisterSetting("n", GizmoSettingValue.From(1));
+                dst.RegisterSetting("f", GizmoSettingValue.From(0.5f));
+                dst.LoadFromDisk(file);
+                Assert.Equal(7, dst.Read(GizmoSettingsRegistry.ComputeHash("n")).IntValue);
+                Assert.Equal(2.25f, dst.Read(GizmoSettingsRegistry.ComputeHash("f")).FloatValue);
+            }
+            finally { File.Delete(file); }
+        }
     }
 }

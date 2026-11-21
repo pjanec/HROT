@@ -17,12 +17,12 @@ public class RenderLayerPresenceTests
     }
 
     [Fact]
-    public void IG_Assembly_DoesNotContainMovedRenderLayers()
+    public void Player_Assembly_DoesNotContainMovedRenderLayers()
     {
-        var asm = typeof(Hrot.IG.IgApplication).Assembly;
-        Assert.Null(asm.GetType("Hrot.IG.Systems.MapOverlayRenderLayer"));
-        Assert.Null(asm.GetType("Hrot.IG.Systems.RouteRenderLayer"));
-        Assert.Null(asm.GetType("Hrot.IG.Systems.SelectionRenderSystem"));
-        Assert.Null(asm.GetType("Hrot.IG.Adapters.NedVisualizerAdapter"));
+        var asm = typeof(Hrot.Player.PlayerApplication).Assembly;
+        Assert.Null(asm.GetType("Hrot.Player.Systems.MapOverlayRenderLayer"));
+        Assert.Null(asm.GetType("Hrot.Player.Systems.RouteRenderLayer"));
+        Assert.Null(asm.GetType("Hrot.Player.Systems.SelectionRenderSystem"));
+        Assert.Null(asm.GetType("Hrot.Player.Adapters.NedVisualizerAdapter"));
     }
 }

@@ -1,0 +1,94 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: SHOWCASE Bridgehead (docs/SHOWCASE_Scenarios.md \u00a71) - the checkpoint INJECT: a civilian car (key @CivCar) with its Neutral driver (key @CivDriver) that drives 150 m along the anchor's heading at 8 m/s and stops. Judge: inserted at a point facing east, the car moves ~150 m east and stops; nobody in it is armed.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 90
+  }
+ },
+ "entities": {
+  "b41d0c00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     0,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.0,
+     1.0
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 1002
+   },
+   "EntityInfo": {
+    "Name": "Civilian car",
+    "ForceId": "Neutral"
+   },
+   "RefKey": {
+    "Value": "CivCar"
+   },
+   "PassengerBuffer": {
+    "Count": 1,
+    "Passengers": [
+     "b41d0c00-0000-4000-8000-000000000002"
+    ],
+    "Seats": [
+     0
+    ]
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": "{\"target\": [150, 0, 0], \"speed\": 8, \"arrivalRadius\": 3}",
+    "Origin": "Superior"
+   }
+  },
+  "b41d0c00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     0,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.0,
+     1.0
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1101
+   },
+   "EntityInfo": {
+    "Name": "Civilian driver",
+    "ForceId": "Neutral"
+   },
+   "RefKey": {
+    "Value": "CivDriver"
+   },
+   "IsEmbarkedTag": {
+    "Vehicle": "b41d0c00-0000-4000-8000-000000000001",
+    "Seat": 0
+   }
+  }
+ }
+}

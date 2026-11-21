@@ -1,0 +1,71 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — SL-0: the first nested hierarchy: a platoon orders squads, the dead squad is given nothing. DEMO (16 units): conditions only. Judge (1)-(5); (4) is 'every man y >= 110' (within 40 m of (200,150) on a street aligned with it), judged for Alpha AND Bravo (the Judge says 'Alpha or Bravo'; both are immortal in the open, so the stricter reading is used).",
+  "runFor": 120,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the platoon runs SquadMarch",
+      "on": "task",
+      "who": "Platoon",
+      "is": "SquadMarch"
+    },
+    {
+      "name": "Alpha fulfils the order its own way",
+      "on": "task",
+      "who": "Alpha",
+      "is": [
+        "InfantrySquadMove",
+        "InfantrySquadHold"
+      ]
+    },
+    {
+      "name": "Bravo fulfils the order its own way",
+      "on": "task",
+      "who": "Bravo",
+      "is": [
+        "InfantrySquadMove",
+        "InfantrySquadHold"
+      ]
+    },
+    {
+      "name": "Charlie, every man dead, is given nothing",
+      "never": {
+        "on": "task",
+        "who": "Charlie",
+        "is": [
+          "InfantrySquadMove",
+          "InfantrySquadHold"
+        ]
+      }
+    },
+    {
+      "name": "every Alpha man ends within 40 m of the objective (y >= 110)",
+      "on": "field",
+      "who": "*Alpha ",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 110,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "every Bravo man ends within 40 m of the objective (y >= 110)",
+      "on": "field",
+      "who": "*Bravo ",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 110,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "the platoon stands with its live squads, more than 40 m ahead of Charlie (y > 60)",
+      "on": "field",
+      "who": "Platoon",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 60,
+      "atEnd": true
+    }
+  ]
+}

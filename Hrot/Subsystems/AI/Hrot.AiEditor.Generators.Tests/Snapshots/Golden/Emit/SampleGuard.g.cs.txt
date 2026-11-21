@@ -1,0 +1,32 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 979df4a4-0000-0000-0000-000000000000
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class SampleGuard
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("SampleGuard");
+
+        builder.Event("Alert", 1, 0, false, false);
+        builder.Event("Clear", 2, 0, false, false);
+
+        var idle = builder.State("Idle", stableId: new Guid("aa010000-0000-0000-0000-000000000001"))
+            .Initial();
+        var scanning = builder.State("Scanning", stableId: new Guid("bb010000-0000-0000-0000-000000000001"));
+        idle.On("Alert").GoTo("Scanning", visualId: new Guid("cc010000-0000-0000-0000-000000000001"));
+        scanning.On("Clear").GoTo("Idle", visualId: new Guid("dd010000-0000-0000-0000-000000000001"));
+
+        return builder;
+    }
+
+    [HsmDefinition("SampleGuard", AssetId = "979df4a4-0000-0000-0000-000000000000")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

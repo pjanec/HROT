@@ -1,0 +1,14 @@
+StructureHash: 0xCA57CFC90EF9950C
+Parameters:
+  Move : Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto @0 size=4
+  Fire : Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto @4 size=4
+WorkingState:
+  (empty)
+Variables:
+  Stage : System.Int32 @8 size=4
+  Retreated : System.Boolean @12 size=1
+  CallOff : System.Boolean @13 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

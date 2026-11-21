@@ -26,14 +26,14 @@ namespace Fdp.Toolkit.Replication.Tests
             if (shouldHave)
             {
                 Assert.NotNull(attr);
-                Assert.Equal(DataPolicy.NoRecord, attr.Policy);
+                Assert.Equal(DataPolicy.NoReplay, attr.Policy);
             }
             else
             {
                 // Either null or explicitly Record
                 if (attr != null)
                 {
-                    Assert.NotEqual(DataPolicy.NoRecord, attr.Policy);
+                    Assert.NotEqual(DataPolicy.NoReplay, attr.Policy);
                 }
             }
         }

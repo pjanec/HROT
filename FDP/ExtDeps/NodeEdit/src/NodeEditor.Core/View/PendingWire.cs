@@ -26,4 +26,28 @@ public sealed class PendingWire
 
     /// <summary>Whether the candidate would require an auto-cast (validator returned ValidWithCast).</summary>
     public bool CandidateNeedsCast { get; set; }
+
+    /// <summary>
+    /// CE-1000 (node-to-node routing): the node the link starts from. Set when the drag began on a node's border
+    /// band or as a Shift-drag on the node, rather than on a pin.
+    /// </summary>
+    public NodeId? SourceNode { get; init; }
+
+    /// <summary>CE-1000: the node under the cursor that the link would connect to (drawn as a border-to-border preview).</summary>
+    public NodeId? CandidateNode { get; set; }
+
+    /// <summary>
+    /// CE-1000: true once the cursor has left <see cref="SourceNode"/>. A release back on the source before that is a
+    /// click, never a self-transition.
+    /// </summary>
+    public bool LeftSourceNode { get; set; }
+
+    /// <summary>CE-1000: a release without dragging ADDS the source node to the selection (Shift) instead of replacing it.</summary>
+    public bool AddToSelectionOnClick { get; init; }
+
+    /// <summary>
+    /// CE-1001: the wire was started from a menu ("Add Transition") and follows the cursor with no button held;
+    /// a left-click finishes it, Escape or a right-click cancels.
+    /// </summary>
+    public bool Sticky { get; init; }
 }

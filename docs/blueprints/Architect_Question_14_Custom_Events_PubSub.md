@@ -1,5 +1,7 @@
 # Architect question #14 — designer-authored custom events + pub/sub (reflection-discovered, no manual registry)
 
+> ⛔ **Superseded vocabulary (2026-10-13, CE-3193 sweep):** Get/Set Shared and Entity-scoped variables are removed (CE-440/CE-441); cross-behaviour memory is unit memory ([UnitMemory]). Current model: ../docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
+
 **Status: ✅ APPROVED (architect) — Option 2b + full infrastructure.** Recipient-filtering (D2) refined with
 user sign-off to a declarative **Self/Any filter on the entry node** (spec in Q14-D).
 
@@ -207,7 +209,7 @@ down exactly what to reuse.
 - **Byte-addressed per-instance state** = compiler-emitted `[StructLayout(Sequential)] State` reinterpret-cast
   over the blackboard slot span (`InstanceEmitter.EmitStateStruct`). **Reuse for the event payload struct** —
   `EventHandlerDelegate` already takes `ReadOnlySpan<byte> payload` (`BlueprintDelegates.cs:44-51`).
-- **Tick systems:** `BlueprintTickSystem` (Instance), `BTreeTickSystem`/`HsmTickSystem`. `BTreeTickSystem`
+- **Tick systems:** `BlueprintTickSystem` (Instance) and `BrainTickSystem` (both brain arms). `BrainTickSystem`
   already drains `Bus.Read<…>()` (precedent). Dispatch-pump home: a new Input-phase system after `SwapBuffers`
   before `BlueprintTickSystem`, or folded into `BlueprintTickSystem`'s per-slot loop (already has
   `view/ecb/entity/def` per instance).

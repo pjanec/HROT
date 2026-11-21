@@ -11,13 +11,15 @@ namespace Fdp.ModuleHost.Providers
     /// Maintains pool of EntityRepository snapshots.
     /// Acquires from pool, syncs with mask, releases back to pool.
     /// </summary>
-    public sealed class OnDemandProvider : ISnapshotProvider, IDisposable
+    public sealed class OnDemandProvider : ISnapshotProvider, IDisposable, IEventHistoryReader
     {
         private readonly EntityRepository _liveWorld;
         private readonly EventAccumulator _eventAccumulator;
         private readonly BitMask512 _componentMask;
         private readonly ConcurrentStack<EntityRepository> _pool;
-        private uint _lastSeenTick;
+        // ⭐ CE-3293 S4 — a reader of the event history: it holds every event until a snapshot has had it
+        private EventReaderHandle _eventReader;
+        private readonly object _eventReaderLock = new();
         
         private readonly Action<EntityRepository>? _schemaSetup;
         
@@ -61,14 +63,9 @@ namespace Fdp.ModuleHost.Providers
                 snapshot = CreateSnapshot();
             }
 
-            // Detect time-travel to prevent event dropping
-            if (_liveWorld.GlobalVersion < _lastSeenTick)
-            {
-                _lastSeenTick = 0;
-            }
-
             // Sync from live world (with component mask filtering)
             snapshot.SyncFrom(_liveWorld, _componentMask);
+            snapshot.CopyClockFrom(_liveWorld);   // ⭐ CE-3267 — the module's view carries the frame's clock
 
             // Flush event history (only events after lastSeenTick).
             // FlushToReplica calls InjectIntoCurrent which writes directly into the READ buffer
@@ -76,9 +73,7 @@ namespace Fdp.ModuleHost.Providers
             // moves READ to WRITE and then CLEARS it, destroying the just-injected events.
             // ReleaseView calls SoftClear -> Bus.ClearAll() which already resets both buffers
             // before the snapshot is returned to the pool, so no manual clear is needed here.
-            _eventAccumulator.FlushToReplica(snapshot.Bus, _lastSeenTick);
-
-            _lastSeenTick = _liveWorld.GlobalVersion;
+            lock (_eventReaderLock) _eventReader.Flush(_eventAccumulator, snapshot.Bus);
 
             return snapshot;
         }
@@ -117,7 +112,7 @@ namespace Fdp.ModuleHost.Providers
                 
                 // I will try to call `SoftClear()` as instructed. If compiles fail, I'll investigate.
                 
-                snapshot.SoftClear();
+                snapshot.RecycleForSync();   // ⭐ M-4 (CE-4483) — the memory is kept; AcquireView's SyncFrom copies it whole
                 
                 // Return to pool for reuse
                 _pool.Push(snapshot);
@@ -128,6 +123,9 @@ namespace Fdp.ModuleHost.Providers
             }
         }
         
+        /// <inheritdoc/>
+        public void ReleaseEventReader() { lock (_eventReaderLock) _eventReader.Release(_eventAccumulator); }
+
         private void WarmupPool(int count)
         {
             for (int i = 0; i < count; i++)
@@ -137,9 +135,15 @@ namespace Fdp.ModuleHost.Providers
             }
         }
         
+        // QA-006: every snapshot this provider ever created — pooled OR currently leased out through
+        // AcquireView. Disposing only the stack misses whatever is on loan when teardown happens, and
+        // a snapshot that is never released back is exactly the one that leaks.
+        private readonly ConcurrentBag<EntityRepository> _created = new();
+
         private EntityRepository CreateSnapshot()
         {
             var snapshot = new EntityRepository();
+            _created.Add(snapshot);
             
             // TODO: Register component types matching live world schema
             // For now, assume schema set up externally or lazily via SyncFrom (if SyncFrom handles registration, which it likely doesn't for unmanaged)
@@ -148,10 +152,20 @@ namespace Fdp.ModuleHost.Providers
             return snapshot;
         }
         
+        /// <summary>
+        /// ⭐ <c>QA-006</c> — disposes every snapshot this provider created, pooled or leased.
+        /// <see cref="EntityRepository.Dispose"/> is idempotent, so draining the pool as well costs
+        /// nothing and keeps the pool empty for anyone still holding a reference to this provider.
+        /// </summary>
         public void Dispose()
         {
-            // Dispose all pooled snapshots
-            while (_pool.TryPop(out var snapshot))
+            ReleaseEventReader();
+            while (_pool.TryPop(out var pooled))
+            {
+                pooled.Dispose();
+            }
+
+            foreach (var snapshot in _created)
             {
                 snapshot.Dispose();
             }

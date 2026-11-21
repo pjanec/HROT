@@ -73,6 +73,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Interaction
         public bool? IsSeparator { get; init; }
 
         /// <summary>
+        /// ⭐ <c>CE-4096</c> (AQ108 D16) — <c>true</c> = this item is ALLOWED while the cluster is Idle (the Start perspective): the main menu
+        /// bar then draws only these, and the start surface draws them as buttons. A submenu header is kept when any child is.
+        /// Ignored in context menus. Default (omitted) = not allowed in Idle.
+        /// </summary>
+        [JsonPropertyName("allowedInIdle")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? AllowedInIdle { get; init; }
+
+        /// <summary>
         /// Nested child items. When non-null and non-empty this entry renders as
         /// a submenu header. The <see cref="Id"/> is not used for submenu headers.
         /// </summary>

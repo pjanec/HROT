@@ -69,7 +69,7 @@
 
 ## Build Result
 
-`dotnet build IOS-IG-SimHost.sln --no-incremental`: **0 Error(s), Build succeeded**
+`dotnet build HROT.sln --no-incremental`: **0 Error(s), Build succeeded**
 
 ---
 

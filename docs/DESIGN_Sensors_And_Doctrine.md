@@ -1,0 +1,2138 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-10 (§5.8 parallel solving P-1, CE-3427 — DESIGN, leans to the user, backend) · 2026-10-25 (§5.4 the alerted exception to forgetting, CE-2371) · 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
+build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
+current-answer: the whole file — §5.7 acquisition time by exposure (CE-3260, BR-7) · §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
+stale-below: nothing — new document.
+known-rot: ✅ FIXED 2026-10-21 (CE-3292, R-3035; Time Architecture §17 as-built) — perception's clock is the sim step (`PerceptionClock`), the solver skips paused frames, the sound ring forgets earlier timelines. ⛔ WAS: perception DID tick while paused — the EQS sensor solve keys on the world's FRAME tick (`view.Tick`, advanced every rendered frame, `ModuleHostKernel.cs:497`) and has no paused-frame gate: paused 3 s at sim 2.0 s ⇒ 70 re-senses; one 1/60 s step ⇒ ~6 sensing frames. The §7 row "nothing ticks while paused" is the intent, not the as-built. · "doctrine" is RENAMED "SOP" (R-198, user 2026-10-04) — read every doctrine as SOP; planned identifiers become SopState / AssignSopEvent / ClearSopEvent / DefaultSop {Name, ParamsJson}; the SOP model (task · SOP · reaction, R-199) lives in docs/DESIGN_Decision_Layer.md §4. · §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
+known-conflict:
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
+  - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
+related-designs:
+  - docs/DESIGN_Egress_Change_Detection.md — §7 the state egress off the main thread SHARES §5.8's worker pool (as built: `EqsSolveWorkers` → `Fdp.ModuleHost.Threading.WorkerPool`, CE-3427 N-1)
+  - DESIGN_Readable_Scenario_Json.md — the brain snapshot's Params written as a JSON object on disk (the C# string unchanged)
+  - docs/DESIGN_Evaluation_Cost_And_Cadence.md — makes the SOP slot's cadence (G5, R-195) a GENERIC brain mechanism (Cadence / BrainCadence / CadenceGate, §3.0) that the SOP slot and rule entities share (D7)
+  - docs/DESIGN_Scenario_Rules.md — §8 SR-27 / SR-30 reuse the per-TKB-type child-entity pattern for objective blocks and per-member evaluators
+  - docs/DESIGN_Entity_Brain_View.md — §12g (R-1041) OWNS the live params / working-state write (no restart, the start record kept true) that revises §7.5's "changing them = re-assigning"
+  - docs/DESIGN_Entity_Brain_View.md — §12a (R-1036) RETIRES the AI tab: §7.6's editing moves into the Brain tab's expanders, full only on the node running the brain
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-9 reads (opens) the unit's SOP as its running BTree; editing stays §7.6
+  - docs/DESIGN_Entity_Brain_View.md — the read-only Brain tab (what / why / recent changes) beside §7.6's AI edit tab, and the brain journal
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-3 OWNS the requirement (acquisition time by exposure, R-2035); §5.7 here is its engine (CE-3260); DA-1/DA-2 own the proficiency it reads
+  - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §2 builds §11.2's G1: ThreatDanger.ToMe (the threat's weapon vs MY armour) for a vehicle self
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — proposes building §11.2's G1 lean (danger from weapons vs my armour) in ThreatDanger.Of (V1)
+  - docs/DESIGN_Orders_Params_Entity_Classes.md §13.12 — the order form (P5b, CE-1059) draws §7.6b's one params form over an order DTO
+  - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick service / context / broker; §7.6b here adds a SCOPED context so several params forms share one broker (CE-1023).
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §4 adds squad-level SensorChange kinds (SquadContact / SquadUnderFire / SquadAllClear) with Unit = the commander
+  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS S7 (CE-3055): thermal + acoustic templates, heat, sound emission, anonymous contacts (this file's G6).
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first consumer of §7.9 (a When TopChanged per answer).
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the groups, grants and reclaim; §7.7 here adds dtBrainIntent to the Brain group and starts the published intent on a gain.
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — §10 the danger sensor, the first kind of a second result family (§7.10 here).
+  - docs/blueprints/When_Reactivity_Iteration_Design_v2_2.md — OWNS the When EQS Result triggers (§6; as built §6.4a: first answer compared, CE-2113); §7.9 here owns their per-answer gate.
+  - docs/DESIGN_Decision_Layer.md — the behaviors lane's decision-layer design (G1–G3: missions as doctrines, threat, intent, utility).
+  - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings A–N′ (R-185, R-186, R-187) this design builds.
+  - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — the doctrine + origin rulings A–G (R-188, R-189) this design builds.
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the sensor form, the split (§17.2), the reader API (§8), the terrain slice (§19).
+  - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — OWNS behaviour-owned parts (CE-485), Suspended (CE-486), the finish/fault path (CE-449/482) the doctrine slot re-uses.
+  - docs/designs/brain-death/BD1-DESIGN.md — OWNS brain death (channels reset when a behaviour ends); this adds who picks the next one.
+  - docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md — OWNS occurrence keys; §7.3 here salts the root keys per slot.
+  - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS scoring; a doctrine may call it (§7 "a selector primitive"), it is never a host.
+  - docs/blueprints/DESIGN_Blueprint_Param_Persistence.md — OWNS the BUILT save path for instance-blueprint params (bytes, StructureHash guard); §7.5 adds only the editor.
+  - docs/blueprints/BLUEPRINT-SCENARIO-DESIGN.md — §2 "persist the intent, never the runtime bytes", the rule §7.5 follows.
+  - docs/DESIGN_Entity_State_Sourcing.md — §4.1 durable overrides as published state (V7).
+  - docs/UX/UX_Feature_Entity_Commanding.md — OWNS operator orders; they become Origin = Operator.
+  - docs/DESIGN_Terrain_World.md — OWNS the sight the perception templates call (SegmentBlocked, TerrainWorldLosStrategy).
+  - docs/blueprints/batches/FRAME_Decision_Layer.md — the behaviors lane's frame for the decision layer (doctrine, missions, intent, utility) and the doctrine/origin build.
+  - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — the behaviours lane's consumers; a doctrine is what assigns them.
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162) that points the vision cone along a look direction and narrows humans from 360° to ~200°; §1 there records how this file's cone test uses the FOV today
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-2/CV-10: civilian sensors (hearing + short low-band vision) sized against §9.4's ~500-unit budget; CV-4 sidesteps G11 by flipping side only on an observable act.
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — §11 (R-4042): zones are fidelity areas; observer sensors need not see entities outside a zone. HOW sensors honour it is this doc's to design (not yet).
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h AW-1 (R-2025): §7.8a's "armed" becomes ONE Armament rule (a visible usable lethal weapon; non-lethal and Hidden arm nobody); binoculars lengthen vision while held. ⭐ BUILT there §7.8 (CE-3229): status for combatants, per-observer identification for civilians.
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; its near-miss / hit edges feed stress; the doctrine swap stays the coarse lever above it
+  - docs/DESIGN_Agent_Shared_View.md — OWNS GET /view, which points an agent at the possessed unit's existing /sensors and /memory routes (AV-3)
+-->
+
+# Sensors and Doctrine — one sensor form, and who decides what a unit does
+
+Tracker: [`CE-3033`](blueprints/Blueprint_Issues_Tracker.md) (design) · build rows `CE-3034` … `CE-3045` (§9).
+
+## 1. What was decided *(all approved by the user, `2026-10-04`)*
+
+| ruling | in one line |
+|---|---|
+| **R-185** (AQ82 A–L) | perception sensors ARE EQS-form sensor children; TKB-defined per-kind capability; a memory stage on the Muscle sending changes only; TKB sensors created on every node (part ids 1000+i, nothing on the wire); `TargetMemory` stays the fused picture; push stimuli feed the memory stage; perception sight is synchronous, never the ballistics raycast queue; a deterministic cost-unit budget; visual perception MOVES (no second pipeline) |
+| **R-186** (AQ82 M′) | a behaviour may create a sensor of ANY kind; its per-kind DTO travels as JSON in the config sample, only on spawn / change; the same path overrides a TKB sensor |
+| **R-187** (AQ82 N′) | TKB sensors default ON (optional `Disabled`); switching = the override sample with `Suspended`; a behaviour's switch is behaviour-owned and released at run end |
+| **R-188** (AQ83 A–F) | a per-unit DOCTRINE ticks beside the behaviour and assigns it; no doctrine = brain-dead = absolute control; every assign / clear carries an `Origin`; ONE gate: a lower origin cannot replace a higher (`Operator > Superior > Doctrine`); hold = order `Idle` |
+| **R-189** (AQ83 G) | the doctrine is a SECOND BEHAVIOUR SLOT, any tier (BTree / HSM / Behavior-kind blueprint), run by the same `IBehaviorRunner`s |
+
+## 2. INVENTORY *(measured `2026-10-04`; graph via the codebase-memory CLI + grep — `check_index_coverage` is not available through the CLI)*
+
+| query | result |
+|---|---|
+| `search_graph .*Eqs.* Class` | 119 incl. tests; 7 `[EqsTemplate]` types |
+| perception systems | 7 — `LocalGridBuilder`, `VisionBroadphase`, `LosRequestBatching`, `SensorTrackDebounce` (all inside `CognitiveSpatialModule`), `ActiveSensorTracksUpdate`, `ThreatEvaluation` (Brain), `AudioPerception` (⛔ no Hrot host) |
+| `search_graph .*Doctrine.*` · `.*Autonom.*` | 2 · 106 — no doctrine / autonomy decision layer in code (`AutonomousPerceptionModule` is tests-only) |
+| `search_graph .*BehaviorRunner.*` | 4 — ONE `IBehaviorRunner`, three runners behind `BehaviorRunners.For(tier)` |
+| `search_graph .*BehaviorState.*` | 18 — ONE `BehaviorState {ActiveBehaviorHash, InstanceId, BrainTier}` per entity |
+| behaviour origin | ⛔ none — `AssignBehaviorEvent {Entity, BehaviorName, JsonParams}`, `AssignBehaviorHashEvent {Entity, BehaviorHash}`, `ClearBehaviorEvent {Entity}`, `AssignTacticalIntentEvent {Entity, IntentId, JsonParams}` |
+| sensor kind enum | 1 — `SensorModality` (`Perception/Components/SensorModality.cs:11`) — ⭐ REUSED as the sensor kind |
+| JSON inside a DDS sample | 5 precedents — `GizmoInteractionBatch.PayloadJson`, `EntityAttributeSchema.SchemaJson`, … |
+
+## 3. Who registers what, on which node, and who calls it each frame
+
+```mermaid
+graph TD
+  subgraph Brain["CGF — Brain (also the editor)"]
+    CLP["CgfLogicPack"]
+    CRM["CognitiveRuntimeModule (Synchronous)"]
+    BIS["BehaviorIngressSystem (Input) — ⭐ ORIGIN GATE + doctrine start"]
+    BTS["BrainTickSystem (Simulation) — ⭐ loops BOTH slots"]
+    TIR["TacticalIntentResolutionSystem — carries Origin"]
+    RUS["EqsResultUpdateSystem → EqsCognitiveBuffer"]
+    MEM["SensorMemoryIngress → ActiveSensorTracks → ThreatEvaluation → TargetMemory"]
+    CFE["EqsSensorConfigEgress (Export) — + ConfigJson / Suspended overrides"]
+    CLP --> BIS
+    CLP --> TIR
+    CLP --> CRM
+    CRM --> BTS
+    CLP --> MEM
+  end
+  subgraph Muscle["SimHost / Stride — Muscle (also the editor)"]
+    EQM["EqsModule SlowBackground 10 Hz"]
+    SOLV["EqsSolverSystem — ⭐ cost-unit budget + memory stage"]
+    CFI["EqsSensorConfigIngress (Input)"]
+    REG["EqsResultEventEgress (Export)"]
+    EQM --> SOLV
+  end
+  subgraph Every["EVERY host"]
+    TKB["PerceptionTkbTranslator — ⭐ creates sensor children 1000+i"]
+    BTKB["BehaviorTkbTranslator — ⭐ + DefaultDoctrineHash"]
+  end
+  CSM["CognitiveSpatialModule (grid, broadphase, LOS, debounce)"]:::gone
+  APM["AutonomousPerceptionModule — tests only"]:::dead
+  AUD["AudioPerceptionSystem — no Hrot host"]:::dead
+  DBH["DefaultBehaviorHash — no template sets it"]:::dead
+  CFE -- "EqsSensorConfigTopic" --> CFI
+  REG -- "EqsResultTopic" --> RUS
+  REG -- "changes only (memory stage)" --> MEM
+  TKB --> SOLV
+  TKB --> RUS
+  CSM -. "S5 deletes" .-> SOLV
+  classDef dead fill:#fdd,stroke:#c00,color:#600
+  classDef gone fill:#eee,stroke:#888,stroke-dasharray:4 3,color:#555
+```
+
+*What the picture shows that prose hid:* both new mechanisms land in places that ALREADY run on the right node every
+frame — the origin gate in `BehaviorIngressSystem` (every start already passes it), the doctrine inside `BrainTickSystem`
+(already the only caller of the runners), the memory stage inside `EqsSolverSystem` (already the only sensor solver).
+Nothing new needs a caller. Red = present but never reached today; grey = deleted by S5.
+
+## 4. Sensors — classes
+
+```mermaid
+classDiagram
+  direction LR
+  class SensorCapabilitiesDto { <<existing TKB, grows>> VisionRange FieldOfViewDegrees EyeHeights... +Sensors List~SensorEntryDto~ }
+  class SensorEntryDto { <<NEW TKB, BUILT>> +SensorModality Kind +Guid Template +bool Disabled +float SearchRadius +VisualSensorDto? Visual +ThermalSensorDto? Thermal +AcousticSensorDto? Acoustic +RadarSensorDto? Radar +Range +IsWellFormed }
+  class VisualSensorDto { <<BUILT>> Range FieldOfViewDegrees }
+  class ThermalSensorDto { <<BUILT>> Range FieldOfViewDegrees MinSignature }
+  class AcousticSensorDto { <<BUILT>> Range }
+  class RadarSensorDto { <<BUILT>> Range FieldOfViewDegrees }
+  class PerceptionTkbTranslator { <<existing, extended>> +creates one child per entry, part id 1000+i }
+  class SensorChildFactory { <<BUILT, one builder>> +FirstTkbPartId=1000 +SensorFor(entry) +EnsureTkbChild(repo, parent, i, entry) +Find() +SetCapability() +HostsSensors() }
+  class EqsSensorConfigIngressTranslator { <<existing, extended>> part ≥1000 ⇒ ApplyTkbOverride · JSON decode or REFUSE · RefusedConfigCount }
+  class EqsSensorConfigEgressTranslator { <<existing, extended>> TKB part: publishes only while overridden + one Override=false }
+  class EqsSensor { <<existing>> BlueprintId Epoch SearchRadius ... Suspended }
+  class SensorTag { <<BUILT, id 306>> +SensorModality Kind +byte TkbIndex +byte FromTkb }
+  class SensorCapability { <<BUILT managed, id 307>> +Default +Current — on every node }
+  class SensorConfigPayload { <<BUILT managed, id 308, Transient>> +Kind +Json — marks an override on the Brain }
+  class SensorConfigCodec { <<BUILT>> +Encode() +TryDecode() kind SensorEntry }
+  class DerivedParts { <<BUILT>> +MarkNotSaved() CE-3045 }
+  class PartMetadata { <<existing>> ParentEntity InstanceId }
+  class EqsCognitiveBuffer { <<existing>> IsReady GetTop GetSpanRO }
+  class EqsSensorConfigTopic { <<existing wire, grows>> +string ConfigKind +string ConfigJson +bool Override }
+  class EqsChildSensor { <<existing>> AllocatePartId throws at 1000 · StampOwner folds 32→16 bits · NextEpoch bumps the low half }
+  class UnitSensors { <<BUILT static>> +Of(view, unit, kind) +TryGetResults() +SetEnabled() +Configure() +ClearOverride() +IsTkb() +IsOverridden() }
+  class SensorModality { <<existing enum, reused as kind>> }
+  class TargetMemory { <<existing, 54 readers, unchanged>> }
+  SensorCapabilitiesDto o-- SensorEntryDto
+  SensorEntryDto o-- VisualSensorDto
+  SensorEntryDto o-- ThermalSensorDto
+  SensorEntryDto o-- AcousticSensorDto
+  SensorEntryDto o-- RadarSensorDto
+  PerceptionTkbTranslator ..> SensorChildFactory
+  EqsSensorConfigIngressTranslator ..> SensorChildFactory
+  SensorChildFactory ..> EqsSensor
+  SensorChildFactory ..> SensorTag
+  SensorChildFactory ..> SensorCapability
+  SensorChildFactory ..> PartMetadata
+  SensorChildFactory ..> EqsCognitiveBuffer
+  SensorChildFactory ..> DerivedParts
+  EqsSensorConfigIngressTranslator ..> SensorConfigCodec
+  EqsSensorConfigEgressTranslator ..> SensorConfigPayload
+  UnitSensors ..> SensorConfigPayload
+  UnitSensors ..> SensorConfigCodec
+  EqsSensorConfigTopic ..> SensorEntryDto : ConfigJson
+  UnitSensors ..> SensorTag
+  UnitSensors ..> EqsCognitiveBuffer
+```
+
+*What the picture shows that prose hid:* a TKB sensor and a behaviour sensor are built by the SAME factory — the
+TKB path calls it from the translator on every node, the wire path from the config ingress. Only `SensorTag` and
+`SensorCapability` are new components; the wire grows two strings.
+
+| why | |
+|---|---|
+| ⭐ an EMPTY `Sensors` list with `VisionRange > 0` reads as ONE implicit visual entry | existing TKB data keeps working with no migration; a list, once present, wins |
+| ⭐ `SensorCapability` is on EVERY node *(as-built — SUPERSEDES "Muscle-only")* | the factory runs on every node, and the Brain needs `Default` to restore an override; it is `NoScenario|NoReplay`, ⛔ not `Transient` (that includes `NoPreview`, which would hide it from the SoD snapshot the Muscle's filters read) |
+| ⭐ `ConfigJson` is empty for a TKB sensor | K: derived locally. Non-empty only for a behaviour sensor or an override (M′) |
+| ⛔ rejected: one component per modality (MOD1 §3.6.2) | one child shape and lifetime for every kind; the component count does not grow per kind |
+
+## 5. Sensors — the paths
+
+### 5.1 A TKB sensor, end to end
+
+```mermaid
+sequenceDiagram
+  participant T as TKB translator (every node)
+  participant F as SensorChildFactory
+  participant S as EqsSolverSystem (Muscle, 10 Hz)
+  participant M as memory stage (in the solver)
+  participant E as EqsResult egress
+  participant B as Brain: result ingress
+  participant TM as ActiveSensorTracks → TargetMemory
+  T->>F: entry i of the unit's sensor list
+  F-->>T: every node: child {PartMetadata(1000+i), EqsSensor, SensorTag, SensorCapability, EqsCognitiveBuffer, ScenarioIgnoreTag}, Suspended = entry.Disabled
+  loop every solver tick, within the cost budget
+    S->>S: template: generate → filters (sight synchronous) → score → top-K
+    S->>M: ranked set
+    M->>M: debounce acquired / lost (as SensorTrackDebounce today) + push stimuli
+  end
+  M->>E: only when something changed
+  E->>B: EqsResultTopic (parent net id, part 1000+i)
+  B->>B: EqsCognitiveBuffer (UnitSensors.Of reads it)
+  B->>TM: transitions, with the sensor's SensorModality
+```
+
+*What the picture shows that prose hid:* no step sends configuration — both nodes derive the same child from the
+same TKB entry, so the existing result key `(parent net id, part id)` matches by construction.
+
+### 5.2 A behaviour sensor, an override, a switch — one message
+
+```mermaid
+sequenceDiagram
+  participant BH as behaviour / doctrine (Brain)
+  participant CE as EqsSensorConfig egress
+  participant CI as EqsSensorConfig ingress (Muscle)
+  participant F as SensorChildFactory
+  BH->>CE: new sensor (part from 1) with Kind + DTO — or — override part 1000+i — or — switch: Suspended
+  CE->>CI: EqsSensorConfigTopic {…, Suspended, ConfigKind, ConfigJson} — on change only, Epoch++
+  alt ConfigJson empty
+    CI->>F: TKB default for that part (or keep the template's own parameters)
+  else ConfigJson present
+    CI->>CI: deserialize into the TKB's own DTO type
+    alt bad JSON / unknown kind
+      CI-->>CE: refused — the carrier is not built, the refusal is logged and visible
+    else ok
+      CI->>F: carrier with this SensorCapability
+    end
+  end
+  Note over BH,CE: run ends or faults ⇒ BehaviorOwnedParts.Release ⇒ UnitSensors.ClearOverride ⇒ one Override=false sample ⇒ TKB default
+```
+
+*What the picture shows that prose hid:* create, reconfigure and on/off are the SAME sample with different fields —
+there is no second wire mechanism (the per-unit bitmask was rejected for exactly this).
+
+### 5.3 The budget (G) — cost units, not sensors, not milliseconds
+
+| rule | |
+|---|---|
+| each evaluation COUNTS its work | ⭐ as-built: **+100 per evaluation** (the measured fixed overhead, §9.3) · candidates generated ×1 · cheap test ×1 per candidate · sight check ×4 · path query ×16 (`EqsCost`; a test declares its weight with `IEqsCostWeight`). ⭐ `CE-3279` (`2026-10-20`): a test whose work does not follow its candidates COUNTS its own (`IEqsCountedWork`, charged after its batch) — path cost = the polygons its ONE search visited (`EqsCost.PathPolygon`), exposure = candidates × known threats × Sight |
+| a tick stops starting new sensors when the budget is spent | a sensor already started finishes this tick; a single sensor over the whole budget still completes and runs alone |
+| order | priority band (Critical / Normal / Low), then OLDEST result first. ⭐ as-built: each band SPENDS ITS SHARE (Critical 50 %, Normal 35 %, Low the rest, slack rolling down — EQS 1.3 §7.5's shares, kept) and the oldest of every band always starts. ⛔ A strict band order would starve Low forever under load |
+| every result carries its age | `EqsCognitiveBuffer.LastUpdateTick` (exists) |
+| replaces | `QueryTimeSliced(…, WallClockTime)` (EQS §7.6) — ⛔ not deterministic |
+| ⛔ never | the ballistics raycast queue: sync, every request per frame, outside this budget (H) |
+
+⭐ **Why counted work:** a sensor count treats a 200-candidate thermal sweep like a 4-point offset query; milliseconds
+differ per machine and per run. Counted work is proportional AND repeatable — the same scenario schedules the same
+sensors on every run.
+
+### 5.4 The solver tick — budget + memory stage (S4, `CE-3037` / `CE-3046`)
+
+```mermaid
+classDiagram
+  direction LR
+  class EqsSolverSystem { <<BUILT, reworked>> +BudgetUnits=150000 +LastSchedule +LastSpentUnits ⛔ EqsBudgetMs ⛔ QueryTimeSliced }
+  class EqsSchedule { <<BUILT>> +Add() +Ordered() band, oldest, index +ShouldStart(bandSpent, estimate, bandBudget) +CumulativeShare(rank) }
+  class EqsCost { <<BUILT static>> Sensor=100 Candidate=1 Cheap=1 Sight=4 Path=16 +WeightOf(test) }
+  class IEqsCostWeight { <<NEW interface, optional>> +CostPerCandidate }
+  class EqsPriorityBand { <<NEW enum>> Normal=0 Critical=1 Low=2 }
+  class SensorEvalState { <<existing, grows>> +LastSolvedTick +LastCost }
+  class SensorMemoryStage { <<BUILT, in the solver>> +Begin(repo) +Observe(view, sensor, tick, results) +Clear(view, sensor) +Flush(view, cmd) }
+  class ContactHysteresis { <<NEW static, ONE rule>> +Apply(ref list, tick, onAcquired, onLost) }
+  class SensorContactList { <<existing>> now ALSO on each perception sensor child }
+  class SensorTrackDebounceSystem { <<existing, S5 deletes>> uses ContactHysteresis }
+  class SensorTrackStateEvent { <<existing>> Observer = the UNIT }
+  class TargetMemory { <<existing>> +Forget() · a new contact always enters }
+  class ThreatEvaluationSystem { <<existing, CGF>> forgets dead / faded / untracked }
+  EqsSolverSystem ..> EqsSchedule
+  EqsSolverSystem ..> EqsCost
+  EqsCost ..> IEqsCostWeight
+  EqsSchedule ..> EqsPriorityBand
+  EqsSchedule ..> SensorEvalState
+  EqsSolverSystem ..> SensorMemoryStage
+  SensorMemoryStage ..> ContactHysteresis
+  SensorTrackDebounceSystem ..> ContactHysteresis
+  SensorMemoryStage ..> SensorContactList
+  SensorMemoryStage ..> SensorTrackStateEvent
+  ThreatEvaluationSystem ..> TargetMemory
+```
+
+*What the picture shows that prose hid:* the debounce rule exists ONCE (`ContactHysteresis`) and both the old visual
+chain and the new memory stage call it until S5 deletes the chain; the memory stage writes one list PER SENSOR (each
+sensor is evaluated once per tick, so it has exactly one writer) and reports transitions of the UNIT's union.
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem (Muscle, 10 Hz)
+  participant O as EqsSchedule
+  participant T as template (generate, tests)
+  participant M as SensorMemoryStage
+  participant E as SensorTrackState egress
+  S->>O: every live sensor
+  O-->>S: ordered: band, then oldest LastSolvedTick, then entity index
+  loop each sensor in order
+    alt spent >= budget, or (spent > 0 and spent + LastCost > budget)
+      S->>S: not started this tick (stays oldest ⇒ first next tick, alone if heavy)
+    else
+      S->>T: evaluate, counting work units
+      T-->>S: results + cost
+      S->>M: sightings of a perception sensor (has SensorTag)
+    end
+  end
+  S->>M: Flush
+  M->>M: per sensor: ContactHysteresis on its own list
+  M->>M: per unit: union of its sensors' acquired sets, before vs after
+  M->>E: SensorTrackStateEvent only where the UNION changed
+```
+
+*What the picture shows that prose hid:* a unit's track is lost only when NO sensor of the unit still holds it — one
+sensor losing a target another sensor sees changes nothing on the wire.
+
+| why | |
+|---|---|
+| ⭐ estimate = the sensor's cost LAST time it ran | deterministic (counted, not timed); a sensor too heavy for what is left waits one tick and then runs first in its band, alone if it must |
+| ⭐ `EqsPriorityBand.Normal = 0` | every existing creator leaves `Priority` 0 — it stays Normal with no change |
+| ⭐ the memory stage only for a sensor with a `SensorTag` | a cover or position query is not a sighting |
+| ⚠ until S5: the visual chain debounces on its own | a radar keeps a target the eyes lost? the eyes' own Lost still reaches the Brain. S5 removes the second producer |
+| ⏳ modality on the wire (`SensorTrackState`) | an IDL change — S5, where `TargetMemory` is fed with the sensor's modality |
+| ⭐ `CE-3046`: forget = target dead · OR faded below `ForgetScore` while no sensor tracks it | the score already IS a function of unseen time (10 %/s decay) — a second "unseen N s" clock would restate it. A new contact always enters, evicting the lowest score (ties: the oldest sighting) |
+| ⭐ `CE-2371` (AQ104 D, R-2079): **…unless he is ALERTED on it** — a lease his task renews (`Alerted` / `Alerts.Pin`, 2 s) holds the slot at the forget line | 🔒 *"they should stay alerted until the enemy is incapacitated"*. The task decides (an attack's target; an enemy in a defended or cleared area), with evidence from the last 10 min (`AreaAlert`); the hunt reads a pinned slot as live (`HiddenTargetThrow.LastKnown`) |
+
+### 5.5 Vision moves onto the sensor form (S5, `CE-3038` / `CE-3050`)
+
+```mermaid
+graph TD
+  subgraph Before["before S5 — two background modules"]
+    E0["EqsModule: EqsSolverSystem"]
+    C0["CognitiveSpatialModule: LocalGridBuilder → VisionBroadphase → LosRequestBatching → SensorTrackDebounce"]:::gone
+  end
+  subgraph After["after S5 — ONE module, every ECS host (SimHost, Stride, editor via EqsSolverStartup)"]
+    E1["EqsModule"]
+    G1["LocalGridBuilderSystem (moved in, runs first)"]
+    S1["EqsSolverSystem + memory stage"]
+    V1["Visual template: VisualSensorGenerator + StrategySightTest"]
+    E1 --> G1 --> S1 --> V1
+  end
+  T["PerceptionTkbTranslator: an implicit visual sensor (part 1000) when the TKB lists none and VisionRange > 0"] --> S1
+  S1 -- "SensorTrackStateEvent (unit union)" --> W["SensorTrackState egress → CGF → ActiveSensorTracks → TargetMemory (unchanged)"]
+  classDef gone fill:#eee,stroke:#888,stroke-dasharray:4 3,color:#555
+```
+
+*What the picture shows that prose hid:* the perception grid moves INTO the module that reads it — before, it was
+rebuilt on `CognitiveSpatialModule`'s thread while `EqsModule`'s area query could not touch it (the race noted in
+`EntitiesInAreaGenerator`). Everything after the egress is untouched.
+
+⚠ **Corrected `2026-10-05` (`CE-3073`, backend):** "unchanged" hid a defect on the CGF side of that egress.
+`ActiveSensorTracksUpdateSystem` re-read the frame-start snapshot for EVERY `SensorTrackStateEvent` and wrote the whole
+component per event, so when several contacts were acquired in one frame only the last survived — a unit facing three
+visible enemies remembered ONE, and since the memory stage publishes only on a change the others never came back.
+Measured live on `ua-threat-ranking` ([`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §2.2).
+Every earlier scenario had a single hostile. Fixed: one working copy per observer per frame, written once
+(rail `SensorChangedEventTests.SeveralContactsInOneFrame_AreAllKept_AndAllRemoved_CE3073`, red-proved 1 of 3).
+
+```mermaid
+classDiagram
+  direction LR
+  class VisionBroadphase { <<NEW, extracted>> +Rebuild(view, grid) coarse 50 m index +Select(view, observer, range, fovCos, into) nearest 32 }
+  class VisionBroadphaseSystem { <<existing toolkit>> now calls VisionBroadphase }
+  class VisualSensorGenerator { <<NEW IEqsGenerator>> unit = the sensor's parent · receptor or capability }
+  class StrategySightTest { <<NEW IEqsTest, Sight>> ILosStrategy.IsVisible(unit, target) · BeginBatch once per tick }
+  class ILosStrategy { <<existing>> TerrainWorldLosStrategy on every terrain host }
+  class VisualPerception { <<NEW>> +AssetId +Template(grid, strategy) +ImplicitEntry(dto) }
+  class EqsModule { <<existing, grows>> +ForTerrainHost(world) owns the grid + LocalGridBuilderSystem }
+  class CognitiveSpatialModule { <<DELETED>> }
+  VisualSensorGenerator ..> VisionBroadphase
+  VisionBroadphaseSystem ..> VisionBroadphase
+  StrategySightTest ..> ILosStrategy
+  VisualPerception ..> VisualSensorGenerator
+  VisualPerception ..> StrategySightTest
+  EqsModule ..> VisualPerception
+```
+
+*What the picture shows that prose hid:* the broadphase and the sight test are the chain's OWN code — extracted and
+called from both places — so the visual template finds exactly what the chain found (a parity rail runs both on one
+world).
+
+| why | |
+|---|---|
+| ⭐ the generator reads the unit's `PerceptionReceptor` (range, FOV) for the IMPLICIT sensor | the receptor stays the truth it is today — `SensorConfigIngressTranslator` retunes it over the wire. An EXPLICIT visual entry reads its `SensorCapability` |
+| ⭐ the observer for sight is the UNIT, not the sensor child | eye height follows the unit's posture and `SensorMount` (Terrain §4.3) |
+| ⭐ a visual sensor is a perception sensor (`SensorTag` Visual) ⇒ the memory stage debounces it | the chain's `SensorTrackDebounceSystem` has no Hrot caller left; the unit-level `SensorContactList` is no longer added |
+| ⏳ the toolkit's own chain (`AutonomousPerceptionModule`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `SensorTrackDebounceSystem`) stays for the FDP examples | no Hrot host runs it after S5; it shares the extracted code, so no logic is duplicated. Retiring it with the examples is a follow-up row |
+| ⭐ `CE-3050` | the end-to-end rail spawns two FORCES in range and lets real perception drive it — no injected events |
+
+### 5.6 Identical queries are solved ONCE (`CE-3056`) *(build-state: BUILT `2026-10-04` — gates: EqsModuleTests 24/0 incl. `CE3056_IdenticalQueries_AreSolvedOnce_AndBothOwnersGetTheAnswer` · SimHost 1083/1, the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule`, green 3/3 in isolation (load-timing, not the solver) · Blueprints 4130/0 · cluster `Eqs\|Sensor\|Perception` 96/0)*
+
+> 🔒 *User: "Cant they spawn their own copy but because it would be the same params the solver runs once (ref counting) and
+> feed both requestors?" → "yes file it and build it."*
+
+```mermaid
+classDiagram
+  direction LR
+  class EqsSolverSystem { <<existing, Hrot.SimHost, grows>> -Dictionary~QueryShareKey,SharedAnswer~ _shared  cleared each tick }
+  class QueryShareKey { <<NEW record struct>> +Entity Self +uint BlueprintId +float SearchRadius +uint FactionFilter +float ThreatThreshold +Entity ContextSlot0..2 }
+  class SharedAnswer { <<NEW>> +EqsResult[] Results  empty = an empty answer }
+  class EqsSensor { <<existing>> per OWNER: Epoch · PublishPolicy · Priority · ScoreDeltaThreshold · Suspended }
+  class SensorEvalState { <<existing>> per OWNER: publish suppression, schedule }
+  class EqsChildSensor { <<existing>> Ensure: each behaviour run owns its own sensor (CE-485) }
+  EqsSolverSystem ..> QueryShareKey : keys an answer by what DECIDES it
+  EqsSolverSystem --> SharedAnswer : first due twin solves, later twins copy
+  EqsSolverSystem ..> SensorEvalState : each copy goes through its OWN publish policy
+  EqsChildSensor ..> EqsSensor : one per owner
+```
+
+*What the picture shows that prose hid:* the share is keyed ONLY by what decides the answer; everything about DELIVERY stays per
+owner, so a copy is published exactly as if that sensor had solved it. Ownership does not change at all — no ref count is
+stored; "the query is solved while any twin is due" falls out of the schedule.
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem (one tick)
+  participant A as cover sensor of the posture run
+  participant B as cover sensor of its child run
+  participant M as share memo (this tick)
+  S->>A: due first — solve (generate, filter, score)
+  A-->>M: store the answer under the key
+  S->>B: due — key found in the memo
+  M-->>B: copy, then B's own publish policy and epoch
+  Note over S,M: memo cleared at the next tick — never a stale answer
+```
+
+| rule | why |
+|---|---|
+| ⭐ only QUERY sensors share (no `SensorTag`, no `SensorCapability`) | a perception sensor's tests read its own capability (`VisualPerception.Optics`, the S3 test radar) — two of them can answer differently with equal `EqsSensor` fields; they also feed the memory stage per sensor |
+| ⭐ a sensor with NO placed self (`EqsContext.Self` = Null) never shares | its answer may depend on the carrier entity itself; 📌 found by the S4 schedule rail, whose unplaced local sensors all keyed alike |
+| ⭐ the memo lives ONE solver tick | an answer is never older than the tick it is delivered in; no invalidation logic |
+| ⭐ a copy costs `EqsCost.Cheap`, not a solve | the budget then counts the work actually done |
+| ⭐ only a COMPLETED answer is shared | a leader waiting on async raycasts publishes nothing that tick, so neither does a twin; the twin never submits raycasts of its own |
+| ⚠ the wire is NOT halved | each twin keeps its own config and result samples (its own key); halving it would change what a sensor key IS |
+| ⚠ "starts warm" holds within a tick only | a newly spawned twin is scheduled at once (never solved = oldest); it gets the copy when its leader runs the same tick, else it solves and becomes the leader |
+
+
+### 5.7 Acquisition time by exposure — `CE-3260` *(backend, behaviors' BR-7 — Defend and Attack frame; DA-3, R-2035; designed and built `2026-10-19`, leans under the overnight mandate)*
+
+🔒 DA-3 (approved R-2035): *a contact is acquired after a delay that grows with range and with how little of the man shows, and shrinks
+with the observer's proficiency; **0 for a fully exposed man within 100 m**.* ⛔ Before: §5.4's one rule acquired a contact the tick it was
+first seen, so a short peek or a set-back window post protected a man from being HIT but never from being SEEN.
+
+**INVENTORY** *(2026-10-19)*: the acquire rule is ONE function — `ContactHysteresis.Apply`, called only by `SensorMemoryStage.Observe`
+(grep: 1 production caller). The sight verdict is `StrategySightTest` → `ILosStrategy.IsVisible` (2 implementations: `PlanarCircleLosStrategy`,
+`TerrainWorldLosStrategy`). `SensorContactList` is muscle-only (no `dt` descriptor: grep `Hrot/Network` → 0). An entity result's `Flags`
+bits 8–12 carry the ACOUSTIC kind / class; a visual result's `Flags` are unused (its other test, `DistanceScoreTest`, writes `Score` only).
+
+```mermaid
+classDiagram
+  direction LR
+  class ILosStrategy { <<EXISTING, grows>> IsVisible · VisiblePoints NEW (default: IsVisible ? 1 of 1) }
+  class TerrainWorldLosStrategy { <<EXISTING>> VisiblePoints: clear body points of the stance's }
+  class StrategySightTest { <<EXISTING, grows>> writes the exposure into Flags 8-14 }
+  class SensorMemoryStage { <<EXISTING, grows>> each sighting: the dwell it needs (range, exposure, the observer's proficiency) }
+  class Acquisition { <<NEW static>> Encode · Decode · DelaySeconds }
+  class SensorContactList { <<EXISTING, grows>> + VisibleSince · AcquireAfter per slot }
+  class ContactHysteresis { <<EXISTING, grows>> Pending/Lost to Acquired only after the dwell }
+  class ProficiencyOf { <<behaviors' CE-2273>> Value · Lerp }
+  StrategySightTest ..> ILosStrategy : VisiblePoints
+  StrategySightTest ..> Acquisition : Encode
+  SensorMemoryStage ..> Acquisition : Decode, DelaySeconds
+  Acquisition ..> ProficiencyOf
+  SensorMemoryStage --> SensorContactList
+  ContactHysteresis --> SensorContactList
+```
+*What the picture shows that prose hid:* the rule stays ONE function (`ContactHysteresis`); the exposure travels on the result the sight
+test already returns (no second line-of-sight pass), and the delay is computed where the list is written — the memory stage, on the muscle.
+
+```mermaid
+sequenceDiagram
+  participant T as StrategySightTest (muscle, per candidate)
+  participant M as SensorMemoryStage.Observe
+  participant L as SensorContactList (the sensor's)
+  participant H as ContactHysteresis.Apply
+  T->>T: VisiblePoints(unit, target) ⇒ 2 of 3 clear ⇒ Flags 8-14
+  M->>M: range, exposure 2/3, observer proficiency ⇒ AcquireAfter (s)
+  M->>L: UpdateSighting: a NEW run (unseen > the lost threshold) ⇒ VisibleSince = now
+  M->>H: Apply(list, tick, now)
+  H->>H: Pending seen now AND now − VisibleSince ≥ AcquireAfter ⇒ Acquired
+```
+
+| id | decision (lean) | why | rejected — one line each |
+|---|---|---|---|
+| **AQ-1** | the delay is a DWELL in the one acquire rule: a Pending / Lost contact is acquired when seen now AND seen continuously for `AcquireAfter` | the rule stays one function; the brain gets nothing new — only a later `Acquired` | a delay on the brain (the brain sees `Acquired` already); a probability per tick (not deterministic across nodes, harder to rail) |
+| **AQ-2** | `delay = 2 s × (max(0, range − 100 m) / 400 m + (1 − exposure)) × observer factor`; exposure = clear body points / the stance's points; factor = Untrained 1.8 · Militia 1.4 · Regular 1.0 · Veteran 0.85 · Elite 0.7 (through `ProficiencyOf.Value` + `ProficiencyOf.Lerp`) | 0 for a fully exposed man within 100 m (DA-3); one of three points at 300 m ≈ 2.3 s, fully exposed at 300 m 1 s, at 500 m 2 s | an area-of-silhouette model (DA-3's own rejected) · a new method in behaviors' `ProficiencyOf` (its public `Lerp` already serves a table) |
+| **AQ-3** | the exposure rides the result: `Flags` bits 8–11 the clear points, 12–14 the stance's, `FlagsMeaningful` set (`Acquisition.Encode/Decode`) | the sight test already walks the points; no second pass; vision's `Flags` are free | a second LOS pass in the memory stage (doubles the sight cost) |
+| **AQ-4** | `ILosStrategy.VisiblePoints` — a DEFAULT interface method (`IsVisible ? 1 : 0` of 1), overridden by `TerrainWorldLosStrategy` (every point, not the first clear) | the planar strategy and test doubles keep working; a 3-point walk where the first clear point used to stop | a second interface (every host's composition would change) |
+| **AQ-5** | the run resets when the man is unseen longer than the lost threshold (`TrackLostThresholdTicks`) — "the delay resets when he hides" | the one existing notion of "gone"; a one-tick flicker at a window edge does not restart it | resetting on any unseen tick (the 10 Hz solver would never let a long dwell finish behind a flickering edge) |
+| **AQ-6** | ⭐ ONLY a sight-tested result waits (it carries the exposure: vision, and thermal, which shares `StrategySightTest`); any other sensor's contact (a radar, a host's own template) is acquired the tick it is seen, as before (`Acquisition.DwellOf`) | the frame names SIGHT; a radar's range term would be a behaviour change no one asked for | the range term for every sensor (the first draft: a 300 m radar contact would wait 1 s) |
+
+#### 5.7a AS-BUILT correction — the dwell's clock on a module snapshot *(backend, `CE-3267`, `2026-10-19`)*
+
+📌 **Found live by behaviors** (note): a fully exposed man at 113 m was never
+acquired; at 70 m at once. ⛔ **Cause:** the memory stage runs inside the EQS module on a SoD SNAPSHOT, and a snapshot carried no `GlobalTime`
+(Time Architecture P8 ①) ⇒ `now` read 0 for ever ⇒ AQ-1's `now − VisibleSince` never grew ⇒ every dwell above 0 — everything beyond
+`ExposedRangeM` — waited for ever. The §5.7 rails drove the stage directly with the clock set, so they could not see it.
+
+```mermaid
+sequenceDiagram
+  participant K as ModuleHostKernel (main thread)
+  participant P as snapshot provider (DoubleBuffer / OnDemand / Shared)
+  participant S as EQS module on the snapshot
+  K->>K: push GlobalTime into the live world
+  P->>P: SyncFrom(live, mask) - components, eight named singletons, the ticks
+  P->>P: CopyClockFrom(live) - NEW: the frame's GlobalTime, by value
+  S->>S: SensorMemoryStage.Begin reads that clock - the dwell advances
+```
+*What the picture shows that prose hid:* the clock is the provider's explicit second step, not part of `SyncFrom` — because `SyncFrom` also
+restores the LIVE world from a snapshot (a preview's rewind), and the clock must never be rewound there (Time Architecture §12a).
+
+| | as built | rejected — one line |
+|---|---|---|
+| where the clock comes from | `EntityRepository.CopyClockFrom` (a value copy), in all three providers | inside `SyncFrom` (a rewind would rewind the clock) · sharing the singleton table (the main thread rewrites it every frame) · a solver-owned accumulator of `deltaTime` (a second clock: `HeardTraces` stamps would disagree with the world's time) |
+| the rail that would have caught it | `AcquisitionTests.CE3267_…` runs the stage on a snapshot re-taken each tick | — |
+
+### 5.8 ⭐ Parallel solving — `P-1` (`CE-3427`) *(build-state: BUILT `2026-11-10` — leans approved by the user, P1-B revised to include hearing; as-built and measured at the end of this section)*
+
+📐 **Why now** ([scale rig §7.6](DESIGN_Scale_Rig.md)): with the wall-clock cadence (C-1) the EQS run is the limit — **113 ms a run** (99 % the
+solves) against a 100 ms period, 1 000 men fighting, 16 cores, ONE solver thread. The sight tests grow with the men (§7.1 there: 228 ms at 3 000).
+
+**INVENTORY** *(`2026-11-10`; `scripts/cbm.sh search_graph name_pattern ".*Eqs.*" label Class` — 66 production hits; `".*(Parallel|Job|Worker|Partition).*"`
+— no reusable zero-allocation worker pool in FDP/Hrot (only `Parallel.ForEach` in `EntityQuery.cs:444`, which allocates); grep for every
+`IEqsGenerator` / `IEqsTest` implementer incl. through `PointPatternGenerator` — 11 generators + 17 tests; `check_index_coverage` is not
+available through the CLI, so the set is not proven complete)*:
+
+| what | verdict for a worker thread | where |
+|---|---|---|
+| 10 of 11 generators, 15 of 17 tests | ✅ pure: read-only fields, or per-thread scratch (`[ThreadStatic]` / `ThreadLocal` / a per-thread slot) — built that way for the map gizmo, which already runs templates off the solver thread | `VisionBroadphase.cs:223-263`, `ThreatExposureTest.cs:48`, `DotRecastNavmeshProvider.cs:59-138`, `CoverPointsGenerator.cs:41` |
+| `AcousticSensorGenerator` | ⛔ writes the sensor's `AcousticCursor` through `view.GetCommandBuffer()` — a write a DISCARDED speculative solve must not leave | `AcousticPerception.cs:210-213` |
+| `AccurateLineOfSightTest` | ⛔ a ray-cap counter on a singleton (`AccurateRaysSubmittedThisTick++`) and raycast requests — order-dependent. **No production template uses it** | `AccurateLineOfSightTest.cs:85-138` |
+| `BeyondThreatRangeTest` | ⚠ reads the LIVE world's TKB dictionary — as the one solver thread already does (readers only) | `BeyondThreatRangeTest.cs:43` |
+| the solver's own state | ⛔ `_shared`, `_memory.Observe`, the result pool cursor (`WriteAndWrap`), `_currentCmd`, `GetComponentRW<EqsCognitiveBuffer>` (hot reload), `_surveys` / `_routePlanner` (danger, survey), `_templateSlot` | `EqsSolverSystem.cs:42-470` |
+| the command buffer | ⛔ per THREAD (`ThreadLocal`); the kernel plays every thread's buffer back in `ThreadLocal.Values` order — unspecified ⇒ anything a worker wrote would land in a random order | `EntityRepository.View.cs:13-36`, `ModuleHostKernel.cs:1166-1188` |
+| ECS reads on the snapshot | ✅ unmanaged `GetComponentRO` (a lazy chunk commit is locked), `HasComponent`, `GetManagedComponentRO` via the view, singletons, `Query().Build()` (a concurrent cache) · ⚠ `repo.GetComponentRO<managed T>` goes through `GetRW` (an unlocked lazy chunk) — no EQS caller found | `NativeChunkTable.cs:246-276`, `UnsafeShim.cs:293-297` |
+
+```mermaid
+classDiagram
+  direction LR
+  class EqsSolverSystem { <<existing, reworked>> +Workers +BudgetUnits -Solve(slot) pure -Commit(slot) in order }
+  class SolveSlot { <<NEW, one per window place, reused>> +Entity Sensor +SensorEvalState Eval +EqsResult[] Buffer +int Count +int Cost +SlotOutcome Outcome }
+  class SlotOutcome { <<NEW enum>> NotKeyed NotEvaluable Empty Ranked AwaitingRays }
+  class WorkerPool { <<NEW, was EqsSolveWorkers; Fdp.ModuleHost.Threading since N-1>> N persistent threads +Run(slots, count) blocks until done, no allocation }
+  class EqsSchedule { <<existing, unchanged>> +Ordered() +ShouldStart() }
+  class SensorMemoryStage { <<existing>> Observe at COMMIT only }
+  class EqsResultPool { <<existing>> WriteAndWrap at COMMIT only }
+  EqsSolverSystem --> WorkerPool : one window at a time
+  EqsSolverSystem "1" o-- "W" SolveSlot
+  SolveSlot ..> SlotOutcome
+  EqsSolverSystem ..> EqsSchedule
+  EqsSolverSystem ..> SensorMemoryStage
+  EqsSolverSystem ..> EqsResultPool
+```
+
+*What the picture shows that prose hid:* `EvaluateSensor` splits into ONE pure `Solve` (inputs → a slot) and ONE `Commit` (every side effect) —
+the serial path is `Solve` then `Commit` inline, so one implementation serves both paths; there is no parallel copy of the solver.
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem (EqsModule's thread)
+  participant O as EqsSchedule
+  participant W as WorkerPool (N threads)
+  S->>O: Ordered() — unchanged
+  loop windows of W places, in schedule order
+    S->>S: PREDICT with estimates (LastCost) the places ShouldStart would admit, PURE kinds only
+    S->>W: Solve(slot) for each predicted place
+    W-->>S: every slot filled (results, cost, outcome) — nothing written anywhere else
+    loop each place in schedule order
+      alt ShouldStart with the ACTUAL spent
+        alt solved in the window
+          S->>S: Commit(slot) — share memo, memory stage, pool, publish, eval state
+        else not predicted, or not pure (acoustic, danger, survey, a twin, hot reload)
+          S->>S: Solve + Commit inline — exactly today's path
+        end
+      else does not start
+        S->>S: discard the slot (wasted work, no trace)
+      end
+    end
+  end
+  S->>S: memory Flush — unchanged
+```
+
+*What it shows:* the START decision never leaves the solver thread and still uses the ACTUAL cost of everything started before — so the set of
+sensors run, their order, every answer and every write are those of the serial solver. A misprediction costs time, never a different result.
+
+```mermaid
+graph TD
+  K["ModuleHostKernel: live every 0.1 s wall clock (C-1), stepped each 0.1 s sim slot"] --> M["EqsModule.Tick (SlowBackground task, snapshot view)"]
+  M --> G["LocalGridBuilderSystem.Execute first; the grid is read-only after"]
+  M --> S["EqsSolverSystem.Execute"]
+  S --> W["WorkerPool: only inside Execute, idle otherwise"]
+  S --> C["its own thread's command buffer: the ONLY writer"]
+  W -.->|never| C
+```
+
+*What it shows:* the workers live inside one `Execute` and never touch a command buffer, so the kernel's unordered per-thread playback cannot
+see a worker's write — there is none.
+
+| # | decision | ⭐ lean | rejected — the one fact that killed it |
+|---|---|---|---|
+| **P1-A** | which sensors start | ⭐ **exact: predict with estimates, commit with actual costs** (above) | plan the set by estimates alone — a never-solved sensor estimates 0, so a cold start would launch EVERY new sensor in one tick (2 000 at 1 000 men), and `LastSchedule` would differ from today's |
+| **P1-B** | what runs on a worker | ⭐ ranked templates **and hearing** (user, `2026-11-10`: the generator HOLDS its cursor move during a solver solve — `AcousticPerception.BeginDeferredCursor` / `EndDeferredCursor` — and the solver writes it at commit with `AcousticPerception.WriteCursor`, the one cursor rule), minus: a twin whose leader is earlier in the window (it COPIES at commit, §5.6), a template with `AccurateLineOfSightTest`, danger and survey sensors — these run inline, as today | ~~hearing inline~~ — SUPERSEDED: ≈ 4.5 ms of a 113 ms run, and the deferral is one generator |
+| **P1-C** | the threads | ⭐ **`EqsSolveWorkers`: N persistent threads, a reused slot array, a countdown — zero allocation per run** (R-2084: *"nothing like that is ever allowed on the hot path"*) | `Parallel.For` — allocates per call (loop state, closures, partitions) on every window |
+| **P1-D** | how many | ⭐ `Workers` = `HROT_EQS_WORKERS`, else `max(1, ProcessorCount / 4)` (4 on 16 cores: three nodes share the machine, and the bake and server GC want cores too); `Workers = 1` ⇒ no threads, today's loop | all cores — the CGF and the orchestrator run on the same machine |
+| **P1-E** | the budget | ⭐ **unchanged (150 000 units)** — parallel makes a run FASTER, so the module meets its 10 Hz: ≈ 1.5× today's solves. Raising the budget is a separate, measured step | raise it now — first measure what 10 Hz at the same budget buys |
+
+⭐ **In passing:** `_shared[shareKey] = activeCandidates.ToArray()` allocates per shareable solve (`EqsSolverSystem.cs:417`) — the slot's buffer
+already holds the answer, so the memo can point at the committed slot or a pooled copy.
+
+**Rails** *(SimHost `EqsModuleTests`, the solver's own suite — T-1)*:
+
+| rail | red-proof |
+|---|---|
+| ⭐⭐ `P1_ParallelSolving_IsTheSerialSolver` — one world (two bands over budget, twins, acoustic + visual + cover, a never-solved cohort, an epoch bump mid-run), 20 ticks at `Workers = 1` and `= 4`: equal `LastSchedule`, `LastSpentUnits`, every `EqsResultEvent` and its pool entries, every `SensorEvalState`, the memory stage's transitions | commit in completion order instead of schedule order ⇒ red |
+| ⭐ `P1_ADiscardedSolve_LeavesNoTrace` — a predicted sensor that does not start: its eval state, cursor, pool and events unchanged | write the share memo at solve time ⇒ red |
+| ⭐ `P1_ASteadyRun_AllocatesNothing` — `GC.GetTotalAllocatedBytes(true)` across a warm run, workers included | a per-window `new` ⇒ red |
+| 📐 the scale rig, 1 000 / 2 000 / 3 000 men, `HROT_EQS_WORKERS` 1 / 2 / 4 / 8 | — the numbers go to scale rig §7 |
+
+#### ✅ §5.8 AS-BUILT (`2026-11-10`) — deviations from the design above, and what it measured
+
+| as built | where | why it differs |
+|---|---|---|
+| `EvaluateSensor` → **`Prepare`** (reads only: key, epoch / structure reset in the slot's copy, kind, share key) · **`Solve`** (pure) · **`Commit`** (every write); the inline path is `Prepare` + `Commit`, which solves when the slot was not solved ahead | `EqsSolverSystem.cs` | — as designed. ⭐ the hot-reload reset of `EqsCognitiveBuffer` moved into `Commit` (no solve reads it), so a reloaded sensor may go on a worker too |
+| **one worker pool per PROCESS** (per worker count), `EqsSolveWorkers.Shared(n)`; a solver that finds it busy solves its window itself (`TryRun` false) | `EqsSolveWorkers.cs` | the design said "N persistent threads" per solver: every test's `new EqsSolverSystem()` would have left idle threads behind. ⛔ A pool is never disposed on a count change — another solver may be inside a window on it |
+| the share memo keeps its answers in buffers reused tick after tick (`ShareCopy`) | `EqsSolverSystem.cs` | the "in passing" item, done: `EqsSolverSystem`'s garbage at 1 000 men 54 → 29 KB / frame |
+| diagnostics `LastParallelSolves`, `LastDiscardedSolves`; timing slots `eqs.run.parallel (count)`, `eqs.run.discarded (count)` | `EqsSolverSystem.cs` | — |
+| rails `EqsModuleTests.P1_ParallelSolving_IsTheSerialSolver_AndADiscardedSolveLeavesNoTrace` (rails 1 + 2 in one: 40 units with eyes and ears, shots in the ring, twins, three bands over budget, an epoch bump, a cohort at tick 10; asserts it really solved ahead AND discarded) · `P1_AWarmParallelRun_AllocatesNothingOnTheSolversThread` | `EqsModuleTests.Parallel.cs` | ⚠ the allocation rail measures the SOLVER's thread only — the workers run the same `Solve` the inline path runs. 🔴 Red-proved: starting predicted places without the actual-cost check ⇒ red; no cursor deferral ⇒ red; a per-window `new` ⇒ red. ⭐ The 43 existing solver rails pass with the default 4 workers |
+
+📐 **Measured** ([scale rig §7.7](DESIGN_Scale_Rig.md)): a run at 1 000 men 116 → **42 ms** (4 workers), at 3 000 men 211 → **81 ms**; solves / s
+at 3 000 men **1.8×**; 0.2 % of the solved-ahead places discarded. ⭐ **The solve is no longer the limit** — the run fits its 100 ms slot; what caps
+throughput now is the SimHost frame rate (a run starts on a frame: 49 fps at 1 000, 24 fps at 3 000 ⇒ 125–150 ms start to start) and the band
+shares (a Normal-band run stops at 85 % of the 150 000 units). 8 workers buys nothing over 4.
+
+**Design docs checked:** §5.3–§5.6 here — the budget, order and share rules are kept verbatim (applies). · [Time §17](blueprints/DESIGN_Time_Architecture.md) —
+stepped determinism holds because the result is the serial one; the step still waits for the module's one task (applies). · [scale rig §7](DESIGN_Scale_Rig.md) —
+the measurements (applies). · `docs/designs/eqs-2/EQS_Design_v1.3_final.md` §7.6 time slicing — superseded by §5.3 (does not apply). ·
+`EqsTemplatePurityAnalyzer` (EQS_001/002) — checks a template's `Build()`, not a solve's runtime state (does not settle this).
+
+## 6. Doctrine and origin — classes
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorState { <<existing, grows>> ActiveBehaviorHash InstanceId BrainTier +BehaviorOrigin Origin }
+  class DoctrineState { <<NEW component>> +int DoctrineHash +uint InstanceId +byte BrainTier }
+  class BehaviorOrigin { <<NEW enum>> Doctrine=1 Superior=2 Operator=3 Self=255 }
+  class AssignBehaviorEvent { <<existing, grows>> +Origin }
+  class AssignBehaviorHashEvent { <<existing, grows>> +Origin }
+  class ClearBehaviorEvent { <<existing, grows>> +Origin }
+  class AssignTacticalIntentEvent { <<existing, grows; DDS TacticalIntentRequest too>> +Origin }
+  class AssignDoctrineEvent { <<NEW>> Entity Name JsonParams }
+  class ClearDoctrineEvent { <<NEW>> Entity }
+  class BehaviorIngressSystem { <<existing>> +Admit(event origin, state origin) bool +StartDoctrine() +ClearDoctrine() }
+  class BrainTickSystem { <<existing>> +ticks slot Behaviour then slot Doctrine }
+  class BrainSlot { <<NEW value type>> +Kind +Hash +InstanceId +Tier +KeySalt }
+  class IBehaviorRunner { <<existing, unchanged>> Tick(ref BehaviorRunContext …) }
+  class BehaviorRunContext { <<existing, grows>> +BrainSlotKind Slot }
+  class BehaviorTkbTranslator { <<existing>> +DefaultDoctrineHash → DoctrineState pending }
+  class AssignBehaviourToSelf { <<NEW action, BTree/HSM/blueprint>> publishes intent or assign, Origin from ctx.Slot }
+  BehaviorState --> BehaviorOrigin
+  BehaviorIngressSystem ..> BehaviorState : gate reads Origin
+  BehaviorIngressSystem ..> DoctrineState
+  BrainTickSystem ..> BrainSlot
+  BrainSlot ..> BehaviorState
+  BrainSlot ..> DoctrineState
+  BrainTickSystem ..> IBehaviorRunner
+  IBehaviorRunner ..> BehaviorRunContext
+  BehaviorTkbTranslator ..> DoctrineState
+  AssignBehaviourToSelf ..> BehaviorRunContext
+```
+
+*What the picture shows that prose hid:* the runners do not change at all — the slot is a VIEW (`BrainSlot`) over one
+of two components, and the only things that learn about slots are the tick loop, the ingress and the run context.
+
+| rule | why |
+|---|---|
+| ⭐ **the gate**: admit if `event.Origin ≥ state.Origin`, or `event.Origin == Self` | `Self` = a behaviour replacing / ending ITSELF; it inherits the current origin, so an ordered behaviour that chains stays ordered |
+| ⭐ the internal finish (`BrainTickSystem.Finish → Clear`) is not gated | a behaviour ending never needs permission |
+| ⭐ an event with NO origin reads as `Operator` | any unmarked path (debug API, old code) is human-rank — the AI can never override it by accident |
+| ⭐ a doctrine NEVER finishes | on Success / Failure the slot restarts it next tick (a BTree doctrine is a priority list evaluated from the root each tick); only a FAULT stops it, loudly |
+| ⭐ a doctrine commands no channels | `ChannelArbitrationSystem.cs:44` cancels any command whose `BehaviorInstanceId ≠ BehaviorState.InstanceId`; doctrine tokens live in a DISJOINT space (high bit set) ⇒ a doctrine's channel command is cancelled by construction |
+| ⭐ existing publishers get an origin | operator UI / mission-control abort → Operator · `MissionDirector` / `MissionAdapter` (scenario mission plan) → Superior · `CommanderNodes` / `HillAttackCommanderNodes` / DDS intent ingress → Superior · `HillAttackTankNodes` clearing itself → Self · hot-reload restart → Self |
+| ⛔ rejected: a `DoctrineTickSystem` of its own | a second copy of finish / fault / reload logic (ruling 9) — the loop takes a slot instead |
+
+> ⭐⭐ **AS-BUILT `CE-3034` + `CE-3047` (`2026-10-04`, behaviors lane — a cross-lane fold-back into this design, declared).**
+> *"Doctrine" reads SOP (`R-198`).*
+>
+> | as designed | as built | why |
+> |---|---|---|
+> | `BehaviorOrigin { Doctrine=1, Superior=2, Operator=3, Self=255 }` | `{ Unmarked=0, Sop=1, Superior=2, Operator=3, Self=127 }` *(was `255` until `2026-10-27`: Cyclone DDS 11 `idlc` reads a one-byte enum as signed, `CE-3000`)* (`Behavior/Components/BehaviorOrigin.cs`) | the rename; `Unmarked` is the explicit zero |
+> | "an event with NO origin reads as Operator" | ✅ — and it is STORED as `Operator` (`BehaviorOriginRank.AfterAssign`) | ⭐ deviation: a RUNNING behaviour with `Unmarked` origin therefore means *never assigned through the gate* (an empty slot, a fixture or legacy stamp) and **anything replaces it**. 📐 Found by the suite: six `MissionDirectorSystemTests` stamp `BehaviorState` directly, and a Superior phase advance was refused against the stamped "Operator" — the same would have frozen every unit a template stamps |
+> | the gate in `BehaviorIngressSystem` | ✅ `Admit()` before every assign by name, assign by hash and clear; the internal finish (`Clear()` from `BrainTickSystem`) is not gated; a refusal is counted (`RefusedCount`) and logged, never thrown | — |
+> | publishers stamped | ✅ mission director + mission adapter → Superior · commander nodes (`CommanderNodes`, `HillAttackCommanderNodes`) → Superior · tactical intent resolution copies the intent's origin onto the behaviour · `HillAttackTankNodes` clearing itself → Self · hot-reload restart → Self · mission-control abort → Operator · blueprint **Send Intent** → Self with no Target link, Superior with one (golden `PlatoonHillAttackBp` moved: +2 origin lines, temps renumbered) | ⚠ a generic blueprint **Publish Event** of a clear carries no origin ⇒ Operator rank |
+> | origin on the DDS intent topic | ✅ `TacticalIntentRequest.Origin` (byte), egress copies it, ingress restores it | — |
+> | `CE-3047`: defaults start through the ingress | ✅ `BehaviorTkbTranslator` adds an EMPTY `BehaviorState` and publishes `AssignBehaviorHashEvent { DefaultBehaviorHash, Origin = Sop }` — only where that event is registered (`FdpEventBus.IsRegistered<T>()`, new); the spawn-time `EnsureRootState` is gone (the start pipeline provisions it) | the default is the unit's own lowest-rank choice: an order or a mission published the same frame wins |
+>
+> Rails: `BehaviorIngressSystemTests.CE3034_*` (12, red-proved: 5 fail with the gate disabled) · `BehaviorTkbDefaultStartTests` (3, red-proved: 2 fail with the stamp restored).
+
+> ⭐⭐ **AS-BUILT `CE-3035` + `CE-2077` (`2026-10-04`, behaviors lane — fold-back, declared). "Doctrine" = SOP (`R-198`).**
+>
+
+```mermaid
+classDiagram
+  class SopState { <<NEW component 313>> SopHash SopInstanceId SopBrainTier SopOrigin SopFaulted SopWake SopNextTick }
+  class BrainSlotScope { <<NEW, thread-static view>> Enter(entity, hash, run) TryGetHash TryGetInstanceId }
+  class RootParamsAccess { <<existing>> KeyFor consults the scope }
+  class RootStateAccess { <<existing>> KeyFor consults the scope }
+  class RootHsmAccess { <<existing>> KeyFor consults the scope }
+  class BehaviorOwnedParts { <<existing>> OwnerOf consults the scope }
+  class BehaviorFault { <<existing>> Raise consults the scope }
+  class BehaviorIngressSystem { <<existing, grows>> StartSop EndSop ApplySopEvents · task sweep skips IsHeldBySop }
+  class BrainTickSystem { <<existing, grows>> TickSopSlots TickOneSop ChannelGuard }
+  class AssignSopEvent { <<NEW managed>> }
+  class ClearSopEvent { <<NEW 3105>> }
+  class SopStartRecord { <<NEW managed 314>> }
+  BrainTickSystem ..> BrainSlotScope : runs the SOP inside
+  BehaviorIngressSystem ..> BrainSlotScope : resets the SOP's roots inside
+  BrainSlotScope <.. RootParamsAccess
+  BrainSlotScope <.. RootStateAccess
+  BrainSlotScope <.. RootHsmAccess
+  BrainSlotScope <.. BehaviorOwnedParts
+  BrainSlotScope <.. BehaviorFault
+  BehaviorIngressSystem ..> SopState
+  BrainTickSystem ..> SopState
+```
+
+>
+> *What the picture shows that prose hid: "the slot is a VIEW" is literal — the three runners and all generated node code are
+> UNCHANGED; five existing readers of "the unit's running behaviour" consult one thread-static scope, and nothing else learns
+> that there are two slots.*
+>
+> | as designed (§6, §7.2) | as built | why |
+> |---|---|---|
+> | `BrainSlot` value type + re-keyed storage (`"$occ.doctrine.rootState"` salts) | ⭐ deviation: `BrainSlotScope` — storage stays keyed by BEHAVIOUR; the task and the SOP must be different behaviours (both directions refused at the gate) | storage is already per behaviour hash, so salting was only needed for "the same asset in both slots" — which the refusal removes; zero runner / generated-code change |
+> | "a doctrine's channel command is cancelled by construction (disjoint tokens)" | 🔴 **FALSE, measured**: generated and hand-written channel actions stamp `world.GetComponent<BehaviorState>(self).InstanceId` — the TASK's token — so an SOP's command would survive arbitration and clobber the task's. ⭐ Built instead: `ChannelGuard` copies the three channels before an SOP tick, reverts any write and faults the SOP (`SopCommandedChannel`) | the guard catches every tier and C#, needs no metadata; the assign-time refusal (§4.5 of the decision-layer design) is a follow-up |
+> | finish dedup / start record / fault latch per slot | SOP never finishes (Success / Failure → `runner.Start` restarts it, no `BehaviorFinishedEvent`); `SopStartRecord`; the fault latch is shared but keyed by run token, and SOP tokens have the high bit | — |
+> | owned parts take the owner from the run | `BehaviorOwnedParts.OwnerOf` returns the scope's run inside an SOP tick ⇒ an SOP's sensors outlive the task it assigns and end with the SOP | — |
+> | 5 Hz + wake on events (R-195) | `SopTickPeriod` 0.2 s, staggered by entity index; woken by `SensorChangedEvent`, `BehaviorFinishedEvent`, a refused Sop-origin assignment, and its own start | — |
+> | the task's storage sweeps | `DetachHostedOccurrenceSlots` skips the SOP's roots and manifest slots (`IsHeldBySop`); ⚠ the SOP's LAZILY attached hosted occurrences are not protected (a task start resets them) | an SOP tree re-reads from its root each wake |
+> | store sizing | with an SOP present the task start sizes by FREE space (`ProvisionStatefulSlots`), which counts the SOP's slots | capacity-only sizing ignored them |
+> | `DefaultDoctrineHash` | `BehaviorProfileDto.DefaultSop` (name) + `DefaultSopParamsJson`, started by `AssignSopEvent` at origin Sop where registered | — |
+>
+> Rails: `SopSlotTests` (6 — red-proved: the channel guard and the sweep protection each fail when disabled) ·
+> `BehaviorTkbDefaultStartTests.CE2077_*`. ⏳ Not yet: the SOP's two actions (`CE-2079`), reactions (`CE-2078`), saving (`CE-3042`),
+> the editor row (`CE-3043`), authority hand-over (`CE-3048`).
+
+⭐ **As-built `CE-2085` (`2026-10-05`) — what the SOP attaches LAZILY is the SOP's.** A hosted occurrence the SOP's
+tree attaches later (a subtree it starts) is named by no manifest, so the task's sweep (`DetachHostedOccurrenceSlots`,
+kind Hsm|Blueprint and not manifest-named) took it on every task change. Fixed: `OccurrenceWorkingState` (the one lazy
+attach choke point) notes each fresh attach made inside the SOP's `BrainSlotScope` in `SopStartRecord.HostedKeys`.
+`IsHeldBySop` protects those keys, and `EndSop` detaches them, so the SOP's lazy storage goes with its run. A slot
+cannot carry its owner: the per-slot kind nibbles already fill the header word (16 × 4 bits), so ownership lives on
+the run's record. Rail `SopSlotTests.CE2085_*`, written first and red on the old sweep.
+
+## 7. Doctrine — the paths
+
+### 7.1 Autonomy, an order, and back
+
+```mermaid
+sequenceDiagram
+  participant D as doctrine (slot 2)
+  participant TI as TacticalIntentResolution
+  participant I as BehaviorIngressSystem (gate)
+  participant B as behaviour (slot 1)
+  participant OP as operator
+  D->>TI: threat crossed ⇒ intent TakeCover, Origin = Doctrine
+  TI->>I: AssignBehaviorEvent (Origin = Doctrine)
+  I->>B: state.Origin is None ⇒ admitted, Start
+  OP->>I: AssignBehaviorEvent MoveTo, Origin = Operator
+  I->>B: Operator ≥ Doctrine ⇒ admitted (preempts TakeCover)
+  D->>TI: threat changed ⇒ intent Flee, Origin = Doctrine
+  TI->>I: AssignBehaviorEvent (Origin = Doctrine)
+  I-->>D: Doctrine < Operator ⇒ REFUSED (logged once per run)
+  B->>I: MoveTo finishes ⇒ Finish → Clear (not gated)
+  D->>TI: next tick: nothing outranks me ⇒ pick again
+```
+
+*What the picture shows that prose hid:* the doctrine never has to know an order is running — it keeps deciding,
+the gate keeps refusing, and the first tick after the order ends is autonomous again. The doctrine MAY read
+`BehaviorState.Origin` to stay quiet, but correctness does not depend on it.
+
+### 7.2 What a second slot must re-key *(measured — every place keyed by entity or by `InstanceId` alone)*
+
+| today | keyed by | with two slots |
+|---|---|---|
+| root params / state / HSM keys (`OccurrenceSlotKey.cs:252,277,284`) | behaviour hash only | ⭐ salt with the slot (`"$occ.rootState"` → `"$occ.doctrine.rootState"`) — the same asset in both slots must not collide |
+| `RootParamsAccess.KeyFor` (`RootParamsAccess.cs:38`) | reads `BehaviorState` | ⭐ takes the `BrainSlot` |
+| finish dedup `_publishedTerminalForInstanceId` (`BrainTickSystem.cs:74`) | entity index | ⭐ (entity, slot) |
+| `BehaviorFaultLatch` (`BehaviorFault.cs:48`) | one per entity, first fault wins | ⭐ a second latch component for the doctrine |
+| `BehaviorOwnedParts.OwnerOf` (`BehaviorOwnedPart.cs:40`) | reads `BehaviorState.InstanceId` | ⭐ take the owner from `ctx.InstanceId` — a doctrine's sensors must outlive the behaviour it assigns |
+| `EqsChildSensor.StampOwner` | owner's low 16 bits into the epoch | ⚠ verify the doctrine's high-bit token cannot alias a behaviour token there (§9 V4) |
+| `BehaviorStartRecord` (reload restart) | one per entity | ⭐ one per slot |
+| channel preemption (`ChannelArbitrationSystem.cs:44`) | `BehaviorState.InstanceId` | unchanged — the disjoint token space is the point (§6) |
+
+### 7.3 How a BTree, an HSM and a blueprint REACT to a sensor *(user, `2026-10-04`: "Agreed, add it to the design")*
+
+> 🔒 *"How can btree and hsm respond to sensor results? Can sensor result change be propagated as fdp bus event or
+> something or the polled conditions are enough?"*
+
+```mermaid
+classDiagram
+  direction LR
+  class ActiveSensorTracksUpdateSystem { <<existing Brain, PRODUCER>> writes ActiveSensorTracks +publishes Acquired / Lost }
+  class EqsResultUpdateSystem { <<existing Brain, PRODUCER>> writes EqsCognitiveBuffer +publishes TopChanged (perception sensors only) }
+  class ThreatEvaluationSystem { <<existing Brain, PRODUCER>> writes TargetMemory +publishes FirstThreat / AllClear / Hit }
+  class SensorChangedEvent { <<BUILT unmanaged bus event, id 4006>> +Entity Unit +Entity Sensor +Entity Target +SensorModality Kind +SensorChange What }
+  class SensorChange { <<BUILT enum>> Acquired Lost TopChanged FirstThreat AllClear Hit NearMiss · AreaAhead AreaThreatened AreaCleared · SquadContact SquadUnderFire SquadAllClear SquadLeaderDown SquadMemberDown · AirThreat «CE-2165 V8, kind 16 — DESIGN_Vehicle_Exposure_Cycle §8» }
+  class SquadCoordinationSystem { <<existing Brain, PRODUCER since CE-2123 S2>> merges the squad pool +publishes SquadContact / SquadUnderFire / SquadAllClear on the COMMANDER }
+  class BuiltInEngineEventCatalog { <<existing, grows>> SensorChangedEvent: target field Unit, filterable What / Kind }
+  class SensorHsmEventIds { <<NEW reserved HSM ids, beside MobilityLost>> one id per SensorChange }
+  class HsmRunner { <<existing, grows>> MobilityLost bridge +SensorChangedEvent bridge }
+  class HsmEventQueue { <<existing>> TryEnqueue(HsmEvent: id + 16-byte payload) }
+  class ObserverSelector { <<existing NodeType, interpreter grows>> re-checks higher branches each tick, aborts the lower one }
+  class WhenNode { <<existing blueprint>> EventFired(SensorChanged) · EqsResult TopChanged / ScoreCrossed }
+  ActiveSensorTracksUpdateSystem ..> SensorChangedEvent
+  EqsResultUpdateSystem ..> SensorChangedEvent
+  ThreatEvaluationSystem ..> SensorChangedEvent
+  SquadCoordinationSystem ..> SensorChangedEvent
+  SensorChangedEvent --> SensorChange
+  BuiltInEngineEventCatalog ..> SensorChangedEvent : names it for When
+  HsmRunner ..> SensorChangedEvent : reads, for ctx.Self
+  HsmRunner ..> SensorHsmEventIds
+  HsmRunner ..> HsmEventQueue : payload = Kind + Sensor
+  WhenNode ..> SensorChangedEvent : Self filter on Unit
+```
+
+⭐ **As-built `2026-10-04` (S6 backend half, `CE-3039`, §9.5):** the producers, the event and the catalog entry are BUILT;
+`HsmRunner`'s bridge (`CE-3040`) is not; `ObserverSelector` (`CE-3041`) is BUILT `2026-10-05` (§7.3a). ⚠ **Deviation:** *Acquired / Lost* come
+from `ActiveSensorTracksUpdateSystem` (it holds the unit's track set), not from `EqsResultUpdateSystem` as first drawn —
+the buffer writer sees one sensor's answer, not the unit's union.
+⭐ **`2026-10-11` (`CE-2123` S2):** three SQUAD kinds, published on the COMMANDER by `SquadCoordinationSystem` after its merge —
+`SquadContact` (pool empty → contact), `SquadUnderFire` (a member's or the leader's own Hit / NearMiss), `SquadAllClear` (pool →
+empty) — and since `CE-2125` `SquadLeaderDown` (the leader soldier fell, the next man took over; R-272 (behaviors)) — so a leader's SOP, `RecentSenses` and HSM events react to the squad as a soldier does to itself (`Unit` is the key).
+`RecentSenses` now records EVERY kind (the area kinds 8–10 had been silently dropped by a byte mask). 📄
+`docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md` §4.
+
+*What the picture shows that prose hid:* ONE producer per fact (the system that already writes it), and each tier
+consumes it the way it already consumes anything — the HSM through the queue that carries MobilityLost today, the
+blueprint through `When`, the BTree not through the event at all.
+
+| tier | how it reacts | why this way |
+|---|---|---|
+| **HSM** | ⭐ **event-driven**: `HsmRunner` turns this frame's `SensorChangedEvent`s for its entity into reserved HSM events (kind + sensor in the 16-byte payload), exactly as it does MobilityLost (`HsmRunner.cs:45-49`). Authors write *On ThreatAppeared → Engaged*. Polled guards (CE-381) stay for "while X holds" | the queue exists and is fed by one event today; an edge is what a transition wants |
+| **BTree** | ⭐ **polled conditions — sufficient once `ObserverSelector` works**: each tick it re-checks the leading condition of every HIGHER-priority branch; one turning true aborts the running lower branch (its exit sweep, `SweepExitedNode`) and switches | a BTree ticks every frame anyway — an event adds nothing. What is missing is the ABORT: today a running branch is never re-checked (`Interpreter.cs:613-635`), and `ObserverSelector` — documented as *"abort-on-priority-change"* (`Fbt.Kernel.md:269`) — runs as a plain selector (`Interpreter.cs:267`) |
+| **Blueprint** | `When EventFired(SensorChanged)` for an edge, `When EqsResult(TopChanged / ScoreCrossed)` for a result | both exist; nothing new but the event |
+| **both slots** | the doctrine and the behaviour receive the same events (`HsmRunner` runs per slot) | a doctrine HSM switches mode on *FirstThreat* while the behaviour HSM reacts tactically |
+
+⭐ **Why edges come from the producer:** *acquired / lost / first threat / all clear* are TRANSITIONS. The producer
+already holds the previous state (the memory stage sends changes only; `TargetMemory` knows its count) — a polled
+condition would have to remember the previous state itself, in every condition that cares.
+
+⛔ **Rejected:** events only (a BTree has no event entry, and "while threatened" needs polling anyway) · polling only
+(every HSM transition a polled guard, every condition re-deriving edges) · one event type per sensor kind (the `Kind`
+field covers it).
+
+### 7.3a `ObserverSelector` — the BTree's abort *(`CE-3041`, build-state: BUILT `2026-10-05`)*
+
+⭐ Owning records: `Fbt.Kernel.md:269` (*"Selector with abort-on-priority-change"*), the deactivator design's
+L-02 / L-06 cases (`docs/designs/ai-btree-deactivator-1/Btree-deactivator-DESIGN.md` §1.5) and its debt row D-05
+(`.dev/_DONE/ai-btree-deactivator-1/DEBT-TRACKER.md`: *"Higher-priority condition re-evaluation on each tick is NOT
+implemented"*), the editor's `ObserverGuardBadgeRenderer` (it badges an ObserverSelector's **Condition** children as
+OBSERVED). This section builds those; it adds no new concept.
+
+```mermaid
+sequenceDiagram
+  participant T as Interpreter.Tick
+  participant O as ExecuteObserverSelector
+  participant G as TryEvaluateGuard
+  participant H as higher branch
+  participant L as running lower branch
+  participant S as SweepExitedNodes
+  T->>O: ExecuteNode (cursor inside this node)
+  loop each HIGHER child (its subtree ends at or before the cursor)
+    O->>G: leading Condition (Sequence first child / Inverter child)
+    alt no guard
+      G-->>O: not observed: skip, as a plain selector does
+    else guard passes
+      O->>H: ExecuteNode fresh (cursor = 0)
+      alt Running or Success
+        H-->>O: takes over: return it
+      else Failure
+        O->>O: restore the cursor: the lower branch resumes
+      end
+    end
+  end
+  O->>L: ExecuteNode (resume)
+  T->>S: old cursor not in the new path, so the deactivator fires
+```
+
+*What the picture shows that the prose hid:* the abort is not a new mechanism. It is the ordinary exit sweep firing
+because the cursor moved. Only **Conditions** are evaluated speculatively; an Action runs only once its branch has
+been chosen.
+
+| rule | why |
+|---|---|
+| the guard is the branch's **leading Condition**: the branch itself, a Sequence's first child, or an Inverter's child (inverted) | the badge renderer already defines *observed* as a Condition child. A Sequence-led-by-Condition is the idiom (`AI-Behavior-Authoring.md:1192`) |
+| an **unguarded** higher branch is not observed | re-running an Action every tick to see whether it would succeed has side effects (an Action may publish an order). D-05's *"start from child 0 every tick"* is rejected for that reason |
+| a passing guard whose branch then **fails** aborts nothing; the lower branch **resumes** (Sequence progress kept) | a branch that cannot take over must not cost the running one its progress |
+| nothing running inside the node means it **is** a plain selector | first entry has no lower branch to abort |
+
+⛔ **Rejected:** re-run every higher branch fully (D-05's wording): speculative Actions. · Abort as soon as the
+guard passes, even if the branch then fails: the lower branch would restart and lose its progress for nothing.
+· An event-driven abort: a BTree ticks every frame, so polling a guard costs one call (§7.3 table).
+
+⚠ **Known limit (pre-existing, not widened):** composites share one register set (`Parallel` uses
+`LocalRegisters[3]`). A higher branch that contains a `Parallel` and fails after its guard passed can reset a running
+lower `Parallel`'s bits. No corpus tree has that shape (measured: the three ObserverSelector assets
+`CombatShowcase`, `BTreeRenderShowcase` and `T06_ObserverSelector` have no Parallel under them).
+
+Rails: `HybridLifecycleTests.CE3041_*` (6): L-02 abort and sweep, L-06 deep leaf, resume when the branch cannot take
+over, unguarded branch not re-run, inverted guard, a plain Selector still commits.
+
+### 7.3b Sensor changes reach the HSM as events — `CE-3040` *(build-state: BUILT `2026-10-05` — as-built below the rejected line)*
+
+⭐ Basis: the §7.3 table (*"`HsmRunner` turns this frame's `SensorChangedEvent`s for its entity into reserved HSM events
+… exactly as it does MobilityLost"*), S6b. Measured: an HSM asset names its events and stores each id
+(`EventDefinitionDto.EventId`); an id of 0 gets a SEQUENTIAL id from 1, in two places that must agree
+(`HsmEmitCore` and `HsmAssetMapper`). The kernel reserves 0, `0xFFFD` (polled) and `0xFFFE` (timer).
+
+```mermaid
+classDiagram
+  direction LR
+  class SensorChangedEvent { <<BUILT, CE-3039>> Unit · Sensor · Target · Kind · What }
+  class BuiltInHsmEvents { <<NEW, Toolkits Behavior/Shared — LINKED into AiEditor.Persistence>> Sensor.Acquired … Sensor.Hit = 0xFF01 … 0xFF06 ; TryGetId(name) }
+  class HsmRunner { <<existing, grows>> MobilityLost bridge + sensor bridge }
+  class HandledEventIds { <<NEW, per blob, cached>> the ids any transition or global transition uses }
+  class HsmEventQueue { <<existing>> TryEnqueue(16-byte payload) }
+  class HsmEmitCore { <<existing, grows>> an event named after a built-in gets its reserved id }
+  class HsmAssetMapper { <<existing, grows>> the same rule, so the editor and the emitter agree }
+  HsmRunner ..> SensorChangedEvent : this frame's, Unit == self
+  HsmRunner ..> HandledEventIds : skip ids the machine does not handle
+  HsmRunner ..> HsmEventQueue : payload = Target (8) + Sensor (8)
+  HsmRunner ..> BuiltInHsmEvents
+  HsmEmitCore ..> BuiltInHsmEvents
+  HsmAssetMapper ..> BuiltInHsmEvents
+```
+
+*What the picture shows that the prose hid:* the reserved ids must be known in THREE places (the runtime, the emitter,
+the editor's mapper). The emitter has zero project references by design, so the table is one source file LINKED into it
+(the `OccurrenceSlotKey` precedent) and cannot drift.
+
+| rule | why |
+|---|---|
+| reserved ids `0xFF00 + What` (`0xFF01` … `0xFF06`), named `Sensor.Acquired` … `Sensor.Hit` | far from the sequential range (from 1) and below the kernel's reserved `0xFFFD`/`0xFFFE` |
+| an authored event whose NAME is a built-in gets the reserved id, whatever id it stored | an author writes *On Sensor.FirstThreat → Engaged*. The id is never typed |
+| only events the machine HANDLES are enqueued (any transition or global transition with that id) | the shared ring holds ONE normal event on the 128 tier (CE-324). Enqueuing unhandled sensor events would push out the machine's own |
+| payload: `Target` (bytes 0–7) + `Sensor` (bytes 8–15) | ⚠ **deviation from §7.3**, which said *Kind + Sensor*: Acquired and Lost carry only a TARGET, which Kind + Sensor would lose. Kind is the sensor's, readable from it |
+| both slots (task, SOP), because `HsmRunner` runs per slot | §7.3 table, last row |
+| normal priority; a refused enqueue is counted (`HsmRunner.SensorEventsDropped`), not fixed up | the CE-324 rule: report a full queue, never overwrite |
+
+⛔ **Rejected:** one event id per (kind × change), because `Kind` is in the sensor. · Enqueue every sensor event and let
+the kernel drop it: it fills the ring. · Ids typed by the author: a typo silently never fires. · MobilityLost in the same
+name table: its id 1 is inside the sequential range, so adding the name would collide with a fallback id. It stays as
+it is.
+
+⭐ **As-built `2026-10-05`:** matches the diagram. `HsmEventIds.Assign` (in `AiEditor.Persistence`) is now the ONE id
+assignment, and it replaced the two copies in `HsmEmitCore` and `HsmAssetMapper`. The handled-id set is cached per blob
+(`ConditionalWeakTable`). Rails: `BrainTickSystemHsmArmTests.CE3040_*` (4: enqueue with payload · unhandled or another
+unit's change not enqueued · the transition fires · names = the runtime enum) and `HsmEventIdsTests` (2). Both are
+red-proved (bridge off ⇒ 2/4 red; built-in names ignored ⇒ 2/2 red). Gates: Toolkits 2670/0 · Persistence 159/0 ·
+Generators 380/0 (no golden moved) · HSM editor 622/0 · SimHost 1098/0. The Persistence gate also caught a `CE-2080`
+miss: `BTreeCallShapeTests` pins every corpus binding, and the shipped SOP's four rows had not been added. Fixed here.
+⭐ **`CE-2088` BUILT the same day:** the HSM event picker offers the engine-raised events the asset has not declared, and picking one on a transition declares it (`HsmAsset.EnsureEvent`, the reserved id). The editor had no way to add an event at all before this. The save carries it (`HsmEventIds.BuiltIns` is the list). Rail `HsmFacetDispatcherTests.CE2088_*`, red-proved; `HsmPickerDrawerTests`' count rail grew by the built-ins.
+
+### 7.4 Replacing a doctrine at runtime
+
+> 🔒 *"How could we replace a doctrine at runtime?"*
+
+```mermaid
+sequenceDiagram
+  participant C as operator / superior / scenario script
+  participant W as TacticalIntentRequest (DDS, only when the unit is on another node)
+  participant I as BehaviorIngressSystem
+  participant D0 as old doctrine (slot 2)
+  participant D1 as new doctrine (slot 2)
+  participant B as behaviour (slot 1)
+  C->>W: Kind = Doctrine, name, params, Origin
+  W->>I: AssignDoctrineEvent {Entity, Doctrine, Params, Origin}
+  I->>I: gate: Origin ≥ DoctrineState.Origin (who set the current doctrine)?
+  alt refused
+    I-->>C: logged once
+  else admitted
+    I->>D0: ClearDoctrine — BehaviorOwnedParts.Release(doctrine token): its sensors go, its overrides revert to TKB
+    I->>D1: StartDoctrine — new token (high bit), slot-salted keys
+    Note over B: keeps running — the unit does not freeze mid-move
+    D1->>I: first tick: may replace B (B was assigned with Origin = Doctrine)
+  end
+```
+
+*What the picture shows that prose hid:* a doctrine change does NOT touch the running behaviour — the new doctrine
+takes over through the same gate on its first tick; and the old doctrine's sensors die with it because they are
+owned by ITS token, not the behaviour's (the §7.2 `OwnerOf` re-key is what makes this true).
+
+| rule | |
+|---|---|
+| who may replace | the same origin rule against `DoctrineState.Origin`: an operator, a superior (a commander setting *aggressive / defensive* — the natural "goal, not order" lever, Utility §10.4), a scenario script. The TKB default is the lowest rank |
+| clear | `ClearDoctrineEvent` ⇒ no doctrine ⇒ brain-dead, manual control (R-188 A) |
+| hot reload | the behaviour reload path with a start record per slot (§7.2) |
+| across nodes | assign / clear stay local-bus; the ONE wire path is the intent topic, which gains a `Kind` (Behaviour / Doctrine) beside `Origin` |
+| ⛔ rejected | resetting the running behaviour on a doctrine change (a frozen tick mid-action) · a separate doctrine topic (two wire paths for one kind of order) |
+
+### 7.5 Authoring a unit's AI in the scenario — the SNAPSHOT concept (behaviour, doctrine, instance blueprints)
+
+> 🔒 *"How can i save doctrine set to an entity to a scenario by scenario editor, even overriding the one set in the tkb?"*
+> · *"same question is for current behavior … it was not the right component to be saved"* · *"Agreed, add it to the
+> design."* (R-190, ⛔ SUPERSEDED by R-192) · *"The scenario saving now saves current state of entity as the new initial
+> snapshot. Maybe we could follow same concept?"* · ✅ *"Yes snapshot concept approved if it saves just what is needed not
+> runtime hashes etc."* (R-192)
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorState { <<existing, NoScenario — stays>> hash · InstanceId · tier — NEVER saved }
+  class DoctrineState { <<NEW, NoScenario>> NEVER saved }
+  class BehaviorStartRecord { <<existing, Transient, one per slot after S2>> +BehaviorName +JsonParams }
+  class BrainSlotScenarioTranslator { <<NEW, ONE class, registered per slot>> key "Behavior" / "Doctrine" — writes Name + Params(JSON) + Origin }
+  class InitialBrainIntent { <<NEW, Transient>> +Slot +Name +Params +Origin }
+  class InitialBrainMaterializationSystem { <<NEW, Brain authority node, Input>> intent → AssignBehaviorEvent / AssignDoctrineEvent with the SAVED origin }
+  class BlueprintStateTranslator { <<existing, CHANGES>> key "BlueprintAssignments" — live slots, params as JSON ≠ default (R-191) }
+  class InitialBlueprintsIntent { <<existing, Transient>> }
+  class EntityAiSection { <<NEW editor Details section — UI lane>> edits LIVE state only: doctrine · behaviour · instance rows, ONE params form }
+  BrainSlotScenarioTranslator ..> BehaviorStartRecord : reads Name + JSON
+  BrainSlotScenarioTranslator ..> BehaviorState : reads Origin only
+  BrainSlotScenarioTranslator ..> InitialBrainIntent : on load
+  InitialBrainMaterializationSystem ..> InitialBrainIntent
+  BlueprintStateTranslator ..> InitialBlueprintsIntent
+  EntityAiSection ..> BehaviorState : via the ingress (events / paused start)
+  EntityAiSection ..> DoctrineState : via the ingress
+```
+
+*What the picture shows that prose hid:* nothing is authored "beside" the entity — the editor edits the LIVE unit, and
+the save reads the live unit through translators that keep only the declarative part (what runs, with which params,
+on whose authority). The runtime components themselves never reach the file.
+
+```mermaid
+sequenceDiagram
+  participant U as author (editor AI section)
+  participant I as BehaviorIngressSystem
+  participant S as scenario save (translators)
+  participant L as load: spawn (TKB first, then scenario)
+  participant M as InitialBrainMaterializationSystem
+  U->>I: assign doctrine X / behaviour Y (params JSON) — paused: direct start, running: event
+  I->>I: live state + start record per slot
+  S->>S: "Doctrine" / "Behavior": {Name, Params, Origin} — only if it differs from the TKB default
+  S->>S: "BlueprintAssignments": [{AssetId, Params JSON ≠ default}]
+  L->>L: TKB: DefaultDoctrineHash ⇒ DoctrineState pending (lowest rank)
+  L->>M: InitialBrainIntent applied after the TKB (NetworkSpawningSystem :207-209)
+  M->>I: AssignDoctrineEvent / AssignBehaviorEvent with the SAVED origin ⇒ a normal start (params parsed, HSM initialised)
+```
+
+*What the picture shows that prose hid:* save and load are symmetric through the ONE ingress — a reloaded unit is
+started exactly as if the author had just assigned it, so nothing restored can skip a start (the V5 gap closes too).
+
+| rule | why |
+|---|---|
+| ⭐ **saved per slot: `{Name, Params, Origin}` — nothing else** | ⛔ never the hash, `InstanceId`, tier, cursor, behaviour variables, owned parts, fault latch — R-192 *"not runtime hashes etc."*. The old `BehaviorState` save was wrong for exactly these (a run token, no params, no start on load) |
+| ⭐ a behaviour's PROGRESS is not saved — it restarts with the same params | the same choice as mission plans (phase progress dropped) and instance blueprints (params only) |
+| ⭐ `CE-3207` (`2026-10-15`) — **no diagnostic dump is a scenario's content**: a translator that only dumps runtime state (`BrainDiagnosticsTranslator`, the BTree / HSM trace rings) says `IsDiagnosticOnly`, and the scenario save (`ScenarioSerializer.Serialize`) skips it; the clipboard / debug dump (`SerializeEntity`) still shows it; its `Inject` stays a no-op that claims its key, so an older file still loads | 📐 measured: every save wrote a `BrainDiagnostics` dump per brain — R-192 *"just what is needed"*. Rail `BrainSnapshotTranslatorTests.CE3207_…` |
+| ⭐ `CE-3225` (`2026-10-17`, backend) — **in the debug dump a translator's key wins over a component of the same name**: with the snapshot mask the snapshot's `Roe` (an ordered ROE) met the `Roe` component itself and `SerializeEntity` threw *"same key already added: Roe"*, so the unit's dump — and `GET /entities` with it — failed. The auto-serializer now skips a component whose name a translator already wrote | 📐 measured live on `ua-civ-neutral-gate` (its rifleman's ROE is authored); the scenario save never hit it (`Roe` is `NoScenario`, outside the save mask). Rail: the same `CE3207_…` test, ordered ROE added — red without the skip |
+| ⭐ saved only when it DIFFERS from the TKB default | TKB edits still reach every entity that did not override them — the same "≠ default" rule as params |
+| ⭐ the ORIGIN is saved | a behaviour the doctrine chose reloads as `Doctrine` (the doctrine may replace it again); one assigned in the editor reloads at the editor's rank (§10 O1) |
+| ⭐ params JSON = the start record's JSON for a behaviour / doctrine; `FormatParams` of the live region for an instance | a behaviour's params are fixed for its run (changing them = re-assigning); an instance's region can be edited in place ⛔ *revised `2026-10-25` ([Brain View §12g](DESIGN_Entity_Brain_View.md) BV-65, R-1041): a running behaviour's params are a struct read in place — a live edit writes them AND the start record, with NO restart; re-assigning is an explicit separate act* |
+| ⛔ **derived entities are never saved** | sensor children (TKB-derived and behaviour-owned) carry `ScenarioIgnoreTag` — today they are saved and duplicate on reload: `CE-3045` |
+| ⭐ an instance attach is FIND-OR-CREATE per (asset, owner) | a doctrine that attached one at runtime saves it (the snapshot is the truth); on reload the doctrine must not attach a second |
+| ✅ **instance blueprints:** keep their save TRANSLATOR (`BlueprintStateTranslator`) but switch its params to JSON (next row); ADD the missing editor: each attached instance gets the same params form as the doctrine row, committed in edit mode through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)` | measured: `EntityBlueprintsPanel.cs:276-296` attaches / detaches only — no params editing anywhere in the editor; MCP attach is the only per-entity params source today |
+| ✅ **params in a scenario are JSON, never bytes — R-191** (🔒 *"The params should be saved as json to the scenario and translated to dto structs as needed. Never saved as bytes to scenario."*) | every params value in a scenario — doctrine, behaviour, instance blueprint — is a JSON object keyed by parameter NAME, holding only fields that differ from the declared defaults. ⭐ Load = the existing emitted `ParseParams` (defaults first, then the object overlaid by name; unknown keys ignored — `InstanceEmitter.cs:436-488`) into the blueprint's generated `Params` struct (`InstanceEmitter.cs:369`). ⭐ Save = a NEW emitted inverse `FormatParams(memory) → json` beside it (V9 resolved). ⇒ the `ParamsStructureHash` guard is no longer needed — a renamed or re-laid-out field degrades by name, not by byte offset. ⛔ SUPERSEDES the byte decision of Param Persistence §3 (AQ61) — 🔒 *"Bytes can not be easily migrated on json level. The previous decision must have been wrong."*: a byte region is readable only while the layout is unchanged, and the hash guard turns ANY layout change into losing every authored value; JSON by name loses only the changed field. ⭐ No legacy reader: no scenario in the repo carries byte params (measured) |
+| ⭐ one params FORM for all three rows | it always produces JSON — the same JSON the scenario stores (R-191) |
+
+⭐ **AS-BUILT `CE-3042` (`2026-10-04`)** — the diagrams above hold with three deviations, each argued:
+
+```mermaid
+classDiagram
+  direction LR
+  class BrainSnapshotTranslator {
+    <<NEW, Hrot.SimHost/Serializers — ONE class>>
+    keys "Behavior" · "Sop" · "Roe"
+    +Extract() only what an ORDER set
+    +Inject() InitialBrainIntent
+  }
+  class InitialBrainIntent { <<NEW, Fdp.Toolkits, Transient, id 316>> +Behavior +Sop : SavedBrainSlot +Roe : SavedRoe }
+  class SavedBrainSlot { +Name +Params JSON +Origin }
+  class InitialBrainMaterializationSystem { <<NEW, Input, registered beside GenesisMaterializationSystem on CGF · Editor · SimHost · Stride>> }
+  class MissionAdapterSystem { <<existing, CHANGED>> an EMPTY queue is no plan }
+  BrainSnapshotTranslator ..> InitialBrainIntent : on load
+  InitialBrainIntent *-- SavedBrainSlot
+  InitialBrainMaterializationSystem ..> InitialBrainIntent : AssignBehaviorEvent · AssignSopEvent · SetRoeEvent at the SAVED origin
+```
+
+*What the picture shows that prose hid: the snapshot never touches a runtime component on load — it becomes the three events an
+author would have published, so the gate (and the template defaults it outranks) decides, in whatever order they arrive.*
+
+| deviation from the design above | why |
+|---|---|
+| ⭐ ONE translator, three keys (`Behavior`, `Sop`, `Roe`) — not one class registered per slot | the ROE (R-200) joined the snapshot after this section was written; three keys of one unit's AI read best together and the rules differ per key anyway |
+| ⭐ "differs from the TKB default" is read from the **ORIGIN**, with no template lookup | a template default starts at origin Sop (behaviour `CE-3047`, SOP `CE-2077`) and a template ROE has `SetBy = Unmarked` ⇒ exactly what an order set carries a higher origin. ⚠ a SOP's idle choice is origin Sop too ⇒ correctly not saved (the SOP chooses again) |
+| ⭐ the task slot's special cases | a running **reaction** saves the task it PAUSED · a slot a **mission plan** drives is not saved (`MissionPlanTranslator` saves the plan) · a behaviour **stamped** directly (origin Unmarked, e.g. a fixture or `UrbanCombat` writing it at spawn) saves as **Superior** — the scenario's own rank |
+| 🔴 **`MissionAdapterSystem`: an EMPTY `MissionPlanQueue` is NO plan** (cross-lane edit, backend's `CE-502` finding) | every TKB unit gets an empty queue, and the adapter read it as exhausted ⇒ one Superior clear per unit on its first frame, wiping the template default AND a restored order (the ingress takes same-frame assigns before clears). A plan that ran out (`PhaseCount > 0`) still clears; an abort publishes its own clear |
+
+Rails: `BrainSnapshotTranslatorTests` (production serializer + registry: an ordered unit round-trips task / SOP / ROE at their
+origins and no hash or run token reaches the file; template / SOP choices are not saved; a reaction saves its paused task; a
+plan-driven slot is not saved) · `MissionAdapterSystemTests.CE3042_*` — all red-proved.
+
+⛔ **Rejected:** the authored `AiAssignment` (R-190 — a second concept beside the snapshot; the editor would keep two
+things in sync) · saving the raw `BehaviorState` / `DoctrineState` (a run token, no params, no start on load) · saving
+behaviour progress (needs a stable on-disk format for internal state) · a per-entity TKB override file (a second
+authoring place).
+
+### 7.6 The editor's AI section — `CE-3043` *(build-state: BUILT `2026-10-05` for task / SOP / ROE — as-built below the table; instance-blueprint params rows → `CE-2086`)*
+
+> ⛔ **`2026-10-24` — the AI TAB is RETIRED, its content MOVES** (`R-1036`, [Brain View §12a](DESIGN_Entity_Brain_View.md) BV-38): task / SOP / ROE editing and the instance-blueprint params rows become expanders of the Brain tab (`CE-1314`). The editing MODEL and THE one params form below stay as they are — only the tab that hosts them changes.
+
+**INVENTORY** *(grep + an Explore sweep, `2026-10-05`; the code graph was not indexed this session)*: Details views are
+`IDetailsViewInstance` + `DetailsViewDescriptor` registered per perspective (`ScenarioMissionView` rank 40 is the template);
+**no editor UI publishes `AssignBehaviorEvent` / `AssignSopEvent` / `SetRoeEvent`** (searched `Hrot.Editor`, `Hrot/Editor`,
+`Hrot.Presentation`); the instance-blueprint editor is `EntityBlueprintsPanel` (Blueprint perspective, attach / detach only);
+the reusable value form is `IComponentEditService` + `ComponentEditDrawer` (as `VariableEditModal` uses it);
+**`BehaviorDefinition` carries no channel set** (`BlueprintDefinition.WritesChannels` exists for blueprints only).
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityAiDetailsView { <<NEW, Hrot.Editor/Scenario, id details.ai, rank 45, OneEntityWithBrain>> draws the rows }
+  class EntityAiEditModel {
+    <<NEW, no ImGui — the testable half>>
+    +Read(world, entity) Snapshot
+    +TaskChoices() · SopChoices()
+    +ApplyTask(name, json) · ClearTask()
+    +ApplySop(name, json) · ClearSop()
+    +ApplyRoe(fire, reactions)
+  }
+  class BehaviorParamsForm { <<NEW, AiShared/Inspector>> Open(type, json) · CommitToJson() — BehaviorParams.JsonOptions }
+  class BehaviorIngressSystem { <<existing>> +AssignNow() +ClearNow() +AssignSopNow() +ClearSopNow() NEW public, the SAME pipeline }
+  class RoeSystem { <<existing>> +Apply() NEW static, the SAME rule }
+  class BehaviorDefinition { <<existing>> +WritesChannels : Type list or null  NEW }
+  EntityAiDetailsView --> EntityAiEditModel
+  EntityAiDetailsView --> BehaviorParamsForm
+  EntityAiEditModel ..> BehaviorIngressSystem : paused — direct
+  EntityAiEditModel ..> RoeSystem : paused — direct
+  EntityAiEditModel ..> BehaviorDefinition : SOP choices = WritesChannels known EMPTY
+```
+
+```mermaid
+sequenceDiagram
+  participant U as author
+  participant V as EntityAiDetailsView
+  participant M as EntityAiEditModel
+  participant I as BehaviorIngressSystem
+  participant B as world bus
+  U->>V: pick behaviour, edit params, Apply
+  V->>M: ApplyTask(name, json) at origin Superior (R-193 — an editor-authored assignment)
+  alt sim running
+    M->>B: AssignBehaviorEvent — the ingress takes it next frame
+  else planning / paused (nothing ticks)
+    M->>I: AssignNow(...) — Admit + Start, the same pipeline, at once
+  end
+  Note over M,I: the scenario save then snapshots it (CE-3042) — the editor never writes a component itself
+```
+
+*What the pictures show that prose hid: the section owns NO apply logic — a paused edit and a running edit go through the
+same gate and start pipeline; only WHEN differs. The SOP row's filter is data on the definition, which the assign-time
+refusal (`CE-2084`) reads too.*
+
+| decision | why |
+|---|---|
+| ⭐ origin **Superior** for every edit | R-193: an editor-authored assignment ranks as a superior; an operator (Operator) still outranks it |
+| ⭐ paused ⇒ the ingress's own pipeline called directly (`AssignNow`…), running ⇒ the event | nothing ticks while paused, and the author must see the result; ⛔ never a second start path |
+| ⭐ `BehaviorDefinition.WritesChannels` — `null` unknown, empty = drives none | blueprints copy their derived set; a generated BTree unions its bound methods' `[WritesChannel]` (unknown when a node's channels cannot be known — a composed blueprint, a hosted subtree); curated and HSM stay unknown for now |
+| ⭐ the SOP row offers only KNOWN-empty behaviours; the slot REFUSES a known-non-empty one (`CE-2084`) | §4.5 ①②; unknown stays allowed — the runtime `ChannelGuard` is the backstop |
+| ⭐ one params form, `BehaviorParams.JsonOptions` | §4.4: one options object both ways; the form edits the behaviour's `JsonParamsDtoType` (fields and properties) |
+| ⚠ instance-blueprint rows | the existing `EntityBlueprintsPanel` stays the attach/detach editor; params editing for instances is the next step of this item |
+
+⭐ **AS-BUILT (`2026-10-05`)** — matches the diagrams; what the build measured:
+
+| as built | where / why |
+|---|---|
+| the section | `Hrot.Editor/Scenario/EntityAiDetailsView.cs` — `EntityAiDetailsView` (ImGui, thin) + `EntityAiEditModel` (no ImGui: `Read`, `TaskChoices`, `SopChoices`, `Apply*` / `Clear*`); registered on the Scenario catalogue (`details.ai`, rank 45, applies to one entity with a `BehaviorState`) |
+| ⚠ **AS-BUILT `2026-10-25` (CE-1314, [Brain View §12n](DESIGN_Entity_Brain_View.md))** | ⛔ SUPERSEDED: "registered on the Scenario catalogue (`details.ai`)". The view is now a SECTION of the Brain tab (`EntityDetailsBundle.BrainSections`, titled *Assign: task, SOP, ROE*), drawn unchanged; the separate AI tab is gone |
+| the apply-now pipeline | `BehaviorIngressSystem.AssignNow` / `ClearNow` / `AssignSopNow` / `ClearSopNow` (public; the event handlers' own admit + start), `RoeSystem.Apply` (static; `Execute` now calls it) |
+| the channel set | `BehaviorDefinition.WritesChannels` — 📐 measured on the shipped corpus: **17 of 26 BTrees are known-empty** (incl. `BasicInfantrySop`), 9 unknown; ⚠ **every blueprint behaviour in the corpus is UNKNOWN** — the derivation treats a pure call (a `Delay` is one) as opaque, so it never emits a set for them (no blueprint golden moved). ⇒ today the SOP row offers BTrees only; widening the derivation is a separate question |
+| `CE-2084` | the SOP slot refuses a behaviour KNOWN to drive a channel (`BehaviorIngressSystem.DrivesAChannel`), logged as a warning; unknown is allowed (the runtime guard stays the backstop) |
+| the params form | `Hrot.Editor.AiShared/Inspector/BehaviorParamsForm.cs` — opens a StructEdit session over the behaviour's `JsonParamsDtoType`, commits to JSON with `BehaviorParams.JsonOptions`; drawn by `ComponentEditDrawer` |
+| ⚠ not rail-tested | the ImGui drawing itself (the model is); a first look in the running editor is the check |
+
+Rails: `EntityAiSectionTests` (`Hrot.Blueprints.Tests/Editor`) — paused edits apply at once at Superior and clear; the gate
+still refuses an edit under an Operator's order; a running edit is an event, not a write; the SOP row offers only
+known-empty behaviours; `CE-2084` refusal; the params form round-trips; the Scenario catalogue offers the section.
+
+**⭐ CE-1019 as built *(2026-10-12, behaviors)* — the SOP row offers only SOPs; the task rows leave them out.** 🔒 User-reported
+`2026-10-06`: the SOP picker showed every channel-free behaviour, and the task pickers listed the SOPs. ⭐ The mark is the one §4.5 ③
+already rules (*"carrying the orders is the mark"*, CE-2079) — not a new authored flag: the BTree generator publishes it as
+`BehaviorDefinition.CarriesSopOrders` (`BTreeBridgeEmitCore`, a tree with a "Do when idle" / "React" node). `SopChoices` = carries the
+orders AND known channel-free (§4.5 ② still holds); `TaskChoices` and the mission panel (`ScenarioMissionService.GetAvailableBehaviorChoices`)
+leave SOPs out. Rails: `EntityAiSectionTests.CE1019_TheSopRowOffersOnlySops_AndTheTaskRowLeavesThemOut`,
+`AdapterTests.CE1019_GetAvailableBehaviorChoices_LeavesOutAnSop`. ⚠ Only BTrees carry SOP orders today (no HSM / blueprint SOP node
+exists), so only BTrees are marked.
+
+### 7.6a Instance-blueprint params rows — `CE-2086` *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
+
+> 🔒 Approved with §7.5 (*"add the missing editor: each attached instance gets the same params form as the doctrine row,
+> committed … through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)`"*) and §7.6's last row; 🔒 *"Yes pls do
+> them, autonomously move to next"* (`2026-10-05`).
+
+**INVENTORY** *(grep + the codebase-memory CLI, `2026-10-05`; ⚠ `check_index_coverage` is not reachable through the CLI)*:
+
+| exists | where | reused how |
+|---|---|---|
+| the AI section: `EntityAiEditModel` (no ImGui) + `EntityAiDetailsView` | `Hrot.Editor/Scenario/EntityAiDetailsView.cs` | ⭐ grows one row kind |
+| the ONE params form `BehaviorParamsForm` (StructEdit over a CLR type ⇄ JSON, `BehaviorParams.JsonOptions` = `DefaultRelaxed`) | `Hrot.Editor.AiShared/Inspector/BehaviorParamsForm.cs` | ⭐ the instance row's form — the instance `ParseParams` reads with the same options object |
+| the live instances: occurrence store partitions (`OccurrenceStoreAccess`, `BlueprintBlackboardPartitions.GetSlot`) — the walk the save already does | `Hrot.SimHost/Serializers/BlueprintStateTranslator.cs:153` | ⭐ the same walk lists the rows |
+| an instance's params as JSON: `BlueprintDefinition.FormatParams` / `ParseParams`; `BlueprintInstanceService.ApplyParams(payload, def, json)` | `Fdp.Toolkits/Blueprints` | ⭐ read the row / commit a paused edit |
+| a running re-param: `ReplaceInstanceBlueprintEvent {Old = New = id, ParamsJson}` (detach, then attach with the JSON) | `BlueprintEventIngressSystem.cs:51-80` | ⭐ commit a running edit |
+| the generated `Params` struct, nested in the instance class beside `State` (`InstanceEmitter.cs:388`); `StateClrType = typeof(X.State)` (`CSharpEmitter.cs:693`) | | ⭐ the form's type: `StateClrType.DeclaringType.GetNestedType("Params")` |
+
+```mermaid
+classDiagram
+  class EntityAiEditModel {
+    <<existing — grows>>
+    +InstanceRows(entity) InstanceRow list NEW
+    +ApplyInstanceParams(entity, blueprintId, json, running) bool NEW
+  }
+  class InstanceRow { <<NEW record>> BlueprintId · Name · ParamsType · ParamsJson }
+  class BlueprintDefinition { <<existing — grows>> +ParamsClrType : Type? NEW derived (StateClrType's sibling Params) }
+  class BlueprintInstanceService { <<existing>> ApplyParams(payload, def, json) }
+  class BlueprintEventIngressSystem { <<existing>> ReplaceInstanceBlueprintEvent ⇒ detach + attach(json) }
+  class BehaviorParamsForm { <<existing — the one form>> Open(type, json) · CommitToJson() }
+  class EntityAiDetailsView { <<existing — grows>> one row per attached instance }
+  EntityAiDetailsView --> EntityAiEditModel
+  EntityAiDetailsView --> BehaviorParamsForm
+  EntityAiEditModel ..> BlueprintDefinition : FormatParams · ParamsClrType
+  EntityAiEditModel ..> BlueprintInstanceService : paused
+  EntityAiEditModel ..> BlueprintEventIngressSystem : running (event)
+```
+
+*What the picture shows that prose hid:* nothing new runs — the rows read the save's own walk, a paused edit is the load's
+own `ApplyParams`, a running edit is the existing replace event; the only new member is a derived type lookup.
+
+```mermaid
+sequenceDiagram
+  participant U as author
+  participant V as EntityAiDetailsView
+  participant M as EntityAiEditModel
+  participant S as BlueprintInstanceService
+  participant B as world bus
+  V->>M: InstanceRows(entity) — one per occupied slot, params as JSON (FormatParams)
+  U->>V: edit a row's params, Apply
+  alt paused (nothing ticks)
+    M->>S: ApplyParams(payload, def, json) — in place, the instance keeps its state
+  else running
+    M->>B: ReplaceInstanceBlueprintEvent(id → id, json) — the instance restarts with the new params
+  end
+  Note over M: the scenario save then snapshots the params (CE-3044) — the editor never writes bytes itself
+```
+
+| decision *(lean = built unless the user changes it)* | why | rejected |
+|---|---|---|
+| **A1** paused ⇒ `ApplyParams` in place; running ⇒ the replace event (a restart) | paused matches the load path exactly; a running instance's state was built from its old params, so a restart is the honest re-param (as re-assigning a behaviour) | ⛔ writing the region of a RUNNING instance (state half from the old params) |
+| **A2** `ParamsClrType` DERIVED from `StateClrType` (the nested `Params` beside `State`) | no registrar emission change ⇒ no golden moves; a rail pins it against `ParamsSize` for every corpus instance | emitting `ParamsClrType = typeof(X.Params)` in every registrar (every instance golden moves for a value already reachable) |
+| **A3** the rows live in the AI section; `EntityBlueprintsPanel` stays the attach / detach editor | §7.6's last row | moving attach / detach into the AI section (a second surface for one action) |
+| **A4** a row with no `Params` (size 0) shows the name only | nothing to edit | — |
+
+⭐ **AS-BUILT (`2026-10-05`)** — A1–A4 as drawn. `BlueprintDefinition.ParamsClrType` (derived; null when `ParamsSize` is 0) ·
+`EntityAiEditModel.InstanceRows` / `ApplyInstanceParams` + an optional blueprint-registry provider, which
+`EntityAiDetailsViewDescriptor.For(…, blueprints)` and `EditorSubsystem` pass (the silent-default rule) · the view draws one
+`BehaviorParamsForm` per row. ⚠ A running edit needs `ReplaceInstanceBlueprintEvent` registered (production does; an
+unregistered bus is a refusal, never a silent drop). ⚠ The ImGui drawing itself is not rail-tested (as §7.6). Rails
+(`Hrot.Blueprints.Tests/Editor/EntityAiInstanceRowsTests`, red-proved: the paused write stubbed ⇒ red): a row carries its
+`Params` type (size = `ParamsSize`) and its non-default JSON · paused applies in place, publishes nothing · running publishes
+the replace (id → id, the JSON) and writes nothing.
+
+### 7.6b One params form EVERYWHERE, with map picks — `CE-1023` *(ui, `2026-10-12`; build-state: BUILT — as-built at the end)*
+
+> 🔒 User-reported `2026-10-06`: *the Mission Editor's add-task shows a raw JSON box for many behaviours; the Details "AI" view
+> shows the structure but no route picker.* §7.6 built THE ONE PARAMS FORM for the AI section only; the mission panel kept its
+> own. ⇒ ruling 9 (one implementation per concept) and R-137 (unifying may not cost a feature).
+
+**INVENTORY** *(`search_graph` name patterns `.*ParamsForm.*` (1 class), `.*BehaviorUi.*` (3 classes: `BehaviorUiCompiler`,
+`BehaviorUiRegistry`, `BehaviorUiSetup`), `.*PickContext.*` (1 interface, `IMapPickContext`), `.*MapPickBroker.*` (1),
+`.*EditService.*` (builders: `ComponentReflector`'s private one, `AiFacetEditService`, the replay browser's search one); grep
+corroborates every call site. `check_index_coverage` is not reachable from the CLI.)*
+
+| measured | where |
+|---|---|
+| ⛔ **two forms for one concept**: `BehaviorUiCompiler` (expression-compiled ImGui per DTO; float/double/int/long/bool/`EntityRef`/`PickableGeoPoint` PROPERTIES only — no nested types, lists, enums, strings) drives the mission panel; `BehaviorParamsForm` (StructEdit over the params type, drawn by `ComponentEditDrawer` — every shape) drives the AI section | `MissionPanel.cs:479-488` · `EntityAiDetailsView.cs:303,332` |
+| ⛔ the mission panel falls to a raw JSON box for any behaviour its UI registry lacks | `MissionPanel.cs:487` → `DrawRawJsonEditor` |
+| ⛔ the AI section passes **no pick context** — the editor holds the map-pick adapter and did not pass it (the silent-default pattern) | `EntityAiDetailsView.cs:309,336` `pickerCtx: null` |
+| ⛔ the AI section's edit service (`AiFacetEditService`) does not register the standard leaves, so an `EntityRef` / `PickableGeoPoint` field is drawn as a struct (its `NetworkId` child), never as ONE pickable leaf; the list lives privately in `ComponentReflector.BuildEditService` | `BehaviorActionBindingFieldEditor.cs:29-34` · `ComponentReflector.cs:117-131` |
+| ⭐ the drawer already picks by TYPE (D5/P5) through `IMapPickContext`, keyed on the node's `JsonPath` (`$.Member`) | `ComponentEditDrawer.cs:296-365` |
+| ⭐ every declared behaviour names its params type (B2: 13 distinct DTOs, all containers — none needs `ScalarEditBox`) | `ParamsDtoRegistry.Default` · `[Behavior(Params = …)]` |
+| ⚠ ONE broker holds ONE pending pick keyed by path ⇒ two forms on one screen (task + SOP; N mission tasks) collide on `$.Member` without a scope | `MapPickBroker.cs:44-90` |
+
+```mermaid
+classDiagram
+  direction LR
+  class BehaviorParamsForm {
+    <<MOVED to Hrot.Presentation.Behavior — the one form>>
+    +ParamsTypeOf(name, registry) Type
+    +Open(svc, type, json) IEditSession
+    +DrawFields(session, picks)
+    +CommitToJson(session, type) string
+  }
+  class BehaviorParamsEditor {
+    <<NEW, no ImGui logic — one form bound to a live JSON>>
+    +Sync(type, json)
+    +Edited() string or null
+  }
+  class ComponentEditServices {
+    <<NEW, Fdp.Presentation — the standard leaves, ONE list>>
+    +CreateBuilder() ComponentEditServiceBuilder
+  }
+  class ScopedMapPickContext {
+    <<NEW, Fdp.Presentation — scope + path>>
+    +ctor(inner, scope)
+  }
+  class IMapPickContext { <<existing>> }
+  class MapPickBroker { <<existing>> one pending pick }
+  class ComponentEditDrawer { <<existing>> picks by TYPE }
+  class MissionPanel { <<existing>> one editor per task, scope $.tasks[i] }
+  class EntityAiDetailsView { <<existing>> scopes $.task, $.sop, $.bpN }
+  class ComponentReflector { <<existing>> }
+  class AiFacetEditService { <<existing>> }
+  class BehaviorUiCompiler { <<DELETED with BehaviorUiRegistry, BehaviorUiSetup>> }
+  IMapPickContext <|.. MapPickBroker
+  IMapPickContext <|.. ScopedMapPickContext
+  ScopedMapPickContext --> IMapPickContext : inner
+  BehaviorParamsForm ..> ComponentEditDrawer : DrawFields
+  BehaviorParamsEditor --> BehaviorParamsForm
+  MissionPanel *-- BehaviorParamsEditor : per task id
+  MissionPanel *-- MapPickBroker
+  EntityAiDetailsView --> BehaviorParamsForm
+  EntityAiDetailsView ..> MapPickBroker : the editor's, PASSED
+  ComponentReflector ..> ComponentEditServices
+  AiFacetEditService ..> ComponentEditServices
+  MissionPanel ..> ComponentEditServices
+```
+
+*What the picture shows that prose hid: the second form is not a second DRAWER — it is a second implementation of what
+`ComponentEditDrawer` already does by type, and both screens' missing halves (the JSON box; the absent pick) close on the same
+two seams: the standard leaves and a scoped pick context.*
+
+```mermaid
+sequenceDiagram
+  participant P as MissionPanel.Draw
+  participant E as BehaviorParamsEditor (task 2)
+  participant F as BehaviorParamsForm
+  participant D as ComponentEditDrawer
+  participant S as ScopedMapPickContext($.tasks[2])
+  participant B as MapPickBroker
+  P->>E: Sync(type of task.BehaviorId, task.BehaviorParams)
+  Note over E: reopens only when the JSON changed OUTSIDE this form
+  P->>F: DrawFields(session, S)
+  F->>D: DrawRoot
+  D->>S: RequestEntityPick("$.TargetNetworkId")
+  S->>B: RequestEntityPick("$.tasks[2].TargetNetworkId")
+  Note over B: the operator clicks the map, a later frame
+  D->>S: TryConsumeEntityPick("$.TargetNetworkId")
+  S->>B: TryConsumeEntityPick("$.tasks[2].TargetNetworkId")
+  B-->>D: EntityRef, written into the session
+  P->>E: Edited()
+  E->>F: CommitToJson
+  E-->>P: the new JSON (null when unchanged)
+  P->>P: HandleEditBehaviorParams(2, json) — the draft, as before
+```
+
+```mermaid
+graph TD
+  ED["EditorSubsystem"] -- "registry lookup" --> MP1["MissionPanel (mission window)"]
+  ED -- "registry lookup" --> MP2["MissionPanel (ScenarioMissionView)"]
+  ED -- "MapPickBroker over its adapter (NEW: passed)" --> AI["EntityAiDetailsView (details.ai)"]
+  CGF["CgfSubsystem"] -- "registry lookup" --> MP3["MissionPanel"]
+  EX["ExConSubsystem"] -- "no registry: ParamsDtoRegistry.Default" --> MP4["MissionPanel"]
+  MP1 --> F["BehaviorParamsForm"]
+  MP2 --> F
+  MP3 --> F
+  MP4 --> F
+  AI --> F
+  F --> D["ComponentEditDrawer"]
+  ED -. "held, not passed (before)" .-> AI
+```
+
+*Who draws each frame: every mission window's own `Draw`, and the Details panel for `details.ai`. ⚠ ExCon (a remote IG
+operator station) has no behaviour registry; it reads `ParamsDtoRegistry.Default` — exactly what `BehaviorUiSetup` read, so
+nothing it had is lost.*
+
+| # | decision | rejected — one line each |
+|---|---|---|
+| F1 | ⭐ **one list of standard leaves**: `ComponentEditServices.CreateBuilder()` (FixedString32/64/128, Quaternion, `EntityRef`, `PickableGeoPoint`, `UtilityDecisionRef`, Guid); `ComponentReflector` and `AiFacetEditService` start from it | a second list in the form — the AI section already shows what a missed copy costs |
+| F2 | ⭐ **`ScopedMapPickContext(inner, scope)`** rewrites `$.Member` to `scope + .Member`; the mission panel scopes `$.tasks[i]` (the path the compiler used, so the broker's tests keep their keys), the AI section `$.task` / `$.sop` / `$.bp<id>` | path keys without a scope — two forms on one screen race for one pending pick |
+| F3 | ⭐ **`BehaviorParamsForm` moves to `Hrot.Presentation.Behavior`** (beside the picker tree; the mission panel cannot reach `Hrot.Editor.AiShared`) and gains `DrawFields` and `ParamsTypeOf(name, registry)` — the registry's `JsonParamsDtoType`, else `ParamsDtoRegistry.Default`; `EntityAiEditModel.ParamsTypeOf` routes to it | an injected draw delegate per host — the non-editor hosts would keep the compiler |
+| F4 | ⭐ **`BehaviorParamsEditor`**: one session bound to a JSON the panel owns — reopened when that JSON changes from outside (snapshot sync, behaviour change), committed when the session is dirty and the JSON differs; opening never rewrites the draft | reopen every frame — loses ImGui text focus; commit every frame — a draft that "changes" by being looked at |
+| F5 | ⭐ **the mission panel draws `BehaviorParamsForm` for every behaviour with a params type**; the raw JSON box stays ONLY for a name with no known contract (honest: nothing to draw from). Its ctor takes `Func<string, Type?>` instead of `BehaviorUiRegistry`; the editor and CGF pass their registry lookup (they hold one — the silent-default rule) | keep the compiler for "simple" DTOs — two forms again |
+| F6 | ⭐ **the AI section gets the editor's picks** (`EntityAiDetailsViewDescriptor.For(…, picks)`, `new MapPickBroker(() => _mapPickAdapter)`) | — |
+| F7 | ⭐ **delete `BehaviorUiCompiler`, `BehaviorUiRegistry`, `BehaviorUiSetup`**; `BehaviorSchemaDiscovery.AutoRegister(remapper, behaviorRegistry)` keeps only the remap half. R-137 check: every type the compiler drew, the drawer draws (plus nested, lists, enums, strings); the entity pick's filter presets (`[MapPickableEntity]`) are read by the drawer too | keep them unused — dead duplicate code (duplicate CODE ⇒ route, here: delete, the design record names the keeper) |
+
+*Not in scope (fences, behaviors-lane handoff 2026-10-12):* the BTree/HSM binding-target picker and the emitters, the
+variables panel, the A2 assets. `OrderMenu.PickOf` (the right-click order's ONE pick, D4-E) is a gesture, not a form — unchanged.
+
+⭐ **AS-BUILT (`2026-10-12`)** — F1–F7 as drawn, plus ONE deviation the diagrams did not foresee:
+
+| as built | where / why |
+|---|---|
+| F1 | `Fdp.Presentation/ImGui/Editing/ComponentEditServices.cs` — `CreateBuilder()`; `ComponentReflector.BuildEditService` and `AiFacetEditService.CreateBuilder` start from it |
+| F2 | `ScopedMapPickContext` (same file) — `Path("$.X") = scope + ".X"` |
+| F3 | `Hrot.Presentation/Behavior/BehaviorParamsForm.cs` (moved; namespace `Hrot.Presentation.Behavior`) — `ParamsTypeOf`, `Open` (refuses a leaf type; no scalar box), `DrawFields`, `CommitToJson`; `EntityAiEditModel.ParamsTypeOf` routes to it |
+| F4 | `BehaviorParamsEditor` (same file) — `Sync(type, json)` keeps the session while the JSON is the source or its own last commit; `Edited()` returns new JSON once |
+| F5 | `MissionPanel(localNodeId, Func<string, Type?> paramsTypeOf)`; `ParamsFormFor(taskId, behaviour, json)` (one editor per task id); `PickScope(i) = "$.tasks[i]"`; the raw box only for an unknown type. Editor (both panels) and CGF pass `ParamsTypeOf(name, _behaviorRegistry)`; ExCon passes none (declared contracts) |
+| F6 | `EntityAiDetailsView(model, editService, picks)` + `PicksFor(scope)`; the descriptor's `picks`; `EditorSubsystem` passes `new MapPickBroker(() => _mapPickAdapter)` |
+| F7 | `BehaviorUiCompiler.cs`, `BehaviorUiSetup.cs` deleted (`BehaviorUiRegistry` with them); `AutoRegister(remapper, behaviorRegistry)` |
+| 🔴 **deviation — StructEdit** | ⛔ **A blittable struct of AUTO-PROPERTIES opened as an EMPTY document**: `ReflectionEditDocumentBuilder` skipped properties on a native buffer, and every behaviour params DTO is such a struct (`FireAtTarget`, `MoveToLocation`, …). ⇒ the AI section's form had shown NO fields for them (the user's "no route picker" in part). Fixed at the root (`FDP/ExtDeps/StructEdit`): a native buffer edits an auto-property through its compiler-generated backing field (offset + binding; the PROPERTY's name, path and attributes — `ReadMetadata` now prefers the property), and a COMPUTED property on the ROOT struct (`MoveToLocation.PickableLocation`, the point facade over two doubles) is read-modify-written through the root binding (`NestedMemberBinding`). A computed property deeper than the root stays unsupported |
+
+Rails: `Hrot.Presentation.Tests/Behavior/BehaviorParamsFormTests` (an entity pick and a location pick land in the task's JSON
+through `$.tasks[0]`; opening never rewrites the draft, an outside change reopens, its own commit does not; EVERY declared
+behaviour's params type opens and draws one ImGui frame; the scoped path) · `MissionPanelRegistryTests.CE1023_…` (the host's
+lookup, an unknown behaviour gets none, the default is the declared contracts) · `EntityAiSectionTests.CE1023_…` (the editor's
+CONSTRUCTED view has scoped picks; the AI service draws an `EntityRef` param as one leaf) · `StructEdit.Tests`
+`DocumentBuilderTests.CE1023_…` (auto-properties are nodes writing their backing field; a computed root property writes
+through the struct). Re-homed: `BehaviorUiCompilerTests`' two pick claims → `BehaviorParamsFormTests`; `CgfBehaviorSetupTests`
+C011 SC3 → "the three behaviours have a params form". 🔴 The first run of the form rails was RED on the StructEdit gap
+(empty document ⇒ no pick could land) — that is how the deviation was found.
+
+### 7.7 A Brain hand-over keeps the unit's AI — `CE-3048` *(build-state: BUILT `2026-10-05` — as-built below the table)*
+
+⭐ Approved basis: §9 **V7** (*"each slot's `{Name, Params, Origin}` is ALSO published as a small TransientLocal
+descriptor; the node that gains authority starts it"*), S2b (*"absorbs `CE-3048`"*). Scoped by a corpus + code sweep
+`2026-10-05`: `OwnershipApplier.cs:110-118` publishes `DescriptorAuthorityChanged` **on gain only**, and no production
+code reads it. Behaviour state is *"linked, never sent"* (`DESIGN_Ownership_Groups_And_Grants.md` §2, R-165).
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBrainIntent { <<NEW wire, dtBrainIntent = 98>> +long EntityId key +string IntentJson ; Reliable · TransientLocal · KeepLast 1 }
+  class BrainIntentEgressTranslator { <<NEW, NED, CognitiveTranslatorPack>> owner of (98,0) publishes when the slots' signature moved }
+  class BrainIntentIngressTranslator { <<NEW, NED, CognitiveTranslatorPack>> not the recorded owner: stores the replica }
+  class ReplicatedBrainIntent { <<NEW managed comp 317, Transient>> +InitialBrainIntent Intent }
+  class BrainIntentReader { <<NEW, Toolkits — ONE reader>> +Read(repo, e, registry, scope) InitialBrainIntent }
+  class BrainIntentScope { <<NEW enum>> Ordered (scenario) · Running (hand-over) }
+  class BrainSnapshotTranslator { <<existing, SimHost>> Extract = Read(Ordered) }
+  class BrainHandOverSystem { <<NEW, Toolkits, Input>> on DescriptorAuthorityChanged(98,0): replace each slot that differs }
+  class OwnershipApplier { <<existing>> publishes DescriptorAuthorityChanged on gain }
+  class BehaviorIngressSystem { <<existing>> Clear · EndSop · DropPausedTask · AssignNow · AssignSopNow }
+  class InitialBrainIntent { <<existing shape, CE-3042>> Behavior · Sop · Roe }
+  class NedOwnershipGroupBinding { <<existing, grows>> dtBrainIntent → SopState, Roe (Brain group) }
+  BrainIntentEgressTranslator ..> BrainIntentReader : Running
+  BrainSnapshotTranslator ..> BrainIntentReader : Ordered
+  BrainIntentEgressTranslator ..> EntityBrainIntent : writes
+  BrainIntentIngressTranslator ..> EntityBrainIntent : reads
+  BrainIntentIngressTranslator ..> ReplicatedBrainIntent : sets
+  ReplicatedBrainIntent --> InitialBrainIntent
+  OwnershipApplier ..> BrainHandOverSystem : DescriptorAuthorityChanged
+  BrainHandOverSystem ..> ReplicatedBrainIntent : reads
+  BrainHandOverSystem ..> BehaviorIngressSystem : replace
+```
+
+*What the picture shows that the prose hid:* save and hand-over share **one reader** with two scopes. The scenario
+keeps only what an order set. The hand-over needs everything that is running, because the gaining node's own
+replica is not empty: it ran the template default at spawn, and it may hold a stale order from an earlier ownership.
+
+```mermaid
+sequenceDiagram
+  participant A as old owner (Brain)
+  participant W as DDS EntityBrainIntent
+  participant B as gaining node (Brain)
+  participant O as OwnershipApplier (B)
+  participant H as BrainHandOverSystem (B)
+  participant I as BehaviorIngressSystem (B)
+  A->>A: egress: slots' signature moved → Read(Running)
+  A->>W: {Behavior, Sop, Roe} as JSON
+  W->>B: ingress: B is not the recorded owner → ReplicatedBrainIntent
+  Note over A,B: grant / debug transfer / failover reclaim moves (98,0) with the Brain group (G-1)
+  O->>H: DescriptorAuthorityChanged(e, (98,0), gained)
+  H->>H: ROE: written as published
+  alt SOP slot differs
+    H->>I: EndSop, then AssignSopNow(name, params, origin)
+  end
+  alt task slot differs
+    H->>I: DropPausedTask, Clear, then AssignNow(name, params, origin)
+  end
+  B->>W: B now publishes (its signature dictionary has no entry yet)
+```
+
+```mermaid
+graph TD
+  NED["NedReplicationModule (role has Brain)"] --> PACK["CognitiveTranslatorPack"]
+  PACK --> EG["BrainIntentEgressTranslator → CycloneEgressSystem each frame"]
+  PACK --> IN["BrainIntentIngressTranslator → CycloneNetworkIngressSystem each frame"]
+  NED --> HO["BrainHandOverSystem (Input) — reads DescriptorAuthorityChanged"]
+  OIS["OwnershipIngressSystem · PartialOwnerReclaimSystem · OwnershipTransferInitiationSystem"] --> AP["OwnershipApplier.Apply"]
+  AP -.gain event.-> HO
+  SIM["SimHost (no Brain role)"] -.reclaimed brain: nothing runs it.-> DEAD["CE-2087 (backend)"]
+  style DEAD fill:#fdd,stroke:#c00
+  style SIM fill:#fdd,stroke:#c00
+```
+
+*Module diagram caption:* everything is registered only where the role has Brain. The red edge is a gap this does
+**not** close: a failover reclaim hands the brain back to the entity's primary owner, and when that is SimHost (never
+Brain, `DESIGN_Role_Affinity_Ownership.md` §3.9a) nothing there runs it. Filed as `CE-2087`, for the backend lane
+(reclaim policy).
+
+| rule | why |
+|---|---|
+| the hand-over **replaces**; it does not order. A slot that differs is cleared (`Clear` / `EndSop`, bypassing rank), then started through the ingress at its **published** origin | the published state is the truth the old owner ran. An order through the gate would lose to a stale higher-origin order already on the gainer |
+| a slot that is **the same** (name + params + origin) is left running | the common case: a first-time gainer already runs the template default. Restarting it would cost a BTree its cursor for nothing (`CE-2081` resume) |
+| `Running` scope: everything running, including the template default (origin Sop) and a mission phase's behaviour. A running **reaction** publishes the task it paused | a reaction answers this node's senses. The gainer reacts again if it must (§4.1, R-199) |
+| ROE is always published and written as is | it is three bytes, and a stale ordered ROE would otherwise survive |
+| gated by `dtBrainIntent`'s own recorded owner (egress, ingress skip, gain) | the per-descriptor rule (`EntityMission`, F-5). G-1 grants it together with the anchor `dtNavigationIntent`, so the brain and its intent move together |
+| `dtBrainIntent` carries `SopState` + `Roe` into the **Brain group** | `BindGroups` places a descriptor by its components. Both are brain-written and were in no group (the scoping sweep found them missing) |
+
+⛔ **Rejected:** send `BehaviorState` itself (R-165: never sent; a hash and a cursor mean nothing on another node).
+· The `Ordered` scope for hand-over: a round trip A→B→A would resume A's stale order. · Publish the intent as an
+order event on hand-over: refused by rank against stale state. · A new wire struct per slot: one JSON string *is*
+the scenario's shape (R-192), so the save, the load and the hand-over cannot drift apart.
+
+⚠ **R-165 is not contradicted:** the components stay unsent. The descriptor carries a *declarative projection*
+(name · params · origin), the same thing the scenario file holds.
+
+⭐ **As-built `2026-10-05`:** matches the diagrams. Two additions measured during the build: ① a unit whose sample
+arrives before the unit exists here is HELD by the ingress and applied when it appears (a durable sample is delivered
+once). ② The egress `Dispose(netId)` ends the durable instance, so a late joiner is not handed a dead unit. Pinned rails
+that list the Brain group grew by `dtBrainIntent` (`TheDescriptorMapIsWiredTests`, `RoleGroupOwnershipStrategyTests`).
+
+| gate | result |
+|---|---|
+| `BrainHandOverTests` · `BrainIntentTranslatorTests` · cluster `ABrainThatComesBack_…` | 6/0 · 3/0 · 1/0, each red-proved |
+| Toolkits · SimHost · Core · NED · ClusterRunner.Tests | 2666/0 · 1097/1 (the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_…`, green in isolation, the §5.6 load-timing one) · 185/0 · 133/0 · 281/0 |
+| cluster, row 8 (`Reclaim\|SplitAuthority\|SopDemo\|Ownership\|Mission\|WhoOwnsTheBrain\|DistributedBrainMuscle\|NavigationStatusAuthority\|Eqs`) | 122/0 |
+
+### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(✅ APPROVED `2026-10-05`, leans A–D as written — R-201; build-state: BUILT — B–D (§7.8a, behaviors), A (backend rename, `2026-10-05`: `TargetMemory.ThreatScores` → `Freshness`, a Roslyn rename over 30 files; the scenario key stays `"Score"`))*
+
+> 🔒 **User, `2026-10-05`:** *"3054 approved."* ⭐ A is the backend's (the `ThreatScores` → `Freshness` rename, FRAME_Decision_Layer Addendum 7); B–D are ours.
+
+| claim | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| `TargetMemory.ThreatScores` is already a FRESHNESS measure: +50/s while a sensor tracks the contact, ×(1 − 0.1/s) when not, forgotten below 0.5 unless tracked | ✅ `ThreatEvaluationSystem.cs:73-140`, `PerceptionConstants.cs:43,50` | ✅ R-194: *"memory stores identity + freshness"*. The NAME says threat; the BEHAVIOUR is freshness |
+| nothing reads a DANGER (what the contact is) anywhere | ✅ searched `ThreatLevel\|ThreatClass\|TargetClass\|DangerClass\|ThreatValue`: only `ContactThreatLevel`, which reads `ThreatScores` (`StandardInputs.cs:154`) | ✅ R-194: danger judged at read time, from the TKB |
+| `ThreatRankingDecision` exists (starter pack) and ranks contacts on LoS, distance, `ContactThreatLevel`, health, assigned | ✅ `StarterPack/ThreatRankingDecision.cs:14-21` | ✅ Decision Layer §1 G1 |
+| `HaveLiveTarget` = `Count > 0`, so a contact seen long ago keeps an attack posture alive | ✅ `StandardInputs.cs:198-205` | ✅ Decision Layer §3 table, line 113 (flagged there) |
+| readers of `ThreatScores` outside the AI: EQS LoS gating, scenario save/load, genesis | ✅ `CheapLineOfSightTest.cs:86`, `AccurateLineOfSightTest.cs:64`, `TargetMemoryTranslator.cs:62`, `GenesisMaterializationSystem.cs:228` | ⛔ searched, no design says they mean danger. They gate on "known recently", which is freshness |
+| what in the TKB a danger can be judged from (weapons, armour, class) | ⛔ **not measured**: a TKB inventory is needed first | — |
+
+**Leans** (each answerable "approved" or with a change):
+
+| # | question | lean | blast radius |
+|---|---|---|---|
+| **A** | what is `ThreatScores`? | ⭐ **it IS the freshness field.** Keep the memory stage as it is; the backend renames it `Freshness` later (a Roslyn rename, every reader above keeps working) | backend lane only, mechanical |
+| **B** | where is danger judged? | ⭐ one read-time function `ThreatDanger.Of(view, self, target)` in Toolkits, fed by the TKB. First cut: armed (any weapon mount) = 1, unarmed = 0.3. Refined once the TKB inventory (the ⛔ row) is done | ours; new input `ContactDanger` |
+| **C** | what do the threat inputs become? | ⭐ `ContactThreatLevel` = danger × freshness (normalised); new `ContactFreshness`; `HaveLiveTarget` = any contact with freshness ≥ a threshold (fixes the stale-attack defect) | ours; `ThreatRankingDecision` / `CombatPostureDecision` re-tuned, rails move |
+| **D** | the read-sensor node | ⭐ one shared node family `SensorNodes` keyed by `SensorModality` over `UnitSensors.Of` (top result, count, score), usable by BTree, HSM and blueprint | ours |
+
+⛔ **Rejected:** a second memory field for danger (R-194: never store danger). · Decaying danger (*"hidden does not
+mean harmless"*). · Changing the EQS LoS gate (it means "known recently", and that is freshness already).
+
+⚠ **What would change the lean:** if the backend wants `ThreatScores` to keep a danger meaning, A flips to "add a
+`Freshness` field", which costs a memory-layout change on every node and a scenario-format change.
+
+### 7.8a `CE-3054` B–D — the build design *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
+
+✅ **`CE-3080` FIXED `2026-10-06` (R-214):** `ThreatDanger.Of` returns 0 for a KILLED unit (`ThreatDanger.IsDead`: Health ≤ 0, entity kept) — once, for every threat reader. ⛔ SUPERSEDED: *"a KILLED unit still reads as armed, danger 1"* (the gap as found).
+
+✅ **`CE-2233` BUILT `2026-10-17` (CIV-0, the civilians' safety gate — [Civilians CV-8](DESIGN_Civilians_And_Crowd_Control.md), R-3013):** `ThreatDanger.Of` also returns 0 for a NEUTRAL (`ThreatDanger.IsNeutral`: the target's `EntityInfo.ForceId` is Neutral, read LIVE; ⚠ no `EntityInfo` = not neutral, Neutral being the enum's zero). Danger 0 alone does NOT keep a neutral out of the pick — `EqsTacticsNodes.TopThreat` takes the ranking's top even at score 0 (the CE-2202 shape) — so the pick skips it too (`Engageable` = in the fight AND not neutral), and the weapon brain holds before any AI round at one (`AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldNeutral`, both paths; an operator's fire is not held). Neutrals STAY in memory (a police line must see a crowd).
+
+**INVENTORY** *(measured `2026-10-05`)*: the readers of `TargetMemory` scores are in §6.1 of `DESIGN_Thermal_And_Acoustic_Sensing.md`
+(grep of `EntityIds[` and of every file naming `TargetMemory`; the graph's `search_code` returned 0 for the pattern). The
+inputs that read them: `StandardInputs.ContactThreatLevel` / `HaveLiveTarget` / `EnemyStrengthRatio`,
+`SquadInputs.SquadContactThreatLevel`. The decisions that read those: `ThreatRankingDecision`, `LeaderAssignmentDecision`,
+`CombatPostureDecision`. TKB data a danger can come from: `WeaponSuiteDto.Mounts` (→ `WeaponState` on the unit, stamped by
+`CombatTkbTranslator`, which also runs for REPLICAS — `NetworkSpawningSystem.cs:142`), `WeaponCapabilitiesDto`
+(range, rate), `CombatPlatformDefDto` (health, armour), `TkbMasterDto.DisType` (the DIS class).
+
+```mermaid
+classDiagram
+  class ThreatDanger { <<NEW static>> +Of(view, self, target) float }
+  class ThreatFreshness { <<NEW static>> +Of(score) float  +IsLive(mem, i, tracks) bool }
+  class PerceptionConstants { <<existing>> +TrackBoostPerSecond 50 (NEW, was a literal) +FreshnessSaturation = boost / decay = 500 (NEW) }
+  class StandardInputs { <<existing>> ContactThreatLevel = danger x freshness (CHANGED) · ContactDanger (NEW) · ContactFreshness (NEW) · HaveLiveTarget = a live contact (CHANGED) · EnemyStrengthRatio = danger sum (CHANGED) }
+  class SquadInputs { <<existing>> SquadContactThreatLevel = freshness of the pooled score (CHANGED) }
+  class SensorNodes { <<NEW shared nodes>> +Sees(ref SensorReadParams) bool +Read(ref SensorReadParams, ref SensorReading) NodeStatus +ThreatsAtLeast(ref ThreatCountParams) bool }
+  class UnitSensors { <<existing>> +Of(view, unit, kind) }
+  class TargetMemory { <<existing, backend>> Freshness (was ThreatScores, CE-3054 A) · LastSeenTick }
+  class WeaponState { <<existing>> on every armed unit, replicas included }
+  ThreatDanger ..> WeaponState : armed?
+  ThreatFreshness ..> PerceptionConstants
+  StandardInputs ..> ThreatDanger
+  StandardInputs ..> ThreatFreshness
+  StandardInputs ..> TargetMemory
+  SquadInputs ..> ThreatFreshness
+  SensorNodes ..> UnitSensors
+  SensorNodes ..> ThreatDanger
+  SensorNodes ..> ThreatFreshness
+```
+
+*What the picture shows that prose hid:* danger and freshness each have ONE function, and every reader goes through them. No
+reader divides a score by its own constant any more.
+
+```mermaid
+sequenceDiagram
+  participant N as BTree / HSM node (RankCandidates, ChooseOption) or blueprint ScoreDecision
+  participant S as UtilityScorer
+  participant I as StandardInputs
+  participant M as TargetMemory (backend)
+  participant D as ThreatDanger
+  participant F as ThreatFreshness
+  N->>S: score decision for self
+  S->>I: ContactThreatLevel(self, candidate)
+  I->>M: the candidate's slot
+  I->>F: Of(Freshness[i])  (score / 500, clamped)
+  I->>D: Of(view, self, candidate)  (armed 1, unarmed 0.3, unknown 1)
+  I-->>S: danger x freshness
+  S->>I: EnemyStrengthRatio(self)
+  I->>D: Of(...) for every remembered contact (freshness NOT applied: hidden is not harmless)
+  I-->>S: enemy / (enemy + own)
+```
+
+```mermaid
+graph TD
+  REG["UtilityInputRegistrar (generated) + StandardInputs.RegisterAll"] -->|registers| INP["StandardInputs readers"]
+  CGF["CgfLogicPack (Brain)"] -->|starts| RUN["BTree / HSM runners"]
+  RUN -->|each tick of a running node| SN["SensorNodes"]
+  RUN -->|ChooseOption / RankCandidates| SC["UtilityScorer"]
+  BP["blueprint ScoreDecision"] --> SC
+  SC --> INP
+  SN --> US["UnitSensors.Of (EqsCognitiveBuffer on the Brain, fed by the result ingress)"]
+  BPR["blueprint ReadEqsResult / When EqsResult"] -.->|"NOT YET: reads a SENSOR VARIABLE only"| US
+  linkStyle 7 stroke:#d33,stroke-width:2px
+```
+
+*Caption:* the red edge is the gap in D's blueprint half — a blueprint can read only a sensor IT spawned (a variable), never
+the unit's TKB sensor of a kind. Closing it is the last step below.
+
+| decision | why (code / design) | rejected |
+|---|---|---|
+| freshness = `Freshness / 500`, clamped *(field named `ThreatScores` when this was written; renamed by A)* | ✅ 500 is the equilibrium of +50/s and −10 %/s (`ThreatEvaluationSystem.cs:95`, `PerceptionConstants.cs:44`); ✅ lean A: the score IS freshness | dividing by a reader's own constant (today: clamp to [0,1], so every contact reads 1 for ~44 s) |
+| danger: armed (`WeaponState` on the target) = 1, unarmed = 0.3, not alive here = 1 — ⭐ **AS-BUILT `CE-3229` (2026-10-17): "armed" is now `Armament.Judge(view, self, target)`** — a combatant on STATUS (exactly this test), a civilian by what `self` can identify; Unidentified reads 0.3; own strength reads `Armament.LethalInHand` ([Civilians §7.8](DESIGN_Civilians_And_Crowd_Control.md)) | ✅ `CombatTkbTranslator` stamps `WeaponState` exactly when the TKB has a mount, replicas included (`NetworkSpawningSystem.cs:142`); ✅ R-194 *"hidden does not mean harmless"* ⇒ unknown is dangerous | a TKB lookup in the reader (readers have no TKB handle); a stored danger (R-194) |
+| `HaveLiveTarget` = a contact currently tracked OR freshness ≥ 0.25 | ✅ a new contact's score RAMPS (50 after 1 s), so freshness alone would hide a contact for its first seconds; 0.25 ≈ 14 s unseen after saturation | `Count > 0` (the stale-attack defect, Decision Layer §3); last-seen ticks (needs a tick→seconds rate the inputs do not have) |
+| `EnemyStrengthRatio` = Σ danger / (Σ danger + own), own = health fraction × (armed ? 1 : 0.3) | ✅ Decision Layer §3 line 114 (*"contradicts G1"*); one armed enemy vs a healthy armed unit = 0.5, three = 0.75 | Σ danger / (health × 16): one enemy would read 0.06 |
+| D, BTree/HSM: `SensorNodes.Sees` (condition), `Read` (stateful action → `SensorReading`), `ThreatsAtLeast` (the handover's "count above a threshold") | ✅ FRAME_Decision_Layer handover ①②; the CE-2069 shared stateful forms | one node per modality (the kind is a param) |
+| D, blueprint: `ReadEqsResult` / `When EqsResult` take EITHER a sensor variable OR a unit sensor kind | ✅ reuses the two existing blueprint EQS nodes and their CE-2089 answer gate | a new blueprint node family beside them (two ways to read one buffer) |
+
+⚠ **Anonymous contacts (`CE-3063`, R-207) come later:** `ThreatDanger` gains the per-slot sound class; until then an
+anonymous slot does not exist.
+
+⭐ **As-built `CE-3054` B–D (`2026-10-05`)** — matches the diagrams above, with these precisions:
+- **files:** `Perception/ThreatDanger.cs` (`ThreatDanger.Of` + `OwnStrength`, `ThreatFreshness.Of` + `IsLive`),
+  `PerceptionConstants.TrackBoostPerSecond / FreshnessSaturation / LiveFreshness` (the boost literal in
+  `ThreatEvaluationSystem` now reads the constant — a one-line cross-lane edit), `Behavior/SensorNodes.cs`
+  (`Sees`, `Read`, `ThreatsAtLeast`). Inputs `ContactDanger` (0xF4D0) and `ContactFreshness` (0x73FA) join the generated
+  registrar and `StandardInputs.RegisterAll` (19 readers).
+- **`SquadContactThreatLevel`** follows `ContactThreatLevel` (danger × freshness of the pooled score).
+- **blueprint half:** `EqsResultPayload.UnitSensorKind` / `ReadEqsResultNode.UnitSensorKind` (a `SensorModality` byte,
+  0 = the variable). Both emitters resolve `UnitSensors.Of(view, self, kind)` each read, so every trigger (and CE-2089's
+  per-answer gate) works unchanged; the `ReadEqsResult_` helper takes `self`. Stage 2 accepts a kind instead of a variable
+  (BP2010 / BP2021 refuse a value that is not one `SensorModality` bit). ⭐ The editor: one `EqsSensorSourcePicker` for both
+  nodes; the When node's EQS form, a placeholder until now, gets the sensor, trigger, threshold and max-age fields.
+- **measured effect on `CombatPostureDecision`:** with the strength ratio weighing the enemy against the unit's OWN
+  strength, a badly hurt unit no longer advances: one unarmed contact, health < 0.15 → Hold, 0.16–0.18 → Suppress,
+  ≥ 0.20 → AdvanceAndAttack. The hysteresis rail was re-pinned to that boundary (0.20 → 0.18).
+- **rails:** `StandardInputReaderTests.CE3054_*` (4), `SensorNodesTests` (3), `ReadEqsResultLoweringTests.CE3054_*`,
+  `ReadEqsResultValidatorTests.CE3054_*`, `WhenNodeRuntimeTests.CE3054_TopChanged_OnTheUnitsOwnSensorOfAKind`. Red-proof:
+  `IsLive` always-true + danger always-1 ⇒ 3 rails red.
+
+### 7.9 A blueprint `When` on an EQS result compares once per ANSWER — `CE-2089` *(build-state: BUILT `2026-10-05`)*
+
+```mermaid
+sequenceDiagram
+    participant Brain
+    participant Solver as EqsSolverSystem
+    participant Upd as EqsResultUpdateSystem
+    participant Buf as EqsCognitiveBuffer
+    participant When as When TopChanged / ScoreCrossed
+    Brain->>Buf: Refresh — Epoch+1, Count=0, LastUpdateTick=0
+    When->>Buf: IsReady false — nothing recorded
+    Solver->>Upd: EqsResultEvent RefreshTick = tick+1
+    Upd->>Buf: results, LastUpdateTick = RefreshTick
+    When->>Buf: LastUpdateTick differs from prev — compare the top, maybe fire
+    Solver->>Upd: next answer, SAME epoch, new RefreshTick
+    Upd->>Buf: LastUpdateTick = new tick
+    When->>Buf: differs again — compare again
+```
+
+*What the picture shows that the old prose hid: the epoch moves only at the Brain's two arrows (a refresh or a
+parameter change). A standing sensor publishes many answers under one epoch.*
+
+| claim | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| the trigger was gated on `sensor.Epoch` changing | ✅ `StatementEmitter.cs` before CE-2089 (`git show e98261f76:…`) | ✅ `EQS_Design_v1.3_final.md:117,135`: the solver publishes when a result is *"meaningfully changed"* (`TopChanged` = *"the top entry's identity changes"*), so a change arrives as a new ANSWER, not a new epoch |
+| only the Brain bumps the epoch | ✅ `EqsChildSensor.cs:153-156` (`Apply`, called by `Refresh` / parameter change) | ✅ EQS §17.2 |
+| every published answer gets a fresh `LastUpdateTick` | ✅ `Hrot.SimHost/Systems/EqsResultUpdateSystem.cs:67` = `EqsSolverSystem.cs:381` `RefreshTick = tick+1`; the per-tick stamp was fixed in `EntityRepository.Sync.cs:133-137` | — |
+| a refresh clears the buffer, so the old gate's first look recorded the new epoch on an empty buffer and never compared again | ✅ `EqsChildSensor.cs:162-165` | — |
+
+**As-built.** Both emitters now gate on `buffer.IsReady && buffer.LastUpdateTick != prev.LastEvaluatedEpoch` and
+store `buffer.LastUpdateTick`. The field keeps its name and layout, so the per-node struct and its `StructureHash`
+do not move. `EqsSensor` is no longer read by these two triggers. After a refresh, the previous top is kept, so the
+first new answer is compared against it (a re-pointed sensor whose top changed fires).
+
+**Rails:** `WhenNodeRuntimeTests.CE2089_*` (same epoch, new answer → TopChanged and ScoreCrossed fire; first answer
+after a refresh is compared). `WhenNodeEqsLoweringTests.Lower_EqsResult_TopChanged_AnswerGated` (renamed from
+`…_EpochGated`, it pinned the defect).
+
+⛔ **Rejected:** bumping the epoch on every answer (the epoch means "the question changed", which the Brain and
+`EqsChildSensor.Ensure` rely on) · a new per-node field (it moves `StructureHash` for every saved blueprint, for no
+gain over re-using the existing `uint`).
+
+### 7.10 Sensor nodes and per-kind RESULT TYPES *(✅ N1–N4 APPROVED `2026-10-06`, R-213 — `CE-3078`)*
+
+🔒 **User, `2026-10-06`:** *"different kind of sensors need different kind of result storage … we should not do a 'cast'
+to narrower result type"* · *"Is the node for getting sensor result generic enough to support the result type for a
+specified kind of sensor?"*
+
+📐 **Measured — no.** `ReadEqsResultNode`'s pins are fixed to the ranked list (`IsReady`, `ResultCount`, `Entity`,
+`Position` Vector2, `Score` — `BuiltInNodeRegistry.cs`), its helper reads only `EqsCognitiveBuffer`
+(`InstanceEmitter.EmitReadEqsResultHelpers`); `UnitSensorKind` (CE-3054 D) picks the sensor by kind but still assumes that
+buffer; `When EqsResult` triggers are score-based (`TopChanged`, `ScoreCrossed`); `SpawnEqsSensorNode`'s inputs are the EQS
+config (`SearchRadius`, `FactionFilter`, …). ⭐ **But the type-driven machinery exists:** `GetComponentNode` projects one
+out-pin PER FIELD of any component, the fields reflected by the editor and baked (`Fields`, CA-01); `MakeStructNode` /
+`BreakStructNode` do the same for any struct (Q#14 Option B).
+
+```mermaid
+classDiagram
+  class SensorKindRegistry { <<NEW>> kind → settings type, result component, result element type, family triggers }
+  class SpawnSensorNode { <<NEW, generalises SpawnEqsSensorNode>> kind · in-pins = fields of the kind's settings type → ConfigJson (M′) · out Handle }
+  class ReadSensorResultNode { <<NEW, generalises ReadEqsResultNode>> kind, index · header pins IsReady Count Age · one out-pin per field of the kind's result element }
+  class WhenSensorResultNode { <<NEW, generalises When EqsResult>> header triggers FirstReady Changed BecomesStale + the family's own (ranked TopChanged ScoreCrossed · area NextAreaChanged ThreatCrossed) }
+  class GetComponentNode { <<existing>> per-field pins baked by the editor (CA-01) }
+  class ReadEqsResultNode { <<existing>> = ReadSensorResult for the ranked family; kept so assets do not move }
+  SpawnSensorNode ..> SensorKindRegistry
+  ReadSensorResultNode ..> SensorKindRegistry
+  WhenSensorResultNode ..> SensorKindRegistry
+  ReadSensorResultNode ..> GetComponentNode : same baked-field pin projection
+```
+
+*What the picture shows that prose hid:* one registry decides every kind-specific pin; the nodes themselves never name a
+result type, so a new kind adds a registry entry and its types — no new node.
+
+| ⭐ lean | rejected |
+|---|---|
+| **N1** a `SensorKindRegistry` (kind → settings type, result component, element type, family triggers) the editor reflects and the compiler bakes from — as `GetComponent` does | a node per kind (`ReadDangerArea`, `ReadThermal`, …) — the node set grows with every kind |
+| **N2** `ReadSensorResult(kind, index)`: header pins + one pin per element field; `ReadEqsResult` stays as its ranked instance (no golden moves) | one wide pin set with every kind's fields (the cast, inverted) |
+| **N3** `SpawnSensor(kind)`: in-pins from the kind's settings type, lowered to `EqsChildSensor.Ensure` + `ConfigJson` (R-186) | keep the EQS-config pins for every kind |
+| **N4** `When SensorResult(kind)`: header triggers for every kind + the family's own | score-based triggers for kinds that have no score |
+
+🔒 **User, `2026-10-06`:** *"N1-N4 and B1″-B4′ approved."*
+
+⭐ **The C# shared nodes a BTree and an HSM bind (R-201, `SensorNodes`) follow the same rule one level down:** their
+params/working-state STRUCT is the pin set, and a struct cannot be projected from a registry, so they are **typed per
+FAMILY, never per kind** — `SensorNodes.Sees`/`Read` stay the ranked family's (they read `EqsCognitiveBuffer`, `SensorNodes.cs:65`),
+and the area family gets its own `DangerAreaNodes` (`EnsureSensor`, `DangerAhead`, `HoldShort`, `Cross`). A new KIND in an
+existing family needs no new node. ⚠ **And a family node bound to a kind of ANOTHER family must FAIL loudly, not wait for ever** — `SensorNodes.Sees`/`Read` and the blueprint `ReadEqsResult` pick the sensor by kind and read `EqsCognitiveBuffer`, which a `DangerArea` child does not carry (guard: Utility demo §10.4). 📄 The first consumer and its node list: [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §10.4.
+
+Lane: behaviors owns the blueprint nodes (BTree/HSM read nodes the same way); backend owns the registry and the result types.
+First consumer: the danger sensor (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.2–10.3).
+
+### 7.10a N1–N4 detail design — editor bakes, compiler lowers *(behaviors, `2026-10-06`, `CE-3078`; build-state: READY-TO-BUILD — waits only for `feat(CE-3072 B0)`)*
+
+Handoff H6 step 1 (`HANDOFF_Danger_Crossing_Behaviors.md`). Requests
+this design makes of B0 are in `REPLY_Danger_Crossing_Behaviors_To_Backend.md` §1 (Q1–Q3).
+
+📐 **INVENTORY** *(read-only sweep + grep, `2026-10-06`)*: the three ranked nodes today — `ReadEqsResultNode` (`Nodes.cs:819`,
+pins fixed in `BuiltInNodeRegistry.cs:202-211` AND by hand in the palette `WhenNodePaletteEntries.cs:33-56`, lowered by
+`Stage5_Schedule.cs:3885-3957` → `IrOp_ReadEqsResult` → `InstanceEmitter.cs:1373-1446`), `SpawnEqsSensorNode` (`Nodes.cs:831`,
+`Stage5:2186-2249` → `StatementEmitter.cs:1320-1366` → `EqsChildSensor.Ensure`), `WhenNode{Mode = EqsResult}` (`Nodes.cs:705-813`,
+`Stage5:1272-1316`, `StatementEmitter.cs:1249-1482`). ⭐ The kind is a byte `UnitSensorKind` the compiler writes as TEXT
+(`(SensorModality)k`) — ⛔ **the compiler (netstandard2.0) never references `SensorModality`, so it CANNOT read the B0
+registry**. ⭐ The precedent that solves exactly that: `GetComponentNode` — the editor (net8.0) reflects the type and BAKES
+`Fields` into the node (CA-01, `Nodes.cs:942-975`, `ComponentFieldReflector.cs`), Stage0 projects pins from the baked list
+(`Stage0_Rehydrate.cs:508-546`), Stage5 emits one `IrOp_FieldRead` per field (`Stage5:2986-3161`). No golden contains a
+`When EqsResult`; the ranked read / spawn are in `Golden/Emit/PlatoonHillAttackBp.cs.txt` only.
+
+```mermaid
+classDiagram
+  class SensorKindRegistry { <<backend B0, Fdp.Toolkit.Perception — net8 only>> TryGet(kind) · All }
+  class SensorKindInfo { <<backend B0>> Kind · Family · SettingsType · ResultComponent · ElementType · Triggers · Q2 EnsureMethod }
+  class SensorKindBaker { <<NEW, Hrot.Blueprints.Editor>> Bake(kind) SensorKindDecl · PaletteEntries() }
+  class SensorKindDecl { <<NEW, compiler Assets — plain data>> Kind byte · Family string · ResultComponentFqn · ElementTypeFqn · ElementFields List~StructFieldDecl~ · SettingsTypeFqn · SettingsFields · EnsureMethodFqn · Triggers List~SensorTriggerDecl~ }
+  class SensorTriggerDecl { <<NEW>> Name · ElementField · Shape Header/FieldChanged/FieldCrossed }
+  class ReadSensorResultNode { <<NEW>> SensorKindDecl Decl · in Index · out IsReady Count AnswerTick + one per ElementField }
+  class SpawnSensorNode { <<NEW>> SensorKindDecl Decl · in Key + one per SettingsField · out Handle }
+  class WhenNode { <<existing>> Mode += SensorResult · SensorResultPayload }
+  class SensorResultPayload { <<NEW>> SensorKindDecl Decl · Trigger · Threshold · MaxAgeSeconds }
+  class ReadEqsResultNode { <<existing, UNCHANGED>> the ranked read — no asset moves }
+  class StructFieldDecl { <<existing>> MakeStruct / BreakStruct field list }
+  SensorKindBaker ..> SensorKindRegistry : reflects (editor only)
+  SensorKindBaker ..> SensorKindDecl : bakes
+  SensorKindDecl o-- StructFieldDecl
+  SensorKindDecl o-- SensorTriggerDecl
+  ReadSensorResultNode o-- SensorKindDecl
+  SpawnSensorNode o-- SensorKindDecl
+  SensorResultPayload o-- SensorKindDecl
+  WhenNode o-- SensorResultPayload
+```
+
+*What the picture shows that prose hid: ONE baked record, `SensorKindDecl`, is what all three nodes carry — the compiler
+lowers from it and never sees the registry, exactly as `GetComponent` lowers from its baked `Fields`. The registry is read
+once, by the editor, when the author picks a kind; an asset therefore compiles the same on any host, with or without the
+toolkit loaded.*
+
+```mermaid
+sequenceDiagram
+  participant A as author (editor)
+  participant K as SensorKindBaker (editor)
+  participant R as SensorKindRegistry (B0)
+  participant C as compiler (Stage0 → Stage2 → Stage5)
+  participant G as generated code (runtime)
+  A->>K: palette "Read sensor result: DangerArea"
+  K->>R: TryGet(DangerArea)
+  R-->>K: Area · DangerAreaCognitiveBuffer · DangerAreaDescriptor · triggers
+  K-->>A: node with Decl baked (element fields reflected) → pins
+  A->>C: compile the .bp.json
+  C->>C: Stage0 pins from Decl · Stage2 rules · Stage5 IrOp_ReadSensorResult + one IrOp_FieldRead per pin
+  C-->>G: helper ReadSensorResult_id(state, view, self, i)
+  G->>G: child = UnitSensors.Of(view, self, kind) · HasComponent ResultComponent · buf.IsReady/Count/LastUpdateTick · buf.GetSpanRO()[clamped i]
+```
+
+*What the picture shows that prose hid: the four member reads in the last line are the WHOLE generic contract a result
+component must meet (Q1) — both existing buffers meet it, so a new kind needs no compiler change.*
+
+```mermaid
+graph TD
+  ED["Hrot.Blueprints.Editor (net8.0)<br/>SensorKindBaker, palette, drawers"] -->|reflects| REG["Fdp.Toolkits SensorKindRegistry (B0)"]
+  ED -->|writes Decl into| ASSET[".bp.json"]
+  ASSET --> COMP["Hrot.Blueprints.Compiler (netstandard2.0)<br/>Stage0/2/5, emitters"]
+  COMP -.->|"never references (netstandard2.0)"| REG
+  COMP --> GEN["generated C# in the AI assembly"]
+  GEN -->|calls| RT["UnitSensors.Of · DangerAreaChildSensor.Ensure · result buffers"]
+```
+
+*What the picture shows that prose hid: the only edge into the registry is the editor's; the compiler's dotted edge is
+the one that cannot exist — the reason every kind fact is baked into the asset.*
+
+| # | ⭐ decision *(within approved N1–N4, R-213)* | rejected (one line each) |
+|---|---|---|
+| **D1** | the editor BAKES a `SensorKindDecl` into each node (as CA-01 `Fields`); the compiler lowers only from it | compiler reads the registry — impossible, netstandard2.0 has no reference to the toolkit |
+| **D2** | `ReadSensorResult` header pins `IsReady`, `Count`, `AnswerTick` (= `LastUpdateTick`), then ONE out-pin per element field (reflected public instance fields of `ElementType`, as `BreakStruct`); in-pin `Index` (clamped); the sensor is the unit's of the kind (`UnitSensors.Of`) — no handle in-pin (today's `Handle` input is never read, inventory) | a `Handle` in-pin — dead on the existing node already |
+| **D3** | `SpawnSensor` in-pins = the settings type's public fields (+ `Key`); lowered to `{EnsureMethodFqn}(world, self, site, in settings, key)` (Q2); `Handle` out. Kinds with no Ensure method are not offered | `ConfigJson` (N3 as first written): the settings type IS blittable (B0 `DangerAreaSettings`), so a typed struct is simpler and allocation-free — ⚠ deviation from §7.10's N3 wording, folded here |
+| **D4** | `When SensorResult` triggers by SHAPE (Q3): Header `FirstReady` / `Changed` (stamp moved) / `BecomesStale` (age > MaxAgeSeconds), `FieldChanged` (entry 0's field differs from last seen), `FieldCrossed` (entry 0's field crossed `Threshold`, either direction — once per crossing); When memory = last stamp + last field value (+ last side) | one emitter branch per family trigger name — the compiler would grow with every family |
+| **D5** | ranked kinds keep `ReadEqsResult` / `SpawnEqsSensor` / `When EqsResult`; the palette offers `ReadSensorResult` / `When SensorResult` for every registered kind (ranked included, reading `EqsResult`'s fields) and `SpawnSensor` for kinds with an Ensure method | migrate the ranked nodes onto the new ones — moves the golden (H6 acceptance: zero golden movement) |
+| **D6** | an editor-time warning when `ReadEqsResult` / `When EqsResult` picks a kind whose family is not Ranked (the N1 half of the §10.4 guard) | runtime-only guard (H3 covers runtime; authors deserve it at edit time) |
+
+**Rails (H6 acceptance, planned):** golden corpus byte-identical (zero movement, prove with the golden suite) · a blueprint
+reads `NearSideHandle` / `ThreatRating` of a hand-filled danger child through `ReadSensorResult(DangerArea, 0)` · `When
+SensorResult(DangerArea, ThreatCrossed)` fires once per crossing (up, then down) and not while it stays · `SpawnSensor(DangerArea)`
+creates the child through `DangerAreaChildSensor.Ensure` with the pinned settings · the palette lists one entry per registered
+kind · `NodeCoverageTests` cover the three node types · Stage2: a node with no Decl / an unknown family is a diagnostic, not a
+silent no-op.
+
+#### 7.10b As-built — H6 *(behaviors, `2026-10-06`, `CE-3078`)*
+
+| node | as built | ⚠ deviation from §7.10a, and why |
+|---|---|---|
+| **N2** `ReadSensorResult` | `ReadSensorResultNode { SensorKindDecl Decl }` (`Nodes.cs`) — pins from ONE projection `ReadSensorResultNode.DataPins(decl)` that Stage0 AND the editor (`NodePinSchema`) both call: in `Index`; out `IsReady`, `Count`, `AnswerTick`, then one per element field. Stage5 → `IrOp_ReadSensorResult` + an `IrOp_FieldRead` per out-pin (`Element.<field>`); `InstanceEmitter` writes one helper per node: `UnitSensors.Of(view, self, kind)` → the four Q1 members → `GetSpanRO()[clamp(Index)]`. Stage2 `V_SensorNodeRules`: `BP2073` (dispatch other than Instance / Behavior), `BP2074` (no baked decl). Editor: `SensorKindBaker.Bake(kind)` (the ONLY reader of the registry) + `SensorPaletteEntries.ReadEntries()` — "Read Sensor Result: {kind}", one per registered kind | ① `SensorKindDecl.ElementFields` reuses `ComponentFieldDecl` (Name + TypeId), not `StructFieldDecl` — the read is a member access, as `GetComponent`'s, so there is no offset to bake. ② an ENUM element field is spelled `global::Ns.Enum` (a bare FQN is `BP1500` — the editor's `NodePinSchema` rule; `ComponentFieldReflector` did not do this, so the baker reflects the element type itself — ✅ the reflector now does too, CE-2114). ③ the palette offers every registered kind EXCEPT `EqsQuery` (kind 0): a query sensor is found by template, not by kind — it keeps `ReadEqsResult` through its variable |
+| **N3** `SpawnSensor` | `SpawnSensorNode { Decl }` — exec In / Out, then ONE projection `SpawnSensorNode.DataPins(decl)` (Stage0 + `NodePinSchema`): one in-pin per settings field, `Key` (an entity, CE-485), out `Sensor` (the child entity). Stage5 → `IrOp_SpawnSensor`; emitted: `var _settings = <SettingsType>.Default;` · each WIRED pin assigned over it · `<EnsureMethod>(world, self, <site from the node id>, in _settings, key)`. Stage2: `BP2073` dispatch, `BP2074` no decl, `BP2075` a kind no behaviour spawns (no Ensure, Q2 — a TKB perception kind is read, an EQS query keeps `SpawnEqsSensor`). Purity: side-effecting. Editor: the baker adds `SettingsTypeFqn` / `SettingsFields` / `SettingsDefaultFqn` / `EnsureMethodFqn`; palette "Spawn Sensor: {kind}" only for kinds with an Ensure method | ① an UNWIRED settings pin keeps the settings type's `Default` (baked as `SettingsDefaultFqn` when the type has a public static `Default` of its own type), not `default(T)` — a zero `CorridorHalfWidth` / `RefreshSeconds` is not a sensible sensor. ② the out-pin is the child ENTITY (`Sensor`), not an `EqsSensorHandle` — `Ensure` returns an `Entity` (Q2) and N2 / N4 find the sensor by kind anyway |
+| **N4** `When SensorResult` | `WhenMode.SensorResult` (appended — the enum persists by value) + `WhenNode.SensorResult : SensorResultPayload { Decl, Trigger, Threshold, MaxAgeSeconds }` (omitted from JSON when null, so every existing When persists byte-identically). The decl now also carries `Triggers` (Q3, as DATA: name, element field, shape) and `HasAnswerTime`. ONE resolution `WhenSensorResultShape.Resolve` (Stage2 + Stage5); Stage5 → `IrOp_WhenSensorResultCheck`, a prev-state struct per node `{LastTick, Seen, Above, PrevAge, Value:<field type>}` (`WhenLowering_Instance` adds the field, `InstanceEmitter` the struct + threshold / age consts). Emitted by SHAPE, never by name: `FirstReady`, `Changed` (stamp moved, not on the first answer), `BecomesStale` (answer time), `FieldChanged`, `FieldCrossed`. Stage2 `BP2074` no decl, `BP2076` a trigger that is not the kind's or cannot be decided. Editor: "Sensor Result" mode in the When drawer (kind → re-bake, trigger from the decl, threshold / max age), palette "When Sensor Result: {kind}" (preset to the kind's own first trigger), preview text | ① ⭐ **field triggers compare EVERY TICK** (not per answer — the area family is re-rated between answers, backend §6 SYNC). ② ⭐ **they start from the default / from "below"**: `FieldChanged` fires for the first area seen, `FieldCrossed` fires when an area is ALREADY over the threshold at first sight — the EQS `When` skips its first answer, which here would MISS a threat that was there before the sensor answered (the `ConditionMet` convention instead). ③ **no area ahead reads as the field's default** (threat 0 ⇒ a down-crossing; FeatureId 0 ⇒ a change). ④ `BecomesStale` is offered only when the result component has `LastUpdateTimeSeconds` (`UsableTriggers`) — the area family has none (finding below) |
+| rails | `Hrot.Blueprints.Tests/Sensors/ReadSensorResultTests.cs` ×7 — the bake (every public instance field, the enum rule), the palette (one entry per unit kind), Stage0 = the shared projection, `BP2073` / `BP2074`, and a blueprint reading entry 0 / 1 of a hand-filled danger child (red-proved: index forced to 0 ⇒ the index-1 case fails). `SpawnSensorTests.cs` ×6 — the settings bake, the palette (spawnable kinds only), Stage0, `BP2073`–`BP2075`, and a blueprint spawning the danger sensor through `DangerAreaChildSensor.Ensure` once, the wired pin over `Default` (red-proved: wired settings dropped ⇒ fails). Both registered in `NodeCoverageTests` (full Roslyn compile) and the resolver purity partition. `WhenSensorResultTests.cs` ×8 — the trigger bake + `UsableTriggers` + the palette preset, `BP2076` ×2, `BP2074`, and at runtime `ThreatCrossed` once per crossing both ways INCLUDING a re-rate under the same stamp (red-proved: stamp-gating the field trigger ⇒ that case fails), `NextAreaChanged`, `Changed` | — |
+| ⚠ **finding for N4 — `BecomesStale` cannot lower for the area family** | `SensorKindRegistry.HeaderTriggers` gives EVERY family `BecomesStale`, but `DangerAreaCognitiveBuffer` has no `LastUpdateTimeSeconds` (the ranked buffer does) — Q1's four members carry no answer TIME | asked of backend in the handoff §6 SYNC (add the field, or drop the trigger for the area family); until then N4 offers `BecomesStale` only where the result component has the field |
+| ✅ **RESOLVED `2026-10-06` (backend, Q4 lean (a)) — the finding above is HISTORY** | `DangerAreaCognitiveBuffer.LastUpdateTimeSeconds` (588 B), stamped with the answer, cleared on a route change ⇒ ⭐ Q1's contract is **FIVE** members (`Count`, `IsReady`, `LastUpdateTick`, `LastUpdateTimeSeconds`, `GetSpanRO()`), stated on `SensorKindInfo`; `HasAnswerTime` bakes `true` for the area family, so `BecomesStale` is offered and decidable there | rails: `DangerAreaSensorContractTests` (five members, size), `WhenSensorResultTests.CE3072_Q4_*`; `BP2076` for a decl with no answer time is kept (proved on a decl with the flag cleared). [Utility demo §10.5b](DESIGN_Utility_AI_Demo_Scenarios.md) |
+| ⚠ **finding for N4 — per-tick, not per-answer** | backend (§6 SYNC, `2026-10-06`): the area buffer is RE-RATED every Brain tick without a new `LastUpdateTick` | ⇒ `FieldChanged` / `FieldCrossed` compare entry 0 EVERY tick, not once per answer as `When EqsResult` does — a threat that falls between answers would otherwise never fire |
+
+## 8. Claim table
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| every behaviour start passes one place | ✅ `BehaviorIngressSystem.Start` :205 — by name :99, by hash :137; clear :118 | ⛔ searched; none names it as the gate — this doc does |
+| `BrainTickSystem` is the only caller of the runners for a root run | ✅ `BrainTickSystem.cs:170` (`Run` :241, ctx :264) | ✅ AQ33 §1.1 (`BrainTier` = the root interpreter) |
+| the runners read nothing from `BehaviorState` | ✅ `IBehaviorRunner.cs` — everything through `BehaviorRunContext` | ⛔ not designed as such |
+| TKB-projected components land on every host | ✅ `TkbTranslatorSet.Base()` :96, used by SimHost / CGF / IG / Stride / editor | ✅ R-185 K |
+| a default behaviour at spawn exists but is never fed | ✅ `BehaviorTkbTranslator.cs:77-83` writes state directly; no template sets it | ✅ Engine Guide §11.6 — ⚠ and the direct write skips params / HSM init (finding, §9 V5) |
+| perception's memory is debounce on the Muscle | ✅ `SensorTrackDebounceSystem.cs:40` (2 s) | ✅ R-185 B |
+| perception forwards only `SensorTrackStateEvent` to the world | ✅ `CognitiveSpatialModule.cs:124-127` | — |
+| only `AssignTacticalIntentEvent` crosses nodes | ✅ DDS `TacticalIntentRequest`; assign / clear are local-bus | ⛔ searched, none — so Origin must ride that topic too |
+| the solver budget is wall clock | ✅ `EqsModule.cs:42` (4 ms), `QueryTimeSliced` | ✅ EQS §7.6 — superseded by §5.3 |
+| an HSM has an event queue with a payload; only MobilityLost is fed | ✅ `HsmEvent.cs` (id, priority, 16-byte payload); `HsmRunner.cs:45-49` | ✅ AI_DEV_GUIDE §8 |
+| an HSM has polled transitions | ✅ `ReservedEventIds.Polled` (`Enums.cs`) | ✅ CE-381 |
+| a running BTree branch is never re-checked; `ObserverSelector` = plain selector | ✅ `Interpreter.cs:613-635`, `:267` | ✅ `Fbt.Kernel.md:269` — designed as abort-on-priority-change, not built |
+| the Brain writes sensor results in one place | ✅ `EqsResultUpdateSystem.cs:41` | ✅ EQS §3.1 step 6 |
+
+## 9. Build plan
+
+| step | id | builds | proven by |
+|---|---|---|---|
+| ✅ **S0** | `CE-3032` | ⭐ BUILT `2026-10-04` — see §9.1 (the measurement found three cubic / quadratic hot spots; fixing them replaced the planned observer cap) | §9.1 |
+| **S1** | `CE-3034` | `BehaviorOrigin` on the four events + `BehaviorState.Origin` + the gate in `BehaviorIngressSystem`; origin on the DDS intent topic; the existing publishers stamped (§6 table) | gate rails: Doctrine cannot replace Operator / Superior; Self chains keep origin; finish is never gated; unmarked = Operator |
+| **S2** | `CE-3035` | `DoctrineState` + `BrainSlot`; `BrainTickSystem` loops both slots; the §7.2 re-keys; `AssignDoctrineEvent` / `ClearDoctrineEvent` with the origin gate against `DoctrineState.Origin` and the intent topic's `Kind` (§7.4); `BehaviorTkbTranslator.DefaultDoctrineHash` (pending start on the authority node); the *assign behaviour to self* action for BTree / HSM / blueprint; a doctrine never finishes, a fault stops it | one rail per tier: a doctrine assigns, an operator order preempts, the order ends, the doctrine resumes (§7.1) — on the editor AND `--mode all` |
+| **S3** | `CE-3036` | the sensor list in the TKB (+ implicit visual entry), `SensorChildFactory`, `SensorTag`, `SensorCapability`, children 1000+i on every node, `AllocatePartId` skips 1000+, `ConfigKind` / `ConfigJson` on the wire, refusal on bad JSON, `Disabled`, override + switch, `Sensors.Of` | a NEW sensor kind in tests only (I ①): TKB child on both nodes with matching keys; behaviour-spawned thermal; override; switch off ⇒ solver skips; run end ⇒ back to default |
+| **S4** | `CE-3037` | the memory stage in the solver (debounce, acquired / lost, push stimuli); cost-unit budget (§5.3) replacing wall-clock slicing; EQS §7.5–7.6 marked SUPERSEDED | determinism rail: same scenario, same schedule twice; heavy sensor runs alone; result age visible |
+| **S5** | `CE-3038` | visual perception MOVES: a visual template = today's broadphase + sight; `CognitiveSpatialModule` chain deleted in the same change; `TargetMemory` fed from the memory stage | ⭐ the EXISTING perception suites stay green unchanged — they are the parity proof |
+| ✅ **S6** (backend half) | `CE-3039` | ⭐ BUILT `2026-10-04` — see §9.5: `SensorChangedEvent` from its three producers (incl. *Hit*), named in the blueprint catalog, a `When` reacting to it proven | §9.5 |
+| **S6n** (node half) | `CE-3054` | ⭐ **behaviors lane**: read-sensor node per tier keyed by kind; `TargetMemory` accessors rewritten to R-194 (memory = identity + freshness, danger judged at read time) — a JOINT freshness design with the backend | a doctrine blueprint that reacts to a threat end to end |
+| **S2b** | `CE-3042` | snapshot translators: `BrainSlotScenarioTranslator` ("Behavior" / "Doctrine": Name + Params JSON + Origin, only ≠ TKB default) + `InitialBrainIntent` + `InitialBrainMaterializationSystem` through the ingress (§7.5, R-192) | save → reload on the editor AND `--mode all`: same behaviour / doctrine / params / origin; a TKB-default unit saves nothing; the file holds no hash, token or tier |
+| **S2e** | `CE-3045` | the bug: sensor children carry `ScenarioIgnoreTag`; instance attach is find-or-create | save after a behaviour spawned a sensor ⇒ the file has no sensor entity; reload ⇒ exactly one sensor |
+| ✅ **S2d** | `CE-3044` | ⭐ BUILT `2026-10-04` — params persist as JSON by name through an emitted `FormatParams` beside `ParseParams`; reload always runs `ParseParams` (it also never baked declared param defaults before); a renamed field keeps its default with a warning — [`DESIGN_Blueprint_Param_Persistence.md`](blueprints/DESIGN_Blueprint_Param_Persistence.md) §10 | §10.1 there |
+| **S2c** | `CE-3043` | ⭐ **UI lane**: the editor's AI section — doctrine row, behaviour row, instance-blueprint rows with ONE params form, editing LIVE state only (§7.5) | author → save → reload shows the same values; an instance's edited params survive (the existing D3 rail extended) |
+| **S6b** | `CE-3040` | ~~`SensorChangedEvent` from its two producers~~ (built in S6, §9.5); the `HsmRunner` bridge with reserved HSM ids (§7.3) | an HSM doctrine switches to *Engaged* on *FirstThreat*, both slots receive it |
+| **S6c** | `CE-3041` | ⭐ **behaviors lane** (BTree infrastructure): `ObserverSelector` re-checks higher branches and aborts the running lower one via the exit sweep | a BTree in a long move branch switches to cover the tick a threat appears |
+| 🟢 **S7** | `CE-3055` | ⭐ DESIGNED `2026-10-05` (R-205) — [`DESIGN_Thermal_And_Acoustic_Sensing.md`](DESIGN_Thermal_And_Acoustic_Sensing.md); build rows `CE-3060` … `CE-3064`. ⛔ The open points below are answered there: the old pipeline is RETIRED, heat = TKB base + accumulation/cooldown, sounds = shots + detonations + movers, heard contacts are anonymous (G6). Was: | thermal / acoustic sensors — ⛔ **NEEDS A DESIGN PASS before any build** (🔒 user, `2026-10-04`: *"record that S7 needs a design pass, we will return to it later"*). Measured open points: ① an OLDER acoustic pipeline already exists — `AudioStimulusEvent` → `AudioPerceptionSystem` → heard event → NED `AudioTargetDetected` (SimHost egress → IG ingress); it runs only in the FDP UrbanCombat examples and NOTHING in production publishes `AudioStimulusEvent` ⇒ fold it into the sensor form or replace it (ruling 9 — the S5 decision again, for hearing) · ② where a target's heat signature comes from (`ThermalSensorDto.MinSignature` has nothing to compare with — not yet searched) · ③ which events make sounds (weapon fire, engines) · ④ anonymous contacts (G6, behaviors lane) for shot-heard | — |
+
+⭐ **Order:** S0 first (a live defect). S1 → S2 are independent of S3 → S6 and can run in parallel lanes.
+
+### 9.1 As-built — S0 / `CE-3032` *(`2026-10-04`)*
+
+📐 **Measured first** (a timing probe over the real perception systems: N units, two forces, uniform in 1 km², 500 m
+vision, 360° FOV; warm, median of 3 ticks). ⚠ The planned stop-gap was an observer cap; the measurement showed the
+cost was not "too many observers" but three algorithmic hot spots — each fixed, none changes what a unit can see:
+
+| hot spot | cause | fix |
+|---|---|---|
+| ① `SensorTrackDebounceSystem` | every observer scanned EVERY sighting event of the tick — cubic. 757 ms at 500 units alone | sightings grouped by observer once per tick |
+| ② `VisionBroadphaseSystem` | a 500 m query walked ~40 000 cells of the 5 m perception grid per observer, then read `IsAlive` / `EntityInfo` per PAIR | a 50 m coarse index built ONCE per tick from the fine grid's own contents (same set, same footprint), liveness + force read once per entity |
+| ③ both sight strategies | each sight line tested EVERY collider in the world — cubic | `ColliderIndex`: a 16 m grid the sight line walks cell by cell; the exact geometry test is unchanged (parity rail: it never misses a crossing collider) |
+
+| also changed | why |
+|---|---|
+| ⭐ candidates per observer: **the 32 NEAREST that pass the filters** (was: the first 256 the cell scan reached, friendlies included) | a unit remembers 16 contacts (`MaxTrackedTargets`), so 256 sight checks were mostly work no memory could hold; nearest-first means a near enemy is never dropped for a far one |
+| ⭐ the first-tick contact list keeps EVERY sighting | 🔴 a pre-existing bug: one list was added PER sighting, the last won — two of three first-seen targets were announced *Acquired* and then never tracked |
+| ⭐ the circuit breaker REPORTS each transition (`[ModuleHost][CIRCUIT-OPEN]` … `[CIRCUIT-CLOSED]`) | an open circuit used to skip the module for 10 s in silence — for every module, not only perception |
+| ⭐ `CognitiveSpatialModule` timeout 400 ms (was the 100 ms default) | a dense scene makes a tick SLOW, not hung; the breaker exists for hangs. ⏳ S4's deterministic budget replaces this margin |
+
+| units (1 km², all within 500 m) | before | after |
+|---|---|---|
+| 100 | 40–48 ms | 7–10 ms |
+| 250 | 173–196 ms | 22–33 ms |
+| 500 | 529–956 ms | 52–72 ms |
+| 1000 | 1.5–2.4 s | 168–283 ms (⚠ over 100 ms — inside the new 400 ms timeout; S4 bounds it) |
+
+| gate | command | result |
+|---|---|---|
+| perception unit suites | `dotnet test Fdp.Toolkits.Tests --filter Perception` | 69/0 (8 new) |
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2612/0, 1 skipped |
+| SimHost perception / EQS / LOS | `dotnet test Hrot.SimHost.Tests --filter Perception|Sensor|Eqs|Los` | 29/0 |
+| ModuleHost | `dotnet test Fdp.ModuleHost.Tests` | 207/6 — ⚠ the SAME 6 convoy / provider tests fail on base `2fda9e25f` (206/6); +1 = the new breaker rail |
+| cross-node perception (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter SensorMechanism` | 1/1 — ⚠ `SensorMechanism_EndToEnd_…` red on base too (2/2): the rail is blind, `CE-3050` |
+
+### 9.2 As-built — S3 / `CE-3036` + `CE-3045` + `CE-3049` *(`2026-10-04`)*
+
+⭐ §4's class diagram is the as-built picture. What the build did differently from the plan, and why:
+
+| deviation | why |
+|---|---|
+| ⭐ the reader API is `UnitSensors`, not `Sensors` | a class named `Sensors` collides with its own namespace `Fdp.Toolkit.Perception.Sensors` |
+| ⭐ concrete sub-records (`Visual?` `Thermal?` `Acoustic?` `Radar?`), no `ISensorConfigDto` | V1 — StructEdit cannot edit an interface member. ⭐ `Template` is a `Guid` (the template registry key), not a `uint` |
+| ⭐ `ConfigJson` is the WHOLE `SensorEntryDto` under one kind, `"SensorEntry"` | one decoder, one refusal rule; the sub-record inside names the modality |
+| ⭐ the wire grows a third field, `Override` | a TKB sensor is silent until overridden; ending the override needs ONE sample the receiver can tell from "no override yet" ⇒ `Override = false` restores the default at the sample's epoch |
+| ⭐ the Brain marks an override with `SensorConfigPayload` (id 308, `Transient`) | the egress decides "publish a TKB sensor?" from one component, with no extra state |
+| ⭐ `SensorCapability` lives on every node (§4 table) | the Brain restores the default from it on `ClearOverride` |
+| ⭐ `CE-3049`: the owner is FOLDED to 16 bits (`low ^ high`), refreshes bump the low half only (`EqsChildSensor.NextEpoch`, used by `EqsLifecycleNodes`) | removes the "ids 65536 apart alias" case and the refresh carry. ⏳ The planned slot bit belongs to the doctrine slot — the behaviors lane stamps it when it builds the second slot (`FRAME_Decision_Layer.md`) |
+| ⭐ `CE-3045`: one helper `DerivedParts.MarkNotSaved` tags every derived part `ScenarioIgnoreTag` — EQS child sensors, TKB sensors, Muscle carriers, AND combat weapon-mount children (the same bug, found by V2's precedent) | instance attach was already find-or-create (`BlueprintInstanceService` → `AlreadyAttached`) — that half needed nothing |
+| ⏳ NOT built: the implicit visual entry for an empty list | it replaces the receptor path, so it lands with the visual move (S5, `CE-3038`) |
+| ⏳ NOT built: "the solver skips sensors whose result part it does not own" (V3) | the Perception group has one holder in every composition today; a second solver is S6's concern |
+| ⏳ NOT built: "run end ⇒ override back to default" | the release path is the behaviour's (`BehaviorOwnedParts`, behaviors lane); `UnitSensors.ClearOverride` is the call it makes |
+
+| gate | command | result |
+|---|---|---|
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2621/0, 1 skipped (base 2612 + 9 new) |
+| SimHost perception / EQS / LOS | `dotnet test Hrot.SimHost.Tests --filter Perception\|Sensor\|Eqs\|Los` | 30/0 (+1 new: a new sensor kind built, solved, overridden, switched, restored) |
+| cross-node EQS (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter Eqs` | ⛔ **CORRECTED with S4:** the *93/0* first recorded here ran a STALE test binary — the two new rails did not compile (`EntityRepository.GetManagedComponentRO` is not visible there), and the build line was misread. Re-run with S4 (§9.3): the rails pass, and one of them found a real defect ⇒ next row |
+| ⭐ found by the corrected rail | — | the Muscle ingress added a `SensorCapability` on a node that had built no TKB sensor yet ⇒ *"SensorCapability not registered"* at playback. Fixed: registered on first use, as `SensorChildFactory.SetCapability` does |
+
+### 9.3 As-built — S4 / `CE-3037` + `CE-3046` *(`2026-10-04`)*
+
+⭐ §5.4's diagrams are the as-built picture. What the build decided or changed, and why:
+
+| decision / deviation | why |
+|---|---|
+| ⭐ **band SHARES, not strict band order** | strict order (§5.3 as first written) starves Low whenever Critical + Normal fill the budget; EQS 1.3 §7.5's shares do not, and stay deterministic |
+| ⭐ **+100 units per evaluation** (`EqsCost.Sensor`) | 📐 measured: 100 sensors over 50 / 200 / 800 targets = 4.2 / 8.5 / 21.3 ms for 3 042 / 12 981 / 53 073 counted units ⇒ ~32 µs fixed per sensor + ~0.34 µs per unit. Without the fixed term, 100 tiny sensors would read as cheap |
+| ⭐ **`BudgetUnits = 12 000`** | the old 4 ms wall budget in measured units (debug build) — ~40 typical sensors a tick |
+| ⚠ O5 only partly measured | sight (×4) and path (×16) stay design constants: the probe had no terrain or navmesh to time them against |
+| ⭐ the memory stage keeps a `SensorContactList` on each perception SENSOR CHILD; the visual chain's query now excludes sensor children | one writer per component — the visual chain owns the unit's list, the solver owns each sensor's |
+| ⭐ a suspended perception sensor clears its list | an ended sensor holds nothing; its targets leave the unit's union |
+| ⭐ the solver persists `SensorEvalState` ONCE per evaluation (was: up to four places) | the schedule fields ride along; an unknown template now also records its state |
+| ⏳ the 400 ms `CognitiveSpatialModule` timeout (S0) STAYS | the budget bounds the EQS solver, not the visual chain — S5 moves vision onto EQS, then the margin goes |
+| ⭐ `CE-3046`: a new contact always enters (lowest score evicted, ties: oldest sighting); dead or faded-and-untracked entries are forgotten | §5.4 table |
+| ⭐ `CE-2429` *(`2026-11-09`)*: on the LIVE world the memory is written **in place**, last in the loop (after the edges, which compare the live `memRO` with the new copy); a snapshot view keeps the command buffer | 📐 measured live (`ua-technical-scoot`): the buffered whole-memory copy played back AFTER the brain tick and erased an attack order's same-frame seed. Rail `CE2429_ABehavioursSameFrameSeed_SurvivesTheEvaluation` |
+
+| gate | command | result |
+|---|---|---|
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2623/0, 1 skipped (+3 CE-3046, one test re-pinned: *17th contact enters*) |
+| SimHost full | `dotnet test Hrot.SimHost.Tests` | 1081/0, 3 skipped (+4 S4: deterministic schedule · every band every tick · heavy waits then runs alone · memory-stage union) |
+| cross-node EQS + sensors (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter Eqs\|Sensor\|Perception` | 95/1 — the one red is `SensorMechanism_EndToEnd_…`, red on base (`CE-3050`). ⚠ Five EQS rails seeded `TargetMemory` with FAKE target ids (`1L`, `2L`, `999L`, `0`); `CE-3046` now forgets a target that does not exist, so they were given live targets — the realistic case |
+| editor | `dotnet test Hrot.Editor.Tests` | 463/0, 2 skipped |
+| examples · overlays · blueprints *(restored first — they had no `project.assets.json`)* | each project's full suite | Examples.Scenarios 53/3 — ⚠ the 3 `UrbanCombatNew…` reds are red on base `d26f23ec1` too (`CE-321`: the insurgent takes no damage); UrbanCombat 29/0 · Overlays 29/0 · Blueprints 4128/0 |
+
+### 9.4 As-built — S5 / `CE-3038` + `CE-3050` + `CE-3051` *(`2026-10-04`)*
+
+⭐ §5.5's diagrams are the as-built picture. What the build decided or found:
+
+| decision / finding | why |
+|---|---|
+| ⭐ **parity is PROVEN, not argued** | a rail runs the old chain (`VisionBroadphaseSystem` → `LosRequestBatchingSystem`) and the visual sensor on ONE world of 40 units / 25 blockers / mixed FOV: identical (observer, target) sets, and the scene must contain blocked lines so the sight test is exercised |
+| ⭐ **the broadphase is EXTRACTED (`VisionBroadphase`), not copied** | the toolkit system and the generator call the same code. ⭐ `CE-3052` (`2026-10-04`): the toolkit chain (`AutonomousPerceptionModule`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `SensorTrackDebounceSystem`, `LosCheckRequestEvent`, and — 🔒 user-approved — `TargetVisibleEvent`, whose last producer fired it for BLOCKED EQS cover rays) is DELETED — `VisionBroadphase` and `ContactHysteresis` each have ONE caller now; the FDP `SensorGridScenario` went with it (the solver lives in `Hrot.SimHost`, out of the examples' reach); the parity rail compares against a brute-force reference; occlusion → reacquire is in `SensorMechanismIntegrationTests`. Gates: Toolkits perception + ECB-coverage 74/0 · SimHost 1083/0 · NED 133/0 · cluster `Eqs\|Sensor\|Perception` 96/0 (incl. the new occluded → reacquired step) · Examples 49/3, the 3 = `UrbanCombatNew…` (`CE-321`, red on base). After deleting `TargetVisibleEvent`: Toolkits 2617/0 · SimHost 1083/0 · Blueprints 4130/0 · Stride builds · cluster `Eqs\|Sensor\|Perception\|Combat\|Weapon` 98/1, the 1 = `UrbanCombatFileLifecycle…` (red on base `749266ddc`, §9.4) |
+| ⭐⭐ **`CE-1055` (`2026-10-12`) — a generator's broadphase is ONE PER CALLING THREAD (`BroadphaseCache`, beside `VisionBroadphase`)** | 📐 the "one caller" above stopped being true on `2026-10-09`: `EqsSensorGizmo`'s verdict (`DESIGN_Peek_And_Fire.md` §9.8, `CE-3143`) calls the AI's own generator on the DRAW thread with its own view, so the shared index was rebuilt (Clear + refill) while the solver read it — measured: `Dictionary` "concurrent update … corrupted its state" in `VisionBroadphase.Select`, `Module Eqs failed` ×5. Per thread, neither caller touches the other's index, and one solver run (one thread) still rebuilds once for all its sensors. ⚠ The FINE grid stays the module's, written on its thread: an off-thread reader can see it mid-rebuild — bounded by the `CE-3146` chain guard, it can only mis-draw a gizmo frame. ⛔ Rejected: a lock (the gizmo would stall the solver, and each alternate view would still rebuild the other's index) · stopping the gizmo calling the generator (§9.8's "one producer, the same answer" is the point) |
+| ⭐⭐ **`CE-1160` (`2026-10-16`) — the FILTER's batch is per calling thread too (`StrategySightTest`'s batch mark, `TerrainWorldLosStrategy` / `PlanarCircleLosStrategy` batches)** | 📐 CE-1055 moved the GENERATOR's index per thread and left the filter shared: the verdict (`EqsSensorGizmo.DrawVerdict` → `EqsFilters.Run`) and the solver call ONE template's `StrategySightTest`, whose strategy holds the colliders (`ColliderOcclusion`, documented *one instance per caller*). Two views ⇒ each rebuilt them while the other queried. 🔒 User: the editor froze on selecting a unit in 3-D (*"1 frame drawn in few seconds"*), then died with `ArgumentOutOfRangeException` in `ColliderOcclusion.Blocking`. ⭐ Swept every `IEqsTest` and `IEqsGenerator` for shared per-call state: only these three held any. Rail `LosStrategyTests.CE1160_OneStrategy_TwoThreads_TwoViews_EachBatchIsItsOwn`. ⛔ Rejected: a lock (as CE-1055) · a private template copy for the gizmo (the strategies are composed by the host; a copy could disagree with the solver) |
+| ⭐ **`EqsModule.ForTerrainHost(world)`** owns the grid, the builder and the visual template; `EqsSolverStartup` uses it on every host | one factory, so a host cannot wire sight and forget the grid. The editor's `SwitchToExternalAsync` now uninstalls the EQS module (it carries vision, as the deleted perception module did) |
+| ⭐ **budget 150 000 units** (was 12 000) | 📐 measured (debug, 500 m all-round vision, 1 km²): 100 / 250 / 500 / 1000 units = 23 k / 71 k / 142 k / 281 k units, 9.6 / 36 / 76 / 230 ms — the old chain was 7–10 / 22–33 / 52–72 / 168–283 ms (§9.1). ⇒ every sensor every tick up to ~500 units, as the chain did; beyond, oldest first. The 400 ms timeout moved to `EqsModule` |
+| 🔴 **`CE-3051` — every catalog unit was `Neutral` on SimHost** | `WithFaction` was a no-op; SimHost's force comes from the behaviour profile, CGF's from the map symbol ⇒ the nodes disagreed, and vision (old and new) ignores its own force ⇒ real perception saw nobody on a cluster. Found by the rewritten `CE-3050` rail's per-hop diagnostics |
+| ⭐ **`CE-3050`** — real M1 vs T-72 | acquire → CGF track → score → out of sight → Lost → decay. ⚠ the decay is measured from the moment the track is LOST: the score keeps rising through the hysteresis window |
+| 🔴 **`CE-3053` — a unit's children outlived it on SimHost and CGF** | `SubEntityCleanupSystem` was registered only on a pure IG (against `REPL-DESIGN.md` §4.4). `SubEntityCascadeDestroyTests` had passed VACUOUSLY — the test unit had no children; the implicit visual sensor gave it one. Registered on every node |
+| ⏳ modality on the wire | still Visual-only in practice (no other kind has a template yet) — lands with S7 thermal / acoustic |
+
+| gate | command | result |
+|---|---|---|
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2623/0, 1 skipped |
+| SimHost full | `dotnet test Hrot.SimHost.Tests` | 1082/0, 3 skipped (+2: parity · implicit sensor; the CognitiveSpatialModule policy rail deleted with it) |
+| Editor · Core · NodeComposition · NED · Blueprints | each full suite | 463/0 · 185/0 · 55/0 · 133/0 · 4128/0 |
+| cross-node EQS + sensors (row 8) | `ClusterRunner.Integration.Tests --filter Eqs\|Sensor\|Perception` | ⭐ **96/0** — `SensorMechanism_EndToEnd` GREEN for the first time (real perception) |
+| cross-node, the suites a full run failed | `--filter` SubEntityCascade, SplitAuthority, EgressShadow, SimTimeSync, Gizmo, Lifecycle, Ghost, Ownership, … | 40/2 — `MapPlacement…` and `UrbanCombatFileLifecycle…` red on base `749266ddc` too. ⚠ The FULL suite is not gateable (75 of several hundred ran, then cascading 1 ms failures — the known DDS-allocator crash, run under load) |
+| Stride | `dotnet build HrotStrideApp.Game.Tests -p:EnableWindowsTargeting=true` | builds; ⚠ its tests need Windows |
+| examples | Examples.Scenarios · UrbanCombat · Overlays | 53/3 (the 3 `UrbanCombatNew…` = `CE-321`, red on base) · 29/0 · 29/0 |
+
+### 9.4a `UnitSensors.OfTemplate` — reading a sensor someone else runs *(`CE-2071`, built by backend `2026-10-04`)*
+
+> 🔒 *User: "backend builds sensor lookup. backend adds OfTemplate."*
+
+| rule | why |
+|---|---|
+| ⭐ query sensors (cover, retreat …) are made ON THE FLY by the behaviour that needs them and die with its run; the TKB declares only the unit's permanent senses | a TKB sensor runs for the unit's whole life and costs budget every tick it is on (§5.3) — the user's point, `2026-10-04` |
+| ⭐ `OfTemplate` is for a SECOND reader of a sensor that already runs — a child behaviour, a utility input — instead of spawning a duplicate | a duplicate costs a second solve per tick, starts cold (`IsReady` false for ≥ 1 solver tick, V6) and can answer differently from the original |
+| ⭐ preference: the caller's CURRENT run's own sensor → a TKB sensor → any other run's; lowest part id within each | `EqsChildSensor.Find` is deliberately run-scoped (`CE-485`), so it cannot see another run's sensor; `StandardInputs.TryFindEqsChild` took the first match in query order |
+| ⛔ a borrowed handle is never cached and never configured | a behaviour-owned sensor is destroyed the moment its run ends (`BehaviorOwnedParts.Release`); a refresh / `Configure` moves its epoch and drops its owner's results |
+
+### 9.5 As-built — S6 backend half / `CE-3039` *(`2026-10-04`)*
+
+> 🔒 *User: "yes backend half please"* — S6 split: the backend builds the EVENT; the nodes that READ sensors go to the
+> behaviors lane (`CE-3054`, `FRAME_Decision_Layer.md` addendum).
+
+⭐ §7.3's class diagram is the as-built picture. What the build decided or found:
+
+| decision / finding | why |
+|---|---|
+| ⚠ **deviation: *Acquired / Lost* come from `ActiveSensorTracksUpdateSystem`**, not `EqsResultUpdateSystem` | the track set is the UNIT's union (the memory stage sends changes only, §5.4); the buffer writer sees one sensor. An edge fires when a track is ADDED or actually REMOVED — a repeat *Acquired* (position update) or a *Lost* for an unheld track is silent |
+| ⭐ ***TopChanged* from `EqsResultUpdateSystem`, perception sensors only** | a sensor with `SensorTag` + `PartMetadata`; the top is compared as (entity, position) before vs after the write. A query sensor (cover, flank) is silent — its blueprint uses `When EqsResult(TopChanged)` |
+| ⭐ **the solver's `TopChanged` PUBLISH policy is filtered** (`CE-2097`, `2026-10-05`) — a sensor with `PublishPolicy = TopChanged` publishes a new answer only when its top candidate changes, compared as (entity, position) like the row above; the first answer of an epoch always goes out | 🔴 before, `EqsSolverSystem` special-cased only `ScoreDelta`, so `TopChanged` published every solve, like `AlwaysPush`. Rail: `EqsScoreDeltaTests.TopChanged_SuppressesWhileTheTopStays_PublishesWhenItChanges_CE2097` |
+| ⭐ ***FirstThreat / AllClear* from `ThreatEvaluationSystem`** on the `TargetMemory` count crossing 0 | *AllClear* is reachable only because `CE-3046` forgets |
+| ⭐ ***Hit* is DERIVED on the Brain from a `Health.Current` drop** (healing is not a hit), `Target` = Null | `HitEvent` is Muscle-local (no translator); `Health` replicates through the `EntityDamage` ingress ⇒ the Brain sees the drop, not the shooter |
+| ⏳ ***shot-heard* — DEFERRED** | no acoustic producer exists (S7), and a heard shot is an anonymous contact (G6, behaviors lane). ⛔ no enum value reserved — one is added with its producer |
+| ⭐ **the event lives in its own file** (`Perception/Events/SensorChangedEvent.cs`, id 4006) | ⚠ the DDS IDL generator emits one scope per source file ⇒ `SensorChange.Acquired` collided with `SensorTrackStatus.Acquired` in `PerceptionEvents.cs` |
+| ⭐ **blueprint `When`: a catalog entry, no new node** | `BuiltInEngineEventCatalog` "SensorChangedEvent": target field `Unit`, filterable `What` / `Kind` ⇒ `EventFired` + `Self` + a payload check on `What` |
+
+| gate | command | result |
+|---|---|---|
+| producer rails | `Fdp.Toolkits.Tests --filter SensorChangedEventTests` (+ ThreatEvaluation, ActiveSensorTracks) | 14/0 — Acquired once / Lost once · FirstThreat → AllClear on forgetting · Hit once per drop, healing silent |
+| TopChanged rail | `Hrot.SimHost.Tests --filter EqsModuleTests` | 23/0 — `S6_APerceptionSensorsTopChanging_IsOneTopChanged_AQuerySensorIsSilent` |
+| blueprint rail | `Hrot.Blueprints.Tests --filter WhenNodeRuntimeTests` | 22/0 — `CE3039_ABlueprintReactsToItsOwnUnitsSensorChange_ThroughTheBuiltInCatalog` (another unit's Hit and the own unit's FirstThreat do not fire) |
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2626/0, 1 skipped (+3) |
+| SimHost full | `dotnet test Hrot.SimHost.Tests` | 1082/1, 3 skipped — the red is `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` (7 s in the full run); ⚠ GREEN 3/3 in isolation ⇒ timing under load, not this change (no replay code touched). The +1 rail is in the 1082 |
+| Blueprints · Editor · NED | each full suite | 4129/0 · 463/0 · 133/0 |
+| cross-node EQS + sensors (row 8) | `ClusterRunner.Integration.Tests --filter Eqs\|Sensor\|Perception` | 96/0 |
+
+### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
+
+| # | question | ✅ measured answer | ⇒ design consequence |
+|---|---|---|---|
+| **V1** | can a TKB sensor list hold per-kind configs? | ⭐ JSON: YES — the TKB parser is plain System.Text.Json (`TkbDescriptorGenerator.cs:121-128`, `FdpJsonOptionsRegistry.cs:62-84`), which honours `[JsonPolymorphic]` (used elsewhere, `BehaviorTreeAssetDto.cs:226`); nested `List<record>` already exists (`WeaponSuiteDto.cs:16`). ⛔ EDITOR: StructEdit marks an interface-typed member **Unsupported** (`ReflectionEditDocumentBuilder.cs:317-332`) | ⭐ **no interface**: `SensorEntryDto` carries a concrete optional sub-record per kind (`Visual?`, `Thermal?`, `Acoustic?`) — editable and serialisable with no new converter. §4's `ISensorConfigDto` is SUPERSEDED |
+| **V2** | can a TKB translator create child entities at spawn? | ⭐ YES — and one already does: `CombatTkbTranslator.cs:101-121` creates a `PartMetadata` child per extra weapon mount, on every node, no network id. `Inject` runs from an event loop, not a query (`NetworkSpawningSystem.cs:137-142`; ghost promotion `GhostPromotionSystem.cs:271`) | K's model is the weapon-mount precedent — reuse its shape; no pending marker needed |
+| **V3** | who publishes result part 1000+i with no config sample? | ⭐ `HasAuthority` falls back to the GROUP record `(dtEqsResult, 0)` = the Perception group, then the primary owner (`AuthorityExtensions.cs:33-66`; group binding `NedOwnershipGroupBinding.cs:36`). The Perception group is granted only when the template has perception (`VisionRange > 0`, Ownership design G-4) | ⭐ works as designed IF the grant condition becomes "the template lists any sensor" (S3). ⚠ and: every Perception node would SOLVE a TKB sensor but only the group holder publishes ⇒ **the solver skips sensors whose result part it does not own** (same check, before solving) |
+| **V4** | can a doctrine token alias a behaviour token in the epoch stamp? | ⚠ YES — `StampOwner` keeps only the owner's low 16 bits (`EqsChildSensor.cs:110`); every reader compares the whole epoch (`EqsResultUpdateSystem.cs:56,128`, `EqsSolverSystem.cs:121`) ⇒ a stale result of an earlier run on a reused part id could be accepted. Narrow, and it ALREADY happens today for ids 65536 apart. ⚠ plus: `EqsLifecycleNodes.cs:128` `Epoch++` on the full value carries a refresh overflow into the owner bits | stamp `(owner & 0x7FFF) | slot << 15` into the high half, and every refresh bumps the LOW half only — `CE-3049` |
+| **V5** | what happens to a TKB default behaviour today? | 🔴 BROKEN, latent: with params it THROWS on the first tick — no root-params slot (`RootParamsAccess.cs:186`, no catch in `BrainTickSystem`); an HSM default never runs (no instance provisioned). No template sets it and no test covers it | ⭐ the doctrine / behaviour defaults start through the ingress (§7.5); the direct write is deleted — `CE-3047` |
+| ⭐ **V5 AS-BUILT, `CE-4151`** | a type's default TASK carrying params | ✅ `BehaviorProfileDto.DefaultBehavior` (a NAME) + `DefaultBehaviorParamsJson` (null = authored defaults), exactly like `DefaultSop`; `BehaviorTkbTranslator.Inject` publishes `AssignBehaviorEvent` at origin Sop when the name is set (managed event registered), else the bare `DefaultBehaviorHash` path. One decision point; rail `BehaviorTkbDefaultStartTests.CE4151_…`. The security types' HoldTheLine moved to the name form (no params = Reach 40 m, unchanged) | 
+| **V6** | same frame or next? | ⭐ NEXT frame — the bus is double-buffered, swapped once per frame before Simulation (`FdpEventBus.cs:30,65`; `ModuleHostKernel.cs:553`); and on CGF `EqsResultUpdateSystem` runs AFTER `BrainTickSystem` (`CgfSubsystem.cs:979`) | one frame of latency, by construction and deterministic — the rails state it |
+| **V7** | what happens to a unit's AI when Brain authority moves? | 🔴 the authority bit moves (`OwnershipApplier.cs:76-118`; debug transfer, failover reclaim) but behaviour state is "linked, never sent" (Ownership design :137) — the new owner has hash 0 ⇒ **the unit goes brain-dead after any hand-over**. Pre-existing | ⭐ the SNAPSHOT shape solves it: each slot's `{Name, Params, Origin}` is ALSO published as a small TransientLocal descriptor; the node that gains authority starts it through the ingress — one shape for save, load AND hand-over — `CE-3048` |
+| ~~V8~~ | ✅ dissolved by R-192 (runtime attachments are the truth; find-or-create attach) | — | — |
+| ~~V9~~ | ✅ resolved by R-191 (`FormatParams`) | — | — |
+
+## 10. Open — what is NOT yet decided *(`2026-10-04`)* — ✅ O1–O3 APPROVED (🔒 *"O1–O3 approved."*, R-193)
+
+| # | open decision | ⭐ lean | decides |
+|---|---|---|---|
+| ✅ **O1** | the origin of an assignment made in the scenario EDITOR (it is what the snapshot then saves) | `Superior` — an authored start outranks the doctrine until it ends; leave the behaviour row empty for autonomy from second one | the user |
+| ✅ **O2** | the origin of each EXISTING publisher (§6 table) | operator UI / mission-control abort / debug API → `Operator` · mission plans + commander nodes + DDS intents → `Superior` · a behaviour ending or re-assigning itself → `Self` · unmarked → `Operator` | the user |
+| ✅ **O3** | a doctrine that FAULTS | stays stopped (the unit is brain-dead), the fault is logged and visible in the editor's AI section and `/diagnostics`; no auto-restart (a doctrine that faults every tick would spam) | the user |
+| ✅ ~~**O4**~~ | S0's interim cap | ⛔ the observer cap was NOT built — it would have broken the debounce (contacts of a skipped observer age into *Lost*); the measured hot spots were fixed instead, see §9.1 | build (S0) |
+| **O5** | the cost-unit weights (§5.3) | measured once on a reference scenario at S4, then constants | build (S4) |
+| ⚠ **O5 — measured `2026-10-20` (`CE-3279`)** | 📐 the reference scenario held VISION only, so the path / placement weights were never measured. Live, `uc-request-chain` on demo-city (debug, 4-core VM): vision ≈ 70 units / ms, but `FindFlankingPosition` ≈ 4 units / ms — a path query costs **3.3 ms** (`DotRecastNavmeshProvider.PathCost`: a full A* + straight path per candidate) where `Path = 16` predicts ~5 µs, and each generated point's placement (`TryStandAt`) **0.4 ms**, counted as 1. ⇒ 21 400 units took **1.8–2.4 s** a tick; the budget (150 000) never stopped anything and the 400 ms breaker opened every tick | ✅ **BUILT `2026-10-20` (user: "Yes a b and c")** — (a) the terrain index attached and asked by point queries (World Query Seam §5a), (b) one navmesh search per sensor (`INavmeshProvider.PathCosts`), (c) path and exposure COUNT their work (§5.3). 📐 Live, same scene: a solve **1.8–2.4 s → ~320 ms**; placement 720 → 2 ms, sight 150 → 14 ms, exposure 45 → 10 ms, retreat template 560 → 17 ms; the flank (a target 1.1 km off) searches ~9 600 polygons, 30–45 ms a sensor. Timeouts in 60 s: continuous → 2 (warm-up, and the cluster's stop). ⚠ On this debug VM a unit costs ~3 µs, so the 150 000 budget is ~450 ms here. ⭐ **Kept at 150 000 (🔒 user `2026-10-20`: "Leave the EQS budget as is")** — the counts are deterministic and a release build is several times faster; revisit only if timeouts show on a release machine. ⭐ **The breaker is now 2 s (`EqsModule.MaxRunMs`, user `2026-10-20`)**, was 400 ms: a timed-out run is not stopped — it runs on as a zombie and blocks the next (CE-3066) — so the cap freed nothing; it only discarded a correct late answer and, after five, skipped the module 10 s. The budget still bounds a tick; 2 s only names a hang |
+
+| verify while building | §9 |
+|---|---|
+| V1 TKB JSON polymorphism · V2 child entities at spawn · V3 who owns result part 1000+i · V4 token aliasing in `StampOwner` · V5 behaviour default skips its start · V6 same-frame or next-frame events · V7 doctrine as published state for a Brain hand-over | each has a fallback written in |
+
+| other lanes | |
+|---|---|
+| `CE-3041` (behaviors) | `ObserverSelector` abort |
+| `CE-3043` (ui) | the editor's AI section |
+| `CE-3031` (behaviors) | EQS-consuming behaviours — a doctrine is what will assign them |
+
+## 11. Critical review — through the eyes of a real game AI *(`2026-10-04`)*
+
+> 🔒 *"lets take a critical look and check for flaws and gaps from the point of view of a real game AI (which we are still
+> building infrastructure for, but a bit blindly, without having a clear needs we need to cover - so we keep stuff flexible
+> and open)."*
+
+The test applied: a squad rifleman and a tank, autonomous, on a mission, under fire, in a 2-hour scenario. What breaks?
+
+### 11.1 Measured DEFECTS (filed)
+
+| id | defect | evidence | why a game AI cares |
+|---|---|---|---|
+| `CE-3046` | 🔴 **`TargetMemory` never forgets, and drops new contacts when full** | nothing removes an entry (the only `Count--` in perception is `ActiveSensorTracksUpdateSystem.cs:90`, the track list); a 17th contact is ignored (`PerceptionComponents.cs:139`) — dead and long-lost targets keep their slots | after 16 contacts in a long scenario the unit is blind to every NEW threat, and §7.3's *AllClear* can never fire |
+| `CE-3047` | 🔴 the TKB default behaviour throws (params) or never runs (HSM) | V5 | a template that sets it crashes the Brain tick |
+| `CE-3048` | 🔴 a Brain-authority hand-over leaves the unit brain-dead | V7 | failover = every unit of the lost node stops thinking |
+| `CE-3049` | ⚠ epoch owner-stamp aliasing + refresh overflow into the owner bits | V4 | a stale answer accepted after a rare id reuse |
+
+### 11.2 Design GAPS — what a game AI will need that the design does not give yet
+
+| # | gap | evidence | ⭐ lean (keeps it open, not speculative) |
+|---|---|---|---|
+| **G1** | ⭐⭐ **"threat" is not danger** — the score is seconds-seen (+50/s while tracked, −10%/s decay, `ThreatEvaluationSystem.cs:~76`, `PerceptionConstants.cs:41`): a truck seen long scores above a tank seen briefly | measured | split the memory entry into **confidence** (how sure I am it is there — what perception produces) and **danger** (how much it matters to ME — target class, weapons vs my armour, range, facing), the latter from ONE pluggable assessor fed by the TKB. Doctrines and *FirstThreat* thresholds use danger. ⭐ **Weapons-vs-my-armour half BUILT `2026-10-14` for a VEHICLE self** (`ThreatDanger.ToMe`, CE-2165 V1 — the penetration chance of his best mount on my facing × in range; [Exposure Cycle §2](designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md)); a person self is unchanged |
+| **G2** | ⭐⭐ **a mission overrides autonomy** — `MissionDirectorSystem` assigns each phase's behaviour directly (`:217`), at `Superior` (R-193) ⇒ a doctrine unit with a mission is just scripted; the user's *"autonomous entity … needed by the main mission"* has no path | measured | a mission plan gets a mode: **Direct** (today) or **Goal** — the current task is published as the unit's GOAL (objective, area, deadline) for the doctrine to pursue; the director stops assigning. This is the "goal, not order" option (Utility §10.4) made concrete |
+| **G3** | ⭐⭐ **doctrine and behaviour share nothing after the start** — params are fixed per run; a new target picked by the doctrine needs a behaviour RESTART (which resets channels — BD1) | design §7.5 | one small per-unit **intent** component the doctrine (or an order) WRITES and behaviours READ live: current target, objective, posture, ROE (G7). Changing the target is a write, not a restart |
+| **G4** | ⭐ **decision thrash** — a doctrine re-deciding every tick on flickering input swaps behaviours back and forth | reasoning | ① re-assigning the SAME behaviour + params is a no-op at the ingress ② an optional minimum commit time on a doctrine's assignment ③ the memory stage's debounce already damps the input |
+| **G5** | ⭐ **doctrine cost** — the Brain runs synchronously every frame (`CgfSubsystem.cs:3315`); a doctrine per unit per frame is waste | measured | the doctrine slot ticks at a lower rate (default 5 Hz, staggered by entity index — deterministic) AND immediately on a `SensorChangedEvent` / `BehaviorFinishedEvent` for that unit |
+| **G6** | **contacts without identity** — "hit from an unseen shooter", "shots heard from the north" — memory is keyed by entity id (`AddOrUpdateTarget` matches `EntityIds[i]`) | measured | the memory stage accepts ANONYMOUS contacts (synthetic id, position estimate + uncertainty radius) that merge into a real track when one is seen there |
+| **G7** | **no rules of engagement anywhere** (grep: none) | measured | part of G3's intent component (*hold / return fire / free*), set by orders through the origin gate, read by doctrines and weapon behaviours |
+| **G8** | **the doctrine needs feedback** — why did my behaviour end? was my assignment refused? | `BehaviorFinishedEvent {Result, FaultCode}` exists | both (finish and gate refusal) join §7.3's bridge — HSM events, blueprint `When`, a BTree-readable "last outcome" |
+| **G9** | one behaviour owns every channel — move and shoot must live in one asset | `ChannelArbitrationSystem` | keep open; BTree `Parallel` covers it inside one asset. Per-channel behaviour layers only if a real need shows |
+| **G10** | no shared team picture (radio reports) | — | keep open: a *Reported* modality as a push stimulus fits the memory stage when wanted |
+| **G11** | identification and detection probability (detect → recognise → identify; friend-or-foe mistakes) — `FactionFilter` assumes perfect knowledge | — | keep open: room in the memory entry (an identification level) and in the result flags; any randomness from a seeded RNG per (sensor, target, tick) — deterministic |
+
+### 11.2b The user's answers *(`2026-10-04`)* — and the hand-over
+
+| # | 🔒 user | ⇒ |
+|---|---|---|
+| G1 | *"tank seems a bigger threat even if seen briefly because it is more dangerous (hidden does not mean harmless), maybe it just a matter of how long it takes to forget"* | ⛔ the confidence/danger lean above is REWORDED: danger = WHAT it is (does not fade); FRESHNESS = how current my knowledge is (fades). The memory stage (S4) keeps room for freshness; judging danger is the decision layer's |
+| G2 | *"Maybe mission should include doctrine, not just tasks? Mission triggers seems to be what doctrine may be replacing."* (⛔ SUPERSEDED `2026-10-04`: the mission is NOT changed — it stays the end-user surface; [`DESIGN_Decision_Layer.md`](DESIGN_Decision_Layer.md) §2) | ⛔ the "Goal mode" lean above is WITHDRAWN: a mission phase may name a doctrine (+ params), the trigger changes it, the doctrine reacts inside the phase |
+| G2b | *"at 5hz couldnt doctrine miss some events, are events buffered?"* | yes it would — bus events live one frame (`FdpEventBus.cs:30`) ⇒ wake-on-event is mandatory with G5 |
+| hand-over | *"Maybe we should handoff all this discussion to the behavior lane, and here start the eqs rework"* · *"Agreed, write the frame and start S0"* | ⭐ G1–G11 + the approved doctrine/origin build (`CE-3034/3035/3040/3041/3042/3047/3048`) → behaviors lane: `FRAME_Decision_Layer.md`. Backend keeps the sensor side: S0, S3, S4, S5, `CE-3045`, `CE-3046`, `CE-3049`, `CE-3044` |
+
+### 11.3 What this changes in the build order
+
+| | |
+|---|---|
+| ⭐ before S4 | `CE-3046` is not optional — the memory stage (S4) must FORGET (unseen for N s, target dead, score below ε) and EVICT the least dangerous when full. It is the same code |
+| ⭐ S2 | absorbs `CE-3047` (defaults through the ingress), G4 ① (idempotent re-assign), G5 (doctrine rate + wake-on-event), G8 (feedback) |
+| ⭐ S2b | absorbs `CE-3048`: the snapshot shape is published for hand-over |
+| ⏳ decide | G1, G2, G3 — each changes a contract (the memory entry, the mission plan, a new per-unit component) ⇒ they need the user before S4 / S2 |
+

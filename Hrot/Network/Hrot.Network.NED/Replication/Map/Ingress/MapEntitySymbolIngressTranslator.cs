@@ -1,6 +1,6 @@
 using System;
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -14,21 +14,20 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// <summary>
     /// Ingress translator for the Hrot <c>MapEntitySymbol</c> DDS topic.
     ///
-    /// Applies per-entity visual overrides via <see cref="IgSymbolOverride"/>.
+    /// Applies per-entity visual overrides via <see cref="MapSymbolOverride"/>.
     /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class MapEntitySymbolIngressTranslator : IDescriptorTranslator
+    public class MapEntitySymbolIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MapEntitySymbol";
         private const long OrdinalValue = (long)EDescriptorType.dtMapEntitySymbol;
 
         private readonly DdsReader<MapEntitySymbol>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly int _mapGroupId;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapEntitySymbol>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -39,14 +38,17 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap entityMap,
             int mapGroupId,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MapEntitySymbol>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _mapGroupId = mapGroupId;
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -75,21 +77,21 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!ShouldApply(symbol.MapGroupId))
                 return;
 
-            repo.SetManagedComponent(entity, new IgSymbolOverride
+            repo.SetManagedComponent(entity, new MapSymbolOverride
             {
                 StyleSetId = string.IsNullOrEmpty(symbol.StyleSetId) ? null : symbol.StyleSetId,
                 TextureOverride = null
             });
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         internal void ProcessSample(in MapEntitySymbol data, IEntityCommandBuffer cmd, EntityRepository? repo)
         {
             if (!ShouldApply(data.MapGroupId))
                 return;
 
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (repo == null)
@@ -102,7 +104,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
-            cmd.SetManagedComponent(entity, new IgSymbolOverride
+            cmd.SetManagedComponent(entity, new MapSymbolOverride
             {
                 StyleSetId = string.IsNullOrEmpty(data.StyleSetId) ? null : data.StyleSetId,
                 TextureOverride = null

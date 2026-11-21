@@ -45,14 +45,23 @@ public sealed class HsmSelectionBridgeHelperTests
         return HsmAssetProjector.Project(blob, meta, null, Guid.NewGuid(), "Simple", "", false, "");
     }
 
-    private static InspectorWindow MakeInspectorWindow(
-        EditorSelectionStore store, IFacetDispatcher? dispatcher = null)
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet resolves through <c>NodePropertiesSource</c> now.</b>
+    /// 📄 §7.6 ②: <c>InspectorWindow</c>'s node arms were EXTRACTED to <c>details.nodeproperties</c>.
+    /// ⚠ The claim below is unchanged — it is about the BRIDGE, and the window was only the driver.
+    /// ⭐ The context is built by <c>DetailsContextBuilder</c>, the call the shell makes every frame.
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeFacetSource(
+        IFacetDispatcher? dispatcher = null)
     {
-        var refactor    = new StubRefactor();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher: dispatcher);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        return source;
     }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "HSM", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
     // ── MapSelection null / empty guards ──────────────────────────────────────
 
@@ -188,10 +197,27 @@ public sealed class HsmSelectionBridgeHelperTests
             "canvas LinkId.Value must equal TransitionNode.VisualId");
     }
 
+    /// <summary>
+    /// ⚠⚠ <b><c>L0.2</c> RE-EXPRESSED THIS RAIL, and the change of premise IS the finding.</b>
+    ///
+    /// <para>🔴 It used to assert <c>MapSelection</c> returns the <b>state</b> for a mixed node+link
+    /// selection — <i>"the state node is preferred"</i>. 📌 That preference was a FILTER DECISION MADE
+    /// IN THE BRIDGE, which is exactly what <c>R-118</c> deletes: <i>"the bridge REPORTS, never
+    /// filters."</i></para>
+    ///
+    /// <para>⭐⭐ <b>The tie-break is not lost — it became ORDER.</b> <c>MapSelections</c> reports the
+    /// state FIRST and the transition second, so a ranked consumer still reads <i>state wins</i>.
+    /// ⛔ <b>But the derived single is now <c>null</c></b>, because two things really are selected —
+    /// and <c>null</c> here means one fact *(not exactly one)*, not the three it used to mean.</para>
+    ///
+    /// <para>⚠ <b>The user-visible consequence, stated rather than buried:</b> until <c>L1.4</c>'s
+    /// predicate and <c>R-117</c>'s grey line land in <c>L1</c>/<c>L2</c>, a mixed selection shows
+    /// NOTHING where it used to show the state. ⭐ That is the design's intended end state arriving one
+    /// layer early — ⛔ not a regression anyone chose to accept silently.</para>
+    /// </summary>
     [Fact]
-    public void MapSelection_MixedNodeAndLink_PrefersStateNode()
+    public void MapSelections_MixedNodeAndLink_ReportsBoth_StateFirst()
     {
-        // When both a node and a link are selected, the state node is preferred.
         var asset      = MakeSimpleAsset();
         var idleState  = asset.AllStates.First(s => s.Name == "Idle");
         var transition = asset.AllTransitions.First();
@@ -203,11 +229,44 @@ public sealed class HsmSelectionBridgeHelperTests
             SelectionEntry.OfLink(new LinkId(transition.VisualId)),
         });
 
-        var result = HsmSelectionBridgeHelper.MapSelection(sel, asset);
+        var all = HsmSelectionBridgeHelper.MapSelections(sel, asset);
 
-        result.Should().BeOfType<HsmStateSelection>(
-            "when both a node and a link are selected, the state node is preferred");
-        ((HsmStateSelection)result!).StableId.Should().Be(idleState.StableId);
+        // ⭐ BOTH are reported — the bridge no longer discards the transition.
+        all.Should().HaveCount(2, "R-118: the bridge reports every selected element");
+        all[0].Should().BeOfType<HsmStateSelection>(
+            "the state-wins tie-break survives as ORDER: nodes are reported before links");
+        ((HsmStateSelection)all[0]).StableId.Should().Be(idleState.StableId);
+        all[1].Should().BeOfType<HsmTransitionSelection>();
+        ((HsmTransitionSelection)all[1]).VisualId.Should().Be(transition.VisualId);
+
+        // ⛔ And the derived single is null, because two things are selected. ⚠ This is the measured
+        //   behaviour change — the old rail asserted HsmStateSelection here.
+        HsmSelectionBridgeHelper.MapSelection(sel, asset).Should().BeNull(
+            "two selected elements are not 'exactly one'; L1.4's predicate is where that question now lives");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>L0.2</c> — an UNRESOLVABLE id is DROPPED, not fatal.</b> 📄 §6 <c>L0.2</c>, verbatim:
+    /// <i>"an unresolvable node is dropped, not fatal."</i> ⛔ The deleted code returned <c>null</c> for
+    /// the WHOLE selection, so one stale canvas id discarded the designer's other selections.
+    /// </summary>
+    [Fact]
+    public void MapSelections_AStaleId_IsDropped_AndTheRestSurvive()
+    {
+        var asset     = MakeSimpleAsset();
+        var idleState = asset.AllStates.First(s => s.Name == "Idle");
+
+        var sel = new SelectionState();
+        sel.ReplaceWith(new[]
+        {
+            SelectionEntry.OfNode(new NodeId(idleState.StableId)),
+            SelectionEntry.OfNode(new NodeId(Guid.NewGuid())),   // ⛔ belongs to no state in this asset
+        });
+
+        var all = HsmSelectionBridgeHelper.MapSelections(sel, asset);
+
+        all.Should().ContainSingle("the stale id is dropped and the real one survives");
+        ((HsmStateSelection)all[0]).StableId.Should().Be(idleState.StableId);
     }
 
     // ── GetCurrentFacet integration ───────────────────────────────────────────
@@ -216,7 +275,7 @@ public sealed class HsmSelectionBridgeHelperTests
     /// FIX-A end-to-end headless: confirms the full chain
     ///   SetFacetDispatcher(BuildFacetDispatcher(asset)) +
     ///   ActiveSubSelection = new HsmStateSelection(stableId)
-    ///   → inspector.GetCurrentFacet() != null.
+    ///   → source.FacetFor(ContextOf(store)) != null.
     /// This is the exact condition the lead's symptom report describes as broken.
     /// </summary>
     [Fact]
@@ -231,7 +290,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var dispatcher = HsmSelectionBridgeHelper.BuildFacetDispatcher(asset);
         dispatcher.Should().NotBeNull();
 
-        var inspector = MakeInspectorWindow(store, dispatcher);
+        var source     = MakeFacetSource(dispatcher);
 
         // Simulate what AfterDraw publishes: map canvas node click → HsmStateSelection.
         var sel = new SelectionState();
@@ -239,7 +298,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var subSel = HsmSelectionBridgeHelper.MapSelection(sel, asset);
         store.ActiveSubSelection = subSel;
 
-        var facet = inspector.GetCurrentFacet();
+        var facet = source.FacetFor(ContextOf(store));
 
         facet.Should().NotBeNull(
             "dispatcher + ActiveSubSelection → GetCurrentFacet must return the state facet");
@@ -253,7 +312,7 @@ public sealed class HsmSelectionBridgeHelperTests
     /// HSM-TRANS end-to-end headless: confirms the full chain
     ///   SetFacetDispatcher(BuildFacetDispatcher(asset)) +
     ///   ActiveSubSelection = new HsmTransitionSelection(visualId)
-    ///   → inspector.GetCurrentFacet() returns TransitionFacet.
+    ///   → source.FacetFor(ContextOf(store)) returns TransitionFacet.
     /// </summary>
     [Fact]
     public void GetCurrentFacet_ReturnsTransitionFacet_WhenTransitionSubSelectionIsWired()
@@ -267,7 +326,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var dispatcher = HsmSelectionBridgeHelper.BuildFacetDispatcher(asset);
         dispatcher.Should().NotBeNull();
 
-        var inspector = MakeInspectorWindow(store, dispatcher);
+        var source     = MakeFacetSource(dispatcher);
 
         // Simulate what AfterDraw publishes: map canvas link click → HsmTransitionSelection.
         var sel = new SelectionState();
@@ -275,7 +334,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var subSel = HsmSelectionBridgeHelper.MapSelection(sel, asset);
         store.ActiveSubSelection = subSel;
 
-        var facet = inspector.GetCurrentFacet();
+        var facet = source.FacetFor(ContextOf(store));
 
         facet.Should().NotBeNull(
             "dispatcher + ActiveSubSelection → GetCurrentFacet must return the transition facet");

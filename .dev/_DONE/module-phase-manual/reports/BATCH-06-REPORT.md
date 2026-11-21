@@ -18,7 +18,7 @@
 ## Build Status
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded.
     0 Error(s)
     0 Warning(s)
@@ -31,7 +31,7 @@ Build verified after every task (T04, T05, T06, T07). All green.
 ## Test Status
 
 ```
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 
 Passed!  - Failed: 0, Passed:  94, Skipped: 0, Total:  94  - Hrot.Orchestrator.Tests.dll
 Passed!  - Failed: 0, Passed: 219, Skipped: 0, Total: 219  - Hrot.ClusterRunner.Tests.dll

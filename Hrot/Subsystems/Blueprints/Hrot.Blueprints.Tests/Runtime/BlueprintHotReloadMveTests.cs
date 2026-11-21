@@ -11,6 +11,7 @@ using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Emit;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Tests.Builders;
 

@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fbt;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Events
 {
@@ -33,7 +34,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.1, EventId=8201)
     /// </summary>
     [EventId(8201)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct MontageStartedEvent
     {
         public readonly Entity Target;
@@ -51,7 +52,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.1, EventId=8202)
     /// </summary>
     [EventId(8202)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct MontageEndedEvent
     {
         public readonly Entity Target;
@@ -83,7 +84,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.1, EventId=8203)
     /// </summary>
     [EventId(8203)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct MontageSectionAdvancedEvent
     {
         public readonly Entity Target;
@@ -99,7 +100,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.1, EventId=8204)
     /// </summary>
     [EventId(8204)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct StanceChangedEvent
     {
         public readonly Entity Target;
@@ -125,7 +126,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.2, EventId=8210)
     /// </summary>
     [EventId(8210)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct FootstepEvent
     {
         public readonly Entity Target;
@@ -150,7 +151,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.2, EventId=8211)
     /// </summary>
     [EventId(8211)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct HitWindowOpenedEvent
     {
         public readonly Entity Target;
@@ -173,7 +174,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.2, EventId=8212)
     /// </summary>
     [EventId(8212)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct HitWindowClosedEvent
     {
         public readonly Entity Target;
@@ -197,7 +198,7 @@ namespace Hrot.MuscleCharacter.Animation.Events
     /// (DD-3 §3.2, EventId=8213)
     /// </summary>
     [EventId(8213)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public readonly struct AnimNotifyEvent
     {
         public readonly Entity Target;

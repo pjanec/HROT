@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -24,12 +25,19 @@ namespace Fdp.Network.Cyclone.Translators
 
         public long DescriptorOrdinal { get; }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4086</c> — the components this descriptor authority-gates (<see cref="IDescriptorTranslator.TargetComponentIds"/>), VIRTUAL so a
+        /// subclass OVERRIDES it. ⛔ Was: the interface's default only, and a subclass's own public property merely HID it — the interface (what
+        /// every registrar reads) still answered empty, so <c>GeoSpatialEgressTranslator</c>'s <c>dtWorldPos → SimTransform</c> pairing never reached
+        /// any map and the ghost gate never held a replica for its pose.
+        /// </summary>
+        public virtual IReadOnlyList<int> TargetComponentIds => Array.Empty<int>();
+
         protected CycloneTranslator(
             DdsParticipant? participant, 
-            string topicName, 
             long ordinal,
             NetworkEntityMap entityMap)
-            : base(topicName)
+            : base(CycloneDDS.Schema.DdsTopicName.Of<TDds>())
         {
             DescriptorOrdinal = ordinal;
             EntityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
@@ -43,15 +51,35 @@ namespace Fdp.Network.Cyclone.Translators
         /// High-performance dispose that patches keys without reflection.
         /// Default implementation disposes instance 0 (Root).
         /// </summary>
-        public virtual void Dispose(long networkEntityId)
+        public virtual void Dispose(int networkEntityId)
         {
             DisposeInstance(networkEntityId, 0);
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ② — the F7 giver lets go of the root instance WITHOUT disposing it (an unregister: the grantee keeps the
+        /// descriptor alive and becomes its sole writer). Only an EGRESS translator ever wrote the instance, so an ingress one does
+        /// nothing. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3.
+        /// </summary>
+        public virtual void ReleaseInstance(int networkEntityId, long instanceId)
+        {
+            if ((Direction & TranslatorDirection.Egress) == 0 || Writer == null) return;
+            UnregisterInstance(networkEntityId, 0);
+        }
+
+        /// <summary>Helper to unregister (release, never dispose) a specific instance — the key is patched like <see cref="DisposeInstance(long, long)"/>.</summary>
+        protected void UnregisterInstance(int entityId, long instanceId)
+        {
+            TDds keySample = default;
+            if (UnsafeLayout<TDds>.IsValid) UnsafeLayout<TDds>.WriteId(&keySample, entityId);
+            if (MultiInstanceLayout<TDds>.IsValid) MultiInstanceLayout<TDds>.WriteInstanceId(&keySample, instanceId);
+            Writer.UnregisterInstance(keySample);
+        }
+
+        /// <summary>
         /// Helper to dispose specific instance.
         /// </summary>
-        protected void DisposeInstance(long entityId, long instanceId)
+        protected void DisposeInstance(int entityId, long instanceId)
         {
             // 1. Stack Allocation (Zero GC, Instant)
             TDds keySample = default;
@@ -94,6 +122,9 @@ namespace Fdp.Network.Cyclone.Translators
         /// <summary>
         /// Egress: Scan ECS and publish samples to DDS.
         /// </summary>
+        /// <inheritdoc />
+        public override int DiscardIngress() => Reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public abstract override void ScanAndPublish(ISimulationView view);
 
         /// <summary>

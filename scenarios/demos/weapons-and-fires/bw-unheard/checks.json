@@ -1,0 +1,29 @@
+{
+  "$doc": "CE-4649 BW-9 - an arrow is unheard (the soldiers hear a rifle at 400 m, never a bow).",
+  "runFor": 30,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Archer shoots",
+      "on": "shot",
+      "by": "Archer",
+      "n": 2
+    },
+    {
+      "name": "Soldier A never fires",
+      "never": {
+        "on": "shot",
+        "by": "Soldier A"
+      }
+    },
+    {
+      "name": "Soldier B never fires",
+      "never": {
+        "on": "shot",
+        "by": "Soldier B"
+      }
+    }
+  ]
+}

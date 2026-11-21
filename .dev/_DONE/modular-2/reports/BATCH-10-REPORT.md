@@ -27,7 +27,7 @@
 ## Build Results
 
 ```
-dotnet build IOS-IG-SimHost.sln -v quiet
+dotnet build HROT.sln -v quiet
 ```
 
 **Result: 0 errors, 0 new warnings**

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#A3AEBB"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55606C"/><stop offset="1" stop-color="#2A3139"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D0F2"/><stop offset="1" stop-color="#4A79A8"/></linearGradient>
+  <radialGradient id="wheel" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#C9D1DA"/><stop offset="1" stop-color="#6E7A87"/></radialGradient>
+</defs>
+<g stroke="#1B2027" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M16,22 L112,16 L118,108 L12,112 Z" fill="#DCE3EA" fill-opacity="0.3" stroke-dasharray="9 6" stroke-width="3"/>
+<path d="M44,86 L44,52 L64,40 L84,52 L84,86 Z" fill="url(#body)"/>
+<path d="M58,86 L58,68 L70,68 L70,86" fill="url(#dark)" stroke-width="1.6"/>
+</g>
+</svg>

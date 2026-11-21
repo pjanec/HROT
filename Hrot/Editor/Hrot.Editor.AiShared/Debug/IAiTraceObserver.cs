@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Editor.AiShared.Debug;
 

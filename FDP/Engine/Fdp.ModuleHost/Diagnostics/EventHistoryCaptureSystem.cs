@@ -11,6 +11,7 @@ namespace Fdp.ModuleHost.Diagnostics
     /// phase so that all domain systems have committed their events before the buffer is updated.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class EventHistoryCaptureSystem : IEcsModuleSystem
     {
         private readonly string _providerName;

@@ -154,7 +154,7 @@ Build succeeded.
     [existing warnings only: CS8601, CS0618 from other test files]
 ```
 
-### Full Solution (IOS-IG-SimHost.sln)
+### Full Solution (HROT.sln)
 - Build was initiated and confirmed building without blocking errors in modified projects.
 - No regressions observed in other subsystems.
 

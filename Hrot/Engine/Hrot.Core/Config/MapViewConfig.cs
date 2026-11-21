@@ -3,7 +3,7 @@ namespace Hrot.Map.Common.Config
     /// <summary>
     /// Plain data object that holds the current map layer visibility configuration.
     /// Used by <c>EditorMapConfigAdapter</c> as an in-process alternative to the
-    /// IG-only <c>MapUserConfig</c>, decoupling the Editor from the <c>Hrot.IG</c>
+    /// IG-only <c>MapUserConfig</c>, decoupling the Editor from the <c>Hrot.Player</c>
     /// project reference.
     /// </summary>
     public sealed class MapViewConfig

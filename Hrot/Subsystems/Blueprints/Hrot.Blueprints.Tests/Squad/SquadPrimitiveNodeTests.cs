@@ -55,7 +55,8 @@ public sealed class SquadPrimitiveNodeTests
             "TestAssets", "Recipes", "BoundingOverwatchSwap.bp.json");
         var json = File.ReadAllText(jsonPath);
 
-        var asset = System.Text.Json.JsonSerializer.Deserialize<BlueprintAsset>(json);
+        // CE-3187 (R-2007): the production asset reader — enums are names, so default options cannot read the file.
+        var asset = Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(json);
         Assert.NotNull(asset);
 
         var graph = Assert.Single(asset.Graphs);

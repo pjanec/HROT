@@ -429,4 +429,23 @@ public sealed class BATCH03B_FunctionGraphCallValidationTests
         Assert.True(bp165x.Count == 0,
             $"Expected no BP165x diagnostics but got: {string.Join(", ", bp165x.Select(d => $"{d.Code}: {d.Message}"))}");
     }
+
+    /// <summary>
+    /// ⭐ S1 / I13 (<c>DESIGN_Unified_Behaviour_Run</c> §2) — a called Function graph holding an INLINE ACTION (a
+    /// <c>ChannelCommandNode</c> with an <c>ActionFqn</c>) is BP1650: it suspends like a Delay (<c>MacroLatency.IsLatent</c>).
+    /// ✅ Red-proof: BP1650's old hand-written list (Delay/WaitForChannel/WaitForEvent) missed it.
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1650")]
+    public void BP1650_CalledFunctionGraph_WithAnInlineAction_EmitsBP1650()
+    {
+        var targetId = Guid.NewGuid();
+        var target   = MakeFunctionGraph("Target", targetId);
+        target.Nodes.Add(new ChannelCommandNode { Id = Guid.NewGuid(), ActionFqn = "Some.Action_12345678_Bp.Call" });
+        var caller   = MakeCallerGraph("Caller", Guid.NewGuid(), targetId.ToString());
+
+        var diagnostics = RunStage2(MakeAsset(caller, target));
+
+        Assert.Contains(diagnostics, d => d.Code == DiagnosticCodes.BP1650);
+    }
 }

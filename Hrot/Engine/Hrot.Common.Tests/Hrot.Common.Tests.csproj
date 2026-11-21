@@ -33,4 +33,13 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+  </ItemGroup>
+  <ItemGroup>
+    <!-- CE-4293: the test-only node extension, built the way a foreign product builds one and staged by path (not referenced) -->
+    <ProjectReference Include="..\Hrot.Common.Tests.SampleExtension\SampleNodeExtension.csproj" ReferenceOutputAssembly="false" OutputItemType="SampleExtensionOutput" />
+    <Compile Include="..\Hrot.Common.Tests.SampleExtension\Shared\SampleExtensionStaging.cs" Link="Shared\SampleExtensionStaging.cs" />
+  </ItemGroup>
+  <Import Project="..\Hrot.Common.Tests.SampleExtension\CopySampleExtension.targets" />
 </Project>

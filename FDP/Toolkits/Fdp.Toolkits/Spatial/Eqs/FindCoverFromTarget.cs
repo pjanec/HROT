@@ -3,43 +3,43 @@ using System;
 namespace Fdp.Toolkit.Spatial.Eqs
 {
     /// <summary>
-    /// Starter EQS template: finds cover positions that provide occlusion from the
-    /// primary tracked threat. Composed of CoverPointsGenerator + CheapLineOfSightTest
-    /// + DistanceScoreTest.
-    ///
-    /// BlueprintId is the FNV-1a 32-bit hash of the AssetId GUID below.
+    /// ⭐ §6.6 starter template: cover from the target in context slot 1 (docs/designs/eqs-2/EQS_Design_v1.3_final.md §19.6).
+    /// Cover points (the terrain's, <see cref="TerrainCoverProvider"/>) near the self → kept only where the target CANNOT see
+    /// the self's crouched eye → nearer scores higher, plus how hidden it is from every known threat, and the path cost to it
+    /// (unreachable points drop out).
+    /// <para>⛔ SUPERSEDED (§19.1 H1): the registry built it over <c>BlockedLosService</c>, so no point was ever rejected.</para>
     /// </summary>
-    [EqsTemplate("f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d")]
+    [EqsTemplate(AssetId)]
     public static class FindCoverFromTarget
     {
-        /// <summary>
-        /// FNV-1a 32-bit hash of the AssetId GUID "f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d".
-        /// Used as the BlueprintId key in IEqsTemplateRegistry.
-        /// </summary>
-        public const uint BlueprintId = 0x7F3A2B1Cu;
+        /// <summary>The template's asset identity.</summary>
+        public const string AssetId = "f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d";
 
         /// <summary>
-        /// Builds the compiled template. Static and pure: no runtime state read.
+        /// ⭐ <c>CE-2034</c> — FNV-1a over <see cref="AssetId"/>'s 16 bytes, the id <see cref="EqsTemplateRegistry"/> keys
+        /// the template by and a blueprint <c>SpawnEqsSensor</c> bakes. A rail pins it to
+        /// <see cref="EqsTemplateRegistry.BlueprintIdOf"/>(<see cref="AssetId"/>).
         /// </summary>
-        /// <param name="los">LOS service (inject BlockedLosService for Phase 3 stub).</param>
-        public static EqsQueryTemplate Build(ILosService los)
+        public const uint BlueprintId = 0x082E6DADu;
+
+        /// <summary>The production template: sight over the resident terrain. Static and pure (§5.6).</summary>
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => Build(los: null);
+
+        /// <summary>The same template over an explicit sight source (tests; a host-specific one such as Stride's raycasts).</summary>
+        public static EqsQueryTemplate Build(ILosService? los) => new EqsQueryTemplate
         {
-            return new EqsQueryTemplate
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator(),
+            FilterCheap    = new IEqsTest[] { los == null ? new CheapLineOfSightTest() : new CheapLineOfSightTest(los) },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[]
             {
-                BlueprintId   = BlueprintId,
-                Generator     = new CoverPointsGenerator(),
-                FilterCheap   = new IEqsTest[] { new CheapLineOfSightTest(los) },
-                ScoreCheap    = new IEqsTest[] { new DistanceScoreTest() },
-                MaxCandidates = 32,
-            };
-        }
-
-        /// <summary>
-        /// Overload for the Roslyn source generator. Uses BlockedLosService so no runtime
-        /// dependencies are required. The returned template is used only for StructureHash
-        /// computation, not for live evaluation.
-        /// </summary>
-        public static EqsQueryTemplate Build(IEqsTemplateBuilder b)
-            => Build(new BlockedLosService());
+                // ⭐ AQ88 C (R-265) — hidden from every known threat outweighs distance + path cost
+                los == null ? new ThreatExposureTest { Weight = ThreatExposureTest.HideFromAllWeight }
+                            : new ThreatExposureTest(los) { Weight = ThreatExposureTest.HideFromAllWeight },
+                new PathCostScoreTest(),
+            },
+            MaxCandidates  = 32,
+        };
     }
 }

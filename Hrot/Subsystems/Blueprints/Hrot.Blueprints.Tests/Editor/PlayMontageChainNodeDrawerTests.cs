@@ -3,7 +3,7 @@ using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.MuscleCharacter.Animation.Components;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Hashing;
 
 namespace Hrot.Blueprints.Tests.Editor;
@@ -33,7 +33,19 @@ public sealed class PlayMontageChainNodeDrawerTests
     private sealed class NullEditService : IEditService
     {
         public void MarkDirty(BlueprintAsset asset) { }
-    }
+    
+        /// <summary>
+        /// BP-11: no undo stack here, but recording still performs the edit and marks dirty —
+        /// the same two observable effects the real EditService has.
+        /// </summary>
+        public void RecordPropertyEdit(BlueprintAsset asset, string description, Action apply, Action undo)
+        {
+            apply();
+            MarkDirty(asset);
+        }
+
+        public void NotifyStructureChanged(BlueprintAsset asset) { }
+}
 
     // ANC-P5-08c: Custom stub for validation feedback tests
     private sealed class MontageListAnimationTkbQueries : IAnimationTkbQueries
@@ -151,6 +163,22 @@ public sealed class PlayMontageChainNodeDrawerTests
         
         Assert.Equal(1, session.GetChainCount());
         Assert.True(session.IsDirty);
+    }
+
+    /// <summary>⭐ CE-3395 — the chain GRID's ops go to the session's own model: Move reorders (by single steps), Delete removes, Add stops at 8.</summary>
+    [Fact]
+    public void Session_ChainGridOps_MoveDeleteAdd_ActOnTheChain()
+    {
+        var drawer = MakeDrawer();
+        var session = (PlayMontageChainNodeSession)drawer.CreateSession(new BranchNode { Id = Guid.NewGuid() }, MakeInstanceAsset());
+        for (int i = 0; i < 3; i++) { session.AddChainEntry(); session.SetChainMontageId(i, 10 + i); }
+        session.ApplyChainOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Move, 0, 2));
+        Assert.Equal(new[] { 11, 12, 10 }, new[] { session.GetChainMontageId(0), session.GetChainMontageId(1), session.GetChainMontageId(2) });
+        session.ApplyChainOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Delete, 1));
+        Assert.Equal(2, session.GetChainCount());
+        Assert.Equal(10, session.GetChainMontageId(1));
+        for (int i = 0; i < 10; i++) session.ApplyChainOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Add));
+        Assert.Equal(8, session.GetChainCount());
     }
 
     [Fact]

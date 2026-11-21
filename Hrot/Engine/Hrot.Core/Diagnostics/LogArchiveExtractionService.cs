@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Core;
 
 namespace Hrot.Core.Diagnostics
 {
@@ -24,7 +25,7 @@ namespace Hrot.Core.Diagnostics
     {
         private readonly string _logDirectory;
         private readonly string _subsystemName;
-        private readonly int    _nodeId;
+        private readonly NodeId    _nodeId;
 
         /// <param name="logDirectory">Directory that contains the log files.</param>
         /// <param name="subsystemName">Name prefix used to build the file glob pattern.</param>
@@ -33,7 +34,7 @@ namespace Hrot.Core.Diagnostics
         {
             _logDirectory  = logDirectory  ?? throw new ArgumentNullException(nameof(logDirectory));
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
-            _nodeId        = nodeId;
+            _nodeId        = (Fdp.Core.NodeId)(nodeId);
         }
 
         /// <inheritdoc/>
@@ -133,7 +134,23 @@ namespace Hrot.Core.Diagnostics
                 using (var reader = new StreamReader(fs, leaveOpen: true))
                 {
                     string? line;
-                    bool currentRecordPassesAge = false;
+                    // ⭐⭐⭐ QA-010 — start TRUE: a record with no parseable timestamp cannot be shown to
+                    //    be too old, so it passes.
+                    //
+                    // ⛔ This started FALSE, which meant every line before the first
+                    //    `[yyyy-MM-dd HH:mm:ss.fff]` prefix was silently DROPPED — so a log file with no
+                    //    timestamps at all archived as EMPTY, and a real file lost its header/banner
+                    //    lines. 📐 Measured 2026-08-26: this is all five LogArchiveExtractionServiceTests
+                    //    reds ("Expected: 3, Actual: 0"). The tests were right and the service was wrong.
+                    //
+                    // ⭐ It also makes the age policy agree with the severity policy one method below,
+                    //    which documents itself as "lines that cannot be parsed pass through by default
+                    //    (fail-safe)". The two halves of one filter disagreed.
+                    //
+                    // ⚠ The coarse per-FILE age filter above (last-write-time) still excludes whole stale
+                    //    files, so this does not resurrect old logs — it only stops discarding the
+                    //    un-timestamped prefix of a file that already qualified.
+                    bool currentRecordPassesAge = true;
                     while ((line = await reader.ReadLineAsync(ct)) != null)
                     {
                         ct.ThrowIfCancellationRequested();

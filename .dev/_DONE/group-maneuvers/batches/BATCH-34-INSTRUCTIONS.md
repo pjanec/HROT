@@ -949,7 +949,7 @@ dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Overlays.Tests --filter "FullyQual
 
 First build the whole solution to ensure no compilation errors:
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 Expected: all 11+ new tests pass. No regressions in existing overlay tests.

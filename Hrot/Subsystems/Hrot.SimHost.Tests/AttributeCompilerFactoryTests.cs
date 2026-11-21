@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +8,7 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.Map.Common.Replication.Utils;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
 using Hrot.Core.Network;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Interfaces;
@@ -46,6 +48,12 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<Fdp.Core.EntityInfo>();
+
+            // ⭐⭐⭐ Q59-E — descriptor ordinals now come from the world's DescriptorOwnershipMap, fed by the
+            //    NETWORK layer's translators, not from a constant in the JSON routing table. ⇒ a test that
+            //    asserts a dirty DESCRIPTOR must supply that declaration; without it the map is legitimately
+            //    empty (a networkless host) and nothing is marked.
+            FakeDescriptorTranslator.ContributeProductionPairings(repo);
             return repo;
         }
 
@@ -54,7 +62,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SimHostAttributeCompiler_Name_Registered()
         {
-            var compiler = AttributeCompilerFactory.Build(new FactoryTestGeoTransform());
+            var compiler = AttributeCompilerFactory.Build();
             var ctx = new ListPatchContext(null);
 
             compiler.Compile("{\"Name\":\"Test\"}", ctx);
@@ -67,7 +75,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SimHostAttributeCompiler_Affiliation_Registered()
         {
-            var compiler = AttributeCompilerFactory.Build(new FactoryTestGeoTransform());
+            var compiler = AttributeCompilerFactory.Build();
             var ctx = new ListPatchContext(null);
 
             compiler.Compile("{\"Affiliation\":\"FORCE_FRIENDLY\"}", ctx);
@@ -80,7 +88,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SimHostAttributeCompiler_Affiliation_PreservesExistingName()
         {
-            var compiler = AttributeCompilerFactory.Build(new FactoryTestGeoTransform());
+            var compiler = AttributeCompilerFactory.Build();
             var seed     = new Fdp.Core.EntityInfo { Name = "Alpha", ForceId = ForceId.Neutral };
             var ctx      = new ListPatchContext(new List<object> { seed });
 
@@ -97,7 +105,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void AttributeCompiler_NamePatch_TriggersEntityInfoDirtyOnEcsPatchContext()
         {
-            var compiler = AttributeCompilerFactory.Build(new FactoryTestGeoTransform());
+            var compiler = AttributeCompilerFactory.Build();
 
             var repo   = CreateRepo();
             var entity = repo.CreateEntity();
@@ -116,10 +124,10 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void AttributeCompiler_GeoPatch_TriggersGeoSpatialDirty()
+        public void AttributeCompiler_PositionPatch_TriggersGeoSpatialDirty()
         {
-            var geo      = new FactoryTestGeoTransform();
-            var compiler = AttributeCompilerFactory.Build(geo);
+            // ⭐ CE-4073 — the position route is local ENU metres; it dirties the same dtWorldPos descriptor the geodetic one did.
+            var compiler = AttributeCompilerFactory.Build();
 
             var repo   = CreateRepo();
             var entity = repo.CreateEntity();
@@ -129,13 +137,71 @@ namespace Hrot.SimHost.Tests
 
             var context = compiler.CreatePatchContext(repo, entity);
             compiler.Compile(
-                "{\"GeoPosition\":{\"Latitude\":32.1,\"Longitude\":34.5,\"Altitude\":100.0}}",
+                "{\"Position\":{\"X\":120.5,\"Y\":-40.25,\"Z\":3.0}}",
                 context);
             context.FlushDirtyMarks();
 
             var state = ((ISimulationView)repo).GetManagedComponentRO<EgressPublicationState>(entity);
             Assert.NotNull(state);
             Assert.Contains((long)EDescriptorType.dtWorldPos, state.DirtyDescriptors);
+        }
+
+        // ── ⭐⭐⭐ CE-4073 rail (a) — a Position patch moves SimTransform.Position to EXACTLY those metres, on a host WITH and a host
+        //    WITHOUT a geographic transform. The two shapes of the patch (nested and flat-dotted) and the two kinds of host are one
+        //    theory each: the old route registered the geodetic paths only `if (geoTransform != null)`, so the "without" row was the
+        //    silent-drop defect. ⛔ Build() takes no transform now, so "a host with / without one" differ only in whether the world
+        //    carries an IGeographicTransform singleton — which must change NOTHING.
+        public static IEnumerable<object[]> PositionPatchShapes() => new[]
+        {
+            new object[] { "{\"Position\":{\"X\":120.5,\"Y\":-40.25,\"Z\":3.0}}", false },
+            new object[] { "{\"Position.X\":120.5,\"Position.Y\":-40.25,\"Position.Z\":3.0}", false },
+            new object[] { "{\"Position\":{\"X\":120.5,\"Y\":-40.25,\"Z\":3.0}}", true },
+            new object[] { "{\"Position.X\":120.5,\"Position.Y\":-40.25,\"Position.Z\":3.0}", true },
+        };
+
+        [Theory]
+        [MemberData(nameof(PositionPatchShapes))]
+        public void AttributeCompiler_PositionPatch_MovesSimTransformToExactlyThoseMetres(string patch, bool hostHasGeoTransform)
+        {
+            var repo   = CreateRepo();
+            if (hostHasGeoTransform)
+                repo.SetSingletonManaged<IGeographicTransform>(new FactoryTestGeoTransform());   // the transform's presence must change nothing
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform { Position = new Vector3(9f, 9f, 9f) });
+            repo.SetAuthority<SimTransform>(entity, true);
+
+            // The world's own compiler — the one every host builds (no geographic argument exists to vary).
+            var compiler = Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetOrCreateJson(repo);
+            compiler.Compile(patch, compiler.CreatePatchContext(repo, entity));
+
+            var pos = repo.GetComponentRO<SimTransform>(entity).Position;
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(120.5f, -40.25f, 3.0f), pos);
+        }
+
+        [Fact]
+        public void AttributeCompiler_PositionPatch_OfOneAxis_KeepsTheOtherTwo()
+        {
+            // ⭐ The axes are independent plain copies — a patch carrying only X leaves Y and Z alone (no pre-fill, nothing to convert).
+            var repo   = CreateRepo();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform { Position = new Vector3(1f, 2f, 3f) });
+            repo.SetAuthority<SimTransform>(entity, true);
+
+            var compiler = AttributeCompilerFactory.Build();
+            compiler.Compile("{\"Position\":{\"X\":77.0}}", compiler.CreatePatchContext(repo, entity));
+
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(77f, 2f, 3f), repo.GetComponentRO<SimTransform>(entity).Position);
+        }
+
+        [Fact]
+        public void AttributeCompiler_TheGeodeticPositionPathsAreGone()
+        {
+            // ⭐ CE-4073 — the retired GeoPosition.* paths are not registered on any host.
+            var paths = AttributeCompilerFactory.Build().RegisteredPaths;
+            Assert.Contains("Position.X", paths);
+            Assert.Contains("Position.Y", paths);
+            Assert.Contains("Position.Z", paths);
+            Assert.DoesNotContain(paths, p => p.StartsWith("GeoPosition", StringComparison.Ordinal));
         }
     }
 
@@ -160,7 +226,7 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<Fdp.Core.EntityInfo>();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<Fdp.Toolkit.Lifecycle.Events.ConstructionOrder>();
@@ -174,7 +240,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
                 InitialAttributesJson = json,
             };
@@ -184,7 +250,7 @@ namespace Hrot.SimHost.Tests
             StubRequestSource requestSource,
             out StubAckSink ackSink)
         {
-            var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+            var compiler = AttributeCompilerFactory.Build();
             var tkb      = CreateTkb();
             var idAlloc  = new StubIdAllocator(startId: 100);
             ackSink      = new StubAckSink();
@@ -213,9 +279,9 @@ namespace Hrot.SimHost.Tests
 
             Assert.Single(commands);
             var cmd      = commands[0];
-            var igData   = Assert.Single(cmd.InitialComponents!.OfType<Fdp.Core.EntityInfo>());
+            var playerData   = Assert.Single(cmd.InitialComponents!.OfType<Fdp.Core.EntityInfo>());
 
-            Assert.Equal("Delta-7", igData.Name.ToString());
+            Assert.Equal("Delta-7", playerData.Name.ToString());
         }
 
         [Fact]
@@ -250,10 +316,10 @@ namespace Hrot.SimHost.Tests
 
         // Decorator that builds a compiler using the factory (same paths as production).
         private static JsonAttributeCompiler BuildCompiler()
-            => AttributeCompilerFactory.Build(GeoTransform);
+            => AttributeCompilerFactory.Build();
 
         [Fact]
-        public void DescriptorMapper_WithCompiler_DtEntityInfoProducesIgEntityData()
+        public void DescriptorMapper_WithCompiler_DtEntityInfoProducesPlayerEntityData()
         {
             var compiler = BuildCompiler();
             var descriptors = new List<EntityDescriptorUnion>
@@ -271,15 +337,15 @@ namespace Hrot.SimHost.Tests
                 },
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
+            var components = DescriptorMapper.MapToComponents(descriptors, compiler);
 
-            var igData = Assert.Single( components.OfType<Fdp.Core.EntityInfo>());
-            Assert.Equal("TestUnit",     igData.Name);
-            Assert.Equal(ForceId.Friend, igData.ForceId);
+            var playerData = Assert.Single( components.OfType<Fdp.Core.EntityInfo>());
+            Assert.Equal("TestUnit",     playerData.Name);
+            Assert.Equal(ForceId.Friend, playerData.ForceId);
         }
 
         [Fact]
-        public void DescriptorMapper_WithCompiler_NoDuplicateIgEntityData()
+        public void DescriptorMapper_WithCompiler_NoDuplicatePlayerEntityData()
         {
             var compiler = BuildCompiler();
             var descriptors = new List<EntityDescriptorUnion>
@@ -291,7 +357,7 @@ namespace Hrot.SimHost.Tests
                 },
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
+            var components = DescriptorMapper.MapToComponents(descriptors, compiler);
 
             int count = components.OfType<Fdp.Core.EntityInfo>().Count();
             Assert.Equal(1, count);
@@ -300,11 +366,20 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath()
         {
-            // Arrange: lat=10, lon=20, alt=30, heading=0
-            // IdentityGeoTransform: ToCartesian(lat, lon, alt) â†’ (lon, lat, alt)
-            //   â†’ Position = (20, 10, 30)
+            // Arrange: local ENU position (20, 10, 30) m, heading 45.
+            // ⭐ CE-4073 — both routes now carry LOCAL ENU metres (the descriptor always did; the JSON route used to be lat/lon/alt).
             // Both the descriptor path and the JSON path should produce the same position.
-            const double Lat = 10.0, Lon = 20.0, Alt = 30.0;
+            // ⭐⭐⭐ Q59-C1 — UPDATED, exactly as ApplyGeoSpatialDescriptor's ATTR-BATCH-03 TODO demanded:
+            //    "If new JSON path delegates are added for dtWorldPos (e.g. \"Heading\"), this method MUST be
+            //     updated to maintain convergence … Enforced currently by [this test]."
+            // 🔴 AX-018 added that delegate, so the helper now sets Rotation too — and this test began
+            //    comparing UNLIKE payloads: the descriptor ALWAYS carries a heading (Ori.Heading = 0 means
+            //    North, a real value), while the JSON patch omitted it and left Rotation at default(0,0,0,0),
+            //    which is not even a valid quaternion.
+            // ⇒ ⭐ convergence is only a meaningful claim when both routes carry the SAME information, so the
+            //    JSON payload now includes the heading, and a NON-ZERO one so the assert cannot pass by
+            //    both sides happening to be identity.
+            const double X = 20.0, Y = 10.0, Z = 30.0, HeadingDeg = 45.0;
 
             var compiler = BuildCompiler();
 
@@ -314,34 +389,44 @@ namespace Hrot.SimHost.Tests
                 new EntityDescriptorUnion
                 {
                     _d = EDescriptorType.dtWorldPos,
-                    WorldPos = new WorldPos
-                    {
-                        EntityId = 0,
-                        Pos      = new GeoPoint { Latitude = Lat, Longitude = Lon, Altitude = Alt },
-                        Ori      = new EulerOri { Heading = 0f },
-                    },
+                    // ⭐ AQ107 B / D — the descriptor is a local-ENU pose; the JSON route now speaks the same frame (CE-4073), so
+                    //   the same place and heading are encoded here with the SAME shared heading conversion.
+                    WorldPos = Hrot.Map.Common.Replication.Utils.WorldPosCodec.Encode(
+                        0, 0.0,
+                        new System.Numerics.Vector3((float)X, (float)Y, (float)Z),
+                        Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.HeadingDegToRotation((float)HeadingDeg),
+                        System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero),
                 },
             };
 
-            var descriptorComponents = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
+            var descriptorComponents = DescriptorMapper.MapToComponents(descriptors, compiler);
             var descriptorTransform  = descriptorComponents.OfType<SimTransform>().Single();
 
             // â”€â”€ JSON path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var jsonCtx = new ListPatchContext(null);
             compiler.Compile(
-                $"{{\"GeoPosition\":{{\"Latitude\":{Lat},\"Longitude\":{Lon},\"Altitude\":{Alt}}}}}",
+                $"{{\"Position\":{{\"X\":{X},\"Y\":{Y},\"Z\":{Z}}}," +
+                $"\"Heading\":{HeadingDeg}}}",
                 jsonCtx);
             var jsonComponents = jsonCtx.FlushComponents();
             var jsonTransform  = jsonComponents.OfType<SimTransform>().Single();
 
-            // â”€â”€ Assert: same Position (both paths use the same geoTransform)
+            // â”€â”€ Assert: same Position (a plain copy on both paths)
             Assert.Equal(descriptorTransform.Position.X, jsonTransform.Position.X, precision: 3);
             Assert.Equal(descriptorTransform.Position.Y, jsonTransform.Position.Y, precision: 3);
             Assert.Equal(descriptorTransform.Position.Z, jsonTransform.Position.Z, precision: 3);
 
-            // Both paths leave Rotation at default for the shared delegate
-            // (heading/rotation is outside the scope of the shared coordinate delegate).
-            Assert.Equal(descriptorTransform.Rotation, jsonTransform.Rotation);
+            // ⭐⭐⭐ And the same Rotation — both routes now go through the ONE shared conversion
+            //    (SimTransformBridgeSystem.HeadingDegToRotation), which is Q59-C1's whole point.
+            // ⚠ Asserted against the BRIDGE as well as against each other: agreeing with one another
+            //    would still hold if both adopted the same WRONG formula, which is how F3 survived.
+            var expected = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
+                .HeadingDegToRotation((float)HeadingDeg);
+
+            Assert.Equal(expected.Z, descriptorTransform.Rotation.Z, precision: 4);
+            Assert.Equal(expected.W, descriptorTransform.Rotation.W, precision: 4);
+            Assert.Equal(descriptorTransform.Rotation.Z, jsonTransform.Rotation.Z, precision: 4);
+            Assert.Equal(descriptorTransform.Rotation.W, jsonTransform.Rotation.W, precision: 4);
         }
     }
 }

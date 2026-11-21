@@ -27,6 +27,10 @@ public sealed class FunctionCallSemanticResolveTests
             sig = null;
             return false;
         }
+
+        // U-7: this stub is about METHOD resolution; every type it is asked about is one its own
+        // fixtures declare, so it answers yes.
+        public bool TypeExists(string typeId) => true;
     }
 
     private static CompileOptions OptionsWith(IClrSignatureResolver resolver) =>
@@ -69,23 +73,23 @@ public sealed class FunctionCallSemanticResolveTests
     {
         var resolver = new StubResolver(new()
         {
-            ["Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps.GetCachedEqsRequestId"] =
+            ["Demo.TextOps.Length"] =
                 new ClrMethodSig(
-                    new[] { new ClrParamInfo("s", "Hrot.AI.Behaviors.Brains.HillAttackSharedState") },
-                    "System.Int64"),
+                    new[] { new ClrParamInfo("s", "Fdp.Core.FixedString64") },
+                    "System.Int32"),
         });
         var fc = new FunctionCallNode
         {
             Id = Guid.NewGuid(), IsPure = true,
-            TargetTypeId = "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
-            MethodName = "GetCachedEqsRequestId",
+            TargetTypeId = "Demo.TextOps",
+            MethodName = "Length",
             TrailingContext = FunctionCallContextKind.None,
         };
         var pins = Rehydrate(fc, resolver).Pins.Select(P).ToList();
 
         // Registered curated struct → UNPREFIXED TypeId (resolves via the type table).
-        Assert.Equal(("s", "In", false, "Hrot.AI.Behaviors.Brains.HillAttackSharedState"), pins[0]);
-        Assert.Equal(("Return", "Out", false, "System.Int64"), pins[1]);
+        Assert.Equal(("s", "In", false, "Fdp.Core.FixedString64"), pins[0]);
+        Assert.Equal(("Return", "Out", false, "System.Int32"), pins[1]);
         Assert.Equal(2, pins.Count);
     }
 
@@ -94,7 +98,7 @@ public sealed class FunctionCallSemanticResolveTests
     {
         var resolver = new StubResolver(new()
         {
-            ["Hrot.AI.Behaviors.Brains.AreaQueryBatchOps.IsReady"] = new ClrMethodSig(
+            ["Demo.Curated.QueryOps.IsReady"] = new ClrMethodSig(
                 new[]
                 {
                     new ClrParamInfo("requestId", "System.Int64"),
@@ -105,7 +109,7 @@ public sealed class FunctionCallSemanticResolveTests
         var fc = new FunctionCallNode
         {
             Id = Guid.NewGuid(), IsPure = true,
-            TargetTypeId = "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
+            TargetTypeId = "Demo.Curated.QueryOps",
             MethodName = "IsReady",
             TrailingContext = FunctionCallContextKind.View,
         };
@@ -122,7 +126,7 @@ public sealed class FunctionCallSemanticResolveTests
     {
         var resolver = new StubResolver(new()
         {
-            ["Hrot.AI.Behaviors.Brains.AreaQueryBatchOps.Request"] = new ClrMethodSig(
+            ["Demo.Curated.QueryOps.Request"] = new ClrMethodSig(
                 new[]
                 {
                     new ClrParamInfo("targetArea", "Fdp.Core.Entity"),
@@ -134,7 +138,7 @@ public sealed class FunctionCallSemanticResolveTests
         var fc = new FunctionCallNode
         {
             Id = Guid.NewGuid(), IsPure = false,
-            TargetTypeId = "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
+            TargetTypeId = "Demo.Curated.QueryOps",
             MethodName = "Request",
             TrailingContext = FunctionCallContextKind.SelfAndView,
         };

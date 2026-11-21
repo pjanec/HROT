@@ -1,0 +1,366 @@
+using System;
+using System.Linq;
+using CarKinem.Core;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Vis2D.Components;
+using Hrot.Common.Infrastructure;
+using Hrot.Common.Abstractions;
+using Fdp.Interfaces;
+using Fdp.Toolkit.DER;
+using Hrot.Network.Infrastructure;
+using IOrchestrationTranslator = Hrot.Core.Network.IOrchestrationTranslator;
+using Hrot.Core.Network;
+using Hrot.Map.Common.Components;
+using Hrot.Player.Systems;
+using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
+
+namespace Hrot.NodeComposition.Tests;
+
+/// <summary>
+/// Tests for StrideNodeBootstrapper covering all SC_SM003_x and SC_SM005_x
+/// success conditions.
+/// </summary>
+[Collection(NodeExtensionsStaticsCollection.Name)]   // ⭐ CE-4296: one rail here loads an extension (process-wide state)
+public sealed class StrideNodeBootstrapperTests
+{
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static HrotNodeConfig HeadlessConfig() => new HrotNodeConfig
+    {
+        Headless             = true,
+        SkipAllocatorRouting = true,
+        SubsystemName        = "TestStride",
+        NodeId               = (Fdp.Core.NodeId)(1),
+        LocalTempRoot        = @"C:\FDP_Temp",
+    };
+
+    private static StrideNodeBootstrapper CreateAndBoot()
+    {
+        var factory      = new Hrot.Editor.OfflineNetworkFactory();
+        var bootstrapper = new StrideNodeBootstrapper();
+        bootstrapper.BootstrapNode(HeadlessConfig(), StrideNodeBootstrapper.Role, factory);
+        return bootstrapper;
+    }
+
+    // ── SC_SM003_1 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_1: BootstrapNode completes without throwing against an
+    /// OfflineNetworkFactory (headless — no DDS participant).
+    /// </summary>
+    [Fact]
+    public void BootstrapNode_WithHeadlessFactory_DoesNotThrow()
+    {
+        var factory      = new Hrot.Editor.OfflineNetworkFactory();
+        var bootstrapper = new StrideNodeBootstrapper();
+
+        // Must not throw.
+        bootstrapper.BootstrapNode(HeadlessConfig(), StrideNodeBootstrapper.Role, factory);
+    }
+
+    // ── SC_SM003_2 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_2: Context.ClusterSlave is non-null after BootstrapNode.
+    /// </summary>
+    [Fact]
+    public void Context_ClusterSlave_NonNull_AfterBootstrap()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        Assert.NotNull(bootstrapper.Context.ClusterSlave);
+    }
+
+    // ── SC_SM003_3 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_3: ProducerBuffer and ConsumerBuffer are different object instances
+    /// so that StrideNodeBootstrapper can read and write concurrently during future
+    /// DDS integration.
+    /// </summary>
+    [Fact]
+    public void ProducerAndConsumerBuffers_AreDifferentInstances()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        Assert.False(ReferenceEquals(bootstrapper.ProducerBuffer, bootstrapper.ConsumerBuffer));
+    }
+
+    // ── SC_SM003_4 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_4: Camera is non-null and default Zoom is 1.0f (Raylib Camera2D default
+    /// overridden by MapCamera constructor).
+    /// </summary>
+    [Fact]
+    public void Camera_NonNull_WithDefaultZoom()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        Assert.NotNull(bootstrapper.Camera);
+        Assert.Equal(1f, bootstrapper.Camera.Zoom);
+    }
+
+    // ── SC_SM003_5 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_5: TimeControl (inherited from SharedApplicationBootstrapper) is non-null.
+    /// OfflineNetworkFactory.CreateTimeControlGateway() returns NullTimeControlGateway
+    /// (non-null), so the property is always set after a successful bootstrap.
+    /// </summary>
+    [Fact]
+    public void TimeControl_AccessedViaInheritedProperty_NonNull()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        // Property is declared on SharedApplicationBootstrapper; StrideNodeBootstrapper
+        // must NOT redeclare it (verified by casting to the base type).
+        SharedApplicationBootstrapper baseView = bootstrapper;
+        Assert.NotNull(baseView.TimeControl);
+    }
+
+    // ── SC_SM003_6 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_6: KinematicComponentRegistry components (e.g. VehicleState) are
+    /// registered in the ECS world so that scenario templates can set them on spawned
+    /// entities.
+    /// </summary>
+    [Fact]
+    public void KinematicComponents_RegisteredInWorld()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        Assert.True(bootstrapper.Context.World.IsComponentTypeRegistered<VehicleState>());
+    }
+
+    // ── SC_SM003_7 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_7: CognitiveComponentRegistry components are NOT registered in the ECS world on
+    /// the Stride node — Brain AI data stays on the CGF node only.
+    ///
+    /// <para>⚠ RE-HOMED by <c>O7c</c>-④d (2026-09-23): the probe used to be <c>BrainHsm128</c>, which
+    /// is deleted — the HSM instance is an occurrence slot now. <c>HsmTraceWorkingMemory1024</c> is
+    /// the replacement probe: still registered by <c>CognitiveComponentRegistry</c> and still
+    /// brain-only, so the CLAIM is unchanged. ⛔ The occurrence TIER components would be the wrong
+    /// probe — they are registered by the blueprint side, which is not what this asserts.</para>
+    /// </summary>
+    [Fact]
+    public void CognitiveComponents_NotRegisteredInWorld()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        Assert.False(bootstrapper.Context.World.IsComponentTypeRegistered<HsmTraceWorkingMemory1024>());
+    }
+
+    // ── SC_SM003_8 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_8: Tick can be called repeatedly without throwing; ConsumerBuffer is
+    /// cleared to zero primitives at the start of each Tick.
+    /// </summary>
+    [Fact]
+    public void Tick_CanBeCalledRepeatedly_WithoutThrowing()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        for (int i = 0; i < 3; i++)
+        {
+            bootstrapper.Tick(0.016f);
+            // ConsumerBuffer.Clear() is called inside Tick(); no primitives have been
+            // added so Count must be zero after each call.
+            Assert.Equal(0, bootstrapper.ConsumerBuffer.Count);
+        }
+    }
+
+    // ── SC_SM003_10 ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_10: VisualEffectState is explicitly registered as an ECS component.
+    /// Required by SyncFdpToStrideScript queries (EventToEffectSystem spawns these).
+    /// </summary>
+    [Fact]
+    public void VisualEffectState_RegisteredInWorld()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        Assert.True(bootstrapper.Context.World.IsComponentTypeRegistered<VisualEffectState>());
+    }
+
+    // ── SC_SM003_11 ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM003_11: TracerTarget is explicitly registered as an ECS component.
+    /// Required by SyncFdpToStrideScript to resolve tracer endpoints.
+    /// </summary>
+    [Fact]
+    public void TracerTarget_RegisteredInWorld()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        Assert.True(bootstrapper.Context.World.IsComponentTypeRegistered<TracerTarget>());
+    }
+
+    // ── SC_SM005_1 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM005_1: EventToEffectSystem is placed in SimGroup (TogglableSimulationGroup)
+    /// and VisualEffectCleanupSystem is placed in PostSimGroup (TogglablePostSimulationGroup).
+    ///
+    /// Both systems are verified by inspecting the group contents after bootstrap.
+    /// </summary>
+    [Fact]
+    public void EventToEffectSystem_InSimGroup_VisualEffectCleanupSystem_InPostSimGroup()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        var simSystems     = bootstrapper.SimGroup.GetSystems();
+        var postSimSystems = bootstrapper.PostSimGroup.GetSystems();
+
+        Assert.Contains(simSystems,     s => s is EventToEffectSystem);
+        Assert.Contains(postSimSystems, s => s is VisualEffectCleanupSystem);
+    }
+
+    // ── SC_SM005_2 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// SC_SM005_2: VisualEffectCleanupSystem is in PostSimGroup (not SimGroup) so that
+    /// the togglable group semantics correctly suppress it during replay.
+    /// EventToEffectSystem must NOT appear in PostSimGroup.
+    /// </summary>
+    [Fact]
+    public void TogglableGroups_ContainCorrectSystems_ForReplaySafety()
+    {
+        var bootstrapper = CreateAndBoot();
+
+        var simSystems     = bootstrapper.SimGroup.GetSystems();
+        var postSimSystems = bootstrapper.PostSimGroup.GetSystems();
+
+        // Cross-check: each system is in the correct group and not in the other.
+        Assert.DoesNotContain(simSystems,     s => s is VisualEffectCleanupSystem);
+        Assert.DoesNotContain(postSimSystems, s => s is EventToEffectSystem);
+    }
+
+    // ── CE-509 — this host passes the entity-lifecycle network adapters ──────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-509</c> — the Stride node builds the SAME network adapters CGF and IG pass, and they reach the
+    /// CONSTRUCTED request system (not just a call site): the ownership strategy the node grants with is the
+    /// factory's, and the cluster cache it reads is polled each frame. 📄
+    /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2; <c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1d.
+    /// </summary>
+    [Fact]
+    public void TheEntityLifecycleAdaptersReachTheConstructedRequestSystem()
+    {
+        var factory      = new AdaptersSpyFactory();
+        var bootstrapper = new StrideNodeBootstrapper();
+        bootstrapper.BootstrapNode(HeadlessConfig(), StrideNodeBootstrapper.Role, factory);
+
+        Assert.Equal(1, factory.AdaptersRequested);
+
+        var systems = bootstrapper.Context.Kernel.SystemScheduler.GetAllSystems().ToList();
+        var request = systems.OfType<Hrot.Common.Systems.CreateEntityRequestSystem>().Single();
+        var strategy = typeof(Hrot.Common.Systems.CreateEntityRequestSystem)
+            .GetField("_ownershipStrategy", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(request);
+        Assert.Same(factory.Adapters.OwnershipStrategy, strategy);
+
+        Assert.Contains(systems, s => s is Hrot.Common.Systems.NetworkPollingSystem);
+        bootstrapper.Context.Kernel.Update(0.016f);
+        Assert.True(factory.Adapters.PollCount > 0, "the cluster cache poll never ran");
+    }
+
+    private sealed class FakeAdapters : ICgfEntityLifecycleAdapters
+    {
+        public int PollCount;
+        public IEntityCreationRequestSource RequestSource { get; } = new NoRequests();
+        public IEntityDeletionRequestSource DeleteSource  { get; } = new NoRequests();
+        public IEntityCreationRequestEgress? RequestEgress { get; } = new NoEgress();
+        public Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy? OwnershipStrategy { get; } = new NoGrants();
+        public Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? JsonCompiler => null;
+        public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers => null;
+        public void PollNetwork() => PollCount++;
+
+        private sealed class NoRequests : IEntityCreationRequestSource, IEntityDeletionRequestSource
+        {
+            public void ProcessRequests(Action<EntityCreationRequest> handler) { }
+            public void ProcessRequests(Action<EntityDeletionRequest> handler) { }
+        }
+        private sealed class NoEgress : IEntityCreationRequestEgress
+        {
+            public void Send(EntityCreationRequest request) { }
+        }
+        private sealed class NoGrants : Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy
+        {
+            public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.DescriptorGrant> GetInitialGrants(
+                in Fdp.Toolkit.Replication.Abstractions.GrantRequest request)
+                => Array.Empty<Fdp.Toolkit.NetworkSpawning.Events.DescriptorGrant>();
+        }
+    }
+
+    /// <summary>Offline in every respect except that it hands out <see cref="FakeAdapters"/>.</summary>
+    private sealed class AdaptersSpyFactory : INetworkFactory
+    {
+        private readonly Hrot.Editor.OfflineNetworkFactory _base = new();
+        public FakeAdapters Adapters { get; } = new();
+        public int AdaptersRequested { get; private set; }
+
+        public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() { AdaptersRequested++; return Adapters; }
+
+        public CycloneDDS.Runtime.DdsParticipant? Participant         => _base.Participant;
+        public long WorldPosDescriptorId         => _base.WorldPosDescriptorId;
+        public long NavigationStatusDescriptorId => _base.NavigationStatusDescriptorId;
+        public INetworkFactory ConfigureForNode(CycloneDDS.Runtime.DdsParticipant? p, int n, NodeRole r) => this;
+        public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, Fdp.Toolkit.Behavior.BehaviorRegistry? d = null) => this;
+        public IReplicationModule CreateReplicationModule()  => _base.CreateReplicationModule();
+        public ITimeControlGateway CreateTimeControlGateway() => _base.CreateTimeControlGateway();
+        public ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators() => _base.CreateSimHostAuxiliaryTranslators();
+        public IOrchestrationTranslator CreateOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateOrchestratorTranslators(b, n);
+        public IDisposable CreateIdAllocatorServer() => _base.CreateIdAllocatorServer();
+        public Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator CreateIdAllocator(string id, bool skip = false) => _base.CreateIdAllocator(id, skip);
+        public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus b, int n) => _base.CreateMasterTimeTranslators(b, n);
+        public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
+        public ICommandGateway CreateCommandGateway() => _base.CreateCommandGateway();
+        public ISimHostMissionSender CreateSimHostMissionSender() => _base.CreateSimHostMissionSender();
+        public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
+        public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
+        public System.Collections.Generic.IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => _base.CreateSimHostAttributeUpdateSystems();
+        public IIgTranslators CreatePlayerTranslators() => _base.CreatePlayerTranslators();
+        public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, int n = 0) => _base.CreatePlayerNetworkAdapter(p, n);
+        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreatePlayerEgressTranslators(
+            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, int nodeId)
+            => _base.CreatePlayerEgressTranslators(participant, bus, nodeId);
+        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, int id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
+        public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buf, int id) => _base.CreateGizmoPublisherSystem(buf, id);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4296 (design section 7) — Stride IS its bootstrapper, and <c>Dispose()</c> is its teardown: it must end the node the way every host does, through
+    /// <c>DisposeResources()</c> (the silent-default rule: asserted on the CONSTRUCTED host). 🔴 Red-proof: <c>Dispose</c> not calling it ⇒ the extension's capability lives on.
+    /// </summary>
+    [Fact]
+    public void CE4296_Dispose_EndsTheNodeThroughDisposeResources_FreeingTheExtensionsCapability()
+    {
+        Hrot.Common.Infrastructure.NodeExtensions.ResetForTests();
+        try
+        {
+            Hrot.Common.Infrastructure.NodeExtensions.LoadAll(Hrot.Tests.ExtensionStaging.SampleExtensionStaging.SharedBaseDirectory);
+            var bootstrapper = CreateAndBoot();
+            Assert.Contains(bootstrapper.Capabilities, c => c.Key == "sample.extension");
+            var disposals = Hrot.Common.Infrastructure.NodeExtensions.Discovered[0].GetType().GetField("Disposals")!;
+            int before = (int)disposals.GetValue(null)!;
+
+            bootstrapper.Dispose();
+
+            Assert.Equal(before + 1, (int)disposals.GetValue(null)!);
+        }
+        finally { Hrot.Common.Infrastructure.NodeExtensions.ResetForTests(); }
+    }
+}

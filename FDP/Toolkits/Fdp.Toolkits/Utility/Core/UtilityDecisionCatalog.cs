@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
 
 namespace Fdp.Toolkit.Utility
 {
@@ -39,6 +40,12 @@ namespace Fdp.Toolkit.Utility
             return false;
         }
 
+        /// <summary>⭐ CE-2068 — every registered decision, by id (the picker's list).</summary>
+        public IEnumerable<(int Id, UtilityDecisionDef Def)> Entries
+        {
+            get { foreach (var kv in _map) yield return (kv.Key, kv.Value.Def); }
+        }
+
         /// <summary>
         /// Merges all entries from <paramref name="source"/> into this registry,
         /// overwriting any existing entry with the same ID.
@@ -69,7 +76,41 @@ namespace Fdp.Toolkit.Utility
         /// The last registry built by <see cref="RegisterAll"/>.
         /// Initialized to an empty registry so callers never receive <c>null</c>.
         /// </summary>
-        public static UtilityRegistry Shared => _shared ??= new UtilityRegistry();
+        // ⭐ POC 2 / P-2 (A-2 finding) — first-use creation is an atomic publish: two threads can no longer each create (and hand out) their own registry.
+        public static UtilityRegistry Shared => _shared ?? Interlocked.CompareExchange(ref _shared, new UtilityRegistry(), null) ?? _shared!;
+
+        /// <summary>
+        /// The caller's cached scorer over <see cref="Shared"/>, rebuilt when <see cref="Shared"/> has been REPLACED since it was
+        /// built (<see cref="RegisterAll"/> stores a new registry). 🔴 A plain <c>_scorer ??= new UtilityScorer(Shared)</c> kept
+        /// reading the OLD registry and missed every decision registered after the swap — measured as the order-dependent red of
+        /// <c>UtilityScorerTests.CE2069_*</c> (Winner 0) once a <c>UtilityTestWorld</c> ran in between. One cache per call site
+        /// (a <c>[ThreadStatic]</c> one stays per thread).
+        /// </summary>
+        public static UtilityScorer ScorerOverShared(ref UtilityScorer? cache)
+        {
+            var shared = Shared;
+            if (cache == null || !ReferenceEquals(cache.Registry, shared)) cache = new UtilityScorer(shared);
+            return cache;
+        }
+
+        private static volatile bool _scanned;
+        private static readonly object _scanLock = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-2068</c> — fills <see cref="Shared"/> with every authored decision ONCE (idempotent). 🔴 Nothing in production
+        /// ever did: <c>UtilityAutoDiscovery.ScanAndRegister</c> registers the INPUT readers only (CE-454 W1), so every
+        /// production <c>ScoreDecision</c> found no decision and a decision picker listed nothing. Every Brain host builds
+        /// <c>CgfLogicPack</c>, which calls this. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3 (as-built).
+        /// </summary>
+        public static void EnsureRegistered()
+        {
+            if (_scanned) return;
+            lock (_scanLock)
+            {
+                if (_scanned) return;
+                RegisterAll(out _);
+            }
+        }
 
         /// <summary>
         /// Scans all currently-loaded assemblies for <see cref="IUtilityDecisionDefinition"/>
@@ -110,6 +151,7 @@ namespace Fdp.Toolkit.Utility
             }
 
             _shared = registry;
+            _scanned = true;
         }
 
         /// <summary>

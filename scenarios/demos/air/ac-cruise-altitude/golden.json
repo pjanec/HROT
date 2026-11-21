@@ -1,0 +1,1525 @@
+{
+  "$doc": "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify ac-cruise-altitude --verify-capture (or POST /director/verify {scenario, capture: true})",
+  "scenario": "ac-cruise-altitude",
+  "meaning": 2,
+  "steps": 7201,
+  "times": {
+    "leg1": 17,
+    "leg1end": 22.75,
+    "leg2": 37.5,
+    "leg2end": 40.5,
+    "leg3": 55,
+    "leg3end": 61
+  },
+  "shots": [],
+  "blasts": [],
+  "snapshots": [
+    {
+      "t": 0,
+      "units": {
+        "Viper": {
+          "position": [
+            -5500,
+            -3000,
+            395.1
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.2": 395.1,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "383487368d90d444",
+            "ActionStatus": "88f697cab6962087",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "BehaviorState": "03a6fc5adbe92090",
+            "BrainDiagnostics": "2ecb33202630ee7c",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "fd594d934ee6a0fe",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "3b4faebf8c787226",
+            "NavigationIntent": "5aa218f5dffd32e4",
+            "NavigationStatus": "3e379155351ff643",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "1d17f1e448fe39d8",
+            "SimVelocity": "e1429098b3750566",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 10,
+      "units": {
+        "Viper": {
+          "position": [
+            -3300.006,
+            -3000,
+            543.931
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.2": 543.931,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "c28229d64a3fbb3e",
+            "ActionStatus": "adf6d58c3aa355ac",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "7d8c2a5305606d6e",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "3f029aee849bee63",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "451f2b986fed2c79",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "4f774eed52060091",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "7731f0127089e2da",
+            "SimVelocity": "b0654c95727e475a",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 20,
+      "units": {
+        "Viper": {
+          "position": [
+            -1099.98,
+            -3000,
+            543.931
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.2": 543.931,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "f5aa58a999554a91",
+            "ActionStatus": "12fb67ef02b0de0d",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "836adb72e5da0efb",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "c1d59b9190038828",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "9f220b0690fb34d1",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "c14428178a12c8e0",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "616b62d45856fc0a",
+            "SimVelocity": "946dda949574013f",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 30,
+      "units": {
+        "Viper": {
+          "position": [
+            1097.769,
+            -2967.381,
+            543.931
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.2": 543.931,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "6fc38880f7255733",
+            "ActionStatus": "92d4f3cef7f376fa",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "d1f48520114d5ebd",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "2582c8dcaf27ed1f",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "5e3c1bd43350d9b8",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "108c469f75c83ff7",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "8f3f9578505ddff2",
+            "SimVelocity": "29ff4e46676204c4",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 40,
+      "units": {
+        "Viper": {
+          "position": [
+            2482.439,
+            -1483.39,
+            428.208
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.2": 428.208,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "1d782514a2b66c15",
+            "ActionStatus": "bf1e7c81ef6c13cb",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "0ba363f11b851bf6",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "276619e4d76794be",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "5e5197a7a1c482a2",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "1cf285093eef7b9a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "b6a712be1e109c90",
+            "SimVelocity": "ec2485efedb2e90f",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 50,
+      "units": {
+        "Viper": {
+          "position": [
+            1358.396,
+            210.083,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "d38466499f926abd",
+            "ActionStatus": "17f9ac04bd4db20d",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "cf11bd67ae5e6cc3",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "5a78dd4ed8ee2937",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "20e4122d4e424eed",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "a5e2c7f6109b64d2",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a90c1db606c40832",
+            "SimVelocity": "d5d8c881cc60f1b2",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 60,
+      "units": {
+        "Viper": {
+          "position": [
+            -831.396,
+            300,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "055e10ab5bf933e5",
+            "ActionStatus": "4e25cb50b2eee7d9",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "dd780e5cd15d41eb",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "ebb15743836de346",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "06d5895623e94f68",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "c35b5e11aeabe888",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "c89a801684017f6b",
+            "SimVelocity": "94bb423dd72da4f4",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 70,
+      "units": {
+        "Viper": {
+          "position": [
+            -3031.576,
+            300,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "4741a30fe94bf72d",
+            "ActionStatus": "9d1fae8f3ce8c15b",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "f6652510b634546a",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "866b22c62e0f28ca",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "1718025ead677cd6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "6f5dfbcec579c36f",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "bf090eeb83d6a56a",
+            "SimVelocity": "5c5922b2c4c8f7e5",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 80,
+      "units": {
+        "Viper": {
+          "position": [
+            -5193.629,
+            37.849,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Completed",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "e1fca852685b4bd9",
+            "ActionStatus": "acda099d033be009",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "ed3eb8e1c6616551",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "eda9b98e6b31139d",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "4aa8cb5cd88e6c57",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "2a287112d2766715",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "268c529a8af4db62",
+            "SimVelocity": "0696b8c571da7abf",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 90,
+      "units": {
+        "Viper": {
+          "position": [
+            -6659.751,
+            -1528.862,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Completed",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "b62cf95e407bcfc1",
+            "ActionStatus": "acda099d033be009",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "e90db0852d978334",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "9439d6ac807ef7c9",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "02167905cc4bd1a1",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "2a287112d2766715",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "b7a28197821351b8",
+            "SimVelocity": "ad0ed265ad53dbdb",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 100,
+      "units": {
+        "Viper": {
+          "position": [
+            -6616.648,
+            -3674.144,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Completed",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "61edfa5ec5b75f98",
+            "ActionStatus": "acda099d033be009",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "03fdc1812b9ae317",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "4fa42bd2f76bb14d",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "e15880994b5d1995",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "2a287112d2766715",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "840bfbcfe54d7774",
+            "SimVelocity": "d26769a3b20549d2",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 110,
+      "units": {
+        "Viper": {
+          "position": [
+            -5088.622,
+            -5180.764,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Completed",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "b4d3c0ef00eb7555",
+            "ActionStatus": "acda099d033be009",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "30187395f89a6eef",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "5acc7764d09f0f61",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "1b612ca8eee6af3b",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "2a287112d2766715",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "550199043a4db59b",
+            "SimVelocity": "8dbcb7a79054e46c",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 120,
+      "units": {
+        "Viper": {
+          "position": [
+            -2942.566,
+            -5193.447,
+            619.396
+          ],
+          "health": 400,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FighterPilotState.GcasCount": 0,
+            "Health.Current": 400,
+            "NavigationStatus.Phase": "Completed",
+            "SimTransform.Position.2": 619.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "67ac5aba9b0b2870",
+            "ActionStatus": "acda099d033be009",
+            "ActiveMissionPlan": "0e8f2c2cd0701c52",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "a349d3f7b2de7500",
+            "AirPath": "4c54e5eb5ee2d9ef",
+            "BehaviorStartRecord": "783c6fdbe517982c",
+            "BehaviorState": "e4719f7a177fe2f3",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "9da8a7feb8cb2185",
+            "BrainDiagnostics": "8be207e0a1da8be5",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "782668ef24d8d2fb",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "47f7a6d5a5b8e7b6",
+            "EntityAppearance": "125402fd454dbb05",
+            "EntityGuid": "815c56cff19392a4",
+            "EntityInfo": "35a32858fc3d8f5a",
+            "FighterPilotState": "79a19e3de2e0dcc6",
+            "FlightParams": "0580ade5ec6df74a",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "db15c582fd30b5be",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "f2ecdeeab6a9052e",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "1ea08ad8bc635fb4",
+            "MissionPlan": "65b0e7bb86367635",
+            "MissionPlanQueue": "3d12bd9049c24ec7",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "2a287112d2766715",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "31c131a9f9cbab5d",
+            "PhysicsCollider": "e335eed6db671d26",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "3fb1e23688133fbf",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SensorMount": "65514b8a7320953d",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "eb3b0a181e5a8293",
+            "SimVelocity": "eda7236ba810f346",
+            "TargetMemory": "236b0dd577e0138f",
+            "TkbIdentity": "a0cd58c9669d4ff7",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "aafd8e2499406d58",
+            "WeaponAmmo": "2865cd5c6672221c",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "a622b3e983cd999c"
+          }
+        },
+        "Viper route": {
+          "position": [
+            -4000,
+            -3000,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.2": 0
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "6838dfcfe3937d31",
+            "EntityInfo": "432be9385adc8cbd",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "7cba02612add9ccd",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "91c75ed794a34844",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    }
+  ],
+  "verdicts": {
+    "Viper is never lost": null,
+    "GCAS never needed on a cruise route": null,
+    "leg 1 holds 550 m (never below ±15)": null,
+    "leg 1 holds 550 m (never above ±15)": null,
+    "leg 2 holds 426 m (never below ±15)": null,
+    "leg 2 holds 426 m (never above ±15)": null,
+    "leg 3 holds 625 m (never below ±15)": null,
+    "leg 3 holds 625 m (never above ±15)": null
+  }
+}

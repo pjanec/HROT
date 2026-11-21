@@ -40,9 +40,9 @@ namespace Fdp.Toolkits.Tests.Squad
                 currentTick: 2);
             Assert.Equal(DangerAreaCrossingManeuver.PhaseFarSideCover, state.PhaseId);
 
-            // Tick 3: ShotFired -> CollapseSecurity
+            // Tick 3: DefiladeReached -> CollapseSecurity (CE-2159 D2 — was ShotFired)
             shell.Tick(ref state,
-                new ReadOnlySpan<PhaseEvent>(new PhaseEvent[] { new PhaseEvent(PhaseEventKind.ShotFired) }),
+                new ReadOnlySpan<PhaseEvent>(new PhaseEvent[] { new PhaseEvent(PhaseEventKind.DefiladeReached) }),
                 currentTick: 3);
             Assert.Equal(DangerAreaCrossingManeuver.PhaseCollapseSecurity, state.PhaseId);
         }

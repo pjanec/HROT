@@ -20,7 +20,8 @@ namespace Fdp.Toolkit.Replay
     /// affecting any other running recorder module.
     /// </para>
     /// </summary>
-    public sealed class EpisodeRecorderModule : IEcsModule, IDisposable
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    public sealed class EpisodeRecorderModule : IReviewSuspendable, IEcsModule, IDisposable
     {
         private readonly RecordingModule _inner;
 
@@ -49,6 +50,13 @@ namespace Fdp.Toolkit.Replay
 
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float deltaTime) { /* driven by inner RecordingModule */ }
+
+        /// <inheritdoc cref="RecordingModule.SuspendForReview"/>
+        /// <remarks>⭐ CE-3329 row 44 — an episode's recording is suspended with the main one: a review writes nothing into any live history.</remarks>
+        public void SuspendForReview(string? label = null, double atSimSeconds = 0) => _inner.SuspendForReview(label, atSimSeconds);
+
+        /// <inheritdoc cref="RecordingModule.ResumeAfterReview"/>
+        public void ResumeAfterReview(double? atSimSeconds = null) => _inner.ResumeAfterReview(atSimSeconds);
 
         /// <inheritdoc cref="RecordingModule.Dispose"/>
         public void Dispose() => _inner.Dispose();

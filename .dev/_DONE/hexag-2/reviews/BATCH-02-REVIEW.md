@@ -82,7 +82,7 @@ The following items from the batch report are added to DEBT-TRACKER.md:
 
 ## Build and Test Verification
 
-- `dotnet build IOS-IG-SimHost.sln`: 0 warnings, 0 errors. PASS.
+- `dotnet build HROT.sln`: 0 warnings, 0 errors. PASS.
 - `Hrot.Core.Tests`: 90/90 passed. PASS.
 - `Hrot.Orchestrator.Tests`: 91/91 passed. PASS.
 - `Hrot.ClusterRunner.Integration.Tests`: 2 pre-existing timing-flaky failures (confirmed

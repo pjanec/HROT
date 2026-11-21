@@ -1,7 +1,19 @@
+using System.Text.Json.Nodes;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.UI.Common.Panels;
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="ZoneEditorPanel"/> shows, this frame. ⚠ See
+/// <c>ConfigPanel</c>'s remarks for the group-5 twin finding.</summary>
+public sealed record ZoneEditorPanelViewModel(
+    string PanelId, string PanelKind, string ZoneName, string RoadNetworkPath, float ObstacleRadius) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Panel for static zone authoring: road network configuration and
@@ -49,6 +61,11 @@ public sealed class ZoneEditorPanel
         set => _obstacleRadius = Math.Clamp(value, ObstacleRadiusMin, ObstacleRadiusMax);
     }
 
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public ZoneEditorPanelViewModel BuildViewModel(string panelId, string panelKind) =>
+        new(panelId, panelKind, _zoneName, _roadNetworkPath, _obstacleRadius);
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -56,17 +73,17 @@ public sealed class ZoneEditorPanel
     /// </summary>
     public void DrawContent(IZoneAuthoringController ctrl)
     {
-        ImGui.InputText("Zone Name", ref _zoneName, 128);
+        if (FormGrid.Begin("zone.name")) { FormGrid.Row("Zone Name"); ImGui.InputText("##zonename", ref _zoneName, 128); FormGrid.End(); }
 
         ImGui.Separator();
 
-        ImGui.InputText("Road Network JSON", ref _roadNetworkPath, 256);
+        if (FormGrid.Begin("zone.road")) { FormGrid.Row("Road Network JSON"); ImGui.InputText("##roadnet", ref _roadNetworkPath, 256); FormGrid.End(); }
         if (ImGui.Button("Apply Road Network"))
             HandleApplyRoadNetwork(ctrl);
 
         ImGui.Separator();
 
-        ImGui.SliderFloat("Obstacle Radius (m)", ref _obstacleRadius, ObstacleRadiusMin, ObstacleRadiusMax);
+        if (FormGrid.Begin("zone.obstacle")) { FormGrid.Row("Obstacle Radius (m)"); ImGui.SliderFloat("##obstacleradius", ref _obstacleRadius, ObstacleRadiusMin, ObstacleRadiusMax); FormGrid.End(); }
         if (ImGui.Button("Place LOS Obstacle"))
             HandlePlaceObstacle(ctrl);
     }

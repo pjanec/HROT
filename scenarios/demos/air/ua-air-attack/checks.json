@@ -1,0 +1,92 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Air Ops 6b showcase, five vignettes. DEMO (golden false: five capabilities, a 300 s run). Judge (1) the bomb bursts within 25 m of (-400,-550) (two boxes, one per side of the burst), (2) the gun run fires 10+ rounds and the column lead dies, (3) the Apache fires and never comes within 300 m of its position (500,400), (4) the UH-60 circles within 550 m of the Orbit Truck, (5) its door guns fire and the Orbit Truck is destroyed. Left out: rockets AND gun (weaponIndex values unknown), 250 m inner ring and 'never hovering' (a speed), the left gunner shot and the orbit reversal (door gunners are unnamed 'Rifleman' seats). runFor 300 is the cap; the door-gun take ends at 330 s, so the truck's death may need longer.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the bomb bursts (north-east box of its target)",
+      "on": "blast",
+      "by": "Bomber A-10",
+      "where": {
+        "burst.0": [
+          ">",
+          -425
+        ],
+        "burst.1": [
+          ">",
+          -575
+        ]
+      }
+    },
+    {
+      "name": "the bomb bursts (south-west box of its target)",
+      "on": "blast",
+      "by": "Bomber A-10",
+      "where": {
+        "burst.0": [
+          "<",
+          -375
+        ],
+        "burst.1": [
+          "<",
+          -525
+        ]
+      }
+    },
+    {
+      "name": "the Gunship flies a gun run: 10+ rounds",
+      "on": "shot",
+      "by": "Gunship A-10",
+      "n": 10
+    },
+    {
+      "name": "the column lead is destroyed",
+      "on": "field",
+      "who": "Column Lead",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "the Apache fires",
+      "on": "shot",
+      "by": "Apache"
+    },
+    {
+      "name": "the Apache breaks off 300 m+ short of its position",
+      "never": {
+        "on": "near",
+        "who": "Apache",
+        "point": [
+          500,
+          400
+        ],
+        "within": 300
+      }
+    },
+    {
+      "name": "the UH-60 circles within 550 m of the Orbit Truck (the take's proven cue is 400 m)",
+      "on": "near",
+      "who": "Door Gunship UH-60",
+      "point": [
+        -350,
+        300
+      ],
+      "within": 550
+    },
+    {
+      "name": "the UH-60's door guns fire",
+      "on": "shot",
+      "by": "*M134"
+    },
+    {
+      "name": "the Orbit Truck is destroyed",
+      "on": "field",
+      "who": "Orbit Truck",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

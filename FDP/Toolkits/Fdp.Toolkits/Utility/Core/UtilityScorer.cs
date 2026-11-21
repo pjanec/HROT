@@ -31,7 +31,10 @@ namespace Fdp.Toolkit.Utility
     /// </summary>
     public static unsafe class UtilityInputReaderStore
     {
-        private static readonly Dictionary<ushort, nint> _readers = new();
+        // ⭐ CE-3196 — concurrent: readers are registered from more than one thread (test classes run in parallel, each calling
+        //   RegisterAll); a plain Dictionary written concurrently corrupted itself ("Operations that change non-concurrent collections
+        //   must have exclusive access") and failed 61 SimHost squad tests in one run. Reads stay lock-free.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<ushort, nint> _readers = new();
 
         /// <summary>
         /// Registers a reader function for the given input ID.
@@ -58,6 +61,23 @@ namespace Fdp.Toolkit.Utility
             return false;
         }
 
+        /// <summary>⭐ rules S4 E-2 (SR-20) — is a reader registered under the <c>[UtilityInput("name")]</c> <paramref name="inputName"/>?</summary>
+        public static bool IsRegistered(string inputName) => _readers.ContainsKey(Fdp.Toolkit.Behavior.Shared.UtilityIdHash.InputId(inputName));
+
+        /// <summary>
+        /// ⭐ rules S4 E-2 (SR-20) — evaluates the registered reader of <c>[UtilityInput("name")]</c> <paramref name="inputName"/> on <paramref name="self"/> EXACTLY as a consideration does
+        /// (the same id hash, the same reader, the same <see cref="UtilityInputCtx"/>; no curve): the ONE way a rule reads an input — the <c>Sample</c> measure and the <c>InputAbove</c> leaf both come here.
+        /// <c>false</c> (value 0) when no reader is registered under that name.
+        /// </summary>
+        public static bool TryRead(EntityRepository repo, string inputName, Entity self, Entity context, out float value)
+        {
+            value = 0f;
+            if (string.IsNullOrEmpty(inputName) || !TryGet(Fdp.Toolkit.Behavior.Shared.UtilityIdHash.InputId(inputName), out var reader) || reader == null) return false;
+            var ctx = new UtilityInputCtx { Repo = repo, Self = self, Context = context, Params = default };
+            value = reader(in ctx);
+            return true;
+        }
+
         /// <summary>
         /// Removes all registered readers. Intended for test teardown only.
         /// </summary>
@@ -82,6 +102,9 @@ namespace Fdp.Toolkit.Utility
         /// Creates a scorer bound to <paramref name="registry"/>.
         /// The registry is used by instance overloads; static overloads do not need it.
         /// </summary>
+        /// <summary>The registry this scorer reads decisions from (<see cref="UtilityDecisionCatalog.ScorerOverShared"/> checks it).</summary>
+        public UtilityRegistry Registry => _registry;
+
         public UtilityScorer(UtilityRegistry registry)
         {
             _registry = registry;
@@ -151,6 +174,145 @@ namespace Fdp.Toolkit.Utility
             return SelectPosture(repo, self, in def, activePosture, hysteresis, ref output, tracePtr, tick);
         }
 
+        // ── ⭐ CE-2067 — the scorer core WITHOUT the unit buffer (docs/DESIGN_Decision_Layer.md §3.3) ──────────────
+        //   The memory of the last winner lives with the CALLER (a bound variable, a hidden node field), so two decisions
+        //   on one unit cannot collide and no component is needed. The unit's UtilityResultBuffer, when present, still
+        //   receives the ranking (an optional output list + trace), but it is never required.
+
+        /// <summary>
+        /// Scores the option decision <paramref name="decisionId"/> for <paramref name="self"/>, gives
+        /// <paramref name="lastWinner"/> the decision's hysteresis bonus, and returns the winning <c>OptionId</c>
+        /// (0 = none: not registered, not an option decision, or no options). Option ids start at 1, so a
+        /// <paramref name="lastWinner"/> of 0 means "no previous winner".
+        /// </summary>
+        public byte ChooseOption(EntityRepository repo, Entity self, int decisionId, byte lastWinner, ushort tick = 0)
+        {
+            if (!_registry.TryGet(decisionId, out var def, out float hysteresis) || def == null) return 0;
+            if (def.Kind != DecisionKind.PostureSelect) return 0;
+            var local = new UtilityResultBuffer();
+            bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
+            ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
+            // ⭐ CE-4395 — a cadenced decision between its ticks: the last result, written back as that scoring wrote it (DecisionCadence)
+            var cadence = def.CadenceSeconds > 0 ? DecisionCadence.Of(repo) : null;
+            double now = double.NaN;
+            if (cadence?.Reusable(repo, self, def, decisionId, out now) is { } kept && lastWinner != 0 && kept.Winner == lastWinner)
+            {
+                output = kept.Output;
+                LogDecision(repo, self, decisionId, in output, isOption: true);
+                cadence.CountReuse();
+                return kept.Winner;
+            }
+            var trace = TraceOf(repo, self);
+            byte winner;
+            winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, trace, tick);
+            LogDecision(repo, self, decisionId, in output, isOption: true);
+            // ⭐ CE-1249 (BV-10) — always on, only on a SWITCH (a steady winner writes nothing; the caller holds the memory)
+            if (lastWinner != 0 && winner != 0 && winner != lastWinner)
+                Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, self,
+                    Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.DecisionSwitched, a: decisionId, b: winner, cause: lastWinner,
+                    point: new System.Numerics.Vector3(output.Count > 0 ? output.GetSpanRO()[0].Score : 0f, 0f, 0f));
+            cadence?.Store(self, def, decisionId, now, winner, false, default, 0f, in output);
+            return winner;
+        }
+
+        /// <summary>
+        /// Ranks the candidates of the candidate decision <paramref name="decisionId"/> (ThreatRanking: the unit's
+        /// remembered contacts; WeaponSelection: its mounts) and returns the best one as an <see cref="EntityRef"/> with its
+        /// score. <c>false</c> = not registered, an option decision, or no candidate. ⚠ A winner with no network id comes back
+        /// as <see cref="EntityRef.None"/> with <c>true</c> (an all-in-one world).
+        /// </summary>
+        public bool RankCandidates(EntityRepository repo, Entity self, int decisionId, ushort tick,
+                                   out Fdp.Toolkit.Replication.EntityRef top, out float topScore)
+        {
+            top = Fdp.Toolkit.Replication.EntityRef.None;
+            if (!TopCandidate(repo, self, decisionId, tick, out Entity winner, out topScore)) return false;
+            top = Fdp.Toolkit.Replication.EntityRef.Of(repo, winner);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2092</c> — <see cref="RankCandidates"/> for a C# caller: the best candidate as the local
+        /// <see cref="Entity"/> (never lost for want of a network id). <see cref="RankCandidates"/> is routed through this
+        /// one, so there is one ranking. ⚠ A separate NAME, not an overload: overloading on the <c>out</c> type makes every
+        /// <c>out var</c> caller ambiguous (CS0121).
+        /// </summary>
+        public bool TopCandidate(EntityRepository repo, Entity self, int decisionId, ushort tick,
+                                 out Entity top, out float topScore)
+        {
+            top = Entity.Null;
+            topScore = 0f;
+            if (!_registry.TryGet(decisionId, out var def, out _) || def == null) return false;
+            if (def.Kind == DecisionKind.PostureSelect) return false;
+            var local = new UtilityResultBuffer();
+            bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
+            ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
+            // ⭐ CE-4395 — a cadenced ranking between its ticks: the last ranking, written back as that scoring wrote it (DecisionCadence)
+            var cadence = def.CadenceSeconds > 0 ? DecisionCadence.Of(repo) : null;
+            double now = double.NaN;
+            if (cadence?.Reusable(repo, self, def, decisionId, out now) is { } kept)
+            {
+                output = kept.Output;
+                LogDecision(repo, self, decisionId, in output, isOption: false);
+                cadence.CountReuse();
+                top = kept.Top; topScore = kept.TopScore;
+                return kept.HasTop;
+            }
+            var trace = TraceOf(repo, self);
+            EvaluateCandidates(repo, self, in def, default, ref output, trace, tick);
+            LogDecision(repo, self, decisionId, in output, isOption: false);
+            bool has = output.Count > 0;
+            if (has)
+            {
+                var best = output.GetSpanRO()[0];
+                top = new Entity((ulong)best.CandidateHandle);
+                topScore = best.Score;
+            }
+            cadence?.Store(self, def, decisionId, now, 0, has, top, topScore, in output);
+            return has;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3089</c> (G7) — <see cref="TopCandidate(EntityRepository, Entity, int, ushort, out Entity, out float)"/>
+        /// WITH a context: a WeaponSelection ranks the unit's mounts against <paramref name="context"/> (the target), which its
+        /// effectiveness and range inputs need (F2: without it every mount scored 0). Ranks into a LOCAL buffer — the unit's
+        /// <see cref="UtilityResultBuffer"/> is left to its own decisions.
+        /// </summary>
+        public bool TopCandidate(EntityRepository repo, Entity self, int decisionId, Entity context, ushort tick,
+                                 out Entity top, out float topScore)
+        {
+            top = Entity.Null;
+            topScore = 0f;
+            if (!_registry.TryGet(decisionId, out var def, out _) || def == null) return false;
+            if (def.Kind == DecisionKind.PostureSelect) return false;
+            var output = new UtilityResultBuffer();
+            EvaluateCandidates(repo, self, in def, context, ref output, TraceOf(repo, self), tick);
+            LogDecision(repo, self, decisionId, in output, isOption: false);
+            if (output.Count == 0) return false;
+            var best = output.GetSpanRO()[0];
+            top = new Entity((ulong)best.CandidateHandle);
+            topScore = best.Score;
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3069</c> G2 — records the decision's FINAL ranking (after hysteresis) on the unit's <see cref="UtilityDecisionLog"/>.
+        /// ⭐ <c>CE-1319</c> (BV-61) — whenever the unit carries one (every brain unit, always), not only while it is observed: the
+        /// Brain tab's Why section then replays for every unit. Nothing when the unit has none (a test world, a non-brain host).
+        /// </summary>
+        private static void LogDecision(EntityRepository repo, Entity self, int decisionId, in UtilityResultBuffer output, bool isOption)
+        {
+            if (!repo.IsComponentTypeRegistered<UtilityDecisionLog>() || !repo.HasComponent<UtilityDecisionLog>(self)) return;
+            repo.GetComponentRW<UtilityDecisionLog>(self).Record(decisionId, in output, isOption);
+        }
+
+        private static UtilityTraceWorkingMemory1024* TraceOf(EntityRepository repo, Entity self)
+        {
+            if (!repo.HasComponent<UtilityDebugFlags>(self) || !repo.HasComponent<UtilityTraceWorkingMemory1024>(self)) return null;
+            if (repo.GetComponentRO<UtilityDebugFlags>(self).TraceEnabled == 0) return null;
+            return (UtilityTraceWorkingMemory1024*)System.Runtime.CompilerServices.Unsafe.AsPointer(
+                ref repo.GetComponentRW<UtilityTraceWorkingMemory1024>(self));
+        }
+
         // ── Private: candidate evaluation ─────────────────────────────────────────
 
         private void EvaluateCandidates(EntityRepository repo, Entity self,
@@ -172,6 +334,8 @@ namespace Fdp.Toolkit.Utility
                     ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(self);
                     for (int i = 0; i < mem.Count && candidateCount < MaxCandidates; i++)
                     {
+                        // ⭐ CE-3063 ② — a HEARD contact is a position, not an entity: it is never a ranking candidate.
+                        if (TargetMemory.IsAnonymous(in mem, i)) continue;
                         candidates[candidateCount]  = new Entity((ulong)mem.EntityIds[i]);
                         isSelfMount[candidateCount] = false;
                         candidateCount++;
@@ -180,8 +344,15 @@ namespace Fdp.Toolkit.Utility
             }
             else // WeaponSelection
             {
-                // Candidates = self (if it has WeaponMountInfo) + child mounts.
-                if (repo.HasComponent<WeaponMountInfo>(self))
+                // Candidates = self (mount 0) + child mounts. ⭐ CE-3089 (G7, W2): the OWNER is mount 0 when it carries a
+                //   WeaponState (P0.2's intent, WeaponMountQuery.EnumerateMounts) — it never carries WeaponMountInfo in production,
+                //   so the old test excluded the primary weapon from every choice.
+                //   ⛔ CE-2188 (BS-1-DESIGN §5.4c) — not when mount 0 is a flare / chaff dispenser (an unarmed aircraft): nothing to choose
+                if ((repo.HasComponent<WeaponState>(self) || repo.HasComponent<WeaponMountInfo>(self))
+                    && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(repo, self)
+                    && (!Fdp.Toolkit.Combat.PersonHands.HandsOnly(repo, self) || Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self))   // ⭐ CE-3230 (H-4)
+                    && !Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(repo, self, 0)   // ⭐ CE-3232 (B-10) — never a laid-down weapon
+                    && Fdp.Toolkit.Combat.ForceLevels.AllowsMount(repo, self, externalContext, Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, self, 0)))   // ⭐ CE-2239 (FL-4)
                 {
                     candidates[candidateCount]  = self;
                     isSelfMount[candidateCount] = true;
@@ -197,8 +368,32 @@ namespace Fdp.Toolkit.Utility
                     if (candidateCount >= MaxCandidates) break;
                     ref readonly var pm = ref repo.GetComponentRO<PartMetadata>(e);
                     if (!pm.ParentEntity.Equals(self)) continue;
+                    // ⭐ CE-3230 (H-4, AW-24) — the HANDS are never chosen as a weapon unless they hold a lethal round (a picked-up grenade)
+                    if (repo.HasComponent<WeaponMountInfo>(e)
+                        && Fdp.Toolkit.Combat.PersonHands.IsHands(Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex))
+                        && !Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self)) continue;
+                    if (repo.HasComponent<WeaponMountInfo>(e)
+                        && Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex)) continue;   // ⭐ CE-3232
+                    // ⭐ CE-2239 part 1 (CV-8, §5j FL-4) — a mount above the unit's force level is no candidate (self-defence aside)
+                    if (repo.HasComponent<WeaponMountInfo>(e)
+                        && !Fdp.Toolkit.Combat.ForceLevels.AllowsMount(repo, self, externalContext,
+                               Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex))) continue;
                     candidates[candidateCount]  = e;
                     isSelfMount[candidateCount] = false;
+                    candidateCount++;
+                }
+
+                // ⭐ Weapon systems WS-3 (W-D) — and the weapon systems this unit controls (its station weapons, the one it carries or
+                //   mans): each scored as its own mount 0 (it carries its own WeaponState and type).
+                System.Span<Entity> controlled = stackalloc Entity[Fdp.Toolkit.Combat.WeaponSystems.MaxControlled];
+                int nControlled = Fdp.Toolkit.Combat.WeaponSystems.Controlled(repo, self, controlled);
+                for (int k = 0; k < nControlled && candidateCount < MaxCandidates; k++)
+                {
+                    if (!repo.HasComponent<WeaponState>(controlled[k])) continue;
+                    if (Fdp.Toolkit.Behavior.CarryStations.IsStowed(repo, controlled[k])) continue;   // ⭐ CE-3233 (B-11, ST-5) — slung or hidden: not fired
+                    if (!Fdp.Toolkit.Combat.ForceLevels.AllowsMount(repo, self, externalContext, Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, controlled[k], 0))) continue;   // ⭐ CE-2239 (FL-4)
+                    candidates[candidateCount]  = controlled[k];
+                    isSelfMount[candidateCount] = true;
                     candidateCount++;
                 }
             }
@@ -281,7 +476,8 @@ namespace Fdp.Toolkit.Utility
             Entity context,
             ref UtilityResultBuffer output,
             UtilityTraceWorkingMemory1024* trace,
-            ushort tick = 0)
+            ushort tick = 0,
+            bool writeWinnerRecord = true)
         {
             int optionCount = def.Options.Length;
             if (optionCount == 0)
@@ -295,11 +491,13 @@ namespace Fdp.Toolkit.Utility
             float* scores  = stackalloc float[optionCount];
             int*   indices = stackalloc int[optionCount];
 
+            long tDecision = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bDecision = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — per decision, measurement only
             for (int i = 0; i < optionCount; i++)
             {
                 indices[i] = i;
                 scores[i]  = EvaluateOption(repo, self, context, def.Options[i], trace, tick, (byte)i);
             }
+            if (tDecision != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DecisionSlot(def), tDecision, bDecision);
 
             // Insertion sort: descending score, ties broken by lower OptionId.
             InsertionSort(scores, indices, optionCount);
@@ -324,8 +522,9 @@ namespace Fdp.Toolkit.Utility
             output.Count          = fillCount;
             output.RunnerUpMargin = (fillCount >= 2) ? (scores[0] - scores[1]) : 0f;
 
-            // Winner summary trace record.
-            if (trace != null && fillCount > 0)
+            // Winner summary trace record — ⭐ CE-3069 F3: skipped when SelectPosture will re-rank with hysteresis and
+            // write the record for the option that ACTUALLY wins.
+            if (writeWinnerRecord && trace != null && fillCount > 0)
             {
                 trace->WriteWinnerRecord(tick,
                     winnerOptionId:      (byte)def.Options[indices[0]].OptionId,
@@ -358,9 +557,24 @@ namespace Fdp.Toolkit.Utility
             UtilityTraceWorkingMemory1024* trace,
             ushort tick = 0)
         {
-            // Step 1: score all options normally (no bias).
-            Evaluate(repo, self, in def, default, ref output, trace, tick);
+            // Step 1: score all options normally (no bias). The winner record waits for step 5 (CE-3069 F3).
+            Evaluate(repo, self, in def, default, ref output, trace, tick, writeWinnerRecord: false);
+            return RankWithHysteresis(in def, activePostureId, hysteresisBonus, ref output, trace, tick);
+        }
 
+        /// <summary>
+        /// ⭐ POC 2 Q-4 (DESIGN_Parallel_Simulation §10) — <see cref="SelectPosture(EntityRepository, Entity, in UtilityDecisionDef, byte, float, ref UtilityResultBuffer, UtilityTraceWorkingMemory1024*, ushort)"/>'s
+        /// steps 2–5 on an <paramref name="output"/> that step 1 (<c>Evaluate</c>) already filled: the hysteresis bonus, the re-sort, the
+        /// winner record. Split out so a scoring computed earlier (the parallel pre-score) is ranked exactly as a fresh one.
+        /// </summary>
+        public static byte RankWithHysteresis(
+            in UtilityDecisionDef def,
+            byte activePostureId,
+            float hysteresisBonus,
+            ref UtilityResultBuffer output,
+            UtilityTraceWorkingMemory1024* trace,
+            ushort tick = 0)
+        {
             if (output.Count == 0)
                 return 0;
 
@@ -412,10 +626,49 @@ namespace Fdp.Toolkit.Utility
 
             output.RunnerUpMargin = (output.Count >= 2) ? (scores[0] - scores[1]) : 0f;
 
+            // ⭐ CE-3069 F3 — the winner record names the option chosen AFTER hysteresis (it used to be written before the
+            // bonus, so a trace could name an option the unit did not pick).
+            if (trace != null)
+            {
+                trace->WriteWinnerRecord(tick,
+                    winnerOptionId:      outSpan[0].WinningPostureId,
+                    winnerDefinitionIdx: (byte)OptionIndexOf(in def, outSpan[0].WinningPostureId),
+                    winnerScore:         scores[0],
+                    runnerUpMargin:      output.RunnerUpMargin);
+            }
+
             return outSpan[0].WinningPostureId;
         }
 
         // ── Private helpers ────────────────────────────────────────────────────────
+
+        private static int OptionIndexOf(in UtilityDecisionDef def, byte optionId)
+        {
+            for (int i = 0; i < def.Options.Length; i++)
+                if (def.Options[i].OptionId == optionId) return i;
+            return 0;
+        }
+
+        // ⭐ CE-4395 B-1 — the timing slots (inclusive: an input that evaluates another decision counts it too). Named once, then a
+        //   lookup: no allocation in the steady state.
+        private static readonly int[] _inputSlots = new int[ushort.MaxValue + 1];   // slot + 1; 0 = not yet named
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _decisionSlots = new();
+
+        private static int InputSlot(ushort inputId)
+        {
+            int s = _inputSlots[inputId];
+            if (s != 0) return s - 1;
+            s = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("utility.input:" + UtilityInputNames.Of(inputId));
+            _inputSlots[inputId] = s + 1;
+            return s;
+        }
+
+        private static int DecisionSlot(in UtilityDecisionDef def)
+        {
+            string key = def.DebugName.Length > 0 ? def.DebugName : def.AssetId;
+            if (_decisionSlots.TryGetValue(key, out int s)) return s;
+            return _decisionSlots.GetOrAdd(key, Fdp.Toolkit.Diagnostics.QueryTimings.Slot("utility.decision:" + key));
+        }
 
         private static float EvaluateOption(
             EntityRepository repo,
@@ -432,6 +685,8 @@ namespace Fdp.Toolkit.Utility
 
             float* curveOutputs = stackalloc float[consCount];
             float* weights      = stackalloc float[consCount];
+            int factors = 0;            // ⭐ CE-2271 (R-2075) — the ordinary considerations; a MODIFIER multiplies after the aggregate
+            float modifier = 1f;
 
             float runningAgg = (opt.Mode == ScoringMode.WeightedProduct) ? 1f : 0f;
 
@@ -451,13 +706,25 @@ namespace Fdp.Toolkit.Utility
                 // Invoke the registered reader; default to 0 if not registered.
                 float raw = 0f;
                 if (UtilityInputReaderStore.TryGet(cons.InputId, out var reader) && reader != null)
+                {
+                    long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), b0 = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — per input, measurement only
                     raw = reader(in inputCtx);
+                    if (t0 != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(InputSlot(cons.InputId), t0, b0);
+                }
 
                 float norm     = raw;  // Phase 1: normalisation is identity
                 float curveOut = cons.Curve.Evaluate(norm);
 
-                curveOutputs[c] = curveOut;
-                weights[c]      = cons.Weight;
+                if ((cons.Flags & ConsiderationFlags.Modifier) != 0)
+                {
+                    modifier *= System.MathF.Pow(curveOut, cons.Weight);
+                    if (trace != null)
+                        trace->WriteConsiderationRecord(tick, optionIndex, cons.InputId, raw, norm, curveOut, cons.Weight, runningAgg * modifier);
+                    continue;
+                }
+                curveOutputs[factors] = curveOut;
+                weights[factors]      = cons.Weight;
+                factors++;
 
                 // Update running aggregate for trace (approximation only — Aggregator sees all at once).
                 if (opt.Mode == ScoringMode.WeightedProduct)
@@ -472,10 +739,11 @@ namespace Fdp.Toolkit.Utility
                 }
             }
 
-            return Aggregator.Aggregate(
-                new System.ReadOnlySpan<float>(curveOutputs, consCount),
-                new System.ReadOnlySpan<float>(weights, consCount),
+            float score = Aggregator.Aggregate(
+                new System.ReadOnlySpan<float>(curveOutputs, factors),
+                new System.ReadOnlySpan<float>(weights, factors),
                 opt.Mode);
+            return modifier == 1f ? score : score * modifier;
         }
 
         /// <summary>

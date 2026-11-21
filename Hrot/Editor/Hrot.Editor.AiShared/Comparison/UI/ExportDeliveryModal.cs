@@ -139,15 +139,16 @@ public sealed class ExportDeliveryModal
             ImGui.Checkbox("Show full export", ref _showFull);
             ImGui.Separator();
 
-            ImGui.Text("Save to file:");
-            ImGui.SameLine();
+            NodeEditor.Core.Widgets.FormGrid.BeginField("export.rows", "Save to file");   // ⭐ CE-3396 — a label-first row, its action beside the box
+            ImGui.SetNextItemWidth(Math.Max(ImGui.GetContentRegionAvail().X - 60f, 80f));
             ImGui.InputText("##savepath", ref _savePath, 2048);
             ImGui.SameLine();
             if (ImGui.Button("Save"))
                 _lastError = _state.SaveToFile(_savePath);
+            NodeEditor.Core.Widgets.FormGrid.EndField();
 
             if (_lastError != null)
-                ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), _lastError);
+                NodeEditor.Core.Widgets.RowMarks.ErrorLine(_lastError);
 
             ImGui.Separator();
 

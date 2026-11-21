@@ -39,15 +39,12 @@ public sealed class BlackboardVariableDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsAutoManaged { get; set; }
     /// <summary>
-    /// Authoring role: Input (default) or State. Omitted from JSON when Input (default).
+    /// ⭐ <c>CE-3193</c> — DERIVED, never persisted: true when a binding names this variable as its working state
+    /// (<see cref="WorkingStateVariables"/>). Working state lives in the block's <c>St</c> half; every other variable is a
+    /// plain one in <c>In</c>. ⛔ HISTORY: the authored <c>Role</c>/<c>Scope</c> pair; an old file's keys are ignored on load.
     /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public BlackboardVariableRole Role { get; set; }
-    /// <summary>
-    /// Working-state scope (only meaningful when Role == State). Omitted from JSON when Node (default).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public WorkingStateScope Scope { get; set; }
+    [JsonIgnore]
+    public bool IsWorkingState { get; set; }
 }
 
 /// <summary>Forward-compatible blackboard block (§5.4).</summary>
@@ -85,6 +82,25 @@ public sealed class SuppressionsDto
 {
     public List<ConflictSuppressionDto> Conflict { get; set; } = new();
     public List<string> Unused { get; set; } = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>W7b</c> (§9.4) — variables whose CROSS-REGION CONCURRENT WRITES the designer has
+    /// explicitly allowed. ⛔⛔ <b>NOT the same thing as <see cref="Conflict"/>.</b> A conflict
+    /// suppression is per <b>(variable, writer-PAIR)</b> — §9.3: <i>"a new aliasing relationship on the
+    /// same variable would surface a fresh diagnostic"</i>. ⭐ This is per <b>VARIABLE</b>: the designer
+    /// has said the race on it is intended, so every pair on it is allowed, including pairs that do not
+    /// exist yet. ⇒ <b>two mechanisms, deliberately, and collapsing them would silently widen one of
+    /// them.</b>
+    /// </summary>
+    /// ⚠⚠ <b>NULLABLE and omitted when empty, UNLIKE its two neighbours</b> — and that asymmetry is
+    /// deliberate. <c>Conflict</c> and <c>Unused</c> have always serialised as <c>[]</c>, so their
+    /// presence is baked into every stored document. ⛔ A new ALWAYS-EMITTED list changes the bytes of
+    /// every asset that has no allowance at all — caught by <c>MigrationEquivalenceTests</c>, which
+    /// round-trips stored JSON and compares it verbatim. ⇒ <c>WhenWritingNull</c> keeps the existing
+    /// corpus byte-identical while still persisting the flag for anyone who sets it.
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ConcurrentWritesAllowed { get; set; }
 }
 
 // ── Subtree sync bindings (§5.2, §5.3) ───────────────────────────────────────
@@ -132,81 +148,58 @@ public sealed class NodeEditorMetadataDto
 /// <summary>Delegate shape for Action/Condition nodes. Matches BTreeActionDelegateShape in the editor.</summary>
 public enum BTreeDelegateShapeDto
 {
-    ThreeParamReusable,
-    FourParamFull,
+    /// <summary>The plain shared C# node <c>(ref TParams, Entity, EntityRepository)</c> (<c>CE-504</c> C-2).</summary>
+    Plain,
+
+    // ⛔ CE-504 slice 4 — value 1 was FourParamFull (the whole-block kernel method). Retired as an asset-binding shape (C-3);
+    //   the value is left unused rather than renumbering the others. The shape is derived, never persisted (C-1).
+
     /// <summary>
-    /// S2-1: stateful 4-param shape: (ref TParams, ref TWorkingState, ref BehaviorTreeState, ref BTreeContext).
+    /// S2-1 / CE-504: the stateful shared shape (ref TParams, ref TWorkingState, Entity, EntityRepository).
     /// The WorkingState is projected from the entity's active BlueprintBlackboard* partition slot,
     /// keyed by FNV-1a-32(assetGuid, nodeVisualId).
     /// </summary>
-    ThreeParamReusableStateful = 2,
+    Stateful = 2,
 
     /// <summary>
     /// I2/I3: a blueprint-authored AiPrimitive action composed as a host-BTree node. The host owns
     /// the params layout (Params projected at the baked offset) and a partition slot for the
     /// blueprint's WorkingState; the node dispatches to the blueprint's generated
     /// <c>TickCore(ref Params, ref WorkingState, Entity self, EntityRepository world, float time)</c>.
-    /// <see cref="BTreeActionPayloadDto.MethodFqn"/> is the generated <c>TickCore</c> FQN and
-    /// <see cref="BTreeActionPayloadDto.WorkingStateTypeId"/> is the generated <c>WorkingState</c> FQN.
+    /// <see cref="BehaviorActionBindingDto.MethodFqn"/> is the generated <c>TickCore</c> FQN and
+    /// <see cref="BehaviorActionBindingDto.WorkingStateTypeId"/> is the generated <c>WorkingState</c> FQN.
     /// </summary>
     AiPrimitiveTickCore = 3,
+
+    /// <summary>⭐ <c>CE-504</c> C-2/C-3 — the shared param-less C# node <c>(Entity self, EntityRepository world)</c>: binds no
+    /// variable, keyed by its bare FQN. Derived (never persisted), like every shape since CE-504 slice 1.</summary>
+    NoParams = 4,
 }
 
-public sealed class BTreeActionPayloadDto
-{
-    public string MethodFqn { get; set; } = string.Empty;
-    public string? ExpressionTargetField { get; set; }
-    public BTreeDelegateShapeDto DelegateShape { get; set; }
-    /// <summary>
-    /// S2-1: for <see cref="BTreeDelegateShapeDto.ThreeParamReusableStateful"/> bindings,
-    /// the CLR FQN of the WorkingState struct (second ref param after TParams).
-    /// E.g. "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState".
-    /// Null/omitted for stateless shapes.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTypeId { get; set; }
-
-    /// <summary>
-    /// S3-G: for stateful bindings whose <b>working-state</b> variable is distinct from the
-    /// param variable (<see cref="ExpressionTargetField"/>), the Name of the authored
-    /// working-state blackboard variable. Its declared <c>Role</c>/<c>Scope</c> drive the
-    /// slot key + provisioning scope (a shared Behavior/Entity variable lives here, not in
-    /// the param variable). When null/omitted, scope resolution falls back to
-    /// <see cref="ExpressionTargetField"/> (back-compat: Slice-2 assets and tests where the
-    /// bound variable IS the stateful one stay byte-identical).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTargetField { get; set; }
-}
-
-public sealed class BTreeConditionPayloadDto
-{
-    public string MethodFqn { get; set; } = string.Empty;
-    public string? ExpressionTargetField { get; set; }
-    public BTreeDelegateShapeDto DelegateShape { get; set; }
-    /// <summary>
-    /// E2: for <see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/> bindings, the CLR FQN
-    /// of the WorkingState struct (second ref param after TParams). Null/omitted for other shapes.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTypeId { get; set; }
-
-    /// <summary>
-    /// Slice 1 (shared working-state): for stateful bindings whose <b>working-state</b> variable is
-    /// distinct from the param variable (<see cref="ExpressionTargetField"/>), the Name of the
-    /// authored working-state blackboard variable. Its declared <c>Role</c>/<c>Scope</c> drive the
-    /// slot key + provisioning scope (a shared Behavior/Entity variable lives here, not in the param
-    /// variable). When null/omitted, scope resolution falls back to <see cref="ExpressionTargetField"/>
-    /// (back-compat: pre-Slice-1 condition assets stay byte-identical). Mirrors
-    /// <see cref="BTreeActionPayloadDto.WorkingStateTargetField"/>.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTargetField { get; set; }
-}
+// ⭐ CE-417: BTreeActionPayloadDto / BTreeConditionPayloadDto are retired — both nodes carry the ONE
+//   BehaviorActionBindingDto, and DelegateShape (a BTree interpreter arity, Q75 §5.1b) sits on the node.
 
 public sealed class BTreeWaitPayloadDto
 {
     public float Duration { get; set; }
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-428</c> — the behaviour's bound RESOLVER: a blueprint resolver asset (shape ③, <c>Q76</c> §12.10b)
+/// whose one <c>Construction</c> graph refines this behaviour's block after bake + supply. ⭐ The behaviour
+/// names the resolver (<c>R-149</c>); the resolver's <c>ResolverSubject</c> back-reference is derived.
+/// </summary>
+public sealed class BehaviorResolverRefDto
+{
+    public Guid AssetId { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ⭐ <c>CE-434</c> — <c>BehaviorResolverShape.ShapeHash</c> when the resolver was picked or derived. A
+    /// different current hash means the behaviour's block changed since: the editor warns (the C# compile is
+    /// the backstop). <c>0</c> = never recorded.
+    /// </summary>
+    public uint ShapeHash { get; set; }
 }
 
 public sealed class BTreeSubtreePayloadDto
@@ -214,6 +207,65 @@ public sealed class BTreeSubtreePayloadDto
     public Guid SubtreeAssetId { get; set; }
     public string SubtreeName { get; set; } = string.Empty;
     public bool IsResolved { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-431</c> — the HOST blackboard variable whose bytes seed the child's Input region at each
+    /// start (<c>Q76</c> §11.7). ⚠ Its type must be the child's Input struct. <c>null</c> = unbound: the
+    /// child starts from its own authored defaults.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsVariable { get; set; }
+}
+
+/// <summary>⭐ <c>CE-2079</c> — which of the two SOP actions an action node's <see cref="SopOrderPayloadDto"/> performs.</summary>
+public enum SopOrderKindDto
+{
+    /// <summary>The unit's idle choice — an assignment at origin Sop (the lowest rank).</summary>
+    DoWhenIdle = 0,
+    /// <summary>A reaction — an assignment at origin Reaction, which pauses the task (R-199).</summary>
+    React = 1,
+}
+
+/// <summary>⭐ <c>CE-2079</c> — mirrors <c>Fdp.Toolkit.Behavior.Components.ReactionUrgency</c> member for member (this
+/// assembly is netstandard2.0 and cannot reference it); the emitter writes the runtime enum by NAME.</summary>
+public enum SopUrgencyDto
+{
+    NotAReaction = 0,
+    Alert = 1,
+    Contact = 2,
+    UnderFire = 3,
+    Hit = 4,
+    /// <summary>⭐ CE-2360 — mirrors <c>ReactionUrgency.Grenade</c> (appended there; the mirror rail found it missing).</summary>
+    Grenade = 5,
+    /// <summary>⭐ CE-2272 — mirrors <c>ReactionUrgency.Break</c>.</summary>
+    Break = 6,
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-2079</c> — an action node that is an SOP ORDER rather than a method binding: "do <see cref="BehaviorName"/>
+/// when idle" or "react with it at <see cref="Urgency"/>". The shape is the Subtree node's (a behaviour + the host variable
+/// holding its typed params), but it STARTS the behaviour in the task slot through the gate instead of hosting it.
+/// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6. Lowered to an ordinary action key whose generated thunk calls
+/// <c>Fdp.Toolkit.Behavior.SopActions</c>.
+/// </summary>
+public sealed class SopOrderPayloadDto
+{
+    public SopOrderKindDto Kind { get; set; }
+    public Guid BehaviorAssetId { get; set; }
+    public string BehaviorName { get; set; } = string.Empty;
+
+    /// <summary>The host blackboard variable holding the behaviour's authored params DTO; serialised to the assignment's
+    /// JSON at fire. <c>null</c> = authored defaults (<c>"{}"</c>).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsVariable { get; set; }
+
+    /// <summary>For <see cref="SopOrderKindDto.React"/>: how urgent (a running reaction yields only to a more urgent one).</summary>
+    public SopUrgencyDto Urgency { get; set; } = SopUrgencyDto.Alert;
+
+    /// <summary>The ONE spelling of the action key both the topology emit and the bridge registration use.</summary>
+    public string ActionKey(long byteOffset)
+        => Fdp.Toolkit.Behavior.Shared.HsmActionKey.SopOrderKeyName(   // ⭐ CE-1410 — the spelling the C# builder uses too
+            Kind.ToString(), BehaviorName, Kind == SopOrderKindDto.React ? Urgency.ToString() : "-", byteOffset);
 }
 
 // ── Polymorphic node types (§5.3 "[JsonPolymorphic kind]") ───────────────────
@@ -249,7 +301,13 @@ public abstract class BTreeNodeDto
 public sealed class BTreeRootNodeDto        : BTreeNodeDto { }
 public sealed class BTreeSequenceNodeDto    : BTreeNodeDto { }
 public sealed class BTreeSelectorNodeDto    : BTreeNodeDto { }
-public sealed class BTreeParallelNodeDto    : BTreeNodeDto { }
+public sealed class BTreeParallelNodeDto    : BTreeNodeDto
+{
+    /// <summary>⭐ <c>CE-2073</c> — the kernel's completion policy: 0 = RequireAll (every child must succeed; the default),
+    /// 1 = RequireOne (the first child to succeed ends it). Omitted from JSON when 0, so existing assets are unchanged.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int Policy { get; set; }
+}
 public sealed class BTreeInverterNodeDto    : BTreeNodeDto { }
 public sealed class BTreeForceSuccessNodeDto: BTreeNodeDto { }
 public sealed class BTreeForceFailureNodeDto: BTreeNodeDto { }
@@ -273,12 +331,23 @@ public sealed class BTreeCooldownNodeDto : BTreeNodeDto
 
 public sealed class BTreeActionNodeDto : BTreeNodeDto
 {
-    public BTreeActionPayloadDto? Action { get; set; }
+    public BehaviorActionBindingDto? Action { get; set; }
+
+    /// <summary>⭐ <c>CE-2079</c> — set INSTEAD of <see cref="Action"/> when the node is an SOP order ("Do when idle" /
+    /// "React"); <c>null</c> for an ordinary method binding.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SopOrderPayloadDto? SopOrder { get; set; }
+    // ⭐⭐ CE-504 C-1 — DERIVED (BTreeCallShapes), never read from or written to the file: the bound method says it.
+    [JsonIgnore]
+    public BTreeDelegateShapeDto DelegateShape { get; set; }
 }
 
 public sealed class BTreeConditionNodeDto : BTreeNodeDto
 {
-    public BTreeConditionPayloadDto? Condition { get; set; }
+    public BehaviorActionBindingDto? Condition { get; set; }
+    // ⭐⭐ CE-504 C-1 — DERIVED (BTreeCallShapes), never read from or written to the file: the bound method says it.
+    [JsonIgnore]
+    public BTreeDelegateShapeDto DelegateShape { get; set; }
 }
 
 public sealed class BTreeWaitNodeDto : BTreeNodeDto
@@ -323,8 +392,36 @@ public sealed class BehaviorTreeAssetDto
     public string BlackboardTypeName { get; set; } = string.Empty;
     public string ContextTypeName { get; set; } = string.Empty;
 
+    /// <summary>⭐ <c>CE-3164</c> (R-268) — the picker group, set by the generator from the file's FOLDER
+    /// (<see cref="Hrot.AiEditor.Persistence.BehaviorGroups.FromAssetPath"/>). ⛔ Never persisted: the folder IS the data.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? Group { get; set; }
+
     // ── Topology ──────────────────────────────────────────────────────────────
     public List<BTreeNodeDto> Nodes { get; set; } = new();
+
+    /// <summary>⭐ <c>CE-428</c> — the bound resolver asset, or <c>null</c> (the common case: no resolve stage).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorResolverRefDto? Resolver { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2133</c> (B1, R-276) — the behaviour's NAMED params DTO: the type id (CLR full name, no <c>global::</c>) its
+    /// JSON params deserialize into and <c>GET /behaviors</c> publishes. <c>null</c> = derived: the one Input variable's own
+    /// type when it is a struct (flat), else the generated mirror of the Inputs. Set, it must equal that one Input's type, or
+    /// the asset declares no Input (the DTO is published, nothing is stored — an empty order DTO). ⛔ Not with a resolver
+    /// asset: the resolver's Parameters are the contract (R-149). 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §1.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDtoTypeId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2135</c> (B3a, R-3000) — the reserved <c>Params</c> variable's baked default (JSON of the named params DTO), or
+    /// <c>null</c>. An asset that names its params DTO and declares NO Input variable stores its params in the reserved
+    /// <c>Params</c> (the block's <c>In</c>); this is that variable's <c>DefaultValueJson</c>. Written only when set.
+    /// 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5c.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsDefaultJson { get; set; }
     public List<BTreePillDto> Pills { get; set; } = new();
 
     // ── Canvas layout ─────────────────────────────────────────────────────────
@@ -336,6 +433,26 @@ public sealed class BehaviorTreeAssetDto
 
     // ── Suppressions (§5.2) ───────────────────────────────────────────────────
     public SuppressionsDto Suppressions { get; set; } = new();
+
+    // ── Approach-A alias bindings (§7; persistence design :132) ─────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 91 (<c>91b</c>) — alias relationships, keyed by VARIABLE NAME.</b>
+    /// 📄 <c>…Persistence_Detailed_Design.md:132</c> lists these beside the sync bindings and the
+    /// suppressions; 🔴 they were the one item of the three never built, so every authored alias was
+    /// lost on reload.
+    ///
+    /// <para>⚠⚠ <b>NULLABLE and omitted when empty — and the reason is the GOLDEN.</b> 📌 The same
+    /// rule <c>ConcurrentWritesAllowed</c> states above: <i>"a new ALWAYS-EMITTED list changes the
+    /// bytes of every asset"</i>, and <c>MigrationEquivalenceTests</c> round-trips stored JSON
+    /// verbatim. ⭐ <b>No shipped asset can contain an alias</b> *(they never persisted)*, so with
+    /// <c>WhenWritingNull</c> the field is absent everywhere and the whole corpus stays
+    /// byte-identical.</para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, List<Hrot.AiEditor.Persistence.BlackboardAliasBindingDto>>? Aliases { get; set; }
+
 
     // ── Blackboard (§5.4) ─────────────────────────────────────────────────────
     public BlackboardBlockDto Blackboard { get; set; } = new();

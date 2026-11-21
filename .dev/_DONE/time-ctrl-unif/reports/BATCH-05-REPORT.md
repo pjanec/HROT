@@ -21,7 +21,7 @@
 
 ## Build Results
 
-### `IOS-IG-SimHost.sln`
+### `HROT.sln`
 ```
 Build succeeded.
     1 Warning(s)   [pre-existing XML doc warning in CycloneDDS.Schema]
@@ -156,5 +156,5 @@ feat(time): BATCH-05 – wire unified controllers, delete obsolete classes, E2E 
 - Added UnifiedControllerE2ETests.FullCycle_Pause_Step_Resume_NoPllLoss (TCU-T006)
 - Fix SlaveSyncController.UpdateStepping: refresh _lastUpdateRawTicks each frame
   to prevent stale catch-up delta on resume
-- IOS-IG-SimHost.sln: 0 errors; FDP time tests: 70/70 pass
+- HROT.sln: 0 errors; FDP time tests: 70/70 pass
 ```

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core.Serialization.Migrations.Internal;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Core.Serialization.Migrations;
 
@@ -14,8 +15,7 @@ namespace Fdp.Core.Serialization.Migrations;
 /// </summary>
 internal sealed class UnknownsJournal
 {
-    private static readonly JsonSerializerOptions s_writeOptions =
-        new JsonSerializerOptions { WriteIndented = true };
+    private static readonly JsonSerializerOptions s_writeOptions = FdpJsonOptionsRegistry.Indented;
 
     public DocumentMeta JournalMeta { get; }
     public string SourceDocType { get; }

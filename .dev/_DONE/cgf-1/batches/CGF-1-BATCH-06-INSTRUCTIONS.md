@@ -23,7 +23,7 @@
 
 ## Mandatory workflow
 
-Complete **Part A** (small, correctness-first) **before** deep **S0203** work. Full **`dotnet test IOS-IG-SimHost.sln`** green before report.
+Complete **Part A** (small, correctness-first) **before** deep **S0203** work. Full **`dotnet test HROT.sln`** green before report.
 
 ---
 

@@ -40,6 +40,7 @@ public sealed class PinDefaultValueEditorRegistry : IPinDefaultValueEditorRegist
         r.Register(new TypeKey("System.String"),            new StringPinEditor());
         r.Register(new TypeKey("System.Numerics.Vector2"),  new VectorPinEditor(2));
         r.Register(new TypeKey("System.Numerics.Vector3"),  new VectorPinEditor(3));
+        r.Register(new TypeKey("Fdp.Core.WorldPoint"),      new VectorPinEditor(3));   // ⭐ S0 item 6 — a place edits as three numbers (this library cannot see Fdp.Core, so the type NAME is the key)
         r.Register(new TypeKey("System.Numerics.Vector4"),  new VectorPinEditor(4));
         r.Register(new TypeKey("System.Numerics.Quaternion"), new QuaternionPinEditor());
         r.Register(new TypeKey("NodeEditor.Color"),         new ColorPinEditor());

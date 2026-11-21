@@ -287,10 +287,10 @@ T10 — $meta is the first property after stamping a scenario (order guarantee)
 
 ### 3. Register Projects in Solution
 
-Add both projects to `IOS-IG-SimHost.sln`:
+Add both projects to `HROT.sln`:
 ```
-dotnet sln "IOS-IG-SimHost.sln" add "FDP/Tools/Fdp.Tools.EnvelopeStamper/Fdp.Tools.EnvelopeStamper.csproj"
-dotnet sln "IOS-IG-SimHost.sln" add "FDP/Tools/Fdp.Tools.EnvelopeStamper.Tests/Fdp.Tools.EnvelopeStamper.Tests.csproj"
+dotnet sln "HROT.sln" add "FDP/Tools/Fdp.Tools.EnvelopeStamper/Fdp.Tools.EnvelopeStamper.csproj"
+dotnet sln "HROT.sln" add "FDP/Tools/Fdp.Tools.EnvelopeStamper.Tests/Fdp.Tools.EnvelopeStamper.Tests.csproj"
 ```
 
 ---
@@ -387,7 +387,7 @@ private const string DocTypeOrchestratorContext = "Hrot.OrchestratorContext";
 
 ```powershell
 # Build to catch compilation errors
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
 
 # Run stamper tests
 dotnet test "FDP/Tools/Fdp.Tools.EnvelopeStamper.Tests/Fdp.Tools.EnvelopeStamper.Tests.csproj" -c Debug -v normal

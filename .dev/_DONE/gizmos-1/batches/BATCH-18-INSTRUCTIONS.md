@@ -32,7 +32,7 @@
 ## Build and Test Commands
 
 ```
-dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly
+dotnet build HROT.sln --no-incremental -clp:ErrorsOnly
 dotnet test FDP/Diagnostics/Fdp.Diagnostics.Contracts.Tests/Fdp.Diagnostics.Contracts.Tests.csproj
 dotnet test Hrot/Network/Hrot.Network.NED.Tests/Hrot.Network.NED.Tests.csproj
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj
@@ -74,7 +74,7 @@ Complete tasks in sequence. Build and verify tests pass before proceeding:
 2. **GZ051** → rearrange ComponentInspector fields → write tests → `Marshal.SizeOf<DebugPrimitive>() == 64` → pass
 3. **GZ052** → add EntityAttributeSchema topic + publisher system → write tests → pass
 
-Run `dotnet build IOS-IG-SimHost.sln --no-incremental -clp:ErrorsOnly` after each task.
+Run `dotnet build HROT.sln --no-incremental -clp:ErrorsOnly` after each task.
 
 ---
 
@@ -295,7 +295,7 @@ This batch is DONE when:
 - [ ] GZ050: `SemanticShape=8`, `MilStd2525=9`, `SpatialAnchor=10`; payload fields in `DebugPrimitive`; `Marshal.SizeOf == 64`; 6 tests pass
 - [ ] GZ051: `InspNetworkId` (long at offset 24) and `InspSchemaHash` (uint at offset 32); old ECS fields removed; `Marshal.SizeOf == 64`; 6 tests pass
 - [ ] GZ052: `EntityAttributeSchema` topic struct; `EntityAttributeSchemaPublisherSystem`; `ExportSchema()`; 5 tests pass
-- [ ] Build: `dotnet build IOS-IG-SimHost.sln` → 0 errors
+- [ ] Build: `dotnet build HROT.sln` → 0 errors
 - [ ] All new tests pass; no new pre-existing failures introduced
 - [ ] TASK-TRACKER.md updated (GZ050, GZ051, GZ052 marked done)
 - [ ] Report submitted

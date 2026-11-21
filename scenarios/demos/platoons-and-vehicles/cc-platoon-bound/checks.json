@@ -1,0 +1,171 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CC-D: a two-level command chain (PlatoonBound over Alpha and Bravo). DEMO. Judge (1) Bravo moves first and Alpha waits, (2) Alpha is ordered on after Bravo is at its point, (4) the platoon holds both squads then resumes and Alpha goes on, (5) Alpha reaches its point. The enemies are turned hostile by 'do' (the live check posted an Affiliation attribute: here EntityInfo.ForceId, UNPROVEN as a patch) and killed once the platoon holds (+5 s, my delay, the live check waited for both squads to hold). Not expressible: the SET lag of 2.9-3.6 s and the single SPOT (squad reports, not components).",
+  "runFor": 300,
+  "golden": false,
+  "anchors": {
+    "alpha ordered": {
+      "on": "task",
+      "who": "Alpha",
+      "is": "InfantrySquadMove"
+    },
+    "bravo at support": {
+      "on": "near",
+      "who": "*Bravo ",
+      "point": [
+        225,
+        110
+      ],
+      "within": 15
+    },
+    "the platoon holds": {
+      "on": "task",
+      "who": "Platoon",
+      "is": "PlatoonHold"
+    }
+  },
+  "do": [
+    {
+      "name": "Enemy 1 turns hostile",
+      "at": "alpha ordered",
+      "set": {
+        "who": "Enemy 1",
+        "component": "EntityInfo",
+        "patch": {
+          "ForceId": "Hostile"
+        }
+      }
+    },
+    {
+      "name": "Enemy 2 turns hostile",
+      "at": "alpha ordered",
+      "set": {
+        "who": "Enemy 2",
+        "component": "EntityInfo",
+        "patch": {
+          "ForceId": "Hostile"
+        }
+      }
+    },
+    {
+      "name": "Enemy 3 turns hostile",
+      "at": "alpha ordered",
+      "set": {
+        "who": "Enemy 3",
+        "component": "EntityInfo",
+        "patch": {
+          "ForceId": "Hostile"
+        }
+      }
+    },
+    {
+      "name": "Enemy 1 falls",
+      "at": "the platoon holds+5",
+      "set": {
+        "who": "Enemy 1",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    },
+    {
+      "name": "Enemy 2 falls",
+      "at": "the platoon holds+5",
+      "set": {
+        "who": "Enemy 2",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    },
+    {
+      "name": "Enemy 3 falls",
+      "at": "the platoon holds+5",
+      "set": {
+        "who": "Enemy 3",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the platoon runs PlatoonBound",
+      "on": "task",
+      "who": "Platoon",
+      "is": "PlatoonBound",
+      "before": 10
+    },
+    {
+      "name": "Bravo is ordered to the support point first",
+      "on": "task",
+      "who": "Bravo",
+      "is": "InfantrySquadMove"
+    },
+    {
+      "name": "Alpha does not move before Bravo reaches the support point",
+      "never": {
+        "on": "task",
+        "who": "Alpha",
+        "is": "InfantrySquadMove"
+      },
+      "before": "bravo at support"
+    },
+    {
+      "name": "Alpha is ordered on once Bravo is set",
+      "on": "task",
+      "who": "Alpha",
+      "is": "InfantrySquadMove",
+      "after": "bravo at support"
+    },
+    {
+      "name": "the platoon reacts to the hostile element with PlatoonHold",
+      "on": "task",
+      "who": "Platoon",
+      "is": "PlatoonHold",
+      "after": "alpha ordered"
+    },
+    {
+      "name": "Alpha holds",
+      "on": "task",
+      "who": "Alpha",
+      "is": "InfantrySquadHold",
+      "after": "the platoon holds"
+    },
+    {
+      "name": "Bravo holds",
+      "on": "task",
+      "who": "Bravo",
+      "is": "InfantrySquadHold",
+      "after": "the platoon holds"
+    },
+    {
+      "name": "the task resumes in its leg (PlatoonBound again)",
+      "on": "task",
+      "who": "Platoon",
+      "is": "PlatoonBound",
+      "after": "Alpha holds"
+    },
+    {
+      "name": "Alpha is ordered on again",
+      "on": "task",
+      "who": "Alpha",
+      "is": "InfantrySquadMove",
+      "after": "Alpha holds"
+    },
+    {
+      "name": "Alpha reaches its objective (195,170)",
+      "on": "near",
+      "who": "*Alpha ",
+      "point": [
+        195,
+        170
+      ],
+      "within": 10,
+      "after": "Alpha holds"
+    }
+  ]
+}

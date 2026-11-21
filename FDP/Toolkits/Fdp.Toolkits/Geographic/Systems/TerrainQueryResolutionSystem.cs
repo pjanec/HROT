@@ -18,17 +18,18 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     ///
     /// <para><b>Jump-rejection filter:</b> if the incoming <c>HitZ</c> differs from the
-    /// entity's <see cref="TerrainClampBaseline.LastValidIgAltitude"/> by more than
+    /// entity's <see cref="TerrainClampBaseline.LastValidPlayerAltitude"/> by more than
     /// <see cref="JumpRejectionThresholdMeters"/>, the result is discarded and
     /// <c>SimTransform.Position.Z</c> is left unchanged.
     /// This prevents altitude pops at geometry seams, tunnels, or bridge transitions.
     /// </para>
     ///
-    /// <para><b>First-frame bootstrap:</b> while <see cref="TerrainClampBaseline.IgAltitudeBaselineEstablished"/>
+    /// <para><b>First-frame bootstrap:</b> while <see cref="TerrainClampBaseline.PlayerAltitudeBaselineEstablished"/>
     /// is 0 the jump-rejection threshold is skipped so the first accepted hit seeds baseline state.
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class TerrainQueryResolutionSystem : IEcsModuleSystem
     {
         /// <summary>Maximum Z-delta (metres) that is accepted as a valid terrain hit.</summary>
@@ -60,8 +61,8 @@ namespace Fdp.Modules.Geographic.Systems
 
                 // Jump-rejection: skip results that move the reference altitude too abruptly.
                 // Bootstrap: first accepted hit for this entity is always applied.
-                bool isBootstrap = current.IgAltitudeBaselineEstablished == 0;
-                bool withinThreshold = MathF.Abs(res.HitZ - current.LastValidIgAltitude) <= JumpRejectionThresholdMeters;
+                bool isBootstrap = current.PlayerAltitudeBaselineEstablished == 0;
+                bool withinThreshold = MathF.Abs(res.HitZ - current.LastValidPlayerAltitude) <= JumpRejectionThresholdMeters;
 
                 if (!isBootstrap && !withinThreshold) continue;
 
@@ -77,8 +78,8 @@ namespace Fdp.Modules.Geographic.Systems
                 // Advance the jump-rejection baseline to the accepted altitude.
                 cmd.SetComponent(req.Entity, new TerrainClampBaseline
                 {
-                    LastValidIgAltitude = res.HitZ,
-                    IgAltitudeBaselineEstablished = 1,
+                    LastValidPlayerAltitude = res.HitZ,
+                    PlayerAltitudeBaselineEstablished = 1,
                 });
             }
         }

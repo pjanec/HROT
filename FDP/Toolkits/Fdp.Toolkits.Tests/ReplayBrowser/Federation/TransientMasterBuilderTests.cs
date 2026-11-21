@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
         private string MakeNetworkRecording(int nodeId, Action<EntityRepository> setup)
         {
             var path = Path.Combine(_tempDir, $"node{nodeId}_{Guid.NewGuid():N}.fdp");
-            var meta = new RecordingMetadata { ExerciseId = _exerciseId, NodeId = nodeId };
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(_exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
 
             using var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path1 = MakeNetworkRecording(1, repo =>
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 42L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 42 });
                 repo.AddComponent(e, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<DummyPosition>(e, true);
@@ -111,7 +111,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path2 = MakeNetworkRecording(2, repo =>
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 42L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 42 });
                 repo.AddComponent(e, new GuidedTarget { TargetId = Entity.Null });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<GuidedTarget>(e, true);
@@ -130,6 +130,51 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
         }
 
         [Fact]
+        public void V6_BuildInto_FillsAWorldTheCallerOwns_WithTheMergeBuildMakes()
+        {
+            // ⭐ R-5 / V6 (D7) — the editor's resident world takes the merge: the SAME merge as Build, into a repository the caller owns (cleared first), not a second load path.
+            var path1 = MakeNetworkRecording(1, repo =>
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new NetworkIdentity { Value = 42 });
+                repo.AddComponent(e, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
+                repo.SetAuthority<NetworkIdentity>(e, true);
+                repo.SetAuthority<DummyPosition>(e, true);
+            });
+            var path2 = MakeNetworkRecording(2, repo =>
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new NetworkIdentity { Value = 42 });
+                repo.AddComponent(e, new GuidedTarget { TargetId = Entity.Null });
+                repo.SetAuthority<NetworkIdentity>(e, true);
+                repo.SetAuthority<GuidedTarget>(e, true);
+                var other = repo.CreateEntity();
+                repo.AddComponent(other, new NetworkIdentity { Value = 43 });
+                repo.SetAuthority<NetworkIdentity>(other, true);
+            });
+            using var manager = FederatedReplayManager.LoadGroup(new[] { path1, path2 });
+            manager.SetBaseWallTicks(1_000_000L);
+            var builder = new TransientMasterBuilder(_serializer);
+            using var viaBuild = builder.Build(manager);
+
+            using var resident = new EntityRepository();
+            resident.RegisterComponent<NetworkIdentity>();
+            resident.RegisterComponent<NetworkAuthority>();
+            resident.RegisterComponent<DummyPosition>();
+            resident.RegisterComponent<GuidedTarget>();
+            for (int round = 0; round < 2; round++)   // a second fill after a clear: the world is whole again, not doubled
+            {
+                resident.SoftClear();
+                builder.BuildInto(manager, resident);
+                Assert.Equal(viaBuild.EntityCount, resident.EntityCount);
+                Assert.Equal(2, resident.EntityCount);
+                var e = FindEntityWithNetId(resident, 42);
+                Assert.Equal(1f, resident.GetComponent<DummyPosition>(e).X);
+                Assert.True(resident.HasComponent<GuidedTarget>(e));
+            }
+        }
+
+        [Fact]
         public void RBF_P3T5_Build_GhostExcluded()
         {
             // Node 1: authoritative DummyPosition{X=10}.
@@ -138,7 +183,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path1 = MakeNetworkRecording(1, repo =>
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 99L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 99 });
                 repo.AddComponent(e, new DummyPosition { X = 10f, Y = 0f, Z = 0f });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<DummyPosition>(e, true);
@@ -146,7 +191,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path2 = MakeNetworkRecording(2, repo =>
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 99L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 99 });
                 repo.AddComponent(e, new DummyPosition { X = 99f, Y = 0f, Z = 0f });
                 // No authority set: both bits remain 0 (ghost).
             });
@@ -172,11 +217,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             {
                 var entityA = repo.CreateEntity();
                 var entityB = repo.CreateEntity();
-                repo.AddComponent(entityB, new NetworkIdentity { Value = 101L });
+                repo.AddComponent(entityB, new NetworkIdentity { Value = 101 });
                 repo.AddComponent(entityB, new DummyPosition { X = 5f, Y = 0f, Z = 0f });
                 repo.SetAuthority<NetworkIdentity>(entityB, true);
                 repo.SetAuthority<DummyPosition>(entityB, true);
-                repo.AddComponent(entityA, new NetworkIdentity { Value = 100L });
+                repo.AddComponent(entityA, new NetworkIdentity { Value = 100 });
                 repo.AddComponent(entityA, new GuidedTarget { TargetId = entityB });
                 repo.SetAuthority<NetworkIdentity>(entityA, true);
                 repo.SetAuthority<GuidedTarget>(entityA, true);
@@ -205,7 +250,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path1 = MakeNetworkRecording(1, repo =>
             {
                 var entityA = repo.CreateEntity();
-                repo.AddComponent(entityA, new NetworkIdentity { Value = 200L });
+                repo.AddComponent(entityA, new NetworkIdentity { Value = 200 });
                 repo.AddComponent(entityA, new GuidedTarget { TargetId = deadHandle });
                 repo.SetAuthority<NetworkIdentity>(entityA, true);
                 repo.SetAuthority<GuidedTarget>(entityA, true);
@@ -229,9 +274,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path1 = MakeNetworkRecording(1, repo =>
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 300L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 300 });
                 repo.AddComponent(e, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
-                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = 1 });
+                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = (Fdp.Core.NodeId)(1) });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<DummyPosition>(e, true);
                 repo.SetAuthority<NetworkAuthority>(e, true);
@@ -239,9 +284,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path2 = MakeNetworkRecording(2, repo =>
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 300L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 300 });
                 repo.AddComponent(e, new DummyPosition { X = 99f, Y = 0f, Z = 0f });
-                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = 2 });
+                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = (Fdp.Core.NodeId)(2) });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<DummyPosition>(e, true);
                 repo.SetAuthority<NetworkAuthority>(e, true);
@@ -264,7 +309,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var path1 = MakeNetworkRecording(1, repo =>
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 400L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 400 });
                 repo.AddComponent(e, new DummyPosition { X = 4f, Y = 0f, Z = 0f });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<DummyPosition>(e, true);
@@ -323,7 +368,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             {
                 // A global entity so both nodes share the same exercise.
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkIdentity { Value = 700L });
+                repo.AddComponent(e, new NetworkIdentity { Value = 700 });
                 repo.SetAuthority<NetworkIdentity>(e, true);
             });
             var path2 = MakeNetworkRecording(2, repo =>
@@ -391,7 +436,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
 
                 repo.AddComponent(localE, new DummyPosition { X = 8f, Y = 0f, Z = 0f });
 
-                repo.AddComponent(globalE, new NetworkIdentity { Value = 500L });
+                repo.AddComponent(globalE, new NetworkIdentity { Value = 500 });
                 repo.AddComponent(globalE, new GuidedTarget { TargetId = localE });
                 repo.SetAuthority<NetworkIdentity>(globalE, true);
                 repo.SetAuthority<GuidedTarget>(globalE, true);

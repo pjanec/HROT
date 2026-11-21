@@ -15,6 +15,7 @@ namespace Fdp.Core.CommandHierarchy
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.UnitSubordinate)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct UnitSubordinate
     {
         /// <summary>Generation-safe handle to the commanding entity.  <c>Entity.Null</c> when unassigned.</summary>
@@ -22,5 +23,9 @@ namespace Fdp.Core.CommandHierarchy
 
         /// <summary>Logical role of this entity within the commander's unit.  <c>Undefined</c> when unassigned.</summary>
         public TacticalDesignation Designation;
+
+        /// <summary>⭐ <c>CE-2281</c> / R-3019 — his fire team within the unit (<see cref="FireTeam.None"/> when none); fits the
+        /// trailing pad, the size stays 12 bytes.</summary>
+        public FireTeam FireTeam;
     }
 }

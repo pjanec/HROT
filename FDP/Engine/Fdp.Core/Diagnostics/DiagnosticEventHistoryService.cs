@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 
 namespace Fdp.Core.Diagnostics
@@ -15,32 +14,49 @@ namespace Fdp.Core.Diagnostics
         /// <summary>Maximum number of events retained in the circular buffer.</summary>
         public const int Capacity = 500;
 
-        private readonly CapturedEventDto[] _buffer = new CapturedEventDto[Capacity];
+        // ⭐ CE-4565 (X-10; CLAUDE.md HOT PATH) — the ring holds SLOTS reused for ever (allocated once), and a slot keeps the event and what names it;
+        //   the summary TEXT is built when the history is READ (GetHistory: the Event Browser, the debug API), never per tick. 📐 Capture built a
+        //   reflection + LINQ string for every event of every tick (and a DTO, and two iterators per stream). Now a tick costs nothing but the box of
+        //   an unmanaged event (a managed one is kept as is).
+        private sealed class Slot
+        {
+            public uint Frame;
+            public string ProviderName = "";
+            public Type? EventType;
+            public bool IsManaged;
+            public object? Event;
+        }
+
+        private readonly Slot[] _buffer = new Slot[Capacity];
         private int _head;   // index of the oldest entry (next write position)
         private int _count;  // how many entries are valid (0..Capacity)
         private readonly object _lock = new();
+
+        public DiagnosticEventHistoryService()
+        {
+            for (int i = 0; i < Capacity; i++) _buffer[i] = new Slot();
+        }
 
         /// <inheritdoc/>
         public void Capture(string providerName, FdpEventBus eventBus, uint currentFrame)
         {
             if (eventBus == null) return;
 
-            foreach (var inspector in eventBus.GetDebugInspectors())
+            var inspectors = eventBus.DebugInspectors();
+            for (int s = 0; s < inspectors.Length; s++)
             {
-                if (inspector.Count == 0) continue;
-
-                bool isManaged = !inspector.EventType.IsValueType;
-
-                foreach (var evt in inspector.InspectReadBuffer())
+                var inspector = inspectors[s];
+                int n = inspector.Count;
+                if (n == 0) continue;
+                var type = inspector.EventType;
+                bool isManaged = !type.IsValueType;
+                for (int i = 0; i < n; i++)
                 {
-                    string typeName = inspector.EventType.Name;
-                    string summary  = GetGenericEventSummary(evt, inspector.EventType);
-
-                    var dto = new CapturedEventDto(currentFrame, providerName, typeName, isManaged, summary, evt);
-
+                    object evt = inspector.ReadItem(i);
                     lock (_lock)
                     {
-                        _buffer[_head] = dto;
+                        var slot = _buffer[_head];
+                        slot.Frame = currentFrame; slot.ProviderName = providerName; slot.EventType = type; slot.IsManaged = isManaged; slot.Event = evt;
                         _head = (_head + 1) % Capacity;
                         if (_count < Capacity) _count++;
                     }
@@ -56,24 +72,24 @@ namespace Fdp.Core.Diagnostics
             lock (_lock)
             {
                 if (_count == 0) return Array.Empty<CapturedEventDto>();
-
+                int start = (_head - _count + Capacity) % Capacity;   // the oldest entry
+                int kept = 0;
                 snapshot = new CapturedEventDto[_count];
-
-                // The oldest entry is at (_head - _count + Capacity) % Capacity.
-                int start = (_head - _count + Capacity) % Capacity;
                 for (int i = 0; i < _count; i++)
-                    snapshot[i] = _buffer[(start + i) % Capacity];
+                {
+                    var slot = _buffer[(start + i) % Capacity];
+                    if (providerFilter is { Count: > 0 } && !Contains(providerFilter, slot.ProviderName)) continue;
+                    snapshot[kept++] = new CapturedEventDto(slot.Frame, slot.ProviderName, slot.EventType!.Name, slot.IsManaged, null!, slot.Event);
+                }
+                if (kept != snapshot.Length) Array.Resize(ref snapshot, kept);
             }
+            return snapshot;   // ⭐ each DTO builds its summary on first read (CapturedEventDto.Summary)
+        }
 
-            // Apply optional provider filter outside the lock (no stalling the writer).
-            if (providerFilter != null && providerFilter.Count > 0)
-            {
-                snapshot = snapshot
-                    .Where(e => providerFilter.Contains(e.ProviderName, StringComparer.OrdinalIgnoreCase))
-                    .ToArray();
-            }
-
-            return snapshot;
+        private static bool Contains(IReadOnlyList<string> names, string name)
+        {
+            for (int i = 0; i < names.Count; i++) if (string.Equals(names[i], name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         /// <inheritdoc/>
@@ -98,7 +114,7 @@ namespace Fdp.Core.Diagnostics
                     int newestIndex = (_head - 1 + Capacity) % Capacity;
                     if (_buffer[newestIndex].Frame >= toFrame)
                     {
-                        _buffer[newestIndex] = null!;
+                        _buffer[newestIndex].Event = null;
                         _head = newestIndex;
                         _count--;
                     }
@@ -110,44 +126,46 @@ namespace Fdp.Core.Diagnostics
             }
         }
 
-        private static string GetGenericEventSummary(object evt, Type type)
+        // the members a summary names, per type, found once (reflection runs on the first read of a type, never per tick)
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, MemberInfo[]> SummaryMembers = new();
+
+        /// <summary>The summary text of an event: its first three primitive / string / enum fields (or, with none, properties) as
+        /// <c>Name:value</c>, else <c>ToString()</c>. Built on READ (<see cref="CapturedEventDto.Summary"/>).</summary>
+        public static string SummaryOf(object? evt)
         {
             if (evt == null) return "null";
+            var members = SummaryMembers.GetOrAdd(evt.GetType(), FindMembers);
+            if (members.Length == 0) return evt.ToString() ?? "null";
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < members.Length; i++)
+            {
+                if (i > 0) sb.Append("  ");
+                sb.Append(members[i].Name).Append(':');
+                try { sb.Append(FormatLeaf(members[i] is FieldInfo f ? f.GetValue(evt) : ((PropertyInfo)members[i]).GetValue(evt))); }
+                catch { sb.Append("<err>"); }
+            }
+            return sb.ToString();
+        }
 
-            // Try primitive / string / enum fields first (common for struct events).
-            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
-                .Where(f => f.FieldType.IsPrimitive || f.FieldType == typeof(string) || f.FieldType.IsEnum)
-                .Take(3)
-                .Select(f => $"{f.Name}:{FormatLeaf(f.GetValue(evt))}")
-                .ToList();
+        private static bool IsLeaf(Type t) => t.IsPrimitive || t == typeof(string) || t.IsEnum;
 
-            if (fields.Count > 0)
-                return string.Join("  ", fields);
-
-            // Fall back to non-indexed public properties (managed events / records).
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.GetIndexParameters().Length == 0 &&
-                           (p.PropertyType.IsPrimitive || p.PropertyType == typeof(string) || p.PropertyType.IsEnum))
-                .Take(3)
-                .Select(p =>
-                {
-                    try   { return $"{p.Name}:{FormatLeaf(p.GetValue(evt))}"; }
-                    catch { return $"{p.Name}:<err>"; }
-                })
-                .ToList();
-
-            if (props.Count > 0)
-                return string.Join("  ", props);
-
-            return evt.ToString() ?? "null";
+        private static MemberInfo[] FindMembers(Type type)
+        {
+            var found = new List<MemberInfo>(3);
+            foreach (var f in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                if (IsLeaf(f.FieldType) && found.Count < 3) found.Add(f);
+            if (found.Count > 0) return found.ToArray();
+            foreach (var p in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                if (p.GetIndexParameters().Length == 0 && IsLeaf(p.PropertyType) && found.Count < 3) found.Add(p);
+            return found.ToArray();
         }
 
         private static string FormatLeaf(object? v)
             => v switch
             {
                 null   => "null",
-                float  f => f.ToString("G4"),
-                double d => d.ToString("G4"),
+                float  f => f.ToString("G4", System.Globalization.CultureInfo.InvariantCulture),
+                double d => d.ToString("G4", System.Globalization.CultureInfo.InvariantCulture),
                 _        => v.ToString() ?? "null"
             };
     }

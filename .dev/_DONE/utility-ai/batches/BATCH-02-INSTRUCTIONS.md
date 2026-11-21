@@ -38,7 +38,7 @@
 
 ```bat
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj
 ```
 
@@ -518,7 +518,7 @@ This batch is DONE when:
 - [ ] **P1-01**: All data structures defined; `sizeof(ResponseCurve) == 16`; `UtilityConstants.TopN == 16`; cap invariant assertion present; all P1-01 tests pass
 - [ ] **P1-02**: `ResponseCurve.Evaluate` implemented for all 9 curve kinds; `PiecewiseCurveCatalog` implemented; all property tests pass; all P1-02 tests pass
 - [ ] **P1-03**: `Aggregator.Aggregate` implemented for both modes; exact compensation arithmetic verified in tests; all P1-03 tests pass
-- [ ] `dotnet build IOS-IG-SimHost.sln` — zero errors, zero new warnings
+- [ ] `dotnet build HROT.sln` — zero errors, zero new warnings
 - [ ] `dotnet test FDP\Toolkits\Fdp.Toolkits.Tests\Fdp.Toolkits.Tests.csproj` — all previously passing tests still pass; new tests all pass
 
 ---

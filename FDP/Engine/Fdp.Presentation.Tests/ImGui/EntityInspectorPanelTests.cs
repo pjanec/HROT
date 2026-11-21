@@ -21,6 +21,29 @@ namespace Fdp.Presentation.Tests
     [Collection("ImGui Sequential")]
     public class EntityInspectorPanelTests
     {
+        /// <summary>
+        /// ⭐ CE-2403 (R-2084) — 1000 entities: the list builds only the rows on screen and reuses its lists, so a steady frame allocates a few KB,
+        /// not a label per entity (≈ 320 KB/frame on Crossfire); the rows still list every entity (the filter result is complete).
+        /// 🔴 Red-proof: the row loop over every entity (no ImGuiRowClip) ⇒ the bound fails.
+        /// </summary>
+        [Fact]
+        public void CE2403_AThousandEntities_BuildOnlyTheVisibleRows_AndAllocateLittle()
+        {
+            using var fixture = new ImGuiTestFixture();
+            using var repo = new EntityRepository();
+            for (int i = 0; i < 1000; i++) repo.CreateEntity();
+            var panel = new EntityInspectorPanel();
+            var context = new FakeInspectorContext();
+            var session = new RepositoryAdapter(repo);
+            void Frame() { fixture.NewFrame(); panel.Draw(session, context); fixture.Render(); }
+            for (int i = 0; i < 5; i++) Frame();
+            long a0 = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) Frame();
+            long perFrame = (System.GC.GetAllocatedBytesForCurrentThread() - a0) / 10;
+            Assert.True(perFrame < 24 * 1024, $"{perFrame} B/frame for 1000 entities");
+            Assert.Equal(1001, EntityInspectorPanel.GetFilteredEntities(session, "", 1000).Count);   // the singleton row + every entity
+        }
+
         [Fact]
         public void Draw_SmokeTest_RunsWithoutException()
         {
@@ -53,11 +76,12 @@ namespace Fdp.Presentation.Tests
             var e3 = repo.CreateEntity();
             var session = new RepositoryAdapter(repo);
             
-            // Search for ID of e2
-            var results = EntityInspectorPanel.GetFilteredEntities(session, e2.Index.ToString(), 1000).ToList();
-            
-            Assert.Single(results);
-            Assert.Equal(e2, results[0]);
+            // ⭐ CE-3166 — the filter is a SUBSTRING of the row label "[index, vGen] …" (since the import), so a bare "1" also matches
+            //   every "v1"; the bracketed id names e2 alone. The [Singletons] row is always first (RepositoryAdapter's contract).
+            var results = EntityInspectorPanel.GetFilteredEntities(session, $"[{e2.Index},", 1000).ToList();
+
+            Assert.Equal(RepositoryAdapter.SingletonEntity, results[0]);
+            Assert.Equal(e2, Assert.Single(results.Skip(1)));
         }
         
         [Fact]
@@ -68,12 +92,14 @@ namespace Fdp.Presentation.Tests
             var session = new RepositoryAdapter(repo);
             
             var results = EntityInspectorPanel.GetFilteredEntities(session, "", 5).ToList();
-            
-            Assert.Equal(5, results.Count);
+
+            // ⭐ CE-3166 — the limit counts ENTITIES; the [Singletons] row is always first and never counted (RepositoryAdapter's contract)
+            Assert.Equal(RepositoryAdapter.SingletonEntity, results[0]);
+            Assert.Equal(5, results.Count(e => e != RepositoryAdapter.SingletonEntity));
         }
         
         [Fact]
-        public void GetFilteredEntities_InvalidSearch_ReturnsAllWithLimit()
+        public void GetFilteredEntities_ANonMatchingSearch_ListsOnlyTheSingletonRow()
         {
             using var repo = new EntityRepository();
             repo.CreateEntity();
@@ -99,8 +125,10 @@ namespace Fdp.Presentation.Tests
             // So it yields the entity.
             // This means invalid filter string = NO FILTER.
             
+            // ⭐ CE-3166 — ⛔ the reasoning above describes an id-parse filter this panel no longer has: the search is a substring of the
+            //   row label, so "abc" matches no entity; the [Singletons] row stays (it is always listed).
             var results = EntityInspectorPanel.GetFilteredEntities(session, "abc", 1000).ToList();
-            Assert.Equal(2, results.Count);
+            Assert.Equal(new[] { RepositoryAdapter.SingletonEntity }, results);
         }
 
         [Fact]
@@ -215,6 +243,157 @@ namespace Fdp.Presentation.Tests
             fixture.NewFrame();
             panel.DrawContent(session, context);
             fixture.Render();
+        }
+        // ── CE-4310 (D6) — the raw Components tab: nested structs expand, inline arrays draw, a typed field uses its formatter ─────────────
+
+        private struct NestedProbe { public int A; public InnerProbe B; }
+        private struct InnerProbe { public float X; public int Y; public DeepProbe Deep; }
+        private struct DeepProbe { public int Z; }
+
+        private struct TypedProbe
+        {
+            public Fdp.Core.FixedString64 Name;
+            public Fdp.Toolkit.Replication.EntityRef Target;
+            public Fdp.Toolkit.Replication.EntityLink Link;
+            public Fdp.Core.SimInstant At;
+            public Fdp.Core.SimDuration Len;
+        }
+
+        /// <summary>The rows the property tree draws for <paramref name="value"/> on its own (default node state: nothing clicked).</summary>
+        private static Dictionary<string, (string Kind, string Text)> TreeRows(object value)
+        {
+            using var fixture = new ImGuiTestFixture();
+            var rows = new Dictionary<string, (string, string)>();
+            ImGuiPropertyTree.RowObserver = (path, kind, text) => rows[path] = (kind, text);
+            try
+            {
+                for (int i = 0; i < 3; i++) { fixture.NewFrame(); ImGuiPropertyTree.Render(value, value.GetType()); fixture.Render(); }
+            }
+            finally { ImGuiPropertyTree.RowObserver = null; }
+            return rows;
+        }
+
+        private sealed class OneComponentSession : Fdp.Presentation.Abstractions.IInspectableSession
+        {
+            private readonly Type _type; private readonly object _data;
+            public OneComponentSession(Type type, object data) { _type = type; _data = data; }
+            public bool IsReadOnly => false;
+            public int EntityCount => 1;
+            public IEnumerable<Entity> GetEntities() => Array.Empty<Entity>();
+            public bool IsAlive(Entity e) => true;
+            public IEnumerable<Type> GetAllComponentTypes() => new[] { _type };
+            public bool HasComponent(Entity e, Type t) => t == _type;
+            public object? GetComponent(Entity e, Type t) => t == _type ? _data : null;
+            public void SetComponent(Entity e, Type t, object v) { }
+            public bool HasAuthority(Entity e, Type t) => false;
+        }
+
+        private static NestedProbe Nested() => new NestedProbe { A = 1, B = new InnerProbe { X = 2.5f, Y = 7, Deep = new DeepProbe { Z = 9 } } };
+
+        /// <summary>(a) A struct inside a struct shows its inner fields — at any depth — without the person clicking each node open. ⛔ MEASURED red before the fix: the nested nodes started collapsed.</summary>
+        [Fact]
+        public void CE4310_ANestedStruct_ShowsItsInnerFields_WithoutClickingEachNodeOpen()
+        {
+            var rows = TreeRows(Nested());
+            Assert.Equal(("leaf", "1"), rows["$.A"]);
+            Assert.Equal(("leaf", "2.5"), rows["$.B.X"]);
+            Assert.Equal(("leaf", "7"), rows["$.B.Y"]);
+            Assert.Equal(("leaf", "9"), rows["$.B.Deep.Z"]);
+        }
+
+        /// <summary>(a') Collapse All closes the NESTED nodes too and Expand All reopens them (the buttons used to touch only the component headers).
+        /// ✅ Red-proof: the reflector not setting <c>ImGuiPropertyTree.ForceOpen</c> ⇒ the collapsed frame still draws the inner fields ⇒ red.</summary>
+        [Fact]
+        public void CE4310_CollapseAllClosesTheNestedNodes_ExpandAllReopensThem()
+        {
+            using var fixture = new ImGuiTestFixture();
+            using var repo = new EntityRepository();
+            var e = repo.CreateEntity();
+            var panel = new EntityInspectorPanel();
+            var session = new OneComponentSession(typeof(NestedProbe), Nested());   // a stub: no component id is taken in the shared registry
+            var rows = new Dictionary<string, (string, string)>();
+            ImGuiPropertyTree.RowObserver = (path, kind, text) => rows[path] = (kind, text);
+            try
+            {
+                panel.Reflector.ForceExpandAll = true;                                                   // frame 0: open the header (and everything under it)
+                fixture.NewFrame(); panel.DrawComponentsFor(session, e); fixture.Render();
+                Assert.True(rows.ContainsKey("$.B.Deep.Z"), "Expand All must reach the third level");
+
+                rows.Clear();
+                fixture.NewFrame(); panel.DrawComponentsFor(session, e); fixture.Render();               // frame 1: states persist, still open
+                Assert.True(rows.ContainsKey("$.B.Deep.Z"));
+
+                rows.Clear();
+                panel.Reflector.ForceCollapseAll = true;                                                 // frame 2: Collapse All — the headers close, so nothing is drawn under them
+                fixture.NewFrame(); panel.DrawComponentsFor(session, e); fixture.Render();
+                Assert.DoesNotContain("$.B.X", rows.Keys);
+            }
+            finally { ImGuiPropertyTree.RowObserver = null; }
+        }
+
+        /// <summary>(b) An inline array (a real component: <c>EngagementArea.NoFire</c> — a Count + an [InlineArray] buffer, nested one level down) draws every live element with its value and says how many of its capacity.</summary>
+        [Fact]
+        public void CE4310_AnInlineArray_DrawsEveryLiveElement_WithItsValue()
+        {
+            var area = new Fdp.Toolkit.Behavior.Components.EngagementArea();
+            area.NoFire.Count = 2; area.NoFire.Items[0] = 11; area.NoFire.Items[1] = 22;
+            var rows = TreeRows(area);
+            Assert.Equal(("fold", "[2 of 4]"), rows["$.NoFire"]);
+            Assert.Equal(("leaf", "11"), rows["$.NoFire[0]"]);
+            Assert.Equal(("leaf", "22"), rows["$.NoFire[1]"]);
+            Assert.False(rows.ContainsKey("$.NoFire[2]"));   // only the live ones
+        }
+
+        /// <summary>⭐ CE-4351 — a fixed buffer of STRUCTS with no Count sibling of its own shape (<c>BrainJournal.Entries</c>, an <c>[InlineArray(24)]</c> whose only field is
+        /// private) folds and lists its entries with their fields — ⛔ it drew as its type name. 🔴 Mutation: the InlineArray line out of <c>IsFoldable</c> ⇒ a leaf ⇒ red.</summary>
+        [Fact]
+        public void CE4351_AFixedBufferOfStructs_FoldsAndListsItsEntries_NotItsTypeName()
+        {
+            var j = new Fdp.Toolkit.Behavior.Diagnostics.BrainJournal();
+            j.Entries[0] = new Fdp.Toolkit.Behavior.Diagnostics.BrainJournalEntry { A = 7 };
+            j.Count = 1;
+            var rows = TreeRows(j);
+            Assert.Equal("fold", rows["$.Entries"].Kind);
+            Assert.DoesNotContain("BrainJournalEntries", rows["$.Entries"].Text);
+            Assert.True(rows.ContainsKey("$.Entries[0]"), "the first entry is listed");
+        }
+
+        /// <summary>(c) A typed field draws as the editor's formatter writes it — a name / id, not an expandable struct of raw members.</summary>
+        [Fact]
+        public void CE4310_ATypedField_DrawsAsItsFormattedValue_NotAsRawMembers()
+        {
+            var rows = TreeRows(new TypedProbe
+            {
+                Name = new Fdp.Core.FixedString64("Alpha 1-1"), Target = new Fdp.Toolkit.Replication.EntityRef(42),
+                Link = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(7)),
+                At = new Fdp.Core.SimInstant(12.5), Len = new Fdp.Core.SimDuration(3f),
+            });
+            Assert.Equal(("leaf", "Alpha 1-1"), rows["$.Name"]);
+            Assert.Equal(("leaf", "#42"), rows["$.Target"]);
+            Assert.Equal(("leaf", "#7"), rows["$.Link"]);
+            Assert.Equal("leaf", rows["$.At"].Kind);
+            Assert.Equal("leaf", rows["$.Len"].Kind);
+            Assert.DoesNotContain(rows.Keys, k => k.StartsWith("$.Name.") || k.StartsWith("$.Target.") || k.StartsWith("$.At."));   // no raw members underneath
+        }
+        /// <summary>CE4310 hot path (R-2084) — the tree draws every frame: a steady frame over the typed and nested probes allocates only its row ids (the pre-existing <c>name##depth_i</c> labels) and the
+        /// leaf text; the bound catches a formatter that rebuilds a large string per row. (Measured and reported; the probe is small on purpose.)</summary>
+        [Fact]
+        public void CE4310_ASteadyFrame_OverTheTypedAndNestedProbes_StaysSmall()
+        {
+            using var fixture = new ImGuiTestFixture();
+            var typed = new TypedProbe
+            {
+                Name = new Fdp.Core.FixedString64("Alpha 1-1"), Target = new Fdp.Toolkit.Replication.EntityRef(42),
+                Link = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(7)),
+                At = new Fdp.Core.SimInstant(12.5), Len = new Fdp.Core.SimDuration(3f),
+            };
+            object boxedTyped = typed, boxedNested = Nested();
+            void Frame() { fixture.NewFrame(); ImGuiPropertyTree.Render(boxedTyped, typeof(TypedProbe)); ImGuiPropertyTree.Render(boxedNested, typeof(NestedProbe)); fixture.Render(); }
+            for (int i = 0; i < 5; i++) Frame();
+            long a0 = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 20; i++) Frame();
+            long perFrame = (System.GC.GetAllocatedBytesForCurrentThread() - a0) / 20;
+            Assert.True(perFrame < 6 * 1024, $"{perFrame} B/frame");
         }
     }
 

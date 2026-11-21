@@ -62,7 +62,7 @@ DDS fields (`_systemStateWriter`, `_heartbeatReader`, etc.) are assigned `null!`
 Added `ClusterStateTransitionedEvent` (EventId 9015) to `ClusterCqrsEvents.cs`:
 ```csharp
 [EventId(9015)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ClusterStateTransitionedEvent { public int NewStateId; public string SubsystemName; }
 ```
 

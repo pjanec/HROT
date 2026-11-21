@@ -39,7 +39,7 @@ editor's pin output**.
       (Hrot.Blueprints.Tests) stay green (same pins, same order, same link resolution). Add an assertion (or a
       small test) that for a representative static node the editor pins match the registry shapes (name/dir/exec/
       type, in order) — locking the single-source invariant.
-- [ ] Build `IOS-IG-SimHost.sln` 0 errors / 0 new warnings.
+- [ ] Build `HROT.sln` 0 errors / 0 new warnings.
 - [ ] No new test regressions: `Hrot.Blueprints.Tests` stays at the SAME 7 pre-existing failures (3 golden +
       2 snapshot DEBT-006 + ConditionSummary + AllocationFree) — list the exact final failure set; `EditorSubsystemBoot`
       10/10. Report exact counts. Do NOT claim 0 regressions without the explicit failure-set comparison.

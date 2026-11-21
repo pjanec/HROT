@@ -61,7 +61,7 @@ public sealed class FindResultsPanel
             var header = graphId.HasValue ? graphId.Value.ToString() : "Current Graph";
             if (!_collapsed.TryGetValue(key, out _)) _collapsed[key] = false;
 
-            if (ImGui.CollapsingHeader($"{header} ({group.Count})##g_{key}"))
+            if (NodeEditor.Core.Widgets.SectionHeader.Draw($"g_{key}", $"{header} ({group.Count})", "section/search"))
             {
                 _collapsed[key] = false;
                 DrawGroup(group, graphId);

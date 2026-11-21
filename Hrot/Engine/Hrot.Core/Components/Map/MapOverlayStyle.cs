@@ -2,7 +2,7 @@ using Fdp.Core;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// Rendering style parameters for a map visual overlay entity.
@@ -14,13 +14,14 @@ namespace Hrot.IG.Components;
 /// <para>Stored as a blittable unmanaged struct so that it can live in
 /// contiguous ECS archetype storage.  Colour channels are stored in compact
 /// <c>Color32</c> fields to avoid a dependency on <c>Raylib_cs</c> in the
-/// <c>Hrot.Map.Common</c> shared project; callers in <c>Hrot.IG</c>
+/// <c>Hrot.Map.Common</c> shared project; callers in <c>Hrot.Player</c>
 /// convert to <c>Raylib_cs.Color</c> when needed.</para>
 ///
 /// <para>Defined in <c>Hrot.Map.Common</c> so that both the IG and
 /// SimHost/Runner projects can reference it without circular dependencies.</para>
 /// </summary>
 [ComponentId(GlobalComponentIds.MapOverlayStyle)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct MapOverlayStyle
 {
     // ── Fill colour ───────────────────────────────────────────────────────────

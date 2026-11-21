@@ -100,7 +100,7 @@ The missing positive test for `SquadAssignment` (i.e., flag set + `UnitRoster` p
 
 ## Part D — Solution Integration
 
-**Correct.** Four new projects added to `IOS-IG-SimHost.sln`. All configurations present. Projects nest under the correct solution folder.
+**Correct.** Four new projects added to `HROT.sln`. All configurations present. Projects nest under the correct solution folder.
 
 ---
 

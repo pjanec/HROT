@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         public void EqsCognitiveBuffer_GetSpanRW_PositionZPersists()
         {
             var buffer = new EqsCognitiveBuffer();
-            buffer.GetSpanRW()[3] = new EqsResult { EntityId = 7L, PositionX = 1f, PositionY = 2f, PositionZ = 42.5f };
+            buffer.GetSpanRW()[3] = new EqsResult { EntityId = 7, PositionX = 1f, PositionY = 2f, PositionZ = 42.5f };
 
             ref readonly var read = ref buffer.GetSpanRO()[3];
             Assert.Equal(42.5f, read.PositionZ);
@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             // Arrange
             var buffer = new EqsCognitiveBuffer();
-            var written = new EqsResult { EntityId = 42L, Score = 1.5f, PositionX = 10f, PositionY = 20f };
+            var written = new EqsResult { EntityId = 42, Score = 1.5f, PositionX = 10f, PositionY = 20f };
 
             // Act — write via the safe span path
             buffer.GetSpanRW()[0] = written;
@@ -80,12 +80,12 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             var buffer = new EqsCognitiveBuffer();
 
             // --- Path A: span-based write (persists) ---
-            buffer.GetSpanRW()[0] = new EqsResult { EntityId = 99L };
+            buffer.GetSpanRW()[0] = new EqsResult { EntityId = 99 };
 
             // --- Path B: demonstrate that copying the struct and writing through index
             //     leaves the original unchanged (defensive copy trap) ---
             var copy = buffer;          // copy on purpose
-            copy.Results[0] = new EqsResult { EntityId = 77L };  // writes into the copy's inline array
+            copy.Results[0] = new EqsResult { EntityId = 77 };  // writes into the copy's inline array
 
             // The original buffer still has EntityId = 99 (written via span, not overwritten by copy mutation)
             Assert.Equal(99L, buffer.GetSpanRO()[0].EntityId);

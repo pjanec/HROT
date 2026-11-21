@@ -1,0 +1,15 @@
+StructureHash: 0xF143EC7BF457802D
+Parameters:
+  Objective : Fdp.Toolkit.Replication.PointLink @0 size=48
+  WalkSpeed : System.Single @48 size=4
+  RushSpeed : System.Single @52 size=4
+  CrossWithin : System.Single @56 size=4
+WorkingState:
+  (empty)
+Variables:
+  Holding : System.Boolean @64 size=1
+  Walking : System.Boolean @65 size=1
+GraphLocalSlots:
+  _when_9631df53_prev : _WhenSensor_9631df53_PrevState @16 size=32
+Diagnostics:
+  (none)

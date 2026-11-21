@@ -1,0 +1,478 @@
+using System;
+using System.Numerics;
+using Fbt;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Executors;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.MuscleCharacter.Animation.Stance;
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-2319</c> / <c>CE-2320</c> (AQ96 A, B, C, C3) — how a soldier moves under fire, as ONE reflex over the move every play issues
+    /// (<see cref="LocomotionMoveTo.Issue"/> stamps <see cref="UnderFireMove"/>): the rush speed while threatened, the gait re-picked when the
+    /// threat changes, and the DROP — a near miss or hit in the open puts him prone with the move halted; he rises when the fire on him lapses
+    /// or his half is covered, after a side step (never up where he dropped), or crawls to a cover point near him first. The plays never see
+    /// it: the channel stays Running (the move's executor ignores the reflex's intents, <see cref="UnderFireMove.HoldIntentId"/>).
+    /// 📄 docs/blueprints/Architect_Question_96_Movement_Under_Fire.md §2a–§3.
+    /// </summary>
+    public static class UnderFire
+    {
+        /// <summary>A rush (m/s) — Squad Tactics §7.6 (3–5 s over 10–15 m); the crouched cap makes it 3.</summary>
+        public const float RushSpeed = 4f;
+        /// <summary>No near miss or hit for this long (s) ⇒ the fire on him has lapsed: he may rise.</summary>
+        public const double LapseSeconds = 3.0;
+        /// <summary>He does not drop again until he has been up this long (s) — one rush.</summary>
+        public const double UpBeforeDropSeconds = 3.0;
+        /// <summary>A near miss older than this (s) is not one to drop for.</summary>
+        public const double FreshFireSeconds = 1.0;
+        /// <summary>Within this of where the move ends (m) he is arriving at his cover, not out in the open.</summary>
+        public const float ArrivingMetres = 3f;
+        /// <summary>The side step before he rises (m).</summary>
+        public const float ShiftMetres = 1.5f;
+        /// <summary>A cover point this near (m) is worth crawling to while the fire goes on.</summary>
+        public const float CrawlCoverMetres = 10f;
+        /// <summary>⭐ <c>CE-2343</c> (R-2066 C) — a move ending this far (m) past the cover he crawled to, on the enemy's side of it, is one
+        /// he does not rise back to: he stays at the cover. Past the stand-off and the obstacle's depth.</summary>
+        public const float PastCoverMetres = 1.5f;
+        /// <summary>⭐ <c>CE-2343</c> — only a destination this near his cover (m) is given up: a far one is an advance, and he rushes on.</summary>
+        public const float StayNearMetres = CrawlCoverMetres;
+        /// <summary>A side step or a crawl gives up after this long (s).</summary>
+        public const double ShiftSeconds = 3.0, CrawlSeconds = 12.0;
+        /// <summary>⭐ C3 — how long one stamp of "your half is covered" lasts (s): the covering gate's own window.</summary>
+        public const double CoveredSeconds = SquadGates.CoveringSeconds;
+        /// <summary>The stance blend into and out of the drop (s).</summary>
+        public const float DropBlendSeconds = 0.3f;
+        /// <summary>⭐ <c>CE-2363</c> (AQ102 R2-3) — pinned in the open, he lies this long (s, seeded per man and per scoot) before he scoots.</summary>
+        public const double ScootAfterMinSeconds = 6.0, ScootAfterMaxSeconds = 12.0;
+        /// <summary>⭐ <c>CE-2363</c> — how far a scoot goes (m, seeded), sideways to the shooter.</summary>
+        public const float ScootMinMetres = 2f, ScootMaxMetres = 4f;
+        /// <summary>⭐ <c>CE-2363</c> — a scoot gives up after this long (s): 4 m at the prone crawl's 1.2 m/s, with room to start.</summary>
+        public const float ScootSeconds = 6f;
+        /// <summary>⭐ <c>CE-2363</c> — pinned this long (s) with no friend within <see cref="AloneMetres"/>, he looks for cover out to
+        /// <see cref="FarCoverMetres"/>.</summary>
+        public const double AlonePinnedSeconds = 30.0;
+        /// <summary>⭐ <c>CE-2363</c> — no friend this near (m) is a man alone.</summary>
+        public const float AloneMetres = 30f;
+        /// <summary>⭐ <c>CE-2363</c> — the widened cover search (m) for a man pinned alone.</summary>
+        public const float FarCoverMetres = 30f;
+        /// <summary>The prone crawl (m/s) — <c>StanceSpeed</c> 0.2 × the 6 m/s run; times the crawl to a far cover.</summary>
+        public const float CrawlSpeed = 1.2f;
+
+        /// <summary>True when <paramref name="gait"/> is a soldier's move the reflex keeps (Tactical or Crouched).</summary>
+        public static bool Keeps(MoveGait gait) => gait == MoveGait.Tactical || gait == MoveGait.Crouched;
+
+        /// <summary>
+        /// Called by <see cref="LocomotionMoveTo.Issue"/> after it wrote the channel: stamps the move (or lets go of a move it does not keep).
+        /// A man already DOWN who is handed a new move stays down — the system halts the new move's intent on its next pass.
+        /// </summary>
+        public static void Stamp(EntityRepository world, Entity self, uint actionInstanceId, MoveGait gait, float askedSpeed, bool threatened)
+        {
+            if (!world.IsComponentTypeRegistered<UnderFireMove>()) return;
+            bool keeps = Keeps(gait) && StanceRequest.CanCarry(world, self);
+            if (!world.HasComponent<UnderFireMove>(self))
+            {
+                if (!keeps) return;
+                // ⭐ N-11 (CE-4473) — ADDED WITH ITS FINAL VALUE (one structural change): inside the brains' parallel phase an add is deferred to
+                //   the batch's buffer, so adding a default and then writing it would write a component that is not there yet
+                var fresh = new UnderFireMove();
+                Fill(ref fresh, actionInstanceId, gait, askedSpeed, threatened);
+                world.AddComponent(self, fresh);
+                return;
+            }
+            ref var u = ref world.GetComponentRW<UnderFireMove>(self);
+            if (!keeps)
+            {
+                u.ActionInstanceId = 0;
+                u.HoldIntentId = 0;
+                u.Phase = UnderFirePhase.Moving;
+                return;
+            }
+            Fill(ref u, actionInstanceId, gait, askedSpeed, threatened);
+        }
+
+        private static void Fill(ref UnderFireMove u, uint actionInstanceId, MoveGait gait, float askedSpeed, bool threatened)
+        {
+            u.ActionInstanceId = actionInstanceId;
+            u.HoldIntentId = 0;   // the executor's OnEnter writes the move's own intent; a man down is re-halted by the system
+            u.Gait = (byte)gait;
+            u.AskedSpeed = askedSpeed;
+            u.Threatened = threatened ? (byte)1 : (byte)0;
+            if (u.Phase != UnderFirePhase.Moving) u.Phase = UnderFirePhase.Down;   // a side step or crawl in hand is dropped: down again
+        }
+
+        /// <summary>⭐ AQ96 C3 — the play that checks the covering gate tells a mover his half is covered (for <see cref="CoveredSeconds"/>).</summary>
+        public static void MarkCovered(EntityRepository world, Entity member, double now)
+        {
+            if (!world.IsComponentTypeRegistered<UnderFireMove>() || !world.HasComponent<UnderFireMove>(member)) return;
+            world.GetComponentRW<UnderFireMove>(member).CoveredUntil = (SimInstant)(now + CoveredSeconds);
+        }
+
+        /// <summary>The move speed for a threatened soldier: at least the rush.</summary>
+        public static float Pace(float asked, bool threatened) => threatened ? MathF.Max(asked, RushSpeed) : asked;
+
+        /// <summary>The time of the last near miss or hit on <paramref name="self"/> (−∞ when none).</summary>
+        public static double LastFire(EntityRepository world, Entity self)
+        {
+            if (!world.IsComponentTypeRegistered<RecentSenses>() || !world.HasComponent<RecentSenses>(self)) return double.NegativeInfinity;
+            ref readonly var r = ref world.GetComponentRO<RecentSenses>(self);
+            double t = Math.Max(r.NearMiss, r.Hit);
+            return t > 0 ? t : double.NegativeInfinity;
+        }
+
+        /// <summary>One frame of the reflex for <paramref name="self"/> (the system's body; public for the rails).</summary>
+        public static unsafe void Step(EntityRepository world, Entity self, double now)
+        {
+            ref var u = ref world.GetComponentRW<UnderFireMove>(self);
+            if (u.ActionInstanceId == 0 || !world.HasComponent<LocomotionChannel>(self)) return;
+            ref readonly var ch = ref world.GetComponentRO<LocomotionChannel>(self);
+            if (ch.ActiveAction != NavigationConstants.ActionIdMoveTo || ch.ActionInstanceId != u.ActionInstanceId || ch.Status != NodeStatus.Running)
+            {
+                // the play moved on (arrived, failed, another action): the reflex lets go — the next move re-stamps
+                u.ActionInstanceId = 0;
+                u.HoldIntentId = 0;
+                if (u.Phase != UnderFirePhase.Moving) { u.Phase = UnderFirePhase.Moving; u.UpSince = (SimInstant)now; }
+                return;
+            }
+            if (!world.HasComponent<NavigationIntent>(self) || !world.HasComponent<SimTransform>(self)) return;
+            MoveToParams move;
+            fixed (byte* src = ch.Params) move = *(MoveToParams*)src;
+            var gait = (MoveGait)u.Gait;
+            var at = world.GetComponentRO<SimTransform>(self).Position;
+            bool threatened = TacticalGait.Threatened(world, self);
+            double lastFire = LastFire(world, self);
+            uint intentId = world.GetComponentRO<NavigationIntent>(self).IntentId;
+
+            switch (u.Phase)
+            {
+                case UnderFirePhase.Moving:
+                {
+                    // ── C: the drop — a fresh near miss or hit, out in the open, not straight after he rose, not carrying a man ──
+                    //   ⭐ CE-2366 — IN THE OPEN only (R-2061: "a near miss in the open DROPS him"): inside a building his move stays the
+                    //   crouched rush (📐 live bt-window-duel: a defender moving between two windows dropped and crawled the long way round
+                    //   the stairwell, ~15 s for 4 m)
+                    if (lastFire > u.ReactedFireAt && now - lastFire <= FreshFireSeconds && now - u.UpSince >= UpBeforeDropSeconds
+                        && Flat(move.Destination - at).Length() > ArrivingMetres && CarryLoad.Factor(world, self) >= 1f
+                        && !Fdp.Toolkit.Combat.GrenadeRules.Indoors(world, at, out _))
+                    {
+                        u.ReactedFireAt = (SimInstant)lastFire;
+                        GoDown(world, self, ref u, now);
+                        return;
+                    }
+                    // ── B + A: the threat changed mid-move ⇒ the gait and the pace follow it ──
+                    byte t = threatened ? (byte)1 : (byte)0;
+                    if (t != u.Threatened)
+                    {
+                        u.Threatened = t;
+                        if (TacticalGait.StanceFor(world, self, gait) is StanceId stance)
+                            StanceRequest.Set(world, self, stance, TacticalGait.BlendSeconds);
+                        float pace = Pace(u.AskedSpeed, threatened);
+                        if (MathF.Abs(pace - move.Speed) > 0.01f) Repace(world, self, ref move, pace);
+                    }
+                    return;
+                }
+                case UnderFirePhase.Down:
+                {
+                    if (intentId != u.HoldIntentId) u.HoldIntentId = MoveToExecutor.Halt(world, self);   // a new move was handed to a man down
+                    if (lastFire > u.ReactedFireAt) u.ReactedFireAt = (SimInstant)lastFire;
+                    bool lapsed = now - lastFire >= LapseSeconds;
+                    bool covered = u.CoveredUntil > now;
+                    if (lapsed || covered)
+                    {
+                        // ⭐ CE-2343 (R-2066 C) — he crawled to cover and his move ends just past it, in the enemy's view: he does not
+                        //   rise back into it (📌 live, pc-defend-house: crawl to the berm's safe face, up, back to the enemy face, down…)
+                        if (u.Crawled != 0 && Exposed(move.Destination, u.SubTarget, u.CoverFacing))
+                        {
+                            move.Destination = u.SubTarget;
+                            Rise(world, self, ref u, ref move, now, threatened: true);   // crouched, low behind it: the move ends where he is
+                            return;
+                        }
+                        u.SubTarget = SideStep(at, move.Destination, self);
+                        Sub(world, self, ref u, in move, u.SubTarget, UnderFirePhase.Shifting, now, (float)ShiftSeconds);
+                        return;
+                    }
+                    if (u.Crawled == 0 && CoverNear(world, self, at, CrawlCoverMetres, out var cover, out var facing))
+                    {
+                        CrawlTo(world, self, ref u, in move, at, cover, facing, now);
+                        return;
+                    }
+                    // ⭐⭐ CE-2363 (AQ102 R2-3) — still under fire, no cover near: he does not lie on one spot. After a seeded 6–12 s down
+                    //   he scoots 2–4 m sideways to the shooter (alternating sides) and goes on firing from there; pinned 30 s with no friend
+                    //   within 30 m, that move is a crawl to cover out to 30 m instead, when there is one. ⛔ Was: he stayed down for good.
+                    if (u.Crawled == 0 && now - u.DownSince >= ScootAfter(self, u.DownSince))
+                    {
+                        if (now - u.PinnedSince >= AlonePinnedSeconds && !FriendNear(world, self, at, AloneMetres)
+                            && CoverNear(world, self, at, FarCoverMetres, out cover, out facing))
+                        {
+                            CrawlTo(world, self, ref u, in move, at, cover, facing, now);
+                            return;
+                        }
+                        u.SubTarget = Scoot(world, self, at, move.Destination, u.Scoots, u.DownSince);
+                        u.Scoots++;
+                        Sub(world, self, ref u, in move, u.SubTarget, UnderFirePhase.Scooting, now, ScootSeconds);
+                    }
+                    return;   // still under fire, nothing near: he stays down (his play keeps firing where it fires on the move)
+                }
+                case UnderFirePhase.Shifting:
+                case UnderFirePhase.Crawling:
+                case UnderFirePhase.Scooting:
+                {
+                    if (lastFire > u.ReactedFireAt) u.ReactedFireAt = (SimInstant)lastFire;
+                    bool there = Flat(u.SubTarget - at).Length() < 0.6f || SubEnded(world, self, u.HoldIntentId)
+                                 || now - u.SubSince > u.SubSeconds;
+                    if (!there) return;
+                    if (u.Phase != UnderFirePhase.Shifting)
+                    {
+                        u.HoldIntentId = MoveToExecutor.Halt(world, self);
+                        u.Phase = UnderFirePhase.Down;
+                        u.DownSince = (SimInstant)now;
+                        return;
+                    }
+                    Rise(world, self, ref u, ref move, now, threatened);
+                    return;
+                }
+            }
+        }
+
+        private static void GoDown(EntityRepository world, Entity self, ref UnderFireMove u, double now)
+        {
+            StanceRequest.Set(world, self, StanceId.Prone, DropBlendSeconds);
+            u.HoldIntentId = MoveToExecutor.Halt(world, self);
+            u.Phase = UnderFirePhase.Down;
+            u.DownSince = (SimInstant)now;
+            u.PinnedSince = (SimInstant)now;
+            u.Crawled = 0;
+            u.Scoots = 0;
+        }
+
+        private static void CrawlTo(EntityRepository world, Entity self, ref UnderFireMove u, in MoveToParams move, Vector3 at, Vector3 cover, Vector2 facing, double now)
+        {
+            u.Crawled = 1;
+            u.SubTarget = cover;
+            u.CoverFacing = facing;
+            // a far cover (CE-2363) takes longer than the near one's 12 s: its distance at the crawl, with room to start
+            Sub(world, self, ref u, in move, cover, UnderFirePhase.Crawling, now,
+                MathF.Max((float)CrawlSeconds, Flat(cover - at).Length() / CrawlSpeed * 1.5f + 2f));
+        }
+
+        private static void Sub(EntityRepository world, Entity self, ref UnderFireMove u, in MoveToParams move, Vector3 to, UnderFirePhase phase, double now,
+                                float seconds)
+        {
+            var sub = move;
+            sub.Destination = to;
+            sub.ArrivalRadius = 0.5f;
+            sub.Speed = RushSpeed;   // the prone cap makes it a crawl
+            u.HoldIntentId = MoveToExecutor.WriteIntent(world, self, in sub);
+            u.Phase = phase;
+            u.SubSince = (SimInstant)now;
+            u.SubSeconds = seconds;
+        }
+
+        /// <summary>⭐ <c>CE-2363</c> — how long (s) a man pinned in the open lies before his next scoot: 6–12 s, the same for the same man
+        /// on the same drop (seeded by his index and the time he lay down).</summary>
+        public static double ScootAfter(Entity self, double downSince)
+        {
+            var rng = Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, 0x2363, (float)downSince);
+            return ScootAfterMinSeconds + rng.NextSingle() * (ScootAfterMaxSeconds - ScootAfterMinSeconds);
+        }
+
+        /// <summary>⭐ <c>CE-2363</c> — where a scoot goes: 2–4 m (seeded) square to the line to his nearest remembered threat (to his line
+        /// of advance when he knows none), on alternating sides — the first side his own (<see cref="SideStep"/>'s), then the other.</summary>
+        public static Vector3 Scoot(EntityRepository world, Entity self, Vector3 at, Vector3 destination, byte scoots, double downSince)
+        {
+            var toward = NearestThreat(world, self, at, out var threat) ? Flat(threat - at) : Flat(destination - at);
+            toward = toward.LengthSquared() > 1e-4f ? Vector3.Normalize(toward) : Vector3.UnitX;
+            float side = (((self.Index + scoots) & 1) == 0) ? 1f : -1f;
+            var rng = Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, 0x2364, (float)downSince);
+            float metres = ScootMinMetres + rng.NextSingle() * (ScootMaxMetres - ScootMinMetres);
+            return at + new Vector3(-toward.Y, toward.X, 0f) * (side * metres);
+        }
+
+        /// <summary>⭐ <c>CE-2363</c> — a living man of his force within <paramref name="radius"/> (not himself).</summary>
+        /// <remarks>⭐ CE-2410 — answered from the per-frame <see cref="Fdp.Toolkit.Spatial.FrameEntityGrid"/> of the men (CE-2411 shared it):
+        /// it scanned every entity per call, and StressModel / the callouts ask for every man every frame — 📐 9 % of the CGF node's thread
+        /// on the CE-2408 stress world. Each candidate is re-read live (force, state, position); ⚠ a man who MOVED later in the same frame is
+        /// found within <see cref="MovedSlackMetres"/> of where the frame placed him.</remarks>
+        public static bool FriendNear(EntityRepository world, Entity self, Vector3 at, float radius)
+        {
+            if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(self)) return false;
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) return false;
+            var force = world.GetComponentRO<EntityInfo>(self).ForceId;
+            float r2 = radius * radius;
+            var men = Men.Of(world);
+            // ⭐ M-5 (CE-4484) — the lock covers only the frame's build; the walk writes nothing to the grid (AnyCandidate), so the stress
+            //   phase's men ask it in parallel. 📐 Measured (Windows, real cores): they queued on this lock around the whole walk.
+            lock (men)
+            {
+                men.Query ??= world.Query().With<EntityInfo>().With<SimTransform>().With<Fdp.Toolkit.Combat.Components.Health>().Build();
+                men.Grid.EnsureFresh(world, men.Query, Men.Member);
+            }
+            var friend = new FriendTest { World = world, Self = self, Force = force, At = at, R2 = r2 };
+            return men.Grid.AnyCandidate(new Vector2(at.X, at.Y), radius + MovedSlackMetres, ref friend);
+        }
+
+        /// <summary>The exact rule, applied LIVE to each candidate the grid gives (a friend, alive, not down, within the radius).</summary>
+        private struct FriendTest : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Self; public ForceId Force; public Vector3 At; public float R2;
+            public bool Test(Entity e)
+            {
+                if (e.Equals(Self) || !World.IsAlive(e) || World.GetComponentRO<EntityInfo>(e).ForceId != Force) return false;
+                if (Fdp.Toolkit.Combat.Injury.StateOf(World, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) return false;
+                return Flat(World.GetComponentRO<SimTransform>(e).Position - At).LengthSquared() < R2;
+            }
+        }
+
+        /// <summary>⭐ CE-2411 — how far a man may have moved within the frame and still be found where the frame's grid placed him.</summary>
+        public const float MovedSlackMetres = 4f;
+
+        private sealed class Men
+        {
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, Men> s_of = new();
+            public static Men Of(EntityRepository world) => s_of.GetValue(world, static _ => new Men());
+            public readonly Fdp.Toolkit.Spatial.FrameEntityGrid Grid = new();
+            public EntityQuery? Query;
+            public static readonly Func<EntityRepository, Entity, bool> Member =
+                static (w, e) => w.HasComponent<EntityInfo>(e) && w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e);
+        }
+
+        private static void Rise(EntityRepository world, Entity self, ref UnderFireMove u, ref MoveToParams move, double now, bool threatened)
+        {
+            var gait = (MoveGait)u.Gait;
+            StanceRequest.Set(world, self, gait == MoveGait.Crouched || threatened ? StanceId.Crouched : StanceId.Standing, DropBlendSeconds);
+            u.Threatened = threatened ? (byte)1 : (byte)0;
+            u.HoldIntentId = 0;
+            u.Phase = UnderFirePhase.Moving;
+            u.UpSince = (SimInstant)now;
+            u.CoveredUntil = (SimInstant)0;
+            Repace(world, self, ref move, MathF.Max(Pace(u.AskedSpeed, threatened), RushSpeed));   // up and away: a rush
+        }
+
+        /// <summary>The move's own intent again, at <paramref name="speed"/> (a new intent id — the muscle re-plans once).</summary>
+        private static unsafe void Repace(EntityRepository world, Entity self, ref MoveToParams move, float speed)
+        {
+            move.Speed = speed;
+            ref var ch = ref world.GetComponentRW<LocomotionChannel>(self);
+            fixed (byte* dst = ch.Params) *(MoveToParams*)dst = move;   // the move's params say what it now does; its instance is unchanged
+            MoveToExecutor.WriteIntent(world, self, in move);
+        }
+
+        /// <summary>A side step of <see cref="ShiftMetres"/> across his line of advance (the side fixed per man).</summary>
+        public static Vector3 SideStep(Vector3 at, Vector3 destination, Entity self)
+        {
+            var d = Flat(destination - at);
+            d = d.LengthSquared() > 1e-4f ? Vector3.Normalize(d) : Vector3.UnitX;
+            var side = new Vector3(-d.Y, d.X, 0f) * ((self.Index & 1) == 0 ? ShiftMetres : -ShiftMetres);
+            return at + side;
+        }
+
+        /// <summary>The nearest cover point within <see cref="CrawlCoverMetres"/> that faces his nearest remembered threat (any, when he
+        /// knows none), not where he lies.</summary>
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, out Vector3 cover) => CoverNear(world, self, at, CrawlCoverMetres, out cover, out _);
+
+        /// <summary><see cref="CoverNear(EntityRepository, Entity, Vector3, out Vector3)"/>, with the way the point's cover faces
+        /// (<see cref="CoverPoint.DirectionX"/>: toward the obstacle).</summary>
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, float radius, out Vector3 cover, out Vector2 facing)
+            => CoverNear(world, self, at, radius, 1f, out cover, out facing);
+
+        /// <summary>⭐ <c>CE-2270</c> — the same, counting points from <paramref name="minMetres"/> out (0: the cover he is already at, the
+        /// stress's "in cover"; 1: somewhere to go).</summary>
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, float radius, float minMetres, out Vector3 cover, out Vector2 facing)
+        {
+            cover = default;
+            facing = default;
+            if (!world.HasSingletonManaged<ICoverProvider>()) return false;
+            var provider = world.GetSingletonManaged<ICoverProvider>();
+            if (provider == null) return false;
+            Span<CoverPoint> points = stackalloc CoverPoint[radius > CrawlCoverMetres ? 64 : 16];
+            int n = provider.GetCoverPointsInRadius(new Vector2(at.X, at.Y), radius, points);
+            bool threatKnown = NearestThreat(world, self, at, out var threat);
+            float best = float.MaxValue;
+            for (int i = 0; i < n; i++)
+            {
+                var p = new Vector3(points[i].PositionX, points[i].PositionY, points[i].PositionZ);
+                var off = Flat(p - at);
+                float d = off.Length();
+                if (d < minMetres || d >= best) continue;
+                if (threatKnown)
+                {
+                    var toThreat = Flat(threat - p);
+                    if (toThreat.X * points[i].DirectionX + toThreat.Y * points[i].DirectionY <= 0f) continue;   // it covers the other way
+                }
+                best = d;
+                cover = p;
+                facing = new Vector2(points[i].DirectionX, points[i].DirectionY);
+            }
+            return best < float.MaxValue;
+        }
+
+        /// <summary>⭐ <c>CE-2343</c> (R-2066 C) — <paramref name="destination"/> lies past the cover at <paramref name="cover"/> on the side it
+        /// faces (the enemy's), and near it: rising back to it would walk him out of his cover into the fire.</summary>
+        public static bool Exposed(Vector3 destination, Vector3 cover, Vector2 facing)
+        {
+            if (facing.LengthSquared() < 1e-4f) return false;
+            var off = Flat(destination - cover);
+            return off.Length() <= StayNearMetres && off.X * facing.X + off.Y * facing.Y > PastCoverMetres;
+        }
+
+        internal static unsafe bool NearestThreat(EntityRepository world, Entity self, Vector3 at, out Vector3 threat)
+        {
+            threat = default;
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            float best = float.MaxValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                var p = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                float d = Flat(p - at).LengthSquared();
+                if (d < best) { best = d; threat = p; }
+            }
+            return best < float.MaxValue;
+        }
+
+        private static bool SubEnded(EntityRepository world, Entity self, uint hold)
+        {
+            if (hold == 0 || !world.IsComponentTypeRegistered<NavigationStatus>() || !world.HasComponent<NavigationStatus>(self)) return false;
+            ref readonly var s = ref world.GetComponentRO<NavigationStatus>(self);
+            return s.IntentId == hold && s.Result != NavigationResult.InProgress && s.Result != NavigationResult.PathFound;
+        }
+
+        private static Vector3 Flat(Vector3 v) => new(v.X, v.Y, 0f);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2319</c> / <c>CE-2320</c> (AQ96 §2c) — runs <see cref="UnderFire.Step"/> for every stamped move, on the brain host, AFTER the
+    /// action dispatchers (so a move issued this frame already has its intent when the reflex halts it). Gated on the brain's authority.
+    /// ⚠ The attributes are for the hosts that register the pack's systems one by one through the scheduler (the editor): without a phase
+    /// the topology refuses to build, and the scheduler's sort, not the list order, decides the order there.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.Simulation)]
+    [UpdateAfter(typeof(Fdp.Toolkit.Behavior.Systems.LocomotionDispatcherSystem))]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    public sealed class UnderFireMoveSystem : IEcsModuleSystem
+    {
+        private readonly bool _gateOnAuthority;
+        private EntityQuery? _movers;
+
+        public UnderFireMoveSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
+        public void Execute(ISimulationView view, float deltaTime)
+        {
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<UnderFireMove>()) return;
+            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0.0;
+            _movers ??= repo.Query().With<UnderFireMove>().Build();
+            foreach (var e in _movers)
+            {
+                if (_gateOnAuthority && !(repo.HasComponent<BehaviorState>(e) && repo.HasAuthority<BehaviorState>(e))) continue;
+                UnderFire.Step(repo, e, now);
+            }
+        }
+    }
+}

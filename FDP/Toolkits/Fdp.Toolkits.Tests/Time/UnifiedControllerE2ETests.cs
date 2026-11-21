@@ -98,15 +98,15 @@ namespace Fdp.Toolkit.Time.Tests
             var slave2 = new SlaveSyncController(slave2Bus, localNodeId: 2, config: cfg, tickSource: () => sharedTicks);
 
             // Sync both slaves so _isTimeSynced = true before any SwitchTimeModeEvent.
-            slave1Bus.SwapBuffers(); slave1Bus.Read<TimeSyncRequest>();
+            slave1Bus.SwapBuffers(); slave1Bus.Read<TimeSyncProbeEvent>();
             slave1Bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slave1Bus.SwapBuffers(); slave1.Update();
-            slave1Bus.SwapBuffers(); slave1Bus.Read<TimeSyncRequest>();
+            slave1Bus.SwapBuffers(); slave1Bus.Read<TimeSyncProbeEvent>();
 
-            slave2Bus.SwapBuffers(); slave2Bus.Read<TimeSyncRequest>();
+            slave2Bus.SwapBuffers(); slave2Bus.Read<TimeSyncProbeEvent>();
             slave2Bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slave2Bus.SwapBuffers(); slave2.Update();
-            slave2Bus.SwapBuffers(); slave2Bus.Read<TimeSyncRequest>();
+            slave2Bus.SwapBuffers(); slave2Bus.Read<TimeSyncProbeEvent>();
 
             // ── Phase 1: 20 Continuous frames ─────────────────────────────────
             for (int i = 0; i < 20; i++)

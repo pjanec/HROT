@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -19,7 +21,7 @@ public class RouteWaypointGizmoTests : IDisposable
 {
     private readonly EntityRepository _repo;
     private readonly Entity           _entity;
-    private const long NetworkId = 77L;
+    private const int NetworkId = 77;
 
     public RouteWaypointGizmoTests()
     {
@@ -32,11 +34,12 @@ public class RouteWaypointGizmoTests : IDisposable
         _repo.AddComponent(_entity, new NetworkIdentity { Value = NetworkId });
 
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
-            wps.Add(new RouteWaypoint { Position = new Vector3(10f, 0f, 10f), TargetSpeed = 5f });
-            wps.Add(new RouteWaypoint { Position = new Vector3(20f, 0f, 20f), TargetSpeed = 5f });
-            wps.Add(new RouteWaypoint { Position = new Vector3(30f, 0f, 10f), TargetSpeed = 5f });
+            // ⭐ CE-2172 — Z-up (X east, Y north), as the draw tool writes them; the third is a flyer's, 120 m up
+            wps.Add(new RouteWaypoint { Position = new Vector3(10f, 10f, 0f), TargetSpeed = 5f });
+            wps.Add(new RouteWaypoint { Position = new Vector3(20f, 20f, 0f), TargetSpeed = 5f });
+            wps.Add(new RouteWaypoint { Position = new Vector3(30f, 10f, 120f), TargetSpeed = 5f });
         });
         _repo.SetManagedComponent(_entity, plan);
     }
@@ -79,14 +82,15 @@ public class RouteWaypointGizmoTests : IDisposable
         using var gizmo = CreateGizmo();
 
         gizmo.OnInteractionStarted(Token(1), Vector3.Zero); // waypoint 0
-        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));      // worldX=50, worldY=60 -> Z=60
+        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));      // worldX=50, worldY=60 -> X 50, Y 60 (⭐ CE-2172 — Y is north)
         gizmo.OnCommit(Vector3.Zero);
 
         var plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity);
         var wp0  = plan.Waypoints![0];
 
         Assert.Equal(50f, wp0.Position.X, precision: 3);
-        Assert.Equal(60f, wp0.Position.Z, precision: 3);
+        Assert.Equal(60f, wp0.Position.Y, precision: 3);
+        Assert.Equal(0f, wp0.Position.Z, precision: 3);
         Assert.Equal(3, plan.Waypoints!.Count);
     }
 
@@ -111,7 +115,102 @@ public class RouteWaypointGizmoTests : IDisposable
         // without publishing), so waypoint 1 remains at its original position.
         var plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity);
         Assert.Equal(20f, plan.Waypoints![1].Position.X, precision: 3);
-        Assert.Equal(20f, plan.Waypoints![1].Position.Z, precision: 3);
+        Assert.Equal(20f, plan.Waypoints![1].Position.Y, precision: 3);
+    }
+
+    // ── ⭐ B-17 P2 — the drawing convention (D11) on the route editor (ROUTES1 §11.1's right-click commit is overruled) ──────────────────
+
+    private RouteWaypointGizmo CreateGizmo(Action onRemove) => new RouteWaypointGizmo(_repo, _entity, NetworkId, onRemove);
+
+    private System.Collections.Generic.List<Vector3> Positions()
+        => ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints!.Select(w => w.Position).ToList();
+
+    /// <summary>Enter, the on-map ✓ and the menu's Finish all write back the route as drawn (a drag in progress included) and end the tool; Esc and the menu's
+    /// Cancel undo the drag and end it. Red-proof (compiles): <c>Resolve</c> not removing on <c>Finished</c> ⇒ the first removal count reads 0.</summary>
+    [Fact]
+    public void P2_Enter_the_tick_and_the_menu_Finish_write_back_and_Esc_and_the_menu_Cancel_undo_the_drag()
+    {
+        foreach (var door in new[] { "enter", "tick", "menu" })
+        {
+            int removed = 0;
+            using var gizmo = CreateGizmo(() => removed++);
+            var before = Positions();
+            gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+            gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));
+            switch (door)
+            {
+                case "enter": gizmo.OnKeyEvent(MapKeyboardKey.Enter, true); break;
+                case "tick": var d = gizmo.Session.DonePosition; gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(d.X, d.Y, 0f)); break;
+                default: gizmo.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.FinishDrawing); break;
+            }
+            Assert.True(removed == 1, $"{door}: the tool ended");
+            Assert.True(Math.Abs(Positions()[0].X - 50f) < 0.01f && Math.Abs(Positions()[0].Y - 60f) < 0.01f, $"{door}: written back");
+            // put the route back for the next door
+            var plan0 = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).WithWaypoints(w => { w.Clear(); foreach (var p in before) w.Add(new RouteWaypoint { Position = p }); });
+            _repo.SetManagedComponent(_entity, plan0);
+        }
+
+        foreach (var door in new[] { "esc", "menu" })
+        {
+            int removed = 0;
+            using var gizmo = CreateGizmo(() => removed++);
+            gizmo.OnInteractionStarted(Token(2), Vector3.Zero);
+            gizmo.OnDragUpdate(new Vector3(999f, 999f, 0f));
+            if (door == "esc") gizmo.OnKeyEvent(MapKeyboardKey.Escape, true); else gizmo.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.CancelDrawing);
+            Assert.True(removed == 1, door);
+            Assert.Equal(20f, Positions()[1].X, precision: 3);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Right-click is the MENU: press and release end NOTHING (a right-RELEASE used to write back and exit — ROUTES1 §11.1). The session's selection and
+    /// insert / delete keep the waypoint list in step: Insert after adds a waypoint at the midpoint and the session grows with it.
+    /// Red-proof (compiles): <c>OnMouseEvent</c> exiting on a right-release again ⇒ <c>removed</c> reads 1.
+    /// </summary>
+    [Fact]
+    public void P2_RightClick_ends_nothing_and_Insert_and_Delete_keep_the_session_and_the_route_in_step()
+    {
+        int removed = 0;
+        using var gizmo = CreateGizmo(() => removed++);
+        gizmo.OnMouseEvent(MapMouseButton.Right, true, Vector3.Zero);
+        gizmo.OnMouseEvent(MapMouseButton.Right, false, Vector3.Zero);
+        Assert.Equal(0, removed);
+
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+        gizmo.OnMenuAction(1);                                        // Insert after waypoint 0
+        Assert.Equal(4, Positions().Count);
+        Assert.Equal(4, gizmo.Session.Points.Count);
+        Assert.Equal(Positions()[1].X, gizmo.Session.Points[1].X, precision: 3);
+
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);           // the inserted one is now index 1; select it and delete it
+        gizmo.OnMenuAction(2);
+        Assert.Equal(3, Positions().Count);
+        Assert.Equal(3, gizmo.Session.Points.Count);
+        Assert.Equal(0, removed);
+    }
+
+    // -- ⭐ CE-2172 (R-182; DESIGN_Air_Operations §5, air hand-off U1) --
+
+    /// <summary>
+    /// ⭐⭐ CE-2172 — the route gizmo is Z-UP: a waypoint is drawn where it was drawn (its X / Y on the map) and a drag moves X / Y and keeps
+    /// its height. 📌 Red before: the gizmo read Position.Z as north, so a flyer's waypoint 120 m up was drawn 120 m north of where it is,
+    /// and dragging it wrote the drag's north into its altitude.
+    /// </summary>
+    [Fact]
+    public void CE2172_TheGizmoIsZUp_ADragMovesXY_AndKeepsTheHeight()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.SetFocus(true);
+        var draw = new CountingDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, draw);
+        Assert.Contains(draw.Ends, p => p.X == 30f && p.Y == 10f && p.Z == 120f);   // the flyer's point, at its height
+        Assert.Contains(draw.HandleCentres, c => c == new Vector2(30f, 10f));        // its handle on the map, where it was drawn
+
+        gizmo.OnInteractionStarted(Token(3), Vector3.Zero);
+        gizmo.OnDragUpdate(new Vector3(35f, 14f, 0f));
+        gizmo.OnCommit(Vector3.Zero);
+        var moved = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints![2].Position;
+        Assert.Equal(new Vector3(35f, 14f, 120f), moved);
     }
 
     // -- RWG-004 --
@@ -130,5 +229,238 @@ public class RouteWaypointGizmoTests : IDisposable
 
         gizmo.Dispose();
         Assert.Null(RouteWaypointGizmo.Current);
+    }
+
+    // -- ⭐ CE-1096 (ROUTES1 §11.4 — air hand-off U2) --
+
+    /// <summary>
+    /// ⭐⭐ CE-1096 — a waypoint STAYS selected after its click (press + release) and the waypoint panel shows it, air fields included; a
+    /// field the panel changes is COMMITTED to the route at once — the route entity holds it and an update is published.
+    /// 📌 Red before: OnCommit deselected (the panel went blank the moment the mouse came up) and the panel never wrote back.
+    /// </summary>
+    [Fact]
+    public void CE1096_AClickedWaypointStaysSelected_AndThePanelsAirFieldsAreCommittedToTheRoute()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);   // a click: press …
+        gizmo.OnCommit(Vector3.Zero);                         // … and release
+        Assert.Equal(1, gizmo.SelectedVertexIndex);
+
+        var panel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);
+        var vm = panel.BuildViewModel("editor_waypoint_editor", "player-waypoint-editor");
+        Assert.True(vm.HasSelection);
+        Assert.Equal(("Pass", 0f, "None"), (vm.Kind, vm.HeightAgl, vm.Hold));
+
+        IRouteWaypointEditorState state = gizmo;
+        ref var wp = ref state.GetSelectedWaypointRef();
+        wp.Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground;
+        wp.HeightAgl = 120f;
+        wp.Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup;
+        wp.HoldUnit = new Fdp.Toolkit.Replication.EntityRef(4242);
+        _repo.Bus.SwapBuffers();
+        state.CommitEdits();
+
+        var stored = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints![1];
+        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 120f, Fdp.Toolkit.Navigation.RouteHold.Pickup, 4242),
+                     (stored.Kind, stored.HeightAgl, stored.Hold, stored.HoldUnit.Ref.NetworkId));
+        _repo.Bus.SwapBuffers();
+        Assert.NotEmpty(_repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand>());   // published
+        vm = panel.BuildViewModel("editor_waypoint_editor", "player-waypoint-editor");
+        Assert.Equal(("Ground", 120f, "Pickup", 4242L), (vm.Kind, vm.HeightAgl, vm.Hold, vm.HoldUnit));
+    }
+
+    // -- §4.7i — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES (user ruling, 2026-09-10) --
+
+    /// <summary>
+    /// 🔒 The twin of <c>VertexEditGizmoTests.ASuspendedGizmo_DrawsItsShape_ButNoHandlesAndNoMenu</c>.
+    /// The route line is the work in progress and stays drawn; the waypoint handles and the
+    /// handle-anchored context menu vanish entirely while focus is elsewhere.
+    /// <para>⭐⭐ Also the safety proof for <c>CE-259r</c> on this gizmo — with the group reordered a
+    /// layer-0 tie goes to HANDLES, so a suspended route editor's handles would steal the entity
+    /// picker's hover. 📄 docs/UX/UX_Feature_Tool_Model.md §4.7i.</para>
+    /// </summary>
+    [Fact]
+    public void FocusDecidesWhetherTheWaypointHandlesAreDrawnAtAll()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+
+        gizmo.SetFocus(true);
+        var focused = new CountingDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, focused);
+
+        gizmo.SetFocus(false);                                 // GizmoFocusRegistry.Suspend
+        var suspended = new CountingDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, suspended);
+
+        Assert.True(focused.Handles > 0, "a focused route editor draws its waypoint handles");
+        Assert.Equal(1, focused.MenuBindings);
+
+        Assert.Equal(0, suspended.Handles);
+        Assert.Equal(0, suspended.MenuBindings);
+        Assert.True(suspended.Lines > 0, "the route must STAY drawn while suspended");
+    }
+
+    /// <summary>⭐ Counting draw stub for the focus rails above.</summary>
+    private sealed class CountingDraw : Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder
+    {
+        public int Lines;
+        public int Handles;
+        public int MenuBindings;
+        public readonly List<Vector3> Ends = new();
+        public readonly List<Vector2> HandleCentres = new();
+
+        public void EmitRaw(in DebugPrimitive prim) { if (prim.Shape != DebugPrimitiveShape.Box2D) return; Handles++; HandleCentres.Add(new Vector2(prim.BoxCenterX, prim.BoxCenterY)); }
+        public void DrawContextMenuBinding(int networkId, string menuJson) => MenuBindings++;
+
+        public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
+            SizeMode m = SizeMode.ScreenPixels,
+            PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid)
+        { Lines++; Ends.Add(s); Ends.Add(e); }
+        public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f,
+            SizeMode m = SizeMode.ScreenPixels,
+            PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
+        public void DrawSphere(Vector3 c, float r, Rgba32 col,
+            float thickness = 0f, SizeMode sm2 = SizeMode.WorldMeters,
+            PipelineTarget tg = PipelineTarget.All, byte l = 0,
+            Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
+        public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
+        public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c,
+            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
+        public void DrawTextLong(float x, float y, string t, Rgba32 c,
+            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
+        public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt,
+            PipelineTarget tg = PipelineTarget.All) { }
+        public void DrawEntityLocal(int a, Vector3 ls, Vector3 le,
+            Rgba32 c, float t = 1f, byte l = 0) { }
+        public void DrawEntityLocalInteractive(int a, Vector3 ls, Vector3 le,
+            Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }
+    }
+    // ── ⭐ B-17 P6 — the centre handle, click a segment = insert, Delete = remove the selected waypoint (each one edit, one undo step) ─────
+
+    private sealed class UndoRig
+    {
+        public readonly Hrot.Presentation.Edits.EditHistory History = new();
+        public double Now;
+        public UndoRig(EntityRepository repo)
+        {
+            repo.Tick();
+            Fdp.Toolkit.Replication.Edits.EditSteps.Install(repo, new Hrot.Presentation.Edits.WorldUndoRecorder(History, new Fdp.Toolkit.Replay.WorldSnapshotRing(), () => true, () => Now));
+        }
+    }
+
+    private static readonly Vector3[] Original = { new(10f, 10f, 0f), new(20f, 20f, 0f), new(30f, 10f, 120f) };
+
+    /// <summary>The route's centre handle moves EVERY waypoint (their heights stay) and the finished drag is ONE edit and ONE undo step, however many updates it took.
+    /// 🔴 Red-proof (compiles): <c>OnDragUpdate</c> also calling <c>WriteBackAndPublish("Move route")</c> ⇒ N steps, one Undo restores only the last ⇒ red.</summary>
+    [Fact]
+    public void P6_TheCentreHandle_MovesEveryWaypoint_AsOneEditAndOneUndoStep()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        var c = gizmo.Session.Centre;
+        Assert.Equal(20f, c.X, precision: 3);
+        gizmo.OnInteractionStarted(Token((uint)Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId), new Vector3(c.X, c.Y, 0f));
+        foreach (var step in new[] { 10f, 20f, 30f })
+        {
+            rig.Now += 5.0;                                          // beyond the coalescing second: N edits would be N steps
+            gizmo.OnDragUpdate(new Vector3(c.X + step, c.Y - step, 0f));
+        }
+        gizmo.OnCommit(Vector3.Zero);
+
+        var moved = Original.Select(p => new Vector3(p.X + 30f, p.Y - 30f, p.Z)).ToList();
+        Assert.Equal(moved, Positions());
+        Assert.Equal(120f, Positions()[2].Z);                        // the flyer keeps its height
+        Assert.Equal(1, rig.History.Count);
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Positions());
+        Assert.True(rig.History.Redo());
+        Assert.Equal(moved, Positions());
+    }
+
+    /// <summary>Esc during a centre drag puts every waypoint back and writes nothing.</summary>
+    [Fact]
+    public void P6_TheCentreDrag_CancelsClean()
+    {
+        var rig = new UndoRig(_repo);
+        int removed = 0;
+        using var gizmo = CreateGizmo(() => removed++);
+        var c = gizmo.Session.Centre;
+        gizmo.OnInteractionStarted(Token((uint)Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId), new Vector3(c.X, c.Y, 0f));
+        gizmo.OnDragUpdate(new Vector3(c.X + 99f, c.Y + 99f, 0f));
+        gizmo.OnKeyEvent(MapKeyboardKey.Escape, true);
+        Assert.Equal(1, removed);
+        Assert.Equal(Original.ToList(), Positions());
+        Assert.Equal(0, rig.History.Count);
+        // the next drag of a waypoint starts from the original, not from the cancelled drag
+        using var g2 = CreateGizmo();
+        g2.OnInteractionStarted(Token(1), Vector3.Zero);
+        g2.OnDragUpdate(new Vector3(11f, 12f, 0f));
+        g2.OnCommit(Vector3.Zero);
+        Assert.Equal(new Vector3(11f, 12f, 0f), Positions()[0]);
+        Assert.Equal(Original[1], Positions()[1]);
+    }
+
+    /// <summary>A click on a SEGMENT inserts a waypoint on it, between the right two (its height along the leg), and selects it: one edit, one undo step; a click on a waypoint,
+    /// the centre or open ground inserts nothing. A loop route's closing leg appends.</summary>
+    [Fact]
+    public void P6_AClickOnASegment_InsertsBetweenTheRightTwoWaypoints_OneUndoStep_AndNothingElseDoes()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        void Click(float x, float y) => gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(x, y, 0f));
+
+        Click(10.5f, 10.4f);   // on waypoint 0
+        Click(20f, 13.3f);     // on the centre handle
+        Click(15f, 40f);       // open ground
+        Assert.Equal(0, rig.History.Count);
+        Assert.Equal(3, Positions().Count);
+
+        Click(25.4f, 14.6f);   // the second leg (20,20)-(30,10), 0.6 m off it, a little past its middle
+        var after = Positions();
+        Assert.Equal(4, after.Count);
+        Assert.Equal(Original[0], after[0]);
+        Assert.Equal(Original[1], after[1]);
+        Assert.Equal(25.4f, after[2].X, precision: 1);
+        Assert.Equal(14.6f, after[2].Y, precision: 1);
+        Assert.InRange(after[2].Z, 60f, 70f);                       // 0 → 120 along the leg, a little past the middle (t = 0.54)
+        Assert.Equal(Original[2], after[3]);
+        Assert.Equal(2, gizmo.SelectedVertexIndex);
+        Assert.Equal(4, gizmo.Session.Points.Count);
+        Assert.Equal(1, rig.History.Count);
+
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Positions());
+    }
+
+    /// <summary>Delete (a row of the keymap) removes the selected waypoint — one edit, one undo step; at the route's minimum (2) it refuses, removes nothing, records nothing and says why.
+    /// 🔴 Red-proof (compiles): the minimum check removed from <c>ShapeEditSession.DeleteSelectedPoint</c> ⇒ the route drops to 1 waypoint ⇒ red.</summary>
+    [Fact]
+    public void P6_Delete_RemovesTheSelectedWaypoint_AndRefusesAtTheMinimum_WithTheReason()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);
+        gizmo.OnCommit(Vector3.Zero);                                // a click selects waypoint 1
+        Assert.Equal(1, gizmo.SelectedVertexIndex);
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, true);               // the press is not the row's event
+        Assert.Equal(3, Positions().Count);
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, false);
+        Assert.Equal(new[] { Original[0], Original[2] }, Positions().ToArray());
+        Assert.Equal(2, gizmo.Session.Points.Count);
+        Assert.Equal(1, rig.History.Count);
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Positions());
+
+        // the gizmo still holds the 2-waypoint working copy: delete once more ⇒ refused
+        rig.Now += 5.0;
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+        gizmo.OnCommit(Vector3.Zero);
+        int stepsBefore = rig.History.Count;
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, false);
+        Assert.Equal(2, gizmo.Session.Points.Count);
+        Assert.Contains("needs 2 points", gizmo.Session.Reason);
+        Assert.Equal(stepsBefore, rig.History.Count);
+        Assert.Equal(0, gizmo.SelectedVertexIndex);                  // still selected: nothing removed
     }
 }

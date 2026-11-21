@@ -18,7 +18,9 @@ namespace Fhsm.Kernel.Data
         public Dictionary<ushort, ushort[]> DeferredEventsByState { get; set; } = new();
         
         public string GetStateName(ushort id) => StateNames.TryGetValue(id, out var name) ? name : $"State_{id}";
-        public string GetEventName(ushort id) => EventNames.TryGetValue(id, out var name) ? name : $"Event_{id}";
+        public string GetEventName(ushort id) => EventNames.TryGetValue(id, out var name) ? name
+            // ⭐ CE-1335 — the kernel's reserved ids read as what they are, not "Event_65533"
+            : id == ReservedEventIds.Polled ? "(every tick)" : id == ReservedEventIds.Timer ? "(timer)" : $"Event_{id}";
         public string GetActionName(ushort id) => ActionNames.TryGetValue(id, out var name) ? name : $"Action_{id}";
     }
 }

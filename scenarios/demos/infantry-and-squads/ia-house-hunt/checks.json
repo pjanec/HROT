@@ -1,0 +1,40 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K (CE-2371) \u2014 ia-house-hunt, the scenario's Judge list: (1) the attacker gets inside House A (read as within 7 m of its centre (105.75,104.25), the footprint being x 100-111.5 / y 100-108.5); he fires and hits the defender. \u26a0 Left out: (2) 'never 30 s with neither firing' (a gap is not a cue); (3) 'reaches the defender's storey within 60 s of entering' \u2014 MEASURED: the attacker kills the defender from the ground floor (defender down at ~60 s, attacker at z 0), the case the old live check accepted as 'no need to climb'; (4) 'decided or still fought' (always true). \ud83d\udccc Observation for triage: the defender upstairs fired NO round in the run (every shot of the 11 is the attacker's).",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(1) the attacker gets inside House A",
+      "on": "near",
+      "who": "Attacker",
+      "point": [
+        105.75,
+        104.25
+      ],
+      "within": 7
+    },
+    {
+      "name": "the attacker fires",
+      "on": "shot",
+      "by": "Attacker"
+    },
+    {
+      "name": "the attacker's rounds hit the defender",
+      "on": "shot",
+      "by": "Attacker",
+      "at": "Defender",
+      "hit": "Defender"
+    },
+    {
+      "name": "the fight is decided: the defender is down at the end (incapacitated or dead: health under 30 %)",
+      "on": "field",
+      "who": "Defender",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 30,
+      "atEnd": true
+    }
+  ]
+}

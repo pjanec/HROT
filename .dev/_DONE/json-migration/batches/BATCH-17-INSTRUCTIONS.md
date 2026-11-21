@@ -35,7 +35,7 @@ and write a comprehensive test suite.
 - **Helpers (new):** `Hrot/Engine/Hrot.Common/Scenario/Migrations/Helpers/`
 - **Migrators (new):** `Hrot/Engine/Hrot.Common/Scenario/Migrations/Migrators/Scenario/`
 - **Module (update):** `Hrot/Engine/Hrot.Common/Scenario/Migrations/ScenarioMigrationModule.cs`
-- **Test corpus (new):** `test-data/scenario-corpus/multi-version/` (workspace root, alongside `IOS-IG-SimHost.sln`)
+- **Test corpus (new):** `test-data/scenario-corpus/multi-version/` (workspace root, alongside `HROT.sln`)
 - **Tests (new):** `Hrot/Engine/Hrot.Common.Tests/Scenario/Migrations/Phase3MigratorTests.cs`
 - **Test project:** `Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj`
 - **Bootstrap (read only):** `Hrot/Engine/Hrot.Common/Scenario/Migrations/HrotMigrationBootstrap.cs`
@@ -44,7 +44,7 @@ and write a comprehensive test suite.
 
 ```powershell
 # Full solution build
-dotnet build IOS-IG-SimHost.sln -c Debug --no-restore -maxcpucount:4
+dotnet build HROT.sln -c Debug --no-restore -maxcpucount:4
 
 # Run migration module tests only
 dotnet test Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj --logger "console;verbosity=normal"
@@ -258,7 +258,7 @@ XML doc comment:
 
 **Design reference:** *07 §6.1 step 2*, *06 §6.1*
 
-Create two scenario JSON files at the workspace root (next to `IOS-IG-SimHost.sln`):
+Create two scenario JSON files at the workspace root (next to `HROT.sln`):
 
 #### 2a. `test-data/scenario-corpus/multi-version/v1_complete/scenario.json`
 
@@ -532,7 +532,7 @@ That's 18 tests total. All must pass.
 private static string FindWorkspaceRoot()
 {
     DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+    while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
         dir = dir.Parent;
     if (dir == null)
         throw new InvalidOperationException("Cannot locate workspace root.");
@@ -577,7 +577,7 @@ This batch is DONE when:
 - [ ] `ScenarioMigrationModule.cs` updated: `CurrentVersion = 2`, uses `RegisterDocType`
 - [ ] `HrotMigrationBootstrap.cs` verified (read-only — no changes needed)
 - [ ] `Phase3MigratorTests.cs` created with 18 tests, all passing
-- [ ] `dotnet build IOS-IG-SimHost.sln -c Debug --no-restore` succeeds (zero errors)
+- [ ] `dotnet build HROT.sln -c Debug --no-restore` succeeds (zero errors)
 - [ ] `dotnet test Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj` — all tests pass
 - [ ] `dotnet test FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj` — no regressions
 - [ ] Report submitted

@@ -9,7 +9,7 @@ namespace Fdp.Interfaces
         /// <summary>
         /// Globally unique entity identifier.
         /// </summary>
-        long EntityId { get; }
+        int EntityId { get; }
         
         /// <summary>
         /// TKB type identifier for blueprint lookup.

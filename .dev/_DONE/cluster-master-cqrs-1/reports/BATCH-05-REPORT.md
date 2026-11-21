@@ -48,7 +48,7 @@ These failures existed before this batch (confirmed via `git stash` verification
 ### Full Build
 
 ```
-dotnet build IOS-IG-SimHost.sln → 0 Errors, warnings only (pre-existing)
+dotnet build HROT.sln → 0 Errors, warnings only (pre-existing)
 ```
 
 ---

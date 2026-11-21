@@ -17,7 +17,7 @@ Remove the last three anti-pattern footprints in the codebase:
 | PACK-A001 | Split `AudioPerceptionSystem` from `TargetMemory`; define `TargetHeardEvent` and extend `ThreatEvaluationSystem` |
 | PACK-M003 | Delete `EntityMissionHolder` and `IgMissionHolder`; introduce `ActiveMissionPlan` POCO |
 
-**Toolchain:** .NET 9 / C# / xUnit. Build via `dotnet build IOS-IG-SimHost.sln`; test via `dotnet test <project>.csproj`.
+**Toolchain:** .NET 9 / C# / xUnit. Build via `dotnet build HROT.sln`; test via `dotnet test <project>.csproj`.
 
 ---
 
@@ -736,7 +736,7 @@ Find all test files referencing `EntityMissionHolder` or `IgMissionHolder`:
 
 1. `EntityMissionHolder.cs` and `IgMissionHolder.cs` do not exist in the solution
 2. `grep -r "EntityMissionHolder\|IgMissionHolder" . --include="*.cs"` → zero results (excluding `.dev/` docs)
-3. `dotnet build IOS-IG-SimHost.sln` → 0 errors
+3. `dotnet build HROT.sln` → 0 errors
 4. Unit test — `MissionControlExecutionSystem` sets `ActiveMissionPlan` with correct task count after `CMD_REPLACE_MISSION`
 5. Unit test — `MissionAdapterSystem` reads `ActiveMissionPlan.Plan.Tasks[i].BehaviorParams` correctly
 6. All `Hrot.SimHost.Tests` pass
@@ -751,7 +751,7 @@ Suggested order to minimize broken builds:
 2. PACK-M003 (FDP Behavior POCO, then Hrot.SimHost/IG component and system changes)
 3. PACK-A001 (FDP Perception changes, then NED addition, then translator creation)
 
-Build early and often: after each file group, run `dotnet build IOS-IG-SimHost.sln` and fix errors before moving to the next file.
+Build early and often: after each file group, run `dotnet build HROT.sln` and fix errors before moving to the next file.
 
 ---
 

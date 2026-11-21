@@ -1,0 +1,363 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Toolkit.Orchestration;
+using Hrot.Editor.DebugApi;
+using Hrot.Presentation.DebugApi;
+using Xunit;
+
+namespace Hrot.Editor.Tests.DebugApi;
+
+/// <summary>
+/// ⭐⭐ <c>CE-4002</c> — the routes the cluster-membership use cases are tested through
+/// (<c>docs/DESIGN_Cluster_Membership_Use_Cases.md</c> §3.1). ⛔ They add no behaviour: the roster is the master's, and a
+/// transition / cancel is the operator panel's own intent. ⇒ these rails pin exactly that — what reaches the bus, and
+/// that a host WITHOUT a master or a bus says so instead of pretending.
+/// </summary>
+public sealed class TheClusterMembershipRoutesTests
+{
+    private readonly RecordingMasterControl _master = new();
+    private List<TransitionStateIntent> _transitions => _master.Transitions;
+    private List<CancelOperationIntent> _cancels => _master.Cancels;
+
+    // ⭐ Two providers, the shape of a real multi-subsystem host: the ACTIVE one has no master (an IG), the other
+    //   hosts it (the orchestrator) — so the any-node fallback is what is under test, not a lucky active perspective.
+    private DebugApiService Cluster(IReadOnlyList<ClusterRosterEntry>? roster, bool withBus = true)
+        => new(new PerspectiveScopedDispatcher(
+                   new ISubsystemDebugProvider[]
+                   {
+                       new SubsystemDebugProvider("Player", "Player"),
+                       new SubsystemDebugProvider("Orchestrator", "Orchestrator",
+                           master:            withBus ? () => _master : null,
+                           clusterRoster:     roster is null ? null : () => roster),
+                   },
+                   currentPerspective: () => "Player",
+                   acksPending: null));
+
+    [Fact]
+    public void The_roster_is_read_from_the_node_that_hosts_the_master_even_when_another_perspective_is_active()
+    {
+        var svc = Cluster(new[]
+        {
+            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "Player", "Idle", "Map2D", 0.4),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(400), "CGF", "OperatingLive", "Brain", 0.2),
+        });
+
+        var (result, error, _) = svc.GetClusterRoster();
+
+        Assert.Null(error);
+        Assert.Equal(2, (int)result!["count"]!);
+        var first = result["nodes"]![0]!;
+        Assert.Equal(100, (int)first["nodeId"]!);
+        Assert.Equal("Idle", (string)first["reportedState"]!);
+        Assert.Equal("Map2D", (string)first["roles"]!);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — <c>GET /cluster/roster</c> shows each node's <c>name</c>, and lists a heartbeat the master REFUSED for a name another live node holds under
+    /// <c>nameConflicts</c> (not among <c>nodes</c>, not in <c>count</c>). 🔴 Mutations (each compiles): the route not writing <c>name</c> ⇒ the name cell reds; the conflict row left in <c>nodes</c> ⇒ the count cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_The_roster_shows_the_node_names_and_the_refused_name_conflicts()
+    {
+        var svc = Cluster(new[]
+        {
+            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "Player", "Idle", "Map2D", 0.4, "film-cam"),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(101), "Player", "Refused", "None", 0.1, "film-cam", "name 'film-cam' is held by live node 100"),
+        });
+
+        var (result, error, _) = svc.GetClusterRoster();
+
+        Assert.Null(error);
+        Assert.Equal(1, (int)result!["count"]!);
+        Assert.Equal("film-cam", (string)result["nodes"]![0]!["name"]!);
+        var conflict = result["nameConflicts"]![0]!;
+        Assert.Equal((101, "film-cam"), ((int)conflict["nodeId"]!, (string)conflict["name"]!));
+        Assert.Contains("100", (string)conflict["reason"]!);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — <c>GET /status.node</c> is the ANSWERING node's <c>{name, nodeId}</c>, read from its cluster view; absent (null) where the host keeps none.
+    /// 🔴 Mutation: <c>NodeOrNull</c> reading the wrong field ⇒ the name cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_Status_names_the_node_that_answers()
+    {
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", new Fdp.Core.FdpEventBus(), nodeName: "film-cam");
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", clusterView: () => slave.View) },
+            currentPerspective: () => "Player",
+            acksPending: null));
+
+        var node = svc.GetStatus()["node"]!;
+
+        Assert.Equal(("film-cam", 7), ((string)node["name"]!, (int)node["nodeId"]!));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ③ — <c>POST /run-settings {mapInLoad:true|false}</c> adds / removes THIS node's name (the one <c>/status.node</c> reports) to the master's map-in-load set;
+    /// <c>{mapInLoadNodes:[…]}</c> replaces the set; both at once and a bad name are refused; <c>GET /run-settings</c> returns the set and each <c>/cluster/roster</c> row says whether its name is in it.
+    /// 🔴 Mutations (each compiles): <c>mapInLoad</c> replacing instead of adding ⇒ the second cell reds; the route not sending <c>MapInLoadNodes</c> ⇒ the intent cells red; the roster row not reading the set ⇒ the last cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_RunSettings_MapInLoad_AddsThisNode_ReplacesTheSet_AndTheSetIsReadBack()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("Player", "Player", master: () => _master, clusterView: () => view, recordLiveRunsOff: () => false,
+                    clusterRoster: () => new[] { new ClusterRosterEntry((Fdp.Core.NodeId)(7), "Player", "Idle", "Map2D", 0.1, "film-cam"), new ClusterRosterEntry((Fdp.Core.NodeId)(1), "SimHost", "Idle", "None", 0.1, "sim-1") }),
+            },
+            currentPerspective: () => "Player",
+            acksPending: null));
+        string[]? Last() => MapInLoadOverrides.NodesOn(_master.Sent.OfType<SetRunSettingsIntent>().Last().FeatureOverrides).ToArray();   // ⭐ F-17 — the `map3d.in-load` override, read as a name list
+
+        Assert.Null(svc.SetRunSettings(new JsonObject { ["mapInLoad"] = true }).Error);
+        Assert.Equal(new[] { "film-cam" }, Last());                                   // this node's name, added
+        Hear(bus, view, new[] { "sim-1", "FILM-CAM" });                                    // the master's set, as broadcast
+        Assert.Null(svc.SetRunSettings(new JsonObject { ["mapInLoad"] = false }).Error);
+        Assert.Equal(new[] { "sim-1" }, Last());                                      // removed (case-insensitively), the rest kept
+        Assert.Null(svc.SetRunSettings(new JsonObject { ["mapInLoadNodes"] = new JsonArray("a", "b") }).Error);
+        Assert.Equal(new[] { "a", "b" }, Last());                                     // replaced
+        Assert.NotNull(svc.SetRunSettings(new JsonObject { ["mapInLoad"] = true, ["mapInLoadNodes"] = new JsonArray("a") }).Error);   // not both
+        Assert.NotNull(svc.SetRunSettings(new JsonObject { ["mapInLoadNodes"] = new JsonArray("a,b") }).Error);                       // a comma is no name
+
+        Hear(bus, view, new[] { "sim-1", "FILM-CAM" });
+        var (settings, _, _) = svc.GetRunSettings();
+        Assert.Equal(new[] { "sim-1", "FILM-CAM" }, settings!["mapInLoadNodes"]!.AsArray().Select(n => (string)n!).ToArray());
+        var (roster, _, _) = svc.GetClusterRoster();
+        Assert.True((bool)roster!["nodes"]![0]!["mapInLoad"]!);                       // film-cam
+        Assert.True((bool)roster["nodes"]![1]!["mapInLoad"]!);                        // sim-1
+        Hear(bus, view, Array.Empty<string>());
+        Assert.False((bool)svc.GetClusterRoster().Result!["nodes"]![0]!["mapInLoad"]!);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3354</c> ④ (R-3075, design §11.10a) — a load request's phase over HTTP is the MASTER's answer for THAT request: Loading until it
+    /// answers (whatever state is announced meanwhile), Loaded on its Success (every node's load chain resolved), Failed with its reason — what
+    /// <c>waitForReady</c> waits for and <c>GET /status.load.phase</c> reports. Another request's answer is not this one's.
+    /// 🔴 Mutation (compiles): <c>LoadPhaseOf</c> answering "Loaded" when the state reads OperatingLive ⇒ the first cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_ALoadsPhase_IsTheMastersAnswerForThatRequest_NotTheAnnouncedState()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", clusterView: () => view) },
+            currentPerspective: () => "Player", acksPending: null));
+        Guid load = Guid.NewGuid(), other = Guid.NewGuid();
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });   // the master's optimistic state
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = other, StatusCode = OrchestrationStatusCode.Success });
+        bus.SwapBuffers(); view.Update();
+        Assert.Equal(("Loading", (string?)null), svc.LoadPhaseOf(load));
+
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = load, StatusCode = OrchestrationStatusCode.Success });
+        bus.SwapBuffers(); view.Update();
+        Assert.Equal(("Loaded", (string?)null), svc.LoadPhaseOf(load));
+
+        Guid failed = Guid.NewGuid();
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = failed, StatusCode = OrchestrationStatusCode.Failure, ResultPayload = "node 2: the 'Map3D' part failed — no GPU" });
+        bus.SwapBuffers(); view.Update();
+        Assert.Equal(("Failed", "node 2: the 'Map3D' part failed — no GPU"), svc.LoadPhaseOf(failed));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1950</c> — every publishing route's <c>waitForReady</c> (<c>POST /replay</c>, preview, review, their exits) follows the same answer: a FAILED round
+    /// is an error with the node's reason even while the announced state reads the target (📌 a replay whose recording failed to open read OperatingReplay
+    /// 1 s later and answered ok); the target state is "done" only once the master said Success; with no cluster view the state alone.
+    /// 🔴 Mutation: <c>RoundSettled</c> ignoring the phase (done = reached) ⇒ the first two cells red.
+    /// </summary>
+    [Fact]
+    public void CE1950_APublishingRoutesWait_FailsOnAFailedRound_AndIsDoneOnlyOnTheMastersSuccess()
+    {
+        Assert.Equal((false, "old schema"), DebugApiHost.RoundSettled(reached: true, ("Failed", "old schema")));
+        Assert.Equal((false, (string?)null), DebugApiHost.RoundSettled(reached: true, ("Loading", null)));
+        Assert.Equal((true, (string?)null), DebugApiHost.RoundSettled(reached: true, ("Loaded", null)));
+        Assert.Equal((false, (string?)null), DebugApiHost.RoundSettled(reached: false, ("Loaded", null)));
+        Assert.Equal((true, (string?)null), DebugApiHost.RoundSettled(reached: true, null));   // no cluster view: the state alone
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — <c>GET /status.load</c> follows the load the MASTER broadcasts, not only the ones this API sent: a load sent from elsewhere (the command line, the operator panel, another node) shows its request id, scenario and
+    /// phase (Loading until the master answers it, then Loaded); a load this API sent is the fallback while the view knows none. 🔴 Mutations (each compiles): <c>CurrentLoad</c> reading only <c>_lastLoad</c> ⇒ the first cells red;
+    /// the phase read off the wrong id ⇒ the phase cells red.
+    /// </summary>
+    [Fact]
+    public void CE3354_Status_load_follows_a_load_this_API_did_not_send()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", clusterView: () => view) },
+            currentPerspective: () => "Player",
+            acksPending: null));
+        Assert.Null(svc.GetStatus()["load"]!["requestId"]);                                // no load anywhere yet
+
+        var cli = Guid.NewGuid();
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, LastLoadRequestId = cli, LastLoadScenario = "scn-cli" });
+        var load = svc.GetStatus()["load"]!;
+        Assert.Equal((cli.ToString(), "scn-cli", "Loading"), ((string)load["requestId"]!, (string)load["scenario"]!, (string)load["phase"]!));
+
+        Hear(new ClusterOpCompletedEvent { RequestId = cli, StatusCode = OrchestrationStatusCode.Success });   // the master answers THAT request
+        Assert.Equal("Loaded", (string)svc.GetStatus()["load"]!["phase"]!);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — just after this API SENDS a load, the cluster view still reports the PREVIOUS load (the master has not announced the new one): <c>/status.load</c> shows the NEW request (Loading), never the old one's
+    /// "Loaded" — a poller must not read that and start too early. Once the view's id changes it is the truth again, whether it became ours or another sender's. 🔴 Mutations (each compiles): <c>CurrentLoad</c> preferring the view
+    /// at once ⇒ the first cell reads the old load; the send-time id never remembered ⇒ the same.
+    /// </summary>
+    [Fact]
+    public void CE3354_Status_load_justAfterASend_showsTheNewRequest_NotThePreviousLoadsOutcome()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", master: () => _master, clusterView: () => view) },
+            currentPerspective: () => "Player", acksPending: null),
+            clusterState: () => ClusterState.Idle);
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+
+        Guid old = Guid.NewGuid();
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, LastLoadRequestId = old, LastLoadScenario = "old-scn" });
+        Hear(new ClusterOpCompletedEvent { RequestId = old, StatusCode = OrchestrationStatusCode.Success });
+        Assert.Equal(("old-scn", "Loaded"), ((string)svc.GetStatus()["load"]!["scenario"]!, (string)svc.GetStatus()["load"]!["phase"]!));
+
+        var answer = svc.LoadScenarioLive("new-scn");                                       // sent; the view still says "old"
+        var sentId = ((TransitionStateIntent)_master.Sent.Last()).TransactionId;
+        var load = svc.GetStatus()["load"]!;
+        Assert.Equal((sentId.ToString(), "new-scn", "Loading"), ((string)load["requestId"]!, (string)load["scenario"]!, (string)load["phase"]!));
+
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, LastLoadRequestId = sentId, LastLoadScenario = "new-scn" });   // the master announces OUR load
+        Assert.Equal(sentId.ToString(), (string)svc.GetStatus()["load"]!["requestId"]!);
+
+        Guid other = Guid.NewGuid();
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, LastLoadRequestId = other, LastLoadScenario = "cli-scn" });      // another sender's load takes over
+        Assert.Equal(("cli-scn"), (string)svc.GetStatus()["load"]!["scenario"]!);
+    }
+
+    private static void Hear(Fdp.Core.FdpEventBus bus, ClusterView view, string[] names)
+    {
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, FeatureOverrides = MapInLoadOverrides.Replace(null, names) });
+        bus.SwapBuffers();
+        view.Update();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> — a scenario load that waits for a Brain / MuscleGround node (or was refused) is READABLE over HTTP: the
+    /// roster answer carries the master's load-gate text as <c>load.notice</c>, from the node that hosts the master even though
+    /// another perspective is active. <c>null</c> when no load is held — an absent notice is not an empty string.
+    /// </summary>
+    [Fact]
+    public void The_roster_carries_the_load_gate_notice_from_the_node_that_hosts_the_master()
+    {
+        string? notice = "waiting for: MuscleGround (SimHost)";
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("Player", "Player"),
+                new SubsystemDebugProvider("Orchestrator", "Orchestrator",
+                    master:            () => _master,
+                    clusterRoster:     () => Array.Empty<ClusterRosterEntry>(),
+                    clusterLoadNotice: () => notice),
+            },
+            currentPerspective: () => "Player",
+            acksPending: null));
+
+        var (waiting, _, _) = svc.GetClusterRoster();
+        Assert.Equal("waiting for: MuscleGround (SimHost)", (string)waiting!["load"]!["notice"]!);
+
+        notice = null;   // the SimHost arrived, the load started
+        var (running, _, _) = svc.GetClusterRoster();
+        Assert.Null(running!["load"]!["notice"]);
+    }
+
+    [Fact]
+    public void A_host_with_no_master_says_so_rather_than_answering_an_empty_roster()
+    {
+        var (result, error, _) = Cluster(roster: null).GetClusterRoster();
+
+        Assert.Null(result);
+        Assert.Contains("ClusterMaster", error);   // ⛔ an empty list would read as "the cluster has no nodes"
+    }
+
+    [Fact]
+    public void A_transition_publishes_one_intent_carrying_every_field_the_caller_named()
+    {
+        var exercise = Guid.NewGuid();
+        var (result, error, _) = Cluster(roster: null).RequestClusterTransition(new JsonObject
+        {
+            ["target"] = "OperatingReplay", ["exerciseId"] = exercise.ToString(),
+            ["scenario"] = "hill-attack", ["timeMode"] = "Deterministic", ["targetWallTicks"] = 42,
+        });
+
+        Assert.Null(error);
+        var intent = Assert.Single(_transitions);
+        Assert.Equal(ClusterState.OperatingReplay, intent.TargetState);
+        Assert.Equal(exercise, intent.ExerciseId);
+        Assert.Equal("hill-attack", intent.ScenarioId);
+        Assert.Equal("Deterministic", intent.TimeMode);
+        Assert.Equal(42, intent.TargetWallTicks);
+        // ⭐ The returned id IS the intent's — that is what POST /cluster/cancel takes.
+        Assert.Equal(intent.TransactionId.ToString(), (string)result!["transactionId"]!);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"target\":\"NotAState\"}")]
+    [InlineData("{\"target\":\"OperatingLive\",\"exerciseId\":\"not-a-guid\"}")]
+    public void A_malformed_transition_is_refused_and_publishes_nothing(string json)
+    {
+        var (result, error, _) = Cluster(roster: null).RequestClusterTransition(JsonNode.Parse(json));
+
+        Assert.Null(result);
+        Assert.NotNull(error);
+        Assert.Empty(_transitions);
+    }
+
+    [Fact]
+    public void A_cancel_publishes_the_operators_intent_for_the_named_request()
+    {
+        var target = Guid.NewGuid();
+        var (_, error, _) = Cluster(roster: null).RequestClusterCancel(new JsonObject { ["targetId"] = target.ToString() });
+
+        Assert.Null(error);
+        Assert.Equal(target, Assert.Single(_cancels).TargetRequestId);
+    }
+
+    [Fact]
+    public void A_host_with_no_bus_refuses_a_transition_and_a_cancel_as_unsupported()
+    {
+        var svc = Cluster(roster: null, withBus: false);
+
+        var (_, transitionError, _) = svc.RequestClusterTransition(new JsonObject { ["target"] = "Idle" });
+        var (_, cancelError, _)     = svc.RequestClusterCancel(new JsonObject { ["targetId"] = Guid.NewGuid().ToString() });
+
+        Assert.StartsWith("No subsystem", transitionError);   // ⭐ the host maps this prefix to 503, not 400
+        Assert.StartsWith("No subsystem", cancelError);
+    }
+
+    [Fact]
+    public void The_roster_and_cancel_cells_are_measured_from_what_the_provider_was_given()
+    {
+        var bare = new SubsystemDebugProvider("Player", "Player").DescribeCapabilities();
+        var master = new SubsystemDebugProvider("Orchestrator", "Orchestrator",
+            clusterRoster: () => Array.Empty<ClusterRosterEntry>(),
+            master:        () => _master).DescribeCapabilities();
+
+        Assert.False(bare[DebugCapabilities.ClusterRoster]);
+        Assert.False(bare[DebugCapabilities.ClusterCancel]);
+        Assert.True(master[DebugCapabilities.ClusterRoster]);
+        Assert.True(master[DebugCapabilities.ClusterCancel]);
+    }
+}

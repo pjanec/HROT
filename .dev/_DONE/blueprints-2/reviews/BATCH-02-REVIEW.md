@@ -94,5 +94,5 @@ Layout discovery:
 
 Tests: 65 new tests covering behavioral contracts
 Solution: added Hrot.Editor.AiShared and Hrot.Editor.AiShared.Tests
-to IOS-IG-SimHost.sln under Hrot/Editor solution folder
+to HROT.sln under Hrot/Editor solution folder
 ```

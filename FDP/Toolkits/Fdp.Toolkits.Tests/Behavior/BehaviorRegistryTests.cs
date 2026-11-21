@@ -172,6 +172,79 @@ namespace Fdp.Toolkit.Behavior.Tests
                 }));
         }
 
+        // ── G4 — id collision under DISTINCT names ──────────────────────────
+        /// <summary>
+        /// ⭐⭐ <b>The other half of the duplicate guard, and the one that was missing.</b>
+        ///
+        /// <para>
+        /// The name check cannot see this case: the id is <c>FNV-1a-32</c> of the name
+        /// (<see cref="BehaviorHash.FromName"/>), so two <b>distinct</b> names can hash to one id.
+        /// <c>_nameToId</c> then maps both names to that id while <c>_definitions[id]</c> holds only
+        /// the second definition ⇒ 🔴 <b>the first behavior silently resolves to the second's
+        /// topology</b> — no throw, no log, one behaviour quietly replaced by another.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ Driven through the <b>explicit-id</b> overload rather than by hunting for a real FNV
+        /// collision: that overload is a public entry point a generated registrar uses, so the
+        /// collision is reachable without any hashing at all — and a hand-found hash collision would
+        /// make the test about the hash rather than about the guard.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void Register_IdCollisionUnderDistinctNames_Throws()
+        {
+            var registry = new BehaviorRegistry();
+
+            registry.Register(777, "Alpha", new BehaviorDefinition
+            {
+                Name      = "Alpha",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                registry.Register(777, "Bravo", new BehaviorDefinition
+                {
+                    Name      = "Bravo",
+                    BrainTier = BehaviorConstants.BrainTierBTree,
+                }));
+
+            // ⭐ Both sides named: a collision message that omits the resident is unactionable.
+            Assert.Contains("Bravo", ex.Message);
+            Assert.Contains("Alpha", ex.Message);
+        }
+
+        /// <summary>
+        /// ⚠ <b>The id guard must not fire on the reload path.</b> <c>MergeFrom</c> deliberately
+        /// overwrites (a fresh assembly's definition replaces the live one under the same name and
+        /// therefore the same id) — routing that through <c>Register</c> would abort every hot reload.
+        /// ⭐ Stated as its own test because the id guard is the second reason a reload could now
+        /// throw, and the existing test only covers the name one.
+        /// </summary>
+        [Fact]
+        public void MergeFrom_SameNameSameDerivedId_StillOverwrites()
+        {
+            var live = new BehaviorRegistry();
+            live.Register("Reloadable", new BehaviorDefinition
+            {
+                Name      = "Reloadable",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var staging = new BehaviorRegistry();
+            var updated = new BehaviorDefinition
+            {
+                Name      = "Reloadable",
+                BrainTier = BehaviorConstants.BrainTierHsm,
+            };
+            staging.Register("Reloadable", updated);
+
+            live.MergeFrom(staging);
+
+            Assert.True(live.TryGetDefinition(BehaviorHash.FromName("Reloadable"), out var got));
+            Assert.Same(updated, got);
+        }
+
         // ── Test 8 — distinct names register independently ──────────────────
         /// <summary>
         /// Registering two distinct behavior names must not interfere with each other's
@@ -186,7 +259,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
             });
             registry.Register(2, "Bravo", new BehaviorDefinition
             {
@@ -222,7 +298,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
             };
             staging.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", updated);
 
@@ -279,21 +358,194 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // resolver registered BEFORE the topology
             var r1 = new BehaviorRegistry();
-            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r1.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 typeof(int));
             r1.Register("Y", TopologyOnly());
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
             Assert.NotNull(d1!.ParseParams);
-            Assert.Equal(typeof(int), d1.ParamsDtoType);
+            Assert.Equal(typeof(int), d1.BlackboardLayoutType);
 
             // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
             r2.Register("Y", TopologyOnly());
-            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r2.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 typeof(int));
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);
-            Assert.Equal(typeof(int), d2.ParamsDtoType);
+            Assert.Equal(typeof(int), d2.BlackboardLayoutType);
+        }
+
+        // ── Test 10b — the curated overlay OUTRANKS a generated ParseParams ──
+        /// <summary>
+        /// 📌 <b>User ruling (2026-08-23):</b> <i>"if curated (hand-authored) exists, then no other is
+        /// needed — having automatically generated is undesired in such a case."</i>
+        ///
+        /// <para>
+        /// 🔴 <b>The regression this locks.</b> <c>ApplyResolverOverlay</c> used to read
+        /// <c>if (def.ParseParams == null)</c>, so a generated registrar that set its own
+        /// <c>ParseParams</c> silently discarded the curated resolver. Only the curated one
+        /// understands geo-authored parameters, so <c>PlatoonHillAttack</c>'s commander params stayed
+        /// all-zero and the platoon drove to (0,0) instead of the computed baseline. Observed live;
+        /// the tell was <c>TankSpacing == 0</c>, which the curated parser cannot emit.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ Both orders are asserted: the generated registrar may run before OR after the curated
+        /// one, and the ruling must not depend on which.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_OverridesAGeneratedParseParams_InEitherOrder()
+        {
+            static BehaviorDefinition WithGeneratedParseParams(ParseParamsDelegate generated) => new()
+            {
+                Name          = "Z",
+                BrainTier     = BehaviorConstants.BrainTierBTree,
+                ParseParams   = generated,          // what a generated registrar emits
+                BlackboardLayoutType = typeof(long),       // and its own DTO type
+            };
+
+            bool generatedRan;
+            bool curatedRan;
+
+            ParseParamsDelegate MakeGenerated() =>
+                (string json, byte* mem, int capacity, EntityRepository world, Entity self) => generatedRan = true;
+            ParseParamsDelegate MakeCurated() =>
+                (string json, byte* mem, int capacity, EntityRepository world, Entity self) => curatedRan = true;
+
+            // ── generated topology FIRST, curated resolver second ──
+            generatedRan = false; curatedRan = false;
+            var r1 = new BehaviorRegistry();
+            r1.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+            r1.RegisterResolver("Z", MakeCurated(), typeof(Ce437WideParams));
+
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Z"), out var d1));
+            d1!.ParseParams!(string.Empty, null, 0, null!, default);
+            Assert.True(curatedRan,    "the curated resolver must win over a generated ParseParams");
+            Assert.False(generatedRan, "the generated ParseParams must not run once a curated one exists");
+            Assert.Equal(typeof(Ce437WideParams), d1.BlackboardLayoutType);   // the curated DTO type wins too (wider than the block)
+
+            // ── curated resolver FIRST, generated topology second ──
+            generatedRan = false; curatedRan = false;
+            var r2 = new BehaviorRegistry();
+            r2.RegisterResolver("Z", MakeCurated(), typeof(Ce437WideParams));
+            r2.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Z"), out var d2));
+            d2!.ParseParams!(string.Empty, null, 0, null!, default);
+            Assert.True(curatedRan,    "order must not decide which resolver wins");
+            Assert.False(generatedRan);
+            Assert.Equal(typeof(Ce437WideParams), d2.BlackboardLayoutType);
+
+            // ⭐ CE-1431 (R-3065) — a NARROWER curated type no longer shrinks the block: the resolver writes its type into the
+            //   block, it does not describe all of it (the CE-437 rule, now for every behaviour, not only one with a manifest).
+            //   ⛔ HISTORY: with no manifest the layout was replaced by the int and the block lost four bytes.
+            var r3 = new BehaviorRegistry();
+            r3.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+            r3.RegisterResolver("Z", MakeCurated(), typeof(int));
+            Assert.True(r3.TryGetDefinition(BehaviorHash.FromName("Z"), out var d3));
+            Assert.Equal(typeof(long), d3!.BlackboardLayoutType);
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit, Size = 24)]
+        private struct Ce437Block { [System.Runtime.InteropServices.FieldOffset(0)] public long In; [System.Runtime.InteropServices.FieldOffset(8)] public long StA; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Size = 16)]
+        private struct Ce437WideParams { public long A; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-437</c> — <b>a curated resolver overlay must not DEMOTE a generated block.</b>
+        /// The resolver's type is what it WRITES — the Input region at offset 0 — not the whole block.
+        /// 🔴 Found live: <c>PlatoonHillAttack</c>'s overlay replaced its block with its 56-byte params
+        /// struct, the root slot shrank, and its <c>HillAttackMutableState</c> had nowhere to live.
+        /// ⭐ Both orders, as the rail above. ⛔ And an overlay WIDER than the Input region of a block
+        /// that has a State half is refused — the parse would overwrite the State.
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_KeepsAGeneratedBlock_WhenItsTypeFitsTheInputRegion()
+        {
+            static BehaviorDefinition Generated() => new()
+            {
+                Name                       = "Blk",
+                BrainTier                  = BehaviorConstants.BrainTierBTree,
+                ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
+                BlackboardLayoutType       = typeof(Ce437Block),
+                ParseParams = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
+            };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { };
+
+            var r1 = new BehaviorRegistry();
+            r1.Register("Blk", Generated());
+            r1.RegisterResolver("Blk", curated, typeof(long));
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Blk"), out var d1));
+            Assert.Equal(typeof(Ce437Block), d1!.BlackboardLayoutType);
+            Assert.Same(curated, d1.ParseParams);
+
+            var r2 = new BehaviorRegistry();
+            r2.RegisterResolver("Blk", curated, typeof(long));
+            r2.Register("Blk", Generated());
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Blk"), out var d2));
+            Assert.Equal(typeof(Ce437Block), d2!.BlackboardLayoutType);
+
+            var r3 = new BehaviorRegistry();
+            r3.Register("Blk", Generated());
+            Assert.Throws<System.InvalidOperationException>(() => r3.RegisterResolver("Blk", curated, typeof(Ce437WideParams)));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-427</c> — <b>a curated resolver takes over the SUPPLY stage, never the BAKE.</b>
+        /// A generated definition that carries <see cref="BehaviorDefinition.BakeDefaults"/> keeps its
+        /// authored defaults under a curated overlay: the composed parse bakes, then runs the curated
+        /// resolver — and the generated overlay is NOT run. 📄 <c>DESIGN_Parameter_Model.md</c> §3.2.
+        ///
+        /// <para>⭐ Both registration orders. ⚠ Composition reads the STORED overlay, never the current
+        /// <c>ParseParams</c>, so it cannot stack; a second <c>RegisterResolver</c> in one scan throws anyway
+        /// (<c>R-149</c>).</para>
+        /// <para>⚠ Inverse-edit red-proof: restore <c>def.ParseParams = overlay.Resolver</c> in
+        /// <c>ApplyResolverOverlay</c> and the baked State byte stays 0.</para>
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_RunsTheGeneratedBake_ThenTheCuratedResolver()
+        {
+            var calls = new System.Collections.Generic.List<string>();
+            BehaviorDefinition Generated() => new()
+            {
+                Name                 = "Bk",
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(Ce437Block),
+                BakeDefaults = (byte* mem, int capacity) => { calls.Add("bake"); ((Ce437Block*)mem)->StA = 42; },
+                ParseParams  = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => calls.Add("generated"),
+            };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self)
+                => { calls.Add("curated"); ((Ce437Block*)mem)->In = 5; };
+
+            foreach (bool resolverFirst in new[] { false, true })
+            {
+                calls.Clear();
+                var r = new BehaviorRegistry();
+                if (resolverFirst) { r.RegisterResolver("Bk", curated, typeof(long)); r.Register("Bk", Generated()); }
+                else               { r.Register("Bk", Generated()); r.RegisterResolver("Bk", curated, typeof(long)); }
+
+                Assert.True(r.TryGetDefinition(BehaviorHash.FromName("Bk"), out var d));
+                var block = default(Ce437Block);
+                d!.ParseParams!("{}", (byte*)&block, sizeof(Ce437Block), null!, default);
+
+                Assert.Equal(new[] { "bake", "curated" }, calls);
+                Assert.Equal(42, block.StA);
+                Assert.Equal(5, block.In);
+            }
+        }
+
+        /// <summary>⭐ No bake (a hand-written behaviour) ⇒ the curated resolver IS the parse, unwrapped.</summary>
+        [Fact]
+        public void RegisterResolver_WithoutABake_InstallsTheCuratedResolverItself()
+        {
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { };
+            var r = new BehaviorRegistry();
+            r.Register("Hw", new BehaviorDefinition { Name = "Hw", BrainTier = BehaviorConstants.BrainTierBTree });
+            r.RegisterResolver("Hw", curated, typeof(long));
+            Assert.True(r.TryGetDefinition(BehaviorHash.FromName("Hw"), out var d));
+            Assert.Same(curated, d!.ParseParams);
         }
 
         // ── Test 11 — name-based Register overload derives id from name ─────
@@ -320,5 +572,66 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(registry.TryGetDefinition(id, out var result));
             Assert.Same(def, result);
         }
+    
+        // ── CE-3186 (P2, R-2001 — docs/DESIGN_Orders_Params_Entity_Classes.md §13.8) — no stale DTO type after a rebuild ────────
+
+        /// <summary>
+        /// A rebuilt copy of this test assembly holding only <see cref="CE3186_ReloadedDto"/>: same assembly NAME, same type FullName, a
+        /// different <see cref="System.Type"/> — what a hot reload of a rebuilt assembly loads beside the old one. ⚠ A minimal DYNAMIC
+        /// assembly, not a second real copy of the test assembly: every scanner that walks the loaded assemblies would see a real copy's
+        /// fixtures twice (CE-3180: fixture ids already collide by test order).
+        /// </summary>
+        private static System.Reflection.Assembly SecondCopyOfThisAssembly()
+        {
+            var asm = System.Reflection.Emit.AssemblyBuilder.DefineDynamicAssembly(
+                new System.Reflection.AssemblyName(typeof(BehaviorRegistryTests).Assembly.GetName().Name!),
+                System.Reflection.Emit.AssemblyBuilderAccess.Run);
+            var tb = asm.DefineDynamicModule("rebuild").DefineType(typeof(CE3186_ReloadedDto).FullName!,
+                System.Reflection.TypeAttributes.Public | System.Reflection.TypeAttributes.Sealed | System.Reflection.TypeAttributes.SequentialLayout,
+                typeof(System.ValueType));
+            tb.DefineField("Range", typeof(float), System.Reflection.FieldAttributes.Public);
+            tb.CreateType();
+            return asm;
+        }
+
+        /// <summary>⭐ <see cref="BehaviorRegistry.LatestCopyOf"/> answers the type from the LAST loaded copy of its assembly, and the
+        /// type itself when it is the latest.</summary>
+        [Fact]
+        public void CE3186_LatestCopyOf_IsTheNewestLoadedCopy()
+        {
+            var copy = SecondCopyOfThisAssembly();
+            var newer = copy.GetType(typeof(CE3186_ReloadedDto).FullName!)!;
+            Assert.NotEqual(typeof(CE3186_ReloadedDto), newer);
+            Assert.Same(newer, BehaviorRegistry.LatestCopyOf(typeof(CE3186_ReloadedDto)));
+            Assert.Same(newer, BehaviorRegistry.LatestCopyOf(newer));
+            Assert.Same(typeof(int), BehaviorRegistry.LatestCopyOf(typeof(int)));
+        }
+
+        /// <summary>
+        /// ⭐⭐ THE STALE TYPE ITSELF: the declaration was bound at load from the OLD copy (CgfBehaviorSetup); a hot reload of a rebuilt
+        /// assembly merges a staging registration built from the NEW copy — and the merge used to put the old type back.
+        /// <para>🔴 Red-proof: drop the re-base loop in <see cref="BehaviorRegistry.MergeFrom"/> → the definition publishes the old copy's
+        /// type and this fails.</para>
+        /// </summary>
+        [Fact]
+        public void CE3186_MergeFrom_AfterARebuild_PublishesTheNewCopysDto()
+        {
+            var live = new BehaviorRegistry();
+            live.Register("CE3186_Behaviour", new BehaviorDefinition { Name = "CE3186_Behaviour" });
+            live.RegisterJsonParamsDtoType("CE3186_Behaviour", typeof(CE3186_ReloadedDto));   // bound at load, old copy
+
+            var newer = SecondCopyOfThisAssembly().GetType(typeof(CE3186_ReloadedDto).FullName!)!;   // the rebuild
+            var staging = new BehaviorRegistry();
+            staging.Register("CE3186_Behaviour", new BehaviorDefinition { Name = "CE3186_Behaviour", JsonParamsDtoType = newer });
+
+            live.MergeFrom(staging);
+
+            Assert.True(live.TryGetId("CE3186_Behaviour", out int id));
+            Assert.True(live.TryGetDefinition(id, out var def));
+            Assert.Same(newer, def!.JsonParamsDtoType);
+        }
     }
+
+    /// <summary>⭐ CE-3186 — a DTO in THIS assembly; <c>BehaviorRegistryTests.SecondCopyOfThisAssembly</c> builds its rebuilt twin.</summary>
+    public struct CE3186_ReloadedDto { public float Range; }
 }

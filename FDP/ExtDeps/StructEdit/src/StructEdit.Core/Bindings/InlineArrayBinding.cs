@@ -6,7 +6,7 @@ namespace StructEdit.Core.Bindings;
 /// Binding for a C# 12 <c>[InlineArray(N)]</c> struct field inside a <see cref="NativeStructEditBuffer"/>.
 /// Exposes individual elements via <see cref="NativeFieldBinding"/> at computed offsets.
 /// </summary>
-internal sealed class InlineArrayBinding : IContainerBinding
+internal sealed class InlineArrayBinding : IContainerOps
 {
     private readonly NativeStructEditBuffer _buffer;
     private readonly int _baseOffset;
@@ -46,4 +46,13 @@ internal sealed class InlineArrayBinding : IContainerBinding
         => new NativeFieldBinding(_buffer, _baseOffset + index * _elementSize, _elementSize, ElementType);
 
     public void Resize(int newCount) => throw new NotSupportedException("Inline arrays cannot be resized.");
+
+    // ── S4 (B4: fixed size) — only a move; the count never changes
+    public bool CanInsertRemove => false;
+    public object? NewElement() => ContainerOps.DefaultOf(ElementType);
+    public void Insert(int index, object? value) => throw new NotSupportedException("Inline arrays have a fixed size.");
+    public void RemoveAt(int index) => throw new NotSupportedException("Inline arrays have a fixed size.");
+    public void Move(int from, int to) => ContainerOps.Move(this, from, to);
+    public void Duplicate(int index) => throw new NotSupportedException("Inline arrays have a fixed size.");
+    public void Clear() => throw new NotSupportedException("Inline arrays have a fixed size.");
 }

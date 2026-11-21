@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -164,6 +165,8 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// <summary>
     /// Dequeues one pending reload and applies it. Call once per frame on the main thread.
     /// </summary>
+    private static readonly bool ReloadTimingLog = EnvVars.Read(EnvVars.HrotInsyncLog) == "1";
+
     public void DrainPendingCallbacks()
     {
         // BPF-044: drain background scan failures before success reloads.
@@ -174,6 +177,19 @@ public sealed class AiHotReloadCoordinator : IDisposable
 
         try
         {
+            if (ReloadTimingLog)
+            {   // ⭐ K-3 (CE-4450) — the drain's apply and EACH completion subscriber, timed (HROT_INSYNC_LOG=1)
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                ApplyReload(pending);
+                Console.WriteLine($"[K-3] hot-reload drain: ApplyReload {sw.Elapsed.TotalMilliseconds:F1} ms on thread {Environment.CurrentManagedThreadId}");
+                foreach (var d in OnReloadCompleted?.GetInvocationList() ?? Array.Empty<Delegate>())
+                {
+                    sw.Restart();
+                    ((Action)d)();
+                    Console.WriteLine($"[K-3]   OnReloadCompleted → {d.Method.DeclaringType?.Name}.{d.Method.Name}: {sw.Elapsed.TotalMilliseconds:F1} ms");
+                }
+                return;
+            }
             ApplyReload(pending);
             OnReloadCompleted?.Invoke();
         }
@@ -291,7 +307,7 @@ public sealed class AiHotReloadCoordinator : IDisposable
     public void Dispose()
     {
         StopWatching();
-        // Release BehaviorDefinition delegate references (ParseParams, ParamsDtoType, etc.)
+        // Release BehaviorDefinition delegate references (ParseParams, BlackboardLayoutType, etc.)
         // from collectible assemblies so they can be GC-reclaimed.
         _behaviorRegistry.Clear();
         foreach (var alc in _alcByBlueprintId.Values.Distinct())
@@ -376,40 +392,9 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// <see cref="BlueprintRegistrarScanner.Scan"/> (the unified discover+invoke path used by reload);
     /// this discovery-only seam exists for callers/tests that inspect registrar metadata.
     /// </summary>
-    internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly)
-    {
-        var registrars = new List<ResolvedRegistrar>();
-        Type[] types;
+    internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly) => BlueprintRegistrarScanner.Discover(assembly);   // ⭐ CE-4109 — the ONE discovery
 
-        try { types = assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException ex)
-        {
-            types = ex.Types.Where(t => t != null).ToArray()!;
-        }
-
-        foreach (var type in types)
-        {
-            if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
-                continue;
-
-            var method =
-                type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
-                type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
-            if (method == null) continue;
-
-            var parameters = method.GetParameters()
-                .Select((p, i) => new RegistrarParameter(p.Name ?? $"arg{i}", p.ParameterType, i))
-                .ToList();
-
-            registrars.Add(new ResolvedRegistrar(type, method, parameters));
-        }
-
-        return registrars
-            .OrderBy(r => r.DeclaringType.FullName, StringComparer.Ordinal)
-            .ToList();
-    }
-
-    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
+    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<byte, BTreeContext> btreeActionRegistry)
     {
         var args = registrar.Parameters
             .OrderBy(p => p.OrdinalIndex)
@@ -424,13 +409,13 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// throwing registrar cannot partially corrupt the live registry.
     /// Throws <see cref="HotReloadRegistrarException"/> for forbidden or unknown types (Patch 2, Patch 4).
     /// </summary>
-    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
+    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<byte, BTreeContext> btreeActionRegistry)
     {
         if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
         // BPF-042: inject the staging registry, not the live one.
         if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
         // BTree action delegates populated from the reloaded assembly's [FbtRegistrar].
-        if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)) return btreeActionRegistry;
+        if (paramType == typeof(ActionRegistry<byte, BTreeContext>)) return btreeActionRegistry;
 
         // Patch 4: explicitly forbidden — would bypass the atomic RCU contract.
         if (paramType == typeof(BlueprintRegistry))

@@ -93,7 +93,7 @@ well within the 64 KB Tier 1 limit.
 namespace Hrot.MuscleCharacter.Animation.Fake;
 
 [ComponentId(GlobalComponentIds.FakeAnimBackendState)]  // ID = 240 (within allocated 220-249 animation block; see §11.1)
-[DataPolicy(DataPolicy.NoSave)]                          // runtime state, not in scenarios
+[DataPolicy(DataPolicy.NoScenario)]                          // runtime state, not in scenarios
 [StructLayout(LayoutKind.Sequential)]
 public struct FakeAnimBackendState
 {
@@ -1042,14 +1042,14 @@ useful.
 ## 9. AAR recording integration
 
 `FakeAnimBackendState` is a Tier 1 unmanaged component with
-`[ComponentId]` and `[DataPolicy(DataPolicy.NoSave)]`. By engine
+`[ComponentId]` and `[DataPolicy(DataPolicy.NoScenario)]`. By engine
 convention:
 
 - The flight recorder captures it via the standard raw-memory-copy
   fast path (no reflection).
 - The schema validator hashes its layout and validates recordings
   against the current binary.
-- `DataPolicy.NoSave` excludes it from scenario save files — it's
+- `DataPolicy.NoScenario` excludes it from scenario save files — it's
   runtime state, not authoring data.
 - Recording is on by default; the policy doesn't suppress it.
 
@@ -1088,7 +1088,7 @@ For clarity, explicit non-features:
 - **No threading.** All `IAnimationBackend` methods are called from
   the main simulation thread per DD-1 §3 contract; the fake doesn't
   need synchronization.
-- **No save-to-disk.** Per `DataPolicy.NoSave`. The fake's state is
+- **No save-to-disk.** Per `DataPolicy.NoScenario`. The fake's state is
   runtime-only; scenario saves don't include it.
 
 ## 11. Resolutions summary (from v1.0 review)

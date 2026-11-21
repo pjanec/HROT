@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
+using Fdp.Presentation.Editing;
 using Fdp.Presentation.Panels;
 using Fdp.Presentation.Utils;
 using Fdp.Presentation.WindowManager;
@@ -25,31 +26,54 @@ public static class FdpEntityInspectorHelper
     /// </summary>
     /// <param name="panel">The inspector panel to configure.</param>
     /// <param name="windowManager">The window manager for spawning watch windows.</param>
-    /// <param name="ownerName">Subsystem name shown in watch-window titles (e.g. "CGF", "IG").</param>
+    /// <param name="owningPerspective">
+    ///   ⭐⭐ <b>The PERSPECTIVE the spawned watch windows belong to</b> (e.g. <c>"Scenario"</c>,
+    ///   <c>"IG"</c>), and the lower-cased prefix of their window ids.
+    ///   <para>⚠⚠ <b>Renamed from <c>ownerName</c>, `2026-08-23`, because the old name and its old doc
+    ///   were both FALSE:</b> it said <i>"subsystem name shown in watch-window titles"</i> — 📐 the
+    ///   titles are built from the ENTITY *(<c>"Watch Entity [i, vN]"</c>)* and never mention it, while
+    ///   the value is in fact assigned to <c>Reflector.EditOwningPerspective</c> and passed as
+    ///   <see cref="FdpEntityWatchWindow"/>'s <c>owningPerspective</c>. ⛔ A caller reading the old doc
+    ///   would pass a subsystem name and silently spawn windows into a perspective nothing claims —
+    ///   which is exactly what the <c>Editor</c>→<c>Scenario</c> rename exposed.</para>
+    /// </param>
     /// <param name="sessionGetter">Callback that returns the current repository session.</param>
-    /// <param name="pickBridge">Map-pick bridge for in-world component editing (may be null).</param>
+    /// <param name="pickBroker">Map-pick broker for in-world component editing (may be null).</param>
     /// <param name="titleBarColor">Title-bar color for spawned watch windows.</param>
+    /// <summary>⭐ CE-4210 P2 — the reflector's bind-context factory: an <see cref="EntityBindContext"/> for the edited entity and component, params = the world's resident header.</summary>
+    public static Func<Entity, Type, IParamBindContext?> BindContextFactory(
+        Func<IInspectableSession?> sessionGetter, Func<EntityRepository?> worldGetter, Func<Type, string, object?, ParamInScope?>? declareParam = null)
+        => (entity, type) => sessionGetter() is { IsReadOnly: false } session && type != typeof(Fdp.Toolkit.Scenario.ParamBindings)
+            ? new EntityBindContext(session, entity, type.Name, () => HeaderParams.Of(worldGetter()), declareParam)
+            : null;
+
     public static void WireInspectorWithInspectContextMenu(
         EntityInspectorPanel       panel,
         WindowManager              windowManager,
-        string                     ownerName,
+        string                     owningPerspective,
         Func<IInspectableSession?> sessionGetter,
-        MapPickServiceBridge?      pickBridge,
-        Vector4?                   titleBarColor)
+        MapPickBroker?      pickBroker,
+        Vector4?                   titleBarColor,
+        Func<EntityRepository?>    worldGetter,
+        Func<Type, string, object?, ParamInScope?>? declareParam = null)
     {
+        ArgumentNullException.ThrowIfNull(worldGetter);
+        // ⭐ CE-4210 P2 (silent-default rule) — the host HAS the world, so both reflectors (the panel's and every spawned watch window's) get the bind context.
+        var bindFactory = BindContextFactory(sessionGetter, worldGetter, declareParam);
+        panel.Reflector.BindContextFactory = bindFactory;
         panel.Reflector.EditWindowManager     = windowManager;
         panel.Reflector.EditSessionGetter     = sessionGetter;
-        panel.Reflector.EditOwningPerspective = ownerName;
-        panel.Reflector.EditPickerContext     = pickBridge;
+        panel.Reflector.EditOwningPerspective = owningPerspective;
+        panel.Reflector.EditPickerContext     = pickBroker;
 
-        string prefix = ownerName.ToLowerInvariant();
+        string prefix = owningPerspective.ToLowerInvariant();
         panel.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
         {
             builder.AddItem("Inspect...", () =>
             {
                 var session = sessionGetter();
                 bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
-                long? netId = null;
+                int? netId = null;
                 if (!isSingleton && session != null &&
                     session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
                 {
@@ -65,10 +89,11 @@ public static class FdpEntityInspectorHelper
                 var watchPanel = new EntityWatchPanel(entity);
                 watchPanel.Reflector.EditWindowManager     = windowManager;
                 watchPanel.Reflector.EditSessionGetter     = sessionGetter;
-                watchPanel.Reflector.EditOwningPerspective = ownerName;
-                watchPanel.Reflector.EditPickerContext     = pickBridge;
+                watchPanel.Reflector.EditOwningPerspective = owningPerspective;
+                watchPanel.Reflector.EditPickerContext     = pickBroker;
+                watchPanel.Reflector.BindContextFactory    = bindFactory;
                 windowManager.RegisterWindow(new FdpEntityWatchWindow(
-                    id, title, ownerName, watchPanel, sessionGetter, titleBarColor));
+                    id, title, owningPerspective, watchPanel, sessionGetter, titleBarColor));
             });
         }));
     }

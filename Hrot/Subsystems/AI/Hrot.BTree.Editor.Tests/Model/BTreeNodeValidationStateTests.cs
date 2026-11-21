@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using FluentAssertions;
 using Fbt;
 using Hrot.BTree.Editor.Model;
@@ -82,7 +83,7 @@ public sealed class BTreeNodeValidationStateTests
         var root   = MakeNode(NodeType.Root);
         var seq    = MakeNode(NodeType.Sequence);
         var action = MakeNode(NodeType.Action);
-        action.Action = new BTreeActionPayload { MethodFqn = "" }; // unbound
+        action.Action = new BehaviorActionBinding { MethodFqn = "" }; // unbound
 
         root.ChildVisualIds.Add(seq.VisualId);
         seq.ChildVisualIds.Add(action.VisualId);
@@ -113,7 +114,7 @@ public sealed class BTreeNodeValidationStateTests
         var root   = MakeNode(NodeType.Root);
         var seq    = MakeNode(NodeType.Sequence);
         var action = MakeNode(NodeType.Action);
-        action.Action = new BTreeActionPayload { MethodFqn = "Ns.C.ValidMethod" };
+        action.Action = new BehaviorActionBinding { MethodFqn = "Ns.C.ValidMethod" };
 
         root.ChildVisualIds.Add(seq.VisualId);
         seq.ChildVisualIds.Add(action.VisualId);
@@ -158,7 +159,7 @@ public sealed class BTreeNodeValidationStateTests
 
         // Add a valid child to the Sequence — the empty-composite diagnostic should clear.
         var action = MakeNode(NodeType.Action);
-        action.Action = new BTreeActionPayload { MethodFqn = "Ns.C.ValidMethod" };
+        action.Action = new BehaviorActionBinding { MethodFqn = "Ns.C.ValidMethod" };
         seq.ChildVisualIds.Add(action.VisualId);
         asset.AddNode(action);
         asset.MarkDirty(); // fires Changed → triggers OnAssetChanged → BuildCaches

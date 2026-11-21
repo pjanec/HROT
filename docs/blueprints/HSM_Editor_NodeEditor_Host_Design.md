@@ -1,3 +1,42 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06 (as-built folded back for HSM-007/008/009/012 — §10.3a, §12.2a, §9.1a, §11.1b)
+current-answer: the body below. The NEWEST sections are the four as-built blocks added 2026-10-06 —
+  §9.1a (event create/delete/rename), §10.3a (the lane masks are finally inferred, and step 5's premise is
+  REFUTED), §11.1b (the Timer facet is withdrawn), §12.2a (the lane conflict walks leaves) — plus §11.1a,
+  which owns SUBTREE AUTHORING.
+known-rot: ⛔ §10.3 step 5's reason ("the kernel computes it at compile time") and §19 Q2's lean are REFUTED by
+  measurement — read §10.3a. ⛔ §10.4 described a kernel addition that is BUILT. ⛔ §11.1's StateFacet no longer
+  carries a Timer slot (§11.1b). ⛔ §9.1's right-click menu described a Rename that only PREVIEWED and a
+  Find-references that always returned empty — both fixed, §9.1a.
+  ⚠ §7.1/§7.3 (pin wires, label at the Bezier midpoint) are SUPERSEDED for geometry and gestures by
+  DESIGN_Hsm_Canvas_Authoring.md (2026-10-06; the hidden pins stay as link identity). ⚠ §6.2 (editor regions holding
+  several states) and §8.2 (history as a pseudo-state node) contradict the kernel — proposed for supersession by Q84.
+  ⚠ this document predates the JSON substrate. `BTree_HSM_Editor_State_And_Forward_Plan.md`
+  says so explicitly and SUPERSEDES the substrate assumptions here, while leaving this the
+  feature/UX spec. ⛔ Do not quote this doc for persistence shape.
+related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-4 demotes §13.5's kernel panels to a collapsed Kernel section under a per-node Runtime view; DBG-3 the layout of a code-built machine; DBG-7 makes §13.3's breakpoints break
+  - ../DESIGN_Entity_Brain_View.md — §9 brings the 12 C#-built HSMs to this editor (in memory, read-only), wires the live overlay's metadata, and may build §3.4's statechart layout (BV-23)
+  - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — owns the BLUEPRINT-hosted action/guard binding and
+    the POLLED transition. ⚠ It supersedes this doc's §10.1/§10.2 on WHERE the pickers get their
+    items (a catalog, not the asset's own strings), and §10.4's claim that `Lane` does not exist.
+  - AI_Editor_Shared_Infrastructure.md — owns the SHARED picker mechanism and the heal rule (§7.1a);
+    this doc owns only the HSM-side field, walker and validator rule.
+  - BTree_Editor_NodeEditor_Host_Design.md — the twin; owns BTree's subtree node and its walker.
+  - DESIGN_Occurrence_Scoped_Storage.md — §32 owns the RUNTIME that consumes the authored subtree
+    reference (an HSM state hosting a BTree); it does NOT own the authoring surface.
+  - DESIGN_Hsm_Canvas_Authoring.md — owns the canvas GEOMETRY (border-to-border arcs, one LinkPath) and the
+    authoring GESTURES (border drag, double-click place, inline rename); supersedes §7.1/§7.3 for those.
+  - Architect_Question_84_Hsm_Region_Initial_History_Model.md — owns what a parallel region IS, who writes
+    "initial", and history as a composite property; proposes superseding §6.2 and §8.2.
+  - Architect_Question_36_Subtree_Hosting_Runtime.md — the approved ruling (Q36-B = A) that the
+    reference is a name BESIDE a Guid.
+  - BTree_HSM_Editor_State_And_Forward_Plan.md — owns the SUBSTRATE reconciliation (§1: JSON, not C#, is the
+    source of truth) and nothing else. ⛔ Marked HISTORICAL 2026-10-06 (HSM-011): its status/plan claims about
+    this editor are from 2026-06-12 and measured false — quote only its §1.
+-->
+
 # HSM Editor — NodeEditor Host Detailed Design
 
 > **Status:** Detailed design, derived from `AI_Editor_Shared_Infrastructure.md` + `NodeEditor_Extension_NodeAttachments.md` + `NodeEditor_Extension_ContainerNodes.md` + `NodeEditor_Extension_CustomCanvasRenderer.md` + `BTree_Editor_NodeEditor_Host_Design.md` (for parallel patterns) + `FastHSM.txt` source.
@@ -305,6 +344,10 @@ For newly authored states (no layout method entry), the editor runs a hierarchy-
 Auto-layout runs only when opening an asset with missing layout entries. A "Reset layout" toolbar action re-runs across the whole machine.
 
 For typical HSMs (15–80 states, 3–5 levels of nesting), the result is readable but not optimal. Users will manually arrange to taste; the layout method preserves those arrangements.
+
+> ⚠ **As measured `2026-10-23`** ([Brain View §9](../DESIGN_Entity_Brain_View.md), BV-23): `HsmAutoLayout` (73 lines) implements steps 1–2 only (top level in a row, children in a 3-wide grid); parallel-region strips and container resizing are not there. ⚠ A C#-built HSM shown read-only cannot be arranged by hand, so for it this layout is the only one — checked with a frame before improving. *(⛔ superseded by CE-1255, then by the as-built note below.)*
+
+> ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1274](Blueprint_Issues_Tracker.md))** — 🔒 the user: *"nodes are close to each other in a grid … (see platoon commander HSM) all is unreadable"*. Each group of siblings (a composite's children, or one band of a parallel state) is now laid out as a **flow, left to right**: column 0 holds the initial state, each next column the states first reached by a transition from the previous one (breadth first; a transition into a nested state counts for the sibling that holds it); a column longer than **6** wraps; inside a column states are ordered by the mean row of their predecessors (fewer crossings). Gaps 140 × 60 px (were 60 × 50) leave room for the arrows. Composites still size bottom-up to their contents, and bands stack. Rail: `CodeBuiltMachinesTests.CE1274_EveryCodeBuiltMachine_FlowsLeftToRight_InShortColumns` (every forward transition points right on the canvas; red-proved) beside the existing no-overlap rail. ⛔ SUPERSEDED: steps 1–3's grid wording above.
 
 ---
 
@@ -777,6 +820,26 @@ Clicking a row selects the event (`ActiveSubSelection = HsmEventSelection(eventI
 
 Right-click a row → "Find references" (lists all transitions using this event); "Rename" (refactor across the machine); "Delete" (removes; flags warning if any transition references it).
 
+#### 9.1a ✅ AS-BUILT `2026-10-06` (`HSM-009`) — **the table could be READ; now it can be AUTHORED**
+
+| what §9.1 specified | what was there `2026-10-06` | what is there now |
+|---|---|---|
+| **"+ Add Event"** | ⛔ **nothing.** `EventDefinition` was constructed in exactly two places, both LOADERS (`HsmAssetProjector`, `HsmAssetMapper`), plus `CE-2088`'s `EnsureEvent` for an engine-raised event the author PICKS ⇒ **a machine with no events could never acquire one**, and `[HsmEventPicker]` had nothing to offer | ✅ `HsmAsset.CreateEvent` + the window's modal. Drawn **before** the empty-state early-return, because an empty machine is exactly where it is needed |
+| **"Delete"** | ⛔ absent | ✅ `HsmAsset.RemoveEvent`, with the referencing-transition count **on the menu item** so the cost is stated before the click. ⚠ Deferred past the row loop — the menu is drawn while iterating the list the delete mutates |
+| **"Rename"** | ⚠ **previewed and never applied** — the modal's only button was *"Preview"*, which showed a `RefactorService` preview and stopped there | ✅ `HsmAsset.RenameEvent` applies it |
+| **"Find references"** | ⛔ **always empty** — it passed the BARE name, while `HsmReferenceContributor` publishes the machine-scoped key §9.2 specifies | ✅ passes `{AssetId:D}::{EventName}` |
+
+⭐ **Two id rules the spec did not state, both measured:** a name matching an engine-raised event takes that event's
+**reserved** id (`HsmEventIds` is the one assignment and would rebind it at emit anyway), and every other event takes
+the lowest free id **from 1** — `0` means *"no event"* to every reader, and the high band is reserved (`R-45`).
+⛔ Renaming *to* an engine-raised name is refused for the same reason; delete and re-create instead.
+
+⚠ **Where these live, and the known limit:** on `HsmAsset`, not `HsmCommandSink`. The sink's vocabulary is the
+GRAPH's (`AddNode`/`AddLink`/`SetNodeProperty`) and an event is an asset-level DECLARATION, like a blackboard
+variable — whose `AddVariable`/`RemoveVariable`/`RenameVariable` are already public model methods called straight
+from the panel. ⇒ **events are not on the undo stack, exactly as variables are not.** ⛔ Do not fix that for events
+alone; it is one decision for both surfaces.
+
 ### 9.2 Event scoping (per §4.6 of shared infra)
 
 Event names are machine-scoped: two different HSM assets can both have `OnSight` without colliding. The reference catalog (shared infra §4.3) uses `{MachineAssetId}::{EventName}` as the canonical key. Renaming `OnSight` in `EnemyBrain` doesn't touch `OnSight` in `SoldierAI`.
@@ -827,13 +890,57 @@ The kernel's `StateDef.OutputLaneMask` (1 byte; bit set per `CommandLane` writte
    (Inferred from action declarations; not editable)
    ```
 
-5. The fluent emitter does **not** emit `.WithOutputLaneMask(...)` — the kernel computes it at compile time. The editor's role is to expose it for inspection.
+5. The fluent emitter does **not** emit `.WithOutputLaneMask(...)` — ~~the kernel computes it at compile time~~. The editor's role is to expose it for inspection.
 
 If two parallel-region states have overlapping `OutputLaneMask` bits (both write to `Animation`), the validator (§12) flags a conflict — see §12.1 and §15.3.
 
-### 10.4 Required kernel-side addition
+#### 10.3a ✅ AS-BUILT `2026-10-06` (`HSM-007`) — **steps 1–4 are LIVE; step 5's premise is REFUTED**
 
-The `Lane = CommandLane.X` property on `[HsmAction]` is needed but doesn't currently exist (FastHSM.txt §14614 shows the attribute without it). This is a small additive change to `HsmActionAttribute` — same as the `stableId`/`visualId` additions in §1.4.
+| | |
+|---|---|
+| ✅ **steps 1–4 now run** | `HsmDocumentFactory.Build` step 0b calls `HsmOutputLaneMaskInferrer.ApplyToAsset` with a dictionary built from the loaded assemblies — step 2's *"at asset open, the editor reflects each `[HsmAction]`'s `Lane`"*, at the moment §11.1a's subtree resolve already uses because it is the one place with the asset in hand and it re-runs after a hot reload. ⇒ rule 7, the `hsm.region_conflicts` renderer and the inspector's "Output lanes (inferred)" summary are reachable **for the first time** |
+| ⚠ **step 4's summary had to be built too** | `HsmFacetMapper` hard-coded `OutputLanesSummary = ""` *("populated by HS-S1-19")* — harmless only while the mask was always 0, and the one consumer that would still have lied once it was not. ⭐ It now names the lanes in the mask. ⛔ **Lane names, not step 4's per-action attribution** *("Animation (StashWeapon)")*: a bitfield no longer remembers which action set which bit, and re-reflecting in the mapper to recover it is not worth a second reflection pass |
+| ⛔ **before this, the whole feature was INERT** | 📐 Measured: `ApplyToAsset`/`BuildLaneDictionary` had **no callers outside their own tests**, so every editor-owned asset carried `OutputLaneMask == 0`. The one production writer was `HsmAssetProjector:54`, the compiled-blob path |
+| ⚠ **the mask is DERIVED and does NOT dirty the asset** | step 4 already calls it read-only; re-deriving it must not make an untouched asset look edited |
+| ⚠ **reflection is guarded at THREE levels** | assembly · type · **per-method attribute read** — mirroring `ActionSchemaExporter.ScanAssembly`. 📌 The per-method one is not theoretical: without it 15 rails went red with a `TypeLoadException` out of `GetCustomAttribute` on an unrelated host assembly that merely happened to be loaded |
+| 🔴🔴 **step 5's reason is FALSE, and that is the open half** | *"the kernel computes it at compile time"* — 📐 measured `2026-10-06`: **nothing in `Fhsm.Compiler` computes it.** `HsmFlattener.cs:165` copies `node.OutputLaneMask` from the compiler's `StateNode`, and the only writers of **that** field in the repo are `Fhsm.Tests` fixtures. `HsmBuilder`/`StateBuilder` expose **no lane API at all**, and the whole Hrot emit chain (`Hrot.AiEditor.Generators`) mentions lanes **zero times**. ⇒ every editor-authored machine reaches `HsmKernelCore.ArbitrateOutputLanes` (`:955`) with an all-zero mask, so **runtime lane arbitration is inert too** — not just the editor's validator. ⭐ This is now the `HSM-020` row; §19 Q2 is no longer a free choice |
+
+#### 10.3b ✅ AS-BUILT `2026-10-06` (`HSM-020`) — **the mask now reaches the blob; step 5 is SUPERSEDED**
+
+🔒 **User, `2026-10-06`:** *"Touching extdeps possible as long as it stays generic."*
+
+⭐ **The chain, end to end.** The only missing link was a setter, and it was missing in FastHSM:
+
+```
+[HsmAction(Lane=…)]  →  resolver (per host)  →  HsmEmitCore emits .OutputLaneMask(0x..)
+                     →  StateBuilder.OutputLaneMask  →  StateNode.OutputLaneMask
+                     →  HsmFlattener:165  →  HsmEmitter:198  →  StateDef.OutputLaneMask
+                     →  HsmKernelCore.ArbitrateOutputLanes (:807)
+```
+
+| ⭐ decision | why |
+|---|---|
+| **FastHSM gains `StateBuilder.OutputLanes(params CommandLane[])` and `OutputLaneMask(byte)`** | ⭐ **This stays GENERIC because `CommandLane`, `OutputLaneMask`, the arbitration and its trace record are already FastHSM's own** — the library was missing the setter for its own feature. Nothing HROT-specific crosses the boundary: the new methods take a kernel enum and a byte |
+| **the lane is resolved per HOST, never persisted** | the generator reads `[HsmAction].Lane` from the **Roslyn compilation** (`HsmActionLaneResolver`); the editor reads it by **reflection** (the dictionary `HsmOutputLaneMaskInferrer` already builds). ⛔ Storing the mask in the `.hsm.json` was rejected: it goes stale the moment a `Lane` changes without the asset being reopened, and **a stale mask is worse than none — the kernel then suppresses the WRONG region** |
+| ⛔ **`Fhsm.Compiler` could NOT infer it itself** | it does **zero reflection** (references only `Fhsm.Kernel`) and takes actions as **names**. That is the measured reason §10.3 step 5's *"the kernel computes it at compile time"* was false |
+| **generated code emits the BYTE form, hand authors use the ENUM form** | `Hrot.AiEditor.Persistence` is netstandard2.0 with **zero project references by design** (its `.csproj` links shared source rather than referencing it), so it cannot name `CommandLane`. Emitting the readable form would mean a **copy of the lane names** there — which would mis-map silently on an enum reorder. ⭐ The byte needs no name table; `R-50` makes the generated file machine-owned anyway |
+| **transitions contribute no lanes** | the kernel arbitrates a region's **active leaf**, and the editor's inferrer ORs the same four state slots. Two rules would drift |
+
+🔴🔴 **AND THE THING THAT DECIDES WHETHER ANY OF THIS DOES ANYTHING: no production action declares a lane.**
+📐 Measured `2026-10-06`: of **86** `[HsmAction]` sites in the repo, **4** set `Lane`, and **all four are test
+fixtures** (`OutputLaneMaskInferenceTests`, `HsmActionAttributeTests`). ⇒ **every resolver answers `null` today,
+every mask emits as absent, and arbitration still protects nothing.** ⭐ The pipe is now complete and proven — the
+day an action says `Lane = CommandLane.Animation`, the mask flows to the kernel — ⛔ but **declaring which action
+drives which lane is a content decision per action, not plumbing**, and it is deliberately not made here. That is
+`HSM-023`.
+
+⇒ **§10.3 step 5 and §19 Q2 are SUPERSEDED by this section.** The question was never *"emit or keep inferred"*;
+keeping it inferred meant keeping it zero.
+
+### 10.4 Required kernel-side addition ✅ **BUILT**
+
+~~The `Lane = CommandLane.X` property on `[HsmAction]` is needed but doesn't currently exist.~~
+✅ **It exists** — `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/Attributes/HsmActionAttribute.cs:22`, `CommandLane Lane { get; set; } = CommandLane.None`, with its own rail in `Fhsm.Tests/Compiler/HsmActionAttributeTests`. *(Verified `2026-10-06`; the paragraph above is HISTORY.)*
 
 ---
 
@@ -859,9 +966,9 @@ public struct StateFacet
     [HsmActionPicker]
     public string? ActivityAction;
 
-    [EditDisplayName("Timer action")]
-    [HsmActionPicker]
-    public string? TimerAction;
+    // ⛔⛔ REMOVED 2026-10-06 (HSM-012) — see §11.1b. The kernel never arms a timer, so this offered a binding
+    //    that is emitted and can never fire.
+    // [EditDisplayName("Timer action")] [HsmActionPicker] public string? TimerAction;
 
     public StateFlags Flags;                    // [Flags] enum renders as checkboxes; IsInitial / IsFinal / IsParallel / etc.
 
@@ -1020,6 +1127,141 @@ public struct GlobalTransitionFacet
 }
 ```
 
+### 11.1b ⛔⛔ THE TIMER SLOT IS WITHDRAWN FROM THE FACET — **the kernel never arms one** *(`HSM-012`, `2026-10-06`)*
+
+📐 **Measured end to end.** The editor authored a timer action, `HsmEmitCore` emitted `.TimerAction(...)`,
+`HsmFlattener.cs:182` packed it into `StateDef.TimerActionId` and `HsmEmitter` wrote it into the blob — and then
+**nothing armed it**: `HsmKernelCore` never reads `TimerActionId`, and **every production write of
+`TimerDeadlines[i]` is `= 0`** (cancel-on-exit `HsmKernelCore.cs:1319/1325/1331`, hot-reload reset
+`HotReloadManager.cs:139-167`). The only non-zero writes in the tree are `Fhsm.Tests` fixtures. There is no
+`SetTimer`/`StartTimer`/`Arm` anywhere in `Fhsm.Kernel`, so `ProcessTimerPhase` decrements a counter that is always
+zero and `FireTimerEvent` is unreachable.
+
+⛔⛔ **And there is NO DURATION FIELD ANYWHERE** — not in `StateDef`, not in the facet, and not in this document
+(§11.1 listed `TimerAction` with nothing to say *how long*). ⇒ arming is not a wiring gap; it needs a new ROM field,
+a builder parameter and a kernel phase. **That is the `HSM-012` row's remaining half.**
+
+| ✅ what changed | ⭐ what deliberately did NOT |
+|---|---|
+| the `Timer` binding facet is gone from `StateFacet`, and the mapper/dispatcher no longer read or write it | `StateNode.Timer`, the mapper round-trip, the emit path and `HsmBlackboardAggregator`'s timer requirement all stay — **a hand-authored asset still round-trips untouched** (no rush removals) |
+| a new validator rule, `TimerActionNotImplemented` (Warning), reports any state that still carries a timer binding | the inferrer still counts a timer action's lane: the mask states what the asset **declares**, and "timers never fire" belongs in one place, not two |
+
+⚠ **Measured on the corpus:** zero authored `.hsm.json` carries a `Timer` binding, so the withdrawal costs nothing today.
+
+### 11.1a ⭐⭐⭐ SUBTREE AUTHORING — **the state's hosted BTree, and it is PICKED** *(`2026-09-26`)*
+
+> 🔒 **User:** *"the tree asset must be pickable."*
+> 📄 **The shared half lives in `AI_Editor_Shared_Infrastructure.md` §7.1a** — the
+> `[AiAssetPicker]` attribute, its drawer, and the **heal rule**. ⛔ Not restated here.
+
+🔴 **The gap this closes.** `E5` built the whole runtime for *"an HSM state hosts a BTree"* —
+`StateNode.SubtreeAssetId` + `SubtreeName`, `HsmHostedSubtrees`, `BrainTickSystem.TickHostedChildren`,
+validator rules 8/8b/10 — and **`StateFacet` has no subtree field at all**, so nothing outside the
+mapper can write those values. ⇒ **every rule `E5` added is unreachable on a real asset.** 📄 That is
+why `DESIGN_Occurrence_Scoped_Storage.md` §32 calls authoring *"the real blocker"*.
+
+#### What `StateFacet` gains
+
+```csharp
+[EditDisplayName("Hosted subtree (BTree asset)")]
+[AiAssetPicker(AssetKind.BTree)]        // ⭐ shared drawer, §7.1a
+public string? SubtreeName;
+
+[EditReadOnly] public string SubtreeAssetId;   // the persisted fallback identity
+[EditReadOnly] public bool   IsSubtreeResolved;
+```
+
+⭐⭐ **One editable field, two derived companions** — deliberately the same shape as
+`BTreeSubtreeFacet`, whose Guid and `IsResolved` are already `[EditReadOnly]`. 🔒 **The designer
+authors a NAME by picking; they never type or see a Guid.**
+
+#### The sequence, from pick to persisted
+
+```mermaid
+sequenceDiagram
+    participant D as designer
+    participant P as AiAssetPickerDrawer
+    participant F as HsmFacetMapper
+    participant N as StateNode
+    participant S as save / HsmAssetMapper
+
+    D->>P: open the field
+    P->>P: IAssetCatalog.All where Kind == BTree
+    P-->>D: the BTree asset names
+    D->>P: pick "PatrolTree"
+    P->>F: SubtreeName = "PatrolTree"
+    F->>N: SubtreeName = "PatrolTree"
+    F->>N: SubtreeAssetId = catalog.FindByName(...).AssetId
+    Note over F,N: the Guid is written BY THE PICK, not guessed later
+    S->>S: StateNodeDto carries BOTH (E5 / Q36-B = A)
+```
+
+⚠ **Caption — the ordering prose would fudge:** the Guid is captured **at pick time**, while the
+catalogue entry is in hand. ⛔ If it were derived only on load, a rename between pick and first reload
+would leave nothing to heal from, and the whole reason for storing both would be lost.
+
+#### The three pieces beyond the field
+
+| # | | |
+|---|---|---|
+| **1** | ⭐ **`StateNode.IsSubtreeResolved`** — **derived, NOT persisted** | ⚠ mirrors BTree, where `IsResolved` is recomputed. ⛔ Persisting it would let a stale `true` outlive the asset it describes |
+| **2** | ⭐⭐ **`HsmSubtreeResolver`** — walks `asset.AllStates`, calls the shared `SubtreeReferenceResolver` per hosting state, applies the heal | ⚠ the WALK is HSM's; the DECISION is shared (§7.1a) |
+| **3** | ⭐ **a dangling validator rule** | mirrors BTree's Rule 6 — *"references '{name}' which no longer exists — reselect or remove"* |
+
+⛔⛔ **What this section does NOT do:** it does not make a state host a subtree at RUNTIME — `E5`
+already did. 📄 `DESIGN_Occurrence_Scoped_Storage.md` §32. ⭐ It makes the value **authorable**, which
+is the only thing that was missing.
+
+#### ✅ AS-BUILT `2026-09-26` — **piece 4: WHO CALLS THE RESOLVER, and it was not obvious** *(`CE-361`)*
+
+⛔⛔ **The table above has three rows and needed a fourth.** As designed, piece 3 read piece 1's
+derived flag, which only piece 2 sets — and **nothing called piece 2.** 📐 `IsSubtreeResolved`
+defaults to `false` ⇒ the rule reported **every** hosting state as dangling. 🔒 **`CE-338`/`CE-339`'s
+control arms in `HsmDocumentFactoryTests` caught it** — rails that assert *"with no catalogue,
+nothing is badged."*
+
+| # | as-built | |
+|---|---|---|
+| **4** | ⭐⭐⭐ **`HsmDocumentFactory.Build` step 0** — resolve, then `MarkDirty()` if anything healed | ⭐ **opening a document is the one place holding BOTH the asset and the catalogue**, and it re-runs after a hot reload for free. 📐 `AiDocumentViewStateBinder:131` already passed `catalog: services.Catalog` ⇒ **zero composition-root changes** |
+| **3′** | ⭐⭐ **the rule asks `SubtreeReferenceResolver` directly, and SKIPS when handed no catalogue** | ⛔ without a catalogue you cannot know whether a reference resolves — reporting it as broken is a **guess**. ⚠ Rule 10 (`SubtreeAssetCycle`) already skipped for exactly this reason; the rule now matches it. ⇒ it no longer depends on someone having run the walker first — 🔒 **the silent-default shape** |
+
+#### The OTHER sequence — **document open, which the pick diagram above does not show**
+
+```mermaid
+sequenceDiagram
+    participant B as AiDocumentViewStateBinder
+    participant FA as HsmDocumentFactory
+    participant R as HsmSubtreeResolver
+    participant SR as SubtreeReferenceResolver
+    participant A as HsmAsset
+    participant V as HsmValidator
+
+    B->>FA: Build(asset, bundle, catalog)
+    FA->>R: step 0 - Resolve(asset, catalog)
+    loop every hosting state
+        R->>SR: Resolve(catalog, name, guid, BTree)
+        SR-->>R: Name / AssetId / IsResolved / Healed
+        R->>A: write back - never erase
+    end
+    R-->>FA: healed count
+    alt healed > 0
+        FA->>A: MarkDirty
+    end
+    FA->>V: Validate(asset) with the SAME catalog
+    Note over FA,V: no catalog anywhere on this path - the rule is SKIPPED, not guessed
+```
+
+⚠ **Caption — what the picture shows that the prose hid:** the resolver has **exactly one production
+caller**, and it is the document factory. ⛔ Before `CE-361` that arrow **did not exist on either
+host**, so every box after it ran on a flag nobody had set. 🔒 That is the edge the module-diagram
+rule exists to force you to look up.
+
+⚠ **Piece 1 is unchanged and still not persisted** — it remains the inspector's `[EditReadOnly]`
+display flag. ⛔ What changed is that **validation no longer trusts it**.
+
+🔒 **BTree was in the same state and was fixed in the same commit** — 📄
+`BTree_Editor_NodeEditor_Host_Design.md` §S1's as-built. User: *"no differences, consistency."*
+
 ### 11.2 Inspector dispatch
 
 The shared Inspector window (shared infra §10) dispatches on `ActiveSubSelection`:
@@ -1121,6 +1363,23 @@ The validator walks all parallel composite states. For each one:
 
 This is conservative — a real conflict only occurs when the regions are simultaneously active in a specific tick and the kernel's `Conflict` opcode fires. But static analysis correctly catches all potential conflicts.
 
+#### 12.2a ✅ AS-BUILT `2026-10-06` (`HSM-008`) — **it now walks the leaves, as specified**
+
+⛔ `CheckOutputLaneConflicts` used to OR `s.Children` only — the **direct children** — so a conflict one level down
+was invisible: a region whose direct child is a composite contributed the composite's own mask and nothing from the
+states that actually run. ✅ It now unions over **every leaf** at or under each direct child (`UnionOfLeafLaneMasks`),
+which is this section's wording and is what the kernel arbitrates: `ArbitrateOutputLanes` reads
+`definition.GetState(activeLeafIds[i])` (`HsmKernelCore.cs:971`), the ACTIVE LEAF of each region.
+⭐ The region index still comes from the **top-level child** and is carried down — a nested parallel composite's
+`RegionIndex` means the INNER composite's region, so reading it off a deep descendant would be the wrong space.
+*(Same reasoning, and the same shape, as rule 8's `SubtreeHostsUnder` walk.)*
+
+⚠ **The row also claimed rules 8/8b share the direct-children restriction — that is STALE:** `DEBT-AIB-029`
+(Batch 76) already gave both the full-subtree walk. Only the lane rule was still shallow.
+
+⚠⚠ **And this rule only became reachable at all in the same change** — until `HSM-007`'s §10.3a wiring, every
+editor-owned asset's mask was `0`, so no conflict could ever be reported. ⛔ A green validator was not evidence.
+
 ### 12.3 Surfacing
 
 Same as BTree §11.2 — affected states get colored outlines, inspector shows messages, a future Diagnostics window aggregates.
@@ -1218,6 +1477,8 @@ Same per-user, session-local pattern as BTree. Breakpoints can be set on:
 UI: click the gutter to the left of a state's title bar to toggle. Transitions get a small dot affordance on their label (custom renderer support).
 
 ### 13.4 Live overlay renderer
+
+> ⛔ **As measured `2026-10-23`** ([Brain View §9](../DESIGN_Entity_Brain_View.md), BV-20, `CE-1253`): `HsmDebugSession.SetMetadata` has no production caller, so the session's metadata stays null, `DecodeLeaves` returns nothing and the active-state glow below never draws — for asset HSMs as well. Fix: feed it from the registry's `HsmDefinition` / `HsmMetadata`.
 
 `hsm.runtime_overlay`, `AfterNodes` pass:
 
@@ -1545,7 +1806,8 @@ Manual checklist:
 
 1. **`InstanceFlags` already has `DebugTrace`; needs `Paused` too.** The kernel today has `InstanceFlags.DebugTrace` but no pause flag. Adding `Paused` to the enum is straightforward (one bit; lots of room — bits 6 and 7 are already reserved). Track as a kernel-side ticket alongside the three additions from §1.4. Without it, step controls (§13.2) can't function.
 
-2. **Should the inferred `OutputLaneMask` emit `.WithOutputLaneMask(...)` for forward-compatibility?** Today the editor doesn't emit it — the kernel re-computes it at compile time from action declarations. The argument *for* emitting: if a user inspects the generated `.cs` they can see the mask explicitly, and CI can diff masks across changes. The argument *against*: an extra source of truth that could drift from action declarations. Decision deferred; lean toward "no, keep it inferred" unless the diff-visibility argument becomes important.
+2. ~~**Should the inferred `OutputLaneMask` emit `.WithOutputLaneMask(...)` for forward-compatibility?** Today the editor doesn't emit it — the kernel re-computes it at compile time from action declarations. … lean toward "no, keep it inferred".~~
+   🔴🔴 **THE QUESTION WAS BUILT ON A FALSE PREMISE, measured `2026-10-06` (`HSM-007`): the kernel does NOT re-compute it.** Nothing in `Fhsm.Compiler` ever sets `StateNode.OutputLaneMask` except `Fhsm.Tests`; `HsmBuilder`/`StateBuilder` have no lane API; the Hrot emit chain mentions lanes zero times. ⇒ *"keep it inferred"* does not preserve the feature at runtime — **it leaves `ArbitrateOutputLanes` arbitrating on zeros for every editor-authored machine.** The real choice is now *"carry the mask into the blob (builder param + emitter + flattener, a FastHSM change) or accept that runtime lane arbitration only works for hand-written machines"*, and it is tracked as **`HSM-020`** with a recommendation for the user. §10.3a holds the measurement.
 
 3. **Internal transition rendering complexity.** §7.4 specifies internal transitions as dashed loops drawn entirely inside the source state, with the `hsm.transition_labels` renderer detecting the internal kind and offsetting the label. The hidden-pin trick makes the underlying link a self-link, but ImGui's wire-routing for self-links draws an arc *outside* the node, which doesn't suit internal transitions. The custom renderer needs to *override* the link's bezier path for internal-kind links — drawing nothing for the link itself (or a tiny stub indicator) and drawing the dashed loop inside the source state. This is a renderer responsibility that interacts with NodeEditor's wire-drawing in a non-obvious way. Sanity-check this with the NodeEditor implementer before Slice 1 codes it.
 

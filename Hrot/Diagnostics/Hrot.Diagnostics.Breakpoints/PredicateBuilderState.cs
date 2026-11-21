@@ -4,23 +4,6 @@ using Fdp.Toolkit.ReplayBrowser.Search;
 namespace Hrot.Diagnostics.Breakpoints;
 
 /// <summary>
-/// Predicate mode for the Data Breakpoint Manager's Details Inspector.
-/// Determines which root <see cref="SearchPredicateDto"/> subtype is used.
-/// </summary>
-public enum PredicateMode
-{
-    Component,
-    Event,
-    Lifecycle,
-    Spatial,
-    Structural,
-    Compound,
-    BehaviorParam,
-    BlueprintVariable,
-    TraceBufferScan,
-}
-
-/// <summary>
 /// Pure-logic state for the Predicate Builder panel.
 /// Extracted from the ImGui panel so it can be unit-tested without an ImGui context.
 ///
@@ -32,11 +15,11 @@ public enum PredicateMode
 /// </summary>
 public sealed class PredicateBuilderState
 {
-    private PredicateMode _mode = PredicateMode.Component;
+    private SearchPredicateMode _mode = SearchPredicateMode.Component;
     private SearchPredicateDto _currentDto;
 
     /// <summary>The currently active predicate mode.</summary>
-    public PredicateMode CurrentMode => _mode;
+    public SearchPredicateMode CurrentMode => _mode;
 
     /// <summary>
     /// The currently configured predicate DTO.
@@ -50,18 +33,18 @@ public sealed class PredicateBuilderState
 
     public PredicateBuilderState()
     {
-        _currentDto = CreateDefaultDto(_mode);
+        _currentDto = PredicateModes.CreateDefault(_mode);
     }
 
     /// <summary>
     /// Switches the mode and replaces the current DTO with a blank instance of the
     /// corresponding subtype. Previous edits are discarded.
     /// </summary>
-    public void SwitchMode(PredicateMode mode)
+    public void SwitchMode(SearchPredicateMode mode)
     {
         if (_mode == mode) return;
         _mode = mode;
-        _currentDto = CreateDefaultDto(mode);
+        _currentDto = PredicateModes.CreateDefault(mode);
     }
 
     /// <summary>
@@ -72,13 +55,13 @@ public sealed class PredicateBuilderState
     {
         if (bp.Condition is null)
         {
-            _mode = PredicateMode.Component;
-            _currentDto = CreateDefaultDto(_mode);
+            _mode = SearchPredicateMode.Component;
+            _currentDto = PredicateModes.CreateDefault(_mode);
             return;
         }
 
         _currentDto = bp.Condition;
-        _mode = InferMode(bp.Condition);
+        _mode = PredicateModes.ModeOf(bp.Condition);
     }
 
     /// <summary>
@@ -90,34 +73,4 @@ public sealed class PredicateBuilderState
         if (manager is null) throw new ArgumentNullException(nameof(manager));
         manager.UpdateCondition(id, _currentDto);
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────
-
-    private static SearchPredicateDto CreateDefaultDto(PredicateMode mode) => mode switch
-    {
-        PredicateMode.Component       => new PropertyMatchDto(),
-        PredicateMode.Event           => new TransientEventPredicateDto(),
-        PredicateMode.Lifecycle       => new LifecyclePredicateDto(),
-        PredicateMode.Spatial         => new SpatialBoundingPredicateDto(),
-        PredicateMode.Structural      => new StructuralPredicateDto(),
-        PredicateMode.Compound        => new CompoundPredicateDto(),
-        PredicateMode.BehaviorParam   => new BehaviorParamPredicateDto(),
-        PredicateMode.BlueprintVariable => new BlueprintVariablePredicateDto(),
-        PredicateMode.TraceBufferScan => new TraceBufferScanPredicateDto(),
-        _                             => new PropertyMatchDto(),
-    };
-
-    private static PredicateMode InferMode(SearchPredicateDto dto) => dto switch
-    {
-        PropertyMatchDto            => PredicateMode.Component,
-        TransientEventPredicateDto  => PredicateMode.Event,
-        LifecyclePredicateDto       => PredicateMode.Lifecycle,
-        SpatialBoundingPredicateDto => PredicateMode.Spatial,
-        StructuralPredicateDto      => PredicateMode.Structural,
-        CompoundPredicateDto        => PredicateMode.Compound,
-        BehaviorParamPredicateDto   => PredicateMode.BehaviorParam,
-        BlueprintVariablePredicateDto => PredicateMode.BlueprintVariable,
-        TraceBufferScanPredicateDto => PredicateMode.TraceBufferScan,
-        _                           => PredicateMode.Component,
-    };
 }

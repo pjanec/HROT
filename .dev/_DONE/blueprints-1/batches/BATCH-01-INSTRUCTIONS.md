@@ -49,7 +49,7 @@ Do NOT touch any existing production code beyond what the task explicitly requir
 - **AI Behaviors blueprints dir (create empty dir):**
   - `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/`
 - **Solution file to update:**
-  - `IOS-IG-SimHost.sln`
+  - `HROT.sln`
 - **`Hrot.AI.Behaviors.csproj` to update:**
   - `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj`
 
@@ -57,7 +57,7 @@ Do NOT touch any existing production code beyond what the task explicitly requir
 
 ```powershell
 # From repo root:
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj
 ```
 
@@ -109,7 +109,7 @@ If `dotnet build` is broken after this batch, nothing else can progress.
 - `FDP/Toolkits/Fdp.Toolkits/Blueprints/` subfolder with placeholder files per Roadmap §2.
   **This is NOT a new .csproj** — it lives inside the existing `Fdp.Toolkits.csproj`.
 - `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/` directory (empty, for future `.bp.json`).
-- Add all four new projects to `IOS-IG-SimHost.sln`.
+- Add all four new projects to `HROT.sln`.
 - Modify `Hrot.AI.Behaviors.csproj` per Roadmap M0 acceptance: `EmitCompilerGeneratedFiles`,
   `CompilerGeneratedFilesOutputPath`, `DebugType`, `DebugSymbols`, generator `ProjectReference`
   with `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`, `AdditionalFiles` glob
@@ -208,7 +208,7 @@ Follow this order for EVERY task:
 3. Run `dotnet test` and confirm green before moving to the next task.
 4. Never proceed to the next task while tests are red.
 5. After all tasks are complete, run the full solution build:
-   `dotnet build IOS-IG-SimHost.sln` — must produce zero errors, zero warnings.
+   `dotnet build HROT.sln` — must produce zero errors, zero warnings.
 
 ---
 
@@ -260,5 +260,5 @@ Submit `.dev/blueprints-1/reports/BATCH-01-REPORT.md` with the following section
 [Anything that was deferred or left incomplete with reason]
 
 ## Build Verification
-[Output of `dotnet build IOS-IG-SimHost.sln` — show the last 20 lines]
+[Output of `dotnet build HROT.sln` — show the last 20 lines]
 ```

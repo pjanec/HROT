@@ -65,7 +65,7 @@ correctness issues surfaced by the decoupling work.
 2. **TASK-P4-001** — Decouple ExCon → `Hrot.ExCon` assembly has zero NED references → All ExCon tests pass ✅
 3. **TASK-P4-002** — Decouple SimHost → `Hrot.SimHost` assembly has zero NED references → All SimHost tests pass ✅
 4. **TASK-P4-003** — Decouple IG and CGF → Both assemblies have zero NED references → All IG tests pass ✅
-5. **Final validation** — `dotnet build IOS-IG-SimHost.sln --no-incremental` with zero errors AND `dotnet test IOS-IG-SimHost.sln` with zero failures ✅
+5. **Final validation** — `dotnet build HROT.sln --no-incremental` with zero errors AND `dotnet test HROT.sln` with zero failures ✅
 
 **Do NOT stop between tasks to ask for permission. Do NOT stop after partial completion. Fix all
 root causes. Only write the report after all tests pass with zero failures.**
@@ -388,10 +388,10 @@ After completing all tasks:
 Select-String -Path "Hrot.ExCon\*.csproj","Hrot.SimHost\*.csproj","Hrot.IG\*.csproj","Hrot.CGF\*.csproj" -Pattern "Network.NED|Hrot.NED"
 
 # Build
-dotnet build IOS-IG-SimHost.sln --no-incremental -v quiet
+dotnet build HROT.sln --no-incremental -v quiet
 
 # Run ALL tests (unit tests only - integration tests are acceptable to skip for this batch)
-dotnet test IOS-IG-SimHost.sln --no-build
+dotnet test HROT.sln --no-build
 ```
 
 **All tests (unit tests) must pass with zero failures before writing the report.**

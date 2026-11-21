@@ -41,12 +41,11 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class WeaponFireIntentEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "WeaponFireRequest";
 
         private readonly IDdsWriter<WeaponFireRequest> _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<WeaponFireRequest>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFireRequest;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -54,7 +53,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
         public WeaponFireIntentEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<WeaponFireRequest>(participant, DdsTopicName), entityMap)
+            : this(new DdsWriterAdapter<WeaponFireRequest>(participant), entityMap)
         {
         }
 
@@ -88,7 +87,7 @@ namespace Hrot.Network.NED.SimHost
                     continue;
 
                 // Resolve shooter entity → network ID for the DDS wire message.
-                if (!_entityMap.TryGetNetworkId(evt.Shooter, out long shooterNetId))
+                if (!_entityMap.TryGetNetworkId(evt.Shooter, out int shooterNetId))
                 {
                     FdpLog<WeaponFireIntentEgressTranslator>.Warn(
                         "[WeaponFireIntentEgress] Shooter entity #{0} not in NetworkEntityMap — skipping intent.",
@@ -97,7 +96,8 @@ namespace Hrot.Network.NED.SimHost
                 }
 
                 // Resolve target entity → network ID for the DDS wire message.
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId))
+                int targetNetId = 0;   // ⭐ CE-1032 W-8 — 0 = fire at the point
+                if (!evt.AtPoint && !_entityMap.TryGetNetworkId(evt.Target, out targetNetId))
                 {
                     FdpLog<WeaponFireIntentEgressTranslator>.Warn(
                         "[WeaponFireIntentEgress] Target entity #{0} not in NetworkEntityMap — skipping intent.",
@@ -110,6 +110,18 @@ namespace Hrot.Network.NED.SimHost
                     ShooterEntityId = shooterNetId,
                     TargetEntityId  = targetNetId,
                     WeaponIndex     = evt.WeaponIndex,
+                    PointX          = evt.TargetPoint.X,
+                    PointY          = evt.TargetPoint.Y,
+                    PointZ          = evt.TargetPoint.Z,
+                    AmmoGuid        = evt.AmmoGuid,   // ⭐ M8 — the loaded round (R-169: the one new wire field)
+                    Charge          = evt.Charge,     // ⭐ IF-1 (I3, R-169 appended) — the fire solution
+                    HighArc         = evt.HighArc,
+                    BodyStance      = evt.BodyStance,   // ⭐ CE-2326 (appended)
+                    RaisedAt        = evt.RaisedAt,   // ⭐ CE-2180 (R-169 appended) — when the brain raised it
+                    FuzeSeconds     = evt.FuzeSeconds,   // ⭐ CE-3235 (R-169 appended) — a thrown-back live round's fuze left
+                    BurnSeconds     = evt.BurnSeconds,   // ⭐ CE-3236 (R-169 appended) — a thrown-back canister's burn left
+                    RequestId       = evt.RequestId,     // ⭐ Q94 A-1 (R-3018)
+                    OriginalShooterEntityId = !evt.OriginalShooter.IsNull && _entityMap.TryGetNetworkId(evt.OriginalShooter, out int originalNetId) ? originalNetId : 0,   // ⭐ CE-4155 (SR-82)
                 });
                 SentSampleCount++;
             }
@@ -119,6 +131,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

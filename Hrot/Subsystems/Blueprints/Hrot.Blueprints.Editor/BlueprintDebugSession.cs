@@ -1,3 +1,4 @@
+using Hrot.Diagnostics.Breakpoints;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
@@ -10,6 +11,7 @@ using Hrot.Blueprints.Editor.Debug;
 using BPCompilerMode = Hrot.Blueprints.Core.Compiler.CompilerMode;
 using EventEntryNode = Hrot.Blueprints.Core.Assets.EventEntryNode;
 using Graph = Hrot.Blueprints.Core.Assets.Graph;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Blueprints.Core.Debug;
 
@@ -572,10 +574,22 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
     public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType)
     {
-        // Auto-instrumentation: if no DebugMap yet for this asset, request a Trace compile.
-        // Trace mode includes watch probes + breakpoints. If the asset is already Debug-compiled
-        // the instrumentation service handles upgrading without recompiling if possible.
-        if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
+        // ⭐⭐⭐ Auto-instrumentation: request a Trace compile when this PIN cannot yet report values.
+        //
+        // 🔴 C-watch (Batch 69) -- the old guard was `!_debugMaps.ContainsKey(assetId)`, i.e. "only
+        //    when the asset has NO map at all". ⛔ That skipped the case the comment claimed to
+        //    handle: set a BREAKPOINT first (which compiles in Debug) and the asset HAS a map, so
+        //    adding a watch requested nothing -- and `DebugProbeInsertion:149` emits
+        //    `PinValueChanged` only under `CompilerMode.Trace`. ⇒ the watch sat there receiving
+        //    nothing, with `(pending)` in the cell forever and no way for the designer to tell that
+        //    from "the value has not changed".
+        //
+        // ⭐ The right question is not "is there a map" but "does the map know this pin" -- which is
+        //   exactly what a Trace compile adds. A Debug map resolves no pins, so this fires; a Trace
+        //   map already has it, so it does not.
+        if (_onInstrumentationRequested != null
+            && (!_debugMaps.TryGetValue(assetId, out var existingMap)
+                || existingMap.TryGetPinById(pinId) is null))
         {
             _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Trace);
         }
@@ -634,6 +648,94 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
                 _mgrBpIds[bp.Id] = mgrId;
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-476</c> — the behaviour registry, so a <b>Behavior-dispatch</b> blueprint (<c>BrainTier 3</c>,
+    /// <c>CE-446</c>) can be read: its registrar registers a <see cref="Fdp.Toolkit.Behavior.BehaviorDefinition"/> only,
+    /// never a <see cref="BlueprintDefinition"/>, so <see cref="CaptureLiveState"/>'s registry lookup cannot see it.
+    /// Must be called from the same site as <see cref="SetDataBreakpointManager"/> — both hosts hold the registry.
+    /// </summary>
+    public void SetBehaviorRegistry(Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors) => _behaviors = behaviors;
+
+    private Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviors;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-476</c> — <b>the live state of the Behavior-dispatch blueprint <paramref name="self"/> runs</b>, as the
+    /// same <see cref="BlueprintStateSnapshot"/> an Instance blueprint yields: decoded working fields + latent cursor.
+    /// 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c> §2 D5.
+    /// </summary>
+    /// <remarks>
+    /// <para>⭐ <b>One decoder, not a second one.</b> The root block is the emitted <c>Block { In; St }</c> (S2,
+    /// <c>DESIGN_Unified_Behaviour_Run</c>), registered as <c>BlackboardLayoutType</c>; the cursor is in the root STATE slot. It is read with this
+    /// session's exact managed-layout struct arm (<see cref="TryReadStruct"/> — ⛔ not <c>Marshal.PtrToStructure</c>,
+    /// whose marshalled model mis-reads <c>bool</c> and counts an <c>[InlineArray]</c> as one element), and each field
+    /// then gets the same fixed-list formatting the Instance decode applies.</para>
+    /// <para>⚠ No <c>BlueprintDefinition.StateFields</c> exists for this dispatch (the compiler emits none), so the
+    /// fields come from the type itself — the layout the compiler emitted, so it cannot drift from it.</para>
+    /// </remarks>
+    /// <returns><c>null</c> when no registry is wired, the entity is not running a blueprint behaviour, the behaviour
+    /// is unregistered, or its root block is absent.</returns>
+    public unsafe BlueprintStateSnapshot? CaptureLiveBehaviorState(Entity self)
+    {
+        if (_behaviors is null || !_view.IsAlive(self) || !_view.HasComponent<BehaviorState>(self)) return null;
+
+        var brain = _view.GetComponentRO<BehaviorState>(self);
+        if (brain.BrainTier != Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint || brain.ActiveBehaviorHash == 0)
+            return null;
+        if (!_behaviors.TryGetDefinition(brain.ActiveBehaviorHash, out var def)) return null;
+        if (def.BlackboardLayoutType is not { IsValueType: true } layout) return null;
+
+        if (!Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytesInView(_view, self, out byte* root) || root == null)
+            return null;
+
+        // ⭐ The managed size — ComponentBytes, the ONE owner of "a value's managed image" (⛔ not Marshal.SizeOf).
+        //   ⚠ It requires an unmanaged type; a layout carrying references is not a block we can read — a debug read
+        //   reports "absent", it never throws into the API.
+        int size;
+        try { size = ComponentBytes.SizeOf(layout); }
+        catch (ArgumentException) { return null; }
+        var bytes = new ReadOnlySpan<byte>(root, size).ToArray();
+        if (!TryReadStruct(bytes, layout, out var block) || block is null) return null;
+
+        // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — the block is { Params In; Vars St }: Variables are St's fields, flat as
+        //   before; the authored input keeps its name "Params". The cursor is NOT in the block: it is the first field of
+        //   the brain state (the generated Exec) in the root STATE slot.
+        var fields = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var field in layout.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            object? value = field.GetValue(block);
+            if (value is null) continue;
+            if (field.Name == "St")
+            {
+                foreach (var v in field.FieldType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                    if (v.GetValue(value) is { } vv) fields[v.Name] = FormatFieldValue(vv, v.FieldType);
+                continue;
+            }
+            fields[field.Name == "In" ? "Params" : field.Name] = FormatFieldValue(value, field.FieldType);
+        }
+
+        BlueprintLatentCursor? cursor = null;
+        if (Fdp.Toolkit.Behavior.RootStateAccess.TryGetRootBytesInView(_view, self, out byte* exec, out int execLength)
+            && exec != null && execLength >= sizeof(BlueprintLatentCursor))
+            cursor = *(BlueprintLatentCursor*)exec;
+
+        return new BlueprintStateSnapshot(
+            Self:        self,
+            AssetId:     Guid.Empty,
+            AssetName:   def.Name ?? string.Empty,
+            Dispatch:    BlueprintDispatchKind.Behavior,
+            FieldValues: fields,
+            Cursor:      cursor);
+    }
+
+    // The Instance decode's per-field rule applied to an already-read value: a fixed-list wrapper renders through the
+    // ONE list formatter (MarshalFromBytes' own arm); everything else is the exact value the struct read produced.
+    private static object FormatFieldValue(object value, Type type)
+    {
+        if (!type.IsValueType || type.IsPrimitive || type.IsEnum) return value;
+        var bytes = ComponentBytes.Of(value, ComponentBytes.SizeOf(type));
+        return TryFormatFixedList(bytes, type, out var formatted) ? formatted : value;
     }
 
     /// <summary>
@@ -757,7 +859,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         // Seed registrations + live baseline so PlaybackSystem.ApplyFrame finds all tables.
         // Use includeTransient: true so SyncFrom uses GetSnapshotableMask(true) = all registered
         // component types, which is a superset of the recordable types the keyframe contains.
-        // Without this, components marked [DataPolicy(DataPolicy.NoSnapshot)] are recordable but
+        // Without this, components marked [DataPolicy(DataPolicy.NoPreview)] are recordable but
         // NOT snapshotable — the keyframe captures them but the scratch repo never registered
         // the type → PlaybackSystem.ApplyChunkData throws "type ID not found".
         _scratchRepo.SyncFrom(_liveRepo, includeTransient: true);
@@ -881,6 +983,252 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         => _activeEntities.TryGetValue(assetId, out var set)
             ? set.ToList().AsReadOnly()
             : Array.Empty<Entity>().AsReadOnly();
+
+    // ---- IBlueprintDebugSession -- live write (Batch 84, row 59c) -----------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W3</c> — THE LIVE WRITE, AND THERE IS NOW EXACTLY ONE WAY IT HAPPENS: IT STAGES.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §1 *(the run-state table)* · §6 <c>W3</c>.
+    ///
+    /// <para>🔒 <b><c>R-126</c>, the user, verbatim:</b> <i>"I do not understand how comes that something
+    /// can be unwritable… we should be able to write anything anywhere"</i> ⇒ ⭐⭐⭐ <b>RUNNING IS NOT A
+    /// REASON TO REFUSE, IT IS A REASON TO STAGE.</b> The staged bytes are PULLED into the repository by
+    /// the kernel's <c>PreFrame</c> drain at the next advancing tick.</para>
+    ///
+    /// <para>⭐ <b>The manager is DERIVED, not a new argument</b> — <see cref="SetDataBreakpointManager"/>
+    /// already hands it to this session for breakpoints.</para>
+    ///
+    /// <para>⛔⛔ <b>WHAT <c>W3</c> DELETED, and why each deletion is safe NOW and was not before:</b>
+    /// <list type="table">
+    ///   <item><term><c>!IsClockHalted() ⇒ refuse</c></term><description>⭐ <c>R-126</c> deletes it. It
+    ///   was correct only while nothing drained a staged write: refusing was better than staging into a
+    ///   queue nobody emptied. ⇒ the drain wire *(design §8)* is what makes staging the honest
+    ///   answer.</description></item>
+    ///   <item><term><c>MIN</c>'s <c>WriteFieldNow</c> arm</term><description>⭐⭐ <c>R-130</c>:
+    ///   <i>"yellow is an indication of staged change… makes no sense if value is directly written
+    ///   now"</i> — a direct write is never in the pending set, so it never yellows, and the two paths
+    ///   disagreed about what a designer's edit looks like. ⚠ <b>The BEHAVIOUR changes and that is
+    ///   intended</b> *(§1's table)*: a toolbar-paused edit now stays 🟡 <b>staged</b> until the clock
+    ///   advances, instead of landing immediately and invisibly.</description></item>
+    ///   <item><term>the <c>IsPaused</c> three-way</term><description>⭐ there is no longer anything to
+    ///   choose between. 📌 <c>R-63</c> still holds and is still the reason staging is right while a
+    ///   breakpoint holds a rewound view — it is simply no longer a special case.</description></item>
+    /// </list></para>
+    ///
+    /// <para>⭐ <b>What survives is DATA-shaped only</b> *(<c>R-126</c>)*: no manager to stage into, and
+    /// the negative-offset guard. ⚠ The other three — no entity, unresolvable field, size mismatch —
+    /// are the CALLER's *(<c>BlueprintLiveValueWriter</c>)*, and <c>Q32</c> §2.1's size gate must stay.</para>
+    /// </summary>
+    public bool TryWriteWorkingStateField(
+        Entity entity, Type componentType, int componentOffsetBytes, ReadOnlySpan<byte> bytes)
+    {
+        if (componentType is null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⭐ false, not an exception — the caller turns this answer into a sentence for the designer.
+        //   ⚠ This is now the ONLY `false` this method can return: a session with no manager has
+        //     nowhere to stage. Everything else either lands or throws.
+        if (_dataBreakpointManager is null) return false;
+
+        // ⭐⭐⭐ Batch 102 (102a) — THE OFFSET ARRIVES FULLY RESOLVED, and this method no longer
+        //    transforms it. ⛔ It used to apply WorkingStateLayout.ComponentOffsetOf (+8)
+        //    UNCONDITIONALLY, which is correct for AiPrimitive's flat block and WRONG for an Instance
+        //    slot — whose payload the partition allocator places and whose header is a 16-byte cursor,
+        //    not an 8-byte hash. ⇒ the +8 now lives in ResolveWorkingStateField's AiPrimitive arm,
+        //    where the layout is actually known. 📌 See WorkingStateFieldRef.ComponentOffsetBytes.
+        // ⚠ A negative offset is a broken layout, not a field near the start — fail LOUDLY rather than
+        //   memcpy at a negative index (the guard ComponentOffsetOf used to provide).
+        if (componentOffsetBytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(componentOffsetBytes),
+                $"A component offset must not be negative (was {componentOffsetBytes}).");
+
+        // ⭐⭐⭐ ONE PATH, EVERY RUN STATE. The kernel's PreFrame ResumeAndDrainSystem pulls this into
+        //    the repository on the next advancing tick — and until it does, StagedWriteView reports the
+        //    row 🟡 pending and shows these very bytes (W4). 📌 R-130 is true by construction.
+        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffsetBytes, bytes);
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 97 (<c>97c</c>) — the NAME → <c>(component, RAW offset, size)</c> lookup the write
+    /// path was missing.</b>
+    ///
+    /// <para>⭐ <b>Same two tables the READ consults</b> — <c>mapIndex.StateLayout.Fields</c> with a
+    /// fallback to <c>def.StateFields</c>, in that order, exactly as
+    /// <see cref="CaptureAiPrimitiveState"/> does. ⚠ <b>The LOOP is not shared and could not be</b>: the
+    /// read iterates every field to produce values, this looks one up by name. ⇒ 📌 the agreement is
+    /// asserted by a rail rather than bought by restructuring a hot read path.</para>
+    ///
+    /// <para>⛔⛔ <b>RAW offsets.</b> The read computes
+    /// <c>WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes)</c> before slicing; ⭐ this returns
+    /// <c>field.OffsetBytes</c> UNCONVERTED, because
+    /// <see cref="TryWriteWorkingStateField"/> applies the header itself.</para>
+    ///
+    /// <para>⛔ <b><c>AiPrimitive</c> only.</b> An <c>Instance</c> blueprint's fields are offset within
+    /// a per-instance payload *(<c>payloadOffset + field.OffsetBytes</c>)* — a different space — and
+    /// the writer applies the <c>AiPrimitive</c> convention. ⚠ Answering for one would not mis-report a
+    /// value, it would <b>corrupt memory</b>.</para>
+    /// </summary>
+    public WorkingStateFieldRef? ResolveWorkingStateField(Entity entity, Guid assetId, string fieldName)
+    {
+        if (string.IsNullOrEmpty(fieldName)) return null;
+
+        _debugMaps.TryGetValue(assetId, out var mapIndex);
+        int blueprintId = BlueprintIdHash.Compute(assetId);
+        _registry.TryGetById(blueprintId, out var def);
+        if (def is null) return null;
+
+        return def.Kind switch
+        {
+            BlueprintDispatchKind.AiPrimitive => ResolveAiPrimitiveField(entity, def, mapIndex, fieldName),
+            BlueprintDispatchKind.Instance    => ResolveInstanceField(entity, blueprintId, def, mapIndex, fieldName),
+
+            // ⛔ Still refused for anything else — 📌 the remarks: never guess for a dispatch kind laid
+            //    out another way. ⭐ Batch 102 turned ONE of the two refusals into an arm; ⚠ the
+            //    remaining kinds are a refusal because nobody has measured their layout, ⛔ not because
+            //    refusing is "safe".
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐ The <c>AiPrimitive</c> arm — a FLAT <c>Blackboard1024</c> working-state block.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — this arm now VERIFIES THE LAYOUT before handing out an
+    /// address, and that is a fix, not a refactor.</b> 📐 <c>CaptureAiPrimitiveState:1395</c> refuses to
+    /// display a single field when <c>storedHash != def.StructureHash</c> — ⛔ <b>and the write path had
+    /// no such check</b>. ⚠ 📌 The handoff: <i>"if the read verifies identity before trusting an offset,
+    /// the WRITE must too — a stale layout writing at a valid-looking offset is exactly how memory gets
+    /// corrupted."</i> ⇒ the read would show the designer NOTHING while the write happily scribbled.</para>
+    /// </summary>
+    /// <summary>
+    /// 🔴🔴 <b><c>CE-310</c> / <c>P4</c>-① (<c>2026-09-22</c>) — THIS ARM WAS DEAD AND NOBODY NOTICED.</b>
+    ///
+    /// <para>📐 It read <c>Blackboard1024</c> — ⚠ a <c>&lt;c&gt;</c>, not a <c>cref</c>, because
+    /// <c>P4</c>-① deleted that type and a cref to it no longer resolves — whose working state moved to the
+    /// Blueprint tier ladder in <c>SLICE2</c> — ⛔ <b>and nothing has added that component since.</b>
+    /// So <c>HasComponent</c> was false on every call and this returned <c>null</c> every time:
+    /// AiPrimitive working-state editing was broken in the editor <b>and</b> in the debug API, with no
+    /// exception and no failing test.</para>
+    ///
+    /// <para>⛔⛔ <b>The asymmetry that hid it:</b> the READ path had both arms
+    /// (<see cref="CaptureAiPrimitiveOccurrences"/> first, the legacy block behind it); the WRITE path
+    /// had only the legacy one — 📌 against this file's own header demand that <i>"if the read verifies
+    /// identity before trusting an offset, the WRITE must too."</i> ⇒ it is now <b>built by mirroring
+    /// the read</b>, exactly as Batch 102 built <see cref="ResolveInstanceField"/>.</para>
+    ///
+    /// <para>⚠⚠ <b>NO <c>+8</c> ANY MORE, and that is not an omission.</b> The <c>WorkingStateLayout</c>
+    /// header belonged to the <c>Memory+8</c> block inside <c>Blackboard1024</c>. An occurrence slot has
+    /// no such header — <see cref="DecodeStateFields"/> reads at <c>PayloadOffset + field.OffsetBytes</c>
+    /// — ⛔ so applying <c>ComponentOffsetOf</c> here would land <b>8 bytes past every field</b>, which
+    /// is the same trap <see cref="ResolveInstanceField"/> documents for <c>Instance</c>.</para>
+    ///
+    /// <para>⛔ <b>AMBIGUITY REFUSES rather than guesses.</b> One blueprint may have several occurrences
+    /// on one entity (that is the whole point of <c>SLICE2</c>), and a bare field name cannot say which.
+    /// The read disambiguates with a per-occurrence LABEL; a writer has no such channel ⇒ <b>more than
+    /// one match returns <c>null</c></b>. 📌 §19.6 ⑤ — a slot the caller cannot name is a hard refusal,
+    /// never a write to the first one that matched.</para>
+    /// </summary>
+    private unsafe WorkingStateFieldRef? ResolveAiPrimitiveField(
+        Entity entity, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
+    {
+        if (FindField(mapIndex, def, fieldName) is not { } f) return null;
+
+        // ⭐ The read's own component pick, in the read's own order — the ladder.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
+        {
+            var spec = tiers[t];
+            if (!spec.HasInView(_view, entity)) continue;
+
+            ReadOnlySpan<byte> store = spec.BytesInView(_view, entity);
+            if (store.IsEmpty) return null;
+
+            int payloadOffset = -1;
+            int matches       = 0;
+            fixed (byte* mem = store)
+            {
+                int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
+                for (int i = 0; i < slotCount; i++)
+                {
+                    if (BlueprintBlackboardPartitions.GetSlotKind(mem, i) != OccurrenceKind.Hsm) continue;
+
+                    // ⭐ The SAME identity gate the read applies before it trusts any offset.
+                    ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, i);
+                    if (entry.StructureHash != (uint)def.StructureHash) continue;
+
+                    payloadOffset = entry.PayloadOffset;
+                    matches++;
+                }
+            }
+
+            if (matches != 1) return null;
+            return new WorkingStateFieldRef(spec.ComponentType, payloadOffset + f.Offset, f.Size);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — THE <c>Instance</c> ARM. Built by MIRRORING THE READ.</b>
+    ///
+    /// <para>🔴 <b>User:</b> <i>"what is correct about not being able to write into a live blackboard of
+    /// instance when simulation is paused?"</i> ⭐⭐ <b>Nothing</b> — 📌 <c>M-36</c> carries the
+    /// retraction. 📐 The read has resolved this address all along *(it is what displayed the user's
+    /// number)*; ⛔ only the write refused.</para>
+    ///
+    /// <para>⭐ <b>Same component pick as <c>CaptureInstanceStateFromDefinition</c></b> — by what the
+    /// entity HAS, across the three tiers — ⭐⭐ <b>and the same slot maths</b>, through
+    /// <see cref="TryGetInstancePayloadOffset"/>, which both sides now call.</para>
+    ///
+    /// <para>⚠⚠ <b>NO <c>+8</c> HERE, and that is the whole reason the offset contract had to change.</b>
+    /// An <c>Instance</c> field lives at <c>payloadOffset + field.OffsetBytes</c>: the partition
+    /// allocator's slot offset already places it, and the block carries a 16-byte
+    /// <c>BlueprintLatentCursor</c>, ⛔ <b>not the 8-byte working-state header <c>AiPrimitive</c> has.</b>
+    /// ⇒ a writer that applied <c>ComponentOffsetOf</c> unconditionally would land <b>8 bytes past every
+    /// Instance field.</b></para>
+    /// </summary>
+    private WorkingStateFieldRef? ResolveInstanceField(
+        Entity entity, int blueprintId, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
+    {
+        if (FindField(mapIndex, def, fieldName) is not { } f) return null;
+
+        // ⭐ O3a / B3: the read's own component pick, in the read's own order — now the ladder.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
+        {
+            var spec = tiers[t];
+            if (!spec.HasInView(_view, entity)) continue;
+            if (TryGetInstancePayloadOffset(spec.BytesInView(_view, entity), blueprintId, out int payload))
+                return Ref(spec.ComponentType, payload);
+        }
+
+        return null;
+
+        WorkingStateFieldRef Ref(Type component, int payloadOffset)
+            => new(component, payloadOffset + f.Offset, f.Size);
+    }
+
+    // ⛔ O3a / B3 (2026-09-20): `TryInstanceSlot<T>` is DELETED. It was the local generic that kept
+    //   the three tiers from being three copies — the right instinct, but it still needed a named
+    //   type per call, so the ladder stayed spelled out at its one caller. Its two halves now live
+    //   in BlueprintTierSpec (HasInView + BytesInView) and its caller walks BlueprintTierTable.
+
+    /// <summary>⭐ NAME → <c>(offset, size)</c> from the SAME two tables the read consults, in the same
+    /// order: the debug map's editor-authored layout first, the compiled <c>StateFields</c> second.</summary>
+    private static (int Offset, int Size)? FindField(
+        DebugMapIndex? mapIndex, BlueprintDefinition def, string fieldName)
+    {
+        var layoutFields = mapIndex?.StateLayout.Fields;
+        if (layoutFields != null)
+            foreach (var field in layoutFields)
+                if (string.Equals(field.Name, fieldName, StringComparison.Ordinal))
+                    return (field.OffsetBytes, field.SizeBytes);
+
+        if (def.StateFields != null && def.StateFields.TryGetValue(fieldName, out var descriptor))
+            return (descriptor.OffsetBytes, descriptor.SizeBytes);
+
+        return null;
+    }
 
     // ---- IBlueprintDebugSession -- pause state ------------------------------
 
@@ -1051,15 +1399,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
         // (b) End-of-tick path (all successors terminal): target the first executable node(s)
         // of the next iteration = exec-successors of the graph's EventEntryNode.
-        var entryNode = graph.Nodes.OfType<EventEntryNode>().FirstOrDefault();
-        if (entryNode == null)
+        // ⭐ CE-2017 (DESIGN_Typed_Event_Nodes E6, I11) — an Event graph may hold several event nodes, one handler each:
+        //   the next iteration starts at the handler(s) whose chain reaches the node we stopped on (a shared tail is
+        //   reached by several), never just the graph's first event node.
+        var entryNodes = EntriesReaching(graph, lastAuthoredId);
+        if (entryNodes.Count == 0)
         {
             // Degenerate: no EventEntryNode in the graph. Fall back to Continue().
             Continue();
             return;
         }
 
-        var entrySuccessors = ExecSuccessors.GetSuccessors(graph, entryNode.Id);
+        var entrySuccessors = entryNodes.SelectMany(en => ExecSuccessors.GetSuccessors(graph, en.Id)).Distinct().ToList();
         var firstNodes = entrySuccessors
             .Where(s => ExecSuccessors.GetSuccessors(graph, s).Count > 0)
             .ToList();
@@ -1086,6 +1437,32 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         // Resume — the temp BP handles re-pause at the first node of the next iteration.
         _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐ CE-2017 (E6) — the event nodes of <paramref name="graph"/> whose exec chain reaches <paramref name="nodeId"/>;
+    /// when none does (the node is unreachable, or the graph's single entry is untyped), every event node — for a
+    /// one-entry graph that is exactly the old "the graph's EventEntryNode".
+    /// </summary>
+    internal static IReadOnlyList<EventEntryNode> EntriesReaching(Hrot.Blueprints.Core.Assets.Graph graph, Guid nodeId)
+    {
+        var entries = graph.Nodes.OfType<EventEntryNode>().ToList();
+        if (entries.Count <= 1) return entries;
+        var reaching = entries.Where(e =>
+        {
+            var seen = new HashSet<Guid> { e.Id };
+            var work = new Stack<Guid>();
+            work.Push(e.Id);
+            while (work.Count > 0)
+            {
+                var at = work.Pop();
+                if (at == nodeId) return true;
+                foreach (var next in ExecSuccessors.GetSuccessors(graph, at))
+                    if (seen.Add(next)) work.Push(next);
+            }
+            return false;
+        }).ToList();
+        return reaching.Count > 0 ? reaching : entries;
     }
 
     /// <summary>
@@ -1283,44 +1660,142 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
     // Reads AiPrimitive working-state fields from Blackboard1024 (BPF-001 section 8.6).
     // NGS-2.2: accepts an explicit view so the caller can redirect to the scratch repo.
-    private void CaptureAiPrimitiveState(
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7b-2</c> — <b>SHOW ALL the occurrences, each LABELLED and DECODED.</b> 📄 §24.11.
+    ///
+    /// <para>🔴 <b>Why this changed shape.</b> Before <c>O7</c> an AiPrimitive's working state lived in
+    /// <c>Blackboard1024</c> at a fixed offset — <b>one per entity</b>, so one row. After <c>O7</c> it
+    /// lives in an occurrence slot keyed by the <c>(region, state)</c> the kernel stamps, so there can
+    /// be <b>N</b>. ⛔ Showing only the active one would hide exactly what <c>BP-297</c> is about: two
+    /// regions quietly holding different state for the same asset.</para>
+    ///
+    /// <para>⭐ <b>Legacy layout still read.</b> An entity with no occurrence store — or an asset whose
+    /// thunk predates the change — still resolves through the old path, so this is additive for
+    /// anything not yet migrated.</para>
+    /// </summary>
+    private unsafe void CaptureAiPrimitiveState(
         Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
         Dictionary<string, object> outFields,
         ISimulationView? view = null)
     {
         var effectiveView = view ?? _view;
-        if (!effectiveView.HasComponent<Blackboard1024>(self)) return;
-        ref readonly var bb = ref effectiveView.GetComponentRO<Blackboard1024>(self);
 
-        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+        // ⛔⛔ P4-① (2026-09-22): the LEGACY ARM IS GONE, and with it the last `Blackboard1024` read.
+        //
+        // It decoded "one working state per entity" from that component's `Memory + 8` block behind
+        // an 8-byte StructureHash — the Slice-1 model. SLICE2 moved AiPrimitive working state to the
+        // Blueprint tier ladder and nothing has added the component since, so this fallback could
+        // only ever return immediately on its own `HasComponent` guard. 📄 §30.13.
+        //
+        // ⭐ `CaptureAiPrimitiveOccurrences` is now the WHOLE answer, not the preferred half of two:
+        //   it returns false when the entity has no store or no matching slot, and "no state to show"
+        //   is then the honest result rather than a cue to consult a component nobody writes.
+        CaptureAiPrimitiveOccurrences(self, def, mapIndex, outFields, effectiveView);
+    }
 
-        if (bytes.Length < 8) return;
-
-        ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
-        if (storedHash != def.StructureHash) return;
-
-        var layoutFields = mapIndex?.StateLayout.Fields;
-        if (layoutFields != null && layoutFields.Count > 0)
+    /// <summary>
+    /// Walks the entity's occurrence store for every slot this asset owns, labels each by the
+    /// <c>(region, state)</c> it was keyed for, and decodes its fields.
+    /// Returns <c>true</c> when the store answered — so the caller knows not to fall back.
+    /// </summary>
+    private unsafe bool CaptureAiPrimitiveOccurrences(
+        Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
+        Dictionary<string, object> outFields, ISimulationView effectiveView)
+    {
+        var tiers = BlueprintTierTable.Ascending;
+        ReadOnlySpan<byte> store = default;
+        for (int t = 0; t < tiers.Count; t++)
         {
-            foreach (var field in layoutFields)
+            if (!tiers[t].HasInView(effectiveView, self)) continue;
+            store = tiers[t].BytesInView(effectiveView, self);
+            break;
+        }
+        if (store.IsEmpty) return false;
+
+        // The hosting machine's id — the other half of the key the thunk computed.
+        //
+        // ⭐⭐⭐ O7c-④d (2026-09-23): READ FROM THE ROOT HSM SLOT, THROUGH THE VIEW.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+        //   ⭐ This is the consumer RootHsmAccess.TryCopyInstanceInView was built for in ④a: this
+        //     method is handed an ISimulationView that may be a read-only SNAPSHOT, so it must not
+        //     cast to EntityRepository — which is exactly why that seam returns a COPY rather than
+        //     the pointer TryGetInstance hands the tick arm.
+        //   ⚠ The buffer is the LARGEST kernel tier, because the width is a runtime value and a
+        //     short destination is refused (TryCopyInstanceInView reports the width it needed).
+        //   ⛔ MachineId is InstanceHeader's first field and the header is shared by all three tiers,
+        //     so this read does not depend on which tier the machine landed in.
+        uint machineId = 0;
+        Span<byte> instanceCopy = stackalloc byte[256];
+        if (global::Fdp.Toolkit.Behavior.RootHsmAccess.TryCopyInstanceInView(effectiveView, self, instanceCopy, out int instanceWidth)
+            && instanceWidth >= sizeof(uint))
+        {
+            machineId = System.BitConverter.ToUInt32(instanceCopy);
+        }
+
+        bool any = false;
+        fixed (byte* mem = store)
+        {
+            int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
+            for (int i = 0; i < slotCount; i++)
             {
-                int start = 8 + field.OffsetBytes;
-                if (start + field.SizeBytes > bytes.Length) continue;
+                if (BlueprintBlackboardPartitions.GetSlotKind(mem, i) != OccurrenceKind.Hsm) continue;
+
+                ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, i);
+                if (entry.StructureHash != (uint)def.StructureHash) continue;
+
+                // ⭐ The label is EXACT or absent — never guessed. See HsmOccurrence.TryDescribe.
+                string label = global::Fdp.Toolkit.Behavior.HsmOccurrence.TryDescribe(
+                        machineId, def.AssetId, entry.BlueprintId,
+                        out int region, out ushort stateId)
+                    ? global::Fdp.Toolkit.Behavior.HsmOccurrence.DescribeLabel(region, stateId)
+                    : $"Occurrence 0x{entry.BlueprintId:X8}";
+
+                DecodeStateFields(store, entry.PayloadOffset,
+                                  mapIndex?.StateLayout, def, label, outFields);
+                any = true;
+            }
+        }
+
+        return any;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>THE decode loop — one body, four former copies.</b> Prefers the DebugMap's
+    /// editor-authored layout and falls back to the registrar's compiled offsets.
+    ///
+    /// <para>⭐ <paramref name="namePrefix"/> is what makes "show all" legible: with N occurrences the
+    /// bare field name is ambiguous, so each is emitted as <c>"Region 0 / State 4 · Counter"</c>.
+    /// ⛔ A null prefix keeps the single-occurrence spelling for the legacy path.</para>
+    /// </summary>
+    private static void DecodeStateFields(
+        ReadOnlySpan<byte> bytes, int payloadOffset,
+        DebugStateLayout? stateLayout, BlueprintDefinition? def,
+        string? namePrefix, Dictionary<string, object> outFields)
+    {
+        string Name(string field) => namePrefix is null ? field : namePrefix + " \u00B7 " + field;
+
+        if (stateLayout != null && stateLayout.Fields.Count > 0)
+        {
+            foreach (var field in stateLayout.Fields)
+            {
+                int start = payloadOffset + field.OffsetBytes;
+                if (field.SizeBytes <= 0 || start + field.SizeBytes > bytes.Length) continue;
                 var fieldType = ResolveType(field.Type);
                 if (fieldType is null) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, field.SizeBytes).ToArray(), fieldType);
-                if (raw != null) outFields[field.Name] = raw;
+                if (raw != null) outFields[Name(field.Name)] = raw;
             }
+            return;
         }
-        else
+
+        if (def?.StateFields is { Count: > 0 } stateFields)
         {
-            foreach (var (name, descriptor) in def.StateFields)
+            foreach (var (name, descriptor) in stateFields)
             {
-                int start = 8 + descriptor.OffsetBytes;
-                if (start + descriptor.SizeBytes > bytes.Length) continue;
+                int start = payloadOffset + descriptor.OffsetBytes;
+                if (descriptor.SizeBytes <= 0 || start + descriptor.SizeBytes > bytes.Length) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
-                if (raw != null) outFields[name] = raw;
+                if (raw != null) outFields[Name(name)] = raw;
             }
         }
     }
@@ -1335,27 +1810,43 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         cursor = null;
         var effectiveView = view ?? _view;
 
-        if (effectiveView.HasComponent<BlueprintBlackboard1024>(self))
+        // ⭐ O3a / B3: was a three-arm if/else chain over the tiers, ascending. ⚠ The view form is
+        //   used because `effectiveView` may be a HISTORICAL snapshot, not the live repository.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
         {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard1024>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
+            var spec = tiers[t];
+            if (!spec.HasInView(effectiveView, self)) continue;
+
+            ReadInstanceState(spec.BytesInView(effectiveView, self),
+                blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
+            break;
         }
-        else if (effectiveView.HasComponent<BlueprintBlackboard4096>(self))
-        {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard4096>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
-        }
-        else if (effectiveView.HasComponent<BlueprintBlackboard16384>(self))
-        {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard16384>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
-        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — WHERE AN <c>Instance</c> BLUEPRINT'S SLOT PAYLOAD STARTS.
+    /// The ONE owner of that question, called by the READ and by the WRITE.</b>
+    ///
+    /// <para>📌 The handoff: <i>"⛔ Do not re-derive the slot maths — ruling 9: if the read's resolution
+    /// can be factored so both sides call it, do that."</i> ⭐ It could, and this is it.</para>
+    ///
+    /// <para>⚠⚠ <b>Why sharing THIS specifically matters more than tidiness.</b> An <c>Instance</c>
+    /// blackboard is partitioned: several blueprints share one component at slot offsets the allocator
+    /// chose at runtime. ⇒ ⛔ <b>a write that computed the payload offset even slightly differently from
+    /// the read would not show a wrong number — it would edit ANOTHER BLUEPRINT'S field.</b> 📌 <c>Q32</c>
+    /// §2.1: <i>"an out-of-range offset is MEMORY CORRUPTION, not a wrong value."</i></para>
+    ///
+    /// <para>⭐ The <c>fixed</c> lives here so neither caller has to be <c>unsafe</c> about it.</para>
+    /// </summary>
+    internal static unsafe bool TryGetInstancePayloadOffset(
+        ReadOnlySpan<byte> bytes, int blueprintId, out int payloadOffset)
+    {
+        payloadOffset = 0;
+        if (bytes.IsEmpty) return false;
+
+        fixed (byte* memory = bytes)
+            return BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset);
     }
 
     internal static unsafe void ReadInstanceState(
@@ -1364,10 +1855,13 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
     {
         cursor = null;
-        fixed (byte* memory = bytes)
         {
-            if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
-                return;
+            // ⭐⭐⭐ Batch 102 (102a) — THE SLOT MATHS, through its ONE owner.
+            // 📌 Ruling 9 / the handoff: "do not re-derive the slot maths". The WRITE path
+            //    (ResolveWorkingStateField's Instance arm) calls this same helper, so a read and a
+            //    write cannot disagree about where a field lives — which, on a byte writer, is the
+            //    difference between editing a value and scribbling on the neighbouring one.
+            if (!TryGetInstancePayloadOffset(bytes, blueprintId, out int payloadOffset)) return;
 
             if (payloadOffset + 16 > bytes.Length) return;
             cursor = System.Runtime.InteropServices.MemoryMarshal.Read<BlueprintLatentCursor>(
@@ -1719,7 +2213,24 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         return entry.SourceStartLine;
     }
 
-    private static Type? ResolveType(string typeFullName) => typeFullName switch
+    /// <summary>
+    /// ⭐⭐ <c>S3</c> — FQN → loaded CLR type, <b>across every loaded assembly</b>.
+    ///
+    /// <para>
+    /// 🔴 <c>Type.GetType(fqn)</c> alone searches only the CALLING assembly and corelib, so it never
+    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.HillAttackRunner</c>
+    /// — and the field was silently <b>skipped</b>, not shown as undecodable. ⭐ The nine-case switch
+    /// below is kept: it short-circuits the common primitives before any assembly walk, and it is what
+    /// makes the FALLBACK's cost irrelevant.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Mirrors <c>ComponentFieldReflector.ResolveType</c> deliberately — the same
+    /// <c>EditorTypeResolutionScope</c> (BP-62), so a referenced-but-not-yet-loaded assembly is
+    /// force-loaded rather than silently missing here and present there.
+    /// </para>
+    /// </summary>
+    public static Type? ResolveType(string typeFullName) => typeFullName switch
     {
         "System.Int32"   => typeof(int),
         "System.Single"  => typeof(float),
@@ -1730,7 +2241,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         "System.UInt64"  => typeof(ulong),
         "System.Int16"   => typeof(short),
         "System.Byte"    => typeof(byte),
-        _                => Type.GetType(typeFullName),
+        _                => Hrot.Blueprints.Editor.NodeDrawers.ComponentFieldReflector
+                                .ResolveType(typeFullName),
     };
 
     public static object? MarshalFromBytes(byte[] bytes, Type type)
@@ -1742,8 +2254,94 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (type == typeof(uint))   return System.Runtime.InteropServices.MemoryMarshal.Read<uint>(bytes);
         if (type == typeof(long))   return System.Runtime.InteropServices.MemoryMarshal.Read<long>(bytes);
         if (type == typeof(double)) return System.Runtime.InteropServices.MemoryMarshal.Read<double>(bytes);
+        // FC-2/LV-5: narrow primitives, so fixed-list ELEMENTS of these types render as values.
+        if (type == typeof(byte))   return bytes[0];
+        if (type == typeof(sbyte))  return unchecked((sbyte)bytes[0]);
+        if (type == typeof(short))  return System.Runtime.InteropServices.MemoryMarshal.Read<short>(bytes);
+        if (type == typeof(ushort)) return System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(bytes);
+        if (type == typeof(ulong))  return System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
+        if (TryFormatFixedList(bytes, type, out var formatted)) return formatted;
+        if (TryReadStruct(bytes, type, out var value)) return value;
         return bytes;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S3</c> / <c>BP-01</c> — <b>the struct arm.</b> Seven of the editor's eighteen offerable
+    /// types (<c>Vector2/3/4</c>, <c>Quaternion</c>, <c>FixedString32/64/128</c>) reached
+    /// <c>return bytes</c>, so the watch panel showed raw hex for a type the picker itself offers.
+    /// ⛔ <b>That was never a panel bug.</b>
+    ///
+    /// <para>
+    /// ⭐ <b>Reflection is the ruled mechanism</b>, and the ruling bounds it: <i>"reflection-based for
+    /// structs (UI decode only, <b>not on the probe path</b>)"</i>
+    /// (<c>_DONE/blueprints-1/TASK-DETAIL.md:1840</c>). ✅ Honoured by placement — every caller of
+    /// <see cref="MarshalFromBytes"/> is a snapshot/watch read; the probe path never reaches here.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>A structural rule, not an allow-list</b> — an allow-list is the very defect <c>S5</c>
+    /// exists to remove, one layer down. The bound is <b>exactness</b>: an unmanaged value type whose
+    /// managed size is exactly the slice it was handed. ⚠ The design's <i>"small structs only"</i>
+    /// (<c>blueprint-dbg-1:193</c>) is a SCOPE note on what the Debug DD covered, not a byte ceiling;
+    /// inventing a number here would just re-create the silent skip above it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b><see cref="System.Runtime.InteropServices.MemoryMarshal"/>, not
+    /// <c>Marshal.PtrToStructure</c>.</b> The bytes are the MANAGED layout the generated writer stores
+    /// (<c>Unsafe.As</c> onto the blackboard); <c>PtrToStructure</c> reads the MARSHALLED one, and the
+    /// two differ on <c>bool</c>. Reading with the wrong model yields a plausible wrong value, which is
+    /// worse than hex.
+    /// </para>
+    /// </summary>
+    internal static bool TryReadStruct(byte[] bytes, Type type, out object? value)
+    {
+        value = null;
+        if (!type.IsValueType || type.IsEnum || type.IsPrimitive || type.IsGenericTypeDefinition)
+            return false;
+
+        try
+        {
+            if ((bool)IsReferenceOrContainsReferencesMethod.MakeGenericMethod(type).Invoke(null, null)!)
+                return false;                                       // managed => not blittable bytes
+            if (global::Fdp.Core.TypeLayout.SizeOf(type) != bytes.Length)
+                return false;                                       // ⛔ exactness IS the bound
+
+            value = ReadManagedMethod.MakeGenericMethod(type).Invoke(null, new object[] { bytes });
+            return true;
+        }
+        catch
+        {
+            // A ref struct, a pointer field, an open generic — unreflectable. ⭐ Fall through to the
+            // raw bytes rather than throwing: the watch panel must never take the session down.
+            return false;
+        }
+    }
+
+    /// <summary>The one generic frame the reflective call above needs, so the span is created INSIDE
+    /// (a <c>Span&lt;byte&gt;</c> cannot be boxed into an <c>object[]</c> argument list).</summary>
+    private static object ReadManaged<T>(byte[] bytes) where T : struct
+        => System.Runtime.InteropServices.MemoryMarshal.Read<T>(bytes)!;
+
+    private static readonly System.Reflection.MethodInfo IsReferenceOrContainsReferencesMethod =
+        typeof(System.Runtime.CompilerServices.RuntimeHelpers)
+            .GetMethod(nameof(System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences))!;
+
+    private static readonly System.Reflection.MethodInfo ReadManagedMethod =
+        typeof(BlueprintDebugSession).GetMethod(nameof(ReadManaged),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+
+    /// <summary>
+    /// FC-2/LV-5 → FC-3c: thin delegate to <see cref="Fdp.Core.FixedListFormatter"/> — THE
+    /// single definition of the list summary string, shared with the StructEdit
+    /// <c>FixedListBufferViewProvider</c>'s collapsed row. This watch stays a transient
+    /// bytes→string call by design: the wrapper types live in COLLECTIBLE ALCs and nothing
+    /// here may retain them (see Q#21 D addendum). Recognition is structural
+    /// (<see cref="Fdp.Core.FixedListShape"/>) — generated <c>__List_…</c> wrappers and
+    /// hand-authored A1 wrappers both render.
+    /// </summary>
+    internal static bool TryFormatFixedList(byte[] bytes, Type type, out string formatted)
+        => Fdp.Core.FixedListFormatter.TryFormat(bytes, type, out formatted);
 
     // ── IAiDebugSession bridge (toolbar/registry surface; UBP toolbar debug icons) ───────────────
     // BlueprintDebugSession also implements IAiDebugSession so it can be the registry's ActiveSession,
@@ -1786,6 +2384,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     // IAiTraceObserver: blueprint trace data flows through DebugProbe.Sink (global), not the per-asset
     // AiTracerCoordinator ref-counting used by BTree/HSM — so these are intentional no-ops here.
     void Hrot.Editor.AiShared.Debug.IAiTraceObserver.BeginObservingAsset(
-        Guid assetId, Hrot.Editor.AiShared.Debug.TraceLevel level) { }
+        Guid assetId, Fdp.Toolkit.ReplayBrowser.Timeline.TraceLevel level) { }
     void Hrot.Editor.AiShared.Debug.IAiTraceObserver.EndObservingAsset(Guid assetId) { }
 }

@@ -134,7 +134,7 @@ See: `TASK-DETAIL.md#pack-c001`
 - `PublishAssetInventory()` publishes `AssetInventoryUpdateEvent` on the bus instead of writing DDS directly
 
 **New in ClusterCqrsEvents.cs:**
-- `AssetInventoryUpdateEvent` with `[EventId(9017)]` and `[DataPolicy(DataPolicy.NoRecord)]`
+- `AssetInventoryUpdateEvent` with `[EventId(9017)]` and `[DataPolicy(DataPolicy.NoReplay)]`
 
 **New in ClusterOpMasterTranslator.cs:**
 - Consume `AssetInventoryUpdateEvent` → call `_inventoryWriter.Write(...)`
@@ -184,7 +184,7 @@ See: `TASK-DETAIL.md#pack-c002`
 - Forwards `NodeOpCommand` messages promiscuously (all nodes, not just local)
 
 **New `SystemStateUpdateEvent`** in `ClusterCqrsEvents.cs`:
-- `[EventId(9016)]`, `[DataPolicy(DataPolicy.NoRecord)]`
+- `[EventId(9016)]`, `[DataPolicy(DataPolicy.NoReplay)]`
 
 **ExCon wiring update:**
 - The ExCon/ClusterRunner subsystem currently creates `DdsReader`s in `ClusterUiCache` — update to:

@@ -11,8 +11,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.IG;
-using Hrot.ExCon;
+using Hrot.Player;
 using Hrot.Common;
 using Hrot.Map.Common;
 using Fdp.Toolkit.Orchestration;
@@ -33,9 +32,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// key so both commands are accepted exactly once (the previous <c>HashSet&lt;Guid&gt;</c>
 /// dropped <c>CommitState</c> as a duplicate, preventing slaves from advancing their state).
 ///
-/// <para>These tests boot all four subsystems (Orchestrator, SimHost, IG, ExCon) in a
+/// <para>These tests boot all three subsystems (Orchestrator, SimHost, IG) in a
 /// single headless in-process stack via <see cref="HeadlessTestExecutor"/> and assert
-/// that ExCon's <c>ClusterSlave.LocalStateIdForTest</c> reaches the expected state.
+/// that the IG node's <c>ClusterSlave.LocalStateIdForTest</c> reaches the expected state.
 /// This is only possible when <c>CommitState</c> is <em>not</em> dropped.</para>
 /// </summary>
 /// <remarks>
@@ -56,31 +55,30 @@ public sealed class AllSubsystemsClusterTransitionTests
 
     // â”€â”€ Shared harness builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private static (SubsystemOrchestrator orchestrator, OrchestratorSubsystem orchestratorSvc, ExConSubsystem exConSvc, DdsParticipant participant)
+    private static (SubsystemOrchestrator orchestrator, OrchestratorSubsystem orchestratorSvc, PlayerSubsystem playerSvc, DdsParticipant participant)
         BuildOrchestrator(int domainId)
     {
         // Create a single shared DDS participant so all subsystems (including Orchestrator
-        // and ExCon) have real DDS connectivity for heartbeats and cluster-op routing.
+        // and IG) have real DDS connectivity for heartbeats and cluster-op routing.
         var participant = HrotEnvironment.CreateParticipant(domainId);
         var factory = new NedNetworkFactory(
             participant:  participant,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.None);
 
-        var orchestratorSvc = new OrchestratorSubsystem(factory);
+        var orchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(simHost: true, cgf: false));   // ⭐ CE-3347 — no CGF here, so no Brain is required
         var simHostSvc      = new SimHostSubsystem(factory);
-        var igSvc           = new IgSubsystem(factory);
-        var exConSvc        = new ExConSubsystem(factory);
+        var playerSvc           = new PlayerSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
         var orchestrator = new SubsystemOrchestrator(
-            new ISubsystem[] { orchestratorSvc, simHostSvc, igSvc, exConSvc },
+            new ISubsystem[] { orchestratorSvc, simHostSvc, playerSvc },
             options);
 
-        return (orchestrator, orchestratorSvc, exConSvc, participant);
+        return (orchestrator, orchestratorSvc, playerSvc, participant);
     }
 
     // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -88,8 +86,8 @@ public sealed class AllSubsystemsClusterTransitionTests
     /// <summary>
     /// Regression for CGF1-S0502 â€” single Idleâ†’OperatingLive transition.
     ///
-    /// <para>Boots Orchestrator + SimHost + IG + ExCon and verifies that
-    /// <c>ExConSubsystem.TestHook_ClusterSlave.LocalStateIdForTest</c> reaches
+    /// <para>Boots Orchestrator + SimHost + IG and verifies that
+    /// <c>IgSubsystem.App.ClusterSlave.LocalStateIdForTest</c> (R-3067: ExCon is retired; the IG is a slave node of the same cluster) reaches
     /// <c>(int)ClusterState.OperatingLive</c> (31).  Fails with the original bug
     /// because <c>CommitState</c> is silently dropped as a duplicate TransactionId.</para>
     /// </summary>
@@ -97,23 +95,23 @@ public sealed class AllSubsystemsClusterTransitionTests
     public async Task AllSubsystems_TransitionToOperatingLive_CommitStateIsNotDroppedAsDuplicate()
     {
         int domainId = NextDomainId();
-        var (orchestrator, orchestratorSvc, exConSvc, participant) = BuildOrchestrator(domainId);
+        var (orchestrator, orchestratorSvc, playerSvc, participant) = BuildOrchestrator(domainId);
         using var _ = participant;
 
         var executor = new HeadlessTestExecutor(
             orchestrator,
-            ScriptPath("e2e_all_subsystems_loading_live.json"),
+            ScriptRecordings.Fresh(ScriptPath("e2e_all_subsystems_loading_live.json")),
             NullLogger.Instance);
 
         executor.AfterInitialize = () =>
         {
             executor.RegisterHandler(new ClusterTransitionAssertionHandler(
                 orchestratorSvc.TestHook_ClusterMaster!,
-                exConSvc.TestHook_ClusterSlave!));
+                playerSvc.App.ClusterSlave!));
         };
 
         int result = await executor.RunAsync().ConfigureAwait(false);
-        Assert.Equal(0, result);
+        ScriptRunAssert.Passed(executor, result);
     }
 
     /// <summary>
@@ -127,23 +125,23 @@ public sealed class AllSubsystemsClusterTransitionTests
     public async Task AllSubsystems_FullCycleTwice_LoadOperateUnloadIdle()
     {
         int domainId = NextDomainId();
-        var (orchestrator, orchestratorSvc, exConSvc, participant) = BuildOrchestrator(domainId);
+        var (orchestrator, orchestratorSvc, playerSvc, participant) = BuildOrchestrator(domainId);
         using var _ = participant;
 
         var executor = new HeadlessTestExecutor(
             orchestrator,
-            ScriptPath("e2e_all_subsystems_full_cycle.json"),
+            ScriptRecordings.Fresh(ScriptPath("e2e_all_subsystems_full_cycle.json")),
             NullLogger.Instance);
 
         executor.AfterInitialize = () =>
         {
             executor.RegisterHandler(new ClusterTransitionAssertionHandler(
                 orchestratorSvc.TestHook_ClusterMaster!,
-                exConSvc.TestHook_ClusterSlave!));
+                playerSvc.App.ClusterSlave!));
         };
 
         int result = await executor.RunAsync().ConfigureAwait(false);
-        Assert.Equal(0, result);
+        ScriptRunAssert.Passed(executor, result);
     }
 
     // â”€â”€ Custom action handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -171,14 +169,14 @@ public sealed class AllSubsystemsClusterTransitionTests
     private sealed class ClusterTransitionAssertionHandler : ITestActionHandler
     {
         private readonly ClusterMaster _master;
-        private readonly ClusterSlave  _exConSlave;
+        private readonly ClusterSlave  _playerSlave;
 
         public string ActionName => "assert_slave_transition";
 
-        public ClusterTransitionAssertionHandler(ClusterMaster master, ClusterSlave exConSlave)
+        public ClusterTransitionAssertionHandler(ClusterMaster master, ClusterSlave playerSlave)
         {
             _master     = master     ?? throw new ArgumentNullException(nameof(master));
-            _exConSlave = exConSlave ?? throw new ArgumentNullException(nameof(exConSlave));
+            _playerSlave = playerSlave ?? throw new ArgumentNullException(nameof(playerSlave));
         }
 
         public async Task<object?> ExecuteAsync(Dictionary<string, object> args)
@@ -216,7 +214,12 @@ public sealed class AllSubsystemsClusterTransitionTests
             // Build and issue the transition request.
             var payload = new Dictionary<string, object>
             {
-                ["TargetState"] = (int)targetState,
+                // ⭐⭐ QA-027 — the enum NAME, not its integer. TransitionPayloadDto's TargetState carries
+                //    [JsonConverter(typeof(StrictStringEnumConverter))] and OrchestrationJsonOptions
+                //    documents itself as rejecting integer enum values "to avoid silent
+                //    integer-as-enum bugs". An int here deserialised to null ⇒ the adapter threw ⇒
+                //    ClusterMaster caught it into a Warn log ⇒ the cluster silently stayed at state 0.
+                ["TargetState"] = targetState.ToString(),
             };
             if (!string.IsNullOrEmpty(exerciseId))
                 payload["ExerciseId"] = exerciseId!;
@@ -240,16 +243,21 @@ public sealed class AllSubsystemsClusterTransitionTests
             var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
             while (DateTime.UtcNow < deadline)
             {
-                if (_exConSlave.LocalStateIdForTest == (int)targetState)
+                if (_playerSlave.LocalStateIdForTest == (int)targetState)
                     return null;
 
                 await Task.Delay(50).ConfigureAwait(false);
             }
 
+            // ⭐ QA-029 — report the MASTER's state alongside the slave's. Without it the red cannot
+            //    distinguish "the master never transitioned" from "the master transitioned and the
+            //    slave did not follow", which are different defects in different components.
             throw new InvalidOperationException(
-                $"assert_slave_transition: ExCon ClusterSlave.LocalStateIdForTest is " +
-                $"{_exConSlave.LocalStateIdForTest} (expected {(int)targetState} = {targetState}) " +
+                $"assert_slave_transition: Player ClusterSlave.LocalStateIdForTest is " +
+                $"{_playerSlave.LocalStateIdForTest} (expected {(int)targetState} = {targetState}) " +
                 $"after {timeoutSeconds}s. " +
+                $"ClusterMaster.CurrentClusterState is {(int)_master.CurrentClusterState} " +
+                $"({_master.CurrentClusterState}). " +
                 $"Active roster nodes at timeout: {_master.NodeRoster.ActiveNodes.Count}. " +
                 "Likely cause: compound-key deduplication in ClusterSlave not working, " +
                 "or CommitState commands not being dispatched.");

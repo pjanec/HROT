@@ -43,6 +43,9 @@ namespace Fdp.Toolkit.Replication.Extensions
 
             // 2. Specific Descriptor Ownership Override (Granular Authority)
             // Fix: HasManagedComponent now handles BitMask overflow internally (via Fallback).
+            // ⭐ S6 (Q79 §0.10, R-168): an instance key (d,i) with no entry of its own falls back to the descriptor
+            //   type's entry (d,0) — the group's record covers every instance unless one was moved on its own — and only
+            //   then to the primary owner. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
             if (packedKey != 0 && view.HasManagedComponent<DescriptorOwnership>(rootEntity))
             {
                 var ownership = view.GetManagedComponentRO<DescriptorOwnership>(rootEntity);
@@ -50,10 +53,49 @@ namespace Fdp.Toolkit.Replication.Extensions
                 {
                     return specificOwner == netAuth.LocalNodeId;
                 }
+
+                var (typeId, instanceId) = OwnershipExtensions.UnpackKey(packedKey);
+                if (instanceId != 0 && typeId != 0 &&
+                    ownership.TryGetOwner(OwnershipExtensions.PackKey(typeId, 0), out int typeOwner))
+                {
+                    return typeOwner == netAuth.LocalNodeId;
+                }
             }
 
             // 3. Fallback to Primary Entity Authority
             return netAuth.HasAuthority;
+        }
+
+        /// <summary>
+        /// ⭐ The INGRESS form of <see cref="HasAuthority(ISimulationView, Entity, long)"/>: true only when this node's
+        /// ownership of the entity is RECORDED (a <see cref="NetworkAuthority"/> exists, resolved through
+        /// <see cref="PartMetadata"/> like the gate) and says this node owns <paramref name="packedKey"/>.
+        /// <para>⚠ <see cref="HasAuthority(ISimulationView, Entity, long)"/> treats an entity with no
+        /// <see cref="NetworkAuthority"/> as locally owned, which is right for a node with no network. For a translator
+        /// applying a received sample it is wrong: an entity without a record there is a replica still being built
+        /// from the wire (a ghost created by this very sample), and treating it as owned drops the sample. 📌 Measured
+        /// on <c>EntityDamageIngressTranslator</c> (the first health of an unknown entity was dropped) and
+        /// <c>EntityInfoIngressTranslator</c> (a ghost's commander assignment was dropped).</para>
+        /// <para>⚠⚠ <b>S8 — a descriptor this node is HANDING OVER is not owned here.</b> The creator's record of a granted
+        /// descriptor stays "mine" until the grantee's confirming update arrives (F7, <see cref="OutgoingGrantsPending"/>),
+        /// but its claim is already gone and the grantee is already writing. Skipping a sample in that window drops the
+        /// grantee's FIRST value for good — nothing republishes an unchanged one. 📌 Measured: a SimHost-created tank,
+        /// CGF applies the first hit (3000 → 2975) and publishes it inside SimHost's window; SimHost skipped it as its
+        /// own loopback and held 3000 forever. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</para>
+        /// </summary>
+        public static bool IsRecordedOwner(this ISimulationView view, Entity entity, long packedKey = 0)
+        {
+            if (!view.IsAlive(entity)) return false;
+            Entity root = view.HasComponent<PartMetadata>(entity) ? view.GetComponentRO<PartMetadata>(entity).ParentEntity : entity;
+            if (!view.IsAlive(root) || !view.HasComponent<NetworkAuthority>(root)) return false;
+            if (!HasAuthority(view, entity, packedKey)) return false;
+
+            if (packedKey != 0 && view.HasManagedComponent<OutgoingGrantsPending>(root))
+            {
+                var (typeId, _) = OwnershipExtensions.UnpackKey(packedKey);
+                if (view.GetManagedComponentRO<OutgoingGrantsPending>(root).Descriptors.ContainsKey(typeId)) return false;
+            }
+            return true;
         }
     }
 }

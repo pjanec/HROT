@@ -105,6 +105,28 @@ public sealed class Stage1To5Tests
         Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1101);
     }
 
+    /// <summary>
+    /// ⭐ S1 / I13 (<c>DESIGN_Unified_Behaviour_Run</c> §2) — a Function LIBRARY's graphs are plain static methods, so
+    /// any latent node is BP1101: a Delay, and an INLINE ACTION (<c>MacroLatency.IsLatent</c>). ✅ Red-proof: the
+    /// library rule's old hand-written list missed the inline action. (No library-latent rail existed before.)
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Stage2_Validate_LibraryWithALatentNode_EmitsBP1101(bool inlineAction)
+    {
+        var asset = BlueprintAssetBuilder
+            .Library("LatentLib")
+            .WithGraph("F", g => (inlineAction ? g.Entry().ActionInvocation("Some.Action_12345678_Bp.Call")
+                                               : g.Entry().Delay(1f)).Return())
+            .Build();
+
+        var sink = new DiagnosticSink();
+        Stage2_Validate.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1101);
+    }
+
     // ------------------------------------------------------------------
     // SC3: Stage2_Validate -- V_VariablesAndState: state exceeds max tier
     // ------------------------------------------------------------------

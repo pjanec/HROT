@@ -87,6 +87,16 @@ namespace Fdp.Examples.Scenarios.Cognitive
         {
             // ── Component registration ─────────────────────────────────────────
             world.RegisterComponent<BehaviorState>();
+            world.RegisterComponent<BrainInterrupts>();   // ⭐ CE-323 — the interrupt tail (§31.21).
+            // ⭐⭐⭐ O7c-② / O7c-④ — THE OCCURRENCE-STORE TIER LADDER IS A HARD DEPENDENCY OF
+            //   BRAIN EXECUTION. Both root brain states — the BTree cursor and the HSM
+            //   instance — live in a BlueprintBlackboard* tier component now, and
+            //   BrainTickSystem DISCOVERS entities by walking those tiers.
+            //   🔴🔴 OMITTING THIS DOES NOT THROW: the walk simply enumerates nothing and every
+            //     brain silently never ticks. 📐 That is exactly what happened to this demo
+            //     between O7c-② and 2026-09-23 — invisible because its test project had no
+            //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             world.RegisterComponent<MissionPlanQueue>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
@@ -170,12 +180,12 @@ namespace Fdp.Examples.Scenarios.Cognitive
                 ref var queue   = ref world.GetComponentRW<MissionPlanQueue>(_commander);
                 var     behavior = world.GetComponent<BehaviorState>(_commander);
 
-                Phase3CurrentPhase = queue.CurrentPhase;
+                Phase3CurrentPhase = queue.CurrentTask;
                 Phase3BehaviorHash = behavior.ActiveBehaviorHash;
 
-                if (queue.CurrentPhase != 1)
+                if (queue.CurrentTask != 1)
                     throw new ScenarioFailureException(3,
-                        $"Phase 3 FAILED at tick {tick}: CurrentPhase={queue.CurrentPhase} expected 1");
+                        $"Phase 3 FAILED at tick {tick}: CurrentPhase={queue.CurrentTask} expected 1");
 
                 if (behavior.ActiveBehaviorHash != CombatBehaviorId)
                     throw new ScenarioFailureException(3,
@@ -224,15 +234,15 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
             // Build the 2-phase mission plan using the Span<MissionPhase> pattern to avoid
             // the C# [InlineArray] defensive-copy mutation trap.
-            var queue = new MissionPlanQueue { PhaseCount = 2 };
-            Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase
+            var queue = new MissionPlanQueue { TaskCount = 2 };
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            phases[0] = new MissionTaskSlot
             {
                 BehaviorId   = PatrolBehaviorId,
                 Trigger      = MissionTrigger.UnderAttack,
                 TriggerParam = 0f,
             };
-            phases[1] = new MissionPhase
+            phases[1] = new MissionTaskSlot
             {
                 BehaviorId   = CombatBehaviorId,
                 Trigger      = MissionTrigger.TimerElapsed,

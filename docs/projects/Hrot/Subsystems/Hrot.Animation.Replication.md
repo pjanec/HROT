@@ -75,7 +75,7 @@ in `AnimationDdsMessages.cs`.
 | DDS struct | Maps to | Size |
 |------------|---------|------|
 | `DdsAnimationChannelIntent` | `AnimationChannel` write fields | ~56 bytes |
-| `DdsAnimationChannelStatus` | `AnimationChannel` read fields | 16 bytes |
+| `DdsAnimationChannelStatus` | `AnimationChannelStatus` (the Muscle's report, CE-513) | 16 bytes |
 | `DdsLookAtChannelIntent` | `LookAtChannel` write fields | ~56 bytes |
 | `DdsLookAtChannelStatus` | `LookAtChannel` read fields | 16 bytes |
 | `DdsStanceIntent` | `StanceIntent` | 20 bytes |
@@ -141,8 +141,8 @@ Brain node
     AnimationMontageQueueEgressTranslator     -- AnimationMontageQueue entries          -> DDS
 
   Ingress translators (DDS -> Brain components):
-    AnimationChannelStatusIngressTranslator   -- DDS -> AnimationChannel.{Status,DispatchedInstanceId}
-    LookAtChannelStatusIngressTranslator      -- DDS -> LookAtChannel.{Status,DispatchedInstanceId}
+    AnimationChannelStatusIngressTranslator   -- DDS -> AnimationChannelStatus (CE-513: its own component)
+    LookAtChannelStatusIngressTranslator      -- DDS -> LookAtChannelStatus
     StanceStatusIngressTranslator             -- DDS -> StanceStatus.{CurrentStance,AckVersion}
     AnimationMontageQueueStateIngressTranslator -- DDS -> AnimationMontageQueueState
 

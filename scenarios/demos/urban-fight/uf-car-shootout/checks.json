@@ -1,0 +1,105 @@
+{
+  "$doc": "docs/designs/group-maneuvers/DESIGN_Urban_Fight_Suite.md §4 (U1, the car shootout) — the realism rubric's layers 1-3 (§1): L1 never rows (doctrine), L2 the timeline, L3 losses on both sides. ⭐ L1 'exposed' (CE-2456): seen by an enemy in the fight (the AI's own sight) — a town has safe places with no cover point near (inside or behind a building); the first run's 'cover' rows judged distance from a marker, not exposure. Layer 4 (the review checklist) is in the design. ⚠ 'Blue fires' anchors the first-contact window (whoever fires first, the other side's row is judged from it). ⭐ CE-2459: with m the 'exposed' row counts only a man with no cover within 2.5 m (terrain or a parked car) — firing over a car is seen, and is a firing position, not the sin.",
+  "runFor": 240,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Blue fires",
+      "on": "shot",
+      "by": "*Blue Squad "
+    },
+    {
+      "name": "Red fires",
+      "on": "shot",
+      "by": "*Red Squad "
+    },
+    {
+      "name": "L2 Blue fires within 10 s of Red's first round",
+      "on": "shot",
+      "by": "*Blue Squad ",
+      "before": "Red fires+10"
+    },
+    {
+      "name": "L2 Red fires within 10 s of Blue's first round",
+      "on": "shot",
+      "by": "*Red Squad ",
+      "before": "Blue fires+10"
+    },
+    {
+      "name": "L1 nobody of Blue in the fight stands upright in the OPEN (no cover within 2.5 m) in a Red man's sight 15 s once the shooting starts",
+      "never": {
+        "on": "exposed",
+        "who": "*Blue Squad ",
+        "by": "*Red Squad ",
+        "upright": true,
+        "fighting": true,
+        "for": 15,
+        "m": 2.5
+      },
+      "after": "Blue fires"
+    },
+    {
+      "name": "L1 Blue is no knot (all within 3 m) for 10 s after the first half minute",
+      "never": {
+        "on": "bunched",
+        "who": "*Blue Squad ",
+        "m": 3,
+        "fighting": true,
+        "for": 10
+      },
+      "after": 30
+    },
+    {
+      "name": "L1 no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue Squad ",
+        "hit": "*Blue Squad "
+      }
+    },
+    {
+      "name": "L3 Blue hits a Red man",
+      "on": "shot",
+      "by": "*Blue Squad ",
+      "hit": "*Red Squad "
+    },
+    {
+      "name": "L1 nobody of Red in the fight stands upright in the OPEN (no cover within 2.5 m) in a Blue man's sight 15 s once the shooting starts",
+      "never": {
+        "on": "exposed",
+        "who": "*Red Squad ",
+        "by": "*Blue Squad ",
+        "upright": true,
+        "fighting": true,
+        "for": 15,
+        "m": 2.5
+      },
+      "after": "Blue fires"
+    },
+    {
+      "name": "L1 Red is no knot (all within 3 m) for 10 s after the first half minute",
+      "never": {
+        "on": "bunched",
+        "who": "*Red Squad ",
+        "m": 3,
+        "fighting": true,
+        "for": 10
+      },
+      "after": 30
+    },
+    {
+      "name": "L1 no Red round hits a Red man",
+      "never": {
+        "on": "shot",
+        "by": "*Red Squad ",
+        "hit": "*Red Squad "
+      }
+    },
+    {
+      "name": "L3 Red hits a Blue man",
+      "on": "shot",
+      "by": "*Red Squad ",
+      "hit": "*Blue Squad "
+    }
+  ]
+}

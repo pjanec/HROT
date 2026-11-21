@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Widgets;
 
 namespace Fdp.Presentation.Icons;
 

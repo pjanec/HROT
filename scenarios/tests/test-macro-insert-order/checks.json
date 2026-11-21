@@ -1,0 +1,38 @@
+{
+  "$doc": "docs/SHOWCASE_Scenarios.md \u00a71.7 \u2014 the Bridgehead QRF's squads stayed Idle live: does an Order to a macro-INSERTED platoon reach its squads?",
+  "runFor": 60,
+  "golden": false,
+  "later": [
+    "Red QRF",
+    "Red QRF Squad 1",
+    "Red QRF Squad 2"
+  ],
+  "expect": [
+    {
+      "name": "the platoon takes the attack",
+      "on": "task",
+      "who": "Red QRF",
+      "is": "PlatoonAttack",
+      "after": 3,
+      "before": 15
+    },
+    {
+      "name": "the platoon's roster holds its squads",
+      "on": "field",
+      "who": "Red QRF",
+      "path": "UnitRoster.Count",
+      "op": ">=",
+      "value": 2,
+      "after": 3,
+      "before": 15
+    },
+    {
+      "name": "a squad sets a base of fire",
+      "on": "task",
+      "who": "*QRF Squad",
+      "is": "SquadDefend",
+      "after": 3,
+      "before": 40
+    }
+  ]
+}

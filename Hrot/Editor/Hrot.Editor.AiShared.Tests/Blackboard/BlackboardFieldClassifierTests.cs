@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Reflection;
 using Fbt.Kernel;
 using Hrot.Editor.AiShared.Blackboard;
+using Fdp.Core;
 
 namespace Hrot.Editor.AiShared.Tests.Blackboard;
 
@@ -17,7 +18,7 @@ public enum TestEnum { A, B, C }
 
 public struct KnownEnumStruct { public TestEnum MyEnum; }
 
-[BlackboardDtoStruct]
+[Dto]
 public struct AnnotatedDtoStruct { public int V; }
 
 public struct ExoticStruct { public object? Ref; }
@@ -148,7 +149,7 @@ public sealed class BlackboardFieldClassifierTests
     [Fact]
     public void Classify_BlackboardDtoStructField_ReturnsEditorManaged()
     {
-        // AnnotatedDtoStruct carries [BlackboardDtoStruct]
+        // AnnotatedDtoStruct carries [Dto]
         // We need a host struct that has an AnnotatedDtoStruct field.
         // Use reflection to create the FieldInfo dynamically for this test.
         var hostType = typeof(DtoHostStruct);

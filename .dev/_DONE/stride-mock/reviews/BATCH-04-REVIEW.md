@@ -98,7 +98,7 @@ SM-008: FakeStrideApp standalone Raylib/ImGui shell
 - OnUpdate: Camera.HandleInput -> Camera.Update -> script.Update -> core.Tick
 - OnUnload: disposes core + DDS participant; does not call base.OnUnload()
 - Program.cs: replaces stub with real CLI entry point (--domain/--node args)
-- Hrot.FakeStrideApp.Tests project created + added to IOS-IG-SimHost.sln
+- Hrot.FakeStrideApp.Tests project created + added to HROT.sln
 
 Resolves DT-005: DemoTkbSetup spec error confirmed on FakeStrideApp path.
 Tests: 44/44 (41 StrideMock + 3 FakeStrideApp)

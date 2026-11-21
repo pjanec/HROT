@@ -26,11 +26,26 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<PassengerBuffer>();
             _world.RegisterComponent<IsEmbarkedTag>();
             _world.RegisterComponent<InteractionChannel>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+            _world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
 
             _executor = new EjectPassengersExecutor();
         }
 
         public void Dispose() => _world.Dispose();
+
+        private readonly Fdp.Toolkit.Behavior.Systems.EmbarkationSystem _owner = new();
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a — the executor RAISES the command; the vehicle's owner (<c>EmbarkationSystem</c>, here the same
+        /// world) applies it next frame; the executor then reads the answer from the state. (It used to write everything itself.)</summary>
+        private void Drive(Entity e, ref InteractionChannel channel)
+        {
+            _executor.Execute(e, ref channel, _world, 0f);
+            _world.Bus.SwapBuffers();
+            _owner.Execute(_world, 0f);
+            if (channel.Status == NodeStatus.Running) _executor.Execute(e, ref channel, _world, 0f);
+        }
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -78,7 +93,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var channel = _world.GetComponent<InteractionChannel>(vehicle);
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             var caps = _world.GetComponent<ActorCapabilityState>(soldier).Capabilities;
             Assert.True(caps.HasFlag(ActorCapabilities.CanMove),  "CanMove should be restored");
@@ -100,7 +115,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var channel = _world.GetComponent<InteractionChannel>(vehicle);
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             Assert.False(_world.HasComponent<IsEmbarkedTag>(soldier));
         }
@@ -123,7 +138,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var channel = _world.GetComponent<InteractionChannel>(vehicle);
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             Assert.Equal(0, _world.GetComponent<PassengerBuffer>(vehicle).Count);
 
@@ -152,7 +167,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Must not throw.
             _executor.OnEnter(vehicle, ref channel, _world);
-            _executor.Execute(vehicle, ref channel, _world, 0f);
+            Drive(vehicle, ref channel);
 
             // Buffer must be cleared and live passenger must have capabilities restored.
             Assert.Equal(0, _world.GetComponent<PassengerBuffer>(vehicle).Count);
@@ -160,6 +175,37 @@ namespace Fdp.Toolkit.Behavior.Tests
             var caps = _world.GetComponent<ActorCapabilityState>(liveSoldier).Capabilities;
             Assert.True(caps.HasFlag(ActorCapabilities.CanMove),  "Live soldier CanMove should be restored");
             Assert.True(caps.HasFlag(ActorCapabilities.CanShoot), "Live soldier CanShoot should be restored");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-321</c> — passengers dismount on the vehicle's RIGHT, relative to its heading, clear of its collider
+        /// (radius + clearance from the centre), in a column along its length. A vehicle facing north (+Y) puts them east.
+        /// </summary>
+        [Fact]
+        public void Eject_DismountsBesideTheHull_RelativeToHeading_ClearOfTheCollider_CE321()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var vehicle = CreateVehicle(new Vector3(10f, 10f, 0f));
+            _world.GetComponentRW<SimTransform>(vehicle).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+            _world.AddComponent(vehicle, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
+            var soldiers = new[] { CreateEmbarkedSoldier(vehicle), CreateEmbarkedSoldier(vehicle), CreateEmbarkedSoldier(vehicle) };
+
+            var channel = _world.GetComponent<InteractionChannel>(vehicle);
+            _executor.OnEnter(vehicle, ref channel, _world);
+            Drive(vehicle, ref channel);
+
+            float expectedSide = 3.5f + EjectPassengersExecutor.DismountClearance;
+            float lastY = float.NegativeInfinity;
+            foreach (var s in soldiers)
+            {
+                var p = _world.GetComponent<SimTransform>(s).Position;
+                Assert.Equal(10f + expectedSide, p.X, 3);                  // east of a north-facing hull
+                Assert.True(Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(10f, 10f)) > 3.5f, "outside the collider");
+                Assert.True(p.Y > lastY, "a column along the heading");
+                lastY = p.Y;
+            }
+            Assert.Equal(10f, (_world.GetComponent<SimTransform>(soldiers[0]).Position.Y
+                             + _world.GetComponent<SimTransform>(soldiers[2]).Position.Y) / 2f, 3);   // centred on the hull
         }
     }
 }

@@ -98,7 +98,7 @@ namespace Fdp.Examples.CarKinem.UI
             
             ImGui.Separator();
             
-            var time = repository.GetSingletonUnmanaged<GlobalTime>();
+            var time = repository.GetSingletonUnmanagedRO<GlobalTime>();
             ImGui.Text($"Time: {time.TotalTime:F2}s | Frame: {time.FrameNumber}");
             ImGui.Text($"Mode: {kernel.GetTimeController().GetMode()}");
         }

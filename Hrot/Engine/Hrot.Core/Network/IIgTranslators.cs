@@ -21,19 +21,19 @@ public interface IIgTranslators
         NetworkEntityMap entityMap,
         FdpEventBus bus,
         GhostCreationSystem? ghostCreationSystem,
-        long localNodeId,
+        int localNodeId,
         bool headless);
 }
 
 /// <summary>No-op stub for <see cref="IIgTranslators"/> (headless/offline mode).</summary>
-public sealed class NullIgTranslators : IIgTranslators
+public sealed class NullPlayerTranslators : IIgTranslators
 {
     public IReadOnlyList<INetworkTranslator> GetTranslators(
         DdsParticipant participant,
         NetworkEntityMap entityMap,
         FdpEventBus bus,
         GhostCreationSystem? ghostCreationSystem,
-        long localNodeId,
+        int localNodeId,
         bool headless)
         => System.Array.Empty<INetworkTranslator>();
 }

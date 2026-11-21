@@ -68,10 +68,11 @@ namespace Hrot.Map.Common.Tests
         // ── CS003: UnitRoster ─────────────────────────────────────────────────
 
         [Fact]
-        public unsafe void UnitRoster_SizeIs168Bytes()
+        public void UnitRoster_SizeIs164Bytes()
         {
-            // Count(4) + 4-byte alignment pad before long[] + SubordinateEntities(16*8=128) + TacticalDesignations(16*2=32) = 168
-            Assert.Equal(168, System.Runtime.CompilerServices.Unsafe.SizeOf<UnitRoster>());
+            // CE-467: Count(4) + SubordinateEntities(16 × Entity, 8 B each, 4-aligned = 128) + TacticalDesignations(16*2=32) = 164.
+            // (It was 168 while SubordinateEntities was a `fixed long[16]`, which needed a 4-byte pad before it.)
+            Assert.Equal(164, System.Runtime.CompilerServices.Unsafe.SizeOf<UnitRoster>());
         }
 
         [Fact]
@@ -81,7 +82,7 @@ namespace Hrot.Map.Common.Tests
                 .GetCustomAttributes(typeof(DataPolicyAttribute), false)
                 .Cast<DataPolicyAttribute>()
                 .Single();
-            Assert.True((attr.Policy & DataPolicy.NoSave) != 0);
+            Assert.True((attr.Policy & DataPolicy.NoScenario) != 0);
         }
 
         [Fact]
@@ -94,9 +95,10 @@ namespace Hrot.Map.Common.Tests
         public unsafe void UnitRoster_WriteToIndex15_DoesNotCorruptAdjacentMemory()
         {
             // Allocate a buffer larger than the struct so we can check the guard byte
-            const int structSize = 168;
+            int structSize = System.Runtime.CompilerServices.Unsafe.SizeOf<UnitRoster>();
             const int guardSize = 8;
             byte* buf = stackalloc byte[structSize + guardSize];
+            new System.Span<byte>(buf, structSize).Clear();
 
             // Write a sentinel into the guard region
             for (int i = 0; i < guardSize; i++)
@@ -105,7 +107,8 @@ namespace Hrot.Map.Common.Tests
             UnitRoster* r = (UnitRoster*)buf;
 
             // Write to the last SubordinateEntities slot
-            r->SubordinateEntities[UnitRoster.Capacity - 1] = long.MaxValue;
+            r->SubordinateEntities[UnitRoster.Capacity - 1] = new Entity(int.MaxValue, ushort.MaxValue);
+            r->TacticalDesignations[UnitRoster.Capacity - 1] = ushort.MaxValue;
 
             // Guard bytes must be untouched
             for (int i = 0; i < guardSize; i++)

@@ -12,7 +12,7 @@ namespace Hrot.Editor.Tests;
 /// the full factory contract.
 /// NOTE (D-031): CycloneDDS.Schema is now an accepted direct reference in Hrot.Editor.dll.
 /// Multiple direct project dependencies (Hrot.Diagnostics.Breakpoints, Hrot.Blueprints.Editor,
-/// Hrot.Presentation, Hrot.CGF, Hrot.IG, Hrot.Network.NED) expose CycloneDDS.Schema types
+/// Hrot.Presentation, Hrot.CGF, Hrot.Player, Hrot.Network.NED) expose CycloneDDS.Schema types
 /// in their public API surfaces (return types / parameters). The C# compiler therefore emits
 /// a direct AssemblyRef to CycloneDDS.Schema in Hrot.Editor.dll even though no Editor source
 /// file imports that namespace. Removing this transitive reference would require refactoring

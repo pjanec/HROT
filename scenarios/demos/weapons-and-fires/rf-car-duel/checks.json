@@ -1,0 +1,47 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75 (CE-2355 S1) \u2014 rf-car-duel, the scenario's Judge list. (2) each fires from two distinct spots: he fires, moves to another car (3: a car he did not start behind \u2014 Blue to Car 1 (262,360), Red to Car 3 (298,400), the cars the measured run used), and fires again. \u26a0 Left out: (1) 'neither stays hidden doing nothing for more than 12 s' (an idle gap is not a cue \u2014 'fires within 12 s' is NOT it: Red moves first and fires at 27 s) and (4) 'a grenade over cover once they are within 25 m' \u2014 measured: they never come within 25 m (\u2265 43 m apart all run) so no grenade is due. \ud83d\udccc Observation for triage: Red fires NOTHING from his start behind Red Car 2 \u2014 his first round is at 27 s, after he has moved to Car 3 (17.5 s) \u2014 so 'from at least two distinct spots' is only shown for Blue; Red's second spot is not asked.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(3) Blue flanks: he reaches a car he did not start behind (Blue Car 1 at (262,360))",
+      "on": "near",
+      "who": "Blue",
+      "point": [
+        262,
+        360
+      ],
+      "within": 5
+    },
+    {
+      "name": "(2) Blue fires from his first spot",
+      "on": "shot",
+      "by": "Blue",
+      "before": "(3) Blue flanks: he reaches a car he did not start behind (Blue Car 1 at (262,360))"
+    },
+    {
+      "name": "(2) Blue fires again from the new spot",
+      "on": "shot",
+      "by": "Blue",
+      "after": "(3) Blue flanks: he reaches a car he did not start behind (Blue Car 1 at (262,360))"
+    },
+    {
+      "name": "(3) Red flanks: he reaches a car he did not start behind (Red Car 3 at (298,400))",
+      "on": "near",
+      "who": "Red",
+      "point": [
+        298,
+        400
+      ],
+      "within": 5
+    },
+    {
+      "name": "(2) Red fires again from the new spot",
+      "on": "shot",
+      "by": "Red",
+      "after": "(3) Red flanks: he reaches a car he did not start behind (Red Car 3 at (298,400))"
+    }
+  ]
+}

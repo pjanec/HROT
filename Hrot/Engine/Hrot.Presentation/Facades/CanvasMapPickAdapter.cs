@@ -8,12 +8,13 @@ using Hrot.Core.Mission;
 namespace Hrot.UI.Common.Facades;
 
 /// <summary>
-/// Implements <see cref="IMapPickService"/> using a local <see cref="MapCanvas"/> and
-/// gizmo-based pickers.  Suitable for Editor, CGF, SimHost, and IG subsystems that
-/// own a canvas but do not depend on <c>Hrot.Editor.Tools</c>.
+/// ⭐⭐ THE <see cref="IMapPickService"/> over a local <see cref="MapCanvas"/> — the editor, CGF, SimHost and IG all
+/// build this one (<c>CE-063</c>: the editor's twin, <c>EditorMapPickAdapter</c>, and its location gizmo were deleted;
+/// 📄 <c>docs/blueprints/DESIGN_Map_Picking_Unification.md</c> P2/P3).
 ///
-/// <para>Location picks return the raw world-space cartesian position encoded as a
-/// <see cref="GeoPoint"/>: Latitude = world-X, Longitude = world-Y, Altitude = 0.</para>
+/// <para>Location picks are GEODETIC through the host's <see cref="IGeographicTransform"/> — passed, or the world's
+/// singleton. ⚠ With neither (a test, a host with no geography) the world X/Y is returned in the Latitude/Longitude
+/// fields, Altitude 0.</para>
 /// </summary>
 public sealed class CanvasMapPickAdapter : IMapPickService
 {
@@ -21,6 +22,8 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     private readonly EntityRepository? _repo;
     private readonly IEntityFilterFactory _filterFactory;
     private readonly GlobalGizmoManager? _globalGizmoManager;
+    private readonly Fdp.Modules.Geographic.IGeographicTransform? _geoTransform;
+    private readonly Func<Action<IReadOnlyList<int>>, Action, Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo>? _areaGizmo;
 
     // Match-all factory used when no domain-specific factory is provided.
     private static readonly IEntityFilterFactory DefaultFactory = new MatchAllFilterFactory();
@@ -34,84 +37,221 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     /// on a picked entity.  When <see langword="null"/>, entity picks always return -1.
     /// </param>
     /// <param name="filterFactory">
-    /// Optional domain-specific filter factory.  When <see langword="null"/> a
-    /// match-all factory is used so every entity qualifies.
+    /// Optional domain-specific filter factory. ⭐ <c>CE-1060</c> — when <see langword="null"/> and a <paramref name="repo"/> is
+    /// given, THE layer-preset filter (<see cref="Hrot.Presentation.Map.HrotEntityFilterFactory"/>) is used, so a
+    /// <c>[MapPickableEntity("road_graphs")]</c> pick accepts only routes on every host (CGF and SimHost passed none and picked
+    /// anything); with no world a match-all factory is used.
     /// </param>
     /// <param name="globalGizmoManager">
     /// Optional gizmo manager used to host picker gizmos.  When <see langword="null"/>
     /// the pick operations are not available.
     /// </param>
+    /// <param name="tools">
+    /// 🔒 <b><c>UXI-07</c> step 4b — the host's arbiter.</b> ⛔ Optional so an unconverted host still
+    /// picks, but a production caller that HAS it must PASS it: without it a pick arms beside the active
+    /// tool instead of suspending it (§4.8's bypass — and 🔴 <c>CE-254</c> is this adapter).
+    /// </param>
+    /// <param name="geoTransform">
+    /// ⭐ The host's geographic transform: a location pick converts the clicked world position to WGS-84 through it.
+    /// ⛔ A production caller that HAS one must pass it (the silent-default rule) — without it a mission location is
+    /// written in metres where degrees belong.
+    /// </param>
+    /// <param name="areaGizmo">
+    /// Optional area-selection gizmo factory <c>(onPicked, onRemove)</c>; without one an area pick answers empty at
+    /// once.
+    /// </param>
     public CanvasMapPickAdapter(
         MapCanvas canvas,
         EntityRepository? repo = null,
         IEntityFilterFactory? filterFactory = null,
-        GlobalGizmoManager? globalGizmoManager = null)
+        GlobalGizmoManager? globalGizmoManager = null,
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? tools = null,
+        Fdp.Modules.Geographic.IGeographicTransform? geoTransform = null,
+        Func<Action<IReadOnlyList<int>>, Action, Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo>? areaGizmo = null)
     {
         _canvas             = canvas ?? throw new ArgumentNullException(nameof(canvas));
         _repo               = repo;
-        _filterFactory      = filterFactory ?? DefaultFactory;
+        _filterFactory      = filterFactory ?? (repo != null ? new PresetFilterFactory(repo) : DefaultFactory);
+        _geoTransform       = geoTransform;
+        _areaGizmo          = areaGizmo;
         _globalGizmoManager = globalGizmoManager;
+        _pickers            = new Hrot.ScenarioEditor.Tools.PickerToolHost(
+            tools ?? (() => null), () => _globalGizmoManager,
+            mouseScreen: () => _canvas.Input?.MousePosition);   // ⭐ B-17 P4 — the banner's [Cancel] is hit-tested on it
     }
+
+    /// <summary>⭐ U-10 — the preview service the map attach put on this canvas (<see cref="Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers"/>).</summary>
+    public Fdp.Presentation.Editing.MapPreview? Preview => _canvas.Get<Fdp.Presentation.Editing.MapPreview>();
+
+    /// <summary>⭐ <c>CE-4206</c> R1 (F2) — the live reference scope over the repository this adapter holds; null without one. ⭐ U-8 — THE editor's one scope
+    /// (<see cref="Hrot.UI.Common.Rules.AuthoredRules.ScopeOf"/>, with the entity kinds), not a second instance of its own.</summary>
+    public Fdp.Toolkit.Scenario.LiveRefScope? References
+        => _repo == null ? null : Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(_repo);
+
+    /// <summary>⭐ N-5 (DESIGN_Struct_Editor §5) — the primary selection (<see cref="Hrot.Map.Common.Components.SelectionStore"/>, a read never creates it), placed by the same
+    /// reference scope the picker's rows come from (built at its rebuild ⇒ no per-frame lookup cost).</summary>
+    public bool TryGetSelectionPosition(out Fdp.Core.WorldPoint position)
+    {
+        position = default;
+        if (_repo == null || Hrot.Map.Common.Components.SelectionStore.Peek(_repo) is not { Primary: > 0 } store) return false;
+        return References is { } refs && refs.TryPositionOf(new Fdp.Toolkit.Replication.EntityRef((int)store.Primary), out position);
+    }
+
+    /// <summary>⭐ The ONE picker-modal protocol — see <c>PickerToolHost</c>.</summary>
+    private readonly Hrot.ScenarioEditor.Tools.PickerToolHost _pickers;
 
     /// <inheritdoc/>
     public Task<GeoPoint> PickLocationAsync(CancellationToken ct = default)
+        => _pickers.RunPickAsync<GeoPoint>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+                onPicked: worldPos => tcs.TrySetResult(ToGeoPoint(worldPos)),
+                onRemove: remove,
+                onCancelled: () => tcs.TrySetCanceled()),   // ⭐ CE-3169 — Esc / right-click completes the task (it hung)
+            ct);
+
+    /// <inheritdoc/>
+    public bool CanShowOnMap => true;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-4206 R3 — the SAME move as the map menu's Center View (<c>CenterOnEntitySystem.CenterOn</c>) on this adapter's canvas camera, no second camera path. No transient flash: the repo has no map ping / flash overlay to reuse.</remarks>
+    public void ShowOnMap(Fdp.Toolkit.Replication.EntityRef entity)
     {
-        var tcs = new TaskCompletionSource<GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var id  = GlobalGizmoManager.NewId();
-        var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
-            onPicked: worldPos => tcs.TrySetResult(new GeoPoint(worldPos.X, worldPos.Y, 0)),
-            onRemove: () => _globalGizmoManager!.Unregister(id));
-
-        ct.Register(() =>
-        {
-            _globalGizmoManager!.Unregister(id);
-            tcs.TrySetCanceled(ct);
-        });
-
-        _globalGizmoManager!.Register(id, gizmo);
-        return tcs.Task;
+        if (_repo == null || entity.IsNone) return;
+        var e = entity.Resolve(_repo);
+        if (!e.IsNull) Hrot.ScenarioEditor.Systems.CenterOnEntitySystem.CenterOn(_canvas.Camera, _repo, e);
     }
 
     /// <inheritdoc/>
-    public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)
-    {
-        var tcs    = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var id     = GlobalGizmoManager.NewId();
-        var filter = _filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());
-        var gizmo  = new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
-            hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Fdp.Core.Entity.Null,
-            filter:      filter,
-            onPicked:    entity =>
+    public void ShowOnMap(Fdp.Core.WorldPoint point) => _canvas.Camera.FocusOn(new System.Numerics.Vector2(point.X, point.Y));
+
+    /// <inheritdoc/>
+    public Task<Fdp.Toolkit.Replication.AreaLink> EditAreaAsync(Fdp.Toolkit.Replication.AreaLink start, CancellationToken ct = default)
+        => _pickers.RunPickAsync<Fdp.Toolkit.Replication.AreaLink>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.EditAreaShape,
+            (tcs, remove) =>
             {
-                int networkId = -1;
-                if (_repo != null
-                    && _repo.IsAlive(entity)
-                    && _repo.HasComponent<NetworkIdentity>(entity))
-                {
-                    networkId = (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
-                }
-                tcs.TrySetResult(networkId);
+                var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.AreaShapeGizmo(
+                    start,
+                    onDone: shape => tcs.TrySetResult(shape),
+                    onRemove: remove,
+                    onCancelled: () => tcs.TrySetCanceled());
+                Hrot.ScenarioEditor.Tools.DrawingMenu.Attach(gizmo.Session, _pickers.Tools, editing: true);   // ⭐ B-17 P2 — right-click = Finish · Cancel; too-few on the hint
+                return gizmo;
             },
-            onCancelled: () => tcs.TrySetCanceled(),
-            onRemove:    () => _globalGizmoManager!.Unregister(id));
+            ct);
 
-        ct.Register(() =>
-        {
-            _globalGizmoManager!.Unregister(id);
-            tcs.TrySetCanceled(ct);
-        });
+    /// <inheritdoc/>
+    /// <remarks>⭐ S0 item 5 — the clicked world point as it is (local metres, Z 0): no geodetic conversion.</remarks>
+    public Task<Fdp.Core.WorldPoint> PickLocalAsync(CancellationToken ct = default) => PickLocalAsync(null, ct);
 
-        _globalGizmoManager!.Register(id, gizmo);
-        return tcs.Task;
+    /// <inheritdoc/>
+    public Task<Fdp.Core.WorldPoint> PickLocalAsync(string? prompt, CancellationToken ct = default)
+        => _pickers.RunPickAsync<Fdp.Core.WorldPoint>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+                onPicked: worldPos => tcs.TrySetResult(new Fdp.Core.WorldPoint(worldPos.X, worldPos.Y, 0f)),
+                onRemove: remove,
+                onCancelled: () => tcs.TrySetCanceled()),
+            ct, prompt);
+
+    /// <inheritdoc/>
+    public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => PickEntityAsync(filterPresets, null, ct);
+
+    /// <inheritdoc/>
+    public Task<int> PickEntityAsync(string[]? filterPresets, string? prompt, CancellationToken ct = default)
+    {
+        var filter = _filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());
+
+        return _pickers.RunPickAsync<int>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickEntity,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+                hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Fdp.Core.Entity.Null,
+                filter:      filter,
+                onPicked:    entity =>
+                {
+                    int networkId = -1;
+                    if (_repo != null
+                        && _repo.IsAlive(entity)
+                        && _repo.HasComponent<NetworkIdentity>(entity))
+                    {
+                        networkId = (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
+                    }
+                    tcs.TrySetResult(networkId);
+                },
+                onCancelled: () => tcs.TrySetCanceled(),
+                onRemove:    remove,
+                onRejected:  e => _pickers.Reject(RefusalOf(e))),   // ⭐ B-17 P4 — flashed at the cursor, the pick stays
+            ct, prompt);
+    }
+
+    /// <summary>⭐ B-17 P4 — why a click on <paramref name="entity"/> was refused: an unit that the filter excludes (wrong kind), or a graphic with no identity.</summary>
+    private string RefusalOf(Fdp.Core.Entity entity)
+        => _repo != null && _repo.IsAlive(entity) && _repo.HasComponent<NetworkIdentity>(entity)
+            ? "that is the wrong kind here"
+            : "pick a unit, not a graphic";
+
+    /// <summary>⭐ <c>CE-1346</c> — offers an entity picked elsewhere (an ORBAT row) to this map's entity pick in progress
+    /// (<see cref="Hrot.ScenarioEditor.Tools.PickerToolHost.TryOfferEntity"/>); false when none takes it.</summary>
+    public bool TryOfferEntity(Fdp.Core.Entity entity) => _pickers.TryOfferEntity(entity);
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-3171 — the same hit test the entity picker uses (<c>MapCanvas.PickTopmostEntity</c>); in the 3-D view the
+    /// gizmo's world point already lands on a picked entity's position, so it resolves there too.</remarks>
+    public int EntityAt(System.Numerics.Vector2 worldXY)
+    {
+        var entity = _canvas.PickTopmostEntity(worldXY) ?? Fdp.Core.Entity.Null;
+        if (_repo == null || entity.IsNull || !_repo.IsAlive(entity) || !_repo.HasComponent<NetworkIdentity>(entity)) return -1;
+        return (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
     }
 
     /// <inheritdoc/>
-    /// <remarks>Area entity pick is not supported by this adapter; always returns an empty list.</remarks>
+    public int NamedPointAt(System.Numerics.Vector2 worldXY)
+    {
+        var entity = _canvas.PickTopmostEntity(worldXY) ?? Fdp.Core.Entity.Null;
+        if (_repo == null || entity.IsNull || !_repo.IsAlive(entity) || !_repo.HasComponent<NetworkIdentity>(entity)) return -1;
+        if (!_repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
+            || _repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType != Hrot.Map.Common.TkbEntityTypes.Point) return -1;
+        return (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
+    }
+
+    /// <summary>The clicked world position as a <see cref="GeoPoint"/> — geodetic through the host's transform.
+    /// ⭐ The passed transform, else the world's <see cref="IGeographicTransform"/> singleton — the one behaviour resolvers
+    /// read (SimHost, CGF and the editor publish it) — resolved at pick time, since a host may publish it after building
+    /// this adapter.</summary>
+    private GeoPoint ToGeoPoint(System.Numerics.Vector2 world)
+    {
+        var geo = _geoTransform
+                  ?? (_repo != null && _repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                        ? _repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                        : null);
+        return MapPickGeo.ToGeoPoint(geo, world.X, world.Y);   // ⭐ CE-4073 — the one conversion, shared with ExConLogic
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Runs the host's area gizmo when it supplied one; otherwise answers empty at once.</remarks>
     public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(
         string[]? filterPresets = null, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
+        => _areaGizmo is null
+            ? Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>())
+            : _pickers.RunPickAsync<IReadOnlyList<int>>(
+                Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickArea,
+                (tcs, remove) => _areaGizmo(list => tcs.TrySetResult(list), remove),
+                ct);
 
     // ── Internal filter helpers ───────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1060</c> — the default with a world: a pick WITH presets narrows by the layer filter; a pick without presets,
+    /// or a world with no layer assignment (a test), stays match-all — exactly what the adapter answered before for those.</summary>
+    private sealed class PresetFilterFactory : IEntityFilterFactory
+    {
+        private readonly EntityRepository _repo;
+        public PresetFilterFactory(EntityRepository repo) => _repo = repo;
+        public IEntityFilter CreateFilter(string[] filterPresets)
+            => filterPresets is { Length: > 0 } && _repo.IsComponentTypeRegistered<Fdp.Toolkit.Vis2D.Components.MapDisplayComponent>()
+                ? new Hrot.Presentation.Map.HrotEntityFilterFactory(_repo).CreateFilter(filterPresets)
+                : DefaultFactory.CreateFilter(filterPresets);
+    }
 
     private sealed class MatchAllFilterFactory : IEntityFilterFactory
     {

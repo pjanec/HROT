@@ -1,0 +1,36 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Air Ops (CE-1118 H-2): a jet's mission ejects its pilot after 40 s. Only Judge (3) is expressible: the jet is abandoned (health 0) and down (below 20 m), and not before its 40 s timer. The new Pilot (type 206) is spawned unnamed, so (1) one pilot, (2) canopy within ~3-4.5 s and (4) landing >= 100 m from the patrol cannot be addressed by a check.",
+  "runFor": 75,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the jet is not lost before its 40 s timer",
+      "never": {
+        "on": "field",
+        "who": "A-10",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      },
+      "before": 39
+    },
+    {
+      "name": "the jet is abandoned (health 0)",
+      "on": "field",
+      "who": "A-10",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "the jet is down (below 20 m)",
+      "on": "field",
+      "who": "A-10",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": 20
+    }
+  ]
+}

@@ -15,16 +15,59 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>Maximum total size of any channel struct (enforced by ComponentLayoutTests).</summary>
         public const int MaxChannelSizeBytes = 96;
 
-        /// <summary>Size of BrainBlackboard inline memory.</summary>
-        public const int BrainBlackboardByteSize = 128;
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-307</c> — THE REAL CEILING ON A BEHAVIOUR'S ROOT PARAMS: the largest tier's
+        /// payload.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §30.25.
+        ///
+        /// <para>🔴 <b>This REPLACES <see cref="MaxBehaviorParamByteSize"/> as the bound</b>, in every
+        /// site that used 100 as a LIMIT. ⛔ 100 was a <b>buffer-overrun guard</b>: params lived inline
+        /// in a fixed-layout struct <i>with neighbours after them</i>, so overflow silently overwrote
+        /// unrelated state. ⇒ after <c>P3-C</c> params land in an occurrence slot sized
+        /// <see cref="RootParamsAccess.RootParamsBytes"/>, promoted up the 256/1024/4096/16384 ladder,
+        /// with <c>TryAttach</c> failing <b>structurally</b> and ingress throwing a named error.
+        /// <b>No neighbours, no cap.</b></para>
+        ///
+        /// <para>⭐ <b>What is left is a CAPACITY bound, not a corruption guard</b> — a params region
+        /// wider than the largest tier's whole payload cannot be stored by any tier, so it is still
+        /// worth refusing at build time rather than at run time. ⚠ It is a CEILING, not a budget: a
+        /// region this wide would consume the entire 16384 tier and leave no room for the behaviour's
+        /// stateful slots, and ingress would then throw. ⛔ Do not read agreement with this number as
+        /// "it will fit".</para>
+        /// </summary>
+        public const int MaxRootParamsByteSize = Blueprints.Shared.BlueprintTierLadder.Tier16384PayloadSize;
 
         /// <summary>
-        /// Maximum byte size for a behavior parameter DTO projected onto
-        /// <see cref="Components.BrainBlackboard.BehaviorParameters"/>.
-        /// Enforced by <c>BTreeBuilder</c> at tree-compile time.
-        /// Keeps parameter payloads clear of the soft-advice region and the interrupt registers.
+        /// ⚠ <b>The reservation width for an UNDER-DECLARED behaviour — not a cap, and no longer a
+        /// struct's width either.</b>
+        ///
+        /// <para>⛔⛔ <b>Do NOT reintroduce this as a limit.</b> <c>CE-307</c> repointed every bound at
+        /// <see cref="MaxRootParamsByteSize"/>. ⛔ And <c>P4</c> deleted <c>BrainBlackboard</c>, so the
+        /// <c>fixed byte[100]</c> this used to declare is gone too.</para>
+        ///
+        /// <para>🔴🔴 <b><c>CE-328</c> (<c>2026-09-23</c>) — IT HAS NO PRODUCTION READER AT ALL NOW.</b>
+        /// ⚠ This paragraph used to say *"one production reader remains"*:
+        /// <see cref="RootParamsAccess.RootParamsBytes"/> handed back this width for a behaviour
+        /// declaring a <c>ParseParams</c> and NEITHER a manifest NOR a layout type. ⛔ That fallback is
+        /// DELETED — <see cref="BehaviorRegistry"/><c>.Register</c> refuses the shape instead.</para>
+        ///
+        /// <para>⛔⛔ <b>Why the fallback could not stand:</b> <c>P4</c> deleted <c>BrainBlackboard</c>,
+        /// so 100 stopped being the width of anything; and <c>ParseParams</c> writes through a
+        /// <c>byte*</c> with <b>no length</b>, so the number had inverted from the GUARD against
+        /// overrunning the region into the ALLOCATION that gets overrun. ⇒ an undeclared width is a
+        /// build-time error, not something to guess.</para>
+        ///
+        /// <para>⚠ <b>What is left is TEST SCRATCH.</b> Tests use it as an arbitrary host-blackboard
+        /// width, where any value would do. ⛔ <b>Do not give it a production reader again</b>, and do
+        /// not read it as a bound — <see cref="MaxRootParamsByteSize"/> is the bound.</para>
         /// </summary>
         public const int MaxBehaviorParamByteSize = 100;
+
+        // ⛔ `BrainBlackboardByteSize` IS DELETED with the struct it sized — `P4` (2026-09-22).
+        //   ⚠ `CE-307` had already taken its OTHER consumer away: BehaviorIngressSystem's parse shadow
+        //   is sized per behaviour from RootParamsBytes(def) now, because a constant-width shadow made
+        //   a >100-byte behaviour a stack smash. ⇒ the struct's [StructLayout(Size=…)] was the last
+        //   reader, and it went with the struct.
+
 
 
 
@@ -36,6 +79,13 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>Brain tier value for BTree-driven entities (FastBTree interpreter).</summary>
         public const byte BrainTierBTree = 2;
+
+        /// <summary>
+        /// ⭐ CE-446 (Q77) — brain tier value for a behaviour implemented by a BLUEPRINT: ticked by
+        /// <see cref="Systems.BrainTickSystem"/> through <see cref="BehaviorDefinition.BlueprintTick"/>
+        /// over the root block. A third discriminant, not a bitmask (Q33 §1.5.1).
+        /// </summary>
+        public const byte BrainTierBlueprint = 3;
 
         /// <summary>
         /// SimTier value for Tier-1 civilian entities, driven by <see cref="Systems.TrafficBrainSystem"/>.
@@ -60,8 +110,49 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public const ushort ActionIdEjectPassengers = 3;
 
-        /// <summary>Action ID for OpenDoor (Slice 1 Demo).</summary>
+        /// <summary>⭐ Airborne insertion B-9 — the aircraft's <see cref="Executors.EjectExecutor"/> (11 is free on every lane, 2026-10-16).</summary>
+        public const ushort ActionIdEject = 11;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a — the interaction action of <see cref="Executors.EmbarkExecutor"/> (action ids are per channel;
+        /// 2 is the per-passenger disembark, <see cref="ActionIdDisembark"/>).</summary>
+        public const ushort ActionIdEmbark = 1;
+
+        /// <summary>⭐ <c>CE-1056</c> I-2d — the interaction action of <see cref="Executors.DisembarkExecutor"/>: ONE passenger leaves
+        /// (3 is the vehicle's eject-all). 📄 docs/DESIGN_Entity_Interactions.md §7.3.</summary>
+        public const ushort ActionIdDisembark = 2;
+
+        /// <summary>⭐ <c>CE-2152</c> C-b (C6, docs/DESIGN_Entity_Interactions.md §7.4.10) — the CARRIER's pick-up
+        /// (<see cref="Executors.PickUpExecutor"/>): the mirror of the passenger's <see cref="ActionIdEmbark"/>, raised with Vehicle = self.</summary>
+        public const ushort ActionIdPickUp = 9;
+
+        /// <summary>⭐ <c>CE-2152</c> C-b — the CARRIER's put-down (<see cref="Executors.PutDownExecutor"/>): the mirror of the passenger's
+        /// <see cref="ActionIdDisembark"/>.</summary>
+        public const ushort ActionIdPutDown = 10;
+
+        /// <summary>⭐ <c>CE-1207</c> (docs/DESIGN_Entity_Control.md §8m PK-4) — a man picks a lying stone / round up
+        /// (<see cref="Executors.PickUpRoundExecutor"/>; 12 is the next free id, 2026-10-20).</summary>
+        public const ushort ActionIdPickUpRound = 12;
+
+        /// <summary>⭐ Buildings 5d — the door actions on the interaction channel (<see cref="Executors.DoorActionExecutor"/>, one per verb).</summary>
         public const ushort ActionIdOpenDoor = 4;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdCloseDoor = 5;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdLockDoor = 6;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdUnlockDoor = 7;
+        /// <inheritdoc cref="ActionIdOpenDoor"/>
+        public const ushort ActionIdBreachDoor = 8;
+
+        /// <summary>⭐ 5d — every door action id with its executor, for a host's interaction dispatcher (one list, so no host forgets one).</summary>
+        public static (ushort Id, Executors.DoorActionExecutor Executor)[] DoorActionExecutors() => new[]
+        {
+            (ActionIdOpenDoor,   new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Open)),
+            (ActionIdCloseDoor,  new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Close)),
+            (ActionIdLockDoor,   new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Lock)),
+            (ActionIdUnlockDoor, new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Unlock)),
+            (ActionIdBreachDoor, new Executors.DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Breach)),
+        };
 
         // ── Unmanaged event IDs (Behavior behavior range: 3100–3199) ─────────────
         /// <summary>EventId for <c>ClearBehaviorEvent</c>.</summary>
@@ -76,11 +167,40 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>EventId for <c>CognitiveInterruptEvent</c>.</summary>
         public const int EventId_CognitiveInterrupt = 3103;
 
+        /// <summary>⭐ <c>CE-2074</c> — <c>SetRoeEvent</c>. 3104 is free by a census of every literal and constant event id, 2026-10-04.</summary>
+        public const int EventId_SetRoe = 3104;
+
+        /// <summary>⭐ <c>CE-3035</c> — <c>ClearSopEvent</c>. 3105 is free by the same census.</summary>
+        public const int EventId_ClearSop = 3105;
+
+        /// <summary>⭐ <c>CE-2291</c> CC-A — <c>SetReportingEvent</c> (the <c>SetRoeEvent</c> twin). 3106 free by a census of every literal and
+        /// constant event id on all four lanes, 2026-10-19.</summary>
+        public const int EventId_SetReporting = 3106;
+
+        /// <summary>⭐ <c>CE-2282</c> DA-L — <c>SetEngagementAreaEvent</c> (the <c>SetRoeEvent</c> twin, a man's sector). 3107 free by a
+        /// census of every literal and constant event id on all four lanes, 2026-10-19.</summary>
+        public const int EventId_SetEngagementArea = 3107;
+
+        /// <summary>⭐ rules S2-e — <c>ExerciseEndedEvent</c>: the exercise's <c>ExerciseResult.Phase</c> became Ended (raised once per node).</summary>
+        public const int EventId_ExerciseEnded = 3108;
+
+        /// <summary>⭐ rules S7 P-4 — <c>ObjectiveCapturedEvent</c>: a capture point changed hands to a side. 3109 free by grep of every literal on all four lanes, 2026-11-03.</summary>
+        public const int EventId_ObjectiveCaptured = 3109;
+
         // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
         /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>
         public const int EventId_EmbarkEntity    = 3201;
 
         /// <summary>EventId for <c>DisembarkEntityCommand</c>.</summary>
         public const int EventId_DisembarkEntity = 3202;
+
+        /// <summary>⭐ <c>CE-3110</c> I-2a — <see cref="Events.EjectPassengersCommand"/>.</summary>
+        public const int EventId_EjectPassengers = 3203;
+
+        /// <summary>⭐ Airborne insertion B-4 — <see cref="Events.StartDescentCommand"/>. 3204 is free by a census of every literal and constant event id, 2026-10-15.</summary>
+        public const int EventId_StartDescent = 3204;
+
+        /// <summary>⭐ Airborne insertion B-8 — <see cref="Events.EjectRequestEvent"/>. 3205 is free by the same census, 2026-10-16.</summary>
+        public const int EventId_EjectRequest = 3205;
     }
 }

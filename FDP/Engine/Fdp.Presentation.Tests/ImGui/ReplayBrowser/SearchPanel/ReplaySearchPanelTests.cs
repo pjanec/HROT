@@ -15,78 +15,8 @@ using Xunit;
 namespace Fdp.Presentation.ReplayBrowser.SearchPanel;
 
 // ── SR-T32 ────────────────────────────────────────────────────────────────
-// ISpatialPickerContext stub compiles, all methods callable without error,
-// and TryConsumeBoundingBoxPick returns the stored box.
-public class ISpatialPickerContextTests
-{
-    private sealed class StubSpatialPickerContext : ISpatialPickerContext
-    {
-        private readonly Dictionary<string, BoundingBox2D> _pending = new();
-        public List<string> RequestedPaths { get; } = new();
-
-        public void RequestBoundingBoxPick(string jsonPath)
-            => RequestedPaths.Add(jsonPath);
-
-        public bool IsPickPendingFor(string jsonPath)
-            => RequestedPaths.Contains(jsonPath);
-
-        public bool TryConsumeBoundingBoxPick(string jsonPath, out BoundingBox2D box)
-        {
-            if (_pending.TryGetValue(jsonPath, out box))
-            {
-                _pending.Remove(jsonPath);
-                return true;
-            }
-            return false;
-        }
-
-        public void SetPending(string jsonPath, BoundingBox2D box)
-            => _pending[jsonPath] = box;
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_AllMethodsInvocableWithoutError()
-    {
-        ISpatialPickerContext ctx = new StubSpatialPickerContext();
-        ctx.RequestBoundingBoxPick("$.Bounds");
-        ctx.TryConsumeBoundingBoxPick("$.Bounds", out _);
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_TryConsume_ReturnsStoredBox()
-    {
-        var stub = new StubSpatialPickerContext();
-        var expected = new BoundingBox2D
-        {
-            Min = new System.Numerics.Vector2(1f, 2f),
-            Max = new System.Numerics.Vector2(10f, 20f)
-        };
-        stub.SetPending("$.Bounds", expected);
-
-        bool result = stub.TryConsumeBoundingBoxPick("$.Bounds", out var actual);
-
-        Assert.True(result);
-        Assert.Equal(expected.Min, actual.Min);
-        Assert.Equal(expected.Max, actual.Max);
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_TryConsume_NoMatch_ReturnsFalse()
-    {
-        ISpatialPickerContext ctx = new StubSpatialPickerContext();
-        bool result = ctx.TryConsumeBoundingBoxPick("$.Bounds", out var box);
-        Assert.False(result);
-        Assert.Equal(default(BoundingBox2D), box);
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_RequestedPath_IsRecorded()
-    {
-        var stub = new StubSpatialPickerContext();
-        stub.RequestBoundingBoxPick("$.Area");
-        Assert.Contains("$.Area", stub.RequestedPaths);
-    }
-}
+// ⛔ DELETED (CE-4206 R2): the stub tests of ISpatialPickerContext — the search area is edited through the ONE IMapPickContext
+// (RequestAreaEdit / TryConsumeAreaEdit; rails in ComponentEditDrawerTests R2_* and MapPickBrokerTests).
 
 // ── SR-T33 ────────────────────────────────────────────────────────────────
 // BehaviorHashFieldDrawer: registering "Combat" in a test registry and asking
@@ -166,6 +96,26 @@ public class FilteredTypeComboFieldDrawerTests
     {
         var result = FilteredTypeComboFieldDrawer.FilterTypes(_testTypes, "XYZ").ToList();
         Assert.Empty(result);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4220 (rules view R5b) — the rule editor's <c>Type</c> combo is the SAME list the Replay search shows: <c>Auto</c> offers the component types for a <c>ComponentType</c> field (exactly the Component mode's list)
+    /// and the event types for an <c>EventType</c> field (exactly the Event mode's). ✅ Red-proof: Auto always picking the component list ⇒ the event field's list differs ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4220_Auto_OffersTheReplaySearchsOwnLists_ByTheFieldsName()
+    {
+        ComponentTypeRegistry.GetOrRegisterManaged(typeof(Fdp.Toolkit.ScenarioRules.ObjectiveStatus));   // both registries must hold something, or "the same list" proves nothing
+        _ = EventType<Fdp.Toolkit.Combat.Contracts.HitEvent>.Id;
+        Assert.NotEmpty(ComponentTypeRegistry.GetAllRegistered()); Assert.NotEmpty(Fdp.Core.EventType.GetAllRegistered());
+        EditNode Field(string name) => new(new EditNodeId(1), name, "$." + name, EditNodeKind.Custom, typeof(Type));
+        var auto = new FilteredTypeComboFieldDrawer(TypeComboMode.Auto);
+        var component = new FilteredTypeComboFieldDrawer(TypeComboMode.Component);
+        var @event = new FilteredTypeComboFieldDrawer(TypeComboMode.Event);
+        Assert.Equal(component.TypesFor(Field("PositionComponentType")), auto.TypesFor(Field("PositionComponentType")));
+        Assert.Equal(@event.TypesFor(Field("EventType")), auto.TypesFor(Field("EventType")));
+        Assert.Equal(Fdp.Core.ComponentTypeRegistry.GetAllRegistered().OrderBy(t => t.Name), component.TypesFor(Field("ComponentType")));
+        Assert.Equal(Fdp.Core.EventType.GetAllRegistered().OrderBy(t => t.Name), @event.TypesFor(Field("EventType")));
     }
 
     [Fact]
@@ -345,5 +295,16 @@ public class ReplaySearchPanelMergedViewTests
         panel.IsMergedViewActive = true;
         panel.IsMergedViewActive = false;
         Assert.False(panel.IsMergedViewActive);
+    }
+
+    /// <summary>⭐ CE-3378 (N-1) — the forwarding rail for the replay search: the drawer the Expert view BUILDS draws Quaternion, Guid and Type (the Type cell is the host's own filtered combo, an overlay entry) — asked of the constructed drawer.</summary>
+    [Fact]
+    public void CE3378_TheExpertViewsDrawer_DrawsQuaternionGuidAndType()
+    {
+        var dto = PredicateModes.CreateDefault(SearchPredicateMode.Component);
+        using var session = Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build().Open(dto, dto.GetType());
+        var catalogue = MakeSearchPanel().DrawerFor(session).Catalogue;
+        Assert.Null(Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(catalogue));
+        Assert.NotSame(Fdp.Presentation.Editing.Types.TypeCatalogue.Standard, catalogue);   // the host's overlay (its rules and Type combo), built once
     }
 }

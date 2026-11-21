@@ -204,8 +204,8 @@ namespace Fdp.Examples.Scenarios.Replay
             using var recordingModule = new RecordingModule(new RecordingConfiguration
             {
                 FilePath = recFilePath,
-                ExerciseId  = Guid.NewGuid(),
-                NodeId = 0,
+                ExerciseId  = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
+                NodeId = (Fdp.Core.NodeId)(0),
                 Blocking = true    // prevents delta-frame drops in CPU-bound tight loop
             });
             using var liveKernel = new ModuleHostKernel(liveWorld, liveAccumulator);
@@ -307,6 +307,7 @@ namespace Fdp.Examples.Scenarios.Replay
         /// Uses <c>ExecutionPolicy.Synchronous()</c> (DataStrategy.Direct) so the kernel
         /// passes the live <see cref="EntityRepository"/> without snapshot overhead.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class LiveKinematicsModule : IEcsModule
         {
             private readonly SpatialHashSystem    _spatial;

@@ -3,7 +3,7 @@ namespace Fdp.Presentation.Icons;
 /// <summary>
 /// Provides access to icon-atlas PNG files embedded as managed resources in this assembly.
 ///
-/// <para>The integration layer (e.g. <c>Hrot.ClusterRunner</c>, <c>Hrot.IG</c>) is responsible
+/// <para>The integration layer (e.g. <c>Hrot.ClusterRunner</c>, <c>Hrot.Player</c>) is responsible
 /// for uploading the returned bytes to the GPU and constructing an <see cref="IconAtlas"/>
 /// from the resulting texture handle.  This class is GPU-framework-agnostic.</para>
 /// </summary>
@@ -27,13 +27,31 @@ public static class EmbeddedAtlasResources
     /// Thrown when the embedded resource is not found — this indicates a build misconfiguration
     /// (the <c>EmbeddedResource</c> item in <c>FDP.Toolkit_ImGui.csproj</c> is missing).
     /// </exception>
-    public static byte[] GetSilkAtlasPngBytes()
+    public static byte[] GetSilkAtlasPngBytes() => Read(SilkResourceName);
+
+    /// <summary>⭐ <c>CE-4112</c> — the manifest name of the HROT wallpaper (the Start surface's background; 1292 × 837).</summary>
+    public const string WallpaperResourceName = "FDP.Toolkit_ImGui.Icons.HROT-wallpaper.png";
+
+    /// <summary>⭐ <c>CE-4112</c> — the raw PNG bytes of the HROT wallpaper, read through the same loader as the silk atlas.</summary>
+    public static byte[] GetWallpaperPngBytes() => Read(WallpaperResourceName);
+
+    /// <summary>⭐ CE-4271 — the bytes of a resource embedded in ANOTHER assembly (the entity thumbnail atlas lives in Hrot.Presentation), through the same reader; null when it is not there.</summary>
+    public static byte[]? TryRead(System.Reflection.Assembly assembly, string resourceName)
+    {
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream is null) return null;
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    private static byte[] Read(string resourceName)
     {
         var asm    = typeof(EmbeddedAtlasResources).Assembly;
-        using var stream = asm.GetManifestResourceStream(SilkResourceName)
+        using var stream = asm.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException(
-                $"Embedded resource '{SilkResourceName}' not found. " +
-                "Ensure 'famfamfam-silk.png' is included as an EmbeddedResource in FDP.Toolkit_ImGui.csproj.");
+                $"Embedded resource '{resourceName}' not found. " +
+                "Ensure the image is included as an EmbeddedResource in Fdp.Presentation.csproj.");
 
         using var ms = new MemoryStream();
         stream.CopyTo(ms);

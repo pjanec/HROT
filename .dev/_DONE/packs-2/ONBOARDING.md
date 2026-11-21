@@ -58,7 +58,7 @@ that work to the IG map tools and builds the Editor on top of the resulting clea
 Workspace root: `d:\Work\IOS-IG-SimHost-FDP-2`
 
 ```
-IOS-IG-SimHost.sln                         ← main solution
+HROT.sln                         ← main solution
 FDP/FDP.sln                                ← FDP engine sub-solution
 
 ── FDP engine (pure domain — zero CycloneDDS) ─────────────────────────────────────────
@@ -107,7 +107,7 @@ Hrot.NED/                                    ← DDS structs (CreateEntityReques
 ```powershell
 # Build the full solution
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Build FDP engine only
 cd FDP

@@ -1,0 +1,53 @@
+using System;
+
+namespace Hrot.Map.Definitions.Behavior
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-2134</c> (B2, R-276/R-277; <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §5b) — a BEHAVIOUR declares its params
+    /// DTO: the one type its JSON params are, published by <c>GET /behaviors</c> and the editor's forms. It sits ON THE BEHAVIOUR
+    /// (its curated topology method, its curated resolver method, the intent mapper class that fulfils an intent id, or
+    /// <c>[assembly: Behavior]</c> beside a host's own registration), never on the DTO — so one DTO can serve many behaviours
+    /// (every <c>&lt;Class&gt;Move</c> shares <c>MoveOrder</c>). Replaces <c>[BehaviorContract]</c>, which sat on the DTO and named
+    /// one behaviour.
+    /// <para>⭐ Read by ONE scan, <see cref="ParamsDtoRegistry"/>; the curated generator checks it against the resolver's
+    /// <c>TAuthored</c> (BEH002) and an identity-parsed <c>ParamsType</c> (BEH003).</para>
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Assembly,
+        Inherited = false, AllowMultiple = true)]
+    public sealed class BehaviorAttribute : Attribute
+    {
+        public BehaviorAttribute(string name) => Name = name ?? throw new ArgumentNullException(nameof(name));
+
+        /// <summary>The behaviour's REGISTRY name.</summary>
+        public string Name { get; }
+
+        /// <summary>The behaviour's params DTO (P1: exactly one; a behaviour that takes nothing names <see cref="NoParams"/>).</summary>
+        public Type? Params { get; set; }
+
+        /// <summary>The entity categories the behaviour suits (the mission pickers' filter) until the class table replaces it
+        /// (CE-2138 / CE-2142).</summary>
+        public BehaviorCategory Categories { get; set; }
+
+        /// <summary>⭐ <c>CE-4350</c> (docs/DESIGN_Orders_Params_Entity_Classes.md §14) — the entity CLASSES (<c>EntityClassTable</c> names)
+        /// the behaviour suits: an entity is offered it when ANY of them is in its DIS type's class chain. Null/empty ⇒ the class comes from
+        /// the order name (<c>&lt;Class&gt;&lt;Order&gt;</c>) or, failing that, <see cref="Categories"/> (<c>BehaviorFit</c>).</summary>
+        public string[]? Classes { get; set; }
+
+        /// <summary>⭐ <c>CE-4350</c> — components the entity must carry (equipment: the weapon a fire behaviour needs), the tabs' AND
+        /// (<c>ComponentRequirements</c>). Null/empty ⇒ none.</summary>
+        public Type[]? Requires { get; set; }
+
+        /// <summary>⭐ <c>CE-4612</c> (R-2089; DESIGN_Orders_Params_Entity_Classes.md §15) — the ORDER KIND this behaviour fulfils, an
+        /// <c>OrderKind</c> member's name (<c>"Defend"</c>), for a concrete play whose params DTO is not an order (an order DTO's behaviour gets
+        /// its kind from the DTO). Readers ask the unit's <c>CurrentOrder.Kind</c>, never its behaviour name. A name that is no kind fails the load.</summary>
+        public string? Fulfils { get; set; }
+
+        /// <summary>⭐ <c>CE-4359</c> — one plain sentence for the task picker's preview pane (what the behaviour does, for an instructor); null ⇒ the pane shows none. ONE field, on the behaviour.</summary>
+        public string? Description { get; set; }
+
+        /// <summary>⭐ <c>CE-4621</c> M-3 (CD-1, R-4263; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §8a) — what this behaviour DOES when it
+        /// runs as a REACTION, as categories (halts · dismounts · leaves the route · seeks cover). An order kind that forbids one of them
+        /// (<c>OrderConduct</c>) makes THE ONE GATE refuse the reaction (<c>ForbiddenByOrder</c>). ⭐ Firing is not a conduct (CD-6).</summary>
+        public Fdp.Toolkit.Behavior.Conduct Conduct { get; set; }
+    }
+}

@@ -1,0 +1,8 @@
+<Project>
+  <!-- ⭐ CE-4293 — a test project imports this next to a ProjectReference to SampleNodeExtension.csproj with
+       ReferenceOutputAssembly="false" OutputItemType="SampleExtensionOutput"; the extension's dll lands in <bin>/sample-extension/ and
+       the test stages it into a temp extensions/<name>/ folder (Shared/SampleExtensionStaging.cs). It is NOT referenced: a real extension is loaded by path. -->
+  <Target Name="CopySampleExtension" AfterTargets="CopyFilesToOutputDirectory">
+    <Copy SourceFiles="@(SampleExtensionOutput)" DestinationFolder="$(OutDir)sample-extension" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

@@ -96,7 +96,7 @@ Build the whole solution:
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 ```
 
 Build only FDP (faster for Phase 1/2/3 work):
@@ -121,7 +121,7 @@ dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj
 Run all tests:
 
 ```powershell
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 ---

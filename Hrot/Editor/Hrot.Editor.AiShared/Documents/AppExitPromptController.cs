@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.AiShared.Documents;
 
 /// <summary>
 /// Headless state machine behind the app-exit "unsaved changes" prompt. Owns the decision of whether
-/// the editor may close, and the resolution of the modal's three choices. The ImGui modal
-/// (EditorSubsystem) is a thin view over this — it reads <see cref="DirtyDocuments"/> and calls the
-/// <c>Resolve*</c> methods on button clicks, so all logic here is unit-testable without an ImGui context.
+/// the editor may close, and the resolution of the modal's three choices.
+/// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the prompt is a <see cref="RunModeConfirmation"/> (<see cref="Pending"/>: its text lists the documents, its buttons
+/// are Save All &amp; Exit / Discard &amp; Exit / Cancel), drawn by the ONE <see cref="ConfirmationModal"/>; ⛔ this type keeps no button list of its own.
+/// The <c>Resolve*</c> methods stay for a caller that decides without the modal, so all logic here is unit-testable without an ImGui context.
 ///
 /// <para>
 /// Saving is decoupled from closing everywhere else (the per-tab prompt, the removed close-flush and
@@ -32,8 +35,11 @@ public sealed class AppExitPromptController
         _saveAll   = saveAll   ?? throw new ArgumentNullException(nameof(saveAll));
     }
 
+    /// <summary>⭐ The unsaved-changes confirmation (draw it with <see cref="ConfirmationModal.Draw"/>); <see langword="null"/> when not prompting.</summary>
+    public RunModeConfirmation? Pending { get; private set; }
+
     /// <summary>True while the unsaved-changes modal should be shown.</summary>
-    public bool IsPrompting { get; private set; }
+    public bool IsPrompting => Pending != null;
 
     /// <summary>True once the user has chosen to exit (Save &amp; Exit or Discard &amp; Exit).</summary>
     public bool ExitApproved { get; private set; }
@@ -51,8 +57,20 @@ public sealed class AppExitPromptController
     {
         if (ExitApproved) return true;            // already resolved in favour of exiting
         if (DirtyDocuments.Count == 0) return true; // nothing to save → close now
-        IsPrompting = true;                        // (idempotent: re-setting true is a no-op)
+        Pending ??= BuildPrompt();                 // (idempotent: a second [X] press keeps the one prompt)
         return false;
+    }
+
+    private RunModeConfirmation BuildPrompt()
+    {
+        var dirty = DirtyDocuments;
+        var text = new StringBuilder($"You have {dirty.Count} document{(dirty.Count == 1 ? "" : "s")} with unsaved changes:\n");
+        foreach (var d in dirty) text.Append("  • ").Append(d.Asset.Name).Append("  (").Append(d.Kind).Append(")\n");
+        text.Append("\nSave them before exiting?");
+        return RunModeConfirmation.WithCancel(text.ToString(), done => { if (ReferenceEquals(Pending, done)) Pending = null; },
+                                              "Unsaved Changes", "ai_app_exit_confirm",
+                                              new RunModeConfirmation.Button("Save All & Exit", ResolveSaveAndExit),
+                                              new RunModeConfirmation.Button("Discard & Exit", ResolveDiscardAndExit));
     }
 
     /// <summary>Modal "Save All &amp; Exit": persist every dirty document, then approve exit.</summary>
@@ -60,16 +78,16 @@ public sealed class AppExitPromptController
     {
         _saveAll();
         ExitApproved = true;
-        IsPrompting  = false;
+        Pending      = null;
     }
 
     /// <summary>Modal "Discard &amp; Exit": approve exit without saving.</summary>
     public void ResolveDiscardAndExit()
     {
         ExitApproved = true;
-        IsPrompting  = false;
+        Pending      = null;
     }
 
     /// <summary>Modal "Cancel" (also Esc / dismiss): keep the editor open, nothing saved.</summary>
-    public void ResolveCancel() => IsPrompting = false;
+    public void ResolveCancel() => Pending = null;
 }

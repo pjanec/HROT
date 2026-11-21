@@ -52,52 +52,197 @@ internal static class StatementEmitter
                 break;
 
             case IrOp_ReadParam op:
-                if (idx >= 0) e.WriteLine($"var __t{idx} = p.{ctx.ParamFieldName(op.ParamIndex)};");
+                // ⭐ Batch 70 — the params region is named per dispatch kind (`p` for an AiPrimitive,
+                //   `s.Params` for an Instance). It used to be a hardcoded `p`, which no Instance
+                //   declares. See EmissionContext.ParamsVar.
+                if (idx >= 0) e.WriteLine($"var __t{idx} = {ctx.ParamsVar}.{ctx.ParamFieldName(op.ParamIndex)};");
                 break;
 
             case IrOp_ReadVariable op:
-                if (idx >= 0) e.WriteLine($"var __t{idx} = {sv}.{ctx.VarFieldName(op.VariableIndex)};");
+                // U-3: the container comes from the KIND — Parameters live on `p`, not on the
+                // state struct, which the bare-int shape could not express.
+                if (idx >= 0) e.WriteLine($"var __t{idx} = {ctx.ContainerFor(op.Target)}.{ctx.VarFieldName(op.Target)};");
                 break;
 
             case IrOp_WriteVariable op:
-                e.WriteLine($"{sv}.{ctx.VarFieldName(op.VariableIndex)} = __t{op.Value.Index};");
+                e.WriteLine($"{ctx.ContainerFor(op.Target)}.{ctx.VarFieldName(op.Target)} = __t{op.Value.Index};");
                 break;
 
-            // ------------------------------------------------------------------
-            // GetShared / SetShared (Slice 2a-2 + Slice 2b): entity-scoped shared working-state,
-            // compiled to calls into the Slice 2a-1 accessor.
-            // ------------------------------------------------------------------
+            // BP-57 — a function-local: a BARE local, with no `{sv}.` prefix. ⭐ That absence is the
+            // whole feature: the State struct does not grow by one field per scratch value, and the
+            // local is re-initialised on entry (see LibraryEmitter.EmitLocalDeclarations) so it cannot
+            // carry a value from one call into the next.
+            case IrOp_ReadLocal op:
+                if (idx >= 0) e.WriteLine($"var __t{idx} = {ctx.LocalFieldName(op.LocalIndex)};");
+                break;
 
-            case IrOp_ReadShared op:
+            case IrOp_WriteLocal op:
+                e.WriteLine($"{ctx.LocalFieldName(op.LocalIndex)} = __t{op.Value.Index};");
+                break;
+
+            // BP-57 / ⭐⭐ Q27-A3 — Q27-E's "reset from the declared default on entry", for the
+            // blackboard-slot storage class. This lands in the entry block, which a suspending graph
+            // reaches only when `__phase == 0` — once per INVOCATION, not once per frame.
+            case IrOp_ResetLocals:
             {
-                string sharedTypeFqn = op.SharedTypeFqn;
-                if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = default(global::{sharedTypeFqn});");
-                string valueRef = idx >= 0 ? $"__t{idx}" : "_";
-                // Slice 2b: an explicit "Target" pin resolves to the accessor's entity arg (cross-
-                // entity read); referenced directly by index exactly as IrOp_GetComponent references
-                // its resolved Entity IrValue (no cast -- the producing statement's C# local is
-                // already typed global::Fdp.Core.Entity). Unwired (TargetEntity == null) emits
-                // `self` EXACTLY as Slice 2a-2 -- byte-identical unwired-path codegen.
-                string entityArg = op.TargetEntity is { } targetEntity ? $"__t{targetEntity.Index}" : "self";
-                e.WriteLine(
-                    $"bool __t{op.FoundValue.Index} = global::Fdp.Toolkit.Blueprints.Partitioning." +
-                    $"BlueprintSharedState.TryGetShared<global::{sharedTypeFqn}>({wv}, {entityArg}, \"{op.VariableId}\", out {valueRef});");
+                var locals = ctx.CurrentGraph?.Locals ?? Array.Empty<IrField>();
+                for (int i = 0; i < locals.Count; i++)
+                {
+                    var init = string.IsNullOrWhiteSpace(locals[i].DefaultValueCSharp)
+                        ? "default"
+                        : locals[i].DefaultValueCSharp;
+                    e.WriteLine($"{ctx.LocalFieldName(i)} = {init};");
+                }
                 break;
             }
 
-            case IrOp_WriteShared op:
+            case IrOp_StateFieldRef op:
+                // FC-2/LV-2 -- writable ref-bind onto the state field (see the op's doc comment).
+                if (idx >= 0) e.WriteLine($"ref var __t{idx} = ref {sv}.{op.FieldName};");
+                break;
+
+            case IrOp_ListWrite op:
             {
-                string sharedTypeFqn = op.SharedTypeFqn;
-                string call =
-                    $"global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState." +
-                    $"TrySetShared<global::{sharedTypeFqn}>({wv}, self, \"{op.VariableId}\", in __t{op.Value.Index})";
-                if (idx >= 0)
-                    e.WriteLine($"bool __t{idx} = {call};");
-                else
-                    e.WriteLine($"{call};");
+                // FC-2/LV-3 (Q#19-C/D amended emit) -- scoped in-place mutation of the state-field
+                // list. All element access through the Span cast (R3), F2 clamp on the working
+                // count, G6 zeroing on shrink/remove/clear, false-on-overflow driving the Ok result
+                // (idx < 0 for Clear -- no Ok pin). Probe gating mirrors the component write.
+                string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = op.ElementTypeFqn });
+                bool probes = e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release
+                              && e.Ctx.HasSelfInScope;
+                string field = $"{sv}.{op.FieldName}";
+                int cap = op.Capacity;
+                string n = e.Ctx.NextLocalCounter("lw");
+                string spanV = $"__lws{n}";
+                string cntV  = $"__lwc{n}";
+
+                if (idx >= 0) e.WriteLine($"var __t{idx} = false;");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"var {spanV} = (global::System.Span<{elemCs}>){field}.Items;");
+                e.WriteLine($"int {cntV} = global::System.Math.Min({field}.Count, {cap});");
+                string ok = idx >= 0 ? $"__t{idx}" : "";
+                void Probe(string reason)
+                {
+                    if (probes)
+                        e.WriteLine($"else global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"{reason}\");");
+                }
+                switch (op.Verb)
+                {
+                    case "Add":
+                        e.WriteLine($"if ({cntV} < {cap})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[{cntV}] = __t{op.Value!.Value.Index};");
+                        e.WriteLine($"{field}.Count = {cntV} + 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "SetAt":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} < (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}] = __t{op.Value!.Value.Index};");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "InsertAt":
+                        e.WriteLine($"if ({cntV} < {cap} && (uint)__t{op.IntArg!.Value.Index} <= (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}..{cntV}].CopyTo({spanV}[(__t{op.IntArg!.Value.Index} + 1)..]);");
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}] = __t{op.Value!.Value.Index};");
+                        e.WriteLine($"{field}.Count = {cntV} + 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "RemoveAt":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} < (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[(__t{op.IntArg!.Value.Index} + 1)..{cntV}].CopyTo({spanV}[__t{op.IntArg!.Value.Index}..]);");
+                        e.WriteLine($"{spanV}[{cntV} - 1] = default;   // G6: vacated slot re-zeroed");
+                        e.WriteLine($"{field}.Count = {cntV} - 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "Clear":
+                        e.WriteLine($"{spanV}[..{cntV}].Clear();   // G6");
+                        e.WriteLine($"{field}.Count = 0;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        break;
+                    case "Resize":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} <= (uint){cap})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"if (__t{op.IntArg!.Value.Index} < {cntV})");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}..{cntV}].Clear();   // G6: dropped tail re-zeroed");
+                        e.Outdent();
+                        e.WriteLine($"{field}.Count = __t{op.IntArg!.Value.Index};");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                // ⭐ CE-464: an unwired Ok pin still allocates __tN; in a real generator build (warnings as errors) a
+                //   local assigned but never read is CS0219. Discard it explicitly — a no-op when Ok IS wired.
+                if (idx >= 0) e.WriteLine($"_ = {ok};");
                 break;
             }
+
+            // ⭐ CE-472 — the ONE JSON emitter (DESIGN_Typed_Intent_And_Json_Nodes §4 C): the same options every
+            // behaviour parse reads with, so what a blueprint writes is what every behaviour parse (BehaviorParams.JsonOptions) reads.
+            // ⭐ CE-2083 — SOP order: the ONE SopActions call (the BTree / HSM thunks spell the same call, SopOrderEmit).
+            case IrOp_SopOrder op:
+            {
+                string name = op.BehaviorName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                string method = op.IsReact ? "React" : "DoWhenIdle";
+                string urgency = op.IsReact ? $", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.{op.UrgencyName}" : "";
+                string args = op.Params is { } pv ? $"in __t{pv.Index}" : "\"{}\"";
+                string call = $"global::Fdp.Toolkit.Behavior.SopActions.{method}({wv}, self, \"{name}\"{urgency}, {args})";
+                e.WriteLine(idx >= 0 ? $"var __t{idx} = {call} == global::Fbt.NodeStatus.Success;" : $"{call};");
+                break;
+            }
+
+            case IrOp_ToJson op:
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = global::System.Text.Json.JsonSerializer.Serialize(__t{op.Value.Index}, "
+                              + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);");
+                break;
+
+            case IrOp_FromJson op:
+            {
+                if (idx < 0) break;
+                // Never null, never throws in a tick (decision E): a bad/empty payload ⇒ new T() and __fjok = false.
+                // ⭐ CE-2023 ③ ("S8n") — an explicit ok flag, so a STRUCT contract compiles too (no `null!`, no `??=`).
+                e.WriteLine($"global::{op.TypeFqn} __t{idx} = default!;");
+                e.WriteLine($"bool __fjok{idx} = false;");
+                e.WriteLine($"if (!string.IsNullOrEmpty(__t{op.Json.Index}))");
+                e.WriteLine("{");
+                e.WriteLine($"    try {{ var __fj{idx} = global::System.Text.Json.JsonSerializer.Deserialize<global::{op.TypeFqn}>(__t{op.Json.Index}, "
+                          + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);");
+                e.WriteLine($"          if (__fj{idx} is {{ }} __fjv{idx}) {{ __t{idx} = __fjv{idx}; __fjok{idx} = true; }} }}");
+                e.WriteLine("    catch (global::System.Text.Json.JsonException) { }");
+                e.WriteLine("}");
+                e.WriteLine($"if (!__fjok{idx}) __t{idx} = new global::{op.TypeFqn}();");
+                break;
+            }
+
+            case IrOp_FromJsonOk op:
+                if (idx >= 0) e.WriteLine($"var __t{idx} = __fjok{op.Dto.Index};");
+                break;
 
             case IrOp_MakeStruct op:
             {
@@ -128,17 +273,6 @@ internal static class StatementEmitter
                     foreach (var f in op.Fields)
                         e.WriteLine($"__t{idx}.{f.FieldName} = __t{f.Value.Index};");
                 }
-                break;
-            }
-
-            case IrOp_WriteSharedField op:
-            {
-                // Q#14 multi-pin: true per-field write — touches only this field's bytes, unwired
-                // fields preserved. Result discarded (self-only, not-ready => no-op, mirrors WriteShared).
-                e.WriteLine(
-                    $"global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState." +
-                    $"TrySetSharedField<global::{op.SharedTypeFqn}, global::{op.FieldTypeFqn}>(" +
-                    $"{wv}, self, \"{op.VariableId}\", {op.FieldOffset}, in __t{op.Value.Index});");
                 break;
             }
 
@@ -219,9 +353,39 @@ internal static class StatementEmitter
                 break;
             }
 
+            // ------------------------------------------------------------------
+            // BP-73: multi-output function carrier (pack / unpack)
+            // ------------------------------------------------------------------
+
+            case IrOp_MakeTuple op:
+            {
+                var elems = string.Join(", ", op.Values.Select(v => $"__t{v.Index}"));
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = ({elems});");
+                break;
+            }
+
+            case IrOp_TupleField op:
+            {
+                // Positional access -- ItemN exists on every ValueTuple, named elements or not.
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = __t{op.Source.Index}.Item{op.Index + 1};");
+                break;
+            }
+
             case IrOp_PeerCall op:
             {
-                var peerClass = $"__Peer_{op.PeerBlueprintId:X8}_Bp";
+                // BP-110: emit the peer's REAL generated class name
+                // ({SanitizedName}_{BlueprintId:X8}_Bp), resolved from the sibling signatures the
+                // caller was compiled with. The old `__Peer_{id:X8}_Bp` name was a class NOTHING
+                // ever declared or aliased, so a CallPeerBlueprint could not compile even with the
+                // peer in the same compilation (CS0103). Resolving the real name here -- rather than
+                // emitting a `using` alias -- keeps it correct whether the generated types end up in
+                // the global namespace (production) or wrapped in one (the test fixture's
+                // MergeGeneratedSources). Falls back to the old name when no sibling signature is
+                // present, so Stage 2's BP1301/BP1302 stays the diagnostic the author sees.
+                var peerClass = e.ResolveSiblingClassName(op.PeerBlueprintId)
+                                ?? $"__Peer_{op.PeerBlueprintId:X8}_Bp";
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
                 var call = $"{peerClass}.{op.MethodName}({argList})";
                 if (idx >= 0)
@@ -233,7 +397,9 @@ internal static class StatementEmitter
 
             case IrOp_AiPrimitiveCall op:
             {
-                var primClass = $"__AiPrim_{op.AiPrimitiveBlueprintId:X8}_Bp";
+                // BP-110: same defect and same fix as IrOp_PeerCall above.
+                var primClass = e.ResolveSiblingClassName(op.AiPrimitiveBlueprintId)
+                                ?? $"__AiPrim_{op.AiPrimitiveBlueprintId:X8}_Bp";
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
                 var call = $"{primClass}.Call({argList})";
                 if (idx >= 0)
@@ -254,11 +420,28 @@ internal static class StatementEmitter
                     break;
                 }
                 var sanitized = Sanitizer.SanitizeName(fg.Name);
-                var contextArgs = new[] { $"ref {sv}", "view", "ecb", "self", "time", "deltaTime", "instanceVersion" };
+
+                // BP-221: the context parameters differ per dispatch because the ENCLOSING method
+                // differs. An Instance body runs inside a method that has view/ecb/deltaTime/
+                // instanceVersion in scope; an AiPrimitive's TickCore has (ref Params, ref
+                // WorkingState, self, world, time) and none of those four. Emitting the Instance
+                // shape unconditionally produced four CS0103s on top of the missing helper.
+                var contextArgs = ctx.Asset.Dispatch == BlueprintDispatchKind.AiPrimitive
+                    ? new[] { $"ref {sv}", "self", "world", "time" }
+                    : new[] { ctx.StateArgs, "view", "ecb", "self", "time", "deltaTime", "instanceVersion" };
+
                 var dataArgs = op.Args.Select(a => $"__t{a.Index}");
                 var allArgs = string.Join(", ", contextArgs.Concat(dataArgs));
                 var gcCall = $"Func_{sanitized}({allArgs})";
-                if (idx >= 0)
+
+                // ⚠ BP-222: a Function graph with no outputs emits a `void` helper (see
+                // LibraryEmitter.CSharpReturnType), so assigning its result is CS0815. Stage 5 still
+                // allocates a result slot for the op — harmless, because with no outputs nothing
+                // reads it — but the emitter must not pretend the call produces a value. Keyed off
+                // the SAME predicate that chose the helper's return type, so the two cannot drift.
+                bool returnsAValue = LibraryEmitter.HelperReturnType(fg) != "void";
+
+                if (idx >= 0 && returnsAValue)
                     e.WriteLine($"var __t{idx} = {gcCall};");
                 else
                     e.WriteLine($"{gcCall};");
@@ -274,7 +457,7 @@ internal static class StatementEmitter
                 var evtName = ctx.CustomEventName(op.CustomEventIndex);
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
                 var extraArgs = argList.Length > 0 ? $", {argList}" : "";
-                e.WriteLine($"Event_{evtName}(ref {sv}, view, ecb, self, time{extraArgs});");
+                e.WriteLine($"Event_{evtName}({ctx.StateArgs}, view, ecb, self, time{extraArgs});");
                 break;
             }
 
@@ -300,7 +483,7 @@ internal static class StatementEmitter
                 var payloadArgs = op.PayloadFields.Count > 0
                     ? ", " + string.Join(", ", op.PayloadFields.Select(f => $"__e_{n}.{f.Name}"))
                     : "";
-                e.WriteLine($"Event_{graphName}(ref s, view, ecb, self, time{payloadArgs});");
+                e.WriteLine($"Event_{graphName}({ctx.StateArgs}, view, ecb, self, time{payloadArgs});");
                 e.Outdent();
                 e.WriteLine("}");
                 break;
@@ -328,7 +511,19 @@ internal static class StatementEmitter
 
             case IrOp_GetComponentRO op:
                 if (idx >= 0)
-                    e.WriteLine($"ref readonly var __t{idx} = ref {wv}.GetComponentRO<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                {
+                    // ⭐ CE-474 (2026-10-01): GUARDED. EntityRepository.GetComponentRO<T> THROWS (InvalidOperationException) for
+                    // an entity that lacks T, is dead, or is Entity.Null — measured — and this read is emitted BEFORE the
+                    // node's "Found" (IrOp_HasComponent) check, so a GetComponent / collection read on a Target without
+                    // the component threw instead of reporting Found = false. HasComponent<T> is safe on all three.
+                    // The fallback is a zero-initialised local, so the present case keeps its zero-copy ref and an
+                    // absent component reads as default(T) — the same contract as the managed read below.
+                    string entity = $"__t{op.Entity.Index}";
+                    string type   = $"global::{op.ComponentTypeFqn}";
+                    e.WriteLine($"var __t{idx}_absent = default({type});");
+                    e.WriteLine($"ref readonly var __t{idx} = ref ({wv}.HasComponent<{type}>({entity}) "
+                        + $"? ref {wv}.GetComponentRO<{type}>({entity}) : ref __t{idx}_absent);");
+                }
                 break;
 
             case IrOp_GetManagedComponentRO op:
@@ -343,7 +538,7 @@ internal static class StatementEmitter
                     // fail-safe/never-throw exactly like the unmanaged read, even for an arbitrary
                     // Target entity that turns out not to carry the component. HasManagedComponent<T>
                     // itself is PUBLIC and DIRECT on the concrete EntityRepository (wv) -- no interface
-                    // cast needed for the guard, only for the throwing Get.
+                    // cast needed for the guard, only for the throwing Get. (CE-474: the unmanaged read is now guarded too.)
                     string entity = $"__t{op.Entity.Index}";
                     string simView = ctx.SimulationViewVar;
                     e.WriteLine(
@@ -413,6 +608,62 @@ internal static class StatementEmitter
             }
 
             // ------------------------------------------------------------------
+            // Component-collection element write (curated accessor, self-only) -- FC-1, Q#20
+            // ------------------------------------------------------------------
+
+            case IrOp_CollectionWrite op:
+            {
+                // FC-1 (Q#20 "G1 resolution"). Same guarded write-if-present shape as
+                // IrOp_WriteComponentFields (idx is always >= 0 -- Stage5 always allocates the "Ok"
+                // ResultValue), but the mutation is a CURATED ACCESSOR CALL on the guarded ref --
+                // raw buffer/element access never appears here (Q#5-C: the Span<T> pattern lives
+                // inside the accessor). For bool ops the guard local is REASSIGNED to the accessor
+                // result (Ok = present AND applied); Clear (void) keeps the guard bool. The
+                // DebugProbe.CollectionWriteFailed calls are gated EXACTLY like the other probe ops
+                // (non-Release + self in scope -- Library dispatch has no `self`): the never-silent
+                // contract is a debug/trace diagnostic, and DebugProbe.Sink is a null no-op even
+                // then.
+                string entity = $"__t{op.Entity.Index}";
+                bool probes = e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release
+                              && e.Ctx.HasSelfInScope;
+
+                string args = $"ref __wc{idx}";
+                if (op.IntArg is { } intArg) args += $", __t{intArg.Index}";
+                if (op.Value  is { } val)    args += $", __t{val.Index}";
+
+                e.WriteLine($"var __t{idx} = {wv}.HasComponent<global::{op.ComponentTypeFqn}>({entity});");
+                e.WriteLine($"if (__t{idx})");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"ref var __wc{idx} = ref {wv}.GetComponentRW<global::{op.ComponentTypeFqn}>({entity});");
+                if (op.ReturnsBool)
+                {
+                    e.WriteLine($"__t{idx} = global::{op.WriteAccessorFqn}({args});");
+                    if (probes)
+                    {
+                        e.WriteLine($"if (!__t{idx})");
+                        e.Indent();
+                        e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"op-rejected\");");
+                        e.Outdent();
+                    }
+                }
+                else
+                {
+                    e.WriteLine($"global::{op.WriteAccessorFqn}({args});");
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                if (probes)
+                {
+                    e.WriteLine("else");
+                    e.Indent();
+                    e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"component-absent\");");
+                    e.Outdent();
+                }
+                break;
+            }
+
+            // ------------------------------------------------------------------
             // ECS writes via ECB
             // ------------------------------------------------------------------
 
@@ -457,7 +708,7 @@ internal static class StatementEmitter
                 // mlKey = RosterValue.Index (unique per component re-read in this block).
                 var (countExpr, itemExpr) = RenderCollectionAccessors(
                     e, op.Kind, roster, op.ManagedFieldName, op.ItemVar.Type.FullName,
-                    op.CountAccessorFqn, op.ItemAccessorFqn, op.RosterValue.Index);
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.RosterValue.Index, op.Capacity);
                 // "Count" out-pin (op.CountVar): hoist the element count into an OUTER-scope local and
                 // reuse it as the loop bound (evaluated once). Otherwise re-evaluate inline each pass
                 // (the original P1a shape -- keeps existing goldens byte-identical).
@@ -466,6 +717,15 @@ internal static class StatementEmitter
                 {
                     e.WriteLine($"var __t{op.CountVar.Value.Index} = {countExpr};");
                     bound = $"__t{op.CountVar.Value.Index}";
+                }
+                else if (op.Kind == CollectionKind.BlackboardFixedList)
+                {
+                    // FC-2/LV-2 (decided read binding): the list loop bound is ALWAYS snapshotted at
+                    // entry (ref-bind sees same-tick writes; a mid-loop resize may skip/repeat a
+                    // slot -- documented contract -- but the bound itself never moves). __feb{n} is
+                    // unique per loop via the item var's SSA index.
+                    e.WriteLine($"var __feb{op.ItemVar.Index} = {countExpr};");
+                    bound = $"__feb{op.ItemVar.Index}";
                 }
                 else
                 {
@@ -545,6 +805,39 @@ internal static class StatementEmitter
                 InlineActionLowering.Emit(e, op, idx);
                 break;
 
+            // ⭐ S5d — step the behaviour this node hosts; its status is the latent result (behaviours only, BP1659).
+            case IrOp_RunBehavior rb:
+                e.WriteLine($"var __t{idx} = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint("
+                    + "ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), "
+                    + $"{e.Ctx.WorldVar}, self, deltaTime, instanceVersion, occurrenceKey, "
+                    // ⭐ S6b — inside a fiber graph the site key is the running copy's (copy 0 = the plain key).
+                    + (Lowering.Fibers.IsOwnFiber(e.Ctx.CurrentGraph)
+                        ? $"global::Fdp.Toolkit.Behavior.OccurrenceSlots.FiberKey({InstanceEmitter.RunSiteField(rb)}, __fi)"
+                        : InstanceEmitter.RunSiteField(rb))
+                    // ⭐ S8 / CE-2022 — a bound site passes its slice of the block (the child's parameters)
+                    + (rb.ParamsVariable is not null ? $", {InstanceEmitter.RunBindField(rb)});" : ");"));
+                break;
+
+            // ⭐ S7a — a Behaviour Task's Abort: reset the child at that site (recursively), as Restart does.
+            case IrOp_ResetHostedSite rs:
+                e.WriteLine($"global::Fdp.Toolkit.Behavior.HostedSubtree.Reset({e.Ctx.WorldVar}, self, "
+                    + (Lowering.Fibers.IsOwnFiber(e.Ctx.CurrentGraph)
+                        ? $"global::Fdp.Toolkit.Behavior.OccurrenceSlots.FiberKey({InstanceEmitter.RunSiteField(rs.SiteId)}, __fi)"
+                        : InstanceEmitter.RunSiteField(rs.SiteId))
+                    + ", occurrenceKey);");
+                break;
+
+            case IrOp_AbortTask:
+                throw new InvalidOperationException("IrOp_AbortTask reached Emit stage — WaitLowering_Instance replaces it (S7a).");
+
+            // ⭐ S7b — a Started Behaviour Task: (re)start its task fiber · abort it from the chain that started it.
+            case IrOp_StartTask st:
+                InstanceEmitter.EmitTaskStart(e, e.Ctx.Asset, st);
+                break;
+            case IrOp_AbortStartedTask ab:
+                InstanceEmitter.EmitTaskAbort(e, e.Ctx.Asset, ab);
+                break;
+
             // ------------------------------------------------------------------
             // Wait primitives -- should not reach Stage 7
             // ------------------------------------------------------------------
@@ -560,11 +853,12 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_CheckCursorVersion:
-                e.WriteLine("if (s.Cursor.InstanceVersion != instanceVersion)");
+                e.WriteLine($"if ({Lowering.Fibers.CursorPath(ctx)}.InstanceVersion != instanceVersion)");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine("s.Cursor.ResumeAt = 0;");
-                e.WriteLine("return;");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.ResumeAt = 0;");
+                // ⭐ CE-446: a stale cursor in a behaviour Tick restarts it next frame — still Running.
+                e.WriteLine(e.Ctx.IsBehaviorTick ? EmissionContext.ReturnRunning : "return;");
                 e.Outdent();
                 e.WriteLine("}");
                 break;
@@ -594,23 +888,23 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_WriteCursorResumeAt op:
-                e.WriteLine($"s.Cursor.ResumeAt = {op.ResumeAtValue};");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.ResumeAt = {op.ResumeAtValue};");
                 break;
 
             case IrOp_ReadCursorResumeAt:
-                if (idx >= 0) e.WriteLine($"uint __t{idx} = s.Cursor.ResumeAt;");
+                if (idx >= 0) e.WriteLine($"uint __t{idx} = {Lowering.Fibers.CursorPath(ctx)}.ResumeAt;");
                 break;
 
             case IrOp_WriteCursorInstanceVersion:
-                e.WriteLine("s.Cursor.InstanceVersion = instanceVersion;");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.InstanceVersion = instanceVersion;");
                 break;
 
             case IrOp_WriteCursorWaitUntilTime op:
-                e.WriteLine($"s.Cursor.WaitUntilTime = __t{op.Seconds.Index};");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.WaitUntilTime = __t{op.Seconds.Index};");
                 break;
 
             case IrOp_ReadCursorWaitUntilTime:
-                if (idx >= 0) e.WriteLine($"float __t{idx} = s.Cursor.WaitUntilTime;");
+                if (idx >= 0) e.WriteLine($"float __t{idx} = {Lowering.Fibers.CursorPath(ctx)}.WaitUntilTime;");
                 break;
 
             // ------------------------------------------------------------------
@@ -662,6 +956,24 @@ internal static class StatementEmitter
                             e.WriteLine($"var __t{idx} = ({ml}?.Count ?? 0);");
                         }
                     }
+                    else if (op.Kind == CollectionKind.BlackboardFixedList)
+                    {
+                        // FC-2/LV-2 -- `comp` is the writable ref local bound onto the state field
+                        // (IrOp_StateFieldRef). Same clamped never-throw contract as
+                        // RenderCollectionAccessors' list branch: Count clamps to min(Count, N)
+                        // (F2 defensive clamp), an out-of-range Item index yields default.
+                        string clampedCount = $"global::System.Math.Min({comp}.Count, {op.Capacity})";
+                        if (op.Index is not null)
+                        {
+                            string i = $"__t{op.Index.Value.Index}";
+                            string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = op.ElementTypeFqn });
+                            e.WriteLine($"var __t{idx} = ((uint){i} < (uint){clampedCount} ? {comp}.Items[{i}] : default({elemCs}));");
+                        }
+                        else
+                        {
+                            e.WriteLine($"var __t{idx} = {clampedCount};");
+                        }
+                    }
                     else
                     {
                         // Curated -- Component binds to the accessor's `in T` parameter implicitly (the
@@ -688,7 +1000,7 @@ internal static class StatementEmitter
                 // compare + first-match short-circuit are identical either way.
                 var (countExpr, itemExpr) = RenderCollectionAccessors(
                     e, op.Kind, comp, op.ManagedFieldName, op.ElementTypeFqn,
-                    op.CountAccessorFqn, op.ItemAccessorFqn, op.Component.Index);
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.Component.Index, op.Capacity);
 
                 if (op.ContainsResult is not null) e.WriteLine($"var __t{op.ContainsResult.Value.Index} = false;");
                 if (op.FindIndex is not null)      e.WriteLine($"var __t{op.FindIndex.Value.Index} = -1;");
@@ -731,7 +1043,11 @@ internal static class StatementEmitter
                 if (idx >= 0)
                 {
                     string infix = ArithmeticOperatorInfix(op.Op);
-                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} __t{op.Right.Index};");
+                    // CE-471: a C# shift count must be int -- cast, so a long/byte-typed B pin still compiles.
+                    string right = op.Op is ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight
+                        ? $"(int)__t{op.Right.Index}"
+                        : $"__t{op.Right.Index}";
+                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} {right};");
                 }
                 break;
 
@@ -751,6 +1067,39 @@ internal static class StatementEmitter
                 if (idx >= 0)
                     e.WriteLine($"var __t{idx} = !__t{op.Operand.Index};");
                 break;
+
+            // ------------------------------------------------------------------
+            // BP-108 -- Print String / Format String
+            // ------------------------------------------------------------------
+
+            case IrOp_PrintString op:
+            {
+                // ⭐ The level probe is the whole performance story: when the level is off, the
+                // interpolated string is never constructed, so the node costs one bool read.
+                // The helper lives in Fdp.Core.Logging (NOT Hrot.AI.Behaviors.BehaviorLog): that
+                // assembly is not guaranteed loaded when MetadataReferenceResolver snapshots the
+                // AppDomain, which would be a CS0246 on hot reload only -- BP-62's shape.
+                var probe = $"global::Fdp.Core.Logging.BlueprintLog.Is{op.Level}Enabled";
+                var call  = $"global::Fdp.Core.Logging.BlueprintLog.{op.Level}";
+                e.WriteLine($"if ({probe})");
+                // ⭐ CE-468: culture-neutral — a cs-CZ machine must still log "1.5", not "1,5".
+                e.WriteLine($"    {call}(global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $\"{op.InterpolatedBody}\"));");
+                break;
+            }
+
+            case IrOp_FormatString op:
+            {
+                // ⚖️ Zero-alloc by user ruling. TryWrite formats straight into a stack buffer and the
+                // ReadOnlySpan<char> FixedString ctor (added alongside this node) consumes it without
+                // ever materialising a managed string.
+                if (idx < 0) break;
+                e.WriteLine($"global::System.Span<char> __fb{idx} = stackalloc char[{op.BufferChars}];");
+                // ⭐ CE-468: culture-neutral — the provider overload, so a cs-CZ machine formats "1.5", not "1,5".
+                e.WriteLine($"__fb{idx}.TryWrite(global::System.Globalization.CultureInfo.InvariantCulture, $\"{op.InterpolatedBody}\", out int __fn{idx});");
+                e.WriteLine(
+                    $"var __t{idx} = new global::{op.ResultTypeFqn}(__fb{idx}.Slice(0, __fn{idx}));");
+                break;
+            }
 
             // ------------------------------------------------------------------
             // Debug probes (Debug/Trace modes only)
@@ -783,7 +1132,7 @@ internal static class StatementEmitter
                 if (op.Epsilon == 0f)
                 {
                     // Direct equality (bool, int, enum)
-                    e.WriteLine($"bool __t{idx}_changed = __t{idx}_cur != {sv}.{op.SynthFieldName};");
+                    e.WriteLine($"bool __t{idx}_changed = __t{idx}_cur != {ctx.ExecVar}.{op.SynthFieldName};");
                 }
                 else
                 {
@@ -793,13 +1142,13 @@ internal static class StatementEmitter
                     if (isVector2 || isVector3)
                     {
                         e.WriteLine($"bool __t{idx}_changed = " +
-                            $"(__t{idx}_cur - {sv}.{op.SynthFieldName}).LengthSquared() > " +
+                            $"(__t{idx}_cur - {ctx.ExecVar}.{op.SynthFieldName}).LengthSquared() > " +
                             $"({op.Epsilon}f * {op.Epsilon}f);");
                     }
                     else
                     {
                         e.WriteLine($"bool __t{idx}_changed = " +
-                            $"global::System.MathF.Abs(__t{idx}_cur - {sv}.{op.SynthFieldName}) > " +
+                            $"global::System.MathF.Abs(__t{idx}_cur - {ctx.ExecVar}.{op.SynthFieldName}) > " +
                             $"{op.Epsilon}f;");
                     }
                 }
@@ -815,7 +1164,7 @@ internal static class StatementEmitter
                 e.WriteLine($"{{");
                 e.Indent();
                 e.WriteLine($"ref readonly var __storePrev_comp = ref {wv}.GetComponentRO<global::{op.ComponentFqn}>(self);");
-                e.WriteLine($"{sv}.{op.SynthFieldName} = __storePrev_comp.{op.PropertyPath};");
+                e.WriteLine($"{ctx.ExecVar}.{op.SynthFieldName} = __storePrev_comp.{op.PropertyPath};");
                 e.Outdent();
                 e.WriteLine($"}}");
                 break;
@@ -881,8 +1230,8 @@ internal static class StatementEmitter
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine($"bool __cur_{id8} = _whenCondPred_{id8}({wv}, self);");
-                e.WriteLine($"bool __prev_{id8} = {sv}.{op.SynthFieldName};");
-                e.WriteLine($"{sv}.{op.SynthFieldName} = __cur_{id8};");
+                e.WriteLine($"bool __prev_{id8} = {ctx.ExecVar}.{op.SynthFieldName};");
+                e.WriteLine($"{ctx.ExecVar}.{op.SynthFieldName} = __cur_{id8};");
 
                 if (op.OnFiredBlock.HasValue)
                     e.WriteLine($"if (__cur_{id8} && !__prev_{id8}) goto __block_{ctx.LabelForBlock(op.OnFiredBlock.Value)};");
@@ -897,6 +1246,68 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_WhenSensorResultCheck op:
+            {
+                // ⭐ CE-3078 N4 — the unit's sensor of the kind; decided by the trigger's SHAPE. Field triggers compare EVERY tick.
+                string id8 = ExtractId8FromFieldName(op.SynthFieldName);
+                string rc = $"global::{op.ResultComponentFqn.Replace('+', '.')}";
+                string fired = op.OnFiredBlock.HasValue ? $"goto __block_{e.Ctx.LabelForBlock(op.OnFiredBlock.Value)};" : "";
+                string ended = op.OnEndedBlock.HasValue ? $"goto __block_{e.Ctx.LabelForBlock(op.OnEndedBlock.Value)};" : "";
+                e.WriteLine($"// BEGIN WhenNode {id8}: SensorResult / {op.Trigger} ({op.Shape})");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"ref var prev = ref {ctx.ExecVar}.{op.SynthFieldName};");
+                e.WriteLine($"var child = global::Fdp.Toolkit.Perception.Sensors.UnitSensors.Of({wv}, self, (global::Fdp.Toolkit.Perception.Components.SensorModality){op.Kind});");
+                e.WriteLine($"if (!{wv}.IsAlive(child) || !{wv}.HasComponent<{rc}>(child)) goto whenNode_{id8}_end;");
+                e.WriteLine($"ref readonly var buffer = ref {wv}.GetComponentRO<{rc}>(child);");
+                e.WriteLine("if (!buffer.IsReady) goto whenNode_{0}_end;".Replace("{0}", id8));
+                switch (op.Shape, op.Trigger)
+                {
+                    case ("Header", "FirstReady"):
+                        e.WriteLine("if (prev.Seen == 0) { prev.Seen = 1; " + fired + " }");
+                        break;
+                    case ("Header", "Changed"):
+                        e.WriteLine("if (buffer.LastUpdateTick != prev.LastTick)");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine("bool first = prev.LastTick == 0;");
+                        e.WriteLine("prev.LastTick = buffer.LastUpdateTick;");
+                        e.WriteLine("if (!first) { " + fired + " }");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        break;
+                    case ("Header", "BecomesStale"):
+                        e.WriteLine("float age = time - buffer.LastUpdateTimeSeconds;");
+                        e.WriteLine($"bool wasStale = prev.PrevAge > _whenSensorMaxAge_{id8};");
+                        e.WriteLine($"bool isStale  = age          > _whenSensorMaxAge_{id8};");
+                        e.WriteLine("prev.PrevAge = age;");
+                        e.WriteLine("if (!wasStale && isStale) { " + fired + " }");
+                        if (ended.Length > 0) e.WriteLine("else if (wasStale && !isStale) { " + ended + " }");
+                        break;
+                    case ("FieldChanged", _):
+                        e.WriteLine($"var cur = buffer.Count > 0 ? buffer.GetSpanRO()[0].{op.ElementField} : default({op.FieldCSharpType});");
+                        // From the field's default: the first area seen IS a change (ConditionMet's "rising from false").
+                        e.WriteLine("bool changed = cur != prev.Value;");
+                        e.WriteLine("prev.Value = cur;");
+                        e.WriteLine("if (changed) { " + fired + " }");
+                        break;
+                    case ("FieldCrossed", _):
+                        e.WriteLine($"float cur = buffer.Count > 0 ? (float)buffer.GetSpanRO()[0].{op.ElementField} : 0f;");
+                        e.WriteLine($"bool isAbove = cur >= _whenSensorThreshold_{id8};");
+                        // From "below": an area already over the threshold when first seen fires OnFired (a threat is never missed).
+                        e.WriteLine("bool wasAbove = prev.Above != 0;");
+                        e.WriteLine("prev.Above = isAbove ? (byte)1 : (byte)0;");
+                        e.WriteLine("if (!wasAbove && isAbove) { " + fired + " }");
+                        if (ended.Length > 0) e.WriteLine("else if (wasAbove && !isAbove) { " + ended + " }");
+                        break;
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine($"whenNode_{id8}_end: ;");
+                e.WriteLine($"// END WhenNode {id8}");
+                break;
+            }
+
             case IrOp_WhenEqsResultCheck op:
             {
                 string id8 = ExtractId8FromFieldName(op.SynthFieldName);
@@ -905,8 +1316,12 @@ internal static class StatementEmitter
                 e.WriteLine("{");
                 e.Indent();
 
-                e.WriteLine($"ref var prev = ref {sv}.{op.SynthFieldName};");
-                e.WriteLine($"ref readonly var handle = ref {sv}.{op.SensorVariableName};");
+                e.WriteLine($"ref var prev = ref {ctx.ExecVar}.{op.SynthFieldName};");
+                if (op.UnitSensorKind != 0)
+                    // ⭐ CE-3054 D — the unit's own sensor of this kind (a TKB sensor the blueprint never spawned).
+                    e.WriteLine($"var handle = new global::FDP.Eqs.EqsSensorHandle(global::Fdp.Toolkit.Perception.Sensors.UnitSensors.Of({wv}, self, (global::Fdp.Toolkit.Perception.Components.SensorModality){op.UnitSensorKind}));");
+                else
+                    e.WriteLine($"ref readonly var handle = ref {sv}.{op.SensorVariableName};");
                 e.WriteLine();
                 e.WriteLine($"if (!{wv}.IsAlive(handle.ChildId))");
                 e.Indent();
@@ -943,14 +1358,25 @@ internal static class StatementEmitter
                 // Emit the helper method call; result is cached in a local struct variable.
                 // Downstream IrOp_FieldRead ops access individual fields.
                 if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = ReadEqsResult_{op.NodeId8}(ref {sv}, {wv}, __t{op.ResultIndexValue.Index});");
+                    e.WriteLine($"var __t{idx} = ReadEqsResult_{op.NodeId8}({ctx.StateArgs}, {wv}, self, __t{op.ResultIndexValue.Index});");
                 break;
             }
 
             case IrOp_ScoreDecision op:
             {
+                // ⭐ CE-2070 — the node's last winner goes in and the new one is kept (its hidden field).
+                string last = $"{ctx.ExecVar}.{op.SynthFieldName}";
+                string t = idx >= 0 ? $"__t{idx}" : $"__sd_{op.NodeId8}";
+                e.WriteLine($"var {t} = ScoreDecision_{op.NodeId8}({wv}, self, time, {last});");
+                e.WriteLine($"{last} = {t}.WinningOptionId;");
+                break;
+            }
+
+            case IrOp_ReadSensorResult op:
+            {
+                // ⭐ CE-3078 N2 — the per-node helper (InstanceEmitter); its fields are read by IrOp_FieldRead.
                 if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = ScoreDecision_{op.NodeId8}({wv}, self, time);");
+                    e.WriteLine($"var __t{idx} = ReadSensorResult_{op.NodeId8}({wv}, self, __t{op.IndexValue.Index});");
                 break;
             }
 
@@ -961,17 +1387,43 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_SpawnSensor op:
+            {
+                // ⭐ CE-3078 N3 — settings = the type's Default (or default) with every WIRED pin assigned over it, then the
+                //    kind's own Ensure (find-or-create, run-stamped, CE-485). docs/DESIGN_Sensors_And_Doctrine.md §7.10a D3.
+                string t = $"global::{op.SettingsTypeFqn.Replace('+', '.')}";
+                if (idx >= 0)
+                    e.WriteLine($"global::Fdp.Core.Entity __t{idx} = default;");
+                e.WriteLine("// BEGIN SpawnSensorNode");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine(op.SettingsDefaultFqn is { } d ? $"var _settings = global::{d.Replace('+', '.')};" : $"var _settings = default({t});");
+                foreach (var (field, value) in op.Settings)
+                    e.WriteLine($"_settings.{field} = __t{value.Index};");
+                string key = op.KeyValue is not null ? $"(long)__t{op.KeyValue.Value.Index}.PackedValue" : "0L";
+                string ensure = $"global::{op.EnsureMethodFqn.Replace('+', '.')}({wv}, self, {op.BakedSiteId}, in _settings, {key})";
+                e.WriteLine(idx >= 0 ? $"__t{idx} = {ensure};" : $"_ = {ensure};");
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine("// END SpawnSensorNode");
+                break;
+            }
+
             case IrOp_SpawnEqsSensor op:
             {
-                // Emit ECB-based spawn pattern per DESIGN §7.8
-                // Result value (idx) holds the spawned EqsSensorHandle.
-                string localHandle = idx >= 0 ? $"__t{idx}" : "_spawnHandle";
-
+                // ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3) through the one shared lifecycle,
+                //    EqsChildSensor. ⭐ CE-485 (DESIGN_Behaviour_Fault_And_Teardown.md §1 D5): the baked id is the SITE
+                //    and the optional Key pin picks one sensor per key; the part id (DDS key) is allocated at runtime, the
+                //    sensor is created at once on the live world (a real Handle on the creating tick) and dies with the run.
                 string searchRadius    = op.SearchRadiusValue    is not null ? $"__t{op.SearchRadiusValue.Value.Index}"    : "0f";
                 string factionFilter   = op.FactionFilterValue   is not null ? $"__t{op.FactionFilterValue.Value.Index}"   : "0u";
                 string threatThreshold = op.ThreatThresholdValue is not null ? $"__t{op.ThreatThresholdValue.Value.Index}" : "0f";
                 string publishPolicy   = op.PublishPolicyValue   is not null ? $"(byte)__t{op.PublishPolicyValue.Value.Index}" : "(byte)0";
                 string priority        = op.PriorityValue        is not null ? $"(byte)__t{op.PriorityValue.Value.Index}"  : "(byte)0";
+                string contextSlot0    = op.ContextSlot0Value    is not null ? $"__t{op.ContextSlot0Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string contextSlot1    = op.ContextSlot1Value    is not null ? $"__t{op.ContextSlot1Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string contextSlot2    = op.ContextSlot2Value    is not null ? $"__t{op.ContextSlot2Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string keyArg          = op.KeyValue             is not null ? $", (long)__t{op.KeyValue.Value.Index}.PackedValue" : "";
 
                 // Declare the result handle BEFORE the scope block so it is visible downstream.
                 if (idx >= 0)
@@ -979,16 +1431,7 @@ internal static class StatementEmitter
                 e.WriteLine("// BEGIN SpawnEqsSensorNode");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"var _spawnChild = ecb.CreateEntity();");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Replication.Components.PartMetadata");
-                e.WriteLine("{");
-                e.Indent();
-                e.WriteLine($"ParentEntity      = self,");
-                e.WriteLine($"InstanceId        = {op.BakedInstanceId},");
-                e.WriteLine($"DescriptorOrdinal = 0,");
-                e.Outdent();
-                e.WriteLine("});");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Spatial.Eqs.EqsSensor");
+                e.WriteLine($"var _sensorConfig = new global::Fdp.Toolkit.Spatial.Eqs.EqsSensor");
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine($"BlueprintId     = {op.TemplateBlueprintIdLiteral},");
@@ -998,11 +1441,16 @@ internal static class StatementEmitter
                 e.WriteLine($"ThreatThreshold = {threatThreshold},");
                 e.WriteLine($"PublishPolicy   = {publishPolicy},");
                 e.WriteLine($"Priority        = {priority},");
+                e.WriteLine($"ContextSlot0    = {contextSlot0},");
+                e.WriteLine($"ContextSlot1    = {contextSlot1},");
+                e.WriteLine($"ContextSlot2    = {contextSlot2},");
                 e.Outdent();
-                e.WriteLine("});");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer());");
+                e.WriteLine("};");
+                string ensure = $"global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure({wv}, self, {op.BakedInstanceId}, _sensorConfig{keyArg})";
                 if (idx >= 0)
-                    e.WriteLine($"__t{idx} = new global::FDP.Eqs.EqsSensorHandle(_spawnChild);");
+                    e.WriteLine($"__t{idx} = new global::FDP.Eqs.EqsSensorHandle({ensure});");
+                else
+                    e.WriteLine($"_ = {ensure};");
                 e.Outdent();
                 e.WriteLine("}");
                 e.WriteLine("// END SpawnEqsSensorNode");
@@ -1015,15 +1463,18 @@ internal static class StatementEmitter
         }
     }
 
+    // ⭐⭐ CE-2089 — TopChanged / ScoreCrossed compare once per ANSWER, not once per epoch. 🔴 They were gated on
+    //   `sensor.Epoch != prev.LastEvaluatedEpoch`, but a STANDING sensor's new answers keep their epoch (only the Brain bumps
+    //   it, on a parameter change or a refresh), so they were compared at most once per epoch — and after a refresh the
+    //   buffer is cleared, the first look saw IsReady == false, recorded the epoch and never looked again: neither trigger
+    //   could fire. ⭐ The answer's stamp is `buffer.LastUpdateTick` (the solver's tick, fresh on every published answer,
+    //   Hrot.SimHost/Systems/EqsResultUpdateSystem.cs:67). The field keeps its name and layout (no StructureHash move); it now holds that stamp.
+    //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.9.
     private static void EmitEqsTopChanged(CSharpEmitter e, IrOp_WhenEqsResultCheck op, string id8, string wv, string sv)
     {
-        e.WriteLine($"ref readonly var sensor = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsSensor>(handle.ChildId);");
         e.WriteLine($"ref readonly var buffer = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId);");
         e.WriteLine();
-        e.WriteLine($"if (sensor.Epoch != prev.LastEvaluatedEpoch)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine($"if (buffer.IsReady)");
+        e.WriteLine($"if (buffer.IsReady && buffer.LastUpdateTick != prev.LastEvaluatedEpoch)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine($"var results = buffer.GetSpanRO();");
@@ -1040,16 +1491,20 @@ internal static class StatementEmitter
         e.WriteLine($"    ? top.EntityId");
         e.WriteLine($"    : unchecked((long)(((ulong)(uint)global::System.BitConverter.SingleToInt32Bits(top.PositionX) << 32) | (uint)global::System.BitConverter.SingleToInt32Bits(top.PositionY)));");
         e.WriteLine();
-        e.WriteLine($"if (currentTopId != prev.PrevTopId && prev.LastEvaluatedEpoch != 0)");
+        // ⭐ CE-2113 — the FIRST answer is compared too (against PrevTopId 0 = "no top"): it fires, so a When on TopChanged
+        //   acts on the first top (When v2.2 §15: "fires on first result"). And the answer is RECORDED BEFORE the goto —
+        //   the fire jumps away and never comes back to this block, so recording after it re-fired every tick.
+        e.WriteLine($"bool changed = currentTopId != prev.PrevTopId;");
+        e.WriteLine($"prev.PrevTopId    = currentTopId;");
+        e.WriteLine($"prev.PrevTopScore = top.Score;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
+        e.WriteLine($"if (changed)");
         e.WriteLine("{");
         e.Indent();
         if (op.OnFiredBlock.HasValue)
             e.WriteLine($"goto __block_{e.Ctx.LabelForBlock(op.OnFiredBlock.Value)};");
         e.Outdent();
         e.WriteLine("}");
-        e.WriteLine();
-        e.WriteLine($"prev.PrevTopId    = currentTopId;");
-        e.WriteLine($"prev.PrevTopScore = top.Score;");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("else");
@@ -1057,11 +1512,9 @@ internal static class StatementEmitter
         e.Indent();
         e.WriteLine($"prev.PrevTopId    = 0L;");
         e.WriteLine($"prev.PrevTopScore = 0f;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
         e.Outdent();
         e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
-        e.WriteLine($"prev.LastEvaluatedEpoch = sensor.Epoch;");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -1085,13 +1538,10 @@ internal static class StatementEmitter
 
     private static void EmitEqsScoreCrossed(CSharpEmitter e, IrOp_WhenEqsResultCheck op, string id8, string wv, string sv)
     {
-        e.WriteLine($"ref readonly var sensor = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsSensor>(handle.ChildId);");
+        // ⭐ CE-2089 — per ANSWER (buffer.LastUpdateTick), as TopChanged above.
         e.WriteLine($"ref readonly var buffer = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId);");
         e.WriteLine();
-        e.WriteLine($"if (sensor.Epoch != prev.LastEvaluatedEpoch)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine($"if (buffer.IsReady)");
+        e.WriteLine($"if (buffer.IsReady && buffer.LastUpdateTick != prev.LastEvaluatedEpoch)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine($"var results = buffer.GetSpanRO();");
@@ -1102,7 +1552,11 @@ internal static class StatementEmitter
         e.WriteLine($"bool wasAbove = prev.PrevTopScore >= _whenScoreThreshold_{id8};");
         e.WriteLine($"bool isAbove  = currentScore      >= _whenScoreThreshold_{id8};");
         e.WriteLine();
-        e.WriteLine($"if (!wasAbove && isAbove && prev.LastEvaluatedEpoch != 0)");
+        // ⭐ CE-2113 — from "below" (PrevTopScore 0 on the first answer, as N4's FieldCrossed): a top already over the
+        //   threshold at first sight fires. The answer is recorded BEFORE the goto (see TopChanged above).
+        e.WriteLine($"prev.PrevTopScore = currentScore;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
+        e.WriteLine($"if (!wasAbove && isAbove)");
         e.WriteLine("{");
         e.Indent();
         if (op.OnFiredBlock.HasValue)
@@ -1111,20 +1565,21 @@ internal static class StatementEmitter
         e.WriteLine("}");
         if (op.OnEndedBlock.HasValue)
         {
-            e.WriteLine($"else if (wasAbove && !isAbove && prev.LastEvaluatedEpoch != 0)");
+            e.WriteLine($"else if (wasAbove && !isAbove)");
             e.WriteLine("{");
             e.Indent();
             e.WriteLine($"goto __block_{e.Ctx.LabelForBlock(op.OnEndedBlock.Value)};");
             e.Outdent();
             e.WriteLine("}");
         }
-        e.WriteLine();
-        e.WriteLine($"prev.PrevTopScore = currentScore;");
         e.Outdent();
         e.WriteLine("}");
+        e.WriteLine("else");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
         e.Outdent();
         e.WriteLine("}");
-        e.WriteLine($"prev.LastEvaluatedEpoch = sensor.Epoch;");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -1198,13 +1653,28 @@ internal static class StatementEmitter
     /// </summary>
     private static (string Count, System.Func<string, string> Item) RenderCollectionAccessors(
         CSharpEmitter e, CollectionKind kind, string comp, string managedFieldName,
-        string elementTypeFqn, string countAccessorFqn, string itemAccessorFqn, int mlKey)
+        string elementTypeFqn, string countAccessorFqn, string itemAccessorFqn, int mlKey,
+        int capacity = 0)
     {
         if (kind == CollectionKind.ManagedMember)
         {
             string ml = $"__ml{mlKey}";
             e.WriteLine($"global::System.Collections.Generic.IReadOnlyList<global::{elementTypeFqn}> {ml} = {comp}?.{managedFieldName};");
             return ($"({ml}?.Count ?? 0)", i => $"{ml}![{i}]");
+        }
+        if (kind == CollectionKind.BlackboardFixedList)
+        {
+            // FC-2/LV-2 (Q#19-A + the decided read binding): `comp` is a writable ref local bound
+            // onto the state field (IrOp_StateFieldRef). Count is the F2 defensive clamp
+            // min(Count, N) -- a garbage/stale Count can never drive an out-of-capacity index --
+            // and the item read is guarded never-throw for arbitrary indices (ItemGet): in-range
+            // reads the live slot, out-of-range yields default (the same safe-default contract the
+            // component consumers use). Loop consumers bound i by the clamped count, so their
+            // guard folds to always-true.
+            string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = elementTypeFqn });
+            return (
+                $"global::System.Math.Min({comp}.Count, {capacity})",
+                i => $"((uint){i} < (uint)global::System.Math.Min({comp}.Count, {capacity}) ? {comp}.Items[{i}] : default({elemCs}))");
         }
         return ($"global::{countAccessorFqn}({comp})", i => $"global::{itemAccessorFqn}({comp}, {i})");
     }
@@ -1241,6 +1711,11 @@ internal static class StatementEmitter
         ArithmeticOperator.Multiply => "*",
         ArithmeticOperator.Divide   => "/",
         ArithmeticOperator.Modulo   => "%",
+        ArithmeticOperator.BitAnd     => "&",
+        ArithmeticOperator.BitOr      => "|",
+        ArithmeticOperator.BitXor     => "^",
+        ArithmeticOperator.ShiftLeft  => "<<",
+        ArithmeticOperator.ShiftRight => ">>",
         _ => "+",
     };
 
@@ -1388,6 +1863,9 @@ internal static class StatementEmitter
             "System.Void"     => "void",
             "Fdp.Core.Entity" => "global::Fdp.Core.Entity",
             _ when t.FullName.StartsWith("_") => t.FullName, // local generated type (synthesized struct)
+            // ⭐ CE-464: a FullName still carrying the AN2 "global::" sentinel (an enum list ELEMENT keeps the
+            //   declaration's TypeId) is already qualified — never "global::global::".
+            _ when t.FullName.StartsWith("global::", System.StringComparison.Ordinal) => t.FullName,
             _                                  => $"global::{t.FullName}",
         };
     }

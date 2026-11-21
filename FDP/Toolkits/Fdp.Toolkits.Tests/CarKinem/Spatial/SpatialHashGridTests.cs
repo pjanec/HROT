@@ -9,17 +9,64 @@ namespace CarKinem.Tests.Spatial
 {
     public class SpatialHashGridTests
     {
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3152</c> — <b>the empty-cell invariant, and why this test was GREEN while the grid was broken.</b>
+        /// <para>📌 Measured live `2026-10-09`: a fresh grid had <c>GridHead[0] == 0</c> and <c>GridNext[0] == 0</c>, so
+        /// walking cell 0 followed <c>0 → 0 → 0</c> forever and hung the editor (<c>CE-3146</c>). In this structure
+        /// <b>-1 means empty</b>, but <see cref="Fdp.Core.Collections.NativeArray{T}"/> deliberately ZERO-fills, and
+        /// <c>Create</c> never wrote the sentinel — only <c>Clear</c>/<c>Rebase</c> did.</para>
+        /// <para>⛔⛔ <b>This test asserted width/height/cell size/count and never the heads</b>, so it passed on a grid
+        /// whose every cell claimed slot 0. ⚠ And the blindness was systemic, not local: <b>every other test in this
+        /// file calls <c>grid.Clear()</c> immediately after <c>Create()</c></b> — the suite worked around the missing
+        /// initialisation, production did not. ⇒ the assertion below is the one that had to exist.</para>
+        /// </summary>
         [Fact]
         public void Create_InitializesGrid()
         {
             var grid = SpatialHashGrid.Create(10, 10, 5f, 100, Allocator.Persistent);
-            
+
             Assert.Equal(10, grid.Width);
             Assert.Equal(10, grid.Height);
             Assert.Equal(5f, grid.CellSize);
             Assert.Equal(0, grid.EntityCount);
-            
+
+            // ⭐ CE-3152 — EVERY cell must read "empty" straight out of Create, with no Clear() in between.
+            for (int c = 0; c < grid.Width * grid.Height; c++)
+            {
+                Assert.Equal(-1, grid.GridHead[c]);
+            }
+            Assert.Equal(0, grid.FreeListCount);
+
             grid.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3152</c> — a fresh grid must be WALKABLE, i.e. the chain from every cell terminates. This is the
+        /// shape the consumer (<c>VisionBroadphase.Rebuild</c>) actually relies on, asserted at the grid level so the
+        /// invariant is owned here rather than by its caller's guard.
+        /// </summary>
+        [Fact]
+        public void CE3152_AFreshGrid_HasNoWalkableChainFromAnyCell()
+        {
+            var grid = SpatialHashGrid.Create(10, 10, 5f, 100, Allocator.Persistent);
+            try
+            {
+                int capacity = grid.GridValues.Length;
+                for (int c = 0; c < grid.Width * grid.Height; c++)
+                {
+                    int steps = 0;
+                    for (int head = grid.GridHead[c]; head >= 0; head = grid.GridNext[head])
+                    {
+                        Assert.True(++steps <= capacity,
+                            $"cell {c} does not terminate — walked {steps} slots of {capacity}. A fresh grid must be empty.");
+                    }
+                    Assert.Equal(0, steps);   // fresh ⇒ nothing in any cell
+                }
+            }
+            finally
+            {
+                grid.Dispose();
+            }
         }
         
         [Fact]
@@ -240,6 +287,32 @@ namespace CarKinem.Tests.Spatial
             Assert.False(result);
             Assert.Equal(0, grid.FreeListCount);
 
+            grid.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ CE-3018 — a REBASE is seen by every value copy (the geometry lives in shared native memory, like the cells)
+        /// and needs no reallocation: a copy made BEFORE the rebase indexes and finds an entity far outside the old extent.
+        /// </summary>
+        [Fact]
+        public void Rebase_IsSeenByEveryCopy_CE3018()
+        {
+            var grid = SpatialHashGrid.Create(100, 100, 5f, 100, Allocator.Persistent);   // covers [0,500)²
+            var copy = grid;                                                              // e.g. the broadphase's copy
+            var e = new Entity(7, 1);
+
+            copy.Add(e, new Vector2(4000f, 4000f));                                       // outside: dropped
+            Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[4];
+            Assert.Equal(0, grid.QueryNeighbors(new Vector2(4000f, 4000f), 1f, hits));
+
+            grid.Rebase(0f, 0f, 50f);                                                     // now covers [0,5000)²
+            Assert.Equal(50f, copy.CellSize);
+            copy = grid;                                                                  // the rebase cleared the cells
+            copy.Add(e, new Vector2(4000f, 4000f));
+
+            Assert.Equal(1, grid.QueryNeighbors(new Vector2(4000f, 4000f), 1f, hits));
+            Assert.Equal(e, hits[0].entity);
+            Assert.Throws<ArgumentOutOfRangeException>(() => grid.Rebase(0f, 0f, 0f));
             grid.Dispose();
         }
     }

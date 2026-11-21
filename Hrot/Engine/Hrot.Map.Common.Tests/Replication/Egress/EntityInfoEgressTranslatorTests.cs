@@ -15,6 +15,7 @@ namespace Hrot.Map.Common.Tests.Replication.Egress;
 /// commander ID and tactical designation are read from <see cref="UnitSubordinate"/>
 /// and published to the DDS <c>EntityInfo</c> sample.
 /// </summary>
+[Collection("SerialTests")]   // ⭐ it clears the process-wide ComponentTypeRegistry
 public sealed class EntityInfoEgressTranslatorTests
 {
     // ── Test double ───────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ public sealed class EntityInfoEgressTranslatorTests
     private static Entity SpawnAuthoritativeEntity(EntityRepository world, uint netId, ForceId forceId = ForceId.Friend)
     {
         var e = world.CreateEntity();
-        world.AddComponent(e, new NetworkIdentity(netId));
+        world.AddComponent(e, new NetworkIdentity((int)netId));
         world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
         world.AddComponent(e, new Fdp.Core.EntityInfo { Name = "TestUnit", ForceId = forceId });
         return e;
@@ -81,6 +82,7 @@ public sealed class EntityInfoEgressTranslatorTests
         {
             Commander   = cmdEnt,
             Designation = TacticalDesignation.Wingman,
+            FireTeam    = FireTeam.B,   // ⭐ CE-2281 / R-3019
         });
 
         world.Tick();
@@ -94,6 +96,7 @@ public sealed class EntityInfoEgressTranslatorTests
         var subSample = writer.Publishes[subIdx];
         Assert.Equal(10, subSample.CommanderId);
         Assert.Equal(eTacticalDesignation.Wingman, subSample.TacticalDesignation);
+        Assert.Equal((byte)FireTeam.B, subSample.FireTeam);   // ⭐ CE-2281 / R-3019 — the team rides the wire
     }
 
     // ── CS010 Test 2 ─────────────────────────────────────────────────────────

@@ -32,28 +32,29 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class WeaponFireNotificationEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "WeaponFire";
 
         private readonly IDdsWriter<WeaponFire> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<WeaponFire>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFire;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
-        public WeaponFireNotificationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<WeaponFire>(participant, DdsTopicName), entityMap)
+        public WeaponFireNotificationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
+            : this(new DdsWriterAdapter<WeaponFire>(participant), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor — accepts an injected writer stub.</summary>
-        internal WeaponFireNotificationEgressTranslator(IDdsWriter<WeaponFire> writer, NetworkEntityMap entityMap)
+        internal WeaponFireNotificationEgressTranslator(IDdsWriter<WeaponFire> writer, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc/>
@@ -73,7 +74,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 if (evt.IsRemote) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.Shooter, out long shooterNetId))
+                if (!_entityMap.TryGetNetworkId(evt.Shooter, out int shooterNetId))
                 {
                     FdpLog<WeaponFireNotificationEgressTranslator>.Warn(
                         "[WeaponFireNotificationEgress] Shooter entity #{0} not in NetworkEntityMap — skipping notification.",
@@ -81,7 +82,8 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId))
+                int targetNetId = 0;   // ⭐ CE-1032 W-8 — a point fire has no target: the shot (muzzle flash, sound) still goes out
+                if (evt.Target != Entity.Null && !_entityMap.TryGetNetworkId(evt.Target, out targetNetId))
                 {
                     FdpLog<WeaponFireNotificationEgressTranslator>.Warn(
                         "[WeaponFireNotificationEgress] Target entity #{0} not in NetworkEntityMap — skipping notification.",
@@ -89,11 +91,23 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
+                // ⭐ CE-1111 (BS-1-DESIGN §5.4b F1) — the shot itself; the round's id when it is replicated (a visible round), else 0
+                int roundNetId = 0;
+                if (evt.Round != Entity.Null) _entityMap.TryGetNetworkId(evt.Round, out roundNetId);
                 _writer.Write(new WeaponFire
                 {
+                    SourceNodeId = _localNodeId,
                     ShooterEntityId = shooterNetId,
                     TargetEntityId  = targetNetId,
                     WeaponIndex     = evt.WeaponIndex,
+                    AmmoGuid        = evt.AmmoGuid,
+                    RoundEntityId   = roundNetId,
+                    OriginX = evt.Origin.X, OriginY = evt.Origin.Y, OriginZ = evt.Origin.Z,
+                    VelocityX = evt.Velocity.X, VelocityY = evt.Velocity.Y, VelocityZ = evt.Velocity.Z,
+                    Quantity        = evt.Quantity,
+                    FiredAt         = evt.FiredAt,
+                    RequestId       = evt.RequestId,        // ⭐ Q94 A-1 (R-3018)
+                    Refusal         = (byte)evt.Refusal,
                 });
                 SentSampleCount++;
             }
@@ -103,6 +117,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

@@ -1,0 +1,39 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-1159/CE-4035 F-01: the IFV drives east through the fog bank (x 140-360) and the overcast region (x 290-510) on its own. Encoded from the live check: it drives east (MoveToLocation) to x > 360. NOT expressible: the Judge's visual points (sky/visibility at the region edges) — the effective weather at a point is not component state; the take's near-cues never fired in the bake (the IFV had no order then), so x thresholds are used instead.",
+  "runFor": 70,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the IFV drives east on its own order (MoveToLocation)",
+      "on": "task",
+      "who": "IFV (drive east)",
+      "is": "MoveToLocation"
+    },
+    {
+      "name": "the IFV enters the fog bank (x > 140)",
+      "on": "field",
+      "who": "IFV (drive east)",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 140
+    },
+    {
+      "name": "the IFV is in the fog/overcast overlap (x > 290)",
+      "on": "field",
+      "who": "IFV (drive east)",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 290
+    },
+    {
+      "name": "the IFV is through both regions (x > 360)",
+      "on": "field",
+      "who": "IFV (drive east)",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 360
+    }
+  ]
+}

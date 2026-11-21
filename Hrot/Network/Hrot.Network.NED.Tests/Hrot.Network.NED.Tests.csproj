@@ -10,13 +10,19 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
+    <!-- AQ107 A — TheTopicNamesAreDerivedFromTypesTests scans every production assembly that carries [DdsTopic] types: these three are not reached through the NED project. -->
+    <ProjectReference Include="..\..\Subsystems\Hrot.Animation.Replication\Hrot.Animation.Replication.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.Player\Hrot.Player.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.6.6" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
   </ItemGroup>
 </Project>

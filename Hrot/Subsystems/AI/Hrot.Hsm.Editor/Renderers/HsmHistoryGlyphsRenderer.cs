@@ -66,8 +66,14 @@ public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
                 continue;
 
             // rect is already screen-space — center is rect.Center.
-            var center = rect.Center;
-            float radius = 12f * ctx.Zoom;
+            // ⭐ Q84 C1: on a COMPOSITE, history is its own setting — a small badge in the header's right corner,
+            //    so the box (and its children) stay readable. A leaf (final state, or a not-yet-migrated pseudo
+            //    node) keeps the glyph over its centre.
+            bool badge = state.Children.Count > 0;
+            var center = badge
+                ? new Vector2(rect.Max.X - 14f * ctx.Zoom, rect.Min.Y + 12f * ctx.Zoom)
+                : rect.Center;
+            float radius = (badge ? 9f : 12f) * ctx.Zoom;
 
             // Filled circle background.
             var fillColor = new Vector4(0.1f, 0.1f, 0.15f, 0.70f);

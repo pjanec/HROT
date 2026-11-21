@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Rules view mockup (SR-109, docs/DESIGN_Scenario_Rules.md). Static, self-contained: open in a browser. Source of truth for the live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Objective details — tabs</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1480px; height: 760px; box-sizing: border-box; padding: 24px; background: #17191c; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;">
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">Status</span><span style="color: #9aa0a8; font-size: 12px;">· Hold the bridge</span><span style="margin-left: auto; padding: 2px 8px; border-radius: 10px; background: #1c3354; color: #a9ceff; font-size: 11px; font-weight: 600;">ACTIVE</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+      <span style="color: #9aa0a8; font-size: 12px;">HoldArea · subject <a href="#">Blue platoon</a> · area <a href="#">@Bridge</a></span>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; justify-content: space-between;"><span>Held</span><b>6:10 of 10:00</b></div>
+        <div style="height: 12px; border-radius: 6px; background: #2a3a55; overflow: hidden;"><div style="width: 62%; height: 12px; background: #5aa8ff;"></div></div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+        <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Blue on the area</span>5 men (needs 4)</div>
+        <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Red on the area</span>0</div>
+        <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Score</span>0.62</div>
+        <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; display: flex; flex-direction: column; gap: 2px;"><span style="color: #9aa0a8; font-size: 11px;">Active since</span>09:14:02</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px;"><span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">LINKS</span><span>after <a href="#">Reach the village</a> · watched by <a href="#">Counter-attack</a> · then <a href="#">Clear the village</a></span></div>
+      <div style="display: flex; gap: 8px;">
+        <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 10px; font: inherit;">Mark achieved</button>
+        <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 10px; font: inherit;">Mark failed</button>
+        <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 10px; font: inherit;">Deactivate</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">Settings</span><span style="color: #9aa0a8; font-size: 12px;">· Hold the bridge</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="color: #9aa0a8; font-size: 12px;">The kind's own params — the same form the Details panel shows for any behaviour.</span>
+      <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Title<input value="Hold the bridge" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Area<input value="@Bridge" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Hold for<input value="10 min" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Min. men<input value="4" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Deadline<input value="10:00" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Weight<input value="40" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+      </div>
+      <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" checked>Required</label>
+      <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" checked>Scored</label>
+      <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox">Shown to the player (HUD)</label>
+      <div style="padding: 8px 10px; border-radius: 6px; border: 1px solid #3a4560; background: #1f2633; color: #a9ceff; font-size: 12px;">"Hold for" edited live: the time already held is kept.</div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">Results</span><span style="color: #9aa0a8; font-size: 12px;">· Platoon attack</span><span style="margin-left: auto; font-weight: 600;">0.42</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px;">
+      <span style="color: #9aa0a8; font-size: 12px;">Composite · WeightedMean. Click a row to open it.</span>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><span style="width: 150px;">mission (40%)</span><div style="flex-grow: 1; height: 8px; border-radius: 4px; background: #2a3a55; overflow: hidden;"><div style="width: 48%; height: 8px; background: #5aa8ff;"></div></div><span style="width: 32px; text-align: right;">0.48</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #2c3036;"><span style="width: 150px;">members (60%)</span><div style="flex-grow: 1; height: 8px; border-radius: 4px; background: #2a3a55; overflow: hidden;"><div style="width: 38%; height: 8px; background: #5aa8ff;"></div></div><span style="width: 32px; text-align: right;">0.38</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 14px; color: #c9ccd2; font-size: 12px;"><span style="width: 136px;">PL Novak (trainee)</span><div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 61%; height: 6px; background: #4fbf85;"></div></div><span style="width: 32px; text-align: right;">0.61</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 14px; color: #c9ccd2; font-size: 12px;"><span style="width: 136px;">Machine gunner</span><div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 55%; height: 6px; background: #4fbf85;"></div></div><span style="width: 32px; text-align: right;">0.55</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 14px; color: #c9ccd2; font-size: 12px;"><span style="width: 136px;">Riflemen ×6 (avg)</span><div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 31%; height: 6px; background: #d9a83f;"></div></div><span style="width: 32px; text-align: right;">0.31</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #2c3036;"><span style="width: 150px;">No fratricide</span><span style="color: #4fbf85;">✓ required, holding</span></div>
+      <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em; margin-top: 6px;">RIFLEMAN · MEASURES</span>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; font-size: 12px;">
+        <div style="padding: 6px 8px; border-radius: 5px; background: #262a30;">Hit ratio 0.18 <span style="color: #e5534b;">&lt; 0.25</span></div>
+        <div style="padding: 6px 8px; border-radius: 5px; background: #262a30;">Report latency 41 s ✓</div>
+        <div style="padding: 6px 8px; border-radius: 5px; background: #262a30;">Exposure 26 % <span style="color: #e5534b;">&gt; 20 %</span></div>
+        <div style="padding: 6px 8px; border-radius: 5px; background: #262a30;">No harm ✓</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; background: #202328; border: 1px solid #353941; border-radius: 10px; overflow: hidden;">
+    <div style="padding: 12px 14px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600;">Player HUD</span><span style="color: #9aa0a8; font-size: 12px;">· what Riflemen see (hud.own-evaluation)</span></div>
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="position: relative; height: 300px; border-radius: 8px; background: linear-gradient(#4b5a48, #2f3a2c); overflow: hidden;">
+        <div style="position: absolute; right: 10px; top: 10px; width: 170px; padding: 8px; border-radius: 6px; background: rgba(10,12,14,0.72); display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+          <span style="color: #9aa0a8;">MY OBJECTIVES</span>
+          <span>◎ Hold the bridge · 6:10 / 10:00</span>
+          <span style="color: #f0b27a;">Hit ratio 0.18 · aim for 0.25</span>
+          <span style="color: #4fbf85;">No harm ✓</span>
+        </div>
+        <div style="position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); padding: 6px 14px; border-radius: 6px; background: rgba(10,12,14,0.78); color: #fff; font-size: 14px; white-space: nowrap;">Enemy counter-attack expected from the village</div>
+        <span style="position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); color: #c9ccd2; font-size: 10px;">M — message log</span>
+      </div>
+      <span style="color: #9aa0a8; font-size: 12px;">The subtitle is a Message from a trigger (SR-106), shown for 8 s and kept in the log. The corner list is the player's own objectives (SR-107), a feature that is off by default.</span>
+      <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">HISTORY TAB (objective)</span>
+      <span style="color: #c9ccd2; font-size: 12px;">09:14 activated · 09:18 Red entered the area (held paused 0:40) · 09:19 resumed — each a link to the timeline.</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

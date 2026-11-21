@@ -9,7 +9,10 @@ using System.Threading.Tasks;
 using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Transfer;
 using Hrot.Network.Orchestration;
+using Fdp.Core.Serialization;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator;
 
@@ -19,13 +22,67 @@ namespace Hrot.Orchestrator;
 public sealed record NodeDistributionTarget
 {
     /// <summary>Roster identifier of the target node.</summary>
-    public int NodeId { get; init; }
+    public NodeId NodeId { get; init; }
 
     /// <summary>
     /// Full UNC or local destination path for the pushed file on the target node
     /// (e.g. <c>\\NODE01\c$\FDP_Temp\scenario.json</c>).
     /// </summary>
     public string DestinationPath { get; init; } = string.Empty;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2b</c>/<c>S2c</c> — this node's TKB ARTIFACT directory, which is a SIBLING of the
+    /// scenario destination rather than a child of it
+    /// (<c>{base}/nodes/node-N/TKB</c> vs <c>{base}/nodes/node-N/scenarios/{id}</c>).
+    ///
+    /// <para>⚠ Carried on the target rather than derived inside the gateway because the gateway is handed
+    /// destinations, not a staging root plus node ids — deriving it there would mean parsing the node
+    /// segment back out of a path. 📄 <c>OrchestrationConstants.GetNodeTkbStagingRoot</c> builds it.</para>
+    ///
+    /// <para>⛔ Empty means "this target stages no artifacts" — legal, and the gateway skips it silently
+    /// rather than failing, so an un-migrated caller degrades to the previous behaviour.</para>
+    /// </summary>
+    public string TkbDestinationPath { get; init; } = string.Empty;
+
+    /// <summary>
+    /// ⭐⭐ CE-3020 — the behaviour-asset trees this node receives, from its advertised tokens
+    /// (docs/DESIGN_Asset_Management.md §4, §7.3a/§7.3b): kind, the node's root for it, and MIRROR or ADD-ONLY.
+    /// Empty = none (every non-Brain node, and any node that advertised none).
+    /// </summary>
+    public IReadOnlyList<AssetSyncTarget> AssetSyncs { get; init; } = Array.Empty<AssetSyncTarget>();
+
+    /// <summary>⭐ CE-4331 ② (§9a) — an import's placement: the node's name and kind (subsystem + roles) as its heartbeat says them.</summary>
+    public string NodeName { get; init; } = string.Empty;
+
+    /// <inheritdoc cref="NodeName"/>
+    public string Subsystem { get; init; } = string.Empty;
+
+    /// <inheritdoc cref="NodeName"/>
+    public int Roles { get; init; }
+
+    /// <summary>⭐ CE-4330 ④ — the node already holds this exercise (fact ③): placed like any node, but nothing is pushed to it.</summary>
+    public bool AlreadyHolds { get; init; }
+}
+
+/// <summary>One behaviour-asset tree a node receives: <paramref name="Kind"/> from <c>{nas}/assets/&lt;kind&gt;</c> into
+/// <paramref name="DestinationRoot"/>, by <paramref name="Mode"/>.</summary>
+public sealed record AssetSyncTarget(string Kind, string DestinationRoot, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode Mode);
+
+/// <summary>
+/// ⭐⭐ <c>S2a</c> — the artifact names the staged scenario slices AGREE on.
+///
+/// <para>🔴 <see langword="null"/>-legal: no terrain name means the scenario simply has no terrain. ⛔ Not a
+/// failure — only DISAGREEMENT between slices is.</para>
+///
+/// <para>⛔⛔ <b>No TKB name — <c>R-4018</c>.</b> A scenario never names a TKB: there is one TKB per deployment,
+/// named by <c>ClusterConfiguration.TkbName</c> and staged by <see cref="StorageGatewayModule"/>'s TKB sync
+/// whatever the scenario says. An older file's <c>Header.TkbName</c> is never read.
+/// 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</para>
+/// </summary>
+public readonly record struct StagedArtifactNames(string? TerrainName, string? OverlayHash = null, string? OverlaySource = null)
+{
+    /// <summary>True when the scenario names at least one artifact worth staging.</summary>
+    public bool Any => !string.IsNullOrEmpty(TerrainName);
 }
 
 /// <summary>
@@ -42,6 +99,9 @@ public sealed class GatewayResult
 
     /// <summary><c>true</c> when every file in the batch succeeded.</summary>
     public bool IsFullSuccess => FailureCount == 0;
+
+    /// <summary>⭐ CE-4331 ② — an import's placement (which file plays on which node, what is not played, who listens); null for other transfers.</summary>
+    public Fdp.Toolkit.Orchestration.Placement? Placement { get; init; }
 }
 
 /// <summary>
@@ -72,6 +132,49 @@ public sealed class StorageGatewayModule
     /// </summary>
     public const int MaxParallelCopies = 8;
 
+    private readonly IFileTransferProvider _provider;
+
+    /// <param name="provider">⭐ <c>P6</c> (Q91 §4-E2) — the transport every PUSH site (NAS → node) goes through.
+    /// <see langword="null"/> = the share transport (<see cref="NodeShareProvider"/>), today's copy. ⛔ The PULL sites
+    /// (node → NAS) do not use it.</param>
+    public StorageGatewayModule(IFileTransferProvider? provider = null)
+        => _provider = provider ?? DefaultProvider;
+
+    /// <summary>The transport a push uses when none is given — the share (co-located: the staging root itself).</summary>
+    public static readonly IFileTransferProvider DefaultProvider = new NodeShareProvider();
+
+    /// <summary>The transport this gateway's pushes go through.</summary>
+    public IFileTransferProvider Provider => _provider;
+
+    /// <summary>
+    /// ⭐ <c>P6</c> — one push through the provider, awaited on the caller's worker. The target's root is the directory
+    /// the file lands in and the item is its name, so one item means the same file on every target of the request.
+    /// ⛔ Cancellation propagates as <see cref="OperationCanceledException"/> (the gateway's contract); the provider has
+    /// already removed any partial file.
+    /// </summary>
+    private static async Task<TransferStatus> DeliverAsync(
+        IFileTransferProvider provider, IReadOnlyList<TransferTarget> targets, IReadOnlyList<TransferItem> items,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var transfer = provider.Start(new TransferRequest(targets, items));
+        using (ct.Register(transfer.Cancel))
+            await transfer.Completion.ConfigureAwait(false);
+        var status = transfer.Status;
+        if (status.Code == OrchestrationStatusCode.Cancelled) throw new OperationCanceledException(ct);
+        if (status.FilesFailed > 0)
+            FdpLog<StorageGatewayModule>.Error("[Gateway] {0} transfer: {1}", provider.Transport, status.Message);
+        return status;
+    }
+
+    /// <summary>⭐ The push of ONE file into one directory per target (<c>{dir}/{fileName}</c>).</summary>
+    private static Task<TransferStatus> DeliverFileAsync(
+        IFileTransferProvider provider, string sourcePath, string fileName,
+        IEnumerable<(NodeId NodeId, string Directory)> targets, CancellationToken ct = default)
+        => DeliverAsync(provider,
+            targets.Select(t => new TransferTarget((Fdp.Core.NodeId)(t.NodeId), t.Directory)).ToList(),
+            new[] { new TransferItem(sourcePath, fileName) }, ct);
+
     /// <summary>
     /// Comparison to use for filesystem path equality: case-insensitive on Windows
     /// (NTFS default), case-sensitive (Ordinal) elsewhere, since case-differing paths
@@ -98,16 +201,25 @@ public sealed class StorageGatewayModule
     /// <returns>
     /// A <see cref="GatewayResult"/> reporting per-file success and failure counts.
     /// </returns>
+    /// <param name="progress">⭐ CE-4330 ② — the job's counters (files, bytes); while its <see cref="Fdp.Toolkit.Orchestration.StorageTransferProgress.GiveWay"/>
+    /// is set (a Live runs, Q5) the copy is held to <see cref="GiveWayBytesPerSecond"/>. Null = a plain copy (a scenario save's slices).</param>
     public async Task<GatewayResult> PullToNasAsync(
         IReadOnlyList<FileManifestEntry> manifests,
         string nasBasePath,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Fdp.Toolkit.Orchestration.StorageTransferProgress? progress = null)
     {
         if (manifests == null)  throw new ArgumentNullException(nameof(manifests));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
 
         int successCount = 0;
         int failureCount = 0;
+        if (progress != null)
+        {
+            long total = 0;
+            foreach (var e in manifests) total += e.Length > 0 ? e.Length : (File.Exists(e.SourceUnc) ? new FileInfo(e.SourceUnc).Length : 0);
+            progress.SetTotals(manifests.Count, total);
+        }
 
         var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
         var partial = new ConcurrentBag<string>();
@@ -125,10 +237,41 @@ public sealed class StorageGatewayModule
                         if (!string.IsNullOrEmpty(destDir))
                             Directory.CreateDirectory(destDir);
 
-                        partial.Add(destPath);
-                        File.Copy(entry.SourceUnc, destPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        // ⭐ C1 — an entry that carries its (length, mtime) and whose NAS copy already matches is skipped
+                        //   by the ONE freshness rule (IsAlreadyCurrent's) — nothing re-transfers.
+                        if (entry.LastWriteUtc is DateTime mtime && File.Exists(destPath))
+                        {
+                            var d = new FileInfo(destPath);
+                            if (d.Length == entry.Length && d.LastWriteTimeUtc == mtime)
+                            {
+                                Interlocked.Increment(ref successCount);
+                                progress?.AddBytes(d.Length);
+                                progress?.FileDone();
+                                return;
+                            }
+                        }
+
+                        // ⭐ CE-4330 ① (Recording Storage §3 P4) — the copy lands as <name>.part and is renamed when whole: a file under
+                        //   its real name is always complete (a cut transfer leaves only a .part, which the cancel / the next pull removes).
+                        var partPath = destPath + Fdp.Toolkit.Orchestration.ArchiveManifest.PartSuffix;
+                        partial.Add(partPath);
+                        try
+                        {
+                            if (progress == null) File.Copy(entry.SourceUnc, partPath, overwrite: true);
+                            else CopyCounted(entry.SourceUnc, partPath, progress, ct);
+                            File.Move(partPath, destPath, overwrite: true);
+                        }
+                        catch
+                        {
+                            try { File.Delete(partPath); } catch { /* best-effort */ }
+                            throw;
+                        }
                         Interlocked.Increment(ref successCount);
+                        progress?.FileDone();
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw;   // the cancel path below removes every .part
                     }
                     catch (Exception)
                     {
@@ -146,6 +289,41 @@ public sealed class StorageGatewayModule
         }
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
+    }
+
+    /// <summary>⭐ CE-4330 ⑤ (Q5) — the whole archive's rate while a Live runs (it gives way); measured against the live frame and DDS latency (design §10).</summary>
+    public const long GiveWayBytesPerSecond = 20L * 1024 * 1024;
+
+    private const int CopyChunkBytes = 1024 * 1024;
+
+    /// <summary>
+    /// ⭐ CE-4330 ② / ⑤ — a copy in chunks that counts its bytes into <paramref name="progress"/> and, while it gives way, holds this thread to its share
+    /// of <see cref="GiveWayBytesPerSecond"/> (the copies run <see cref="MaxParallelCopies"/> at a time). Keeps the source's write time, as
+    /// <see cref="File.Copy(string, string, bool)"/> does — the C1 freshness skip compares it.
+    /// </summary>
+    internal static void CopyCounted(string source, string dest, Fdp.Toolkit.Orchestration.StorageTransferProgress progress, CancellationToken ct)
+    {
+        var buffer = new byte[CopyChunkBytes];
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        long sinceMark = 0;
+        using (var src = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, CopyChunkBytes))
+        using (var dst = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.None, CopyChunkBytes))
+        {
+            int read;
+            while ((read = src.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                dst.Write(buffer, 0, read);
+                progress.AddBytes(read);
+                sinceMark += read;
+                if (!progress.GiveWay) { sinceMark = 0; clock.Restart(); continue; }
+                double allowedSeconds = sinceMark / (double)(GiveWayBytesPerSecond / MaxParallelCopies);
+                double ahead = allowedSeconds - clock.Elapsed.TotalSeconds;
+                if (ahead > 0) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(ahead));
+            }
+        }
+        ct.ThrowIfCancellationRequested();
+        File.SetLastWriteTimeUtc(dest, File.GetLastWriteTimeUtc(source));
     }
 
     /// <summary>
@@ -172,44 +350,18 @@ public sealed class StorageGatewayModule
         if (string.IsNullOrWhiteSpace(nasSourcePath)) throw new ArgumentNullException(nameof(nasSourcePath));
         if (targets == null) throw new ArgumentNullException(nameof(targets));
 
-        int successCount = 0;
-        int failureCount = 0;
-
-        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
-        var partial = new ConcurrentBag<string>();
-
-        try
+        // ⭐ P6 — through the provider: one request per destination file name (a target may rename the file).
+        int successCount = 0, failureCount = 0;
+        var pushes = targets
+            .GroupBy(t => Path.GetFileName(t.DestinationPath))
+            .Select(g => DeliverFileAsync(_provider, nasSourcePath, g.Key,
+                g.Select(t => (t.NodeId, Path.GetDirectoryName(t.DestinationPath) ?? string.Empty)), ct))
+            .ToList();
+        foreach (var status in await Task.WhenAll(pushes).ConfigureAwait(false))
         {
-            await Task.Run(() =>
-            {
-                Parallel.ForEach(targets, opts, target =>
-                {
-                    try
-                    {
-                        var destDir = Path.GetDirectoryName(target.DestinationPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
-
-                        partial.Add(target.DestinationPath);
-                        File.Copy(nasSourcePath, target.DestinationPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
-                        Interlocked.Increment(ref successCount);
-                    }
-                    catch (Exception)
-                    {
-                        Interlocked.Increment(ref failureCount);
-                    }
-                });
-            }, ct).ConfigureAwait(false);
+            successCount += status.FilesDone + status.FilesSkipped;
+            failureCount += status.FilesFailed;
         }
-        catch (OperationCanceledException)
-        {
-            // Delete partially-written destination files to keep storage consistent.
-            foreach (var f in partial)
-                try { File.Delete(f); } catch { /* best-effort */ }
-            throw;
-        }
-
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
     }
 
@@ -226,16 +378,38 @@ public sealed class StorageGatewayModule
     /// <param name="targets">Target nodes; each entry's <see cref="NodeDistributionTarget.DestinationPath"/>
     /// should be the fully-qualified destination <em>directory</em> on the target node.</param>
     /// <param name="nasBasePath">NAS root under which <c>scenarios\&lt;scenarioId&gt;</c> is resolved.</param>
-    public async Task<GatewayResult> PrefetchScenarioAsync(
+    /// <param name="tkbName">⭐ <c>R-4018</c> — the deployment's ONE TKB (<c>ClusterConfiguration.TkbName</c>), synced from
+    /// <c>{nas}/tkb/&lt;name&gt;.zip</c> whatever the scenario says. ⚠ <see langword="null"/> skips the TKB sync — tests only;
+    /// the production saga always passes the configured name.</param>
+    /// <param name="ct">⭐ P8 H5 — the operator's cancel STOPS the copy (the transfer removes its partial files).</param>
+    public Task<GatewayResult> PrefetchScenarioAsync(
         string scenarioId,
         IReadOnlyList<NodeDistributionTarget> targets,
-        string nasBasePath)
+        string nasBasePath,
+        string? tkbName = null,
+        CancellationToken ct = default,
+        string? scenarioFileFrom = null)
+        // ⭐ R-4001 — ALL of it on a worker, the NAS directory scan included: the saga calls this from the frame thread,
+        //   and a transfer that finishes at once would otherwise resume the rest of the chain there.
+        => Task.Run(() => PrefetchScenarioCoreAsync(scenarioId, targets, nasBasePath, tkbName, ct, scenarioFileFrom), ct);
+
+    /// <param name="scenarioFileFrom">⭐ CE-4099 (AQ108 §4c A7) — deliver THIS file as the folder's <c>scenario.json</c> (a recovered autosave); null = the folder's own.</param>
+    private async Task<GatewayResult> PrefetchScenarioCoreAsync(
+        string scenarioId,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        string? tkbName,
+        CancellationToken ct,
+        string? scenarioFileFrom = null)
     {
         if (string.IsNullOrWhiteSpace(scenarioId)) throw new ArgumentNullException(nameof(scenarioId));
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
 
-        var sourceDir = Path.Combine(nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+        // ⭐ T-6 (CE-3433) — the overlay must exist before a load needs it: a save answered "saved" before its overlay compile finished, so wait for that compile
+        await OverlayCompileTracker.WaitAsync(scenarioId).ConfigureAwait(false);
+
+        var sourceDir = ContentLayout.ResolveScenarioDirectory(nasBasePath, scenarioId);   // ⭐ L6 — a saved scenario, a recipe or an opened copy
         if (!Directory.Exists(sourceDir))
             throw new DirectoryNotFoundException(
                 $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' does not exist. " +
@@ -251,56 +425,389 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' is empty. " +
                 $"Ensure scenario '{scenarioId}' contains at least one file before prefetching.");
 
-        // NEW: sanity gate -- TkbName must agree across all scenario files.
-        CheckTkbNameConsensus(files);
+        // Sanity gate -- TerrainName must agree across all scenario files. ⛔ R-4018: no TKB name is read from them.
+        // ⭐ S2a — it RETURNS what it computed, instead of discarding it.
+        var artifactNames = CheckTerrainNameConsensus(files);
+        // ⭐ O-4 (CE-4415) — the scenario's terrain overlay folder, if it has one: it travels beside the terrain, keyed by its content hash
+        var overlayDir = Path.Combine(sourceDir, OverlayFolderName);
+        var overlayHeader = Path.Combine(overlayDir, Fdp.Toolkit.Terrain.TerrainOverlayHeader.FileName);
+        if (artifactNames.Any && File.Exists(overlayHeader))
+        {
+            var hash = Fdp.Toolkit.Terrain.TerrainOverlayHeader.Parse(File.ReadAllText(overlayHeader), overlayHeader).ContentHash;
+            if (string.IsNullOrEmpty(hash))
+                throw new InvalidOperationException($"[Gateway] PrefetchScenario: '{overlayHeader}' carries no contentHash.");
+            artifactNames = artifactNames with { OverlayHash = hash, OverlaySource = overlayDir };
+        }
 
         int success = 0, failure = 0;
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
 
 		// eliminate duplicate destination paths (if multiple nodes share the same staging directory) to avoid redundant copies
 		var distinctTargets = targets.DistinctBy(t => t.DestinationPath).ToList();
 
-        // For each (file, target) pair: push the file to the target node's staging dir.
-        var pairs = new List<(string sourceFile, NodeDistributionTarget target)>(files.Length * targets.Count);
+        // ⭐ P6 — every slice to every target through the provider, ONE request per file (bundled: every target in it).
+        //   A target already holding the file (same length + mtime — including the NAS file itself) is skipped.
         foreach (var file in files)
-            foreach (var target in distinctTargets)
-                pairs.Add((file, target));
-
-        await Task.Run(() =>
         {
-            Parallel.ForEach(pairs, options, pair =>
+            // ⭐ CE-4099 A7 — the recovered autosave stands in for scenario.json; every other file of the folder goes as it is
+            var srcFile = scenarioFileFrom != null && string.Equals(Path.GetFileName(file), ContentLayout.ScenarioFileName, StringComparison.OrdinalIgnoreCase)
+                ? scenarioFileFrom : file;
+            var status = await DeliverFileAsync(_provider, srcFile, Path.GetFileName(file),
+                distinctTargets.Select(t => (t.NodeId, t.DestinationPath)), ct).ConfigureAwait(false);
+            success += status.FilesDone + status.FilesSkipped;
+            failure += status.FilesFailed;
+        }
+
+        // ⭐⭐⭐ CE-280 — route the format-incompatible foreign slices back to THEIR origin nodes only.
+        //   A distributed save keeps each foreign slice under <name>/foreign/node_<id>.json (§4c). On load
+        //   each such slice belongs to exactly ONE node (the id in its filename), so unlike the top-level
+        //   scenario.json (which every node stages) it is delivered only to the target whose NodeId matches.
+        //   That node's own load handler (e.g. ExConScenarioLoadHandler) reads it from <staging>/foreign/.
+        //   Defensive: no foreign/ dir ⇒ nothing routed; a slice with no matching active target is skipped.
+        var foreignDir = Path.Combine(sourceDir, "foreign");
+        if (Directory.Exists(foreignDir))
+        {
+            foreach (var foreignFile in Directory.GetFiles(foreignDir, "node_*.json"))
             {
-                var (srcFile, tgt) = pair;
+                if (!TryParseForeignNodeId(Path.GetFileName(foreignFile), out var originNodeId))
+                    continue;
+                var owners = distinctTargets.Where(t => t.NodeId == originNodeId).ToList();
+                if (owners.Count == 0) continue;
+                var status = await DeliverFileAsync(_provider, foreignFile, Path.GetFileName(foreignFile),
+                    owners.Select(t => (t.NodeId, Path.Combine(t.DestinationPath, "foreign"))), ct).ConfigureAwait(false);
+                success += status.FilesDone + status.FilesSkipped;
+                failure += status.FilesFailed;
+            }
+        }
+
+        // ⭐⭐⭐ S2c — stage the scenario's named terrain beside the scenario slices.
+        ct.ThrowIfCancellationRequested();
+        StageNamedArtifacts(artifactNames, distinctTargets, nasBasePath, ref success, ref failure);
+
+        // ⭐⭐⭐ R-4018 — the deployment's ONE TKB, before every scenario load: a freshness check that copies only what changed.
+        if (!string.IsNullOrWhiteSpace(tkbName))
+            SyncTkb(tkbName!, distinctTargets, nasBasePath, ref success, ref failure, _provider, ct);
+
+        // ⭐⭐ Macros S3a ⑦ (SR-80 / SR-148, docs/DESIGN_Scenario_Macros.md §15.3) — the WHOLE macros tree to EVERY node: any node
+        //   that creates an instance expands it, and which macros a scenario needs is not known without expanding.
+        ct.ThrowIfCancellationRequested();
+        StageMacros(distinctTargets, nasBasePath, ref success, ref failure);
+
+        // ⭐⭐ CE-3020 — the behaviour-asset trees each node needs or authors, INSIDE the prefetch saga (B4a): this task
+        //   is what the parked transition waits on, so a sync failure fails the request the same way (B6).
+        ct.ThrowIfCancellationRequested();
+        SyncBehaviourAssets(targets, nasBasePath, ref success, ref failure);
+
+        return new GatewayResult { SuccessCount = success, FailureCount = failure };
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2c</c> — stage the scenario's named terrain folder, and write the header that names it into
+    /// every target's staging directory.
+    ///
+    /// <para>⚠⚠ <b>The header written here is a DIFFERENT SHAPE from the scenario's own header block,
+    /// and that is deliberate.</b> 📐 The node-side reader takes a FLAT object with PascalCase keys —
+    /// <c>ScenarioTerrainName.cs</c> uses <c>ValueTextEquals("TerrainName")</c> with no nesting — whereas a
+    /// scenario file carries <c>header: {{ terrainName }}</c>, nested and camelCase.</para>
+    ///
+    /// <para>⛔⛔ <b><c>R-4018</c> — the TKB is NOT staged here any more</b>: a scenario no longer names one.
+    /// <see cref="SyncTkb"/> stages the deployment's one TKB on every prefetch, whatever the scenario says.</para>
+    ///
+    /// <para>⚠ A scenario naming NO terrain stages nothing and is <b>not</b> a failure.</para>
+    ///
+    /// 📄 docs/DESIGN_Artifact_Staging.md §2, §4.
+    /// </summary>
+    private static void StageNamedArtifacts(
+        StagedArtifactNames names,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        ref int success,
+        ref int failure)
+    {
+        if (!names.Any)
+        {
+            // ⭐⭐ CE-3075 — staging nothing must not leave the PREVIOUS scenario's header behind: both node-side
+            //   readers fall back to it when the load message is silent, so a scenario naming no terrain
+            //   loaded after one that named some INHERITED those names on CGF (measured live 2026-10-05:
+            //   hill-attack-close after ua-posture kept test-town resident on CGF only). Remove it; stage nothing.
+            foreach (var target in targets)
+            {
+                if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
+                var stale = Path.Combine(target.TkbDestinationPath, StagedScenarioHeaderFileName);
+                try { if (File.Exists(stale)) File.Delete(stale); }
+                catch (Exception ex)
+                {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] PrefetchScenario: could not remove the previous scenario's header '{0}': {1}", stale, ex.Message);
+                    Interlocked.Increment(ref failure);
+                }
+            }
+            return;
+        }
+
+        var headerJson = BuildStagedHeaderJson(names);
+
+        // ⭐⭐ BP-557 (2026-10-03) — the named TERRAIN, a FOLDER {nas}/terrain/<name>/ (definition + world +
+        //   roads), staged to {node}/Terrain/<name>/. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.
+        //   ⚠ Not on the NAS is NOT an error here: every node's TerrainCatalog also searches the NAS
+        //   (the shipped arm is gone, CE-4089), and the node fails loudly itself if none has it.
+        string? terrainSource = null;
+        if (!string.IsNullOrEmpty(names.TerrainName))
+        {
+            // ⭐ CE-4089 — the NAS terrain tree is {nas}/assets/terrain (ContentLayout), the one the dev seed fills.
+            var candidate = Path.Combine(ContentLayout.TerrainAssets(nasBasePath), names.TerrainName);
+            if (File.Exists(Path.Combine(candidate, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName)))
+                terrainSource = candidate;
+            else
+                FdpLog<StorageGatewayModule>.Info(
+                    "[Gateway] PrefetchScenario: terrain '{0}' is not published under '{1}'; nodes resolve it "
+                  + "from their own staging or the NAS.",
+                    names.TerrainName, candidate);
+        }
+
+        foreach (var target in targets)
+        {
+            if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
+
+            try
+            {
+                if (terrainSource != null)
+                {
+                    var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
+                    var terrainDest = Path.Combine(nodeRoot, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName,
+                        names.TerrainName!);
+                    // ⭐ D2 — the terrain folder travels by the asset sync (mirror), not a second copier.
+                    var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(terrainSource, terrainDest);
+                    Interlocked.Add(ref success, Math.Max(1, r.Writes));
+                }
+
+                if (names.OverlaySource != null && !string.IsNullOrEmpty(names.OverlayHash))
+                {
+                    var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
+                    var overlayDest = Path.Combine(nodeRoot, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName,
+                        Fdp.Toolkit.Terrain.TerrainCatalog.OverlaysDirectoryName, names.OverlayHash);
+                    var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(names.OverlaySource, overlayDest);   // ⭐ O-4 — same mirror as the terrain, same node root
+                    Interlocked.Add(ref success, Math.Max(1, r.Writes));
+                    // ⭐ T-6 (CE-3432) — the overlay is used now; the node keeps it plus the N most recently used others (the NAS by-hash copies stay: recordings name them)
+                    Fdp.Toolkit.Terrain.OverlayStaging.Touch(overlayDest);
+                    Fdp.Toolkit.Terrain.OverlayStaging.Prune(Path.GetDirectoryName(overlayDest)!, names.OverlayHash, Fdp.Toolkit.Terrain.OverlayStaging.ResolveKeep(),
+                        msg => FdpLog<StorageGatewayModule>.Info(msg));
+                }
+
+                Directory.CreateDirectory(target.TkbDestinationPath);
+
+                // S2c — the header the node reads its names out of.
+                File.WriteAllText(
+                    Path.Combine(target.TkbDestinationPath, StagedScenarioHeaderFileName), headerJson);
+                Interlocked.Increment(ref success);
+            }
+            catch (Exception ex)
+            {
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] PrefetchScenario: failed to stage artifacts → '{0}': {1}",
+                    target.TkbDestinationPath, ex.Message);
+                Interlocked.Increment(ref failure);
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4018</c> — sync the deployment's ONE TKB from its NAS master copy (<c>{nas}/tkb/&lt;name&gt;.zip</c>) into
+    /// every target's TKB staging directory, and leave the <see cref="StagedTkb"/> record naming it. Runs before every
+    /// scenario load as a FRESHNESS CHECK: a node already holding the same bytes is left untouched (<c>S2d</c>), which is
+    /// what lets the node's own (name, length, mtime) cache skip the reload too.
+    ///
+    /// <para>⭐ <b>No master copy is legal</b> — the default deployment today. The stale record is removed so the node
+    /// keeps its built-in catalogue, and nothing counts as a failure. 🔒 User, <c>2026-10-15</c>: <i>"go ahead with
+    /// the fallback"</i>. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</para>
+    /// </summary>
+    public static void SyncTkb(
+        string tkbName,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        ref int success,
+        ref int failure,
+        IFileTransferProvider? provider = null,
+        CancellationToken ct = default)
+    {
+        var source = Path.Combine(nasBasePath, OrchestrationConstants.NasTkbDirectoryName,
+            tkbName + OrchestrationConstants.TkbArtifactExtension);
+        var staged = targets.Where(t => !string.IsNullOrEmpty(t.TkbDestinationPath)).ToList();
+
+        if (!File.Exists(source))
+        {
+            FdpLog<StorageGatewayModule>.Info(
+                "[Gateway] TKB '{0}' has no master copy at '{1}' — nodes keep their built-in catalogue.", tkbName, source);
+            foreach (var target in staged)
+            {
+                try { StagedTkb.Clear(target.TkbDestinationPath); }
+                catch (Exception ex)
+                {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] TKB record of '{0}' could not be cleared: {1}", target.TkbDestinationPath, ex.Message);
+                    failure++;
+                }
+            }
+            return;
+        }
+        if (staged.Count == 0) return;
+
+        // ⭐ P6 — ONE request to every target through the provider; a node already holding the same bytes is skipped
+        //   (S2d: an unchanged archive is never rewritten — the provider's freshness rule is IsAlreadyCurrent's).
+        var status = DeliverFileAsync(provider ?? DefaultProvider, source, Path.GetFileName(source),
+            staged.Select(t => (t.NodeId, t.TkbDestinationPath)), ct).GetAwaiter().GetResult();
+
+        foreach (var target in staged)
+        {
+            if (status.FailedNodeIds.Contains(target.NodeId))
+            {
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] TKB sync of '{0}' → '{1}' failed: {2}", tkbName, target.TkbDestinationPath, status.Message);
+                failure++;
+                continue;
+            }
+            try
+            {
+                StagedTkb.Write(target.TkbDestinationPath, tkbName);
+                success++;
+            }
+            catch (Exception ex)
+            {
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] TKB record → '{0}' failed: {1}", target.TkbDestinationPath, ex.Message);
+                failure++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3020 — sync every behaviour-asset tree each target receives (docs/DESIGN_Asset_Management.md §4, B4/B4a):
+    /// <c>{nas}/assets/&lt;kind&gt;</c> → the node's root for the kind, MIRROR or ADD-ONLY (§7.3b ③). Targets sharing one root
+    /// (several nodes on one machine) sync it once. ⚠ A kind with no NAS tree is skipped and logged, never a failure —
+    /// "nobody published K" is legal (§7.3b, the external-tool case). A sync that throws counts as a FAILURE, which the
+    /// saga turns into the L8 failure path (B6 — no second failure route).
+    /// </summary>
+    private static void SyncBehaviourAssets(
+        IReadOnlyList<NodeDistributionTarget> targets, string nasBasePath, ref int success, ref int failure)
+    {
+        var done = new HashSet<string>(StringComparer.Ordinal);
+        var sync = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync();
+        foreach (var target in targets)
+        {
+            foreach (var a in target.AssetSyncs)
+            {
+                var source = OrchestrationConstants.GetNasAssetRoot(nasBasePath, a.Kind);
+                if (!done.Add(a.Kind + "|" + Path.GetFullPath(a.DestinationRoot))) continue;
+                if (!Directory.Exists(source))
+                {
+                    FdpLog<StorageGatewayModule>.Info(
+                        "[Gateway] Asset sync: no '{0}' tree published at '{1}' — nothing to send to node {2}.",
+                        a.Kind, source, target.NodeId);
+                    continue;
+                }
                 try
                 {
-                    var destPath = Path.Combine(tgt.DestinationPath, Path.GetFileName(srcFile));
-
-                    // Skip if source and destination are the exact same file. Path equality
-                    // is case-insensitive only on Windows; on Linux, case-differing paths
-                    // are distinct files.
-                    if (string.Equals(srcFile, destPath, PlatformPathComparison))
-                    {
-                        Interlocked.Increment(ref success);
-                        return;
-                    }
-
-                    var destDir  = Path.GetDirectoryName(destPath);
-                    if (!string.IsNullOrEmpty(destDir))
-                        Directory.CreateDirectory(destDir);
-                    File.Copy(srcFile, destPath, overwrite: true);
+                    var r = sync.Sync(source, a.DestinationRoot, a.Mode);
                     Interlocked.Increment(ref success);
+                    FdpLog<StorageGatewayModule>.Info(
+                        $"[Gateway] Asset sync {a.Kind} → node {target.NodeId} ({a.Mode}): {r.CopiedStandalone} copied, "
+                      + $"{r.Unpacked} unpacked, {r.Deleted} deleted, {r.HeldBackChanged} changed held back (author).");
                 }
                 catch (Exception ex)
                 {
                     FdpLog<StorageGatewayModule>.Error(
-                        "[Gateway] PrefetchScenario: failed to copy '{0}' → '{1}': {2}",
-                        Path.GetFileName(srcFile), tgt.DestinationPath, ex.Message);
+                        "[Gateway] Asset sync {0} → node {1} at '{2}' FAILED: {3}", a.Kind, target.NodeId, a.DestinationRoot, ex.Message);
                     Interlocked.Increment(ref failure);
                 }
-            });
-        }).ConfigureAwait(false);
+            }
+        }
+    }
 
-        return new GatewayResult { SuccessCount = success, FailureCount = failure };
+    /// <summary>
+    /// ⭐⭐ Macros S3a ⑦ (SR-80, SR-148) — mirror <c>{nas}/macros</c> into every target's node root (<c>{node}/macros</c>, the parent of its TKB
+    /// directory — the root <c>FileMacroLibrary.ForNode</c> reads). ⭐ The asset tree sync the terrain folder uses (one copier); a node
+    /// already holding a file's bytes is not rewritten. ⚠ No macros tree on the NAS stages nothing and is not a failure; a sync that throws is.
+    /// </summary>
+    public static void StageMacros(IReadOnlyList<NodeDistributionTarget> targets, string nasBasePath, ref int success, ref int failure)
+    {
+        var source = ContentLayout.Macros(nasBasePath);
+        if (!Directory.Exists(source)) return;
+        var done = new HashSet<string>(StringComparer.Ordinal);
+        var sync = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync();
+        foreach (var target in targets)
+        {
+            if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
+            var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
+            var dest = ContentLayout.Macros(nodeRoot);
+            if (!done.Add(Path.GetFullPath(dest))) continue;
+            try
+            {
+                var r = sync.Sync(source, dest);
+                Interlocked.Increment(ref success);
+                FdpLog<StorageGatewayModule>.Info($"[Gateway] Macros → node {target.NodeId}: {r.Writes} written, {r.Deleted} deleted.");
+            }
+            catch (Exception ex)
+            {
+                FdpLog<StorageGatewayModule>.Error("[Gateway] Macros → node {0} at '{1}' FAILED: {2}", target.NodeId, dest, ex.Message);
+                Interlocked.Increment(ref failure);
+            }
+        }
+    }
+
+    /// <summary>⭐ O-4 — the folder beside a scenario's files holding its compiled terrain overlay.</summary>
+    public const string OverlayFolderName = "terrain-overlay";
+
+    /// <summary>The header file the node-side terrain reader opens. ⛔ One definition of the name.</summary>
+    public const string StagedScenarioHeaderFileName = "ScenarioHeader.json";
+
+    /// <summary>
+    /// ⭐ The FLAT, PascalCase header the node reads. ⚠ See <see cref="StageNamedArtifacts"/> for why this
+    /// is not the scenario's own header block. ⭐ Null names are omitted rather than written as
+    /// <c>null</c>, so an absent name and a null-valued one look identical to the readers.
+    /// </summary>
+    public static string BuildStagedHeaderJson(StagedArtifactNames names)
+    {
+        var fields = new List<string>(2);
+        if (!string.IsNullOrEmpty(names.TerrainName))
+            fields.Add($"\"TerrainName\":{JsonSerializer.Serialize(names.TerrainName, FdpJsonOptionsRegistry.DefaultRelaxed)}");
+        if (!string.IsNullOrEmpty(names.OverlayHash))   // ⭐ O-4 — the scenario's terrain overlay (Terrain/overlays/<hash>/); absent ⇒ no field, the header is rewritten whole
+            fields.Add($"\"OverlayHash\":{JsonSerializer.Serialize(names.OverlayHash, FdpJsonOptionsRegistry.DefaultRelaxed)}");
+        return "{" + string.Join(",", fields) + "}";
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2d</c> — the orchestrator's skip: does the destination already hold these exact bytes?
+    ///
+    /// <para>🔒 <b>Ruled by the user <c>2026-09-18</c>: the key is <c>(length, lastWriteTimeUtc)</c> — no
+    /// hash, no sidecar.</b> 📐 And the scheme rests on a measured property: <c>File.Copy</c> PRESERVES the
+    /// source's last-write time, so the mtime a node sees is the NAS artifact's OWN. ⇒ ⭐⭐ a timestamp is a
+    /// CLUSTER-WIDE identity, and both sides can evaluate literally the same predicate without exchanging
+    /// anything.</para>
+    ///
+    /// <para>⚠ <b>The residual risk is accepted, not overlooked:</b> <c>(length, mtime)</c> is not a
+    /// content identity. A rebuilt-but-identical zip copies needlessly (wasteful, correct); a different
+    /// zip with the same length AND the same 100-ns mtime would wrongly skip (vanishingly unlikely for
+    /// tool-built artifacts, ⚠ but silent). 📄 design §6 records the tradeoff.</para>
+    /// </summary>
+    public static bool IsAlreadyCurrent(string sourceFile, string destFile)
+    {
+        var src = new FileInfo(sourceFile);
+        var dst = new FileInfo(destFile);
+        if (!src.Exists || !dst.Exists) return false;          // ⭐ a missing destination always copies
+        return src.Length == dst.Length
+            && src.LastWriteTimeUtc == dst.LastWriteTimeUtc;
+    }
+
+    /// <summary>
+    /// Parses the origin node id from a foreign slice filename of the form <c>node_&lt;id&gt;.json</c>.
+    /// </summary>
+    internal static bool TryParseForeignNodeId(string fileName, out int nodeId)
+    {
+        nodeId = 0;
+        if (string.IsNullOrEmpty(fileName)) return false;
+        var stem = Path.GetFileNameWithoutExtension(fileName);   // node_<id>
+        const string prefix = "node_";
+        if (!stem.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        return int.TryParse(stem.AsSpan(prefix.Length), out nodeId);
     }
 
     /// <summary>
@@ -308,11 +815,13 @@ public sealed class StorageGatewayModule
     /// and delivers each to the node-specific <see cref="NodeDistributionTarget.DestinationPath"/>.
     /// Each node receives <c>&lt;nasBasePath&gt;/&lt;exerciseId&gt;/node_&lt;nodeId&gt;.fdp</c>.
     /// </summary>
+    /// <param name="progress">⭐ CE-4330 ② — one "file" per node delivered (its recording and sidecar), the bytes of the recordings.</param>
     public async Task<GatewayResult> PrefetchArchiveAsync(
         string exerciseId,
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Fdp.Toolkit.Orchestration.StorageTransferProgress? progress = null)
     {
         if (string.IsNullOrWhiteSpace(exerciseId))     throw new ArgumentNullException(nameof(exerciseId));
         if (targets == null)                         throw new ArgumentNullException(nameof(targets));
@@ -324,58 +833,85 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchArchive: NAS source directory '{sourceDir}' does not exist. " +
                 $"Ensure exercise '{exerciseId}' is archived to the NAS before issuing a replay prefetch.");
 
-        int successCount = 0;
-        int failureCount = 0;
+        // ⭐⭐ CE-4331 ② (§9a) — the ONE placement: each recorded file (its own metadata says which node made it) goes to the node of the same NAME and
+        //   kind, else the next free node of the same KIND; ⛔ never across kinds; nodes left without a file LISTEN (not pushed anything, not a failure —
+        //   CE-4330 §9). A placed file is copied under the CHOSEN node's own file name. Nothing placeable ⇒ refused (the caller says why).
+        var placement = Fdp.Toolkit.Orchestration.RecordingPlacement.Place(ReadRecordedFiles(sourceDir), PlacementNodesOf(targets));
+        if (placement.Refused) return new GatewayResult { SuccessCount = 0, FailureCount = 0, Placement = placement };
+        var byNode = new Dictionary<int, NodeDistributionTarget>(targets.Count);
+        foreach (var t in targets) byNode[t.NodeId.Value] = t;
+        var sends = new List<(NodeDistributionTarget Target, string Source)>(placement.Placed.Count);
+        foreach (var (file, nodeId) in placement.Placed)
+            if (byNode.TryGetValue(nodeId, out var t) && !t.AlreadyHolds) sends.Add((t, Path.Combine(sourceDir, file.FileName)));   // ⭐ CE-4330 ④ — a holder is not pushed to
 
-        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
-        var partial = new ConcurrentBag<string>();
-
-        try
+        // ⭐ P6 — through the provider: each node gets the recording placed on it (and its schema manifest beside it, so replay validation succeeds),
+        //   one request per node.
+        var pushes = sends.Select(send =>
         {
-            await Task.Run(() =>
+            var destName = Path.GetFileName(send.Target.DestinationPath);
+            var items = new List<TransferItem> { new(send.Source, destName) };
+            if (File.Exists(send.Source + ".meta.json")) items.Add(new TransferItem(send.Source + ".meta.json", destName + ".meta.json"));
+            return DeliverAsync(_provider,
+                new[] { new TransferTarget(send.Target.NodeId, Path.GetDirectoryName(send.Target.DestinationPath) ?? string.Empty) },
+                items, ct);
+        }).ToList();
+
+        if (progress != null)
+        {
+            long bytes = 0;
+            foreach (var send in sends) if (File.Exists(send.Source)) bytes += new FileInfo(send.Source).Length;
+            progress.SetTotals(sends.Count, bytes);
+        }
+
+        int successCount = 0, failureCount = 0;
+        for (int i = 0; i < pushes.Count; i++)
+        {
+            var status = await pushes[i].ConfigureAwait(false);
+            if (status.FilesFailed > 0) failureCount++;
+            else
             {
-                Parallel.ForEach(targets, opts, target =>
+                successCount++;
+                if (progress != null)
                 {
-                    try
-                    {
-                        var fileName = OrchestrationConstants.GetNodeRecordingFileName(target.NodeId);
-                        var srcPath = Path.Combine(sourceDir, fileName);
-                        var destDir = Path.GetDirectoryName(target.DestinationPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
-
-                        partial.Add(target.DestinationPath);
-                        File.Copy(srcPath, target.DestinationPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
-
-                        // Pull the companion schema manifest file so replay validation succeeds.
-                        var metaSrcPath = srcPath + ".meta.json";
-                        var metaDestPath = target.DestinationPath + ".meta.json";
-                        if (File.Exists(metaSrcPath))
-                        {
-                            partial.Add(metaDestPath);
-                            File.Copy(metaSrcPath, metaDestPath, overwrite: true);
-                            partial.TryTake(out _);   // remove on success — only tracked while in-flight
-                        }
-
-                        Interlocked.Increment(ref successCount);
-                    }
-                    catch (Exception)
-                    {
-                        Interlocked.Increment(ref failureCount);
-                    }
-                });
-            }, ct).ConfigureAwait(false);
+                    if (File.Exists(sends[i].Source)) progress.AddBytes(new FileInfo(sends[i].Source).Length);
+                    progress.FileDone();
+                }
+            }
         }
-        catch (OperationCanceledException)
+
+        return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount, Placement = placement };
+    }
+
+    /// <summary>⭐ CE-4331 ② — the recorded files of an archived exercise with who made each (its <c>.meta.json</c>; none ⇒ a legacy file: its id only).</summary>
+    internal static List<Fdp.Toolkit.Orchestration.RecordedFile> ReadRecordedFiles(string exerciseDir)
+    {
+        var list = new List<Fdp.Toolkit.Orchestration.RecordedFile>();
+        foreach (var path in Directory.GetFiles(exerciseDir, "*.fdp", new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive }))
         {
-            // Delete partially-written destination files to keep storage consistent.
-            foreach (var f in partial)
-                try { File.Delete(f); } catch { /* best-effort */ }
-            throw;
+            var name = Path.GetFileName(path);
+            if (!TryParseForeignNodeId(name, out var recordedId)) continue;   // node_<id>.fdp only
+            string nodeName = "", subsystem = ""; int roles = 0;
+            var metaPath = path + ".meta.json";
+            if (File.Exists(metaPath))
+            {
+                try
+                {
+                    var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(metaPath));
+                    (nodeName, subsystem, roles) = (meta.NodeName ?? "", meta.Subsystem ?? "", meta.Roles);
+                }
+                catch (Exception) { /* an unreadable sidecar: a legacy file */ }
+            }
+            list.Add(new Fdp.Toolkit.Orchestration.RecordedFile(name, recordedId, nodeName, subsystem, roles));
         }
+        list.Sort((x, y) => x.RecordedNodeId.CompareTo(y.RecordedNodeId));
+        return list;
+    }
 
-        return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
+    private static List<Fdp.Toolkit.Orchestration.PlacementNode> PlacementNodesOf(IReadOnlyList<NodeDistributionTarget> targets)
+    {
+        var nodes = new List<Fdp.Toolkit.Orchestration.PlacementNode>(targets.Count);
+        foreach (var t in targets) nodes.Add(new Fdp.Toolkit.Orchestration.PlacementNode(t.NodeId.Value, t.NodeName, t.Subsystem, t.Roles));
+        return nodes;
     }
 
     /// <summary>
@@ -389,12 +925,16 @@ public sealed class StorageGatewayModule
         // Case-insensitive match: scenario *.json files may have drifted extension casing
         // when authored on Windows; PlatformDefault would silently miss them on Linux.
         var jsonMatch = new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive };
-        return Directory.GetDirectories(root)
+        var names = Directory.GetDirectories(root)
             .Where(d => Directory.GetFiles(d, "*.json", jsonMatch).Length > 0)
             .Select(Path.GetFileName)
             .Where(n => n != null)
             .Select(n => n!)
             .ToList();
+        // ⭐ CE-4360 (Q-S2) — a scenario filed in a sub-folder is available by its LEAF name (a category folder holds no scenario.json, so it is not listed itself)
+        foreach (var f in Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Enumerate(root))
+            if (f.Category.Length > 0 && !names.Contains(f.Name, StringComparer.Ordinal)) names.Add(f.Name);
+        return names;
     }
 
     /// <summary>
@@ -417,14 +957,16 @@ public sealed class StorageGatewayModule
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             var startTime = Directory.GetCreationTimeUtc(d);
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero, null));
+            var (parent, branchTicks) = ExerciseBranch.Of(ReadSidecars(d));   // ⭐ CE-4097 — the recording's own sidecar
+            result.Add(new ExerciseInventoryItem((Fdp.Core.ExerciseId)(exerciseId), startTime, TimeSpan.Zero, null, parent, branchTicks));
         }
         return result;
     }
 
     /// <summary>
     /// Returns the names of subdirectories under <paramref name="nasRoot"/> that
-    /// contain at least one <c>*.fdp</c> file. Represents exercises archived to NAS.
+    /// contain at least one <c>*.fdp</c> file AND a complete manifest (<see cref="Fdp.Toolkit.Orchestration.ArchiveManifest"/>, CE-4330 ①).
+    /// Represents exercises archived to NAS.
     /// Returns an empty list if <paramref name="nasRoot"/> does not exist.
     /// </summary>
     public IReadOnlyList<ExerciseInventoryItem> ScanNasExercises(string nasRoot)
@@ -440,6 +982,8 @@ public sealed class StorageGatewayModule
         {
             if (Directory.GetFiles(d, "*.fdp", fdpMatch).Length == 0) continue;
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
+            // ⭐ CE-4330 ① (§3 P4) — ARCHIVED only with its manifest written and every listed file whole; anything else is INCOMPLETE (not listed here)
+            if (!Fdp.Toolkit.Orchestration.ArchiveManifest.Read(d).Complete) continue;
 
             DateTime startTime = Directory.GetCreationTimeUtc(d);
             TimeSpan duration = TimeSpan.Zero;
@@ -464,98 +1008,155 @@ public sealed class StorageGatewayModule
                 }
             }
 
-            // Case-insensitive match: *.meta.json files may have drifted extension casing
-            // when authored on Windows; PlatformDefault would silently miss them on Linux.
-            var metaFiles = Directory.GetFiles(d, "*.meta.json",
-                new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive });
-            foreach (var metaPath in metaFiles)
+            // ⭐ CE-4097 (AQ108 D5) — every node's sidecar: the duration of the first that has one (as before), and the branch's parent
+            //   and point through ExerciseBranch — the recording's metadata is the ONE source, the inventory keeps no second record.
+            var metas = ReadSidecars(d);
+            foreach (var meta in metas)
             {
-                try
+                if (meta.Duration > TimeSpan.Zero)
                 {
-                    var metaJson = File.ReadAllText(metaPath);
-                    var meta = JsonSerializer.Deserialize<RecordingMetadata>(metaJson,
-                        Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                    if (meta != null && meta.Duration > TimeSpan.Zero)
-                    {
-                        duration = meta.Duration;
-                        break;
-                    }
-                }
-                catch
-                {
+                    duration = meta.Duration;
+                    break;
                 }
             }
+            var (parent, branchTicks) = ExerciseBranch.Of(metas);
 
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration, scenarioId));
+            result.Add(new ExerciseInventoryItem((Fdp.Core.ExerciseId)(exerciseId), startTime, duration, scenarioId, parent, branchTicks));
         }
         return result;
     }
 
-    /// <summary>
-    /// Writes a <c>scenario_manifest.json</c> file to
-    /// <c>&lt;nasBasePath&gt;\scenario_manifest.json</c> listing the
-    /// <see cref="FileManifestEntry.RelativeDest"/> of every entry in
-    /// <paramref name="manifests"/>.
-    /// </summary>
-    public async Task WriteScenarioManifestAsync(
-        IReadOnlyList<FileManifestEntry> manifests,
-        string nasBasePath)
+    /// <summary>The recording sidecars (<c>*.meta.json</c>) in an exercise directory, in name order; an unreadable one is skipped.</summary>
+    private static List<RecordingMetadata> ReadSidecars(string exerciseDir)
     {
-        if (manifests == null)                      throw new ArgumentNullException(nameof(manifests));
-        if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
-
-        var names = manifests.Select(m => m.RelativeDest).ToArray();
-        var json  = System.Text.Json.JsonSerializer.Serialize(
-            new { files = names },
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-
-        var manifestPath = Path.Combine(nasBasePath, "scenario_manifest.json");
-        Directory.CreateDirectory(nasBasePath);
-        await File.WriteAllTextAsync(manifestPath, json).ConfigureAwait(false);
+        var list = new List<RecordingMetadata>();
+        // Case-insensitive match: *.meta.json files may have drifted extension casing
+        // when authored on Windows; PlatformDefault would silently miss them on Linux.
+        foreach (var metaPath in Directory.GetFiles(exerciseDir, "*.meta.json",
+                     new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive }).OrderBy(f => f, StringComparer.Ordinal))
+        {
+            try
+            {
+                var meta = JsonSerializer.Deserialize<RecordingMetadata>(File.ReadAllText(metaPath),
+                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                if (meta != null) list.Add(meta);
+            }
+            catch
+            {
+            }
+        }
+        return list;
     }
 
-    // ── TkbName consensus helpers ──────────────────────────────────────────────
+    // CE-278: WriteScenarioManifestAsync (scenario_manifest.json) retired — it was written only by the
+    // SaveScenario=2 pull path and had zero readers (in-repo or external NAS tools, confirmed).
+
+    // ── TerrainName consensus helpers ──────────────────────────────────────────
 
     /// <summary>
-    /// Reads the <c>TkbName</c> field from the <c>Header</c> section of each JSON file
-    /// using a forward-only <see cref="System.Text.Json.Utf8JsonReader"/> (no DOM allocation).
-    /// Throws <see cref="InvalidOperationException"/> if any two non-empty TkbName values disagree.
+    /// ⭐⭐⭐ <c>L1</c> — <b>the shared content names of a scenario as it sits on the NAS</b>, for the
+    /// orchestrator to put on the message that opens the <c>Loading*</c> phase.
+    ///
+    /// <para>⭐⭐ Deliberately the SAME consensus reader the staging path uses
+    /// (<see cref="CheckTerrainNameConsensus"/>), not a second peek: the names the nodes are TOLD and the names
+    /// the gateway STAGES must be one answer. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2.</para>
+    ///
+    /// <para>⚠ A missing directory, an unreadable file or a scenario naming nothing all return an EMPTY
+    /// result — that is legal and silent (§4.2). ⛔ A disagreement between two slices still THROWS, exactly
+    /// as it does on the staging path; the caller decides whether that fails the transition.</para>
     /// </summary>
-    private static void CheckTkbNameConsensus(string[] files)
+    /// <param name="scenarioDirectory">
+    /// The scenario's directory on the NAS — <c>{nasBasePath}/scenarios/{scenarioId}</c>, the same
+    /// directory <see cref="PrefetchScenarioAsync"/> copies from.
+    /// </param>
+    public static StagedArtifactNames ReadScenarioContentNames(string scenarioDirectory)
     {
-        string? agreedTkbName   = null;
-        string? agreedSourceFile = null;
+        if (string.IsNullOrWhiteSpace(scenarioDirectory) || !Directory.Exists(scenarioDirectory))
+            return default;
+
+        return CheckTerrainNameConsensus(Directory.GetFiles(scenarioDirectory, "*.json"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-3119 — copies a scenario's WHOLE folder from <paramref name="sourceDirectory"/> into
+    /// <paramref name="destinationDirectory"/>, creating it. Used to snapshot the scenario an exercise runs and to
+    /// file that copy with the exercise's recordings (<c>docs/designs/mgmt-1/DESIGN.md</c> §13.3a).
+    /// <para>⭐ <c>CE-4091</c> (AQ108 D7, M2) — the subfolders too: <c>foreign/</c> (the slices of nodes whose format does not merge),
+    /// <c>takes/</c> (the director's) and any nested file. ⛔ Not the working folders a save and an autosave keep (<c>.slices</c>,
+    /// <c>.autosave</c> — a directory whose name starts with a dot): scratch, not part of the scenario. (The prefetch to the nodes still takes the
+    /// top-level files and <c>foreign/node_*.json</c> only — that is what a node loads, and is unchanged.)</para>
+    /// </summary>
+    /// <param name="exceptFileName">A top-level file name to leave out (the recording's stamp, when the copy is opened as a new scenario).</param>
+    /// <returns>The number of files copied; <c>0</c> when the source does not exist or holds none.</returns>
+    public static int CopyScenarioFiles(string sourceDirectory, string destinationDirectory, string? exceptFileName = null)
+    {
+        if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) return 0;
+        if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentNullException(nameof(destinationDirectory));
+
+        return CopyFolder(sourceDirectory, destinationDirectory, exceptFileName);
+    }
+
+    private static int CopyFolder(string source, string destination, string? exceptFileName)
+    {
+        int copied = 0;
+        foreach (var file in Directory.GetFiles(source))
+        {
+            if (exceptFileName != null && string.Equals(Path.GetFileName(file), exceptFileName, StringComparison.OrdinalIgnoreCase)) continue;
+            Directory.CreateDirectory(destination);
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+            copied++;
+        }
+        foreach (var dir in Directory.GetDirectories(source))
+        {
+            var name = Path.GetFileName(dir);
+            if (name.StartsWith('.')) continue;   // .slices / .autosave: working folders
+            copied += CopyFolder(dir, Path.Combine(destination, name), null);
+        }
+        return copied;
+    }
+
+    /// <summary>
+    /// Reads <c>Header.TerrainName</c> from each JSON file (forward-only, no DOM) and throws
+    /// <see cref="InvalidOperationException"/> if two non-empty values disagree. ⛔ <c>R-4018</c>: a file's
+    /// <c>Header.TkbName</c> is never read — a scenario does not name a TKB.
+    /// </summary>
+    private static StagedArtifactNames CheckTerrainNameConsensus(string[] files)
+    {
+        string? agreedTerrainName = null;
+        string? terrainSourceFile = null;
 
         foreach (var file in files)
         {
             if (!file.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            string? tkbName = PeekTkbNameFromFile(file);
-            if (string.IsNullOrEmpty(tkbName))
-                continue;
-
-            if (agreedTkbName == null)
+            string? terrainName = PeekHeaderStringFromFile(file, "TerrainName", "terrainName");
+            if (!string.IsNullOrEmpty(terrainName))
             {
-                agreedTkbName    = tkbName;
-                agreedSourceFile = file;
-            }
-            else if (!string.Equals(agreedTkbName, tkbName, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    $"[Gateway] TkbName consensus check failed: " +
-                    $"'{agreedTkbName}' (from '{Path.GetFileName(agreedSourceFile)}') " +
-                    $"conflicts with '{tkbName}' (from '{Path.GetFileName(file)}').");
+                if (agreedTerrainName == null)
+                {
+                    agreedTerrainName = terrainName;
+                    terrainSourceFile = file;
+                }
+                else if (!string.Equals(agreedTerrainName, terrainName, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"[Gateway] TerrainName consensus check failed: " +
+                        $"'{agreedTerrainName}' (from '{Path.GetFileName(terrainSourceFile)}') " +
+                        $"conflicts with '{terrainName}' (from '{Path.GetFileName(file)}').");
+                }
             }
         }
+
+        return new StagedArtifactNames(agreedTerrainName);
     }
 
     /// <summary>
-    /// Reads <c>Header.TkbName</c> from a JSON file using a forward-only
+    /// Reads one string field of <c>Header</c> from a JSON file using a forward-only
     /// <see cref="System.Text.Json.Utf8JsonReader"/>. Returns null when the field
     /// is absent or the file cannot be read.
     /// </summary>
-    private static string? PeekTkbNameFromFile(string filePath)
+    private static string? PeekHeaderStringFromFile(string filePath, string pascalName, string camelName)
     {
         try
         {
@@ -574,7 +1175,7 @@ public sealed class StorageGatewayModule
                         {
                             inHeader = true;
                         }
-                        else if (inHeader && (propName == "TkbName" || propName == "tkbName"))
+                        else if (inHeader && (propName == pascalName || propName == camelName))
                         {
                             reader.Read();
                             return reader.TokenType == System.Text.Json.JsonTokenType.String

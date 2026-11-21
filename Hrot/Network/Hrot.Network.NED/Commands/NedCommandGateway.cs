@@ -6,9 +6,11 @@ using Fdp.Toolkit.Replication.Events;
 using CycloneDDS.Core;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
+using Fdp.Modules.Geographic;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Core;
 
 namespace Hrot.Map.Common.Commands
 {
@@ -26,7 +28,7 @@ namespace Hrot.Map.Common.Commands
         /// <summary>
         /// Sends a <see cref="CreateEntityRequest"/> and awaits the acknowledgment.
         /// </summary>
-        Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000);
+        Task<EntityEditOutcome> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000);
 
         /// <summary>
         /// Sends a <see cref="MissionControlRequest"/> and awaits the acknowledgment.
@@ -40,27 +42,25 @@ namespace Hrot.Map.Common.Commands
     /// </summary>
     public class NedCommandGateway : INedCommandGateway, ICommandGateway
     {
-        private readonly DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>    _createEntityClient;
+        private readonly DdsCommandClient<CreateEntityRequest, EntityEditOutcome>    _createEntityClient;
         private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>            _missionControlClient;
         private readonly DdsWriter<UpdateEntityDescriptorRequest>                              _updateWriter;
         private readonly DdsWriter<UpdateEntityAttributeRequest>                               _attributeWriter;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         /// <summary>
         /// creates a new gateway instance.
         /// </summary>
         /// <param name="participant">The DDS participant to use for communication.</param>
         /// <param name="localNodeId">Local node identifier; embedded in FdpLog messages.</param>
-        public NedCommandGateway(DdsParticipant participant, long localNodeId = 0)
+        public NedCommandGateway(DdsParticipant participant, int localNodeId = 0)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
 
             // Initialize the client for CreateEntityRequest
-            _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>(
+            _createEntityClient = new DdsCommandClient<CreateEntityRequest, EntityEditOutcome>(
                 participant,
-                "CreateEntityRequest",          // Must match [DdsTopic] attribute
-                "CreateUpdateDeleteEntityAck",  // Must match [DdsTopic] attribute
                 req => req.RequestId,
                 ack => ack.RequestId
             );
@@ -68,16 +68,14 @@ namespace Hrot.Map.Common.Commands
             // Initialize the client for MissionControlRequest
             _missionControlClient = new DdsCommandClient<MissionControlRequest, MissionControlAck>(
                 participant,
-                "MissionControlRequest",
-                "MissionControlAck",
                 req => req.RequestId,
                 ack => ack.RequestId
             );
 
             // Fire-and-forget writer for UpdateEntityDescriptorRequest (drag-end position updates).
-            _updateWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            _updateWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
 
-            _attributeWriter = new DdsWriter<UpdateEntityAttributeRequest>(participant, "UpdateEntityAttributeRequest");
+            _attributeWriter = new DdsWriter<UpdateEntityAttributeRequest>(participant);
         }
 
         /// <summary>
@@ -86,8 +84,9 @@ namespace Hrot.Map.Common.Commands
         /// </summary>
         /// <param name="request">The request data.</param>
         /// <param name="timeoutMs">Timeout in milliseconds.</param>
-        /// <returns>The acknowledgment containing the entity ID or status code.</returns>
-        public async Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
+        /// <returns>⭐ Edit framework F2 — the processing node's FIRST <c>EntityEditOutcome</c> for the request: Pending with the new entity id (accepted), or
+        /// Refused with the reason (an unknown type). ⛔ Was the retired <c>CreateUpdateDeleteEntityAck</c>.</returns>
+        public async Task<EntityEditOutcome> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
         {
             // If the caller didn't provide an ID, generate one.
             // Since CreateEntityRequest is a struct, we must ensure we pass the modified version.
@@ -99,9 +98,9 @@ namespace Hrot.Map.Common.Commands
             FdpLog<NedCommandGateway>.Debug("[Node-{0}] Sending CreateEntityRequest ID={1}", _localNodeId, request.RequestId);
 
             var ack = await _createEntityClient.SendAsync(request, timeoutMs);
-            var ackDetails = string.Concat("Entity=", ack.EntityId, " Status=", ack.StatusCode);
+            var ackDetails = string.Concat("Entity=", ack.EntityId, " Status=", ack.Status);
             FdpLog<NedCommandGateway>.Debug(
-                "[Node-{0}] CreateUpdateDeleteEntityAck ID={1} {2}", _localNodeId, ack.RequestId, ackDetails);
+                "[Node-{0}] EntityEditOutcome ID={1} {2}", _localNodeId, ack.RequestId, ackDetails);
             return ack;
         }
 
@@ -154,7 +153,7 @@ namespace Hrot.Map.Common.Commands
         {
             var request = NedTranslationHelper.ToCreateEntityRequest(cmd);
             var ack     = await CreateEntityAsync(request).ConfigureAwait(false);
-            return ack.EntityId;
+            return ack.EntityId;   // CE-4200: the wire id is int32, as is ICommandGateway's result
         }
 
         /// <inheritdoc/>
@@ -186,9 +185,8 @@ namespace Hrot.Map.Common.Commands
             _attributeWriter.Write(new UpdateEntityAttributeRequest
             {
                 RequestId          = Guid.NewGuid(),
-                EntityId           = (int)cmd.NetworkId,
+                EntityId           = cmd.NetworkId,
                 AttributePatchJson = cmd.AttributePatchJson,
-                RequireAck         = false,
             });
             return Task.CompletedTask;
         }

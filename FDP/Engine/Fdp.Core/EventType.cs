@@ -85,6 +85,11 @@ namespace Fdp.Core
             return type!;
         }
 
+        /// <summary>⭐ <c>CE-1372</c> — the type a RECORDED event id names, registered or not: the <c>[EventId]</c> scan of the loaded assemblies
+        /// (the component registry's <c>FindType</c>, for events).</summary>
+        public static Type? FindType(int id)
+            => _idToType.TryGetValue(id, out var type) ? type : AttributeIdScan.Find<EventIdAttribute>(id, a => a.Id);
+
         /// <summary>
         /// Returns a snapshot of all registered event types.
         /// </summary>

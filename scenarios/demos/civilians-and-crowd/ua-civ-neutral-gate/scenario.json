@@ -1,0 +1,198 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: A rifleman (Friend) on a mission (CombatPosture, Sentry) stands among neutrals: an unarmed civilian, an ARMED Neutral nearest of all, and a Hostile farther off (CIV-0, CE-2233: a neutral is never a target). Judge: (1) he sees both neutrals (2) the Hostile is put out of the fight (3) neither neutral loses health at any time, and both rank at score 0 (4) once the Hostile is down he fires nothing for 8 s and never takes a neutral as target (5) after the check flips the armed neutral to Hostile (not in the file) he is engaged at once while the civilian stays unhurt. Fail: any neutral is hit, or the flipped man is ignored. Check: python3 scripts/utility-demo-check.py --launch ua-civ-neutral-gate"
+  },
+  "entities": {
+    "c1030000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          295,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c1030000-0000-4000-8000-000000000101",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": {"advance":{"Objective":[325,300,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c1030000-0000-4000-8000-000000000102",
+              "executingEngine": "",
+              "behaviorName": "Sentry",
+              "behaviorParams": {"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":145},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c1030000-0000-4000-8000-000000000103",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": {"advance":{"Objective":[325,300,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c1030000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          310,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c1030000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          330,
+          310,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Armed Neutral",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c1030000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          380,
+          330,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -37,7 +37,7 @@ internal readonly struct EdgeSchemaEntry
 /// <code>
 /// JsonToRecordCompiler compiler = new JsonToRecordCompilerBuilder()
 ///     .Register("Name",                 AttributeIds.Name,    AttributeValueType.KindString)
-///     .Register("GeoPosition.Latitude", AttributeIds.GeoLat,  AttributeValueType.KindFloat64)
+///     .Register("Position.X",          AttributeIds.PositionX, AttributeValueType.KindFloat64)
 ///     .Build();
 /// </code>
 /// </para>
@@ -50,7 +50,7 @@ public sealed class JsonToRecordCompilerBuilder
     /// Registers a JSON attribute path mapping it to a binary <see cref="AttributeRecord.AttributeId"/>.
     /// </summary>
     /// <param name="path">
-    /// Dot-separated JSON path, e.g. <c>"Name"</c> or <c>"GeoPosition.Latitude"</c>.
+    /// Dot-separated JSON path, e.g. <c>"Name"</c> or <c>"Position.X"</c>.
     /// Numeric path segments are normalised to <c>*</c> (wildcard) by the FNV-1a hasher.
     /// </param>
     /// <param name="attributeId">

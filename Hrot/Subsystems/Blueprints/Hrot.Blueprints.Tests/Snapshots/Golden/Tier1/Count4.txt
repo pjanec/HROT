@@ -1,0 +1,11 @@
+StructureHash: 0x0947C1CF572150A5
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  Count : System.Int32 @16 size=4
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

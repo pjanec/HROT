@@ -21,6 +21,15 @@ namespace CarKinem.Core
         Crowd = 5,          // Crowd-managed local avoidance agent (dtCrowd)
         Naval = 6,          // Naval / surface watercraft pathfinding
         Flying = 7,         // 3-D volumetric pathfinding for aircraft
+        /// <summary>⭐ CE-3173 (M-1) — an OPERATOR drives the body: <c>ManualDrive</c>'s axes, not a destination
+        /// (<c>ManualMotion</c>). ⛔ Not <see cref="None"/>, which is driven as Direct (CE-3176).</summary>
+        Manual = 8,
+        /// <summary>⭐ AQ93 R-4023 (§14 G4) — SUMO drives the body: <c>TrafficShadowFollowSystem</c> writes its pose from the shadow
+        /// car; <c>CarKinematicsSystem</c> integrates nothing.</summary>
+        Traffic = 9,
+        /// <summary>⭐ CE-9001 (C-4, docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — a road-convoy FOLLOWER: <c>ConvoyFollowSystem</c> writes a pursuit
+        /// point on the lead's trail and the speed into <c>FormationTarget</c>; <c>CarKinematicsSystem</c> steers to the point at exactly that speed.</summary>
+        Column = 10,
     }
 
     /// <summary>

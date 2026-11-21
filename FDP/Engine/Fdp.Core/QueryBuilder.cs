@@ -18,6 +18,19 @@ namespace Fdp.Core
         private ulong _disFilterValue;
         private ulong _disFilterMask;
         
+        // ⭐ CE-2400 (R-2084) — the repository's one reusable builder is RENTED by Query() and RETURNED by Build(); a nested or concurrent
+        //   Query() gets a fresh one. ⚠ So a builder must not be mutated after its Build() — build again from a new Query().
+        internal readonly bool Pooled;
+
+        internal QueryBuilder(EntityRepository repository, bool pooled) : this(repository) { Pooled = pooled; }
+
+        /// <summary>Back to the state <see cref="EntityRepository.Query"/> hands out (the pooled builder only).</summary>
+        internal void Reset()
+        {
+            _includeMask = default; _excludeMask = default; _authorityIncludeMask = default; _authorityExcludeMask = default;
+            _hasDisFilter = false; _disFilterValue = 0; _disFilterMask = 0; _lifecycleFilter = EntityLifecycle.Active;
+        }
+
         internal QueryBuilder(EntityRepository repository)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
@@ -167,9 +180,15 @@ namespace Fdp.Core
         /// Builds the EntityQuery.
         /// Query is immutable after build.
         /// </summary>
+        /// <remarks>⭐ CE-2400 (R-2084) — an <see cref="EntityQuery"/> is immutable, so the repository keeps the one it built for each distinct
+        /// filter and hands it out again: a system that builds its query every frame (most do) allocates nothing. The same filter on the same
+        /// repository may therefore return the SAME instance. ⚠ After Build(), do not mutate this builder (it may be handed to the next Query()).</remarks>
         public EntityQuery Build()
         {
-            return new EntityQuery(_repository, _includeMask, _excludeMask, _authorityIncludeMask, _authorityExcludeMask, _hasDisFilter, _disFilterValue, _disFilterMask, _lifecycleFilter);
+            var key = new EntityQuery.Key(_includeMask, _excludeMask, _authorityIncludeMask, _authorityExcludeMask, _hasDisFilter, _disFilterValue, _disFilterMask, _lifecycleFilter);
+            var q = _repository.GetOrCreateQuery(in key);
+            if (Pooled) _repository.ReturnQueryBuilder(this);
+            return q;
         }
     }
 }

@@ -11,6 +11,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="FDP.Toolkit_ImGui.Tests" />
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
+    <InternalsVisibleTo Include="Hrot.Editor.AiShared.Tests" />   <!-- R-6 / V7 — the review rows' rails load a search's results without drawing the panel -->
+    <InternalsVisibleTo Include="Hrot.Editor.Tests" />
+    <InternalsVisibleTo Include="Hrot.ReplayBrowser.Tests" />
+    <InternalsVisibleTo Include="Hrot.Presentation.Tests" />   <!-- CE-3403 — the frame rail of the raw inspector window lives where the GL frame harness does -->
   </ItemGroup>
 
   <ItemGroup>
@@ -33,6 +37,10 @@
     <EmbeddedResource Include="..\..\Data\Icons\famfamfam-silk.png">
       <LogicalName>FDP.Toolkit_ImGui.Icons.famfamfam-silk.png</LogicalName>
     </EmbeddedResource>
+    <!-- ⭐ CE-4112: the HROT wallpaper, the Start surface's background — embedded the same way, read by the same loader (EmbeddedAtlasResources) -->
+    <EmbeddedResource Include="..\..\Data\Icons\HROT-wallpaper.png">
+      <LogicalName>FDP.Toolkit_ImGui.Icons.HROT-wallpaper.png</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <!-- Embedded UI font (gizmo / debug-text rendering + editor chrome / canvas) -->
@@ -44,6 +52,11 @@
          Fonts are licensed under SIL OFL 1.1; see fa-solid-900.LICENSE.txt. -->
     <EmbeddedResource Include="..\..\Data\Fonts\fa-solid-900.ttf">
       <LogicalName>FDP.Toolkit_ImGui.Fonts.fa-solid-900.ttf</LogicalName>
+    </EmbeddedResource>
+    <!-- CE-1063: a DejaVu Sans SUBSET (arrows, maths, shapes, symbols, dingbats) merged under Roboto,
+         which has none of them. Bitstream Vera licence; see DejaVuSans-Symbols.LICENSE.txt. -->
+    <EmbeddedResource Include="..\..\Data\Fonts\DejaVuSans-Symbols.ttf">
+      <LogicalName>FDP.Toolkit_ImGui.Fonts.DejaVuSans-Symbols.ttf</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 </Project>

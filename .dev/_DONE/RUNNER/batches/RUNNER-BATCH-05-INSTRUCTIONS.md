@@ -28,7 +28,7 @@ Since `auto-assignment` is now disabled, any component missing its ID crashes th
 1. In the `FDP\Examples` and test projects (`*.Tests`), there are test-specific components (e.g., `Position`, `Velocity`, `TestComponentA`, `MockDescriptor`). 
 2. Assign them explicit `[ComponentId(###)]` attributes using hardcoded integer literals in the `200-255` range (or unused gaps) directly since they are test components and don't need to pollute `GlobalComponentIds.cs`.
 
-*Validation: Run `dotnet test IOS-IG-SimHost.sln`. DO NOT PROCEED TO PART 2 UNTIL ALL TESTS PASS (except known skipped/flaky ones).*
+*Validation: Run `dotnet test HROT.sln`. DO NOT PROCEED TO PART 2 UNTIL ALL TESTS PASS (except known skipped/flaky ones).*
 
 ---
 
@@ -50,6 +50,6 @@ Since `auto-assignment` is now disabled, any component missing its ID crashes th
 
 ### Deliverables
 - Fully attributed ecosystem (`[ComponentId]` everywhere).
-- Passing `dotnet test IOS-IG-SimHost.sln` execution.
+- Passing `dotnet test HROT.sln` execution.
 - Operational `HeadlessTestExecutor` capable of executing `spawn`, `tick`, and `assert` steps.
 - **REPORT:** Create `.dev-workstream/reports/RUNNER-BATCH-05-REPORT.md`. Include a note about which test components were most difficult to extract/attribute.

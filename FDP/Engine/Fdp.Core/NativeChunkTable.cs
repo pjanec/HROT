@@ -20,6 +20,22 @@ namespace Fdp.Core
         
         // Track which chunks are committed (1 bit per chunk)
         private readonly ulong[] _committedMask;
+
+        // ⭐ CE-2394 — the highest chunk that is committed or carries a version (only grows; Clear() resets it). The loops that walked
+        //   every chunk the table COULD have (MAX_ENTITIES / capacity: 250 000 for a 16 KB component) stop here. 📐 The SoD copy for the
+        //   background modules (navigation, EQS, traffic) spent most of its time walking empty chunks of the big blackboard tables.
+        private int _highWater = -1;
+
+        /// <summary>⭐ CE-2394 — one past the highest chunk that is committed or carries a version: every chunk at or above it is empty
+        /// and version 0.</summary>
+        public int UsedChunkBound => System.Threading.Volatile.Read(ref _highWater) + 1;
+
+        private void Touch(int chunkIndex)
+        {
+            int hw;
+            while (chunkIndex > (hw = System.Threading.Volatile.Read(ref _highWater))
+                   && System.Threading.Interlocked.CompareExchange(ref _highWater, chunkIndex, hw) != hw) { }
+        }
         
         // Track population count per chunk for iterator optimization
         private readonly int[] _populationCounts;
@@ -86,6 +102,7 @@ namespace Fdp.Core
         public void IncrementPopulation(int chunkIndex)
         {
             System.Threading.Interlocked.Increment(ref _populationCounts[chunkIndex]);
+            Touch(chunkIndex);   // ⭐ CE-2396 — a counted chunk stays inside the bound Clear() walks
         }
         
         /// <summary>
@@ -124,7 +141,8 @@ namespace Fdp.Core
             // - Sequential int reads:  ~10-50 nanoseconds total
             // - L1 cache friendly: one array, sequential access, CPU prefetching
             // - No writes: zero contention
-            for (int i = 0; i < _totalChunks; i++)
+            int end = UsedChunkBound;   // ⭐ CE-2394 — every chunk above it is version 0
+            for (int i = 0; i < end; i++)
             {
                 // Each chunk already tracks its version
                 if (_chunkVersions[i].Value > sinceVersion)
@@ -146,6 +164,11 @@ namespace Fdp.Core
             
             int chunkIndex = entityId / _chunkCapacity;
             int localIndex = entityId % _chunkCapacity;
+
+#if DEBUG
+            if (currentVersion != 0 && Jobs.ParallelGuard.ReadOnly)   // ⭐ POC 2 Q-4 — a read-only parallel body took a writable reference (version 0 = a read)
+                throw new InvalidOperationException($"a writable {typeof(T).Name} was taken inside a READ-ONLY parallel body (ParallelGuard)");
+#endif
             
             EnsureChunkAllocated(chunkIndex);
             
@@ -155,12 +178,89 @@ namespace Fdp.Core
             // each write invalidates other cores' cache lines (false sharing),
             // causing severe performance degradation.
             // Also ignoring version 0 to prevent read-via-indexer from resetting versions.
+            if (currentVersion != 0 && StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             if (currentVersion != 0 && _chunkVersions[chunkIndex].Value != currentVersion)
             {
+                if (_preStamp != null) _preStamp[chunkIndex] = _chunkVersions[chunkIndex].Value;   // ⭐ D-5 — the version before this frame's stamp
                 _chunkVersions[chunkIndex].Value = currentVersion;
+            }
+            if (Diagnostics.TableWriteStats.On && currentVersion != 0)
+            {
+                long r = System.Threading.Interlocked.Increment(ref RwRefs);   // ⭐ M-1 (off: removed by the JIT)
+                if (s_sampleStacks && (r & 31) == 0) Diagnostics.TableWriteStats.SampleCaller(typeof(T).Name);   // ⭐ POC 2 — who takes it writable
             }
             
             return ref _chunks[chunkIndex][localIndex];
+        }
+
+        // ⭐ D-5 (the parallel experiment, E-4) — COMMIT BY CONTENT: at the frame's end a chunk stamped this frame whose bytes equal its shadow
+        //   (the bytes it held when its PREVIOUS version was committed) gets that previous version back — a write that changed nothing is not a
+        //   change, for every later SyncFrom / HasChanges / QueryDelta. ⚠ Sound only for consumers that read at frame boundaries: a mid-frame
+        //   reader that saw an intermediate value (A → B → A) keeps B. Opt-in: HROT_CONTENT_VERSION=1.
+        private readonly uint[]? _preStamp = Diagnostics.ContentVersioning.On ? new uint[FdpConfig.GetRequiredChunks<T>()] : null;
+        private byte[]?[]? _cshadow;
+        private uint[]? _cshadowVer;
+
+        /// <summary>⭐ D-5 — gives every chunk stamped <paramref name="frameVersion"/> whose bytes did not change its previous version back;
+        /// keeps the shadows current. Returns the chunks reverted. Allocates only a shadow on a chunk's first sight.</summary>
+        internal int CommitByContent(uint frameVersion)
+        {
+            if (_preStamp == null) return 0;
+            _cshadow ??= new byte[]?[_totalChunks];
+            _cshadowVer ??= new uint[_totalChunks];
+            int end = UsedChunkBound, reverted = 0;
+            for (int i = 0; i < end; i++)
+            {
+                if (!IsChunkCommitted(i)) continue;
+                uint v = _chunkVersions[i].Value;
+                var bytes = new ReadOnlySpan<byte>((byte*)_basePtr + (long)i * FdpConfig.CHUNK_SIZE_BYTES, FdpConfig.CHUNK_SIZE_BYTES);
+                var sh = _cshadow[i];
+                if (v == frameVersion)
+                {
+                    // ⭐ the guard: revert only when nothing else moved the chunk since its shadow (its pre-stamp version IS the shadow's)
+                    if (sh != null && _preStamp[i] == _cshadowVer[i] && bytes.SequenceEqual(sh))
+                    {
+                        _chunkVersions[i].Value = _preStamp[i];
+                        reverted++;
+                        continue;
+                    }
+                }
+                else if (sh != null && _cshadowVer[i] == v) continue;   // untouched since its shadow
+                if (sh == null) _cshadow[i] = sh = new byte[FdpConfig.CHUNK_SIZE_BYTES];
+                bytes.CopyTo(sh);
+                _cshadowVer[i] = v;
+            }
+            return reverted;
+        }
+
+        // ⭐ M-1 (DESIGN_Parallel_Simulation §8.3) — the write instrument's per-table state; touched only when TableWriteStats.On
+        internal long RwRefs;
+        private static readonly bool s_sampleStacks = Diagnostics.TableWriteStats.On
+            && EnvVars.Read(EnvVars.HrotWriteStatsStacks) == typeof(T).Name;
+        private byte[]?[]? _shadow;
+
+        /// <summary>⭐ M-1 — this frame's writable references, the chunks stamped with <paramref name="frameVersion"/>, and how many of those hold the
+        /// same bytes as at the last sample; then remembers every committed chunk's bytes for the next sample.</summary>
+        internal Diagnostics.TableWriteStats.Sample SampleWrites(uint frameVersion)
+        {
+            long refs = System.Threading.Interlocked.Exchange(ref RwRefs, 0);
+            int end = UsedChunkBound, dirty = 0, same = 0, committed = 0;
+            _shadow ??= new byte[]?[_totalChunks];
+            for (int i = 0; i < end; i++)
+            {
+                if (!IsChunkCommitted(i)) continue;
+                committed++;
+                var bytes = new ReadOnlySpan<byte>((byte*)_basePtr + (long)i * FdpConfig.CHUNK_SIZE_BYTES, FdpConfig.CHUNK_SIZE_BYTES);
+                var prev = _shadow[i];
+                if (_chunkVersions[i].Value == frameVersion)
+                {
+                    dirty++;
+                    if (prev != null && bytes.SequenceEqual(prev)) same++;
+                }
+                if (prev == null) _shadow[i] = prev = new byte[FdpConfig.CHUNK_SIZE_BYTES];
+                bytes.CopyTo(prev);
+            }
+            return new Diagnostics.TableWriteStats.Sample(refs, dirty, same, committed);
         }
         
         /// <summary>
@@ -249,6 +349,7 @@ namespace Fdp.Core
                 
                 // Clear chunk to zeros
                 _chunks[chunkIndex].Clear();
+                Touch(chunkIndex);   // ⭐ CE-2394
                 
                 // Mark as committed
                 int maskIndex = chunkIndex / 64;
@@ -264,7 +365,10 @@ namespace Fdp.Core
         {
             lock (_allocationLock)
             {
-                for (int i = 0; i < _totalChunks; i++)
+                // ⭐ CE-2396 — only up to the used bound: above it every chunk is uncommitted, uncounted and version 0 (CE-2394). It walked
+                //   every POSSIBLE chunk (250 000 for a 16 KB component) — per table, on every keyframe apply and every staging reuse.
+                int end = UsedChunkBound;
+                for (int i = 0; i < end; i++)
                 {
                     if (IsChunkCommitted(i))
                     {
@@ -276,6 +380,7 @@ namespace Fdp.Core
                     _chunkVersions[i].Value = 0;
                 }
                 Array.Clear(_committedMask, 0, _committedMask.Length);
+                System.Threading.Volatile.Write(ref _highWater, -1);   // ⭐ CE-2394 — every version is 0 again
             }
         }
 
@@ -399,12 +504,18 @@ namespace Fdp.Core
         /// Used for snapshots.
         /// Returns number of bytes written.
         /// </summary>
-        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination)
+        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination) => CopyChunkToBuffer(chunkIndex, destination, FdpConfig.CHUNK_SIZE_BYTES);
+
+        /// <summary>
+        /// ⭐ CE-2392 — the first <paramref name="maxBytes"/> bytes of a chunk only (the recorder's delta: the slots up to the highest issued
+        /// entity, not the whole 64 KB chunk). Returns the bytes written; 0 for an uncommitted chunk.
+        /// </summary>
+        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination, int maxBytes)
         {
             if (!IsChunkCommitted(chunkIndex)) return 0;
 
             byte* sourcePtr = (byte*)_basePtr + (chunkIndex * (long)FdpConfig.CHUNK_SIZE_BYTES);
-            int copySize = FdpConfig.CHUNK_SIZE_BYTES;
+            int copySize = Math.Clamp(maxBytes, 0, FdpConfig.CHUNK_SIZE_BYTES);
 
             #if FDP_PARANOID_MODE
             if (destination.Length < copySize)
@@ -439,11 +550,38 @@ namespace Fdp.Core
             IncrementChunkVersion(chunkIndex);
         }
 
+        /// <summary>⭐ CE-1478 P6 — restores one block run: <paramref name="source"/> to <paramref name="byteOffset"/> bytes into the chunk; the chunk is stamped changed.</summary>
+        public void RestoreChunkRange(int chunkIndex, int byteOffset, ReadOnlySpan<byte> source)
+        {
+            EnsureChunkAllocated(chunkIndex);
+            int copySize = Math.Min(source.Length, FdpConfig.CHUNK_SIZE_BYTES - byteOffset);
+            if (copySize > 0)
+            {
+                byte* destPtr = (byte*)_basePtr + (chunkIndex * (long)FdpConfig.CHUNK_SIZE_BYTES) + byteOffset;
+                fixed (byte* srcPtr = source) Unsafe.CopyBlock(destPtr, srcPtr, (uint)copySize);
+            }
+            IncrementChunkVersion(chunkIndex);
+        }
+
         /// <summary>
         /// Synchronizes dirty chunks from a source table to this table.
         /// Uses version tracking to optimize transfer (only copies modified chunks).
         /// </summary>
-        public void SyncDirtyChunks(NativeChunkTable<T> source)
+        /// <param name="force">
+        /// ⭐ <c>CE-3067</c> — copy every chunk regardless of version. For a table whose writers do NOT stamp the
+        /// chunk version (the entity index's component masks and metadata), version equality is not proof the
+        /// contents match, and a skipped chunk silently keeps the destination's bytes.
+        /// </param>
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-1) — how many chunks <see cref="SyncDirtyChunks"/> would copy from <paramref name="source"/> now.</summary>
+        internal int CountDirtyChunks(NativeChunkTable<T> source)
+        {
+            int n = 0, end = Math.Max(source.UsedChunkBound, UsedChunkBound);
+            for (int i = 0; i < end; i++)
+                if (_chunkVersions[i].Value != source.GetChunkVersion(i)) n++;
+            return n;
+        }
+
+        public void SyncDirtyChunks(NativeChunkTable<T> source, bool force = false)
         {
             #if FDP_PARANOID_MODE
             if (source.TotalChunks != _totalChunks)
@@ -454,11 +592,14 @@ namespace Fdp.Core
             byte* thisBase = (byte*)_basePtr;
             byte* sourceBase = (byte*)source._basePtr;
 
-            for (int i = 0; i < _totalChunks; i++)
+            // ⭐ CE-2394 — only up to the higher of the two used bounds: above both, each side is uncommitted and version 0, so the
+            //   version check would skip the chunk anyway (and force would copy "nothing" onto "nothing"). It walked _totalChunks.
+            int end = Math.Max(source.UsedChunkBound, UsedChunkBound);
+            for (int i = 0; i < end; i++)
             {
                 // Optimization: Version Check
                 uint srcVer = source.GetChunkVersion(i);
-                if (_chunkVersions[i].Value == srcVer)
+                if (!force && _chunkVersions[i].Value == srcVer)
                     continue;
 
                 // Source likely has changes (or we are stale).
@@ -475,6 +616,7 @@ namespace Fdp.Core
                     
                     // Sync version so we don't check again until it changes
                     _chunkVersions[i].Value = srcVer;
+                    if (srcVer != 0) Touch(i);   // ⭐ CE-2394 — a versioned, uncommitted chunk stays inside the bound
                     continue;
                 }
 
@@ -501,11 +643,25 @@ namespace Fdp.Core
         public void SetPopulation(int chunkIndex, int count)
         {
              System.Threading.Interlocked.Exchange(ref _populationCounts[chunkIndex], count);
+             if (count != 0) Touch(chunkIndex);   // ⭐ CE-2396
+        }
+
+        /// <summary>⭐ M-4 (CE-4483) — the version a sync never matches (no world reaches it).</summary>
+        public const uint NeverSyncedVersion = uint.MaxValue;
+
+        /// <summary>⭐ M-4 — every chunk stamped at or after <paramref name="version"/> gets <see cref="NeverSyncedVersion"/>: the next
+        /// <see cref="SyncDirtyChunks"/> copies it again (or decommits it, if the source has none).</summary>
+        public void InvalidateChunksStampedSince(uint version)
+        {
+            int end = UsedChunkBound;
+            for (int i = 0; i < end; i++)
+                if (_chunkVersions[i].Value >= version) _chunkVersions[i].Value = NeverSyncedVersion;
         }
 
         public void IncrementChunkVersion(int chunkIndex)
         {
             _chunkVersions[chunkIndex].Value++;
+            Touch(chunkIndex);   // ⭐ CE-2394
         }
     }
 }

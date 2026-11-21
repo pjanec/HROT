@@ -1,0 +1,43 @@
+using Fdp.Toolkit.Replication;
+using Fdp.Core;
+namespace Hrot.Map.Definitions.Behavior.Intents
+{
+    /// <summary>
+    /// ⭐ <c>CE-472</c> (decision D) — the parameter contract of the <c>"HullDownAttack"</c> tactical intent, which
+    /// <c>HullDownAttackMapper</c> forwards unchanged to the <c>"HullDownAttackRun"</c> behaviour. Until now the intent
+    /// had NO contract: the C# helper serialised the internal <c>HullDownAttackParams</c> struct, contradicting
+    /// <c>docs/designs/tactical-intent/DESIGN.md</c> §4.2 (every intent has a <c>[Behavior(Params = …)]</c> DTO).
+    /// <para>
+    /// The member names match <c>HullDownAttackParams</c>'s fields, so the receiver's resolver
+    /// (<c>HillAttackTankNodes.ResolveHullDownAttackRun</c>, the typed block resolver, CE-2230) reads it as-is.
+    /// The defaults are the constants the C# commander bakes (<c>HillAttackCommanderNodes</c>, the HullDownAttack dispatch; the <c>HullDownIntentJson</c> helper that also baked them retired <c>2026-10-01</c>). ⭐ CE-2230 — one round per run is
+    /// the receiver's doctrine (R-2022), not a field: <c>MaxRounds</c> left the contract.
+    /// </para>
+    /// 📄 <c>docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md</c> §4 D.
+    /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
+    public sealed class HullDownAttackIntentDto
+    {
+        public const string BehaviorId = BehaviorNames.HullDownAttack;
+
+        /// <summary>Firing-line slot, X (metres, local).</summary>
+        public float SlotX;
+        /// <summary>Firing-line slot, Y (metres, local).</summary>
+        public float SlotY;
+        /// <summary>Baseline retreat slot, X (metres, local).</summary>
+        public float BaselineX;
+        /// <summary>Baseline retreat slot, Y (metres, local).</summary>
+        public float BaselineY;
+        /// <summary>Normalised attack direction, X.</summary>
+        public float AttackDirX;
+        /// <summary>Normalised attack direction, Y.</summary>
+        public float AttackDirY;
+        /// <summary>The target (resolved on the receiving node). ⭐ An <see cref="EntityRef"/> (<c>DESIGN_Entity_Reference.md</c>)
+        /// — it was a bare <c>long</c> with no remap and no picker, the one authorable id the attributes had missed.</summary>
+        public EntityLink TargetNetworkId;
+        /// <summary>Approach speed far from the slot (m/s).</summary>
+        public float ApproachSpeed = 15f;
+        /// <summary>Creep speed near the slot (m/s).</summary>
+        public float CreepSpeed = 5f;
+    }
+}

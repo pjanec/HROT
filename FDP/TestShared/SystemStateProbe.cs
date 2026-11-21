@@ -1,0 +1,218 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using Fdp.ModuleHost.Abstractions;
+
+namespace Fdp.TestShared
+{
+    /// <summary>
+    /// ⭐⭐ <c>R-3039</c> S4 — every field a system, module or network translator can carry between frames, classified. A checkpoint, a
+    /// recording and the dry run copy the WORLD and nothing else, so state held in such a field is lost at a restore unless it is derived
+    /// (A), protocol re-derived at the restore (B), or not state at all (K). Class C (simulation memory) and X (state in an engine outside
+    /// the ECS) are allowed only as listed work items. The classification is the table in
+    /// <c>docs/DESIGN_System_State_Inventory.md</c>, read by this probe — one source for the reader and the rail.
+    /// <para>What counts as a field that can carry state: any collection or array; a mutable value-type or string field; a reference to a
+    /// concrete class (classified once per TYPE, as <c>type:Name</c>). Interfaces, delegates, constants and readonly scalars are dependencies or
+    /// configuration and are skipped.</para>
+    /// </summary>
+    public static class SystemStateProbe
+    {
+        public sealed record Hit(string Family, string Owner, string Key, string Kind, string TypeKey)
+        {
+            /// <summary>⭐ R-4297 — the class the CODE gives it (an attribute on the field, else on the held type); null when the code says nothing.</summary>
+            public Row? Attributed { get; init; }
+
+            /// <summary>⭐ R-4297 (④) — the type that declares the field (its owner's compiled code is what must react to a world replacement).</summary>
+            public Type? Declaring { get; init; }
+        }
+
+        public sealed record Row(string Key, string Class, string Reason)
+        {
+            /// <summary>⭐ R-4297 — the attribute's type name when the row comes from the code (null: a ledger row).</summary>
+            public string? Attribute { get; init; }
+        }
+
+        public sealed record Result(int Owners, IReadOnlyList<Hit> Hits, IReadOnlyList<Hit> Unclassified, IReadOnlyList<string> UnusedRows,
+                                    IReadOnlyList<(Hit Hit, Row Row)> Pending)
+        {
+            /// <summary>⭐ R-4297 — every classified hit with the row (or the attribute) that classified it.</summary>
+            public IReadOnlyList<(Hit Hit, Row Row)> Classified { get; init; } = Array.Empty<(Hit, Row)>();
+        }
+
+        private static readonly string[] Families = { "system", "module", "translator" };
+
+        /// <summary>Every hit in the production assemblies beside the test.</summary>
+        public static IReadOnlyList<Hit> Walk(out int owners)
+        {
+            var hits = new List<Hit>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            owners = 0;
+            foreach (var asm in ProductionAssemblies())
+                foreach (var type in LoadableTypes(asm))
+                {
+                    if (!type.IsClass || type.IsAbstract || type.ContainsGenericParameters) continue;
+                    string? family = FamilyOf(type);
+                    if (family == null) continue;
+                    owners++;
+                    for (var t = type; t != null && t != typeof(object); t = t.BaseType)
+                        foreach (var f in t.GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                        {
+                            string? kind = KindOf(f);
+                            if (kind == null) continue;
+                            string key = Qualified(f.DeclaringType!) + "." + f.Name;
+                            if (!seen.Add(key)) continue;   // a base-class field once, not per subclass
+                            hits.Add(new Hit(family, Qualified(type), key, kind, kind == "object" ? "type:" + Pretty(f.FieldType) : "") { Attributed = AttributedRow(f, key), Declaring = f.DeclaringType });
+                        }
+                }
+            return hits;
+        }
+
+        /// <summary>
+        /// ⭐ R-4297 — the class written in the code: a <c>Fdp.Core.SystemStateAttribute</c> on the field (an auto-property's <c>[field: …]</c> lands on its
+        /// backing field), else on the field's type or the element type of its array / collection. Read by NAME so the probe needs no reference to a
+        /// particular <c>Fdp.Core</c>. A blank <c>Why</c> is no classification.
+        /// </summary>
+        public static Row? AttributedRow(FieldInfo f, string key)
+        {
+            var a = StateAttributeOf(f.GetCustomAttributes(false)) ?? StateAttributeOf(f.FieldType.GetCustomAttributes(false));
+            if (a == null && f.FieldType.IsArray) a = StateAttributeOf(f.FieldType.GetElementType()!.GetCustomAttributes(false));
+            return a;
+
+            Row? StateAttributeOf(object[] attrs)
+            {
+                foreach (var attr in attrs)
+                {
+                    var t = attr.GetType();
+                    for (var b = t; b != null; b = b.BaseType)
+                        if (b.FullName == "Fdp.Core.SystemStateAttribute")
+                        {
+                            string why = t.GetProperty("Why")?.GetValue(attr) as string ?? "";
+                            object? cls = t.GetProperty("Class")?.GetValue(attr);
+                            if (string.IsNullOrWhiteSpace(why)) return null;
+                            return new Row(key, LetterOf(cls?.ToString()), why) { Attribute = t.Name };
+                        }
+                }
+                return null;
+            }
+        }
+
+        private static string LetterOf(string? cls) => cls switch
+        {
+            "NotState" => "K", "Derived" => "A", "Protocol" => "B", "Session" => "S", "SimulationMemory" => "C", "External" => "X", _ => "?",
+        };
+
+        /// <summary>Matches every hit against the inventory rows.</summary>
+        public static Result Check(IReadOnlyList<Row> rows)
+        {
+            var hits = Walk(out int owners);
+            var exact = rows.Where(r => !r.Key.Contains('*')).GroupBy(r => r.Key).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            var globs = rows.Where(r => r.Key.Contains('*')).Select(r => (Row: r, Re: Glob(r.Key))).ToList();
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            var unclassified = new List<Hit>();
+            var pending = new List<(Hit, Row)>();
+            var classified = new List<(Hit, Row)>();
+            foreach (var h in hits)
+            {
+                Row? row = h.Attributed ?? Match(h.Key, exact, globs, used) ?? ShapeRule(h.Key);   // ⭐ R-4297 — the code's own word first, then a ledger row, then a shape rule
+                if (row == null && h.Kind == "object") row = Match(h.TypeKey, exact, globs, used);
+                if (row == null) { unclassified.Add(h); continue; }
+                classified.Add((h, row));
+                if (row.Class is "C" or "X") pending.Add((h, row));
+            }
+            var unused = rows.Select(r => r.Key).Where(k => !used.Contains(k)).Distinct().ToList();
+            return new Result(owners, hits, unclassified, unused, pending) { Classified = classified };
+        }
+
+        /// <summary>
+        /// ⭐ R-4297 — the shape rules (were §3's globs): fields classified by their NAME across the tree, not one by one — the <c>WorldEpoch</c> seen-count
+        /// (<c>_epoch</c> / <c>_worldEpoch</c>, the CE-3294 reset mechanism itself) and an auto-property counter <c>…Count</c> read by diagnostics and tests.
+        /// </summary>
+        public static Row? ShapeRule(string key)
+        {
+            string field = key[(key.LastIndexOf('.') + 1)..];
+            if (field is "_epoch" or "_worldEpoch") return new Row(key, "A", "the WorldEpoch seen-count - the world-boundary reset mechanism itself") { Attribute = "shape" };
+            if (field.StartsWith("<", StringComparison.Ordinal) && field.EndsWith("Count>k__BackingField", StringComparison.Ordinal))
+                return new Row(key, "A", "a diagnostic counter read by diagnostics and tests") { Attribute = "shape" };
+            return null;
+        }
+
+        private static Row? Match(string key, Dictionary<string, Row> exact, List<(Row Row, Regex Re)> globs, HashSet<string> used)
+        {
+            if (exact.TryGetValue(key, out var r)) { used.Add(r.Key); return r; }
+            foreach (var g in globs)
+                if (g.Re.IsMatch(key)) { used.Add(g.Row.Key); return g.Row; }
+            return null;
+        }
+
+        private static Regex Glob(string pattern) =>
+            new("^" + Regex.Escape(pattern).Replace("\\*", ".*") + "$", RegexOptions.CultureInvariant);
+
+        /// <summary>Reads the inventory tables: every markdown row whose first cell is a back-quoted key and second cell a class letter.</summary>
+        public static IReadOnlyList<Row> ReadInventory(string markdownPath)
+        {
+            var rows = new List<Row>();
+            var cell = new Regex(@"^\|\s*`(?<key>[^`]+)`\s*\|\s*\*{0,2}(?<cls>[KABCSX])\*{0,2}\s*\|\s*(?<reason>[^|]*)\|", RegexOptions.CultureInvariant);
+            foreach (var line in File.ReadLines(markdownPath))
+            {
+                var m = cell.Match(line);
+                if (m.Success) rows.Add(new Row(m.Groups["key"].Value.Trim(), m.Groups["cls"].Value, m.Groups["reason"].Value.Trim()));
+            }
+            return rows;
+        }
+
+        private static string? FamilyOf(Type type)
+        {
+            if (typeof(IEcsModuleSystem).IsAssignableFrom(type)) return "system";
+            if (typeof(IEcsModule).IsAssignableFrom(type)) return "module";
+            if (type.GetInterfaces().Any(i => i.FullName == "Fdp.Interfaces.INetworkTranslator")) return "translator";
+            return null;
+        }
+
+        private static string? KindOf(FieldInfo f)
+        {
+            var t = f.FieldType;
+            if (f.IsLiteral || typeof(Delegate).IsAssignableFrom(t)) return null;
+            if (t == typeof(string)) return f.IsInitOnly ? null : "scalar";
+            if (t.IsArray || typeof(IEnumerable).IsAssignableFrom(t)) return "collection";
+            if (t.IsValueType) return f.IsInitOnly ? null : "scalar";
+            if (t.IsInterface) return null;
+            if (t.FullName is "Fdp.Core.EntityQuery" or "Fdp.Core.EntityRepository") return null;   // the world itself, and a view of it
+            // ⭐ R-4297 — a shape rule (like §3's globs): a DDS endpoint (reader, writer, participant) is the transport, not state — the ledger carried
+            //   one K row per instantiation (159); an external generic cannot carry our attribute
+            if (t.Namespace == "CycloneDDS.Runtime") return null;
+            return "object";
+        }
+
+        /// <summary>A type's namespace-qualified name, nested types joined by '+', generic arguments by short name.</summary>
+        public static string Qualified(Type t) =>
+            t.DeclaringType != null ? Qualified(t.DeclaringType) + "+" + Pretty(t) : (t.Namespace is { } ns ? ns + "." : "") + Pretty(t);
+
+        private static string Pretty(Type t) =>
+            !t.IsGenericType ? t.Name : t.Name.Split('`')[0] + "<" + string.Join(",", t.GetGenericArguments().Select(Pretty)) + ">";
+
+        private static IEnumerable<Assembly> ProductionAssemblies()
+        {
+            foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll").OrderBy(p => p, StringComparer.Ordinal))
+            {
+                var name = Path.GetFileNameWithoutExtension(path);
+                bool ours = name.StartsWith("Fdp.", StringComparison.Ordinal) || name.StartsWith("Hrot.", StringComparison.Ordinal)
+                            || name.StartsWith("HrotStrideApp.", StringComparison.Ordinal);
+                if (!ours || name.Contains("Test", StringComparison.Ordinal) || name.Contains("Example", StringComparison.Ordinal)) continue;
+                Assembly? asm = null;
+                try { asm = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == name) ?? Assembly.LoadFrom(path); }
+                catch (BadImageFormatException) { }
+                if (asm != null) yield return asm;
+            }
+        }
+
+        private static IEnumerable<Type> LoadableTypes(Assembly asm)
+        {
+            try { return asm.GetTypes(); }
+            catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null)!; }
+        }
+    }
+}

@@ -1,0 +1,53 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S2 \u2014 feature (golden).",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "a SAM fires (the radar SAM or the Stinger \u2014 both names hold an 'S')",
+      "on": "shot",
+      "by": "*S",
+      "n": 1
+    },
+    {
+      "name": "the F-16 beams",
+      "on": "field",
+      "who": "Viper",
+      "path": "MissileDefenceState.Phase",
+      "op": "in",
+      "value": [
+        "Beam",
+        2
+      ]
+    },
+    {
+      "name": "it drops decoys",
+      "on": "field",
+      "who": "Viper",
+      "path": "MissileDefenceState.DecoysTotal",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "name": "a SAM missile is defeated",
+      "on": "shot",
+      "by": "*S",
+      "n": 1,
+      "where": {
+        "outcome": "Defeated"
+      }
+    },
+    {
+      "name": "Viper is never lost",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    }
+  ]
+}

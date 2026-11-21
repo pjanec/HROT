@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -8,7 +10,8 @@ using Fdp.Toolkit.Replication.Systems;
 using Fdp.Modules.Geographic;
 using Hrot.Map.Common.Replication.Ingress;
 using Hrot.NED.Descriptors;
-using Hrot.NED.Common;
+using Hrot.NED.Messages;
+using Hrot.Map.Common.Replication.Utils;
 using Xunit;
 
 namespace Hrot.Map.Common.Tests.Replication.Ingress;
@@ -27,6 +30,7 @@ namespace Hrot.Map.Common.Tests.Replication.Ingress;
 ///
 /// <para>Tests: GEOINGRESS-1 … GEOINGRESS-4.</para>
 /// </summary>
+[Collection("SerialTests")]   // ⭐ it clears the process-wide ComponentTypeRegistry
 public sealed class GeoSpatialIngressTranslatorTests
 {
     private const int  LocalNodeId     = 1;
@@ -43,8 +47,8 @@ public sealed class GeoSpatialIngressTranslatorTests
             IGeographicTransform geoTransform,
             NetworkEntityMap     entityMap,
             GhostCreationSystem  ghostSystem,
-            long                 localNodeId)
-            : base(participant: null, entityMap, geoTransform, ghostSystem, localNodeId)
+            int                 localNodeId)
+            : base(participant: null, entityMap, ghostSystem, localNodeId)
         { }
 
         public void TestDecode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)
@@ -53,6 +57,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
     // ── Infrastructure ────────────────────────────────────────────────────────
 
+    // ⭐ AQ107 B — the ingress no longer converts; this transform is only handed to the (now ignoring) constructor.
     private sealed class IdentityGeoTransform : IGeographicTransform
     {
         public void SetOrigin(double lat, double lon, double alt) { }
@@ -84,15 +89,9 @@ public sealed class GeoSpatialIngressTranslatorTests
         return (translator, entityMap);
     }
 
-    /// <summary>Creates a WorldPos sample at an arbitrary position.</summary>
-    private static WorldPos MakeSample(long entityId, float lat = 1f, float lon = 2f)
-        => new WorldPos
-        {
-            EntityId = (int)entityId,
-            Pos      = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = 0 },
-            Ori      = new EulerOri { Heading = 0 },
-            Vel      = new AngularVector(),
-        };
+    /// <summary>Creates a WorldPos sample at an arbitrary local-ENU position (AQ107 B / D): identity rotation, no motion.</summary>
+    private static WorldPos MakeSample(int entityId, float x = 1f, float y = 2f)
+        => WorldPosCodec.Encode(entityId, simTimeSeconds: 5.0, new Vector3(x, y, 0f), Quaternion.Identity, Vector3.Zero, Vector3.Zero);
 
     // ── GEOINGRESS-1: Remote entity — ingress updates SimTransform ────────────
 
@@ -107,14 +106,14 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 99L;
+        int netId = 99;
         world.AddComponent(entity, new NetworkIdentity(netId));
         world.AddComponent(entity, new SimTransform());
         world.AddComponent(entity, new NetworkTransform());
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(netId, entity);
 
-        var sample = MakeSample(netId, lat: 10f, lon: 20f);
+        var sample = MakeSample(netId, x: 10f, y: 20f);
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
         translator.TestDecode(sample, cmd, view);
@@ -123,6 +122,123 @@ public sealed class GeoSpatialIngressTranslatorTests
         var transform = world.GetComponent<SimTransform>(entity);
         Assert.Equal(10f, transform.Position.X, precision: 3);
         Assert.Equal(20f, transform.Position.Y, precision: 3);
+    }
+
+    // ── ⭐ AQ107 D — the pose crosses the wire as a quaternion: ECS → WorldPos → ECS ──────────────────────────
+
+    public static IEnumerable<object[]> Poses()
+    {
+        yield return new object[] { "heading 30 / pitch 10 / roll -20", Quaternion.Normalize(Quaternion.CreateFromYawPitchRoll(0.4f, 0.17f, -0.35f)) };
+        yield return new object[] { "yaw 250 deg about Z",               Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 250f * MathF.PI / 180f) };
+        yield return new object[] { "nose straight UP (CE-4068)",        Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2f) };
+        yield return new object[] { "nose straight DOWN (CE-4068)",      Quaternion.CreateFromAxisAngle(Vector3.UnitY,  MathF.PI / 2f) };
+        yield return new object[] { "nose up, rolled and yawed",         Quaternion.Normalize(Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.1f) * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2f) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.6f)) };
+        // the SAME rotation as a quaternion with w < 0 (q and -q are one rotation): the sender must canonicalise it
+        var q = Quaternion.Normalize(Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(1f, 2f, 3f)), 2.4f));
+        yield return new object[] { "w < 0 before canonicalisation",     new Quaternion(-q.X, -q.Y, -q.Z, -q.W) };
+        yield return new object[] { "a half turn (w = 0)",               Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) };
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>AQ107 D acceptance (a)</b> — a pose (position, rotation, velocity, angular velocity) round-trips ECS → <c>WorldPos</c> → ECS:
+    /// position within 1 mm, rotation within 1e-6 (quaternion dot ≥ 1 − 1e-6, sign-insensitive), velocity and angular velocity exact —
+    /// including a nose straight up and straight down (CE-4068: the Euler wire lost the heading there) and a rotation whose w is negative
+    /// before canonicalisation. ✅ Red-proof (run): <c>QuaternionWireCodec.Encode</c> without the <c>w ≥ 0</c> canonicalisation ⇒ the
+    /// "w &lt; 0" case decodes to the INVERSE rotation ⇒ red.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Poses))]
+    public void AQ107D_APose_RoundTripsEcsToWorldPosToEcs(string _, Quaternion rotation)
+    {
+        using var world = CreateWorld();
+        world.RegisterComponent<SimVelocity>();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(77));
+        world.AddComponent(entity, new SimTransform());
+        world.AddComponent(entity, new NetworkTransform());
+        world.AddComponent(entity, new NetworkVelocity());
+        world.AddComponent(entity, new SimVelocity());
+        map.Register(77, entity);
+
+        var position = new Vector3(1234.567f, -8765.432f, 42.125f);
+        var linear   = new Vector3(1.5f, -2f, 0.25f);
+        var angular  = new Vector3(0.1f, -0.2f, 0.3f);
+        var sample   = WorldPosCodec.Encode(77, simTimeSeconds: 12.5, position, rotation, linear, angular);
+
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(sample, cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var st = world.GetComponent<SimTransform>(entity);
+        Assert.True(Vector3.Distance(position, st.Position) < 0.001f, $"position {st.Position}");
+        float dot = MathF.Abs(Quaternion.Dot(Quaternion.Normalize(rotation), st.Rotation));
+        Assert.True(dot >= 1f - 1e-6f, $"rotation dot {dot:R}");
+        Assert.Equal(linear,  world.GetComponent<NetworkVelocity>(entity).Value);
+        var vel = world.GetComponent<SimVelocity>(entity);
+        Assert.Equal(linear,  vel.Linear);
+        Assert.Equal(angular, vel.Angular);
+        var shadow = world.GetComponent<NetworkTransform>(entity);
+        Assert.Equal(12.5, shadow.SimStamp);                                  // the sim time is the dead-reckoning anchor
+        Assert.True(MathF.Abs(Quaternion.Dot(shadow.LastRotation, st.Rotation)) >= 1f - 1e-6f);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>AQ107 D acceptance (b)</b> — an ALL-ZERO <c>WorldPos</c> (a struct nobody filled in) decodes to the IDENTITY rotation and no NaN
+    /// anywhere. ✅ Red-proof (run): the decoder leaving <c>w</c> at 0 ⇒ a zero (invalid) quaternion ⇒ red.
+    /// </summary>
+    [Fact]
+    public void AQ107D_AnAllZeroWorldPos_DecodesToTheIdentity_NoNaN()
+    {
+        using var world = CreateWorld();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(78));
+        world.AddComponent(entity, new SimTransform());
+        world.AddComponent(entity, new NetworkTransform());
+        world.AddComponent(entity, new NetworkVelocity());
+        map.Register(78, entity);
+
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(new WorldPos { EntityId = 78 }, cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var st = world.GetComponent<SimTransform>(entity);
+        Assert.Equal<System.Numerics.Quaternion>(Quaternion.Identity, st.Rotation);
+        Assert.Equal<System.Numerics.Quaternion>(Quaternion.Identity, world.GetComponent<NetworkTransform>(entity).LastRotation);
+        Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, st.Position);
+        Assert.False(float.IsNaN(st.Rotation.X + st.Rotation.Y + st.Rotation.Z + st.Rotation.W + st.Position.X));
+    }
+
+    /// <summary>
+    /// ⭐ AQ107 D — a vector part LONGER than 1 (float rounding at a half-turn, or a corrupt sample) decodes to a finite UNIT quaternion, never
+    /// NaN. ✅ Red-proof (run): <c>QuaternionWireCodec.Decode</c> computing <c>w = sqrt(1 − |v|²)</c> without the <c>max(0, …)</c> clamp ⇒ NaN ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(0.8f, 0.6f, 0.1f)]
+    [InlineData(1f, 1f, 1f)]
+    public void AQ107D_AVectorPartOverUnitLength_DecodesToAUnitQuaternion_NotNaN(float x, float y, float z)
+    {
+        using var world = CreateWorld();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(79));
+        world.AddComponent(entity, new SimTransform());
+        world.AddComponent(entity, new NetworkTransform());
+        world.AddComponent(entity, new NetworkVelocity());
+        map.Register(79, entity);
+
+        var sample = MakeSample(79) with { OrientationXyz = new OrientationQuat { X = x, Y = y, Z = z } };
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(sample, cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var q = world.GetComponent<SimTransform>(entity).Rotation;
+        Assert.False(float.IsNaN(q.X + q.Y + q.Z + q.W));
+        Assert.Equal(1f, ((System.Numerics.Quaternion)q).Length(), 5);
     }
 
     // ── GEOINGRESS-2: Primary-owner loopback — SimTransform NOT updated ───────
@@ -138,7 +254,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 100L;
+        int netId = 100;
         world.AddComponent(entity, new NetworkIdentity(netId));
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: LocalNodeId, localNodeId: LocalNodeId));
         var originalPos = new Vector3(999f, 888f, 0f);
@@ -148,14 +264,45 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(netId, entity);
 
-        var sample = MakeSample(netId, lat: 1f, lon: 2f);
+        var sample = MakeSample(netId, x: 1f, y: 2f);
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
         translator.TestDecode(sample, cmd, view);
         ((EntityCommandBuffer)cmd).Playback(world);
 
         var transform = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(originalPos, transform.Position);
+        Assert.Equal<System.Numerics.Vector3>(originalPos, transform.Position);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2348</c> ② — the owner's own sample comes back by loopback and rewrites the shadow; the EGRESS's fields of it (the velocity
+    /// it last sent, the tick it last sent on) survive the echo. ⛔ Before: the echo reset both to zero every frame ⇒ a stopped hull's zero
+    /// velocity never read as a change, and the heartbeat fired every frame. ✅ Red-proof: the ingress writing a fresh
+    /// <c>NetworkTransform</c> without the two fields ⇒ red.
+    /// </summary>
+    [Fact]
+    public void TheOwnersLoopback_KeepsWhatItsEgressLastSent_CE2348()
+    {
+        using var world = CreateWorld();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(101));
+        world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: LocalNodeId, localNodeId: LocalNodeId));
+        world.AddComponent(entity, new SimTransform());
+        world.SetAuthority<SimTransform>(entity, true);
+        world.AddComponent(entity, new NetworkTransform { LastVelocity = new Vector3(8f, 0f, 0f), LastSentTick = 4321 });
+        world.AddComponent(entity, new NetworkVelocity());
+        map.Register(101, entity);
+
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(MakeSample(101, x: 3f, y: 4f), cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var shadow = world.GetComponent<NetworkTransform>(entity);
+        Assert.Equal(new Vector3(8f, 0f, 0f), shadow.LastVelocity);
+        Assert.Equal(4321u, shadow.LastSentTick);
+        Assert.Equal(3f, shadow.LastPosition.X, precision: 3);   // the echo still refreshes the position it carries
     }
 
     // ── GEOINGRESS-3: Split-authority (Muscle) loopback — SimTransform NOT updated
@@ -173,7 +320,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 101L;
+        int netId = 101;
         world.AddComponent(entity, new NetworkIdentity(netId));
         // Brain is primary owner — Muscle is NOT the primary owner.
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: RemoteNodeId, localNodeId: LocalNodeId));
@@ -187,7 +334,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.SetAuthority<SimTransform>(entity, true);
 
         // A loopback packet arrives — Muscle should drop it for SimTransform.
-        var sample = MakeSample(netId, lat: 1f, lon: 2f);
+        var sample = MakeSample(netId, x: 1f, y: 2f);
         ISimulationView view3 = world;
         var cmd3 = view3.GetCommandBuffer();
         translator.TestDecode(sample, cmd3, view3);
@@ -195,7 +342,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
         // SimTransform must retain the physics position, not the loopback packet position.
         var transform = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(physicsPos, transform.Position);
+        Assert.Equal<System.Numerics.Vector3>(physicsPos, transform.Position);
 
         // NetworkTransform IS still updated (used for ghost rendering on other nodes).
         var netTransform = world.GetComponent<NetworkTransform>(entity);
@@ -215,7 +362,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 102L;
+        int netId = 102;
         world.AddComponent(entity, new NetworkIdentity(netId));
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: RemoteNodeId, localNodeId: LocalNodeId));
         world.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
@@ -226,7 +373,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         // Local node does not own SimTransform for this entity.
         world.SetAuthority<SimTransform>(entity, false);
 
-        var sample = MakeSample(netId, lat: 7f, lon: 8f);
+        var sample = MakeSample(netId, x: 7f, y: 8f);
         ISimulationView view4 = world;
         var cmd4 = view4.GetCommandBuffer();
         translator.TestDecode(sample, cmd4, view4);

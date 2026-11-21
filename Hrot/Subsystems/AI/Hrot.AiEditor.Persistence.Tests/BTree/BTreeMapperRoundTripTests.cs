@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -210,23 +211,23 @@ public sealed class BTreeMapperRoundTripTests
             VisualId = new Guid("30000000-0000-0000-0000-000000000001"),
             KernelType = NodeType.Action,
             Position = new Vector2(300f, 250f),
-            Action = new BTreeActionPayload
+            Action = new BehaviorActionBinding
             {
                 MethodFqn = "Hrot.AI.Behaviors.Brains.TestNodes.Action_Test",
                 ExpressionTargetField = "ActiveTarget",
-                DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,
             },
+            DelegateShape = BTreeActionDelegateShape.Plain,   // CE-417: the shape sits on the node
         };
         var condition = new BTreeEditorNode
         {
             VisualId = new Guid("40000000-0000-0000-0000-000000000001"),
             KernelType = NodeType.Condition,
             Position = new Vector2(100f, 250f),
-            Condition = new BTreeConditionPayload
+            Condition = new BehaviorActionBinding
             {
                 MethodFqn = "Hrot.AI.Behaviors.Brains.TestNodes.Condition_HasTarget",
-                DelegateShape = BTreeActionDelegateShape.FourParamFull,
             },
+            DelegateShape = BTreeActionDelegateShape.NoParams,   // CE-417: the shape sits on the node
         };
         var subtree = new BTreeEditorNode
         {
@@ -330,7 +331,7 @@ public sealed class BTreeMapperRoundTripTests
         restAction!.Action.Should().NotBeNull();
         restAction.Action!.MethodFqn.Should().Be(origAction.Action!.MethodFqn);
         restAction.Action.ExpressionTargetField.Should().Be(origAction.Action.ExpressionTargetField);
-        restAction.Action.DelegateShape.Should().Be(origAction.Action.DelegateShape);
+        restAction.DelegateShape.Should().Be(origAction.DelegateShape);
     }
 
     [Fact]
@@ -345,7 +346,7 @@ public sealed class BTreeMapperRoundTripTests
         restCond.Should().NotBeNull();
         restCond!.Condition.Should().NotBeNull();
         restCond.Condition!.MethodFqn.Should().Be(origCond.Condition!.MethodFqn);
-        restCond.Condition.DelegateShape.Should().Be(origCond.Condition.DelegateShape);
+        restCond.DelegateShape.Should().Be(origCond.DelegateShape);
     }
 
     [Fact]
@@ -468,5 +469,33 @@ public sealed class BTreeMapperRoundTripTests
         var restored = BehaviorTreeAssetMapper.FromDto(BehaviorTreeAssetMapper.ToDto(original));
         // IsDirty is excluded from DTO (session-only); restored asset should not be dirty
         restored.IsDirty.Should().BeFalse("mapping does not activate dirty state");
+    }
+
+    /// <summary>
+    /// ⛔⛔ <c>CE-428</c> + <c>CE-431</c> — the two new authoring fields must survive an EDITOR save
+    /// (DTO → model → DTO). 📌 Measured: <c>BehaviorTreeAssetMapper</c> rebuilds both directions field by field,
+    /// so before this both were silently dropped — an editor save would have unbound a behaviour's resolver and
+    /// every subtree site's params variable.
+    /// </summary>
+    [Fact]
+    public void ResolverRef_AndSubtreeParamsVariable_SurviveAnEditorRoundTrip()
+    {
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = Guid.NewGuid(), Name = "RoundTrip",
+            Resolver = new BehaviorResolverRefDto { AssetId = Guid.Parse("00000428-0000-0000-0000-000000000001"), Name = "T40Resolver" },
+        };
+        dto.Nodes.Add(new BTreeSubtreeNodeDto
+        {
+            VisualId = Guid.NewGuid(),
+            Subtree  = new BTreeSubtreePayloadDto { SubtreeName = "Child", ParamsVariable = "ChildParams" },
+        });
+
+        var back = BehaviorTreeAssetMapper.ToDto(BehaviorTreeAssetMapper.FromDto(dto));
+
+        back.Resolver.Should().NotBeNull();
+        back.Resolver!.AssetId.Should().Be(dto.Resolver.AssetId);
+        back.Resolver.Name.Should().Be("T40Resolver");
+        back.Nodes.OfType<BTreeSubtreeNodeDto>().Single().Subtree!.ParamsVariable.Should().Be("ChildParams");
     }
 }

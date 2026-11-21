@@ -1,0 +1,32 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000161-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmChannelE2E
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmChannelE2E");
+
+        var driving = builder.State("Driving", stableId: new Guid("61000000-0000-0000-0000-00000000000a"))
+            .Initial()
+            .ActivityId(45341)
+            .OnExitId(44204);
+        builder.State("Firing", stableId: new Guid("61000000-0000-0000-0000-00000000000b"))
+            .ActivityId(44132)
+            .OnExitId(3043);
+        driving.On(0).GoTo("Firing", visualId: new Guid("61000000-0000-0000-0000-0000000000c1")).GuardId(36109).Polled();
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmChannelE2E", AssetId = "00000161-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

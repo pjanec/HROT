@@ -30,9 +30,21 @@ namespace Fdp.Toolkit.Spatial.Eqs
         // 0 = Prone, 1 = Crouch, 2 = Stand.
         public byte StanceHeight;
 
+        /// <summary>⭐ Stage 7a — what the point is for (<see cref="CoverKind"/>): cover, or a window to fire from. A former padding
+        /// byte, so the struct stays 28 bytes. 📄 docs/DESIGN_Building_Interiors.md §3l C4.</summary>
+        public CoverKind Kind;
+
         // Explicit padding to reach 28 bytes and maintain 4-byte alignment
-        // (6 floats = 24 + 1-byte stance + 3 bytes padding).
-        private byte _pad0;
+        // (6 floats = 24 + 1-byte stance + 1-byte kind + 2 bytes padding).
         private ushort _pad1;
+    }
+
+    /// <summary>⭐ Stage 7a — what a <see cref="CoverPoint"/> is for. 📄 docs/DESIGN_Building_Interiors.md §3l C4.</summary>
+    public enum CoverKind : byte
+    {
+        /// <summary>Behind a wall, a low wall or a window's sill — hidden from the side it faces.</summary>
+        Cover = 0,
+        /// <summary>Inside a window, facing out — a position to fire from, at <see cref="CoverPoint.StanceHeight"/>.</summary>
+        WindowFiring = 1,
     }
 }

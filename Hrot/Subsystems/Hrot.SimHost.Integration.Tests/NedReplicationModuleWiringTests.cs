@@ -31,7 +31,7 @@ public sealed class NedReplicationModuleWiringTests : System.IDisposable
         var factory = new NedNetworkFactory(
             participant:   null,
             entityMap:     new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
-            geoTransform:  HrotEnvironment.CreateGeoTransform(),
+            geoTransform:  HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:      new Fdp.Core.FdpEventBus(),
             localNodeId:   0,
             role:          NodeRole.MuscleGround | NodeRole.Perception);

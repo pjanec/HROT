@@ -180,7 +180,7 @@ Key responsibility:
 
 7. **`CharacterAnimationDefDto.AimConfig` is `init`-only:** Cannot mutate post-construction. Must use `dto with { AimConfig = null }` C# record syntax.
 
-8. **`Hrot.MuscleCharacter.Animation` was not in the solution file:** Caused `NU1105` errors when building `IOS-IG-SimHost.sln`. Fixed with `dotnet sln add`.
+8. **`Hrot.MuscleCharacter.Animation` was not in the solution file:** Caused `NU1105` errors when building `HROT.sln`. Fixed with `dotnet sln add`.
 
 ### Weak Points in Existing Codebase
 

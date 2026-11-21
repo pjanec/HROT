@@ -196,7 +196,7 @@ public sealed class StatefulWorkingStateProjectionTests
             SlotKey, payloadSize, StructureHash: 0,
             WorkingStateType: typeof(TestCursorState),
             NodeLabel: "HillAttackMutableState",
-            Role: 1, Scope: 1);
+            Scope: 1);
 
         var result = StatefulWorkingStateProjection.TryProjectSlot(memory, slotInfo, out object? boxed);
 

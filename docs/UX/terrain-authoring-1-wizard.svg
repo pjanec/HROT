@@ -1,0 +1,605 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='1500' viewBox='0 0 1240 1500'>
+<rect x='0' y='0' width='1240' height='1500' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Terrain authoring — 1 / 4: the workflow and the random-terrain wizard (DESIGN_Terrain_Authoring.md §12–§13, R-4200)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
+<rect x='20' y='46' width='214' height='54' fill='#1C1C22' rx='6' stroke='#B07CF0' stroke-width='1.4' opacity='1'/>
+<path d='M14 -15Q0 -1 0 19Q0 38 14 53L395 434Q410 448 429 448Q448 448 463 434L498 399Q512 385 512 365Q512 346 498 331L117 -50Q102 -64 83 -64Q63 -64 49 -50L14 -15ZM348 260 453 365 348 260 453 365 429 389 324 284 348 260Z' fill='#B07CF0' fill-opacity='1' transform='translate(32,77.72265625) scale(0.04296875,-0.04296875)'/>
+<text x='66' y='68' fill='#FFFFFF' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Wizard</text>
+<text x='66' y='87' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>pick a preset</text>
+<path d='M238 73 l18 0 m-6 -6 l6 6 l-6 6' stroke='#4A4A55' stroke-width='1.8' fill='none'/>
+<rect x='264' y='46' width='214' height='54' fill='#1C1C22' rx='6' stroke='#F2C033' stroke-width='1.4' opacity='1'/>
+<path d='M275 414Q253 435 224 435Q195 435 173 414L34 275Q13 253 13 224Q13 195 34 173L173 34Q195 13 224 13Q253 13 275 34L414 173Q435 195 435 224Q435 253 414 275L275 414ZM200 224Q202 246 224 248Q246 246 248 224Q246 202 224 200Q202 202 200 224ZM96 248Q118 246 120 224Q118 202 96 200Q74 202 72 224Q74 246 96 248ZM224 72Q202 74 200 96Q202 118 224 120Q246 118 248 96Q246 74 224 72ZM352 248Q374 246 376 224Q374 202 352 200Q330 202 328 224Q330 246 352 248ZM224 328Q202 330 200 352Q202 374 224 376Q246 374 248 352Q246 330 224 328ZM320 0Q321 -27 339 -45Q357 -63 384 -64H576Q603 -63 621 -45Q639 -27 640 0V192Q639 219 621 237Q603 255 576 256H462Q470 228 464 200Q458 172 436 150L320 34V0ZM480 120Q502 118 504 96Q502 74 480 72Q458 74 456 96Q458 118 480 120Z' fill='#F2C033' fill-opacity='1' transform='translate(276,77.72265625) scale(0.04296875,-0.04296875)'/>
+<text x='310' y='68' fill='#FFFFFF' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Shuffle</text>
+<text x='310' y='87' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>until it looks right</text>
+<path d='M482 73 l18 0 m-6 -6 l6 6 l-6 6' stroke='#4A4A55' stroke-width='1.8' fill='none'/>
+<rect x='508' y='46' width='214' height='54' fill='#1C1C22' rx='6' stroke='#4296FA' stroke-width='1.4' opacity='1'/>
+<path d='M472 426Q454 443 432 443Q410 443 392 426L362 396L460 298L490 328Q507 346 507 368Q507 390 490 408L472 426ZM172 206Q163 197 159 184L129 96Q125 82 135 71Q146 61 160 65L249 95Q261 99 270 108L438 276L340 374L172 206ZM96 384Q55 383 28 356Q1 329 0 288V32Q1 -9 28 -36Q55 -63 96 -64H352Q393 -63 420 -36Q447 -9 448 32V128Q448 142 439 151Q430 160 416 160Q402 160 393 151Q384 142 384 128V32Q384 18 375 9Q366 0 352 0H96Q82 0 73 9Q64 18 64 32V288Q64 302 73 311Q82 320 96 320H192Q206 320 215 329Q224 338 224 352Q224 366 215 375Q206 384 192 384H96Z' fill='#4296FA' fill-opacity='1' transform='translate(520,77.72265625) scale(0.04296875,-0.04296875)'/>
+<text x='554' y='68' fill='#FFFFFF' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Edit</text>
+<text x='554' y='87' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>move, re-roll, add</text>
+<path d='M726 73 l18 0 m-6 -6 l6 6 l-6 6' stroke='#4A4A55' stroke-width='1.8' fill='none'/>
+<rect x='752' y='46' width='214' height='54' fill='#1C1C22' rx='6' stroke='#5BD06A' stroke-width='1.4' opacity='1'/>
+<path d='M64 416Q37 415 19 397Q1 379 0 352V32Q1 5 19 -13Q37 -31 64 -32H384Q411 -31 429 -13Q447 5 448 32V275Q448 301 429 320L352 397Q333 416 307 416H64ZM64 320Q64 334 73 343Q82 352 96 352H288Q302 352 311 343Q320 334 320 320V256Q320 242 311 233Q302 224 288 224H96Q82 224 73 233Q64 242 64 256V320ZM224 160Q260 159 279 128Q297 96 279 64Q260 33 224 32Q188 33 169 64Q151 96 169 128Q188 159 224 160Z' fill='#5BD06A' fill-opacity='1' transform='translate(764,77.72265625) scale(0.04296875,-0.04296875)'/>
+<text x='798' y='68' fill='#FFFFFF' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Save terrain</text>
+<text x='798' y='87' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>baked, mesh pre-built</text>
+<path d='M970 73 l18 0 m-6 -6 l6 6 l-6 6' stroke='#4A4A55' stroke-width='1.8' fill='none'/>
+<rect x='996' y='46' width='214' height='54' fill='#1C1C22' rx='6' stroke='#3EC6B0' stroke-width='1.4' opacity='1'/>
+<path d='M59 406Q64 415 75 415L320 384L565 415Q576 415 581 406L623 322Q629 308 623 295Q618 282 603 277L440 231Q417 226 403 245L320 384L237 245Q223 226 200 231L37 277Q22 282 17 295Q11 308 17 322L59 406ZM321 320 376 229 321 320 376 229Q388 210 407 202Q427 194 449 200L576 236V69Q576 53 566 40Q556 27 540 23L335 -28Q320 -32 304 -28L100 23Q84 27 74 40Q64 53 64 69V236L192 200Q213 194 233 202Q252 210 264 229L319 320H321Z' fill='#3EC6B0' fill-opacity='1' transform='translate(1008,77.72265625) scale(0.04296875,-0.04296875)'/>
+<text x='1042' y='68' fill='#FFFFFF' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Edit terrain…</text>
+<text x='1042' y='87' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>reopens the source any time</text>
+<path d='M1103 102 q0 18 -40 18 l-690 0 q-40 0 -40 -18' stroke='#3EC6B0' stroke-width='1.2' fill='none' stroke-dasharray='4 4'/>
+<text x='560' y='134' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>the source scenario stays inside the terrain — edit and save again as often as needed (§14)</text>
+<rect x='20' y='160' width='1200' height='520' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='160' width='1200' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='174' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>New random terrain</text>
+<rect x='32' y='190' width='92.80000000000001' height='24' fill='#3369AD' rx='12' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='45' y='206' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>1</text>
+<text x='60' y='206' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preset</text>
+<line x1='128.8' y1='202' x2='144.8' y2='202' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='148.8' y='190' width='98.98461538461538' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='161.8' y='206' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>2</text>
+<text x='176.8' y='206' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
+<line x1='251.7846153846154' y1='202' x2='267.7846153846154' y2='202' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='271.7846153846154' y='190' width='80.06153846153846' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='284.7846153846154' y='206' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3</text>
+<text x='299.7846153846154' y='206' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Open</text>
+<text x='36' y='242' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>What kind of place</text>
+<line x1='154.2' y1='238' x2='810' y2='238' stroke='#4A4A55' stroke-width='1'/>
+<rect x='36' y='256' width='248' height='166' fill='#1C1C22' rx='5' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='pp0'><rect x='41' y='261' width='238' height='118'/></clipPath><g clip-path='url(#pp0)'>
+<rect x='41' y='261' width='238' height='118' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='135.8,324.2 128.9,330.5 127.4,336.8 115.1,344.5 104.7,343.5 94.8,338.7 90.6,332.2 82.1,324.2 85.9,316.0 97.1,309.1 104.4,308.2 114.7,304.7 125.4,309.3 135.4,315.9' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='129.6,324.2 127.0,329.3 122.3,334.9 113.3,334.4 106.7,337.9 99.8,334.1 95.9,329.4 93.9,324.2 94.4,318.8 98.0,314.1 105.8,310.9 114.5,311.7 119.4,313.5 127.9,318.2' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='119.5,324.2 117.5,327.3 115.9,328.9 111.8,331.3 107.7,329.6 103.8,329.1 102.9,326.8 100.1,324.2 103.2,321.2 105.4,318.7 108.2,317.0 112.5,317.8 116.8,319.4 117.1,321.2' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='97.4,291.4 90.0,300.4 85.7,308.1 77.3,308.5 65.2,309.4 54.0,306.2 47.2,299.7 41.1,291.4 48.3,282.9 56.3,278.2 64.1,273.5 76.6,276.7 86.2,276.7 89.8,283.2' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='89.1,291.4 87.3,296.8 82.4,300.7 75.0,304.7 67.5,301.7 59.2,302.8 56.4,296.8 52.7,291.4 55.8,286.4 60.4,281.3 67.2,279.8 75.1,281.3 82.0,280.8 85.5,286.5' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='81.2,291.4 78.3,294.3 77.1,295.9 72.7,297.6 68.4,297.9 64.1,296.1 62.8,294.5 60.0,291.4 63.1,288.9 64.8,286.8 68.4,284.1 72.6,285.4 77.3,285.9 80.2,288.7' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='120.8,300.4 119.3,310.6 110.1,322.3 96.1,319.9 80.7,327.4 64.5,319.0 53.8,312.6 58.8,300.4 55.0,289.2 68.1,282.8 82.3,278.9 95.9,275.8 109.1,279.2 115.2,288.3' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='114.5,300.4 113.5,308.6 104.4,311.1 95.1,314.7 84.7,317.6 74.8,313.0 65.1,307.9 67.5,300.4 65.7,293.2 73.5,288.0 84.9,283.9 95.3,286.0 105.6,285.3 112.8,292.3' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='99.8,300.4 102.3,303.6 96.7,306.8 92.3,308.9 86.7,310.0 83.1,306.3 79.7,303.7 78.9,300.4 76.7,297.0 81.7,293.8 86.9,292.1 92.4,291.3 96.9,294.1 100.1,297.0' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='191.8,340.4 192.0,348.4 187.7,353.7 176.7,358.6 165.2,357.0 155.0,355.4 148.7,348.7 145.9,340.4 147.8,332.1 157.4,326.8 165.2,320.6 177.0,323.8 188.4,325.0 191.1,332.8' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='185.3,340.4 186.9,346.4 182.3,350.5 174.7,352.6 167.3,352.7 161.8,348.7 153.7,344.8 156.0,340.4 153.1,335.7 161.7,329.7 167.3,327.0 174.6,327.1 183.0,330.6 187.6,336.0' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='180.7,340.4 179.5,342.8 176.8,346.3 172.3,346.4 168.5,347.6 165.4,344.9 163.0,343.4 160.5,340.4 162.7,337.6 165.1,335.4 168.8,334.0 173.0,334.2 176.8,335.9 179.4,337.3' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='221.8,321.6 214.6,328.8 211.6,339.1 199.2,340.2 186.6,338.5 177.5,335.2 167.8,329.5 168.5,321.6 164.5,313.8 174.8,306.9 186.3,302.1 198.7,304.6 207.2,306.5 216.6,314.2' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='210.8,321.6 211.6,326.7 206.8,332.0 197.4,334.5 188.5,336.1 181.2,332.0 175.0,328.1 175.1,321.6 173.5,315.9 182.6,312.2 188.6,307.8 197.9,307.0 203.7,312.4 208.4,316.5' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='203.9,321.6 203.5,324.5 200.2,326.8 195.3,329.2 191.2,327.6 186.1,326.8 184.5,324.8 182.4,321.6 184.6,318.6 186.9,316.6 190.8,313.5 195.2,314.5 198.5,316.5 202.7,318.9' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='255.4,358.6 252.2,364.9 244.5,369.7 238.1,373.1 229.9,372.8 220.1,369.7 216.6,363.6 215.0,358.6 215.5,352.4 221.8,349.3 229.3,344.9 237.4,343.7 246.0,349.6 253.2,353.5' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='245.7,358.6 245.7,362.6 242.1,365.6 236.4,366.5 231.3,368.2 225.0,365.8 221.2,362.4 222.0,358.6 220.6,355.3 225.7,352.1 230.6,350.1 236.4,350.0 241.8,350.7 244.6,354.1' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='239.7,358.6 239.0,360.4 238.5,362.8 235.1,362.9 232.2,363.8 228.9,362.8 227.3,360.5 227.1,358.6 227.4,356.4 229.9,355.1 232.0,354.6 235.4,353.1 238.7,354.9 240.1,356.4' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='36.0,351.0 156.0,341.0 286.0,356.0' fill='none' stroke='#326EC8' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='36.0,306.0 286.0,316.0' fill='none' stroke='#F2C033' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+</g>
+<text x='46' y='396' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Plain terrain</text>
+<text x='46' y='413' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ground, roads and water only</text>
+<rect x='294' y='256' width='248' height='166' fill='#1C1C22' rx='5' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='pp1'><rect x='299' y='261' width='238' height='118'/></clipPath><g clip-path='url(#pp1)'>
+<rect x='299' y='261' width='238' height='118' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='377.7,337.9 377.8,346.1 369.0,351.1 359.0,351.4 349.2,354.9 341.7,352.5 335.0,344.5 334.5,337.9 331.1,329.6 338.8,326.9 349.3,321.5 358.7,318.8 368.3,326.3 377.9,331.6' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='372.9,337.9 369.1,342.6 364.2,345.9 357.2,350.7 350.9,350.3 345.2,348.5 337.6,343.4 336.5,337.9 338.4,333.6 344.2,327.8 351.0,324.9 358.3,327.0 363.8,329.0 368.2,332.0' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='411.9,275.3 409.4,279.8 405.5,284.1 399.3,285.8 393.1,285.8 388.5,282.4 384.1,280.5 382.8,275.3 384.3,271.5 388.8,266.4 392.9,265.8 399.8,264.7 406.7,266.0 408.9,270.1' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='407.9,275.3 406.5,278.4 402.3,280.3 398.9,281.4 394.6,282.9 389.7,280.8 386.5,277.9 387.4,275.3 387.8,272.6 391.2,270.2 393.9,267.3 398.8,268.5 402.0,268.9 405.4,272.0' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='358.2,292.8 353.5,301.0 345.6,309.9 333.8,311.9 322.6,313.5 314.3,309.0 299.8,299.8 300.2,292.8 300.7,284.2 312.8,278.2 321.2,271.2 333.4,276.7 342.6,280.3 352.2,285.5' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='349.2,292.8 342.7,298.7 339.0,303.2 331.9,304.2 324.5,305.2 315.7,303.4 314.2,299.0 307.1,292.8 309.7,288.1 316.8,284.1 323.7,281.4 332.6,281.0 340.6,283.2 342.1,287.3' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='399.6,357.8 400.4,362.6 393.2,367.8 386.0,372.3 378.0,371.1 370.5,368.0 368.2,364.0 360.8,357.8 366.7,351.3 372.2,349.4 378.4,344.0 386.1,345.6 393.3,349.6 398.6,352.4' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='394.0,357.8 392.3,361.2 388.1,364.5 384.2,367.0 378.7,367.0 374.2,364.0 371.2,361.6 368.9,357.8 372.4,354.1 374.1,350.5 378.6,348.5 384.6,348.5 389.8,350.1 393.5,353.8' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='299.0,276.0 534.0,280.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='299.0,293.0 534.0,297.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='299.0,310.0 534.0,314.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='299.0,327.0 534.0,331.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='299.0,344.0 534.0,348.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='299.0,361.0 534.0,365.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='368.0,302.0 380.0,302.0 380.0,310.0 368.0,310.0' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='384.0,302.0 396.0,302.0 396.0,310.0 384.0,310.0' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='368.0,314.0 380.0,314.0 380.0,322.0 368.0,322.0' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='384.0,314.0 396.0,314.0 396.0,322.0 384.0,322.0' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='523.5,296.0 527.5,306.3 515.2,316.0 502.0,324.0 487.5,317.0 470.2,315.8 460.5,305.3 460.7,296.0 466.4,282.9 469.7,279.1 487.7,270.3 502.8,271.7 513.0,276.2 519.4,285.8' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+</g>
+<text x='304' y='396' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Open countryside</text>
+<text x='304' y='413' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>fields, hedgerows, farms, woods</text>
+<rect x='552' y='256' width='248' height='166' fill='#1C1C22' rx='5' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='pp2'><rect x='557' y='261' width='238' height='118'/></clipPath><g clip-path='url(#pp2)'>
+<rect x='557' y='261' width='238' height='118' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='778.8,286.1 773.5,290.4 771.0,294.5 765.9,296.8 760.5,295.6 753.7,293.9 749.5,290.5 752.2,286.1 751.0,282.2 755.9,277.7 760.2,275.4 766.5,275.3 771.7,278.1 775.6,282.3' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='773.8,286.1 772.2,289.3 769.2,290.4 765.5,292.7 761.5,291.3 757.5,290.2 753.9,288.9 754.1,286.1 754.6,282.8 758.0,281.2 761.2,280.2 765.3,279.7 768.7,280.7 771.5,283.7' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='790.0,306.4 791.7,312.7 782.7,316.0 775.7,318.8 766.0,319.7 758.7,317.1 754.4,311.6 750.1,306.4 751.4,300.8 757.1,296.9 766.2,290.7 775.7,292.5 784.7,295.1 788.9,299.9' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='786.8,306.4 782.8,311.0 779.6,313.7 773.9,317.1 767.3,317.5 763.4,314.1 757.5,310.4 758.4,306.4 758.4,302.5 763.3,297.4 767.6,298.1 773.3,297.6 780.3,299.6 782.0,302.7' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='690.5,292.4 689.1,297.2 681.4,304.2 673.7,304.0 666.1,304.9 657.6,303.7 653.7,297.7 653.4,292.4 656.1,286.3 660.1,280.5 665.9,281.5 674.4,278.9 680.0,282.0 684.3,286.1' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='680.8,292.4 683.8,296.9 677.5,299.6 672.8,300.8 667.1,302.3 663.7,299.2 658.2,295.9 656.1,292.4 658.6,288.6 661.3,285.2 667.8,284.2 672.8,282.4 678.3,284.8 683.1,287.8' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='647.4,311.1 643.5,318.8 632.3,324.1 623.0,328.6 610.9,333.7 601.9,326.9 588.8,320.0 589.1,311.1 596.4,301.1 598.6,293.9 610.2,294.6 622.3,294.0 634.4,293.2 645.7,302.8' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='636.9,311.1 633.1,318.0 630.8,322.6 621.9,325.7 612.6,323.5 606.2,320.7 602.7,317.9 599.5,311.1 601.1,306.1 605.5,301.1 613.3,298.0 621.2,298.6 630.2,301.2 634.4,304.4' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='562.0,296.0 662.0,306.0 782.0,286.0' fill='none' stroke='#D8D8DC' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='567.1,283.9 576.1,284.8 575.4,291.8 566.4,290.9' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='582.0,303.5 590.9,304.4 590.2,311.4 581.3,310.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='600.4,287.3 609.4,288.2 608.7,295.1 599.7,294.2' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='615.3,306.9 624.3,307.8 623.6,314.7 614.6,313.8' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='633.8,290.6 642.7,291.5 642.0,298.5 633.1,297.6' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='648.6,310.2 657.6,311.1 656.9,318.1 647.9,317.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='665.5,292.7 674.4,291.3 675.5,298.2 666.7,299.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='688.5,307.2 697.3,305.7 698.5,312.6 689.6,314.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='705.5,286.1 714.4,284.6 715.5,291.5 706.7,293.0' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='728.5,300.5 737.3,299.0 738.5,305.9 729.6,307.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='745.5,279.4 754.4,277.9 755.5,284.8 746.7,286.3' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='768.5,293.8 777.3,292.4 778.5,299.3 769.6,300.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polyline points='592.0,361.0 752.0,351.0' fill='none' stroke='#D8D8DC' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='596.7,348.2 605.7,347.6 606.1,354.6 597.2,355.2' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='617.9,364.9 626.8,364.3 627.3,371.3 618.3,371.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='636.7,345.7 645.7,345.1 646.1,352.1 637.2,352.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='657.9,362.4 666.8,361.8 667.3,368.8 658.3,369.4' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='676.7,343.2 685.7,342.6 686.1,349.6 677.2,350.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='697.9,359.9 706.8,359.3 707.3,366.3 698.3,366.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='716.7,340.7 725.7,340.1 726.1,347.1 717.2,347.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='737.9,357.4 746.8,356.8 747.3,363.8 738.3,364.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+</g>
+<text x='562' y='396' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Villages</text>
+<text x='562' y='413' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a few villages joined by roads</text>
+<rect x='36' y='432' width='248' height='166' fill='#1C1C22' rx='5' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='pp3'><rect x='41' y='437' width='238' height='118'/></clipPath><g clip-path='url(#pp3)'>
+<rect x='41' y='437' width='238' height='118' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='264.7,538.3 265.5,547.1 256.1,552.3 247.0,555.9 234.8,554.5 226.0,555.2 216.3,547.1 210.5,538.3 219.7,528.8 222.8,521.8 234.4,515.5 246.8,517.0 257.6,522.3 267.6,530.2' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='257.2,538.3 259.5,544.5 252.6,549.6 244.7,550.2 236.9,553.2 230.2,547.6 226.1,543.3 223.3,538.3 221.6,532.8 229.5,528.4 236.9,523.7 245.2,526.1 251.2,526.5 259.5,531.7' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='139.6,500.3 132.7,510.6 125.0,515.7 115.4,522.3 103.4,523.5 90.4,518.8 84.1,510.7 79.1,500.3 80.1,491.9 94.3,486.8 103.9,482.6 117.5,477.2 126.1,486.7 136.1,492.5' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='129.9,500.3 126.1,506.2 124.0,511.0 114.2,515.8 105.3,515.8 97.1,510.8 91.3,507.1 89.6,500.3 93.8,494.4 96.8,489.2 105.7,485.1 113.8,486.1 121.5,489.2 129.8,494.8' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='268.7,456.2 266.6,463.1 259.7,469.7 250.1,471.1 240.5,469.8 230.2,467.4 224.5,462.3 224.0,456.2 228.8,448.8 232.1,442.9 240.9,440.3 251.0,441.8 261.9,445.6 268.9,448.4' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='261.3,456.2 260.6,461.1 254.8,464.2 249.2,466.1 242.0,466.3 236.8,464.5 230.6,460.9 230.3,456.2 233.3,452.2 237.4,448.4 242.1,445.5 248.9,445.7 254.2,447.5 259.5,450.9' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='134.2,529.1 127.0,535.0 123.9,538.2 117.5,542.4 110.9,542.0 103.9,539.2 100.0,533.6 94.6,529.1 100.6,522.9 102.0,520.7 111.0,516.8 117.5,516.3 124.7,518.9 129.9,523.3' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='127.2,529.1 125.0,532.5 120.5,534.7 117.1,536.4 111.6,536.7 106.6,535.7 102.3,532.7 103.1,529.1 102.7,525.0 107.4,521.7 111.1,519.6 116.4,521.4 122.1,521.8 122.9,525.6' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='86.0,452.0 236.0,450.4' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='86.0,478.0 236.0,478.3' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='86.0,504.0 236.0,503.2' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='86.0,530.0 236.0,530.6' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='86.0,452.0 86.8,542.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='120.0,452.0 117.4,542.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='154.0,452.0 151.1,542.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='188.0,452.0 190.0,542.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='222.0,452.0 220.6,542.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='89.0,457.4 97.0,457.4 97.0,464.4 89.0,464.4' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='99.0,458.7 107.0,458.7 107.0,465.7 99.0,465.7' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='109.0,458.4 117.0,458.4 117.0,465.4 109.0,465.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='89.0,483.4 97.0,483.4 97.0,490.4 89.0,490.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='99.0,486.0 107.0,486.0 107.0,493.0 99.0,493.0' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='109.0,484.1 117.0,484.1 117.0,491.1 109.0,491.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='89.0,511.2 97.0,511.2 97.0,518.2 89.0,518.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='99.0,509.1 107.0,509.1 107.0,516.1 99.0,516.1' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='109.0,508.7 117.0,508.7 117.0,515.7 109.0,515.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='123.0,459.8 131.0,459.8 131.0,466.8 123.0,466.8' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='133.0,458.4 141.0,458.4 141.0,465.4 133.0,465.4' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='143.0,459.4 151.0,459.4 151.0,466.4 143.0,466.4' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='123.0,484.1 131.0,484.1 131.0,491.1 123.0,491.1' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='133.0,484.3 141.0,484.3 141.0,491.3 133.0,491.3' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='143.0,486.0 151.0,486.0 151.0,493.0 143.0,493.0' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='123.0,508.6 131.0,508.6 131.0,515.6 123.0,515.6' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='133.0,509.4 141.0,509.4 141.0,516.4 133.0,516.4' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='143.0,511.6 151.0,511.6 151.0,518.6 143.0,518.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='157.0,458.2 165.0,458.2 165.0,465.2 157.0,465.2' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='167.0,458.8 175.0,458.8 175.0,465.8 167.0,465.8' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='177.0,458.8 185.0,458.8 185.0,465.8 177.0,465.8' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='157.0,483.4 165.0,483.4 165.0,490.4 157.0,490.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='167.0,485.2 175.0,485.2 175.0,492.2 167.0,492.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='177.0,485.9 185.0,485.9 185.0,492.9 177.0,492.9' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='157.0,511.2 165.0,511.2 165.0,518.2 157.0,518.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='167.0,511.3 175.0,511.3 175.0,518.3 167.0,518.3' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='177.0,512.4 185.0,512.4 185.0,519.4 177.0,519.4' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='191.0,458.8 199.0,458.8 199.0,465.8 191.0,465.8' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='201.0,459.0 209.0,459.0 209.0,466.0 201.0,466.0' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='211.0,457.6 219.0,457.6 219.0,464.6 211.0,464.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='191.0,482.8 199.0,482.8 199.0,489.8 191.0,489.8' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='201.0,482.9 209.0,482.9 209.0,489.9 201.0,489.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='211.0,484.1 219.0,484.1 219.0,491.1 211.0,491.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='191.0,508.6 199.0,508.6 199.0,515.6 191.0,515.6' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='201.0,511.6 209.0,511.6 209.0,518.6 201.0,518.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='211.0,508.7 219.0,508.7 219.0,515.7 211.0,515.7' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+</g>
+<text x='46' y='572' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Small town</text>
+<text x='46' y='589' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a town of ~300 houses</text>
+<rect x='294' y='432' width='248' height='166' fill='#34343E' rx='5' stroke='#4296FA' stroke-width='1.6' opacity='1'/>
+<clipPath id='pp4'><rect x='299' y='437' width='238' height='118'/></clipPath><g clip-path='url(#pp4)'>
+<clipPath id='mx4'><rect x='299' y='437' width='238' height='118'/></clipPath><g clip-path='url(#mx4)'>
+<rect x='299' y='437' width='238' height='118' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='445.5,501.6 443.3,511.8 432.1,523.3 418.0,523.6 401.3,523.6 383.3,523.7 381.1,515.1 365.7,501.6 374.2,491.6 389.9,480.8 402.0,478.8 416.4,480.2 431.7,481.4 446.4,490.1' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='435.5,501.6 433.1,509.4 423.5,518.3 415.6,521.4 402.9,518.1 394.7,514.7 389.7,510.2 384.5,501.6 387.1,492.5 391.2,490.0 403.9,481.4 414.5,481.0 424.1,489.7 432.8,493.0' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='421.4,501.6 420.5,506.6 418.2,508.2 411.7,509.8 406.4,512.1 401.4,509.4 396.9,505.4 394.2,501.6 396.0,498.0 400.7,494.8 406.2,490.5 412.3,492.8 418.6,494.8 420.7,496.9' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='479.5,458.3 483.0,469.4 467.2,476.4 452.3,485.8 437.2,486.0 422.1,479.4 404.7,470.1 405.5,458.3 414.3,447.8 417.5,434.4 437.2,434.5 454.3,427.3 466.4,433.3 484.4,445.9' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='470.6,458.3 464.8,467.8 459.9,474.0 450.3,478.7 439.0,475.2 430.5,474.1 425.0,465.6 418.1,458.3 420.3,450.8 426.1,445.2 440.2,441.5 450.7,442.9 459.5,444.3 469.3,451.2' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='458.5,458.3 460.0,462.9 454.4,466.4 447.7,466.5 442.4,469.6 435.5,467.5 434.4,462.9 430.9,458.3 433.1,453.1 437.5,450.2 441.6,447.0 448.4,447.7 454.8,449.2 457.1,453.6' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='522.8,531.0 518.2,539.4 509.7,545.9 500.3,546.3 488.3,552.2 476.0,546.6 472.0,539.7 467.8,531.0 468.3,524.2 476.8,519.1 488.4,513.2 499.5,511.8 510.4,516.0 521.1,523.7' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='508.9,531.0 511.2,535.9 504.0,542.3 498.5,543.1 489.8,542.6 482.7,539.8 478.8,537.1 474.0,531.0 479.1,525.4 484.0,522.5 490.4,517.3 498.7,517.8 507.1,522.0 508.3,525.7' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='503.1,531.0 502.6,534.1 500.2,536.0 496.7,538.8 492.2,536.6 489.4,537.1 487.2,534.2 484.6,531.0 484.9,528.6 489.2,525.8 492.6,523.6 496.2,525.3 499.3,525.5 502.7,527.9' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='487.8,525.0 481.2,535.4 466.9,545.9 456.6,548.3 439.8,549.8 422.3,546.3 412.1,537.8 411.2,525.0 408.5,515.1 420.3,502.2 440.2,499.2 456.3,494.8 470.0,503.4 486.2,512.1' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='477.5,525.0 472.1,532.2 464.9,541.1 453.6,544.4 442.4,545.6 428.6,541.9 423.9,533.9 423.4,525.0 421.3,517.4 433.8,510.9 441.7,505.3 453.2,510.1 465.4,512.9 473.3,518.0' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='460.6,525.0 458.4,528.8 456.2,533.4 451.0,535.4 443.9,534.7 437.4,531.6 436.2,529.4 434.7,525.0 434.4,520.7 437.8,517.1 444.6,515.7 451.0,513.9 455.3,516.3 462.2,520.7' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='460.3,467.8 453.1,478.1 449.7,483.1 438.9,488.0 425.6,488.9 416.9,483.9 407.1,478.0 399.2,467.8 406.5,460.1 414.6,450.1 424.7,448.2 437.8,450.2 450.4,449.5 454.1,458.1' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='448.0,467.8 447.7,474.2 443.2,478.1 436.4,479.4 427.2,479.5 419.7,477.7 416.3,473.9 412.9,467.8 414.9,461.7 421.3,458.1 427.4,453.6 436.3,452.5 444.5,455.5 447.7,461.2' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='443.5,467.8 440.7,470.8 439.4,473.0 434.6,476.1 429.9,474.4 424.8,473.1 423.8,471.4 421.7,467.8 423.7,464.6 424.9,462.9 429.8,460.0 434.6,459.3 437.5,461.9 442.2,464.5' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='468.9,466.6 470.0,472.3 464.9,475.5 456.9,477.9 448.8,481.5 440.3,475.3 439.6,473.2 435.5,466.6 438.0,461.1 442.0,456.8 449.2,456.2 457.7,452.5 463.4,456.7 471.1,461.2' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='464.4,466.6 464.6,469.8 462.2,474.3 456.3,476.4 450.5,475.0 445.3,473.6 440.2,470.9 442.0,466.6 441.2,462.4 444.7,459.9 450.2,456.8 456.3,457.2 461.8,459.9 465.4,463.4' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='459.7,466.6 458.3,468.6 457.7,470.5 454.7,472.0 451.8,471.0 448.9,470.5 447.3,468.6 445.5,466.6 446.9,464.4 448.5,463.6 451.8,461.6 454.7,462.2 456.8,463.3 459.1,464.9' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='294.0,529.0 351.4,519.6 399.0,531.4 448.9,514.9 494.2,522.0 542.0,507.8' fill='none' stroke='#326EC8' stroke-width='9' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='294.0,486.6 382.3,491.3 446.6,481.8 542.0,477.1' fill='none' stroke='#F2C033' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='413.2,432.0 418.0,486.6 408.5,525.5 422.8,560.0' fill='none' stroke='#E8D58A' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='489.4,478.3 503.7,519.6 513.2,560.0' fill='none' stroke='#E8D58A' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='318.0,487.7 327.6,454.7 370.4,442.9' fill='none' stroke='#A08868' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<rect x='405.86' y='517.208' width='10' height='18' fill='#C8C8C8' rx='0' stroke='#2A2A2A' stroke-width='0.6' opacity='1'/>
+<rect x='499.87' y='509.41999999999996' width='10' height='18' fill='#C8C8C8' rx='0' stroke='#2A2A2A' stroke-width='0.6' opacity='1'/>
+<polyline points='394.2,458.2 437.0,458.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='394.2,458.2 394.6,481.8' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='428.2,458.2 430.7,481.8' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='446.6,484.2 465.6,493.6 484.6,496.0' fill='none' stroke='#D8D8DC' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='449.4,471.7 457.5,475.7 454.4,481.9 446.3,477.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='444.2,489.2 452.2,493.1 449.1,499.4 441.1,495.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='454.9,474.4 462.9,478.4 459.8,484.6 451.8,480.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='449.6,491.8 457.7,495.8 454.6,502.1 446.5,498.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='460.3,477.1 468.4,481.1 465.3,487.3 457.2,483.3' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='455.0,494.5 463.1,498.5 460.0,504.8 451.9,500.8' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='465.8,479.8 473.8,483.8 470.7,490.0 462.7,486.0' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='461.8,498.7 470.7,499.8 469.9,506.8 461.0,505.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='466.8,481.2 475.7,482.3 474.8,489.2 465.9,488.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='467.3,499.4 476.2,500.5 475.3,507.4 466.4,506.3' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='472.2,481.9 481.1,483.0 480.3,489.9 471.3,488.8' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='472.7,500.1 481.6,501.2 480.8,508.1 471.8,507.0' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='477.6,482.5 486.6,483.6 485.7,490.6 476.8,489.5' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='478.1,500.7 487.1,501.8 486.2,508.8 477.3,507.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polyline points='332.3,488.9 360.9,496.0 370.4,505.4' fill='none' stroke='#D8D8DC' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='333.8,476.4 342.6,478.6 340.9,485.4 332.1,483.2' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='335.2,495.3 343.9,497.5 342.2,504.3 333.5,502.1' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='345.2,479.2 354.0,481.4 352.3,488.2 343.6,486.0' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='346.6,498.1 355.4,500.3 353.7,507.1 344.9,504.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='356.7,482.1 365.4,484.2 363.7,491.0 355.0,488.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='354.8,497.7 361.2,504.0 356.2,509.0 349.8,502.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='369.3,486.8 375.7,493.1 370.8,498.1 364.4,491.8' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='358.6,501.5 365.0,507.8 360.0,512.8 353.6,506.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='373.2,490.6 379.5,496.9 374.6,501.9 368.2,495.5' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='362.4,505.2 368.8,511.6 363.8,516.5 357.5,510.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='346.4,454.7 356.4,454.7 356.4,461.7 346.4,461.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='358.4,454.7 368.4,454.7 368.4,461.7 358.4,461.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='346.4,464.7 356.4,464.7 356.4,471.7 346.4,471.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='358.4,464.7 368.4,464.7 368.4,471.7 358.4,471.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='460.6,447.7 470.6,447.7 470.6,454.7 460.6,454.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='472.6,447.7 482.6,447.7 482.6,454.7 472.6,454.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='460.6,457.7 470.6,457.7 470.6,464.7 460.6,464.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='472.6,457.7 482.6,457.7 482.6,464.7 472.6,464.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='365.4,539.7 375.4,539.7 375.4,546.7 365.4,546.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='377.4,539.7 387.4,539.7 387.4,546.7 377.4,546.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='365.4,549.7 375.4,549.7 375.4,556.7 365.4,556.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='377.4,549.7 387.4,549.7 387.4,556.7 377.4,556.7' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='343.5,531.4 340.7,537.1 332.8,539.1 327.6,543.3 318.1,542.2 310.5,539.6 307.3,536.1 307.2,531.4 304.7,526.5 310.7,520.7 319.2,520.9 327.4,519.8 332.7,522.0 337.5,527.0' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polygon points='530.4,454.7 526.2,461.3 521.7,467.5 512.9,467.9 502.7,468.1 493.2,464.6 485.6,460.5 486.3,454.7 487.7,447.6 495.6,442.8 504.1,441.1 513.7,440.0 521.6,443.6 533.6,448.0' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polygon points='462.7,545.6 461.0,549.2 455.1,551.8 450.9,552.7 442.2,551.3 437.3,552.1 431.0,548.7 432.6,545.6 431.9,543.0 435.8,539.4 443.0,539.7 449.9,538.3 455.1,540.3 462.2,542.9' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polyline points='310.9,501.9 370.4,504.3' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='310.9,505.4 370.4,507.8' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='310.9,509.0 370.4,511.3' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='310.9,512.5 370.4,514.9' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='310.9,516.1 370.4,518.4' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+</g>
+</g>
+<text x='304' y='572' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Town with suburbs</text>
+<text x='304' y='589' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a town, villages around it</text>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#4296FA' fill-opacity='1' transform='translate(516,579.34375) scale(0.03125,-0.03125)'/>
+<rect x='552' y='432' width='248' height='166' fill='#1C1C22' rx='5' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<clipPath id='pp5'><rect x='557' y='437' width='238' height='118'/></clipPath><g clip-path='url(#pp5)'>
+<rect x='557' y='437' width='238' height='118' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='677.0,536.3 678.3,543.3 672.3,550.1 658.2,554.7 646.3,552.7 634.5,553.3 628.0,545.6 624.1,536.3 630.9,528.3 635.8,523.3 645.5,516.4 657.8,516.8 669.0,522.8 674.1,528.0' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='668.3,536.3 669.4,541.3 665.7,545.0 656.2,550.7 648.8,548.9 640.7,546.4 635.8,542.1 634.1,536.3 633.9,531.0 642.9,526.2 648.0,522.7 656.7,523.4 663.0,525.5 668.4,531.4' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='633.4,457.5 625.4,464.2 623.3,470.6 610.4,475.0 599.9,474.9 590.6,470.3 583.5,465.0 579.5,457.5 584.7,448.6 592.4,442.6 600.3,438.6 611.4,440.1 621.5,445.2 623.8,449.3' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='620.9,457.5 622.4,462.9 614.3,467.0 608.9,470.7 602.2,471.1 594.7,465.5 591.0,463.6 587.6,457.5 591.2,452.8 596.7,447.9 601.6,447.1 609.4,444.4 617.5,449.3 618.4,451.6' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='667.2,464.5 668.4,472.1 659.2,478.1 649.5,481.5 637.6,485.3 627.8,478.9 619.0,471.2 618.5,464.5 615.0,456.7 626.6,452.1 637.1,447.0 648.8,447.4 658.3,447.5 669.2,456.7' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='658.3,464.5 656.9,469.3 654.6,474.7 646.4,478.8 638.7,478.0 630.1,473.9 624.3,471.0 622.2,464.5 624.6,457.9 633.3,453.0 638.5,454.0 647.3,450.7 655.3,456.0 662.0,459.7' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='615.5,538.2 616.7,544.2 612.0,550.7 601.4,552.2 592.9,555.4 584.7,551.8 577.7,544.8 578.4,538.2 580.7,531.8 583.3,524.7 592.7,525.3 602.1,525.5 608.6,526.6 615.4,530.5' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='609.1,538.2 609.7,542.1 605.0,547.4 599.7,548.0 594.3,548.2 587.3,546.9 584.7,542.6 580.9,538.2 584.2,534.5 586.5,530.6 593.7,529.8 599.6,529.6 606.0,530.9 611.2,534.3' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='642.0,472.0 712.0,472.7' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='642.0,498.0 712.0,499.5' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='642.0,472.0 643.8,522.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='676.0,472.0 678.7,522.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='710.0,472.0 711.4,522.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='645.0,480.2 653.0,480.2 653.0,487.2 645.0,487.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='655.0,479.9 663.0,479.9 663.0,486.9 655.0,486.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='665.0,479.1 673.0,479.1 673.0,486.1 665.0,486.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='679.0,477.0 687.0,477.0 687.0,484.0 679.0,484.0' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='689.0,480.0 697.0,480.0 697.0,487.0 689.0,487.0' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='699.0,478.7 707.0,478.7 707.0,485.7 699.0,485.7' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='605.7,452.0 604.7,458.9 600.4,465.5 588.3,466.8 576.0,469.2 567.9,468.5 562.7,460.6 551.7,452.0 561.4,444.7 567.5,436.0 576.0,436.5 588.8,436.4 600.9,438.5 601.4,444.4' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polygon points='672.1,532.0 664.0,540.7 658.7,546.6 648.2,546.8 636.5,548.3 624.6,544.5 618.8,538.9 618.3,532.0 614.8,524.6 626.3,517.7 636.4,515.2 648.5,514.7 659.4,517.3 669.3,525.3' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polygon points='725.6,452.0 725.1,459.8 720.5,464.8 707.7,470.1 695.6,468.7 687.0,465.7 674.5,459.0 675.9,452.0 681.5,444.8 684.6,440.0 695.8,435.7 708.4,433.7 719.5,438.9 725.3,443.6' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polygon points='784.1,532.0 789.0,538.5 779.6,545.3 767.3,550.5 757.0,552.6 745.0,547.6 740.0,539.0 731.5,532.0 741.7,523.1 746.3,519.6 756.5,517.2 767.6,516.7 780.7,517.3 782.6,524.1' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+</g>
+<text x='562' y='572' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>Mixed</text>
+<text x='562' y='589' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a town, villages, many woods</text>
+<text x='830' y='242' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Terrain</text>
+<line x1='885.1' y1='238' x2='1200' y2='238' stroke='#4A4A55' stroke-width='1'/>
+<text x='830' y='268' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
+<rect x='920' y='254' width='270' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='925' y='268' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>riverside-3</text>
+<text x='920' y='288' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Saved as assets/terrain/riverside-3/ + a scenario</text>
+<text x='830' y='320' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Size</text>
+<rect x='920' y='305' width='62' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='951.0' y='320' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>1 km</text>
+<rect x='985' y='305' width='62' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='1016.0' y='320' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>2 km</text>
+<rect x='1050' y='305' width='62' height='22' fill='#3369AD' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='1081.0' y='320' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>3 km</text>
+<rect x='1115' y='305' width='62' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='1146.0' y='320' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>5.5 km</text>
+<text x='830' y='356' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Relief</text>
+<rect x='920' y='341' width='62' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='951.0' y='356' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Flat</text>
+<rect x='985' y='341' width='62' height='22' fill='#3369AD' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='1016.0' y='356' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Rolling</text>
+<rect x='1050' y='341' width='62' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='1081.0' y='356' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Hilly</text>
+<rect x='1115' y='341' width='62' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='1146.0' y='356' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Mountains</text>
+<text x='830' y='392' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Vegetation</text>
+<rect x='920' y='377' width='84' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='962.0' y='392' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Sparse</text>
+<rect x='1007' y='377' width='84' height='22' fill='#3369AD' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='1049.0' y='392' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Normal</text>
+<rect x='1094' y='377' width='84' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='1136.0' y='392' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Dense</text>
+<text x='830' y='428' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Water</text>
+<rect x='920' y='413' width='84' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='962.0' y='428' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>None</text>
+<rect x='1007' y='413' width='84' height='22' fill='#23415F' rx='3' opacity='1'/>
+<text x='1049.0' y='428' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>A stream</text>
+<rect x='1094' y='413' width='84' height='22' fill='#3369AD' rx='3' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='1136.0' y='428' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>A river</text>
+<text x='830' y='464' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Seed</text>
+<rect x='920' y='450' width='150' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='925' y='464' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>48213</text>
+<rect x='1076' y='450' width='34' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M275 414Q253 435 224 435Q195 435 173 414L34 275Q13 253 13 224Q13 195 34 173L173 34Q195 13 224 13Q253 13 275 34L414 173Q435 195 435 224Q435 253 414 275L275 414ZM200 224Q202 246 224 248Q246 246 248 224Q246 202 224 200Q202 202 200 224ZM96 248Q118 246 120 224Q118 202 96 200Q74 202 72 224Q74 246 96 248ZM224 72Q202 74 200 96Q202 118 224 120Q246 118 248 96Q246 74 224 72ZM352 248Q374 246 376 224Q374 202 352 200Q330 202 328 224Q330 246 352 248ZM224 328Q202 330 200 352Q202 374 224 376Q246 374 248 352Q246 330 224 328ZM320 0Q321 -27 339 -45Q357 -63 384 -64H576Q603 -63 621 -45Q639 -27 640 0V192Q639 219 621 237Q603 255 576 256H462Q470 228 464 200Q458 172 436 150L320 34V0ZM480 120Q502 118 504 96Q502 74 480 72Q458 74 456 96Q458 118 480 120Z' fill='#F2C033' fill-opacity='1' transform='translate(1083,464.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='1100' y='464.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<rect x='830' y='498' width='370' height='74' fill='#1C1C22' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM216 112H240H216H240V176H216Q194 178 192 200Q194 222 216 224H264Q286 222 288 200V112H296Q318 110 320 88Q318 66 296 64H216Q194 66 192 88Q194 110 216 112ZM256 320Q270 320 279 311Q288 302 288 288Q288 274 279 265Q270 256 256 256Q242 256 233 265Q224 274 224 288Q224 302 233 311Q242 320 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(840,519.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='862' y='520' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Everything the generator places — towns, villages,</text>
+<text x='862' y='534' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>farms, woods — is an ordinary block in a scenario:</text>
+<text x='862' y='548' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>move, re-roll or delete any of it later in the editor.</text>
+<line x1='20' y1='638' x2='1220' y2='638' stroke='#4A4A55' stroke-width='1'/>
+<rect x='970' y='646' width='130' height='20' fill='#3369AD' rx='3' opacity='1'/>
+<path d='M311 215Q320 205 320 192Q320 179 311 169L119 -23Q109 -32 96 -32Q83 -32 73 -23Q64 -13 64 0Q64 13 73 23L243 192L73 361Q64 371 64 384Q64 397 73 407Q83 416 96 416Q109 416 119 407L311 215Z' fill='#FFFFFF' fill-opacity='1' transform='translate(977,660.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='994' y='660.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Generate</text>
+<rect x='1110' y='646' width='90' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='1155.0' y='660.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Cancel</text>
+<text x='20' y='698' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>① Preset — six pictures, one choice. A preset decides the MIX (how much town / village / farm / wood) and the densities; there is no</text>
+<text x='20' y='712' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   building-density knob (R-4199 B-8: few choices). Plain terrain = the ground, the roads and the water only (R-4198 TA-2).</text>
+<text x='20' y='726' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   Size, Relief, Vegetation and Water are four short rows; the seed is shown so a result can be reproduced, the dice rolls a new one.</text>
+<rect x='20' y='770' width='1200' height='620' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='770' width='1200' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='784' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>New random terrain</text>
+<rect x='32' y='800' width='92.80000000000001' height='24' fill='#1D2F48' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M439 343Q448 333 448 320Q448 307 439 297L183 41Q173 32 160 32Q147 32 137 41L9 169Q0 179 0 192Q0 205 9 215Q19 224 32 224Q45 224 55 215L160 109L393 343Q403 352 416 352Q429 352 439 343Z' fill='#5BD06A' fill-opacity='1' transform='translate(41,815.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='60' y='816' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preset</text>
+<line x1='128.8' y1='812' x2='144.8' y2='812' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='148.8' y='800' width='98.98461538461538' height='24' fill='#3369AD' rx='12' stroke='#4296FA' stroke-width='1' opacity='1'/>
+<text x='161.8' y='816' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>2</text>
+<text x='176.8' y='816' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
+<line x1='251.7846153846154' y1='812' x2='267.7846153846154' y2='812' stroke='#4A4A55' stroke-width='1.2'/>
+<rect x='271.7846153846154' y='800' width='80.06153846153846' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='284.7846153846154' y='816' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3</text>
+<text x='299.7846153846154' y='816' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Open</text>
+<clipPath id='big'><rect x='30' y='834' width='820' height='500'/></clipPath><g clip-path='url(#big)'>
+<rect x='30' y='834' width='820' height='500' fill='#33452C' rx='0' opacity='1'/>
+<polygon points='435.4,944.3 436.9,978.5 406.4,1005.4 352.9,1021.5 299.5,1033.2 233.0,1007.7 218.0,986.9 172.1,944.3 210.6,896.7 256.0,861.6 297.5,864.7 349.6,859.3 415.5,879.5 446.1,901.7' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='410.1,944.3 392.6,967.7 374.5,997.7 343.9,1002.7 303.8,1005.8 272.5,999.8 237.8,969.6 232.3,944.3 232.7,914.2 272.7,885.6 307.2,883.7 346.3,889.7 380.2,902.5 410.2,913.9' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='374.0,944.3 365.1,960.4 355.6,972.1 335.0,982.1 312.0,977.7 292.5,967.1 277.7,960.1 267.5,944.3 284.3,930.0 292.5,922.0 313.8,914.7 333.7,916.0 357.5,921.0 364.0,930.0' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='797.9,916.2 796.4,955.6 748.1,977.0 707.4,1005.2 654.6,984.6 621.8,972.9 592.2,950.8 567.8,916.2 600.6,882.4 616.9,852.0 654.6,832.7 708.8,834.7 758.1,863.6 799.4,877.9' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='770.8,916.2 750.2,939.2 724.7,961.2 698.1,961.4 668.4,963.2 638.5,952.2 626.9,937.1 617.9,916.2 626.3,889.2 633.8,878.8 668.1,865.7 699.9,870.0 737.6,865.7 752.0,892.6' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='718.9,916.2 718.8,928.0 712.5,936.5 691.3,949.7 674.4,941.4 657.5,935.4 646.0,931.3 636.9,916.2 649.6,904.0 661.0,890.9 674.3,884.5 692.3,890.3 712.3,889.1 725.7,902.0' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='740.9,1179.9 717.3,1203.5 701.3,1226.6 670.6,1254.1 628.9,1253.7 581.8,1239.4 570.4,1205.4 566.4,1179.9 575.2,1150.3 583.6,1122.6 628.6,1112.8 671.4,1125.8 709.1,1121.3 739.6,1149.1' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='710.9,1179.9 711.1,1198.2 692.1,1220.8 662.2,1222.0 632.7,1227.1 614.4,1210.2 599.5,1202.2 579.3,1179.9 585.8,1157.2 607.6,1146.9 634.7,1142.2 660.3,1129.0 689.9,1144.7 714.0,1161.0' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='687.0,1179.9 676.0,1189.5 668.3,1197.0 656.6,1201.4 641.5,1200.3 624.7,1197.8 618.9,1190.7 610.2,1179.9 613.9,1169.5 627.6,1161.0 642.6,1157.0 655.5,1160.7 672.1,1163.4 678.9,1168.7' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='598.2,1014.4 568.9,1052.0 544.4,1075.4 506.1,1097.3 450.0,1104.8 392.0,1079.4 365.7,1051.3 357.8,1014.4 371.9,977.1 403.6,937.5 448.7,920.5 507.7,938.8 552.7,937.5 597.1,982.4' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='547.2,1014.4 539.0,1037.2 519.9,1062.5 497.0,1079.1 461.2,1075.4 423.5,1053.9 393.7,1043.8 404.0,1014.4 406.5,989.3 417.5,963.6 461.2,959.2 495.2,961.1 522.2,972.0 556.1,993.6' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='521.7,1014.4 509.6,1027.1 505.5,1038.9 485.3,1050.2 466.3,1050.0 453.6,1036.8 444.2,1029.3 436.9,1014.4 438.7,998.8 446.6,992.1 468.5,979.3 487.0,981.7 500.3,993.9 519.1,1001.2' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='303.2,1259.3 291.3,1293.2 250.9,1330.5 186.7,1351.3 126.2,1342.1 89.5,1332.4 53.7,1293.9 45.7,1259.3 55.3,1221.9 84.4,1180.2 132.8,1169.1 185.0,1174.0 226.3,1193.5 255.9,1215.8' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='249.8,1259.3 238.7,1291.1 207.0,1314.6 178.8,1321.0 137.4,1318.7 104.1,1312.2 65.7,1285.3 60.2,1259.3 75.7,1232.8 107.2,1217.8 142.4,1207.1 181.0,1203.0 208.1,1217.2 249.2,1228.2' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='210.2,1259.3 198.5,1273.0 188.8,1282.7 169.9,1289.8 147.1,1298.3 129.2,1283.6 109.3,1273.1 114.2,1259.3 118.3,1244.7 129.7,1235.5 148.9,1232.0 169.2,1231.0 188.2,1237.1 195.1,1245.6' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='395.3,1118.2 381.0,1160.4 336.4,1180.9 296.0,1191.1 235.9,1205.9 202.3,1193.2 141.6,1157.1 134.9,1118.2 170.8,1080.8 189.9,1043.3 235.1,1025.0 292.2,1023.0 344.3,1046.7 362.1,1087.4' fill='#3B5131' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='335.8,1118.2 328.1,1146.7 316.9,1166.1 283.8,1179.0 246.6,1165.1 208.2,1168.1 190.8,1144.0 178.1,1118.2 184.6,1095.1 221.5,1076.3 245.0,1067.2 284.5,1051.4 315.7,1074.4 338.0,1091.2' fill='#4A5C36' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polygon points='313.1,1118.2 306.5,1129.8 288.7,1140.7 275.4,1146.8 254.7,1143.6 241.6,1140.8 222.5,1132.9 217.8,1118.2 224.7,1104.7 237.5,1097.0 253.5,1090.8 276.2,1082.7 287.5,1094.0 309.1,1102.3' fill='#5E643C' fill-opacity='0.9' stroke='#2A3824' stroke-width='0.6'/>
+<polyline points='25.0,1224.0 210.4,1184.0 374.4,1234.0 546.6,1164.0 702.4,1194.0 855.0,1134.0' fill='none' stroke='#326EC8' stroke-width='9' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='25.0,1044.0 317.0,1064.0 538.4,1024.0 855.0,1004.0' fill='none' stroke='#F2C033' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='423.6,829.0 440.0,1044.0 407.2,1209.0 456.4,1339.0' fill='none' stroke='#E8D58A' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='686.0,1009.0 735.2,1184.0 768.0,1339.0' fill='none' stroke='#E8D58A' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='95.6,1049.0 128.4,909.0 276.0,859.0' fill='none' stroke='#A08868' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<rect x='410.4' y='1203.0' width='10' height='18' fill='#C8C8C8' rx='0' stroke='#2A2A2A' stroke-width='0.6' opacity='1'/>
+<rect x='734.3' y='1170.0' width='10' height='18' fill='#C8C8C8' rx='0' stroke='#2A2A2A' stroke-width='0.6' opacity='1'/>
+<polyline points='358.0,924.0 505.6,922.9' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='358.0,950.0 505.6,947.9' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='358.0,976.0 505.6,976.9' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='358.0,1002.0 505.6,999.4' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='358.0,924.0 358.2,1024.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='392.0,924.0 391.2,1024.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='426.0,924.0 423.3,1024.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='460.0,924.0 460.0,1024.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='494.0,924.0 491.2,1024.0' fill='none' stroke='#D8D8DC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='361.0,930.2 369.0,930.2 369.0,937.2 361.0,937.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='371.0,929.5 379.0,929.5 379.0,936.5 371.0,936.5' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='381.0,930.2 389.0,930.2 389.0,937.2 381.0,937.2' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='361.0,955.0 369.0,955.0 369.0,962.0 361.0,962.0' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='371.0,957.0 379.0,957.0 379.0,964.0 371.0,964.0' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='381.0,958.3 389.0,958.3 389.0,965.3 381.0,965.3' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='361.0,982.8 369.0,982.8 369.0,989.8 361.0,989.8' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='371.0,984.4 379.0,984.4 379.0,991.4 371.0,991.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='381.0,982.7 389.0,982.7 389.0,989.7 381.0,989.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='395.0,929.7 403.0,929.7 403.0,936.7 395.0,936.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='405.0,930.7 413.0,930.7 413.0,937.7 405.0,937.7' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='415.0,929.7 423.0,929.7 423.0,936.7 415.0,936.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='395.0,954.9 403.0,954.9 403.0,961.9 395.0,961.9' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='405.0,957.1 413.0,957.1 413.0,964.1 405.0,964.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='415.0,954.9 423.0,954.9 423.0,961.9 415.0,961.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='395.0,982.8 403.0,982.8 403.0,989.8 395.0,989.8' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='405.0,981.3 413.0,981.3 413.0,988.3 405.0,988.3' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='415.0,982.2 423.0,982.2 423.0,989.2 415.0,989.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='429.0,930.4 437.0,930.4 437.0,937.4 429.0,937.4' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='439.0,929.9 447.0,929.9 447.0,936.9 439.0,936.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='449.0,931.7 457.0,931.7 457.0,938.7 449.0,938.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='429.0,954.8 437.0,954.8 437.0,961.8 429.0,961.8' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='439.0,956.6 447.0,956.6 447.0,963.6 439.0,963.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='449.0,957.4 457.0,957.4 457.0,964.4 449.0,964.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='429.0,982.9 437.0,982.9 437.0,989.9 429.0,989.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='439.0,981.0 447.0,981.0 447.0,988.0 439.0,988.0' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='449.0,981.2 457.0,981.2 457.0,988.2 449.0,988.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='463.0,929.1 471.0,929.1 471.0,936.1 463.0,936.1' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='473.0,930.2 481.0,930.2 481.0,937.2 473.0,937.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='483.0,931.6 491.0,931.6 491.0,938.6 483.0,938.6' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='463.0,957.7 471.0,957.7 471.0,964.7 463.0,964.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='473.0,955.9 481.0,955.9 481.0,962.9 473.0,962.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='483.0,956.9 491.0,956.9 491.0,963.9 483.0,963.9' fill='#B45F3C' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='463.0,983.7 471.0,983.7 471.0,990.7 463.0,990.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='473.0,983.9 481.0,983.9 481.0,990.9 473.0,990.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='483.0,982.4 491.0,982.4 491.0,989.4 483.0,989.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polyline points='538.4,1034.0 604.0,1074.0 669.6,1084.0' fill='none' stroke='#D8D8DC' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='545.8,1023.8 553.4,1028.5 549.8,1034.5 542.1,1029.8' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='545.8,1044.9 553.4,1049.6 549.8,1055.6 542.1,1050.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='564.5,1035.3 572.2,1040.0 568.5,1045.9 560.8,1041.2' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='564.5,1056.4 572.2,1061.0 568.5,1067.0 560.9,1062.3' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='583.2,1046.7 590.9,1051.4 587.3,1057.4 579.6,1052.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='583.2,1067.8 590.9,1072.5 587.3,1078.4 579.6,1073.8' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='602.0,1058.1 609.7,1062.8 606.0,1068.8 598.3,1064.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='603.4,1079.5 612.3,1080.8 611.3,1087.7 602.4,1086.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='615.5,1063.1 624.4,1064.5 623.3,1071.4 614.4,1070.0' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='622.2,1082.3 631.0,1083.7 630.0,1090.6 621.1,1089.3' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='634.2,1066.0 643.1,1067.3 642.1,1074.2 633.2,1072.9' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='640.9,1085.2 649.8,1086.5 648.7,1093.5 639.8,1092.1' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='653.0,1068.8 661.9,1070.2 660.8,1077.1 651.9,1075.7' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='659.6,1088.0 668.5,1089.4 667.5,1096.3 658.6,1095.0' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polyline points='144.8,1054.0 243.2,1084.0 276.0,1124.0' fill='none' stroke='#D8D8DC' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polygon points='154.0,1043.7 162.6,1046.4 160.5,1053.1 151.9,1050.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='168.4,1066.9 177.0,1069.6 175.0,1076.3 166.4,1073.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='193.3,1055.7 201.9,1058.4 199.9,1065.1 191.3,1062.4' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='207.8,1078.9 216.4,1081.6 214.3,1088.3 205.7,1085.6' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='232.7,1067.7 241.3,1070.4 239.3,1077.1 230.7,1074.4' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='239.4,1088.0 245.1,1095.0 239.7,1099.4 234.0,1092.4' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='259.9,1084.6 265.6,1091.6 260.1,1096.0 254.4,1089.0' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='252.5,1104.0 258.2,1111.0 252.8,1115.4 247.1,1108.4' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='273.0,1100.6 278.7,1107.6 273.3,1112.0 267.6,1105.0' fill='#E1A05A' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='265.6,1120.0 271.3,1127.0 265.9,1131.4 260.2,1124.4' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='205.4,920.5 215.4,920.5 215.4,927.5 205.4,927.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='217.4,920.5 227.4,920.5 227.4,927.5 217.4,927.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='205.4,930.5 215.4,930.5 215.4,937.5 205.4,937.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='217.4,930.5 227.4,930.5 227.4,937.5 217.4,937.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='599.0,890.5 609.0,890.5 609.0,897.5 599.0,897.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='611.0,890.5 621.0,890.5 621.0,897.5 611.0,897.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='599.0,900.5 609.0,900.5 609.0,907.5 599.0,907.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='611.0,900.5 621.0,900.5 621.0,907.5 611.0,907.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='271.0,1280.5 281.0,1280.5 281.0,1287.5 271.0,1287.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='283.0,1280.5 293.0,1280.5 293.0,1287.5 283.0,1287.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='271.0,1290.5 281.0,1290.5 281.0,1297.5 271.0,1297.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='283.0,1290.5 293.0,1290.5 293.0,1297.5 283.0,1297.5' fill='#E1CDA0' fill-opacity='1.0' stroke='#2A2A2A' stroke-width='0.5'/>
+<polygon points='183.2,1234.0 180.0,1255.7 148.0,1271.7 125.4,1276.4 97.8,1283.6 68.1,1279.9 49.0,1254.8 52.8,1234.0 60.3,1211.1 78.3,1190.2 99.1,1189.1 124.7,1184.6 154.5,1197.5 163.1,1209.5' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polygon points='846.9,909.0 831.9,934.6 809.6,963.5 771.0,968.7 734.0,965.3 700.8,954.2 685.9,939.6 671.4,909.0 675.0,886.7 699.2,861.5 730.4,848.1 767.0,856.7 800.4,859.8 837.6,882.0' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polygon points='595.3,1294.0 589.9,1309.3 573.9,1315.9 549.5,1325.9 524.5,1323.0 500.1,1317.6 492.2,1309.1 483.9,1294.0 479.0,1279.8 505.2,1269.3 527.5,1261.1 551.3,1260.5 572.3,1272.9 590.9,1281.0' fill='#286E32' fill-opacity='0.9' stroke='#1E5226' stroke-width='0.8'/>
+<polyline points='71.0,1109.0 276.0,1119.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='71.0,1124.0 276.0,1134.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='71.0,1139.0 276.0,1149.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='71.0,1154.0 276.0,1164.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<polyline points='71.0,1169.0 276.0,1179.0' fill='none' stroke='#4E7A3A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' stroke-opacity='1.0'/>
+<rect x='353.90000000000003' y='919.0' width='155.8' height='110.0' fill='#D8D8E0' rx='0' opacity='0.0'/>
+<rect x='353.90000000000003' y='919.0' width='155.8' height='110.0' fill='none' rx='3' stroke='#D8D8E0' stroke-width='1.2' stroke-dasharray='6 4' opacity='1'/>
+<rect x='353.90000000000003' y='902.0' width='93.58461538461539' height='16' fill='#141418' rx='8' stroke='#D8D8E0' stroke-width='1' opacity='0.92'/>
+<path d='M480 400Q479 420 466 434Q452 447 432 448H336Q316 447 302 434Q289 420 288 400V352H224V424Q222 446 200 448Q178 446 176 424V352H112V424Q110 446 88 448Q66 446 64 424V352H48Q28 351 14 338Q1 324 0 304V208V-16Q1 -36 14 -50Q28 -63 48 -64H304H592Q612 -63 626 -50Q639 -36 640 -16V208Q639 228 626 242Q612 255 592 256H480V400ZM576 80V48V80V48Q575 33 560 32H528Q513 33 512 48V80Q513 95 528 96H560Q575 95 576 80ZM240 32H208H240H208Q193 33 192 48V80Q193 95 208 96H240Q255 95 256 80V48Q255 33 240 32ZM128 48Q127 33 112 32H80Q65 33 64 48V80Q65 95 80 96H112Q127 95 128 80V48ZM560 192Q575 191 576 176V144Q575 129 560 128H528Q513 129 512 144V176Q513 191 528 192H560ZM256 272V240V272V240Q255 225 240 224H208Q193 225 192 240V272Q193 287 208 288H240Q255 287 256 272ZM112 288Q127 287 128 272V240Q127 225 112 224H80Q65 225 64 240V272Q65 287 80 288H112ZM256 144Q255 129 240 128H208Q193 129 192 144V176Q193 191 208 192H240Q255 191 256 176V144ZM112 128H80H112H80Q65 129 64 144V176Q65 191 80 192H112Q127 191 128 176V144Q127 129 112 128ZM416 176V144V176V144Q415 129 400 128H368Q353 129 352 144V176Q353 191 368 192H400Q415 191 416 176ZM400 384Q415 383 416 368V336Q415 321 400 320H368Q353 321 352 336V368Q353 383 368 384H400ZM416 272V240V272V240Q415 225 400 224H368Q353 225 352 240V272Q353 287 368 288H400Q415 287 416 272Z' fill='#F29B38' fill-opacity='1' transform='translate(358.90000000000003,913.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='372.90000000000003' y='914.0' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Town block ×4</text>
+<rect x='522.0' y='1019.0' width='164.0' height='80.0' fill='#D8D8E0' rx='0' opacity='0.0'/>
+<rect x='522.0' y='1019.0' width='164.0' height='80.0' fill='none' rx='3' stroke='#D8D8E0' stroke-width='1.2' stroke-dasharray='6 4' opacity='1'/>
+<rect x='522.0' y='1002.0' width='95.02307692307691' height='16' fill='#141418' rx='8' stroke='#D8D8E0' stroke-width='1' opacity='0.92'/>
+<path d='M544 160Q557 161 566 170Q575 179 576 192Q577 206 565 216L512 263V384Q512 398 503 407Q494 416 480 416H448Q434 416 425 407Q416 398 416 384V347L310 441Q300 448 289 448Q278 449 267 440L10 216Q0 206 0 192Q0 179 9 170Q18 161 32 160H64V91Q64 89 64 88Q64 88 64 88V-24Q64 -41 76 -52Q87 -64 104 -64H120Q122 -64 124 -64Q125 -64 126 -64Q127 -64 128 -64H160H184Q201 -64 212 -52Q224 -41 224 -24V0V64Q224 78 233 87Q242 96 256 96H320Q334 96 343 87Q352 78 352 64V0V-24Q352 -41 364 -52Q375 -64 392 -64H416H449Q451 -64 453 -64Q454 -64 456 -64H472Q489 -64 500 -52Q512 -41 512 -24V-8Q512 -4 513 0L512 160H544Z' fill='#F29B38' fill-opacity='1' transform='translate(527.0,1013.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='541.0' y='1014.0' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Village street</text>
+<rect x='128.39999999999998' y='1039.0' width='164.0' height='100.0' fill='#D8D8E0' rx='0' opacity='0.0'/>
+<rect x='128.39999999999998' y='1039.0' width='164.0' height='100.0' fill='none' rx='3' stroke='#D8D8E0' stroke-width='1.2' stroke-dasharray='6 4' opacity='1'/>
+<rect x='128.39999999999998' y='1022.0' width='58.3' height='16' fill='#141418' rx='8' stroke='#D8D8E0' stroke-width='1' opacity='0.92'/>
+<path d='M544 160Q557 161 566 170Q575 179 576 192Q577 206 565 216L512 263V384Q512 398 503 407Q494 416 480 416H448Q434 416 425 407Q416 398 416 384V347L310 441Q300 448 289 448Q278 449 267 440L10 216Q0 206 0 192Q0 179 9 170Q18 161 32 160H64V91Q64 89 64 88Q64 88 64 88V-24Q64 -41 76 -52Q87 -64 104 -64H120Q122 -64 124 -64Q125 -64 126 -64Q127 -64 128 -64H160H184Q201 -64 212 -52Q224 -41 224 -24V0V64Q224 78 233 87Q242 96 256 96H320Q334 96 343 87Q352 78 352 64V0V-24Q352 -41 364 -52Q375 -64 392 -64H416H449Q451 -64 453 -64Q454 -64 456 -64H472Q489 -64 500 -52Q512 -41 512 -24V-8Q512 -4 513 0L512 160H544Z' fill='#F29B38' fill-opacity='1' transform='translate(133.39999999999998,1033.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='147.39999999999998' y='1034.0' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hamlet</text>
+<rect x='202.4' y='916.0' width='36' height='30' fill='#D8D8E0' rx='0' opacity='0.0'/>
+<rect x='202.4' y='916.0' width='36' height='30' fill='none' rx='3' stroke='#D8D8E0' stroke-width='1.2' stroke-dasharray='6 4' opacity='1'/>
+<rect x='202.4' y='899.0' width='78.26923076923077' height='16' fill='#141418' rx='8' stroke='#D8D8E0' stroke-width='1' opacity='0.92'/>
+<path d='M96 384Q97 411 115 429Q133 447 160 448H266Q286 448 302 437Q318 426 326 408L374 288H480V322Q480 359 497 393L499 398Q506 410 518 414Q530 418 542 413Q554 406 558 394Q562 382 557 370L554 365Q544 345 544 322V288H600Q617 288 628 276Q640 265 640 248V203Q639 176 617 162L574 135Q553 144 528 144Q467 142 432 96H352Q352 82 343 73Q334 64 320 64H312Q309 57 306 50L312 44Q321 34 321 21Q321 9 312 -1L289 -24Q279 -33 267 -33Q254 -33 244 -24L238 -18Q231 -21 224 -24V-32Q224 -46 215 -55Q206 -64 192 -64H160Q146 -64 137 -55Q128 -46 128 -32V-24Q121 -21 114 -18L108 -24Q98 -33 85 -33Q73 -33 63 -24L40 -1Q31 9 31 22Q31 34 40 44L46 50Q43 57 40 64H32Q18 64 9 73Q0 82 0 96V128Q0 142 9 151Q18 160 32 160H40Q43 167 46 174L40 180Q31 190 31 203Q31 215 40 225L63 248Q78 261 96 255V256V288V384ZM266 384H160H266H160V288H192H305L266 384ZM176 192Q131 191 107 152Q85 112 107 72Q131 33 176 32Q221 33 245 72Q267 112 245 152Q221 191 176 192ZM528 0Q550 2 552 24Q550 46 528 48Q506 46 504 24Q506 2 528 0ZM528 -64Q491 -63 466 -38Q441 -13 440 24Q442 70 477 96Q499 112 528 112Q532 112 536 112Q570 108 593 84Q615 59 616 24Q615 -13 590 -38Q565 -63 528 -64Z' fill='#F29B38' fill-opacity='1' transform='translate(207.4,910.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='221.4' y='911.0' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Farmstead</text>
+<rect x='596.0' y='886.0' width='36' height='30' fill='#D8D8E0' rx='0' opacity='0.0'/>
+<rect x='596.0' y='886.0' width='36' height='30' fill='none' rx='3' stroke='#D8D8E0' stroke-width='1.2' stroke-dasharray='6 4' opacity='1'/>
+<rect x='596.0' y='869.0' width='78.26923076923077' height='16' fill='#141418' rx='8' stroke='#D8D8E0' stroke-width='1' opacity='0.92'/>
+<path d='M96 384Q97 411 115 429Q133 447 160 448H266Q286 448 302 437Q318 426 326 408L374 288H480V322Q480 359 497 393L499 398Q506 410 518 414Q530 418 542 413Q554 406 558 394Q562 382 557 370L554 365Q544 345 544 322V288H600Q617 288 628 276Q640 265 640 248V203Q639 176 617 162L574 135Q553 144 528 144Q467 142 432 96H352Q352 82 343 73Q334 64 320 64H312Q309 57 306 50L312 44Q321 34 321 21Q321 9 312 -1L289 -24Q279 -33 267 -33Q254 -33 244 -24L238 -18Q231 -21 224 -24V-32Q224 -46 215 -55Q206 -64 192 -64H160Q146 -64 137 -55Q128 -46 128 -32V-24Q121 -21 114 -18L108 -24Q98 -33 85 -33Q73 -33 63 -24L40 -1Q31 9 31 22Q31 34 40 44L46 50Q43 57 40 64H32Q18 64 9 73Q0 82 0 96V128Q0 142 9 151Q18 160 32 160H40Q43 167 46 174L40 180Q31 190 31 203Q31 215 40 225L63 248Q78 261 96 255V256V288V384ZM266 384H160H266H160V288H192H305L266 384ZM176 192Q131 191 107 152Q85 112 107 72Q131 33 176 32Q221 33 245 72Q267 112 245 152Q221 191 176 192ZM528 0Q550 2 552 24Q550 46 528 48Q506 46 504 24Q506 2 528 0ZM528 -64Q491 -63 466 -38Q441 -13 440 24Q442 70 477 96Q499 112 528 112Q532 112 536 112Q570 108 593 84Q615 59 616 24Q615 -13 590 -38Q565 -63 528 -64Z' fill='#F29B38' fill-opacity='1' transform='translate(601.0,880.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='615.0' y='881.0' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Farmstead</text>
+<rect x='268.0' y='1276.0' width='36' height='30' fill='#D8D8E0' rx='0' opacity='0.0'/>
+<rect x='268.0' y='1276.0' width='36' height='30' fill='none' rx='3' stroke='#D8D8E0' stroke-width='1.2' stroke-dasharray='6 4' opacity='1'/>
+<rect x='268.0' y='1259.0' width='78.26923076923077' height='16' fill='#141418' rx='8' stroke='#D8D8E0' stroke-width='1' opacity='0.92'/>
+<path d='M96 384Q97 411 115 429Q133 447 160 448H266Q286 448 302 437Q318 426 326 408L374 288H480V322Q480 359 497 393L499 398Q506 410 518 414Q530 418 542 413Q554 406 558 394Q562 382 557 370L554 365Q544 345 544 322V288H600Q617 288 628 276Q640 265 640 248V203Q639 176 617 162L574 135Q553 144 528 144Q467 142 432 96H352Q352 82 343 73Q334 64 320 64H312Q309 57 306 50L312 44Q321 34 321 21Q321 9 312 -1L289 -24Q279 -33 267 -33Q254 -33 244 -24L238 -18Q231 -21 224 -24V-32Q224 -46 215 -55Q206 -64 192 -64H160Q146 -64 137 -55Q128 -46 128 -32V-24Q121 -21 114 -18L108 -24Q98 -33 85 -33Q73 -33 63 -24L40 -1Q31 9 31 22Q31 34 40 44L46 50Q43 57 40 64H32Q18 64 9 73Q0 82 0 96V128Q0 142 9 151Q18 160 32 160H40Q43 167 46 174L40 180Q31 190 31 203Q31 215 40 225L63 248Q78 261 96 255V256V288V384ZM266 384H160H266H160V288H192H305L266 384ZM176 192Q131 191 107 152Q85 112 107 72Q131 33 176 32Q221 33 245 72Q267 112 245 152Q221 191 176 192ZM528 0Q550 2 552 24Q550 46 528 48Q506 46 504 24Q506 2 528 0ZM528 -64Q491 -63 466 -38Q441 -13 440 24Q442 70 477 96Q499 112 528 112Q532 112 536 112Q570 108 593 84Q615 59 616 24Q615 -13 590 -38Q565 -63 528 -64Z' fill='#F29B38' fill-opacity='1' transform='translate(273.0,1270.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='287.0' y='1271.0' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Farmstead</text>
+<rect x='686.0' y='864.0' width='147.6' height='110.0' fill='#D8D8E0' rx='0' opacity='0.0'/>
+<rect x='686.0' y='864.0' width='147.6' height='110.0' fill='none' rx='3' stroke='#D8D8E0' stroke-width='1.2' stroke-dasharray='6 4' opacity='1'/>
+<rect x='686.0' y='847.0' width='52.63076923076923' height='16' fill='#141418' rx='8' stroke='#D8D8E0' stroke-width='1' opacity='0.92'/>
+<path d='M384 352V128V352V128H64V352H384ZM64 416Q37 415 19 397Q1 379 0 352V128Q1 101 19 83Q37 65 64 64H181L171 32H96Q82 32 73 23Q64 14 64 0Q64 -14 73 -23Q82 -32 96 -32H352Q366 -32 375 -23Q384 -14 384 0Q384 14 375 23Q366 32 352 32H277L267 64H384Q411 65 429 83Q447 101 448 128V352Q447 379 429 397Q411 415 384 416H64ZM528 416Q508 415 494 402Q481 388 480 368V16Q481 -4 494 -18Q508 -31 528 -32H592Q612 -31 626 -18Q639 -4 640 16V368Q639 388 626 402Q612 415 592 416H528ZM544 352H576H544H576Q591 351 592 336Q591 321 576 320H544Q529 321 528 336Q529 351 544 352ZM528 272Q529 287 544 288H576Q591 287 592 272Q591 257 576 256H544Q529 257 528 272ZM560 112Q574 112 583 103Q592 94 592 80Q592 66 583 57Q574 48 560 48Q546 48 537 57Q528 66 528 80Q528 94 537 103Q546 112 560 112Z' fill='#5BD06A' fill-opacity='1' transform='translate(691.0,858.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='705.0' y='859.0' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Copse</text>
+</g>
+<rect x='40' y='1306' width='210' height='20' fill='#141418' rx='3' opacity='0.85'/>
+<text x='48' y='1320' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>3.0 × 3.0 km · relief 120 m · 1 river</text>
+<rect x='280' y='1039' width='200' height='58' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<text x='288' y='1055' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Town block ×4 — 112 houses</text>
+<text x='288' y='1071' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>seed 4471 · 3–6 storeys</text>
+<text x='288' y='1087' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>click a block to see it larger</text>
+<text x='864' y='846' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>What was generated</text>
+<line x1='994.0' y1='842' x2='1210' y2='842' stroke='#4A4A55' stroke-width='1'/>
+<path d='M480 400Q479 420 466 434Q452 447 432 448H336Q316 447 302 434Q289 420 288 400V352H224V424Q222 446 200 448Q178 446 176 424V352H112V424Q110 446 88 448Q66 446 64 424V352H48Q28 351 14 338Q1 324 0 304V208V-16Q1 -36 14 -50Q28 -63 48 -64H304H592Q612 -63 626 -50Q639 -36 640 -16V208Q639 228 626 242Q612 255 592 256H480V400ZM576 80V48V80V48Q575 33 560 32H528Q513 33 512 48V80Q513 95 528 96H560Q575 95 576 80ZM240 32H208H240H208Q193 33 192 48V80Q193 95 208 96H240Q255 95 256 80V48Q255 33 240 32ZM128 48Q127 33 112 32H80Q65 33 64 48V80Q65 95 80 96H112Q127 95 128 80V48ZM560 192Q575 191 576 176V144Q575 129 560 128H528Q513 129 512 144V176Q513 191 528 192H560ZM256 272V240V272V240Q255 225 240 224H208Q193 225 192 240V272Q193 287 208 288H240Q255 287 256 272ZM112 288Q127 287 128 272V240Q127 225 112 224H80Q65 225 64 240V272Q65 287 80 288H112ZM256 144Q255 129 240 128H208Q193 129 192 144V176Q193 191 208 192H240Q255 191 256 176V144ZM112 128H80H112H80Q65 129 64 144V176Q65 191 80 192H112Q127 191 128 176V144Q127 129 112 128ZM416 176V144V176V144Q415 129 400 128H368Q353 129 352 144V176Q353 191 368 192H400Q415 191 416 176ZM400 384Q415 383 416 368V336Q415 321 400 320H368Q353 321 352 336V368Q353 383 368 384H400ZM416 272V240V272V240Q415 225 400 224H368Q353 225 352 240V272Q353 287 368 288H400Q415 287 416 272Z' fill='#F29B38' fill-opacity='1' transform='translate(866,872.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='872' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Town blocks</text>
+<text x='1034' y='872' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>4</text>
+<text x='1044' y='872' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>112 houses</text>
+<path d='M544 160Q557 161 566 170Q575 179 576 192Q577 206 565 216L512 263V384Q512 398 503 407Q494 416 480 416H448Q434 416 425 407Q416 398 416 384V347L310 441Q300 448 289 448Q278 449 267 440L10 216Q0 206 0 192Q0 179 9 170Q18 161 32 160H64V91Q64 89 64 88Q64 88 64 88V-24Q64 -41 76 -52Q87 -64 104 -64H120Q122 -64 124 -64Q125 -64 126 -64Q127 -64 128 -64H160H184Q201 -64 212 -52Q224 -41 224 -24V0V64Q224 78 233 87Q242 96 256 96H320Q334 96 343 87Q352 78 352 64V0V-24Q352 -41 364 -52Q375 -64 392 -64H416H449Q451 -64 453 -64Q454 -64 456 -64H472Q489 -64 500 -52Q512 -41 512 -24V-8Q512 -4 513 0L512 160H544Z' fill='#F29B38' fill-opacity='1' transform='translate(866,896.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='896' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Village streets</text>
+<text x='1034' y='896' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>3</text>
+<text x='1044' y='896' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>41 houses</text>
+<path d='M544 160Q557 161 566 170Q575 179 576 192Q577 206 565 216L512 263V384Q512 398 503 407Q494 416 480 416H448Q434 416 425 407Q416 398 416 384V347L310 441Q300 448 289 448Q278 449 267 440L10 216Q0 206 0 192Q0 179 9 170Q18 161 32 160H64V91Q64 89 64 88Q64 88 64 88V-24Q64 -41 76 -52Q87 -64 104 -64H120Q122 -64 124 -64Q125 -64 126 -64Q127 -64 128 -64H160H184Q201 -64 212 -52Q224 -41 224 -24V0V64Q224 78 233 87Q242 96 256 96H320Q334 96 343 87Q352 78 352 64V0V-24Q352 -41 364 -52Q375 -64 392 -64H416H449Q451 -64 453 -64Q454 -64 456 -64H472Q489 -64 500 -52Q512 -41 512 -24V-8Q512 -4 513 0L512 160H544Z' fill='#F29B38' fill-opacity='1' transform='translate(866,920.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='920' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hamlets</text>
+<text x='1034' y='920' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>2</text>
+<text x='1044' y='920' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>18 houses</text>
+<path d='M96 384Q97 411 115 429Q133 447 160 448H266Q286 448 302 437Q318 426 326 408L374 288H480V322Q480 359 497 393L499 398Q506 410 518 414Q530 418 542 413Q554 406 558 394Q562 382 557 370L554 365Q544 345 544 322V288H600Q617 288 628 276Q640 265 640 248V203Q639 176 617 162L574 135Q553 144 528 144Q467 142 432 96H352Q352 82 343 73Q334 64 320 64H312Q309 57 306 50L312 44Q321 34 321 21Q321 9 312 -1L289 -24Q279 -33 267 -33Q254 -33 244 -24L238 -18Q231 -21 224 -24V-32Q224 -46 215 -55Q206 -64 192 -64H160Q146 -64 137 -55Q128 -46 128 -32V-24Q121 -21 114 -18L108 -24Q98 -33 85 -33Q73 -33 63 -24L40 -1Q31 9 31 22Q31 34 40 44L46 50Q43 57 40 64H32Q18 64 9 73Q0 82 0 96V128Q0 142 9 151Q18 160 32 160H40Q43 167 46 174L40 180Q31 190 31 203Q31 215 40 225L63 248Q78 261 96 255V256V288V384ZM266 384H160H266H160V288H192H305L266 384ZM176 192Q131 191 107 152Q85 112 107 72Q131 33 176 32Q221 33 245 72Q267 112 245 152Q221 191 176 192ZM528 0Q550 2 552 24Q550 46 528 48Q506 46 504 24Q506 2 528 0ZM528 -64Q491 -63 466 -38Q441 -13 440 24Q442 70 477 96Q499 112 528 112Q532 112 536 112Q570 108 593 84Q615 59 616 24Q615 -13 590 -38Q565 -63 528 -64Z' fill='#F29B38' fill-opacity='1' transform='translate(866,944.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='944' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Farmsteads</text>
+<text x='1034' y='944' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>5</text>
+<text x='1044' y='944' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>20 buildings</text>
+<path d='M384 352V128V352V128H64V352H384ZM64 416Q37 415 19 397Q1 379 0 352V128Q1 101 19 83Q37 65 64 64H181L171 32H96Q82 32 73 23Q64 14 64 0Q64 -14 73 -23Q82 -32 96 -32H352Q366 -32 375 -23Q384 -14 384 0Q384 14 375 23Q366 32 352 32H277L267 64H384Q411 65 429 83Q447 101 448 128V352Q447 379 429 397Q411 415 384 416H64ZM528 416Q508 415 494 402Q481 388 480 368V16Q481 -4 494 -18Q508 -31 528 -32H592Q612 -31 626 -18Q639 -4 640 16V368Q639 388 626 402Q612 415 592 416H528ZM544 352H576H544H576Q591 351 592 336Q591 321 576 320H544Q529 321 528 336Q529 351 544 352ZM528 272Q529 287 544 288H576Q591 287 592 272Q591 257 576 256H544Q529 257 528 272ZM560 112Q574 112 583 103Q592 94 592 80Q592 66 583 57Q574 48 560 48Q546 48 537 57Q528 66 528 80Q528 94 537 103Q546 112 560 112Z' fill='#5BD06A' fill-opacity='1' transform='translate(866,968.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='968' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Woods and copses</text>
+<text x='1034' y='968' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>9</text>
+<text x='1044' y='968' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>64 ha</text>
+<path d='M32 160Q18 160 9 151Q0 142 0 128Q0 114 9 105Q18 96 32 96H416Q430 96 439 105Q448 114 448 128Q448 142 439 151Q430 160 416 160H32ZM32 288Q18 288 9 279Q0 270 0 256Q0 242 9 233Q18 224 32 224H416Q430 224 439 233Q448 242 448 256Q448 270 439 279Q430 288 416 288H32Z' fill='#A0A0AA' fill-opacity='1' transform='translate(866,992.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='992' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hedgerow fields</text>
+<text x='1034' y='992' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>6</text>
+<text x='1044' y='992' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>4.2 km</text>
+<path d='M50 416Q33 415 27 399L1 315Q0 312 0 309Q2 290 21 288H115L141 416H50ZM272 288V416V288V416H173L148 288H272ZM304 288H429H304H429L403 416H304V288ZM461 288H555H461H555Q574 290 576 309Q576 312 575 315L549 399Q543 415 526 416H436L461 288ZM32 256 36 224 32 256 36 224H32Q18 224 9 215Q0 206 0 192Q0 178 9 169Q18 160 32 160H44L64 0Q64 -14 73 -23Q82 -32 96 -32Q110 -32 119 -23Q128 -14 128 0H448Q448 -14 457 -23Q466 -32 480 -32Q494 -32 503 -23Q512 -14 512 0L532 160H544Q558 160 567 169Q576 178 576 192Q576 206 567 215Q558 224 544 224H540L544 256H32Z' fill='#A0A0AA' fill-opacity='1' transform='translate(866,1016.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='1016' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Street clutter</text>
+<text x='1034' y='1016' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>—</text>
+<text x='1044' y='1016' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>≈ 380 items</text>
+<path d='M256 416H181H256H181Q160 416 144 404Q128 393 121 373L3 41Q0 32 0 23Q1 -1 16 -16Q31 -31 55 -32H256V32Q256 46 265 55Q274 64 288 64Q302 64 311 55Q320 46 320 32V-32H521Q545 -31 560 -16Q575 -1 576 23Q576 32 573 41L455 373Q448 393 432 404Q416 416 395 416H320V352Q320 338 311 329Q302 320 288 320Q274 320 265 329Q256 338 256 352V416ZM320 224V160V224V160Q320 146 311 137Q302 128 288 128Q274 128 265 137Q256 146 256 160V224Q256 238 265 247Q274 256 288 256Q302 256 311 247Q320 238 320 224Z' fill='#F2C033' fill-opacity='1' transform='translate(866,1040.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='1040' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Roads</text>
+<text x='1034' y='1040' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'></text>
+<text x='1044' y='1040' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>37 km</text>
+<path d='M270 378Q288 390 307 378Q342 353 384 352Q426 354 461 378Q482 391 501 376Q523 358 551 351Q564 348 571 337Q578 326 575 313Q572 300 561 293Q550 286 537 289Q499 299 479 314Q434 289 384 288Q335 291 304 307Q295 311 288 315Q281 311 272 307Q241 291 192 288Q142 289 98 314Q77 299 39 289Q26 286 15 293Q4 300 1 313Q-2 326 5 337Q12 348 25 351Q53 358 75 376Q94 391 115 378Q150 354 192 352Q235 353 270 378ZM307 90Q342 65 384 64Q426 66 461 90Q482 103 501 88Q523 70 551 63Q564 60 571 49Q578 38 575 25Q572 12 561 5Q550 -2 537 1Q499 11 479 26Q434 1 384 0Q335 3 304 19Q295 23 288 27Q281 23 272 19Q241 3 192 0Q142 1 98 26Q77 11 39 1Q26 -2 15 5Q4 12 1 25Q-2 38 5 49Q12 60 25 63Q53 70 75 88Q94 102 115 90Q150 66 192 64Q235 65 270 90Q288 102 307 90ZM307 234Q342 209 384 208Q426 210 461 234Q482 247 501 232Q523 214 551 207Q564 204 571 193Q578 182 575 169Q572 156 561 149Q550 142 537 145Q499 155 479 170Q434 145 384 144Q335 147 304 163Q295 167 288 171Q281 167 272 163Q241 147 192 144Q142 145 98 170Q77 155 39 145Q26 142 15 149Q4 156 1 169Q-2 182 5 193Q12 204 25 207Q53 214 75 232Q94 247 115 234Q150 210 192 208Q235 209 270 234Q288 246 307 234Z' fill='#5AA9FF' fill-opacity='1' transform='translate(866,1064.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='888' y='1064' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>River</text>
+<text x='1034' y='1064' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'></text>
+<text x='1044' y='1064' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>3.4 km · 3 bridges</text>
+<rect x='864' y='1084' width='346' height='26' fill='#16301A' rx='3' stroke='#5BD06A' stroke-width='1' opacity='1'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#5BD06A' fill-opacity='1' transform='translate(872,1101.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='892' y='1101' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Within budget — 191 houses of ~1 800</text>
+<text x='864' y='1142' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Not happy?</text>
+<line x1='939.4' y1='1138' x2='1210' y2='1138' stroke='#4A4A55' stroke-width='1'/>
+<rect x='864' y='1156' width='346' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M275 414Q253 435 224 435Q195 435 173 414L34 275Q13 253 13 224Q13 195 34 173L173 34Q195 13 224 13Q253 13 275 34L414 173Q435 195 435 224Q435 253 414 275L275 414ZM200 224Q202 246 224 248Q246 246 248 224Q246 202 224 200Q202 202 200 224ZM96 248Q118 246 120 224Q118 202 96 200Q74 202 72 224Q74 246 96 248ZM224 72Q202 74 200 96Q202 118 224 120Q246 118 248 96Q246 74 224 72ZM352 248Q374 246 376 224Q374 202 352 200Q330 202 328 224Q330 246 352 248ZM224 328Q202 330 200 352Q202 374 224 376Q246 374 248 352Q246 330 224 328ZM320 0Q321 -27 339 -45Q357 -63 384 -64H576Q603 -63 621 -45Q639 -27 640 0V192Q639 219 621 237Q603 255 576 256H462Q470 228 464 200Q458 172 436 150L320 34V0ZM480 120Q502 118 504 96Q502 74 480 72Q458 74 456 96Q458 118 480 120Z' fill='#F2C033' fill-opacity='1' transform='translate(871,1170.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='888' y='1170.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Shuffle layout</text>
+<text x='1202' y='1170' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>≈ 2 s</text>
+<text x='864' y='1194' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>new places for the blocks, same ground</text>
+<rect x='864' y='1208' width='346' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M256 416Q276 415 287 399L503 54Q512 40 512 24Q511 0 496 -16Q480 -31 456 -32H56Q32 -31 16 -16Q1 0 0 24Q0 40 9 54L225 399Q236 415 256 416ZM321 224 256 328 321 224 256 328 177 201 195 177Q208 164 221 177L246 211Q256 224 272 224H321Z' fill='#5BD06A' fill-opacity='1' transform='translate(871,1222.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='888' y='1222.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Shuffle ground</text>
+<text x='1202' y='1222' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>≈ 40 s</text>
+<text x='864' y='1246' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>new hills, roads and river, then a layout</text>
+<rect x='864' y='1270' width='346' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M9 215Q0 205 0 192Q0 179 9 169L201 -23Q211 -32 224 -32Q237 -32 247 -23Q256 -13 256 0Q256 13 247 23L77 192L247 361Q256 371 256 384Q256 397 247 407Q237 416 224 416Q211 416 201 407L9 215Z' fill='#C8C8D0' fill-opacity='1' transform='translate(871,1284.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='888' y='1284.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Back to the preset</text>
+<line x1='20' y1='1348' x2='1220' y2='1348' stroke='#4A4A55' stroke-width='1'/>
+<rect x='890' y='1356' width='90' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M9 215Q0 205 0 192Q0 179 9 169L201 -23Q211 -32 224 -32Q237 -32 247 -23Q256 -13 256 0Q256 13 247 23L77 192L247 361Q256 371 256 384Q256 397 247 407Q237 416 224 416Q211 416 201 407L9 215Z' fill='#C8C8D0' fill-opacity='1' transform='translate(897,1370.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='914' y='1370.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Back</text>
+<rect x='990' y='1356' width='110' height='20' fill='#3369AD' rx='3' opacity='1'/>
+<path d='M472 426Q454 443 432 443Q410 443 392 426L362 396L460 298L490 328Q507 346 507 368Q507 390 490 408L472 426ZM172 206Q163 197 159 184L129 96Q125 82 135 71Q146 61 160 65L249 95Q261 99 270 108L438 276L340 374L172 206ZM96 384Q55 383 28 356Q1 329 0 288V32Q1 -9 28 -36Q55 -63 96 -64H352Q393 -63 420 -36Q447 -9 448 32V128Q448 142 439 151Q430 160 416 160Q402 160 393 151Q384 142 384 128V32Q384 18 375 9Q366 0 352 0H96Q82 0 73 9Q64 18 64 32V288Q64 302 73 311Q82 320 96 320H192Q206 320 215 329Q224 338 224 352Q224 366 215 375Q206 384 192 384H96Z' fill='#FFFFFF' fill-opacity='1' transform='translate(997,1370.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='1014' y='1370.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Open in editor</text>
+<rect x='1110' y='1356' width='90' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='1155.0' y='1370.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Cancel</text>
+<text x='20' y='1408' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>② Preview — the 2-D plan in HROT's map colours (buildings by height, woods, water, roads); each block is outlined with its recipe's name (R-4200 W-2).</text>
+<text x='20' y='1422' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   Shuffle layout = new seeds for the blocks on the same ground (seconds); Shuffle ground = new relief, road net and river, then a layout (netconvert, slower) (W-1).</text>
+<text x='20' y='1436' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   No moving of blocks here — that is the editor's job. Open in editor writes the ground terrain and the block scenario, and opens the scenario (③).</text>
+</svg>

@@ -19,7 +19,7 @@ namespace Hrot.Core.Network;
 
 /// <summary>
 /// Factory that creates all protocol-specific network infrastructure for a simulation node.
-/// Implemented by Hrot.Network.NED (NedNetworkFactory) and Hrot.Network.BDC (BdcNetworkFactory).
+/// Implemented by Hrot.Network.NED (NedNetworkFactory) — the one network stack (R-4095).
 /// </summary>
 public interface INetworkFactory : IGizmoNetworkFactory
 {
@@ -29,8 +29,6 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// <summary>Creates the command gateway for sending mission control commands.</summary>
     ICommandGateway CreateCommandGateway();
 
-    /// <summary>Creates the egress writers for ExCon-originated entity lifecycle commands.</summary>
-    IExConEgressWriters CreateExConEgressWriters();
 
     /// <summary>Creates the time-control gateway for ExCon-originated time control commands.</summary>
     ITimeControlGateway CreateTimeControlGateway();
@@ -61,37 +59,32 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems();
 
     /// <summary>Creates the IG-specific DDS ingress translator provider.</summary>
-    IIgTranslators CreateIgTranslators();
+    IIgTranslators CreatePlayerTranslators();
 
     /// <summary>
     /// Creates the IG network adapter wrapping all DDS writers and readers for the IG.
     /// Pass <c>null</c> for <paramref name="participant"/> in headless/offline mode.
     /// </summary>
-    IIgNetworkAdapter CreateIgNetworkAdapter(DdsParticipant? participant, long nodeId = 0);
+    IIgNetworkAdapter CreatePlayerNetworkAdapter(DdsParticipant? participant, int nodeId = 0);
+
+    /// <summary>
+    /// ⭐ <c>CE-3126</c> — the node's geo transform as this factory holds it, or <c>null</c> when it holds none. The node
+    /// builder adopts it as the node's one transform. ⭐ <c>CE-4073</c>: no translator converts with it any more — the NED wire and
+    /// the neutral DTOs are local ENU metres, so it serves only the places a person reads a geodetic position (and an ExCon location
+    /// pick, which is a geodetic mission field). 📄 docs/DESIGN_Geo_Origin.md §2 C.
+    /// </summary>
+    IGeographicTransform? GeoTransform => null;
 
     /// <summary>
     /// Creates the IG-side egress translators that convert bus events (SpawnEntityCommand,
     /// UpdateEntityCommand, DestroyEntityCommand) into DDS write calls.
     /// Returns an empty collection when the protocol does not support IG egress.
     /// </summary>
-    IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+    IReadOnlyList<IDescriptorTranslator> CreatePlayerEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
-        IGeographicTransform geoTransform,
-        long nodeId);
+        int nodeId);
 
-    /// <summary>
-    /// Creates DDS ingress handlers for ExCon (map-click, selection, entity lifecycle ACKs,
-    /// map command ACKs, entity master/descriptor bridging handlers).
-    /// </summary>
-    IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-        DdsParticipant?                   participant,
-        long                              localNodeId,
-        IDerRepo                          repo,
-        Action<MapClickEventDto>          onMapClick,
-        Action<SelectionChangedEventDto>  onSelectionChanged,
-        Action<EntityLifecycleAckDto>     onEntityLifecycleAck,
-        Action<MapCommandAckDto>          onMapCommandAck);
 
     /// <summary>
     /// Returns a new factory instance configured for a specific node context (participant, role, etc.).
@@ -109,7 +102,7 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// <summary>
     /// Creates the protocol-specific entity lifecycle adapters required by a CGF (Brain) node.
     /// Returns null when this protocol does not support CGF entity creation
-    /// (e.g. BDC or offline factories).
+    /// (e.g. offline factories).
     /// Must be called on a factory instance already configured via
     /// <see cref="ConfigureForNode(HrotNodeContext, NodeRole, Fdp.Toolkit.Behavior.BehaviorRegistry)"/>.
     /// </summary>
@@ -154,6 +147,12 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IDisposable CreateIdAllocatorServer();
 
     /// <summary>
+    /// ⭐⭐ <c>P6</c> part 2 (Q91 §4-E2) — the DDS file transport the MASTER sends with, to nodes that advertised no share.
+    /// <see langword="null"/> when this factory has no DDS participant (offline, tests): every push then goes to the share.
+    /// </summary>
+    Fdp.Toolkit.Orchestration.Transfer.IFileTransferProvider? CreateFileTransferProvider() => null;
+
+    /// <summary>
     /// Creates a network ID allocator client for the given logical client identifier.
     /// Returns a <c>DdsIdAllocator</c> when a live DDS participant is available; otherwise
     /// returns a local <see cref="SequentialIdAllocator"/> for offline/headless environments.
@@ -181,11 +180,6 @@ public interface INetworkFactory : IGizmoNetworkFactory
     ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId);
 
     /// <summary>
-    /// Creates the cluster observer translator (ClusterStateTopic, AssetInventoryTopic ingress).
-    /// Returns a no-op translator when there is no DDS participant.
-    /// </summary>
-    IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus);
-    /// <summary>
     /// Creates the gizmo interaction network translators (ingress and/or egress) for
     /// remote UI interaction streaming. Each translator carries a <see cref="TranslatorDirection"/>
     /// flag so the caller can route it to the appropriate
@@ -198,10 +192,10 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// When <c>true</c>, creates an ingress translator (node receives UI events from a remote viewer).
     /// When <c>false</c>, creates an egress translator (node forwards locally-generated UI events).
     /// </param>
-    new IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless);
+    new IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, int localNodeId, bool headless);
 
     /// <summary>
     /// Creates the ECS system that publishes the gizmo primitive buffer to the network each frame.
     /// Returns <c>null</c> when the protocol does not support gizmo streaming.
     /// </summary>
-    new IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId);}
+    new IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, int localNodeId);}

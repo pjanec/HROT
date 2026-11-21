@@ -26,7 +26,7 @@ public sealed class AssetSavePathTests
     {
         var path = AssetSavePath.Compose(AssetKind.Blueprint, "", "MyBlueprint");
 
-        Assert.EndsWith($"Assets{Path.DirectorySeparatorChar}Blueprints{Path.DirectorySeparatorChar}MyBlueprint.bp.json",
+        Assert.EndsWith($"assets{Path.DirectorySeparatorChar}behaviors{Path.DirectorySeparatorChar}Blueprints{Path.DirectorySeparatorChar}MyBlueprint.bp.json",
             path);
         Assert.True(Path.IsPathRooted(path));
     }
@@ -36,7 +36,7 @@ public sealed class AssetSavePathTests
     {
         var path = AssetSavePath.Compose(AssetKind.BTree, "combat/Guard", "PatrolBehavior");
 
-        var expectedSuffix = $"Assets{Path.DirectorySeparatorChar}BTrees{Path.DirectorySeparatorChar}combat{Path.DirectorySeparatorChar}Guard{Path.DirectorySeparatorChar}PatrolBehavior.btree.json";
+        var expectedSuffix = $"assets{Path.DirectorySeparatorChar}behaviors{Path.DirectorySeparatorChar}BTrees{Path.DirectorySeparatorChar}combat{Path.DirectorySeparatorChar}Guard{Path.DirectorySeparatorChar}PatrolBehavior.btree.json";
         Assert.EndsWith(expectedSuffix, path);
         Assert.True(Path.IsPathRooted(path));
     }
@@ -47,7 +47,7 @@ public sealed class AssetSavePathTests
         // Backslashes in relPath are normalized to forward slashes.
         var path = AssetSavePath.Compose(AssetKind.Hsm, @"states\combat", "Machine");
 
-        var expectedSuffix = $"Assets{Path.DirectorySeparatorChar}HSMs{Path.DirectorySeparatorChar}states{Path.DirectorySeparatorChar}combat{Path.DirectorySeparatorChar}Machine.hsm.json";
+        var expectedSuffix = $"assets{Path.DirectorySeparatorChar}behaviors{Path.DirectorySeparatorChar}HSMs{Path.DirectorySeparatorChar}states{Path.DirectorySeparatorChar}combat{Path.DirectorySeparatorChar}Machine.hsm.json";
         Assert.EndsWith(expectedSuffix, path);
     }
 
@@ -56,7 +56,7 @@ public sealed class AssetSavePathTests
     {
         var path = AssetSavePath.Compose(AssetKind.BTree, null!, "RootAsset");
 
-        Assert.EndsWith($"Assets{Path.DirectorySeparatorChar}BTrees{Path.DirectorySeparatorChar}RootAsset.btree.json",
+        Assert.EndsWith($"assets{Path.DirectorySeparatorChar}behaviors{Path.DirectorySeparatorChar}BTrees{Path.DirectorySeparatorChar}RootAsset.btree.json",
             path);
     }
 

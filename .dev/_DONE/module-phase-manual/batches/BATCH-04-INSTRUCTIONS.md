@@ -91,7 +91,7 @@ T01 → build ✅ → T02 → build + ModuleHost tests ✅ → T03 → build ✅
    This ensures even if someone calls `kernel.ExecutePhase(SystemPhase.Manual, ...)` it is a safe no-op.
 
 **Verify:**
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - The enum value `Manual = 255` is present.
 - The guard in `ExecutePhase` returns early for `SystemPhase.Manual`.
 
@@ -132,7 +132,7 @@ The `ProfiledManualSystemWrapper`:
 Read `SystemScheduler.cs` carefully first to understand how `RegisterSystem` and `GetProfileData` work before implementing.
 
 **Verify:**
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - `dotnet test FDP/Engine/Fdp.ModuleHost.Tests/Fdp.ModuleHost.Tests.csproj --no-build` passes.
 
 ---
@@ -157,7 +157,7 @@ public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSy
 Read the surrounding code to understand the `Captured` list and `_scheduler` field names — they may differ slightly.
 
 **Verify:**
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - No interface implementation errors.
 
 ---
@@ -182,7 +182,7 @@ In each file, find the class declaration and add the attribute:
 Ensure the required `using` directive is present if needed.
 
 **Verify:**
-- `dotnet build IOS-IG-SimHost.sln` passes.
+- `dotnet build HROT.sln` passes.
 - All four systems have the attribute.
 
 ---
@@ -238,18 +238,18 @@ Without this forwarding call, the perception systems are never registered and re
 - `AutonomousPerceptionModule.RegisterSystems` calls `RegisterManualSystem` four times.
 - `AutonomousPerceptionModule.Tick` bus swap order unchanged.
 - `SimHostCoreLogicPack.RegisterSystems` forwards to `_perceptionModule.RegisterSystems(registry)`.
-- `dotnet build IOS-IG-SimHost.sln` passes with 0 errors.
-- `dotnet test IOS-IG-SimHost.sln --no-build` - same pass/fail as BATCH-03 baseline (130 pass, 10 pre-existing integration failures, 4 pre-existing Hrot.IG.Tests failures).
+- `dotnet build HROT.sln` passes with 0 errors.
+- `dotnet test HROT.sln --no-build` - same pass/fail as BATCH-03 baseline (130 pass, 10 pre-existing integration failures, 4 pre-existing Hrot.IG.Tests failures).
 
 ---
 
 ## Testing Requirements
 
-1. **After T01:** `dotnet build IOS-IG-SimHost.sln`
-2. **After T02:** `dotnet build IOS-IG-SimHost.sln` + `dotnet test FDP/Engine/Fdp.ModuleHost.Tests/Fdp.ModuleHost.Tests.csproj --no-build`
-3. **After T03:** `dotnet build IOS-IG-SimHost.sln`
-4. **After T04:** `dotnet build IOS-IG-SimHost.sln`
-5. **After T05 (final):** `dotnet test IOS-IG-SimHost.sln --no-build`
+1. **After T01:** `dotnet build HROT.sln`
+2. **After T02:** `dotnet build HROT.sln` + `dotnet test FDP/Engine/Fdp.ModuleHost.Tests/Fdp.ModuleHost.Tests.csproj --no-build`
+3. **After T03:** `dotnet build HROT.sln`
+4. **After T04:** `dotnet build HROT.sln`
+5. **After T05 (final):** `dotnet test HROT.sln --no-build`
 
 ---
 
@@ -268,7 +268,7 @@ Submit to `.dev/module-phase-manual/reports/BATCH-04-REPORT.md`.
 - [ ] MPM-P4-T05: Refactor AutonomousPerceptionModule + SimHostCoreLogicPack forwarding
 
 ## Build Status
-[Result of: dotnet build IOS-IG-SimHost.sln]
+[Result of: dotnet build HROT.sln]
 
 ## Test Status
 [Results of ModuleHost tests and full solution sweep]
@@ -301,7 +301,7 @@ Submit to `.dev/module-phase-manual/reports/BATCH-04-REPORT.md`.
 - [ ] Four perception systems have `[UpdateInPhase(SystemPhase.Manual)]`
 - [ ] `AutonomousPerceptionModule` fields are `IEcsModuleSystem`, filled via `RegisterManualSystem` in `RegisterSystems`
 - [ ] `SimHostCoreLogicPack.RegisterSystems` forwards to `_perceptionModule.RegisterSystems(registry)`
-- [ ] `dotnet build IOS-IG-SimHost.sln` - 0 errors
+- [ ] `dotnet build HROT.sln` - 0 errors
 - [ ] ModuleHost tests pass
 - [ ] Full solution test count unchanged from BATCH-03 baseline
 - [ ] Report submitted

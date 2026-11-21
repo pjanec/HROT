@@ -36,7 +36,7 @@ Do NOT reintroduce swallowing. The generator's parse/compile catches must keep s
 ## Verification (restore the set-aside test file)
 - Restore `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/Count2.bp.json` from `Count2.bp.json.setaside`
   (`git mv`/rename back) — it's a real non-recipe blueprint under the generator glob.
-- `dotnet build IOS-IG-SimHost.sln -c Debug` → **0 errors** (no BP0002 for Count2; AI.Behaviors builds; the
+- `dotnet build HROT.sln -c Debug` → **0 errors** (no BP0002 for Count2; AI.Behaviors builds; the
   generated `Count2.g.cs`/registrar appear in `obj/GeneratedFiles`). NOTE: the generated blueprint may be a
   behavioral no-op until BP-2 rehydration lands — that's fine for BP-3; BP-3 only needs it to **parse + generate
   + build**, not to tick correctly.

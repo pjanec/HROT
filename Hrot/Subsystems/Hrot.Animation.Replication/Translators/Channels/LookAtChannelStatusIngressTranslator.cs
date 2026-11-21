@@ -13,14 +13,13 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// and updates only the Muscle-authored status fields on the Brain ghost's
 /// <see cref="LookAtChannel"/> component.
 /// </summary>
-internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator
+internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/status/LookAtChannel";
 
     private readonly DdsReader<DdsLookAtChannelStatus>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsLookAtChannelStatus>();
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -29,10 +28,13 @@ internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsLookAtChannelStatus>(participant, TopicNameConst)
+            ? new DdsReader<DdsLookAtChannelStatus>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {
@@ -51,14 +53,12 @@ internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator
     {
         if (!_entityMap.TryGetEntity(msg.EntityId, out var entity)) return;
 
-        LookAtChannel updated = view.HasComponent<LookAtChannel>(entity)
-            ? view.GetComponentRO<LookAtChannel>(entity)
-            : default;
-
-        updated.Status = (NodeStatus)msg.Status;
-        updated.DispatchedInstanceId = msg.DispatchedInstanceId;
-
-        cmd.SetComponent(entity, updated);
+        // ⭐ CE-513 / R-180 — the report is its own component; the Brain's request is not touched.
+        cmd.SetComponent(entity, new LookAtChannelStatus
+        {
+            Status = (NodeStatus)msg.Status,
+            DispatchedInstanceId = msg.DispatchedInstanceId,
+        });
         ReceivedSampleCount++;
     }
 

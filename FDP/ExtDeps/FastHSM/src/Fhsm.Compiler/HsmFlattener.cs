@@ -16,6 +16,8 @@ namespace Fhsm.Compiler
             public GlobalTransitionDef[] GlobalTransitions { get; set; } = Array.Empty<GlobalTransitionDef>();
             public ushort[] ActionIds { get; set; } = Array.Empty<ushort>();
             public ushort[] GuardIds { get; set; } = Array.Empty<ushort>();
+            /// <summary>⭐ <c>CE-2001</c> — the graph's name; the emitter hashes it into the blob's machine identity.</summary>
+            public string? MachineName { get; set; }
         }
         
         /// <summary>
@@ -25,7 +27,7 @@ namespace Fhsm.Compiler
         {
             if (graph == null) throw new ArgumentNullException(nameof(graph));
             
-            var result = new FlattenedData();
+            var result = new FlattenedData { MachineName = graph.Name };
             
             // 1. Build function dispatch tables first (needed for IDs)
             var actionTable = BuildActionTable(graph);
@@ -46,6 +48,10 @@ namespace Fhsm.Compiler
 
             // 4. Flatten regions
             result.Regions = FlattenRegions(graph);
+
+            // 4b. ⭐ CE-1005 — each state's owning region slot, in the SAME order FlattenRegions numbers the slots, so the kernel can
+            //     exit and enter by slot (a transition into a parallel state starts every region; leaving one exits every region).
+            AssignRegionSlots(graph, result.States);
             
             // 5. Separate global transitions
             result.GlobalTransitions = FlattenGlobalTransitions(graph, actionTable, guardTable);
@@ -171,7 +177,12 @@ namespace Fhsm.Compiler
                 // Actions - Use 0xFFFF (None) if not present
                 def.OnEntryActionId = node.EntryActionId != 0 ? node.EntryActionId : (node.OnEntryAction != null ? actionTable[node.OnEntryAction] : (ushort)0xFFFF);
                 def.OnExitActionId = node.ExitActionId != 0 ? node.ExitActionId : (node.OnExitAction != null ? actionTable[node.OnExitAction] : (ushort)0xFFFF);
-                def.ActivityActionId = node.ActivityAction != null ? actionTable[node.ActivityAction] : (ushort)0xFFFF;
+                // ⭐ CE-383 — the explicit-id override, extended to ACTIVITY. Entry/exit have honoured
+                //   one since the JSON parser needed it; activity did not, and a blueprint-hosted
+                //   activity has no authorable NAME whose hash equals its BlueprintId. 📄 §3.2.
+                def.ActivityActionId = node.ActivityActionId != 0
+                    ? node.ActivityActionId
+                    : (node.ActivityAction != null ? actionTable[node.ActivityAction] : (ushort)0xFFFF);
                 def.TimerActionId = node.TimerAction != null ? actionTable[node.TimerAction] : (ushort)0xFFFF;
                 
                 // History
@@ -194,6 +205,18 @@ namespace Fhsm.Compiler
             if (node.IsParallel) flags |= StateFlags.IsParallel;
             if (node.IsFinal) flags |= StateFlags.IsFinal;
             if (node.Children.Count > 0) flags |= StateFlags.IsComposite;
+
+            // ⭐⭐⭐ CE-381 — DERIVED, never authored. The kernel's Idle arm already walks leaf→root
+            //   per region for activities; this bit makes the polled check ONE BIT TEST on that walk,
+            //   so a state with no polled transition costs nothing.
+            // ⚠ It is also the ONLY StructureHash coverage polling gets: ComputeStructureHash hashes
+            //   state.Flags and NOT trans.Flags. The residual gap is ACCEPTED (design §8b).
+            foreach (var t in node.Transitions)
+            {
+                if (!t.IsPolled) continue;
+                flags |= StateFlags.HasPolledTransition;
+                break;
+            }
             
             return flags;
         }
@@ -228,12 +251,33 @@ namespace Fhsm.Compiler
                 
                 def.SourceStateIndex = node.Source.FlatIndex;
                 def.TargetStateIndex = node.Target.FlatIndex;
-                def.EventId = node.EventId;
-                def.GuardId = node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF;
-                def.ActionId = node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF;
+
+                // ⭐⭐⭐ CE-381 — NORMALISE a polled transition onto the reserved id, whatever it was
+                //   authored with. This is what keeps POLLED and COMPLETION disjoint BY CONSTRUCTION:
+                //   authored as `.On(0)` a polled transition would carry EventId 0, and the RTC
+                //   loop's completion pass (ProcessRTCPhase sets currentEventId = 0 after every
+                //   executed transition) would select it TOO. 📄 design §2.3 / §10 ③.
+                // ⚠ Done HERE rather than in the builder so EVERY authoring route — fluent, JSON
+                //   parser, and the DTO emitter that CE-385 adds — lands on the same id.
+                def.EventId = node.IsPolled ? ReservedEventIds.Polled : node.EventId;
+
+                // ⭐ CE-383 — the explicit-id override, extended to GUARD. A blueprint-hosted guard
+                //   registers under its BlueprintId, which no authorable name hashes to. 📄 §3.2.
+                def.GuardId = node.GuardId != 0
+                    ? node.GuardId
+                    : (node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF);
+                // ⚠ CE-383 — ALSO honoured here, and this one is a FIX rather than an extension:
+                //   TransitionNode.ActionId already existed and JsonStateMachineParser:92 already SET
+                //   it, but this line ignored it ⇒ a JSON-authored transition action was parsed and
+                //   silently DROPPED. 📐 Zero production blast radius (that parser has test-only
+                //   callers), and leaving one slot inconsistent in the very method being made
+                //   consistent is the worse outcome. Argued in the CE-383 report, not silent.
+                def.ActionId = node.ActionId != 0
+                    ? node.ActionId
+                    : (node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF);
                 
-                // Flags (include priority)
                 def.Flags = BuildTransitionFlags(node);
+                def.Priority = node.Priority;   // ⭐ CE-395 — the full byte, as a global transition carries it
                 
                 // Cost: ARCHITECT Q6 - structural only (LCA distance)
                 def.Cost = ComputeTransitionCost(node.Source, node.Target);
@@ -249,13 +293,12 @@ namespace Fhsm.Compiler
             TransitionFlags flags = TransitionFlags.None;
             
             if (node.IsInternal) flags |= TransitionFlags.IsInternal;
-            
-            // Encode priority (4 bits)
-            // Priority is a byte (0-255). 
-            // Assuming bits 8-11 usage: (priority & 0x0F) << 8.
-            // Wait, TransitionFlags is ushort usually? Let's check kernel def.
-            // Assuming it is.
-            flags |= (TransitionFlags)((node.Priority & 0x0F) << 8);  
+
+            // ⭐⭐ CE-381 — the POLLED bit. The state-level HasPolledTransition is derived from this
+            //   in BuildStateFlags; the two must stay in step, which is why both are computed here
+            //   from the same source property rather than authored separately.
+            if (node.IsPolled) flags |= TransitionFlags.IsPolled;
+
             
             return flags;
         }
@@ -316,6 +359,55 @@ namespace Fhsm.Compiler
             return null;  // Should not happen if graph is valid
         }
         
+        /// <summary>
+        /// ⭐ CE-1003 (Q84 A0) — the initial state of each orthogonal region of <paramref name="parallel"/>, in region
+        /// order. Children that DECLARE a region (<see cref="StateNode.RegionIndex"/>) are grouped: one region per
+        /// index, its initial the member marked <c>IsInitial</c>, else the first member. A child that declares none
+        /// is a region of its own — the rule this flattener applied to EVERY child before, which silently turned a
+        /// region holding a sequence (Worker → Done) into one region per state, all running at once.
+        /// </summary>
+        internal static IEnumerable<StateNode> RegionInitials(StateNode parallel)
+            => RegionGroups(parallel).Select(region => region.FirstOrDefault(c => c.IsInitial) ?? region[0]);
+
+        /// <summary>A parallel state's regions, each as its member children, in slot order: the declared regions by index, then
+        /// one region per child that declares none. ⭐ The one grouping — <see cref="RegionInitials"/> and the slot numbering
+        /// (<see cref="AssignRegionSlots"/>) both read it, so a state's slot and its region's initial cannot disagree.</summary>
+        internal static IEnumerable<IReadOnlyList<StateNode>> RegionGroups(StateNode parallel)
+        {
+            var declared = parallel.Children.Where(c => c.RegionIndex.HasValue)
+                                            .GroupBy(c => c.RegionIndex!.Value)
+                                            .OrderBy(g => g.Key);
+            foreach (var region in declared)
+                yield return region.ToList();
+            foreach (var single in parallel.Children.Where(c => !c.RegionIndex.HasValue))
+                yield return new[] { single };
+        }
+
+        /// <summary>⭐ CE-1005 — <see cref="StateDef.RegionSlot"/>: slot 0 is the root region; each parallel state's regions take the
+        /// next slots in FlatIndex order (exactly <see cref="FlattenRegions"/>'s order). A state belongs to the region of its nearest
+        /// ancestor-or-self that is a member of one; a state under no parallel state is slot 0.</summary>
+        private static void AssignRegionSlots(StateMachineGraph graph, StateDef[] states)
+        {
+            var slotOfMember = new Dictionary<StateNode, int>();
+            int slot = graph.RootState != null ? 1 : 0;
+            foreach (var pState in graph.States.Values.Where(s => s.IsParallel).OrderBy(s => s.FlatIndex))
+                foreach (var region in RegionGroups(pState))
+                {
+                    foreach (var member in region) slotOfMember[member] = slot;
+                    slot++;
+                }
+
+            foreach (var node in graph.States.Values)
+            {
+                int owner = 0;
+                for (var n = node; n != null; n = n.Parent)
+                    if (slotOfMember.TryGetValue(n, out owner)) break;
+                if (owner > byte.MaxValue)
+                    throw new InvalidOperationException($"State '{node.Name}' is in region slot {owner}; a machine may have at most 255 region slots.");
+                states[node.FlatIndex].RegionSlot = (byte)owner;
+            }
+        }
+
         private static RegionDef[] FlattenRegions(StateMachineGraph graph)
         {
             var regionDefs = new List<RegionDef>();
@@ -342,13 +434,12 @@ namespace Fhsm.Compiler
                 
             foreach (var pState in parallelStates)
             {
-                // Each child of a parallel state defines an orthogonal region
-                foreach (var child in pState.Children)
+                foreach (var initial in RegionInitials(pState))
                 {
                     regionDefs.Add(new RegionDef
                     {
                         ParentStateIndex = pState.FlatIndex,
-                        InitialStateIndex = child.FlatIndex,
+                        InitialStateIndex = initial.FlatIndex,
                         Priority = 0
                     });
                 }
@@ -364,18 +455,39 @@ namespace Fhsm.Compiler
         {
             // ARCHITECT Q7: Separate table for global transitions
             var result = new GlobalTransitionDef[graph.GlobalTransitions.Count];
-            
-            for (int i = 0; i < graph.GlobalTransitions.Count; i++)
+
+            // ⭐ CE-506 — the kernel tries global transitions in array order and takes the first whose event and guard
+            //   match, so priority is expressed as ORDER: highest first, ties in declaration order (a stable sort). Every
+            //   global defaulted to the same priority before CE-506, so existing blobs keep their order.
+            var ordered = graph.GlobalTransitions
+                .Select((node, index) => (node, index))
+                .OrderByDescending(p => p.node.Priority).ThenBy(p => p.index)
+                .Select(p => p.node).ToList();
+
+            for (int i = 0; i < ordered.Count; i++)
             {
-                var node = graph.GlobalTransitions[i];
+                var node = ordered[i];
                 var def = new GlobalTransitionDef();
                 
                 def.TargetStateIndex = node.Target.FlatIndex;
                 def.EventId = node.EventId;
-                def.GuardId = node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF;
-                def.ActionId = node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF;
+                // ⭐ CE-383 — the explicit-id override, extended to GUARD. A blueprint-hosted guard
+                //   registers under its BlueprintId, which no authorable name hashes to. 📄 §3.2.
+                def.GuardId = node.GuardId != 0
+                    ? node.GuardId
+                    : (node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF);
+                // ⚠ CE-383 — ALSO honoured here, and this one is a FIX rather than an extension:
+                //   TransitionNode.ActionId already existed and JsonStateMachineParser:92 already SET
+                //   it, but this line ignored it ⇒ a JSON-authored transition action was parsed and
+                //   silently DROPPED. 📐 Zero production blast radius (that parser has test-only
+                //   callers), and leaving one slot inconsistent in the very method being made
+                //   consistent is the worse outcome. Argued in the CE-383 report, not silent.
+                def.ActionId = node.ActionId != 0
+                    ? node.ActionId
+                    : (node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF);
                 def.Flags = BuildTransitionFlags(node);
-                
+                def.Priority = node.Priority;   // ⭐ CE-506 — recorded; the ORDER above is what the kernel acts on
+
                 result[i] = def;
             }
             

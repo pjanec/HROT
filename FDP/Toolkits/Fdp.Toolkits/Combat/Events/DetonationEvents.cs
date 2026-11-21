@@ -33,5 +33,29 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>True when this event originated from network ingress.</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ <c>CE-3210</c> (hit location HL-6) — APPENDED: 1 when the damage landed on a body PART (<see cref="BodyPart"/>);
+        /// the Health owner then adds it to that part's <c>PartDamage</c> level.</summary>
+        public byte HasBodyPart;
+
+        /// <summary>⭐ <c>CE-3210</c> — the part id within the body plan.</summary>
+        public byte BodyPart;
+
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6) — APPENDED: what the hit does besides its damage (<see cref="HitEffect.Kinetic"/>
+        /// = nothing, every hit before).</summary>
+        public HitEffect Effect;
+
+        /// <summary>⭐ <c>CE-3219</c> — how long <see cref="Effect"/> lasts (s); the Health owner stores it in <see cref="EffectState"/>.</summary>
+        public SimDuration EffectSeconds;
+
+        /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED; docs/DESIGN_Civilians_And_Crowd_Control.md §7.16 DS-1) — who caused it,
+        /// where the producer knows: the round's shooter (a person, a vehicle, or a weapon system — <c>WeaponSystems.ControllerOf</c> names
+        /// who works it), a melee striker. <see cref="Entity.Null"/> = unknown (a cloud, a canister in hand, a crash, an ejection).</summary>
+        public Entity Source;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; docs/DESIGN_Scenario_Rules.md §10.10) — APPENDED: the FIRST thrower of a RETHROWN round (a grenade
+        /// picked up and thrown back: <see cref="Source"/> is the last thrower, this the one before). <see cref="Entity.Null"/> = the same as
+        /// <see cref="Source"/> (nothing was rethrown). The evaluation (<c>NoHarm</c> <c>attribute</c>) decides which counts.</summary>
+        public Entity OriginalSource;
     }
 }

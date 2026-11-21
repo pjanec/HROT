@@ -28,6 +28,7 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     private const string CatComposite = "Composite";
     private const string CatLeaf      = "Leaf";
     private const string CatDecorator = "Decorator";
+    private const string CatSop       = "SOP";   // ⭐ CE-2079
     // I4: blueprint-compiled AiPrimitive actions get their own palette group so they read as
     // distinct from hand-written leaves.
     private const string CatBlueprintAction = "Blueprint";
@@ -140,35 +141,14 @@ public sealed class BTreeNodeCatalog : INodeCatalog
 
     /// <summary>
     /// Derives a friendly palette label for a generated AiPrimitive from its <c>TickCore</c> FQN.
-    /// The Blueprint compiler emits <c>{Namespace}.{SanitizedName}_{BlueprintId:X8}_Bp.TickCore</c>
-    /// (see <c>AiPrimitiveEmitter</c>), so strip <c>.TickCore</c>, take the declaring type's short
-    /// name, then drop the trailing <c>_{8 hex}_Bp</c> to recover the authored blueprint name.
-    /// Falls back to the declaring type's short name if the pattern does not match.
+    ///
+    /// <para>⭐⭐ <b><c>CE-414</c>: the parsing MOVED to
+    /// <see cref="Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming"/> and this forwards to it</b>, because
+    /// the HSM editor's compose step needs the same convention. ⛔ Two copies of the emitter's class-name
+    /// format is how one of them quietly stops matching (ruling 9).</para>
     /// </summary>
     internal static string AiPrimitiveDisplayName(string tickCoreFqn)
-    {
-        int lastDot = tickCoreFqn.LastIndexOf('.');
-        string declFqn = lastDot > 0 ? tickCoreFqn.Substring(0, lastDot) : tickCoreFqn;
-        int declDot = declFqn.LastIndexOf('.');
-        string declShort = declDot >= 0 ? declFqn.Substring(declDot + 1) : declFqn;
-
-        string name = declShort;
-        if (name.EndsWith("_Bp", StringComparison.Ordinal))
-            name = name.Substring(0, name.Length - 3);
-
-        int us = name.LastIndexOf('_');
-        if (us > 0 && name.Length - us - 1 == 8 && IsHex(name.AsSpan(us + 1)))
-            name = name.Substring(0, us);
-
-        return string.IsNullOrEmpty(name) ? declShort : name;
-
-        static bool IsHex(ReadOnlySpan<char> s)
-        {
-            foreach (var c in s)
-                if (!Uri.IsHexDigit(c)) return false;
-            return true;
-        }
-    }
+        => Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.DisplayNameFromTickCoreFqn(tickCoreFqn);
 
     private static IReadOnlyList<NodeCatalogEntry> BuildStaticEntries()
     {
@@ -219,6 +199,18 @@ public sealed class BTreeNodeCatalog : INodeCatalog
         entries.Add(Make(BTreeKinds.Subtree, "Subtree", CatLeaf,
             "Calls another behavior tree asset.",
             new[] { "subtree", "call", "reference" }, "bt/subtree", false, false, false,
+            inputs: Array.Empty<PinSignature>(), outputs: new[] { ExecOut }));
+
+        // ⭐ CE-2079 — the SOP's two orders (docs/DESIGN_Decision_Layer.md §4.6): instant leaves that start a behaviour in
+        //   the unit's TASK slot through the gate. Meant for an SOP tree; in a task they are refused like any lower order.
+        entries.Add(Make(BTreeKinds.SopDoWhenIdle, "Do when idle", CatSop,
+            "SOP: run this behaviour when the unit has no order (origin Sop, the lowest rank). Succeeds at once; already running it with the same params does nothing.",
+            new[] { "sop", "idle", "default", "standing" }, "bt/action", false, false, false,
+            inputs: Array.Empty<PinSignature>(), outputs: new[] { ExecOut }));
+
+        entries.Add(Make(BTreeKinds.SopReact, "React", CatSop,
+            "SOP: answer an event with this behaviour at an urgency — it pauses the task (unless the ROE says Stay on task) and the task restarts when it ends. Fails when the gate would refuse it, so a Selector tries its next row.",
+            new[] { "sop", "react", "reaction", "interrupt", "drill" }, "bt/action", false, false, false,
             inputs: Array.Empty<PinSignature>(), outputs: new[] { ExecOut }));
 
         // Decorator pills — no pins; palette action is AttachToSelected.

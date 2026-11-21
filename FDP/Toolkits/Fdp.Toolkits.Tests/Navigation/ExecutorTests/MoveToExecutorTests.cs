@@ -44,6 +44,8 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
                     Destination   = new Vector3(destination.X, destination.Y, 0f),
                     ArrivalRadius = arrivalRadius,
                     Speed         = speed,
+                    LayerMask     = (uint)NavLayerMask.Vehicle,
+                    BackendForce  = (byte)NavigationBackend.Navmesh,
                 };
                 Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
             }
@@ -57,7 +59,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
         /// <summary>
         /// MOD1-P1T2 T2: <see cref="MoveToExecutor.OnEnter"/> must increment
-        /// <see cref="NavigationIntent.IntentId"/>, set Mode to DirectPoint, and copy the
+        /// <see cref="NavigationIntent.IntentId"/>, set Mode to PathToPoint (CE-3026: a MoveTo is PLANNED), and copy the
         /// raw Cartesian destination directly — no geo conversion.
         /// </summary>
         [Fact]
@@ -73,8 +75,10 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             var intent = world.GetComponent<NavigationIntent>(entity);
 
             Assert.Equal(6u, intent.IntentId);                        // incremented from 5
-            Assert.Equal(NavigationMode.DirectPoint, intent.Mode);    // set to DirectPoint
-            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination); // raw Cartesian copy
+            Assert.Equal(NavigationMode.PathToPoint, intent.Mode);    // ⭐ CE-3026 — planned, never straight
+            Assert.Equal((uint)NavLayerMask.Vehicle, intent.LayerMask);              // ⭐ rides the intent across the wire
+            Assert.Equal((byte)NavigationBackend.Navmesh, intent.BackendForce);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination); // raw Cartesian copy
             Assert.Equal(15f, intent.TargetSpeed);
             Assert.Equal(5f,  intent.ArrivalRadius);
             Assert.Equal(NodeStatus.Running, channel.Status);
@@ -87,6 +91,26 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
         /// intent IDs match, <see cref="MoveToExecutor.Execute"/> must set channel status
         /// to Success.
         /// </summary>
+        /// <summary>⭐ AQ93 R-4023 — a move "in traffic" (<see cref="RoadUse.InTraffic"/> in the flags) hands the vehicle to SUMO:
+        /// the intent asks <see cref="NavigationMode.Traffic"/>, not a path; any other road use still plans one.</summary>
+        [Fact]
+        public void MoveToExecutor_InTraffic_AsksTrafficMode_OtherRoadUsesPlan()
+        {
+            foreach (var (use, mode) in new[] { (Fdp.Toolkit.Navigation.RoadUse.InTraffic, NavigationMode.Traffic), (Fdp.Toolkit.Navigation.RoadUse.InTrafficPriority, NavigationMode.Traffic), (Fdp.Toolkit.Navigation.RoadUse.StronglyPrefer, NavigationMode.PathToPoint) })   // ⭐ CE-9000: the escort (beacon on) is handed over too
+            {
+                var (world, entity, channel) = BuildWorld(new Vector2(300f, 150f), arrivalRadius: 5f, speed: 15f);
+                unsafe
+                {
+                    ref var p = ref Unsafe.AsRef<MoveToParams>(Unsafe.AsPointer(ref channel.Params[0]));
+                    p.Flags = (byte)(((int)use << NavigationConstants.FlagShiftRoadUse) & NavigationConstants.FlagMaskRoadUse);
+                }
+
+                new MoveToExecutor().OnEnter(entity, ref channel, world);
+
+                Assert.Equal(mode, world.GetComponent<NavigationIntent>(entity).Mode);
+            }
+        }
+
         [Fact]
         public void MoveToExecutor_Execute_ReturnsSuccessWhenStatusArrived()
         {
@@ -107,6 +131,49 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             executor.Execute(entity, ref channel, world, 0.016f);
 
             Assert.Equal(NodeStatus.Success, channel.Status);
+        }
+
+        /// <summary>⭐ <c>CE-9020</c> (mode 1 → 2) — a move handed to the traffic whose traffic leg ARRIVED short of the destination (SUMO took it
+        /// only to the nearest road point, or not at all) goes on as our own path (road use stepped down: in-traffic → Prefer, the escort's
+        /// priority → StronglyPrefer), and the channel keeps Running; a leg that ended within the traffic arrival slack is a real arrival.
+        /// 🔴 Red-proof: drop <c>TryDriveOn</c> ⇒ Success 70 m short ⇒ red.</summary>
+        [Theory]
+        [InlineData(RoadUse.InTraffic, 30f, RoadUse.Prefer)]
+        [InlineData(RoadUse.InTrafficPriority, 30f, RoadUse.StronglyPrefer)]
+        [InlineData(RoadUse.InTraffic, 100f - NavigationConstants.TrafficArrivalSlackMetres + 1f, RoadUse.Unspecified)]   // arrived
+        public void CE9020_ATrafficLegThatEndedShort_DrivesOnAsOurOwnPath(RoadUse use, float endedAtX, RoadUse drivesOn)
+        {
+            var (world, entity, channel) = BuildWorld(new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f);
+            unsafe
+            {
+                ref var p = ref Unsafe.AsRef<MoveToParams>(Unsafe.AsPointer(ref channel.Params[0]));
+                p.Flags = NavigationConstants.WithRoadUse(0, use);
+            }
+            world.AddComponent(entity, new SimTransform { Position = new Vector3(endedAtX, 0f, 0f), Rotation = Quaternion.Identity });
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+            uint traffic = world.GetComponent<NavigationIntent>(entity).IntentId;
+            world.SetComponent(entity, new NavigationStatus { IntentId = traffic, Result = NavigationResult.Arrived });
+
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            if (drivesOn == RoadUse.Unspecified)
+            {
+                Assert.Equal(NodeStatus.Success, channel.Status);
+                return;
+            }
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(traffic + 1, intent.IntentId);
+            Assert.Equal(NavigationMode.PathToPoint, intent.Mode);
+            Assert.Equal(drivesOn, NavigationConstants.RoadUseOf(intent.Flags));
+            Assert.Equal(100.0, (double)intent.FinalDestination.X, 3);
+            Assert.Equal(0.0, (double)intent.FinalDestination.Y, 3);
+
+            world.SetComponent(entity, new NavigationStatus { IntentId = intent.IntentId, Result = NavigationResult.Arrived });
+            world.GetComponentRW<SimTransform>(entity).Position = new Vector3(98f, 0f, 0f);
+            executor.Execute(entity, ref channel, world, 0.016f);
+            Assert.Equal(NodeStatus.Success, channel.Status);   // our own leg arrived: the move is done
         }
 
         // ── Test 3: Execute ignores stale status ──────────────────────────────────────────────────
@@ -185,7 +252,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             // Verify OnEnter set Mode and speed.
             var intentAfterEnter = world.GetComponent<NavigationIntent>(entity);
-            Assert.Equal(NavigationMode.DirectPoint, intentAfterEnter.Mode);
+            Assert.Equal(NavigationMode.PathToPoint, intentAfterEnter.Mode);
             Assert.Equal(10f, intentAfterEnter.TargetSpeed);
 
             executor.OnExit(entity, ref channel, world);
@@ -367,6 +434,53 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             // Status still carries IntentId=1 (stale from first instance).
             // Execute must ignore it and keep Running.
             executor.Execute(entity, ref channel, world, 0.016f);
+
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        // ── Test 5: a BRAIN-ONLY entity has no NavigationStatus at all (CE-229) ──────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-229</c> — <b>a missing <see cref="NavigationStatus"/> must keep Running, not throw.</b>
+        ///
+        /// <para>
+        /// 📐 <b>The live crash this reproduces.</b> <c>NavigationStatus</c> is written by the MUSCLE
+        /// layer. This executor runs on the BRAIN, so an entity with no muscle tier never has one — a
+        /// platoon commander carries <c>NavigationIntent</c> but not <c>NavigationStatus</c>. Giving it a
+        /// <c>MoveToLocation</c> mission task made <c>GetComponent</c> throw, the exception escaped
+        /// <c>ModuleHostKernel.UpdateInternal</c>, and the entire host process died — measured on the live
+        /// editor <c>2026-09-08</c>, <c>"Unhandled exception … Entity Entity(0, v1) missing
+        /// NavigationStatus"</c> followed by <c>Aborted</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// ⭐ <b>Keeping Running is not a new policy — it is the policy the test above already asserts.</b>
+        /// A stale status means "the muscle layer has not caught up"; an absent one is that same condition
+        /// one step earlier. <c>HillAttackCommanderNodes</c> already treats a missing
+        /// <c>NavigationStatus</c> exactly this way. This executor was the outlier that threw.
+        /// </para>
+        ///
+        /// <para>
+        /// ⛔ It must NOT report Success: an absent report is not an arrival, and a behaviour waiting on
+        /// this node has to keep waiting. That is the half a bare "does not throw" assertion would miss,
+        /// so both are asserted.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_Execute_KeepsRunningWhenTheEntityHasNoNavigationStatus()
+        {
+            var (world, entity, channel) = BuildWorld(
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f, existingIntentId: 5);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            // The brain-only shape: NavigationIntent stays (OnEnter wrote it), NavigationStatus is gone
+            // because no muscle layer ever reports for this entity.
+            world.RemoveComponent<NavigationStatus>(entity);
+            Assert.False(world.HasComponent<NavigationStatus>(entity));
+
+            executor.Execute(entity, ref channel, world, 0.016f);   // must not throw
 
             Assert.Equal(NodeStatus.Running, channel.Status);
         }

@@ -14,6 +14,6 @@
     <ProjectReference Include="..\..\ExtDeps\GizmoMap\GizmoMap.Network\GizmoMap.Network.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
 </Project>

@@ -38,6 +38,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
@@ -47,7 +48,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId            = nodeId,
+            NodeId            = (Fdp.Core.NodeId)(nodeId),
             SubsystemName     = "SimHost",
             LocalStateId      = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc      = DateTimeOffset.UtcNow.Ticks,
@@ -99,7 +100,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired    = false;
@@ -137,7 +138,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired = false;
@@ -158,6 +159,36 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         Assert.True(eventFired,
             "GlobalContextProcessManager must invoke the local handler when OperatingLive " +
             "implies a LoadingLive step.");
+    }
+
+    // ⭐ Q86 §4-G (R-215) — paused-or-running is a property of the load: re-homed to ClusterMasterLoadAndRunTests (CE-3354 — the run is the
+    //   master's, on the load round's success; this manager no longer resumes).
+
+    /// <summary>
+    /// ⭐ Q86 §4-B — the handler publishes the restored context on the BUS (the translator writes the DDS topic), and
+    /// the scenario id is the SCENARIO's. ⛔ It used to write the topic directly, with the scene id in ScenarioId.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void Q86B_ALoad_PublishesTheContextOnTheBus_WithTheScenarioId()
+    {
+        const string scenarioId = "q86b_ctx";
+        SetupScenarioFiles(scenarioId);
+        var bus = new FdpEventBus();
+        var gcpm = new GlobalContextProcessManager(bus, new GlobalContextClusterOpHandler(bus, string.Empty) { LocalTempRoot = _tempDir });
+
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+            ScenarioId    = scenarioId,
+        });
+        bus.SwapBuffers();
+        gcpm.Tick();
+        bus.SwapBuffers();
+
+        var ctx = Assert.Single(bus.ReadManaged<OrchestratorContextChangedEvent>());
+        Assert.Equal(scenarioId, ctx.ScenarioId);
+        Assert.Equal("scene_" + scenarioId, ctx.SceneId);
     }
 
     /// <summary>
@@ -186,32 +217,9 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         Assert.Null(ex);
     }
 
-    /// <summary>
-    /// After CommitSerializeLocal, the written Orchestrator.json must contain a
-    /// Phase 2 <c>$meta</c> envelope and must NOT contain a naked <c>schemaVersion</c>.
-    /// </summary>
-    [Fact]
-    public async Task CommitSerializeLocal_ProducesPhase2Envelope()
-    {
-        using var participant = new DdsParticipant(15);
-        var handler = new GlobalContextClusterOpHandler(participant, "test-scenario");
-        handler.LocalTempRoot = _tempDir;
-        handler.ScenarioTimeSeconds = 42.0;
-        var cmd = new NodeOpCommand { Operation = NodeOpType.SerializeLocal };
-        await handler.PrepareAsync(cmd, CancellationToken.None);
-        handler.Commit(cmd, null);
-
-        var writtenPath = handler.CommitManifestEntry!.SourceUnc;
-        var json = File.ReadAllText(writtenPath);
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        Assert.True(root.TryGetProperty("$meta", out var meta), "$meta envelope must be present");
-        Assert.Equal("Hrot.OrchestratorContext", meta.GetProperty("docType").GetString());
-        Assert.Equal(2, meta.GetProperty("schemaVersion").GetInt32());
-        Assert.False(root.TryGetProperty("schemaVersion", out _), "naked schemaVersion must not be present");
-        Assert.True(root.TryGetProperty("startWallTicks", out _), "startWallTicks payload must be present");
-    }
+    // CE-278: CommitSerializeLocal_ProducesPhase2Envelope removed — CommitSerializeLocal (the SaveScenario=2
+    // exercises/<id>/Orchestrator.json writer) is retired. The $meta-envelope contract for the sidecar is now
+    // exercised on the Export path by AssetInventoryProcessManagerTests.ExportComplete_WritesExerciseSidecar.
 
     /// <summary>
     /// OnContextLoaded must NOT fire for transitions that do not pass through
@@ -224,7 +232,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired = false;
@@ -263,5 +271,20 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
 
         Assert.False(eventFired,
             "OnContextLoaded must not fire for non-load transitions such as UnloadingLive.");
+    }
+
+    /// <summary>⭐ backend `2026-10-26` (run C) — a load of a fresh scenario (no saved start) puts the wall clock on the REAL clock, so a
+    /// recording that spans the load and the next resume keeps one basis.</summary>
+    [Fact]
+    public void ALoadOfAFreshScenario_PutsTheWallClockOnTheRealClock_NotAtZero()
+    {
+        long now = DateTime.UtcNow.Ticks;
+        var fresh = Hrot.Orchestrator.OrchestratorCore.LoadedClock(startTicks: 0, simTimeSeconds: 0, nowTicks: now);
+        Assert.Equal(now, fresh.TotalWallTicks);
+        Assert.Equal(0.0, fresh.TotalTime);
+
+        var saved = Hrot.Orchestrator.OrchestratorCore.LoadedClock(startTicks: 12345, simTimeSeconds: 7.5, nowTicks: now);
+        Assert.Equal(12345, saved.TotalWallTicks);
+        Assert.Equal(7.5, saved.TotalTime);
     }
 }

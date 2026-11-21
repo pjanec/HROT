@@ -11,7 +11,7 @@
 
 ```powershell
 # Build
-dotnet build IOS-IG-SimHost.sln --nologo
+dotnet build HROT.sln --nologo
 # → Build succeeded. 0 Error(s).
 
 # Test — targeted projects (all run with --no-build after build)
@@ -40,7 +40,7 @@ dotnet test Hrot.SimHost.Integration.Tests --nologo --no-build
 | `Hrot.SimHost.Tests` | 360 | 0 | `SimHostComponentRegistrationTests` + `SimHostTimeSyncTests` now have ClusterMaster fixtures |
 | `Hrot.SimHost.Integration.Tests` | 30 | 0 | |
 
-**Full-solution parallel run note:** `dotnet test IOS-IG-SimHost.sln` may produce 1–3 intermittent failures in `Fdp.Tests` and `ModuleHost.Core.Tests` due to pre-existing DDS domain-0 contention in high-parallelism runs. These failures are absent when each project runs in isolation and are not introduced by this batch. The same caveat was noted in the BATCH-02 report. Recommended CI workaround: run integration-test assemblies individually, or use `--maxcpucount:1`.
+**Full-solution parallel run note:** `dotnet test HROT.sln` may produce 1–3 intermittent failures in `Fdp.Tests` and `ModuleHost.Core.Tests` due to pre-existing DDS domain-0 contention in high-parallelism runs. These failures are absent when each project runs in isolation and are not introduced by this batch. The same caveat was noted in the BATCH-02 report. Recommended CI workaround: run integration-test assemblies individually, or use `--maxcpucount:1`.
 
 ---
 
@@ -48,8 +48,8 @@ dotnet test Hrot.SimHost.Integration.Tests --nologo --no-build
 
 ### A.1 — Remove standalone exe projects
 
-- Removed `Hrot.Orchestrator.Standalone` project entry and 12 config lines from `IOS-IG-SimHost.sln`.  
-- Removed `Hrot.CGF.Standalone` project entry and 12 config lines from `IOS-IG-SimHost.sln`.  
+- Removed `Hrot.Orchestrator.Standalone` project entry and 12 config lines from `HROT.sln`.  
+- Removed `Hrot.CGF.Standalone` project entry and 12 config lines from `HROT.sln`.  
 - Deleted `Hrot.Orchestrator.Standalone/` and `Hrot.CGF.Standalone/` directories.  
 - Updated `CGF-1-ONBOARDING.md` directory tree and launch instructions (Runner-only: `dotnet run --project Hrot.ClusterRunner -- --mode orchestrator/simhost/cgf`).  
 

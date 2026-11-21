@@ -47,7 +47,7 @@ namespace Fhsm.Tests.Kernel
             // Setup instances
             for (int i = 0; i < 3; i++)
             {
-                instances[i].Header.MachineId = blob.Header.StructureHash;
+                instances[i].Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
                 instances[i].Header.Phase = InstancePhase.Entry; 
             }
             
@@ -64,7 +64,7 @@ namespace Fhsm.Tests.Kernel
         {
             var blob = CreateEmptyBlob();
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Entry;
             var context = new TestContext();
             
@@ -111,7 +111,7 @@ namespace Fhsm.Tests.Kernel
         {
             var blob = CreateEmptyBlob();
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Idle;
             var context = new TestContext();
             
@@ -125,7 +125,7 @@ namespace Fhsm.Tests.Kernel
         {
             var blob = CreateEmptyBlob();
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Entry;
             var context = new TestContext();
 
@@ -147,7 +147,7 @@ namespace Fhsm.Tests.Kernel
         {
              var blob = CreateEmptyBlob();
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Entry;
             var context = new TestContext();
             
@@ -161,7 +161,7 @@ namespace Fhsm.Tests.Kernel
         {
             var blob = CreateEmptyBlob();
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.RTC;
             
             // Set event ID to something valid? 
@@ -183,7 +183,7 @@ namespace Fhsm.Tests.Kernel
         {
             var blob = CreateEmptyBlob();
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Activity;
             var context = new TestContext();
             
@@ -197,7 +197,7 @@ namespace Fhsm.Tests.Kernel
         {
             var blob = CreateEmptyBlob();
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = (InstancePhase)99; // Invalid
             var context = new TestContext();
             
@@ -238,14 +238,14 @@ namespace Fhsm.Tests.Kernel
             
             // 64
             var i64 = new HsmInstance64();
-            i64.Header.MachineId = blob.Header.StructureHash;
+            i64.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             i64.Header.Phase = InstancePhase.Entry;
             HsmKernel.Update(blob, ref i64, context, 0.16f);
             Assert.Equal(InstancePhase.Idle, i64.Header.Phase); // Empty -> Idle
             
             // 128
             var i128 = new HsmInstance128();
-            i128.Header.MachineId = blob.Header.StructureHash;
+            i128.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             i128.Header.Phase = InstancePhase.Entry;
             HsmKernel.Update(blob, ref i128, context, 0.16f);
             Assert.Equal(InstancePhase.Idle, i128.Header.Phase);

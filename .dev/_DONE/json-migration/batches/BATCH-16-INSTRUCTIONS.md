@@ -36,7 +36,7 @@ T_Conv_01 — All committed fixture JSON files have a valid $meta envelope
   Implementation:
     - Walk the workspace root for *.json files (use the test binary's location to find
       workspace root: walk up from AppContext.BaseDirectory until a marker file
-      like "IOS-IG-SimHost.sln" is found, or use the working directory).
+      like "HROT.sln" is found, or use the working directory).
     - Apply the same exclusion logic as FixtureStamper (obj/, bin/, ExtDeps/, .tmp/,
       .claude/, *.deps.json, *.runtimeconfig.json, xunit.runner.json, launchSettings.json,
       settings.json, settings.local.json, Fdp.Core.Tests/Serialization/Migrations,
@@ -88,10 +88,10 @@ The convention tests need to find the workspace root from within the test binary
 private static string FindWorkspaceRoot()
 {
     var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir != null && !File.Exists(Path.Combine(dir.FullName, "IOS-IG-SimHost.sln")))
+    while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
         dir = dir.Parent;
     if (dir == null)
-        throw new InvalidOperationException("Cannot locate workspace root (IOS-IG-SimHost.sln not found)");
+        throw new InvalidOperationException("Cannot locate workspace root (HROT.sln not found)");
     return dir.FullName;
 }
 ```
@@ -122,7 +122,7 @@ Run ALL test suites (except the known pre-failing `Hrot.Blueprints.Tests` Stride
 
 ```powershell
 # Run all tests, collect summary
-dotnet test "IOS-IG-SimHost.sln" -c Debug --no-build --ignore-exit-code 8 2>&1 | Select-String "Passed!|Failed!|Error" | Select-Object -Last 30
+dotnet test "HROT.sln" -c Debug --no-build --ignore-exit-code 8 2>&1 | Select-String "Passed!|Failed!|Error" | Select-Object -Last 30
 
 # Or per-suite:
 dotnet test "FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj" -c Debug --no-build 2>&1 | Select-Object -Last 3
@@ -152,7 +152,7 @@ Create `.dev/json-migration/reports/PHASE-2-GATE-REPORT.md` with:
 
 ```powershell
 # Build after adding tests
-dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
+dotnet build "HROT.sln" -c Debug --no-restore -maxcpucount:4 2>&1 | Select-String "error CS|Build succeeded|Build FAILED" | Select-Object -Last 5
 
 # Run the new convention tests
 dotnet test "Hrot/Engine/Hrot.Common.Tests/Hrot.Common.Tests.csproj" -c Debug -v normal 2>&1 | Select-String "Conv|passed|failed" | Select-Object -Last 20

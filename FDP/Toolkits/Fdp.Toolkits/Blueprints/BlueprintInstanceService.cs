@@ -24,6 +24,14 @@ public enum BlueprintAttachStatus
 
     /// <summary>The chosen blackboard tier had no free slot or payload space for the blueprint.</summary>
     NoSlotAvailable,
+
+    /// <summary>
+    /// ⭐⭐ The supplied params JSON could not be parsed, so NOTHING was attached.
+    /// <c>DESIGN_Parameter_Model.md</c> §3.3's parse-before-commit: mirroring <c>BehaviorIngressSystem</c>,
+    /// <i>"a failed parse leaves the entity 100% on its old behaviour"</i> — ⛔ not an allocated-then-freed
+    /// slot, and not a slot carrying half-applied params.
+    /// </summary>
+    ParamsParseFailed,
 }
 
 /// <summary>
@@ -80,12 +88,20 @@ public static unsafe class BlueprintInstanceService
     /// <param name="registry">The registry the runtime ticks against (must already contain the blueprint).</param>
     /// <param name="blueprintId">The runtime 32-bit blueprint identifier (<c>BlueprintIdHash.Compute(assetId)</c>).</param>
     /// <param name="entity">The target entity (must already exist in <paramref name="world"/>).</param>
+    /// <param name="paramsJson">
+    /// ⭐ Params for the blueprint, as a JSON object keyed by parameter name
+    /// (<c>DESIGN_Parameter_Model.md</c> §3.3). null/empty means "declared defaults only", which is the
+    /// shipped behaviour and every existing caller's answer. ⛔ At runtime attach this is the ONLY source
+    /// of params — no side table. (Save→reload re-applies the saved JSON through <see cref="ApplyParams"/> from
+    /// <c>BlueprintAssignmentDto.Params</c> — CE-3044.)
+    /// </param>
     /// <returns>A classified <see cref="BlueprintAttachResult"/>.</returns>
     public static BlueprintAttachResult AttachToEntity(
         EntityRepository world,
         BlueprintRegistry registry,
         int blueprintId,
-        Entity entity)
+        Entity entity,
+        string? paramsJson = null)
     {
         if (world is null)    throw new ArgumentNullException(nameof(world));
         if (registry is null) throw new ArgumentNullException(nameof(registry));
@@ -109,24 +125,68 @@ public static unsafe class BlueprintInstanceService
                 $"Blueprint '{def.Name}' is already attached to entity {entity} " +
                 $"(tier {existingTier}).");
 
-        var tier = ChooseTier(def.StateSize);
-        EnsureTierComponent(world, entity, tier);
+        // ⭐⭐⭐ PARSE BEFORE COMMIT (§3.3), mirroring BehaviorIngressSystem exactly.
+        //   The params are resolved into a STACK buffer here, BEFORE any slot is allocated, so a
+        //   malformed payload leaves the entity untouched — ⛔ not an allocated-then-freed slot, which
+        //   would still have dense-compacted the slot table and could still have upgraded the tier.
+        //   The resolved bytes are copied in AFTER InitDefault below; the reverse order wipes them.
+        byte* resolvedParams = null;
+        int   paramsSize     = def.ParseParams != null ? def.ParamsSize : 0;
+        if (paramsSize > 0)
+        {
+            byte* scratch = stackalloc byte[paramsSize];
+            new Span<byte>(scratch, paramsSize).Clear();
+            try
+            {
+                // ⭐⭐ CE-331 (2026-09-23): `paramsSize` is the stackalloc's exact extent, so it IS
+                //   the capacity. ⚠ This is the SECOND invocation of the delegate and the one a
+                //   `ParseParams(` grep misses — it is spelled `def.ParseParams!(`. The compiler
+                //   found it; the search did not.
+                def.ParseParams!(paramsJson ?? string.Empty, scratch, paramsSize, world, entity);
+            }
+            catch (Exception ex)
+            {
+                return new BlueprintAttachResult(
+                    BlueprintAttachStatus.ParamsParseFailed, default,
+                    $"Params for blueprint '{def.Name}' could not be parsed; entity {entity} is " +
+                    $"unchanged and no slot was allocated. {ex.GetType().Name}: {ex.Message}");
+            }
+            resolvedParams = scratch;
+        }
 
-        GetTierMemoryAndMeta(world, entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
-        BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
+        // ⭐⭐ CE-3137 U-0 (R-236): a unit with no store gets its FIRST block sized for this instance; otherwise the
+        //   instance goes into any block with room, or an APPENDED one. ⛔ No promotion: no slot already attached
+        //   to this unit moves.
+        if (!OccurrenceStoreAccess.HasStore(world, entity))
+        {
+            var first = BlueprintTierTable.SelectByPayload(def.StateSize);
+            if (first.IsRegistered(world)) OccurrenceStoreAccess.AddBlock(world, entity, first);
+        }
 
-        if (!BlueprintBlackboardPartitions.TryAttach(
-                memory, blueprintId, def.StateSize, def.StructureHash, out int payloadOffset))
+        // A3/D1': the occurrence declares its Kind at attach — see BlueprintTickSystem's note.
+        if (!OccurrenceStoreAccess.TryAttachSlot(
+                world, entity, blueprintId, def.StateSize, def.StructureHash,
+                OccurrenceKind.Blueprint, out byte* memory, out int payloadOffset))
             return new BlueprintAttachResult(
-                BlueprintAttachStatus.NoSlotAvailable, tier,
-                $"No free slot/payload for blueprint '{def.Name}' on entity {entity} " +
-                $"in tier {tier}.");
+                BlueprintAttachStatus.NoSlotAvailable, OccurrenceStoreAccess.LargestBlock(world, entity)?.Tier ?? default,
+                $"No free slot/payload for blueprint '{def.Name}' on entity {entity}: every block is full and " +
+                "every tier is already carried.");
+        var tier = OccurrenceStoreAccess.TierOf(world, entity, memory)!.Tier;
 
         if (def.InitDefault != null)
         {
             ref byte payloadRef = ref Unsafe.AsRef<byte>(memory + payloadOffset);
             var initSpan = MemoryMarshal.CreateSpan(ref payloadRef, def.StateSize);
             def.InitDefault(initSpan);
+        }
+
+        // ⭐⭐ ORDER IS THE RULING (§3.3): InitDefault FIRST, then the resolved params. The reverse
+        //    zeroes them and would read as a resolver bug rather than an ordering one.
+        // ⭐ The cursor at payload offset 0 is NOT touched: the copy lands at ParamsOffset (16), via the
+        //    ONE param-region writer that BlueprintMaterializationSystem also uses (persisted round-trip).
+        if (resolvedParams != null)
+        {
+            WriteParamsRegion(memory + payloadOffset, def, new ReadOnlySpan<byte>(resolvedParams, paramsSize));
         }
 
         return new BlueprintAttachResult(
@@ -150,28 +210,17 @@ public static unsafe class BlueprintInstanceService
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
 
-        // Scan all three tiers for the blueprint slot.
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ O3a / B3: scan every tier, in ladder order. ⛔ Was a hand-written three-arm scan.
+        //   ⚠ The scan is kept (rather than "resolve the entity's one tier") because it is what the
+        //     method did: a slot is looked for on ANY tier the entity happens to carry, which also
+        //     covers the transient mid-promotion moment when it carries two.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int i = 0; i < tiers.Count; i++)
         {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B1024, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId))
-            {
-                BlueprintBlackboardPartitions.TryDetach(mem, blueprintId);
-                return true;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B4096, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId))
-            {
-                BlueprintBlackboardPartitions.TryDetach(mem, blueprintId);
-                return true;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B16384, out byte* mem, out _, out _);
+            var spec = tiers[i];
+            if (!spec.Has(world, entity)) continue;
+
+            byte* mem = spec.Memory(world, entity);
             if (HasInitializedSlot(mem, blueprintId))
             {
                 BlueprintBlackboardPartitions.TryDetach(mem, blueprintId);
@@ -188,9 +237,83 @@ public static unsafe class BlueprintInstanceService
     /// </summary>
     public static BlackboardTier ChooseTier(int stateSize)
     {
-        if (stateSize <= BlueprintBlackboard1024.PayloadSize) return BlackboardTier.B1024;
-        if (stateSize <= BlueprintBlackboard4096.PayloadSize) return BlackboardTier.B4096;
-        return BlackboardTier.B16384;
+        // ⭐ O3a / B3: SelectByPayload is deliberately the payload-ONLY selector — this caller sizes
+        //   ONE instance's state and has no slot count to offer. See BlueprintTierTable.SelectByPayload.
+        return BlueprintTierTable.SelectByPayload(stateSize).Tier;
+    }
+
+    // ── param-region round-trip (MX-030) ─────────────────────────────────────
+    // ⭐⭐ The ONE place that knows WHERE params live inside a payload — [ParamsOffset .. +ParamsSize).
+    //    AttachToEntity and ApplyParams (reload) write them from resolved JSON; a scenario save reads them through
+    //    the blueprint's FormatParams (CE-3044, R-191 — JSON by name, never bytes). Centralising the offset here
+    //    keeps them from disagreeing (ruling 9).
+
+    /// <summary>
+    /// Copies resolved param bytes into a slot payload's param region
+    /// <c>[ParamsOffset .. ParamsOffset+ParamsSize)</c>. Copies <c>min(ParamsSize, paramBytes.Length)</c>
+    /// bytes and never touches the cursor (offset 0..16) or the state region beyond params.
+    /// </summary>
+    /// <param name="payload">Pointer to the slot payload base (i.e. <c>memory + payloadOffset</c>).</param>
+    public static void WriteParamsRegion(byte* payload, BlueprintDefinition def, ReadOnlySpan<byte> paramBytes)
+    {
+        if (def.ParamsSize <= 0 || paramBytes.IsEmpty) return;
+        int n = Math.Min(def.ParamsSize, paramBytes.Length);
+        var dst = new Span<byte>(payload + def.ParamsOffset, def.ParamsSize);
+        paramBytes.Slice(0, n).CopyTo(dst);
+    }
+
+    /// <summary>Reads a slot payload's param region into a fresh array (the inverse of <see cref="WriteParamsRegion"/>).</summary>
+    /// <param name="payload">Pointer to the slot payload base (i.e. <c>memory + payloadOffset</c>).</param>
+    public static byte[] ReadParamsRegion(byte* payload, BlueprintDefinition def)
+    {
+        if (def.ParamsSize <= 0) return Array.Empty<byte>();
+        return new ReadOnlySpan<byte>(payload + def.ParamsOffset, def.ParamsSize).ToArray();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3044</c> (R-191) — resolves <paramref name="paramsJson"/> (a JSON object by parameter name; null or
+    /// empty = the declared defaults) through the blueprint's OWN <see cref="BlueprintDefinition.ParseParams"/> into a
+    /// scratch buffer, then copies it into the payload's param region. A parse failure leaves the region untouched and
+    /// is returned as the error text (<c>null</c> on success, or when the blueprint declares no parameters).
+    /// <para>⭐ The reload path (<c>BlueprintMaterializationSystem</c>) — the same parser <see cref="AttachToEntity"/>
+    /// runs, so a saved instance and a freshly attached one hold the same params.</para>
+    /// </summary>
+    /// <param name="payload">Pointer to the slot payload base (i.e. <c>memory + payloadOffset</c>).</param>
+    public static string? ApplyParams(byte* payload, BlueprintDefinition def, string? paramsJson,
+                                      EntityRepository world, Entity entity)
+    {
+        if (def.ParseParams == null || def.ParamsSize <= 0) return null;
+        var scratch = new byte[def.ParamsSize];
+        try
+        {
+            fixed (byte* s = scratch)
+                def.ParseParams(paramsJson ?? string.Empty, s, def.ParamsSize, world, entity);
+        }
+        catch (Exception ex)
+        {
+            return $"{ex.GetType().Name}: {ex.Message}";
+        }
+        WriteParamsRegion(payload, def, scratch);
+        return null;
+    }
+
+    /// <summary>
+    /// The keys of a saved params object the blueprint no longer declares (renamed or removed since the save) —
+    /// compared case-insensitively, as <c>ParseParams</c> matches them. Each such field keeps its default (R-191).
+    /// </summary>
+    public static System.Collections.Generic.List<string> UnknownParamKeys(
+        BlueprintDefinition def, System.Text.Json.Nodes.JsonObject? saved)
+    {
+        var unknown = new System.Collections.Generic.List<string>();
+        if (saved == null) return unknown;
+        foreach (var kv in saved)
+        {
+            bool known = false;
+            foreach (var name in def.ParamNames)
+                if (string.Equals(name, kv.Key, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
+            if (!known) unknown.Add(kv.Key);
+        }
+        return unknown;
     }
 
     // ── private helpers ──────────────────────────────────────────────────────
@@ -198,22 +321,21 @@ public static unsafe class BlueprintInstanceService
     private static bool TryFindExistingTier(
         EntityRepository world, Entity entity, int blueprintId, out BlackboardTier tier)
     {
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ O3a / B3: same walk as DetachFromEntity, same reason for scanning rather than resolving.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int i = 0; i < tiers.Count; i++)
         {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B1024, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId)) { tier = BlackboardTier.B1024; return true; }
+            var spec = tiers[i];
+            if (!spec.Has(world, entity)) continue;
+
+            if (HasInitializedSlot(spec.Memory(world, entity), blueprintId))
+            {
+                tier = spec.Tier;
+                return true;
+            }
         }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B4096, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId)) { tier = BlackboardTier.B4096; return true; }
-        }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B16384, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId)) { tier = BlackboardTier.B16384; return true; }
-        }
-        tier = BlackboardTier.B1024;
+
+        tier = BlueprintTierTable.Ascending[0].Tier;
         return false;
     }
 
@@ -227,55 +349,8 @@ public static unsafe class BlueprintInstanceService
         return BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _);
     }
 
-    private static void EnsureTierComponent(EntityRepository world, Entity entity, BlackboardTier tier)
-    {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-                if (!world.HasComponent<BlueprintBlackboard1024>(entity))
-                    world.AddComponent(entity, default(BlueprintBlackboard1024));
-                break;
-            case BlackboardTier.B4096:
-                if (!world.HasComponent<BlueprintBlackboard4096>(entity))
-                    world.AddComponent(entity, default(BlueprintBlackboard4096));
-                break;
-            case BlackboardTier.B16384:
-                if (!world.HasComponent<BlueprintBlackboard16384>(entity))
-                    world.AddComponent(entity, default(BlueprintBlackboard16384));
-                break;
-        }
-    }
+    // ⛔ HISTORY — ChooseTierHonouringCurrent / EnsureTierComponent / GetTierMemoryAndMeta (O3b/B4, §17.7) RETIRED by
+    //   CE-3137 U-0 (R-236). They enforced "an entity carries AT MOST ONE tier" by PROMOTING (copying) the store. The store is
+    //   now multi-block by design: a second tier is a second block every reader searches, never an orphan.
 
-    private static void GetTierMemoryAndMeta(
-        EntityRepository world, Entity entity, BlackboardTier tier,
-        out byte* memory, out int totalSize, out byte maxSlots)
-    {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-            {
-                ref var bb = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-                memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-                totalSize = BlueprintBlackboard1024.TotalSize;
-                maxSlots  = BlueprintBlackboard1024.MaxSlots;
-                return;
-            }
-            case BlackboardTier.B4096:
-            {
-                ref var bb = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-                totalSize = BlueprintBlackboard4096.TotalSize;
-                maxSlots  = BlueprintBlackboard4096.MaxSlots;
-                return;
-            }
-            default:
-            {
-                ref var bb = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-                memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-                totalSize = BlueprintBlackboard16384.TotalSize;
-                maxSlots  = BlueprintBlackboard16384.MaxSlots;
-                return;
-            }
-        }
-    }
 }

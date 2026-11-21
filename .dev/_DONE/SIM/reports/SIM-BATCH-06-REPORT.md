@@ -197,7 +197,7 @@ deterministic, and requires zero infrastructure.
 | `Hrot.SimHost.Integration.Tests/EntityCreationFlowTests.cs` | Created |
 | `Hrot.SimHost.Integration.Tests/MissionExecutionFlowTests.cs` | Created |
 | `Hrot.SimHost.Integration.Tests/PerformanceTests.cs` | Created |
-| `IOS-IG-SimHost.sln` | Added project + build configurations |
+| `HROT.sln` | Added project + build configurations |
 | `.dev-workstream/reports/SIM-BATCH-06-REPORT.md` | Created (this file) |
 
 ---

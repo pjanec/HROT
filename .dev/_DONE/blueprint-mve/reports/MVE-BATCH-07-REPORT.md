@@ -194,7 +194,7 @@ Zero golden or snapshot files were touched by this batch. The 8 emit-golden/snap
 
 ### Full solution build
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Build succeeded. 0 Error(s)
 ```
 Touched projects (Hrot.Blueprints.Tests only — test file added; no production code changed): 0 new warnings.

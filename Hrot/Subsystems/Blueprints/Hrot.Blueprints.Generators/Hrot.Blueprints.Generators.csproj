@@ -18,9 +18,49 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ⭐⭐ S2 — the struct-size algorithm is SHARED BY LINK, not copied.
+         .dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:100 records that ComputeStructSize
+         already exists three times, held in step by a "keep in sync" comment. (It proposes the id
+         "DEBT-AIB-012 (suggested)"; that number belongs to a different, resolved item, so the debt
+         has no row — cite the report line, not the id.) A fourth copy here is exactly what that debt
+         warns against, so this compiles the SAME source file the AiEditor generator does.
+         ⛔ Why a link and not a ProjectReference: it would make blueprint codegen depend on the
+         BTree/HSM JSON generator assembly (and, transitively, Hrot.AiEditor.Persistence) for one
+         static method — a layering edge bought for nothing. A linked file adds no assembly edge and
+         no analyzer-load risk. ⚠ StructSizeResolver.cs must therefore stay dependency-free. -->
+    <Compile Include="..\..\AI\Hrot.AiEditor.Generators\StructSizeResolver.cs"
+             Link="Shared\StructSizeResolver.cs" />
+    <!-- ⭐⭐ CE-2026 (S8c, DESIGN_Unified_Behaviour_Run "S8c design") — the ONE generated-type catalogue, by the same link.
+         A blueprint variable typed as a SIBLING's generated struct (a BTree/HSM child's Inputs — the Behaviour Task's
+         Params pin — or another blueprint's +Params) is invisible to Roslyn here; the catalogue sizes it from the sibling's
+         JSON with the math that sibling's own generator uses, and answers TypeExists for it. -->
+    <Compile Include="..\..\AI\Hrot.AiEditor.Generators\GeneratedTypeCatalog.cs"
+             Link="Shared\GeneratedTypeCatalog.cs" />
+    <Compile Include="..\..\AI\Hrot.AiEditor.Generators\GeneratedBlueprintSchemaCatalog.cs"
+             Link="Shared\GeneratedBlueprintSchemaCatalog.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj"
                       PrivateAssets="all"
                       ExcludeAssets="runtime" />
+    <!-- ⭐ CE-2026 — the catalogue reads *.btree.json / *.hsm.json through the one parser and naming rule per format.
+         ⚠ The S2 note above refused this edge because it "bought nothing" for one static method; it now buys the
+         catalogue. Compile-only, exactly as Hrot.AiEditor.Generators references it: Hrot.AI.Behaviors already ships
+         Hrot.AiEditor.Persistence (and its package closure, CE-379) as an Analyzer, so no new load-context item. -->
+    <ProjectReference Include="..\..\AI\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj"
+                      PrivateAssets="all"
+                      ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ⭐⭐ CE-2027 — the ONE compile-time struct-layout algorithm, shared by link with the FDP analyzers that used to carry
+         three copies of it (BehaviorParameterSizeAnalyzer, BTreeActionGenerator, HsmActionGenerator). StructSizeResolver is
+         its string front door. Dependency-free (Roslyn only), like its Shared/ neighbours. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\RoslynStructLayout.cs"
+             Link="Shared\RoslynStructLayout.cs" />
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\KnownTypeLayouts.cs"
+             Link="Shared\KnownTypeLayouts.cs" />
   </ItemGroup>
 
 </Project>

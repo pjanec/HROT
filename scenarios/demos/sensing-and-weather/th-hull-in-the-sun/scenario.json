@@ -1,0 +1,172 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "wide-corridor",
+  "description": "What: a parked vehicle heated by the sun is seen by thermal against cool grass (CE-1987, R-1058; docs/DESIGN_Thermal_And_Acoustic_Sensing.md \u00a79.2, \u00a79.7). On wide-corridor \u2014 a street whose roadway is a 30 m GRASS strip (y 185\u2013215, x 60\u2013540) between houses and hedges \u2014 at 13:36 local (solar ~12:30), clear sky: 'Observer' (the thermal observer, TKB 215: a hand-held sight that needs 4 K of contrast) stands on the strip at (70, 200); 'Grass Tank', a T-72 parked with its engine OFF, stands on the strip at (420, 200), 350 m along the street. Judge: the hull is at the sun-heated painted-metal \u00b0C, many K above the grass, so the observer's memory holds it with the THERMAL bit (4) \u2014 the old rule never saw a cold-engined hull (0.2 < 0.3). His eyes may also see it (daylight): only the thermal bit is judged. Fail: no thermal bit. Red-proof: the field read as bare soil (Open surfaces not stamped in the surface grid) and the hull stays within 4 K. Its sibling th-hull-on-hot-soil holds the other half.",
+  "world": {
+   "ScenarioClock": {
+    "Start": "2025-06-22T13:36:00+02:00"
+   },
+   "WeatherConditions": {
+    "GroundTemperatureC": 26,
+    "LapseRateKPerKm": 6.5,
+    "SeaLevelPressureHpa": 1013.25,
+    "RelativeHumidity": 0.6,
+    "WindCount": 0,
+    "CloudCount": 1,
+    "VisibilityM": 25000,
+    "FogTopM": 0,
+    "FogVisibilityM": 200,
+    "Precipitation": 0,
+    "PrecipitationMmPerHour": 0,
+    "FeatherM": 0,
+    "WindAltitudeM": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindFromDeg": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindSpeedMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindGustMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "CloudBaseM": [
+     1500,
+     0,
+     0,
+     0
+    ],
+    "CloudThicknessM": [
+     600,
+     0,
+     0,
+     0
+    ],
+    "CloudOctas": [
+     1,
+     0,
+     0,
+     0
+    ],
+    "CloudKind": [
+     1,
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "entities": {
+  "c1987a00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     70,
+     200,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 215
+   },
+   "EntityInfo": {
+    "Name": "Observer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c1987a00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     420,
+     200,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "Grass Tank",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "HeatSource": {
+    "State": "Off",
+    "Since": 0,
+    "MotionSince": 0
+   }
+  }
+ }
+}

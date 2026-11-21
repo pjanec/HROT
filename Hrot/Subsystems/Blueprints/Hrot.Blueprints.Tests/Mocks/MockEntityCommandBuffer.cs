@@ -12,23 +12,38 @@ namespace Hrot.Blueprints.Tests.Mocks;
 /// </summary>
 public abstract class EcbOp
 {
-    public abstract void Apply(EntityRepository repo);
+    public abstract void Apply(EntityRepository repo, EcbRemap remap);
 }
 
 /// <summary>
-/// Records that an entity was already eagerly created. Apply is a no-op.
+/// Placeholder → real entity map built during one <see cref="MockEntityCommandBuffer"/> playback —
+/// the same scheme as <c>Fdp.Core.EntityCommandBuffer.Playback</c> (a negative index is a placeholder).
 /// </summary>
-public sealed class EcbOp_CreateEntityRecord : EcbOp
+public sealed class EcbRemap
 {
-    public override void Apply(EntityRepository repo) { /* entity was created eagerly */ }
+    private readonly Dictionary<int, Entity> _map = new();
+    internal void Add(int placeholderIndex, Entity real) => _map[placeholderIndex] = real;
+    public Entity Resolve(Entity e) => e.Index < 0 && _map.TryGetValue(e.Index, out var real) ? real : e;
+}
+
+/// <summary>
+/// ⭐ A DEFERRED create, like the real ECB: the entity is created at playback and the placeholder handed out by
+/// <see cref="MockEntityCommandBuffer.CreateEntity"/> is remapped to it.
+/// </summary>
+public sealed class EcbOp_CreateEntity : EcbOp
+{
+    private readonly int _placeholderIndex;
+    public EcbOp_CreateEntity(int placeholderIndex) { _placeholderIndex = placeholderIndex; }
+    public override void Apply(EntityRepository repo, EcbRemap remap) => remap.Add(_placeholderIndex, repo.CreateEntity());
 }
 
 public sealed class EcbOp_DestroyEntity : EcbOp
 {
     private readonly Entity _entity;
     public EcbOp_DestroyEntity(Entity entity) { _entity = entity; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity))
             repo.DestroyEntity(_entity);
     }
@@ -39,8 +54,9 @@ public sealed class EcbOp_AddComponentUnmanaged<T> : EcbOp where T : unmanaged
     private readonly Entity _entity;
     private readonly T _value;
     public EcbOp_AddComponentUnmanaged(Entity entity, T value) { _entity = entity; _value = value; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity))
             repo.AddComponent(_entity, _value);
     }
@@ -50,8 +66,9 @@ public sealed class EcbOp_AddEmptyComponentUnmanaged<T> : EcbOp where T : unmana
 {
     private readonly Entity _entity;
     public EcbOp_AddEmptyComponentUnmanaged(Entity entity) { _entity = entity; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity))
             repo.AddComponent(_entity, default(T));
     }
@@ -61,8 +78,9 @@ public sealed class EcbOp_RemoveComponentUnmanaged<T> : EcbOp where T : unmanage
 {
     private readonly Entity _entity;
     public EcbOp_RemoveComponentUnmanaged(Entity entity) { _entity = entity; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity) && repo.HasComponent<T>(_entity))
             repo.RemoveComponent<T>(_entity);
     }
@@ -73,8 +91,9 @@ public sealed class EcbOp_SetComponentUnmanaged<T> : EcbOp where T : unmanaged
     private readonly Entity _entity;
     private readonly T _value;
     public EcbOp_SetComponentUnmanaged(Entity entity, T value) { _entity = entity; _value = value; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity) && repo.HasComponent<T>(_entity))
             repo.SetComponent(_entity, _value);
     }
@@ -85,8 +104,9 @@ public sealed class EcbOp_AddComponentManaged<T> : EcbOp where T : class
     private readonly Entity _entity;
     private readonly T? _value;
     public EcbOp_AddComponentManaged(Entity entity, T? value) { _entity = entity; _value = value; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity))
             repo.AddComponent(_entity, _value);
     }
@@ -96,8 +116,9 @@ public sealed class EcbOp_RemoveComponentManaged<T> : EcbOp where T : class
 {
     private readonly Entity _entity;
     public EcbOp_RemoveComponentManaged(Entity entity) { _entity = entity; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity) && repo.HasManagedComponent<T>(_entity))
             repo.RemoveComponent<T>(_entity);
     }
@@ -108,8 +129,9 @@ public sealed class EcbOp_SetManagedComponent<T> : EcbOp where T : class
     private readonly Entity _entity;
     private readonly T? _value;
     public EcbOp_SetManagedComponent(Entity entity, T? value) { _entity = entity; _value = value; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity))
             repo.SetManagedComponent(_entity, _value!);
     }
@@ -119,7 +141,7 @@ public sealed class EcbOp_PublishEventUnmanaged<T> : EcbOp where T : unmanaged
 {
     private readonly T _evt;
     public EcbOp_PublishEventUnmanaged(T evt) { _evt = evt; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
         repo.Bus.Publish(_evt);
     }
@@ -130,8 +152,9 @@ public sealed class EcbOp_SetLifecycleState : EcbOp
     private readonly Entity _entity;
     private readonly EntityLifecycle _state;
     public EcbOp_SetLifecycleState(Entity entity, EntityLifecycle state) { _entity = entity; _state = state; }
-    public override void Apply(EntityRepository repo)
+    public override void Apply(EntityRepository repo, EcbRemap remap)
     {
+        var _entity = remap.Resolve(this._entity);
         if (repo.IsAlive(_entity))
             repo.SetLifecycleState(_entity, _state);
     }
@@ -139,8 +162,10 @@ public sealed class EcbOp_SetLifecycleState : EcbOp
 
 /// <summary>
 /// Mock implementation of IEntityCommandBuffer for Blueprint test scenarios.
-/// CreateEntity() is EAGER: the entity is created immediately in the repository.
-/// All other mutations are recorded and applied during Playback(repo).
+/// ⭐ It DEFERS everything, like <c>Fdp.Core.EntityCommandBuffer</c>: CreateEntity() returns a placeholder
+/// (negative index) that becomes a real entity only at Playback(repo). It used to create eagerly, which let a
+/// blueprint use a freshly-spawned handle in the same frame — something production cannot do — and hid
+/// CE-479 (a spawn handle that was never valid). All mutations are applied during Playback(repo).
 /// Insertion order equals playback order exactly (no sorting or deduplication).
 /// </summary>
 public sealed class MockEntityCommandBuffer : IEntityCommandBuffer
@@ -162,19 +187,28 @@ public sealed class MockEntityCommandBuffer : IEntityCommandBuffer
 
     internal void Playback(EntityRepository repo)
     {
+        var remap = new EcbRemap();
         foreach (var op in _ops)
-            op.Apply(repo);
+            op.Apply(repo, remap);
         _ops.Clear();
+        _createCounter = 0;
+        LastPlayback = remap;
     }
+
+    /// <summary>Test-only: the placeholder map of the most recent <see cref="Playback"/> — resolve a handle
+    /// <see cref="CreateEntity"/> returned to the entity it became.</summary>
+    public EcbRemap LastPlayback { get; private set; } = new();
+
+    private int _createCounter;
 
     // -- IEntityCommandBuffer --
 
     public Entity CreateEntity()
     {
-        // Eager: real entity exists immediately so tests can act on it before Playback.
-        var entity = _repo.CreateEntity();
-        _ops.Add(new EcbOp_CreateEntityRecord());
-        return entity;
+        // Deferred, as in production: a placeholder with a negative index, remapped at Playback.
+        var placeholder = new Entity(-(++_createCounter), 0);
+        _ops.Add(new EcbOp_CreateEntity(placeholder.Index));
+        return placeholder;
     }
 
     public void DestroyEntity(Entity entity)

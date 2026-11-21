@@ -29,9 +29,12 @@ namespace Hrot.SimHost
             world.RegisterComponent<VehicleState>();
             world.RegisterComponent<VehicleParams>();
             world.RegisterComponent<NavState>();
+            world.RegisterComponent<PathTrace>();   // ⭐ CE-3117 — the planned path, for the map (R-226)
             world.RegisterComponent<FormationFollower>();
             world.RegisterComponent<FormationController>();
             world.RegisterComponent<FormationTarget>();
+            world.RegisterComponent<CarKinem.Convoy.ConvoyTrail>();      // ⭐ CE-9001 — a Column formation (DESIGN_Road_Convoy C-4): the leader's actual path …
+            world.RegisterComponent<CarKinem.Convoy.ConvoyProgress>();   // … and a follower's place on it
 
             // CQRS navigation status — written by the Muscle tier (NavigationExecutionSystem)
             // and read by the Brain tier (MoveToExecutor).
@@ -39,6 +42,7 @@ namespace Hrot.SimHost
 
             // Per-entity stuck-detection counter (replaces static dictionary).
             world.RegisterComponent<FrustrationTicks>();
+            world.RegisterComponent<DoorPassage>();   // ⭐ R-3039 S1 — a walker's passage through a doorway (DoorPassageSystem)
 
             world.RegisterEvent<MoveStartedEvent>();
             world.RegisterEvent<OffMeshTraversalStartedEvent>();

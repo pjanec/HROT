@@ -1,0 +1,134 @@
+using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Tkb.Domain;
+
+namespace Fdp.Toolkit.Combat
+{
+    /// <summary>
+    /// ⭐ <c>CE-2239</c> part 1 (CV-8, AW-18; docs/DESIGN_Civilians_And_Crowd_Control.md §5j FL-2…FL-4) — the FORCE LEVEL a unit's ROE caps
+    /// its weapons at, asked at the two places a round can leave (<c>AimAndFireExecutor.HoldOf</c>, <c>FireAtPointExecutor.ShootAtPoint</c>)
+    /// and at the one place a weapon is chosen (the WeaponSelection candidates) — so no behaviour can forget it. Warn ⇒ no round at all;
+    /// NonLethal ⇒ no lethal round; Lethal ⇒ anything. ⭐ Self-defence (AW-18) lifts the cap against THAT target only.
+    /// </summary>
+    public static class ForceLevels
+    {
+        /// <summary>May <paramref name="unit"/> fire a round of munition <paramref name="ammo"/> at <paramref name="target"/>
+        /// (<see cref="Entity.Null"/> for a point)? <paramref name="ammo"/> 0 = no round known ⇒ judged lethal under a NonLethal cap
+        /// only when <paramref name="mount"/> fires lethal.</summary>
+        public static bool Permits(EntityRepository world, Entity unit, Entity target, long ammo, WeaponMountDto? mount = null)
+        {
+            if (!ConductPermits(world, unit, target, Lethal(world, ammo, mount))) return false;
+            var level = LevelFor(world, unit, target);
+            if (level == RoeForceLevel.Lethal) return true;
+            if (level == RoeForceLevel.Warn) return false;
+            return !Lethal(world, ammo, mount);
+        }
+
+        /// <summary>FL-4 — may <paramref name="unit"/> CHOOSE <paramref name="mount"/> against <paramref name="target"/>? (the weapon choice
+        /// drops a mount above the cap, so a unit with a non-lethal weapon uses it rather than hold).</summary>
+        public static bool AllowsMount(EntityRepository world, Entity unit, Entity target, WeaponMountDto? mount)
+        {
+            if (!IncendiaryPermits(world, unit, 0L, mount)) return false;   // ⭐ CE-3486 (F-9) — a flamethrower the ROE forbids is not chosen: the coax is
+            if (!ConductPermits(world, unit, target, mount == null || ItemAppearances.FiresLethal(world, mount))) return false;
+            var level = LevelFor(world, unit, target);
+            if (level == RoeForceLevel.Lethal) return true;
+            if (level == RoeForceLevel.Warn) return false;
+            return mount == null || !ItemAppearances.FiresLethal(world, mount);
+        }
+
+        /// <summary>
+        /// The force <paramref name="unit"/> may use on <paramref name="target"/>: its <c>Roe.ForceLevel</c> (no ROE ⇒ Lethal), lifted to Lethal
+        /// by SELF-DEFENCE (FL-3), and — ⭐ <c>CE-2239</c> part 3 (B2, §5k EL-2) — for a security-force unit at a civilian, lowered to the
+        /// ESCALATION LADDER's rung (<see cref="EscalationLadder.Level"/>). A point (<see cref="Entity.Null"/>) gets the cap alone.
+        /// </summary>
+        public static RoeForceLevel LevelFor(EntityRepository world, Entity unit, Entity target)
+        {
+            var level = world.IsComponentTypeRegistered<Roe>() ? RoeOf.ForceLevel(world, unit) : RoeForceLevel.Lethal;
+            if (level == RoeForceLevel.ForceUnset) level = RoeForceLevel.Lethal;
+            if (SelfDefence(world, unit, target)) return RoeForceLevel.Lethal;
+            if (EscalationLadder.Applies(world, unit, target))
+            {
+                var rung = EscalationLadder.Level(world, unit, target);
+                if (rung < level) level = rung;
+            }
+            return level;
+        }
+
+        /// <summary>FL-3 (AW-18) — is firing on <paramref name="target"/> SELF-DEFENCE: he aims a lethal weapon at <paramref name="unit"/>
+        /// (his replicated <see cref="WeaponPosture"/>), or he committed a LETHAL hostile act (B-16)? A point has no target ⇒ no.</summary>
+        public static bool SelfDefence(EntityRepository world, Entity unit, Entity target)
+        {
+            if (target.IsNull || !world.IsAlive(target)) return false;
+            if (Fdp.Toolkit.Civilians.HostileActs.Of(world, target) == Fdp.Toolkit.Civilians.HostileActKind.Lethal) return true;
+            if (Fdp.Toolkit.Animals.Animals.IsDangerous(world, target)) return true;   // ⭐ CE-4623 AB-5 (AR-6) — an attacking animal (the guard dog's bite)
+            return AimsAt(world, target, unit);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2238</c> part 4 (AW-21, AW-22, R-2027/R-2028; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.7b CH-1) — the CONDUCT hold,
+        /// for every unit whatever its force level: a LETHAL round at a man who is not a combatant on status (a civilian of any side — the
+        /// neutral is held before this) is fired only when THIS unit judges him identified-lethal (<see cref="Armament.Judge"/>: something
+        /// that looks lethal on him, or he is a combatant this unit KNOWS — it, or its squad, saw his lethal act) or he aims a lethal weapon
+        /// at this unit. Else "unarmed: non-lethal force only". ⭐ A combatant target costs one class-and-side lookup (AW-24). A point has no
+        /// target ⇒ no hold.
+        /// </summary>
+        public static bool ConductPermits(EntityRepository world, Entity unit, Entity target, bool lethal)
+        {
+            if (!lethal || target.IsNull || !world.IsAlive(target) || Armament.IsCombatant(world, target)) return true;
+            if (IsOrdered(world, unit, target)) return true;   // ⭐ CE-4649 R-3101 — a man told to attack THIS target (not the force cap: Permits still applies it)
+            if (Fdp.Toolkit.Animals.Animals.IsDangerous(world, target)) return true;   // ⭐ CE-4623 AB-5 — an attacking animal: no conduct hold
+            if (Armament.Judge(world, unit, target) == ArmedJudgement.IdentifiedLethal) return true;
+            return AimsAt(world, target, unit);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> PART C ① (R-3101) — is firing on <paramref name="target"/> an EXPLICIT ORDER of <paramref name="unit"/>? Yes when its RUNNING behaviour was
+        /// given by an Operator or a Superior (<see cref="BehaviorOrigin"/>; not its own SOP, a reaction or a utility decision) and the attack order designated THIS entity
+        /// (<see cref="DesignatedTarget"/>, written by <c>UntilTargetDown</c>). An explicit order lifts the NEUTRAL hold and the CONDUCT hold for that target, a person or an animal;
+        /// ⛔ not the unit's <c>Roe.ForceLevel</c> cap (<see cref="LevelFor"/> still applies: a NonLethal unit ordered to attack stays non-lethal).
+        /// ⭐ The SEAM for the hunter (AN-21g, part D): a standing order "may engage animals of species …" answers through <see cref="Fdp.Toolkit.Animals.Animals.MayEngage"/>.
+        /// </summary>
+        public static bool IsOrdered(EntityRepository world, Entity unit, Entity target)
+        {
+            if (unit.IsNull || target.IsNull) return false;
+            if (Fdp.Toolkit.Animals.Animals.IsAnimal(world, target) && Fdp.Toolkit.Animals.Animals.MayEngage(world, unit, target)) return true;   // ⭐ CE-4649 part D (AN-21g) — the standing hunting rule
+            if (!world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(unit)) return false;
+            var origin = world.GetComponentRO<BehaviorState>(unit).Origin;
+            if (origin != BehaviorOrigin.Operator && origin != BehaviorOrigin.Superior) return false;
+            return DesignatedTarget.Of(world, unit, out var designated) && designated == target;
+        }
+
+        /// <summary>Does <paramref name="target"/> aim a lethal weapon at <paramref name="unit"/> (his replicated <see cref="WeaponPosture"/>)?</summary>
+        private static bool AimsAt(EntityRepository world, Entity target, Entity unit)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(target)) return false;
+            ref readonly var posture = ref world.GetComponentRO<WeaponPosture>(target);
+            return posture.Kind == WeaponPostureKind.Aimed && posture.Target == unit && Armament.LethalInHand(world, target);
+        }
+
+        /// <summary>Is a round of <paramref name="ammo"/> (0 = unknown ⇒ what <paramref name="mount"/> fires) lethal?</summary>
+        public static bool IsLethalRound(EntityRepository world, long ammo, WeaponMountDto? mount) => Lethal(world, ammo, mount);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3486</c> (flame FL-2, F-9, R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md) — may <paramref name="unit"/> fire an INCENDIARY
+        /// round (a flamethrower's fuel, napalm)? Not when its ROE (<see cref="RoeOf.Incendiary"/>, down the chain of command) forbids it. Any other
+        /// round: yes. ⚠ Self-defence does NOT lift it (a scenario's ban is absolute), and a police / civil force is held already by its force level
+        /// (an incendiary round is lethal). The civilian-in-the-flame half is <see cref="LineOfFire.NeutralInFlame"/>, judged where a neutral on the
+        /// line is.
+        /// </summary>
+        public static bool IncendiaryPermits(EntityRepository world, Entity unit, long ammo, WeaponMountDto? mount)
+            => !IsIncendiary(world, ammo, mount)
+               || !world.IsComponentTypeRegistered<Roe>() || RoeOf.Incendiary(world, unit) != RoeIncendiary.IncendiaryForbidden;
+
+        /// <summary>⭐ <c>CE-3486</c> — is the round incendiary: its munition's warhead (<paramref name="ammo"/>; 0 = the mount's own round).</summary>
+        public static bool IsIncendiary(EntityRepository world, long ammo, WeaponMountDto? mount)
+        {
+            var warhead = ammo != 0 ? CombatTkb.WarheadOf(world, ammo) : mount != null ? CombatTkb.WarheadOf(world, mount) : null;
+            return warhead?.Kind == WarheadKind.Incendiary;
+        }
+
+        private static bool Lethal(EntityRepository world, long ammo, WeaponMountDto? mount)
+            => ammo != 0 ? ItemAppearances.IsLethal(world, ammo) : mount == null || ItemAppearances.FiresLethal(world, mount);
+    }
+}

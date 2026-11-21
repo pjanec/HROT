@@ -36,7 +36,7 @@ Mirror `BTreeDocumentFactory`/`HsmDocumentFactory`: given a Blueprint `IEditable
 
 ## Success Criteria
 - [ ] AIE-044/045/046/049 per success conditions.
-- [ ] `dotnet build IOS-IG-SimHost.sln` 0 errors (GizmoMap.Contracts stays on 0.2.2).
+- [ ] `dotnet build HROT.sln` 0 errors (GizmoMap.Contracts stays on 0.2.2).
 - [ ] Green: `Hrot.Blueprints.Tests` (no new failures beyond DEBT-006's 10), `Hrot.Editor.AiShared.Tests`, `EditorSubsystemBoot` filter.
 - [ ] No warnings; docs; no leftover TODO/debug.
 - [ ] Report at `.dev/blueprint-integ-1/reports/BATCH-12-REPORT.md`.

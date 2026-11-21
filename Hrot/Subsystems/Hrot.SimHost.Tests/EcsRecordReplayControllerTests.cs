@@ -13,6 +13,7 @@ namespace Hrot.SimHost.Tests
     /// <summary>
     /// Unit tests for <see cref="EcsRecordReplayController"/> (MOD1-P8T1).
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public class EcsRecordReplayControllerTests : IDisposable
     {
         private readonly EntityRepository _world;
@@ -38,6 +39,40 @@ namespace Hrot.SimHost.Tests
             _kernel.Dispose();
             _world.Dispose();
             try { Directory.Delete(_tempDir, recursive: true); } catch { }
+        }
+
+        /// <summary>
+        /// ⭐ CE-4215 ④ (Node Features F-15) — a branch whose parent recording names a feature this build does not declare REFUSES the
+        /// PrepareLive/branch recording loudly, before any recording module is installed. A parent whose features are all declared branches fine.
+        /// 🔴 Mutation: drop the <c>FreezeRecorded</c> call in <c>PrepareRecordingAsync</c> ⇒ the first cell goes red.
+        /// </summary>
+        [Fact(Timeout = 10_000)]
+        public async Task PrepareRecordingAsync_ABranchWhoseRecordingNamesAFeatureThisBuildLacks_IsRefused()
+        {
+            _kernel.FeatureGate = new Hrot.Common.Infrastructure.NodeFeatures(new Hrot.Common.Infrastructure.FeatureRegistry(new[]
+            {
+                Hrot.Common.Infrastructure.FeatureDeclaration.Switch("gameplay.team-kill", "team kill", Hrot.Common.Infrastructure.FeatureChange.AtLoad),
+            }), NodeRole.Brain);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            string Parent(string feature)
+            {
+                var path = Path.Combine(_tempDir, $"parent_{Guid.NewGuid():N}.fdp");
+                var meta = new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata();
+                meta.FeatureConfigsAtLoad[feature] = "{\"Enabled\":false}";
+                File.WriteAllText(path + ".meta.json", Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Serialize(meta));
+                return path;
+            }
+
+            var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => controller.PrepareRecordingAsync(
+                Guid.NewGuid(), _tempDir, new Fdp.Core.FlightRecorder.RecordingBranch(Parent("gone.feature"), 10, (Fdp.Core.ExerciseId)(Guid.NewGuid()), 0)));
+            Assert.Contains("gone.feature", refused.Message);
+            Assert.Null(controller.ActiveRecordingModule);   // nothing was installed
+
+            cts.Cancel();
+            try { await loopTask; } catch (OperationCanceledException) { }
         }
 
         // ── MOD1-P8T1 success condition 1 ────────────────────────────────────────
@@ -188,7 +223,7 @@ namespace Hrot.SimHost.Tests
             }
 
             // Finalize with a known MaxNetworkId so the value is verifiable.
-            const long expectedMaxNetworkId = 42L;
+            const int expectedMaxNetworkId = 42;
             await controller.FinalizeRecordingAsync(maxNetworkId: expectedMaxNetworkId);
 
             cts.Cancel();
@@ -213,6 +248,141 @@ namespace Hrot.SimHost.Tests
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
+
+        /// <summary>An ingress-shaped system: gated like the real one, counting the exit discards it is told about.</summary>
+        [Fdp.ModuleHost.Abstractions.UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.Input)]
+        [Fdp.ModuleHost.Abstractions.TickMode(Fdp.ModuleHost.Abstractions.TickPolicy.EveryFrame)]
+        private sealed class GatedSpy : Fdp.ModuleHost.Abstractions.IEcsModuleSystem, Fdp.Interfaces.IReplayRestoreGated
+        {
+            public Func<bool>? IsReplayRestoring { get; set; }
+            public int ExitDiscards { get; private set; }
+            public void DiscardAtReplayExit() => ExitDiscards++;
+            public void Execute(Fdp.ModuleHost.Abstractions.ISimulationView view, float dt) { }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — from the replay's teardown until the exit's RELEASE the ingress stays
+        /// gated (nothing is polled while the world is being put back); the release tells every gated system to discard what its readers
+        /// hold, once, and lifts the gate. A node that starts a live recording lifts a hold an aborted exit left behind.
+        /// 🔴 Without the hold the first frame after the teardown polls the replay-era readers into the world.
+        /// </summary>
+        [Fact(Timeout = 15_000)]
+        public async Task CE3329_W5_TheIngressStaysGatedFromTheTeardownUntilTheRelease_WhichDiscardsOnce()
+        {
+            using var world = new EntityRepository();
+            using var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var spy = new GatedSpy();
+            kernel.RegisterGlobalSystem(spy);
+            kernel.InitializeForTest();
+            var controller = new EcsRecordReplayController(kernel, nodeId: 1, world);
+
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(kernel, cts.Token);
+
+            await controller.PrepareReplayAsync(Guid.NewGuid(), _tempDir);   // no recording here: a listener — it polls the wire
+            Assert.False(spy.IsReplayRestoring!());
+
+            await controller.TeardownReplayAsync();
+            Assert.True(spy.IsReplayRestoring!());      // ⭐ held: the world is being put back
+            Assert.Equal(0, spy.ExitDiscards);
+
+            controller.ReleaseReplayExit();
+            Assert.False(spy.IsReplayRestoring!());
+            Assert.Equal(1, spy.ExitDiscards);
+            controller.ReleaseReplayExit();             // nothing held: nothing to discard
+            Assert.Equal(1, spy.ExitDiscards);
+
+            // an exit that never released (an abort): the next live recording lifts it
+            await controller.PrepareReplayAsync(Guid.NewGuid(), _tempDir);
+            await controller.TeardownReplayAsync();
+            Assert.True(spy.IsReplayRestoring!());
+            await controller.PrepareRecordingAsync(Guid.NewGuid(), _tempDir);
+            Assert.False(spy.IsReplayRestoring!());
+            Assert.Equal(2, spy.ExitDiscards);
+            await controller.FinalizeRecordingAsync();
+
+            cts.Cancel();
+            await loopTask;
+        }
+
+        // ── CE-4079 ④ — AwaitRetractionAcksAsync: the sweep, then the acknowledgements, on one bounded budget ───
+
+        private sealed class FakeAckSource : Fdp.Core.Orchestration.IRetractionAckSource
+        {
+            public uint SweptClearGeneration { get; set; }
+            public bool Acked { get; set; } = true;
+            public int Waits { get; private set; }
+            public Fdp.Core.Orchestration.RetractionAckReport WaitForAcks(TimeSpan timeout)
+            {
+                Waits++;
+                return new Fdp.Core.Orchestration.RetractionAckReport(Writers: 7, TimedOut: Acked ? 0 : 2, WaitedMilliseconds: 1);
+            }
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WithNoNetworkWorld_HasNothingToWaitFor()
+        {
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            Assert.Null(await controller.AwaitRetractionAcksAsync(TimeSpan.FromSeconds(1)));
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WhenSweptAndAcknowledged_ReturnsNull_AfterWaitingOnTheWriters()
+        {
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration };
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            Assert.Null(await controller.AwaitRetractionAcksAsync(TimeSpan.FromSeconds(1)));
+            Assert.Equal(1, source.Waits);      // the acknowledgements WERE awaited
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WaitsForTheSweepAFrameLater_ThenForTheAcks()
+        {
+            // A world swap just moved ClearGeneration; the cleanup's sweep runs on the next frame (here: 100 ms later, on another thread).
+            _world.SoftClear();
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration - 1 };
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            _ = Task.Run(async () => { await Task.Delay(100); source.SweptClearGeneration = _world.ClearGeneration; });
+
+            var note = await controller.AwaitRetractionAcksAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Null(note);                      // the sweep came in time
+            Assert.Equal(1, source.Waits);          // and the acks were awaited only after it
+            Assert.Equal(_world.ClearGeneration, source.SweptClearGeneration);
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WhenNoFrameSweeps_TimesOutWithAText_AndReturns()
+        {
+            _world.SoftClear();
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration - 1 };   // the cleanup never runs
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var note = await controller.AwaitRetractionAcksAsync(TimeSpan.FromMilliseconds(200));
+
+            Assert.NotNull(note);
+            Assert.Contains("sweep", note);
+            Assert.InRange(clock.ElapsedMilliseconds, 150, 3000);   // bounded: it gave up, it did not hang
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WhenAReaderNeverAcknowledges_TimesOutWithAText()
+        {
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration, Acked = false };
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            var note = await controller.AwaitRetractionAcksAsync(TimeSpan.FromMilliseconds(200));
+
+            Assert.NotNull(note);
+            Assert.Contains("2 of 7 writer(s)", note);
+            Assert.Contains("unacknowledged", note);
+        }
 
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>
             Task.Run(() =>

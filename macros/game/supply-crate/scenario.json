@@ -1,0 +1,48 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: SHOWCASE Crossfire (docs/SHOWCASE_Scenarios.md \u00a72) - a supply crate (an obstacle, 1.2 m) dropped by a supply-drop trigger. Judge: inserted at a spot, one 'Supply crate' appears there.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  }
+ },
+ "entities": {
+  "cf0c0000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     0,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 8809
+   },
+   "EntityInfo": {
+    "Name": "Supply crate"
+   },
+   "ObstacleShape": {
+    "Length": 1.2,
+    "Width": 1.2,
+    "Height": 1.0
+   }
+  }
+ }
+}

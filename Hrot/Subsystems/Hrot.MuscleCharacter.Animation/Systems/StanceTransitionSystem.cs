@@ -13,6 +13,8 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// Runs in PreSimulation.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class StanceTransitionSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;
@@ -24,6 +26,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(StanceTransitionSystem)} requires direct EntityRepository access.");
@@ -71,11 +74,17 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                     Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
                 };
 
-                _backend.RequestStanceChange(handle, targetStance, intent.BlendTime);
+                // ⭐ CE-11014 — the duration the body applies (one rule, StanceTiming) and WHEN it starts: recorded and replicated with the status, so any
+                //   reader computes the blend's progress at any instant
+                float seconds = StanceTiming.Effective(status.CurrentStance, intent.TargetStance, intent.BlendTime);
+                _backend.RequestStanceChange(handle, targetStance, seconds);
 
                 status.AckVersion = intent.Version;
                 status.Phase = StanceTransitionPhase.Transitioning;
                 status.TransitionProgress = 0f;
+                status.FromStance = status.CurrentStance;
+                status.TransitionStartedAt = (SimInstant)Fdp.Toolkit.Time.SimClock.TotalTimeOf(repo);
+                status.TransitionSeconds = new SimDuration(seconds);
             }
         }
     }

@@ -73,7 +73,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 42L,
+                TargetEntityId = 42,
                 BaseVersion    = 0,
                 Payload        = new MissionCommandUnion
                 {
@@ -98,7 +98,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request   = new MissionControlRequest
             {
                 RequestId      = requestId,
-                TargetEntityId = 99L,
+                TargetEntityId = 99,
                 BaseVersion    = 7L,
                 Payload        = new MissionCommandUnion
                 {
@@ -130,7 +130,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 1L,
+                TargetEntityId = 1,
                 Payload        = new MissionCommandUnion
                 {
                     _d              = eMissionCommandType.CMD_REPLACE_MISSION,
@@ -162,7 +162,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 1L,
+                TargetEntityId = 1,
                 BaseVersion    = 0,
                 Payload        = new MissionCommandUnion
                 {
@@ -177,8 +177,8 @@ namespace Hrot.DDS.DataModel.Tests
 
             // Test 1: same participant (intra-process loopback)
             using var participantA = new DdsParticipant(150);
-            using var writer       = new DdsWriter<MissionControlRequest>(participantA, "MissionControlRequest");
-            using var reader       = new DdsReader<MissionControlRequest>(participantA, "MissionControlRequest");
+            using var writer       = new DdsWriter<MissionControlRequest>(participantA);
+            using var reader       = new DdsReader<MissionControlRequest>(participantA);
 
             await System.Threading.Tasks.Task.Delay(500);
             writer.Write(request);
@@ -209,7 +209,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 1L,
+                TargetEntityId = 1,
                 Payload        = new MissionCommandUnion
                 {
                     _d              = eMissionCommandType.CMD_REPLACE_MISSION,
@@ -235,8 +235,8 @@ namespace Hrot.DDS.DataModel.Tests
             // Test 2: separate participants (cross-process loopback)
             using var writerParticipant = new DdsParticipant(151);
             using var readerParticipant = new DdsParticipant(151);
-            using var writer2 = new DdsWriter<MissionControlRequest>(writerParticipant, "MissionControlRequest");
-            using var reader2 = new DdsReader<MissionControlRequest>(readerParticipant, "MissionControlRequest");
+            using var writer2 = new DdsWriter<MissionControlRequest>(writerParticipant);
+            using var reader2 = new DdsReader<MissionControlRequest>(readerParticipant);
 
             await System.Threading.Tasks.Task.Delay(500);
             writer2.Write(request);
@@ -316,12 +316,12 @@ namespace Hrot.DDS.DataModel.Tests
         public void EntityMission_DdsRoundTrip_PlanTasksPreserved()
         {
             using var participant = new DdsParticipant(200u);
-            using var writer = new DdsWriter<EntityMission>(participant, "EntityMission_Test");
-            using var reader = new DdsReader<EntityMission>(participant, "EntityMission_Test");
+            using var writer = new DdsWriter<EntityMission>(participant);
+            using var reader = new DdsReader<EntityMission>(participant);
 
             var em = new EntityMission
             {
-                EntityId = 42L,
+                EntityId = 42,
                 Plan = new MissionPlan
                 {
                     ActiveTaskId = Guid.NewGuid(),

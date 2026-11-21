@@ -32,11 +32,30 @@ public sealed class HsmJsonAssetContributor : IAssetCatalogContributor
     private readonly List<HeaderEntry> _headers = new();
     private readonly List<IEditableAsset> _assets = new();
 
+    /// <summary>
+    /// ⭐ The root <see cref="Discover"/> was last given, so <see cref="BaseFolder"/> can name the
+    /// folder this contributor actually scans instead of re-deriving a different one (F2).
+    /// <see langword="null"/> until a <c>rootDirectory</c> is supplied.
+    /// </summary>
+    private string? _scannedRoot;
+
     /// <inheritdoc/>
     public AssetKind Kind => AssetKind.Hsm;
 
     /// <inheritdoc/>
-    public string? BaseFolder => AssetRoots.AssetsFor(Kind);
+    /// <remarks>
+    /// ⭐⭐ <b>The root this contributor was last told to scan</b> (<see cref="Discover"/>'s
+    /// <c>rootDirectory</c>) — ⛔ <b>not</b> <c>AssetRoots.AssetsFor(Kind)</c>.
+    /// 📄 See <c>BlueprintAssetContributor.BaseFolder</c> for the measurement (review round 4, F2):
+    /// <c>AssetsFor</c> omits the source walk-up that <c>ResolveAssetsRoot</c> applies, so the two
+    /// disagree on any host with a source tree and no configured root.
+    ///
+    /// <para>⚠ <b>The fallback is deliberate and it is honest.</b> This contributor can also be driven
+    /// by an explicit <c>jsonPaths</c> list with no root at all (the test arm), and a set of loose
+    /// paths has no single base folder. ⇒ until a <c>rootDirectory</c> is supplied, the property keeps
+    /// answering <c>AssetsFor(Kind)</c>, exactly as before.</para>
+    /// </remarks>
+    public string? BaseFolder => _scannedRoot ?? AssetRoots.AssetsFor(Kind);
 
     /// <inheritdoc/>
     public event Action? ContributorChanged;
@@ -51,6 +70,12 @@ public sealed class HsmJsonAssetContributor : IAssetCatalogContributor
     public void Discover(IEnumerable<string>? jsonPaths = null, string? rootDirectory = null)
     {
         _headers.Clear();
+
+        // ⭐ F2: remember the root we were NAMED, not the one AssetsFor would re-derive. Captured even
+        //    when the directory does not exist yet — the caller's intent is still "this is my root",
+        //    and answering a DIFFERENT existing folder is what the defect was.
+        if (rootDirectory != null)
+            _scannedRoot = rootDirectory;
 
         IEnumerable<string> paths;
         if (jsonPaths != null)

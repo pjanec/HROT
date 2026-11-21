@@ -206,85 +206,108 @@ public sealed class BcpBatch02FixCanvasTests
         Assert.Equal(0, pickers.DrawFrameCount);
     }
 
-    // ── Task 1: hotkey dispatcher invokes the bound command on its chord ────────
+    // ── Task 1: command hotkeys — ⭐ B-10 K1: through the WindowManager's KeyRouter, only while the canvas is focused ────────
+    // ⛔ SUPERSEDED: the per-canvas EditorHotkeyDispatcher (deleted) and its three direct rails; these are the same claims, on the router.
+
+    private static void RouterWithFind(out EditorCommandsImpl commands, Action onFind)
+    {
+        commands = new EditorCommandsImpl();
+        new CommandRegistration(commands).Add(
+            NodeEditor.Core.CommandCatalog.FindInGraph, "Find in Graph", "Find",
+            _ => onFind(),
+            defaultKey: new KeyBinding(EditorKey.F, KeyModifiers.Ctrl));
+    }
 
     [Fact]
-    public void HotkeyDispatcher_InvokesBoundCommand_OnMatchingChord()
+    public void Router_RunsTheFocusedCanvasCommand_OnItsChord()
     {
         int invoked = 0;
-        var commands = new EditorCommandsImpl();
-        new CommandRegistration(commands).Add(
-            "test.find", "Find", "Find",
-            _ => invoked++,
-            defaultKey: new KeyBinding(EditorKey.F, KeyModifiers.Ctrl));
+        RouterWithFind(out var commands, () => invoked++);
+        var (win, doc, _) = OpenWindow("Blueprint", new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl));
+        doc.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint") { Commands = commands };
+        var router = new Fdp.Presentation.Input.KeyRouter(new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl));
 
-        var input = new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl);
-        var dispatcher = new EditorHotkeyDispatcher(input);
-
-        dispatcher.ProcessThisFrame(commands);
-
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(TextInput: false, PopupOpen: false, Focused: win));
         Assert.Equal(1, invoked);
     }
 
     [Fact]
-    public void HotkeyDispatcher_DoesNotInvoke_WhenModifiersDiffer()
+    public void Router_DoesNotRun_WhenModifiersDiffer()
     {
         int invoked = 0;
-        var commands = new EditorCommandsImpl();
-        new CommandRegistration(commands).Add(
-            "test.find", "Find", "Find",
-            _ => invoked++,
-            defaultKey: new KeyBinding(EditorKey.F, KeyModifiers.Ctrl));
+        RouterWithFind(out var commands, () => invoked++);
+        var (win, doc, _) = OpenWindow("Blueprint", input: null);
+        doc.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint") { Commands = commands };
+        // Ctrl+Shift+F pressed, but the command is bound to Ctrl+F only.
+        var router = new Fdp.Presentation.Input.KeyRouter(new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl | KeyModifiers.Shift));
 
-        // Ctrl+Shift+F pressed, but command is bound to Ctrl+F only.
-        var input = new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl | KeyModifiers.Shift);
-        new EditorHotkeyDispatcher(input).ProcessThisFrame(commands);
-
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(false, false, win));
         Assert.Equal(0, invoked);
     }
 
     [Fact]
-    public void HotkeyDispatcher_NullCommands_IsNoOp()
+    public void Router_AFocusedCanvasWithNoDocument_IsNoOp()
     {
-        var input = new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl);
-        // Must not throw.
-        new EditorHotkeyDispatcher(input).ProcessThisFrame(null);
+        var (win, _, _) = OpenWindow("Blueprint", input: null);   // a document, but no context ⇒ no commands
+        var router = new Fdp.Presentation.Input.KeyRouter(new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl));
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(false, false, win));   // must not throw
+        Assert.Equal(0, router.FiredLastFrame);
     }
 
+    /// <summary>
+    /// ⭐⭐ B-10 K1 acceptance ② (CE-4282) — two canvases drawn, ONE focused: the chord reaches only the focused one. 🔴 Before: every drawn
+    /// canvas pumped its own hotkeys, so one Ctrl+F / Delete / Esc / Ctrl+Z fired in each. ✅ Red-proof: the router running every drawn key
+    /// scope instead of the focused one ⇒ the other canvas's count is 1.
+    /// </summary>
     [Fact]
-    public void Canvas_PumpsHotkey_OnFrame_InvokingCtrlFFind()
+    public void Router_OnlyTheFocusedCanvasGetsItsKeys_NotEveryDrawnOne()
     {
-        int invoked = 0;
-        var commands = new EditorCommandsImpl();
-        new CommandRegistration(commands).Add(
-            NodeEditor.Core.CommandCatalog.FindInGraph, "Find in Graph", "Find",
-            _ => invoked++,
-            defaultKey: new KeyBinding(EditorKey.F, KeyModifiers.Ctrl));
+        int a = 0, b = 0;
+        RouterWithFind(out var commandsA, () => a++);
+        RouterWithFind(out var commandsB, () => b++);
+        var (winA, docA, _) = OpenWindow("Blueprint", input: null);
+        docA.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint") { Commands = commandsA };
+        var (winB, docB, _) = OpenWindow("BTree", input: null);
+        docB.ViewState = new AiCanvasContext(MakeGraphView(), "BTree") { Commands = commandsB };
+        var router = new Fdp.Presentation.Input.KeyRouter(new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl));
 
-        var input = new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl);
-        var (win, doc, _) = OpenWindow("Blueprint", input);
-        doc.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint") { Commands = commands };
-
-        win.SimulateDrawClientArea();
-        Assert.Equal(1, invoked);
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(false, false, winB));
+        Assert.Equal((0, 1), (a, b));
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(false, false, winA));
+        Assert.Equal((1, 1), (a, b));
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(false, false, Focused: null));   // the map or a plain panel focused
+        Assert.Equal((1, 1), (a, b));
     }
 
+    /// <summary>⭐ B-10 K1 acceptance ① — a text field has the keyboard ⇒ no keymap action fires.</summary>
     [Fact]
-    public void Canvas_SuppressesHotkey_WhenTypingInTextField()
+    public void Router_RunsNothing_WhileTypingInATextField()
     {
         int invoked = 0;
-        var commands = new EditorCommandsImpl();
-        new CommandRegistration(commands).Add(
-            NodeEditor.Core.CommandCatalog.FindInGraph, "Find in Graph", "Find",
-            _ => invoked++,
-            defaultKey: new KeyBinding(EditorKey.F, KeyModifiers.Ctrl));
-
-        var input = new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl);
-        var (win, doc, _) = OpenWindow("Blueprint", input);
+        RouterWithFind(out var commands, () => invoked++);
+        var (win, doc, _) = OpenWindow("Blueprint", input: null);
         doc.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint") { Commands = commands };
+        var router = new Fdp.Presentation.Input.KeyRouter(new FakeInputSource(EditorKey.F, KeyModifiers.Ctrl));
 
-        win.SimulateDrawClientArea(suppressHotkeys: true);
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(TextInput: true, PopupOpen: false, Focused: win));
         Assert.Equal(0, invoked);
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(TextInput: false, PopupOpen: true, Focused: win));   // a popup: the same
+        Assert.Equal(0, invoked);
+    }
+
+    /// <summary>⭐ B-10 K1 acceptance ⑥ — the canvas commands' DefaultKeys ARE the keymap's rows (one declaration source).</summary>
+    [Fact]
+    public void Router_DeclaresTheFocusedCanvasCommandKeys_IntoTheKeymap()
+    {
+        RouterWithFind(out var commands, () => { });
+        var (win, doc, _) = OpenWindow("Blueprint", input: null);
+        doc.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint") { Commands = commands };
+        var router = new Fdp.Presentation.Input.KeyRouter(new FakeInputSource(EditorKey.Unknown, KeyModifiers.None));
+
+        router.Dispatch(new Fdp.Presentation.Input.KeyFrame(false, false, win));
+        Assert.True(router.Keymap.TryFind(Fdp.Toolkit.Input.InputScope.FocusedWindow, win.KeyScopeKind,
+                                          new KeyBinding(EditorKey.F, KeyModifiers.Ctrl), out var row));
+        Assert.Equal(NodeEditor.Core.CommandCatalog.FindInGraph, row.Action.CommandId);
     }
 
     // ── MULTI-TAB: window title is the container name, not the active asset ──────

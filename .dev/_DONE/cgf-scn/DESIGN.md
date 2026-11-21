@@ -347,7 +347,7 @@ Responsibilities:
      `ComponentMask` IS set for that ID, call `table.GetRawObject(entity.Index)`
      and add to `initialComponents`.
    - If `episodeId.HasValue`, append `new EpisodeTag { EpisodeId = episodeId.Value }`
-     to `initialComponents` (this component has `[DataPolicy.NoSave]` so it is
+     to `initialComponents` (this component has `[DataPolicy.NoScenario]` so it is
      never in the staging repo itself).
    - If `behaviorRemapper != null`, intercept any `ActiveMissionPlan` component
      in `initialComponents` and remap its task `BehaviorParams` JSON strings

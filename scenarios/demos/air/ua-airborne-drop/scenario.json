@@ -1,0 +1,447 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a parachute drop on basic-desert. A doors-off UH-60 flies a drop leg along y = 300 at 400 m altitude and 35 m/s with an 'Airborne squad' of eight paratroopers (Paratrooper 1-8). SquadAirborneExit sends the stick out one man at a time, each with a landing point; AssembleAfterDrop then gathers the squad. Judge: (1) all eight jump, one at a time (gaps at least 0.7 s; 0.78-0.85 s measured) (2) every man lands within 150 m of his planned point (7.8-10.5 m measured) (3) the squad ends assembled, every man within 20 m of the group's middle (13 m measured) (4) the helicopter flies on empty past x 450. Fail: a man does not jump, drifts off his point, or the squad stays scattered. Check: python3 scripts/utility-demo-check.py --launch ua-airborne-drop"
+  },
+  "entities": {
+    "a1118200-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 404
+      },
+      "EntityInfo": {
+        "Name": "UH-60 (doors off)",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": {"routeEntityId":"a1118200-0000-4000-8000-000000000002","Speed":35},
+        "Origin": "Superior"
+      },
+      "Health": {
+        "Current": 800,
+        "Max": 800
+      },
+      "PassengerBuffer": {
+        "Count": 8,
+        "Passengers": [
+          "a1118200-0000-4000-8000-000000000010",
+          "a1118200-0000-4000-8000-000000000011",
+          "a1118200-0000-4000-8000-000000000012",
+          "a1118200-0000-4000-8000-000000000013",
+          "a1118200-0000-4000-8000-000000000014",
+          "a1118200-0000-4000-8000-000000000015",
+          "a1118200-0000-4000-8000-000000000016",
+          "a1118200-0000-4000-8000-000000000017"
+        ],
+        "Seats": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    },
+    "a1118200-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Airborne squad",
+        "ForceId": "Friend"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1118200-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "a1118200-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "a1118200-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 2
+      }
+    },
+    "a1118200-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 3
+      }
+    },
+    "a1118200-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "a1118200-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 6",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 5
+      }
+    },
+    "a1118200-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 7",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 6
+      }
+    },
+    "a1118200-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          300,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 204
+      },
+      "EntityInfo": {
+        "Name": "Paratrooper 8",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1118200-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a1118200-0000-4000-8000-000000000001",
+        "Seat": 7
+      }
+    },
+    "a1118200-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Drop route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": -300,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 35,
+            "HeightAgl": 400
+          },
+          {
+            "X": 0,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 35,
+            "HeightAgl": 400,
+            "Hold": "Drop"
+          },
+          {
+            "X": 500,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 35,
+            "HeightAgl": 400
+          },
+          {
+            "X": 900,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 40,
+            "HeightAgl": 100
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}

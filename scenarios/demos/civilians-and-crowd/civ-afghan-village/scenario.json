@@ -1,0 +1,1223 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "test-town",
+  "description": "What: CE-4648 (R-1066) - an Afghan village: 36 civilians of the six Afghan types (types 1111-1116: man, woman, boy, girl, elderly man, elderly woman) stand near and far round a square, and three Afghan fighters (types 2016 rifle, 2017 RPG + rifle, 2018 machine gunner) hold a post to the north. Everyone is on the Idle behaviour. Judge: (1) every villager exists as its type and stays alive; (2) the fighters hold their post (they do not wander); (3) nobody is hurt. Look: the people are dressed from their Afghan wardrobes - perahan tunban, waistcoat, pakol, lungee turban, patu, chadari; the fighters with a chest rig and a turban or pakol. Fail: a person is missing, dead, or a fighter leaves his post."
+ },
+ "entities": {
+  "d4648000-0000-0000-0000-000000000101": {
+   "SimTransform": {
+    "Position": [
+     203.0,
+     190.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9804959708833183,
+     -0.19653918459579248
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 1",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000102": {
+   "SimTransform": {
+    "Position": [
+     193.3,
+     191.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.09034727448375673,
+     0.995910322264689
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 2",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000103": {
+   "SimTransform": {
+    "Position": [
+     161.8,
+     210.9,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.8782737984677651,
+     0.4781580647913445
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 3",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000104": {
+   "SimTransform": {
+    "Position": [
+     161.7,
+     202.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.27710461746817266,
+     0.9608397530170251
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 4",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000105": {
+   "SimTransform": {
+    "Position": [
+     161.2,
+     209.9,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.6900337664926585,
+     -0.7237771764154735
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 5",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000106": {
+   "SimTransform": {
+    "Position": [
+     209.5,
+     189.9,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9963368234500487,
+     -0.08551569585442485
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 6",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000107": {
+   "SimTransform": {
+    "Position": [
+     210.9,
+     204.9,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.2959006675420825,
+     0.9552187157652168
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 7",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000108": {
+   "SimTransform": {
+    "Position": [
+     194.4,
+     174.5,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.8439429606068239,
+     -0.5364329214749863
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 8",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000109": {
+   "SimTransform": {
+    "Position": [
+     176.8,
+     192.4,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9874376240960263,
+     -0.1580092988390074
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1111
+   },
+   "EntityInfo": {
+    "Name": "Afghan man 9",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000110": {
+   "SimTransform": {
+    "Position": [
+     197.7,
+     207.8,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.784287700671671,
+     -0.6203972941391214
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1112
+   },
+   "EntityInfo": {
+    "Name": "Afghan woman 1",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000111": {
+   "SimTransform": {
+    "Position": [
+     227.7,
+     199.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.07754567584411914,
+     -0.9969888004174765
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1112
+   },
+   "EntityInfo": {
+    "Name": "Afghan woman 2",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000112": {
+   "SimTransform": {
+    "Position": [
+     229.7,
+     251.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.8768488674240277,
+     0.48076612161964977
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1112
+   },
+   "EntityInfo": {
+    "Name": "Afghan woman 3",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000113": {
+   "SimTransform": {
+    "Position": [
+     195.3,
+     212.7,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.8943004124819836,
+     -0.4474670627370846
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1112
+   },
+   "EntityInfo": {
+    "Name": "Afghan woman 4",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000114": {
+   "SimTransform": {
+    "Position": [
+     165.7,
+     223.8,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.005622319432520208,
+     0.9999841946371946
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1112
+   },
+   "EntityInfo": {
+    "Name": "Afghan woman 5",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000115": {
+   "SimTransform": {
+    "Position": [
+     201.9,
+     258.7,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.5723351695452378,
+     -0.82001978860368
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1112
+   },
+   "EntityInfo": {
+    "Name": "Afghan woman 6",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000116": {
+   "SimTransform": {
+    "Position": [
+     215.8,
+     220.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.14623062344610213,
+     -0.9892505267962025
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1112
+   },
+   "EntityInfo": {
+    "Name": "Afghan woman 7",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000117": {
+   "SimTransform": {
+    "Position": [
+     191.4,
+     197.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.1704839871147301,
+     0.9853604468099298
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1113
+   },
+   "EntityInfo": {
+    "Name": "Afghan boy 1",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000118": {
+   "SimTransform": {
+    "Position": [
+     199.7,
+     206.9,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.20525974872279343,
+     0.978707533206042
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1113
+   },
+   "EntityInfo": {
+    "Name": "Afghan boy 2",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000119": {
+   "SimTransform": {
+    "Position": [
+     213.6,
+     222.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7331602287151355,
+     0.6800559381627148
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1113
+   },
+   "EntityInfo": {
+    "Name": "Afghan boy 3",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000120": {
+   "SimTransform": {
+    "Position": [
+     200.6,
+     172.7,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.723626369199318,
+     -0.6901919137453092
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1113
+   },
+   "EntityInfo": {
+    "Name": "Afghan boy 4",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000121": {
+   "SimTransform": {
+    "Position": [
+     198.1,
+     216.1,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9559006441373139,
+     -0.29369024249686676
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1113
+   },
+   "EntityInfo": {
+    "Name": "Afghan boy 5",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000122": {
+   "SimTransform": {
+    "Position": [
+     205.9,
+     193.5,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.848917580804704,
+     -0.5285252510530494
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1114
+   },
+   "EntityInfo": {
+    "Name": "Afghan girl 1",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000123": {
+   "SimTransform": {
+    "Position": [
+     225.5,
+     255.3,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.5538901036413898,
+     0.832589786802679
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1114
+   },
+   "EntityInfo": {
+    "Name": "Afghan girl 2",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000124": {
+   "SimTransform": {
+    "Position": [
+     209.6,
+     195.2,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9958004298418954,
+     -0.09155055393986603
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1114
+   },
+   "EntityInfo": {
+    "Name": "Afghan girl 3",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000125": {
+   "SimTransform": {
+    "Position": [
+     258.0,
+     191.1,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.04277844944953635,
+     -0.9990845831373305
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1114
+   },
+   "EntityInfo": {
+    "Name": "Afghan girl 4",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000126": {
+   "SimTransform": {
+    "Position": [
+     184.5,
+     207.3,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.4302595823446184,
+     -0.9027052075847544
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1114
+   },
+   "EntityInfo": {
+    "Name": "Afghan girl 5",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000127": {
+   "SimTransform": {
+    "Position": [
+     202.4,
+     215.8,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.5704944558432732,
+     0.8213014524838536
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1115
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly man 1",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000128": {
+   "SimTransform": {
+    "Position": [
+     205.7,
+     200.3,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9975780198730687,
+     -0.06955641067599254
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1115
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly man 2",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000129": {
+   "SimTransform": {
+    "Position": [
+     240.2,
+     189.4,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9887126180317102,
+     -0.1498244270634182
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1115
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly man 3",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000130": {
+   "SimTransform": {
+    "Position": [
+     175.3,
+     167.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9456968194940772,
+     -0.32505003553112666
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1115
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly man 4",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000131": {
+   "SimTransform": {
+    "Position": [
+     172.1,
+     144.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.8823874201755293,
+     0.47052358146640627
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1115
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly man 5",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000132": {
+   "SimTransform": {
+    "Position": [
+     197.3,
+     206.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.6804734195108136,
+     0.7327727651456898
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1116
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly woman 1",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000133": {
+   "SimTransform": {
+    "Position": [
+     202.4,
+     206.8,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9751879504863709,
+     0.22137854734863419
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1116
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly woman 2",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000134": {
+   "SimTransform": {
+    "Position": [
+     217.4,
+     164.8,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.914240201738875,
+     -0.4051726218841313
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1116
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly woman 3",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000135": {
+   "SimTransform": {
+    "Position": [
+     211.5,
+     206.5,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.9646014894784446,
+     -0.2637119005581017
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1116
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly woman 4",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000136": {
+   "SimTransform": {
+    "Position": [
+     227.3,
+     172.6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.43325679327946814,
+     0.9012705204749527
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 1116
+   },
+   "EntityInfo": {
+    "Name": "Afghan elderly woman 5",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000137": {
+   "SimTransform": {
+    "Position": [
+     196.0,
+     230,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2019
+   },
+   "EntityInfo": {
+    "Name": "Afghan fighter 1",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000138": {
+   "SimTransform": {
+    "Position": [
+     200.0,
+     230,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2020
+   },
+   "EntityInfo": {
+    "Name": "Afghan fighter 2",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d4648000-0000-0000-0000-000000000139": {
+   "SimTransform": {
+    "Position": [
+     204.0,
+     230,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2021
+   },
+   "EntityInfo": {
+    "Name": "Afghan fighter 3",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Idle",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

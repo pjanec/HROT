@@ -49,7 +49,7 @@ namespace CarKinem.Tests.Commands
             Assert.True(repo.HasComponent<SimVelocity>(entity));
             
             var tf = repo.GetComponent<SimTransform>(entity);
-            Assert.Equal(new Vector3(100, 50, 0), tf.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(100, 50, 0), tf.Position);
             
             // Heading was (1, 0) East.
             // Check if rotation is correct approximately.

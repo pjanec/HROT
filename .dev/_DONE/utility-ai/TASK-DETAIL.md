@@ -63,7 +63,7 @@ SC-P0-01-4: `default(WeaponState).MaxAmmo == 0`; downstream readers must handle 
 - No allocations on the enumeration hot path.
 - Mounts beyond `dest.Length` are truncated; caller is responsible for buffer size (typical = 4).
 - `WeaponMountInfo.EffectiveRange` reads `WeaponCapabilitiesDto.EffectiveRange` if a `WeaponCapabilities` descriptor is present, else `0f`.
-- The new component does **not** carry `[DataPolicy.NoSave]` — mount configuration should round-trip through scenarios.
+- The new component does **not** carry `[DataPolicy.NoScenario]` — mount configuration should round-trip through scenarios.
 
 **Success Conditions:**
 

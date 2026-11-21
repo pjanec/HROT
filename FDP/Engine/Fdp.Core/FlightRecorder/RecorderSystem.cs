@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,9 +13,9 @@ namespace Fdp.Core.FlightRecorder
     public class RecorderSystem
     {
         // Special ID for EntityIndex hot (component-mask) chunks
-        private const int ENTITY_INDEX_TYPE_ID = -1;
+        internal const int ENTITY_INDEX_TYPE_ID = -1;
         // Special ID for EntityIndex cold (metadata) chunks
-        private const int ENTITY_INDEX_COLD_TYPE_ID = -2;
+        internal const int ENTITY_INDEX_COLD_TYPE_ID = -2;   // ⭐ CE-4093 — internal: WorldChangeCheck walks a keyframe by these ids
 
         // Reusable scratch buffer for chunk copying (64KB)
         private readonly byte[] _scratchBuffer = new byte[FdpConfig.CHUNK_SIZE_BYTES];
@@ -23,6 +24,23 @@ namespace Fdp.Core.FlightRecorder
 
         private delegate int ManagedRecorderDelegate(object table, EntityIndex index, BinaryWriter writer, uint prevTick);
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ManagedRecorderDelegate> _managedRecorders = new();
+
+        // ⭐ CE-2045 — table type → its managed recorder, or null for an unmanaged table; built once per type.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ManagedRecorderDelegate?> _recorderByTableType = new();
+
+        private static ManagedRecorderDelegate? ManagedRecorderFor(Type tableType)
+            => _recorderByTableType.GetOrAdd(tableType, static t =>
+            {
+                if (!t.IsGenericType || t.GetGenericTypeDefinition() != typeof(ManagedComponentTable<>)) return null;
+                Type componentType = t.GetGenericArguments()[0];
+                return _managedRecorders.GetOrAdd(componentType, static ct =>
+                {
+                    var method = typeof(RecorderSystem).GetMethod(nameof(RecordManagedTableAdapter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                        .MakeGenericMethod(ct);
+                    return (ManagedRecorderDelegate)Delegate.CreateDelegate(typeof(ManagedRecorderDelegate), method);
+                });
+            });
         
         /// <summary>
         /// ID threshold below which entities are NOT recorded.
@@ -46,6 +64,110 @@ namespace Fdp.Core.FlightRecorder
         public Predicate<Entity>? EntityFilter { get; set; } = null;
 
         /// <summary>
+        /// ⭐ <c>CE-3299</c> B2 — which component types (component tables, the entity masks, singletons) this recorder writes. Null: the
+        /// recordable set (<see cref="ComponentTypeRegistry.IsRecordable"/>, no <c>NoReplay</c>) — every recording. A dry run's RAM
+        /// keyframe sets it to carry what the dry run puts back (restore design D12, B2).
+        /// </summary>
+        public Func<int, bool>? ComponentTypeFilter { get; set; } = null;
+
+        /// <summary>⭐ B2 — false: no singleton is written (a dry run never rewinds a singleton — <c>SyncFrom</c> did not either).</summary>
+        public bool RecordSingletonTables { get; set; } = true;
+
+        private bool Records(int typeId) => ComponentTypeFilter?.Invoke(typeId) ?? RecordableMask().IsSet(typeId);
+
+        // ⭐ CE-2392 — the recordable set as a mask, rebuilt only when the registry's recordable set moved: Records() asked the registry under
+        //   its lock (a Dictionary lookup) for every table every frame. 📐 8.7 % of the main thread on Crossfire (4 worlds), dotnet-trace.
+        private BitMask512 _recordableMask;
+        private int _recordableMaskVersion = int.MinValue;
+        private BitMask512 RecordableMask()
+        {
+            int v = ComponentTypeRegistry.RecordableVersion;
+            if (v != _recordableMaskVersion)
+            {
+                var mask = new BitMask512();
+                foreach (var id in ComponentTypeRegistry.GetRecordableTypeIds()) mask.SetBit(id);
+                _recordableMask = mask;
+                _recordableMaskVersion = v;
+            }
+            return _recordableMask;
+        }
+
+        // ⭐ CE-3332 — the bytes each unmanaged chunk last went to the recording with (key: type id, chunk); cleared by a keyframe
+        // ⭐ CE-2392 — a full-chunk buffer plus the length last written: a delta writes only the used prefix, which grows as entities spawn
+        private sealed class LastChunk { public readonly byte[] Bytes = new byte[FdpConfig.CHUNK_SIZE_BYTES]; public int Length = -1; }
+        private readonly Dictionary<long, LastChunk> _lastChunkBytes = new();
+
+        /// <summary>⭐ CE-3332 — did this chunk's sanitized bytes (in the scratch buffer) differ from what it was last recorded with? Keeps the
+        /// new bytes. Allocates only the first time a chunk is seen.</summary>
+
+        /// <summary>⭐ CE-1478 P6 — the component-type-id flag of a BLOCK-RUN record (format v8): the record holds only the 64-byte blocks that differ from the chunk's last recorded bytes. Component ids are &lt; 512, so bit 30 is free (⛔ the entity-index ids −1 / −2 are negative: a reader tests <c>typeId &gt; 0</c> first).</summary>
+        public const int BlockRecordFlag = 0x40000000;
+        /// <summary>⭐ CE-1478 P6 — the diff granularity (a cache line): 📐 on the 1 000-man recording 5.4 % of the changed chunks' 64-byte blocks differ (MEASURE §5), and the biggest type (a 4 096-byte row) changes ~1 % of its blocks — a block run beats a whole-row record there.</summary>
+        public const int BlockSize = 64;
+
+        /// <summary>⭐ CE-1478 P6 (format v8) — write a delta's unmanaged chunk as the 64-byte blocks that moved (default), not the chunk's whole used prefix. Off ⇒ the v7 body (an equivalence rail records both).</summary>
+        public bool BlockDeltas { get; set; } = EnvVars.Read(EnvVars.HrotRecordBlockDeltas) != "0";   // the env switch is for measuring (MEASURE §9)
+
+        private readonly byte[] _blockBuf = new byte[FdpConfig.CHUNK_SIZE_BYTES * 2 + 64];
+
+        /// <summary>
+        /// ⭐ CE-3332 — did this chunk's sanitized bytes (in the scratch buffer) differ from what it was last recorded with? Keeps the new bytes.
+        /// ⭐ CE-1478 P6 — <paramref name="blockPayload"/> &gt; 0: the diff against those last bytes as block runs (in <c>_blockBuf</c>) is SMALLER than the prefix; write it instead.
+        /// </summary>
+        private bool ChunkBytesMoved(int typeId, int chunk, int bytes, out int blockPayload)
+        {
+            blockPayload = 0;
+            long key = ((long)typeId << 32) | (uint)chunk;
+            var now = new ReadOnlySpan<byte>(_scratchBuffer, 0, bytes);
+            if (!_lastChunkBytes.TryGetValue(key, out var last)) _lastChunkBytes[key] = last = new LastChunk();
+            else if (last.Length == bytes && now.SequenceEqual(new ReadOnlySpan<byte>(last.Bytes, 0, bytes))) return false;
+            else if (BlockDeltas && last.Length > 0 && last.Length <= bytes) blockPayload = BuildBlockRuns(now, last.Bytes, last.Length);
+            now.CopyTo(last.Bytes);
+            last.Length = bytes;
+            return true;
+        }
+
+        // [totalBytes:int][runCount:int] then per run [firstBlock:int][blockCount:int][the blocks' bytes] — the last block of a chunk may be short.
+        // Returns the payload length, or 0 when it would not be smaller than the prefix. Blocks past the old length count as moved.
+        private int BuildBlockRuns(ReadOnlySpan<byte> now, byte[] lastBytes, int oldLen)
+        {
+            int n = now.Length;
+            var last = new ReadOnlySpan<byte>(lastBytes, 0, oldLen);
+            var buf = _blockBuf;
+            int w = 8, runs = 0, pos = 0;
+            while (pos < n)
+            {
+                if (pos < oldLen)
+                {
+                    pos += now.Slice(pos, oldLen - pos).CommonPrefixLength(last.Slice(pos, oldLen - pos));
+                    if (pos >= n) break;
+                }
+                int start = pos & ~(BlockSize - 1), end = start;
+                while (end < n)
+                {
+                    int blockEnd = Math.Min(end + BlockSize, n);
+                    bool moved = blockEnd > oldLen || !now.Slice(end, blockEnd - end).SequenceEqual(last.Slice(end, blockEnd - end));
+                    if (!moved) break;
+                    end = blockEnd;
+                }
+                if (end == start) { pos = start + BlockSize; continue; }   // cannot happen (pos sits in a moved block); never loop
+                if (w + 8 + (end - start) >= n) return 0;                  // not smaller than the prefix
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(w), start / BlockSize);
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(w + 4), (end - start + BlockSize - 1) / BlockSize);
+                now.Slice(start, end - start).CopyTo(buf.AsSpan(w + 8));
+                w += 8 + (end - start);
+                runs++;
+                pos = end;
+            }
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(0), n);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(4), runs);
+            return w;
+        }
+
+        private EntityRepository? _destructionRepo;   // ⭐ CE-3335 — the world this recorder's destruction mark belongs to
+        private long _destructionMark;
+
+        /// <summary>
         /// Records a delta frame containing only changed data since prevTick.
         /// Writes to the provided BinaryWriter.
         /// </summary>
@@ -57,6 +179,7 @@ namespace Fdp.Core.FlightRecorder
         public void RecordDeltaFrame(EntityRepository repo, uint prevTick, BinaryWriter writer,
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
+            PrepareLiveness(repo);   // ⭐ CE-2416
             // ---------------------------------------------------------
             // 1. WRITE FRAME METADATA
             // ---------------------------------------------------------
@@ -67,11 +190,15 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // 2. WRITE DESTRUCTIONS
             // ---------------------------------------------------------
-            var destroyed = repo.GetDestructionLog();
-            writer.Write(destroyed.Count);
+            // ⭐ CE-3335 — the deaths since THIS recorder's mark: the recorder no longer empties the world's log (another reader shares it)
+            if (!ReferenceEquals(repo, _destructionRepo)) { _destructionRepo = repo; _destructionMark = 0; }
+            var destroyed = repo.ReadDestructions(ref _destructionMark);
+            int destroyedCount = destroyed.Length;
+            writer.Write(destroyedCount);
             
-            foreach (var e in destroyed)
+            for (int i = 0; i < destroyed.Length; i++)
             {
+                var e = destroyed[i];
                 writer.Write(e.Index);
                 writer.Write(e.Generation);
             }
@@ -81,7 +208,7 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // Note: eventBus parameter is optional for backward compatibility
             // When null, this section writes 0 streams (no events)
-            WriteEvents(writer, eventBus, serializeReadBuffer);
+            int eventStreams = WriteEvents(writer, eventBus, serializeReadBuffer);
             
             // ---------------------------------------------------------
             // 4. RECORD SINGLETONS
@@ -91,7 +218,7 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // 5. DIRTY SCAN & WRITE (PER TABLE)
             // ---------------------------------------------------------
-            var componentTables = repo.GetRegisteredComponentTypes();
+            var componentTables = repo.ComponentTablesForRecording;   // ⭐ CE-2045 — concrete: struct enumerator, no box per frame
             var entityIndex = repo.GetEntityIndex();
             
             // We write a "Chunk Blobs" count. 
@@ -101,7 +228,9 @@ namespace Fdp.Core.FlightRecorder
             long chunkCountPos = writer.BaseStream.Position;
             writer.Write(0); // Placeholder for ChunkCount
             int actualChunkCount = 0;
-            
+            int movedChunkCount = 0;   // ⭐ CE-3332 — chunks whose recorded BYTES moved (the Changed flag), not only their version
+            BuildStructuralPrefix(entityIndex, prevTick);   // ⭐ CE-3243 — once per delta, before any chunk asks
+
             // ----------------------------------------------------------------
             // 3.1 FLUSH ENTITY INDEX (Structural Data)
             // MUST be written before components so receiver can revive entities first?
@@ -120,6 +249,8 @@ namespace Fdp.Core.FlightRecorder
             // ref access without going through SetLifecycleState/AddComponent) are not
             // captured in delta frames. Proper fix: also check the cold NativeChunkTable
             // per-chunk version separately. Tracked in DEBT-TRACKER D004.
+            // ⭐ CE-4327 — SetAuthority (the ownership handover) now stamps LastChangeTick on a real change, so a handover IS captured;
+            // only a direct cold write that bypasses every setter is not.
             for (int c = 0; c < indexTotalChunks; c++)
             {
                if ((c + 1) * indexCapacity <= MinRecordableId) continue;
@@ -163,7 +294,7 @@ namespace Fdp.Core.FlightRecorder
                        var recordableMask = GetRecordableMask();
                        SanitizeHotChunkMask(_scratchBuffer, bytes, recordableMask);
                        
-                       actualChunkCount++;
+                       actualChunkCount++; movedChunkCount++;
                        writer.Write(c);
                        writer.Write(1); // Count = 1 (hot chunk only; cold follows immediately)
                        writer.Write(ENTITY_INDEX_TYPE_ID);
@@ -186,7 +317,7 @@ namespace Fdp.Core.FlightRecorder
                            SanitizeScratchBuffer(_scratchBuffer, coldBytes,
                                System.Runtime.CompilerServices.Unsafe.SizeOf<EntityMetadataCold>(),
                                new ReadOnlySpan<bool>(_livenessBuffer, 0, coldCapacity));
-                           actualChunkCount++;
+                           actualChunkCount++; movedChunkCount++;
                            writer.Write(cc);
                            writer.Write(1);
                            writer.Write(ENTITY_INDEX_COLD_TYPE_ID);
@@ -204,7 +335,7 @@ namespace Fdp.Core.FlightRecorder
             foreach (var kvp in componentTables)
             {
                 var table = kvp.Value;
-                if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
+                if (!Records(table.ComponentTypeId)) continue;
                 
                 // Only support unmanaged for now -> REMOVED because we now support managed.
                 // if (!(table is IUnmanagedComponentTable unmanagedTable)) continue;
@@ -221,23 +352,15 @@ namespace Fdp.Core.FlightRecorder
                 if (maxIndex < 0) continue;
                 
                 // Managed Component Support (Tier 2)
-                if (table.GetType().IsGenericType && 
-                    table.GetType().GetGenericTypeDefinition() == typeof(ManagedComponentTable<>))
+                // ⭐ CE-2045 — one cached lookup per TABLE type: it called GetGenericArguments() (a new Type[]) for every managed
+                //   table on every frame — the hot path's last per-table allocation.
+                if (ManagedRecorderFor(table.GetType()) is { } recorder)
                 {
-                    Type componentType = table.GetType().GetGenericArguments()[0];
-                    
-                    if (!_managedRecorders.TryGetValue(componentType, out var recorder))
-                    {
-                        var method = typeof(RecorderSystem).GetMethod(nameof(RecordManagedTableAdapter), 
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                            .MakeGenericMethod(componentType);
-                        recorder = (ManagedRecorderDelegate)Delegate.CreateDelegate(typeof(ManagedRecorderDelegate), method);
-                        _managedRecorders.TryAdd(componentType, recorder);
-                    }
                         
                     // Return chunk count delta
                     int delta = recorder(table, entityIndex, writer, prevTick);
                     actualChunkCount += delta;
+                    movedChunkCount += delta;   // managed tables: a written chunk counts as moved
                     continue;
                 }
 
@@ -300,20 +423,37 @@ namespace Fdp.Core.FlightRecorder
                     // Reuse shared liveness buffer
                     FillLiveness(entityIndex, startId, count, _livenessBuffer);
                     
-                    // Sanitize
-                    // Copy first
-                    int bytes = unmanagedTable.CopyChunkToBuffer(c, _scratchBuffer);
+                    // ⭐ CE-2392 — only the USED prefix of the chunk: the slots up to the highest issued entity (count of them). The rest was
+                    //   never issued, so it is zero in the live table and in the playback world (a keyframe clears it, MaxIssuedIndex only
+                    //   grows); playback restores min(length, chunk) bytes. It copied, sanitized, compared and wrote all 64 KB of every changed
+                    //   chunk. 📐 Sanitize + memmove + compare were 15.8 % of the main thread on Crossfire (4 worlds, ~520 entities).
+                    int usedBytes = count * table.ComponentSize;
+                    int bytes = Math.Min(unmanagedTable.CopyChunkToBuffer(c, _scratchBuffer, usedBytes), usedBytes);
 
                     // Sanitize the COPY
                     if (bytes > 0)
                     {
-                        SanitizeScratchBuffer(_scratchBuffer, bytes, table.ComponentSize, new ReadOnlySpan<bool>(_livenessBuffer, 0, capacity));
+                        SanitizeScratchBuffer(_scratchBuffer, bytes, table.ComponentSize, new ReadOnlySpan<bool>(_livenessBuffer, 0, count));
+                        // ⭐ CE-4058 ⑤ (DAR §12s) — a chunk WRITTEN with the bytes it last went to this recording with is not written again:
+                        //   the playback already holds exactly them (the stream it follows is this one), so a paused frame shrinks to its
+                        //   header. 📐 Measured before: 14 268 frames / 75 MB for 41 s of sim on a stepped run, the pauses' frames full size.
+                        if (!ChunkBytesMoved(table.ComponentTypeId, c, bytes, out int blockPayload)) continue;
                         actualChunkCount++;
+                        movedChunkCount++;
                         writer.Write(c);            // Chunk ID (specific to this table)
                         writer.Write(1);            // Count (1 component type)
-                        writer.Write(table.ComponentTypeId); // Type ID
-                        writer.Write(bytes);        // Data Length
-                        writer.Write(_scratchBuffer, 0, bytes); // Data
+                        if (blockPayload > 0)       // ⭐ CE-1478 P6 (v8) — only the 64-byte blocks that moved
+                        {
+                            writer.Write(table.ComponentTypeId | BlockRecordFlag);
+                            writer.Write(blockPayload);
+                            writer.Write(_blockBuf, 0, blockPayload);
+                        }
+                        else
+                        {
+                            writer.Write(table.ComponentTypeId); // Type ID
+                            writer.Write(bytes);        // Data Length
+                            writer.Write(_scratchBuffer, 0, bytes); // Data
+                        }
                     }
                 }
             }
@@ -323,7 +463,19 @@ namespace Fdp.Core.FlightRecorder
             writer.BaseStream.Position = chunkCountPos;
             writer.Write(actualChunkCount);
             writer.BaseStream.Position = endPos;
+
+            // ⭐ CE-3329 P0 — the frame index's Changed flag: anything besides the singletons (the clock) moved
+            // ⭐ CE-3332 — measured: on a paused frame five tables (SimTransform and four presentation tables) are WRITTEN every frame with the
+            //   same values, so a version test marked every paused frame changed. ⇒ a chunk counts when its recorded bytes moved.
+            LastFrameChanged = destroyedCount > 0 || eventStreams > 0 || movedChunkCount > 0;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3329</c> P0 — did the last frame written carry a change besides the singletons (an entity chunk, a destruction, an
+        /// event)? A keyframe always does. The recorder writes it into the v7 frame index (<c>FrameFlags.Changed</c>), so a paused
+        /// stretch's timeline mark says whether anything happened in it without decoding (design §4).
+        /// </summary>
+        public bool LastFrameChanged { get; private set; }
         
         /// <summary>
         /// Records a full keyframe (all active data).
@@ -336,6 +488,15 @@ namespace Fdp.Core.FlightRecorder
         public void RecordKeyframe(EntityRepository repo, BinaryWriter writer,
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
+            PrepareLiveness(repo);   // ⭐ CE-2416
+            // ⭐ CE-3332 — a keyframe holds every chunk: the next delta compares against nothing older than it
+            // ⭐ CE-2397 — forget the bytes, KEEP the 64 KB buffers: dropping them re-allocated one per chunk after every keyframe
+            //   (📐 ≈ 160 KB of garbage per frame on Crossfire, a regression of CE-2392)
+            foreach (var last in _lastChunkBytes.Values) last.Length = -1;
+            // ⭐ CE-3335 — a keyframe holds the whole world: the deaths before it are in it (as absences)
+            _destructionRepo = repo;
+            _destructionMark = repo.DestructionMark;
+
             // Write frame metadata
             writer.Write((ulong)repo.SimulationTick); // Current Tick (frame clock) - Explicit Cast!
             writer.Write((byte)1);            // Type: Keyframe (1)
@@ -346,17 +507,32 @@ namespace Fdp.Core.FlightRecorder
             
             // Write events (same as delta frames)
             WriteEvents(writer, eventBus, serializeReadBuffer);
+            LastFrameChanged = true;   // ⭐ CE-3329 P0 — a keyframe holds the whole world
             
             // Record Singletons (force all dirty)
             RecordSingletons(repo, writer, 0);
             
             // Force all chunks to be considered "dirty" by using prevTick = 0
             RecordAllChunks(repo, writer);
+
+            // ⭐⭐ CE-4118 — a keyframe that records the READ buffer (the kernel's frame: the bus swapped before PostSimulation) also
+            //   carries what is still UNCONSUMED — the write buffer at this moment — as a trailing section, for a checkpoint restore
+            //   (DESIGN_Checkpoint_And_Dry_Run_Restore D2: "the restore applies the keyframe's pending events"). Replay injects the main
+            //   block only; PlaybackSystem.ApplyFrame(unconsumedEvents: true) reads this one. ⚠ After the chunks, so a frame without it
+            //   (every recording before CE-4118) reads exactly as before.
+            if (serializeReadBuffer && eventBus != null)
+            {
+                writer.Write(UnconsumedEventsMagic);
+                WriteEvents(writer, eventBus, serializeReadBuffer: false);
+            }
         }
+
+        /// <summary>⭐ <c>CE-4118</c> — marks a keyframe's trailing UNCONSUMED-events section ("UNCN").</summary>
+        public const int UnconsumedEventsMagic = 0x4E434E55;
         
         private void RecordAllChunks(EntityRepository repo, BinaryWriter writer)
         {
-            var componentTables = repo.GetRegisteredComponentTypes();
+            var componentTables = repo.ComponentTablesForRecording;   // ⭐ CE-2045 — concrete: struct enumerator, no box per frame
             var entityIndex = repo.GetEntityIndex();
             
             writer.Flush(); // Flush before reading position
@@ -427,20 +603,11 @@ namespace Fdp.Core.FlightRecorder
             foreach (var kvp in componentTables)
             {
                 var table = kvp.Value;
-                if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
-                if (table.GetType().IsGenericType && 
-                    table.GetType().GetGenericTypeDefinition() == typeof(ManagedComponentTable<>))
+                if (!Records(table.ComponentTypeId)) continue;
+                // ⭐ CE-2045 — one cached lookup per TABLE type: it called GetGenericArguments() (a new Type[]) for every managed
+                //   table on every frame — the hot path's last per-table allocation.
+                if (ManagedRecorderFor(table.GetType()) is { } recorder)
                 {
-                    Type componentType = table.GetType().GetGenericArguments()[0];
-                    
-                    if (!_managedRecorders.TryGetValue(componentType, out var recorder))
-                    {
-                        var method = typeof(RecorderSystem).GetMethod(nameof(RecordManagedTableAdapter), 
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                            .MakeGenericMethod(componentType);
-                        recorder = (ManagedRecorderDelegate)Delegate.CreateDelegate(typeof(ManagedRecorderDelegate), method);
-                        _managedRecorders.TryAdd(componentType, recorder);
-                    }
                         
                     // For Keyframes, we force recording by passing prevTick = 0
                     int delta = recorder(table, entityIndex, writer, 0);
@@ -491,36 +658,50 @@ namespace Fdp.Core.FlightRecorder
             writer.BaseStream.Position = endPos;
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-3243</c> — did any entity in [<paramref name="startId"/>, +<paramref name="count"/>) change structurally since
+        /// <paramref name="sinceVersion"/>? Answered from <see cref="_structuralPrefix"/>, built ONCE per delta frame by
+        /// <see cref="BuildStructuralPrefix"/>: it was a walk of the range per call, and a delta asks it for every chunk of every
+        /// recordable table — O(tables × entities) per frame.
+        /// </summary>
         private bool ChunkHasStructuralChanges(EntityIndex index, int startId, int count, uint sinceVersion)
         {
-            int endId = startId + count;
-            int max = index.MaxIssuedIndex;
-            
-            for (int i = startId; i < endId && i <= max; i++)
-            {
-                // Optimization: could skip blocks of stable entities if we had a hierarchy
-            ref readonly var metaCS = ref index.GetMetadata(i);
-                if (metaCS.LastChangeTick > sinceVersion) return true;
-                
-                // Also check if it became inactive recently?
-                // IsActive change also updates LastChangeTick via DestroyEntity/CreateEntity
-            }
-            return false;
+            if (_structuralPrefixFor != sinceVersion || _structuralPrefixMax != index.MaxIssuedIndex)
+                BuildStructuralPrefix(index, sinceVersion);
+            int end = Math.Min(startId + count, _structuralPrefixMax + 1);
+            if (startId >= end) return false;
+            return _structuralPrefix[end] - _structuralPrefix[startId] > 0;
         }
-        
-        private bool HasChunkChanged(IComponentTable table, int chunkIndex, int chunkCapacity, uint sinceVersion)
+
+        // ⭐ CE-3243 — prefix count of entities whose LastChangeTick is past the frame's prevTick: [i] = changed entities below i.
+        //   Grown, never shrunk, so the steady state allocates nothing.
+        private int[] _structuralPrefix = new int[1];
+        private uint _structuralPrefixFor = uint.MaxValue;
+        private int _structuralPrefixMax = -2;
+
+        private void BuildStructuralPrefix(EntityIndex index, uint sinceVersion)
         {
-            int startId = chunkIndex * chunkCapacity;
-            int endId = startId + chunkCapacity;
-            
-            // We can't iterate table entities directly easily without access to internal array.
-            // But IComponentTable.GetVersionForEntity works.
-            for (int i = startId; i < endId; i++)
+            int max = index.MaxIssuedIndex;
+            if (_structuralPrefix.Length < max + 2) _structuralPrefix = new int[Math.Max(max + 2, _structuralPrefix.Length * 2)];
+            int changed = 0;
+            _structuralPrefix[0] = 0;
+            for (int i = 0; i <= max; i++)
             {
-                if (table.GetVersionForEntity(i) > sinceVersion) return true;
+                if (index.GetMetadata(i).LastChangeTick > sinceVersion) changed++;
+                _structuralPrefix[i + 1] = changed;
             }
-            return false;
+            _structuralPrefixFor = sinceVersion;
+            _structuralPrefixMax = max;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3243</c> — a table's chunk version is per CHUNK (<see cref="IComponentTable.GetVersionForEntity"/> maps the
+        /// entity to its chunk), so one read of the chunk's first slot answers it — the same rule as
+        /// <c>EntityRepository.DeltaQuery</c>. It was a call per slot over the whole chunk capacity (16 384 for a 4-byte
+        /// component) for every recordable table every frame, changed or not: 📐 ~25 ms/frame on every node, flat with the crowd.
+        /// </summary>
+        private bool HasChunkChanged(IComponentTable table, int chunkIndex, int chunkCapacity, uint sinceVersion)
+            => table.GetVersionForEntity(chunkIndex * chunkCapacity) > sinceVersion;
         
         // Helpers
         private int GetCapacityForType(Type type)
@@ -529,14 +710,57 @@ namespace Fdp.Core.FlightRecorder
             // Or use the formula directly since we know CHUNK_SIZE_BYTES
             if (type.IsValueType)
             {
-                 int size = System.Runtime.InteropServices.Marshal.SizeOf(type); // Safe for unmanaged
-                 return FdpConfig.CHUNK_SIZE_BYTES / size;
+                 return FdpConfig.GetChunkCapacity(type);   // ⭐ CE-2044 — the table's own formula (was CHUNK_SIZE / Marshal.SizeOf)
             }
             throw new InvalidOperationException($"Cannot determine chunk capacity for managed type {type.Name} in unmanaged path.");
         }
         
+        /// <summary>The rail's seam: false takes the per-chunk recompute, so <c>RecorderLivenessOnceTests</c> can compare the bytes of both.</summary>
+        internal static bool LivenessOnce = true;
+
+        // ⭐ CE-2416 — every entity's liveness ONCE per recorded frame; FillLiveness slices it. It recomputed the same entities' liveness for
+        //   every changed chunk of every table (each read through the metadata write accessor): 📐 ~60 % of the recorder on the CE-2408
+        //   stress world. A/B on one binary (700 soldiers, 2 runs each): 3–8× cheaper per entity on every node (CGF 13.6–15.8 → 2.6–4.8 µs,
+        //   SimHost 9.6–11.9 → 1.8–2.5, traffic 8.7–14.7 → 1.3–1.8). The world does not change while one frame is recorded (main thread).
+        private bool[] _frameLiveness = Array.Empty<bool>();
+        private int _frameLivenessMax = -1;
+        private EntityRepository? _livenessRepo;
+        private long _livenessStructure;
+
+        private void PrepareLiveness(EntityRepository repo)
+        {
+            _frameLivenessMax = -1;
+            if (!LivenessOnce) return;
+            var index = repo.GetEntityIndex();
+            _livenessRepo = repo;
+            _livenessStructure = repo.StructuralChanges;   // a create or destroy after this voids it
+            int max = index.MaxIssuedIndex;
+            if (_frameLiveness.Length < max + 1) _frameLiveness = new bool[Math.Max(max + 1, _frameLiveness.Length * 2)];
+            for (int i = 0; i <= max; i++)
+            {
+                bool alive = false;
+                if (i >= MinRecordableId)
+                {
+                    ref readonly var meta = ref index.GetMetadataUnsafe(i);
+                    alive = meta.IsActive;
+                    if (alive && EntityFilter != null) alive = EntityFilter(new Entity(i, meta.Generation));
+                }
+                _frameLiveness[i] = alive;
+            }
+            _frameLivenessMax = max;
+        }
+
         private void FillLiveness(EntityIndex index, int startId, int count, Span<bool> liveness)
         {
+            if (_frameLivenessMax >= 0 && index.MaxIssuedIndex == _frameLivenessMax && _livenessRepo is { } lr
+                && ReferenceEquals(lr.GetEntityIndex(), index) && lr.StructuralChanges == _livenessStructure)
+            {
+                int end0 = startId + count, known = Math.Min(end0, _frameLivenessMax + 1);
+                int k = startId;
+                if (k < known) { new ReadOnlySpan<bool>(_frameLiveness, k, known - k).CopyTo(liveness); k = known; }
+                if (k < end0) liveness.Slice(k - startId, end0 - k).Clear();
+                return;
+            }
             int max = index.MaxIssuedIndex;
             int end = startId + count;
             for (int i = startId; i < end; i++)
@@ -557,9 +781,12 @@ namespace Fdp.Core.FlightRecorder
         private BitMask512 GetRecordableMask()
         {
             var mask = new BitMask512();
-            var ids = ComponentTypeRegistry.GetRecordableTypeIds();
-            foreach (var id in ids) mask.SetBit(id);
-            return mask;
+            if (ComponentTypeFilter is { } filter)
+            {
+                foreach (var id in ComponentTypeRegistry.GetAllIds()) if (filter(id)) mask.SetBit(id);
+                return mask;
+            }
+            return RecordableMask();   // ⭐ CE-2392 — cached until the recordable set moves
         }
 
         private unsafe void SanitizeHotChunkMask(byte[] buffer, int bytesWritten, BitMask512 mask)
@@ -618,8 +845,11 @@ namespace Fdp.Core.FlightRecorder
 
                 int startId = c * chunkSize;
                 
-                // Serialize the chunk (T?[])
-                T?[] chunkData = new T?[chunkSize];
+                // ⭐ CE-2397 — zero garbage: a REUSED buffer per component type (was a new T?[16384] — 128 KB, large-object heap — per
+                //   changed managed table per frame) serialized STRAIGHT into the frame's writer (was a new MemoryStream + ToArray()).
+                //   📐 ≈ 480 KB of garbage per frame on Crossfire. The bytes written are the same (a full-length array, as playback reads).
+                T?[] chunkData = ManagedChunkBuffer<T>.Get(chunkSize);
+                int filled = 0;
                 for (int i = 0; i < chunkSize; i++)
                 {
                     int entityId = startId + i;
@@ -634,27 +864,30 @@ namespace Fdp.Core.FlightRecorder
                     {
                         chunkData[i] = null;
                     }
+                    filled = i + 1;
                 }
 
                 // Optimization: We write even safely "empty" chunks if they track a dirty version to clear data on restore.
                 // But typically if hasData=false and it was previously empty, version wouldn't change.
 
-                using (var ms = new MemoryStream())
-                using (var chunkWriter = new BinaryWriter(ms))
-                {
-                    FdpAutoSerializer.Serialize(chunkData, chunkWriter);
-                    byte[] serialized = ms.ToArray();
-
-                    if (serialized.Length > 0)
-                    {
-                        chunkCount++;
-                        writer.Write(c);
-                        writer.Write(1);
-                        writer.Write(table.ComponentTypeId);
-                        writer.Write(serialized.Length);
-                        writer.Write(serialized);
-                    }
-                }
+                var stream = writer.BaseStream;
+                long recordStart = stream.Position;
+                writer.Write(c);
+                writer.Write(1);
+                writer.Write(table.ComponentTypeId);
+                long lengthAt = stream.Position;
+                writer.Write(0);                                    // the length, patched below
+                long dataStart = stream.Position;
+                FdpAutoSerializer.Serialize(chunkData, writer);
+                writer.Flush();
+                long dataEnd = stream.Position;
+                System.Array.Clear(chunkData, 0, filled);           // the buffer holds no component past this call
+                if (dataEnd == dataStart) { stream.Position = recordStart; continue; }   // nothing serialized: no record (as before)
+                stream.Position = lengthAt;
+                writer.Write((int)(dataEnd - dataStart));
+                writer.Flush();
+                stream.Position = dataEnd;
+                chunkCount++;
             }
             return chunkCount;
         }
@@ -684,7 +917,7 @@ namespace Fdp.Core.FlightRecorder
             var attr = (Fdp.Core.DataPolicyAttribute?)Attribute.GetCustomAttribute(eventType, typeof(Fdp.Core.DataPolicyAttribute));
 
             shouldRecord = true;
-            if (attr != null && attr.Policy.HasFlag(Fdp.Core.DataPolicy.NoRecord))
+            if (attr != null && attr.Policy.HasFlag(Fdp.Core.DataPolicy.NoReplay))
             {
                 shouldRecord = false;
             }
@@ -693,14 +926,14 @@ namespace Fdp.Core.FlightRecorder
             return shouldRecord;
         }
 
-        private void WriteEvents(BinaryWriter writer, FdpEventBus? eventBus, bool serializeReadBuffer = false)
+        private int WriteEvents(BinaryWriter writer, FdpEventBus? eventBus, bool serializeReadBuffer = false)
         {
             if (eventBus == null)
             {
                 // No event bus provided - write empty event blocks
                 writer.Write(0); // unmanagedStreamCount = 0
                 writer.Write(0); // managedStreamCount = 0
-                return;
+                return 0;
             }
 
             // Get all streams with events (Zero-Alloc using population)
@@ -804,6 +1037,7 @@ namespace Fdp.Core.FlightRecorder
                 // 7. Seek forward to continue
                 writer.BaseStream.Position = payloadEndPos;
             }
+            return validCount + validManagedCount;
         }
 
 
@@ -814,14 +1048,15 @@ namespace Fdp.Core.FlightRecorder
              var attr = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<DataPolicyAttribute>(type);
              if (attr != null)
              {
-                 return !attr.Policy.HasFlag(DataPolicy.NoRecord);
+                 return !attr.Policy.HasFlag(DataPolicy.NoReplay);
              }
              return true;
         }
 
         private void RecordSingletons(EntityRepository repo, BinaryWriter writer, uint prevTick)
         {
-            var tables = repo.GetSingletonTables();
+            if (!RecordSingletonTables) { writer.Write(0); return; }   // ⭐ B2 — a count of zero: the frame format is unchanged
+            var slots = repo.SingletonSlotsForRecording;   // ⭐ CE-2045 — index loop: the iterator allocated per frame
             
             // We need to write the count first, but we don't know how many are dirty.
             // So we write a placeholder, write data, then patch count.
@@ -829,9 +1064,10 @@ namespace Fdp.Core.FlightRecorder
             writer.Write(0); // Placeholder
             int actualCount = 0;
 
-            foreach (var table in tables)
+            for (int slot = 0; slot < slots.Length; slot++)
             {
-                if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
+                if (slots[slot] is not IComponentTable table) continue;
+                if (!Records(table.ComponentTypeId)) continue;
 
                 // Check version (Singletons are always in Chunk 0)
                 if (table.GetVersionForEntity(0) <= prevTick) 
@@ -910,6 +1146,19 @@ namespace Fdp.Core.FlightRecorder
         }
     }
     
+    /// <summary>⭐ CE-2397 — the recorder's reused managed-chunk buffer, one per component type and thread; all-null between uses.</summary>
+    internal static class ManagedChunkBuffer<T> where T : class
+    {
+        [ThreadStatic] private static T?[]? s_buffer;
+
+        public static T?[] Get(int size)
+        {
+            var b = s_buffer;
+            if (b == null || b.Length != size) s_buffer = b = new T?[size];
+            return b;
+        }
+    }
+
     /// <summary>
     /// Interface for unmanaged component tables that support raw chunk operations.
     /// </summary>
@@ -917,6 +1166,10 @@ namespace Fdp.Core.FlightRecorder
     {
         void SanitizeChunk(int chunkIndex, ReadOnlySpan<bool> livenessMap);
         int CopyChunkToBuffer(int chunkIndex, Span<byte> destination);
+        /// <summary>⭐ CE-2392 — the first <paramref name="maxBytes"/> bytes of the chunk only (may return more; the caller trims).</summary>
+        int CopyChunkToBuffer(int chunkIndex, Span<byte> destination, int maxBytes) => CopyChunkToBuffer(chunkIndex, destination);
         void RestoreChunkFromBuffer(int chunkIndex, ReadOnlySpan<byte> source);
+        /// <summary>⭐ CE-1478 P6 — copies <paramref name="source"/> to <paramref name="byteOffset"/> bytes into the chunk (a block run of a v8 delta) and stamps the chunk changed.</summary>
+        void RestoreChunkRangeFromBuffer(int chunkIndex, int byteOffset, ReadOnlySpan<byte> source) => throw new NotSupportedException();
     }
 }

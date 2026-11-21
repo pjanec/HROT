@@ -1,0 +1,18 @@
+{
+ "id": "copse",
+ "radius": 40,
+ "woods": {
+  "count": [
+   3,
+   5
+  ],
+  "size": [
+   8,
+   18
+  ]
+ },
+ "ui": {
+  "chip": "Nature",
+  "line": "a small wood"
+ }
+}

@@ -13,23 +13,26 @@ namespace Fdp.Toolkit.Perception
         // ── Event IDs ────────────────────────────────────────────────────────────
         // Range 4001–4099 is reserved for FDP.Toolkit.Perception events (see DESIGN.md §4.1).
 
-        /// <summary>Event ID for <see cref="Events.AudioStimulusEvent"/>.</summary>
-        public const int AudioStimulusEventId = 4001;
+        // ⛔ 4001 (AudioStimulusEvent) is RETIRED with the old hearing pipeline (CE-3062) — do not reuse.
 
-        /// <summary>Event ID for <see cref="Events.LosCheckRequestEvent"/>.</summary>
-        public const int LosCheckRequestEventId = 4002;
+        // 4002 was LosCheckRequestEvent — retired with the toolkit's vision chain (CE-3052). Not reused.
 
-        /// <summary>Event ID for <see cref="Events.TargetVisibleEvent"/>.</summary>
-        public const int TargetVisibleEventId = 4003;
+        // 4003 was TargetVisibleEvent — retired (CE-3052): a raw per-tick sighting with no producer left but blocked EQS
+        //   cover rays, i.e. the opposite meaning. Not reused. Sightings are the visual sensor's contact list now.
 
-        /// <summary>Event ID for <see cref="Events.TargetHeardEvent"/>.</summary>
-        public const int TargetHeardEventId = 4004;
+        // ⛔ 4004 (TargetHeardEvent) is RETIRED with the old hearing pipeline (CE-3062) — do not reuse.
 
         /// <summary>Event ID for <see cref="Events.SeedTargetCommand"/>.</summary>
         public const int SeedTargetCommandId = 4101;
 
         /// <summary>Event ID for <see cref="Events.SensorTrackStateEvent"/>.</summary>
         public const int SensorTrackStateEventId = 4005;
+
+        /// <summary>Event ID for <see cref="Events.SensorChangedEvent"/> (CE-3039).</summary>
+        public const int SensorChangedEventId = 4006;
+
+        /// <summary>Event ID for <see cref="Events.SoundContactEvent"/> (<c>CE-3062</c>).</summary>
+        public const int SoundContactEventId = 4007;
 
         // ── Threat score dynamics ─────────────────────────────────────────────────
 
@@ -39,6 +42,36 @@ namespace Fdp.Toolkit.Perception
         /// A value of 0.1 means a score of 100 drops to 90 after 1 second.
         /// </summary>
         public const float ThreatScoreDecayPerSecond = 0.1f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3054</c> — the score a contact gains each second while a sensor tracks it (was a literal in
+        /// <see cref="Systems.ThreatEvaluationSystem"/>).
+        /// </summary>
+        public const float TrackBoostPerSecond = 50f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3054</c> — the score a continuously tracked contact settles at (boost = decay ⇒ 50 / 0.1 = 500). A score
+        /// divided by this is the contact's FRESHNESS in [0, 1] (<see cref="ThreatFreshness"/>). 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.8a.
+        /// </summary>
+        public const float FreshnessSaturation = TrackBoostPerSecond / ThreatScoreDecayPerSecond;
+
+        /// <summary>
+        /// ⭐ <c>CE-3054</c> — an untracked contact counts as LIVE while its freshness is at least this (≈ 14 s unseen after
+        /// saturation). A tracked contact is always live (a new one's score is still ramping up).
+        /// </summary>
+        public const float LiveFreshness = 0.25f;
+
+        /// <summary>⭐ CE-3063 — the freshness one heard contact adds: a solver period's worth of sight
+        /// (<see cref="TrackBoostPerSecond"/> × 0.1 s, the EQS module's 10 Hz), so continuous hearing keeps a contact as fresh as
+        /// continuous sight, and one shot (≈5 answers while it lingers) is remembered ≈40 s as "something about there".</summary>
+        public const float HeardBoostPerContact = TrackBoostPerSecond * 0.1f;
+
+        /// <summary>
+        /// ⭐ CE-3046 — an entry no sensor tracks is FORGOTTEN once its score fades below this. With the 10 %/s decay that is
+        /// ~44 s after a contact seen for one second, ~66 s after one seen long enough to saturate (score 500): the score
+        /// already IS a function of unseen time, so no second clock is kept. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.4.
+        /// </summary>
+        public const float ForgetThreatScore = 0.5f;
 
         // ── LocalGridBuilderSystem grid dimensions ────────────────────────────────
         // These values define the module-private SpatialHashGrid owned by PerceptionModule.

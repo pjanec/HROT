@@ -23,6 +23,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- CE-467: CollectionOpsGenerator writes the [BlueprintCollectionField] accessors (UnitRoster's roster buffers). -->
+    <ProjectReference Include="..\Fdp.Core.Generators\Fdp.Core.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
     <PackageReference Include="NLog" Version="5.2.8" />
   </ItemGroup>

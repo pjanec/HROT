@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             // Create ghost entity
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 100 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(100) });
             repo.AddComponent(entity, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 

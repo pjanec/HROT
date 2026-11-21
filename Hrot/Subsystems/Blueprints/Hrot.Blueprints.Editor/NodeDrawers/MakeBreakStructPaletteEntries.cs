@@ -7,7 +7,7 @@ namespace Hrot.Blueprints.Editor.NodeDrawers;
 
 /// <summary>
 /// Q#14 Option B — Add-Node palette entries for Make/Break struct nodes, one pair per discovered
-/// <c>[BlackboardDtoStruct]</c> value type (via <see cref="ISharedStructTypeProvider"/>). Each descriptor
+/// <c>[Dto]</c> value type (via <see cref="ISharedStructTypeProvider"/>). Each descriptor
 /// drops a <see cref="MakeStructNode"/>/<see cref="BreakStructNode"/> pre-baked with the struct's FQN and
 /// its reflected fields (name + TypeId), so the node has its per-field pins immediately (the compiler
 /// consumes the baked <see cref="StructFieldDecl"/>s; it never reflects). Mirrors

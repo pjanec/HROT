@@ -1,7 +1,8 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Editor.AiShared.Catalog;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Hrot.MuscleCharacter.Animation.Nodes;
 
@@ -109,7 +110,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         var currentClass = _currentClassProvider?.Invoke();
         if (string.IsNullOrEmpty(currentClass))
         {
-            ImGui.TextColored(EditorColors.Warning, "⚠ No target class context available");
+            ImGui.TextColored(StatusPalette.Warning, "⚠ No target class context available");
             return;
         }
 
@@ -273,7 +274,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         if (slots.Count > 1)
         {
             var slotList = string.Join(", ", slots);
-            return $"❌ ANIM005 Violation: Chain entries must use the same animation slot. Found slots: [{slotList}]";
+            return $"✗ ANIM005 Violation: Chain entries must use the same animation slot. Found slots: [{slotList}]";
         }
 
         return null;
@@ -287,7 +288,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
     {
         if (_chainCount > 8)
         {
-            return $"⚠️ ANIM012 Warning: Chain length ({_chainCount}) exceeds maximum of 8. Loaded asset may have been edited externally.";
+            return $"⚠ ANIM012 Warning: Chain length ({_chainCount}) exceeds maximum of 8. Loaded asset may have been edited externally.";
         }
         return null;
     }
@@ -342,80 +343,71 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         ImGui.Text($"Chain entries: {_chainCount}/8");
         ImGui.Separator();
 
-        // Draw each entry
-        for (int i = 0; i < _chainCount; i++)
+        // ⭐ CE-3395 — the chain is the kit's GRID block: ⋮⋮ drag to reorder, the ⋮ menu (Move up / down · Delete), Add under it. The ops go to the EXISTING model (MoveChainEntryUp / Down, RemoveChainEntry, AddChainEntry).
+        if (NodeEditor.Core.Widgets.GridBlock.Begin("##chain", ChainHeaders, _chainCount, ChainOptions))
         {
-            ImGui.PushID(i);
-            
-            var montageId = _chainedMontages[i];
-            
-            // Find and display montage name
-            string displayName = "None";
-            if (montageId != 0 && montages.Any())
+            for (int i = 0; i < _chainCount; i++)
             {
-                var montage = montages.FirstOrDefault(m => 
-                    StableIdHasher.ComputeMontageAssetId(m.Name) == montageId);
-                if (montage != null)
-                    displayName = montage.Name;
-            }
+                NodeEditor.Core.Widgets.GridBlock.Row(i);
+                NodeEditor.Core.Widgets.GridBlock.Cell(0);
 
-            // Montage selector combo
-            int selectedIdx = Array.IndexOf(montageNames, displayName);
-            if (selectedIdx < 0) selectedIdx = 0;
+                var montageId = _chainedMontages[i];
 
-            if (ImGui.Combo($"##Montage{i}", ref selectedIdx, montageNames, montageNames.Length))
-            {
-                if (selectedIdx >= 0 && selectedIdx < montageNames.Length)
+                // Find and display montage name
+                string displayName = "None";
+                if (montageId != 0 && montages.Any())
                 {
-                    var selectedMontage = montages[selectedIdx];
-                    var newId = StableIdHasher.ComputeMontageAssetId(selectedMontage.Name);
-                    SetChainMontageId(i, newId);
+                    var montage = montages.FirstOrDefault(m =>
+                        StableIdHasher.ComputeMontageAssetId(m.Name) == montageId);
+                    if (montage != null)
+                        displayName = montage.Name;
+                }
+
+                // Montage selector combo
+                int selectedIdx = Array.IndexOf(montageNames, displayName);
+                if (selectedIdx < 0) selectedIdx = 0;
+
+                if (ImGui.Combo($"##Montage{i}", ref selectedIdx, montageNames, montageNames.Length))
+                {
+                    if (selectedIdx >= 0 && selectedIdx < montageNames.Length)
+                    {
+                        var selectedMontage = montages[selectedIdx];
+                        var newId = StableIdHasher.ComputeMontageAssetId(selectedMontage.Name);
+                        SetChainMontageId(i, newId);
+                    }
                 }
             }
-
-            // Move up button
-            ImGui.SameLine();
-            ImGui.BeginDisabled(i == 0);
-            if (ImGui.Button("↑"))
-            {
-                MoveChainEntryUp(i);
-            }
-            ImGui.EndDisabled();
-            
-            // Move down button
-            ImGui.SameLine();
-            ImGui.BeginDisabled(i == _chainCount - 1);
-            if (ImGui.Button("↓"))
-            {
-                MoveChainEntryDown(i);
-            }
-            ImGui.EndDisabled();
-            
-            // Remove button
-            ImGui.SameLine();
-            if (ImGui.Button("✕"))
-            {
-                RemoveChainEntry(i);
-                ImGui.PopID();
-                continue;
-            }
-            
-            ImGui.PopID();
         }
+        var op = NodeEditor.Core.Widgets.GridBlock.End();
+        ApplyChainOp(op);
 
-        ImGui.Separator();
+        if (_chainCount >= 8) ImGui.TextDisabled("Chain full (8/8)");
+    }
 
-        // Add button
-        if (_chainCount < 8)
+    private static readonly string[] ChainHeaders = { "Montage" };
+    private static readonly NodeEditor.Core.Widgets.ListOptions ChainOptions = new()
+    {
+        AddLabel = "Add entry",
+        Disabled = NodeEditor.Core.Widgets.ListCmd.InsertAbove | NodeEditor.Core.Widgets.ListCmd.InsertBelow | NodeEditor.Core.Widgets.ListCmd.Duplicate
+                 | NodeEditor.Core.Widgets.ListCmd.Copy | NodeEditor.Core.Widgets.ListCmd.Paste | NodeEditor.Core.Widgets.ListCmd.Reset,
+    };
+
+    /// <summary>The grid's op applied to the chain's own model (a drag moves by single steps; Add only while there is room).</summary>
+    internal void ApplyChainOp(NodeEditor.Core.Widgets.ListOp op)
+    {
+        switch (op.Kind)
         {
-            if (ImGui.Button("Add Entry"))
+            case NodeEditor.Core.Widgets.ListOpKind.MoveUp: MoveChainEntryUp(op.Index); break;
+            case NodeEditor.Core.Widgets.ListOpKind.MoveDown: MoveChainEntryDown(op.Index); break;
+            case NodeEditor.Core.Widgets.ListOpKind.Move:
             {
-                AddChainEntry();
+                int from = op.Index;
+                while (from < op.Target) MoveChainEntryDown(from++);
+                while (from > op.Target) MoveChainEntryUp(from--);
+                break;
             }
-        }
-        else
-        {
-            ImGui.TextDisabled("Chain full (8/8)");
+            case NodeEditor.Core.Widgets.ListOpKind.Delete: RemoveChainEntry(op.Index); break;
+            case NodeEditor.Core.Widgets.ListOpKind.Add: if (_chainCount < 8) AddChainEntry(); break;
         }
     }
 
@@ -436,18 +428,49 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
             return;
         }
 
-        // 1. Copy the working chain into the node's storage via Span<int>.
-        var dst = montagesAccess.AsSpan();
+        // BP-11: snapshot the STORED chain before overwriting it — that is the undo baseline.
+        var  dst         = montagesAccess.AsSpan();
+        byte beforeCount = countAccess.Read();
+        var  beforeItems = dst.ToArray();
+
+        // Build the chain the working state implies (tail zeroed so old entries past the new
+        // ChainCount don't leak — matches DD-5 §3.5 ClearMontageQueueNode convention).
+        var afterItems = new int[dst.Length];
         int n = Math.Min(_chainCount, Math.Min(dst.Length, _chainedMontages.Length));
-        for (int i = 0; i < n; i++) dst[i] = _chainedMontages[i];
-        // Zero the tail (don't leak old entries past the new ChainCount).
+        for (int i = 0; i < n; i++) afterItems[i] = _chainedMontages[i];
+        byte afterCount = _chainCount;
+
+        // This runs every frame while IsDirty, so a no-diff write must not push an undo entry —
+        // otherwise a single add-montage click would fill the stack for as long as the panel is open.
+        if (beforeCount == afterCount && beforeItems.AsSpan().SequenceEqual(afterItems))
+            return;
+
+        _editService.RecordPropertyEdit(
+            _parent, "Edit Montage Chain",
+            apply: () => ApplyChain(afterCount,  afterItems),
+            undo:  () => ApplyChain(beforeCount, beforeItems));
+    }
+
+    /// <summary>
+    /// BP-11: writes a chain into the node's storage <b>and</b> back into this session's working
+    /// copy. Both halves matter — <see cref="WriteBackToNode"/> re-runs every frame while
+    /// <see cref="IsDirty"/>, so an undo that only restored the node would be immediately overwritten
+    /// by the stale working state on the next frame.
+    /// </summary>
+    private void ApplyChain(byte count, int[] items)
+    {
+        var (countAccess, montagesAccess) = ResolveChainAccess(_node);
+        if (countAccess is null || montagesAccess is null) return;
+
+        var dst = montagesAccess.AsSpan();
+        int n   = Math.Min(items.Length, dst.Length);
+        for (int i = 0; i < n; i++) dst[i] = items[i];
         for (int i = n; i < dst.Length; i++) dst[i] = 0;
+        countAccess.Write(count);
 
-        // 2. Update ChainCount.
-        countAccess.Write(_chainCount);
-
-        // 3. Mark the asset dirty for save propagation.
-        _editService.MarkDirty(_parent);
+        _chainCount = count;
+        for (int i = 0; i < _chainedMontages.Length; i++)
+            _chainedMontages[i] = i < items.Length ? items[i] : 0;
     }
 
     // ── Reflection-backed accessors (storage-agnostic) ────────────────────────────
@@ -546,14 +569,14 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         var anim005Feedback = GetANIM005ValidationFeedback(currentClass);
         if (anim005Feedback != null)
         {
-            ImGui.TextColored(EditorColors.Error, anim005Feedback);
+            ImGui.TextColored(StatusPalette.Error, anim005Feedback);
         }
 
         // ANIM012: Check for length ≤ 8
         var anim012Feedback = GetANIM012ValidationFeedback();
         if (anim012Feedback != null)
         {
-            ImGui.TextColored(EditorColors.Warning, anim012Feedback);
+            ImGui.TextColored(StatusPalette.Warning, anim012Feedback);
             ImGui.SameLine();
             if (ImGui.Button("Truncate to 8"))
             {
@@ -563,7 +586,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
 
         if (anim005Feedback == null && anim012Feedback == null)
         {
-            ImGui.TextColored(EditorColors.Info, "✓ No validation errors");
+            ImGui.TextColored(StatusPalette.Info, "✓ No validation errors");
         }
     }
 }

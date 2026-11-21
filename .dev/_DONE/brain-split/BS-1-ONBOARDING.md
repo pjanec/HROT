@@ -94,7 +94,7 @@ Read **DESIGN.md first**, then open the specific task detail before starting any
 **Build the full solution:**
 
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 From the workspace root (`d:\Work\IOS-IG-SimHost-FDP-2`).
@@ -102,7 +102,7 @@ From the workspace root (`d:\Work\IOS-IG-SimHost-FDP-2`).
 **Run tests:**
 
 ```
-dotnet test IOS-IG-SimHost.sln
+dotnet test HROT.sln
 ```
 
 **Run all standalone (individual processes):**

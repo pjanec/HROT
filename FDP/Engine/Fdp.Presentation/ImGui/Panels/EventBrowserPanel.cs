@@ -4,9 +4,11 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.Serialization;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Renderers;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Serialization;
@@ -14,6 +16,36 @@ using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Presentation.Panels;
+
+/// <summary>⭐ One event row, projected for the dump. Mirrors <see cref="EventBrowserPanel.DrawEventList"/>'s
+/// filter (provider + disabled-type + current-frame-only), newest-first, capped at
+/// <see cref="EventBrowserPanelViewModel.MaxRows"/>.</summary>
+public sealed record EventBrowserRowViewModel(uint Frame, string TypeName, string ProviderName, string Summary, bool IsManaged);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="EventBrowserPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+/// </summary>
+public sealed record EventBrowserPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool Paused,
+    bool CurrentFrameOnly,
+    string SelectedProvider,
+    int TotalEventCount,
+    int VisibleEventCount,
+    IReadOnlyList<string> DisabledTypes,
+    IReadOnlyList<EventBrowserRowViewModel> Events,
+    int SelectedCount,
+    string? SelectedEventTypeName) : IPanelViewModel
+{
+    /// <summary>⭐ Cap applied to <see cref="Events"/> — mirrors <c>MessageLogPanelViewModel.MaxRowsPerTab</c>:
+    /// the dump is for assertions/conformance, not a full export.</summary>
+    public const int MaxRows = 500;
+
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 public class EventBrowserPanel
 {
@@ -87,7 +119,8 @@ public class EventBrowserPanel
 
     public EventBrowserPanel(IDiagnosticEventHistoryService historyService)
     {
-        _historyService = historyService;
+        // ⭐ CE-3166 — a null service is the parameterless constructor's case; through this one it is a caller's mistake
+        _historyService = historyService ?? throw new System.ArgumentNullException(nameof(historyService));
     }
 
     /// <param name="title">Optional window title override. Default: "Event Browser".</param>
@@ -141,6 +174,59 @@ public class EventBrowserPanel
 
             ImGuiApi.EndTable();
         }
+    }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>
+    /// ⭐⭐⭐ <b>BUILD — a pure projection of the (filtered, newest-first) event list and the current
+    /// selection. No ImGui.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    /// ⭐ Mirrors <see cref="DrawContent"/>'s own snapshot-refresh (pause-gated) and
+    /// <see cref="DrawEventList"/>'s filter (provider + disabled-type + current-frame-only) by hand,
+    /// kept in sync since that filter is private to this class. ⚠ Calling this independently of
+    /// <see cref="DrawContent"/> re-reads the history service exactly as <c>DrawContent</c> does —
+    /// same duplicate-fetch shape as <c>MessageLogPanel.BuildViewModel</c>, tolerated because the
+    /// service is a read of the current buffer, not a mutating pop.
+    /// </summary>
+    public EventBrowserPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        if (!_paused && _historyService != null)
+            _cachedSnapshot = _historyService.GetHistory();
+
+        CapturedEventDto[] snapshot = _cachedSnapshot;
+        foreach (var e in snapshot)
+        {
+            _knownTypes.Add(e.TypeName);
+            _knownProviders.Add(e.ProviderName);
+        }
+
+        uint? targetFrame = CurrentFrameProvider?.Invoke();
+        if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
+            targetFrame = snapshot.Max(e => e.Frame);
+
+        var rows = new List<EventBrowserRowViewModel>();
+        int visibleCount = 0;
+        for (int i = snapshot.Length - 1; i >= 0; i--)
+        {
+            var evt = snapshot[i];
+            if (_currentFrameOnly && targetFrame.HasValue && evt.Frame != targetFrame.Value)
+                continue;
+            if (_selectedProvider != "All" && evt.ProviderName != _selectedProvider)
+                continue;
+            if (_disabledTypes.Contains(evt.TypeName))
+                continue;
+
+            visibleCount++;
+            if (rows.Count < EventBrowserPanelViewModel.MaxRows)
+                rows.Add(new EventBrowserRowViewModel(evt.Frame, evt.TypeName, evt.ProviderName, evt.Summary, evt.IsManaged));
+        }
+
+        int selCount = _selectedEvents.Count;
+        string? selectedTypeName = selCount == 1 ? _selectedEvents.First().TypeName : null;
+
+        return new EventBrowserPanelViewModel(
+            panelId, panelKind, _paused, _currentFrameOnly, _selectedProvider,
+            snapshot.Length, visibleCount, _disabledTypes.OrderBy(t => t, StringComparer.Ordinal).ToList(),
+            rows, selCount, selectedTypeName);
     }
 
     private void DrawToolbar(CapturedEventDto[] snapshot)
@@ -200,13 +286,18 @@ public class EventBrowserPanel
         ImGuiApi.SameLine();
         uint? targetFrame = CurrentFrameProvider?.Invoke();
         if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
-            targetFrame = snapshot.Max(e => e.Frame);
+            targetFrame = MaxFrame(snapshot);
 
-        int visible = snapshot.Count(e =>
-            (!_currentFrameOnly || (targetFrame.HasValue && e.Frame == targetFrame.Value))
-            &&
-            (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
-            && !_disabledTypes.Contains(e.TypeName));
+        // ⭐ CE-2403 (R-2084) — a loop, not a LINQ Count with a capturing lambda, every frame
+        int visible = 0;
+        for (int i = 0; i < snapshot.Length; i++)
+        {
+            var e = snapshot[i];
+            if ((!_currentFrameOnly || (targetFrame.HasValue && e.Frame == targetFrame.Value))
+                && (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
+                && !_disabledTypes.Contains(e.TypeName))
+                visible++;
+        }
 
         // Select All button — populates selection with all currently visible events.
         ImGuiApi.SameLine();
@@ -272,6 +363,15 @@ public class EventBrowserPanel
         ImGuiApi.EndPopup();
     }
 
+    private readonly List<CapturedEventDto> _viewList = new();   // ⭐ CE-2403 — the list's rows, refilled each frame
+
+    private static uint MaxFrame(CapturedEventDto[] snapshot)
+    {
+        uint max = 0;
+        for (int i = 0; i < snapshot.Length; i++) if (snapshot[i].Frame > max) max = snapshot[i].Frame;
+        return max;
+    }
+
     private void DrawEventList(CapturedEventDto[] snapshot)
     {
         if (ImGuiApi.BeginChild("EventListScroll", new Vector2(0, 0)))
@@ -284,10 +384,13 @@ public class EventBrowserPanel
             {
                 // Build the filtered view list (newest first), preserving index semantics
                 // for Shift+Click range selection.
-                var viewList = new List<CapturedEventDto>();
+                // ⭐ CE-2403 (R-2084) — a reused list, and only the rows on screen are built (ImGuiRowClip): every row's label strings for
+                //   all 500 captured events, every frame, were ≈ 112 KB of garbage per frame on Crossfire.
+                var viewList = _viewList;
+                viewList.Clear();
                 uint? targetFrame = CurrentFrameProvider?.Invoke();
                 if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
-                    targetFrame = snapshot.Max(e => e.Frame);
+                    targetFrame = MaxFrame(snapshot);
 
                 for (int i = snapshot.Length - 1; i >= 0; i--)
                 {
@@ -314,7 +417,9 @@ public class EventBrowserPanel
                         bool ctrl  = ImGuiApi.GetIO().KeyCtrl;
                         bool shift = ImGuiApi.GetIO().KeyShift;
 
-                        for (int vi = 0; vi < viewList.Count; vi++)
+                        using var clip = new Fdp.Presentation.Utils.ImGuiRowClip(viewList.Count);
+                        while (clip.Step())
+                        for (int vi = clip.Start; vi < clip.End; vi++)
                         {
                             var evt = viewList[vi];
                             bool isSelected = _selectedEvents.Contains(evt);

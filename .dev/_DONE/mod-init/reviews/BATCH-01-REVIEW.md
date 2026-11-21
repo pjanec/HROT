@@ -11,7 +11,7 @@
 ## Verification Summary
 
 ### Build
-- `dotnet build IOS-IG-SimHost.sln` → **0 errors**. Confirmed independently.
+- `dotnet build HROT.sln` → **0 errors**. Confirmed independently.
 
 ### Boundary Audit
 All layer boundary queries confirmed clean (zero output):

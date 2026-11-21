@@ -7,6 +7,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Forwards every call to the underlying <see cref="MusclePathRegistry"/> so both
     /// Muscle and Brain read the same pool without a separate Brain-side cache.
     /// </summary>
+    [Fdp.Core.NotState("built only by `NavigationFakesModule`, which only tests construct (R-3039 S2, §7a; was C)")]
     public sealed class SharedPathRegistry : IPathRegistry
     {
         private readonly MusclePathRegistry _muscle;

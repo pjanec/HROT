@@ -8,7 +8,7 @@ namespace Fdp.Network.Cyclone.Topics
     /// </summary>
     public class WeaponStateDescriptor
     {
-        public long EntityId { get; set; }
+        public int EntityId { get; set; }
         public long InstanceId { get; set; } // Turret index (0, 1, 2...)
         public float AzimuthAngle { get; set; } // Horizontal rotation
         public float ElevationAngle { get; set; } // Vertical rotation

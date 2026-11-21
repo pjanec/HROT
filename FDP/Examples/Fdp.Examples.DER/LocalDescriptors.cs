@@ -3,7 +3,7 @@ using CycloneDDS.Schema;
 
 namespace Fdp.Toolkit.DER.Examples
 {
-    [DdsTopic("LocalEntityMaster")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct LocalEntityMaster
     {
@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.DER.Examples
         public float MockHealth;   // Made up field
     }
 
-    [DdsTopic("LocalGeoSpatial")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct LocalGeoSpatial
     {
@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.DER.Examples
         public float MockSpeed; // Made up field
     }
 
-    [DdsTopic("LocalMapEntitySymbol")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]
     public partial struct LocalMapEntitySymbol

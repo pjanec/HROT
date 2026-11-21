@@ -42,7 +42,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationExecutorState)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct AnimationExecutorState
     {
         /// <summary>Maximum number of concurrent playback slots.</summary>
@@ -73,7 +73,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LookAtExecutorState)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct LookAtExecutorState
     {
         /// <summary>Current aim target world position (X, Y, Z).</summary>
@@ -99,7 +99,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CharacterAnimationDefRuntime)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct CharacterAnimationDefRuntime
     {
         /// <summary>Opaque handle into the baked animation definition cache (e.g. a long hash or pointer).</summary>

@@ -1,0 +1,361 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Core.Serialization.Migrations;
+using Fdp.Toolkit.Scenario;
+using Xunit;
+
+namespace Fdp.Toolkit.Scenario.Tests
+{
+    /// <summary>
+    /// CE-277(c2) — rails for the distributed-save merge. Proves the four §4b invariants as executable
+    /// behaviour: disjoint entity union, single globals source, foreign routing, and the fail-loud guards.
+    /// </summary>
+    public class ScenarioMergeCoreTests
+    {
+        private const string OurType = "Hrot.Scenario";
+
+        // Builds a compatible slice DOM: {$meta, Header?, Entities}.
+        private static JsonObject Dom(
+            IEnumerable<string> entityGuids,
+            string? tkbName = null,
+            int schemaVersion = 2,
+            string? terrainName = null,
+            string? description = null)
+        {
+            var entities = new JsonObject();
+            foreach (var g in entityGuids)
+                entities[g] = new JsonObject { ["EntityInfo"] = new JsonObject { ["Name"] = g } };
+
+            var dom = new JsonObject { ["Entities"] = entities };
+            if (tkbName != null || terrainName != null || description != null)
+            {
+                var header = new JsonObject();
+                if (tkbName != null)     header["TkbName"]     = JsonValue.Create(tkbName);
+                if (terrainName != null) header["TerrainName"] = JsonValue.Create(terrainName);
+                if (description != null) header["Description"] = JsonValue.Create(description);
+                dom["Header"] = header;
+            }
+            JsonEnvelope.Write(dom, new DocumentMeta(OurType, schemaVersion));
+            return dom;
+        }
+
+        private static ScenarioSlice Compatible(int node, JsonObject dom) => new((Fdp.Core.NodeId)(node), OurType, dom);
+        private static ScenarioSlice Foreign(int node, string docType)    => new((Fdp.Core.NodeId)(node), docType, null);
+
+        [Fact]
+        public void DisjointEntities_Union_IntoOneCanonicalFile()   // I1 + I2
+        {
+            var brain  = Compatible(400, Dom(new[] { "g-a", "g-b" }, tkbName: "tkb-1"));
+            var player     = Compatible(100, Dom(new[] { "g-c" }));         // IG live-authored one
+            var muscle = Compatible(1,   Dom(new string[0]));           // owns nothing → empty
+
+            var result = ScenarioMergeCore.Merge(new[] { brain, player, muscle }, OurType);
+
+            Assert.NotNull(result.CanonicalDom);
+            Assert.Empty(result.Foreign);
+            var ents = (JsonObject)result.CanonicalDom!["Entities"]!;
+            Assert.Equal(3, ents.Count);
+            Assert.True(ents.ContainsKey("g-a") && ents.ContainsKey("g-b") && ents.ContainsKey("g-c"));
+            // $meta preserved. ⛔ R-4018 — the brain slice's legacy TkbName is NOT carried: with no terrain name the
+            //   canonical file has no Header at all.
+            Assert.Equal(OurType, JsonEnvelope.Read((JsonObject)result.CanonicalDom!).DocType);
+            Assert.Null(result.CanonicalDom!["Header"]);
+        }
+
+        /// <summary>
+        /// ⭐ RE-HOMED from <c>Zones_TakenFromTheSingleBrainSource</c> (F2/F3). The old test asserted that
+        /// a brain-only <c>Zones</c> SECTION survived the merge. That section is retired — a zone is an
+        /// ordinary authored entity — so the claim worth keeping is the same one restated on the surface
+        /// that now carries it: <b>the brain's zone reaches the canonical file, through the ordinary
+        /// entity union and with no special case.</b>
+        ///
+        /// <para>⛔ The old assertion is NOT merely deleted: had it been, nothing would check that zones
+        /// still survive a distributed save at all.</para>
+        ///
+        /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6 (retirement).
+        /// </summary>
+        [Fact]
+        public void AZoneEntityFromTheBrain_ReachesTheCanonicalFile_ThroughTheOrdinaryEntityUnion()
+        {
+            var brain  = Compatible(400, Dom(new[] { "zone-urban", "g-a" }, tkbName: "tkb-1"));
+            var muscle = Compatible(1,   Dom(new[] { "g-b" }));
+
+            var result = ScenarioMergeCore.Merge(new[] { brain, muscle }, OurType);
+
+            var entities = (JsonObject)result.CanonicalDom!["Entities"]!;
+            Assert.True(entities.ContainsKey("zone-urban"));
+            Assert.Equal(3, entities.Count);
+
+            // ⛔ And no `Zones` section is reconstructed — a second home for the same truth is exactly
+            //   what the retirement removed (§5.1, two producers for one slot).
+            Assert.Null(result.CanonicalDom!["Zones"]);
+        }
+
+        /// <summary>
+        /// ⭐ Buildings 5e — the <c>TerrainObjects</c> sections of the slices union like <c>Entities</c>: a door's state is saved only by
+        /// its owner (one door, one slice), so the same key in two slices is a broken save and fails loudly.
+        /// </summary>
+        [Fact]
+        public void Stage5e_TerrainObjects_UnionAcrossSlices_AndAKeyInTwoSlicesFailsLoud()
+        {
+            JsonObject With(JsonObject dom, params string[] keys)
+            {
+                var section = new JsonObject();
+                foreach (var k in keys) section[k] = new JsonObject { ["door"] = "Locked" };
+                dom["TerrainObjects"] = section;
+                return dom;
+            }
+            var brain = Compatible(400, With(Dom(new[] { "g-a" }), "range/H/front"));
+            var other = Compatible(401, With(Dom(new[] { "g-b" }), "range/H/hall"));
+            var plain = Compatible(1, Dom(new string[0]));                                // no section at all
+
+            var merged = (JsonObject)ScenarioMergeCore.Merge(new[] { brain, other, plain }, OurType).CanonicalDom!["TerrainObjects"]!;
+            Assert.Equal(new[] { "range/H/front", "range/H/hall" }, System.Linq.Enumerable.OrderBy(System.Linq.Enumerable.Select(merged, kv => kv.Key), k => k));
+
+            var twice = Compatible(402, With(Dom(new[] { "g-c" }), "range/H/front"));
+            var ex = Assert.Throws<System.InvalidOperationException>(() => ScenarioMergeCore.Merge(new[] { brain, twice }, OurType));
+            Assert.Contains("range/H/front", ex.Message);
+
+            Assert.Null(ScenarioMergeCore.Merge(new[] { plain }, OurType).CanonicalDom!["TerrainObjects"]);   // nothing to say ⇒ no section
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-4 (B-2) — a building hit by two deciding nodes is saved by BOTH: the merge unions the breaches (one written once) and ORs collapsed, in file order; a DOOR key in two slices still fails.
+        /// 🔴 Red-proof: drop the building-damage branch in <c>ScenarioMergeCore</c> ⇒ the same-key throw.
+        /// </summary>
+        [Fact]
+        public void S4_ABuildingSavedByTwoSlices_MergesAsAUnionOfBreachesAndAnOrOfCollapsed()
+        {
+            JsonObject With(JsonObject dom, string entryJson) { dom["TerrainObjects"] = JsonNode.Parse("{ \"range/H\": " + entryJson + " }"); return dom; }
+            var a = Compatible(400, With(Dom(new[] { "g-a" }), """{ "breaches": [[0, 4, 6, 0, 2.2, "passage"]] }"""));
+            var b = Compatible(401, With(Dom(new[] { "g-b" }), """{ "breaches": [[0, 8, 9, 1, 1.5, "hole"], [0, 4, 6, 0, 2.2, "passage"]], "collapsed": true }"""));
+            var entry = (JsonObject)((JsonObject)ScenarioMergeCore.Merge(new[] { a, b }, OurType).CanonicalDom!["TerrainObjects"]!)["range/H"]!;
+            Assert.Equal(2, entry["breaches"]!.AsArray().Count);
+            Assert.Equal(4f, (float)entry["breaches"]![0]![1]!);
+            Assert.Equal(8f, (float)entry["breaches"]![1]![1]!);
+            Assert.True((bool)entry["collapsed"]!);
+        }
+
+        [Fact]
+        public void ForeignSlice_IsRouted_NotMerged_AndNeverParsed()   // §4c
+        {
+            var brain  = Compatible(400, Dom(new[] { "g-a" }));
+            var excon  = Foreign(500, "ExCon.Observer");   // Dom == null: never parsed
+
+            var result = ScenarioMergeCore.Merge(new[] { brain, excon }, OurType);
+
+            Assert.NotNull(result.CanonicalDom);
+            Assert.Single(result.Foreign);
+            Assert.Equal(500, result.Foreign[0].OriginNodeId);
+            Assert.Equal("ExCon.Observer", result.Foreign[0].DocType);
+            // the foreign entity is NOT in the canonical file
+            Assert.Single((JsonObject)result.CanonicalDom!["Entities"]!);
+        }
+
+        [Fact]
+        public void AllForeign_YieldsNoCanonicalFile()
+        {
+            var a = Foreign(500, "ExCon.Observer");
+            var b = Foreign(600, "SomeOther.Format");
+
+            var result = ScenarioMergeCore.Merge(new[] { a, b }, OurType);
+
+            Assert.Null(result.CanonicalDom);
+            Assert.Equal(2, result.Foreign.Count);
+        }
+
+        [Fact]
+        public void SchemaMismatch_FailsLoud()
+        {
+            var a = Compatible(400, Dom(new[] { "g-a" }, schemaVersion: 2));
+            var b = Compatible(1,   Dom(new[] { "g-b" }, schemaVersion: 3));
+
+            Assert.Throws<System.InvalidOperationException>(() =>
+                ScenarioMergeCore.Merge(new[] { a, b }, OurType));
+        }
+
+        /// <summary>⛔⛔ <c>R-4018</c> — FLIPPED: legacy slices disagreeing on <c>TkbName</c> are not a conflict any more
+        /// (the field is never read) and the merged file carries none. Was: <c>TkbNameMismatch_FailsLoud</c>.</summary>
+        [Fact]
+        public void ALegacyTkbNameMismatch_IsIgnored_AndNotWritten()
+        {
+            var a = Compatible(400, Dom(new[] { "g-a" }, tkbName: "tkb-1", terrainName: "kandahar"));
+            var b = Compatible(1,   Dom(new[] { "g-b" }, tkbName: "tkb-2"));
+
+            var result = ScenarioMergeCore.Merge(new[] { a, b }, OurType);
+
+            var header = (JsonObject)result.CanonicalDom!["Header"]!;
+            Assert.Equal("kandahar", (string)header["TerrainName"]!);
+            Assert.False(header.ContainsKey("TkbName"));
+        }
+
+        // ⛔ DELETED (F2/F3): `TwoZonesSources_FailLoud` — the I4 guard it drove no longer exists.
+        //
+        //   Its claim was "two slices both carrying zones is a corruption, fail rather than pick one".
+        //   With zones as entities that situation is not a special case any more: two slices carrying
+        //   the same zone collide on the entity GUID and fail at `GuidCollision_FailsLoud` below, with a
+        //   better message. The claim is therefore RE-HOMED onto a test that already exists, rather than
+        //   dropped — which is why nothing was written to replace it.
+        //   ⚠ Two slices carrying DIFFERENT zones is now simply a legal union, and that is the intended
+        //   behaviour change: zones are authored entities and authoring is not brain-only.
+
+        [Fact]
+        public void GuidCollision_FailsLoud()   // I2 guard (should be impossible; never overwrite)
+        {
+            var a = Compatible(400, Dom(new[] { "dup", "g-a" }));
+            var b = Compatible(1,   Dom(new[] { "dup" }));
+
+            Assert.Throws<System.InvalidOperationException>(() =>
+                ScenarioMergeCore.Merge(new[] { a, b }, OurType));
+        }
+
+        [Fact]
+        public void CompatibleSliceWithNullDom_IsRejected()
+        {
+            var bad = new ScenarioSlice((Fdp.Core.NodeId)(400), OurType, Dom: null);
+            Assert.Throws<System.ArgumentException>(() =>
+                ScenarioMergeCore.Merge(new[] { bad }, OurType));
+        }
+
+        // ── B5: the TERRAIN NAME is a global and must survive the merge ───────────────────────────
+
+        [Fact]
+        public void TerrainName_SurvivesTheMerge_AndALegacyTkbNameDoesNot()
+        {
+            // ⛔ THE REGRESSION THIS PINS: the canonical Header used to be rebuilt as
+            //    `new JsonObject { ["TkbName"] = ... }`, which would DROP the terrain name from every
+            //    distributed save — silently, and only on the cluster path.
+            var brain  = Compatible(400, Dom(new[] { "g-a" }, tkbName: "tkb-1", terrainName: "kandahar"));
+            var muscle = Compatible(1,   Dom(new[] { "g-b" }));
+
+            var result = ScenarioMergeCore.Merge(new[] { brain, muscle }, OurType);
+
+            var header = (JsonObject)result.CanonicalDom!["Header"]!;
+            Assert.False(header.ContainsKey("TkbName"));   // ⛔ R-4018
+            Assert.Equal("kandahar", (string)header["TerrainName"]!);
+        }
+
+        [Fact]
+        public void TerrainName_WithNoTkbName_StillReachesTheCanonicalHeader()
+        {
+            var brain = Compatible(400, Dom(new[] { "g-a" }, terrainName: "kandahar"));
+
+            var result = ScenarioMergeCore.Merge(new[] { brain }, OurType);
+
+            var header = (JsonObject)result.CanonicalDom!["Header"]!;
+            Assert.Equal("kandahar", (string)header["TerrainName"]!);
+            Assert.Null(header["TkbName"]);
+        }
+
+        [Fact]
+        public void TerrainName_MismatchAcrossSlices_FailsLoudly()
+        {
+            // ⭐ Terrain is a GLOBAL fact about the exercise, like the TKB: two nodes disagreeing about
+            //   which terrain they are on is a misconfiguration to surface, not a merge to reconcile.
+            var a = Compatible(400, Dom(new[] { "g-a" }, terrainName: "kandahar"));
+            var b = Compatible(1,   Dom(new[] { "g-b" }, terrainName: "helmand"));
+
+            var ex = Assert.Throws<System.InvalidOperationException>(() =>
+                ScenarioMergeCore.Merge(new[] { a, b }, OurType));
+
+            Assert.Contains("TerrainName", ex.Message);
+        }
+    
+        // ── CE-3288: the scenario's DESCRIPTION rides the merge (§4d) ─────────────────────────────
+
+        /// <summary>⭐ <c>CE-3288</c> — the Brain's slice carries the description; the canonical header keeps it, with or without a
+        /// terrain. 🔴 Red-proof: drop the description arm in the merge ⇒ the canonical header loses it.</summary>
+        [Fact]
+        public void CE3288_TheDescription_SurvivesTheMerge_WithOrWithoutATerrain()
+        {
+            const string text = "What: a test. · Judge: it passes.";
+            var withTerrain = ScenarioMergeCore.Merge(new[]
+            {
+                Compatible(400, Dom(new[] { "g-a" }, terrainName: "kandahar", description: text)),
+                Compatible(1,   Dom(new[] { "g-b" })),
+            }, OurType);
+            Assert.Equal(text, (string)((JsonObject)withTerrain.CanonicalDom!["Header"]!)["Description"]!);
+
+            var noTerrain = ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" }, description: text)) }, OurType);
+            var header = (JsonObject)noTerrain.CanonicalDom!["Header"]!;
+            Assert.Equal(text, (string)header["Description"]!);
+            Assert.False(header.ContainsKey("TerrainName"));
+        }
+
+        /// <summary>⭐ <c>CE-3288</c> — two different texts do not fail the save (unlike the terrain): the first slice's is kept.</summary>
+        [Fact]
+        public void CE3288_TwoDifferentDescriptions_KeepTheFirst_AndDoNotFail()
+        {
+            var result = ScenarioMergeCore.Merge(new[]
+            {
+                Compatible(400, Dom(new[] { "g-a" }, description: "first")),
+                Compatible(1,   Dom(new[] { "g-b" }, description: "second")),
+            }, OurType);
+            Assert.Equal("first", (string)((JsonObject)result.CanonicalDom!["Header"]!)["Description"]!);
+        }
+
+        /// <summary>⭐ <c>CE-3288</c> — no description anywhere ⇒ none written (and no empty header).</summary>
+        [Fact]
+        public void CE3288_NoDescription_WritesNoHeader()
+        {
+            var result = ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" })) }, OurType);
+            Assert.Null(result.CanonicalDom!["Header"]);
+        }
+
+        // ── ⭐ CE-4210 MA-4 — the macro header fields survive the merge ─────────────────────────────────────
+
+        private static JsonObject WithMacroHeader(JsonObject dom, string anchorHeading = "90", string paramName = "side")
+        {
+            var header = dom["Header"] as JsonObject ?? new JsonObject();
+            header["Kind"] = "macro";
+            header["Params"] = new JsonArray(new JsonObject { ["Name"] = paramName, ["TypeId"] = "ForceId", ["Default"] = "Hostile" });
+            header["Anchor"] = new JsonObject { ["Position"] = new JsonArray(10, 20, 0), ["Heading"] = float.Parse(anchorHeading) };   // a float: an in-memory JsonValue converts no further
+            header["Placement"] = new JsonObject { ["MaxShift"] = 12.5f };
+            header["Relocatable"] = false;
+            dom["Header"] = header;
+            return dom;
+        }
+
+        [Fact]
+        public void CE4210_TheMacroHeaderFields_SurviveFromTheFirstSliceThatHasAny()
+        {
+            var brain = Compatible(400, WithMacroHeader(Dom(new[] { "g-a" }, terrainName: "t1", description: "What: x")));
+            var muscle = Compatible(1, Dom(new[] { "g-b" }, terrainName: "t1"));   // carries none
+
+            var header = (JsonObject)ScenarioMergeCore.Merge(new[] { muscle, brain }, OurType).CanonicalDom!["Header"]!;
+
+            var back = ScenarioHeaderJson.Read(new JsonObject { ["Header"] = header.DeepClone() })!;
+            Assert.Equal("macro", back.Kind);
+            Assert.Equal("side", back.Params!.Single().Name);
+            Assert.Equal(90f, back.Anchor!.Value.Heading.Degrees);
+            Assert.Equal(12.5f, back.MaxShift);
+            Assert.False(back.Relocatable);
+            Assert.Equal("t1", (string)header["TerrainName"]!);          // the other globals are still there
+            Assert.Equal("What: x", (string)header["Description"]!);
+        }
+
+        [Fact]
+        public void CE4210_ADifferingSecondSlice_KeepsTheFirstsMacroHeader()
+        {
+            var first = Compatible(400, WithMacroHeader(Dom(new[] { "g-a" }), anchorHeading: "90", paramName: "side"));
+            var second = Compatible(1, WithMacroHeader(Dom(new[] { "g-b" }), anchorHeading: "180", paramName: "other"));   // warns (CE-3288 rule), never throws
+
+            var header = (JsonObject)ScenarioMergeCore.Merge(new[] { first, second }, OurType).CanonicalDom!["Header"]!;
+
+            var back = ScenarioHeaderJson.Read(new JsonObject { ["Header"] = header.DeepClone() })!;
+            Assert.Equal("side", back.Params!.Single().Name);
+            Assert.Equal(90f, back.Anchor!.Value.Heading.Degrees);
+        }
+
+        [Fact]
+        public void CE4210_NoMacroFields_NoChangeToTodaysOutput()
+        {
+            var plain = ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" }, terrainName: "t1", description: "d")) }, OurType).CanonicalDom!;
+            var header = (JsonObject)plain["Header"]!;
+
+            Assert.Equal(new[] { "TerrainName", "Description" }, header.Select(kv => kv.Key).ToArray());   // no Kind / Params / Anchor / Placement / Relocatable
+            Assert.Null(ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" })) }, OurType).CanonicalDom!["Header"]);   // and no header at all when nothing asked for one
+        }
+    }
+}

@@ -29,6 +29,37 @@ public struct RenderContext
     /// May be null in headless test contexts.
     /// </summary>
     public Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder? DrawBuilder;
+
+    /// <summary>
+    /// ⭐ <c>CE-1379</c> / <c>CE-1380</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "as built") — true in a FILM's pass
+    /// (<see cref="Fdp.Toolkit.Vis2D.MapCanvas.DrawScene"/>, 2-D and 3-D): a scene layer that also carries tool and UI drawing (the gizmo
+    /// layer) draws only what a film shows. False on screen.
+    /// </summary>
+    public bool Film;
+
+    /// <summary>
+    /// ⭐ <c>CE-1383</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1382 / CE-1383 as built") — the size in pixels of the TARGET this pass
+    /// draws into: the window's on screen, the render texture's in a film's pass (<see cref="Fdp.Toolkit.Vis2D.MapCanvas.DrawScene"/>) — ONE
+    /// source for every layer that culls to what is visible (the 2-D plan's outlines and labels, the grid). Zero when unknown (no window,
+    /// a headless rail): a layer then does not cull.
+    /// </summary>
+    public Vector2 ViewSize;
+
+    /// <summary>
+    /// ⭐ <c>CE-1984</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-1, D-4) — the SENSOR VIEW this pass draws for (<see cref="MapCanvas.PostProcess"/>):
+    /// <see cref="SceneSensor.None"/> on the normal view and in a film's pass. A layer that draws something SELF-LUMINOUS (a lamp, a flame, a flash)
+    /// draws it through <see cref="SceneSensors.Emissive"/>, so a sensor view sees it bright — it still lights nothing around it.
+    /// </summary>
+    public SceneSensor Sensor;
+
+    /// <summary>⭐ <c>CE-1985</c> — the air's °C at the view under the thermal pass (what a draw's <see cref="SceneSensors.Heat"/> is relative to); 15 elsewhere.</summary>
+    public float AirC;
+
+    /// <summary><see cref="ViewSize"/>, or — for a context built by hand (a rail) with none — the window's size; zero with no window.</summary>
+    public readonly Vector2 TargetSize =>
+        ViewSize.X > 0f && ViewSize.Y > 0f ? ViewSize
+        : Raylib_cs.Raylib.IsWindowReady() ? new Vector2(Raylib_cs.Raylib.GetScreenWidth(), Raylib_cs.Raylib.GetScreenHeight())
+        : Vector2.Zero;
 }
 
 /// <summary>
@@ -89,6 +120,73 @@ public interface IMapLayer
     /// Default: not consumed.
     /// </summary>
     bool HandleKeyInput(MapKeyboardKey key) => false;
+
+    /// <summary>
+    /// ⭐ CE-1033 S1 (<c>docs/DESIGN_Map_3D_Mode.md</c> M3) — draws the layer in the map's 3-D mode, inside the camera's 3-D pass
+    /// (coordinates already converted by <c>Vis3D.HrotToRaylib</c>). Default: nothing — a layer with no 3-D path is simply absent
+    /// in 3-D (<see cref="MapCanvas.LayersWithout3D"/> counts them, so the absence is visible, not silent).
+    /// </summary>
+    void Draw3D(RenderContext ctx) { }
+
+    /// <summary>True when the layer draws something in 3-D (overrides <see cref="Draw3D"/>).</summary>
+    bool Has3D => false;
+
+    /// <summary>
+    /// ⭐ CE-1033 S3 (M13) / S5b — draws screen-space content AFTER the camera pass, in BOTH modes: labels projected from the 3-D
+    /// scene, entity cards above their entities — at a constant pixel size, on top. Called for every visible layer (in 3-D only
+    /// those with <see cref="Has3D"/>). Default: nothing.
+    /// </summary>
+    void DrawOverlay(RenderContext ctx) { }
 }
 
+/// <summary>
+/// ⭐ <c>CE-3289</c> (<c>docs/DESIGN_Map_3D_Mode.md</c> §6ab, R-3032) — a layer that draws the WORLD itself (the ground, bodies, effects,
+/// rounds), not a tool or an overlay on it. A filmed frame (<see cref="MapCanvas.DrawScene"/>) draws only these, so a new overlay stays
+/// out of films unless it opts in.
+/// <para>⭐ <c>CE-1379</c> / <c>CE-1380</c> (docs/DESIGN_Director_Timeline_Editor.md §11t) — in BOTH map modes now (a 2-D film frame is the
+/// same pass), and three more opt in, each still gated by its layer row as on screen: the 2-D terrain plan, the 2-D grid, and the gizmo
+/// layer — which in a film's pass (<see cref="RenderContext.Film"/>) draws only its film layers (the rows the Layers panel toggles; never
+/// the selection, the always-on helpers or the UI panels).</para>
+/// </summary>
+public interface ISceneLayer : IMapLayer
+{
+}
 
+/// <summary>⭐ <c>CE-1984</c> (DESIGN_Sensor_View §3) — what the 3-D map's scene is drawn FOR: the normal view, or a sensor's (night vision, thermal).</summary>
+public enum SceneSensor : byte { None = 0, NightVision = 1, Thermal = 2 }
+
+/// <summary>⭐ <c>CE-1984</c> — the one rule for a self-luminous draw under a sensor view (D-4: seen, never lighting).</summary>
+public static class SceneSensors
+{
+    /// <summary>The colour a self-luminous thing is drawn in: itself on the normal view; under night vision white and OPAQUE (a lamp,
+    /// a flame, a flash saturates the tube and blooms in the post pass, whatever its colour — the tube sees red and near-infrared best).</summary>
+    public static Raylib_cs.Color Emissive(this in RenderContext ctx, Raylib_cs.Color c, float hotC = 600f)
+        => ctx.Sensor switch
+        {
+            SceneSensor.NightVision when c.A > 0 => new Raylib_cs.Color((byte)255, (byte)255, (byte)255, (byte)255),   // opaque: a translucent glow blended on the dark never reaches the bloom
+            SceneSensor.Thermal when c.A > 0 => Fdp.Toolkit.Vis3D.LitShader.EncodeC(hotC, (byte)255),               // ⭐ CE-1985 — hot (a lamp passes its lens' °C)
+            _ => c,
+        };
+
+    /// <summary>⭐ <c>CE-1985</c> (DESIGN_Sensor_View §5c) — a draw that is not self-luminous (smoke, a decal, a cloud) under the thermal pass: its °C as the
+    /// pass' linear code, at its own opacity (the code is linear, so a translucent draw mixes temperatures correctly). Itself on every other view.</summary>
+    public static Raylib_cs.Color Heat(this in RenderContext ctx, Raylib_cs.Color c, float celsius)
+        => ctx.Sensor == SceneSensor.Thermal ? Fdp.Toolkit.Vis3D.LitShader.EncodeC(celsius, c.A) : c;
+}
+
+/// <summary>
+/// ⭐ <c>CE-1984</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-3, §6) — a pass around the 3-D map's SCENE: while <see cref="Sensor"/> is not
+/// <see cref="SceneSensor.None"/>, <see cref="MapCanvas.Draw"/> draws its 3-D layers between <see cref="BeginScene"/> and <see cref="EndScene"/> (into
+/// the post-process' own target) and its screen-space overlays after — so labels, cards and the HUD stay sharp. ⛔ Not around a film's pass (CE-1988).
+/// </summary>
+public interface IScenePostProcess
+{
+    /// <summary>The sensor the scene is drawn for; <see cref="SceneSensor.None"/> = no post-process this frame.</summary>
+    SceneSensor Sensor { get; }
+    /// <summary>⭐ <c>CE-1985</c> — the air's °C at the view (the thermal pass' reference; <see cref="RenderContext.AirC"/>).</summary>
+    float AirC { get; }
+    /// <summary>Binds the scene's target, <paramref name="size"/> pixels.</summary>
+    void BeginScene(Vector2 size);
+    /// <summary>Unbinds it and draws the processed picture to the screen.</summary>
+    void EndScene(Vector2 size);
+}

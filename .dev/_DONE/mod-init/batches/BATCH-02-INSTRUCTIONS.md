@@ -109,7 +109,7 @@ The module can now be moved cleanly to `Hrot.Network.Replication`.
 
 **Verify:**
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 Get-ChildItem -Recurse -Include "*.cs" | Select-String "Hrot.ClusterRunner.Replication"  # → 0 matches
 Select-String "<ProjectReference.*Hrot\.(SimHost|IG)" Hrot.Network/Hrot.Network.csproj    # → 0 matches
 ```
@@ -315,7 +315,7 @@ Select-String "NedReplicationModule|ClusterRunner.Replication" Hrot.CGF/CgfAppli
 
 **Verify:**
 ```powershell
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj --no-build
 # CgfComponentRegistryTests (4 tests) must remain green
 Select-String "_nedReplicationModule" Hrot.ClusterRunner/Services/CgfSubsystem.cs   # → 0 matches
@@ -328,7 +328,7 @@ Select-String "NedReplicationModule" Hrot.ClusterRunner/Services/CgfSubsystem.cs
 
 **CRITICAL: Complete tasks in sequence with passing tests at each step:**
 
-1. **Task 1 (S201):** Move module + remove stale usings → `dotnet build IOS-IG-SimHost.sln` passes ✅
+1. **Task 1 (S201):** Move module + remove stale usings → `dotnet build HROT.sln` passes ✅
 2. **Task 2 (S202):** Interface + context + builder extension → new tests pass ✅
 3. **Task 3 (S401):** Update CgfSubsystem → all ClusterRunner tests pass ✅
 
@@ -366,7 +366,7 @@ For each task (S201, S202, S401): ✅ Done / ⚠️ Partial / ❌ Failed with no
 
 ### 2. Validation Outputs
 Paste:
-- Final `dotnet build IOS-IG-SimHost.sln` output (last 10 lines)
+- Final `dotnet build HROT.sln` output (last 10 lines)
 - `dotnet test Hrot.ClusterRunner.Tests/` result
 - `dotnet test Hrot.ClusterRunner.Integration.Tests/` result
 
@@ -395,7 +395,7 @@ This batch is DONE when:
 - [ ] `HrotNodeBuilderReplicationExtensions.cs` exists in `Hrot.Network/Infrastructure/` (S202)
 - [ ] Guard test: calling extension `Build()` without `.WithReplication()` throws `InvalidOperationException` (S202)
 - [ ] `CgfSubsystem._nedReplicationModule` field deleted; builder uses `.WithReplication(NodeRole.Brain)` (S401)
-- [ ] `dotnet build IOS-IG-SimHost.sln` succeeds — 0 errors
+- [ ] `dotnet build HROT.sln` succeeds — 0 errors
 - [ ] All pre-existing test suite results unchanged (no new failures)
 - [ ] Report submitted to `.dev/mod-init/reports/BATCH-02-REPORT.md`
 

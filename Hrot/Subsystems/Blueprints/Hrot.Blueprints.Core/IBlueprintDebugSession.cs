@@ -124,6 +124,37 @@ public sealed class Watch
     }
 }
 
+/// <summary>
+/// ⭐⭐ <b>Batch 97 (<c>97c</c>) — where one working-state field lives, as the WRITER wants it.</b>
+/// </summary>
+/// <param name="ComponentType">
+/// ⭐ The ECS <b>COMPONENT</b> the working state is stored in — ⛔ <b>not the field's own type.</b>
+/// ⚠ Confusing the two is a size mismatch at best and a write into the wrong component at worst.
+/// </param>
+/// <param name="ComponentOffsetBytes">
+/// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — the offset WITHIN THE COMPONENT, fully resolved. ⛔ It was
+/// <c>RawOffsetBytes</c>, and the rename is the whole point: it forces every reader to be revisited.</b>
+///
+/// <para>🔴 <b>Why the contract had to change.</b> The old shape said <i>"raw, within the working-state
+/// block; the 8-byte header is applied by <c>TryWriteWorkingStateField</c>"</i> — ⭐ true for
+/// <c>AiPrimitive</c>, whose block starts at component byte 0 behind an 8-byte <c>StructureHash</c>.
+/// ⛔⛔ <b>It cannot express an <c>Instance</c> address at all.</b> An <c>Instance</c> field lives at
+/// <c>payloadOffset + field.OffsetBytes</c>, where the partition allocator chose <c>payloadOffset</c> at
+/// runtime and the block opens with a <b>16-byte <c>BlueprintLatentCursor</c></b>, ⛔ not the 8-byte
+/// header. ⇒ a writer applying <c>ComponentOffsetOf</c> unconditionally would land <b>8 bytes past every
+/// Instance field</b> — 📌 <c>Q32</c> §2.1, <i>"memory corruption, not a wrong value."</i></para>
+///
+/// <para>⇒ ⭐⭐ <b>Each dispatch kind now applies its OWN transform in the resolver, where the layout is
+/// known</b>, and the writer stores what it is given. ⛔ The alternative — returning
+/// <c>payloadOffset + offset − 8</c> so the writer's <c>+8</c> cancels — is a lie encoded as
+/// arithmetic.</para>
+/// </param>
+/// <param name="SizeBytes">
+/// ⭐ The layout's own width. ⚠ <b>A caller must refuse a payload of a different length</b> rather than
+/// truncate or overrun — 📌 <c>Q32</c> §2.1.
+/// </param>
+public sealed record WorkingStateFieldRef(Type ComponentType, int ComponentOffsetBytes, int SizeBytes);
+
 public sealed record BlueprintStateSnapshot(
     Entity Self,
     Guid AssetId,
@@ -166,6 +197,57 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
 
     // -- Active entity tracking --
     IReadOnlyList<Entity> GetActiveEntities(Guid assetId);
+
+    // -- Live write (Batch 84, row 59c) --
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Writes one working-state field of a LIVE entity, while frozen.</b>
+    ///
+    /// <para>📌 <b>Ruling 15</b> <i>(user)</i>: <i>"the change of runtime var makes sense <b>ONLY if
+    /// sim is paused on breakpoint or deterministic time step</b>. at that time nothing else changes
+    /// the blackboard."</i> ⇒ ⛔ <b>a free-running session MUST return <c>false</c>.</b></para>
+    ///
+    /// <para>📌 <b><c>R-63</c>:</b> the write is <b>STAGED through the command buffer</b>, ⛔ never
+    /// applied to <c>ActiveView</c> — while paused that view IS the pre-tick snapshot, and resume
+    /// restores the live repo from the POST-tick one, so a direct write is <b>silently lost</b>.
+    /// ⭐ The staged write drains AFTER that restore, which is exactly why it survives.</para>
+    ///
+    /// <para>⚠ <b><paramref name="fieldOffsetBytes"/> is the offset WITHIN THE WORKING-STATE BLOCK</b>,
+    /// as the layout reports it. ⛔ Do not add the 8-byte header — the implementation owns that
+    /// (<c>WorkingStateLayout</c>), so the read path and the write path cannot disagree by 8 bytes.</para>
+    ///
+    /// <para>⭐ <b>Returns <c>false</c> rather than throwing</b> when it cannot write: the UI asks this
+    /// to decide whether to GREY a control, and a refusal is an expected answer, not a fault.
+    /// ⛔ A bad OFFSET is a different thing and still throws — 📌 <c>Q32</c> §2.1: <i>"an out-of-range
+    /// offset/size is MEMORY CORRUPTION, not a wrong value."</i></para>
+    /// </summary>
+    bool TryWriteWorkingStateField(
+        Entity entity, Type componentType, int fieldOffsetBytes, ReadOnlySpan<byte> bytes) => false;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 97 (<c>97c</c>) — where a working-state field LIVES, by NAME.</b>
+    ///
+    /// <para>🔴🔴 <b>The missing half.</b> <see cref="TryWriteWorkingStateField"/> has existed since
+    /// Batch 84 and had <b>zero production callers</b> — 📐 measured by Batch 96 — because the editor
+    /// knows a variable by its <b>NAME</b> and that method wants a <c>(componentType, offset)</c>. The
+    /// walk that maps one to the other was <b>private</b> to the implementation, used only by the READ
+    /// path. ⇒ ⭐ this exposes the same two tables the read consults, as a lookup.</para>
+    ///
+    /// <para>⛔⛔ <b>The offset returned is RAW — the offset WITHIN THE WORKING-STATE BLOCK</b>, exactly
+    /// as the layout reports it, so it can be handed straight to
+    /// <see cref="TryWriteWorkingStateField"/>, <b>which applies the 8-byte header itself</b>.
+    /// ⚠ The READ path converts before slicing *(<c>WorkingStateLayout.ComponentOffsetOf</c>)*, so
+    /// ⛔ <b>copying the read's <c>start</c> here would DOUBLE-APPLY the header and scribble on the
+    /// neighbouring field</b> — 📌 <c>Q32</c> §2.1: <i>"an out-of-range offset is MEMORY CORRUPTION,
+    /// not a wrong value."</i></para>
+    ///
+    /// <para>⭐ <b>Returns <c>null</c> when it cannot say</b> — no debug map, no definition, an unknown
+    /// name, or ⚠ <b>a dispatch kind whose state is not laid out this way</b>. ⛔ It must never GUESS:
+    /// an <c>Instance</c> blueprint's fields are offset within a per-instance payload, a different
+    /// space entirely, and answering for one would corrupt memory rather than mis-report a value.</para>
+    /// </summary>
+    WorkingStateFieldRef? ResolveWorkingStateField(Entity entity, Guid assetId, string fieldName)
+        => null;
 
     // -- Pause state --
     bool IsPaused { get; }

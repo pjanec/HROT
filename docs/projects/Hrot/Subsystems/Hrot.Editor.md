@@ -1,5 +1,9 @@
 # Hrot.Editor
 
+> ⛔ **SUPERSEDED IN PART `2026-10-05` — R-204 (backend) / CE-3058:** the Go External / Internal mode switch (`SimHostMode`, `SwitchToExternalAsync` / `SwitchToInternalAsync`, `CurrentMode`, the toolbar toggle, the `logicPacks` / `translatorPacks` ctor parameters) is deleted. 🔒 User: *"Editor go external us deprecated, cgf==editor is what replaces it."* Every mention of it below is history.
+
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `EditorMapPickAdapter` and `LocationPickerGizmo` are deleted (CE-063): the editor builds the shared `CanvasMapPickAdapter` with its filter factory, geographic transform and modal area gizmo.
+
 | Field       | Value                                                                          |
 |-------------|--------------------------------------------------------------------------------|
 | Project     | `Hrot.Editor`                                                                  |
@@ -391,7 +395,7 @@ All source files live under `Hrot/Subsystems/Hrot.Editor/`. Namespace root is
 | File                              | Type(s)                                    | Description                                                                  |
 |-----------------------------------|--------------------------------------------|------------------------------------------------------------------------------|
 | `EditorCargoSystem.cs`            | `EditorCargoSystem` (sealed)               | Processes `EmbarkEntityCommand` / `DisembarkEntityCommand`; manages `PassengerBuffer`. |
-| `EditorPerceptionSetupSystem.cs`  | `EditorPerceptionSetupSystem` (sealed, unsafe) | Processes `SeedTargetCommand`; injects manual target-memory entries.     |
+| ~~`EditorPerceptionSetupSystem.cs`~~ | ⛔ retired (B-5 S3) | `SeedTargetCommand` is applied by `Fdp.Toolkit.Perception.Systems.SeedTargetSystem` (the `Interactions` capability, every node). |
 | `EditorZoneAuthoringSystem.cs`    | `EditorZoneAuthoringSystem` (sealed)       | Processes `SpawnZoneObstacleCommand` and `UpdateZoneConfigCommand`.          |
 
 ### `Hrot.Editor.UI`
@@ -403,7 +407,6 @@ All source files live under `Hrot/Subsystems/Hrot.Editor/`. Namespace root is
 | `EditorOrbatPanel.cs`             | `EditorOrbatPanel` (sealed)                | ImGui entity list reading from `IEditorLogic.View`.                       |
 | `EntityPropertyInspector.cs`      | `EntityPropertyInspector` (sealed)         | ImGui property editor committed via `IEditorLogic.CommitPropertyEdit`.   |
 | `JsonEntityContextMenuHandler.cs` | `JsonEntityContextMenuHandler` (sealed)    | `IEntityContextMenuHandler`; populates context menus from `ContextMenuState.MenuJson`. |
-| `TimeControlStatusBarSection.cs`  | `TimeControlStatusBarSection` (internal sealed) | Status-bar transport controls (play/pause/step/stop) for preview mode. |
 | `EditorTimeTransportAdapter.cs`   | `EditorTimeTransportAdapter` (internal sealed)  | `ITimeTransportFacade`; bridges `IPreviewController` + `MasterSyncController`. |
 
 ### `Hrot.Editor.Windows`
@@ -599,11 +602,7 @@ Processes `EmbarkEntityCommand` and `DisembarkEntityCommand` to manage
 `PassengerBuffer` and `IsEmbarkedTag`. Strips/restores movement and combat
 capabilities (`ActorCapabilities.CanMove | CanShoot`) when units embark/disembark.
 
-**`EditorPerceptionSetupSystem`** (implements `IEcsModuleSystem`, phase `Simulation`, `unsafe`)
-
-Processes `SeedTargetCommand` events. For each valid perceiver/target pair, calls
-`TargetMemory.AddOrUpdateTarget()` with the target's current `SimTransform` position
-and score boost.
+**`EditorPerceptionSetupSystem`** — ⛔ retired (B-5 S3, R-4137): `SeedTargetCommand` is applied by `Fdp.Toolkit.Perception.Systems.SeedTargetSystem` (the `Interactions` capability, every node) on the node that owns the perceiver's `TargetMemory`.
 
 **`EditorZoneAuthoringSystem`** (implements `IEcsModuleSystem`, phase `Simulation`)
 
@@ -868,7 +867,7 @@ validation pipelines.
 
 Enter preview only via `IEditorLogic` (or `IPreviewController`). Never write to
 `EntityRepository` outside of ECS systems while in preview mode - all changes will
-be discarded on `ExitPreviewMode()`. The `TimeControlStatusBarSection` binds the
+be discarded on `ExitPreviewMode()`. The main-toolbar time control (`MainToolbarTimeControlSection`; the status-bar copy was removed by CE-4083) binds the
 stop button's enabled state to `IsInPreviewMode`, preventing accidental rewinding
 outside of a preview session.
 

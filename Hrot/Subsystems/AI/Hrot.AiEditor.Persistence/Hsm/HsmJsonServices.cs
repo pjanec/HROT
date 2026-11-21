@@ -17,7 +17,9 @@ public static class HsmJsonServices
     /// <summary>Document type identifier for *.hsm.json files.</summary>
     public const string DocType = "Hrot.Hsm";
     /// <summary>Schema version for this batch (Phase 1).</summary>
-    public const int SchemaVersion = 1;
+    /// <para>⭐ <c>CE-417</c>: 2 — every action / condition / activity / guard is one <c>BehaviorActionBindingDto</c>;
+    /// a v1 document is upgraded on read by <see cref="ActionBindingMigrator"/>.</para>
+    public const int SchemaVersion = ActionBindingMigrator.CurrentSchemaVersion;
 
     private static readonly JsonSerializerOptions _options;
 
@@ -31,7 +33,8 @@ public static class HsmJsonServices
             ReadCommentHandling         = JsonCommentHandling.Skip,
             WriteIndented               = false,
         };
-        opts.Converters.Add(new JsonStringEnumConverter());
+        // CE-3187 (R-2007): enums are names; an integer is refused, never read.
+        opts.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false));
         opts.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
         _options = opts;
     }
@@ -52,7 +55,18 @@ public static class HsmJsonServices
     /// Tolerates unknown properties and missing $meta (legacy-safe).
     /// </summary>
     public static HsmAssetDto? Deserialize(string json)
-        => JsonSerializer.Deserialize<HsmAssetDto>(json, _options);
+    {
+        // ⭐ CE-417: the ONE read chokepoint — a schemaVersion-1 document is upgraded here (ActionBindingMigrator), so
+        //   neither the editor nor a generator ever binds a v1 shape.
+        var node = JsonNode.Parse(json, new JsonNodeOptions { PropertyNameCaseInsensitive = true },
+                                  new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        if (node is not JsonObject root) return node == null ? null : Marked(node.Deserialize<HsmAssetDto>(_options));
+        ActionBindingMigrator.UpgradeHsm(root);
+        return Marked(root.Deserialize<HsmAssetDto>(_options));
+    }
+
+    // ⭐ CE-3193 — working state is derived from the bindings (WorkingStateVariables), never read from the file.
+    private static HsmAssetDto? Marked(HsmAssetDto? dto) => dto == null ? null : WorkingStateVariables.Mark(dto);
 
     /// <summary>
     /// Header-lazy discovery: reads only AssetId+Name from a *.hsm.json file.

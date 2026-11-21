@@ -1,0 +1,388 @@
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Squad.Command;
+using Hrot.AI.Behaviors.Orders;
+using Hrot.Map.Definitions.Behavior.Orders;
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-2292</c> CC-B (CC-4, CC-9) — the ONE way a commander's run orders a subordinate, shared by the squad runner and the command
+    /// nodes: the order is recorded on the commander (<see cref="SubordinateOrders"/>, released when the giving run ends) and published at
+    /// <see cref="BehaviorOrigin.Superior"/>. ⭐ Abstract (<see cref="Order"/>: <c>Order.&lt;name&gt;</c>, the receiver's class decides how)
+    /// or concrete (<see cref="Assign"/>: exactly this behaviour). 📄 docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md §7a CC-9.
+    /// </summary>
+    public static class CommandOrders
+    {
+        /// <summary>⭐ <c>CE-4615</c> — the ONE "send me a SITREP every <paramref name="seconds"/>" a commander asks with its order (DA-63's
+        /// <c>PlatoonDefend.AskSitrep</c>, lifted): the subordinate's strength colour is what a Reinforce / relief / LOST guard reads. 📐 Live on
+        /// cc-battalion the COMPANY plays never asked, so a wiped-out block never read Black and the counter-attack (CE-7004) never came.</summary>
+        public static void AskSitrep(EntityRepository world, Entity unit, float seconds = 15f)
+        {
+            if (unit.IsNull || !world.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()) return;
+            world.Bus.Publish(new Fdp.Toolkit.Squad.Command.SetReportingEvent { Entity = unit, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = seconds });
+        }
+
+        /// <summary>An ABSTRACT order to <paramref name="member"/>. Its release is an unnamed clear (the commander cannot know what it
+        /// resolved to). ⭐ agg-behaviors R-8301 — the entry RECORDS the order's intent (<c>Order.&lt;name&gt;</c>) and its json, so
+        /// <see cref="Gave"/> / <see cref="StillRunning"/> / <see cref="Stands"/> recognise an unchanged re-send of a routed order
+        /// (CE-2304); <see cref="SubordinateOrders.Release"/> turns such an entry back into the unnamed clear. <paramref name="newOrder"/> = a fresh order from a play (not the runner's re-send): the picture forgets the
+        /// member's progress on the last one (<see cref="CommandPictureOps.OrderGiven"/>).</summary>
+        public static void Order(EntityRepository world, Entity commander, Entity member, string orderName, string json, bool newOrder = false)
+        {
+            var id = IdFor(world, commander, member);
+            SubordinateOrders.Record(world, commander, member, OrderAttribute.IntentFor(orderName), BehaviorOrigin.Superior, json, id);
+            if (newOrder) CommandPictureOps.OrderGiven(world, commander, member);
+            world.Bus.PublishManaged(new AssignTacticalIntentEvent
+            {
+                Entity = member, IntentId = OrderAttribute.IntentFor(orderName), JsonParams = json, Origin = BehaviorOrigin.Superior, RequestId = id,
+            });
+            Journal(world, commander, member, OrderAttribute.IntentFor(orderName));
+        }
+
+        /// <summary>
+        /// ⭐⭐ agg-behaviors <c>R-8305</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.5) — the ONE place a commander CHOOSES how
+        /// to order a subordinate whose resolution it does not know: a STOCHASTIC member (<see cref="Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic"/>) is ordered by
+        /// KIND (<see cref="Order"/> — <c>Order.&lt;kind&gt;</c>, which the routing table resolves to its generic play, recorded as such, R-8301); any other is
+        /// <see cref="Assign"/>ed <paramref name="physicalPlay"/> with the SAME <paramref name="neutralJson"/> (the neutral DTO — R-8300's rail proves every physical
+        /// play reads it strictly). <paramref name="kind"/> 0 = this order has no neutral DTO yet ⇒ always <see cref="Assign"/>.
+        /// </summary>
+        public static void Route(EntityRepository world, Entity commander, Entity member, OrderKind kind, string physicalPlay, string neutralJson, bool newOrder = false)
+        {
+            if (kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member))
+                Order(world, commander, member, kind.ToString(), neutralJson, newOrder);
+            else
+                Assign(world, commander, member, physicalPlay, neutralJson, newOrder);
+        }
+
+        /// <summary>
+        /// ⭐⭐ agg-behaviors <c>R-8315</c> (ST-3; revises R-8305) — <c>Route</c> with TWO payloads: a STOCHASTIC member gets <c>Order(kind, <paramref name="neutralJson"/>)</c>,
+        /// anyone else exactly what it got before — <c>Assign(<paramref name="physicalPlay"/>, <paramref name="physicalJson"/>)</c>, byte for byte. A site whose physical play's JSON
+        /// differs from the neutral DTO's (a squad's <c>SquadMarch</c> carries its own shape; <c>PlatoonSupportByFire</c> its own fields) keeps its physical payload untouched
+        /// instead of being forced onto the neutral one. A site whose two payloads are the same keeps the one-payload form.
+        /// </summary>
+        public static void Route(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson, bool newOrder = false)
+        {
+            if (kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member))
+                Order(world, commander, member, kind.ToString(), neutralJson, newOrder);
+            else
+                Assign(world, commander, member, physicalPlay, physicalJson, newOrder);
+        }
+
+        /// <summary>⭐ <c>R-8305</c> — the key <c>Route</c> records for <paramref name="member"/> (<c>Order.&lt;kind&gt;</c> for a stochastic one, else the play), for the
+        /// sites' <see cref="StillRunning"/> / <see cref="Gave"/> calls: an unchanged re-send is recognised whichever way it was routed.</summary>
+        public static string KeyFor(EntityRepository world, Entity member, OrderKind kind, string physicalPlay)
+            => kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member) ? OrderAttribute.IntentFor(kind.ToString()) : physicalPlay;
+
+        /// <summary>⭐ <c>CE-1250</c> (Brain View BV-10) — the commander's brain journal records the order: A = the member's network id (0
+        /// when it has none), B = the behaviour (or order) hash. Every command node gives its orders through here, so every commander writes it.</summary>
+        private static void Journal(EntityRepository world, Entity commander, Entity member, string behaviour)
+        {
+            long id = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, member) : 0;
+            // ⭐ CE-1319 (BV-58) — the order histories first, so the cause they copy is the change that issued it, not this order
+            CommandHistoryOf.Order(world, commander, member, BehaviorHash.FromName(behaviour), CommandPictureOps.Now(world));
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(world, commander, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.OrderIssued,
+                a: (int)id, b: BehaviorHash.FromName(behaviour));
+        }
+
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2084: 0 B per steady frame) — <paramref name="member"/>'s entry in the held orders, by INDEX: a
+        /// <c>foreach</c> over the <c>IReadOnlyList</c> boxed an enumerator on every call, and the order writers ask every slot every frame.</summary>
+        private static bool FindOrder(SubordinateOrders held, Entity member, out SubordinateOrders.Entry e)
+        {
+            var orders = held.Orders;
+            for (int i = 0; i < orders.Count; i++)
+                if (orders[i].Member.Equals(member)) { e = orders[i]; return true; }
+            e = default;
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2294</c> CC-D — the order the commander's TICKING run gave <paramref name="member"/> still stands: nothing
+        /// else (a reaction's order, released when it ended, or an operator's) replaced it since. A run resumed after a reaction finds
+        /// its orders gone and gives them again.</summary>
+        public static bool Stands(EntityRepository world, Entity commander, Entity member)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null) return false;
+            if (FindOrder(held, member, out var e)) return e.Run == run;
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2312</c> (HQ-6) — <paramref name="member"/> is BUSY with the commander's order: the commander's ticking run gave
+        /// it one and it still runs a task from its superior (not finished, not cleared, not taken by a reaction). A finished asset is free
+        /// again — an aircraft has no staff to report it.</summary>
+        public static bool Busy(EntityRepository world, Entity commander, Entity member)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null || !world.IsAlive(member) || !world.HasComponent<BehaviorState>(member)) return false;
+            ref readonly var bs = ref world.GetComponentRO<BehaviorState>(member);
+            if (bs.Origin != BehaviorOrigin.Superior || bs.ActiveBehaviorHash == BehaviorIds.None) return false;
+            if (FindOrder(held, member, out var e)) return e.Run == run;
+            return false;
+        }
+
+        /// <summary>A CONCRETE order: <paramref name="member"/> runs <paramref name="behaviour"/> with <paramref name="json"/>. Its release
+        /// names the behaviour.</summary>
+        public static void Assign(EntityRepository world, Entity commander, Entity member, string behaviour, string json, bool newOrder = false)
+        {
+            var id = IdFor(world, commander, member);
+            SubordinateOrders.Record(world, commander, member, behaviour, BehaviorOrigin.Superior, json, id);
+            if (newOrder) CommandPictureOps.OrderGiven(world, commander, member);
+            world.Bus.PublishManaged(new AssignTacticalIntentEvent
+            {
+                Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior, RequestId = id,
+            });
+            Journal(world, commander, member, behaviour);
+        }
+
+        /// <summary>⭐ <c>CE-2347</c> — the commander's ticking run's LAST order to <paramref name="member"/> was exactly this one
+        /// (<paramref name="behaviour"/> with <paramref name="json"/>), whether he still runs it or has finished it. A play whose next order
+        /// differs (a squad brought its wounded in, now it boards) gives it; one whose order is unchanged does not restart a finished task.</summary>
+        public static bool Gave(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null) return false;
+            if (FindOrder(held, member, out var e)) return e.Run == run && e.Behavior == behaviour && e.Json == json;
+            return false;
+        }
+
+        /// <summary>⭐ <c>R-8315</c> — <see cref="Gave"/> for a site that sends through the TWO-payload <c>Route</c> (the key and json the route would record for <paramref name="member"/>).</summary>
+        /// <remarks>⭐⭐ <c>X-2</c> X2-H (R-8361) — RESOLUTION-BLIND: the entry matches EITHER routed form (<c>Order.&lt;K&gt;</c> + the neutral json, or the
+        /// physical play + its json), whatever the member's resolution NOW — a member that switched (split / merged) after the order was given is still
+        /// given it (⛔ before, the key for its new resolution differed and the commander re-sent with a new id, restarting the defenders — CE-2304).</remarks>
+        public static bool GaveRouted(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson)
+            => (kind != 0 && Gave(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson))
+               || Gave(world, commander, member, physicalPlay, physicalJson);
+
+        /// <summary>⭐ <c>CE-2304</c> — the commander's ticking run already gave <paramref name="member"/> exactly this order
+        /// (<paramref name="behaviour"/> with <paramref name="json"/>) and he still runs it from his superior: sending it again would only
+        /// restart him — measured live, every re-send stopped a posted defender and started him again. False whenever anything differs, or
+        /// he no longer runs it (finished, or a reaction / another order took him), so a needed re-send still goes.</summary>
+        public static bool StillRunning(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null || !world.IsAlive(member) || !world.HasComponent<BehaviorState>(member)) return false;
+            // ⭐⭐ CE-4612 (R-D11 ④) — HIS order, by id: he runs (not paused) the very order this run gave him. ⛔ Not his behaviour's name.
+            var current = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, member);
+            // ⭐⭐ CE-4666 — PAUSED under a reaction it is still HIS order (Orders §15: "a reaction PAUSES the order, it does not replace it … the
+            //   reaction ends → resume"). ⛔ SUPERSEDED: "not paused" — the play re-sent the identical order, the gate admitted it over the
+            //   reaction, the stress break restarted at once: 📐 live pc-defend-house, every broken defender cycled Break ⇄ CombatPosture each
+            //   second and never fled to cover (lay where he broke); the ia-area-defend guard the same.
+            if (!current.Exists || current.Origin != BehaviorOrigin.Superior) return false;
+            if (FindOrder(held, member, out var e)) return e.Run == run && e.Behavior == behaviour && e.Json == json && e.RequestId != System.Guid.Empty && current.RequestId == e.RequestId;
+            return false;
+        }
+
+        /// <summary>⭐ <c>R-8315</c> — <see cref="StillRunning"/> for a site that sends through the TWO-payload <c>Route</c>: asks for the key and the json the route WOULD
+        /// record for <paramref name="member"/> (<c>Order.&lt;kind&gt;</c> + the neutral json for a stochastic one, else the physical play + its json).</summary>
+        /// <remarks>⭐⭐ <c>X-2</c> X2-H (R-8361) — RESOLUTION-BLIND, like <see cref="GaveRouted"/>: either routed form matches, and the member still runs
+        /// the entry's order BY REQUEST ID (<see cref="StillRunning"/>) — which the reconciler keeps across a switch (X2-C, <c>IsResume</c>).</remarks>
+        public static bool StillRoutedRunning(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson)
+            => (kind != 0 && StillRunning(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson))
+               || StillRunning(world, commander, member, physicalPlay, physicalJson);
+
+        /// <summary>⭐ <c>CE-4612</c> (R-2090) — the request id of the order <paramref name="commander"/>'s ticking run gives <paramref name="member"/> now.</summary>
+        internal static System.Guid IdFor(EntityRepository world, Entity commander, Entity member)
+            => RequestIds.For(commander, BehaviorOwnedParts.OwnerOf(world, commander), member, CommandPictureOps.Now(world));
+    }
+
+    /// <summary>Params of <see cref="CommandNodes.OrderSubordinate"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct OrderSubordinateParams
+    {
+        /// <summary>Which subordinate: its slot in the commander's roster.</summary>
+        public int Slot;
+        /// <summary>The order — Move or Hold (the ones a point and a speed describe; Attack, Strike and ObserveFire name a target and are
+        /// given from C# through <see cref="CommandOrders.Order"/>).</summary>
+        public OrderKind Order;
+        /// <summary>Move: where (local metres; the order carries it geodetic).</summary>
+        public Vector3 Point;
+        /// <summary>Move: m/s (0 = the receiver's own default).</summary>
+        public float Speed;
+        /// <summary>Move: how near counts as there (0 = the receiver's own default).</summary>
+        public float ArrivalRadius;
+    }
+
+    /// <summary>⭐ <c>CE-2294</c> — params of <see cref="CommandNodes.MoveLeg"/>: one leg of a play, one subordinate moving to one point.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MoveLegParams
+    {
+        /// <summary>Which subordinate: its slot in the commander's roster.</summary>
+        public int Slot;
+        /// <summary>Where (local metres).</summary>
+        public Vector3 Point;
+        /// <summary>m/s (0 = the receiver's own default).</summary>
+        public float Speed;
+        /// <summary>How near counts as there (0 = the receiver's own default).</summary>
+        public float ArrivalRadius;
+        /// <summary>The extra SITREP asked with the order (s; 0 = none) — CC-2, CC-8.</summary>
+        public SimDuration SitrepEverySeconds;
+    }
+
+    /// <summary>⭐ <c>CE-2294</c> — what <see cref="CommandNodes.MoveLeg"/> keeps: how many times it gave its order.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MoveLegState
+    {
+        public int Orders;
+    }
+
+    /// <summary>⭐ <c>CE-2294</c> — params of <see cref="CommandNodes.WithdrawReporting"/>: the subordinates whose extras a play takes back.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WithdrawReportingParams
+    {
+        public int SlotA;
+        /// <summary>A second slot (-1 = none).</summary>
+        public int SlotB;
+    }
+
+    /// <summary>Params of <see cref="CommandNodes.SetSubordinateReporting"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SetSubordinateReportingParams
+    {
+        public int Slot;
+        public PirFlags Pir;
+        public FfirFlags Ffir;
+        public SimDuration SitrepEverySeconds;
+        /// <summary>PC-3 — the area entity's network id the area PIRs refer to (0 = none).</summary>
+        public long PirArea;
+    }
+
+    /// <summary>Params of <see cref="CommandNodes.SendReport"/> — a milestone or a request (CC-8: what the staff cannot infer).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SendReportParams
+    {
+        /// <summary>Progress or Request (the staff composes the rest).</summary>
+        public ReportKind Kind;
+        /// <summary>The <see cref="ProgressKind"/> or <see cref="RequestKind"/>.</summary>
+        public byte Subtype;
+        /// <summary>PROGRESS PhaseLine: the line's index (PC-4).</summary>
+        public byte Count;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2292</c> CC-B (CB-46) — the COMMAND ACTIONS: shared C# nodes any BTree / HSM / blueprint binds, so a play orders its
+    /// subordinates, asks them for reports and sends its own milestones. A subordinate is named by its roster SLOT. Each acts once and
+    /// succeeds (an HSM state's entry action). 📄 Command Chain §6, §8 CC-B.
+    /// </summary>
+    public static class CommandNodes
+    {
+        /// <summary>How long a play's own report waits before it goes (R-2031: a leader's report goes ~3 s after the fact).</summary>
+        public const float ReportDelaySeconds = 3f;
+
+        /// <summary>⭐ <c>CE-4610</c> — a commander's own PROGRESS report (a phase line, an objective secured), sent after the report delay; the
+        /// one shape every commander play uses (<c>RoomDrill.Report</c> is the squad's, from its play context). <paramref name="count"/> rides in
+        /// <see cref="CommandReport.Count"/> (PhaseLine: the line's index).</summary>
+        public static void ReportProgress(EntityRepository world, Entity self, ProgressKind kind, Vector3 at, int count = 0)
+        {
+            SimInstant now = (SimInstant)CommandPictureOps.Now(world);
+            ReportQueue.Enqueue(world, self, new CommandReport
+            {
+                Kind = ReportKind.Progress, Subtype = (byte)kind, At = at, Count = (byte)System.Math.Clamp(count, 0, 255), ObservedAt = now,
+            }, now + ReportDelaySeconds);
+        }
+
+        /// <summary>Order the subordinate in <see cref="OrderSubordinateParams.Slot"/> to Move or Hold — ABSTRACT (CC-9): its class decides
+        /// how. A fresh order: the picture forgets its progress on the last one.</summary>
+        [SharedAiAction]
+        public static NodeStatus OrderSubordinate(ref OrderSubordinateParams p, Entity self, EntityRepository world)
+        {
+            var member = CommandPictureOps.Subordinate(world, self, p.Slot);
+            if (member.IsNull || !world.IsAlive(member)) return NodeStatus.Failure;
+            string json;
+            switch (p.Order)
+            {
+                case OrderKind.Move:
+                    json = JsonSerializer.Serialize(new MoveOrder { Location = p.Point, Speed = p.Speed, ArrivalRadius = p.ArrivalRadius },
+                                                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                    break;
+                case OrderKind.Hold:
+                    json = "{}";
+                    break;
+                default:
+                    return NodeStatus.Failure;
+            }
+            CommandOrders.Order(world, self, member, p.Order.ToString(), json, newOrder: true);
+            return NodeStatus.Success;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2294</c> CC-D — one LEG of a play, as an HSM ACTIVITY (it runs every tick of its state): the subordinate in
+        /// <see cref="MoveLegParams.Slot"/> moves to <see cref="MoveLegParams.Point"/> (an abstract Move, CC-9) with the extra SITREP asked
+        /// beside it (CC-2). ⭐ The order is given whenever this run's order to it does not STAND (<see cref="CommandOrders.Stands"/>): on
+        /// the state's first tick, and again when the run RESUMES after a reaction whose orders replaced it (an HSM resumes in its state,
+        /// its activities tick on — Decision Layer §4.1 — so this is how the plan picks up where it was). The progress the picture keeps is
+        /// reset each time (a fresh order), so the leg's guard waits for THIS order's Set. Running while the subordinate exists; the
+        /// state's guard ends it.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus MoveLeg(ref MoveLegParams p, ref MoveLegState ws, Entity self, EntityRepository world)
+        {
+            var member = CommandPictureOps.Subordinate(world, self, p.Slot);
+            if (member.IsNull || !world.IsAlive(member)) return NodeStatus.Failure;
+            if (CommandOrders.Stands(world, self, member)) return NodeStatus.Running;
+            var move = new OrderSubordinateParams { Slot = p.Slot, Order = OrderKind.Move, Point = p.Point, Speed = p.Speed, ArrivalRadius = p.ArrivalRadius };
+            if (OrderSubordinate(ref move, self, world) != NodeStatus.Success) return NodeStatus.Failure;
+            if (p.SitrepEverySeconds > 0f)
+            {
+                var extras = new SetSubordinateReportingParams { Slot = p.Slot, SitrepEverySeconds = p.SitrepEverySeconds };
+                SetSubordinateReporting(ref extras, self, world);
+            }
+            ws.Orders++;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-2294</c> — a play takes back the extra reports it asked of its subordinates (all zero withdraws them, CC-A).</summary>
+        [SharedAiAction]
+        public static NodeStatus WithdrawReporting(ref WithdrawReportingParams p, Entity self, EntityRepository world)
+        {
+            var none = new SetSubordinateReportingParams { Slot = p.SlotA };
+            SetSubordinateReporting(ref none, self, world);
+            if (p.SlotB >= 0)
+            {
+                none = new SetSubordinateReportingParams { Slot = p.SlotB };
+                SetSubordinateReporting(ref none, self, world);
+            }
+            return NodeStatus.Success;
+        }
+
+        /// <summary>Ask the subordinate in <see cref="SetSubordinateReportingParams.Slot"/> for EXTRA reports (CC-2, CC-8) — all zero
+        /// withdraws them. Origin Superior.</summary>
+        [SharedAiAction]
+        public static NodeStatus SetSubordinateReporting(ref SetSubordinateReportingParams p, Entity self, EntityRepository world)
+        {
+            var member = CommandPictureOps.Subordinate(world, self, p.Slot);
+            if (member.IsNull || !world.Bus.IsRegistered<SetReportingEvent>()) return NodeStatus.Failure;
+            world.Bus.Publish(new SetReportingEvent
+            {
+                Entity = member, Origin = BehaviorOrigin.Superior, Pir = p.Pir, Ffir = p.Ffir,
+                SitrepEverySeconds = p.SitrepEverySeconds, PirArea = p.PirArea,
+            });
+            return NodeStatus.Success;
+        }
+
+        /// <summary>Queue the play's own PROGRESS or REQUEST into the commander's <see cref="ReportOutbox"/>: it goes up after
+        /// <see cref="ReportDelaySeconds"/> (the staff sends it, CC-C). Failure when the outbox is full or the kind is not the play's.</summary>
+        [SharedAiAction]
+        public static NodeStatus SendReport(ref SendReportParams p, Entity self, EntityRepository world)
+        {
+            if (p.Kind != ReportKind.Progress && p.Kind != ReportKind.Request) return NodeStatus.Failure;
+            SimInstant now = CommandPictureOps.Now(world);
+            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Fdp.Core.WorldPoint.Zero;
+            return ReportQueue.Enqueue(world, self, new CommandReport
+            {
+                Kind = p.Kind, Subtype = p.Subtype, Count = p.Count, At = at, ObservedAt = now,
+            }, now + ReportDelaySeconds) ? NodeStatus.Success : NodeStatus.Failure;
+        }
+    }
+}

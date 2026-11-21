@@ -1,0 +1,53 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AW-8/AW-9 a lying canister picked up and thrown back. From the header's Judge (1)-(3) and Fail: the policeman puts the canister down (his shot), the hardened rioter holds it (HeldFuze.BurnSeconds > 0), is irritated while he holds it, then throws it (his shot); he never flees before picking it up. NOT expressed: (0) the cloud on the canister and (3) the new cloud nearer the policeman - the clouds are unnamed entities a check cannot address.",
+  "runFor": 25,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the policeman puts the canister down",
+      "on": "shot",
+      "by": "Policeman"
+    },
+    {
+      "name": "the hardened rioter picks it up (it burns on in his hands)",
+      "on": "field",
+      "who": "Hardened rioter",
+      "path": "HeldFuze.BurnSeconds",
+      "op": ">",
+      "value": 0,
+      "after": "the policeman puts the canister down"
+    },
+    {
+      "name": "he is irritated while he holds it",
+      "on": "field",
+      "who": "Hardened rioter",
+      "path": "EffectState.IrritatedUntil",
+      "op": ">",
+      "value": "$now",
+      "after": "the hardened rioter picks it up (it burns on in his hands)"
+    },
+    {
+      "name": "he throws it back",
+      "on": "shot",
+      "by": "Hardened rioter",
+      "after": "the hardened rioter picks it up (it burns on in his hands)"
+    },
+    {
+      "name": "he does not flee instead of picking it up",
+      "never": {
+        "on": "field",
+        "who": "Hardened rioter",
+        "path": "CivilianState.Mode",
+        "op": "in",
+        "value": [
+          "Panic",
+          "Shelter",
+          "Cower"
+        ]
+      },
+      "before": "the hardened rioter picks it up (it burns on in his hands)"
+    }
+  ]
+}

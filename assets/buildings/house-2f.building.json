@@ -1,0 +1,31 @@
+{
+  "$comment": "Buildings programme Stage 1 — a two-storey house: 10 x 8 m, inner wall with a door, stairs to the upper storey, windows; the upper floor leaves the stairwell open (docs/DESIGN_Building_Interiors.md §3a). Local metres; origin = the south-west corner.",
+  "name": "house-2f",
+  "material": "brick",
+  "footprint": [[0,0],[10,0],[10,8],[0,8]],
+  "storeys": [
+    { "height": 3.0,
+      "walls": [
+        { "from": [0,0],  "to": [10,0], "thickness": 0.3,
+          "openings": [ { "kind": "door",   "at": 3.75, "width": 0.9, "doorId": "front", "initial": "closed" },
+                        { "kind": "window", "at": 1.5, "width": 1.2 } ] },
+        { "from": [10,0], "to": [10,8], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 3.0, "width": 1.2 } ] },
+        { "from": [10,8], "to": [0,8],  "thickness": 0.3,
+          "openings": [ { "kind": "door", "at": 2.15, "width": 0.9, "doorId": "back" } ] },
+        { "from": [0,8],  "to": [0,0],  "thickness": 0.3 },
+        { "from": [5,0],  "to": [5,8],  "thickness": 0.15, "material": "concrete",
+          "openings": [ { "kind": "door", "at": 6.15, "width": 0.9, "doorId": "hall" } ] } ],
+      "stairs": [ { "from": [8,1], "to": [8,6], "width": 1.0 } ] },
+    { "height": 3.0,
+      "floor": [ [[0,0],[7.5,0],[7.5,8],[0,8]], [[8.5,0],[10,0],[10,8],[8.5,8]],
+                 [[7.5,0],[8.5,0],[8.5,1],[7.5,1]], [[7.5,6],[8.5,6],[8.5,8],[7.5,8]] ],
+      "walls": [
+        { "from": [0,0],  "to": [10,0], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 1.5, "width": 1.2 }, { "kind": "window", "at": 6.5, "width": 1.2 } ] },
+        { "from": [10,0], "to": [10,8], "thickness": 0.3 },
+        { "from": [10,8], "to": [0,8],  "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 4.0, "width": 1.2 } ] },
+        { "from": [0,8],  "to": [0,0],  "thickness": 0.3 } ] } ],
+  "roof": "flat"
+}

@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
   </ItemGroup>
 
@@ -24,6 +25,8 @@
     <ProjectReference Include="..\Hrot.ReplayBrowser\Hrot.ReplayBrowser.csproj" />
     <!-- Needed for OfflineNetworkFactory used in FND-T11 ctor test -->
     <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
+    <!-- CE-4261: the real-ImGui frame rail of the browser's toolbar transport and JSON export window -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
     <!-- Explicit reference for SubsystemConfig -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
   </ItemGroup>
@@ -32,4 +35,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+  </ItemGroup>
 </Project>

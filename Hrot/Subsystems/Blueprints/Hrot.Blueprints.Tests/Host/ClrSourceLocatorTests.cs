@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Editor.Host;
+using Hrot.Editor.AiShared.Source;
 
 namespace Hrot.Blueprints.Tests.Host;
 

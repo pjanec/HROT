@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class DamageSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)
@@ -67,30 +68,23 @@ namespace Fdp.Toolkit.Combat.Systems
                 float damage = view.GetComponentRO<BallisticProjectile>(evt.BulletEntity).Damage;
 
                 // 5. Apply damage to the hit entity's health.
+                bool before = Fdp.Toolkit.Combat.ManDowned.Before(repo, evt.HitEntity);   // ⭐ CE-3364 — a hit that downs him publishes through the same helper as HealthApplicationSystem
+                var shooter = view.GetComponentRO<BallisticProjectile>(evt.BulletEntity).Shooter;
                 ref var health = ref repo.GetComponentRW<Health>(evt.HitEntity);
                 health.Current -= damage;
                 if (health.Current < 0f) health.Current = 0f;
 
-                // 6. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
-                //    the same frame), then destroy the hit entity.
-                if (health.Current <= 0f)
-                {
-                    // Strip CanMove + CanShoot so downstream systems (e.g. HsmDamageBridgeSystem)
-                    // can detect mobility loss even though the entity is about to be removed.
-                    if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
-                    {
-                        ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
-                        caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
-                    }
-                    repo.DestroyEntity(evt.HitEntity);
-                }
-                else if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
-                {
-                    // Non-lethal hit: strip CanMove so HsmDamageBridgeSystem can detect
-                    // the mobility-kill transition (set->cleared) and inject MobilityLost.
-                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
-                    caps.Capabilities &= ~ActorCapabilities.CanMove;
-                }
+                // 6. If lethal: strip capabilities. ⛔ The entity is NOT removed — a dead body stays
+                //    in the world (no magic vanishing). 🔒 User ruling `2026-09-13`: *"dead entity
+                //    should not vanish, it should stay dead in the world, every entity."* Combat-death
+                //    is the state `Health.Current <= 0` (+ CanMove/CanShoot stripped), NOT ECS removal;
+                //    `IsAlive` means "the entity exists", which a corpse still does.
+                //    ⚠ Previously this called `repo.DestroyEntity(evt.HitEntity)`; that made downstream
+                //    `!IsAlive(target)` death-checks true by DELETING the target, conflating ECS
+                //    existence with combat-death. Removed.
+                // ⭐ CE-3092 — the ONE rule for what a hit does to capabilities (shared with HealthApplicationSystem).
+                Fdp.Toolkit.Combat.CombatLife.ApplyHitCapabilities(repo, evt.HitEntity, in health);
+                Fdp.Toolkit.Combat.ManDowned.PublishIfDowned(repo, evt.HitEntity, before, shooter, Entity.Null);
             }
         }
     }

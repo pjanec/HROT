@@ -75,7 +75,7 @@ public sealed class DdsIdAllocatorDecouplingTests
         var factory = new SpyNetworkFactory(spy);
 
         var orchSvc = new OrchestratorSubsystem(factory);
-        orchSvc.Initialize(new SubsystemConfig { NodeId = 0 });
+        orchSvc.Initialize(new SubsystemConfig { NodeId = (Fdp.Core.NodeId)(0) });
         orchSvc.Shutdown();
 
         Assert.Equal(1, disposeCount);

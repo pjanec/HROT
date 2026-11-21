@@ -20,7 +20,13 @@ namespace Fdp.ModuleHost.Scheduling
         public int ErrorCount { get; private set; }
         public Exception? LastError { get; private set; }
         
+        /// <summary>⭐ CE-4364 (the scale rig) — bytes the system allocated on its thread, over every execution.</summary>
+        public long TotalBytes { get; private set; }
+        public double AverageBytes => ExecutionCount > 0 ? (double)TotalBytes / ExecutionCount : 0;
+
         private readonly Queue<double> _recentExecutions = new();
+        private readonly Queue<long> _recentBytes = new();
+        private long _recentBytesSum;
         private const int MaxRecentSamples = 60; // Last 60 executions
         
         public SystemProfileData(string systemName)
@@ -28,8 +34,16 @@ namespace Fdp.ModuleHost.Scheduling
             SystemName = systemName;
         }
         
-        public void RecordExecution(double milliseconds)
+        public void RecordExecution(double milliseconds) => RecordExecution(milliseconds, 0);
+
+        /// <summary>One execution: its time and ⭐ CE-4364 the bytes it allocated (the garbage budget: 0 B per steady frame).</summary>
+        public void RecordExecution(double milliseconds, long bytes)
         {
+            TotalBytes += bytes;
+            _recentBytes.Enqueue(bytes);
+            _recentBytesSum += bytes;
+            if (_recentBytes.Count > MaxRecentSamples)
+                _recentBytesSum -= _recentBytes.Dequeue();
             ExecutionCount++;
             TotalMs += milliseconds;
             LastMs = milliseconds;
@@ -65,6 +79,9 @@ namespace Fdp.ModuleHost.Scheduling
             return sum / _recentExecutions.Count;
         }
         
+        /// <summary>⭐ CE-4364 — the average bytes allocated per execution over the recent executions (the last 60).</summary>
+        public double GetRecentAverageBytes() => _recentBytes.Count == 0 ? 0 : (double)_recentBytesSum / _recentBytes.Count;
+
         /// <summary>
         /// Reset all statistics.
         /// </summary>
@@ -78,6 +95,9 @@ namespace Fdp.ModuleHost.Scheduling
             ErrorCount = 0;
             LastError = null;
             _recentExecutions.Clear();
+            TotalBytes = 0;
+            _recentBytes.Clear();
+            _recentBytesSum = 0;
         }
     }
 }

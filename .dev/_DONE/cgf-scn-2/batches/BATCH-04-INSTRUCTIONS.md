@@ -52,7 +52,7 @@ S503 → S504); each task depends on the previous one.
 
 ```powershell
 # Build everything
-dotnet build IOS-IG-SimHost.sln --no-restore
+dotnet build HROT.sln --no-restore
 
 # Run relevant test projects
 dotnet test FDP/Engine/Fdp.Core.Tests/Fdp.Core.Tests.csproj --no-build
@@ -76,7 +76,7 @@ If you have questions, create:
 
 ## Context
 
-Phases 1–4 fixed scenario serialization (NoSave tagging, InlineArray support, custom
+Phases 1–4 fixed scenario serialization (NoScenario tagging, InlineArray support, custom
 translators, genesis intents).  Phase 5 addresses the **checkpoint pipeline**: currently
 `CheckpointIOWorker.WriteCheckpointFile` serializes a snapshot of ECS state but omits
 any events that were live on the bus.  After loading, systems that react to events

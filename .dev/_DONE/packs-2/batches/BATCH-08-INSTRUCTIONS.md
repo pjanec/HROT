@@ -13,7 +13,7 @@
 - `EditorApplication` is the `IEditorLogic` implementation in `Hrot.Editor/`; it delegates all file ops to `ScenarioFileService`.
 - `EditorBootstrap.CreateFileService()` builds a `ScenarioFileService` with a `ScenarioSerializerBuilder("Hrot.Scenario")`.
 - F002–F004 are integration tests (not unit tests). They call the real `EditorApplication` → `ScenarioFileService` → `ScenarioSerializer` chain, hitting the actual file system with temp files.
-- Tests go in **`Hrot.Editor.Tests/`** (already exists; already referenced in `IOS-IG-SimHost.sln`).
+- Tests go in **`Hrot.Editor.Tests/`** (already exists; already referenced in `HROT.sln`).
 - Use `ComponentTypeRegistry.Clear()` in test constructor and `Dispose()` to isolate the static component registry between tests. This is already the pattern in `Hrot.ScenarioEditor.Tests/ScenarioFileServiceTests.cs`.
 - `SoftClear()` on `EntityRepository` does NOT reset singletons. The `_singletons` array persists. Therefore `ScenarioFileService.NewScenario` must be extended to explicitly zero out the `GlobalTime` singleton.
 - `GlobalTime` is a singleton struct in `Fdp.Kernel`. The task spec's "`GlobalTime.T == 0.0f`" refers to `TotalTime` (the total elapsed simulation time field of type `double`).

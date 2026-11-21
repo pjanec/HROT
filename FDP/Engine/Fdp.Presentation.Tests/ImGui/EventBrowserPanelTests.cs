@@ -14,6 +14,35 @@ namespace Fdp.Presentation.Tests
         private static CapturedEventDto MakeDto(int i) =>
             new CapturedEventDto((uint)i, "World", "TestEvent", false, $"Value:{i}", null);
 
+        private sealed class FixedHistory : IDiagnosticEventHistoryService
+        {
+            public CapturedEventDto[] Events = System.Array.Empty<CapturedEventDto>();
+            public void Capture(string providerName, FdpEventBus eventBus, uint currentFrame) { }
+            public CapturedEventDto[] GetHistory(IReadOnlyList<string>? providerFilter = null) => Events;
+            public void ClearHistory() { }
+            public void RewindHistory(uint toFrame) { }
+        }
+
+        /// <summary>
+        /// ⭐ CE-2403 (R-2084) — a full history (500 events) builds only the rows on screen: a steady frame allocates a few KB, not a label per
+        /// event (≈ 112 KB/frame on Crossfire). 🔴 Red-proof: the row loop over every event (no ImGuiRowClip) ⇒ the bound fails.
+        /// </summary>
+        [Fact]
+        public void CE2403_AFullHistory_BuildsOnlyTheVisibleRows_AndAllocatesLittle()
+        {
+            using var fixture = new ImGuiTestFixture();
+            var svc = new FixedHistory { Events = new CapturedEventDto[DiagnosticEventHistoryService.Capacity] };
+            for (int i = 0; i < svc.Events.Length; i++)
+                svc.Events[i] = new CapturedEventDto((uint)i, "World", i % 2 == 0 ? "RaycastResultEvent" : "AssignBehaviorEvent", i % 2 == 1, "RayId:-922337 Hit:True Distance:12.5", null);
+            var panel = new EventBrowserPanel(svc);
+            void Frame() { fixture.NewFrame(); panel.Draw("Events"); fixture.Render(); }
+            for (int i = 0; i < 5; i++) Frame();
+            long a0 = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) Frame();
+            long perFrame = (System.GC.GetAllocatedBytesForCurrentThread() - a0) / 10;
+            Assert.True(perFrame < 24 * 1024, $"{perFrame} B/frame for {svc.Events.Length} events");
+        }
+
         [Fact]
         public void Draw_WithMockServiceReturning5Events_Renders5RowsWithoutException()
         {

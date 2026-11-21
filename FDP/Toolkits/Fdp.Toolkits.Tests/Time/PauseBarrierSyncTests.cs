@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Time.Tests
             long masterTick, long slaveTick, int nodeId = SlaveNodeId)
         {
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Pre-compute zero-RTT offset: master domain offset = masterTick - slaveTick.
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent
@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Time.Tests
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
         }
 
         private static void RelayModeSwitch(FdpEventBus masterBus, FdpEventBus slaveBus)
@@ -101,9 +101,9 @@ namespace Fdp.Toolkit.Time.Tests
                 cfg, () => masterTicks);
             var slave  = new SlaveSyncController(slaveBus, SlaveNodeId, cfg, () => slaveTicks);
 
-            // Drain slave's initial TimeSyncRequest but do NOT respond (no NTP sync)
+            // Drain slave's initial TimeSyncProbeEvent but do NOT respond (no NTP sync)
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Master pauses — barrier = masterTicks + lookahead = 0 + 100_000 = 100_000
             master.SwitchToDeterministic(new HashSet<int> { SlaveNodeId });

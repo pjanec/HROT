@@ -19,6 +19,16 @@ namespace Fbt.Tests.Unit
             public float FieldB; // offset 4, size 4
         }
 
+        // CE-2044: a bare bool (no [MarshalAs(I1)]) before the field — V sits at 4 in memory, Marshal.OffsetOf says 8
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FlagsThenFloatBlackboard
+        {
+            public bool A;
+            public bool B;
+            public float V;   // managed offset 4; Marshal.OffsetOf says 8 …
+            public float W;   // … which is exactly W, so the wrong offset reads a KNOWN wrong value
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         private struct AmmoBlackboard
         {
@@ -65,6 +75,26 @@ namespace Fbt.Tests.Unit
             var result = interpreter.Tick(ref bb, ref state, ref ctx);
 
             Assert.Equal(NodeStatus.Success, result);
+        }
+
+        // ---- CE-2044 — the bound offset is the MANAGED one ----
+
+        [Fact]
+        public void Condition_AfterBareBools_ReadsTheFieldAtItsManagedOffset()
+        {
+            // The thunk reads Unsafe.AddByteOffset(ref bb, offset). With Marshal's offset (8) it read W (-1 ⇒ Failure) instead
+            // of V, and the action key baked "@8" where the emitters' packer says "@4".
+            var builder = new BTreeBuilder<FlagsThenFloatBlackboard, MockContext>();
+            var blob = builder
+                .Condition(bb => bb.V, FloatPositiveCheck)
+                .Compile("ManagedOffsetTest");
+
+            var interpreter = new Interpreter<FlagsThenFloatBlackboard, MockContext>(blob, builder.GetRegistry());
+            var bb = new FlagsThenFloatBlackboard { A = false, B = false, V = 5.0f, W = -1.0f };
+            var state = new BehaviorTreeState();
+            var ctx = new MockContext();
+
+            Assert.Equal(NodeStatus.Success, interpreter.Tick(ref bb, ref state, ref ctx));
         }
 
         // ---- FBT-003: SC3 / Test 2 ----

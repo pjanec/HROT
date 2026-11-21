@@ -27,7 +27,7 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
    ```
    dotnet new console -n Hrot.SimHost -f net8.0
    ```
-2. Add to IOS-IG-SimHost.sln solution:
+2. Add to HROT.sln solution:
    ```
    Location: Hrot.SimHost/
    ```
@@ -190,7 +190,7 @@ Hrot.SimHost/
    dotnet new mstest -n Hrot.SimHost.Tests -f net8.0
    ```
 2. Location: `Hrot.SimHost.Tests/`
-3. Add to solution `IOS-IG-SimHost.sln`.
+3. Add to solution `HROT.sln`.
 4. Add reference to `Hrot.SimHost` project.
 
 **Acceptance Criteria:**

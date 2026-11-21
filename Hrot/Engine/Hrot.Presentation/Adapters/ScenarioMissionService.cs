@@ -1,0 +1,295 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Components;
+using Hrot.Core.Mission;
+using Hrot.Core.Tkb;
+using Hrot.Map.Definitions.Behavior;
+using Hrot.Common.Events;
+using Hrot.Map.Definitions.Tkb;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Models;
+
+namespace Hrot.UI.Common.Adapters
+{
+    /// <summary>
+    /// Implements <see cref="IMissionEditorService"/> for the offline editor.
+    ///
+    /// <para>
+    /// Behavior filtering: intersects the per-TKB catalog from <see cref="BehaviorCatalog"/>
+    /// with the live-registered names from <see cref="BehaviorRegistry"/> to avoid
+    /// offering behaviours that are not currently installed in the engine.
+    /// </para>
+    ///
+    /// <para>
+    /// Commit workflow follows the TAP pattern: a <see cref="MissionControlIntent"/>
+    /// is published to the local bus, and <see cref="PollAcks"/> must be called from
+    /// the Editor update loop to resolve the pending <see cref="Task{T}"/> when
+    /// <see cref="MissionControlAckEvent"/> arrives.
+    /// </para>
+    ///
+    /// No DDS or CycloneDDS references.
+    /// </summary>
+    public sealed class ScenarioMissionService : IMissionEditorService
+    {
+        private readonly FdpEventBus      _bus;
+        private readonly EntityRepository _repo;
+        private readonly BehaviorRegistry _registry;
+
+        private readonly Dictionary<Guid, TaskCompletionSource<MissionCommitResult>> _pendingCommits = new();
+
+        /// <param name="bus">Local FDP event bus.</param>
+        /// <param name="repo">Entity repository for ECS component reads.</param>
+        /// <param name="registry">Live behavior registry used for filtering.</param>
+        public ScenarioMissionService(FdpEventBus bus, EntityRepository repo, BehaviorRegistry registry)
+        {
+            _bus      = bus;
+            _repo     = repo;
+            _registry = registry;
+        }
+
+        // ── Private entity resolution ─────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy used
+        /// <c>GetComponent</c> *(a struct copy)* and had no null-repo guard.
+        /// </summary>
+        private Entity FindEntityByNetworkId(int networkId)
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_repo, networkId);
+
+        /// <inheritdoc/>
+        public IReadOnlyList<string> GetAvailableBehaviors(int entityId)
+            => GetAvailableBehaviorChoices(entityId).Select(c => c.Name).ToList();
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// ⭐ <c>CE-462</c> — the ONE list: names come from here, so the label and the name can never
+        /// disagree. The technology is the definition's <see cref="BehaviorDefinition.BrainTier"/>.
+        /// </remarks>
+        public IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(int entityId)
+        {
+            var entity = FindEntityByNetworkId(entityId);
+            if (entity.IsNull || !_repo.IsAlive(entity))
+                return Array.Empty<BehaviorChoice>();
+
+            if (!_repo.HasComponent<TkbIdentity>(entity))
+                return Array.Empty<BehaviorChoice>();
+
+            long tkbType = _repo.GetComponent<TkbIdentity>(entity).TkbType;
+
+            // ⭐ CE-4350 (docs/DESIGN_Orders_Params_Entity_Classes.md §14) — EVERY registered behaviour (curated and authored, every technology),
+            //   kept when it FITS the entity's class: the same class table the orders end at. ⛔ This was a curated list by TKB id (an 11-id switch)
+            //   plus EVERY other behaviour appended — a tank was offered the infantry drills.
+            var result = FittingBehaviours(_registry, ParamsDtoRegistry.Default, EntityClassTable.Default,
+                _repo.GetDisType(entity), tkbType, ComponentProbe, entity);
+
+            // ⭐ CE-1019 — an SOP is not a mission task: it runs beside the task in its own slot (§4.5, the ruled mark).
+            result.RemoveAll(n => _registry.TryGetId(n, out int id) && _registry.TryGetDefinition(id, out var d) && d is { CarriesSopOrders: true });
+
+            return result.Select(n => new BehaviorChoice(n, TechnologyOf(_registry, n))
+            {
+                Group = _registry.GroupOf(n) ?? BehaviorChoice.OtherGroup,   // ⭐ CE-3164 (R-268)
+            }).ToList();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-462</c> — the label of a registered behaviour's brain tier, or <see langword="null"/> when
+        /// the name has no definition. ⚠ This is the RUNTIME technology: a curated behaviour written in C# that
+        /// compiles to a BTree reads "BTree" — which is what runs it.
+        /// </summary>
+        public static string? TechnologyOf(BehaviorRegistry registry, string name)
+        {
+            if (!registry.TryGetId(name, out int id) || !registry.TryGetDefinition(id, out var def))
+                return null;
+            return def.BrainTier switch
+            {
+                BehaviorConstants.BrainTierBTree     => "BTree",
+                BehaviorConstants.BrainTierHsm       => "HSM",
+                BehaviorConstants.BrainTierBlueprint => "Blueprint",
+                _                                    => null,
+            };
+        }
+
+        /// <summary>⭐ CE-4350 — the standard component probe over this service's world (an unregistered type or a dead entity answers false).</summary>
+        private bool ComponentProbe(Entity entity, Type type)
+        {
+            int id = Fdp.Core.ComponentTypeRegistry.GetId(type);
+            return id >= 0 && _repo.IsAlive(entity) && _repo.HasComponentByTypeId(entity, id);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4350 — the registered behaviours that fit one entity, in registry order. ⭐ CE-446 E4 (Q77 §5.5): every TECHNOLOGY — 🔒 user 2026-09-30,
+        /// "when picking … i need to see all available ones no matter what technology they are based on". A behaviour the registry DECLARES
+        /// (<see cref="ParamsDtoRegistry"/>) is offered when it <see cref="BehaviorFit.Fits"/>; one it does not declare is an authored asset (BTree, HSM,
+        /// blueprint) and is offered to every entity until assets can declare classes (§14 rule 2) — it needs a known brain tier.
+        /// </summary>
+        public static List<string> FittingBehaviours(BehaviorRegistry registry, ParamsDtoRegistry declared, EntityClassTable table,
+            DISEntityType dis, long tkbType, Func<Entity, Type, bool>? probe, Entity entity)
+        {
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var name in registry.GetRegisteredNames())
+            {
+                if (!seen.Add(name)) continue;   // dedup: a name may be listed twice by the registry
+                if (!registry.TryGetId(name, out int id)) continue;
+                if (declared.TryGetBehavior(name, out _))
+                {
+                    if (!BehaviorFit.Fits(declared, table, dis, tkbType, name, probe, entity)) continue;
+                }
+                else
+                {
+                    if (!registry.TryGetDefinition(id, out var def)) continue;
+                    if (def.BrainTier != BehaviorConstants.BrainTierBTree
+                        && def.BrainTier != BehaviorConstants.BrainTierHsm
+                        && def.BrainTier != BehaviorConstants.BrainTierBlueprint)
+                        continue;
+                }
+                result.Add(name);
+            }
+            return result;
+        }
+
+        /// <inheritdoc/>
+        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId)
+        {
+            var entity = FindEntityByNetworkId(entityId);
+            if (entity.IsNull || !_repo.IsAlive(entity))
+                return (null, 0);
+
+            if (!_repo.HasComponent<ActiveMissionPlan>(entity))
+                return (null, 0);
+
+            var amp  = _repo.GetComponent<ActiveMissionPlan>(entity);
+            var plan = MapDomainPlanToNeutral(amp.Plan);
+            // ⭐ P-7 7c — the REAL version (the executor's one definition), so a commit carries its precondition and a stale one is a CONFLICT.
+            //   ⛔ It used to be a constant 0 ("not stored in ECS") — and a base of 0 means "no precondition", so two stations silently overwrote each other.
+            return (plan, Hrot.Common.Systems.MissionControlExecutionSystem.VersionOf(_repo, entity));
+        }
+
+        /// <inheritdoc/>
+        public System.Threading.Tasks.Task<MissionCommitResult> CommitMissionAsync(
+            int entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
+        {
+            var tcs = new TaskCompletionSource<MissionCommitResult>();
+            // ⭐ Edit framework F6 (CE-4277) — a journalled Commit: Submit mints the id, the intent carries it and its version precondition; the executor
+            //   answers Applied, or CONFLICT when the plan moved since it was opened (the notification offers Reload / Overwrite — Q3).
+            void Send(Guid requestId)
+            {
+                _pendingCommits[requestId] = tcs;
+                _bus.PublishManaged(new MissionControlIntent
+                {
+                    RequestId      = requestId,
+                    TargetEntityId = entityId,
+                    BaseVersion    = baseVersion,
+                    Payload = new MissionCommandPayload
+                    {
+                        CommandType     = Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION,
+                        FullMissionData = plan,
+                    }
+                });
+            }
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(_repo, Fdp.Toolkit.Replication.Edits.EditOp.Commit(FindEntityByNetworkId(entityId), Send, "Commit the mission plan"));
+            return tcs.Task;
+        }
+
+        /// <inheritdoc/>
+        public System.Threading.Tasks.Task<MissionCommitResult> SendControlCommandAsync(
+            int entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
+        {
+            var tcs       = new TaskCompletionSource<MissionCommitResult>();
+            var requestId = Guid.NewGuid();
+            _pendingCommits[requestId] = tcs;
+
+            _bus.PublishManaged(new MissionControlIntent
+            {
+                RequestId      = requestId,
+                TargetEntityId = entityId,
+                BaseVersion    = 0,
+                Payload = new MissionCommandPayload
+                {
+                    CommandType  = type,
+                    TargetTaskId = taskId,
+                }
+            });
+
+            return tcs.Task;
+        }
+
+        /// <summary>
+        /// Consumes <see cref="MissionControlAckEvent"/> events from the bus and resolves any
+        /// pending <see cref="CommitMissionAsync"/> or <see cref="SendControlCommandAsync"/> tasks.
+        /// Must be called once per Editor update frame.
+        /// </summary>
+        public void PollAcks()
+        {
+            foreach (var ack in _bus.Read<MissionControlAckEvent>())
+            {
+                if (_pendingCommits.TryGetValue(ack.RequestId, out var tcs))
+                {
+                    _pendingCommits.Remove(ack.RequestId);
+                    bool success = ack.ErrorCode == 0;
+                    bool conflict = ack.ErrorCode == Hrot.Common.Systems.MissionControlExecutionSystem.VersionConflictCode;
+                    tcs.TrySetResult(new MissionCommitResult(
+                        Success:      success,
+                        NewVersion:   ack.NewVersion,
+                        ErrorMessage: success ? null : conflict ? ConflictText : $"ErrorCode={ack.ErrorCode}",
+                        Conflict:     conflict));
+                }
+            }
+
+            // ⭐ Edit framework F6 (CE-4277) — a commit for a unit whose brain another node owns is answered THERE: its answer arrives as the ONE edit
+            //   outcome (no local ack event). Resolve the pending commit from the outcome log (0 B while nothing is pending).
+            if (_pendingCommits.Count == 0) return;
+            var log = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(_repo);
+            _resolved.Clear();
+            foreach (var (id, tcs) in _pendingCommits)
+            {
+                if (!log.TryGet(id, out var o) || !o.FromNetwork || o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Pending) continue;
+                bool ok = o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied;
+                tcs.TrySetResult(new MissionCommitResult(Success: ok, NewVersion: 0, ErrorMessage: ok ? null : o.Reason,
+                                                         Conflict: o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Conflict));
+                _resolved.Add(id);
+            }
+            foreach (var id in _resolved) _pendingCommits.Remove(id);
+        }
+
+        private readonly List<Guid> _resolved = new();
+
+        /// <summary>What a conflicted commit says (the executor's own words for it).</summary>
+        public const string ConflictText = "the plan was changed by someone else since you opened it";
+
+        // ── Private helpers ───────────────────────────────────────────────────
+
+        private static List<Hrot.Core.Mission.MissionTrigger> TriggersOf(DomainMissionTask task)
+        {
+            var list = new List<Hrot.Core.Mission.MissionTrigger>(task.Triggers.Count);
+            foreach (var t in task.Triggers) list.Add(new Hrot.Core.Mission.MissionTrigger { Type = t.Type, Params = t.Params });
+            return list;
+        }
+
+        private static Hrot.Core.Mission.MissionPlan MapDomainPlanToNeutral(DomainMissionPlan domain)
+        {
+            var tasks = new List<Hrot.Core.Mission.MissionTask>(domain.Tasks.Count);
+            foreach (var dt in domain.Tasks)
+            {
+                tasks.Add(new Hrot.Core.Mission.MissionTask
+                {
+                    TaskId          = dt.TaskId,
+                    BehaviorId      = dt.BehaviorName,
+                    BehaviorParams  = dt.BehaviorParams,
+                    ExecutingEngine = dt.ExecutingEngine,
+                    State           = Hrot.Core.Mission.eTaskState.TASK_PLANNED,
+                    Triggers        = TriggersOf(dt),   // ⭐ P-7 7c — the task's then / give up: a snapshot without them showed "when done" and an Apply WIPED them
+                });
+            }
+            return new Hrot.Core.Mission.MissionPlan
+            {
+                ActiveTaskId = domain.ActiveTaskId,
+                Tasks        = tasks,
+            };
+        }
+    }
+}

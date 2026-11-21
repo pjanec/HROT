@@ -1017,7 +1017,7 @@ scenario JSON objects. It operates on whatever component bits remain in the
   kernel's `ComponentTypeRegistry`, it uses `Expression.Property` to compile
   typed delegates (`Func<object, JsonObject>` extract, `Action<JsonObject, object>`
   inject). No `Type.GetProperties()` calls on the hot path.
-- It respects `[DataPolicy(DataPolicy.NoSave)]` (already filtered out by
+- It respects `[DataPolicy(DataPolicy.NoScenario)]` (already filtered out by
   `EntityRepository.GetSaveableMask()` before the auto-serializer even runs).
 - It respects `[ScenarioIgnore]` on individual fields: those property delegates are
   simply not compiled into the extraction function.
@@ -1029,9 +1029,9 @@ Three complementary exclusion mechanisms, each operating at a different granular
 
 | Granularity | Mechanism | Where declared |
 |-------------|-----------|----------------|
-| Whole component excluded from all saves | `[DataPolicy(DataPolicy.NoSave)]` on the struct | FDP component definition (or registration-time override — see below) |
+| Whole component excluded from all saves | `[DataPolicy(DataPolicy.NoScenario)]` on the struct | FDP component definition (or registration-time override — see below) |
 | Individual field excluded from scenario | `[ScenarioIgnore]` on the field | FDP component definition |
-| Whole entity excluded from scenario | `[DataPolicy(DataPolicy.NoSave)] public struct ScenarioIgnoreTag {}` + `.Without<ScenarioIgnoreTag>()` query filter | Application layer |
+| Whole entity excluded from scenario | `[DataPolicy(DataPolicy.NoScenario)] public struct ScenarioIgnoreTag {}` + `.Without<ScenarioIgnoreTag>()` query filter | Application layer |
 
 **Registration-time policy override:** The application layer can override the
 attribute-based `DataPolicy` at startup:
@@ -1039,18 +1039,18 @@ attribute-based `DataPolicy` at startup:
 ```csharp
 // In SimHostApp or CgfApp module setup:
 repo.RegisterComponent<SharedToolkitComponent>(DataPolicy.Default);
-// Forces inclusion even if the struct has [DataPolicy(DataPolicy.NoSave)]
+// Forces inclusion even if the struct has [DataPolicy(DataPolicy.NoScenario)]
 ```
 
 This is the correct intercept point for cases where a shared FDP toolkit component
-carries `NoSave` by default but a specific subsystem needs it in its scenario file.
+carries `NoScenario` by default but a specific subsystem needs it in its scenario file.
 Custom `IEntityScenarioTranslator` supremacy overrides even this: if a translator's
 `CanTranslate` returns `true`, its bits are consumed regardless of `DataPolicy`.
 
 #### Orchestrated Save Pipeline Per Entity
 
 ```
-GetSaveableMask(entity)          // FDP already filters DataPolicy.NoSave
+GetSaveableMask(entity)          // FDP already filters DataPolicy.NoScenario
   → run each registered IEntityScenarioTranslator:
       if CanTranslate → Extract → add named entries → clear consumed bits
   → run FdpAutoSerializer on remaining set bits:

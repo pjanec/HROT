@@ -17,7 +17,11 @@ public static class MuscleRoleComponentRegistry
     {
         KinematicComponentRegistry.RegisterAll(world);
         world.RegisterComponent<NavigationIntent>();
+        world.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied to each mover
         world.RegisterEvent<WeaponFireNotification>();
         world.RegisterEvent<DetonationNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();   // ⭐ CE-1128 — the marks rounds leave
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();   // ⭐ CE-3064 — BallisticsSystem publishes it
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.MissileWarningEvent>();            // ⭐ CE-2189 — FireProcessingSystem publishes it
     }
 }

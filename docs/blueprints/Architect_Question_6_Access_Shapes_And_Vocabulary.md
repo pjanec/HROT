@@ -1,3 +1,15 @@
+<!--STATUS
+state: LIVE (partly SUPERSEDED)
+updated: 2026-09-30
+current-answer: the ARCHITECT ANSWERS section — read with the supersession below.
+known-rot: ⛔ 2026-09-30 (user, R-156): A (demand-driven vocabulary) and the curated-helper leans of B and C are
+  SUPERSEDED — "Non-generic c# helpers are a band aid and last resort". D (area query ≠ EqsSensor) is overtaken by the
+  decision to unify EQS into EQS 1.3. See Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md §6.
+related-designs:
+  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — §6 revises A–D with measured costs.
+  - batches/HANDOFF_EQS_Unification.md — the EQS unification that overtakes D.
+-->
+
 # Architect question #6 — remaining access shapes + node-vocabulary scope
 
 **Context.** P1b (in-body inline `if/else`) and slice 4 (`AreAllAtBaseline`) are done; the loop +

@@ -44,7 +44,7 @@
    The `DrawUI()` method body (lines 158–169) reads only from `_uiCache` and calls `_scenarioPanel?.Render(_uiCache, disableAll)`.
 
 5. **ClusterScenarioPanel compiles with ClusterUiCache** ✅  
-   `dotnet build IOS-IG-SimHost.sln -c Debug` → `Build succeeded. 0 Error(s)`.
+   `dotnet build HROT.sln -c Debug` → `Build succeeded. 0 Error(s)`.
 
 6. **No regression in E2E DSM test suite** ✅  
    All 177 `Hrot.ClusterRunner.Tests` pass including all DsmE2eScriptTests.

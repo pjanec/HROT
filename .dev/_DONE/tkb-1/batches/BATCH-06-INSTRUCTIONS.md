@@ -787,7 +787,7 @@ After all changes, run:
 ```powershell
 # Build all solutions (run from workspace root)
 cd d:\Work\IOS-IG-SimHost-FDP-2\FDP ; dotnet build FDP.sln -v m 2>&1 | Select-String "error|Build succeeded|Build FAILED" | Select-Object -Last 10
-cd d:\Work\IOS-IG-SimHost-FDP-2 ; dotnet build IOS-IG-SimHost.sln -v m 2>&1 | Select-String "error|Build succeeded|Build FAILED" | Select-Object -Last 10
+cd d:\Work\IOS-IG-SimHost-FDP-2 ; dotnet build HROT.sln -v m 2>&1 | Select-String "error|Build succeeded|Build FAILED" | Select-Object -Last 10
 ```
 
 ```powershell

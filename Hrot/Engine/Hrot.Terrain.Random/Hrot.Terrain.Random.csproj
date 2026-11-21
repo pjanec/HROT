@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ⭐ CE-4428 (docs/DESIGN_Terrain_Authoring.md §18f F-5) — the random-terrain wizard's ENGINE: RandomTerrainPipeline mirrors Hrot.Terrain.Osm.OsmTerrainPipeline (the preview, the counts, the budget verdict are the OSM
+       wizard's own records) over the synth LIBRARY (the ground) and a BlockLayout of recipe blocks. ⚠ A small project of its own, not part of the synth library: it needs the importer (and so Recast), the OSM contract
+       records and Fdp.Toolkits' expander, none of which the 87 generator tests should drag in. No reference cycle: nothing below references it. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Hrot.Terrain.Random</RootNamespace>
+    <AssemblyName>Hrot.Terrain.Random</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.Terrain.Random.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Terrain.Synth\Hrot.Terrain.Synth.csproj" />
+    <ProjectReference Include="..\Hrot.Terrain.Osm\Hrot.Terrain.Osm.csproj" />
+    <ProjectReference Include="..\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+</Project>

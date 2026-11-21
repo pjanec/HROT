@@ -33,7 +33,7 @@ namespace Hrot.SimHost.Tests
             slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             });
@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Tests
             var intent  = new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             };
@@ -95,7 +95,7 @@ namespace Hrot.SimHost.Tests
             slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = null,
             });
@@ -104,7 +104,7 @@ namespace Hrot.SimHost.Tests
             slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             });
@@ -153,7 +153,7 @@ namespace Hrot.SimHost.Tests
             slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             });

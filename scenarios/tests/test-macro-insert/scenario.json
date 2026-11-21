@@ -1,0 +1,57 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: macros S3b B1 - a TRIGGER inserts the fire-team macro at RUNTIME at the entity keyed @Drop (scenario time 3 s), with its own args (side Hostile), then sends a message. Judge: at ~3 s one transient instance 'test/fire-team' appears at the Drop man's position (150,100) turned 90 deg, its status Done; 4 transient men around it carry ForceId Hostile and MacroOrigin of that instance; the trigger ends Done (Message after InsertMacro); nothing of it is saved."
+ },
+ "entities": {
+  "a1c00000-0000-4000-8000-0000000000d1": {
+   "SimTransform": {
+    "Position": [
+     150.0,
+     100.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Drop point",
+    "ForceId": "Neutral"
+   },
+   "RefKey": {
+    "Value": "Drop"
+   }
+  },
+  "a1c00000-0000-4000-8000-0000000000d2": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Reinforce",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {"common": {"title": "Reinforce", "subject": "a1c00000-0000-4000-8000-0000000000d1"}, "when": {"$type": "ScenarioTime", "fromSeconds": 3}, "do": [{"act": "InsertMacro", "args": {"macro": "test/fire-team", "at": "@Drop", "heading": 90, "params": {"side": "Hostile"}}}, {"act": "Message", "args": {"toKind": "All", "text": "Reinforcements inserted", "seconds": 6}}]},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

@@ -21,6 +21,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// Integration tests proving that DataBreakpointManager + DebugSnapshotProvider +
 /// DataBreakpointSystem are correctly wired into EditorSubsystem and CgfSubsystem (UBP-P10T1/P10T2).
 /// </summary>
+// ⭐ CE-4024 — one in-process editor at a time: EditorSubsystem.Initialize seeds the SHARED curated-scenario folder, and two editors seeding
+//   it in parallel fail with "file in use" (measured 2026-10-18, this class and TheEditorAppliesRequestAttributesTests / BreakpointSubsystemWiringTests).
+[Collection("EditorOfflineTests")]
 public sealed class BreakpointSubsystemWiringTests
 {
     // Domain counter for CGF tests (tests 4-5). Using the gap 163-169 which is between
@@ -233,8 +236,8 @@ public sealed class BreakpointSubsystemWiringTests
             subsystem.RegisterWindows(wm);
 
             Assert.True(wm.TryGetWindow("editor_bp_manager", out var win));
-            Assert.Equal("Editor", win!.OwningPerspective);
-            Assert.NotEqual("IG", win.OwningPerspective);
+            Assert.Equal("Scenario", win!.OwningPerspective);
+            Assert.NotEqual("Player", win.OwningPerspective);
         }
         finally
         {

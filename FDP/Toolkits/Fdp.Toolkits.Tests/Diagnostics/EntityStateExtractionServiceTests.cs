@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Diagnostics.Tests
         // ── Helpers ───────────────────────────────────────────────────────────
 
         private Entity CreateLiveEntity(
-            long?         networkId = null,
+            int?         networkId = null,
             TestPosition? pos       = null,
             TestHealth?   hp        = null)
         {
@@ -106,8 +106,8 @@ namespace Fdp.Toolkit.Diagnostics.Tests
 
             Assert.Equal(2, result.Count);
             var ids = result.Select(r => r.NetworkId).ToHashSet();
-            Assert.Contains(1L, ids);
-            Assert.Contains(3L, ids);
+            Assert.Contains(1, ids);
+            Assert.Contains(3, ids);
         }
 
         [Fact]

@@ -8,6 +8,10 @@ deliver a full multi-node simulation cluster with visual AI authoring, a Bluepri
 scripting language, a binary flight recorder, and a real-time 2D tactical image
 generator -- all over a CycloneDDS pub/sub backbone.
 
+> **What can it simulate?** See **[docs/CAPABILITIES.md](docs/CAPABILITIES.md)**: the features by chapter (world, civilians and
+> crowds, police, the soldier, squads, platoons, buildings, armour, air, indirect fire, airborne), each with the scenario that shows
+> it. This README covers the engine underneath.
+
 ---
 
 ## Table of Contents
@@ -45,7 +49,7 @@ The solution is organized in two layers:
 |  Editor (scenario authoring)   Blueprint subsystem (visual scripting)  |
 |  BTree.Editor   Hsm.Editor     Compiler / Runtime / Hot-reload         |
 |                                                                        |
-|  Hrot.Network.NED (30+ topics)  .BDC (2 topics)  .Orchestration       |
+|  Hrot.Network.NED (30+ topics)  .Orchestration                         |
 +========================================================================+
 |                         FDP  Framework Layer                           |
 |                                                                        |
@@ -352,22 +356,33 @@ operations, and channel-command authoring nodes.
 | **AiPrimitive** | `Blackboard1024` partition | Single-method graph hosted as BTree action, BTree condition, HSM action, and/or HSM guard -- multi-host from one authored graph |
 | **Instance** | `BlueprintBlackboard*` partition | Entity-bound or world-singleton script with state, events, optional tick, and latent execution |
 
-### 5.3 Compilation Pipeline (8 Stages)
+### 5.3 Compilation Pipeline
 
-1. **Parse** -- load `.bp.json`, validate schema.
-2. **Resolve** -- wire types, callable peer references, channel command catalog.
-3. **Validate** -- AiPrimitive conditions cannot contain latent nodes; cross-entity
-   calls blocked in Slice 1.
-4. **Lower** -- Wait nodes emit `NodeStatus.Running` (AiPrimitive) or
-   `BlueprintLatentCursor` switch (Instance).
-5. **Emit** -- `BTreeFluentEmitter` / `HsmFluentEmitter` produce `.cs` source with
-   deterministic filename `{SanitizedName}_{BlueprintId:X8}_Bp.g.cs`.
-6. **Roslyn MSBuild** -- incremental source generator bakes the `.g.cs` file into
-   the output assembly at build time.
-7. **In-process Roslyn** -- `InMemoryRoslynCompiler` for the editor Quick Reload
-   workflow (runtime compilation without rebuilding).
-8. **Hot-reload** -- `AiHotReloadCoordinator` swaps the assembly; per-slot
-   structure-hash comparison preserves or hard-resets instance state.
+Nine numbered stages under `Hrot.Blueprints.Compiler/Compiler/Stages/`. `BlueprintCompiler.Run`
+drives the seven that transform an asset into source (0, 2-7); Parse and RoslynFinalize sit at the
+load and assembly boundaries:
+
+| Stage | Does |
+|-------|------|
+| **0 — Rehydrate** | Project each node's canonical pins (authored -> registry -> fallback); must match the editor's `NodePinSchema` |
+| **1 — Parse** | Load `.bp.json`, validate schema |
+| **2 — Validate** | ~25 validators: dispatch-kind rules, link/graph structure, catalog + type references, unlowered node kinds, exec fan-out |
+| **3 — Normalize** | Insert implicit casts, canonicalise graph shape |
+| **4 — TypeResolve** | Bind every pin and variable to a resolved type |
+| **5 — Schedule** | BFS basic-block scheduler; produces the IR |
+| **6 — Lower** | Wait nodes become `NodeStatus.Running` (AiPrimitive) or a `BlueprintLatentCursor` switch (Instance) |
+| **7 — Emit** | Produce `.cs` with deterministic filename `{SanitizedName}_{BlueprintId:X8}_Bp.g.cs` |
+| **8 — RoslynFinalize** | Final Roslyn pass |
+
+Diagnostics are `BPnnnn` codes; a coverage-ratchet test asserts every declared code has at least
+one test that provokes it.
+
+Three ways the generated C# reaches a running process:
+
+- **MSBuild** -- an incremental source generator bakes the `.g.cs` into the output assembly.
+- **Quick Reload** -- `InMemoryRoslynCompiler` compiles in-process for the editor, no rebuild.
+- **Hot-reload** -- `AiHotReloadCoordinator` swaps the assembly; per-slot structure-hash
+  comparison preserves or hard-resets instance state.
 
 ### 5.4 Channel Command Authoring
 
@@ -386,6 +401,24 @@ most common BTree-authoring boilerplate.
 
 Blueprints declare `callablePeers`; synchronous in-frame calls between Blueprints on
 the same entity are supported with isolated blackboard partition slots.
+
+### 5.7 Visual Authoring Surface
+
+Graphs are edited on a real node canvas (the vendored **NodeEdit** editor core under
+`FDP/ExtDeps/NodeEdit`), not a property form:
+
+- **Canvas** -- palette + Tab search, wire-drop node creation, marquee select, comment
+  boxes, link reroutes, an overview minimap, and jump-to-next-issue.
+- **Editing** -- copy / cut / paste / duplicate, align / distribute / straighten, custom
+  node titles, body collapse, and Promote-to-Variable from any data pin.
+- **My Blueprint panel** -- declare variables and blueprint-local custom events (typed
+  parameters), place Get/Set nodes, rename / duplicate / delete.
+- **Undo** -- one stack covering canvas *and* Details-panel edits, in the order performed.
+- **Details panel** -- per-node-kind drawers with pickers sourced from live catalogs
+  (channels, engine events, peer blueprints, component types).
+
+Current capability list and open gaps: `docs/blueprints/Blueprints_Overview.md` and
+`docs/blueprints/Blueprint_Issues_Tracker.md`.
 
 ---
 
@@ -406,11 +439,10 @@ the same entity are supported with isolated blackboard partition slots.
 | Profile | Topics | Use Case |
 |---------|--------|----------|
 | **NED** (full) | 30+ DDS topics | All production multi-node runs |
-| **BDC** (minimal) | 2 topics (`BDC_EntityMaster`, `BDC_WorldPos`) | Lightweight IG tracking, federation gateways |
 | **Orchestration** | 7 topics | Cluster 2PC, state machine, heartbeat |
 
-Both NED and BDC implement `INetworkFactory` / `IReplicationModule`; higher-level
-code is protocol-agnostic.
+NED implements `INetworkFactory` / `IReplicationModule`; higher-level
+code is protocol-agnostic. *(The lightweight BDC profile was removed 2026-10-28, R-4095.)*
 
 ### 6.3 Translator Pattern
 
@@ -639,7 +671,9 @@ the platform. Every tool described below is available inside a single running
 ### 11.3 Blueprint Editor (`Hrot.Blueprints.Editor`)
 
 - Asset browser listing all `.bp.json` files with docType and version badges.
-- StructEdit form-based node editing with inline compiler diagnostics.
+- **Node-graph canvas** -- the NodeEdit host layer (`BlueprintNodeModel` / `BlueprintGraphModel` /
+  `NodePinSchema` / `BlueprintCommandSink`), with a Details panel of per-node-kind drawers and
+  inline compiler diagnostics. See [section 5.7](#57-visual-authoring-surface).
 - **Quick Reload** -- in-process Roslyn (`InMemoryRoslynCompiler`) recompiles the
   Blueprint without an MSBuild cycle; compilation errors appear inline.
 - **Debug session** -- Blueprint debug protocol (Strategy C): set a breakpoint on any
@@ -851,7 +885,7 @@ business logic.
 ## 14. Project Layout
 
 ```
-IOS-IG-SimHost.sln          -- Master solution (HROT + FDP combined)
+HROT.sln                    -- Master solution (HROT + FDP combined)
 FDP/
   FDP.sln                   -- FDP standalone solution
   Engine/
@@ -881,7 +915,6 @@ Hrot/
     Hrot.UI.Common/         -- Hexagonal UI facades, reusable ImGui panels
   Network/
     Hrot.Network.NED/       -- Full 30+ topic DDS profile
-    Hrot.Network.BDC/       -- Lightweight 2-topic profile
     Hrot.Network.Orchestration/ -- Cluster 2PC, state machine, heartbeat
   Subsystems/
     Hrot.Orchestrator/      -- Cluster master, 2PC coordinator, NAS gateway
@@ -892,7 +925,7 @@ Hrot/
     Hrot.Editor/            -- Offline scenario authoring
     Hrot.AI.Behaviors/      -- 8 behavior implementations (MoveToLocation, FireAtTarget, ...)
     Hrot.ReplayBrowser/     -- Recording inspection, search, JSON export
-    Hrot.StrideMock/        -- Stride engine mock node (CI / GPU-free)
+    Hrot.NodeComposition/   -- StrideNodeBootstrapper: node composition root for the Stride app
     Blueprints/
       Hrot.Blueprints.Core/     -- Blueprint runtime, blackboard, in-memory Roslyn compiler
       Hrot.Blueprints.Compiler/ -- 8-stage Blueprint compiler pipeline
@@ -931,18 +964,17 @@ This compiles the `cyclonedds` submodule and deposits the resulting binaries und
 **Step 2 -- Restore NuGet packages:**
 
 ```powershell
-dotnet restore IOS-IG-SimHost.sln
+dotnet restore HROT.sln
 ```
 
 **Step 3 -- Build:**
 
 ```bat
 REM Build everything
-build_all_standalone.bat
+dotnet build HROT.sln -c Release
 
 REM Or build each sub-solution individually
 cd FDP && dotnet build FDP.sln -c Release
-dotnet build IOS-IG-SimHost.sln -c Release
 ```
 
 ### Run -- Editor Mode (Recommended First Step)
@@ -974,34 +1006,41 @@ you access to every feature of the engine without a distributed cluster:
 Hrot.ClusterRunner.exe --mode all
 ```
 
-Starts the Orchestrator, SimHost, IG, ExCon, and CGF as separate subsystems in one
-process. Each subsystem is isolated (own entity map, own DDS participant) as if they
-ran on separate machines, but sharing the frame clock. Use this to validate the full
-distributed protocol on a single developer workstation.
+Starts the Orchestrator, SimHost, IG (the player), ExCon, CGF and Traffic nodes as separate
+subsystems in one process. Each subsystem is isolated (own entity map, own DDS participant)
+as if they ran on separate machines, but sharing the frame clock. Use this to validate the
+full distributed protocol on a single developer workstation. The Traffic node idles when
+the loaded scenario carries no traffic.
 
 ### Run -- Distributed Across Machines (Production Mode)
 
 ```bat
-REM Machine 1: headless backend
-Hrot.ClusterRunner.exe --mode orchestrator,simhost,cgf --headless
+REM Machine 1: the server (orchestrator + simhost + cgf + traffic, never waits for players)
+Hrot.ClusterRunner.exe --mode server --headless
 
-REM Machine 2: image generator
-Hrot.ClusterRunner.exe --mode ig
+REM Machine 2: a player (the IG node; the cluster master assigns its node id)
+Hrot.ClusterRunner.exe --mode player --no-wait
 
 REM Machine 3: operator console
-Hrot.ClusterRunner.exe --mode excon
+Hrot.ClusterRunner.exe --mode excon --no-wait
 ```
 
-DDS peer-to-peer discovery connects the nodes automatically.
+DDS peer-to-peer discovery connects the nodes automatically. The fine-grained nodes
+(`orchestrator`, `simhost`, `cgf`, `traffic`, `ig`/`player`, `excon`) each remain a mode of
+their own; `server` and `all` only combine them.
 
 ### Convenience Scripts
 
+Each script has a `.bat` (Windows) and a `.sh` (Linux) twin; the networked ones take an optional DDS `DOMAIN` argument (default 0).
+
 | Script | What it starts |
 |--------|---------------|
-| `run_all_together.bat` | All subsystems in one process |
-| `run_IG.bat` | Image generator node only |
-| `run_IOS.bat` | ExCon / IOS operator station |
-| `run_SimHost.bat` | SimHost (Muscle) node |
+| `run_Editor` | The editor (one offline node) |
+| `run_All` | Every node in one process: networked, with traffic |
+| `run_Server` | The server side: orchestrator, simhost, cgf, traffic |
+| `run_Player` | A player joining a server (the master assigns its node id) |
+| `run_ReplayBrowser` | The replay browser |
+| `run_ddsmon` | The DDS monitor on a domain |
 
 ### Load a Scenario
 

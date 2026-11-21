@@ -26,7 +26,7 @@ seams.
 | `Hrot/Subsystems/Hrot.Animation.Network.Integration.Tests/Harness/AnimationTestHelpers.cs` | Created | Trimmed local copy of stage-1 command helpers |
 | `Hrot/Subsystems/Hrot.Animation.Network.Integration.Tests/Harness/AnimationNetworkLoopbackFixture.cs` | Created | Two-node loopback fixture (BrainWorld + MuscleWorld + all translators) |
 | `Hrot/Subsystems/Hrot.Animation.Network.Integration.Tests/NetworkedAnimationScenarios.cs` | Created | 8 networked scenario tests (ANC-P8-04) |
-| `IOS-IG-SimHost.sln` | Modified | Added `Hrot.Animation.Network.Integration.Tests` project + config entries |
+| `HROT.sln` | Modified | Added `Hrot.Animation.Network.Integration.Tests` project + config entries |
 
 ---
 
@@ -108,7 +108,7 @@ Passed!  - Failed: 0, Passed: 42, Skipped: 0, Total: 42, Duration: 139 ms
 Passed!  - Failed: 0, Passed: 31, Skipped: 0, Total: 31, Duration: 85 ms
 ```
 
-### 5.4 Full solution build: `dotnet build IOS-IG-SimHost.sln -c Debug`
+### 5.4 Full solution build: `dotnet build HROT.sln -c Debug`
 
 ```
 Build succeeded.

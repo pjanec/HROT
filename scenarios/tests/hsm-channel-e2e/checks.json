@@ -1,0 +1,41 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — End-to-end HSM with blueprint guards. Judge (1) the Open=false Bradley drives east (x > 480, the header says ~500, by 18 s) and never fires, (2) the Open=true Bradley fires (by 18 s; its ammo falls 293 to 278), (3) the static target dies by 18 s. Left out: 'stops driving' (no distance given).",
+  "runFor": 20,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "Driving (Open=false) drives east along y 296 (x about 500 by 18 s)",
+      "on": "field",
+      "who": "E2E Driving (Open=false)",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 480,
+      "before": 18
+    },
+    {
+      "name": "Driving (Open=false) never fires",
+      "never": {
+        "on": "shot",
+        "by": "E2E Driving (Open=false)"
+      }
+    },
+    {
+      "name": "Firing (Open=true) shoots the target",
+      "on": "shot",
+      "by": "E2E Firing (Open=true)",
+      "at": "E2E Target (static)",
+      "before": 18
+    },
+    {
+      "name": "the static target dies",
+      "on": "field",
+      "who": "E2E Target (static)",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 18
+    }
+  ]
+}

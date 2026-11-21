@@ -217,7 +217,19 @@ public sealed class GoldenIrTests
 
         Stage5_Schedule.Run(typed, ctx);
 
-        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP4004);
+        // ⭐ CE-475: an ERROR — a dropped node must fail the compile, not walk on.
+        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP4004 && d.Severity == DiagnosticSeverity.Error);
+    }
+
+    /// <summary>⭐ <c>CE-475</c>: <c>Cast</c> is a PURE node — the registry gives it no exec pins, so the palette cannot
+    /// put it in an exec chain where Stage 5 would drop it.</summary>
+    [Fact]
+    public void CE475_RegistryCast_HasNoExecPins()
+    {
+        var pins = BuiltInNodeRegistry.Instance.GetStaticPins(
+            new Hrot.Blueprints.Core.Assets.CastNode { TargetTypeId = "System.Int32" });
+        Assert.DoesNotContain(pins, p => p.IsExec);
+        Assert.Equal(2, pins.Count);
     }
 
     // Helper: a Node subclass not known to Stage5.

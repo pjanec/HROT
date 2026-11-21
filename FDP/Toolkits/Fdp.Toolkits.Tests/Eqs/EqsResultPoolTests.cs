@@ -47,9 +47,9 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var batch = new EqsResult[]
             {
-                new EqsResult { EntityId = 10L, Score = 1f },
-                new EqsResult { EntityId = 20L, Score = 2f },
-                new EqsResult { EntityId = 30L, Score = 3f },
+                new EqsResult { EntityId = 10, Score = 1f },
+                new EqsResult { EntityId = 20, Score = 2f },
+                new EqsResult { EntityId = 30, Score = 3f },
             };
 
             // Act
@@ -75,10 +75,10 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var batch = new EqsResult[]
             {
-                new EqsResult { EntityId = 1L },
-                new EqsResult { EntityId = 2L },
-                new EqsResult { EntityId = 3L },
-                new EqsResult { EntityId = 4L },
+                new EqsResult { EntityId = 1 },
+                new EqsResult { EntityId = 2 },
+                new EqsResult { EntityId = 3 },
+                new EqsResult { EntityId = 4 },
             };
 
             // Act

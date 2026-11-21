@@ -1,0 +1,209 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Motion;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.Common.EntityCreation;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Hrot.Core.Network;
+using Xunit;
+
+namespace Hrot.SimHost.Tests
+{
+    /// <summary>
+    /// ⭐⭐ Airborne insertion B-8 / B-9 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §7d, D-14…D-17) — an aircraft's crew EJECTS
+    /// on the node owning its Health: the pilot is REQUESTED through the entity-creation path (at the seat, the aircraft's velocity + the
+    /// rocket, <c>Descent{Ejection}</c>), THEN the aircraft gets all its health as damage (it falls as a killed one). Once; only while alive;
+    /// never on a node that does not own its Health; on an order or on its own below the type's threshold.
+    /// </summary>
+    public sealed class EjectionSystemTests : System.IDisposable
+    {
+        private const long JetType = 7405, PilotType = 7206;
+        private readonly EntityRepository _w = new();
+        private readonly EjectionSystem _sys = new();
+
+        public EjectionSystemTests() => Setup(_w);
+
+        private static void Setup(EntityRepository w)
+        {
+            w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<SimVelocity>();
+            w.RegisterComponent<Health>();
+            w.RegisterComponent<TkbIdentity>();
+            w.RegisterComponent<NetworkAuthority>();
+            w.RegisterComponent<EjectionDone>();   // ⭐ R-3039 S1 — the latch lives on the aircraft
+            w.RegisterManagedComponent<DescriptorOwnership>();
+            w.RegisterEvent<EjectRequestEvent>();
+            w.RegisterEvent<DamageAssessedEvent>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var jet = new Fdp.Interfaces.TkbTemplate("Jet", JetType);
+            jet.AddDescriptor(new EjectionDto { PilotType = PilotType, SeatX = 4.5f, SeatZ = 1.2f, AutoEjectBelowFraction = 0.2f });
+            db.Register(jet);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.RegisterManagedEvent<EntityCreationRequest>();   // ⭐ CE-3228 — the pilot is requested on the bus
+        }
+
+        public void Dispose() => _w.Dispose();
+
+        private Entity Jet(float health = 600f)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = new Vector3(100, 200, 300), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+            _w.AddComponent(e, new SimVelocity { Linear = new Vector3(0, 150, 0) });
+            _w.AddComponent(e, new Health { Current = health, Max = 600 });
+            _w.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(JetType) });
+            return e;
+        }
+
+        private (List<EntityCreationRequest> Spawned, float Damage) Frame()
+        {
+            _w.Bus.SwapBuffers();
+            _sys.Execute(_w, 1f / 60f);
+            _w.Bus.SwapBuffers();
+            var spawned = _w.Bus.ReadManaged<EntityCreationRequest>().ToList();   // ⭐ CE-3228 — what the request system reads next frame
+            float damage = _w.Bus.Read<DamageAssessedEvent>().ToArray().Sum(d => d.TotalDamage);
+            return (spawned, damage);
+        }
+
+        /// <summary>⭐ The order: one pilot at the seat (the jet faces north, so the seat 4.5 m ahead is 4.5 m north), with the jet's velocity
+        /// plus the rocket's climb and a <c>Descent{Ejection}</c>; the jet gets all its health as damage; a second order does nothing.
+        /// ✅ Red-proof: the latch removed ⇒ the second order spawns a second pilot ⇒ red.</summary>
+        [Fact]
+        public void B8_AnOrderedEjection_SpawnsOnePilotAtTheSeat_AndAbandonsTheJet()
+        {
+            var jet = Jet();
+            _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet });
+            var (spawned, damage) = Frame();
+            var pilot = Assert.Single(spawned);
+            Assert.Equal(PilotType, pilot.TkbType);
+            var tf = pilot.InitialComponents!.OfType<SimTransform>().Single();
+            Assert.True(Vector3.Distance(new Vector3(100, 204.5f, 301.2f), tf.Position) < 1e-3f, $"at {tf.Position}");
+            Assert.Equal(new Vector3(0, 150, ParachuteModel.EjectUpMps), pilot.InitialComponents!.OfType<SimVelocity>().Single().Linear);
+            Assert.Equal(DescentKind.Ejection, pilot.InitialComponents!.OfType<Descent>().Single().Kind);
+            Assert.Equal(600f, damage);
+            Assert.Equal(1, _sys.Ejections);
+
+            _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet });
+            Assert.Empty(Frame().Spawned);
+        }
+
+        /// <summary>⭐ B-9 — on its own: at 25 % health nothing; at 15 % (below the type's 20 %) once; a jet already dead never.</summary>
+        [Fact]
+        public void B9_TheCrewEjectsOnItsOwn_BelowTheTypesThreshold_Once()
+        {
+            var jet = Jet(health: 150f);
+            Assert.Empty(Frame().Spawned);
+            _w.SetComponent(jet, new Health { Current = 90f, Max = 600 });
+            Assert.Single(Frame().Spawned);
+            Assert.Empty(Frame().Spawned);
+            Jet(health: 0f);
+            Assert.Empty(Frame().Spawned);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3215</c> (hit location §12 S2c-6) — a jet killed in ONE blow by a Catastrophic part (its tail shot off: Health 0 at once,
+        /// never through the 20 % band) still ejects its pilot — once; a jet dead with no such wound does not (B-9 above).
+        /// 🔴 Red-proof: without the wreck rule the dead jet ejects nobody.
+        /// </summary>
+        [Fact]
+        public void CE3215_AJetWreckedByItsTail_StillEjects_Once()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!;
+            var a10 = new Fdp.Interfaces.TkbTemplate("A-10-like", JetType + 1) { DisType = new Fdp.Core.DISEntityType { Kind = 1, Domain = 2, Category = 2 } };
+            a10.AddDescriptor(new EjectionDto { PilotType = PilotType, SeatX = 4.5f, SeatZ = 1.2f, AutoEjectBelowFraction = 0.2f });
+            a10.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 600f, ArmorFront = 5f, ArmorSide = 5f, ArmorRear = 5f, ArmorTop = 5f });
+            db.Register(a10);
+            var jet = Jet(health: 0f);
+            _w.SetComponent(jet, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(JetType + 1) });
+            var parts = new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = Fdp.Toolkit.Physics.BodyParts.BodyPlan.FixedWing };
+            parts.Add(Fdp.Toolkit.Physics.BodyParts.AircraftPart.Tail, 200);
+            _w.AddComponent(jet, parts);
+            Assert.Single(Frame().Spawned);
+            Assert.Empty(Frame().Spawned);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #1) — a checkpoint restored into a FRESH process does not eject a second
+        /// pilot: the jet below its threshold ejects once, the world is captured as the recorder's keyframe and applied to a new world with a NEW
+        /// system (a new process holds nothing), and the jet — still below its threshold — stays ejected.
+        /// 🔴 Red-proof: the latch back in a system field ⇒ the fresh system ejects again ⇒ red (📐 §7f.1 measured exactly that).
+        /// </summary>
+        [Fact]
+        public void R3039_ACheckpointRestoredIntoAFreshSystem_DoesNotEjectASecondPilot()
+        {
+            var jet = Jet(health: 90f);
+            Assert.Single(Frame().Spawned);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new EntityRepository();
+            Setup(fresh);
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            Assert.True(fresh.IsAlive(jet) && fresh.HasComponent<EjectionDone>(jet), "the keyframe carries the latch");
+
+            var sys = new EjectionSystem();
+            fresh.Bus.SwapBuffers();
+            sys.Execute(fresh, 1f / 60f);
+            fresh.Bus.SwapBuffers();
+            Assert.Empty(fresh.Bus.ReadManaged<EntityCreationRequest>());
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2210</c> — the Health owner (the Brain) does not own the jet's MOTION: its <c>SimVelocity</c> stands still there and the live
+        /// velocity arrives in <c>NetworkVelocity</c>. The pilot still leaves with the jet's speed (<c>ReplicatedMotion.Of</c>, CE-2173).
+        /// 📐 Live <c>ua-eject</c> before: the pilot was born with (0, 0, 40) — the rocket and none of the jet.
+        /// 🔴 Red-proof: reading <c>SimVelocity</c> again ⇒ (0, 0, 40) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2210_OnANodeNotOwningTheJetsMotion_ThePilotStillLeavesWithTheJetsSpeed()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>();
+            var jet = Jet();
+            _w.SetComponent(jet, new SimVelocity { Linear = Vector3.Zero });   // the replica's copy, never refreshed on the Brain
+            _w.AddComponent(jet, new Fdp.Toolkit.Replication.Components.NetworkTransform { LastPosition = new Vector3(100, 200, 300), LastRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+            _w.AddComponent(jet, new Fdp.Toolkit.Replication.Components.NetworkVelocity { Value = new Vector3(0, 150, 0) });
+            _w.AddComponent(jet, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _w.SetAuthority<Health>(jet, true);
+            _w.SetAuthority<SimTransform>(jet, false);
+
+            _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet });
+            var pilot = Assert.Single(Frame().Spawned);
+            Assert.Equal(new Vector3(0, 150, ParachuteModel.EjectUpMps), pilot.InitialComponents!.OfType<SimVelocity>().Single().Linear);
+        }
+
+        /// <summary>⭐ D-14 — a node that does not own the jet's Health ejects nobody (the owner does).</summary>
+        [Fact]
+        public void B8_ANodeNotOwningTheJetsHealth_EjectsNobody()
+        {
+            var jet = Jet();
+            _w.AddComponent(jet, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet });
+            Assert.Empty(Frame().Spawned);
+        }
+
+        /// <summary>⭐ B-9 — the behaviour's Eject action raises the order once and succeeds once the aircraft is down.</summary>
+        [Fact]
+        public void B9_TheEjectAction_RaisesTheOrderOnce_AndSucceedsWhenTheJetIsDown()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
+            var jet = Jet();
+            var exec = new Fdp.Toolkit.Behavior.Executors.EjectExecutor();
+            var channel = new Fdp.Toolkit.Behavior.Components.InteractionChannel();
+            exec.OnEnter(jet, ref channel, _w);
+            exec.Execute(jet, ref channel, _w, 1f / 60f);
+            exec.Execute(jet, ref channel, _w, 1f / 60f);
+            _w.Bus.SwapBuffers();
+            Assert.Single(_w.Bus.Read<EjectRequestEvent>().ToArray());
+            Assert.Equal(Fbt.NodeStatus.Running, channel.Status);
+            _w.SetComponent(jet, new Health { Current = 0f, Max = 600 });
+            exec.Execute(jet, ref channel, _w, 1f / 60f);
+            Assert.Equal(Fbt.NodeStatus.Success, channel.Status);
+        }
+    }
+}

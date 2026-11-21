@@ -63,7 +63,7 @@ public sealed class EqsMultiTemplateTests : IDisposable
             ISimulationView view, Span<EqsResult> candidates)
         {
             if (candidates.Length == 0) return 0;
-            candidates[0] = new EqsResult { EntityId = 0L, PositionX = _posX, PositionY = _posY, Score = 1f };
+            candidates[0] = new EqsResult { EntityId = 0, PositionX = _posX, PositionY = _posY, Score = 1f };
             return 1;
         }
     }
@@ -126,7 +126,7 @@ public sealed class EqsMultiTemplateTests : IDisposable
         // is reserved for sensors without PartMetadata). Deviation from spec's "no NetworkIdentity"
         // note -- observed runtime requirement.
         Entity observer = _harness.Repo.CreateEntity();
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 16001_9900L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 16001_9900 });
 
         // child[0]: PartMetadata{InstanceId=0} + EqsSensor for template A
         Entity child0 = _harness.Repo.CreateEntity();
@@ -209,6 +209,8 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
     {
         _repo   = new EntityRepository();
         SimHostComponentRegistry.RegisterAll(_repo);
+        // ⭐ CE-493: these tests drive BRAIN nodes; SimHost stopped registering the brain set on 2026-09-12 (0cda0caf9).
+        CognitiveComponentRegistry.RegisterAll(_repo);
         _parent = _repo.CreateEntity();
     }
 
@@ -237,7 +239,8 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
         foreach (var candidate in query)
         {
             var meta = _repo.GetComponent<PartMetadata>(candidate);
-            if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
+            if (meta.ParentEntity.Equals(parent) && _repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate)
+                && _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate).SiteId == instanceId)
                 return candidate;
         }
         return Entity.Null;
@@ -286,22 +289,21 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
 
         // Step 1: Condition_HasTarget -- requires TargetMemory with at least one threat.
         var mem = new TargetMemory();
-        unsafe { mem.ThreatScores[0] = 100f; mem.EntityIds[0] = 777L; }
+        unsafe { mem.Freshness[0] = 100f; mem.EntityIds[0] = 777L; }
         mem.Count = 1;
         _repo.AddComponent(_parent, mem);
 
-        var condResult = EqsCombatNodes.Condition_HasTarget(ref bb.MoveConfig, ref state, ref ctx);
+        var condResult = EqsCombatNodes.Condition_HasTarget(ref bb.MoveConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, condResult);
 
         // Step 2: Action_SpawnEqsSensorChild -- queues CreateEntity + AddComponents via ECB.
-        var spawnResult = EqsLifecycleNodes.Action_SpawnEqsSensorChild(
-            ref bb.SpawnConfig, ref state, ref ctx);
+        var spawnResult = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref bb.SpawnConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, spawnResult);
 
         // Step 3: Playback ECB -- child entity materialised.
         PlaybackAndClearEcb();
 
-        int localChildIndex = (int)(((uint)_parent.Index << 8) | bb.SpawnConfig.ChildSlotIndex);
+        int localChildIndex = bb.SpawnConfig.ChildSlotIndex;   // CE-485: the site; the part id is allocated
         Entity child = FindChildByMeta(_parent, localChildIndex);
         Assert.False(child.IsNull, "Child entity must exist after ECB playback.");
 
@@ -309,18 +311,16 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
         bb.SpawnConfig.SpawnedHandle = new EqsSensorHandle(child);
 
         // Step 4: Action_WaitForChildSensor -- no buffer yet -> Running.
-        var waitResult1 = EqsLifecycleNodes.Action_WaitForChildSensor(
-            ref bb.SpawnConfig, ref state, ref ctx);
+        var waitResult1 = EqsLifecycleNodes.Action_WaitForChildSensor(ref bb.SpawnConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Running, waitResult1);
 
         // Step 5: Pre-populate EqsCognitiveBuffer (simulates EqsSolverSystem output).
         var buf = new EqsCognitiveBuffer { Count = 1, LastUpdateTick = 1 };
-        buf.GetSpanRW()[0] = new EqsResult { EntityId = 0L, PositionX = coverX, PositionY = coverY, Score = 1f };
+        buf.GetSpanRW()[0] = new EqsResult { EntityId = 0, PositionX = coverX, PositionY = coverY, Score = 1f };
         _repo.AddComponent(child, buf);
 
         // Step 6: Action_WaitForChildSensor -- buffer ready -> Success.
-        var waitResult2 = EqsLifecycleNodes.Action_WaitForChildSensor(
-            ref bb.SpawnConfig, ref state, ref ctx);
+        var waitResult2 = EqsLifecycleNodes.Action_WaitForChildSensor(ref bb.SpawnConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, waitResult2);
 
         // Step 7: BindSensorHandle -- copies SpawnedHandle to MoveConfig.SensorHandle.
@@ -332,7 +332,7 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
 
         // Step 8: Action_MoveToOptimalCover -- reads from child buffer, activates locomotion.
         _repo.AddComponent(_parent, new LocomotionChannel());
-        var moveResult = EqsCombatNodes.Action_MoveToOptimalCover(ref bb.MoveConfig, ref state, ref ctx);
+        var moveResult = EqsCombatNodes.Action_MoveToOptimalCover(ref bb.MoveConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Running, moveResult);
 
         ref readonly var channel = ref _repo.GetComponentRO<LocomotionChannel>(_parent);

@@ -33,7 +33,6 @@ namespace Fdp.Examples.Runner
             // ── Phase 3 demos (BATCH-04 / BATCH-05) ───────────────────────────
             ScenarioNames.BallisticsAndHit     => new BallisticsAndHitScenario(),
             ScenarioNames.BehaviorValidation   => new BehaviorValidationScenario(),
-            ScenarioNames.SensorGrid           => new SensorGridScenario(),
 
             // ── Phase 4 demos (BATCH-06) ──────────────────────────────────────
             ScenarioNames.MissionCommand  => new MissionCommandScenario(),

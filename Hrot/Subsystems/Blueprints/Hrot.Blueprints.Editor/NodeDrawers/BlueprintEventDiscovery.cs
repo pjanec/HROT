@@ -56,6 +56,46 @@ public static class BlueprintEventDiscovery
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-2016 (Q14-A2) — the system events of <paramref name="catalog"/>, projected to the same shape as a
+    /// <c>[BlueprintEvent]</c> struct: the catalog gives identity, name, category and recipient; the FIELDS are reflected
+    /// from the event's type (no hand-baked payload list). ⚠ Listed only when the type is loaded in this process, is a
+    /// blittable struct (a handler reinterprets the payload bytes — a managed event cannot be subscribed, CE-2008), and
+    /// propagates to the brain (<c>PropagatesAcrossNodes</c>: a Muscle-local notify like Footstep is not brain-visible).
+    /// <para>⚠ Why not <c>[BlueprintEvent]</c> on the structs themselves (A2's full form): the attribute lives in
+    /// <c>Hrot.Editor.AiShared</c>, which the FDP toolkit assemblies that own those structs cannot reference.</para>
+    /// </summary>
+    public static IEnumerable<DiscoveredBlueprintEvent> DiscoverSystemEvents(
+        Hrot.Blueprints.Core.Compiler.Catalogs.IEngineEventCatalog catalog)
+    {
+        foreach (var entry in catalog.GetEntries())
+        {
+            if (entry.Managed || !entry.PropagatesAcrossNodes || string.IsNullOrEmpty(entry.EventTypeFqn)) continue;
+            var type = FindLoadedType(entry.EventTypeFqn);
+            if (type is null || !type.IsValueType) continue;
+
+            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
+                             .Select(f => new DiscoveredEventField(f.Name, ToPinTypeId(f.FieldType)))
+                             .ToList();
+            string? target = string.IsNullOrEmpty(entry.TargetFieldName) ? null : entry.TargetFieldName;
+            string category = string.IsNullOrEmpty(entry.Category) ? "System" : $"System/{entry.Category}";
+            yield return new DiscoveredBlueprintEvent(entry.EventTypeFqn,
+                string.IsNullOrEmpty(entry.DisplayName) ? entry.Name : entry.DisplayName, category, fields, target);
+        }
+    }
+
+    private static Type? FindLoadedType(string fqn)
+    {
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type? t;
+            try { t = asm.GetType(fqn, throwOnError: false); }
+            catch { continue; }
+            if (t is not null) return t;
+        }
+        return null;
+    }
+
     private static DiscoveredBlueprintEvent? ToDiscovered(Type type, BlueprintEventAttribute attr)
     {
         var fqn = type.FullName;

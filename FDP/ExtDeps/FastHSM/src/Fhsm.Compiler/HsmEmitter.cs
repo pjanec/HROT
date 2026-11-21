@@ -107,7 +107,7 @@ namespace Fhsm.Compiler
                 guardTable[i] = new LinkerTableEntry { FunctionId = data.GuardIds[i] };
 
             // Create blob
-            return HsmDefinitionBlob.CreateWithLinkerTables(
+            var blob = HsmDefinitionBlob.CreateWithLinkerTables(
                 header,
                 data.States,
                 data.Transitions,
@@ -116,6 +116,9 @@ namespace Fhsm.Compiler
                 actionTable,
                 guardTable
             );
+            // ⭐ CE-2001 — the machine identity (S8j); StructureHash above stays the SHAPE.
+            blob.IdentityHash = IdentityHashOf(data.MachineName);
+            return blob;
         }
         
         public static void EmitWithDebug(
@@ -167,6 +170,17 @@ namespace Fhsm.Compiler
             
             sb.AppendLine("}");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2001</c> — the identity hash of a machine NAME (XxHash64 over UTF-8, low 32 bits, never 0); 0 for none.
+        /// 📄 <c>DESIGN_Unified_Behaviour_Run.md</c> "S8j".
+        /// </summary>
+        public static uint IdentityHashOf(string? machineName)
+        {
+            if (string.IsNullOrEmpty(machineName)) return 0;
+            uint h = (uint)XxHash64.ComputeHash(Encoding.UTF8.GetBytes(machineName));
+            return h == 0 ? 1u : h;
         }
 
         private static uint ComputeStructureHash(HsmFlattener.FlattenedData data)

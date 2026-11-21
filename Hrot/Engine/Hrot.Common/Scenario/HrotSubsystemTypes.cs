@@ -15,7 +15,13 @@ namespace Hrot.Common.Scenario
         /// <summary>CGF-authoritative snapshot or scenario payload.</summary>
         public const string Cgf = "Hrot.CGF";
 
-        /// <summary>IG-specific visual configuration payload.</summary>
-        public const string Ig = "Hrot.IG";
+        /// <summary>Player-specific visual configuration payload.</summary>
+        public const string Player = "Hrot.Player";
+
+        /// <summary>The editor (a migration writer).</summary>
+        public const string Editor = "Hrot.Editor";
+
+        // ⭐ These are persisted IDS (scenario headers, migration writers) that happen to read like assembly names; every use goes through
+        //   these constants — ⛔ never a string literal at the use site (a literal is how a rename left half the ids behind).
     }
 }

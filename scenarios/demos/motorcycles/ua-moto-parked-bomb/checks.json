@@ -1,0 +1,85 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4621 IM-2 parked bomb, one row per Judge line. Position.0 is x.",
+  "runFor": 110,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the bike parks at the spot",
+      "on": "near",
+      "who": "Bike",
+      "point": [
+        230,
+        200
+      ],
+      "within": 8
+    },
+    {
+      "name": "the rider gets off",
+      "on": "embark",
+      "who": "Rider",
+      "is": false,
+      "after": "the bike parks at the spot"
+    },
+    {
+      "name": "the pillion gets off",
+      "on": "embark",
+      "who": "Pillion",
+      "is": false,
+      "after": "the bike parks at the spot"
+    },
+    {
+      "name": "the charge goes off",
+      "on": "blast",
+      "after": "the rider gets off"
+    },
+    {
+      "name": "the rider is clear before the burst",
+      "on": "field",
+      "who": "Rider",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 190,
+      "after": "the rider gets off",
+      "before": "the charge goes off"
+    },
+    {
+      "name": "the pillion is clear before the burst",
+      "on": "field",
+      "who": "Pillion",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 190,
+      "after": "the pillion gets off",
+      "before": "the charge goes off"
+    },
+    {
+      "name": "the rider is unhurt",
+      "on": "field",
+      "who": "Rider",
+      "path": "Health.Current",
+      "op": "==",
+      "value": 100,
+      "atEnd": true
+    },
+    {
+      "name": "the pillion is unhurt",
+      "on": "field",
+      "who": "Pillion",
+      "path": "Health.Current",
+      "op": "==",
+      "value": 100,
+      "atEnd": true
+    },
+    {
+      "name": "a shopper is hurt",
+      "on": "field",
+      "who": "*Shopper",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "after": "the charge goes off"
+    }
+  ]
+}

@@ -297,7 +297,7 @@ Place these in `Hrot.Map.Common.Tests/BehaviorCatalogTests.cs` OR `Hrot.ClusterR
 
 ```powershell
 cd d:\Work\IOS-IG-SimHost-FDP-2
-dotnet build IOS-IG-SimHost.sln 2>&1 | Select-String "error CS" | Select-Object -Last 15
+dotnet build HROT.sln 2>&1 | Select-String "error CS" | Select-Object -Last 15
 dotnet test Hrot.ExCon.Tests --no-build
 dotnet test Hrot.Editor.Tests --no-build
 dotnet test Hrot.ClusterRunner.Integration.Tests --filter "EditorAuthoring" 

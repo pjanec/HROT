@@ -18,12 +18,14 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// </list>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class NavigationPathDetailsUpdateSystem : IEcsModuleSystem
     {
         private readonly IPathRegistry     _muscleRegistry;
         private readonly BrainPathRegistry _brainRegistry;
 
         // Scratch buffer for waypoint copy; avoids per-event heap allocation.
+        [Fdp.Core.WorldDerived("fixed scratch buffer")]
         private readonly NavWaypoint[] _waypointScratch;
 
         /// <param name="muscleRegistry">Source of stored waypoints (Muscle side).</param>

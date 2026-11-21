@@ -39,7 +39,6 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
@@ -108,15 +107,15 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId = 0,
-                TkbType   = DefaultTkbType,
-                OwnerNodeId = 2
+                TkbType   = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
             // Allocator was called → LastAllocatedId is 100
             Assert.Equal(100L, idAllocator.LastAllocatedId);
 
             // Entity is registered under the allocated ID
-            Assert.True(networkMap.TryGetEntity(100L, out var entity));
+            Assert.True(networkMap.TryGetEntity(100, out var entity));
 
             // NetworkIdentity carries the allocated ID
             var identity = repo.GetComponent<NetworkIdentity>(entity);
@@ -135,16 +134,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 999L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 2
+                NetworkId   = 999,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
             // No ID was allocated (LastAllocatedId stays at default 0)
             Assert.Equal(0L, idAllocator.LastAllocatedId);
 
             // Entity is registered under the explicitly provided ID
-            Assert.True(networkMap.TryGetEntity(999L, out var entity));
+            Assert.True(networkMap.TryGetEntity(999, out var entity));
 
             var identity = repo.GetComponent<NetworkIdentity>(entity);
             Assert.Equal(999L, identity.Value);
@@ -162,16 +161,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 7L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 2
+                NetworkId   = 7,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
-            Assert.True(networkMap.TryGetEntity(7L, out _));
+            Assert.True(networkMap.TryGetEntity(7, out _));
         }
 
         [Fact]
-        public void Spawn_SetsNetworkOwnership_LocalNodeIdMatchesSystemConfig()
+        public void Spawn_SetsNetworkAuthority_LocalNodeIdMatchesSystemConfig()
         {
             var repo        = CreateWorld();
             var tkb         = CreateTkb();
@@ -182,16 +181,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 10L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 3
+                NetworkId   = 10,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(3)
             });
 
-            Assert.True(networkMap.TryGetEntity(10L, out var entity));
+            Assert.True(networkMap.TryGetEntity(10, out var entity));
 
-            var ownership = repo.GetComponent<NetworkOwnership>(entity);
-            Assert.Equal(LocalNodeId, ownership.LocalNodeId);
-            Assert.Equal(3, ownership.PrimaryOwnerId);
+            var authority = repo.GetComponent<NetworkAuthority>(entity);
+            Assert.Equal(LocalNodeId, authority.LocalNodeId);
+            Assert.Equal(3, authority.PrimaryOwnerId);
             Assert.False(repo.HasAuthority<NetworkIdentity>(entity));
         }
 
@@ -207,21 +206,81 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 11L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = LocalNodeId,
+                NetworkId   = 11,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(LocalNodeId),
                 InitialComponents = new List<object>
                 {
                     new TestPositionComponent { X = 1f, Y = 2f }
                 }
             });
 
-            Assert.True(networkMap.TryGetEntity(11L, out var entity));
+            Assert.True(networkMap.TryGetEntity(11, out var entity));
             Assert.True(repo.HasAuthority<NetworkIdentity>(entity));
-            Assert.True(repo.HasAuthority<NetworkOwnership>(entity));
             Assert.True(repo.HasAuthority<NetworkAuthority>(entity));
             Assert.True(repo.HasAuthority<TkbIdentity>(entity));
             Assert.True(repo.HasAuthority<TestPositionComponent>(entity));
+        }
+
+        /// <summary>⭐ B-4 (Details forms D2, Q7): a SAVED stance. The scenario's StanceIntent overrides the type's default and the body starts IN it: the status (the template's default, Standing, ack 0)
+        /// is seeded from the intent and acknowledged — no stand-up-then-drop transition. ✅ Red-proof: the seed removed from NetworkSpawningSystem ⇒ status Standing, Ack 0 ⇒ red.</summary>
+        [Fact]
+        public void Spawn_WithASavedStance_StartsTheBodyInIt()
+        {
+            var repo        = CreateWorld();
+            repo.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            repo.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>();
+            var tkb         = CreateTkb();
+            var elm         = CreateElm(tkb);
+            var networkMap  = new NetworkEntityMap();
+            var idAllocator = new StubIdAllocator();
+            var system      = CreateSystem(repo, networkMap, idAllocator, tkb, elm);
+
+            RunSpawn(repo, system, new SpawnEntityCommand
+            {
+                NetworkId   = 21,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
+                InitialComponents = new List<object>
+                {
+                    new Hrot.MuscleCharacter.Animation.Components.StanceStatus { CurrentStance = Fdp.Toolkit.Tkb.Domain.StanceId.Standing, AckVersion = 0 },   // what the type's translator leaves
+                    new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone, BlendTime = 0.3f, Version = 4 },   // what the scenario saved
+                }
+            });
+
+            Assert.True(networkMap.TryGetEntity(21, out var entity));
+            var intent = repo.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(entity);
+            var status = repo.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>(entity);
+            Assert.Equal((Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 4u), (intent.TargetStance, intent.Version));
+            Assert.Equal((Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 4u, Hrot.MuscleCharacter.Animation.Components.StanceTransitionPhase.Idle), (status.CurrentStance, status.AckVersion, status.Phase));
+        }
+
+        /// <summary>⭐ B-4: StanceIntent is SAVED (the scenario keeps a Prone unit prone) and StanceStatus is not (derived from it at load). ✅ Red-proof: StanceIntent back to NoScenario ⇒ not serialised ⇒ red.</summary>
+        [Fact]
+        public void AStanceIntent_RoundTripsThroughTheScenario_AndTheStatusDoesNot()
+        {
+            using var src = new EntityRepository();
+            src.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            src.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>();
+            var e = src.CreateEntity();
+            src.AddComponent(e, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone, BlendTime = 0.3f, Version = 4 });
+            src.AddComponent(e, new Hrot.MuscleCharacter.Animation.Components.StanceStatus { CurrentStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone, AckVersion = 4 });
+            var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Fdp.Toolkits.Tests").Build();
+            var dom = serializer.Serialize(src, new Fdp.Toolkit.Scenario.ScenarioHeader("Fdp.Toolkits.Tests"));
+
+            using var fresh = new EntityRepository();
+            fresh.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            fresh.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>();
+            serializer.Deserialize(fresh, dom);
+            Entity back = default; bool found = false;
+            for (int i = 0; i <= fresh.MaxEntityIndex && !found; i++)
+            {
+                var c = new Entity(i, fresh.GetEntityIndex().GetMetadata(i).Generation);
+                if (fresh.IsAlive(c) && fresh.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(c)) { back = c; found = true; }
+            }
+            Assert.True(found);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, fresh.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(back).TargetStance);
+            Assert.False(fresh.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>(back));   // NoScenario: not saved
         }
 
         [Fact]
@@ -236,16 +295,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 20L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1,
+                NetworkId   = 20,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitialComponents = new List<object>
                 {
                     new TestPositionComponent { X = 3.5f, Y = 7.0f }
                 }
             });
 
-            Assert.True(networkMap.TryGetEntity(20L, out var entity));
+            Assert.True(networkMap.TryGetEntity(20, out var entity));
 
             var pos = repo.GetComponent<TestPositionComponent>(entity);
             Assert.Equal(3.5f, pos.X);
@@ -265,23 +324,23 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             // First spawn
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 50L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1
+                NetworkId   = 50,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
-            Assert.True(networkMap.TryGetEntity(50L, out var firstEntity));
+            Assert.True(networkMap.TryGetEntity(50, out var firstEntity));
 
             // Second spawn with same ID — should be silently dropped
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 50L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1
+                NetworkId   = 50,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             // Map must still resolve to the SAME original entity
-            Assert.True(networkMap.TryGetEntity(50L, out var sameEntity));
+            Assert.True(networkMap.TryGetEntity(50, out var sameEntity));
             Assert.Equal(firstEntity, sameEntity);
         }
 
@@ -297,12 +356,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 60L,
-                TkbType     = 999L, // unknown type
-                OwnerNodeId = 1
+                NetworkId   = 60,
+                TkbType     = (Fdp.Core.TkbTypeId)(999L), // unknown type
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
-            Assert.False(networkMap.TryGetEntity(60L, out _));
+            Assert.False(networkMap.TryGetEntity(60, out _));
         }
 
         [Fact]
@@ -317,13 +376,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 70L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1,
+                NetworkId   = 70,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitType    = ReliableInitType.None
             });
 
-            Assert.True(networkMap.TryGetEntity(70L, out var entity));
+            Assert.True(networkMap.TryGetEntity(70, out var entity));
             Assert.False(repo.HasComponent<PendingNetworkAck>(entity),
                 "PendingNetworkAck must NOT be present when InitType is None");
         }
@@ -340,13 +399,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 80L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1,
+                NetworkId   = 80,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitType    = ReliableInitType.AllPeers
             });
 
-            Assert.True(networkMap.TryGetEntity(80L, out var entity));
+            Assert.True(networkMap.TryGetEntity(80, out var entity));
             Assert.True(repo.HasComponent<PendingNetworkAck>(entity),
                 "PendingNetworkAck MUST be present when InitType is AllPeers");
         }
@@ -365,14 +424,14 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             // Act: spawn entity with OwnerNodeId = 5
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 90L,
-                TkbType     = DefaultTkbType,
+                NetworkId   = 90,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 DisType     = 123UL,
-                OwnerNodeId = 5
+                OwnerNodeId = (Fdp.Core.NodeId)(5)
             });
 
             // Assert: TkbIdentity is permanently attached
-            Assert.True(networkMap.TryGetEntity(90L, out var entity));
+            Assert.True(networkMap.TryGetEntity(90, out var entity));
             Assert.True(repo.HasComponent<TkbIdentity>(entity),
                 "TkbIdentity must be present on every spawned entity.");
 
@@ -398,14 +457,119 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             // Act: spawn entity
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 95L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1
+                NetworkId   = 95,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             // Assert: immediately after spawn the entity is in Constructing state
-            Assert.True(networkMap.TryGetEntity(95L, out var entity));
+            Assert.True(networkMap.TryGetEntity(95, out var entity));
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  ⭐ CE-1017 S2 — the birth-height request (docs/DESIGN_Add_Entity_Picker.md §2e)
+        // ─────────────────────────────────────────────────────────────────────
+
+        // A 12 m building at (40..90, 40..90) on flat ground at Z 0.
+        private const string LevelWorld = """
+        {
+          "type": "FeatureCollection",
+          "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 },
+          "features": [
+            { "type": "Feature", "properties": { "kind": "building", "height": 12, "floors": 3 },
+              "geometry": { "type": "Polygon", "coordinates": [[[40,40],[90,40],[90,90],[40,90],[40,40]]] } }
+          ]
+        }
+        """;
+
+        /// <summary>Spawns one entity at (x, y, sentZ) with <paramref name="height"/> and returns its born Z — through the CE-3271 path:
+        /// the spawn ASKS (<see cref="Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest"/>) and <see cref="SpawnLevelSystem"/> applies it on
+        /// this node, which owns the position.</summary>
+        private static float BornZ(float x, float y, float sentZ, Fdp.Toolkit.NetworkSpawning.SpawnHeight? height, bool withTerrain = true)
+        {
+            using var repo = SpawnWithLevel(x, y, sentZ, height, withTerrain, out var e);
+            new SpawnLevelSystem().Execute(repo, 0f);
+            return repo.GetComponent<SimTransform>(e).Position.Z;
+        }
+
+        private static EntityRepository SpawnWithLevel(float x, float y, float sentZ, Fdp.Toolkit.NetworkSpawning.SpawnHeight? height,
+                                                       bool withTerrain, out Entity e)
+        {
+            var repo = CreateWorld();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>();
+            if (withTerrain) repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(LevelWorld));
+            var tkb = CreateTkb();
+            var map = new NetworkEntityMap();
+            var system = CreateSystem(repo, map, new StubIdAllocator(), tkb, CreateElm(tkb));
+            RunSpawn(repo, system, new SpawnEntityCommand
+            {
+                NetworkId        = 7001,
+                TkbType          = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId      = (Fdp.Core.NodeId)(LocalNodeId),
+                InitialTransform = new SimTransform { Position = new System.Numerics.Vector3(x, y, sentZ), Rotation = System.Numerics.Quaternion.Identity },
+                SpawnHeight      = height,
+            });
+            Assert.True(map.TryGetEntity(7001, out e));
+            return repo;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3271</c> (Q94 D, R-3018) — the spawn only ASKS; the level is applied by the node that owns the POSITION. A creator whose
+        /// <c>SimTransform</c> authority was yielded (the brain granting the Muscle group away) leaves the sent Z and the request waiting; the
+        /// node given the authority applies it once, and a resolved request never re-snaps a man who has since moved.
+        /// ✅ Red-proof: drop the authority check in <c>SpawnLevels.TryResolve</c> ⇒ the yielded creator resolves (Z 12 at once).
+        /// </summary>
+        [Fact]
+        public void CE3271_TheSpawnAsks_TheNodeOwningThePositionResolves_Once()
+        {
+            using var repo = SpawnWithLevel(60, 60, 50f, new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 1),
+                                            withTerrain: true, out var e);
+            Assert.Equal(50f, repo.GetComponent<SimTransform>(e).Position.Z);                       // 8b read no terrain
+            Assert.Equal(0, repo.GetComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(e).Resolved);
+
+            var levels = new SpawnLevelSystem();
+            repo.SetAuthority<SimTransform>(e, false);                                                // the yield: the position is granted away
+            levels.Execute(repo, 0f);
+            Assert.Equal(50f, repo.GetComponent<SimTransform>(e).Position.Z);
+            Assert.Equal(0, repo.GetComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(e).Resolved);
+
+            repo.SetAuthority<SimTransform>(e, true);                                                 // the grantee claims it
+            levels.Execute(repo, 0f);
+            Assert.Equal(12f, repo.GetComponent<SimTransform>(e).Position.Z);                       // the roof, level 1
+            Assert.Equal(1, repo.GetComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(e).Resolved);
+
+            var moved = repo.GetComponent<SimTransform>(e);
+            moved.Position = new System.Numerics.Vector3(60, 60, 5f);                                  // he went down the stairs, half way
+            repo.SetComponent(e, moved);
+            levels.Execute(repo, 0f);
+            Assert.Equal(5f, repo.GetComponent<SimTransform>(e).Position.Z);                        // never re-snapped to the roof
+        }
+
+        [Fact]
+        public void CE1017_SpawnHeight_OnLevel_ReplacesTheSentZ_Level0IsTheGroundEvenInsideABuilding()
+        {
+            Assert.Equal(0f,  BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, 0)));   // 🔒 rev 5: ground, not the roof
+            Assert.Equal(12f, BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, 1)));   // the roof is an explicit +1
+            Assert.Equal(12f, BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, 9)));   // past the top ⇒ the highest
+            Assert.Equal(0f,  BornZ(10, 10, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, -1)));  // past the bottom ⇒ the lowest
+        }
+
+        [Fact]
+        public void CE1017_SpawnHeight_AboveLevel_AddsTheSentZ_ParachutistAndSubmarine()
+        {
+            Assert.Equal(800f, BornZ(10, 10, 800f, new SpawnHeight(SpawnHeightMode.AboveLevel, 0)));
+            Assert.Equal(-50f, BornZ(10, 10, -50f, new SpawnHeight(SpawnHeightMode.AboveLevel, 0)));
+            Assert.Equal(15f,  BornZ(60, 60, 3f,   new SpawnHeight(SpawnHeightMode.AboveLevel, 1)));   // 3 m above the roof
+        }
+
+        [Fact]
+        public void CE1017_SpawnHeight_AbsentAbsoluteOrNoTerrain_KeepsTheSentZ()
+        {
+            Assert.Equal(50f, BornZ(60, 60, 50f, null));                                                   // every caller before CE-1017
+            Assert.Equal(50f, BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.Absolute, 1)));
+            Assert.Equal(50f, BornZ(60, 60, 50f, SpawnHeight.OnGround, withTerrain: false));               // no terrain resident
         }
     }
 }

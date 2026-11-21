@@ -73,5 +73,18 @@ namespace Hrot.DDS.DataModel.Tests
                 Assert.Equal(ecs, back);
             }
         }
+        /// <summary>⭐ <c>CE-3253</c> (BR-8) — EVERY <c>TacticalDesignation</c> is on the wire enum by the same name and value (the "must be kept
+        /// in sync" comment, enforced). ⛔ Before, TeamLeader and Medic crossed as numbers outside the enum. ✅ Red-proof: drop a wire member ⇒ red.</summary>
+        [Fact]
+        public void CE3253_EveryDesignation_IsOnTheWire_ByNameAndValue()
+        {
+            foreach (TacticalDesignation d in System.Enum.GetValues(typeof(TacticalDesignation)))
+            {
+                var wire = TacticalDesignationMapper.ToDds(d);
+                Assert.True(System.Enum.IsDefined(typeof(eTacticalDesignation), wire), $"{d} is not on the wire enum");
+                Assert.Equal(d.ToString(), wire.ToString());
+                Assert.Equal(d, TacticalDesignationMapper.ToEcs(wire));
+            }
+        }
     }
 }

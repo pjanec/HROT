@@ -1,0 +1,219 @@
+using System;
+using System.Numerics;
+using CarKinem.Core;
+using CarKinem.Trajectory;
+
+namespace CarKinem.Controllers
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-3145</c> (R-247) — how a PERSON moves: it turns on the spot, then walks where it faces. The car model a pedestrian
+    /// used to share (<see cref="BicycleModel"/>: steering geometry, a 0.3 m turn circle, forward speed while turning) made a soldier
+    /// facing away from his goal walk a half-circle forward first — 📐 measured on <c>bt-window-duel</c>: A, 0.4 m from House A's
+    /// open stairwell, stepped into it on his first move and fell to the ground floor.
+    /// <list type="bullet">
+    ///   <item>The heading turns straight towards the wanted direction at <see cref="TurnRate"/> — no steering angle, no radius.</item>
+    ///   <item>More than <see cref="WalkWithinAngle"/> off ⇒ the speed target is 0: he stops (<see cref="StopDecel"/> at least) and
+    ///     turns where he stands; within it he walks along the new heading.</item>
+    ///   <item>He tracks his path closely (<see cref="MinPathLookahead"/>) and never steps off a ledge (<see cref="MaxStepDown"/>,
+    ///     in <c>CarKinematicsSystem</c> where the surface is known).</item>
+    /// </list>
+    /// 📄 docs/DESIGN_Peek_And_Fire.md D17.
+    /// </summary>
+    public static class HumanGait
+    {
+        /// <summary>How fast a person turns (rad/s): an about-face in half a second.</summary>
+        public const float TurnRate = 2f * MathF.PI;
+
+        /// <summary>Walk only when the heading is within this of the wanted direction (rad, 30°); farther off he turns in place.</summary>
+        public const float WalkWithinAngle = MathF.PI / 6f;
+
+        /// <summary>A person stops within a step (m/s²) — at least this, whatever the mount's braking says.</summary>
+        public const float StopDecel = 4f;
+
+        /// <summary>How far ahead on his path a person aims (m, at least) and per m/s of speed (s): he follows it closely — a car's
+        /// 1 m minimum cut a corner over House A's stairwell (CE-3145).</summary>
+        public const float MinPathLookahead = 0.35f, PathLookaheadSeconds = 0.25f;   // only for a looped path (Aim handles the rest)
+
+        /// <summary>The largest drop a person steps down in one step (m); a bigger one is a ledge he does not walk off.</summary>
+        public const float MaxStepDown = 1.0f;   // a soldier steps or hops down a metre (a stair's side); a storey is a fall
+
+        /// <summary>Within this of the floor under him (m), a person is standing on it (the ledge rule applies).</summary>
+        public const float OnFloorTolerance = 0.15f;
+
+        /// <summary>⭐ <c>CE-1208</c> (Entity Control §8b) — a person's WALK (m/s) when his type states none (<c>VehicleParams.WalkSpeed</c> 0):
+        /// the operator's walking gait; his run is the type's top speed (R-265).</summary>
+        public const float WalkSpeed = 1.5f;
+
+        /// <summary>⭐ <c>CE-1208</c> — <paramref name="p"/>'s walk, unscaled: its type's, else <see cref="WalkSpeed"/>.</summary>
+        public static float WalkOf(in VehicleParams p) => p.WalkSpeed > 0f ? p.WalkSpeed : WalkSpeed;
+
+        /// <summary>
+        /// The speed a person should aim for now: <paramref name="wantedSpeed"/> when <paramref name="fwd"/> is within
+        /// <see cref="WalkWithinAngle"/> of <paramref name="wanted"/>, else 0 (turn first).
+        /// </summary>
+        public static float SpeedTarget(Vector2 fwd, Vector2 wanted, float wantedSpeed)
+            => wantedSpeed > 0f && MathF.Abs(SignedAngle(fwd, wanted)) > WalkWithinAngle ? 0f : wantedSpeed;
+
+        /// <summary>
+        /// One step: turn <paramref name="fwd"/> towards <paramref name="wanted"/> (when there is somewhere to go), update the speed by
+        /// <paramref name="accel"/>, move along the new heading. Returns the yaw rate (rad/s).
+        /// </summary>
+        public static float Integrate(ref Vector2 pos, ref Vector2 fwd, ref VehicleState state, Vector2 wanted, bool moving, float accel, float dt)
+        {
+            float turned = 0f;
+            if (moving && wanted.LengthSquared() > 1e-6f)
+            {
+                float error = SignedAngle(fwd, wanted);
+                float most = TurnRate * MathF.Max(dt, 0f);   // ⚠ the host can hand a NEGATIVE step (measured in-process): no turn then
+                turned = Math.Clamp(error, -most, most);
+                float c = MathF.Cos(turned), s = MathF.Sin(turned);
+                fwd = VectorMath.SafeNormalize(new Vector2(fwd.X * c - fwd.Y * s, fwd.X * s + fwd.Y * c), fwd);
+            }
+
+            state.Speed = MathF.Max(0f, state.Speed + (accel * dt));
+            pos += fwd * state.Speed * dt;
+            state.SteerAngle = (Fdp.Core.Angle)(0f);
+            state.Accel = accel;
+            return dt > 0f ? turned / dt : 0f;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (R-3003, docs/DESIGN_Weapon_Layers.md W-14a) — how far off his heading a person may aim and fire (rad, 75°):
+        /// the upper-body twist. The drawn twist (<c>EntityBodyLayer3D</c>) and the fire arc (<c>BodyAim</c>) both read this one value.
+        /// </summary>
+        public const float MaxAimTwist = 75f * MathF.PI / 180f;
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14c) — inside <see cref="MaxAimTwist"/> an aimed body follows its aim at this rate per radian off
+        /// (1/s: 63 % of the way in 1 s, 95 % in 3 s) — a snap shot barely turns him, a lasting aim brings him round.</summary>
+        public const float AlignGain = 1f;
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14c) — within this of the aim (rad, 3°) the body does not turn.</summary>
+        public const float AlignDeadband = 3f * MathF.PI / 180f;
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14d) — moving while aimed, full speed within this of his heading (rad, 45°) …</summary>
+        public const float FacingFullSpeedAngle = MathF.PI / 4f;
+
+        /// <summary>… and <see cref="ManualMotion.BackAndStrafeFactor"/> from this off (rad, 90°: sidestep, back-pedal).</summary>
+        public const float FacingSlowSpeedAngle = MathF.PI / 2f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (W-14c) — turn an AIMED person's heading <paramref name="fwd"/> toward <paramref name="toAim"/>: at
+        /// <see cref="TurnRate"/> while the aim is beyond <see cref="MaxAimTwist"/> (he must turn to shoot), else at
+        /// <see cref="AlignGain"/> × the angle (a smooth lag), not at all within <see cref="AlignDeadband"/>. Returns the angle turned (rad).
+        /// </summary>
+        public static float FacingTurn(ref Vector2 fwd, Vector2 toAim, float dt)
+        {
+            if (dt <= 0f || toAim.LengthSquared() < 1e-6f) return 0f;
+            float error = SignedAngle(fwd, toAim);
+            float off = MathF.Abs(error);
+            if (off <= AlignDeadband) return 0f;
+            float rate = off > MaxAimTwist ? TurnRate : MathF.Min(TurnRate, AlignGain * off);
+            float most = rate * dt;
+            float turned = Math.Clamp(error, -most, most);
+            float c = MathF.Cos(turned), s = MathF.Sin(turned);
+            fwd = VectorMath.SafeNormalize(new Vector2(fwd.X * c - fwd.Y * s, fwd.X * s + fwd.Y * c), fwd);
+            return turned;
+        }
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14d) — the share of his speed a person keeps moving along <paramref name="travel"/> while his body
+        /// faces <paramref name="fwd"/>: 1 within <see cref="FacingFullSpeedAngle"/>, <see cref="ManualMotion.BackAndStrafeFactor"/> from
+        /// <see cref="FacingSlowSpeedAngle"/>, linear between.</summary>
+        public static float FacingSpeedFactor(Vector2 fwd, Vector2 travel)
+        {
+            if (travel.LengthSquared() < 1e-6f) return 1f;
+            float off = MathF.Abs(SignedAngle(fwd, travel));
+            float t = Math.Clamp((off - FacingFullSpeedAngle) / (FacingSlowSpeedAngle - FacingFullSpeedAngle), 0f, 1f);
+            return 1f - (1f - ManualMotion.BackAndStrafeFactor) * t;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (W-14d/e) — one step of an AIMED person: the body turns by <see cref="FacingTurn"/> toward
+        /// <paramref name="toAim"/> whether or not he walks, and he moves along <paramref name="travel"/> (a unit direction, NOT his
+        /// heading — back-pedal, sidestep) at the speed <paramref name="accel"/> leads to. <paramref name="planar"/> is the world velocity.
+        /// Returns the yaw rate (rad/s).
+        /// </summary>
+        public static float IntegrateFacing(ref Vector2 pos, ref Vector2 fwd, ref VehicleState state, Vector2 travel, Vector2 toAim,
+            float accel, float dt, out Vector2 planar)
+        {
+            float turned = FacingTurn(ref fwd, toAim, dt);
+            state.Speed = MathF.Max(0f, state.Speed + (accel * MathF.Max(dt, 0f)));
+            planar = travel * state.Speed;
+            pos += planar * MathF.Max(dt, 0f);
+            state.SteerAngle = (Fdp.Core.Angle)(0f);
+            state.Accel = accel;
+            return dt > 0f ? turned / dt : 0f;
+        }
+
+        /// <summary>A path corner counts as reached within this (m) — then he heads for the next one.</summary>
+        public const float CornerReach = 0.25f;
+
+        /// <summary>How far ahead of where he stands on the path a person aims (m) — never past the corner he is walking to.</summary>
+        public const float PathAim = 1.0f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3145</c> — where a person on a path heads: <see cref="PathAim"/> ahead of his projection on the segment he walks,
+        /// CLAMPED TO THAT SEGMENT'S END CORNER, so a drift closes onto the path (CE-3115) but a corner is never cut (📐 a car's
+        /// lookahead cut one over House A's stairwell). Within <see cref="CornerReach"/> of the corner his progress snaps to it and
+        /// the next segment is walked; the gait turns him there. False on a looped path or past the last corner.
+        /// </summary>
+        public static bool Aim(in CustomTrajectory traj, ref float progress, Vector2 pos, out Vector2 aim)
+        {
+            aim = default;
+            int n = traj.Waypoints.Length;
+            if (traj.IsLooped != 0 || n < 2) return false;
+            int k = Segment(in traj, progress);
+            while (k < n - 1)
+            {
+                var a = traj.Waypoints[k];
+                var b = traj.Waypoints[k + 1];
+                var pa = new Vector2(a.Position.X, a.Position.Y);
+                var corner = new Vector2(b.Position.X, b.Position.Y);
+                if (k + 1 < n - 1 && Vector2.Distance(pos, corner) <= CornerReach)
+                {
+                    progress = MathF.Max(progress, b.CumulativeDistance);   // reached: on to the next corner
+                    k++;
+                    continue;
+                }
+                var ab = corner - pa;
+                float len = ab.Length();
+                if (len < 1e-4f) { aim = corner; return true; }
+                var dir = ab / len;
+                float along = Math.Clamp(Vector2.Dot(pos - pa, dir), 0f, len);
+                aim = pa + (dir * MathF.Min(along + PathAim, len));
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3145</c> — a person's progress along his path: his position projected on the segment he is walking (never behind
+        /// where he was). ⛔ Not dead-reckoned from speed × heading — that stalled while he turned on the spot and ran ahead when he cut.
+        /// </summary>
+        public static float Progress(in CustomTrajectory traj, float progress, Vector2 pos)
+        {
+            int n = traj.Waypoints.Length;
+            if (traj.IsLooped != 0 || n < 2) return progress;
+            int k = Segment(in traj, progress);
+            if (k >= n - 1) return progress;
+            var a = traj.Waypoints[k];
+            var b = traj.Waypoints[k + 1];
+            var pa = new Vector2(a.Position.X, a.Position.Y);
+            var ab = new Vector2(b.Position.X, b.Position.Y) - pa;
+            float len = ab.Length();
+            if (len < 1e-4f) return MathF.Max(progress, b.CumulativeDistance);
+            float along = Math.Clamp(Vector2.Dot(pos - pa, ab / len), 0f, len);
+            return MathF.Max(progress, a.CumulativeDistance + along);
+        }
+
+        private static int Segment(in CustomTrajectory traj, float progress)
+        {
+            int k = 0;
+            while (k < traj.Waypoints.Length - 2 && traj.Waypoints[k + 1].CumulativeDistance <= progress) k++;
+            return k;
+        }
+
+        /// <summary>The signed angle (rad, −π…π) from <paramref name="from"/> to <paramref name="to"/>, counter-clockwise positive.</summary>
+        public static float SignedAngle(Vector2 from, Vector2 to)
+            => MathF.Atan2((from.X * to.Y) - (from.Y * to.X), Vector2.Dot(from, to));
+    }
+}

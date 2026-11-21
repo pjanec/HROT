@@ -568,7 +568,7 @@ private static Entity FindEntityWithNetId(EntityRepository repo, long netVal)
 
 After implementing `TransientMasterBuilder`:
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 Must produce 0 errors.
 
@@ -750,7 +750,7 @@ dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj ^
 
 Full solution build before finalizing:
 ```
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 ```
 
 ---

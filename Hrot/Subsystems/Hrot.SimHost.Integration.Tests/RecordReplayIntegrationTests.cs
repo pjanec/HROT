@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.IO;
 using System.Threading;
@@ -64,9 +65,17 @@ namespace Hrot.SimHost.Integration.Tests
             // false — factory-only; direct registration as IClusterOpHandler is intentionally absent).
             var eventBus     = new FdpEventBus();
             var bootstrapper = new NodeBootstrapper();
+            // ⭐ CE-2063 ③ — a Brain node REQUIRES the ScenarioEntities load part (L4a: LoadPhaseChain.FromRoles throws, loudly,
+            //   when a Brain host composes no scenario step). This fixture predated that rule and passed none of the scenario deps;
+            //   it now passes the ones every production Brain host passes, so it tests what it names, not the composition guard.
             using var clusterSlave = bootstrapper.BuildOrchestration(
                 NodeRole.Brain, _kernel, _world, nodeId: 1, participant: _ddsParticipant,
-                eventBus: eventBus);
+                eventBus: eventBus,
+                scenarioSerializer:  new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("SimHost").Build(),
+                scenarioExtractor:   new Hrot.CGF.Orchestration.StagingEntityExtractor(),
+                scenarioSource:      _world.Bus,   // ⭐ CE-3228 — the bus the scenario requests are published on
+                scenarioIdAllocator: new Hrot.SimHost.Integration.Tests.Infrastructure.StubIdAllocator(),
+                localTempRoot:       _tempDir);
 
             // Assert: ReferenceLiveLoadHandler is registered.
             Assert.True(clusterSlave.IsHandlerRegistered<ReferenceLiveLoadHandler>(),
@@ -74,25 +83,57 @@ namespace Hrot.SimHost.Integration.Tests
         }
 
         [Fact(Timeout = 10_000)]
-        public void NodeBootstrapper_ImageGeneratorRole_NoControllerRegistered()
+        public void NodeBootstrapper_EveryEcsRole_RegistersTheReplayHandler()
         {
-            // ImageGenerator role does not participate in orchestration — null participant allowed.
+            // ⭐ CE-3311 — R-4011 / D16: ONE recording controller and ONE cluster-handler composition on EVERY ECS host, no role gate
+            //   (EcsHostClusterHandlers.Compose). ⛔ SUPERSEDED: "ImageGenerator role must NOT register a ReferenceReplayLoadHandler".
             var bootstrapper = new NodeBootstrapper();
             var clusterSlave   = bootstrapper.BuildOrchestration(
-                NodeRole.ImageGenerator, _kernel, _world, nodeId: 2);
+                NodeRole.Map2D, _kernel, _world, nodeId: 2);
 
-            Assert.False(clusterSlave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
-                "ImageGenerator role must NOT register a ReferenceReplayLoadHandler.");
+            Assert.True(clusterSlave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
+                "Every ECS host — a Map2D / image-generator node too — registers the replay handler (R-4011, D16).");
+            // ⭐ CE-3329 row 44 — the silent-default rule: the composition that HAS the controller passes its episode recorders to the
+            //   review handler (a review suspends them with the main recording); asserted on the constructed handler
+            var review = clusterSlave.RegisteredHandlers.OfType<ReferenceReviewHandler>().Single();
+            var episodes = typeof(ReferenceReviewHandler).GetField("_episodeRecorders",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(review);
+            Assert.NotNull(episodes);
         }
 
         // ── MOD1-P8T5 success condition 3 ────────────────────────────────────────
+
+        /// <summary>⭐ CE-3366 — a node prepared TWICE with one ExerciseId (a slow node's C7 catch-up re-sends the live PrepareState) completes the second prepare and keeps recording into ITS file (the same module); a DIFFERENT
+        /// exercise's file colliding, or the same exercise after it was finalized, still fails loudly (CreateNew is not weakened). ✅ Red-proof: the idempotence guard removed from <c>PrepareRecordingAsync</c> ⇒ IOException "already exists" ⇒ red.</summary>
+        [Fact(Timeout = 15_000)]
+        public async Task CE3366_ARePrepareOfTheSameExercise_IsIdempotent_ADifferentOrFinalizedOneStaysLoud()
+        {
+            var exerciseId = Guid.NewGuid();
+            var controller = new EcsRecordReplayController(_kernel, nodeId: ControllerNodeId, _world);
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);
+            var first = controller.ActiveRecordingModule;
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);               // the catch-up's second prepare
+            Assert.Same(first, controller.ActiveRecordingModule);
+            Assert.True(_kernel.IsModuleInstalled(first!));
+            await Task.Delay(100);
+            await controller.FinalizeRecordingAsync();
+            Assert.True(File.Exists(ExerciseRecordingPath(exerciseId)));
+
+            await Assert.ThrowsAnyAsync<IOException>(() => controller.PrepareRecordingAsync(exerciseId, _tempDir));   // finalized, then prepared again: its file exists ⇒ loud
+
+            cts.Cancel();
+            try { await loopTask; } catch (OperationCanceledException) { }
+        }
 
         [Fact(Timeout = 15_000)]
         public async Task RecordingLifecycle_InstallUninstall_ModuleInstalledThenGone()
         {
             // Arrange
             var exerciseId    = Guid.NewGuid();
-            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: ControllerNodeId, _world);
 
             using var cts      = new CancellationTokenSource();
             var       loopTask = RunKernelLoop(_kernel, cts.Token);
@@ -116,7 +157,8 @@ namespace Hrot.SimHost.Integration.Tests
                 "RecordingModule must be uninstalled after FinalizeRecordingAsync.");
 
             // The .fdp file must exist (proves the recorder actually ran).
-            var expectedFile = Path.Combine(_tempDir, exerciseId.ToString(), "node_1.fdp");
+            // ⛔ NEVER hand-compose this path — see the note on ExerciseRecordingPath below.
+            var expectedFile = ExerciseRecordingPath(exerciseId);
             Assert.True(File.Exists(expectedFile),
                 $"Expected recording file at {expectedFile}.");
 
@@ -132,9 +174,10 @@ namespace Hrot.SimHost.Integration.Tests
             // Arrange: global recording + episode recording start concurrently.
             var exerciseId    = Guid.NewGuid();
             var episodeId    = Guid.NewGuid();
-            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: ControllerNodeId, _world);
 
-            Directory.CreateDirectory(Path.Combine(_tempDir, "episodes"));
+            Directory.CreateDirectory(
+                Fdp.Toolkit.Orchestration.OrchestrationConstants.GetEpisodesRoot(_tempDir));
 
             using var cts      = new CancellationTokenSource();
             var       loopTask = RunKernelLoop(_kernel, cts.Token);
@@ -151,9 +194,11 @@ namespace Hrot.SimHost.Integration.Tests
             cts.Cancel();
             await loopTask;
 
-            // Both .fdp files must exist.
-            var globalFile = Path.Combine(_tempDir, exerciseId.ToString(), "node_1.fdp");
-            var episodeFile  = Path.Combine(_tempDir, "episodes", $"{episodeId}_node1.fdp");
+            // Both .fdp files must exist. ⛔ Both paths come from the SAME helpers production writes
+            //   through — see the note on ExerciseRecordingPath below.
+            var globalFile = ExerciseRecordingPath(exerciseId);
+            var episodeFile  = Fdp.Toolkit.Orchestration.OrchestrationConstants
+                .GetEpisodeRecordingFilePath(_tempDir, episodeId, ControllerNodeId);
 
             Assert.True(File.Exists(globalFile),
                 $"Global recording file not found at {globalFile}.");
@@ -162,6 +207,29 @@ namespace Hrot.SimHost.Integration.Tests
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
+
+        /// <summary>The node id every <see cref="EcsRecordReplayController"/> in this class is built with.</summary>
+        private const int ControllerNodeId = 1;
+
+        /// <summary>
+        /// 🔴 <b>The exercise recording's path, resolved the way PRODUCTION resolves it.</b>
+        ///
+        /// <para>📐 <b>Measured <c>2026-09-01</c>:</b> both recording rails hand-composed
+        /// <c>{tempDir}/{exerciseId}/node_1.fdp</c> and asserted the file existed there. The recorder
+        /// writes to <c>{tempDir}/<b>exercises</b>/{exerciseId}/node_1.fdp</c>
+        /// (<c>EcsRecordReplayController.GetRecordingFilePath</c> →
+        /// <c>OrchestrationConstants.ExercisesDirectoryName</c>). ⇒ the rails failed as
+        /// <i>"recording file not found"</i> — which reads as <b>a recorder that never ran</b> and is
+        /// nothing of the sort. The recorder was writing correctly the whole time.</para>
+        ///
+        /// <para>⭐⭐ <b>Asserting on a path means calling the function that BUILT it.</b> The exercise
+        /// side now has <c>OrchestrationConstants.GetExerciseRecordingFilePath</c>, mirroring the episode
+        /// side's long-standing <c>GetEpisodeRecordingFilePath</c>; production and this rail call the same
+        /// one, so they cannot disagree about the layout again.</para>
+        /// </summary>
+        private string ExerciseRecordingPath(Guid exerciseId) =>
+            Fdp.Toolkit.Orchestration.OrchestrationConstants
+                .GetExerciseRecordingFilePath(_tempDir, exerciseId, ControllerNodeId);
 
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>
             Task.Run(() =>

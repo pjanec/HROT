@@ -20,7 +20,7 @@ interface with its migrated EQS callers.
 
 Do NOT stop after each task to ask if it is OK to continue. Implement each
 task fully, write tests, fix all failures, and only then move to the next task.
-Run `dotnet build IOS-IG-SimHost.sln` and the test suite after each task and
+Run `dotnet build HROT.sln` and the test suite after each task and
 fix all errors and failures before proceeding. Do not submit the report until
 all tests pass.
 
@@ -46,7 +46,7 @@ all tests pass.
 
 ```powershell
 # Build the entire solution
-dotnet build IOS-IG-SimHost.sln
+dotnet build HROT.sln
 
 # Run all tests (quick smoke check)
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj -v quiet
@@ -95,7 +95,7 @@ UI/editor code (ImGui windows, gizmos) stays in the existing editor assemblies
 
 Tests go in the existing `FDP/Toolkits/Fdp.Toolkits.Tests/` project.
 
-**Deliverable:** No new `.csproj` files. Verify `dotnet build IOS-IG-SimHost.sln` still passes
+**Deliverable:** No new `.csproj` files. Verify `dotnet build HROT.sln` still passes
 and document the namespace plan as a `// NAV-P0-T1` comment block at the top of any new namespace
 umbrella file you create (e.g., a `NavigationContracts.cs` if you introduce a namespace organizer).
 
@@ -262,7 +262,7 @@ Update any failing tests to use the new interface. Write two new unit tests in
 ## Mandatory Workflow
 
 Complete tasks **in sequence**: T1 → T2 → T3. After each task:
-1. Run `dotnet build IOS-IG-SimHost.sln` — fix all errors.
+1. Run `dotnet build HROT.sln` — fix all errors.
 2. Run the relevant test project — fix all failures.
 3. Only then start the next task.
 
@@ -292,7 +292,7 @@ all root causes yourself and proceed.
 - [ ] NAV-P0-T1: No new production `.csproj` created; namespace plan documented; build passes.
 - [ ] NAV-P0-T2: `Crowd=5`, `Naval=6`, `Flying=7` added; no value collisions; existing tests green; two enum value tests added.
 - [ ] NAV-P0-T3: New `INavmeshProvider` compiles; all EQS callers migrated; named EQS tests pass.
-- [ ] `dotnet build IOS-IG-SimHost.sln` exits 0.
+- [ ] `dotnet build HROT.sln` exits 0.
 - [ ] `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/` exits 0.
 - [ ] EQS-relevant integration tests pass.
 - [ ] Report submitted to `.dev/navig-2/reports/BATCH-01-REPORT.md`.

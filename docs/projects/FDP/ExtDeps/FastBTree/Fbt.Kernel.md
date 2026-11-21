@@ -248,10 +248,10 @@ This layout means the interpreter only needs a simple index to navigate: no poin
 |---|---|---|
 | `BTreeActionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a static method as an auto-registrable action; consumed by `Fbt.SourceGen` |
 | `BTreeConditionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a static method as an auto-registrable condition; consumed by `Fbt.SourceGen` |
-| `BTreeDefinitionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a method returning `BTreeBuilder` or `BehaviorTreeBlob` as a named tree catalog entry. Carries optional `BlackboardManaged` and `HeavyDtoType` arguments (see Attributes section). |
+| `BTreeDefinitionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a method returning `BTreeBuilder` or `BehaviorTreeBlob` as a named tree catalog entry. Carries optional `BlackboardManaged`, plus a vestigial `HeavyDtoType` that no longer wires anything (see Attributes section). |
 | `BTreeDeactivatorAttribute.cs` | `[AttributeUsage(Method)]` | Pairs a static deactivator method with a `[BTreeAction]` or `[BTreeCondition]`; consumed by `Fbt.SourceGen` |
 | `FbtRegistrarAttribute.cs` | `[AttributeUsage(Class)]` | Applied by `Fbt.SourceGen` to the emitted registrar class; used by `FbtAutoDiscovery` for reflection scanning |
-| `BlackboardAnnotations.cs` | `[AttributeUsage(Struct/Parameter)]` | Three editor-only annotation attributes: `[BlackboardDtoStruct]`, `[BlackboardReadOnly]`, `[BlackboardReadWrite]`. Runtime ignores them; the HROT editor schema exporter reads them (see Attributes section). |
+| `BlackboardAnnotations.cs` | `[AttributeUsage(Struct/Parameter)]` | Two editor-only annotation attributes: `[BlackboardReadOnly]`, `[BlackboardReadWrite]` (`[BlackboardDtoStruct]` retired 2026-10-13, CE-3185 — a variable type is now marked `[Dto]` from `Fdp.Core`). Runtime ignores them; the HROT editor schema exporter reads them (see Attributes section). |
 
 ---
 
@@ -636,8 +636,12 @@ public sealed class BTreeDefinitionAttribute : Attribute
     public bool BlackboardManaged { get; set; }
 
     /// <summary>
-    /// When set, the source generator wires BehaviorIngressSystem to provision a
-    /// Blackboard1024 component for this behavior. Null means no heavy component.
+    /// Vestigial. Previously signaled the source generator to provision a heavy
+    /// working-state component for this behavior; that overflow path no longer exists --
+    /// large working state is now an ordinary occurrence slot in a bigger tier of the
+    /// Blueprint tier ladder, sized automatically to the payload
+    /// (DESIGN_Occurrence_Scoped_Storage.md §30.15). Never adopted in production;
+    /// always null on every shipped asset.
     /// </summary>
     public Type? HeavyDtoType { get; set; }
 
@@ -655,14 +659,6 @@ them at all times; they are read by the HROT editor's `IActionSchemaExporter` to
 access patterns used by the cross-region conflict validator.
 
 ```csharp
-/// <summary>
-/// Marks a user-defined struct as a blackboard DTO type that should appear in the
-/// Add-Variable type picker in the HROT BTree and HSM editors, even before any action
-/// method references the struct. Applied to struct declarations only.
-/// </summary>
-[AttributeUsage(AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-public sealed class BlackboardDtoStructAttribute : Attribute { }
-
 /// <summary>
 /// Annotates the first ref parameter of an action method as read-only access to the
 /// blackboard field. The editor records the access pattern as ReadOnly, enabling
@@ -682,8 +678,9 @@ public sealed class BlackboardReadWriteAttribute : Attribute { }
 Usage example:
 
 ```csharp
-// Struct available in the editor's Add Variable type picker without a referencing action:
-[BlackboardDtoStruct]
+// Struct available in the editor's Add Variable type picker without a referencing action
+// ([Dto] from Fdp.Core — it replaced [BlackboardDtoStruct], CE-3185; [ParamsDto]/[Order]/[UnitMemory] derive from it):
+[Dto]
 public struct SharedTargetingParams { public long TargetEntityId; public float AimDot; }
 
 // Action declares read-only access; editor won't flag it as a cross-region writer:
@@ -917,8 +914,9 @@ Console.WriteLine(dump);
 | Parallel(1)        | Success if   | All simultaneously | Bitfield in Reg[3]       |
 | RequireOne         | one succeeds | Fail if all fail   |                          |
 +--------------------+--------------+--------------------+--------------------------+
-| ObserverSelector   | Same as      | Same as Selector   | Same as Selector         |
-|                    | Selector     |                    | (abort logic TBD)        |
+| ObserverSelector   | Same as      | Same as Selector;  | Higher branches' guards  |
+|                    | Selector     | aborts a running   | re-checked each tick     |
+|                    |              | lower branch       | (CE-3041, see Sensors §7.3a) |
 +--------------------+--------------+--------------------+--------------------------+
 ```
 

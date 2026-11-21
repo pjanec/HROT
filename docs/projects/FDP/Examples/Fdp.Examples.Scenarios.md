@@ -268,7 +268,9 @@ FireProcessingSystem
 
 ---
 
-### Scenario Detail: `SensorGridScenario`
+### Scenario Detail: `SensorGridScenario` — ⛔ RETIRED
+
+> ⛔ RETIRED `2026-10-04` (`CE-3052`) — it demonstrated the toolkit's own vision chain, which is gone; vision is the EQS visual sensor in `Hrot.SimHost` (see `docs/DESIGN_Sensors_And_Doctrine.md` §5.5). Occlusion → reacquire is now proven by `SensorMechanismIntegrationTests`. The detail below is HISTORY.
 
 **Demo ID:** DEM1-D004  
 **Scenario name:** `"sensorgrid"`

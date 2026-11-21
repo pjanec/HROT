@@ -23,6 +23,7 @@ public sealed class ReplaySeekProcessManagerTests
 {
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
@@ -42,7 +43,7 @@ public sealed class ReplaySeekProcessManagerTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             SubsystemName = subsystem,
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -71,9 +72,10 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, masterSync);
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         // Publish SeekReplayIntent directly to the bus (as the egress translator would do).
         bus.PublishManaged(new SeekReplayIntent
@@ -116,9 +118,10 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, masterSync);
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         var requestId = Guid.NewGuid();
         bus.PublishManaged(new SeekReplayIntent
@@ -141,7 +144,7 @@ public sealed class ReplaySeekProcessManagerTests
         {
             TransactionId   = fanOut.TransactionId,
             Operation       = FdpNodeOpType.NodeReplaySeek,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
             // Typed payload: ConsumeNodeOpStatuses serializes to JSON for aggregator.
@@ -158,6 +161,7 @@ public sealed class ReplaySeekProcessManagerTests
         bus.SwapBuffers();
         mgr.Tick(); // reads ClusterOpCompletedEvent, calls SnapAndPause
 
+        masterSyncBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(5000L, masterSync.GetCurrentState().TotalWallTicks);
     }
 
@@ -178,9 +182,10 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, masterSync);
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         long initialWallTicks = masterSync.GetCurrentState().TotalWallTicks;
 
@@ -203,7 +208,7 @@ public sealed class ReplaySeekProcessManagerTests
         {
             TransactionId   = fanOut.TransactionId,
             Operation       = FdpNodeOpType.NodeReplaySeek,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultPayload   = new ReplaySeekResult(default(GlobalTime)),
@@ -215,6 +220,7 @@ public sealed class ReplaySeekProcessManagerTests
         mgr.Tick();
 
         // Wall ticks must be unchanged -- SnapAndPause must NOT have been called.
+        masterSyncBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(initialWallTicks, masterSync.GetCurrentState().TotalWallTicks);
     }
 }

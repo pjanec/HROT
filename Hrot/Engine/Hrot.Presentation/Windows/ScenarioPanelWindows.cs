@@ -1,0 +1,221 @@
+using System.Numerics;
+using Fdp.Diagnostics.Contracts.Panels;
+using Fdp.Presentation.WindowManager;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Panels;
+
+namespace Hrot.Presentation.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>THE shared <see cref="ManagedWindow"/> wrappers for the Scenario-perspective panels.</b>
+/// 📄 <c>docs/DESIGN_Cgf_Scenario_Windows_Slice.md</c> — Axis-C <b>E5</b> item ①.
+///
+/// <para>🔒 <b>User, <c>2026-08-27</c>, <c>--mode all</c>:</b> *"the editor has many windows in its
+/// Scenario perspective like mission editor, orbat, entity placement, entity spawner, cgf offers just
+/// Entity inspector, Event Browser, architecture diagnostic, System profiler."* ⚠⚠ And <c>--mode all</c>
+/// composes <c>orchestrator,simhost,ig,excon,cgf</c> — ⛔ <b>no editor</b> — so on that path CGF IS the
+/// editor and every window it lacks is a missing feature.</para>
+///
+/// <para>⭐⭐ <b>Why these types are NEW but the code is not.</b> 📐 Measured: the PANELS
+/// (<c>Hrot.Presentation/Panels</c>) and the FACADE interfaces (<c>…/Facades</c>) were already shared —
+/// what was duplicated is this thin wrapper, written twice with the same body:
+/// <c>Hrot.Editor/Windows/EditorWindows.cs</c> and <c>Hrot.ExCon/Windows/ExConWindows.cs</c>, differing
+/// only in id, title, perspective and title-bar colour. ⇒ ⭐ those four become <b>arguments</b> and there
+/// is one implementation (ruling 9), reachable by every host — which is the whole point, since
+/// <c>Hrot.Editor → Hrot.CGF</c> means CGF could never see the editor's copy.</para>
+///
+/// <para>⭐ <b>The <c>SimulateDrawClientArea</c> seam is preserved</b> on each type: the existing
+/// <c>ui-probe</c> / panel-model rails drive the view model without an ImGui frame, and dropping it would
+/// silently retire them.</para>
+///
+/// <para>⚠ <b>Preview and Zone Editor are deliberately NOT here</b> (design §4): <c>IPreviewController</c>
+/// is the editor's planning-vs-running state, which a cluster node does not have, and the zone adapter
+/// still reaches <c>Hrot.Editor.Gizmos.ObstaclePlacementGizmo</c> (⛔ SUPERSEDED reason, 2026-10-03: it named
+/// <c>LocationPickerGizmo</c>, which the zone adapter never used and which is deleted — DESIGN_Map_Picking_Unification
+/// P3). ⛔ Adding them here before those two are
+/// resolved would put a window on CGF that cannot be serviced — ruling 49.</para>
+/// </summary>
+public static class ScenarioPanelWindowIds
+{
+    /// <summary>⭐ The editor's historical ids, kept verbatim so layout files and id-keyed rails resolve.</summary>
+    public const string EditorSpawner = "editor_spawner";
+    /// <inheritdoc cref="EditorSpawner"/>
+    public const string EditorConfig  = "editor_config";
+    /// <inheritdoc cref="EditorSpawner"/>
+    public const string EditorOrbat   = "editor_shared_orbat";
+
+    /// <summary>⭐ CGF's ids. ⚠ DISTINCT from the editor's on purpose — the two hosts can never run in one
+    /// process (<c>HrotRunnerConfiguration.Validate</c> rejects it), but a shared id would make a layout
+    /// file written by one host silently reposition the other's window.</summary>
+    public const string CgfSpawner = "cgf_spawner";
+    /// <inheritdoc cref="CgfSpawner"/>
+    public const string CgfConfig  = "cgf_config";
+    /// <inheritdoc cref="CgfSpawner"/>
+    public const string CgfOrbat   = "cgf_shared_orbat";
+
+    /// <summary>⭐ CE-1096 (ROUTES1 §11.4 W-1) — the waypoint editor, per host. ⚠ The IG's is its historical id (saved layouts).</summary>
+    public const string EditorWaypoint = "editor_waypoint_editor";
+    /// <inheritdoc cref="EditorWaypoint"/>
+    public const string CgfWaypoint    = "cgf_waypoint_editor";
+    /// <inheritdoc cref="EditorWaypoint"/>
+    public const string PlayerWaypoint     = "player_waypoint_editor";
+
+    /// <summary>⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window, per host that registers it.</summary>
+    public const string EditorReports  = "editor_reports";
+    /// <inheritdoc cref="EditorReports"/>
+    public const string ExConReports   = "excon_reports";
+    /// <inheritdoc cref="EditorReports"/>
+    public const string SimHostReports = "simhost_reports";
+}
+
+/// <summary>⭐ Entity spawner panel as a perspective-bound managed window. ⛔ One implementation, every host.</summary>
+public sealed class SpawnerPanelWindow : ManagedWindow
+{
+    private readonly SpawnerPanel     _panel;
+    private readonly ISpawnController _spawn;
+
+    /// <param name="panel">The shared panel.</param>
+    /// <param name="spawn">The host's spawn facade.</param>
+    /// <param name="id">Window id — ⚠ per host, see <see cref="ScenarioPanelWindowIds"/>.</param>
+    /// <param name="perspective">Owning perspective, normally <c>"Scenario"</c>.</param>
+    /// <param name="titleBarColor">The host's title-bar colour, so windows stay visually attributable.</param>
+    public SpawnerPanelWindow(
+        SpawnerPanel panel, ISpawnController spawn, string id, string perspective, Vector4 titleBarColor)
+        : base(id, "Entity Spawner", perspective, WindowScope.PerspectiveBound)
+    {
+        _panel = panel;
+        _spawn = spawn;
+        IsOpen        = true;
+        TitleBarColor = titleBarColor;
+        PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    private SpawnerPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.Spawner);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Headless seam for the panel-model rails.</summary>
+    public SpawnerPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_spawn);
+    }
+}
+
+/// <summary>⭐ Map layer / grid configuration panel as a perspective-bound managed window.</summary>
+public sealed class ConfigPanelWindow : ManagedWindow
+{
+    private readonly ConfigPanel          _panel;
+    private readonly IMapConfigController _ctrl;
+
+    public ConfigPanelWindow(
+        ConfigPanel panel, IMapConfigController ctrl, string id, string perspective, Vector4 titleBarColor)
+        : base(id, "Map Configuration", perspective, WindowScope.PerspectiveBound)
+    {
+        _panel = panel;
+        _ctrl  = ctrl;
+        IsOpen        = true;
+        TitleBarColor = titleBarColor;
+        PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    private ConfigPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.Config);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Headless seam for the panel-model rails.</summary>
+    public ConfigPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_ctrl);
+    }
+}
+
+/// <summary>⭐ Shared ORBAT tree with drag-and-drop embarkation as a perspective-bound managed window.</summary>
+public sealed class SharedOrbatPanelWindow : ManagedWindow
+{
+    private readonly SharedOrbatPanel   _panel;
+    private readonly IOrbatDataProvider _data;
+    private readonly IOrbatController   _ctrl;
+
+    public SharedOrbatPanelWindow(
+        SharedOrbatPanel panel, IOrbatDataProvider data, IOrbatController ctrl,
+        string id, string perspective, Vector4 titleBarColor)
+        : base(id, "ORBAT Tree", perspective, WindowScope.PerspectiveBound)
+    {
+        _panel = panel;
+        _data  = data;
+        _ctrl  = ctrl;
+        IsOpen        = true;
+        TitleBarColor = titleBarColor;
+        PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    private SharedOrbatPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_data, Id, PanelIds.SharedOrbat);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Headless seam for the panel-model rails.</summary>
+    public SharedOrbatPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_data, _ctrl);
+    }
+}
+
+/// <summary>
+/// ⭐ CE-1096 (docs/designs/routes-1/ROUTES1-DESIGN.md §11.4 W-1) — the waypoint editor as a perspective-bound managed window. ⛔ One
+/// implementation, every authoring host (the editor, CGF, the IG — it was the IG's own <c>IgWaypointEditorWindow</c>, so the editor could
+/// draw a route but set nothing on a waypoint).
+/// </summary>
+public sealed class WaypointEditorWindow : ManagedWindow
+{
+    /// <summary>The panel kind in the snapshot (the IG's historical one).</summary>
+    public const string Kind = "player-waypoint-editor";
+
+    private readonly WaypointEditorPanel _panel;
+
+    /// <param name="panel">The shared panel.</param>
+    /// <param name="id">Window id — ⚠ per host, see <see cref="ScenarioPanelWindowIds"/>.</param>
+    /// <param name="perspective">Owning perspective (<c>"Scenario"</c>; the IG's <c>"IG"</c>).</param>
+    /// <param name="titleBarColor">The host's title-bar colour.</param>
+    public WaypointEditorWindow(WaypointEditorPanel panel, string id, string perspective, Vector4 titleBarColor)
+        : base(id, "Waypoint Editor", perspective, WindowScope.PerspectiveBound)
+    {
+        _panel = panel;
+        IsOpen = true;
+        TitleBarColor = titleBarColor;
+        PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    private WaypointEditorPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Headless seam for the panel-model rails.</summary>
+    public WaypointEditorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent();
+    }
+}

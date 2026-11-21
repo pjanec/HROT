@@ -33,7 +33,7 @@ This is a design point worth noting for JM-P2-003+ implementors: callers of
 `LoadAndMigrateAsync` must check `outcome.Report != null` before accessing report members.
 
 **Full solution build has pre-existing failures.**
-`dotnet build "IOS-IG-SimHost.sln" -c Debug --no-restore` reports two pre-existing failures:
+`dotnet build "HROT.sln" -c Debug --no-restore` reports two pre-existing failures:
 1. `SkippableFactAttribute` in `Fdp.Core.Tests` — the `--no-restore` flag leaves the
    `Xunit.SkippableFact` package unresolved. Building `Fdp.Core.Tests` individually (with
    implicit restore) compiles and runs all tests cleanly.
@@ -138,7 +138,7 @@ Passed! - Failed: 0, Passed: 7, Skipped: 0, Total: 7, Duration: 72 ms
 Failed! - Failed: 1, Passed: 1140, Skipped: 2, Total: 1143, Duration: 34 s
   * ComponentDirtyTracking_PerformanceScan -- PRE-EXISTING timing flake, unrelated to BATCH-09
 
---- IOS-IG-SimHost.sln full build (--no-restore) ---
+--- HROT.sln full build (--no-restore) ---
 Pre-existing errors (not introduced by BATCH-09):
   * Fdp.Core.Tests: SkippableFactAttribute missing (package not resolved without restore)
   * Hrot.Blueprints.Tests: Hrot.Editor / IAnimationTkbQueries not found (Stride headless-build limitation)
@@ -170,4 +170,4 @@ dependencies and --no-restore package issue). No new errors were introduced.
 |---|---|
 | `Hrot/Engine/Hrot.Common/Hrot.Common.csproj` | Added `InternalsVisibleTo("Hrot.Common.Tests")` |
 | `FDP/Engine/Fdp.Core/Fdp.Core.csproj` | Added `InternalsVisibleTo("Hrot.Common.Tests")` |
-| `IOS-IG-SimHost.sln` | Added `Hrot.Common.Tests` project via `dotnet sln add` |
+| `HROT.sln` | Added `Hrot.Common.Tests` project via `dotnet sln add` |

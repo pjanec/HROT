@@ -88,6 +88,9 @@ namespace Hrot.Diagnostics.Tuning.Gizmos
             }
         }
 
+        /// <summary>⭐ CE-1066 — the panel's [X]: close the console (the Tools menu entry opens it again).</summary>
+        public void OnInspectorClosed() => _isEditing = false;
+
         public void OnMenuAction(int actionId)
         {
             if (actionId == OpenActionId)

@@ -18,60 +18,70 @@ using Fdp.Toolkit.NetworkSpawning;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Verifies that <see cref="SimHostScenarioManager"/> publishes <see cref="SpawnEntityCommand"/>
-    /// events with correct behavior, blackboard, and <see cref="EntityInfo"/> payloads so that
+    /// Verifies that <see cref="SimHostScenarioManager"/> asks for entities through <c>EntityCreation.RequestEntityCreation</c>
+    /// with correct behavior, blackboard, and <see cref="EntityInfo"/> payloads so that
     /// entities are visible on the IG map and execute their assigned BTree behaviours.
     /// </summary>
     public class SimHostScenarioManagerTests
     {
-        // ── CapturingBus stub ─────────────────────────────────────────────────────
+        // ⭐ CE-259ax — the manager is an AUTHOR (R-145): it asks the PRODUCTION creation pack, so what these rails read is the
+        //   EntityCreationRequest that RequestEntityCreation published on the world bus (not a SpawnEntityCommand order).
+        private const int NodeId = 7;
 
-        private sealed class CapturingBus : IEventBus
+        private sealed class Rig
         {
-            public readonly List<object> ManagedEvents = new();
-            public void Publish<T>(T evt) where T : unmanaged { }
-            public void PublishManaged<T>(T evt) => ManagedEvents.Add(evt!);
+            public required SimHostScenarioManager Sut;
+            public required EntityRepository World;
         }
 
-        // ── Stub allocator ───────────────────────────────────────────────────────
-
-        private sealed class StubAllocator : INetworkIdAllocator
+        private static (SimHostScenarioManager Sut, Rig Bus) CreateSut()
         {
-            private long _next;
-            public StubAllocator(long startId = 500) => _next = startId;
-            public long AllocateId() => _next++;
-            public void Reset(long startId = 0) => _next = startId;
-            public void Dispose() { }
-        }
-
-        // ── Factory ───────────────────────────────────────────────────────────
-
-        private static (SimHostScenarioManager Sut, CapturingBus Bus) CreateSut(
-            INetworkIdAllocator? allocator = null)
-        {
-            var bus        = new CapturingBus();
-            var repo       = new EntityRepository();
+            var world      = new EntityRepository();
+            var tkb        = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var creation   = Hrot.TestShared.TestEntityCreation.For(world, tkb, NodeId);
             var traj       = new TrajectoryPoolManager();
             var formations = new FormationTemplateManager();
             var road       = new RoadNetworkBlob();
 
             var sut = new SimHostScenarioManager(
-                repo:        repo,
+                repo:        world,
                 road:        road,
                 traj:        traj,
                 formations:  formations,
-                spawnBus:    bus,
-                idAllocator: allocator);
+                creation:    creation);
 
-            return (sut, bus);
+            return (sut, new Rig { Sut = sut, World = world });
         }
 
-        private static List<SpawnEntityCommand> ExtractCommands(CapturingBus bus)
+        private static List<EntityCreationRequest> ExtractCommands(Rig rig)
         {
-            var result = new List<SpawnEntityCommand>();
-            foreach (var ev in bus.ManagedEvents)
-                if (ev is SpawnEntityCommand cmd) result.Add(cmd);
-            return result;
+            rig.World.Bus.SwapBuffers();   // the request is read after the frame's swap
+            return ((Fdp.ModuleHost.Abstractions.ISimulationView)rig.World)
+                .ReadManagedEvents<EntityCreationRequest>().ToList();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-259ax</c> — every spawner is an author that OWNS what it places ("mine" = the pack's own node id) and asks for peers'
+        /// acks. 🔴 Mutation: restore <c>owner:</c> to the default 0 and this reddens — the owner would silently become the arbiter.
+        /// </summary>
+        [Fact]
+        public void EverySpawner_AsksForAnEntityThisNodeOwns_ThroughTheAffordance()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnVehicle(new Vector2(1, 2), Vector2.UnitX);
+            sut.SpawnRoamers(1, VehicleClass.Tank);
+            sut.SpawnRoadUsers(1, VehicleClass.PersonalCar);
+            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 2);
+            sut.SpawnCollisionTest(VehicleClass.PersonalCar);
+
+            var requests = ExtractCommands(bus);
+            Assert.Equal(1 + 1 + 1 + 2 + 2, requests.Count);
+            Assert.All(requests, r =>
+            {
+                Assert.Equal(NodeId, r.OwnerAppInstanceId);
+                Assert.Equal(Fdp.Toolkit.Replication.ReliableInitType.AllPeers, r.InitType);
+                Assert.Contains(r.InitialComponents!, c => c is SimTransform);
+            });
         }
 
         // ── SpawnRoamers ────────────────────────────────────────────────────────
@@ -173,22 +183,21 @@ namespace Hrot.SimHost.Tests
         // ── SpawnFormation ───────────────────────────────────────────────────────
 
         [Fact]
-        public void SpawnFormation_WithoutAllocator_PublishesExpectedNumberOfCommands()
+        public void SpawnFormation_PublishesExpectedNumberOfRequests()
         {
-            var (sut, bus) = CreateSut(allocator: null);
+            var (sut, bus) = CreateSut();
             sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 4);
             Assert.Equal(4, ExtractCommands(bus).Count); // 1 leader + 3 followers
         }
 
+        /// <summary>The affordance has no pre-allocated-id parameter (design §3: only the scenario extractor, a translator, needs one).</summary>
         [Fact]
-        public void SpawnFormation_WithAllocator_LeaderUsesPreallocatedNetworkId()
+        public void SpawnFormation_LeaderIsNotPreallocated_TheSystemAllocatesIt()
         {
-            var alloc  = new StubAllocator(startId: 500);
-            var (sut, bus) = CreateSut(alloc);
+            var (sut, bus) = CreateSut();
             sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 2);
 
-            var cmds = ExtractCommands(bus);
-            Assert.Equal(500L, cmds[0].NetworkId); // leader uses the pre-allocated ID
+            Assert.All(ExtractCommands(bus), r => Assert.Equal(0L, r.PreAllocatedNetworkId));
         }
 
         [Fact]
