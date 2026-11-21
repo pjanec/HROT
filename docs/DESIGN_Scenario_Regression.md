@@ -898,6 +898,13 @@ component added since the capture (`RadarSignature`), none a visible state. ⭐ 
 | verdict | the `checks.json` expectations (pass / fail) + the golden (RT-3) | the SAME `checks.json` expectations, judged in sim time with the time windows they already carry; ⛔ no golden (a real-time networked run does not repeat); + the replication sanity (RT-6) |
 | who / when | a lane on its feature's scenarios, as it sees fit (how a lane proves its work is its own business — user); all of them nightly | nightly only |
 
+⭐⭐ **R-2141 — per change, ONLY the changed features' own scenarios; the whole set OVERNIGHT, several at once** *(user, `2026-11-21`)*. 🔒 *"Don't the
+features have their test scenario, because we cannot run even 30 scenarios after every change?"* · 
+*"Running scenarios overnight, Multiply in parallel, that's okay. but only overnight, not after every little change in every behavior"*. 📐 Why: the full set is 260 scenarios at ~85 s each (21 in 30 min
+measured `2026-11-21`) ⇒ ~6 h serial. ⭐ After a change: the scenarios `docs/CAPABILITIES.md` names for each feature the change touched (📌 CE-2466:
+eight). ⭐ Overnight: `JOBS=2 scripts/scenario-regression.sh` (shards in separate runner processes — every verify child already has a private staging
+root, so they cannot collide; this VM has 4 cores) from a nightly scheduled task. ⛔ Never the whole set, nor a "family" sweep, after a change.
+
 ### 11.3 UML
 
 ```mermaid
