@@ -21,7 +21,7 @@ related-designs:
 | 1 | [CE-11018](../Blueprint_Issues_Tracker.md) the director renders through the linked client | ✅ built | `f647e9d96` (contract + NOTE) · `3b69d64d3` · `bbfc78244` | [linked-client design](../../designs/IG/DESIGN_Linked_Client_Director.md) §3a |
 | 2 | [CE-11019](../Blueprint_Issues_Tracker.md) a rate change while running re-anchors every slave · [CE-11022](../Blueprint_Issues_Tracker.md) the time docs describe the anchor model | ✅ built | `220de5187` | [Time Architecture](../DESIGN_Time_Architecture.md) §21; `FDP.Toolkit.Time.md` top section; time-ctrl-unif §4.6 superseded |
 | 3 | [CE-11025](../Blueprint_Issues_Tracker.md) a replay open makes the recording's terrain resident | ✅ built | `5f9afcf9a` | linked-client design §2e-1; `DESIGN_Cluster_Load_Phase.md` pointer |
-| 4 | [CE-11023](../Blueprint_Issues_Tracker.md) the editor's director gets the editor's recording opener + the load wait | ⏳ see §3 | — | — |
+| 4 | [CE-11023](../Blueprint_Issues_Tracker.md) the editor's director gets the editor's recording opener + the load wait | ✅ built | (this commit) | linked-client design §3b |
 | 5 | [CE-11024](../Blueprint_Issues_Tracker.md) an impact's effect carries its kind and shooter | ✅ built | `ec0748db6` | `DESIGN_Look_Rules_For_Renderers.md` RR-10 row |
 
 ## 2. Lane decisions (and what would change each)
@@ -41,7 +41,7 @@ related-designs:
 could serve it; the node shows no `Loading` step during `LoadingReplay` (the replay handler is not an `ILoadProgressSource`); whether
 `MapBuildLoadStep`'s `Request3D()` is a no-op for an unchanged terrain is not measured.
 
-## 3. CE-11023 — measured, building next
+## 3. CE-11023 — measured first, then built
 
 | the "to measure" point | answer |
 |---|---|
@@ -61,6 +61,8 @@ could serve it; the node shows no `Loading` step during `LoadingReplay` (the rep
 | CE-11025 handler | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj --no-build --filter "FullyQualifiedName~ReferenceHandlerTests\|FullyQualifiedName~MasterSyncControllerTests"` | 79 / 79 |
 | CE-11025 chain, terrain, composition, replay (T-1: the load-phase and replay suites) | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build --filter "FullyQualifiedName~LoadPhaseChainTests\|FullyQualifiedName~TerrainLoadStepTests\|FullyQualifiedName~EveryEcsHostComposes\|FullyQualifiedName~ReplayLoadClusterOpHandlerTests\|FullyQualifiedName~EcsRecordReplayControllerTests\|FullyQualifiedName~NodeBootstrapperReplayTests\|FullyQualifiedName~LiveFromReplayTests"` | 139 passed / 3 skipped |
 | CE-11024 | `dotnet test Hrot/Engine/Hrot.Look.Tests/Hrot.Look.Tests.csproj --no-build` | 55 / 55 |
+| CE-11023 director suites (after the change) | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/Hrot.Editor.Tests.csproj --no-build --filter "FullyQualifiedName~Director"` | 87 passed / 1 skipped (+2 new) |
+| CE-11023 film / director / recording name (Presentation) | `dotnet test Hrot/Engine/Hrot.Presentation.Tests/Hrot.Presentation.Tests.csproj --no-build --filter "FullyQualifiedName~Director\|FullyQualifiedName~Film\|FullyQualifiedName~RecordingName"` | 108 passed / 7 skipped (display) |
 | tracker | `python3 scripts/tracker-counts.py --check` | OK |
 
 **Red-proofs (each a compiling mutation, the rail then red):** CE-11018 L1–L7 all red (the client ignored at Begin · a default camera · no card
@@ -84,6 +86,8 @@ rendered twice (map, then the gateway's reference client), the acceptance in the
 
 ⚠ The first try of T1 and R1 used `if (false)`, which does not compile (warnings are errors). They were re-run with conditions that compile,
 and only those runs count.
+
+**CE-11023 — 3 / 3 red:** C1 the stall clock never resets ⇒ the advancing load fails · C2 `Opening` ignores which exercise is replayed ⇒ another recording reads as ready · C3 the runner ignores the cluster error ⇒ the error case fails as a stall.
 
 ## 6. Ids allocated
 

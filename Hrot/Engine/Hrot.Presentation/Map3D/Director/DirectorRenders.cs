@@ -316,6 +316,9 @@ namespace Hrot.UI.Common.Map3D.Director
             if (job.State == RenderState.Opening)
             {
                 if (--job.Settle > 0) return;
+                // ⭐ CE-11023 — an opener whose open runs through the cluster (the editor) says when its world is ready, or why it failed
+                if (Recordings?.OpenFailure is { } openFailed) { End(job, RenderState.Failed, $"recording '{job.Request.Recording}' did not open: {openFailed}"); return; }
+                if (Recordings?.Opening == true) { job.Settle = 1; return; }
                 // ⭐ CE-1305 TE-10 (§11v S2) — a stills job plans its keys through the recording's INDEX (the one resolver): wait until it is read
                 //   (it is scanned in the background after the open), at most MaxIndexWaitFrames
                 if (job.Request.Kind == RenderKind.Stills && _runner.Index?.Invoke() is { IsComplete: false } && ++job.IndexWait < MaxIndexWaitFrames) { job.Settle = 1; return; }

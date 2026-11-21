@@ -16,7 +16,8 @@ namespace Hrot.Editor.Director
     /// <c>EditorSubsystem</c> already holds (its load, its cluster state, the preview controller, <c>ITimeCommands</c>, the world's clock).
     /// ⛔ It holds nothing of its own, so it cannot drift from the editor's own controls.
     /// </summary>
-    internal sealed class EditorDirectorHost : IDirectorHost, IVerifyHost, IDirectorLoadOutcome   // ⭐ CE-4061 — the editor hosts the film AND the verifier
+    internal sealed class EditorDirectorHost : IDirectorHost, IVerifyHost, IDirectorLoadOutcome,   // ⭐ CE-4061 — the editor hosts the film AND the verifier
+                                               Hrot.Presentation.DebugApi.IRecordingOpener              // ⭐ CE-11023 — and opens recordings through the start screen's door
     {
         private readonly Func<EntityRepository?> _world;
         private readonly Action<string> _load;
@@ -46,9 +47,12 @@ namespace Hrot.Editor.Director
                                   Action<string> loadLive, Hrot.Presentation.DebugApi.IClusterMasterControl master, Func<Fdp.Toolkit.Orchestration.ClusterState> state,
                                   Func<string?> recordingPath, Func<string, IRecordedRun> openRecording,
                                   Func<Fdp.Toolkit.Vis3D.Map3DBuild?>? mapBuild = null,
-                                  Func<Hrot.UI.Common.RunMode.ScenarioDoor?>? door = null, Func<string?>? loadedScenario = null)
+                                  Func<Hrot.UI.Common.RunMode.ScenarioDoor?>? door = null, Func<string?>? loadedScenario = null,
+                                  Func<Hrot.UI.Common.RunMode.RunGate?>? gate = null, Func<Guid>? replayExercise = null)
         {
             _door = door;
+            _gate = gate;
+            _replayExercise = replayExercise;
             _loadedScenario = loadedScenario;
             _asker = new DirectorAsker(this);
             _mapBuild = mapBuild;
@@ -124,6 +128,107 @@ namespace Hrot.Editor.Director
                 }
             }
         }
+        // ── ⭐⭐ CE-11023 (Q113-G) — the editor's RECORDING OPENER: the start screen's door into AAR (ScenarioDoor.OpenRecording), with the director's
+        //    OWN asker — the same shape as its scenario load (CE-4267): ask, retry a wait, refuse with the reason. The open runs through the cluster,
+        //    so it is Opening until the cluster operates the replay of THAT exercise and the shown map is built (CE-11025 made its terrain resident). ──
+        private readonly Func<Hrot.UI.Common.RunMode.RunGate?>? _gate;
+        private readonly Func<Guid>? _replayExercise;
+        private Guid _openWant;
+        private double? _openAt;
+        private bool _openWent;
+        private double _openAskedAt;
+        private string? _openProgress;
+        private double _openProgressAt;
+        private Fdp.Toolkit.Orchestration.ClusterState _openStateSeen;
+
+        /// <summary>⭐ CE-11023 — the cluster's load progress (the run gate's), while it loads.</summary>
+        public string? LoadProgress => _gate?.Invoke() is { Loading: true } g ? g.Progress : null;
+
+        /// <summary>⭐ CE-11023 — the cluster's ERROR state (R-3073) with its reason.</summary>
+        public string? LoadError => _gate?.Invoke() is { InError: true } g ? g.ErrorReason : null;
+
+        public string? Open(Hrot.Presentation.DebugApi.RecordingName recording, double atSeconds)
+        {
+            if (recording is null) throw new ArgumentNullException(nameof(recording));
+            Guid id = recording.IsExercise ? recording.ExerciseId : ExerciseOf(recording.Paths);
+            if (id == Guid.Empty)
+                return recording.IsExercise
+                    ? "the editor opens a recording by its exercise id (GET /exercises), not the newest"
+                    : "its files name no exercise (no readable .meta.json beside them)";
+            if (_door?.Invoke() is not { } door) return "the editor has no scenario door";
+            _openWant = id; _openAt = atSeconds > 0 ? atSeconds : null; _openWent = false;
+            _openProgress = null; _openProgressAt = WallNow; _openStateSeen = _state();
+            AskOpen(door);
+            if (LoadRefusal is { } why && !LoadMayRetry) { _openWant = Guid.Empty; return why; }
+            return null;
+        }
+
+        private void AskOpen(Hrot.UI.Common.RunMode.ScenarioDoor door)
+        {
+            LoadRefusal = null; LoadMayRetry = false;
+            _openAskedAt = WallNow;
+            var want = _openWant;
+            door.OpenRecording(want, _openAt, _asker, then: () => { if (_openWant == want) _openWent = true; });
+        }
+
+        public Hrot.Presentation.DebugApi.RecordingName? Shown
+            => IsOperatingReplay && _replayExercise?.Invoke() is { } shown && shown != Guid.Empty ? Hrot.Presentation.DebugApi.RecordingName.Exercise(shown) : null;
+
+        public bool Opening
+        {
+            get
+            {
+                if (_openWant == Guid.Empty) return false;
+                if (!_openWent)
+                {
+                    // a wait (the run gate, the previous take's preview still leaving): asked again, as the scenario load is
+                    if (LoadMayRetry && WallNow - _openAskedAt >= DirectorRunner.LoadRetrySeconds && _door?.Invoke() is { } door) AskOpen(door);
+                    return true;
+                }
+                bool ready = IsOperatingReplay && _replayExercise?.Invoke() == _openWant && (MapBuild?.IsBuilt ?? true);
+                if (ready) { _openWant = Guid.Empty; return false; }
+                var progress = LoadProgress;   // the stall clock: any change of the cluster's state or load step is progress
+                var state = _state();
+                if (!string.Equals(progress, _openProgress, StringComparison.Ordinal) || state != _openStateSeen)
+                { _openProgress = progress; _openStateSeen = state; _openProgressAt = WallNow; }
+                return true;
+            }
+        }
+
+        public string? OpenFailure
+        {
+            get
+            {
+                if (_openWant == Guid.Empty) return null;
+                if (LoadError is { } error) return $"the cluster is in error — {error}";
+                if (!_openWent)
+                {
+                    if (LoadRefusal is { } why && !LoadMayRetry) return why;
+                    if (WallNow - _openAskedAt > DirectorRunner.LoadTimeoutSeconds && WallNow - _openProgressAt > DirectorRunner.LoadTimeoutSeconds)
+                        return $"the editor did not take the open within {DirectorRunner.LoadTimeoutSeconds:0} s" + (LoadRefusal is { } wait ? $": {wait}" : "");
+                    return null;
+                }
+                if (WallNow - _openProgressAt > DirectorRunner.LoadStallSeconds)
+                    return $"the replay's load made no progress for {DirectorRunner.LoadStallSeconds:0} s" + (_openProgress is { Length: > 0 } at ? $" (at: {at})" : "");
+                return null;
+            }
+        }
+
+        /// <summary>⭐ CE-11023 — the exercise a recording's files belong to: the first one's <c>.meta.json</c>; Empty when none reads.</summary>
+        internal static Guid ExerciseOf(IReadOnlyList<string> paths)
+        {
+            for (int i = 0; i < paths.Count; i++)
+            {
+                try
+                {
+                    var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(System.IO.File.ReadAllText(paths[i] + ".meta.json"));
+                    if (meta != null && (Guid)meta.ExerciseId != Guid.Empty) return (Guid)meta.ExerciseId;
+                }
+                catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
+            }
+            return Guid.Empty;
+        }
+
         public bool IsOperatingEdit => _operatingEdit();
         /// <summary>The director loaded one, or the user did (the editor is then OperatingEdit).</summary>
         public bool HasLoadedAScenario => _loaded || _operatingEdit();

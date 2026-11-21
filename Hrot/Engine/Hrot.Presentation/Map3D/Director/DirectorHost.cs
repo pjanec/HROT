@@ -44,6 +44,13 @@ namespace Hrot.UI.Common.Map3D.Director
         /// </summary>
         Fdp.Toolkit.Vis3D.Map3DBuild? MapBuild => null;
 
+        /// <summary>⭐ <c>CE-11023</c> — what the load is doing now (the cluster's load progress, e.g. "terrain: valley"); a change counts as progress, so a
+        /// long load that advances never times out. Null = the host reports none (the entity count and the map build still count).</summary>
+        string? LoadProgress => null;
+
+        /// <summary>⭐ <c>CE-11023</c> — the cluster's ERROR state (R-3073) with its reason: a load fails at once, with it. Null = not in error.</summary>
+        string? LoadError => null;
+
         bool InPreview { get; }
         void EnterPreview(bool startPaused);
         void ExitPreview();

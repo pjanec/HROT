@@ -645,6 +645,49 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Empty(host.Loads);
     }
 
+    /// <summary>A load that takes <see cref="LoadSeconds"/> of wall time (a large terrain) and reports its progress the way the run gate does.</summary>
+    private sealed class SlowEditor : FakeEditor, IDirectorHost
+    {
+        public double LoadSeconds = 45d;
+        public bool Advances = true;
+        public string? Error;
+        private double _readyAt;
+        public SlowEditor(TakeStore takes) : base(takes) { }
+        public new void LoadScenario(string scenario) { base.LoadScenario(scenario); _readyAt = Wall + LoadSeconds; }
+        public new bool IsOperatingEdit => base.IsOperatingEdit && Wall >= _readyAt;
+        public string? LoadProgress => Wall >= _readyAt ? null : Advances ? $"terrain: valley {(int)(Wall / 5d)}" : "terrain: valley";
+        public string? LoadError => Error;
+    }
+
+    /// <summary>
+    /// ⭐ CE-11023 — no fixed wall while the load ADVANCES: a 45 s load whose step keeps changing plays its take; the same load reporting nothing new fails
+    /// after <see cref="DirectorRunner.LoadStallSeconds"/> saying so; the cluster's error state fails it at once with the reason.
+    /// 🔴 Mutations: the stall clock never reset ⇒ the advancing load fails at 30 s; the error ignored ⇒ the error case fails as a stall, not with its reason.
+    /// </summary>
+    [Fact]
+    public void CE11023_ALongLoadThatAdvances_Plays_AStalledOneFails_AndTheClustersErrorFailsAtOnce()
+    {
+        var advancing = new SlowEditor(Store());
+        var runner = new DirectorRunner(advancing, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, advancing, maxFrames: 200000);
+        Assert.Equal("ok", runner.Reports[0].Status);
+
+        var stalled = new SlowEditor(Store()) { Advances = false };
+        runner = new DirectorRunner(stalled, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, stalled, maxFrames: 200000);
+        Assert.Equal("failed", runner.Reports[0].Status);
+        Assert.Contains(runner.Reports[0].Problems, p => p.Contains("made no progress for 30 s") && p.Contains("terrain: valley"));
+
+        var broken = new SlowEditor(Store()) { Error = "Brain (CGF, node 3) lost" };
+        runner = new DirectorRunner(broken, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, broken, maxFrames: 200000);
+        Assert.Contains(runner.Reports[0].Problems, p => p.Contains("the cluster is in error — Brain (CGF, node 3) lost"));
+        Assert.True(broken.Wall < 10d, $"the error failed the load only at {broken.Wall:0.0} s");
+    }
+
     private static void Run(DirectorRunner runner, FakeEditor host, int maxFrames = 20000)
     {
         for (int f = 0; f < maxFrames && runner.Busy; f++) { runner.Tick(); host.EndFrame(); }

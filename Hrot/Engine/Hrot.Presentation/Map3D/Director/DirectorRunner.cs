@@ -560,7 +560,8 @@ namespace Hrot.UI.Common.Map3D.Director
             _subs = Array.Empty<Subtitle>(); _subNow = null;
             _views = Array.Empty<ViewChange>(); _viewNow = null; _graphics = Array.Empty<FilmGraphic>(); _graphicsNow = Array.Empty<GraphicFrame>();
             _ext?.Reset();
-            _recordingChecked = false; _openSettle = 0;
+            _recordingChecked = false; _openSettle = 0; _openWaiting = false;
+            _progressSeen = null; _countSeen = int.MinValue; _builtSeen = false; _progressAt = _host.WallNow;
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -578,6 +579,13 @@ namespace Hrot.UI.Common.Map3D.Director
         private bool TickItemRecording()
         {
             if (_openSettle > 0) { _openSettle--; return true; }
+            if (_openWaiting && Recordings != null)
+            {
+                // ⭐ CE-11023 — an opener whose open runs through the cluster (the editor) holds the load until the replay's world is ready
+                if (Recordings.OpenFailure is { } openFailed) { _openWaiting = false; Fail($"recording '{Report.Recording}' did not open: {openFailed}"); return true; }
+                if (Recordings.Opening) return true;
+                _openWaiting = false;
+            }
             if (_recordingChecked || _request!.Mode == DirectorMode.Plan || Recordings == null) return false;
             _recordingChecked = true;
             var want = _startRecording;
@@ -594,6 +602,7 @@ namespace Hrot.UI.Common.Map3D.Director
             catch (Exception ex) { error = $"{ex.GetType().Name}: {ex.Message}"; }
             if (error != null) { Fail($"recording '{Report.Recording}' did not open: {error}"); return true; }
             _openSettle = OpenSettleFrames;
+            _openWaiting = true;
             return true;
         }
 
@@ -637,13 +646,41 @@ namespace Hrot.UI.Common.Map3D.Director
             }
             double waited = _host.WallNow - _phaseStartWall;
             if (_host.MapBuild?.Failure is { } mapFailure) { Fail($"the 3-D map did not build: {mapFailure}"); return; }
+            if (_host.LoadError is { } clusterError) { Fail($"the scenario did not load: the cluster is in error — {clusterError}"); return; }
             if (_probe.Observe(LiveRun ? _ext!.IsLoaded : _host.IsOperatingEdit, _host.EntityCount, waited, mapBuilt: _host.MapBuild?.IsBuilt ?? true))
             {
                 Phase = DirectorPhase.Entering;
                 if (!LiveRun) _host.EnterPreview(startPaused: true);
                 return;
             }
-            if (waited > LoadTimeoutSeconds) Fail($"the scenario did not load within {LoadTimeoutSeconds:0} s ({_probe.Polls} polls, count {_probe.LastCount})");
+            // ⭐⭐ CE-11023 — no fixed wall while the load ADVANCES (a large terrain loads for longer than any fixed limit): it fails only when nothing
+            //   it reports moved for LoadStallSeconds — the load's step (the cluster's progress), the entity count or the map's build
+            if (LoadStalled()) Fail($"the scenario's load made no progress for {LoadStallSeconds:0} s ({_probe.Polls} polls, count {_probe.LastCount}"
+                                    + (_progressSeen is { Length: > 0 } at ? $", at: {at}" : "") + ")");
+        }
+
+        /// <summary>⭐ CE-11023 — how long a load may report no progress at all before it fails (the old fixed wall, now measured from the last change).</summary>
+        public const double LoadStallSeconds = 30d;
+
+        // ⭐ CE-11023 — the last progress the load reported, and when it last changed (0 B: a string reference, an int and a bool)
+        private string? _progressSeen;
+        private int _countSeen = int.MinValue;
+        private bool _builtSeen;
+        private double _progressAt;
+        private bool _openWaiting;
+
+        private bool LoadStalled()
+        {
+            double now = _host.WallNow;
+            string? progress = _host.LoadProgress;
+            int count = _host.EntityCount ?? -1;
+            bool built = _host.MapBuild?.IsBuilt ?? true;
+            if (!string.Equals(progress, _progressSeen, StringComparison.Ordinal) || count != _countSeen || built != _builtSeen)
+            {
+                _progressSeen = progress; _countSeen = count; _builtSeen = built; _progressAt = now;
+                return false;
+            }
+            return now - _progressAt > LoadStallSeconds;
         }
 
         private void TickEntering()

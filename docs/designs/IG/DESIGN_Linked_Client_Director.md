@@ -287,7 +287,7 @@ instance), `EveryEcsHostComposesTheLoadPhaseChainRails.CE11025_*` (the compositi
 | H-7 | [CE-11021](../../blueprints/Blueprint_Issues_Tracker.md) | `sound: client \| hrot` per job; with `client` the encode muxes `FilmTrack` and checks its samples against the frames; `IDirectorSound` stays for map renders | Hrot.Presentation Director |
 | H-8 / F-H1 | [CE-11019](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, Time Architecture §21)** | a running scale change publishes a Continuous re-anchor, so cluster slaves follow it | Fdp.Toolkits Time (backend's area: a cross-lane edit) |
 | H-8 / F-H2 | [CE-11022](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`)** | the time docs say the anchor model (no pulse, no PLL); the stale comment at `MasterSyncController.cs:153`; the unused `TimeConfig` PLL fields named | Time Architecture, FDP.Toolkit.Time.md |
-| (G) | [CE-11023](../../blueprints/Blueprint_Issues_Tracker.md) | the editor's director gets the editor's recording opener (`ScenarioDoor.OpenRecording`) — a job or reel item naming another recording then plays in the editor | Hrot.Editor |
+| (G) | [CE-11023](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, as-built in §3b)** | the editor's director gets the editor's recording opener (`ScenarioDoor.OpenRecording`) — a job or reel item naming another recording then plays in the editor | Hrot.Editor |
 | (H) | [CE-11024](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`): the field is `Impact` (ImpactKind + 1; 0 = not a round impact)** | `EffectCause.Kind` + `EffectCause.Shooter` from `RoundImpactNotification` — the gateway makes `Impact` from the effect entities, live and in replay (R-11007) | Hrot.Core, the effect spawner |
 | (J) / F-H3 | [CE-11025](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, as-built in §2e-1)** | a replay open makes the recording's terrain resident through the load chain's shared parts (Terrain with the recording's name and overlay hash, then Map3D, then the linked client) | the load phase (backend's: a cross-lane change) |
 
@@ -315,6 +315,18 @@ invariant in `SimTimeSyncIntegrationTests`.
 | ⚠ not carried yet | `FilmJob.Sound` is always `Hrot` (the `sound` field and the mux are CE-11021) | — |
 
 📐 **Rails:** `DirectorRunnerTests.CE11018_*` ×4 (every frame in order with the REAL film layer's pose, the cards the map's · no client / `frames: map` · a client fault · a 2-D take) · `DirectorPackTests.CE11018_*` ×2 · `FilmFrameRail.CE11018_*` (xvfb).
+
+### 3b. ✅ As built — CE-11023 (backend, `2026-11-21`)
+
+| piece | as built |
+|---|---|
+| the opener | `EditorDirectorHost : IRecordingOpener` → `ScenarioDoor.OpenRecording(exercise, at, the director's asker)`. It is the same shape as the scenario load (CE-4267): a wait (the run gate, a run in progress) is asked again; a refusal is the reason. An exercise id opens directly; files open by their `.meta.json`'s exercise id; Empty is refused (the editor does not pick "the newest") |
+| ready | `IRecordingOpener.Opening` (new, default false) stays true until the cluster is `OperatingReplay` with THAT exercise (`ReplayModule.RecordedExerciseId`) and the shown map is built. `OpenFailure` (new) reports a refusal, the cluster's error state, or no progress for 30 s. The runner and the render queue wait on both after the open's settle frames (the Replay Browser keeps its defaults: ready after the settle) |
+| the load wall | `DirectorRunner.LoadTimeoutSeconds` no longer bounds a load. `LoadStallSeconds` (30 s) is measured from the last change of the run gate's load step (`IDirectorHost.LoadProgress`, new), the entity count or the map build. `IDirectorHost.LoadError` (new) fails it at once with the cluster's reason. ⚠ The wait for the DOOR to take the load (before it went) keeps the 30 s cap: that is not a load |
+| measured | a scenario load never stops a run the user started — it waits and fails with the reason; the recording open does the same |
+
+Rails: `DirectorRunnerTests.CE11023_*` (an advancing 45 s load plays; a stalled one fails; the error fails at once) and
+`TheDirectorsStopIsTheOneIdleIntentTests.CE11023_*` (the door, by id and by files; ready only for THAT exercise; the error; Empty refused).
 
 ## 4. Decisions — the leans (the questions with their blast radius: [Architect_Question_113](../../blueprints/Architect_Question_113_Linked_Client_For_The_Director.md))
 
