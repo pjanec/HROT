@@ -1677,10 +1677,10 @@ the "deliberate attack" is the existing assault with rule 4's gate, its urban fl
 
 | # | rule | built on |
 |---|---|---|
-| **R1** | ⭐ **remember**: break contact succeeding writes the ground the threat covers as `UnderFire` knowledge (cause `DirectFire`) for the squad's side — the threat point, its range | `DESIGN_Minefields.md` §9b (one store with the shelled area) |
+| **R1** | ⭐ **remember**: break contact succeeding writes the ground the threat covers as `UnderFire` knowledge (cause `DirectFire`) for the squad's side — the threat point, its range, and `EnemyStrength` (the pool's enemy danger sum at the break); ⏳ it AGES like every `UnderFire` record (§9b: nothing lasts forever) | `DESIGN_Minefields.md` §9b (one store with the shelled area) |
 | **R2** | ⭐ **rally and report**: a new last stage of `ReactToContact` after a won break contact — `SquadHold` `RallySeconds` 30 where the squad stands; on entry `Lace` + `Sitrep` up | `SquadHoldPlay`, `ReportQueue` |
 | **R3** | ⭐ **never resume blindly**: the resumed task re-plans; its route is priced by the side's `UnderFire` cells (go round when it can). When it cannot, the route sensor reports a `CoveredByFire` area and a new `BasicSquadSop` row `CoveredByFireAhead` holds the squad short of it and reports (`Sitrep`) — ⛔ never the crossing drill | `NavDoorways.GetCost` (KG-8's one table), `DangerAlongRouteSolve` |
-| **R4** | ⭐ **no frontal assault on a force it broke contact from**: in `Firm()`, an `Assault` winner whose contact stands in a fresh `DirectFire` record of the side, without superiority, becomes `Hold` | `Firm()`; superiority = the reaction's own odds input (⛔ named at build, §7.9.5 row 5) |
+| **R4** | ⭐ **no frontal assault on a force it broke contact from**: in `Firm()`, an `Assault` winner whose contact stands in a fresh `DirectFire` record of the side becomes `Hold` unless the squad now has SUPERIORITY — its strength against the strength the record remembers (`EnemyStrength`, written by R1 from the squad's pool at the break) gives the enemy a share ≤ `AssaultShare` 0.25 (doctrine's 3 : 1) | `Firm()`; the share is `SquadEnemyStrengthRatio`'s own formula (`SquadInputs.cs:251`) with the remembered enemy in place of the pool's |
 
 #### 7.9.3 Classes
 
@@ -1784,7 +1784,7 @@ by the per-side cost and the existing sensor, the KG-7 split (avoid vs cross wit
 | a dead man is no casualty (no recovery walk into the kill zone) | ✅ `SquadCasualties.ToCareFor` → `Injury.IsIncapacitated` (alive only) | ✅ §7.5 R-d |
 | `Lace` / `Sitrep` reports exist and queue with the staff delay | ✅ `CommandReports.cs:15-27` | ✅ Command Chain |
 | the per-side route cost has one home | ✅ `NavDoorways.cs:563` | ✅ KG-8 |
-| the superiority read R4 needs exists in the reaction's choice | ⛔ assumed — measure at build (`Choose`'s inputs); a fallback is the squads' live-member counts | ⛔ searched §4, none found |
+| the superiority read R4 needs exists | ✅ `SquadEnemyStrengthRatio` (`SquadInputs.cs:251-275`): enemy danger ÷ (enemy + own live strength per man) — scored by the Assault and BreakContact options (`SquadContactResponseDecision.cs:36-41`). ⚠ 📐 it counts only the contacts the pool holds NOW — U2 at 200 s: 2 contacts in the pool, 6 Red men at the corner ⇒ after a break it UNDER-rates the force ⇒ R1 records the strength seen at the break (`EnemyStrength`) and R4 compares against that | ✅ §4.5 S2-D |
 | a seen-cell grid is cheap enough once per record | ✅ 📐 demo-city, `TerrainWorld.SegmentBlocked`: **~2 µs a ray; 150 m on a 5 m grid = 2 821 rays, 4–5 ms** (2 m grid: 30–40 ms); Red's corners see 32 % / 48 % of the circle | — |
 | the proven solution is consolidate / reorganise / report, then bypass, wait or attack deliberately | — | ✅ adopted (above) |
 
