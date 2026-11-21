@@ -55,10 +55,14 @@ public struct EffectCause
     public long Ammo;
     // ⭐ CE-11024 — APPENDED (the layout above is unchanged, so a recording made before keeps its meaning for those fields).
     /// <summary>What a ROUND did at this surface: <c>Fdp.Toolkit.Combat.ImpactKind</c> + 1 — 1 Entry, 2 Exit, 3 Stop; ⭐ 0 = not a round's impact (a
-    /// detonation), so a zero never reads as "entered".</summary>
+    /// detonation), so a zero never reads as "entered". ⭐ CE-11030 — set on ONE effect of a round's impact (the first the rule makes: its puff), 0 on the others (its mark),
+    /// so a renderer that makes one impact per entity with a non-zero <c>Impact</c> sees ONE.</summary>
     public byte Impact;
     /// <summary>Who fired it (Null = unknown, or a hit with no shooter) — from the impact's or the detonation's <c>Shooter</c>.</summary>
     public Entity Shooter;
+    // ⭐ CE-11030 — APPENDED again (the layout above is unchanged). The layout hash of this COMPONENT changes: a recording made before only WARNS and skips this component's data (SchemaValidator), it still plays.
+    /// <summary>The outward normal of the face an impact struck, as the round's <c>RoundImpactNotification</c> said it (all 0 = not stated); 0 for a detonation's effects.</summary>
+    public System.Numerics.Vector3 Normal;
 }
 
 /// <summary>

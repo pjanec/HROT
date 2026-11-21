@@ -157,8 +157,9 @@ public static class EffectRules
         for (int i = start; i < into.Count; i++)   // ⭐ CE-11010 (RR-10) — what it struck, on every effect it made
         {
             var spec = into[i];
+            // ⭐ CE-11024 — kind and shooter; ⭐ CE-11030 — ONE of the round's effects (the first: its puff) is THE impact (Impact != 0), the others (its mark) carry 0, and every one carries the face's normal
             spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Material = hit.Material, Target = Entity.Null, Damage = damage, Ammo = hit.Ammo,
-                                           Impact = (byte)(hit.Kind + 1), Shooter = hit.Shooter };   // ⭐ CE-11024
+                                           Impact = i == start ? (byte)(hit.Kind + 1) : (byte)0, Shooter = hit.Shooter, Normal = new Vector3(hit.NormalX, hit.NormalY, hit.NormalZ) };
             into[i] = spec;
         }
         return n;
