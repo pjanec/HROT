@@ -130,14 +130,18 @@ namespace Fdp.Toolkit.Terrain
             return false;
         }
 
-        // ── the published snapshot, per world ──────────────────────────────────────────────────────────────────
-        private sealed class Box { public UnderFireSight Value = Empty; }
-        private static readonly ConditionalWeakTable<EntityRepository, Box> Published = new();
+        // ── the published sight: a managed singleton (UnderFireSightHolder) the world's SNAPSHOTS carry ─────────────────
         private static readonly ConditionalWeakTable<TerrainWorld, List<(object Slot, IUnderFireCostBuilder Builder)>> Builders = new();
 
-        /// <summary>The snapshot published for <paramref name="view"/>'s world (Empty when none). 0 B.</summary>
+        /// <summary>
+        /// The sight published for <paramref name="view"/>'s world (Empty when none). 0 B. ⭐ CE-2468 (behaviors' note: "the route danger solve never reports CoveredByFire") —
+        /// it is the world's <see cref="UnderFireSightHolder"/> singleton, so a background module's SNAPSHOT (<c>SyncFrom</c>: the EQS danger solve, the path solver) sees the sight
+        /// published when it was taken (R-219: a snapshot sees its own moment). ⛔ SUPERSEDED: a per-world weak table — a snapshot is another instance, so every background
+        /// query read Empty: no CoveredByFire area, and no route price on a unit's path.
+        /// </summary>
         public static UnderFireSight Of(ISimulationView view)
-            => view is EntityRepository repo && Published.TryGetValue(repo, out var box) ? System.Threading.Volatile.Read(ref box.Value) : Empty;
+            => view is EntityRepository repo && repo.TryGetTable(typeof(UnderFireSightHolder), out _) && repo.HasSingletonManaged<UnderFireSightHolder>()
+                ? repo.GetSingletonManaged<UnderFireSightHolder>()!.Value : Empty;
 
         /// <summary>⭐ UF-5 — a baked mesh's cost builder, in <paramref name="slot"/> (the navigation layer: one per layer); a re-bake REPLACES the builder of the same slot.</summary>
         public static void RegisterCostBuilder(TerrainWorld world, object slot, IUnderFireCostBuilder builder)
@@ -189,8 +193,20 @@ namespace Fdp.Toolkit.Terrain
         }
 
         internal static void Publish(EntityRepository repo, UnderFireSight sight)
-            => System.Threading.Volatile.Write(ref Published.GetValue(repo, _ => new Box()).Value, sight);
+        {
+            if (!repo.TryGetTable(typeof(UnderFireSightHolder), out _)) repo.RegisterManagedComponent<UnderFireSightHolder>();
+            repo.SetSingletonManaged(new UnderFireSightHolder(sight));   // a NEW immutable holder (managed components are replaced whole, never mutated)
+        }
     }
+
+    /// <summary>
+    /// ⭐ CE-2468 — the world's published <see cref="UnderFireSight"/> (written by <see cref="UnderFireSightSystem"/> in the serial pass, only when it changed). Derived from the
+    /// records and the authored terrain: never recorded, saved or merged across nodes — but SNAPSHOTTED, so a background module sees the sight of its snapshot's moment.
+    /// </summary>
+    [ComponentId(GlobalComponentIds.UnderFireSightHolder)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
+    [NotState("derived from the UnderFire records and the authored terrain; rebuilt by UnderFireSightSystem")]
+    public sealed record UnderFireSightHolder(UnderFireSight Value);
 
     /// <summary>
     /// ⭐ CE-2468 UF-4 (K5) — builds and publishes <see cref="UnderFireSight"/> in the SERIAL pre-pass of every node that routes or senses (the Muscle; the editor), when the

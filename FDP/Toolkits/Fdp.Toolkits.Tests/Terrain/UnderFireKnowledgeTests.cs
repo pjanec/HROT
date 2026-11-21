@@ -93,8 +93,8 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Contains(records, r => r.Header.SidePlus1 == Red + 1);
         }
 
-        /// <summary>⭐ K7 + merge newest — evidence within 25 m of a record of the same side and cause updates it (newest time, range and strength; the point stays the
-        /// first); farther, or another side, is another record. 🔴 Red-proof: no merge search (a new subject per learn) ⇒ three records for one side.</summary>
+        /// <summary>⭐ K7 + merge newest — evidence within 25 m of a record of the same side and cause updates it (newest time and range, the STRONGEST force seen while fresh; the point stays the
+        /// first); farther, or another side, is another record. 🔴 Red-proof: no merge search (a new subject per learn) ⇒ three records for one side; newest strength ⇒ 0.2 after the smaller contact.</summary>
         [Fact]
         public void UF2_EvidenceNearARecord_UpdatesIt_NewestWins_ThePointStaysTheFirst()
         {
@@ -108,6 +108,9 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal((SimInstant)20.0, one.Header.LearnedAt);
             Assert.Equal(180f, one.RangeM);
             Assert.Equal(0.9f, one.EnemyStrength);
+            UnderFireEvents.LearnDirect(rig.W, Blue, new Vector3(104, 100, 0), 120f, 0.2f, (SimInstant)20.5); rig.Tick();   // a later, SMALLER contact (behaviors' note §3)
+            one = Assert.Single(rig.Records());
+            Assert.Equal(((SimInstant)20.5, 120f, 0.9f), (one.Header.LearnedAt, one.RangeM, one.EnemyStrength));   // newer time and range; the strongest force seen stays
             Assert.Equal(KnowledgeSource.Contact, one.Header.Source);
             Assert.Equal((SubjectKind.Place, PlaceKnowledgeKind.UnderFire, (byte)(Blue + 1)), (one.Header.SubjectKind, one.Header.Kind, one.Header.SidePlus1));
 

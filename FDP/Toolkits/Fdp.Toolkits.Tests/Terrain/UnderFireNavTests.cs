@@ -182,6 +182,35 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-2468 (behaviors' note NOTE_Behaviors_To_Backend_UnderFire_Not_Reported.md: "the route danger solve never reports CoveredByFire") — the EQS danger solve and the path
+        /// solver run on a SNAPSHOT of the world (SlowBackground, <c>SyncFrom</c>): the snapshot must carry the published sight, or every background query reads Empty — no
+        /// CoveredByFire area, no route price. And it is the sight of the snapshot's MOMENT (R-219): a record learned on the live world after the sync is not in it.
+        /// 🔴 Red-proof: the old per-world weak table (a snapshot is another instance) ⇒ Empty on the snapshot.
+        /// </summary>
+        [Fact]
+        public void CE2468_ABackgroundSnapshot_CarriesTheSight_OfItsMoment()
+        {
+            var rig = new Rig();
+            var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { TileCache = null }.Build(rig.Terrain)!;
+            rig.Know(Blue, Enemy, 150f);
+            rig.Doors();
+            using var snapshot = new EntityRepository();
+            snapshot.SyncFrom(rig.R);
+            var seen = DoorStates.Of(snapshot, rig.Terrain).UnderFireSight;
+            Assert.True(seen.HasSide((byte)(Blue + 1)), "the snapshot sees the sight published before it was taken");
+            var snapDoors = DoorStates.Of(snapshot, rig.Terrain);   // what the path solver hands a query on its snapshot (PathfindingSolverSystem)
+            Assert.True(nav.PathCost(From, To, Mask(Blue), snapDoors) > nav.PathCost(From, To, Mask(Red), snapDoors) + 50f, "the route price reaches a query on the snapshot");
+            var route = new[] { From, To };
+            var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
+            Assert.Equal(1, Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.CoveredByFireAreas(seen, route, (byte)(Blue + 1), areas));
+
+            rig.Know(Red, Enemy, 150f);   // learned on the live world AFTER the sync
+            rig.Doors();
+            Assert.True(DoorStates.Of(rig.R, rig.Terrain).UnderFireSight.HasSide((byte)(Red + 1)));
+            Assert.False(DoorStates.Of(snapshot, rig.Terrain).UnderFireSight.HasSide((byte)(Red + 1)), "R-219: the snapshot keeps its moment");
+        }
+
+        /// <summary>
         /// ⭐⭐ UF-4 (K3, K5) — the sight is a pure function of the authored terrain and the record: two LOADS build the same grid cell for cell; the grids and cost maps are built in
         /// the serial pass only (a path query builds nothing); a steady frame of the pass + the readers allocates 0 B (R-2084).
         /// 🔴 Red-proof: pass the live doors to <c>SegmentBlocked</c> in the grid build ⇒ an opened door changes the grid (not run here); drop the unchanged-table early return ⇒ the steady frame rebuilds (Builds grows, bytes &gt; 0).

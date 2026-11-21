@@ -49,15 +49,20 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>True when <paramref name="item"/> is no newer than the evidence already held (and the record is not Cooled) — a refresh with the same time changes nothing (K6).</summary>
         public readonly bool Holds(in UnderFireItem item) => Cause != 0 && item.At <= Header.LearnedAt;
 
-        /// <summary>Merge: NEWEST wins — the time, the range, the strength, the source; the point and the cause stay those of the first learn; new evidence wakes a Cooled record.</summary>
+        /// <summary>
+        /// Merge: NEWEST wins — the time, the range, the source; the point and the cause stay those of the first learn; new evidence wakes a Cooled record.
+        /// ⭐ CE-2468 (behaviors' note, Squad Tactics R4) — the STRENGTH is the most seen while the record is fresh: a later, smaller contact does not lower the force
+        /// remembered there; a record woken from Cooled starts again from the new evidence. ⛔ SUPERSEDED: "the strength: newest wins".
+        /// </summary>
         public bool TryAdd(in UnderFireItem item)
         {
+            bool fresh = Cause != 0 && Header.State == StateActive;   // a live record: keep the strongest seen
             if (Cause == 0) { Cause = item.Cause; Point = item.Point; }
             if (item.At > Header.LearnedAt || Header.LearnedAt == default)
             {
                 Header.LearnedAt = item.At;
                 RangeM = item.RangeM;
-                EnemyStrength = item.EnemyStrength;
+                EnemyStrength = fresh ? MathF.Max(EnemyStrength, item.EnemyStrength) : item.EnemyStrength;
                 Header.Source = item.Source;
                 Header.State = StateActive;
             }

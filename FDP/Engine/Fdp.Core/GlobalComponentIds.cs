@@ -1387,6 +1387,9 @@ namespace Fdp.Core
         /// <summary>⭐ CE-2468 (DESIGN_Minefields.md §9b, R-2140) — <c>UnderFireKnowledge</c>: one side's knowledge of a place under fire (the second place-knowledge kind, TKB 7211,
         /// <c>dtUnderFireKnowledge</c> 210). ⚠ 171: backend's block 434–449 is full; 171 measured free on every branch (the catalogue rail's FREE list + a grep), 2026-11-21.</summary>
         public const int UnderFireKnowledge = 171;
+        /// <summary>⭐ CE-2468 — <c>UnderFireSightHolder</c>: the world's published under-fire sight (derived, snapshotted, never recorded) — so a background module's snapshot
+        /// sees it. 158 measured free on every branch and in every test (the catalogue rail's FREE list + a grep of ComponentId(158)), 2026-11-21.</summary>
+        public const int UnderFireSightHolder = 158;
 
         /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
         /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
