@@ -100,8 +100,11 @@ bool UHrotExplosionFx::ExplodeWith(UObject* WorldContext, FVector Location, FVec
 		const FBlastSound S = Sound(Kind);
 		// U-18n: the bigger blasts from the IG's library (a real rocket, mortar and shell); the grenade stays Lyra's; near ones rattle
 		UHrotSoundscape* Snd = UHrotSoundscape::Get(WorldContext);
-		USoundBase* Big = !Snd ? nullptr : Kind == EHrotBlast::Rocket ? Snd->Pick(TEXT("expl/medium")) :
-		                  (Kind == EHrotBlast::Mortar || Kind == EHrotBlast::TankHE) ? Snd->Pick(TEXT("expl/mine")) : nullptr;
+		// by size (the purchased pack's, else the free library's): a grenade, a rocket, a shell; far away its distant boom
+		const bool bFar = FVector::Dist(Location, R->ViewLocation()) > 80000.f;
+		USoundBase* Big = !Snd ? nullptr : bFar ? Snd->Pick(TEXT("expl/distant")) :
+		                  Kind == EHrotBlast::Grenade ? Snd->Pick(Snd->Pick(TEXT("expl/grenade_b")) && FMath::RandBool() ? TEXT("expl/grenade_b") : TEXT("expl/grenade")) :
+		                  Kind == EHrotBlast::Rocket ? Snd->Pick(TEXT("expl/medium")) : Snd->Pick(TEXT("expl/large"));
 		if (Big) R->PlaySound(Big, Location, Snd->Falloff(40.f, 8000.f), nullptr, 1.f, Kind == EHrotBlast::TankHE ? 0.92f : 1.f);
 		else R->PlaySound(Bang, Location, Att, nullptr, S.Volume, S.Pitch);
 		if (Snd && FVector::Dist(Location, R->ViewLocation()) < 6000.f)

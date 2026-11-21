@@ -289,6 +289,24 @@ void UHrotDpsWorld::OnArticulation(const FHrotDpsSample& S)
 	if (AHrotVehicle* V = Cast<AHrotVehicle>(E->Actor.Get())) { V->SetAim(E->TurretYaw, E->GunPitch); Count(TEXT("turret")); }
 }
 
+static void CrackNear(UObject* Ctx, const FVector& From, const FFire& D)
+{
+	// U-18n — a supersonic round passing near the view cracks where it passes (within 8 m of it, not at the shooter's own position)
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(Ctx);
+	UHrotSoundscape* Snd = UHrotSoundscape::Get(Ctx);
+	if (!R || !Snd) return;
+	const FVector Along = Dir(D.Velocity);
+	if (Along.IsNearlyZero()) return;
+	const FVector V = R->ViewLocation();
+	const double T = FVector::DotProduct(V - From, Along);
+	if (T < 1500.0 || T > 150000.0) return;
+	const FVector Near = From + Along * T;
+	if (FVector::DistSquared(Near, V) > FMath::Square(800.0)) return;
+	const double Speed = FVector3d(D.Velocity.X, D.Velocity.Y, D.Velocity.Z).Size();
+	if (Speed < 340.0) return;
+	R->PlaySound(Snd->Pick(Speed > 850.0 ? TEXT("crack/sniper") : TEXT("crack/bullet")), Near, Snd->Falloff(3.f, 40.f));
+}
+
 void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
@@ -314,8 +332,8 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 		{
 			V->FireMainGun();   // the kit's tuned flash, blast and smoke at its own muzzle (the turret follows Articulation)
 			if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n: the main gun's report (the library's howitzer)
-				if (R) R->PlaySound(Snd->Pick(TEXT("wpn/howitzer")), V->Kit && !V->Kit->Muzzle.IsNearlyZero() ? V->MuzzleTransform().GetLocation() : From,
-				                    Snd->Falloff(30.f, 6000.f), nullptr, 1.f, D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryTankGun ? 1.08f : 1.f);
+				if (R) R->PlaySound(Snd->Pick(D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryTankGun ? TEXT("wpn/tank_gun") : TEXT("wpn/howitzer")),
+				                    V->Kit && !V->Kit->Muzzle.IsNearlyZero() ? V->MuzzleTransform().GetLocation() : From, Snd->Falloff(30.f, 6000.f));
 			Shooter->MainGunAt = Real;
 			Count(TEXT("main gun"));
 		}
@@ -333,19 +351,35 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 			if (const FEnt* T = D.TargetId ? Ents.Find(D.TargetId) : nullptr)
 				if (T->bHasState) St.Toward = HrotDpsMotion::ToUnreal(T->Shown.P + FVector3d(0, 0, T->bHasPerson ? 1.0 : 0.0), OriginCm);
 			Streams.Add(St);
-			R->PlaySound(MgFx.Sound, From, MgFx.SoundAttenuation, MgFx.SoundConcurrency, MgFx.SoundVolume, MgFx.SoundPitch);
+			UHrotSoundscape* Snd = UHrotSoundscape::Get(this);   // U-18n: the round of its gun, a crack where it passes the view
+			USoundBase* Round = Snd ? Snd->Pick(D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAutocannon ? TEXT("wpn/autocannon_round") :
+			                                    bKitGun ? TEXT("wpn/mg_heavy_round") : TEXT("wpn/mg_round")) : nullptr;
+			if (Round) R->PlaySound(Round, From, Snd->Falloff(12.f, 2500.f), MgFx.SoundConcurrency);
+			else R->PlaySound(MgFx.Sound, From, MgFx.SoundAttenuation, MgFx.SoundConcurrency, MgFx.SoundVolume, MgFx.SoundPitch);
+			CrackNear(this, From, D);
 		}
 		Count(TEXT("tracer"));
 		return;
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategorySmallArms:
 		// HROT draws no tracer for small arms (FireStreams covers machine guns and autocannons only)
-		if (R) R->PlaySound(RifleFx.Sound, From, RifleFx.SoundAttenuation, RifleFx.SoundConcurrency, RifleFx.SoundVolume, RifleFx.SoundPitch);
+		if (R)
+		{
+			UHrotSoundscape* Snd = UHrotSoundscape::Get(this);   // U-18n: the pack's rifle shots (the east's side an AK), a crack where it passes
+			USoundBase* Shot = Snd ? Snd->Pick(Shooter && Shooter->Side == 2 ? TEXT("wpn/rifle_east") : TEXT("wpn/rifle")) : nullptr;
+			if (Shot) R->PlaySound(Shot, From, Snd->Falloff(10.f, 1500.f), RifleFx.SoundConcurrency);
+			else R->PlaySound(RifleFx.Sound, From, RifleFx.SoundAttenuation, RifleFx.SoundConcurrency, RifleFx.SoundVolume, RifleFx.SoundPitch);
+			CrackNear(this, From, D);
+		}
 		Count(TEXT("rifle shot"));
 		return;
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket:
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm:
 		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n: the launch (the round itself is an entity, drawn as such)
-			if (R) R->PlaySound(Snd->Pick(TEXT("wpn/rpg")), From, Snd->Falloff(10.f, 1500.f));
+			if (R)
+			{
+				USoundBase* L = Snd->Pick(TEXT("wpn/rocket_launch"));
+				R->PlaySound(L ? L : Snd->Pick(TEXT("wpn/rpg")), From, Snd->Falloff(10.f, 2000.f));
+			}
 		Count(TEXT("rocket launch"));
 		return;
 	default:
@@ -362,7 +396,13 @@ void UHrotDpsWorld::OnDetonation(const FHrotDpsSample& S)
 	Count(TEXT("detonation"));   // its blast and ground mark arrive as Effect
 	// a hit ON a person: he flinches (unless the same hit took him down — his PersonState says so and wins)
 	if (FEnt* T = D.TargetId ? Ents.Find(D.TargetId) : nullptr)
-		if (T->bHasPerson) { T->HitAt = Real; Count(TEXT("hit on a person")); }
+		if (T->bHasPerson)
+		{
+			T->HitAt = Real; Count(TEXT("hit on a person"));
+			if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n
+				if (UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld()))
+					if (AActor* A = T->Actor.Get()) R->PlaySound(Snd->Pick(TEXT("hit/body")), A->GetActorLocation() + FVector(0, 0, 120), Snd->Falloff(2.f, 60.f));
+		}
 }
 
 void UHrotDpsWorld::OnImpact(const FHrotDpsSample& S)
@@ -747,6 +787,18 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	In.LastGait = E.LastGait;
 	const HrotDpsPeople::FLook L = HrotDpsPeople::Look(In);
 	E.LastGait = L.Gait;
+	// U-18n — his boots: a step per stride while he walks or runs on his feet (not prone, not riding, not inside), near the view only
+	if (L.Gait != HrotDpsPeople::EGait::Idle && !L.bHidden && !E.bRiding && L.Stance != HrotDpsPeople::Prone && Dt > 0)
+	{
+		const bool bRun = L.Gait == HrotDpsPeople::EGait::Run;
+		E.StepPhase += float(Dt) * (bRun ? 2.7f : 1.8f * FMath::Clamp(In.Speed / 1.4f, 0.7f, 1.4f));
+		if (E.StepPhase >= 1.f)
+		{
+			E.StepPhase -= FMath::FloorToFloat(E.StepPhase);
+			if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))
+				if (AActor* Body = E.Actor.Get()) Snd->Step(Body->GetActorLocation(), bRun, L.Stance == HrotDpsPeople::Crouched ? 0.5f : 1.f);
+		}
+	}
 
 	// the body clip: the role, or its fallback chain when the kit has none
 	FName Role = L.Base;

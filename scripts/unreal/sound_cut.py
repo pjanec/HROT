@@ -7,7 +7,7 @@ Reads WAVs (PCM 16/24/32, float 32; mono, stereo, ambisonic AmbiX or surround), 
             its tail into the audio just before it; beds stereo, point sources mono
   shots   - the N loudest separate onsets, each from 10 ms before its onset until it decays 50 dB (or MaxLen), faded out
 
-Usage: python -I sound_cut.py <raw root> <out root> [--only <name substring>]
+Usage: python sound_cut.py <raw root> <out root> [--set gdc|gdc23|pro] [--only <name substring>]
 The recipes are below; a recipe's `src` is a substring of the file's path under the raw root. Nothing here reads the network.
 """
 import math, os, struct, sys
@@ -87,6 +87,84 @@ R = [
     ("scene/flame_roar", "Leaf Blower - ONBRD - WORK", "loop", 4, 1, 0, -14),
     ("scene/whoosh", "Distinct Whooshes", "shots", 2.5, 1, 4, -3),
     ("scene/parachute", "PARACHUTE DEPLOY", "shots", 3, 1, 2, -3),
+]
+
+# ---- the PURCHASED pack (Military Warfare SFX Pack, GfxSounds) — PRIVATE: its WAVs and cuts stay outside git, its assets go to
+# /Game/Hrot/AudioPro (never published; shipped only cooked inside a packaged IG). These rows name its files, nothing more.
+# `--set pro`. The same names as the free set where they mean the same thing: the IG loads AudioPro first, then Audio.
+R_PRO = [
+    # weapons: one shot per file (the pack's single shots), single ROUNDS cut out of the machine-gun bursts
+    ("wpn/rifle", "assault rifle single shot", "shots", 1.5, 1, 12, -1),
+    ("wpn/rifle_east", "AK 47 assault rifle single shot", "shots", 1.5, 1, 3, -1),
+    ("wpn/rifle_suppressed", "assault rifle suppressed shot", "shots", 1.2, 1, 8, -1),
+    ("wpn/pistol", "handgun single shot", "shots", 1.2, 1, 4, -1),
+    ("wpn/pistol_b", "Beretta handgun shot", "shots", 1.2, 1, 4, -1),
+    ("wpn/pistol_far", "Pistol distant shot", "shots", 2, 1, 6, -1),
+    ("wpn/sniper", "Sniper rifle single shot", "shots", 3, 1, 8, -1),
+    ("wpn/mg_round", "M240B machine gun automatic fire", "shots", 0.7, 1, 12, -1),
+    ("wpn/mg_heavy_round", "Heavy machine gun automatic fire short", "shots", 0.8, 1, 12, -1),
+    ("wpn/autocannon_round", "Slow firing machine gun short burst", "shots", 1.0, 1, 8, -1),
+    ("wpn/mg_far", "Machine gun burst distant perspective", "shots", 3, 1, 3, -1),
+    ("wpn/tank_gun", "Armored tank cannon fire", "shots", 6, 1, 5, -1, 3),
+    ("wpn/howitzer", "Cannon fire single shot", "shots", 6, 1, 4, -1, 3),
+    ("wpn/rocket_launch", "Rocket launcher single shot", "shots", 3, 1, 4, -1, 1.5),
+    ("wpn/mortar", "Mortar strike launch and impact", "shots", 6, 1, 4, -1, 3),
+    ("wpn/missile_flyby", "Missile flyby", "shots", 4, 1, 7, -2, 2),
+    ("wpn/flame_burst", "Flamethrower burst", "shots", 4, 1, 5, -2, 1.5),
+    ("scene/flame_roar", "Flamethrower burst", "loop", 2.5, 1, 0, -14),
+    # rounds arriving
+    ("hit/body", "Bullet body hit", "shots", 1, 1, 5, -3),
+    ("hit/head", "Bullet headshot impact", "shots", 1, 1, 5, -3),
+    ("hit/flesh", "Bullet body hit", "shots", 1, 1, 5, -3),
+    ("hit/metal", "Bullet metal hit", "shots", 1, 1, 5, -2),
+    ("hit/dirt", "Bullet hits on ground dirt", "shots", 1.2, 1, 6, -3),
+    ("hit/armor", "Tank armor hit by enemy fire", "shots", 2.5, 1, 5, -1),
+    ("crack/bullet", "BLLTBy_Bullet pass by", "shots", 1, 1, 6, -3),
+    ("crack/sniper", "Sniper bullet pass by", "shots", 1.5, 1, 3, -3),
+    # explosions by size
+    ("expl/grenade", "Grenade explosion with debris", "shots", 5, 1, 2, -1, 2.5),
+    ("expl/grenade_b", "Grenade blast with flying debris", "shots", 5, 1, 4, -1, 2.5),
+    ("expl/medium", "Large grenade explosion close perspective", "shots", 6, 1, 3, -1, 3),
+    ("expl/large", "Large grenade explosion with debris", "shots", 7, 1, 2, -1, 3.5),
+    ("expl/mine", "Anti personnel mine explosion", "shots", 6, 1, 6, -1, 3),
+    ("expl/c4", "C4 detonation explosion", "shots", 7, 1, 2, -1, 3.5),
+    ("expl/wood_crash", "Small explosion wooden structure", "shots", 6, 1, 2, -1, 3),
+    ("expl/car", "Large grenade explosion glass shattering", "shots", 7, 1, 1, -1, 3.5),
+    ("expl/distant", "Distant bomb explosion", "shots", 7, 1, 5, -2, 3.5),
+    ("expl/smoke", "Smoke grenade explosion, air hiss", "shots", 5, 1, 4, -3, 2),
+    # vehicles (loops for engines, one-shots for the rest)
+    ("veh/jeep_idle", "Military jeep engine idle loop", "loopfile", 0, 1, 0, -18),
+    ("veh/jeep_run", "Military jeep on the road loop", "loopfile", 0, 1, 0, -16),
+    ("veh/truck_idle", "Military truck engine steady idle loop", "loopfile", 0, 1, 0, -18),
+    ("veh/truck_run", "Military truck engine steady running loop", "loopfile", 0, 1, 0, -16),
+    ("veh/tracked_run", "Tank moving mechanical noise", "loop", 8, 1, 0, -15),
+    ("veh/tracked_idle", "Tank moving interior perspective", "loop_quiet", 8, 1, 0, -18),
+    ("veh/tank_turret", "Tank turret moving or turning", "shots", 3, 1, 6, -6, 1.5),
+    ("veh/heli_idle", "Military helicopter idle engine loop", "loopfile", 0, 1, 0, -16),
+    ("veh/heli", "Military helicopter flying forward loop", "loopfile", 0, 1, 0, -14),
+    ("veh/jet_idle", "Military aircraft idle engine loop", "loopfile", 0, 1, 0, -16),
+    ("veh/jet_pass", "Military aircraft fast pass by", "shots", 6, 1, 5, -1, 4),
+    ("veh/truck_horn", "Military truck horn honk", "shots", 2.5, 1, 2, -3),
+    # people
+    ("foot/dirt", "single footstep on dirt", "shots", 0.6, 1, 4, -6),
+    ("foot/mud", "single footstep on mud", "shots", 0.6, 1, 4, -6),
+    ("foot/sand", "single footstep on sand", "shots", 0.6, 1, 4, -6),
+    ("foot/street", "single footstep on rough street", "shots", 0.6, 1, 4, -6),
+    ("foot/metal", "single footstep on metal platform", "shots", 0.6, 1, 4, -6),
+    ("foot/glass", "single footstep on broken glass", "shots", 0.8, 1, 4, -6),
+    ("body/fall_concrete", "Human body fall on concrete", "shots", 2, 1, 4, -4, 0.8),
+    ("body/fall_dirt", "Human body fall on dirt grass", "shots", 2, 1, 3, -4, 0.8),
+    ("body/fall_wood", "Human body fall on wood floor", "shots", 2, 1, 2, -4, 0.8),
+    ("hit/bone", "Bone snap crack", "shots", 1, 1, 4, -4),
+]
+
+# ---- GDC 2023 additions (free): the animals the 2024 bundle lacks
+R_GDC23 = [
+    ("animal/goose_flock", "Excited gaggle vocals", "shots", 4, 1, 6, -3),
+    ("animal/sheep", "Sheeps & Lamps", "shots", 3, 1, 8, -3),
+    ("animal/horse_walk", "Draft Horse Walk On On Grass", "loop", 4, 1, 0, -16),
+    ("animal/horse_trot", "Draft Horse Trot On Concrete", "loop", 4, 1, 0, -16),
+    ("amb/crickets", "Crickets.wav", "loop", 30, 2, 0, -27),
 ]
 
 OUT_RATE = 48000
@@ -255,7 +333,8 @@ def main():
         for f in fs:
             if f.lower().endswith(".wav"): files.append(os.path.join(d, f))
     total = 0
-    for rec in R:
+    recipes = {"gdc": R, "pro": R_PRO, "gdc23": R_GDC23}[sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "gdc"]
+    for rec in recipes:
         name, src, mode, seconds, want, count, target = rec[:7]
         min_s = rec[7] if len(rec) > 7 else 0.0
         if only and only not in name: continue
@@ -263,7 +342,13 @@ def main():
         if not hits: print("MISSING", name, "<-", src); continue
         path = hits[0] if mode != "shots" else None
         try:
-            if mode.startswith("loop"):
+            if mode == "loopfile":   # a finished loop: converted whole (channels, rate, level)
+                w = Wav(hits[0])
+                x = to_channels(w.read(0, w.frames), hits[0], want)
+                x, rate = resample(x, w.rate)
+                rms = float(np.sqrt(np.mean(x ** 2)))
+                outs, why = [x * (10 ** ((target - db(rms)) / 20))], "whole file"
+            elif mode.startswith("loop"):
                 w = Wav(hits[0])
                 outs, rate, why = cut_loop(w, hits[0], seconds, want, target, mode)
             else:

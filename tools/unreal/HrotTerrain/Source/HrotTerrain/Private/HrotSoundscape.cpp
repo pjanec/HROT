@@ -52,24 +52,52 @@ UHrotSoundscape* UHrotSoundscape::Get(const UObject* WorldContext)
 
 TStatId UHrotSoundscape::GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(UHrotSoundscape, STATGROUP_Tickables); }
 
+USoundBase* UHrotSoundscape::LoadAt(const TCHAR* Root, const FString& Name)
+{
+	const FString Key = FString(Root) + Name;
+	if (TObjectPtr<USoundBase>* F = Cache.Find(Key)) return *F;
+	if (Missing.Contains(Key)) return nullptr;
+	FString Leaf; if (!Name.Split(TEXT("/"), nullptr, &Leaf, ESearchCase::IgnoreCase, ESearchDir::FromEnd)) Leaf = Name;
+	USoundBase* S = LoadObject<USoundBase>(nullptr, *FString::Printf(TEXT("%s%s.%s"), Root, *Name, *Leaf), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (S) Cache.Add(Key, S); else Missing.Add(Key);
+	return S;
+}
+
+const TCHAR* UHrotSoundscape::LibraryOf(const FString& Set)
+{
+	// the purchased pack (/Game/Hrot/AudioPro, never published) wins where it has the set; else the free library (/Game/Hrot/Audio)
+	static const TCHAR* Pro = TEXT("/Game/Hrot/AudioPro/");
+	static const TCHAR* Free = TEXT("/Game/Hrot/Audio/");
+	return (LoadAt(Pro, Set) || LoadAt(Pro, Set + TEXT("_01"))) ? Pro : Free;
+}
+
 USoundBase* UHrotSoundscape::Load(const FString& Name, bool bCount)
 {
-	if (TObjectPtr<USoundBase>* F = Cache.Find(Name)) return *F;
-	if (Missing.Contains(Name)) return nullptr;
-	FString Leaf; Name.Split(TEXT("/"), nullptr, &Leaf, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-	USoundBase* S = LoadObject<USoundBase>(nullptr, *FString::Printf(TEXT("/Game/Hrot/Audio/%s.%s"), *Name, Leaf.IsEmpty() ? *Name : *Leaf),
-	                                       nullptr, LOAD_NoWarn | LOAD_Quiet);
-	if (S) Cache.Add(Name, S); else { Missing.Add(Name); if (bCount) { ++LibraryMissing; Reported.Add(Name); } }
+	USoundBase* S = LoadAt(LibraryOf(Name), Name);
+	if (!S && bCount && !Reported.Contains(Name)) { Reported.Add(Name); ++LibraryMissing; }
 	return S;
 }
 
 USoundBase* UHrotSoundscape::Pick(const FString& Set)
 {
-	// the variants _01 .. _NN that exist, then one at random (the loop <Set> itself when there are none)
+	// the variants _01 .. _NN of ONE library (never a mix of the two), one at random; the single <Set> when there are none
+	const TCHAR* Lib = LibraryOf(Set);
 	int32 N = 0;
-	while (N < 16 && Load(FString::Printf(TEXT("%s_%02d"), *Set, N + 1), false)) ++N;
-	if (N == 0) return One(Set);
-	return One(FString::Printf(TEXT("%s_%02d"), *Set, Rng.RandRange(1, N)));
+	while (N < 16 && LoadAt(Lib, FString::Printf(TEXT("%s_%02d"), *Set, N + 1))) ++N;
+	if (N == 0) return Load(Set, true);
+	return LoadAt(Lib, FString::Printf(TEXT("%s_%02d"), *Set, Rng.RandRange(1, N)));
+}
+
+void UHrotSoundscape::Step(const FVector& Foot, bool bRun, float Loud)
+{
+	// a soldier's footstep (U-18n): boots on the street in town, on dirt outside it
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+	if (!R || FVector::DistSquared(Foot, R->ViewLocation()) > FMath::Square(3000.0)) return;
+	if (USoundBase* S = Pick(Town > 0.5f ? TEXT("foot/street") : TEXT("foot/dirt")))
+	{
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, Foot, FMath::Clamp(Loud * (bRun ? 1.f : 0.6f), 0.05f, 1.5f), Rng.FRandRange(0.94f, 1.06f), 0.f, Falloff(2.f, 30.f));
+		++Steps;
+	}
 }
 
 USoundBase* UHrotSoundscape::ImpactFor(const FString& Material)
@@ -80,10 +108,11 @@ USoundBase* UHrotSoundscape::ImpactFor(const FString& Material)
 	if (HasAny(M, { TEXT("metal"), TEXT("steel"), TEXT("iron"), TEXT("vehicle"), TEXT("car") })) return Pick(TEXT("hit/metal"));
 	if (HasAny(M, { TEXT("glass"), TEXT("window") })) return Pick(TEXT("hit/glass"));
 	if (HasAny(M, { TEXT("wood"), TEXT("timber"), TEXT("door"), TEXT("tree") })) return Pick(TEXT("hit/wood"));
-	if (HasAny(M, { TEXT("flesh"), TEXT("body"), TEXT("person"), TEXT("human"), TEXT("animal") })) return Pick(TEXT("hit/flesh"));
+	if (HasAny(M, { TEXT("flesh"), TEXT("body"), TEXT("person"), TEXT("human"), TEXT("animal") })) return Pick(TEXT("hit/body"));
 	if (HasAny(M, { TEXT("stone"), TEXT("rock"), TEXT("concrete"), TEXT("brick"), TEXT("asphalt"), TEXT("plaster"), TEXT("masonry") }))
 		return Pick(TEXT("hit/stone"));
-	return nullptr;   // earth, sand, grass, water: the default (Lyra's) hit
+	if (HasAny(M, { TEXT("earth"), TEXT("dirt"), TEXT("soil"), TEXT("sand"), TEXT("grass"), TEXT("mud"), TEXT("ground"), TEXT("gravel") })) return Pick(TEXT("hit/dirt"));
+	return nullptr;   // water and the rest: the default (Lyra's) hit
 }
 
 USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach)
@@ -264,11 +293,12 @@ UHrotSoundscape::EEngine UHrotSoundscape::EngineOf(const AHrotVehicle* V)
 	if (K.Contains(TEXT("Dragon"))) return EEngine::Dragon;
 	if (HasAny(K, { TEXT("Apache"), TEXT("OH1"), TEXT("Heli"), TEXT("Hind"), TEXT("Tiger"), TEXT("Puma") })) return EEngine::Helicopter;
 	if (HasAny(K, { TEXT("AC130"), TEXT("Prop"), TEXT("Cessna") })) return EEngine::Propeller;
-	if (HasAny(K, { TEXT("F16"), TEXT("F22"), TEXT("Typhoon"), TEXT("MiG") })) return EEngine::None;   // no jet in the library yet
+	if (HasAny(K, { TEXT("F16"), TEXT("F22"), TEXT("Typhoon"), TEXT("MiG") })) return EEngine::Jet;
 	if (HasAny(K, { TEXT("Leclerc"), TEXT("Sherman"), TEXT("Tank"), TEXT("T72"), TEXT("M1A"), TEXT("BMP"), TEXT("AMX") })) return EEngine::Tracked;
 	if (HasAny(K, { TEXT("Motorcycle"), TEXT("Bike"), TEXT("Moto") })) return EEngine::Motorcycle;
 	if (HasAny(K, { TEXT("VBCI"), TEXT("VAB"), TEXT("Griffon"), TEXT("Jaguar"), TEXT("BTR"), TEXT("Truck"), TEXT("Bus"), TEXT("Armored") })) return EEngine::Heavy;
-	return EEngine::Light;
+	if (HasAny(K, { TEXT("VBL"), TEXT("Serval"), TEXT("Panhard"), TEXT("HMMWV"), TEXT("Humvee"), TEXT("Jeep") })) return EEngine::Jeep;
+	return EEngine::Light;   // civilian cars and vans
 }
 
 void UHrotSoundscape::UpdateEngines(const FVector& At, float Dt, double Now)
@@ -283,7 +313,7 @@ void UHrotSoundscape::UpdateEngines(const FVector& At, float Dt, double Now)
 		{
 			const EEngine E = EngineOf(*It);
 			if (E == EEngine::None || It->Damage == EHrotVehicleDamage::Destroyed) continue;
-			const double Reach = EngineReach * 100.0 * ((E == EEngine::Helicopter || E == EEngine::Propeller) ? 4.0 : 1.0);
+			const double Reach = EngineReach * 100.0 * (E == EEngine::Jet ? 10.0 : (E == EEngine::Helicopter || E == EEngine::Propeller) ? 4.0 : 1.0);
 			const double D2 = FVector::DistSquared(It->GetActorLocation(), At);
 			if (D2 < Reach * Reach) Near.Add({ D2 / (Reach * Reach), *It });
 		}
@@ -332,22 +362,38 @@ void UHrotSoundscape::UpdateEngines(const FVector& At, float Dt, double Now)
 			++EnginesPlaying;
 			continue;
 		}
+		if (V.Kind == EEngine::Jet)
+		{
+			if (Now >= V.NextFlap && FVector::DistSquared(P, At) < FMath::Square(90000.0) && V.Speed > 30.f)
+			{
+				V.NextFlap = Now + 15.0;
+				if (USoundBase* S = Pick(TEXT("veh/jet_pass")))
+					UGameplayStatics::SpawnSoundAttached(S, Root, NAME_None, FVector::ZeroVector, EAttachLocation::KeepRelativeOffset, false,
+					                                     EngineVolume, 1.f, 0.f, Falloff(150.f, 4000.f));
+			}
+			++EnginesPlaying;
+			continue;
+		}
 		const TCHAR* RunName = nullptr; const TCHAR* IdleName = nullptr;
 		float Base = 1.f, Top = 20.f, Inner = 8.f, Reach = EngineReach;
 		switch (V.Kind)
 		{
 		case EEngine::Tracked: RunName = TEXT("veh/tracked_run"); IdleName = TEXT("veh/tracked_idle"); Top = 15.f; Inner = 12.f; break;
-		case EEngine::Heavy: RunName = TEXT("veh/car_run"); IdleName = TEXT("veh/tracked_idle"); Base = 0.72f; Top = 20.f; Inner = 10.f; break;
+		case EEngine::Heavy: RunName = TEXT("veh/truck_run"); IdleName = TEXT("veh/truck_idle"); Top = 20.f; Inner = 10.f; break;
+		case EEngine::Jeep: RunName = TEXT("veh/jeep_run"); IdleName = TEXT("veh/jeep_idle"); Top = 25.f; Inner = 6.f; break;
 		case EEngine::Light: RunName = TEXT("veh/car_run"); IdleName = TEXT("veh/car_idle"); Top = 25.f; Inner = 5.f; Reach = EngineReach * 0.6f; break;
 		case EEngine::Motorcycle: RunName = TEXT("veh/moto_run"); IdleName = TEXT("veh/moto_idle"); Top = 25.f; Inner = 4.f; Reach = EngineReach * 0.6f; break;
-		case EEngine::Helicopter: RunName = TEXT("veh/heli"); Top = 1.f; Inner = 40.f; Reach = EngineReach * 4.f; break;
+		case EEngine::Helicopter: RunName = TEXT("veh/heli"); IdleName = TEXT("veh/heli_idle"); Top = 1.f; Inner = 40.f; Reach = EngineReach * 4.f; break;
 		case EEngine::Propeller: RunName = TEXT("veh/plane_prop"); Top = 1.f; Inner = 60.f; Reach = EngineReach * 4.f; break;
 		default: break;
 		}
 		const float Move = Sat((V.Speed - 0.5f) / 4.f);
 		const bool bAir = V.Kind == EEngine::Helicopter || V.Kind == EEngine::Propeller;
-		const float RunVol = EngineVolume * (bAir ? 1.f : (IdleName ? Move : 0.4f + 0.6f * Move));
-		const float IdleVol = EngineVolume * (1.f - 0.8f * Move);
+		// a helicopter: the flight loop as it moves, the idle loop on the ground or hovering slowly
+		const float AirMove = Sat((V.Speed - 3.f) / 10.f);
+		const bool bHeli = V.Kind == EEngine::Helicopter;
+		const float RunVol = EngineVolume * (bHeli ? FMath::Max(AirMove, 0.35f) : bAir ? 1.f : (IdleName ? Move : 0.4f + 0.6f * Move));
+		const float IdleVol = EngineVolume * (bHeli ? 1.f - 0.7f * AirMove : 1.f - 0.8f * Move);
 		const float Pitch = Base * (bAir ? 1.f : 0.8f + 0.45f * Sat(V.Speed / Top));
 		auto Keep = [&](TWeakObjectPtr<UAudioComponent>& C, const TCHAR* Name, float Vol, float P)
 		{
@@ -387,12 +433,13 @@ void UHrotSoundscape::UpdateAnimals(const FVector& At, double Now)
 		const float Speed = bNew ? 0.f : float(FVector::Dist(P, C.Last) / 100.0 / 0.5);
 		C.Last = P;
 		const TCHAR* Set = nullptr; float Lo = 8, Hi = 25;
-		if (F == TEXT("Horse")) Set = Rng.FRand() < 0.5f ? TEXT("animal/horse_snort") : TEXT("animal/horse_snort_b");
+		if (F == TEXT("Horse")) { Set = Rng.FRand() < 0.5f ? TEXT("animal/horse_snort") : TEXT("animal/horse_snort_b"); Lo = 5; Hi = 15; }
 		else if (F == TEXT("Pig")) { Set = TEXT("animal/pig"); Lo = 5; Hi = 18; }
-		else if (F == TEXT("Poultry")) { Set = Rng.FRand() < 0.08f ? TEXT("animal/rooster") : Rng.FRand() < 0.3f ? TEXT("animal/goose") : TEXT("animal/chicken"); Lo = 3; Hi = 12; }
+		else if (F == TEXT("Poultry")) { Set = Rng.FRand() < 0.08f ? TEXT("animal/rooster") : Rng.FRand() < 0.3f ? (Rng.FRand() < 0.5f ? TEXT("animal/goose") : TEXT("animal/goose_flock")) : TEXT("animal/chicken"); Lo = 3; Hi = 12; }
 		else if (F == TEXT("Bird")) { Set = TEXT("animal/raptor"); Lo = 25; Hi = 70; }
-		// cattle, sheep, goats, dogs, cats: the library has none yet
-		if (bNew) { C.NextAt = Now + Rng.FRandRange(0.5f, Hi); continue; }
+		else if (F == TEXT("Sheep") || F == TEXT("Goat")) { Set = TEXT("animal/sheep"); Lo = 6; Hi = 20; }
+		// cattle, dogs, cats: the libraries have none yet
+		if (bNew) { C.NextAt = Now + Rng.FRandRange(0.5f, Lo); continue; }   // the first call soon after it comes near
 		if (Set && Now >= C.NextAt)
 		{
 			C.NextAt = Now + Rng.FRandRange(Lo, Hi);
@@ -405,14 +452,14 @@ void UHrotSoundscape::UpdateAnimals(const FVector& At, double Now)
 		// a horse trotting or galloping is heard doing it
 		if (F == TEXT("Horse"))
 		{
-			if (Speed > 1.5f && !C.Trot.IsValid())
-				if (USoundBase* S = One(TEXT("animal/horse_trot")))
+			if (Speed > 0.6f && !C.Trot.IsValid())
+				if (USoundBase* S = One(Speed > 2.5f ? TEXT("animal/horse_trot") : TEXT("animal/horse_walk")))
 					C.Trot = Hold(UGameplayStatics::SpawnSoundAttached(S, A->GetRootComponent(), NAME_None, FVector::ZeroVector, EAttachLocation::KeepRelativeOffset,
 					                                                  false, AnimalVolume * 0.8f, 1.f, Rng.FRandRange(0.f, 3.f), Falloff(3.f, AnimalReach), nullptr, false));
 			if (UAudioComponent* T = C.Trot.Get())
 			{
-				if (Speed <= 1.0f) Drop(C.Trot);
-				else T->SetPitchMultiplier(FMath::Clamp(0.85f + Speed / 12.f, 0.85f, 1.5f));
+				if (Speed <= 0.4f) Drop(C.Trot);
+				else T->SetPitchMultiplier(FMath::Clamp(Speed > 2.5f ? 0.85f + Speed / 12.f : 0.8f + Speed / 6.f, 0.8f, 1.5f));
 			}
 		}
 	}
@@ -448,8 +495,8 @@ void UHrotSoundscape::UpdateFires(const FVector& At)
 
 FString UHrotSoundscape::Describe() const
 {
-	FString S = FString::Printf(TEXT("town %.2f forest %.2f night %.2f height %.0f m (buildings %d trees %d vehicles %d) engines %d calls %d missing %d |"),
-	                            Town, Forest, Night, HeightAboveGround, BuildingsNear, TreesNear, VehiclesNear, EnginesPlaying, AnimalCalls, LibraryMissing);
+	FString S = FString::Printf(TEXT("town %.2f forest %.2f night %.2f height %.0f m (buildings %d trees %d vehicles %d) engines %d calls %d steps %d missing %d |"),
+	                            Town, Forest, Night, HeightAboveGround, BuildingsNear, TreesNear, VehiclesNear, EnginesPlaying, AnimalCalls, Steps, LibraryMissing);
 	for (const FBed& B : Beds) if (B.Have > 0.01f) S += FString::Printf(TEXT(" %s %.2f"), B.Name + 4, B.Have);
 	S += TEXT(" | stands: ") + StandClasses;
 	if (Reported.Num()) S += TEXT(" | missing: ") + FString::Join(Reported.Array(), TEXT(", "));

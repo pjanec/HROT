@@ -1,7 +1,10 @@
 // CE-4651 (U-18n) — THE SOUNDSCAPE: what makes the scene sound real besides the shots — the ambience beds, the engines, the animals.
 //
-// The sounds are the IG's own library (/Game/Hrot/Audio/<group>/<name>, cut from the Sonniss GDC bundle by scripts/unreal/sound_cut.py,
-// imported by hrot_sound_import.py): loops are <name>, one-shot variants <name>_01 .. _NN (Pick chooses one at random).
+// The sounds are two libraries cut by scripts/unreal/sound_cut.py and imported by hrot_sound_import.py — loops are <name>, one-shot
+// variants <name>_01 .. _NN (Pick chooses one at random, from ONE library):
+//   /Game/Hrot/AudioPro  the PURCHASED Military Warfare SFX Pack (combat: weapons, hits, cracks, explosions, military vehicles, boots) —
+//                        PRIVATE: never published, shipped only cooked inside a packaged IG; it wins wherever it has a set
+//   /Game/Hrot/Audio     the free Sonniss GDC 2023 / 2024 bundles (ambience, animals, civilian vehicles) — the fallback
 //
 //   AMBIENCE  stereo beds around the listener (the view), crossfaded once a second by what is around it:
 //             town (buildings and traffic within 80 m) · forest (foliage within 40 m) · open country (neither) × day / night (the sun's
@@ -44,11 +47,15 @@ public:
 	USoundBase* One(const FString& Name) { return Load(Name, true); }
 	/** the hit of a surface by HROT's material word (metal, armour, stone / concrete / brick, wood, glass, flesh); null = the default */
 	USoundBase* ImpactFor(const FString& Material);
+	/** a soldier's footstep at `Foot` (heard within 30 m): `Loud` 0..1, louder running */
+	void Step(const FVector& Foot, bool bRun, float Loud = 1.f);
 	/** the falloff for a sound of this reach (metres): full volume within `Inner`, gone at `Reach` */
 	USoundAttenuation* Falloff(float Inner, float Reach);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") bool bEnabled = true;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float AmbienceVolume = 1.f;
+	/** 0 by default: the free library's ambience beds are held back for now (user, 2026-11-21: "put those sounds aside for now (will be
+	 *  great for ambient but later)"); hrot.snd.Ambience 1 turns them on */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float AmbienceVolume = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float EngineVolume = 1.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float AnimalVolume = 1.f;
 	/** 0..1 — no weather on the wire yet: set by hand / the console */
@@ -70,6 +77,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Sound") float HeightAboveGround = 0.f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Sound") int32 EnginesPlaying = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Sound") int32 AnimalCalls = 0;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Sound") int32 Steps = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Sound") int32 LibraryMissing = 0;
 	/** one line: the beds and their gains, the counts */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Sound") FString Describe() const;
@@ -82,7 +90,7 @@ public:
 private:
 	struct FBed { const TCHAR* Name; float Want = 0, Have = 0; TWeakObjectPtr<UAudioComponent> C; };
 	TArray<FBed> Beds;
-	enum class EEngine : uint8 { Tracked, Heavy, Light, Motorcycle, Helicopter, Propeller, Dragon, None };
+	enum class EEngine : uint8 { Tracked, Heavy, Jeep, Light, Motorcycle, Helicopter, Propeller, Jet, Dragon, None };
 	struct FVoice
 	{
 		TWeakObjectPtr<AHrotVehicle> V; EEngine Kind = EEngine::None;
@@ -106,6 +114,10 @@ private:
 	FString StandClasses;
 	/** a library sound; `bCount` = a miss is reported (Pick's probe past the last variant is not) */
 	USoundBase* Load(const FString& Name, bool bCount);
+	/** one library's sound, quietly (null = not there) */
+	USoundBase* LoadAt(const TCHAR* Root, const FString& Name);
+	/** the library a set comes from: /Game/Hrot/AudioPro (the purchased pack — private) when it has it, else /Game/Hrot/Audio */
+	const TCHAR* LibraryOf(const FString& Set);
 	FRandomStream Rng{ 4651 };
 
 	void ProbeSurroundings(const FVector& At);

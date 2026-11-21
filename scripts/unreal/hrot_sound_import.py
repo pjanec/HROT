@@ -11,7 +11,7 @@ import unreal
 JOB = json.load(open(os.environ["HROT_SOUND_JOB"], encoding="utf-8-sig"))   # PowerShell writes a BOM
 R = {"log": [], "assets": [], "loops": 0, "shots": 0}
 LOOP_GROUPS = ("amb", "veh")
-LOOP_NAMES = ("horse_trot", "fire_crackle", "flame_roar")
+LOOP_NAMES = ("horse_trot", "horse_walk", "fire_crackle", "flame_roar")
 
 
 def log(m):
