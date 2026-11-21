@@ -7,6 +7,7 @@
 #include "HAL/PlatformTime.h"
 #include "Math/RandomStream.h"
 #include "Misc/DateTime.h"
+#include "Misc/PackageName.h"
 
 void UHrotDpsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -14,6 +15,7 @@ void UHrotDpsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Tick = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float)
 	{
 		if (Dps.IsRunning()) Dps.Poll();
+		if (bTraveling) SayTraveling();
 		return true;
 	}));
 }
@@ -57,12 +59,14 @@ bool UHrotDpsSubsystem::FakeStationStart(double OffsetSeconds)
 	});
 	Dps.Subscribe(TEXT("DPS_ClientWorld"), [this](const FHrotDpsSample& S)
 	{
-		if (!S.bValid) return;
+		if (!S.bValid) { if (!S.bAlive) { ++FakeWorldLost; FakeWorldLog.Add(TEXT("LOST")); } return; }
 		const auto& W = *static_cast<const SimNetGateway_Protocol_DdsPlayer_ClientWorld*>(S.Data);
 		const TCHAR* St = W.State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateReady ? TEXT("Ready") :
 			W.State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateLoading ? TEXT("Loading") :
 			W.State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateFailed ? TEXT("Failed") : TEXT("Unknown");
 		FakeWorld = FString::Printf(TEXT("%llx epoch %u %s '%s' wait %d"), W.ClientId, W.WorldEpoch, St, UTF8_TO_TCHAR(W.Step), W.WaitForMe ? 1 : 0);
+		const FString Entry = FString::Printf(TEXT("%u %s '%s'%s"), W.WorldEpoch, St, UTF8_TO_TCHAR(W.Step), W.Reason[0] ? *FString::Printf(TEXT(" why '%s'"), UTF8_TO_TCHAR(W.Reason)) : TEXT(""));
+		if (FakeWorldLog.Num() == 0 || FakeWorldLog.Last() != Entry) FakeWorldLog.Add(Entry);
 	});
 	// U-18q: what the render client answers
 	Dps.Subscribe(TEXT("DPS_FrameDone"), [this](const FHrotDpsSample& S)
@@ -167,12 +171,40 @@ bool UHrotDpsSubsystem::FakeStationStep(int64 StepSeq, double TargetSimTime, int
 	return Dps.Write(TEXT("DPS_ClockStep"), &C);
 }
 
-bool UHrotDpsSubsystem::FakeStationSession(int32 WorldEpoch, double SimTime)
+FString UHrotDpsSubsystem::LevelForTerrain(const FString& Terrain) const
+{
+	if (Terrain.IsEmpty()) return FString();
+	if (const FString* L = TerrainLevels.Find(Terrain)) return FPackageName::DoesPackageExist(*L) ? *L : FString();
+	const FString N = Terrain.Replace(TEXT("-"), TEXT("_"));
+	for (const FString& L : { FString::Printf(TEXT("/Game/Maps/%s_look"), *N), FString::Printf(TEXT("/Game/Maps/%s"), *N) })
+		if (FPackageName::DoesPackageExist(L)) return L;
+	return FString();
+}
+
+void UHrotDpsSubsystem::BeginTravel(uint32 Epoch, const FString& Level, const FString& Step, bool bWaitForMe)
+{
+	bTraveling = true; TravelEpoch = Epoch; TravelLevel = Level; TravelStep = Step; bTravelWait = bWaitForMe; NextTravelSay = 0;
+	SayTraveling();
+}
+
+void UHrotDpsSubsystem::SayTraveling()
+{
+	const double Now = FPlatformTime::Seconds();
+	if (Now < NextTravelSay || !Dps.IsRunning()) return;
+	NextTravelSay = Now + 1.0;
+	SimNetGateway_Protocol_DdsPlayer_ClientWorld W{};
+	W.ClientId = GetClientId(); W.WorldEpoch = TravelEpoch; W.State = SimNetGateway_Protocol_DdsPlayer_ClientWorldStateLoading;
+	FCStringAnsi::Strncpy(W.Step, TCHAR_TO_UTF8(*TravelStep), sizeof(W.Step));
+	W.WaitForMe = bTravelWait;
+	Dps.Write(TEXT("DPS_ClientWorld"), &W);
+}
+
+bool UHrotDpsSubsystem::FakeStationSession(int32 WorldEpoch, double SimTime, const FString& Terrain)
 {
 	SimNetGateway_Protocol_DdsPlayer_Session S{};
 	S.ProtocolMajor = 1; S.ProtocolMinor = 0; S.Mode = SimNetGateway_Protocol_DdsPlayer_SessionModeLive; S.SimTime = SimTime; S.TimeScale = 1.0;
 	S.WorldEpoch = uint32(WorldEpoch);
-	FCStringAnsi::Strncpy(S.Terrain, "fake", sizeof(S.Terrain)); FCStringAnsi::Strncpy(S.StationName, "fake station", sizeof(S.StationName));
+	FCStringAnsi::Strncpy(S.Terrain, TCHAR_TO_UTF8(*Terrain), sizeof(S.Terrain)); FCStringAnsi::Strncpy(S.StationName, "fake station", sizeof(S.StationName));
 	return Dps.Write(TEXT("DPS_Session"), &S);
 }
 

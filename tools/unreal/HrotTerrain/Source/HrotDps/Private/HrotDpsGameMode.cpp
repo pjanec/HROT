@@ -4,6 +4,8 @@
 #include "HrotDpsHud.h"
 #include "HrotDpsWorld.h"
 #include "HrotDpsStation.h"
+#include "HrotDpsSubsystem.h"
+#include "Engine/Engine.h"
 #include "Animation/AnimationAsset.h"
 #include "Engine/SkeletalMesh.h"
 #include "Misc/CommandLine.h"
@@ -40,7 +42,11 @@ void AHrotDpsGameMode::StartPlay()
 	int32 D = Domain; FString P = Partition;
 	const bool bD = FParse::Value(FCommandLine::Get(), TEXT("HrotDpsDomain="), D);
 	const bool bP = FParse::Value(FCommandLine::Get(), TEXT("HrotDpsPartition="), P);
-	if (!bJoinOnPlay && !bD && !bP) return;
+	// U-18r: a level loaded for the station's terrain rejoins the same station (the participant was kept across the load)
+	UHrotDpsSubsystem* Dps = GEngine ? GEngine->GetEngineSubsystem<UHrotDpsSubsystem>() : nullptr;
+	const bool bTravel = Dps && Dps->IsTraveling() && Dps->IsRunning();
+	if (bTravel && !bD && !bP) { D = int32(Dps->Client().GetDomain()); P = Dps->Client().GetPartition(); }
+	if (!bJoinOnPlay && !bD && !bP && !bTravel) return;
 	if (W->Start(D, P)) { UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: joined the station, domain %d partition '%s'"), D, *P); }
 	else { UE_LOG(LogHrotDpsGame, Error, TEXT("HROT IG: could not join domain %d partition '%s'"), D, *P); }
 }

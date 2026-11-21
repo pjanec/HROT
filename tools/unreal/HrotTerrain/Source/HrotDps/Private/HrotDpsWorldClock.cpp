@@ -252,22 +252,28 @@ void UHrotDpsWorld::TickClock(double R)
 	// ClientWorld (§3g): Ready for the Session's world epoch — this IG presents the level it was started in, so a new epoch is ready once
 	// its entities were dropped (Clear, in OnSession); before any Session: Loading. ⚠ VOLATILE QoS: a gateway that starts after us would
 	// never see a one-off sample, so it is re-said every 2 s as well as on a change
-	const uint8 State = bEpoch ? SimNetGateway_Protocol_DdsPlayer_ClientWorldStateReady : SimNetGateway_Protocol_DdsPlayer_ClientWorldStateLoading;
-	if (R < NextWorldReport && State == WorldSaidState && Epoch == WorldSaidEpoch) return;
+	if (bLeaving) return;   // U-18r: loading another level — the subsystem says Loading until the new world takes over
 	UHrotDpsSubsystem* Dps = GEngine ? GEngine->GetEngineSubsystem<UHrotDpsSubsystem>() : nullptr;
 	if (!Dps || !Dps->IsRunning()) return;
+	uint8 State; uint32 Ep = Epoch; FString Step, Reason;
+	if (!WorldFail.IsEmpty()) { State = SimNetGateway_Protocol_DdsPlayer_ClientWorldStateFailed; Step = FString::Printf(TEXT("terrain %s"), *ShownTerrain); Reason = WorldFail; }
+	else if (bEpoch) { State = SimNetGateway_Protocol_DdsPlayer_ClientWorldStateReady; Step = FString::Printf(TEXT("level %s"), *GetWorld()->GetMapName()); }
+	else if (Dps->IsTraveling()) { State = SimNetGateway_Protocol_DdsPlayer_ClientWorldStateLoading; Ep = Dps->GetTravelEpoch(); Step = Dps->GetTravelStep(); }
+	else { State = SimNetGateway_Protocol_DdsPlayer_ClientWorldStateLoading; Step = TEXT("waiting for the station's Session"); }
+	if (R < NextWorldReport && State == WorldSaidState && Ep == WorldSaidEpoch) return;
 	NextWorldReport = R + 2.0;
 	FClientWorld W{};
 	W.ClientId = MyClientId;
-	W.WorldEpoch = Epoch;
+	W.WorldEpoch = Ep;
 	W.State = SimNetGateway_Protocol_DdsPlayer_ClientWorldState(State);
-	const FString Step = bEpoch ? FString::Printf(TEXT("level %s"), *GetWorld()->GetMapName()) : FString(TEXT("waiting for the station's Session"));
 	Copy(W.Step, sizeof(W.Step), Step);
-	W.Reason[0] = 0;
+	Copy(W.Reason, sizeof(W.Reason), Reason);
 	W.WaitForMe = bWaitForMe;
-	if (Dps->Client().Write(TEXT("DPS_ClientWorld"), &W) && (State != WorldSaidState || Epoch != WorldSaidEpoch))
-		UE_LOG(LogHrotDpsClock, Display, TEXT("DPS ClientWorld: epoch %u %s '%s' wait-for-me %d"), Epoch, bEpoch ? TEXT("Ready") : TEXT("Loading"), *Step, bWaitForMe);
-	WorldSaidState = State; WorldSaidEpoch = Epoch;
+	const TCHAR* Name = State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateReady ? TEXT("Ready") : State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateFailed ? TEXT("Failed") : TEXT("Loading");
+	if (Dps->Client().Write(TEXT("DPS_ClientWorld"), &W) && (State != WorldSaidState || Ep != WorldSaidEpoch))
+		UE_LOG(LogHrotDpsClock, Display, TEXT("DPS ClientWorld: epoch %u %s '%s'%s wait-for-me %d"), Ep, Name, *Step, Reason.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" (%s)"), *Reason), bWaitForMe);
+	WorldSaid = FString::Printf(TEXT("%u %s %s"), Ep, Name, *Step);
+	WorldSaidState = State; WorldSaidEpoch = Ep;
 	WorldSaid = FString::Printf(TEXT("%u %s %s"), Epoch, bEpoch ? TEXT("Ready") : TEXT("Loading"), *Step);
 }
 

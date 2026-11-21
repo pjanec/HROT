@@ -36,8 +36,34 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "HAL/PlatformTime.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotDpsWorld, Log, All);
+
+void UHrotDpsWorld::FollowTerrain(uint32 NewEpoch, const FString& Terrain)
+{
+	// U-18r — the world the station presents is its TERRAIN: show it in the level that draws it, or say why we cannot (ClientWorld Failed)
+	UHrotDpsSubsystem* Dps = GEngine ? GEngine->GetEngineSubsystem<UHrotDpsSubsystem>() : nullptr;
+	WorldFail.Reset();
+	ShownTerrain = Terrain;
+	if (!Dps || !bFollowTerrain || Terrain.IsEmpty()) { if (Dps) Dps->EndTravel(); return; }
+	const FString Here = UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName());
+	const FString Level = Dps->LevelForTerrain(Terrain);
+	if (Level.IsEmpty())
+	{
+		const FString N = Terrain.Replace(TEXT("-"), TEXT("_"));
+		WorldFail = FString::Printf(TEXT("no Unreal level for terrain '%s' (TerrainLevels, /Game/Maps/%s_look, /Game/Maps/%s)"), *Terrain, *N, *N);
+		UE_LOG(LogHrotDpsWorld, Warning, TEXT("DPS world: %s"), *WorldFail);
+		Dps->EndTravel();
+		return;
+	}
+	if (Level == Here) { Dps->EndTravel(); return; }
+	Dps->BeginTravel(NewEpoch, Level, FString::Printf(TEXT("level %s for terrain %s"), *FPackageName::GetShortName(Level), *Terrain), bWaitForMe);
+	bLeaving = true;
+	PendingLevel = Level;
+	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: epoch %u terrain '%s' -> level %s (here %s)"), NewEpoch, *Terrain, *Level, *Here);
+}
 
 namespace
 {
@@ -111,11 +137,18 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	for (const auto& K : MissileKindsByType) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
 	MgFx = UHrotWeaponFx::HeavyMgFx(); RifleFx = UHrotWeaponFx::LyraRifleFx();
 	Events.Reset();
-	Dps->Stop();   // a fresh client: its new readers deliver the late-join history to THESE handlers
-	if (!Dps->Start(Domain, Partition)) return false;
+	// U-18r: on the same station, KEEP the participant (a restart deletes our ClientWorld writer: the station would read us as gone and stop
+	// waiting mid-load); each topic's reader is made fresh instead, so its late-join history reaches THESE handlers
+	const bool bSame = Dps->IsRunning() && Dps->Client().GetDomain() == uint32(Domain) && Dps->Client().GetPartition() == Partition;
+	if (!bSame)
+	{
+		Dps->Stop();
+		if (!Dps->Start(Domain, Partition)) return false;
+	}
 	FHrotDpsClient& C = Dps->Client();
 	auto Sub = [this, &C](const TCHAR* Topic, void (UHrotDpsWorld::*Fn)(const FHrotDpsSample&))
 	{
+		C.Refresh(Topic);
 		Subs.Add({ Topic, C.Subscribe(Topic, [this, Fn](const FHrotDpsSample& S) { (this->*Fn)(S); }) });
 	};
 	Sub(TEXT("DPS_Session"), &UHrotDpsWorld::OnSession);
@@ -164,7 +197,7 @@ void UHrotDpsWorld::Deinitialize()
 {
 	const bool bOwned = Subs.Num() > 0;
 	Stop();
-	if (bOwned && GEngine) if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) Dps->Stop();
+	if (bOwned && GEngine) if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) if (!Dps->IsTraveling()) Dps->Stop();   // U-18r: kept across a level load
 	Super::Deinitialize();
 }
 
@@ -191,6 +224,7 @@ void UHrotDpsWorld::OnSession(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
 	const FSession& D = *static_cast<const FSession*>(S.Data);
+	if (!bEpoch || D.WorldEpoch != Epoch) FollowTerrain(D.WorldEpoch, UTF8_TO_TCHAR(D.Terrain));   // U-18r
 	if (bEpoch && D.WorldEpoch != Epoch)   // §3.11: a new world — drop everything; the next samples rebuild it
 	{
 		UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: epoch %u -> %u, %d entities dropped"), Epoch, D.WorldEpoch, Ents.Num());
@@ -1006,6 +1040,12 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 void UHrotDpsWorld::Tick(float)
 {
 	const double R = RealNow();
+	if (!PendingLevel.IsEmpty())   // U-18r: the level of the station's terrain (opened here, never inside a DDS handler)
+	{
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: opening %s for the station's terrain"), *PendingLevel);
+		UGameplayStatics::OpenLevel(this, FName(*PendingLevel), true, TEXT("game=/Script/HrotDps.HrotDpsGameMode"));
+		PendingLevel.Reset();
+	}
 	TickClock(R);   // U-18p: the probe's echoes, ClientWorld
 	const double Prev = Placed;
 	Placed = Clock.Now(R);

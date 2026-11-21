@@ -36,7 +36,7 @@ def finish(ok, why=""):
 
 
 def level():
-    name = f"/Game/Maps/DpsRound7_{int(time.time())}"   # a fresh name: a deleted level of a previous run can still block new_level
+    name = "/Game/Maps/DpsRound7"   # ONE scratch level: the runner deletes its file before Unreal starts (new_level SAVES a level, and could not replace one deleted in the same session)
     if not LES().new_level(name): raise RuntimeError("new_level failed: " + name)
     floor = EAS().spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, 0))
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane")); floor.set_actor_scale3d(unreal.Vector(4000, 4000, 1))

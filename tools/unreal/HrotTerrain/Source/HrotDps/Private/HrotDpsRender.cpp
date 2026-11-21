@@ -211,7 +211,7 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 	bAudio = J.Audio; SampleRate = J.SampleRate; Channels = FMath::Max(1, int32(J.Channels));
 	Dir = UTF8_TO_TCHAR(J.Dir);
 	Queue.Reset(); StepsSeen.Reset();
-	Frames = Written = Failed = Silences = WarmUps = BarrierWaits = BarrierTimeouts = 0;
+	Frames = Written = Failed = Silences = WarmUps = BarrierWaits = BarrierTimeouts = Overcounts = 0;
 	bHadFrame = false; LastEpoch = -1;
 	Track.Reset(); TrackChannels = TrackRate = 0; AudioCarry = 0; Silent.Reset(); TrackFilmSamples = 0;
 	// the limits first: a job larger than we can is refused before frame 0, with the limit named
@@ -258,7 +258,7 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 	if (bAudio) StartRecording();
 	ReadyJobId = JobId; NextAnnounce = 0;   // said at once
 	Phase = EPhase::Waiting;
-	if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) TakenAtPresent = Dps->Client().GetWorldTaken();
+	if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) Dps->Client().ResetStepCount(true);   // step 0 counts from ReadyJobId
 	UE_LOG(LogHrotDpsRender, Display, TEXT("DPS render job %s ready after %.1f s warm-up (%dx%d x%d, %d fps, audio %s) -> '%s'"), *JobId, Real() - T0,
 		Width, Height, Supersample, Fps, bAudio ? *FString::Printf(TEXT("%d Hz x %d"), int32(M->GetSampleRate()), Channels) : TEXT("off"), *DirAbs);
 }
@@ -293,6 +293,7 @@ void UHrotDpsRender::EndJob(bool bDone)
 	PrevCvars.Reset();
 	if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld())) SR->TimeSource = nullptr;
 	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(GetWorld())) Snd->SetSpatialize(true);
+	if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) Dps->Client().ResetStepCount(false);
 	bJob = false; Phase = EPhase::Idle; ReadyJobId.Reset(); NextAnnounce = 0; Queue.Reset();
 }
 
@@ -336,8 +337,15 @@ bool UHrotDpsRender::BarrierMet(const FRequest& R, double Now)
 	const FStepInfo* St = StepsSeen.Find(R.StepSeq);
 	if (!St && R.StepSeq != 0 && Now - R.SeenAt < BarrierGiveUp) return false;   // its ClockStep is not here yet
 	if (!St || St->Samples == 0) return true;
-	const int64 Got = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()->Client().GetWorldTaken() - TakenAtPresent;
-	if (Got >= int64(St->Samples)) return true;
+	const int64 Got = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()->Client().GetStepCount();
+	if (Got == int64(St->Samples)) return true;
+	if (Got > int64(St->Samples))
+	{
+		// the gateway: "a count above it is a gateway defect - log it and present"
+		++Overcounts;
+		UE_LOG(LogHrotDpsRender, Warning, TEXT("frame %d: step %lld counted %lld world instances/events, the station said %u - presented"), R.Index, R.StepSeq, Got, St->Samples);
+		return true;
+	}
 	if (Now - R.SeenAt >= BarrierGiveUp)
 	{
 		++BarrierTimeouts;
@@ -474,7 +482,7 @@ void UHrotDpsRender::Present(const FRequest& R, bool bOk, const FString& File, c
 	++Frames;
 	UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>();
 	FHrotDpsClient& C = Dps->Client();
-	TakenAtPresent = C.GetWorldTaken();   // the next step's samples count from here
+	C.ResetStepCount(true);   // the next step's samples count from here
 	if (const FStepInfo* St = StepsSeen.Find(R.StepSeq); St && St->bAck)
 	{
 		SimNetGateway_Protocol_DdsPlayer_StepAck A{}; A.ClientId = ClientId; A.StepSeq = R.StepSeq; A.Checksum = 0;
@@ -624,8 +632,8 @@ void UHrotDpsRender::DrawOverlay(const FRequest& R, UCanvas* Canvas, FVector2D S
 FString UHrotDpsRender::Describe() const
 {
 	Audio::FMixerDevice* M = MixerOf(GetWorld());
-	return FString::Printf(TEXT("%s %s frames %d written %d failed %d silence %d | warm-ups %d | audio %d samples @ %d x %d (%s) | barrier waits %d, timeouts %d | queue %d | last: %s"),
+	return FString::Printf(TEXT("%s %s frames %d written %d failed %d silence %d | warm-ups %d | audio %d samples @ %d x %d (%s) | barrier waits %d, timeouts %d, over %d | queue %d | last: %s"),
 		bJob ? *JobId : TEXT("no job"), bJob ? (bJobOk ? TEXT("ok") : TEXT("failed")) : TEXT("-"), Frames, Written, Failed, Silences, WarmUps,
-		TrackChannels > 0 ? Track.Num() / TrackChannels : 0, TrackRate, TrackChannels, NrtOf(M) ? TEXT("nrt") : TEXT("real-time"), BarrierWaits, BarrierTimeouts,
+		TrackChannels > 0 ? Track.Num() / TrackChannels : 0, TrackRate, TrackChannels, NrtOf(M) ? TEXT("nrt") : TEXT("real-time"), BarrierWaits, BarrierTimeouts, Overcounts,
 		Queue.Num(), LastWhy.IsEmpty() ? TEXT("-") : *LastWhy);
 }

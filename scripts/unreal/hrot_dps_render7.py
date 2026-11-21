@@ -38,7 +38,8 @@ def finish(ok, why=""):
 
 
 def level():
-    if not LES().new_level(f"/Game/Maps/DpsRender7_{int(time.time())}"): raise RuntimeError("new_level failed")
+    # ONE scratch level: the runner deletes its file before Unreal starts (new_level SAVES a level, and could not replace one deleted in the same session)
+    if not LES().new_level("/Game/Maps/DpsRender7"): raise RuntimeError("new_level failed")
     floor = EAS().spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, 0))
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane")); floor.set_actor_scale3d(unreal.Vector(4000, 4000, 1))
     sun = EAS().spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 1000), unreal.Rotator(pitch=-40, yaw=60, roll=0))
@@ -104,8 +105,9 @@ def ready():
 
 def send_frame(i):
     sub = S["sub"]; sim = SIM0 + (i + 1) / FPS; n = 0
-    if i != JOB["hold"]: sub.fake_station_entity(UNIT, sim, unit_pos(sim), unreal.Vector(2, 0, 0), 0.0); n += 2   # Entity + EntityState
+    if i != JOB["hold"]: sub.fake_station_entity(UNIT, sim, unit_pos(sim), unreal.Vector(2, 0, 0), 0.0); n += 2   # Entity + EntityState: 2 INSTANCES
     else: n += 2
+    if i == JOB.get("twice"): sub.fake_station_entity(UNIT, sim, unit_pos(sim), unreal.Vector(2, 0, 0), 0.0)        # a second write of both: still 2 instances (the gateway's rule)
     if i in JOB["shots"]:   # from the unit, toward the camera's side: heard ~29 m away
         sub.fake_station_fire(sim, unit_pos(sim) + unreal.Vector(0, 0, 1.5), unreal.Vector(-500, -600, 0)); n += 1
     sub.fake_station_render_step(i + 1, sim, 1, n)
@@ -139,7 +141,9 @@ def result():
         check("RenderJobResult after Done: the track written", "Written" in res and "r1/r1.wav" in res, res)
         check("every frame acknowledged in lockstep (FrameDone + StepAck)", S["sub"].fake_station_frames_done() == JOB["frames"] and S["sub"].fake_station_step_acks() == JOB["frames"],
               f"{S['sub'].fake_station_frames_done()} frames done, {S['sub'].fake_station_step_acks()} step acks, {JOB['frames']} frames in {el:.1f} s | last {S['sub'].fake_station_frame_done()}")
-        R["result"] = res; R["describe"] = S["rc"].describe(); R["root"] = S["rc"].get_render_root()
+        d = S["rc"].describe()
+        check("the barrier counted each step exactly (instances per state topic, samples per event; a doubled write counted once)", " over 0 " in d and "timeouts 0" in d, d)
+        R["result"] = res; R["describe"] = d; R["root"] = S["rc"].get_render_root()
         sr = unreal.HrotShotRenderer.for_world(S["gw"]); R["events"] = dict(S["w"].event_counts()); R["soundsPlayed"] = sr.get_editor_property("sounds_played")
         R["soundscape"] = unreal.HrotSoundscape.for_world(S["gw"]).describe(); log(f"events {R['events']} sounds played {R['soundsPlayed']} | {R['soundscape']}")
         LES().editor_request_end_play(); S.update(phase="end", t=time.time() + 3); return

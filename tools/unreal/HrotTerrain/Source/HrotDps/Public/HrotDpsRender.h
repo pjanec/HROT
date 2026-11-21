@@ -81,11 +81,10 @@ private:
 	FString Dir;
 	TArray<FRequest> Queue;
 	TMap<int64, FStepInfo> StepsSeen;
-	int64 TakenAtPresent = 0;
 	EPhase Phase = EPhase::Idle;
 	uint64 AdvanceFrame = 0;
 	double PhaseStart = 0;
-	int32 Frames = 0, Written = 0, Failed = 0, Silences = 0, WarmUps = 0, BarrierWaits = 0, BarrierTimeouts = 0;
+	int32 Frames = 0, Written = 0, Failed = 0, Silences = 0, WarmUps = 0, BarrierWaits = 0, BarrierTimeouts = 0, Overcounts = 0;
 	bool bHadFrame = false; FVector3d LastP = FVector3d::ZeroVector; FQuat4d LastQ = FQuat4d::Identity; int64 LastEpoch = -1;
 	// the soundtrack (segments: recorded mixer output, zeros for a silence frame)
 	TArray<float> Track;   // interleaved, the device's channels

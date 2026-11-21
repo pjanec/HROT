@@ -36,6 +36,20 @@ public:
 	/** U-18p — this process's DPS client id (the guide: random, nonzero; one per client): the player station's slot, the clock probe and
 	 *  ClientWorld all say the same one */
 	uint64 GetClientId();
+
+	// ── U-18r: the world follows the station's TERRAIN (Session.Terrain): this subsystem outlives a level load, so it holds what must ──
+	/** a terrain name -> the level that draws it ("/Game/Maps/demo_city_look"); unlisted: the convention "-" -> "_", "<name>_look" else "<name>" */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, FString> TerrainLevels;
+	/** the level for a terrain, "" = none */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString LevelForTerrain(const FString& Terrain) const;
+	/** a level load for world epoch `Epoch` is under way: ClientWorld keeps saying Loading (`Step`) from HERE every second until the new
+	 *  world's UHrotDpsWorld takes over — the participant (our ClientWorld writer) stays alive across the load */
+	void BeginTravel(uint32 Epoch, const FString& Level, const FString& Step, bool bWaitForMe);
+	void EndTravel() { bTraveling = false; }
+	bool IsTraveling() const { return bTraveling; }
+	uint32 GetTravelEpoch() const { return TravelEpoch; }
+	const FString& GetTravelStep() const { return TravelStep; }
+	const FString& GetTravelLevel() const { return TravelLevel; }
 	/** the generated contract's version line and topic names */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS")
 	static FString Contract() { return FHrotDpsClient::Contract(); }
@@ -58,7 +72,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationClock(bool bStepped, double AnchorSimTime, float TimeScale, int64 TimelineEpoch, int64 StepSeq);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationStep(int64 StepSeq, double TargetSimTime, int64 TimelineEpoch);
 	/** Session (playing, scale 1) of this world epoch at sim time SimTime */
-	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationSession(int32 WorldEpoch, double SimTime);
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationSession(int32 WorldEpoch, double SimTime, const FString& Terrain = TEXT(""));
+	/** every ClientWorld the fake read, in order ("<epoch> <state> '<step>'"), and how often the IG's ClientWorld writer went away */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") TArray<FString> FakeStationClientWorldLog() const { return FakeWorldLog; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationClientWorldLost() const { return FakeWorldLost; }
 	/** Entity (a ground unit) + its EntityState at sim time SimTime: position (m, ENU), velocity (m/s), heading (deg, counter-clockwise from east) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationEntity(int32 EntityId, double SimTime, FVector PositionM, FVector VelocityM, float HeadingDeg);
 	/** View: Source director; Mode (ViewMode number: 1 free, 2 orbit …), bound to TargetId at Distance, or the pose: position (m), velocity
@@ -91,6 +108,13 @@ private:
 	bool bFake = false;
 	int32 FakeEchoes = 0;
 	FString FakeWorld, FakeDone, FakeClient, FakeResult;
+	TArray<FString> FakeWorldLog;
+	int32 FakeWorldLost = 0;
+	bool bTraveling = false, bTravelWait = true;
+	uint32 TravelEpoch = 0;
+	FString TravelStep, TravelLevel;
+	double NextTravelSay = 0;
+	void SayTraveling();
 	int32 FakeDoneCount = 0, FakeAcks = 0;
 	FHrotDpsClient Dps;
 	uint64 ClientId = 0;

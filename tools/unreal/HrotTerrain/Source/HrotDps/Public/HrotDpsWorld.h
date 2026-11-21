@@ -156,6 +156,10 @@ public:
 	// ── U-18p: round 7 (SimNetGateway DD-022 §3b-3d, §3g) — HrotDpsWorldClock.cpp ──
 	/** report this world to the station as one to WAIT FOR on every load (ClientWorld.WaitForMe); false = a passive viewer */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bWaitForMe = true;
+	/** U-18r — load the level of the station's terrain (Session.Terrain, UHrotDpsSubsystem::LevelForTerrain); false = stay in this level */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bFollowTerrain = true;
+	/** the station's terrain now ("" before a Session) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString StationTerrain() const { return ShownTerrain; }
 	/** "anchored continuous|stepped|samples sim <t> scale <s> epoch <e> step <n> | offset <ms> rtt <ms> echoes <n>/<dropped> | steps <n> anchors <n>" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeClock() const;
 	/** "none" or "<source> <mode> target <id> d <m> side <s> cut <n> at (x, y, z) fov <deg>" — the station's suggested view now */
@@ -176,6 +180,9 @@ public:
 		float FovDeg = 60;                     // VERTICAL (HROT's FovyDegrees)
 	};
 	FViewNow ViewNow() const;
+	void FollowTerrain(uint32 NewEpoch, const FString& Terrain);
+	FString WorldFail, PendingLevel, ShownTerrain;
+	bool bLeaving = false;
 	/** U-18q — the station's TimelineEpoch now (0 before an anchor) */
 	int64 TimelineEpochNow() const { return Clock.GetTimelineEpoch(); }
 

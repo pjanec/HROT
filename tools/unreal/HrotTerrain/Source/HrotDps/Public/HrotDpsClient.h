@@ -45,6 +45,10 @@ public:
 	 *  (UHrotDpsWorld restarts the client for that reason). Returns the handler's id for Unsubscribe, 0 = unknown topic. Not from a handler. */
 	int32 Subscribe(const FString& Topic, FHandler Handler);
 	void Unsubscribe(const FString& Topic, int32 Id);
+	/** U-18r — a FRESH reader for `Topic`, its handlers kept: a TRANSIENT_LOCAL topic's late-join history is delivered again (what a new
+	 *  world needs) WITHOUT restarting the participant — ⚠ a restart deletes our writers, which the station reads as the client gone
+	 *  (ClientWorld's waiter lets a load go on without us). Not from a handler */
+	void Refresh(const FString& Topic);
 	/** takes everything waiting on every subscribed reader and calls its handlers (game thread). Returns the number of samples. */
 	int32 Poll();
 	/** writes one sample (the generated C struct) of `Topic` (the player topics: JoinRequest, ControlFrame, Leave, GizmoView) */
@@ -59,6 +63,12 @@ public:
 	 *  the clock's, the render topics and GizmoFrame; and never the topics clients write) */
 	int64 GetWorldTaken() const { return WorldTaken; }
 	static bool IsWorldTopic(const FString& Topic);
+	/** U-18q — the D-B4 step count as the gateway states it (its answer in NOTE-…-Round-7-Render §5): since the last reset, a STATE topic
+	 *  counts once per INSTANCE taken (keep-last-1 can fold two writes of one instance into one sample; a keyless topic is one instance),
+	 *  an EVENT topic once per sample. Counted only while on (a render job) */
+	void ResetStepCount(bool bOn) { bCountStep = bOn; StepInstances.Reset(); StepEvents = 0; }
+	int64 GetStepCount() const { return StepInstances.Num() + StepEvents; }
+	static bool IsEventTopic(const FString& Topic);
 
 	/** samples taken per topic since Start */
 	const TMap<FString, int64>& GetCounts() const { return Counts; }
@@ -78,5 +88,8 @@ private:
 	TMap<FString, int32> Writers;
 	TMap<FString, int64> Counts;
 	int64 WorldTaken = 0;
+	bool bCountStep = false;
+	TSet<TPair<FString, uint64>> StepInstances;
+	int64 StepEvents = 0;
 	int32 TopicOf(const FString& Name, const struct FHrotDpsTopicDef*& OutDef);
 };

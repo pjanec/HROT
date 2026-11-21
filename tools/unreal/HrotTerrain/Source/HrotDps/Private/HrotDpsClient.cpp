@@ -28,6 +28,14 @@ namespace
 
 FHrotDpsClient::FHrotDpsClient() {}
 
+bool FHrotDpsClient::IsEventTopic(const FString& Topic)
+{
+	// the gateway's event topics (its answer, §5): counted per sample; every other world topic is state, counted per instance
+	static const TSet<FString> Events = { TEXT("DPS_Fire"), TEXT("DPS_Detonation"), TEXT("DPS_Effect"), TEXT("DPS_Impact"), TEXT("DPS_ManDowned"),
+		TEXT("DPS_PlayerMessage"), TEXT("DPS_MoverTracks") };
+	return Events.Contains(Topic);
+}
+
 bool FHrotDpsClient::IsWorldTopic(const FString& Topic)
 {
 	// DD-022 D-B4: not SimClock, ClockStep, ClockEcho, the render topics or GizmoFrame; and the client-written topics are nobody's step
@@ -111,6 +119,20 @@ int32 FHrotDpsClient::Subscribe(const FString& Topic, FHandler Handler)
 	return LastHandlerId;
 }
 
+void FHrotDpsClient::Refresh(const FString& Topic)
+{
+	FReader* R = Readers.Find(Topic);
+	if (!R) return;
+	const FHrotDpsTopicDef* Def;
+	const int32 T = TopicOf(Topic, Def);
+	if (!T) return;
+	dds_delete(R->Handle);
+	dds_qos_t* Q = QosOf(*Def);
+	R->Handle = dds_create_reader(Subscriber, T, Q, nullptr);
+	dds_delete_qos(Q);
+	if (R->Handle < 0) { UE_LOG(LogHrotDps, Error, TEXT("reader %s (refresh): %hs"), *Topic, dds_strretcode(R->Handle)); Readers.Remove(Topic); }
+}
+
 void FHrotDpsClient::Unsubscribe(const FString& Topic, int32 Id)
 {
 	if (FReader* R = Readers.Find(Topic)) R->Handlers.RemoveAll([Id](const TPair<int32, FHandler>& H) { return H.Key == Id; });
@@ -138,6 +160,10 @@ int32 FHrotDpsClient::Poll()
 				S.SourceTime = double(Info[I].source_timestamp) * 1e-9;
 				S.Instance = Info[I].instance_handle;
 				for (const TPair<int32, FHandler>& H : It.Value.Handlers) H.Value(S);
+				if (bCountStep && IsWorldTopic(It.Key))   // U-18q: the barrier's count (an instance per state topic, a sample per event)
+				{
+					if (IsEventTopic(It.Key)) ++StepEvents; else StepInstances.Add({ It.Key, S.Instance });
+				}
 			}
 			dds_return_loan(It.Value.Handle, Buf, N);
 			Counts.FindOrAdd(It.Key) += N;
