@@ -323,6 +323,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   cover.
 - **React to contact:** assault, break contact, hold or rescue, chosen by utility. A far contact is closed by fire and movement.
   ▶ `uf-squad-under-fire` ✅
+- **After a broken contact** (CE-2466): the squad remembers the ground each enemy covers (its side's `UnderFire` knowledge, which ages), rallies and
+  reports (LACE + SPOT), never assaults frontally a force it broke from without 3 : 1, stays out when no longer fit, holds short of covered ground
+  and bounds along a route priced round it. ▶ `uf-corner-fight` ✅
 - **Fire and movement:** one half suppresses while the other rushes up to 15 m to cover, by halves or in buddy pairs.
   ▶ `ua-fire-and-movement` ✅ · `ua-fire-and-movement-pairs` ✅
 - **Bounding overwatch:** one half moves while the other watches, and the watchers open fire at contact. ▶ `ua-bounding-overwatch` ✅
