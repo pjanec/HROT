@@ -132,6 +132,15 @@ namespace Hrot.AI.Behaviors.Brains
             return any;
         }
 
+        /// <summary>⭐ <c>CE-2467</c> — the side holds a fresh <c>Direct</c> record at <paramref name="point"/> (within <see cref="RecordNearMetres"/>): the ground that
+        /// enemy covers is known, so routes and EQS path costs on the navmesh node are priced round it (Minefields §9b UF-5).</summary>
+        public static bool Remembers(EntityRepository world, Entity commander, Vector3 point)
+        {
+            int side = SideOf(world, commander);
+            if (side < 0 || !world.IsComponentTypeRegistered<UnderFireKnowledge>()) return false;
+            return UnderFireTable.Of(world).NearestFresh(side, point, RecordNearMetres, out var r) && r.Cause == UnderFireCause.Direct;
+        }
+
         /// <summary>⭐ R4 — the squad now has superiority over <paramref name="enemy"/> (its share ≤ <see cref="AssaultShare"/>).</summary>
         public static bool Superior(EntityRepository world, Entity commander, float enemy)
             => SquadInputs.EnemyShare(MathF.Max(enemy, SquadInputs.EnemyDangerOf(world, commander)), SquadInputs.OwnStrengthOf(world, commander)) <= AssaultShare;

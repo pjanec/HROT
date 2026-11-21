@@ -261,5 +261,40 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(superior ? BehaviorNames.InfantrySquadAttack : BehaviorNames.ReactToContact, s.TaskName);
             }
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — an assault LEARNS the ground the enemy covers (a <c>Direct</c> record of its side, the same learn as a break
+        /// contact) the moment it starts, and asks the terrain for its flank only once that knowledge is there — so the flank's EQS path cost and the movers' routes
+        /// are priced round the enemy's fire on the navmesh node (📐 U2: the flank was the junction mouth, reached straight up the enemy's street). With no record
+        /// it still asks after <see cref="SuppressAndManeuverPlay.FlankWaitSeconds"/>. 🔴 Red-proof: the wait dropped ⇒ the flank is asked before the record ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2467_TheAssault_LearnsTheGroundTheEnemyCovers_AndAsksItsFlankOnceThatIsKnown()
+        {
+            foreach (bool recordLands in new[] { true, false })
+            {
+                var s = new Squad(members: 4);
+                var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+                s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0001);
+                Sides(s, new[] { enemy });
+                if (!s.Repo.IsComponentTypeRegistered<UnderFireKnowledge>()) s.Repo.RegisterComponent<UnderFireKnowledge>();
+                s.Order("{}", BehaviorNames.SuppressAndManeuver);
+                int learned = 0;
+                for (int i = 0; i < 3; i++) { s.Tick(); foreach (var l in s.Repo.Bus.Read<UnderFireLearned>()) { Assert.Equal(UnderFireCause.Direct, l.Cause); learned++; } }
+                Assert.True(learned > 0, "the assault learned the ground the enemy covers");
+                Assert.True(s.FlankQuery().IsNull, "no flank asked before the knowledge is there");
+                if (recordLands)
+                {
+                    Remember(s, new Vector3(0f, 60f, 0f), enemyStrength: 1f);
+                    s.Tick(); s.Tick();
+                    Assert.False(s.FlankQuery().IsNull, "the knowledge is there: the flank is asked");
+                }
+                else
+                {
+                    for (int i = 0; i < (int)(SuppressAndManeuverPlay.FlankWaitSeconds / 0.016) + 5; i++) s.Tick();
+                    Assert.False(s.FlankQuery().IsNull, "no record ever lands: the flank is asked anyway");
+                }
+            }
+        }
     }
 }
