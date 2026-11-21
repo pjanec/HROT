@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§5b.2 amended: a carrier that cannot move stands for its squad, CE-2347/CE-2348) · 2026-10-13 (§7.8 the three demos and their HTTP checks; §7.5–§7.7 approved, not built)
+updated: 2026-11-21 (§7.9 after a broken contact, CE-2466, R-2140 — DESIGN) · 2026-10-21 (§5b.2 amended: a carrier that cannot move stands for its squad, CE-2347/CE-2348) · 2026-10-13 (§7.8 the three demos and their HTTP checks; §7.5–§7.7 approved, not built)
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
 current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built) · §7.7 danger-area crossing (DESIGN, approved R-2014, not built) · §7.8 the three demos and their HTTP success checks (DESIGN, not built)
 stale-below: nothing
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read the file paths below as history. · S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - ../minefields/DESIGN_Minefields.md §9b — OWNS the "under fire" place-knowledge kind (R-2140) that §7.9's rules R1, R3 and R4 write and read: one store with the shelled area
   - DESIGN_Urban_Fight_Suite.md — OWNS the urban fight suite: squad v squad scenarios in a town that judge these plays for realism
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) G: every squad type gets BasicSquadSop; a lasting contact escalates to SuppressAndManeuver; F scores the flank routes
   - docs/DESIGN_Entity_Brain_View.md — the Brain tab reads SquadDrillTrace; the play writers also write the per-unit brain journal (BV-14)
@@ -1641,6 +1642,165 @@ fired; the reaction's assault ran `FireAndMovement`. The D6 hand-over stays a ra
 
 O-a (with the first demo) → `ua-casualty-care` after R-d → `ua-fire-and-movement` after F-b → `ua-bounding-overwatch` after F-c →
 `ua-squad-danger-crossing` after X-c. Each demo's checker is added to `SCENARIOS` in the same commit as its scenario.
+
+### 7.9 After a broken contact — rally, report, remember, do not walk back in *(behaviors, `2026-11-21`, `CE-2466` + `CE-2467`; build-state: DESIGN — the four rules ✅ approved, the shared "under fire" knowledge ✅ approved (R-2140); not built)*
+
+🔒 User, `2026-11-21`: *"The four rules approved. Remembering the place which is covered by fire is also a good idea. Just it resembles the place where explosions are
+happening … I hope that knowledge is of the same kind, or that we unify these two somehow using the same storage mechanism to avoid duplication."* ·
+*"Approved, go ahead with the design, Measure whatever you need."*
+
+**Why** (📐 measured, `uf-corner-fight` held to 420 s, `DESIGN_Urban_Fight_Suite.md` U2-4): once break contact ended (`CE-2465`) the paused bound resumed up the SAME
+street; a second contact; a frontal assault into Red's corner — four dead by 291 s; the lone leader resumed the bound and died at 388 s. Red unhurt.
+
+**The proven solution** (battle drill *break contact* → *consolidate and reorganise*): rally out of sight, account for men / ammunition / casualties (LACE),
+report up (SITREP), then bypass, wait for support, or come back with a deliberate attack — never the same route into the same position. ⭐ Adopted whole;
+the "deliberate attack" is the existing assault with rule 4's gate, its urban flank is `CE-2467`.
+
+#### 7.9.1 INVENTORY *(`2026-11-21`)*
+
+*Graph (`scripts/cbm.sh search_graph`, Class + Method): `.*(Rally|Reorgani|Consolidat).*` → `PlatoonAttackBehavior.EnterConsolidate` (platoon only) ·
+`.*(SpotRep|ContactReport|ReportContact|Salute|ReportUp).*` → `SquadSenseChanges.ReportUp` · `.*(ThreatCost|ThreatPric|AvoidThreat|DangerCost|ThreatAware|EnemyCost|KnownThreat).*`
+→ `EqsKnownThreats` (EQS scoring, not routing) · `.*Bypass.*` → the platoon's CE-2284 bypass rails. Grep: `ReportKind`, `ShelledAreas`, `PlaceKnowledge`, `NavDoorways.GetCost`,
+`FiringPositionMemory`. ⚠ index coverage cannot be checked through the CLI.*
+
+| need | exists | where | used as |
+|---|---|---|---|
+| the reports | ✅ `ReportKind.Contact / Spot / Sitrep / Lace` + `ReportQueue.Enqueue` (staff delay) | `Squad/Command/CommandReports.cs:15-27`, `SquadSenseChanges.cs:239-247` | rule 2 — reused as is |
+| a timed hold | ✅ `SquadHoldPlay` (`DurationSeconds`, `EndWhenClear`) | `SquadContactBehaviors.cs:85-89` | rule 2's rally |
+| the choice override after the utility pick | ✅ `ReactToContact`'s `Firm()` (break contact → hold when the squad holds firm) | `SquadContactBehaviors.cs:440-446` | rule 4's gate |
+| per-side, saved, replicated knowledge of a PLACE + its route cost | ✅ `PlaceKnowledge` (R-4273) — header + kind payload, one writer, one table, one per-side cost | `Terrain/Minefields/PlaceKnowledge.cs`, `MinePattern.cs:233`, `NavDoorways.cs:563` | rules 1 + 3 — the second kind (`DESIGN_Minefields.md` §9b) |
+| where bursts keep landing | ✅ `ShelledAreas` — node-level, no side, 8 points, 120 s, not saved | `Squad/DangerArea/ShelledAreas.cs` | becomes the INDIRECT detector of the same kind (§9b) |
+| a unit's own used firing spots | `FiringPositionMemory` — its OWN windows, not the enemy's | `Combat/FiringPositionMemory.cs` | ⛔ not this |
+| the enemy itself | `SquadContacts`, `CommandPicture` | Squad/State, Squad/Command | ⛔ stays there (KG-5) — the knowledge is the GROUND he covers |
+
+#### 7.9.2 The four rules
+
+| # | rule | built on |
+|---|---|---|
+| **R1** | ⭐ **remember**: break contact succeeding writes the ground the threat covers as `UnderFire` knowledge (cause `DirectFire`) for the squad's side — the threat point, its range | `DESIGN_Minefields.md` §9b (one store with the shelled area) |
+| **R2** | ⭐ **rally and report**: a new last stage of `ReactToContact` after a won break contact — `SquadHold` `RallySeconds` 30 where the squad stands; on entry `Lace` + `Sitrep` up | `SquadHoldPlay`, `ReportQueue` |
+| **R3** | ⭐ **never resume blindly**: the resumed task re-plans; its route is priced by the side's `UnderFire` cells (go round when it can). When it cannot, the route sensor reports a `CoveredByFire` area and a new `BasicSquadSop` row `CoveredByFireAhead` holds the squad short of it and reports (`Sitrep`) — ⛔ never the crossing drill | `NavDoorways.GetCost` (KG-8's one table), `DangerAlongRouteSolve` |
+| **R4** | ⭐ **no frontal assault on a force it broke contact from**: in `Firm()`, an `Assault` winner whose contact stands in a fresh `DirectFire` record of the side, without superiority, becomes `Hold` | `Firm()`; superiority = the reaction's own odds input (⛔ named at build, §7.9.5 row 5) |
+
+#### 7.9.3 Classes
+
+```mermaid
+classDiagram
+  class ReactToContactBehavior {
+    <<existing - stages ReturnFire, Drill, HoldOn>>
+    +StageRally (new)
+    Firm()
+  }
+  class BreakContactPlay {
+    <<existing - CE-2465 ends in a lull>>
+  }
+  class SquadHoldPlay {
+    <<existing>>
+    DurationSeconds
+  }
+  class ReportQueue {
+    <<existing>>
+    Enqueue(Lace, Sitrep)
+  }
+  class UnderFireEvents {
+    <<new - Learn(side, cause, point, range) through the batch buffer>>
+  }
+  class PlaceKnowledgeSystem {
+    <<existing - serial, the one writer>>
+  }
+  class UnderFireKnowledge {
+    <<new kind - Minefields 9b>>
+    Header
+    Cause
+    Point
+    RangeM
+  }
+  class PlaceKnowledgeTable {
+    <<existing - per side, Knows()>>
+    UnderFireAt(side, point, now) (new)
+  }
+  class UnderFireSight {
+    <<new - derived seen-cell grid per record, cached per node>>
+  }
+  class NavDoorways {
+    <<existing - GetCost per side>>
+  }
+  class DangerAlongRouteSolve {
+    <<existing - adds CoveredByFire areas>>
+  }
+  class BasicSquadSop {
+    <<existing - new row CoveredByFireAhead>>
+  }
+  ReactToContactBehavior --> BreakContactPlay : drill
+  ReactToContactBehavior --> SquadHoldPlay : rally R2
+  ReactToContactBehavior ..> ReportQueue : LACE, SITREP R2
+  ReactToContactBehavior ..> UnderFireEvents : learn R1
+  UnderFireEvents ..> PlaceKnowledgeSystem
+  PlaceKnowledgeSystem --> UnderFireKnowledge : writes
+  PlaceKnowledgeTable ..> UnderFireKnowledge : union
+  ReactToContactBehavior ..> PlaceKnowledgeTable : Firm R4
+  NavDoorways ..> UnderFireSight : cost R3
+  DangerAlongRouteSolve ..> UnderFireSight : CoveredByFire R3
+  UnderFireSight ..> UnderFireKnowledge
+  BasicSquadSop ..> DangerAlongRouteSolve : the march sensor
+```
+*What it shows that prose hid: R1–R4 add ONE stage, ONE event, ONE SOP row and ONE `Firm()` clause to existing classes; everything about the remembered ground
+lives in the place-knowledge kind the shelled area shares (§9b) — the squad keeps no second memory of it, and R4 reads the same table the route reads.*
+
+#### 7.9.4 The sequence — U2 as it should run
+
+```mermaid
+sequenceDiagram
+  participant S as Blue squad (ReactToContact)
+  participant B as BreakContactPlay
+  participant K as PlaceKnowledgeSystem
+  participant Q as ReportQueue
+  participant T as the paused bound
+  participant N as route planner + sensor
+  S->>B: outmatched, break contact
+  B-->>S: Success (CE-2465 - out of sight, a lull)
+  S->>K: Learn Blue, DirectFire, Red's corner, range
+  S->>S: StageRally - SquadHold 30 s
+  S->>Q: LACE, SITREP
+  S-->>T: the reaction ends, the bound resumes
+  T->>N: re-plan to the objective
+  N->>N: Red's corner sees the street - its cells priced
+  alt a way round
+    N-->>T: the route by the next street
+  else no way round
+    N-->>T: CoveredByFire area 30 m ahead
+    T->>S: SOP row CoveredByFireAhead - hold short, SITREP
+  end
+  Note over S: a new contact from the corner - Firm() turns Assault into Hold (R4)
+```
+*What it shows that prose hid: the re-plan is the ONLY change to the resumed task — no new "bypass" behaviour; whether the squad bypasses or holds is decided
+by the per-side cost and the existing sensor, the KG-7 split (avoid vs cross with care) unchanged.*
+
+#### 7.9.5 Claims
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a won break contact returns to `ReactToContact`, which ends the reaction with no casualty to care for | ✅ `SquadContactBehaviors.cs:533-536` | ✅ §4 S2 |
+| a dead man is no casualty (no recovery walk into the kill zone) | ✅ `SquadCasualties.ToCareFor` → `Injury.IsIncapacitated` (alive only) | ✅ §7.5 R-d |
+| `Lace` / `Sitrep` reports exist and queue with the staff delay | ✅ `CommandReports.cs:15-27` | ✅ Command Chain |
+| the per-side route cost has one home | ✅ `NavDoorways.cs:563` | ✅ KG-8 |
+| the superiority read R4 needs exists in the reaction's choice | ⛔ assumed — measure at build (`Choose`'s inputs); a fallback is the squads' live-member counts | ⛔ searched §4, none found |
+| a seen-cell grid is cheap enough once per record | ✅ 📐 demo-city, `TerrainWorld.SegmentBlocked`: **~2 µs a ray; 150 m on a 5 m grid = 2 821 rays, 4–5 ms** (2 m grid: 30–40 ms); Red's corners see 32 % / 48 % of the circle | — |
+| the proven solution is consolidate / reorganise / report, then bypass, wait or attack deliberately | — | ✅ adopted (above) |
+
+**Rejected:** a rally pause alone — the squad still walks the same street · always waiting for the platoon's order — a lone squad never moves again · a
+squad-local "broke contact from" memory beside the knowledge — two stores of one fact (R-2140) · a new threat-aware planner — KG-8's table.
+
+#### 7.9.6 Scenarios and their expect rows *(R-4277, stated upfront)*
+
+| scenario | new / changed expect rows |
+|---|---|
+| `uf-corner-fight` (U2) — `runFor` 240 → 420 | `never` a Blue man within 15 m of Red's corners (627–633, 384) / (666–671, 386) after `Red fires+30` · Blue's squad runs `SquadHold` (the rally) after `BreakContact` · the existing rows unchanged |
+| a new `uf-shelled-street` (U-suite) | a squad marching to a point beyond a street the enemy shells (3 bursts / 60 s): its route goes round the shelled block, `never` a man inside it; a squad of the OTHER side (not a witness) walks through (side-awareness, CE-4626) |
+
+**Rails** (`SquadManeuverTests` + the place-knowledge suite): R1 the record after a won break contact (side, cause, point) · R2 the rally stage and its two
+reports · R3 the priced cell (a planner rail on a two-street navmesh) and the SOP row · R4 `Firm()` (Assault → Hold in a fresh record, unchanged outside it) —
+each red-proved; the parallel checks (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`) on every one (R1's event goes through the batch buffer, R-4212).
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 

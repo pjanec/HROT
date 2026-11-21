@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-19
+updated: 2026-11-21 (§9b the UnderFire kind — the shelled area + the ground a known enemy covers, ONE store; KG-8's shelled line superseded; R-2140, DESIGN) · 2026-11-19
 build-state: READY-TO-BUILD (R-4270…R-4274; reviews §8 and §10 approved and folded) — dispatched 2026-11-16 to terrain, behaviors, ui (§4)
 current-answer: §3 decisions · §3g the route area as built after the scenarios · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../group-maneuvers/DESIGN_Squad_Tactics.md §7.9 — OWNS what a squad does after a broken contact (R1–R4): the Direct detector of §9b's UnderFire kind and the reader in Firm()
   - ../../reference/NED_DDS_Protocol.md — OWNS the wire as an outsider sees it: this design's messages and descriptors are listed there (kept current by scripts/protocol-doc-check.py)
   - ../../DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS `GroundDamage` (a replicated record of what blasts did to the ground) and the navmesh areas (crater area) — the minefield's record and area follow both
   - ../../DESIGN_Vehicle_Breaching.md — OWNS the bulldozer's clear order (B-4, CE-4601) and the breach-record pattern the mine-clearing vehicle reuses
@@ -445,8 +446,117 @@ field's own rotated lattice).
 |---|---|
 | KG-6 | ⛔ NOT rebuilt every tick ⚠ *(reworded by KR-8: not a version — it rides on `DoorStates.Of`, which returns the previous table when nothing changed)*: the per-side minefield table is VERSIONED like `DoorStates.Of` — rebuilt only when a `PlaceKnowledge` record of that side changes (a strike, a swept cell: rare), otherwise the same table; a query's cost is one array lookup per polygon (MR-4 amended) |
 | KG-7 | TWO mechanisms, kept distinct on purpose: **avoid** (the planner's per-side cost / closure — known-mined closed, suspected priced) and **cross with care** (the danger-area sensor along the planned route + the squad's cross-or-hold decision). A minefield uses both: the planner goes round it when it can; when it cannot (no way round, or the order goes through), the route's danger sensor reports a `Minefield` area and the squad halts and calls engineers (MR-9) |
-| KG-8 | the UNIFICATION point is the planner's ONE per-side area-cost table, not the danger kinds: minefields fill it now; a shelled or gas area MAY later add a cost through the same table (go round when cheap, else cross with care) — ⛔ not built now (AQ101 ruled cross-or-hold). Junction / crossing / open-ground areas are route GEOMETRY, not knowledge: they stay in the sensor. The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind); ⚠ its missing SIDE (every side's squads see every shelling) is a gap, filed, not fixed here |
+| KG-8 | ⛔ *its "the shelled area stays node-level … not a `PlaceKnowledge` kind" is SUPERSEDED by §9b (R-2140, `2026-11-21`): the shelled area and the ground a known enemy covers are ONE kind, `UnderFire`.* the UNIFICATION point is the planner's ONE per-side area-cost table, not the danger kinds: minefields fill it now; a shelled or gas area MAY later add a cost through the same table (go round when cheap, else cross with care) — ⛔ not built now (AQ101 ruled cross-or-hold). Junction / crossing / open-ground areas are route GEOMETRY, not knowledge: they stay in the sensor. The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind); ⚠ its missing SIDE (every side's squads see every shelling) is a gap, filed, not fixed here |
 | KG-9 | ⭐ the navigation node (the Muscle, where the danger solve and the planner run) HAS the knowledge: `PlaceKnowledge` and `Minefield` replicate through the shared translator pack every node role installs — the `GroundDamage` precedent (`SharedTranslatorPack.cs:14-16, :86-87`); the sensor's unit side comes from the replicated affiliation (`EntityInfo`, the same pack). The solve adds a `Minefield` area when the route enters a cell the UNIT'S SIDE knows as mined or suspected; the march asks for the kind (`SquadMarchBehavior.cs:218-222`) |
+
+### 9b. The second kind — UNDER FIRE: the shelled area and the ground a known enemy covers, ONE store *(`2026-11-21`, behaviors, `CE-2466`, R-2140; build-state: DESIGN — approved, not built)*
+
+🔒 User, `2026-11-21`: *"Remembering the place which is covered by fire is also a good idea. Just it resembles the place where explosions are happening. So this is
+something we might already have. So I hope that knowledge is of the same kind, or that we unify these two somehow using the same storage mechanism to avoid
+duplication."* · then *"Approved, go ahead with the design."*
+
+⛔ **SUPERSEDES KG-8's sentence** *"The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind)"* and closes its filed gap `CE-4626` (the shelled
+area has no side). ⭐ KG-8's unification point is unchanged and now USED: the planner's one per-side area-cost table gets its second filler. KG-5 is unchanged:
+the ENEMY stays in contact knowledge — this kind is the GROUND, not the man.
+
+| | today | after |
+|---|---|---|
+| the shelled area | `ShelledAreas` — node-level, no side, 8 points, 120 s, unsaved; read only by the danger solve | `ShelledAreas` stays the DETECTOR (heat per burst, local); when a point BECOMES shelled (and every `RefreshSeconds` 20 s while it stays so) it emits `Learn(side, Indirect, point, RadiusM)` for each WITNESS side (KG-3: a live unit of that side within `WitnessMetres` 300 m) |
+| the ground a known enemy covers | nothing (the squad walked back in — `DESIGN_Squad_Tactics.md` §7.9) | a won break contact emits `Learn(side, Direct, threat point, RangeM)` (Squad Tactics R1) |
+| storage, sharing, save, replicate | — | ⭐ ONE `UnderFireKnowledge` record per (subject, side): the shared `PlaceKnowledgeHeader` + payload `Cause` · `Point` · `RangeM`; `LearnedAt` = the last evidence (merge: newest); subject = a stable key from (cause, point on a 25 m grid) |
+| how long | 120 s | per cause, read-side: `Indirect` cools `CoolSeconds` 120 s after its last evidence (as now), `Direct` `DirectCoolSeconds` 600 s; a cooled record is ignored, and dropped by the writer after 2 × its cool time |
+| what it covers | a circle of `RadiusM` | `Indirect`: the circle (as now) · `Direct`: the cells within `RangeM` the point SEES — `UnderFireSight`, a 5 m grid derived on each node from (point, range) through `TerrainWorld.SegmentBlocked`, never stored (the `MinePattern` precedent: derived the same on every node) |
+| who reads it | the danger solve (`ShelledAreas.Footprints`) | ⭐ the danger solve (the unit's side: `Indirect` → `Shelled` area as now, `Direct` → a new `CoveredByFire` area) **and** the per-side route cost (`NavDoorways.GetCost`: a polygon whose centre is under fire for the mover's side ×`UnderFireCost` 8 — priced, never closed: KG-7, go round when cheap) **and** the squad's `Firm()` (Squad Tactics R4) |
+
+📐 **Measured — `UnderFireSight` cost** (demo-city, `2026-11-21`, a scratch rail, not committed): `SegmentBlocked` ~2 µs a ray; a 150 m range on a 5 m grid =
+2 821 rays = **4–5 ms**, once per record per node (the 2 m grid: 30–40 ms). Red's two corners in `uf-corner-fight` see 32 % / 48 % of the circle. ⇒ cold, once
+per new record; ⛔ never per frame — cached by (subject, `LearnedAt` unchanged). A 300 × 300 m grid at 5 m is 3 600 bits = 450 B.
+
+```mermaid
+classDiagram
+  class PlaceKnowledgeHeader {
+    <<existing, shared by every kind>>
+  }
+  class MinefieldKnowledge {
+    <<existing kind 1>>
+    Header
+    Grid2bit
+  }
+  class UnderFireKnowledge {
+    <<new kind 2>>
+    Header
+    Cause - Indirect or Direct
+    Point
+    RangeM
+  }
+  class PlaceKnowledgeSystem {
+    <<existing - the one serial writer>>
+  }
+  class ShelledAreas {
+    <<existing - becomes the Indirect DETECTOR, stays node-level>>
+    AddBurst()
+  }
+  class ReactToContactBehavior {
+    <<existing - the Direct detector, Squad Tactics R1>>
+  }
+  class PlaceKnowledgeTable {
+    <<existing - per side>>
+    UnderFireAt(side, point, now) (new)
+  }
+  class UnderFireSight {
+    <<new - seen-cell grid, derived and cached per node>>
+  }
+  class NavDoorways {
+    <<existing - per-side GetCost, the minefield factor>>
+  }
+  class DangerAlongRouteSolve {
+    <<existing - Shelled from the table, CoveredByFire new>>
+  }
+  MinefieldKnowledge *-- PlaceKnowledgeHeader
+  UnderFireKnowledge *-- PlaceKnowledgeHeader
+  ShelledAreas ..> PlaceKnowledgeSystem : Learn Indirect per witness side
+  ReactToContactBehavior ..> PlaceKnowledgeSystem : Learn Direct
+  PlaceKnowledgeSystem --> UnderFireKnowledge : writes
+  PlaceKnowledgeTable ..> UnderFireKnowledge : union
+  UnderFireSight ..> UnderFireKnowledge : derives
+  NavDoorways ..> PlaceKnowledgeTable
+  NavDoorways ..> UnderFireSight
+  DangerAlongRouteSolve ..> PlaceKnowledgeTable
+  DangerAlongRouteSolve ..> UnderFireSight
+```
+*What it shows that prose hid: two DETECTORS (bursts, a broken contact), ONE record, ONE writer, ONE table, and the same two readers the minefield kind already
+has — the shelled area stops being a second store; only its heat counter stays node-local, because a burst is evidence, not knowledge.*
+
+```mermaid
+graph TD
+  subgraph MUS["Muscle node - navmesh, ballistics"]
+    SA[ShelledAreas detector] -->|Learn Indirect| EV[knowledge events - batch buffer]
+    DS[DangerAlongRouteSolve] -->|reads| TB
+    NF[NavDoorways per-side cost] -->|reads| TB
+    US[UnderFireSight cache] --> DS
+    US --> NF
+  end
+  subgraph BRN["Brain node"]
+    RC[ReactToContact - won break contact] -->|Learn Direct| EV2[knowledge events - batch buffer]
+    FM[Firm - R4] -->|reads| TB2
+  end
+  EV --> PK[PlaceKnowledgeSystem - serial, owning node]
+  EV2 --> PK
+  PK --> REC[(UnderFireKnowledge records - replicated, saved, recorded)]
+  REC --> TB[PlaceKnowledgeTable on the Muscle]
+  REC --> TB2[PlaceKnowledgeTable on the Brain]
+```
+*What it shows that prose hid: the two detectors run on DIFFERENT nodes (the bursts where the ballistics run, the broken contact where the brain runs) and meet
+only in the replicated record — which is why the knowledge must be the replicated `PlaceKnowledge` record (KG-9's translator pack) and could never stay in
+`ShelledAreas`' node-local table.*
+
+**Rejected:** covered-by-fire inside `ShelledAreas` — no side, unsaved, 8 points, 120 s, node-local · two stores (one per cause) — duplication (the user's ruling)
+· every burst as knowledge — replication churn for evidence no other node needs · storing the seen-cell grid in the record — derivable, 450 B per record on
+the wire for nothing.
+
+**Rails:** the kind's merge (newest `LearnedAt`) and both cool times · a witness side learns a shelling, a far side does not (CE-4626) · `UnderFireSight`
+equal on two loads of the same terrain (derived = the same everywhere) · the per-side cost (a polygon under fire priced ×8 for its side only) · the danger solve
+reads the table, not `ShelledAreas` (the shelled scenarios unchanged: `ua-*` / `ia-*` with shelling) · save → load keeps a `Direct` record.
 
 ## 10. ✅ The independent review of the generalization (MF-17) — `2026-11-16`
 
