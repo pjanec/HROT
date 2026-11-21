@@ -57,6 +57,42 @@ namespace Fdp.Toolkit.Terrain.Tests
             public void Dispose() => W.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ UF-7 (§9b, K6, K8; closes CE-4626) — a shelled point teaches every WITNESS side (a live unit within 1 500 m) an <see cref="UnderFireCause.Indirect"/> record whose time is the
+        /// last BURST; a side 2 km off learns nothing; a refresh before a new burst changes nothing (K6), and a side that comes within range learns it at the next refresh.
+        /// 🔴 Red-proofs: no witness distance test ⇒ Red learns at 2 km; the refresh's At = now instead of T0 ⇒ Blue's LearnedAt moves.
+        /// </summary>
+        [Fact]
+        public void UF7_AShelledPoint_TeachesTheWitnessSides_NotASide2KmOff()
+        {
+            using var rig = new Rig();
+            rig.W.RegisterComponent<EntityInfo>(); rig.W.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            Entity Unit(int side, Vector3 at)
+            {
+                var e = rig.W.CreateEntity();
+                rig.W.AddComponent(e, new EntityInfo { ForceId = (ForceId)side });
+                rig.W.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                return e;
+            }
+            var burst = new Vector3(0, 0, 0);
+            Unit(Blue, new Vector3(1000, 0, 0));
+            var red = Unit(Red, new Vector3(2000, 0, 0));
+            var heat = Fdp.Toolkit.Squad.DangerArea.ShelledAreas.For(rig.W);
+            heat.AddBurst(burst, 10); heat.AddBurst(burst, 20); heat.AddBurst(burst, 30);   // shelled at 30
+            rig.Now = 31; heat.Teach(rig.W, rig.Now); rig.Tick();
+            var blue = Assert.Single(rig.Records());
+            Assert.Equal((UnderFireCause.Indirect, (byte)(Blue + 1), (SimInstant)30.0), (blue.Cause, blue.Header.SidePlus1, blue.Header.LearnedAt));
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.ShelledAreas.RadiusM, blue.RangeM);
+
+            rig.Now = 36; heat.Teach(rig.W, rig.Now); rig.Tick();   // not due, no new burst: nothing
+            rig.W.GetComponentRW<SimTransform>(red).Position = new Vector3(0, 1200, 0);
+            rig.Now = 52; heat.Teach(rig.W, rig.Now); rig.Tick();   // the 20 s refresh: Red is a witness now; Blue's evidence unchanged (At = the last burst)
+            var records = rig.Records();
+            Assert.Equal(2, records.Count);
+            Assert.All(records, r => Assert.Equal((SimInstant)30.0, r.Header.LearnedAt));
+            Assert.Contains(records, r => r.Header.SidePlus1 == Red + 1);
+        }
+
         /// <summary>⭐ K7 + merge newest — evidence within 25 m of a record of the same side and cause updates it (newest time, range and strength; the point stays the
         /// first); farther, or another side, is another record. 🔴 Red-proof: no merge search (a new subject per learn) ⇒ three records for one side.</summary>
         [Fact]
@@ -157,6 +193,31 @@ namespace Fdp.Toolkit.Terrain.Tests
             var r = Assert.Single(rig.Records());
             Assert.Equal((byte)(Red + 1), r.Header.SidePlus1);
             Assert.Equal(UnderFireCause.Direct, r.Cause);
+        }
+
+        /// <summary>
+        /// ⭐ CE-2468 UF-3 (K1) — a record a LOAD made holds its saved age: the owning writer rebases it on ITS clock on the first tick (learned-at = now − age), so a save at
+        /// t = 3 000 s with age 50 loaded at t = 0 learned at −50 and cools at t = 70 (Indirect, 120 s) — ⛔ not "fresh for 3 000 s". 🔴 Red-proof: no rebase pass ⇒ it stays Loaded (never fresh, never aged).
+        /// </summary>
+        [Fact]
+        public void UF3_ALoadedRecord_IsRebasedOnTheLoadingClock_AndAgesFromItsSavedAge()
+        {
+            using var rig = new Rig();
+            var r = new UnderFireKnowledge { Cause = UnderFireCause.Indirect, Point = Vector3.Zero, RangeM = 25f };
+            r.Header.SubjectKind = SubjectKind.Place; r.Header.Subject = UnderFireRules.SubjectOf(UnderFireCause.Indirect, Vector3.Zero); r.Header.SidePlus1 = Blue + 1;
+            r.Header.Kind = PlaceKnowledgeKind.UnderFire; r.Header.ObjectIndex = -1; r.Header.State = UnderFireKnowledge.StateLoaded; r.Header.LearnedAt = (SimInstant)50.0;
+            rig.W.AddComponent(rig.W.CreateEntity(), r);
+
+            rig.Tick();   // t = 0
+            var rebased = Assert.Single(rig.Records());
+            Assert.Equal(UnderFireKnowledge.StateActive, rebased.Header.State);
+            Assert.Equal(-50.0, (double)rebased.Header.LearnedAt, 6);
+            Assert.True(rebased.FreshAt(rig.Now));
+
+            rig.Age(69);
+            Assert.Equal(UnderFireKnowledge.StateActive, Assert.Single(rig.Records()).Header.State);
+            rig.Age(2);   // t = 71: 121 s since its evidence
+            Assert.Equal(UnderFireKnowledge.StateCooled, Assert.Single(rig.Records()).Header.State);
         }
     }
 }
