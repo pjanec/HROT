@@ -311,7 +311,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool NotDefending(Entity self, EntityRepository world)
             => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.Defend   // ⭐ CE-4612 — the order's kind
                && !SupportByFireBehavior.Supporting(world, self)   // ⭐ CE-2436 — a squad supporting by fire is already fighting its contact
-               && !CheckpointBehavior.Manning(world, self);         // ⭐ CE-4622 K-7 — a squad manning a checkpoint answers a vehicle by its own watch and ladder
+               && !CheckpointBehavior.Manning(world, self)          // ⭐ CE-4622 K-7 — a squad manning a checkpoint answers a vehicle by its own watch and ladder
+               && !ReactToContactBehavior.PressesTheAttack(world, self);   // ⭐ CE-2467 — a superior squad on an attack order presses it: the drill answers the contact
 
         internal static SquadDefendParams Defaults(Vector3 position, float radius, float speed) => new()
         {

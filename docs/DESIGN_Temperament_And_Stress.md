@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-19 (§7.7 D-11 A — the break waits for his post) · 2026-11-19 (TS-6 CE-3462 D-6 — a cornered low-resolve man surrenders at once) · 2026-11-18
 build-state: BUILT 2026-10-24 — TS-A (CE-2269; TS-2 re-based on a TRAINED standard, R-2076, §7.4), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos §7.5 (ts-aggression and ts-three-defenders pass; ts-house-defenders waits on BC-5) APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
-current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins)
+current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins) · ⭐ §7.8 fire is a RATE (CE-2470, supersedes TS-4's per-round near miss and D-1)
 stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with Aggression and Discipline; do not quote it.
 known-rot: ⛔ §4 TS-2's formula pulls toward the population DEFAULT — superseded by a TRAINED standard (§7.4, R-2076). ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE for an ordinary consideration — the compensation counts them; ⭐ resolved by MODIFIER considerations (§7.3, R-2075). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
 known-conflict: none.
@@ -331,6 +331,30 @@ arrival breaks at his post, which is cover.
 | ⛔ not | a reaction's or his own SOP's move (only a superior's post order); an assault's `AdvanceTo` (not a post) |
 | rail | `StressSystemTests.D11A_AManMovingToHisOrderedPost_BreaksOnlyWhenThereOrStalled` (red-proved) |
 | 📌 why | `pc-corridor-fight`: Red's men broke at 11–15 s under fire from 160 m, 4–8 m short of covered posts, and lay in the open grass the whole first minute |
+
+### 7.8 Fire is a RATE, not a count — what breaks a trained soldier *(CE-2470, behaviors, `2026-11-21`; build-state: BUILT)*
+
+🔒 User, `2026-11-21`: *"now the soldiers are pretty easy to break under stress maybe they might need a bit more stress resistance otherwise thouy would not be
+able to complete anything"* · *"if every single bullet counts then machine gun burst could break the guy too early - not desired, better critera might be
+needed"* · *"pls try to use soe common sense what leads to physical breakage in a battle … soldier are usually trained so they shoudl not break so easily"*.
+⛔ **SUPERSEDES** D-1 (`2026-11-18`, *"the stress model stays (R-2076), the fire is what the Judge means"*): that ruling slowed `ts-fire-discipline`'s fire
+instead of steadying the men.
+
+**The proven solution** (combat psychology; the suppression / morale split of every serious wargame): incoming fire **suppresses** — a man gets down, aims
+worse, fires less (here `UnderFire`'s aim spoil and the short drop under fire, AQ96); what **breaks** a trained man is fire that goes on with no way out,
+together with a hit, a friend falling, his leader lost, being alone, outnumbered or flanked. ⭐ Adopted: fire is a **rate while it goes on**, every other
+stimulus unchanged. ⛔ Rejected: a per-round stimulus with a lower number (a long burst still breaks; a slow rifle never does) · a per-burst count (needs a
+burst detector, and a burst is not what matters — duration is).
+
+| | as built | why |
+|---|---|---|
+| fire | a round passing him stamps `Stress.LastFireAt`; while one passed within `FireHoldsSeconds` 2 s his stress rises `FirePerSecond` 0.06 / s × his reach, half in cover; the calming runs as before | ⭐ a 30-round burst in one second = one round |
+| ⇒ a regular (reach 0.65, breaks at 0.70) | in the open alone ~80 s of unbroken fire; in cover, or with his leader near, **never by fire alone** | the calm (0.03 / s, ×2 cover, ×2 leader) outruns 0.039 / s |
+| ⇒ militia (reach 0.78, breaks at 0.435) | in the open ~26 s; in cover / with a leader, not by fire alone | `ts-fire-discipline`: no regular breaks, the militia do |
+| unchanged | a hit 0.25 · a friend down 0.2 within 15 m · outnumbered 0.02 / s · alone 0.01 / s · heard close · a shell burst (§7.6) | ⭐ these are what tip a man |
+
+Rails: `StressSystemTests.CE2470_Fire_IsARate_ABurstIsNoMoreThanARound_HalfInCover` (supersedes `CE2376_ANearMissInCover_CountsHalf`), `CE2270_AHit_RaisesHim…`,
+`CE2270_TheSystem_ReadsTheEdges…`. Scenarios: `ts-fire-discipline` ✅, `ts-three-defenders` ✅, `ts-aggression` ✅, `ts-house-defenders` ✅ after its check followed D-6: 📐 probed, the Waverer is no longer broken through the walls (per-round fire broke him at 175 s before anyone reached him); the squad reaches his closet and he surrenders CALM at 150 s — CE-3462 D-6 (*"a cornered low-resolve man gives up at once, calm or not"*) ⇒ the row "breaks, then surrenders after the break" became "he gives up".
 
 ## ⛔ HISTORY
 

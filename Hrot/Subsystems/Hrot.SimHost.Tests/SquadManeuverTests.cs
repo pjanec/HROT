@@ -7417,14 +7417,16 @@ namespace Hrot.SimHost.Tests
         /// <summary>⭐⭐ <c>CE-2465</c> (Urban Fight Suite U2-4) — BREAK CONTACT ENDS WHEN THE CONTACT IS BROKEN: each element has bounded once and
         /// the squad is in a lull (no fire at it, no new contact for <see cref="SquadSopConditions.LullSeconds"/>) ⇒ Success, though nobody reached
         /// the point; while it is still under fire it goes on. 📐 Live before: <c>uf-corner-fight</c>, a mover whose cover picks never moved him kept
-        /// the play running 280 s, the squad standing upright and still. ✅ Red-proof: the lull end removed ⇒ never finishes ⇒ red.</summary>
+        /// the play running 280 s, the squad standing upright and still. ✅ Red-proof: the lull end removed ⇒ never finishes ⇒ red.
+        /// ⭐⭐ <c>CE-2472</c> — and NOT while a man still sees an enemy (his own perception: he is in that enemy's sight). 📐 U2: a man whose pick did not
+        /// move him sat 30 m in front of the corner and the drill called the contact broken. 🔴 Red-proof: the sight clause dropped ⇒ done ⇒ red.</summary>
         [Fact]
-        public void CE2465_BreakContact_EndsInALull_WithAnElementShortOfThePoint_AndNotUnderFire()
+        public unsafe void CE2465_BreakContact_EndsInALull_WithAnElementShortOfThePoint_AndNotUnderFire()
         {
-            foreach (bool underFire in new[] { false, true })
+            foreach (var (underFire, inSight) in new[] { (false, false), (true, false), (false, true) })
             {
                 var s = new Squad(members: 2);
-                s.PoolMany(6, new Vector3(0f, 60f, 0f));
+                var enemies = s.PoolMany(6, new Vector3(0f, 60f, 0f));
                 s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
                 for (int i = 0; i < 12; i++) s.Tick();
                 Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
@@ -7436,11 +7438,29 @@ namespace Hrot.SimHost.Tests
                     if (!q.IsNull) s.Answer(q, null);
                     foreach (var m in s.Members) Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived);
                     if (underFire) s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-                    for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+                    for (int i = 0; i < 60 && !done; i++)
+                    {
+                        if (inSight) Sees(s, s.Members[0], enemies[0]);   // the eye re-stamps him every tick
+                        s.Tick(); done = s.Finished(out result);
+                    }
                 }
                 if (underFire) Assert.False(done, "under fire the break contact goes on");
+                else if (inSight) Assert.False(done, "a man still in an enemy's sight: the contact is not broken");
                 else { Assert.True(done, "in a lull the contact is broken: done"); Assert.Equal(Fbt.NodeStatus.Success, result); }
             }
+        }
+
+        /// <summary>⭐ <c>CE-2472</c> — <paramref name="man"/> SEES <paramref name="enemy"/> now (as perception stamps it: the Visual bit, this tick).</summary>
+        private static unsafe void Sees(Squad s, Entity man, Entity enemy)
+        {
+            if (!s.Repo.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(man))
+                s.Repo.AddComponent(man, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(man);
+            mem.EntityIds[0] = (long)enemy.PackedValue;
+            mem.Freshness[0] = 10f;
+            mem.LastSeenTick[0] = Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo);
+            mem.Modalities[0] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+            if (mem.Count < 1) mem.Count = 1;
         }
 
         /// <summary>⭐ <c>CE-2461</c> — a cover point on another storey or a ledge (more than <see cref="SquadCover.MaxClimbMetres"/> above the mover)

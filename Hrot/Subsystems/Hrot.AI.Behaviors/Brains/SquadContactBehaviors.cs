@@ -249,7 +249,9 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ CE-2465 (U2-4) — the contact IS broken: each element has bounded once and the squad is in a lull (no fire at it, no new contact
             //   for LullSeconds) ⇒ done, even with an element short of the point. 📐 uf-corner-fight: a mover whose cover picks never moved him
             //   kept his element's centre 30 m from the answer and the squad stood 280 s. ⛔ Not for an ordered To with no threat (go there).
-            if (ws.ThreatId != 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander)) return NodeStatus.Success;
+            //   ⭐⭐ CE-2472 — and nobody is left in an enemy's sight (his own perception): 📐 U2, a man whose pick did not move him sat 30 m in front of
+            //   the corner through the whole break and the drill called the contact broken.
+            if (ws.ThreatId != 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander) && !AnyInSight(in ctx)) return NodeStatus.Success;
             for (byte e = 0; e < 2; e++)
             {
                 var c = ctx.Centre(e, out bool any);
@@ -295,6 +297,10 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2460 — cover to cover; with no cover ahead ONE rush (BoundMetres) toward the answer, never the whole way at once (📐 U1, live:
             //   the first element found no pick and ran ~55 m across the street). No threat (an ordered To) ⇒ straight to the answer (S2-F)
             bool cover = SquadCover.Has(in p.Cover, member, out var pick);
+            // ⭐⭐ CE-2472 — a pick that would not move him (the creep, CE-2465's ⚠) while he is in an enemy's sight is no cover: ONE rush toward the
+            //   hidden point (the EQS retreat answer) takes him out of it
+            if (cover && ws.ThreatId != 0 && Flat(pick - at) < CreepMetres && ctx.Live(member, out var mover) && AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, mover))
+                cover = false;
             var point = cover ? pick : ws.ThreatId != 0 ? SquadCover.OneRush(at, ws.Answer, BoundMetres) : ws.Answer;
             return new MemberOrder
             {
@@ -306,6 +312,17 @@ namespace Hrot.AI.Behaviors.Brains
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
 
         private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
+
+        /// <summary>⭐ <c>CE-2472</c> — a cover pick closer than this to the man (m) does not move him.</summary>
+        public const float CreepMetres = 1.5f;
+
+        /// <summary>⭐ <c>CE-2472</c> — a live man of the squad is in an enemy's sight (his own perception).</summary>
+        private static bool AnyInSight(in SquadPlayContext ctx)
+        {
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                if (ctx.Live(i, out var man) && AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, man)) return true;
+            return false;
+        }
 
         /// <summary>⭐ CE-2278 — seconds a thrown smoke order is given before the squad's orders are re-sent (the throw takes ≈ 1–2 s).</summary>
         public const float SmokeSeconds = 3f;
@@ -483,6 +500,23 @@ namespace Hrot.AI.Behaviors.Brains
                 if (PlatoonConvoyBehavior.AnyInTheFight(world, roster.SubordinateEntities[i]) && ++fighting > 1) return false;
             return fighting == 1;
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — the squad is RUNNING an ordered attack (<see cref="Hrot.AI.Behaviors.Orders.OrderKind.Attack"/>, not paused)
+        /// with two or more men in the fight and still 3 : 1 over its contacts (<see cref="AfterContact.Superior"/>, R4's test): its attack drill IS the answer
+        /// to the contact, so the contact reaction does not pause it, and a casualty waits until the assault is through (doctrine: the attack continues; the
+        /// wounded are treated on the objective). Superiority lost ⇒ false ⇒ the reaction decides again (break contact, hold — R4, R5). 📐 uf-corner-assault:
+        /// 6 v 2 broke contact four times and cycled care while three men bled out. No allocation.
+        /// </summary>
+        public static bool PressesTheAttack(EntityRepository world, Entity self)
+        {
+            var order = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self);
+            return order.Kind == Hrot.AI.Behaviors.Orders.OrderKind.Attack && !order.Paused
+                && AfterContact.LiveMembers(world, self) >= 2 && AfterContact.Superior(world, self, 0f);
+        }
+
+        /// <summary>The care row's guard: <see cref="PressesTheAttack"/> false.</summary>
+        public static bool NotPressingTheAttack(Entity self, EntityRepository world) => !PressesTheAttack(world, self);
 
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
