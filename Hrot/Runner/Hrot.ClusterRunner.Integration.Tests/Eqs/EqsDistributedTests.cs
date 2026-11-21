@@ -508,6 +508,9 @@ public sealed class EqsDistributedTests
         var area = buf.GetSpanRO()[0];
         Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing, area.Kind);
         Assert.InRange(area.Center.X, 195f, 205f);
+        // ⭐ CE-2469 SP-1 — the planned route's steer point rides the same answer to the Brain: on the route, 20 m from the unit (150, 300) (or the route's end).
+        Assert.Equal(1, buf.HasSteer);
+        Assert.True(Vector2.Distance(new Vector2(buf.SteerPoint.X, buf.SteerPoint.Y), new Vector2(150f, 300f)) is > 5f and < 21f, $"steer {buf.SteerPoint}");
 
         // The Brain rates it from what the unit KNOWS: a remembered armed watcher with sight of the crossing ⇒ threatened.
         if (!cgf.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()) return;   // CGF always registers it
