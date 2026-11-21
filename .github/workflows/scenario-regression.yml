@@ -150,3 +150,29 @@ jobs:
         with:
           name: cluster-shard-${{ matrix.shard }}
           path: out/
+
+  # ⭐ R-2141 — ONE table for the whole run: every shard's results downloaded, every failing scenario listed per tier on the run's summary page
+  summary:
+    needs: [editor-tier, cluster-tier]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: all
+          pattern: "*-shard-*"
+      - name: the run's verdict, per tier
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, glob, os
+          for tier in ("editor", "cluster"):
+              total, failed = 0, []
+              for f in sorted(glob.glob(f"all/{tier}-shard-*/**/summary.json", recursive=True)):
+                  try: d = json.load(open(f))
+                  except Exception: continue
+                  if "failed" not in d: continue          # the JOBS merge's own file — the runner's per-shard files carry the counts
+                  total += d.get("count", 0); failed += d.get("failed", [])
+              if total == 0: print(f"### {tier} tier: no results"); continue
+              print(f"### {tier} tier: {total - len(failed)} of {total} pass")
+              for name in sorted(set(failed)): print(f"- ❌ `{name}`")
+          PY
