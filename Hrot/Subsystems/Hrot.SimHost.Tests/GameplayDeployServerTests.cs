@@ -335,6 +335,32 @@ namespace Hrot.SimHost.Tests
             PumpUntil(() => _statusDisposed.Contains(StationA) && _statusDisposed.Contains(StationB), "both stations' answers deleted");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-1 (Q114 A′) — a departed NODE frees EVERY station on it: three stations <c>Of(node, 0..2)</c> each hold a slot and an answer; <c>NodeDeparted(node)</c> disposes all three slots and
+        /// all three answers, and a station of ANOTHER node keeps its slot. 🔴 Mutation: the departure compares the whole station with the node id ⇒ only station 0 goes.
+        /// </summary>
+        [Fact]
+        public void CE11027_ADepartedNode_FreesEveryStationOnIt_SlotsAndAnswers()
+        {
+            const int node = 9;
+            var seats = new[] { (int)Fdp.Core.StationId.Of((NodeId)node, 0), (int)Fdp.Core.StationId.Of((NodeId)node, 1), (int)Fdp.Core.StationId.Of((NodeId)node, 2) };
+            for (int i = 0; i < seats.Length; i++) Unit(Rifleman + 10 + i, ForceId.Friend);
+            Unit(Rifleman + 20, ForceId.Friend);
+            for (int i = 0; i < seats.Length; i++) Assert.True(Request(seats[i], ForceId.Friend, Rifleman + 10 + i).Accepted);
+            Assert.True(Request(StationA, ForceId.Friend, Rifleman + 20).Accepted);
+            Assert.Equal(4, _proc.SlotCount);
+
+            _w.Bus.Publish(new NodeDeparted { NodeId = (NodeId)node });
+            _w.Bus.SwapBuffers();
+            _proc.Execute(_w, 0.016f);
+
+            Assert.Equal(1, _proc.SlotCount);                                   // only StationA's remains
+            Assert.True(_proc.TryGetSlot(StationA, out _, out _));
+            foreach (int seat in seats) Assert.False(_proc.TryGetSlot(seat, out _, out _));
+            PumpUntil(() => seats.All(seat => _statusDisposed.Contains(seat)), "the answers of all three stations deleted");
+            Assert.DoesNotContain(StationA, _statusDisposed);
+        }
+
         /// <summary>An observer request (<c>Observe</c>) makes a Choosing slot of the side with no unit. ✅ Red-proof: the observe branch removed ⇒ the request is refused as no such unit ⇒ red.</summary>
         [Fact]
         public void AnObserveRequest_MakesAChoosingSlotWithNoUnit()
