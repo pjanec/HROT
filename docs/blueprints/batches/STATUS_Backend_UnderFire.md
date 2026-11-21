@@ -17,7 +17,7 @@ Branch `backend`; merged `behaviors@25431b39c` (a fast-forward: it already held 
 | task | state | evidence |
 |---|---|---|
 | UF-1 `RecordWriterCore.Retire(key)` (K2) | DONE | `Retire` ends this node's OWNED records of a key: a networked one through `DestroyEntityCommand` (the ELM teardown, the DDS dispose to every ghost) and marked `TearDown` at once, an offline one destroyed. A ghost is never touched; a creation still in flight is ended as it arrives and its queued items are forgotten. The destroy is ONE helper now, `NetworkEntityDestroy.Request` (it was written out in obstacles, charges and gas clouds; all three go through it). Rails `RecordRetireTests` (5: owned networked + offline, a ghost untouched, a pending creation, keyframes before / after seek back and forth), each red-proved by its own mutation (no end · no owner test · a retired pending key drained as usual). ⏳ The ghost's DDS dispose on a SECOND node is proved by UF-2's two-node rail. Orphans: `Retire` acts where `Owns` holds, which the ownership handover makes true on the inheriting node |
-| UF-2 the kind, writer, ids, wire, registration | DONE (part 1 `d081a9ff2`; wire part 2 ⏳ commit) | `UnderFireKnowledge` (component 171, TKB 7211, unmanaged), `UnderFireWriter` (a `RecordWriterCore` subclass: merge within 25 m of a record's frozen point, newest wins; cools at 120 s / 600 s by sim time, retires at 2 ×), registered in `DamageAssessmentModule` and `CgfLogicPack`; wire `EntityUnderFireKnowledge` / `dtUnderFireKnowledge` 210, the egress / ingress pair in the minefield-knowledge shape, in `SharedTranslatorPack` + `NedOwnershipGroupBinding`. Rails `UnderFireKnowledgeTests` (7, red-proved) + `EntityGroundDamageTranslatorTests.CE2468_*` (2) |
+| UF-2 the kind, writer, ids, wire, registration | DONE (part 1 `d081a9ff2`, wire part 2 — the commit after `5fcb3dddb`) | `UnderFireKnowledge` (component 171, TKB 7211, unmanaged), `UnderFireWriter` (a `RecordWriterCore` subclass: merge within 25 m of a record's frozen point, newest wins; cools at 120 s / 600 s by sim time, retires at 2 ×), registered in `DamageAssessmentModule` and `CgfLogicPack`; wire `EntityUnderFireKnowledge` / `dtUnderFireKnowledge` 210, the egress / ingress pair in the minefield-knowledge shape, in `SharedTranslatorPack` + `NedOwnershipGroupBinding`. Rails `UnderFireKnowledgeTests` (7, red-proved) + `EntityGroundDamageTranslatorTests.CE2468_*` (2: the ordinal matches the wire; a record round-trips byte for byte to a ghost and the owner never takes its own back — red-proved by dropping the `Point.Z` copy, the `State` test in `Matches`, the ingress owner guard). The pack's system count `SimHostCoreLogicPackTests` 23 → 28 (+3 flame lane, CE-3487 / CE-3488, stale; +2 here) |
 | UF-3 save by age (K1) | DONE `b9a0daa74` | the save writes an owned record's age; a load makes it `Loaded` (age in `LearnedAt`, no reader treats it as fresh); the owning writer rebases it each tick it finds one. Rails `TerrainObjectRequestsTests.CE2468_APlaceUnderFire_IsSavedByAge_AndLoadedHoldingIt`, `UnderFireKnowledgeTests.UF3_*` (a save at t 3000 loaded at t 0 ages from the saved age) |
 | UF-4 table + sight (K3, K5, K11) | DONE `c3911d14c` | `UnderFireTable` on `DoorStates`, its own cache; `UnderFireSight` grids per Direct record on the authored terrain (`SegmentBlocked(doors: null)`, eye 1.6, target 1.0, 5 m), built by `UnderFireSightSystem` in the serial pass only when the table, terrain or builders changed, cleared on `WorldEpoch.Moved`. Rail `UnderFireNavTests.UF4_*`: equal grids on two loads cell for cell, a path query builds nothing, 0 B over 10 steady frames |
 | UF-5 per-side route cost (K4, K8, K12) | DONE `c3911d14c` | `UnderFirePolyMap` per mesh registered by the bake (keyed by layer: a re-bake replaces it), factor 1 + 7 × covered share, Direct only; one lookup in `DoorAwareQueryFilter.GetCost`; `RoadGraphRouter` prices a segment whose midpoint is covered (×8), `RoutePlanner` passes the side. Rails `UnderFireNavTests.UF5_*`: two streets round a wood — Blue (knows) drives the far street, Red the near one; Indirect not priced; the road leg goes round for Blue |
@@ -25,6 +25,25 @@ Branch `backend`; merged `behaviors@25431b39c` (a fast-forward: it already held 
 | UF-7 the witness detector (K6, K8) | DONE `1f0f1c9be` — closes CE-4626 | `ShelledAreas.Teach`: each side with a live unit within 1 500 m learns a shelled point when it becomes shelled, on a new burst and every 20 s; `At` = the last burst. Rail `UnderFireKnowledgeTests.UF7_*`: Blue at 1 km learns, Red at 2 km does not until it comes within range; a refresh does not move `LearnedAt` |
 
 📄 Design folded: [`DESIGN_Minefields.md` §9b.2 "As built"](../../designs/minefields/DESIGN_Minefields.md) (obligation ⑤).
+
+### Red-proofs — every rail by a compiling mutation
+
+| mutation | rail | result |
+|---|---|---|
+| `GetCost` multiplies by 1 | `UF5_TheCoveredStreet…` | red |
+| road segment factor 1 | `UF5_ARoadLeg…` | red |
+| `UnderFireSight.Covered` no side test | `UF5_TheCoveredStreet…` | red (⚠ first SURVIVED: Red had no grid of its own — the rail now gives it one, `5fcb3dddb`) |
+| `UnderFirePolyMap` box filter no side test | — | survives by design: a pre-filter only; the side decision is `Covered` (above) |
+| `CoveredByFireAreas` no side test | `UF6_…` | red (after the same rail fix) |
+| `ShelledFootprints` no side test | `UF6_…` | red |
+| witness distance dropped | `UF7_…` | red |
+| refresh `At` = now | `UF7_…` | red |
+| sight rebuilt every frame | `UF4_…` | red |
+| wire: no `Point.Z`, no `State` in `Matches`, no owner guard | `CE2468_AnUnderFireRecord…` | red ×3 |
+
+⚠ **Stale-binary trap met here:** restoring a mutated file from a backup kept the backup's OLDER mtime, so MSBuild kept the mutated `Fdp.Toolkits.dll` and a "clean"
+run reddened; every source is touched after a restore now. Every verdict above was taken on a build of the mutated source (newer than the DLL).
+
 
 ## DECISIONS
 

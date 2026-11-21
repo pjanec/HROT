@@ -213,6 +213,8 @@ namespace Hrot.NED.Descriptors
         dtMinefield                   = 191,
         dtMinefieldStrikes            = 192,
         dtMinefieldKnowledge          = 193,
+        // ⭐ CE-2468 (DESIGN_Minefields.md §9b) — a side's knowledge of a place under fire (the deciding node → every node). 210 measured free on every branch 2026-11-21 (210–215 unassigned).
+        dtUnderFireKnowledge          = 210,
         // ⭐ CE-4624 MS-T4 — the lanes a node cleared through a field (the deciding node → every node); a clearer's tool marker (Brain group → the Muscle). 194–195 free on every lane 2026-11-16.
         dtMinefieldLanes              = 194,
         dtMineClearing                = 195,

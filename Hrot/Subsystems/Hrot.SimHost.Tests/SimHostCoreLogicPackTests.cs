@@ -149,7 +149,9 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-4591 / CE-4603 / CE-4601 (terrain lane, 2026-11-14) — +4 in DamageAssessmentModule: GroundDamageSystem, CraterRegroundSystem, DozerCutSystem, TreeDamageSystem ⇒ 16.
             // ⭐ CE-4664 (terrain lane, 2026-11-18) — the count had gone stale at 16 while the pack grew to 22 (measured at 1d3d23356: +3 the minefield writers in
             //   DamageAssessmentModule — MinefieldStrikesSystem, PlaceKnowledgeSystem, MinefieldLanesSystem, CE-4624, terrain's own; +3 elsewhere since); +1 GroundHeatMarkSystem ⇒ 23.
-            Assert.Equal(23, pack.SimulationSystems.Count);
+            // ⭐ CE-2468 (backend, 2026-11-21) — stale again: +3 the flame lane's NapalmSystem, StructureFlameSystem, GroundFireSystem (CE-3487 / CE-3488, DamageAssessmentModule)
+            //   and +2 UnderFireWriter, UnderFireSightSystem (UF-2 / UF-4) ⇒ 28.
+            Assert.Equal(28, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Terrain.GroundHeatMarkSystem);
             Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem);
 

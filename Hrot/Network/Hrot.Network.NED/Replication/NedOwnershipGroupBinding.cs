@@ -128,6 +128,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtMinefield, GlobalComponentIds.Minefield);                 // ⭐ CE-4624 MS-T2
         map.RegisterMapping((long)EDescriptorType.dtMinefieldStrikes, GlobalComponentIds.MinefieldStrikes);
         map.RegisterMapping((long)EDescriptorType.dtMinefieldKnowledge, GlobalComponentIds.MinefieldKnowledge);
+        map.RegisterMapping((long)EDescriptorType.dtUnderFireKnowledge, GlobalComponentIds.UnderFireKnowledge);   // ⭐ CE-2468 UF-2
         map.RegisterMapping((long)EDescriptorType.dtMinefieldLanes, GlobalComponentIds.MinefieldLanes);        // ⭐ CE-4624 MS-T4 — the runtime lanes record (no group: the clearing node keeps it)
         map.RegisterMapping((long)EDescriptorType.dtRamOrder, GlobalComponentIds.RamOrder);                  // ⭐ CE-4622 K-2 — the hull's ram order: the Brain group's, read by the mover
         map.RegisterMapping((long)EDescriptorType.dtMineClearing, GlobalComponentIds.MineClearing);          // ⭐ CE-4624 MS-T4 — the clearer's tool marker: the Brain group's, read by the Muscle that clears
