@@ -58,6 +58,7 @@ def level():
     for c in ("t.IdleWhenNotForeground 0", "r.VSync 0"): unreal.SystemLibrary.execute_console_command(None, c)
     unreal.EditorLevelLibrary.get_editor_world().get_world_settings().set_editor_property("default_game_mode", unreal.HrotDpsGameMode.static_class())
     if not LES().save_current_level(): raise RuntimeError("save failed")   # as the travel test: Play on an UNSAVED level ends the unattended editor
+    LES().editor_set_viewport_realtime(True)
     LES().editor_request_begin_play()
     S.update(phase="join", t=time.time() + 8)
 
@@ -151,3 +152,5 @@ def tick_once():
 
 
 S["handle"] = unreal.register_slate_post_tick_callback(tick)
+# -ExecutePythonScript ends the editor when the script returns; the ticks need it alive (the travel script does the same)
+unreal.EditorPythonScripting.set_keep_python_script_alive(True)
