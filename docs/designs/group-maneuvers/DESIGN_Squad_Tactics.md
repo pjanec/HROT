@@ -1643,7 +1643,7 @@ fired; the reaction's assault ran `FireAndMovement`. The D6 hand-over stays a ra
 O-a (with the first demo) → `ua-casualty-care` after R-d → `ua-fire-and-movement` after F-b → `ua-bounding-overwatch` after F-c →
 `ua-squad-danger-crossing` after X-c. Each demo's checker is added to `SCENARIOS` in the same commit as its scenario.
 
-### 7.9 After a broken contact — rally, report, remember, do not walk back in *(behaviors, `2026-11-21`, `CE-2466` + `CE-2467`; build-state: DESIGN — the four rules ✅ approved, the shared "under fire" knowledge ✅ approved (R-2140); not built)*
+### 7.9 After a broken contact — rally, report, remember, do not walk back in *(behaviors, `2026-11-21`, `CE-2466` + `CE-2467`; build-state: BUILT `2026-11-21` except R3-for-a-bound (CE-2469) — as built §7.9.8)*
 
 🔒 User, `2026-11-21`: *"The four rules approved. Remembering the place which is covered by fire is also a good idea. Just it resembles the place where explosions are
 happening … I hope that knowledge is of the same kind, or that we unify these two somehow using the same storage mechanism to avoid duplication."* ·
@@ -1812,6 +1812,21 @@ squad-local "broke contact from" memory beside the knowledge — two stores of o
 **Rails** (`SquadManeuverTests` + the place-knowledge suite): R1 the record after a won break contact (side, cause, point) · R2 the rally stage and its two
 reports · R3 the priced cell (a planner rail on a two-street navmesh) and the SOP row · R4 `Firm()` (Assault → Hold in a fresh record, unchanged outside it) —
 each red-proved; the parallel checks (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`) on every one (R1's event goes through the batch buffer, R-4212).
+
+#### 7.9.8 As built — `2026-11-21` *(behaviors, CE-2466; against backend's CE-2468 contract, `NOTE_Backend_To_Behaviors_UnderFire_Contract.md`)*
+
+| rule | as built | where |
+|---|---|---|
+| R1 | ✅ learned at the decision to break contact or hold, and again when the reaction ends with an identified enemy still in the fight (`SquadContacts.IsEnemy` — a neutral is none); one `LearnDirect` per pooled enemy; strength = the max over the reaction (`PeakEnemy`) | `AfterContact.Learn`, `ReactToContactBehavior.Run` |
+| R2 | ✅ `StageRally`: a won break contact first moves to its hidden point (an ordered break contact, ≤ `RallyMoveSeconds` 30 s), then `SquadHold` 30 s; on entry LACE + a SPOT per enemy | `ReactToContactBehavior.Rally`, `AfterContact.ReportRally` |
+| R3 | 🟡 march: priced automatically (backend UF-5). ⛔ bound: NOT built — the brain has no path to read (a bound is a straight line, a cluster's brain no navmesh) ⇒ `CE-2469` asks backend for the route's steer point in the danger answer; meanwhile a bound facing covered ground takes R6 | `HANDOFF_Behaviors_To_Backend_RouteSteerPoint.md` |
+| R4 | ✅ in `Firm()`: Assault → BreakContact (→ Hold when `HoldsFirm`) when an enemy stands within `RecordNearMetres` 25 m of a fresh Direct record and the squad lacks 3 : 1 against the record's strength; skipped for a lone man pressing on (`PressesOn`); `UnderFireKnowledge` declared for the brain phase (`AiBrainReads`; found by the read check) | `AfterContact.FacesRemembered`, `.Superior`; the share is `SquadInputs.EnemyShare` (one formula, extracted) |
+| R5 | ✅ after the rally, a health share < 0.5 ⇒ a Reinforce request + TaskFailed and `StageUnfit` (holds until re-tasked) | `ReactToContactBehavior.Rally` |
+| R6 | ✅ `CoveredByFireAhead` SOP row ABOVE "Under a platoon"; the reaction holds every man; a way round before it reports ends it; after 120 s a FireSupport request + TaskFailed, then held until a new order (never back in when the record cools); `DangerAreaAhead` excludes the kind; `DangerRouteWatch` asks for it | `CoveredByFireAheadBehavior`, `SquadSopConditions.CoveredByFireAhead` |
+
+⚠ **Deviations from §7.9.2, argued:** ① R3 for a bound is not built (above — a premise failed, R-106: the item stopped, the rest built). ② R2's casualty rule (a wounded man inside a fresh record is fully exposed) is not built — ⏭ with `CasualtyExposure`, filed in CE-2466. ③ The platoon learning R1 itself (S3) is not built — ⏭ CE-2466. ④ U2's LACE row is not expressible: the checks grammar reads component fields, and a report is a queued item ⇒ the rails assert it (`CE2466_R1_R2_…`).
+
+**Rails** (`SquadManeuverTests.AfterContact.cs`, all under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`, each red-proved by a compiling mutation): `CE2466_R1_R2_…` (per-position learn, rally, LACE + SPOTs) · `CE2466_R4_…` (assault → break contact at a remembered force; control without the record) · `CE2466_R6_CoveredGround…` (not a crossing, its own condition) · `CE2466_R6_TheSop…` (held short, FireSupport + TaskFailed at 120 s, still held after the record cools). Updated for the rally: `CE2123_ReactToContact_…BreaksContact…`, `CE2465_BreakContact_EndsInALull…`; `CE2161_…` for the new kind. Squad gates 442/442.
 
 #### 7.9.7 The independent review — `2026-11-21` *(two read-only reviewers, one per half; findings verified where marked ✅; resolutions folded above and in Minefields §9b)*
 
