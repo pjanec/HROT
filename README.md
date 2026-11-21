@@ -3,7 +3,7 @@
 **A simulation engine for military training and analysis: forces that think, a world that breaks, and every run on the record.**
 
 - **Computer-generated forces that fight like soldiers** — they react to fire, use cover, suppress, bound, break contact and break under
-  stress, from the single rifleman up to a battalion.
+  stress, from the single rifleman up to a battalion — in open country and room by room inside a building.
 - **A synthetic environment that changes under fire** — walls are breached, ground is cratered, buildings burn, minefields are cleared lane
   by lane, and every node of the exercise sees the same change at the same moment.
 - **Your area of operations in minutes** — built from OpenStreetMap or imported from another simulator's terrain, with every house
@@ -66,8 +66,18 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | ✅ **Command** | the leader commands through orders; succession when a leader falls; reports and requests travel up the chain |
 | ✅ **Platoon and company** | platoon march, bound, attack objective by objective (base of fire, flank, assault, consolidate), defence; a company assault under fire with mortars and smoke, a reserve that is committed when the attack stalls |
 | ✅ **The HQ answers** | fire support and reinforcement requests answered with the right asset — air defence first suppressed, then air, helicopter or artillery |
-| ✅ **Buildings** | room entry from a stack, house clearing room by room with civilians spared, window and roof defence |
 | ✅ **Standing orders** | per-unit SOPs and a character (risk, obedience, nerve, resolve, skill) that shape how the same order is carried out |
+
+### Close quarters and the fight in built-up areas
+| | |
+|---|---|
+| ✅ **House clearing** | a squad clears a house room by room from its front door, the fire teams taking turns, the civilians inside spared |
+| 🚧 **Room entry** | the team stacks beside the door out of the window's view, breaches it and enters one man at a time to his point of domination (being hardened: the entry team is still lost in some runs) |
+| ✅ **Doors** | doors open, close, lock and are breached; a mover routes round a locked door and opens a closed one on his way; a locksmith unlocks one |
+| ✅ **Fighting from a building** | window duels storey by storey; defenders take window and roof posts and open fire as the enemy enters their sector (🚧 being hardened) |
+| ✅ **Windows** | a glass pane cracks and then breaks under fire; a man firing out through a closed window shatters it; blast and fragments break panes |
+| ✅ **Grenades and blast indoors** | throws fly a real arc; fragments hit the body parts the stance exposes, so a prone man survives what wounds a standing one; a roof burst spares the floor below; a door inside the blast is breached |
+| ✅ **Buildings to fight in** | every house enterable, with storeys, stairs, roofs, doors and windows — imported with the terrain or built from templates |
 
 ### Higher echelons — aggregated units 🧪
 | | |
@@ -223,5 +233,4 @@ publish/subscribe · deterministic parallel simulation.
 ## Learn more
 
 - [**Capabilities**](docs/CAPABILITIES.md) — every capability, its status and the scenario that proves it
-- [**Usages**](docs/USAGES.md) — what teams do with the engine: training review, branching, test automation, real-place terrain
 - [**Technical overview**](docs/TECHNICAL_OVERVIEW.md) — the engine's architecture for integrators and developers

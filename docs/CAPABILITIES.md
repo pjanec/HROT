@@ -33,14 +33,14 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 ## 1. The engine — in one screen *(depth: [Technical overview](TECHNICAL_OVERVIEW.md))*
 
 - **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (Technical overview §2)
-- **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the image generator (IG), the instructor station,
+- **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the 2-D map, the instructor station,
   traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (Technical overview §3, §9)
 - **Brain and muscle are split:** the AI decides (intent), the simulation acts and reports back (status).
 - **Replication** over CycloneDDS with per-component translators, ownership transfer and dead reckoning, so every node sees the same
   world. (Technical overview §6)
 - **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (Technical overview §10)
 - **AI authoring three ways:** behaviour trees, state machines (HSM) and blueprint visual scripts, with utility decisions and an
-  environment query system (EQS). (Technical overview §4, §5, §7)
+  environment query system (EQS). (Technical overview §4, §5)
 - **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (Technical overview §8) — what it is used for: §1a
 - **Tools:** the scenario editor (author, run, step and save in one process); missions and the order of battle (ORBAT) in panels; HTTP
   diagnostics and an MCP server so an AI agent can drive the engine; **filming** — the film director, §1a
