@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-11-10 (§17: CE-3427 C-1 — live play paces slow modules by wall clock from dispatch, backend) · 2026-11-07 (§20: CE-4316 Run to …'s TURBO, the one documented exception, the networkless editor node only; the step a per-run setting, backend) · 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
+updated: 2026-11-21 (§21: CE-11019 a rate change while running re-anchors every slave; CE-11022 the docs describe the anchor model, backend) · 2026-11-10 (§17: CE-3427 C-1 — live play paces slow modules by wall clock from dispatch, backend) · 2026-11-07 (§20: CE-4316 Run to …'s TURBO, the one documented exception, the networkless editor node only; the step a per-run setting, backend) · 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -1826,6 +1826,42 @@ landed: 0.3× measured, lifecycle §2.8), the turbo pays ~2 cheap node frames an
 1/60 → 5.49 s wall = 0.9×** (was 0.3× networked-style); **+5 s at 1/20 → 2.68 s wall = 1.9×**. ⚠ Smaller than hoped: a step now costs ≈ 18 ms
 — about **two node frames** (the step's own, plus one more for its ACK to be read) of ≈ 9 ms each, which is the scenario's kernel tick itself.
 ⇒ the remaining levers, ⛔ not built: ① let the ACK land in the step's own frame (halves the cost), ② a bigger step (linear, measured).
+
+## 21. ⭐⭐ `CE-11019` + `CE-11022` — **a rate change re-anchors the slaves; the docs describe the anchor model** *(AS-BUILT `2026-11-21`, backend)*
+
+🔒 Handoff: [`HANDOFF_Ui_To_Backend_Linked_Client.md`](batches/HANDOFF_Ui_To_Backend_Linked_Client.md) task 2 — the linked client's film rate
+depends on every node agreeing on the rate.
+
+```mermaid
+sequenceDiagram
+  participant Op as SetTimeScaleIntent (operator, replay clock, review)
+  participant M as MasterSyncController
+  participant S as SlaveSyncController
+  Op->>M: SetTimeScale(r)
+  alt running (Continuous, no pending barrier) and r changed
+    M->>S: SwitchTimeModeEvent(Continuous, anchor = _lastTickSample, snapshot = _totalTime, TimeScale = r)
+    Note over S: re-baselines and extrapolates at r — ⛔ was: no sample, the slave kept the old rate
+  else paused / mid-barrier / same rate
+    Note over M: no sample — the next resume carries the rate
+  end
+```
+*What the picture shows that prose hid:* a slave has **no pulse** — its only input is the anchor. Before CE-11019 the rate branch had no arrow,
+so the master ran at the new rate while every slave extrapolated the old one.
+
+| fact | where |
+|---|---|
+| the slaves extrapolate `snapshot + (SyncedWallTicks − anchor) / Freq × TimeScale`; no `TimePulseDescriptor`, no PLL, anywhere | `SlaveSyncController.cs` class doc ("No TimePulse or PLL is used"); grep 2026-11-21: `TimePulseDescriptor`, `JitterFilter`, `MasterTimeController`, `SlaveTimeController` have no type left |
+| the anchor is exact: `_totalTime` was last computed at `_lastTickSample`, and the master's next `Update` applies the new rate from that same tick | `MasterSyncController.Update` (the drain runs before the tick sample advances) |
+| six `TimeConfig` fields have **0 production readers**: `PLLGain`, `MaxSlew`, `SnapThresholdMs`, `JitterWindowSize`, `AverageLatencyTicks`, `LockstepTimeoutMs` | named in `FDP.Toolkit.Time.md` (top section). ⚠ Kept, not deleted: they are public config surface — a removal is its own decision |
+
+| rail | |
+|---|---|
+| `MasterSyncControllerTests.CE11019_A_rate_change_while_running_reanchors_the_slaves_and_only_then` | one sample carrying the rate at the master's own sim time and tick; none for the same rate or while paused |
+| `SimTimeSyncIntegrationTests.CE11019_ARateChangeWhileRunning_KeepsAllNodesInSync` (TC-SYNC-7, row-8 suite) | the cluster stays within `MaxDriftSec` one second after a ×0.25 rate change |
+
+⭐ The docs that described the PLL were folded: `FDP/Docs/projects/toolkits/FDP.Toolkit.Time.md` (an AS-BUILT top section, the rest marked
+HISTORY), `.dev/_DONE/time-ctrl-unif/docs/DESIGN.md` §4.6 (SUPERSEDED note), and the stale `TimePulseDescriptor` line in the
+`MasterSyncController.Update` comment.
 
 ## ⭐ WHERE THE TASKS WENT
 
