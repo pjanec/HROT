@@ -107,7 +107,7 @@
       "hit": "*Blue Squad "
     },
     {
-      "name": "L4 Blue never walks back into Red's west corner: no Blue man within 15 m of (630, 384) from 30 s after Red's first round (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
+      "name": "L4 Blue never walks back into Red's west corner: no Blue man within 15 m of (630, 384) from 30 s after Blue first breaks contact (an assault at first contact is no walking back) (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
       "never": {
         "on": "close",
         "who": "*Blue Squad ",
@@ -117,10 +117,10 @@
         ],
         "m": 15
       },
-      "after": "Red fires+30"
+      "after": "Blue breaks contact+30"
     },
     {
-      "name": "L4 Blue never walks back into Red's east corner: no Blue man within 15 m of (668, 386) from 30 s after Red's first round (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
+      "name": "L4 Blue never walks back into Red's east corner: no Blue man within 15 m of (668, 386) from 30 s after Blue first breaks contact (an assault at first contact is no walking back) (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
       "never": {
         "on": "close",
         "who": "*Blue Squad ",
@@ -130,7 +130,16 @@
         ],
         "m": 15
       },
-      "after": "Red fires+30"
+      "after": "Blue breaks contact+30"
     }
-  ]
+  ],
+  "anchors": {
+    "Blue breaks contact": {
+      "on": "field",
+      "who": "Blue Squad",
+      "path": "SquadCognitiveState.ManeuverKind",
+      "op": "==",
+      "value": 8
+    }
+  }
 }

@@ -159,6 +159,8 @@ namespace Hrot.SimHost.Tests
             AreaAhead(s, distanceAlongRoute: 15f, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire);
             Assert.True(SquadSopConditions.CoveredByFireAhead(ref p, s.Commander, s.Repo));
             Assert.False(SquadSopConditions.DangerAreaAhead(ref p, s.Commander, s.Repo));
+            AreaAhead(s, distanceAlongRoute: 0f, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire);
+            Assert.False(SquadSopConditions.CoveredByFireAhead(ref p, s.Commander, s.Repo));   // already inside it: no hold in the open (U2)
         }
 
         /// <summary>
