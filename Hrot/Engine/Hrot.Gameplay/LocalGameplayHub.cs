@@ -42,6 +42,9 @@ public sealed class LocalGameplayHub
     public int ClientEndCount => _clients;
 
     /// <summary>The SERVER's end (requests in; status, offers, slots out; it also reads the slots). One at a time: asking again returns the open one; after it was closed a new one opens.</summary>
+    /// <summary>⭐ CE-11027 — a server end is open (the node composes the deploy server): a node extension's seats then deploy through it. Reading it opens nothing (asked by the gateway's T-053, which read the private field by reflection).</summary>
+    public bool HasServer => _server is { IsOpen: true };
+
     public LocalGameplayEnd ServerEnd()
     {
         if (_server is { IsOpen: true }) return _server;

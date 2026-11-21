@@ -16,6 +16,18 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>Offers, status and slots BROADCAST: every client end reads every sample, each from its own queue (one end taking them does not take them from the other). 🔴 Mutation: delivered to only one end ⇒ red.</summary>
         [Fact]
+        public void CE11027_HasServer_IsTrueOnlyWhileAServerEndIsOpen_AndReadingItOpensNothing()
+        {
+            var hub = new LocalGameplayHub();
+            Assert.False(hub.HasServer);
+            Assert.False(hub.HasServer);   // asking twice opens nothing
+            hub.ClientEnd();
+            Assert.False(hub.HasServer);   // a client end is no server
+            hub.ServerEnd();
+            Assert.True(hub.HasServer);
+        }
+
+        [Fact]
         public void OffersStatusAndSlots_AreBroadcastToEveryClientEnd()
         {
             var hub = new LocalGameplayHub();
