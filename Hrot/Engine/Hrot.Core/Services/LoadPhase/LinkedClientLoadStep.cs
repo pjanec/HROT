@@ -39,11 +39,17 @@ public sealed class LinkedClientLoadStep : ILoadPartProvider
         _failure = null;
         _step = null;
         var client = _clients.Current;
-        if (client == null) { _asked = null; return; }
+        if (client == null)
+        {
+            _asked = null;
+            // ⭐ CE-11026 (the Unreal lane's live run, 2026-11-21): say so, so a log shows WHY a load did not wait for a client
+            FdpLog<LinkedClientLoadStep>.Info("[LoadPhase] no linked client is offered on this node: this load does not wait for one.");
+            return;
+        }
         _loadId = context.TransactionId;
         _asked = client;
         _waitStarted = Stopwatch.StartNew();
-        FdpLog<LinkedClientLoadStep>.Info("[LoadPhase] this load waits for the linked client '{0}' to present its world.", client.Name);
+        FdpLog<LinkedClientLoadStep>.Info("[LoadPhase] this load ({0}) waits for the linked client '{1}' to present its world.", _loadId, client.Name);
         client.BeginWorld(_loadId);
     }
 

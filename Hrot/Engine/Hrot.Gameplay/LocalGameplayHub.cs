@@ -22,12 +22,29 @@ public sealed class LocalGameplayHub
     private LocalGameplayEnd? _server;
     private int _clients;
 
+    [Fdp.Core.WorldDerived("static per-world registry of the node's ONE hub: filled on first use")]
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Fdp.Core.EntityRepository, LocalGameplayHub> PerWorld = new();
+
+    /// <summary>
+    /// ⭐ CE-11027 S12-4 (Q114 B) — THE hub of the node whose world is <paramref name="world"/>: the editor composes the deploy server over its server end, and a node extension (the gateway)
+    /// asks for a client end per seat — both reach the same hub through here, never a second one. The assembly's own precedent (<see cref="DeployFlowSystem.Of(Fdp.Core.EntityRepository?)"/>):
+    /// <c>HrotNodeContext.World</c> is init-only and a scenario load clears the world in place (<c>WorldBoundaryReset</c>), so the repository instance is the node's lifetime.
+    /// </summary>
+    public static LocalGameplayHub Of(Fdp.Core.EntityRepository world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return PerWorld.GetValue(world, static _ => new LocalGameplayHub());
+    }
+
     private static DeployOfferTopic WithKits(DeployOfferTopic o, List<string> kits) { o.Kits = kits; return o; }
 
     /// <summary>How many client ends are open.</summary>
     public int ClientEndCount => _clients;
 
     /// <summary>The SERVER's end (requests in; status, offers, slots out; it also reads the slots). One at a time: asking again returns the open one; after it was closed a new one opens.</summary>
+    /// <summary>⭐ CE-11027 — a server end is open (the node composes the deploy server): a node extension's seats then deploy through it. Reading it opens nothing (asked by the gateway's T-053, which read the private field by reflection).</summary>
+    public bool HasServer => _server is { IsOpen: true };
+
     public LocalGameplayEnd ServerEnd()
     {
         if (_server is { IsOpen: true }) return _server;
@@ -159,6 +176,9 @@ public sealed class LocalGameplayEnd : IGameplayWire, IDisposable
 
     /// <summary>False once closed (a closed end ignores writes and yields nothing).</summary>
     public bool IsOpen => _open;
+
+    /// <summary>The hub this end belongs to (⭐ CE-11027 S12-4: a rail asks it is the one <see cref="LocalGameplayHub.Of"/> returns).</summary>
+    public LocalGameplayHub Hub => _hub;
 
     public IGameplayIn<DeployRequestTopic>? Requests => _isServer && _open ? _hub.Requests : null;
     public IGameplayOut<DeployStatusTopic>? Status => _status;

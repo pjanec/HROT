@@ -2013,7 +2013,7 @@ namespace Hrot.Editor.DebugApi
             })));
 
             // ⭐ Player Join S1 — the Player's deploy flow: state, offers, and the request (404 on a node with no gameplay client).
-            _routes.Add(new("GET", "/deploy", _ => RunMainResult(s => { var (r, e, h, st) = s.Deploy(null, post: false); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("GET", "/deploy", ctx => RunMainResult(s => { var (r, e, h, st) = s.Deploy(null, post: false, ctx.Query("station")); return e is null ? Ok(r) : Fail(st, e, h); })));
             _routes.Add(new("POST", "/deploy", ctx => RunMainResult(s => { var (r, e, h, st) = s.Deploy(ctx.Body, post: true); return e is null ? Ok(r) : Fail(st, e, h); })));
 
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost

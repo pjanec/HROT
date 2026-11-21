@@ -42,7 +42,7 @@ public sealed record FilmSubtitle(string Text, FilmSubtitlePosition Position, fl
 /// <summary>⭐ <c>CE-11018</c> — the kind of a film graphic.</summary>
 public enum FilmGraphicKind : byte { Ring = 0, Arrow = 1, Route = 2, Area = 3, Label = 4 }
 
-/// <summary>⭐ <c>CE-11018</c> — one film graphic on a scene frame, already resolved: its WORLD points this frame (metres), radius (m), text, colour (0xRRGGBBAA) and
+/// <summary>⭐ <c>CE-11018</c> — one film graphic on a scene frame, already resolved: its WORLD points this frame (metres), radius (m), text, colour (0xRRGGBB - opacity is <c>Alpha</c>) and
 /// opacity (0…1). Drawn over the scene, under the subtitle, in list order.</summary>
 public sealed record FilmGraphic(FilmGraphicKind Kind, IReadOnlyList<Vector3> Points, float Radius, string? Text, uint Colour, float Alpha);
 

@@ -956,8 +956,11 @@ namespace Hrot.Editor.DebugApi
             Group:   "Y — node diagnostics",
             Summary: "The Player's DEPLOY flow on this node (Player Join): its state, why it waits, whether a deploy server exists, the playable units on offer (with who holds them) and the player's slot. 404 on a node with no gameplay client.",
             Returns: "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free), kind (Placed|Role|Area), count, max, kits[] (a role's kit labels by number, \"\" = unset)}], respawnAt, slot{state, unit} }",
-            Hint:    "No arguments. Example: get_deploy({})",
-            Params: new RouteParam[] { },
+            Hint:    "Example: get_deploy({}) — or get_deploy({ station: \"7/2\" }) for one gateway seat of the editor",
+            Params: new RouteParam[]
+            {
+                new("station", "string", Required: false, Description: "⭐ A further station of this node (a gateway seat): its whole station id (an integer) or node/seat, e.g. 7/2. Omitted = this node's own flow"),
+            },
             Notes: new[]
             {
                 "Only a Player (the Player host) composes the client; every other node answers 404 'no deploy flow on this node'.",
@@ -979,6 +982,7 @@ namespace Hrot.Editor.DebugApi
                 new("observe", "boolean", Required: false, Description: "true ⇒ observe on that side, no unit"),
                 new("kit", "integer", Required: false, Description: "A role's kit 0…3 (0 = the role's own type; see the offer's kits); 400 on anything else"),
                 new("areaNetId", "integer", Required: false, Description: "The spawn area chosen (an offer of kind Area); 0 or omitted = any area of the side"),
+                new("station", "string", Required: false, Description: "A further station of this node (a gateway seat): the whole station id or node/seat (7/2), in the body; omitted = this node's own flow"),
             },
             Notes: new[]
             {

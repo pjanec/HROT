@@ -75,13 +75,19 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem, Fdp.Interfaces.IRe
     [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     [Fdp.Core.FrameScratch("the requests taken this frame: cleared before and after each read")]
     private readonly List<GameplaySample<DeployRequestTopic>> _taken = new();
+    [Fdp.Core.FrameScratch("stations departing this frame: cleared before each ReadDepartures")]
     private readonly List<int> _departing = new();   // CE-11027 — scratch for ReadDepartures (a departure is rare; reused, never shrunk)
+    [Fdp.Core.SessionState("the deploy server's join ledger: the stations whose status this server wrote; cleaned when a station leaves and at a world load")]
     private readonly HashSet<int> _answered = new();   // the stations whose DeployStatusTopic this server wrote (deleted when they leave)
     [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly List<(int Role, int Unit)> _spawned = new();   // the men THIS server made, per role (the count a role's Max is checked against)
     private readonly RoleSpawner? _spawner;
-    [Fdp.Core.NotState("Random created at construction/injected; unseeded, picks a spawn point")]
-    private readonly Random _rng;
+    [Fdp.Core.NotState("Random injected, or seeded from the run seed at the first spawn after a world load (SeededFromRun); picks a spawn point")]
+    private Random _rng;
+    [Fdp.Core.NotState("true when a test or host injected the Random: it is never re-seeded")]
+    private readonly bool _rngInjected;
+    [Fdp.Core.WorldDerived("true until the spawn choice was seeded for the current world: set at construction and at every world load")]
+    private bool _reseed = true;
     [Fdp.Core.SessionState("a monotonic spawn counter: never reset, a reused number would collide")]
     private readonly Dictionary<int, int> _spawnCounter = new();
     [Fdp.Core.FrameScratch("person types list: cleared at 280 before each use")]
@@ -107,12 +113,13 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem, Fdp.Interfaces.IRe
     /// <param name="election">Who serves; null ⇒ this node always does (a single-server test or a node with no cluster cache).</param>
     /// <param name="nowMs">Wall milliseconds, for the 1 s cadences (tests inject).</param>
     /// <param name="spawner">⭐ S2 — how a role's man is made (the pack passes the node's <c>EntityCreation</c>); null ⇒ role requests are refused "spawning unavailable".</param>
-    /// <param name="rng">The spawn point's randomness (tests seed it).</param>
+    /// <param name="rng">The spawn point's randomness (tests inject it); null ⇒ ⭐ CE-11027 S12-4 (Q114 J) seeded from the run seed (<see cref="SeededFromRun"/>) at the first spawn of each world, so one scenario replays its spawn points.</param>
     public DeployProcessorSystem(IGameplayWire wire, NetworkEntityMap map, int localNode, DeployServerElection? election = null, Func<long>? nowMs = null,
                                  RoleSpawner? spawner = null, Random? rng = null)
     {
         _spawner = spawner;
-        _rng = rng ?? new Random();
+        _rng = rng ?? new Random(0);   // replaced at the first spawn by the world's seed (SeededFromRun)
+        _rngInjected = rng is not null;
         _wire = wire ?? throw new ArgumentNullException(nameof(wire));
         _map = map ?? throw new ArgumentNullException(nameof(map));
         _local = localNode;
@@ -254,6 +261,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem, Fdp.Interfaces.IRe
             if (!_map.TryGetEntity(r.AreaNetId, out var areaEntity)) { Answer(r, false, SpawnPoints.NoSuchArea, 0, r.UnitNetId); return; }
             chosen = areaEntity;
         }
+        if (_reseed && !_rngInjected) { _rng = SeededFromRun(repo); _reseed = false; }
         if (!SpawnPoints.Pick(repo, side, _rng, out var pos, out float yaw, out string why, chosen)) { Answer(r, false, why, 0, r.UnitNetId); return; }
 
         _spawnCounter.TryGetValue(r.UnitNetId, out int n);
@@ -556,6 +564,21 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem, Fdp.Interfaces.IRe
         }
     }
 
+    /// <summary>The salt that keeps the spawn choice's draws apart from every other <see cref="Fdp.Toolkit.Determinism.SimRng"/> call site (the rule on <c>SimRng.FromSim</c>).</summary>
+    private const int SpawnSalt = 0x5A17;
+
+    /// <summary>
+    /// ⭐ CE-11027 S12-4 (Q114 J) — the spawn choice's <see cref="Random"/> for <paramref name="world"/>: seeded from the run seed the way the other deterministic systems read it (the world's
+    /// recorded <c>RunSeed</c> singleton, else <c>SimRng.RunSeed</c> — <c>StochasticCombat.cs:300</c>), mixed through <see cref="Fdp.Toolkit.Determinism.SimRng"/>: the same seed ⇒ the same spawn points;
+    /// another seed ⇒ (usually) others. <c>SimRng.Deterministic = false</c> (the soak escape hatch) restores an unseeded one.
+    /// </summary>
+    public static Random SeededFromRun(EntityRepository world)
+    {
+        if (!Fdp.Toolkit.Determinism.SimRng.Deterministic) return new Random();
+        uint seed = world.HasSingleton<Fdp.Toolkit.Aggregate.RunSeed>() ? world.GetSingleton<Fdp.Toolkit.Aggregate.RunSeed>().Value : Fdp.Toolkit.Determinism.SimRng.RunSeed;
+        return new Random((int)Fdp.Toolkit.Determinism.SimRng.FromSim(0, SpawnSalt, 0f, seed).NextUInt());
+    }
+
     // ── standing down ───────────────────────────────────────────────────────────────────────
 
     /// <summary>A lower-id server appeared: retract everything this one published, so the new server is the only voice (it re-offers the units itself).</summary>
@@ -563,6 +586,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem, Fdp.Interfaces.IRe
     {
         StandDown(repo);          // slots, answers and offers: gone from the wire
         _pending.Clear();         // a spawn in flight belongs to the world that ended
+        _reseed = true;           // ⭐ S12-4 (Q114 J): the next world's spawn choice starts from ITS seed
         _spawned.Clear();         // so do the men this server made
         _offersDirty = true;
     }

@@ -62,7 +62,7 @@ record FilmTrack(string Path, long Samples, int SampleRate, int Channels);
 | width · height · supersample | `Width` · `Height` · `Supersample` | render `Supersample`× larger, scale down |
 | file | `Path` | the PNG the client writes (a scene frame only) |
 | subtitle (text, position, alpha) | `Subtitle` | null = none |
-| overlay graphics (world points) | `Graphics` | resolved this frame: world points, radius, text, colour `0xRRGGBBAA`, alpha |
+| overlay graphics (world points) | `Graphics` | resolved this frame: world points, radius, text, colour `0xRRGGBB` (opacity is the separate `Alpha`; measured: the director sends `FilmGraphics.DefaultColour = 0xFFD23C`), alpha |
 | layers on / off | `LayersOn` · `LayersOff` | the take's layer override (names) |
 | — | ⭐ `Fade` (added) | the dip to black over the picture this frame (0…1) |
 | per-frame result | `Frame`'s task | completed = written · faulted = failed + the reason |

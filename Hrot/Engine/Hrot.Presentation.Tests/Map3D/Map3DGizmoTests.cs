@@ -522,6 +522,59 @@ public sealed class Map3DGizmoTests
         Assert.Equal(new[] { "Rifleman #3", "Duck #4" }, Names(new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo()));
     }
 
+    /// <summary>⭐ CE-11029 (SimNetGateway R-143 / R-144) — a SWARM member's name is not always-on: an aircraft whose direct commander is an air unit
+    /// (every live member an aircraft) follows the ground's zoom-limited name; an aircraft under a mixed HQ, and one with no commander, keep the
+    /// always-on name. 🔒 User: <i>"for expensive aircraft (scarse) each shoudl have a label"</i>, not each of <i>"a swarm of cheap drones"</i>.
+    /// 🔴 Red-proof: <c>InAirUnit</c> returning false ⇒ the drones land in the always-on set.</summary>
+    [Fact]
+    public void CE11029_ASwarmMembersName_FollowsTheGroundsRule_ALoneOrHqAircraftKeepsItsAlwaysOnName()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        w.RegisterComponent<Fdp.Core.EntityInfo>();
+        w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+        Fdp.Core.Entity Make(int net, string name, Fdp.Toolkit.Tkb.Domain.LocomotionClass c)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(net));
+            w.AddComponent(e, new Fdp.Core.EntityInfo { Name = new Fdp.Core.FixedString64(name) });
+            w.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = c });
+            return e;
+        }
+        Fdp.Core.Entity Unit(params Fdp.Core.Entity[] members)
+        {
+            var u = w.CreateEntity();
+            w.AddComponent(u, new Fdp.Core.CommandHierarchy.UnitEntity());
+            w.AddComponent(u, new Fdp.Core.CommandHierarchy.UnitRoster());
+            foreach (var m in members)
+            {
+                Fdp.Core.CommandHierarchy.UnitRoster.Add(ref w.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(u), m);
+                w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = u });
+            }
+            return u;
+        }
+        var fw = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing;
+        var d1 = Make(1, "Drone", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+        var d2 = Make(2, "Drone", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+        Unit(d1, d2);                                                        // a swarm: every member an aircraft
+        var apache = Make(3, "Apache", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+        var rifleman = Make(4, "Rifleman", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian);
+        Unit(apache, rifleman);                                              // a mixed HQ: no air unit
+        var mig = Make(5, "MiG", fw);                                        // no commander
+        var all = new[] { d1, d2, apache, rifleman, mig };
+        string[] Names(Fdp.Toolkit.Diagnostics.Gizmos.IStatelessGizmo g)
+        {
+            var d = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            foreach (var e in all) g.Draw(w, e, d);
+            return d.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToArray();
+        }
+        Assert.Equal(new[] { "Apache #3", "MiG #5" }, Names(new Hrot.Common.Diagnostics.Gizmos.AircraftNameGizmo()));
+        Assert.Equal(new[] { "Drone #1", "Drone #2", "Rifleman #4" }, Names(new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo()));
+    }
+
     private static void AssertNear(Vector3 expected, Vector3 actual, float tol = 1e-3f)
         => Assert.True(Vector3.Distance(expected, actual) < tol, $"expected {expected}, got {actual}");
 }
