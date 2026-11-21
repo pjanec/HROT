@@ -14,7 +14,7 @@ related-designs:
   - UX/DESIGN_Editing_UX.md — OWNS the editing UX (inventory behind §14, the target design, the Details-tab review)
   - PLAN_Dynamic_Terrain.md — OWNS §2b's programme: the tasks (CE-4596…CE-4604), their order and gates; the designs DESIGN_Ground_Patches_And_Road_Blockage.md and DESIGN_Vehicle_Breaching.md
   - USAGES.md — OWNS what PEOPLE use the engine for and what it saves them (demo films, QA bug illustration, reviews, scenarios as tests …)
-  - ../README.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools)
+  - TECHNICAL_OVERVIEW.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools); ../README.md is the product page
 -->
 
 # What HROT can do
