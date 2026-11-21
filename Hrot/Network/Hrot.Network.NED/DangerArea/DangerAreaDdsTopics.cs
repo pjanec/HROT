@@ -49,5 +49,10 @@ namespace Fdp.Toolkit.Squad.DangerArea.Topics
         public uint RefreshTick;
         /// <summary>The areas, in route order.</summary>
         [DdsManaged] public List<DangerAreaWire> Areas;
+        /// <summary>⭐ <c>CE-2469</c> SP-1 — the planned route's steer point, and 1 when there is one (0 = a straight leg).</summary>
+        public float SteerX;
+        public float SteerY;
+        public float SteerZ;
+        public byte HasSteer;
     }
 }

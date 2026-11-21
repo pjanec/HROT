@@ -184,6 +184,8 @@ namespace Hrot.SimHost.Modules.Orchestration
 
         /// <inheritdoc />
         public string ActiveReplayTerrainName => _activeReplayModule?.TerrainName ?? string.Empty;
+        /// <inheritdoc/>
+        public string? ActiveReplayOverlayHash => _activeReplayModule?.OverlayHash;   // ⭐ CE-11025
 
         /// <inheritdoc />
         public void HoldEgress(string reason) => Fdp.Toolkit.Replication.Services.EgressHold.Hold(_repo, reason);

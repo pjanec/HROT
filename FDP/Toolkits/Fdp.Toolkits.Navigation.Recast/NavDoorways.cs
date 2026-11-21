@@ -562,6 +562,8 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
         if (NavDoorways.IsWoods(curPoly.GetArea()) && _woodsCost > 0f) cost *= _woodsCost;   // ⭐ CE-4369 — a wood priced per mover
         // ⭐ CE-4624 MS-T3 (KR-10, MR-20) — a minefield polygon priced by what THIS mover's side knows of the cells it covers (never closed: a route goes round when it can, through only when it must); no side ⇒ no knowledge
         if (_sidePlus1 != 0 && _doors != null && _mines != null && _mines.TryGet(curRef, out var mine)) cost *= _mines.FactorFor(mine, _doors.Knowledge, _sidePlus1);
+        // ⭐ CE-2468 UF-5 (K4, K8) — ground a known enemy of THIS mover's side covers (Direct only): its polygon's factor, one lookup in the map the serial pass built; never closed
+        if (_sidePlus1 != 0 && _doors != null && _doors.UnderFireSight.CostOf(_doorPolys, _sidePlus1) is { } underFire && underFire.TryGetValue(curRef, out float covered)) cost *= covered;
         if (_doorPolys.TryGetValue(curRef, out int door)
             && !(prevRef != 0 && _doorPolys.TryGetValue(prevRef, out int prevDoor) && prevDoor == door)   // once per door, on entry
             && StateOf(door) == TerrainDoorState.Closed)

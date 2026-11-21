@@ -131,6 +131,14 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c4624000-0000-0000-0000-000000000b40"))
                     .Label("Minefield ahead → halt, call the engineers")
                     .Comment("CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill. ⭐ CE-5040 (terrain, user: \"we cant wait for behaviors\"): ABOVE the UnderCommand row, like the carrier rows — the halt and the request are the squad's own (MS-B5 sends the Engineers request UP the chain, so the asking squad always has a commander); below it a squad under a live HQ never reached this row and walked into the field.")
+                .Sequence(row => row
+                    .Condition(bb => bb.AreaAhead, SquadSopConditions.CoveredByFireAhead, Id("c2466000-0000-0000-0000-000000000c11"))
+                        .Label("Ground a known enemy covers ahead (within 30 m)")
+                    .React(BehaviorNames.CoveredByFireAhead, ReactionUrgency.Alert, Id("c2466000-0000-0000-0000-000000000c12"))
+                        .Label("React: CoveredByFireAhead"),
+                    Id("c2466000-0000-0000-0000-000000000c10"))
+                    .Label("Covered ground ahead → hold short, ask for fire support")
+                    .Comment("CE-2466 R6 (Squad Tactics §7.9, R-2140): the route reaches ground its side knows an enemy covers (UnderFire, Minefields §9b) and the planner could not go round it — hold short, never cross it as a drill; after 120 s ask for fire support and report TaskFailed. ABOVE the UnderCommand row like the minefield halt (S3): a squad of a platoon never walks into known covered ground either.")
                 .Condition(SopConditions.UnderCommand, Id("c2123000-0000-0000-0000-0000000000c1"))
                     .Label("Under a platoon → the platoon reacts for the squad")
                     .Comment("CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride) — ⭐ and the minefield halt (CE-5040: the squad stops and asks its HQ for engineers). Every squad type now carries this SOP by default.")

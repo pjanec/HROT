@@ -1799,7 +1799,10 @@ namespace Hrot.Editor
                     mapBuild: () => _map3DBuild,   // ⭐ R-1046 — a take waits for the shown map's 3-D build
                     // ⭐ CE-4267 — the director's load goes through the ONE scenario door with its own asker, and knows when it went (the silent-default rule: the editor HAS the door)
                     door: () => Staged ? _uiScenarioSession?.Door : _editorApp?.Door,   // ⭐ D-9 — the director is UI side: the UI's door
-                    loadedScenario: () => UiSession?.LoadedScenarioName);
+                    loadedScenario: () => UiSession?.LoadedScenarioName,
+                    // ⭐ CE-11023 — the load's progress and the cluster's error state (the run gate), and the exercise the cluster replays now
+                    gate: () => _timeTransport?.RunChoice?.Gate,
+                    replayExercise: () => _clusterHandlers?.RecordReplayController?.ActiveReplayModule?.RecordedExerciseId ?? Guid.Empty);
                 // ⭐ CE-1303 P1 (§11j) — the film director is ONE pack (Hrot.Presentation); the editor contributes its host, the verifier
                 //   (CE-4061: the runner's one extension seam — CE-4042: late-bound to the debug service 8b builds below) and the Verify tab
                 _directorPack = Hrot.UI.Common.Map3D.Director.DirectorPack.Attach(new Hrot.UI.Common.Map3D.Director.DirectorPackHost(
@@ -1820,7 +1823,9 @@ namespace Hrot.Editor
                     Index:     () => _node?.ShownTimeline?.Index,
                     Scenario:  () => _editorLogic?.LoadedScenarioName,
                     IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false,   // ⭐ CE-4121 — the live source: always complete
-                    History:   EditHistory));   // ⭐ U4 — the take editor's steps ride the editor's ONE history (Edit ▸ Undo / Redo / History)
+                    History:   EditHistory,   // ⭐ U4 — the take editor's steps ride the editor's ONE history (Edit ▸ Undo / Redo / History)
+                    Recordings: directorHost,   // ⭐ CE-11023 — the editor's recording opener (the start screen's door into AAR; the silent-default rule: the editor HAS the door)
+                    LinkedClients: () => _node?.LinkedClients));   // ⭐ CE-11018 — the node's linked client films a job's frames (the silent-default rule: the editor HAS the registry)
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 

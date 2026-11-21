@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-21
-build-state: READY-TO-BUILD — Q113 A–J approved (R-11009; C R-11008), the concept named LINKED CLIENT
+build-state: BUILDING — CE-11018 BUILT (§3a); CE-11019, CE-11022, CE-11023, CE-11024, CE-11025 in backend's batch (STATUS_Backend_Linked_Client.md)
 current-answer: §2 the diagrams, §3 the items H-1 … H-8 with their CE ids, §4 the decisions (leans; the questions are Q113)
 stale-below: nothing
 known-rot: none
@@ -238,6 +238,44 @@ resident at all (F-H3: `TerrainWorld` / `TerrainDefinition` are `NoReplay`; the 
 recording's terrain). Q113-J: the replay open runs the chain's shared Terrain / Map3D / linked-client parts for the recording's terrain. ⛔ SUPERSEDED (same day): a first version had the director's runner wait on its own — a second readiness path the
 master and live play could not see.
 
+### 2e-1. ✅ As built — a replay open's world (CE-11025, backend, `2026-11-21`)
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant H as ReferenceReplayLoadHandler
+  participant C as LoadPhaseChain (IReplayWorldLoad)
+  participant P as Terrain → Map3D → LinkedClient parts
+  M->>H: PrepareReplay (LoadingReplay)
+  H->>H: PrepareReplayAsync — the recording is open: TerrainName, OverlayHash
+  H->>C: PrepareAsync(txn, terrain, overlay)  (skipped: no terrain named / a listener)
+  C->>P: PrepareAsync(context: LoadingReplay, IsReplayWorld)
+  M->>H: Commit(PrepareReplay) — frame thread
+  H->>C: Commit(txn) → each part commits, the client gets BeginWorld(txn)
+  M->>H: PrepareState(OperatingReplay)
+  H->>C: WhenReadyAsync(txn)
+  loop every frame — DrainDeferredAcks
+    C->>P: Failure? IsResolved?
+  end
+  C-->>H: ready (or faults with the part's reason → the round fails, Idle)
+```
+*What the picture shows that the prose in §2e hid:* the chain is not handed the replay op. The replay handler keeps the op and calls the chain's
+WORLD parts only — never the knowledge base, never the scenario entities (the recording brings those). It is the same providers and the same
+per-frame readiness a live load uses.
+
+| decision (lane: backend) | why — and what would change it |
+|---|---|
+| the replay handler drives the chain through `IReplayWorldLoad` (Fdp.Toolkits), set by `EcsHostClusterHandlers.Compose` | the handler is in Fdp.Toolkits and cannot see `LoadPhaseChain`; one composition hands it on every ECS host (the silent-default rule). ⛔ Rejected: the chain claiming `PrepareState(OperatingReplay)`, because the terrain name only exists after `PrepareReplay` opened the file |
+| `LoadPhaseContext.OverlayHash` + `IsReplayWorld` (`TargetState = LoadingReplay`) | a replay's terrain and additions come from the RECORDING. ⛔ The staged scenario header may belong to an earlier run |
+| additions missing on this machine ⇒ the base terrain + a warning (a live load stays strict) | the same as the Replay Browser (CE-4420 O-8). A strict replay would refuse to show a recording made elsewhere |
+| no terrain named / a listener ⇒ nothing runs | `TerrainResidency.Prepare(null)` UNLOADS. ⚠ A listener keeps whatever is resident. The master's aggregated `ReplayPrepareResult.TerrainName` could serve it later — not built |
+| the resident terrain loads nothing new (`TerrainResidency.Prepare` idempotent on name + folder + overlay) | ⚠ `MapBuildLoadStep.Commit` still calls `Request3D()` and the client still gets `BeginWorld`. Whether that map request is a no-op for an unchanged terrain is NOT measured |
+| ⚠ no `Loading` phase / step for `LoadingReplay` on the node's status | the replay handler is not an `ILoadProgressSource`; the wait itself is in the round. Named, not built |
+
+Rails: `ReferenceHandlerTests.CE11025_*` (the handler), `LoadPhaseChainTests.CE11025_*` (world parts only, the recording's terrain, the readiness
+and the failure), `TerrainLoadStepTests.CE11025_*` (the recording's additions over a stale staged header, missing additions, resident = same
+instance), `EveryEcsHostComposesTheLoadPhaseChainRails.CE11025_*` (the composition hands the chain).
+
 ## 3. The items — HROT's requests from DD-022, with their ids
 
 | DD-022 | CE | what | where |
@@ -247,11 +285,11 @@ master and live play could not see.
 | H-5 | ~~CE-11020~~ dropped | ✅ R-11008: no Replay Browser integration — the director renders from the editor's own replay (AAR); a job naming another recording plays once the editor passes its opener (Q113-G, CE-11023); multi-node exercises stay out | — |
 | H-6 | — | no HROT change: the gateway reads the anchors and steps on the node bus and `TimelineEpoch` from `HrotNodeContext.TimeController` (2d) | — |
 | H-7 | [CE-11021](../../blueprints/Blueprint_Issues_Tracker.md) | `sound: client \| hrot` per job; with `client` the encode muxes `FilmTrack` and checks its samples against the frames; `IDirectorSound` stays for map renders | Hrot.Presentation Director |
-| H-8 / F-H1 | [CE-11019](../../blueprints/Blueprint_Issues_Tracker.md) | a running scale change publishes a Continuous re-anchor, so cluster slaves follow it | Fdp.Toolkits Time (backend's area: a cross-lane edit) |
-| H-8 / F-H2 | [CE-11022](../../blueprints/Blueprint_Issues_Tracker.md) | the time docs say the anchor model (no pulse, no PLL); the stale comment at `MasterSyncController.cs:153`; the unused `TimeConfig` PLL fields named | Time Architecture, FDP.Toolkit.Time.md |
-| (G) | [CE-11023](../../blueprints/Blueprint_Issues_Tracker.md) | the editor's director gets the editor's recording opener (`ScenarioDoor.OpenRecording`) — a job or reel item naming another recording then plays in the editor | Hrot.Editor |
-| (H) | [CE-11024](../../blueprints/Blueprint_Issues_Tracker.md) | `EffectCause.Kind` + `EffectCause.Shooter` from `RoundImpactNotification` — the gateway makes `Impact` from the effect entities, live and in replay (R-11007) | Hrot.Core, the effect spawner |
-| (J) / F-H3 | [CE-11025](../../blueprints/Blueprint_Issues_Tracker.md) | a replay open makes the recording's terrain resident through the load chain's shared parts (Terrain with the recording's name and overlay hash, then Map3D, then the linked client) | the load phase (backend's: a cross-lane change) |
+| H-8 / F-H1 | [CE-11019](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, Time Architecture §21)** | a running scale change publishes a Continuous re-anchor, so cluster slaves follow it | Fdp.Toolkits Time (backend's area: a cross-lane edit) |
+| H-8 / F-H2 | [CE-11022](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`)** | the time docs say the anchor model (no pulse, no PLL); the stale comment at `MasterSyncController.cs:153`; the unused `TimeConfig` PLL fields named | Time Architecture, FDP.Toolkit.Time.md |
+| (G) | [CE-11023](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, as-built in §3b)** | the editor's director gets the editor's recording opener (`ScenarioDoor.OpenRecording`) — a job or reel item naming another recording then plays in the editor | Hrot.Editor |
+| (H) | [CE-11024](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`): the field is `Impact` (ImpactKind + 1; 0 = not a round impact)** | `EffectCause.Kind` + `EffectCause.Shooter` from `RoundImpactNotification` — the gateway makes `Impact` from the effect entities, live and in replay (R-11007) | Hrot.Core, the effect spawner |
+| (J) / F-H3 | [CE-11025](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, as-built in §2e-1)** | a replay open makes the recording's terrain resident through the load chain's shared parts (Terrain with the recording's name and overlay hash, then Map3D, then the linked client) | the load phase (backend's: a cross-lane change) |
 
 **Acceptance (R-4277 — a feature works when its scenarios pass):** the `showcases/player-station` scenario with a promoted take rendered
 twice — once with no linked client (the map, as today: frame count, MP4) and once with the gateway's reference client in `--render` mode (the same
@@ -259,6 +297,36 @@ frame count, the client's PNGs, the client's tone track muxed, the samples total
 forced map; `Card` never reaches the linked client; a faulted frame fails the job with the reason; `FilmFrameSink` behaviour unchanged
 (the existing `FilmTests` / `FilmFrameRail` under `xvfb-run -a`); the scale re-anchor in `MasterSyncControllerTests` + the cross-node
 invariant in `SimTimeSyncIntegrationTests`.
+
+### 3a. ✅ As built — CE-11018 (backend, `2026-11-21`; the contract: [NOTE_Backend_To_Ui_Linked_Client_Frames.md](../../blueprints/batches/NOTE_Backend_To_Ui_Linked_Client_Frames.md))
+
+⭐ Built as §2b / §2c draw it. Where it deviated or chose, this is the current answer:
+
+| | as built | why |
+|---|---|---|
+| `ILinkedClient` film members | `CanFilm`, `BeginFilm`, `Frame`, `EndFilm` — **default interface members** (a world-only client compiles unchanged, films nothing) | ⛔ §2b's `Ready` / `Begin` / `End`: beside `BeginWorld` a bare `Begin` reads as a world call; `CanFilm` is read at a job's start only |
+| the camera | `FilmCamera(Position, Forward, Up, FovDeg)` — a forward + up basis | ⛔ §2b's `CameraRot` quaternion: a basis leaves no axis convention to agree with the gateway |
+| every frame index reaches the client | `FilmFrameKind.Scene` · `Repeat` (slow motion repeats the last scene; HROT copies the PNG) · `Silence` (one per card frame; the card stays the map's, D-4) | the client's track stays frame for frame (CE-11021 checks the samples) |
+| the pose (D-3) | `FilmCaptureRequest.PoseOnly`: the map's film layer places the camera exactly as for a render and hands back `FilmFrame.Camera` — nothing drawn or written; refused FIRST on a 2-D view with `RoutingFrameSink.TwoDRefused` | the same mailbox as a map frame |
+| order | `RoutingFrameSink` chains every client call (a frame waiting for its pose never overtakes a repeat); a fault ends the chain with the first reason | — |
+| the job | `IFrameSink.Begin` / `Frame(…, FilmFrameContext)` / `Advance` / `End` (defaults = the map's behaviour); the runner begins at the capture's start (the first frame waits for it), ends once — Ok at the encode, Stopped on Stop, Failed with the run's error; the stills begin / end their own `Still` job | — |
+| wiring | `DirectorPackHost.LinkedClients` = a `Func<LinkedClients?>` (the editor passes `() => _node?.LinkedClients`: its node can be rebuilt); the Replay Browser passes none (R-11008) | the silent-default rule — rail `DirectorPackTests.CE11018_ThePack_*` |
+| `frames: auto \| map` | `CaptureOptions.Frames`, `RenderRequest.Frames`, parsed by the one capture reader (`CaptureFieldsOf`) | — |
+| ⚠ not carried yet | `FilmJob.Sound` is always `Hrot` (the `sound` field and the mux are CE-11021) | — |
+
+📐 **Rails:** `DirectorRunnerTests.CE11018_*` ×4 (every frame in order with the REAL film layer's pose, the cards the map's · no client / `frames: map` · a client fault · a 2-D take) · `DirectorPackTests.CE11018_*` ×2 · `FilmFrameRail.CE11018_*` (xvfb).
+
+### 3b. ✅ As built — CE-11023 (backend, `2026-11-21`)
+
+| piece | as built |
+|---|---|
+| the opener | `EditorDirectorHost : IRecordingOpener` → `ScenarioDoor.OpenRecording(exercise, at, the director's asker)`. It is the same shape as the scenario load (CE-4267): a wait (the run gate, a run in progress) is asked again; a refusal is the reason. An exercise id opens directly; files open by their `.meta.json`'s exercise id; Empty is refused (the editor does not pick "the newest") |
+| ready | `IRecordingOpener.Opening` (new, default false) stays true until the cluster is `OperatingReplay` with THAT exercise (`ReplayModule.RecordedExerciseId`) and the shown map is built. `OpenFailure` (new) reports a refusal, the cluster's error state, or no progress for 30 s. The runner and the render queue wait on both after the open's settle frames (the Replay Browser keeps its defaults: ready after the settle) |
+| the load wall | `DirectorRunner.LoadTimeoutSeconds` no longer bounds a load. `LoadStallSeconds` (30 s) is measured from the last change of the run gate's load step (`IDirectorHost.LoadProgress`, new), the entity count or the map build. `IDirectorHost.LoadError` (new) fails it at once with the cluster's reason. ⚠ The wait for the DOOR to take the load (before it went) keeps the 30 s cap: that is not a load |
+| measured | a scenario load never stops a run the user started — it waits and fails with the reason; the recording open does the same |
+
+Rails: `DirectorRunnerTests.CE11023_*` (an advancing 45 s load plays; a stalled one fails; the error fails at once) and
+`TheDirectorsStopIsTheOneIdleIntentTests.CE11023_*` (the door, by id and by files; ready only for THAT exercise; the error; Empty refused).
 
 ## 4. Decisions — the leans (the questions with their blast radius: [Architect_Question_113](../../blueprints/Architect_Question_113_Linked_Client_For_The_Director.md))
 

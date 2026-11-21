@@ -363,6 +363,181 @@ public sealed class DirectorRunnerTests : IDisposable
         public Task Card(string path, int width, int height, string text) { Cards.Add(text); File.WriteAllText(path, ""); return Task.CompletedTask; }
     }
 
+    // ── ⭐ CE-11018 (docs/designs/IG/DESIGN_Linked_Client_Director.md §2c, Q113-B / D-3 / D-4) — a job's frames rendered by the node's linked client ──────────
+
+    /// <summary>A linked client, faked: every film frame it is handed, its Begin / End, and an optional frame it fails.</summary>
+    private sealed class FakeClient : Hrot.Common.Infrastructure.ILinkedClient
+    {
+        public readonly List<Hrot.Common.Infrastructure.FilmFrame> Frames = new();
+        public readonly List<Hrot.Common.Infrastructure.FilmJob> Begins = new();
+        public readonly List<Hrot.Common.Infrastructure.FilmJobOutcome> Ends = new();
+        public int FailAt = -1;
+        public string Name => "fake client";
+        public void BeginWorld(Guid loadId) { }
+        public bool IsWorldReady(Guid loadId, out string? failure, out string? step) { failure = null; step = null; return true; }
+        public bool CanFilm => true;
+        public Task BeginFilm(Hrot.Common.Infrastructure.FilmJob job) { lock (Begins) Begins.Add(job); return Task.CompletedTask; }
+        public Task Frame(Hrot.Common.Infrastructure.FilmFrame frame)
+        {
+            lock (Frames) Frames.Add(frame);
+            return frame.Index == FailAt ? Task.FromException(new InvalidOperationException($"frame {frame.Index} lost (the client)")) : Task.CompletedTask;
+        }
+        public Task<Hrot.Common.Infrastructure.FilmTrack?> EndFilm(Hrot.Common.Infrastructure.FilmJob job, Hrot.Common.Infrastructure.FilmJobOutcome outcome)
+        {
+            lock (Ends) Ends.Add(outcome);
+            return Task.FromResult<Hrot.Common.Infrastructure.FilmTrack?>(new Hrot.Common.Infrastructure.FilmTrack("r1.wav", 48000, 48000, 2));
+        }
+    }
+
+    /// <summary>Two takes with a title card each (a reel of s-a and s-b), captured at 30 fps.</summary>
+    private static PlayRequest TwoTitledTakes(string dir, Hrot.Common.Infrastructure.FilmFrames frames = Hrot.Common.Infrastructure.FilmFrames.Auto)
+        => new(new Reel { Name = "lc", Items = new[] { "s-a", "s-b" }.Select(s => new ReelItem { Scenario = s, Take = "main", Title = s }).ToList() },
+               Capture: new CaptureOptions(dir, Fps: 30, Encode: false, Frames: frames));
+
+    /// <summary>
+    /// ⭐⭐ CE-11018 (§2c, D-3, D-4) — a captured reel with a linked client offered goes to the CLIENT: ONE job (Begin once, End once with Ok and the client's track), every
+    /// film frame in order — scene frames with the pose the map's REAL film layer served for them (the camera it placed for the shot), a Silence frame for every card
+    /// frame — and the map draws the cards and NO scene frame. 🔴 Mutations: route every job to the map (Begin ignores the client) ⇒ no client frames; send the scene
+    /// frame without the pose capture (a default camera) ⇒ the camera row; skip the card's Silence frames ⇒ the indices are not contiguous.
+    /// </summary>
+    [Fact]
+    public void CE11018_AReel_RenderedByALinkedClient_GetsEveryFrameInOrder_WithTheFilmLayersPose_AndTheCardsStayTheMaps()
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var view = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+        using var film = new FilmCaptureLayer(canvas, view, () => host.Repo);
+        view.Set(true, animate: false);
+        var clients = new Hrot.Common.Infrastructure.LinkedClients();
+        var client = new FakeClient();
+        clients.Offer(client);
+        var map = new Sink();
+        var sink = new RoutingFrameSink(map, () => clients);
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        var request = TwoTitledTakes(Path.Combine(_root, "lc-client"));
+        Assert.Empty(runner.Play(request));
+
+        var served = new List<Hrot.Common.Infrastructure.FilmCamera>();   // the pose the film layer had each time it served
+        for (int f = 0; f < 40000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            film.Draw3D(default);                                         // the map was drawn ⇒ it serves this frame's captures (a pose-only serve draws nothing)
+            int before = film.Served;
+            film.Update(1f / 60f);
+            if (film.Served > before)
+            {
+                var cam = view.Camera3D;
+                served.Add(new Hrot.Common.Infrastructure.FilmCamera(cam.Eye, cam.Forward, cam.Up, cam.FovyDegrees));
+            }
+            host.EndFrame();
+        }
+        for (int i = 0; i < 200 && client.Ends.Count == 0; i++) System.Threading.Thread.Sleep(5);
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Null(runner.Error);
+
+        var job = Assert.Single(client.Begins);
+        Assert.Equal((Hrot.Common.Infrastructure.FilmJobKind.Reel, 30, 1280, 720), (job.Kind, job.Fps, job.Width, job.Height));
+        Assert.Equal(Hrot.Common.Infrastructure.FilmJobEnd.Ok, Assert.Single(client.Ends).End);
+        Assert.Equal("r1.wav", runner.ClientTrack?.Path);
+
+        List<Hrot.Common.Infrastructure.FilmFrame> frames;
+        lock (client.Frames) frames = client.Frames.ToList();
+        Assert.Equal(Enumerable.Range(0, frames.Count), frames.Select(x => x.Index));   // every film frame, in order, none skipped
+        Assert.All(frames, x => Assert.Equal(job.JobId, x.JobId));
+        var scenes = frames.Where(x => x.Kind == Hrot.Common.Infrastructure.FilmFrameKind.Scene).ToList();
+        Assert.True(scenes.Count >= 20, $"anti-vacuity: scene frames {scenes.Count}");
+        Assert.Equal(served.Count, scenes.Count);
+        for (int i = 0; i < scenes.Count; i++) Assert.Equal(served[i], scenes[i].Camera);   // ⭐ D-3 — exactly the film layer's camera
+        Assert.All(scenes, x => Assert.True(x.Camera.FovDeg > 0f && x.Path.EndsWith(".png", StringComparison.Ordinal)));
+        Assert.True(scenes.Zip(scenes.Skip(1)).Count(p => p.Second.Step < p.First.Step) <= request.Reel.Items.Count - 1, "the step goes back only where the next item starts");
+        Assert.True(scenes.Max(x => x.Step) > 0, "anti-vacuity: the step counts");
+
+        int perCard = (int)Math.Round(request.Reel.GapSeconds * 30);
+        Assert.Equal(2, map.Cards.Count);                                 // the cards are the map's (D-4)
+        Assert.Equal(map.Cards.Count * perCard, frames.Count(x => x.Kind == Hrot.Common.Infrastructure.FilmFrameKind.Silence));
+        Assert.Empty(map.Frames);                                         // and no scene frame was drawn by the map
+    }
+
+    /// <summary>
+    /// ⭐ CE-11018 (Q113-B) — the map keeps a job it is given: with NO linked client the frames are the map's as before; with a client offered and
+    /// <c>frames: map</c>, the client sees nothing (no Begin, no frame). 🔴 Mutation: ignore <c>Frames</c> in <c>RoutingFrameSink.Begin</c> ⇒ the client films the forced-map job.
+    /// </summary>
+    [Fact]
+    public void CE11018_WithNoClient_OrFramesMap_TheMapFilmsTheJob_AndTheClientSeesNothing()
+    {
+        var store = Store();
+        foreach (var (offer, frames) in new[] { (false, Hrot.Common.Infrastructure.FilmFrames.Auto), (true, Hrot.Common.Infrastructure.FilmFrames.Map) })
+        {
+            var host = new FakeEditor(store);
+            var clients = new Hrot.Common.Infrastructure.LinkedClients();
+            var client = new FakeClient();
+            if (offer) clients.Offer(client);
+            var map = new Sink();
+            var runner = new DirectorRunner(host, new Cinema(), new Layers(), new RoutingFrameSink(map, () => clients));
+            Assert.Empty(runner.Play(TwoTitledTakes(Path.Combine(_root, "lc-map-" + offer), frames)));
+            Run(runner, host);
+            Assert.Equal(DirectorPhase.Done, runner.Phase);
+            Assert.True(map.Frames.Count >= 20, $"{(offer ? "frames: map" : "no client")}: the map filmed {map.Frames.Count} frames");
+            Assert.Empty(client.Begins);
+            Assert.Empty(client.Frames);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11018 — a frame the client FAILS fails the job with the client's reason, and the client is told the job FAILED. 🔴 Mutation: drop the capture-fault check in
+    /// the runner's capture wait ⇒ the run ends Done.
+    /// </summary>
+    [Fact]
+    public void CE11018_AFrameTheClientFails_FailsTheJobWithItsReason()
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var view = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+        using var film = new FilmCaptureLayer(canvas, view, () => host.Repo);
+        view.Set(true, animate: false);
+        var clients = new Hrot.Common.Infrastructure.LinkedClients();
+        var client = new FakeClient { FailAt = 12 };
+        clients.Offer(client);
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), new RoutingFrameSink(new Sink(), () => clients));
+        Assert.Empty(runner.Play(TwoTitledTakes(Path.Combine(_root, "lc-fail"))));
+        for (int f = 0; f < 40000 && runner.Busy; f++) { runner.Tick(); film.Draw3D(default); film.Update(1f / 60f); host.EndFrame(); }
+        for (int i = 0; i < 200 && client.Ends.Count == 0; i++) System.Threading.Thread.Sleep(5);
+        Assert.Equal(DirectorPhase.Stopped, runner.Phase);
+        Assert.Contains("frame 12 lost (the client)", runner.Error);
+        var end = Assert.Single(client.Ends);
+        Assert.Equal(Hrot.Common.Infrastructure.FilmJobEnd.Failed, end.End);
+        Assert.Contains("frame 12 lost", end.Reason);
+    }
+
+    /// <summary>
+    /// ⭐ CE-11018 (D-3) — a take showing the 2-D map cannot go to a linked client: the job fails with the reason (render it with <c>frames: map</c>). 🔴 Mutation: drop the
+    /// 2-D check in <c>RoutingFrameSink.Frame</c> ⇒ the job hangs on a pose no 2-D map serves, or ends Done.
+    /// </summary>
+    [Fact]
+    public void CE11018_A2DTake_RoutedToALinkedClient_IsRefusedWithTheReason()
+    {
+        var store = Store();
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "flat", TickHz = 60, EndAt = new AtExpr(1.0),
+            Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { Follow = "Runner", Distance = 40 } } },
+            Views = new[] { new ViewChange { At = new AtExpr(0), TwoD = true } },
+        });
+        var host = new FakeEditor(store);
+        var clients = new Hrot.Common.Infrastructure.LinkedClients();
+        var client = new FakeClient();
+        clients.Offer(client);
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), new RoutingFrameSink(new Sink(), () => clients));
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "flat"), Capture: new CaptureOptions(Path.Combine(_root, "lc-2d"), Fps: 30, Encode: false))));
+        Run(runner, host);
+        for (int i = 0; i < 200 && client.Ends.Count == 0; i++) System.Threading.Thread.Sleep(5);
+        Assert.Contains(RoutingFrameSink.TwoDRefused, runner.Error);
+        Assert.Equal(Hrot.Common.Infrastructure.FilmJobEnd.Failed, Assert.Single(client.Ends).End);
+        Assert.DoesNotContain(client.Frames, x => x.Kind == Hrot.Common.Infrastructure.FilmFrameKind.Scene);
+    }
+
     private TakeStore Store()
     {
         var store = new TakeStore(() => _root, () => Path.Combine(_root, "films"));
@@ -468,6 +643,49 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Equal("failed", runner.Reports[0].Status);
         Assert.Contains(runner.Reports[0].Problems, p => p.Contains("was not loaded within") && p.Contains("did not take the load"));
         Assert.Empty(host.Loads);
+    }
+
+    /// <summary>A load that takes <see cref="LoadSeconds"/> of wall time (a large terrain) and reports its progress the way the run gate does.</summary>
+    private sealed class SlowEditor : FakeEditor, IDirectorHost
+    {
+        public double LoadSeconds = 45d;
+        public bool Advances = true;
+        public string? Error;
+        private double _readyAt;
+        public SlowEditor(TakeStore takes) : base(takes) { }
+        public new void LoadScenario(string scenario) { base.LoadScenario(scenario); _readyAt = Wall + LoadSeconds; }
+        public new bool IsOperatingEdit => base.IsOperatingEdit && Wall >= _readyAt;
+        public string? LoadProgress => Wall >= _readyAt ? null : Advances ? $"terrain: valley {(int)(Wall / 5d)}" : "terrain: valley";
+        public string? LoadError => Error;
+    }
+
+    /// <summary>
+    /// ⭐ CE-11023 — no fixed wall while the load ADVANCES: a 45 s load whose step keeps changing plays its take; the same load reporting nothing new fails
+    /// after <see cref="DirectorRunner.LoadStallSeconds"/> saying so; the cluster's error state fails it at once with the reason.
+    /// 🔴 Mutations: the stall clock never reset ⇒ the advancing load fails at 30 s; the error ignored ⇒ the error case fails as a stall, not with its reason.
+    /// </summary>
+    [Fact]
+    public void CE11023_ALongLoadThatAdvances_Plays_AStalledOneFails_AndTheClustersErrorFailsAtOnce()
+    {
+        var advancing = new SlowEditor(Store());
+        var runner = new DirectorRunner(advancing, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, advancing, maxFrames: 200000);
+        Assert.Equal("ok", runner.Reports[0].Status);
+
+        var stalled = new SlowEditor(Store()) { Advances = false };
+        runner = new DirectorRunner(stalled, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, stalled, maxFrames: 200000);
+        Assert.Equal("failed", runner.Reports[0].Status);
+        Assert.Contains(runner.Reports[0].Problems, p => p.Contains("made no progress for 30 s") && p.Contains("terrain: valley"));
+
+        var broken = new SlowEditor(Store()) { Error = "Brain (CGF, node 3) lost" };
+        runner = new DirectorRunner(broken, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, broken, maxFrames: 200000);
+        Assert.Contains(runner.Reports[0].Problems, p => p.Contains("the cluster is in error — Brain (CGF, node 3) lost"));
+        Assert.True(broken.Wall < 10d, $"the error failed the load only at {broken.Wall:0.0} s");
     }
 
     private static void Run(DirectorRunner runner, FakeEditor host, int maxFrames = 20000)

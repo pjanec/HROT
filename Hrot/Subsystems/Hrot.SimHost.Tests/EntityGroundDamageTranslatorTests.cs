@@ -189,6 +189,47 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(MineCellKnowledge.KnownMined, replica.GetComponentRO<MinefieldKnowledge>(kg).Get(1, 1));
         }
 
+        /// <summary>⭐ CE-2468 (UF-2) — the toolkit states the under-fire ordinal (it cannot reference NED); this pins it equal to the wire's.</summary>
+        [Fact]
+        public void CE2468_TheUnderFireOrdinal_MatchesTheWire()
+            => Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtUnderFireKnowledge, Fdp.Toolkit.Terrain.UnderFireWriter.DescriptorOrdinal);
+
+        /// <summary>
+        /// ⭐ <c>CE-2468</c> UF-2 — a side's under-fire record (every field distinctive) crosses to a ghost BYTE FOR BYTE, an unchanged record matches its last sample (no resend), a change
+        /// (State 0 → 1) does not, and the recorded owner never takes its own sample back. A ghost's removal when the owner retires the record is the generic entity-destroy path
+        /// (DeleteEntityRequest), pinned by <c>DestroyEntityCommandEgressTranslatorTests</c> and <c>EntityDestroyIntegrationTests</c> — the descriptor ingress only applies Alive samples.
+        /// 🔴 Red-proof: drop the Point.Z copy in <c>FromSample</c> ⇒ the bytes differ; drop the State test in <c>Matches</c> ⇒ the change is not re-published; drop the owner guard ⇒ the owner takes its own back.
+        /// </summary>
+        [Fact]
+        public void CE2468_AnUnderFireRecord_RoundTripsByteForByte_ToAGhost_AndTheOwnerNeverTakesItsOwnBack()
+        {
+            using var replica = MineWorld();
+            replica.RegisterComponent<UnderFireKnowledge>();
+            var map = new NetworkEntityMap();
+            var ghosts = new GhostCreationSystem(map);
+
+            var know = new UnderFireKnowledge
+            {
+                Cause = UnderFireCause.Direct, Point = new Vector3(123.25f, 7.5f, -45.75f), RangeM = 61.5f, EnemyStrength = 3.25f,
+                Header = new PlaceKnowledgeHeader { SubjectKind = SubjectKind.Place, SidePlus1 = 3, Kind = PlaceKnowledgeKind.UnderFire, State = 0, Source = KnowledgeSource.Contact,
+                                                    Subject = new System.Guid("0a1b2c3d-1111-2222-3333-444455556666"), ObjectIndex = -1, LearnedAt = (SimInstant)1234.5 },
+            };
+            var ks = EntityUnderFireKnowledgeEgressTranslator.ToSample(7201, in know);
+            Assert.True(EntityUnderFireKnowledgeEgressTranslator.Matches(in ks, in know));
+            var ki = new EntityUnderFireKnowledgeIngressTranslator(participant: null, map, ghosts, localNodeId: 2);
+            using (var cmd = new EntityCommandBuffer()) { ki.Receive(in ks, cmd, replica); cmd.Playback(replica); }
+            Assert.True(map.TryGetEntity(7201, out var kg));
+            Assert.True(SameBytes(in know, in replica.GetComponentRO<UnderFireKnowledge>(kg)));
+
+            // a change is a new sample; the recorded owner never takes its own sample back
+            var cooled = know; cooled.Header.State = 1;
+            Assert.False(EntityUnderFireKnowledgeEgressTranslator.Matches(in ks, in cooled));
+            replica.AddComponent(kg, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 2));
+            replica.SetComponent(kg, cooled);
+            using (var cmd = new EntityCommandBuffer()) { ki.Receive(in ks, cmd, replica); cmd.Playback(replica); }
+            Assert.Equal(1, replica.GetComponentRO<UnderFireKnowledge>(kg).Header.State);
+        }
+
         /// <summary>
         /// ⭐ <c>CE-4624</c> MS-T4 — the runtime LANES record (a field's Guid, two cleared lanes with segment, width and side) and the clearer's tool marker (<c>MineClearing</c>: tool, width, the
         /// line charge's landing point) cross the wire byte for byte. 🔴 Red-proof: drop the <c>LineTo</c> copy / a lane's <c>SidePlus1</c> in <c>FromSample</c> ⇒ the bytes differ.

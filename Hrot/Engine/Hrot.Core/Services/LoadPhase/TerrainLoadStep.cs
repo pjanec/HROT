@@ -71,7 +71,7 @@ public sealed class TerrainLoadStep : ILoadPartProvider
     }
 
     private string? RequestedName(LoadPhaseContext context)
-        => !string.IsNullOrWhiteSpace(context.TerrainName)
+        => !string.IsNullOrWhiteSpace(context.TerrainName) || context.IsReplayWorld   // ⭐ CE-11025 — a replay's name is the recording's, never the staged scenario's
             ? context.TerrainName
             : ScenarioTerrainName.Read(_stagingRoot);
 
@@ -85,7 +85,16 @@ public sealed class TerrainLoadStep : ILoadPartProvider
         //    present or genuinely absent. 📄 docs/DESIGN_Cluster_Load_Phase.md §7.3 ④.
         // ⭐ O-4 (CE-4415) — the scenario's terrain overlay, staged beside the terrain by its content hash; a hash named but no folder found is a broken deployment, like a missing terrain
         string? overlayFolder = null;
-        string? overlayHash = ScenarioTerrainName.ReadOverlayHash(_stagingRoot);
+        string? overlayHash = context.IsReplayWorld ? context.OverlayHash : ScenarioTerrainName.ReadOverlayHash(_stagingRoot);
+        // ⭐ CE-11025 — a replay's additions missing on this machine: the base terrain, with a warning (as the Replay Browser does, CE-4420 O-8) —
+        //   the recording still plays; ⛔ a LIVE load stays strict below (a broken deployment)
+        if (context.IsReplayWorld && !string.IsNullOrWhiteSpace(requested) && !string.IsNullOrEmpty(overlayHash)
+            && _residency.ResolveOverlay(overlayHash) == null)
+        {
+            Fdp.Core.Logging.FdpLog<TerrainLoadStep>.Warn(
+                $"[Terrain] the recording's terrain additions {overlayHash} are not available on this machine — the replay shows the base terrain '{requested}' only.");
+            overlayHash = null;
+        }
         if (!string.IsNullOrWhiteSpace(requested) && !string.IsNullOrEmpty(overlayHash))
             overlayFolder = _residency.ResolveOverlay(overlayHash)
                 ?? throw new System.IO.FileNotFoundException(

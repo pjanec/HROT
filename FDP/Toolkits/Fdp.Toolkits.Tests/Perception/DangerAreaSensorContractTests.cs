@@ -213,7 +213,7 @@ namespace Fdp.Toolkit.Tests.Perception
         public void CE3072_B0_Sizes()
         {
             Assert.Equal(DangerAreaDescriptor.PinnedSize, Unsafe.SizeOf<DangerAreaDescriptor>());
-            Assert.Equal(12 + 8 * DangerAreaDescriptor.PinnedSize + 8, Unsafe.SizeOf<DangerAreaCognitiveBuffer>());   // Count + LastUpdateTick + LastUpdateTimeSeconds (Q4) + the edge memory (R-3039)
+            Assert.Equal(12 + 8 * DangerAreaDescriptor.PinnedSize + 8 + 12, Unsafe.SizeOf<DangerAreaCognitiveBuffer>());   // Count + LastUpdateTick + LastUpdateTimeSeconds (Q4) + the edge memory (R-3039) with HasSteer + the steer point (CE-2469)
             Assert.True(Unsafe.SizeOf<DangerAreaCognitiveBuffer>() <= 1024);   // EntityCommandBuffer.MaxComponentSize
         }
 

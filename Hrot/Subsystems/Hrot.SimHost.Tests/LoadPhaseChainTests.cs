@@ -1135,8 +1135,11 @@ public sealed class LoadPhaseChainTests
         public bool Resolved { get; set; } = true;
         public bool Aborted  { get; private set; }
 
+        public LoadPhaseContext? Prepared { get; private set; }   // ⭐ CE-11025 — the context the step was prepared with
+
         public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
         {
+            Prepared = context;
             _order?.Add(Part);
             OnPrepare?.Invoke();
             return Task.CompletedTask;
@@ -1149,5 +1152,57 @@ public sealed class LoadPhaseChainTests
         public void Commit(LoadPhaseContext context, EntityRepository? world) => OnCommit?.Invoke(world);
         public void Abort(LoadPhaseContext context) => Aborted = true;
         public bool IsResolved(EntityRepository? world) => Resolved;
+        public string? FailWith { get; set; }
+        public string? Failure => FailWith;
+    }
+
+    /// <summary>
+    /// ⭐ CE-11025 (Q113-J) — a replay open runs ONLY the world parts (terrain → map → linked client, never the knowledge base or the entities), the
+    /// terrain prepared with the RECORDING's name and additions; the client is told after the terrain is in; the world is ready only when the map
+    /// and the client are, and a client's failure fails the open with its reason.
+    /// 🔴 Mutations: the KB in the replay parts ⇒ the order cell; the overlay dropped ⇒ the context cell; the drain not polling ⇒ the hold never completes.
+    /// </summary>
+    [Fact]
+    public async Task CE11025_AReplayOpen_RunsTheWorldParts_ForTheRecordingsTerrain_AndIsReadyWhenTheMapAndClientAre()
+    {
+        var order = new List<LoadPart>();
+        var commits = new List<string>();
+        var kb = new FakeStep(LoadPart.KnowledgeBase, order) { OnCommit = _ => commits.Add("kb") };
+        var terrain = new FakeStep(LoadPart.Terrain, order) { OnCommit = _ => commits.Add("terrain") };
+        var map = new FakeStep(LoadPart.Map3D, order) { OnCommit = _ => commits.Add("map"), Resolved = false };
+        var client = new FakeLinkedClient();
+        var clients = new LinkedClients();
+        clients.Offer(client);
+        var chain = LoadPhaseChain.FromRoles(NodeRole.Map2D, new ILoadPartProvider[] { kb, terrain, map, new LinkedClientLoadStep(clients) }, world: null,
+                                             profileParts: new[] { LoadPart.Map3D, LoadPart.LinkedClient });
+        Fdp.Toolkit.Orchestration.Handlers.IReplayWorldLoad replay = chain;
+        var id = Guid.NewGuid();
+
+        await replay.PrepareAsync(id, "valley", "ab12", CancellationToken.None);
+        Assert.Equal(new[] { LoadPart.Terrain, LoadPart.Map3D }, order);
+        Assert.Equal(("valley", "ab12", true), (terrain.Prepared!.Value.TerrainName, terrain.Prepared!.Value.OverlayHash, terrain.Prepared!.Value.IsReplayWorld));
+
+        replay.Commit(id, null);
+        Assert.Equal(new[] { "terrain", "map" }, commits);
+        Assert.Equal(new[] { id }, client.Begun);
+        var ready = replay.WhenReadyAsync(id);
+        chain.DrainDeferredAcks();
+        Assert.False(ready.IsCompleted);                      // the map is building
+        map.Resolved = true;
+        chain.DrainDeferredAcks();
+        Assert.False(ready.IsCompleted);                      // the client's world is not ready
+        client.Ready = true;
+        chain.DrainDeferredAcks();
+        Assert.True(await Completes(ready));
+
+        // a client that fails fails the open with its reason
+        var id2 = Guid.NewGuid();
+        await replay.PrepareAsync(id2, "valley", null, CancellationToken.None);
+        replay.Commit(id2, null);
+        client.Ready = false; client.Failure = "the client has no such terrain";
+        var failing = replay.WhenReadyAsync(id2);
+        chain.DrainDeferredAcks();
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => failing);
+        Assert.Contains("the client has no such terrain", ex.Message);
     }
 }

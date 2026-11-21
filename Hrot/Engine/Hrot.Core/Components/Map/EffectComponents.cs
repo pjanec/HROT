@@ -53,6 +53,12 @@ public struct EffectCause
     public float Damage;
     /// <summary>The munition's TKB type (0 = unknown).</summary>
     public long Ammo;
+    // ⭐ CE-11024 — APPENDED (the layout above is unchanged, so a recording made before keeps its meaning for those fields).
+    /// <summary>What a ROUND did at this surface: <c>Fdp.Toolkit.Combat.ImpactKind</c> + 1 — 1 Entry, 2 Exit, 3 Stop; ⭐ 0 = not a round's impact (a
+    /// detonation), so a zero never reads as "entered".</summary>
+    public byte Impact;
+    /// <summary>Who fired it (Null = unknown, or a hit with no shooter) — from the impact's or the detonation's <c>Shooter</c>.</summary>
+    public Entity Shooter;
 }
 
 /// <summary>

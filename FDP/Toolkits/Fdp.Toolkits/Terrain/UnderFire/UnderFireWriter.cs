@@ -110,8 +110,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ K2 / K4 — the ageing pass over this node's OWN records, by sim time.</summary>
         protected override void BeforeItems(EntityRepository repo, List<UnderFireItem> into)
         {
-            if (++_tick % CoolCheckTicks != 0) return;
             double now = Fdp.Toolkit.Combat.HitModel.Now(repo);
+            Rebase(repo, now);   // a walk over this world's few under-fire records (0 B): a load can make some at any time
+            if (++_tick % CoolCheckTicks != 0) return;
             _retire.Clear();
             foreach (var e in All(repo))
             {
@@ -127,6 +128,20 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
             for (int i = 0; i < _retire.Count; i++) Retire(repo, _retire[i]);
+        }
+
+        /// <summary>⭐ CE-2468 UF-3 (K1) — a record a scenario load made holds its AGE: rebase it on this node's clock now (learned-at = now − age), then age it as any other.</summary>
+        private void Rebase(EntityRepository repo, double now)
+        {
+            foreach (var e in All(repo))
+            {
+                ref readonly var r = ref repo.GetComponentRO<UnderFireKnowledge>(e);
+                if (r.Header.State != UnderFireKnowledge.StateLoaded || !Owns(repo, e)) continue;   // another node's: its owner rebases it
+                var rebased = r;
+                rebased.Header.LearnedAt = (SimInstant)(now - r.Header.LearnedAt.Seconds);
+                rebased.Header.State = UnderFireKnowledge.StateActive;   // the ageing pass cools / retires it by its rebased age
+                repo.SetComponent(e, rebased);
+            }
         }
 
         private EntityQuery All(EntityRepository repo)

@@ -92,7 +92,7 @@ namespace Fdp.Toolkit.Navigation
             {
                 entry = RoadGraphRouter.NearestAccess(roads, Xy(q.Start), forceRoad || navmesh == null ? float.MaxValue : MaxAccessMeters);
                 exit = RoadGraphRouter.NearestAccess(roads, Xy(q.End), forceRoad || navmesh == null ? float.MaxValue : MaxAccessMeters);
-                roadOk = entry.IsValid && exit.IsValid && _router.Route(roads, entry, exit, out roadMetres);
+                roadOk = entry.IsValid && exit.IsValid && _router.Route(roads, entry, exit, out roadMetres, doors?.UnderFireSight, NavLayerSelection.SidePlus1Of(q.LayerMask));   // ⭐ CE-2468 K12 — road legs priced too
             }
 
             // ── A move shorter than half a metre: the two points as asked, on any map ───────────────────────

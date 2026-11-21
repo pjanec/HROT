@@ -40,6 +40,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
         Shelled        = 1 << 0,
         /// <summary>⭐ <c>CE-4624</c> — a minefield the side knows (MR-9). ⚠ Shelled stays on bit 0 (lane decision R-5043: no recorded / saved value changes).</summary>
         Minefield      = 1 << (int)DangerAreaKind.Minefield,
+        /// <summary>⭐ <c>CE-2468</c> UF-6 — ground a known enemy of the side covers (K10); never in the v1 default.</summary>
+        CoveredByFire  = 1 << (int)DangerAreaKind.CoveredByFire,
     }
 
     /// <summary>⭐ <c>CE-3081</c> — whether a sensor asking for <see cref="DangerAreaKinds"/> keeps an area of a kind.</summary>
@@ -48,7 +50,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public static bool Wants(DangerAreaKinds wanted, DangerAreaKind kind)
         {
             if (wanted == DangerAreaKinds.Crossings) wanted = DangerAreaKinds.StreetCrossing | DangerAreaKinds.Intersection;
-            return kind <= DangerAreaKind.Minefield && ((int)wanted & BitOf(kind)) != 0;   // ⭐ CE-4583 / CE-4624 — the bound takes the new kinds
+            return kind <= DangerAreaKind.CoveredByFire && ((int)wanted & BitOf(kind)) != 0;   // ⭐ CE-4583 / CE-4624 / CE-2468 (K10) — the bound takes the new kinds
         }
 
         /// <summary>⭐ <c>CE-4583</c> — the <see cref="DangerAreaKinds"/> bit of <paramref name="kind"/>: <c>1 &lt;&lt; kind</c>, except

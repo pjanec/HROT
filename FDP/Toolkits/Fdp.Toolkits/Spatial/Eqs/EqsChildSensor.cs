@@ -280,6 +280,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     area.Count = 0;
                     area.LastUpdateTick = 0;
                     area.LastUpdateTimeSeconds = 0f;   // CE-3072 Q4
+                    area.HasSteer = 0;                 // CE-2469 — the old route's steer point is not this route's
                 }
                 else if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>()
                          && repo.HasComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child))

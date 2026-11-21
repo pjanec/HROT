@@ -1,6 +1,6 @@
 {
   "$doc": "docs/designs/group-maneuvers/DESIGN_Urban_Fight_Suite.md §5 (U2, the corner fight) — the realism rubric's layers 1-3 (§1), U1's rows with the corner's tighter windows: contact at 10-40 m ⇒ the answering fire within 5 s, the exposure limit 10 s. Layer 4 (leaning out vs stepping into the street, suppressing the corner, the flank) is the design's review checklist.",
-  "runFor": 240,
+  "runFor": 780,
   "golden": false,
   "expect": [
     {
@@ -105,6 +105,32 @@
       "on": "shot",
       "by": "*Red Squad ",
       "hit": "*Blue Squad "
+    },
+    {
+      "name": "L4 Blue never walks back into Red's west corner: no Blue man within 15 m of (630, 384) from 30 s after Red's first round (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
+      "never": {
+        "on": "close",
+        "who": "*Blue Squad ",
+        "point": [
+          630,
+          384
+        ],
+        "m": 15
+      },
+      "after": "Red fires+30"
+    },
+    {
+      "name": "L4 Blue never walks back into Red's east corner: no Blue man within 15 m of (668, 386) from 30 s after Red's first round (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
+      "never": {
+        "on": "close",
+        "who": "*Blue Squad ",
+        "point": [
+          668,
+          386
+        ],
+        "m": 15
+      },
+      "after": "Red fires+30"
     }
   ]
 }

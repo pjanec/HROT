@@ -82,8 +82,9 @@ public sealed record RecordingName(Guid ExerciseId, IReadOnlyList<string> Paths)
 /// ⭐⭐ <c>CE-1391</c> (§11u "as built: CE-1391") — <b>the ONE recording opener</b> (§11r R1: no second path). The Replay Browser implements it (its
 /// <see cref="IReplayBrowserControl"/>); every open lands here: <c>POST /replay {path | paths}</c> (<c>DebugApiService.EnterReplay</c>), <c>POST /replay
 /// {exerciseId}</c> (the browser's master transition), the director routes' <c>recording=</c> (through <c>EnterReplay</c>), the render queue's job and a reel
-/// item's <c>recording</c> (the pack, <c>DirectorPackHost.Recordings</c> — reachable with no debug HTTP host). A host that opens no recordings (the editor, a
-/// cluster node) has none. Main thread only.
+/// item's <c>recording</c> (the pack, <c>DirectorPackHost.Recordings</c> — reachable with no debug HTTP host). ⭐ <c>CE-11023</c> — the editor implements it
+/// too (<c>EditorDirectorHost</c>, over the start screen's door <c>ScenarioDoor.OpenRecording</c>): its open runs through the cluster, so it says
+/// <see cref="Opening"/> until the replay's world is ready. A cluster node with no director has none. Main thread only.
 /// </summary>
 public interface IRecordingOpener
 {
@@ -92,4 +93,12 @@ public interface IRecordingOpener
 
     /// <summary>The recording open now (its files, and its exercise id when the recording names one); null: none.</summary>
     RecordingName? Shown { get; }
+
+    /// <summary>⭐ <c>CE-11023</c> — the last <see cref="Open"/> went out but its world is not ready yet (a cluster replay still loading); false = ready,
+    /// or a host whose open is done once it returns (the Replay Browser). Polled once a frame by the director; a host may re-ask a refused open here.</summary>
+    bool Opening => false;
+
+    /// <summary>⭐ <c>CE-11023</c> — why the last open failed after <see cref="Open"/> returned (refused by the door, the cluster in error, a stalled
+    /// load); null = none.</summary>
+    string? OpenFailure => null;
 }

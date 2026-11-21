@@ -95,6 +95,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMinefieldStrikesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMinefieldKnowledgeEgressTranslator(participant);
             yield return new EntityMinefieldKnowledgeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityUnderFireKnowledgeEgressTranslator(participant);               // ⭐ CE-2468 UF-2 — a side's knowledge of a place under fire
+            yield return new EntityUnderFireKnowledgeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMinefieldLanesEgressTranslator(participant);                  // ⭐ CE-4624 MS-T4 — the lanes a node cleared
             yield return new EntityMinefieldLanesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMineClearingEgressTranslator(participant);                    // ⭐ CE-4624 MS-T4 — the clearer's tool marker (Brain group, the BladeCut pair)

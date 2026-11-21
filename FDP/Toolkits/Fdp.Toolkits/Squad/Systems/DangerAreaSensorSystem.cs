@@ -82,6 +82,8 @@ namespace Fdp.Toolkit.Squad.Systems
                 }
                 buffer.Count = n;
                 DangerAreaCognitiveBuffer.KeepHandles(previous.Slice(0, had), span.Slice(0, n));   // CE-2224
+                buffer.HasSteer = evt.HasSteer;          // ⭐ CE-2469 SP-1 — the planned route's steer point, with the answer it came in
+                buffer.SteerPoint = evt.SteerPoint;
                 buffer.LastUpdateTick = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
                 buffer.LastUpdateTimeSeconds = now;   // Q4 — what BecomesStale reads
             }
@@ -166,7 +168,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 ref var buffer = ref repo.GetComponentRW<DangerAreaCognitiveBuffer>(child);
                 var span = buffer.GetSpanRW();
                 for (int i = 0; i < buffer.Count && i < span.Length; i++)
-                    span[i].ThreatRating = span[i].Kind is DangerAreaKind.GasCloud or DangerAreaKind.Shelled ? 1f   // ⭐ CE-3227 (§7.3d-B G-5) — the gas IS the threat; ⭐ CE-4583 — so is the shelling
+                    span[i].ThreatRating = span[i].Kind is DangerAreaKind.GasCloud or DangerAreaKind.Shelled or DangerAreaKind.CoveredByFire ? 1f   // ⭐ CE-3227 (§7.3d-B G-5) — the gas IS the threat; ⭐ CE-4583 — so is the shelling; ⭐ CE-2468 — and ground a known enemy covers
                         : memory && repo.HasComponent<TargetMemory>(unit)
                         ? ThreatOn(repo, unit, in span[i])
                         : pooled && repo.HasComponent<SquadCognitiveState>(unit)

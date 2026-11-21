@@ -278,9 +278,14 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     {
         var layers = new Dictionary<NavLayerMask, LayerState>();
         foreach (var kv in meshes)
+        {
+            var doorPolys = NavDoorways.DoorPolys(kv.Value, doorways);
             layers[kv.Key] = new LayerState(kv.Value, new DoorAwareQueryFilter(
-                NavDoorways.DoorPolys(kv.Value, doorways), DoorStates.Authored(world), canOpenDoors: kv.Key == NavLayerMask.Infantry,
+                doorPolys, DoorStates.Authored(world), canOpenDoors: kv.Key == NavLayerMask.Infantry,
                 NavDoorways.MinefieldPolys(kv.Value, world)));   // ⭐ CE-4624 MS-T3 — the minefield polygons → (field, cells, lane), priced per side
+            // ⭐ CE-2468 UF-5 (K4) — the mesh's route cost under fire, built per side by the serial sight pass (UnderFireSight), keyed by this layer's door-poly map
+            Fdp.Toolkit.Terrain.UnderFireSight.RegisterCostBuilder(world, kv.Key, new UnderFirePolyMap(kv.Value, doorPolys));
+        }
         return layers;
     }
 

@@ -291,6 +291,33 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<int> Cells;
     }
 
+    /// <summary>⭐ CE-2468 (DESIGN_Minefields.md §9b) — a side's knowledge of ONE place under fire: the shared place-knowledge header + cause, the frozen point, the range and the enemy strength. Fixed size.</summary>
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityUnderFireKnowledge
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte SubjectKind;
+        public byte SidePlus1;
+        public byte Kind;
+        public byte State;
+        public byte Source;
+        public byte Marked;
+        public int Chunk;
+        public long SubjectLo;
+        public long SubjectHi;
+        public int ObjectIndex;
+        public double LearnedAt;
+        public byte Cause;
+        public float PointX;
+        public float PointY;
+        public float PointZ;
+        public float RangeM;
+        public float EnemyStrength;
+    }
+
     /// <summary>⭐ CE-4624 MS-T4 — one cleared lane of <see cref="EntityMinefieldLanes"/>: its segment, width and the clearing side + 1.</summary>
     [DdsStruct]
     public partial struct DdsClearedLane
