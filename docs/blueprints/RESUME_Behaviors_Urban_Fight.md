@@ -24,6 +24,13 @@ Branch `behaviors`. Ids in the tracker ([Blueprint_Issues_Tracker.md](Blueprint_
 | **CE-2471** the parallel stress phase reads another man's `SimTransform` undeclared (`FriendNear`) | filed, ⚠ pre-existing (red at `6e765e589`) | two `StressSystemTests` surrender rails red under the read check only |
 | **GitHub nightly** (`.github/workflows/scenario-regression.yml`, 20 shards per tier + one summary job) | works (run #2); `main` fast-forwarded to `behaviors` by hand, user-approved | the 02:17 UTC run checks out `main` — merge `behaviors` into `main` when its state should be tested |
 
+### 1a. ⭐ The gated run at `ddfbd8c65` (good build, 2026-11-21)
+- tests 403/405 under the parallel checks — the 2 reds are CE-2471 (pre-existing); CE-2472's red-proof ✅ (rail red with the sight clause dropped)
+- PASS: `agg-break-contact`, `ia-area-defend`, `ts-fire-discipline`, `ua-squad-danger-crossing-contact`, `uf-car-shootout`, `uf-squad-under-fire`
+- ❌ `uf-corner-fight` (U2): the SAME two rows — L3 by Blue Rifleman 1 at 108.75 s (⚠ BEFORE the break contact starts, ~117 s in the live probe: CE-2472 does not cover it — what is he doing 98–108 s in the DETERMINISTIC run? probe it there, not live) and L1 by the Red Leader at 152 s
+- ❌ `ts-house-defenders`: the deterministic run's Waverer never surrenders (the live probe's did, calm, at 150 s) — probe the deterministic run
+- `uf-corner-assault`: no checks.json ⇒ not started (expected)
+
 ## 2. Next, in order
 1. Gate CE-2472 on a GOOD build (§1), then run: `uf-corner-fight`, `uf-car-shootout`, `agg-break-contact`, `uf-squad-under-fire`, `ia-area-defend`, `ua-squad-danger-crossing-contact`, `ts-house-defenders`, `ts-fire-discipline` (`JOBS=2 NO_BUILD=1 scripts/scenario-regression.sh a,b,…`). U2's red rows were L3 (Blue Rifleman 1 left in Red's sight) and L1 (Red Leader upright in the open, 152 s) — the second is not explained yet.
 2. `uf-corner-assault` checks.json (CE-2467).
