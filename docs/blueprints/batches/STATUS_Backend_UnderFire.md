@@ -59,6 +59,14 @@ UnderFire rails: 18 / 18. ⏳ `stepped-hash.py --threads 1,4,8`: not yet run.
 run reddened; every source is touched after a restore now. Every verdict above was taken on a build of the mutated source (newer than the DLL).
 
 
+## CE-2469 — the route's steer point (`HANDOFF_Behaviors_To_Backend_RouteSteerPoint.md`, dispatched at `ba1559906`; started `e221f5f0f`, merged `behaviors@2ea9fe7fc`)
+
+| task | state | evidence |
+|---|---|---|
+| SP-1 steer point in the danger answer + `DangerRouteSteer.Of` | DONE `1a738faf0`, `123be9441` | buffer `HasSteer` + `SteerPoint` (608 B), event, `DangerAreaResultTopic` `SteerX/Y/Z/HasSteer` (ordinal unchanged), both translators, `Apply`, cleared on a new epoch. Rails: `UnderFireNavTests.CE2469_*` (a Friend that knows the enemy steers round the wood, a Hostile straight, a target with no wheeled plan carries no steer; `Of` fresh then stale) — red-proved ×3 (steer from start/end only · the straight fallback steering · `Apply` dropping it); `EqsDistributedTests.DangerAlongRoute_AcrossHosts_*` (two nodes, 13 s, the steer reaches the Brain); the parallel checks 19 / 19. Design `DESIGN_Utility_AI_Demo_Scenarios.md` §10.7c |
+| gates — `mf-*`, `ua-squad-danger-crossing*` | ⚠ 8 / 11 | `mf-no-way-round`, `mf-clear-lane-and-cross` red at the base too (above); ⚠ `ua-squad-danger-crossing-hold` red SINCE THE BEHAVIORS MERGE — red at `e221f5f0f` (no CE-2469 code), green at `a58bc1c29`: reported in `NOTE_Backend_To_Behaviors_RouteSteerPoint_Done.md` |
+
+
 ## DECISIONS
 
 | # | decision | why · what would change it |
@@ -71,4 +79,6 @@ run reddened; every source is touched after a restore now. Every verdict above w
 | D-UF6a | `CoveredByFire` is rated 1 (as shelling and gas) | the ground is the threat while the record lives (600 s); rating by contact memory would read 0 once the contact is forgotten |
 | D-UF6b | a sensor with no side sees no shelling | the shelling is now per side (K8); every unit has a side, so this only affects side-less test sensors |
 | D-UF7a | any live `EntityInfo` entity of a side witnesses, Neutral included | KG-3 says "a live unit of that side"; restrict to combatants if civilians' records cost too much replication |
+| D-SP1a | the solve plans whenever its node has a navmesh (the early return before planning now needs no navmesh too) | a clear route must still carry its steer; costs one plan per refresh on a road-less map — revisit if the solver's budget shows it |
+| D-SP1b | no steer for the straight fallback | a straight line is not a priced path; the bound keeps its own straight line then (behaviors' fallback) |
 
