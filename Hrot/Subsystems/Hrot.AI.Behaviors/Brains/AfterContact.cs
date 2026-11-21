@@ -80,6 +80,20 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2472</c> — <paramref name="man"/> is in an enemy's sight: by HIS OWN perception, he saw an identified enemy of the squad's pool with his eyes
+        /// within <see cref="LookNodes.InSightTicks"/> (<see cref="LookNodes.InSightNow"/>) — sight goes both ways. ⛔ Never the terrain: the brain asks the world
+        /// only through its sensors (user, 2026-11-21: "brain needs to ask about the environment using sensors and EQS and never directly - those might run on
+        /// different nodes"). No allocation.
+        /// </summary>
+        public static bool InAnEnemysSight(EntityRepository world, Entity commander, Entity man)
+        {
+            var pool = Pool(world, commander, out int n);
+            for (int i = 0; i < n; i++)
+                if (Identified(world, in pool[i], out var enemy) && LookNodes.InSightNow(world, man, enemy)) return true;
+            return false;
+        }
+
         /// <summary>⭐ R1 — one <c>Direct</c> record per identified, live enemy of the pool (two corners = two records); a learn lands next tick.
         /// <paramref name="enemyStrength"/> = the most the reaction saw (S6). Returns how many were learned.</summary>
         public static int Learn(EntityRepository world, Entity commander, float enemyStrength)
