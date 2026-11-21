@@ -1061,7 +1061,11 @@ namespace Hrot.SimHost.Tests
 
             s.Teleport(s.Members[1], hidden);
             bool done = false; Fbt.NodeStatus result = default;
+            // ⭐ CE-2466 R2 — the enemy is still there: the squad RALLIES (a hold of AfterContact.RallySeconds) before the reaction ends
             for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.False(done, "the squad rallies first");
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            for (int i = 0; i < 60 * 40 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done);
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
@@ -7426,7 +7430,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
                 s.Answer(s.RetreatQuery(), new Vector3(-40f, -30f, 0f));
                 bool done = false; Fbt.NodeStatus result = default;
-                for (int k = 0; k < 40 && !done; k++)   // ~40 s: every bound's movers stop where they stand (nobody gets nearer)
+                for (int k = 0; k < 120 && !done; k++)   // ~120 s: every bound's movers stop where they stand (nobody gets nearer); ⭐ CE-2466 R2 — then the rally (≤ 30 s move + 30 s hold)
                 {
                     var q = s.BreakCoverQuery();
                     if (!q.IsNull) s.Answer(q, null);
@@ -7894,7 +7898,8 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-4583 — without OpenGround the march asks for the crossings (named, not the zero default) AND a shelled area; never open ground
             var plain = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true}");
             Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
-                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield, plain);   // ⭐ CE-4624 MS-B4 — and a minefield
+                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield
+                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.CoveredByFire, plain);   // ⭐ CE-4624 MS-B4 — and a minefield; ⭐ CE-2466 R6 — and ground a known enemy covers
             Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(plain, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
             var open = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true,\"OpenGround\":true}");
             Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(open, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));

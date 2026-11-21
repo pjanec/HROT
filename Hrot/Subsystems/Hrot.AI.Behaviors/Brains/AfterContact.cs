@@ -48,11 +48,12 @@ namespace Hrot.AI.Behaviors.Brains
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref Unsafe.AsRef(in state.Contacts.Contacts)), 16);
         }
 
+        /// <summary>An identified (seen, not only heard) ENEMY of the pool — the one hostility rule (<see cref="SquadContacts.IsEnemy"/>: alive, in the
+        /// fight, not a neutral — CE-2353).</summary>
         private static bool Identified(EntityRepository world, in SquadContact c, out Entity e)
         {
             e = new Entity((ulong)c.EntityId);
-            return (c.Flags & SquadContact.AnonymousFlag) == 0 && c.EntityId > 0 && world.IsAlive(e)
-                   && Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e);
+            return (c.Flags & SquadContact.AnonymousFlag) == 0 && c.EntityId > 0 && SquadContacts.IsEnemy(world, in c);
         }
 
         /// <summary>An identified enemy of the pool is still in the fight.</summary>
