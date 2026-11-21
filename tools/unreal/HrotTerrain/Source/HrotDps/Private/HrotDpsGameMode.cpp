@@ -11,6 +11,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "HAL/IConsoleManager.h"
 
@@ -52,6 +53,28 @@ void AHrotDpsGameMode::StartPlay()
 	if (!bJoinOnPlay && !bD && !bP && !bTravel) return;
 	if (W->Start(D, P)) { UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: joined the station, domain %d partition '%s'"), D, *P); }
 	else { UE_LOG(LogHrotDpsGame, Error, TEXT("HROT IG: could not join domain %d partition '%s'"), D, *P); }
+	// U-18t: a terrain by name (a preview / a check without a station), and the camera
+	FString Terrain;
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgTerrain="), Terrain) && !Terrain.IsEmpty()) W->ShowTerrain(Terrain);
+	FString View;
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgView="), View, false))
+	{
+		TArray<FString> V; View.ParseIntoArray(V, TEXT(","));
+		if (V.Num() == 5)
+		{
+			FTimerHandle H;
+			const FVector At(FCString::Atod(*V[0]), FCString::Atod(*V[1]), FCString::Atod(*V[2]));
+			const FRotator Rot(FCString::Atod(*V[3]), FCString::Atod(*V[4]), 0.0);
+			GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this, At, Rot]()
+			{
+				if (AHrotDpsCamera* Cam = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(this, 0)))
+				{
+					Cam->PlaceAt(At, Rot.Quaternion(), 90.f);
+					UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: camera at %s looking %s"), *At.ToString(), *Rot.ToString());
+				}
+			}), 0.5f, false);
+		}
+	}
 	// U-18s: the packaged client's own report (no Python there)
 	float Every = 0, ShotAt = 0, QuitAt = 0;
 	FTimerManager& T = GetWorldTimerManager();

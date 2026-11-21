@@ -8,6 +8,12 @@
 #include "Math/RandomStream.h"
 #include "Misc/DateTime.h"
 #include "Misc/PackageName.h"
+#include "Misc/CoreDelegates.h"
+#include "ShaderCodeLibrary.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 
 void UHrotDpsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -178,6 +184,62 @@ FString UHrotDpsSubsystem::LevelForTerrain(const FString& Terrain) const
 	const FString N = Terrain.Replace(TEXT("-"), TEXT("_"));
 	for (const FString& L : { FString::Printf(TEXT("/Game/Maps/%s_look"), *N), FString::Printf(TEXT("/Game/Maps/%s"), *N) })
 		if (FPackageName::DoesPackageExist(L)) return L;
+	return FString();
+}
+
+FString UHrotDpsSubsystem::TerrainsDir()
+{
+	FString D;
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotTerrains="), D)) return FPaths::ConvertRelativePathToFull(D);
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Terrains")));
+}
+
+FString UHrotDpsSubsystem::ResolveTerrain(const FString& Terrain, FString& OutWhy)
+{
+	OutWhy.Reset();
+	if (Terrain.IsEmpty()) return FString();
+	const FString Here = LevelForTerrain(Terrain);
+	if (!Here.IsEmpty()) return Here;
+	// U-18t: the terrain's own cooked package (a content plugin cooked as DLC against the client's release)
+	const FString N = Terrain.Replace(TEXT("-"), TEXT("_"));
+	const FString Plugin = TEXT("HrotTerrain_") + N;
+	const FString Level = FString::Printf(TEXT("/%s/Maps/%s"), *Plugin, *N);
+	if (Mounted.Contains(Plugin) || FPackageName::DoesPackageExist(Level))
+	{
+		if (FPackageName::DoesPackageExist(Level)) return Level;
+		OutWhy = FString::Printf(TEXT("package %s is mounted but holds no %s"), *Plugin, *Level);
+		return FString();
+	}
+	const FString Dir = FPaths::Combine(TerrainsDir(), N);
+	TArray<FString> Paks;
+	IFileManager::Get().FindFiles(Paks, *FPaths::Combine(Dir, TEXT("*.pak")), true, false);
+	if (Paks.Num() == 0)
+	{
+		OutWhy = FString::Printf(TEXT("no Unreal level for terrain '%s' (TerrainLevels, /Game/Maps/%s_look, /Game/Maps/%s, a package in %s)"), *Terrain, *N, *N, *Dir);
+		return FString();
+	}
+	if (!FCoreDelegates::MountPak.IsBound())
+	{
+		OutWhy = FString::Printf(TEXT("terrain package %s found, but this build mounts no packages (the editor: enable the plugin %s instead)"), *Dir, *Plugin);
+		return FString();
+	}
+	for (const FString& P : Paks)
+	{
+		const FString Path = FPaths::Combine(Dir, P);
+		if (!FCoreDelegates::MountPak.Execute(Path, 100)) { OutWhy = FString::Printf(TEXT("could not mount %s"), *Path); return FString(); }
+		MountLog.Add(FString::Printf(TEXT("%s <- %s"), *Plugin, *Path));
+	}
+	// the package's paths: /HrotTerrain_<n>/... = <ProjectPluginsDir>/HrotTerrain_<n>/Content/... (where the DLC cook put them)
+	const FString ContentDir = FPaths::Combine(FPaths::ProjectPluginsDir(), Plugin, TEXT("Content/"));
+	FPackageName::RegisterMountPoint(FString::Printf(TEXT("/%s/"), *Plugin), ContentDir);
+	// its materials' shaders: a DLC carries its own shader library (named after the plugin); the plugin manager would open it on a plugin
+	// mount — a package mounted by hand must open it, or the terrain's materials fall back to the default one
+	const bool bShaders = FShaderCodeLibrary::OpenLibrary(Plugin, ContentDir);
+	MountLog.Add(FString::Printf(TEXT("%s shader library %s"), *Plugin, bShaders ? TEXT("opened") : TEXT("NOT found (its materials may fall back)")));
+	Mounted.Add(Plugin);
+	UE_LOG(LogTemp, Display, TEXT("HROT IG: terrain package %s mounted (%d pak) from %s"), *Plugin, Paks.Num(), *Dir);
+	if (FPackageName::DoesPackageExist(Level)) return Level;
+	OutWhy = FString::Printf(TEXT("package %s mounted from %s but holds no %s"), *Plugin, *Dir, *Level);
 	return FString();
 }
 

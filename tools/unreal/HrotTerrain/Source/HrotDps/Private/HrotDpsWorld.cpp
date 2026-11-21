@@ -41,6 +41,20 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotDpsWorld, Log, All);
 
+FString UHrotDpsWorld::ShowTerrain(const FString& Terrain)
+{
+	UHrotDpsSubsystem* Dps = GEngine ? GEngine->GetEngineSubsystem<UHrotDpsSubsystem>() : nullptr;
+	if (!Dps) return TEXT("no DPS subsystem");
+	FString Why;
+	const FString Level = Dps->ResolveTerrain(Terrain, Why);
+	if (Level.IsEmpty()) { UE_LOG(LogHrotDpsWorld, Warning, TEXT("DPS world: cannot show terrain '%s': %s"), *Terrain, *Why); return Why; }
+	ShownTerrain = Terrain;
+	if (Level == UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName())) return FString();
+	PendingLevel = Level;
+	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: showing terrain '%s' -> %s"), *Terrain, *Level);
+	return FString();
+}
+
 void UHrotDpsWorld::FollowTerrain(uint32 NewEpoch, const FString& Terrain)
 {
 	// U-18r — the world the station presents is its TERRAIN: show it in the level that draws it, or say why we cannot (ClientWorld Failed)
@@ -49,11 +63,11 @@ void UHrotDpsWorld::FollowTerrain(uint32 NewEpoch, const FString& Terrain)
 	ShownTerrain = Terrain;
 	if (!Dps || !bFollowTerrain || Terrain.IsEmpty()) { if (Dps) Dps->EndTravel(); return; }
 	const FString Here = UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName());
-	const FString Level = Dps->LevelForTerrain(Terrain);
+	FString Why;
+	const FString Level = Dps->ResolveTerrain(Terrain, Why);   // U-18t: mounts the terrain's package when it has one
 	if (Level.IsEmpty())
 	{
-		const FString N = Terrain.Replace(TEXT("-"), TEXT("_"));
-		WorldFail = FString::Printf(TEXT("no Unreal level for terrain '%s' (TerrainLevels, /Game/Maps/%s_look, /Game/Maps/%s)"), *Terrain, *N, *N);
+		WorldFail = Why;
 		UE_LOG(LogHrotDpsWorld, Warning, TEXT("DPS world: %s"), *WorldFail);
 		Dps->EndTravel();
 		return;

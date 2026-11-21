@@ -40,8 +40,16 @@ public:
 	// ── U-18r: the world follows the station's TERRAIN (Session.Terrain): this subsystem outlives a level load, so it holds what must ──
 	/** a terrain name -> the level that draws it ("/Game/Maps/demo_city_look"); unlisted: the convention "-" -> "_", "<name>_look" else "<name>" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, FString> TerrainLevels;
-	/** the level for a terrain, "" = none */
+	/** the level for a terrain, "" = none (no package mounted — ResolveTerrain mounts) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString LevelForTerrain(const FString& Terrain) const;
+	/** U-18t — the level for a terrain, MOUNTING its cooked package when needed: TerrainLevels, the /Game/Maps convention, then the terrain
+	 *  package HrotTerrain_<name> (its level /HrotTerrain_<name>/Maps/<name>): present already (the editor) or mounted from
+	 *  <TerrainsDir>/<name>/*.pak (+ its IoStore container) with its content path registered. "" = none; OutWhy says where it looked */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString ResolveTerrain(const FString& Terrain, FString& OutWhy);
+	/** where terrain packages are looked for: -HrotTerrains=<dir>, else <ProjectDir>/Terrains (a packaged client: <App>/HrotUnreal/Terrains) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") static FString TerrainsDir();
+	/** the terrain packages mounted so far ("HrotTerrain_farm <- <pak>") */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<FString> MountedTerrains() const { return MountLog; }
 	/** a level load for world epoch `Epoch` is under way: ClientWorld keeps saying Loading (`Step`) from HERE every second until the new
 	 *  world's UHrotDpsWorld takes over — the participant (our ClientWorld writer) stays alive across the load */
 	void BeginTravel(uint32 Epoch, const FString& Level, const FString& Step, bool bWaitForMe);
@@ -109,6 +117,8 @@ private:
 	int32 FakeEchoes = 0;
 	FString FakeWorld, FakeDone, FakeClient, FakeResult;
 	TArray<FString> FakeWorldLog;
+	TSet<FString> Mounted;
+	TArray<FString> MountLog;
 	int32 FakeWorldLost = 0;
 	bool bTraveling = false, bTravelWait = true;
 	uint32 TravelEpoch = 0;

@@ -160,6 +160,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bFollowTerrain = true;
 	/** the station's terrain now ("" before a Session) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString StationTerrain() const { return ShownTerrain; }
+	/** U-18t — show a terrain by NAME without a station (a preview; the packaged client's -HrotIgTerrain=<name>): resolve it like a Session's
+	 *  (mounting its package) and open its level unless it is this one. "" = done or already here, else why not */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString ShowTerrain(const FString& Terrain);
 	/** "anchored continuous|stepped|samples sim <t> scale <s> epoch <e> step <n> | offset <ms> rtt <ms> echoes <n>/<dropped> | steps <n> anchors <n>" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeClock() const;
 	/** "none" or "<source> <mode> target <id> d <m> side <s> cut <n> at (x, y, z) fov <deg>" — the station's suggested view now */

@@ -38,9 +38,19 @@ $e = [IO.File]::ReadAllText($ei)
 $e = [regex]::Replace($e, "(?m)^GameDefaultMap=.*$", "GameDefaultMap=/Game/Maps/IgStart")
 [IO.File]::WriteAllText($ei, $e, [Text.UTF8Encoding]::new($false))
 
-# build, cook, pak, stage, archive; the release version the terrain packages are cooked against
-$archive = Join-Path $Out $Release
-& "$Engine\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun "-project=$Project" -platform=Win64 "-clientconfig=$Config" -build -cook -stage -pak -iostore `
-  -archive "-archivedirectory=$archive" -map=/Game/Maps/IgStart "-createreleaseversion=$Release" -unattended -utf8output -nop4 -nocompileeditor
-"BuildCookRun exit $LASTEXITCODE; archive $archive; release $Proj\Releases\$Release"
-exit $LASTEXITCODE
+# U-18t: the terrain packages' plugins (Plugins\HrotTerrain_*) are set ASIDE while the base is packaged - a terrain must never land in the base
+$aside = "$Proj\Saved\TerrainPluginsAside"
+$moved = @(Get-ChildItem "$Proj\Plugins" -Directory -Filter "HrotTerrain_*" -ErrorAction SilentlyContinue)
+if ($moved) { New-Item -ItemType Directory -Force $aside | Out-Null; $moved | % { Move-Item $_.FullName (Join-Path $aside $_.Name) -Force; "aside: $($_.Name)" } }
+try {
+  # build, cook, pak, stage, archive; the release version the terrain packages are cooked against
+  $archive = Join-Path $Out $Release
+  & "$Engine\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun "-project=$Project" -platform=Win64 "-clientconfig=$Config" -build -cook -stage -pak -iostore `
+    -archive "-archivedirectory=$archive" -map=/Game/Maps/IgStart "-createreleaseversion=$Release" -unattended -utf8output -nop4 -nocompileeditor
+  $code = $LASTEXITCODE
+  "BuildCookRun exit $code; archive $archive; release $Proj\Releases\$Release"
+} finally {
+  $moved | % { Move-Item (Join-Path $aside $_.Name) $_.FullName -Force; "back: $($_.Name)" }
+}
+"note: terrain packages cooked against an older build of release $Release must be cooked again (hrot_package_terrain.ps1)"
+exit $code

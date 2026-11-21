@@ -7,6 +7,8 @@
 // U-18s — a PACKAGED client has no Python to drive it, so it reports on itself from the command line: -HrotIgStatusEvery=<s> logs a status
 // line ("HROT IG status: …" — entities, the clock, ClientWorld, the station's terrain), -HrotIgShotAt=<s> takes a screenshot (HighResShot,
 // <Saved>/Screenshots), -HrotIgQuitAt=<s> quits — seconds after play starts.
+// U-18t — -HrotIgTerrain=<name> shows a terrain by name at start (its package mounted; no station needed), -HrotIgView=X,Y,Z,Pitch,Yaw
+// places the IG camera (Unreal cm, degrees) — a packaged terrain checked without HROT.
 #pragma once
 
 #include "CoreMinimal.h"
