@@ -157,7 +157,8 @@ public static class EffectRules
         for (int i = start; i < into.Count; i++)   // ⭐ CE-11010 (RR-10) — what it struck, on every effect it made
         {
             var spec = into[i];
-            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Material = hit.Material, Target = Entity.Null, Damage = damage, Ammo = hit.Ammo };
+            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Material = hit.Material, Target = Entity.Null, Damage = damage, Ammo = hit.Ammo,
+                                           Impact = (byte)(hit.Kind + 1), Shooter = hit.Shooter };   // ⭐ CE-11024
             into[i] = spec;
         }
         return n;
@@ -187,7 +188,7 @@ public static class EffectRules
         for (int i = start; i < into.Count; i++)   // ⭐ CE-11010 (RR-10, D-6) — a replayed explosion tells a unit from the ground
         {
             var spec = into[i];
-            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Target = hit.Target, Damage = hit.Damage, Ammo = hit.Ammo };
+            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Target = hit.Target, Damage = hit.Damage, Ammo = hit.Ammo, Shooter = hit.Shooter };   // ⭐ CE-11024
             into[i] = spec;
         }
         return n;

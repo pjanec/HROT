@@ -102,4 +102,50 @@ public sealed class EffectStateTests
         foreach (var s in specs)
             if (s.Anchor != null) Assert.False(FireStreams.StreamOfFlash(world, Spawn(world, s, 8.0), out _, out _));
     }
+
+    /// <summary>
+    /// ⭐ CE-11024 — an impact's effect entity says what the round DID there (entry / exit / stop) and WHO fired it, live and after a recording is
+    /// played back and SEEKED (the recorder keeps the unmanaged component as bytes); a detonation's effect carries its shooter and no impact kind.
+    /// </summary>
+    [Fact]
+    public void CE11024_AnImpactsEffect_CarriesItsKindAndShooter_LiveAndAfterASeek()
+    {
+        var (world, tkb) = World();
+        var rifleman = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(-30, 0, 1));
+        var specs = new List<EffectSpec>();
+        var hit = new RoundImpactNotification { Shooter = rifleman, X = 5, Y = 5, Z = 0, NormalZ = 1, TravelX = 1, Kind = (byte)Fdp.Toolkit.Combat.ImpactKind.Exit };
+        Assert.True(EffectRules.ForImpact(in hit, world, tkb, specs) > 0);
+        Assert.All(specs, sp => Assert.Equal(((byte)2, rifleman), (sp.Cause!.Value.Impact, sp.Cause!.Value.Shooter)));   // Exit + 1
+        var e = Spawn(world, specs[0], 3.0);
+
+        var burst = new List<EffectSpec>();
+        EffectRules.ForDetonation(new DetonationNotification { Shooter = rifleman, Target = Entity.Null, HitX = 50, HitY = 20, HitZ = 0.4f, Damage = 1100f }, world, tkb, burst);
+        Assert.All(burst, sp => Assert.Equal(((byte)0, rifleman), (sp.Cause!.Value.Impact, sp.Cause!.Value.Shooter)));   // 0 = not a round's impact
+
+        string path = System.IO.Path.GetTempFileName() + ".fdp";
+        try
+        {
+            using (var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+            {
+                world.Tick();
+                recorder.CaptureKeyframe(world, 100_000L, blocking: true, eventBus: world.Bus);
+                uint prev = world.GlobalVersion - 1;
+                world.Bus.SwapBuffers();
+                world.Tick();
+                recorder.CaptureFrame(world, prev, 200_000L, blocking: true, eventBus: world.Bus);
+            }
+            var (sandbox, _) = World();
+            using var playback = new Fdp.Core.FlightRecorder.PlaybackController(path);
+            Assert.True(playback.StepForward(sandbox));
+            Assert.True(playback.StepForward(sandbox));
+            playback.SeekToFrame(sandbox, 0);
+            Assert.True(sandbox.IsAlive(e) && sandbox.HasComponent<EffectCause>(e));
+            var cause = sandbox.GetComponentRO<EffectCause>(e);
+            Assert.Equal(((byte)2, rifleman), (cause.Impact, cause.Shooter));
+        }
+        finally
+        {
+            try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
+        }
+    }
 }
