@@ -88,6 +88,25 @@ void AHrotDpsGameMode::StartPlay()
 			UKismetSystemLibrary::ExecuteConsoleCommand(this, TEXT("HighResShot 1"));
 			UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: screenshot taken (Saved/Screenshots)"));
 		}), ShotAt, false);
+	// U-18y/z: a live check — the gizmo layers to ask for, the station's suggested view, a screenshot every N s
+	FString Gizmos;
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgGizmos="), Gizmos, false) && !Gizmos.IsEmpty())
+		if (UHrotDpsWorld* GW = UHrotDpsWorld::Get(this)) { TArray<FString> L; Gizmos.ParseIntoArray(L, TEXT(",")); GW->SetGizmoLayers(L); }
+	if (FParse::Param(FCommandLine::Get(), TEXT("HrotIgDirector")))
+	{
+		FTimerHandle H;
+		T.SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (AHrotDpsCamera* Cam = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(this, 0))) Cam->Director();
+		}), 1.0f, false);
+	}
+	float ShotEvery = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgShotEvery="), ShotEvery) && ShotEvery > 0)
+		T.SetTimer(ShotEveryTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			LogStatus();
+			UKismetSystemLibrary::ExecuteConsoleCommand(this, TEXT("HighResShot 1"));
+		}), ShotEvery, true);
 	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgQuitAt="), QuitAt) && QuitAt > 0)
 		T.SetTimer(QuitTimer, FTimerDelegate::CreateWeakLambda(this, [this]() { LogStatus(); UKismetSystemLibrary::QuitGame(this, nullptr, EQuitPreference::Quit, false); }), QuitAt, false);
 }

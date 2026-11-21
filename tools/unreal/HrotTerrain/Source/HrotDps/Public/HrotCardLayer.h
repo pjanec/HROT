@@ -41,7 +41,7 @@ public:
 	UPROPERTY() TObjectPtr<UMaterialInterface> Material;
 
 	/** start a frame: the camera now (location cm, horizontal FOV degrees, viewport px) */
-	void Begin(UWorld* World, const FVector& CameraCm, float HorizontalFovDeg, FIntPoint ViewportPx);
+	void Begin(UWorld* World, const FVector& CameraCm, float HorizontalFovDeg, FIntPoint ViewportPx, float P00 = 0, float P11 = 0);
 	/** one card this frame at Anchor (Unreal cm, the drawn body's top); Build fills the card, called only when InputKey changed */
 	void Show(int64 EntityId, uint32 InputKey, const FVector& Anchor, TFunctionRef<void(HrotCards::FCard&)> Build);
 	/** end the frame: cards not shown this frame are hidden (and released after a while unseen) */
@@ -67,7 +67,7 @@ private:
 	UPROPERTY() TObjectPtr<AActor> Holder;
 	TWeakObjectPtr<UWorld> ForWorld;
 	FVector Camera = FVector::ZeroVector;
-	float Fov = 90.f, TanHalfV = 0.5f;
+	float Fov = 90.f, TanHalfV = 0.5f, P00 = 1.f;
 	FIntPoint Viewport = FIntPoint(1280, 720);
 	double Now = 0;
 	int32 NumShown = 0;

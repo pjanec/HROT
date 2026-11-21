@@ -36,6 +36,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UAnimationAsset> PersonClip;
 
 private:
-	FTimerHandle StatusTimer, ShotTimer, QuitTimer;
+	FTimerHandle StatusTimer, ShotTimer, QuitTimer, ShotEveryTimer;
 	void LogStatus();
 };

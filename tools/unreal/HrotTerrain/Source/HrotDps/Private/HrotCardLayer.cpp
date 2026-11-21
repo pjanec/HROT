@@ -32,10 +32,16 @@ namespace
 		return Roboto ? FSlateFontInfo(Roboto, Size) : FCoreStyle::GetDefaultFontStyle("Regular", Size);
 	}
 
+	// measured by the SAME item that draws it (at the supersampled size, halved): Slate's measure service disagreed with the canvas by
+	// ~10 % (measured: a long name ran past its frame)
 	float MeasureText(const FString& Text, float Px)
 	{
-		if (FSlateApplication::IsInitialized())
-			return float(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Text, FontPx(Px)).X);
+		if (FSlateApplication::IsInitialized() && FApp::CanEverRender())
+		{
+			struct FMeasureItem : FCanvasTextItem { using FCanvasTextItem::FCanvasTextItem; using FCanvasTextItem::GetTextSize; };   // (protected there)
+			FMeasureItem Item(FVector2D::ZeroVector, FText::FromString(Text), FontPx(Px * CardSupersample), FLinearColor::White);
+			return float(Item.GetTextSize(1.f).X) / CardSupersample;
+		}
 		return 0.55f * Px * Text.Len();   // headless (a rail): a plausible width
 	}
 
@@ -124,11 +130,13 @@ FVector2f UHrotCardLayer::ScreenSize(FIntPoint Px, float HorizontalFovDeg, FIntP
 	return FVector2f(Px.X / (P00 * FMath::Max(1, ViewportPx.X)), Px.Y / (P00 * FMath::Max(1, ViewportPx.Y)));
 }
 
-void UHrotCardLayer::Begin(UWorld* World, const FVector& CameraCm, float HorizontalFovDeg, FIntPoint ViewportPx)
+void UHrotCardLayer::Begin(UWorld* World, const FVector& CameraCm, float HorizontalFovDeg, FIntPoint ViewportPx, float InP00, float InP11)
 {
 	if (ForWorld.Get() != World) { Clear(); ForWorld = World; }
 	Camera = CameraCm; Fov = HorizontalFovDeg; Viewport = FIntPoint(FMath::Max(1, ViewportPx.X), FMath::Max(1, ViewportPx.Y));
-	TanHalfV = FMath::Tan(FMath::DegreesToRadians(FMath::Clamp(Fov, 1.f, 170.f)) * 0.5f) * Viewport.Y / Viewport.X;
+	// the REAL projection when the caller has it (aspect constraints, the camera's own FOV); else from the FOV
+	P00 = InP00 > 0 ? InP00 : 1.f / FMath::Tan(FMath::DegreesToRadians(FMath::Clamp(Fov, 1.f, 170.f)) * 0.5f);
+	TanHalfV = InP11 > 0 ? 1.f / InP11 : (1.f / P00) * Viewport.Y / Viewport.X;
 	Now = World ? World->GetRealTimeSeconds() : 0;
 	bCanPaint = World && FApp::CanEverRender() && Material;
 	NumShown = 0;
@@ -227,7 +235,7 @@ void UHrotCardLayer::Paint(FHrotCardSlot& S, const HrotCards::FLayout& L)
 
 void UHrotCardLayer::SetSize(FHrotCardSlot& S)
 {
-	const FVector2f Want = ScreenSize(S.TexPx, Fov, Viewport);
+	const FVector2f Want(S.TexPx.X / (P00 * Viewport.X), S.TexPx.Y / (P00 * Viewport.Y));   // see ScreenSize
 	if (Want.Equals(S.SizeSet, 1e-6f)) return;
 	S.SizeSet = Want;
 	TArray<FMaterialSpriteElement> E;

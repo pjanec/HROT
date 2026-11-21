@@ -11,6 +11,8 @@
 #include "HrotDpsMotion.h"
 
 #include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
+#include "SceneView.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
@@ -35,8 +37,20 @@ void UHrotDpsWorld::TickCards()
 	APlayerController* PC = World->GetFirstPlayerController();
 	if (!PC || !PC->PlayerCameraManager) return;
 	FIntPoint Vp(1280, 720);
-	if (UGameViewportClient* G = World->GetGameViewport()) { FVector2D S; G->GetViewportSize(S); if (S.X > 0 && S.Y > 0) Vp = FIntPoint(int32(S.X), int32(S.Y)); }
-	Cards->Begin(World, PC->PlayerCameraManager->GetCameraLocation(), PC->PlayerCameraManager->GetFOVAngle(), Vp);
+	float P00 = 0, P11 = 0;
+	if (UGameViewportClient* G = World->GetGameViewport())
+	{
+		FVector2D S; G->GetViewportSize(S); if (S.X > 0 && S.Y > 0) Vp = FIntPoint(int32(S.X), int32(S.Y));
+		FSceneViewProjectionData Pd;   // the real projection and view rect (aspect constraints, the camera's FOV)
+		if (ULocalPlayer* LP = PC->GetLocalPlayer(); LP && G->Viewport && LP->GetProjectionData(G->Viewport, Pd))
+		{
+			const FMatrix M = Pd.ProjectionMatrix;
+			P00 = float(M.M[0][0]); P11 = float(M.M[1][1]);
+			const FIntRect R = Pd.GetConstrainedViewRect();
+			if (R.Width() > 0 && R.Height() > 0) Vp = FIntPoint(R.Width(), R.Height());
+		}
+	}
+	Cards->Begin(World, PC->PlayerCameraManager->GetCameraLocation(), PC->PlayerCameraManager->GetFOVAngle(), Vp, P00, P11);
 
 	const int32 Air = DomainAir(), Person = DomainPerson();
 	if (bWireCardsDirty) RegroupWireCards();
