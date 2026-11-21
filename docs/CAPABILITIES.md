@@ -27,21 +27,21 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   design is ruled and its tasks are filed, the build has not started (it will come soon).
 - **Deeper:** the rules behind each bullet, with code and design links, are in [OVERVIEW_Rules_And_Demos.md](OVERVIEW_Rules_And_Demos.md).
   The machinery is in [OVERVIEW_Behaviour_Building_Blocks.md](OVERVIEW_Behaviour_Building_Blocks.md). The engine architecture is in the
-  [README](../README.md).
+  [Technical overview](TECHNICAL_OVERVIEW.md).
 - **Films:** [PLAN_Feature_Films.md](PLAN_Feature_Films.md) lists the clips that show each chapter.
 
-## 1. The engine — in one screen *(depth: [README](../README.md))*
+## 1. The engine — in one screen *(depth: [Technical overview](TECHNICAL_OVERVIEW.md))*
 
-- **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (README §2)
+- **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (Technical overview §2)
 - **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the image generator (IG), the instructor station,
-  traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (README §3, §9)
+  traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (Technical overview §3, §9)
 - **Brain and muscle are split:** the AI decides (intent), the simulation acts and reports back (status).
 - **Replication** over CycloneDDS with per-component translators, ownership transfer and dead reckoning, so every node sees the same
-  world. (README §6)
-- **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (README §10)
+  world. (Technical overview §6)
+- **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (Technical overview §10)
 - **AI authoring three ways:** behaviour trees, state machines (HSM) and blueprint visual scripts, with utility decisions and an
-  environment query system (EQS). (README §4, §5, §7)
-- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (README §8) — what it is used for: §1a
+  environment query system (EQS). (Technical overview §4, §5, §7)
+- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (Technical overview §8) — what it is used for: §1a
 - **Tools:** the scenario editor (author, run, step and save in one process); missions and the order of battle (ORBAT) in panels; HTTP
   diagnostics and an MCP server so an AI agent can drive the engine; **filming** — the film director, §1a
   ([RUNBOOK_Filming.md](RUNBOOK_Filming.md)).
