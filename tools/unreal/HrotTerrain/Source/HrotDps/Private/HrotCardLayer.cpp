@@ -6,6 +6,7 @@
 #include "Components/MaterialBillboardComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
+#include "Engine/Font.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "Fonts/FontMeasure.h"
@@ -22,7 +23,14 @@ namespace
 
 	FLinearColor Lin(uint32 Rgba) { return FLinearColor(FColor(uint8(Rgba >> 24), uint8(Rgba >> 16), uint8(Rgba >> 8), uint8(Rgba))); }
 	// Slate's font size is in points at 96 dpi: 1 pt = 4/3 px
-	FSlateFontInfo FontPx(float Px) { return FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(1, FMath::RoundToInt(Px * 0.75f))); }
+	// ⚠ canvas text draws only with a UFont (FCanvasSimpleTextItem::HasValidText: Font != nullptr) — Slate's default style is a composite font
+	//   with none, which drew NO text (measured: names and the symbols' marks missing). The engine's Roboto is a runtime UFont.
+	FSlateFontInfo FontPx(float Px)
+	{
+		static UFont* Roboto = LoadObject<UFont>(nullptr, TEXT("/Engine/EngineFonts/Roboto.Roboto"));
+		const int32 Size = FMath::Max(1, FMath::RoundToInt(Px * 0.75f));
+		return Roboto ? FSlateFontInfo(Roboto, Size) : FCoreStyle::GetDefaultFontStyle("Regular", Size);
+	}
 
 	float MeasureText(const FString& Text, float Px)
 	{

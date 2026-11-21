@@ -87,6 +87,7 @@ void UHrotDpsWorld::SendGizmoView(double Real)
 void UHrotDpsWorld::DrawGizmos()
 {
 	UWorld* W = GetWorld();
+	GizmosDrawn = 0;
 	if (!W || GizmoLayersShown.Num() == 0) return;
 	const float GizmoLiftCm = 20.f;   // cm: a ground line above the ground, not in it
 	for (const TPair<FString, TArray<FGizmoPrim>>& L : GizmoLayersShown)
@@ -94,6 +95,7 @@ void UHrotDpsWorld::DrawGizmos()
 		{
 			if (G.Points.Num() == 0) continue;
 			auto U = [&](int32 I) { return EnuMToUnreal(G.Points[I]) + FVector(0, 0, GizmoLiftCm); };
+			GizmosDrawn++;
 			const float Th = FMath::Clamp(G.Width, 1.f, 20.f);
 			switch (G.Shape)
 			{
@@ -149,5 +151,5 @@ FString UHrotDpsWorld::DescribeGizmos() const
 {
 	int32 N = 0;
 	for (const TPair<FString, TArray<FGizmoPrim>>& L : GizmoLayersShown) N += L.Value.Num();
-	return FString::Printf(TEXT("gizmos asked [%s], %d layers shown, %d primitives, %d frames"), *FString::Join(GizmoLayers, TEXT(",")), GizmoLayersShown.Num(), N, GizmoFrames);
+	return FString::Printf(TEXT("gizmos asked [%s], %d layers shown, %d primitives, %d frames, %d drawn"), *FString::Join(GizmoLayers, TEXT(",")), GizmoLayersShown.Num(), N, GizmoFrames, GizmosDrawn);
 }

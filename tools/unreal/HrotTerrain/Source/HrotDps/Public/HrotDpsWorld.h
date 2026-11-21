@@ -316,7 +316,7 @@ private:
 	void RegroupWireCards();
 	double NextGizmoView = 0;
 	bool bGizmoViewSent = false;
-	int32 GizmoFrames = 0;
+	int32 GizmoFrames = 0, GizmosDrawn = 0;   // GizmosDrawn: primitives drawn in the last frame
 	void OnGizmoFrame(const struct FHrotDpsSample& S);
 	void SendGizmoView(double Real);
 	void DrawGizmos();
