@@ -12,6 +12,7 @@ related-designs:
   - ../../DESIGN_Film_Production.md — OWNS the film process (F-1 recordings are the source, F-2 one director on every host); THIS keeps both and names what the Replay Browser lacks (H-5)
   - ../../blueprints/DESIGN_Time_Architecture.md — OWNS the clocks, anchors (SwitchTimeModeEvent) and steps; THIS reads them for a node extension and fixes F-H1 (a running scale change sends no anchor)
   - ../vehicle-appearance/DESIGN_Look_Rules_For_Renderers.md — OWNS the look library and the camera suggestion (D-1, R-11000); THIS uses the suggestion only as live advice, the frame's camera travels with the frame
+  - ../../DESIGN_Cluster_Load_Phase.md — OWNS the load phase, its load steps and the readiness protocol (R-3072, R-3075); THIS adds the external-renderer load step (Q113-I)
   - ../../DESIGN_Node_Extensions.md — OWNS how an outside product joins a node (INodeExtension -> INodeCapability); THIS adds what an extension may OFFER the director
   - DRAFT_Unreal_Image_Generator.md (branch unreal-ig) — the Unreal client; it consumes SimNetGateway DD-022, which this serves
   - SimNetGateway docs/design/DD-022-Dps-Director-Rendering.md (rev 4, approved R-138 there) — the wire side: SimClock, ClockStep, the render topics; THIS is its HROT half (H-1 … H-8)
@@ -64,6 +65,7 @@ graph TD
   Q --> ST
   CLK["MasterSyncController - anchors, steps"] -->|"node bus"| EXT
   RB -.->|"no node extensions (H-5)"| EXT
+  LP["cluster load phase - ExternalRendererLoadStep NEW"] -->|"ReadyFor(worldEpoch)"| REG
 ```
 *What the picture shows that prose hid:* the routing happens in the ONE object `DirectorPack.Attach` already builds for every host, so the
 editor and the Replay Browser cannot differ in how a renderer is chosen — and the dashed edge: the Replay Browser composes no node extension
@@ -184,13 +186,31 @@ sequenceDiagram
   G->>G: TimelineEpoch from HrotNodeContext.TimeController
 ```
 
-### 2e. Who waits for whom on a load (user `2026-11-21`: *"how it will block until the Unreal actually loads everything"*)
+### 2e. Who waits for the renderer on a load — the cluster's load phase (Q113-I)
 
-Nothing blocks the cluster's load: it loads the terrain, then the scenario or recording, at its own pace. The **director's runner** waits — it
-already enters each reel item's run PAUSED and steps it itself (`DirectorRunner.cs:124-128`), so waiting is simply *not stepping yet*: after
-`ScenarioReadyProbe` (cluster target state, world settled, 3-D map built) it also waits for `ExternalRenderers.Current.ReadyFor(worldEpoch)`
-(the gateway answers from Unreal's `RenderClient`, Ready for that world), checked each frame beside the map build; an error or a stall fails
-the item with the reason, never an endless wait. Outside a film nothing waits for the renderer — a viewer never holds the simulation.
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant N as station node load phase
+  participant X as ExternalRendererLoadStep (NEW)
+  participant G as gateway (renderer)
+  participant D as director runner
+  M->>N: load (terrain, then scenario or recording)
+  N->>N: TerrainLoadStep, ScenarioLoadStep, MapBuildLoadStep (MapInLoad)
+  N->>X: run (the node is set RendererInLoad)
+  loop until ready, an error or a stall
+    X->>G: ReadyFor(worldEpoch)?
+    G-->>X: not yet (Unreal loading its level)
+  end
+  X-->>N: resolved
+  N-->>M: PlayReady
+  M->>M: load and run - the clock starts only now
+  D->>D: ScenarioReadyProbe sees the target state - the take starts
+```
+*What the picture shows that prose hid:* the renderer joins the SAME readiness the cluster already uses for the filming node's 3-D map
+(R-3075, `DESIGN_Cluster_Load_Phase.md` §11.10) — the master, live play and the director all wait through one path, and only on a node that
+is set to wait for it. ⛔ SUPERSEDED (same day): a first version had the director's runner wait on its own — a second readiness path the
+master and live play could not see.
 
 ## 3. The items — HROT's requests from DD-022, with their ids
 
