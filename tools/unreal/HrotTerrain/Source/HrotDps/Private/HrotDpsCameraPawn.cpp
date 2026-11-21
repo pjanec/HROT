@@ -338,6 +338,12 @@ void AHrotDpsCamera::TickInput(float Dt)
 	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::V)) { if (Mode == EHrotCameraMode::Director) Free(); else Director(); return; }   // U-18p
 	if (!MenuEntity && Mode != EHrotCameraMode::Player && PC->WasInputKeyJustPressed(EKeys::L))   // U-18y: labels off / commanders / every unit (L is lock while playing)
 		if (UHrotDpsWorld* LW = UHrotDpsWorld::Get(this)) { LW->CycleLabels(); UE_LOG(LogTemp, Display, TEXT("HROT IG: %s"), *LW->DescribeLabels()); }
+	if (!MenuEntity && Mode != EHrotCameraMode::Player && PC->WasInputKeyJustPressed(EKeys::G))   // U-18z: HROT's gizmos on / off (the reference client's G set)
+		if (UHrotDpsWorld* GW = UHrotDpsWorld::Get(this))
+		{
+			GW->SetGizmoLayers(GW->GizmoLayers.Num() ? TArray<FString>() : TArray<FString>{ TEXT("Paths"), TEXT("Contacts"), TEXT("FireTraces"), TEXT("Routes") });
+			UE_LOG(LogTemp, Display, TEXT("HROT IG: %s"), *GW->DescribeGizmos());
+		}
 	if (Mode == EHrotCameraMode::Director)
 	{
 		if (PC->WasInputKeyJustPressed(EKeys::Escape) || bW || bS || bA || bD) Free();   // free flight where it is

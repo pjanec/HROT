@@ -181,6 +181,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeLabels() const;
 	UPROPERTY(Transient) TObjectPtr<class UHrotCardLayer> Cards;
 
+	// ── U-18z: HROT's gizmos (GizmoView / GizmoFrame; HrotDpsGizmos.cpp) ──
+	/** the layers asked of the station (HROT DebugTraceLayers names: Paths, Contacts, FireTraces, ...); empty = no view, no work */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TArray<FString> GizmoLayers;
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void SetGizmoLayers(const TArray<FString>& Layers);
+	/** "gizmos asked [..], <n> layers shown, <p> primitives, <f> frames" */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeGizmos() const;
+
 	/** the station's suggested view (View) for THIS frame, dead-reckoned on the sim clock like an entity (Hermite-free LIVE mode) */
 	struct FViewNow
 	{
@@ -296,6 +303,14 @@ private:
 	bool bLoggedStepped = false, bLoggedOffset = false;
 	FHrotDpsPose ViewPoseAt(double Real) const;
 	void TickCards();
+	struct FGizmoPrim { uint8 Shape = 0; FColor Colour = FColor::White; float Width = 0; FString Text; TArray<FVector> Points; };
+	TMap<FString, TArray<FGizmoPrim>> GizmoLayersShown;
+	double NextGizmoView = 0;
+	bool bGizmoViewSent = false;
+	int32 GizmoFrames = 0;
+	void OnGizmoFrame(const struct FHrotDpsSample& S);
+	void SendGizmoView(double Real);
+	void DrawGizmos();
 	// U-18h — traffic (Mover / MoverTracks: never an Entity)
 	struct FMover
 	{

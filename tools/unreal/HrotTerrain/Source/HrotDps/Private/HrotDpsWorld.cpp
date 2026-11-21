@@ -191,6 +191,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_SimClock"), &UHrotDpsWorld::OnSimClock);
 	Sub(TEXT("DPS_ClockStep"), &UHrotDpsWorld::OnClockStep);
 	Sub(TEXT("DPS_View"), &UHrotDpsWorld::OnView);
+	Sub(TEXT("DPS_GizmoFrame"), &UHrotDpsWorld::OnGizmoFrame);   // U-18z
 	StartClock(C, Dps->GetClientId());
 	// U-18m — the player station's readers on this fresh client (the old client's went with it)
 	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Reconnect();
@@ -1085,6 +1086,8 @@ void UHrotDpsWorld::Tick(float)
 	TickSpots(Placed);
 	TickMovers(R);
 	TickCards();   // U-18y: after every pose (a card hangs above the drawn body)
+	SendGizmoView(R);   // U-18z
+	DrawGizmos();
 }
 
 // ── read back ──

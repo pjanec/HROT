@@ -104,5 +104,5 @@ void AHrotDpsGameMode::LogStatus()
 	if (!W) return;
 	UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG status: level %s | %d entities, %d movers, %d spawned | terrain '%s' | ClientWorld %s | clock %s | %s | events %d kinds"),
 		*GetWorld()->GetMapName(), W->EntityIds().Num(), W->MoversKnown(), W->SpawnedTotal(), *W->StationTerrain(), *W->DescribeClientWorld(), *W->DescribeClock(),
-		*W->DescribeLabels(), W->EventCounts().Num());
+		*(W->DescribeLabels() + TEXT(" | ") + W->DescribeGizmos()), W->EventCounts().Num());
 }
