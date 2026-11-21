@@ -94,6 +94,7 @@ classDiagram
     <<NEW, Hrot.Core>>
     +Name string
     +Ready bool
+    +ReadyFor(worldEpoch) bool
     +Begin(FilmJob) Task
     +Frame(FilmFrame) Task
     +End(FilmJob, outcome) Task~FilmTrack?~
@@ -137,6 +138,12 @@ sequenceDiagram
   participant X as ExternalRenderers.Current
   participant G as DpsFrameSink (gateway)
   Q->>R: Play reel, capture, renderer auto, sound renderer
+  R->>R: load the item (the door - the cluster loads terrain, then the scenario or recording)
+  R->>R: wait - cluster target state, world settled, 3-D map built (ScenarioReadyProbe), paused
+  loop each frame until ready, never stepping
+    R->>X: ReadyFor(worldEpoch)?
+    X-->>R: not yet (Unreal loading its level)
+  end
   R->>S: Begin(job)
   S->>X: Ready?
   X-->>S: yes
@@ -176,6 +183,14 @@ sequenceDiagram
   M->>B: SwitchTimeModeEvent Continuous re-anchor (F-H1 fix, CE-11019)
   G->>G: TimelineEpoch from HrotNodeContext.TimeController
 ```
+
+### 2e. Who waits for whom on a load (user `2026-11-21`: *"how it will block until the Unreal actually loads everything"*)
+
+Nothing blocks the cluster's load: it loads the terrain, then the scenario or recording, at its own pace. The **director's runner** waits — it
+already enters each reel item's run PAUSED and steps it itself (`DirectorRunner.cs:124-128`), so waiting is simply *not stepping yet*: after
+`ScenarioReadyProbe` (cluster target state, world settled, 3-D map built) it also waits for `ExternalRenderers.Current.ReadyFor(worldEpoch)`
+(the gateway answers from Unreal's `RenderClient`, Ready for that world), checked each frame beside the map build; an error or a stall fails
+the item with the reason, never an endless wait. Outside a film nothing waits for the renderer — a viewer never holds the simulation.
 
 ## 3. The items — HROT's requests from DD-022, with their ids
 
