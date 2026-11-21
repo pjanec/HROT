@@ -628,6 +628,22 @@ the wire for nothing.
 equal on two loads of the same terrain (derived = the same everywhere) · the per-side cost (a polygon under fire priced ×8 for its side only) · the danger solve
 reads the table, not `ShelledAreas` (the shelled scenarios unchanged: `ua-*` / `ia-*` with shelling) · save → load keeps a `Direct` record.
 
+#### 9b.2 As built — backend, `2026-11-21` (CE-2468, `STATUS_Backend_UnderFire.md`)
+
+⭐ Built as §9b.1 binds it. Where the build chose or deviated, this table is the current answer; the §9b table above stays the intent.
+
+| | as built | ⛔ supersedes / why |
+|---|---|---|
+| witnesses (UF-7) | `ShelledAreas.WitnessMetres` **1 500 m** (2-D), `RefreshSeconds` 20 s; a side witnesses when ANY live `EntityInfo` + `SimTransform` entity of its `ForceId` is in range (Neutral included); `Teach` runs in `ShelledAreaSystem` before `Cool` | ⛔ the §9b table's "300 m" — K8 |
+| Shelled area (UF-6) | one circle per FRESH `Indirect` record of the unit's side, radius = the record's `RangeM` (the detector teaches `ShelledAreas.RadiusM` 25 m), id = the subject's hash; a sensor with NO side sees no shelling | ⛔ `ShelledAreas.Footprints` in the solve (CE-4583) — it stays only as the detector's own state, read by its rails |
+| `CoveredByFire` (UF-6) | `DangerAreaKind` 9, `DangerAreaKinds` bit `1 << 9`, `Wants` bound to 9; one area per `Direct` grid of the side the route enters (≤ 4): centre = entry, near handle = the last unseen sample, far handle = where the route leaves the grid; rated **1** by the sensor, as shelling and gas | the rating: the ground IS the threat — a contact rating would read 0 once the contact is forgotten, while the record lives 600 s |
+| route price (UF-5) | `UnderFirePolyMap` samples a polygon's vertices + centre; a long open-ground polygon whose corners lie outside the range is only partly priced (measured: a 150 m enemy priced a 560 m street ×1.5, a 400 m one diverted the side round a 900 m detour) | K4 as written — the share, not the centre; ⚠ coarse polygons under-price |
+| road legs (UF-5, K12) | `RoadGraphRouter.Route(…, sight, sidePlus1)`: a segment whose curve MIDPOINT is covered costs × `FactorOf(1)` = 8, the entry / exit partial segments included; `RoutePlanner` passes `doors.UnderFireSight` and the query's side bits | — |
+| save (UF-3) | `StateLoaded` = 2 holds the AGE in `LearnedAt` until the owning writer's next tick rebases it (every tick, so a later load is caught too) | — |
+
+📐 **Rails:** `RecordRetireTests` (UF-1) · `UnderFireKnowledgeTests` (UF-2 kind, UF-3 rebase, UF-7 witnesses) · `TerrainObjectRequestsTests.CE2468_*` (UF-3 save/load) ·
+`UnderFireNavTests` (UF-4 sight equal on two loads + 0 B + serial-only, UF-5 two streets + road legs, UF-6 the solve by side) · `EntityGroundDamageTranslatorTests.CE2468_*` (UF-2 wire).
+
 ## 10. ✅ The independent review of the generalization (MF-17) — `2026-11-16`
 
 🔒 User, verbatim: *"approved, fold it in. Mark ready to build only after one more independent review of the knowledge generalization."*
