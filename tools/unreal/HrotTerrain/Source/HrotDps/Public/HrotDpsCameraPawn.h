@@ -62,6 +62,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Free();
 	/** U-18q — a render job's frame: free, at exactly this camera (Unreal; horizontal fov) — the LISTENER of its sounds too */
 	void PlaceAt(const FVector& At, const FQuat& Rotation, float HFovDeg);
+	/** U-18y — PlaceAt for a script (a rail's camera) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlaceAtRotator(FVector At, FRotator Rotation, float HFovDeg) { PlaceAt(At, Rotation.Quaternion(), HFovDeg); }
 	/** U-18p — show the station's suggested view (V) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Director();
 	/** turns the follow orbit (degrees; yaw counter-clockwise like HROT, pitch up +) — what a right-button drag does */

@@ -1,6 +1,6 @@
 // CE-4651 (U-16) — see the header.
-#include "HrotRuntimeLibrary.h"
 #include "HrotWeaponFx.h"
+#include "HrotRuntimeLibrary.h"
 #include "HrotShotRenderer.h"
 
 #include "Components/SceneComponent.h"

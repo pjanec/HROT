@@ -170,6 +170,17 @@ public:
 	/** what ClientWorld last said: "<epoch> Ready|Loading|Failed <step>" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeClientWorld() const { return WorldSaid; }
 
+	// ── U-18y: entity labels (HROT's cards; HrotDpsCards.cpp, HrotCardLayer) ──
+	/** the owner's numbering (SimNetGateway R-143 / DD-024): 1 = no labels, 2 = commanders (squad and above, with the NATO symbol) + every
+	 *  aircraft, 3 = every unit. An aircraft's card is never cut by distance (R-144: rule A is the client's).
+	 *  ⚠ until the gateway carries HROT's card gizmos (NOTE-2026-11-21-Unreal-Labels-Via-Gizmos G-1) the cards are a STAND-IN built here
+	 *  from Entity data in HROT's shape — and DPS says nothing about commanders yet, so mode 2 shows the aircraft only */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 LabelMode = 2;
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void CycleLabels() { LabelMode = LabelMode % 3 + 1; }
+	/** "labels <mode>: <n> cards, <r> repaints, <b> rebuilds" */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeLabels() const;
+	UPROPERTY(Transient) TObjectPtr<class UHrotCardLayer> Cards;
+
 	/** the station's suggested view (View) for THIS frame, dead-reckoned on the sim clock like an entity (Hermite-free LIVE mode) */
 	struct FViewNow
 	{
@@ -284,6 +295,7 @@ private:
 	uint64 MyClientId = 0;
 	bool bLoggedStepped = false, bLoggedOffset = false;
 	FHrotDpsPose ViewPoseAt(double Real) const;
+	void TickCards();
 	// U-18h — traffic (Mover / MoverTracks: never an Entity)
 	struct FMover
 	{

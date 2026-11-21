@@ -1,0 +1,78 @@
+// CE-4651 (U-18y) — the world's entity labels: which entities get a card, what it says, where it hangs; drawn by UHrotCardLayer.
+// ⚠ STAND-IN SOURCE. HROT's projectors decide a card's content (Hrot/Engine/Hrot.Common/Diagnostics/Gizmos/EntityCardGizmos.cs,
+//   HealthBarGizmo.cs); the gateway is asked to carry their primitives (SimNetGateway NOTE-2026-11-21-Unreal-Labels-Via-Gizmos G-1). Until
+//   then the cards are built HERE from Entity data in exactly their shape — row 0 the frame (side colour, ≤ 1 m/px), row 10 the health bar
+//   (≤ 1 m/px; from the coarse EntityState / VehicleLook damage), row 20 "<name> #<id>" (≤ 2 m/px; an aircraft's at any distance, HROT
+//   AircraftNameGizmo / R-143 rule A; R-144: the whole card of an aircraft is never cut). The modes are R-143's: 1 none, 2 commanders + every
+//   aircraft, 3 every unit. DPS says nothing about commanders yet (DD-024 IsUnit), so mode 2 shows the aircraft only. The cutoffs are the
+//   CLIENT's (R-144: DD-024 P-2 rejected) - HROT's numbers are used.
+#include "HrotDpsWorld.h"
+#include "HrotCardLayer.h"
+
+#include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
+#include "UObject/SoftObjectPath.h"
+
+void UHrotDpsWorld::TickCards()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+	if (LabelMode <= 1)
+	{
+		if (Cards && Cards->Shown() > 0) Cards->Clear();
+		return;
+	}
+	if (!Cards)
+	{
+		Cards = NewObject<UHrotCardLayer>(this);
+		Cards->Material = Cast<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Hrot/Fx/Labels/M_HrotCard.M_HrotCard")).TryLoad());
+		if (!Cards->Material) UE_LOG(LogTemp, Warning, TEXT("DPS labels: /Game/Hrot/Fx/Labels/M_HrotCard is missing (scripts/unreal/hrot_card_material.py) - no labels"));
+	}
+	APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC || !PC->PlayerCameraManager) return;
+	FIntPoint Vp(1280, 720);
+	if (UGameViewportClient* G = World->GetGameViewport()) { FVector2D S; G->GetViewportSize(S); if (S.X > 0 && S.Y > 0) Vp = FIntPoint(int32(S.X), int32(S.Y)); }
+	Cards->Begin(World, PC->PlayerCameraManager->GetCameraLocation(), PC->PlayerCameraManager->GetFOVAngle(), Vp);
+
+	const int32 Air = DomainAir(), Person = DomainPerson();
+	for (TPair<int32, FEnt>& It : Ents)
+	{
+		FEnt& E = It.Value;
+		AActor* A = E.Actor.Get();
+		if (!A || !E.bHasEntity || E.bRound || E.bAnimal || E.bRiding) continue;   // HROT Seeable.OnMap: no card for a round, an animal, a seated man
+		const bool bAir = E.Domain == Air;
+		if (LabelMode == 2 && !bAir) continue;   // commanders: none on the wire yet (G-3)
+		// the anchor: the drawn body's top (HROT EntityBodyLayer3D.cs:2165-2178)
+		FVector Origin, Extent;
+		A->GetActorBounds(true, Origin, Extent);
+		const FVector Anchor(A->GetActorLocation().X, A->GetActorLocation().Y, Origin.Z + Extent.Z);
+		const uint8 Damage = E.Damage;
+		const uint32 Key = HashCombineFast(HashCombineFast(GetTypeHash(E.Name), uint32(LabelMode) | (uint32(E.Side) << 4) | (uint32(Damage) << 12) | (bAir ? 1u << 20 : 0u)),
+			GetTypeHash(E.Domain == Person));
+		const int32 Id = It.Key;
+		const int32 Mode = LabelMode;   // the lambda runs only on a key change; it reads E in place (no copy per frame, R-2084)
+		Cards->Show(Id, Key, Anchor, [&](HrotCards::FCard& C)
+		{
+			const FString Text = E.Name.TrimStartAndEnd().IsEmpty() ? FString::Printf(TEXT("#%d"), Id) : FString::Printf(TEXT("%s #%d"), *E.Name.TrimStartAndEnd(), Id);
+			const float Cut = bAir ? 0.f : 1.f;   // R-144 rule A: an aircraft's card is never cut
+			if (Mode >= 3)
+			{
+				C.Frame(HrotCards::SideColour(E.Side), 150, Cut);
+				// HROT HealthBarGizmo: green >= 0.66, yellow >= 0.33, red; a destroyed one keeps the empty bar
+				const float Health = Damage >= 2 ? 0.f : Damage == 1 ? 0.5f : 1.f;
+				const uint32 Fill = Health >= 0.66f ? 0x00FF00FFu : Health >= 0.33f ? 0xFFFF00FFu : 0xFF0000FFu;
+				C.Bar(10, Health, Fill, 0x282828DCu, 4.f, Cut);
+			}
+			C.Text(20, Text, 0xF0F0F0FFu, HrotCards::DefaultTextPx, 0, bAir ? 0.f : 2.f);
+		});
+	}
+	Cards->End();
+}
+
+FString UHrotDpsWorld::DescribeLabels() const
+{
+	static const TCHAR* Names[] = { TEXT("1 off"), TEXT("2 commanders"), TEXT("3 every unit") };
+	return FString::Printf(TEXT("labels %s: %s"), Names[FMath::Clamp(LabelMode, 1, 3) - 1], Cards ? *Cards->Describe() : TEXT("none yet"));
+}

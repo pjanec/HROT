@@ -90,6 +90,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationClientWorldLost() const { return FakeWorldLost; }
 	/** Entity (a ground unit) + its EntityState at sim time SimTime: position (m, ENU), velocity (m/s), heading (deg, counter-clockwise from east) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationEntity(int32 EntityId, double SimTime, FVector PositionM, FVector VelocityM, float HeadingDeg);
+	/** U-18y — the same with its Entity's Domain (the contract's number: 1 person, 2 ground, 3 air …), Side (0 neutral, 1 friend, 2 hostile) and Name */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationEntityAs(int32 EntityId, int32 Domain, int32 InSide, const FString& Name, double SimTime,
+		FVector PositionM, FVector VelocityM, float HeadingDeg);
 	/** View: Source director; Mode (ViewMode number: 1 free, 2 orbit …), bound to TargetId at Distance, or the pose: position (m), velocity
 	 *  (m/s), yaw (deg, ENU) turning YawRateDeg/s (body frame z), pitch (deg), vertical fov */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationView(double SimTime, int32 Mode, int32 TargetId, float Distance, FVector PositionM,

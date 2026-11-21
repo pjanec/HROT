@@ -54,6 +54,8 @@ void AHrotDpsGameMode::StartPlay()
 	if (W->Start(D, P)) { UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: joined the station, domain %d partition '%s'"), D, *P); }
 	else { UE_LOG(LogHrotDpsGame, Error, TEXT("HROT IG: could not join domain %d partition '%s'"), D, *P); }
 	// U-18t: a terrain by name (a preview / a check without a station), and the camera
+	int32 Labels = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgLabels="), Labels)) W->LabelMode = FMath::Clamp(Labels, 1, 3);   // U-18y: 1 off, 2 commanders, 3 every unit (R-143)
 	FString Terrain;
 	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgTerrain="), Terrain) && !Terrain.IsEmpty()) W->ShowTerrain(Terrain);
 	FString View;
@@ -100,7 +102,7 @@ void AHrotDpsGameMode::LogStatus()
 {
 	const UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
 	if (!W) return;
-	UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG status: level %s | %d entities, %d movers, %d spawned | terrain '%s' | ClientWorld %s | clock %s | events %d kinds"),
+	UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG status: level %s | %d entities, %d movers, %d spawned | terrain '%s' | ClientWorld %s | clock %s | %s | events %d kinds"),
 		*GetWorld()->GetMapName(), W->EntityIds().Num(), W->MoversKnown(), W->SpawnedTotal(), *W->StationTerrain(), *W->DescribeClientWorld(), *W->DescribeClock(),
-		W->EventCounts().Num());
+		*W->DescribeLabels(), W->EventCounts().Num());
 }

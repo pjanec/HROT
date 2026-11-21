@@ -336,6 +336,8 @@ void AHrotDpsCamera::TickInput(float Dt)
 	if (PossessWanted && PC->WasInputKeyJustPressed(EKeys::Escape)) { LetGo(); return; }   // a request not taken yet: withdrawn
 
 	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::V)) { if (Mode == EHrotCameraMode::Director) Free(); else Director(); return; }   // U-18p
+	if (!MenuEntity && Mode != EHrotCameraMode::Player && PC->WasInputKeyJustPressed(EKeys::L))   // U-18y: labels off / commanders / every unit (L is lock while playing)
+		if (UHrotDpsWorld* LW = UHrotDpsWorld::Get(this)) { LW->CycleLabels(); UE_LOG(LogTemp, Display, TEXT("HROT IG: %s"), *LW->DescribeLabels()); }
 	if (Mode == EHrotCameraMode::Director)
 	{
 		if (PC->WasInputKeyJustPressed(EKeys::Escape) || bW || bS || bA || bD) Free();   // free flight where it is

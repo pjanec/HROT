@@ -1,6 +1,6 @@
 // CE-4651 (U-16 / U-17) — see the header.
-#include "HrotRuntimeLibrary.h"
 #include "HrotExplosionFx.h"
+#include "HrotRuntimeLibrary.h"
 
 #include "Components/DecalComponent.h"
 #include "Engine/World.h"

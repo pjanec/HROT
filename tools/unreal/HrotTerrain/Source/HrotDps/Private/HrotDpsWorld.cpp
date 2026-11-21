@@ -37,6 +37,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
+#include "HrotCardLayer.h"
 #include "Misc/PackageName.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotDpsWorld, Log, All);
@@ -211,6 +212,7 @@ void UHrotDpsWorld::Deinitialize()
 {
 	const bool bOwned = Subs.Num() > 0;
 	Stop();
+	if (Cards) Cards->Clear();
 	if (bOwned && GEngine) if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) if (!Dps->IsTraveling()) Dps->Stop();   // U-18r: kept across a level load
 	Super::Deinitialize();
 }
@@ -1082,6 +1084,7 @@ void UHrotDpsWorld::Tick(float)
 	DrawStreams(Placed);
 	TickSpots(Placed);
 	TickMovers(R);
+	TickCards();   // U-18y: after every pose (a card hangs above the drawn body)
 }
 
 // ── read back ──

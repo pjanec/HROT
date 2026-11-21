@@ -311,9 +311,14 @@ bool UHrotDpsSubsystem::FakeStationSession(int32 WorldEpoch, double SimTime, con
 
 bool UHrotDpsSubsystem::FakeStationEntity(int32 EntityId, double SimTime, FVector PositionM, FVector VelocityM, float HeadingDeg)
 {
+	return FakeStationEntityAs(EntityId, int32(SimNetGateway_Protocol_DdsPlayer_DomainGround), 1, TEXT("fake unit"), SimTime, PositionM, VelocityM, HeadingDeg);
+}
+
+bool UHrotDpsSubsystem::FakeStationEntityAs(int32 EntityId, int32 Domain, int32 InSide, const FString& Name, double SimTime, FVector PositionM, FVector VelocityM, float HeadingDeg)
+{
 	SimNetGateway_Protocol_DdsPlayer_Entity E{};
-	E.EntityId = EntityId; E.TypeId = 0; E.Domain = SimNetGateway_Protocol_DdsPlayer_DomainGround; E.Side = 1;
-	FCStringAnsi::Strncpy(E.Name, "fake unit", sizeof(E.Name));
+	E.EntityId = EntityId; E.TypeId = 0; E.Domain = SimNetGateway_Protocol_DdsPlayer_Domain(Domain); E.Side = uint8(InSide);
+	FCStringAnsi::Strncpy(E.Name, TCHAR_TO_UTF8(*Name), sizeof(E.Name));
 	SimNetGateway_Protocol_DdsPlayer_EntityState St{};
 	St.EntityId = EntityId; St.SimTime = SimTime;
 	St.Position = { PositionM.X, PositionM.Y, PositionM.Z };
