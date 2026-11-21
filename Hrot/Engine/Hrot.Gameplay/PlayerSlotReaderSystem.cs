@@ -1,4 +1,3 @@
-using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Possession;
@@ -15,14 +14,16 @@ namespace Hrot.Gameplay;
 [TickMode(TickPolicy.EveryFrame)]
 public class PlayerSlotReaderSystem : IEcsModuleSystem
 {
-    private readonly GameplayWire _wire;
+    private readonly IGameplayWire _wire;
     private readonly Func<bool>? _when;
     [Fdp.Core.SessionState("the latest slot topic per station, as received (the cluster's join state, not the world)")]
     private readonly Dictionary<int, PlayerSlotTopic> _latest = new();
+    [Fdp.Core.FrameScratch("the slot samples taken this frame: cleared before and after each read")]
+    private readonly List<GameplaySample<PlayerSlotTopic>> _taken = new();
 
     /// <param name="when">⭐ Optional gate: the reader is created (and read) only while it says true. The Player's client pack passes "a deploy server exists", so a Player in a
     /// military-sim cluster with no server creates no gameplay reader; the server's subclass leaves it null (the feature attribute gates it).</param>
-    public PlayerSlotReaderSystem(GameplayWire wire, Func<bool>? when = null)
+    public PlayerSlotReaderSystem(IGameplayWire wire, Func<bool>? when = null)
     {
         _wire = wire ?? throw new ArgumentNullException(nameof(wire));
         _when = when;
@@ -37,23 +38,25 @@ public class PlayerSlotReaderSystem : IEcsModuleSystem
         if (_when is not null && !_when()) return;
         var reader = _wire.SlotReader;
         if (reader is null) return;
-        using var loan = reader.Take();
-        foreach (var s in loan)
+        _taken.Clear();
+        if (reader.TakeInto(_taken) == 0) return;
+        for (int i = 0; i < _taken.Count; i++)
         {
-            if (s.IsValid)
+            var s = _taken[i];
+            if (s.Alive)
             {
                 var slot = s.Data;
                 _latest[slot.StationNodeId] = slot;
                 // a Choosing or Dead slot holds a SIDE only (a dead man is no claim on anything)
                 StationReservations.Of(repo).Set(slot.StationNodeId, (ForceId)slot.Side, slot.State is (byte)PlayerSlotState.Choosing or (byte)PlayerSlotState.Dead ? 0 : slot.UnitNetId);
             }
-            else if (s.Info.InstanceState != DdsInstanceState.Alive)
+            else   // the slot ended: disposed by the server, or its writer is gone — the key rides in Data
             {
-                var key = DdsTypeSupport.FromNative<PlayerSlotTopic>(s.NativePtr);
-                _latest.Remove(key.StationNodeId);
-                StationReservations.Of(repo).Remove(key.StationNodeId);
+                _latest.Remove(s.Data.StationNodeId);
+                StationReservations.Of(repo).Remove(s.Data.StationNodeId);
             }
         }
+        _taken.Clear();
     }
 }
 
@@ -66,5 +69,5 @@ public class PlayerSlotReaderSystem : IEcsModuleSystem
 [NodeFeature(GameplayFeatures.DeployServerId)]
 public sealed class ServerPlayerSlotReaderSystem : PlayerSlotReaderSystem
 {
-    public ServerPlayerSlotReaderSystem(GameplayWire wire) : base(wire) { }
+    public ServerPlayerSlotReaderSystem(IGameplayWire wire) : base(wire) { }
 }

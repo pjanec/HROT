@@ -27,7 +27,7 @@ public sealed partial class PossessionStationTests
         w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
         w.RegisterEvent<PossessRequestEvent>();
         w.RegisterEvent<ReleasePossessionEvent>();
-        w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+        w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         var leader = w.CreateEntity();
         w.AddComponent(leader, new SimTransform { Position = new Vector3(90f, 50f, 0f), Rotation = Quaternion.Identity });
         map.Register(700, leader);
