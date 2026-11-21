@@ -26,6 +26,26 @@ public interface ILinkedClient
     /// Polled on the frame thread; cheap.
     /// </summary>
     bool IsWorldReady(Guid loadId, out string? failure, out string? step);
+
+    // ── ⭐ CE-11018 (§2b, §2c) — the film: Begin, every Frame in order, End. All on the frame thread; each call returns at once with a task the director waits on. ──
+
+    /// <summary>
+    /// True when the client can render film frames now (connected, its world ready). Read at a job's <see cref="BeginFilm"/> only: a job never changes source part way.
+    /// A client that renders no film (only presents the world) returns false — the job's frames stay the map's.
+    /// </summary>
+    bool CanFilm => false;
+
+    /// <summary>A film job starts (<see cref="FilmJob"/>); the task completes when the client is warmed up for it, or FAULTS with the reason it cannot take it
+    /// (the job then fails with that reason).</summary>
+    System.Threading.Tasks.Task BeginFilm(FilmJob job) => System.Threading.Tasks.Task.FromException(new NotSupportedException($"{Name} renders no film"));
+
+    /// <summary>One frame of the job (in <see cref="FilmFrame.Index"/> order, none skipped). The task completes when the frame is done (a scene frame's PNG written);
+    /// it FAULTS with the reason when the client could not do it — the job fails with that reason.</summary>
+    System.Threading.Tasks.Task Frame(FilmFrame frame) => System.Threading.Tasks.Task.FromException(new NotSupportedException($"{Name} renders no film"));
+
+    /// <summary>The job ended (<paramref name="outcome"/>; called once for every <see cref="BeginFilm"/>, a failed or stopped job included). The task's result is the client's
+    /// sound track of the job (<see cref="FilmTrack"/>), or null when it made none.</summary>
+    System.Threading.Tasks.Task<FilmTrack?> EndFilm(FilmJob job, FilmJobOutcome outcome) => System.Threading.Tasks.Task.FromResult<FilmTrack?>(null);
 }
 
 /// <summary>
