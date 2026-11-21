@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Terrain.Tests
               "geometry":{"type":"Polygon","coordinates":[[[90,60],[210,60],[210,540],[90,540],[90,60]]]}}]}
             """;
 
-        private static readonly Vector3 From = new(45, 20, 0), To = new(45, 580, 0), Enemy = new(45, 300, 0);
+        private static readonly Vector3 From = new(45, 20, 0), To = new(45, 580, 0), Enemy = new(45, 300, 0), RedsOwn = new(280, 300, 0);
 
         private sealed class Rig
         {
@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         /// <summary>
         /// ⭐⭐ K4 / K8 — the covered street is avoided for the knowing side ONLY; an <see cref="UnderFireCause.Indirect"/> record is not priced.
-        /// 🔴 Red-proof: drop the lookup in <c>DoorAwareQueryFilter.GetCost</c> ⇒ Blue takes the west street; drop the side test in the cost map (price every side's grids) ⇒ Red goes east too.
+        /// 🔴 Red-proof: drop the lookup in <c>DoorAwareQueryFilter.GetCost</c> ⇒ Blue takes the west street; drop the side test in <c>UnderFireSight.Covered</c> (Red's map prices Blue's grid too) ⇒ Red goes east too.
         /// </summary>
         [Fact]
         public void UF5_TheCoveredStreet_IsAvoidedByTheSideThatKnowsIt_Only()
@@ -79,8 +79,9 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(MaxX(nav, Red, doors) < 90f, "Indirect: Red keeps the short west street");
 
             rig.Know(Blue, Enemy, 400f);   // the whole west street is in its sight (the polygons' corners too: K4 prices the covered SHARE)
+            rig.Know(Red, RedsOwn, 30f);   // Red knows an enemy of its own, off its route: Red HAS a cost map, so the side test is exercised
             doors = rig.Doors();
-            Assert.True(doors.UnderFireSight.HasSide((byte)(Blue + 1)) && !doors.UnderFireSight.HasSide((byte)(Red + 1)));
+            Assert.True(doors.UnderFireSight.HasSide((byte)(Blue + 1)) && doors.UnderFireSight.HasSide((byte)(Red + 1)));
             Assert.True(MaxX(nav, Blue, doors) >= 200f, "Blue knows the enemy on the west street: it drives east (round the wood, x 210)");
             Assert.True(MaxX(nav, Red, doors) < 90f, "Red knows nothing of it: the short west street");
             Assert.True(nav.PathCost(From, To, Mask(Blue), doors) > nav.PathCost(From, To, Mask(Red), doors));
@@ -97,6 +98,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             var rig = new Rig();
             rig.Know(Blue, Enemy, 150f);
             rig.Know(Red, new Vector3(45, 100, 0), 25f, UnderFireCause.Indirect);
+            rig.Know(Red, RedsOwn, 30f);   // a Direct grid of Red's own, off the route: Red's side has grids, so the side test is exercised
             var doors = rig.Doors();
             var route = new[] { From, To };
             var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
