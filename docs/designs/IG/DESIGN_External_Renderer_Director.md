@@ -182,11 +182,13 @@ sequenceDiagram
 | DD-022 | CE | what | where |
 |---|---|---|---|
 | H-1, H-2, H-3, H-4 | [CE-11018](../../blueprints/Blueprint_Issues_Tracker.md) | `IExternalFrameRenderer` + `FilmFrame` / `FilmJob` / `FilmTrack` + `ExternalRenderers` (Hrot.Core); `IFrameSink.Begin/End` (default no-ops); `RoutingFrameSink` built once in `DirectorPack.Attach`; the runner passes the film camera, film rate and step with each frame; a faulted frame fails the job with its reason; `renderer: auto \| map` on the capture request | Hrot.Core, Hrot.Presentation Director |
-| H-5 | ~~CE-11020~~ dropped | ✅ R-11008: no Replay Browser integration — the director renders from the editor's own replay (AAR); a job naming another recording and multi-node exercises stay out (refused with the reason) | — |
+| H-5 | ~~CE-11020~~ dropped | ✅ R-11008: no Replay Browser integration — the director renders from the editor's own replay (AAR); a job naming another recording plays once the editor passes its opener (Q113-G, CE-11023); multi-node exercises stay out | — |
 | H-6 | — | no HROT change: the gateway reads the anchors and steps on the node bus and `TimelineEpoch` from `HrotNodeContext.TimeController` (2d) | — |
 | H-7 | [CE-11021](../../blueprints/Blueprint_Issues_Tracker.md) | `sound: renderer \| hrot` per job; with `renderer` the encode muxes `FilmTrack` and checks its samples against the frames; `IDirectorSound` stays for map renders | Hrot.Presentation Director |
 | H-8 / F-H1 | [CE-11019](../../blueprints/Blueprint_Issues_Tracker.md) | a running scale change publishes a Continuous re-anchor, so cluster slaves follow it | Fdp.Toolkits Time (backend's area: a cross-lane edit) |
 | H-8 / F-H2 | [CE-11022](../../blueprints/Blueprint_Issues_Tracker.md) | the time docs say the anchor model (no pulse, no PLL); the stale comment at `MasterSyncController.cs:153`; the unused `TimeConfig` PLL fields named | Time Architecture, FDP.Toolkit.Time.md |
+| (G) | [CE-11023](../../blueprints/Blueprint_Issues_Tracker.md) | the editor's director gets the editor's recording opener (`ScenarioDoor.OpenRecording`) — a job or reel item naming another recording then plays in the editor | Hrot.Editor |
+| (H) | [CE-11024](../../blueprints/Blueprint_Issues_Tracker.md) | `EffectCause.Kind` + `EffectCause.Shooter` from `RoundImpactNotification` — the gateway makes `Impact` from the effect entities, live and in replay (R-11007) | Hrot.Core, the effect spawner |
 
 **Acceptance (R-4277 — a feature works when its scenarios pass):** the `showcases/player-station` scenario with a promoted take rendered
 twice — once with no renderer (the map, as today: frame count, MP4) and once with the gateway's reference client in `--render` mode (the same

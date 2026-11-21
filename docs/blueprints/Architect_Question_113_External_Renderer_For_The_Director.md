@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-21
-current-answer: §2 the sub-questions with their recommended answers (C RULED, R-11008; A, B, D, E, F OPEN — awaiting the user)
+current-answer: §2 the sub-questions with their recommended answers (C RULED, R-11008; A, B, D, E, F, G, H OPEN — awaiting the user)
 stale-below: nothing
 related-designs:
   - ../designs/IG/DESIGN_External_Renderer_Director.md — OWNS the design this question gates (diagrams, items H-1 … H-8, acceptance)
@@ -53,9 +53,11 @@ extension). ⚠ Coverage could not be checked (the CLI has no `check_index_cover
 | **D** | F-H1 — a running scale change publishes no anchor | **fix in the master: `SetTimeScale` while Continuous publishes a Continuous re-anchor** (`BarrierWallTicks` = now, `SimTimeSnapshot` = the time, the new scale), gated by `SimTimeSyncIntegrationTests`; a cross-lane edit in backend's time code, said | the cluster's slaves need it as much as the gateway | the gateway re-anchoring on its own only (slaves keep the bug) |
 | **E** | the sound of a render job | **`sound: renderer \| hrot` per job**; with `renderer` the encode muxes the renderer's `FilmTrack` and refuses a sample total that does not match the frames; `IDirectorSound` unchanged for map renders | the user: *"take the audio track from the Unreal"* | dropping HROT's track (map renders would lose sound) |
 | **F** | the camera of a frame | **the runner passes the film camera (pose, field of view), the film rate and the step in `FilmFrame`** | exact by construction | the renderer reading `CameraSuggestion` (written in `MapViewModeLayer`'s update — possibly a frame off; not measured) |
+| **G** | a job or reel item that NAMES another recording — the editor refuses it (`DirectorRenders.cs:243`, no opener) | **the editor passes its ONE recording opener to the director**: `DirectorPackHost.Recordings` = an `IRecordingOpener` over the editor's `ScenarioDoor.OpenRecording(exerciseId, atSim)` (`ScenarioDoor.cs:353`, the start screen's and the menu's door into AAR); a job then opens its recording at its turn and waits for the load, as the Replay Browser's does | 🔒 user `2026-11-21`: *"I can open any recording for a replay in the start screen of the editor"* — the editor HAS the opener and does not pass it (the silent-default pattern); `IRecordingOpener`'s comment *"a host that opens no recordings (the editor …)"* is stale | a second, director-only opener (a duplicate of the door) |
+| **H** | `Impact` in replay — the recorded effect entity of an impact has no impact kind and no shooter | **`EffectCause` gains `Kind` (entry / exit / stop) and `Shooter`, written by the spawner from `RoundImpactNotification` (which carries both, `RoundImpactNotification.cs:18, 33`)**; the gateway then makes `Impact` from the effect entities, live and in replay alike (R-11007: from state, never from re-raised events) | 🔒 user `2026-11-21`: *"not as components, as little entities, affect parts. So the gateway can freely check for them and generate whatever events it needs"* — the entities are there; only two fields are dropped on the way | recording the impact event (a second, event-based path, against R-11007) |
 
 **Build order once approved:** A + B + F with their rails (CE-11018) → E (CE-11021) → D (CE-11019, with the integration suite) → the docs
-(CE-11022). (C slice 2, CE-11020, dropped by R-11008.) The gateway's DD-022 work (its topics and `DpsFrameSink`) follows A + B + F. Blast radius: `Hrot.Core`'s
+(CE-11022); G (CE-11023) and H (CE-11024) are independent and small. (C slice 2, CE-11020, dropped by R-11008.) The gateway's DD-022 work (its topics and `DpsFrameSink`) follows A + B + F. Blast radius: `Hrot.Core`'s
 public surface (new types), the director (`DirectorPack`, `DirectorRunner`, `DirectorStills`, `DirectorRenders`), `MasterSyncController`
 (every cluster node), later the Replay Browser.
 
