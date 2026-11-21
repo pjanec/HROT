@@ -26,6 +26,10 @@ $always = "/Game/Hrot/Vehicles", "/Game/Hrot/People", "/Game/Hrot/Air", "/Game/H
           "/Game/Audio/AttenuationPresets", "/Game/Audio/Concurrency", "/Game/Audio/MetaSounds", "/Game/Audio/Sounds/Explosions", "/Game/Audio/Sounds/Weapons/Rifle",
           "/Game/Effects/Particles/Impacts", "/Game/Effects/Particles/Weapons", "/Game/Realistic_Starter_VFX_Pack_Vol2/Particles"
           # (not Lyra's Mannequin folders: its rifle anim-layer Blueprints need LyraGame - the person kits under /Game/Hrot/People carry the people)
+# U-18w: the shared terrain kit - the folders of the vegetation / ground materials / textures that the terrain packages repeat
+# (scripts/unreal/hrot_terrain_kit.py writes the list); cooked here once, so a terrain package holds only its own content
+$kitFile = "$Proj\Config\HrotTerrainKitDirs.txt"
+if (Test-Path $kitFile) { $always += @(Get-Content $kitFile | ? { $_ -like "/Game/*" }) } else { "note: no $kitFile - terrain packages will carry their own vegetation (run hrot_terrain_kit.py)" }
 $block = @("; >>> HROT IG packaging (scripts/unreal/hrot_package_client.ps1 writes this block; edits inside it are lost)",
   "[/Script/UnrealEd.ProjectPackagingSettings]", "UsePakFile=True", "bUseIoStore=True", "bShareMaterialShaderCode=True", "bCookAll=False",
   "+MapsToCook=(FilePath=`"/Game/Maps/IgStart`")") + ($always | % { "+DirectoriesToAlwaysCook=(Path=`"$_`")" }) + @("; <<< HROT IG packaging")
@@ -58,10 +62,12 @@ $aside = "$Proj\Saved\TerrainPluginsAside"
 $moved = @(Get-ChildItem "$Proj\Plugins" -Directory -Filter "HrotTerrain_*" -ErrorAction SilentlyContinue)
 if ($moved) { New-Item -ItemType Directory -Force $aside | Out-Null; $moved | % { Move-Item $_.FullName (Join-Path $aside $_.Name) -Force; "aside: $($_.Name)" } }
 try {
+  # -DisableUnity: UBT's adaptive unity works out the files being edited from `git status` of the Unreal project, which cannot see the HrotTerrain
+  # sources (a link into the HROT repo) -> the unity files then redefine anonymous-namespace helpers (measured U-18w); no unity = every file alone
   # build, cook, pak, stage, archive; the release version the terrain packages are cooked against
   $archive = Join-Path $Out $Release
   & "$Engine\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun "-project=$Project" -platform=Win64 "-clientconfig=$Config" -build -cook -stage -pak -iostore `
-    -archive "-archivedirectory=$archive" -map=/Game/Maps/IgStart "-createreleaseversion=$Release" -unattended -utf8output -nop4 -nocompileeditor
+    -ubtargs=-DisableUnity -archive "-archivedirectory=$archive" -map=/Game/Maps/IgStart "-createreleaseversion=$Release" -unattended -utf8output -nop4 -nocompileeditor
   $code = $LASTEXITCODE
   "BuildCookRun exit $code; archive $archive; release $Proj\Releases\$Release"
 } finally {
