@@ -38,7 +38,7 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | **AI that fights like soldiers** | Behaviour is driven by what each soldier perceives and how much stress he is under, not by scripts. A suppressed man goes to cover; a squad bounds from cover to cover; a defence that breaks rallies, reports and does not walk back into the ground it lost. |
 | **A world that changes** | Breaches, craters, collapsing buildings, burning houses, felled trees and cleared minefield lanes change sight, fire and movement for every unit in the same tick, and survive save, replay and seek. |
 | **Real places, on demand** | An area built from OpenStreetMap or imported from another simulator's terrain — heights, roads, woods, walls and every building enterable — ready for the AI to fight in. |
-| **Trainees in the loop** | Any unit can be played: a trainee joins, picks a side and a unit, and takes it over in first person or over the shoulder — driving, gunning, leading — while the AI runs everyone else. Human and AI units obey the same physics, the same damage and the same rules, and are reviewed the same way. |
+| **Trainees in the loop** | Any unit can be played: a trainee joins, picks a side and a unit, and takes it over in first person or over the shoulder — driving, gunning, leading — while the AI runs everyone else and takes the unit back when the trainee leaves. Human and AI units obey the same physics, the same damage and the same rules, and are reviewed the same way. |
 | **Review without stopping** | Pause a live exercise, rewind to show the trainee what happened, then carry on live — or branch a new exercise from any recorded moment. |
 | **Echelons from team to battalion** | Higher echelons can run as aggregated units that fight as numbers and **deaggregate into individual soldiers and vehicles on contact**, keeping every identity. |
 | **Objective evaluation** | Exercises are scored by measurable objectives and standards, live and in the debrief, and every score traces back to the recorded moment that earned it. |
@@ -147,7 +147,7 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | ✅ **Control** | play, pause, step and time scale, with every node in step; give orders from the map; take direct control of any unit in first person |
 | ✅ **Injects and rules** | triggers (when … then …), objectives and measures, injects fired by hand, the exercise result |
 | ✅ **Review during the action** | pause a live exercise, rewind to show what happened, and resume live where it paused — one continuous record |
-| ✅ **After-action review** | replay any recorded exercise, see the event timeline (every shot, hit, order and report), mark moments, compare what each station saw |
+| ✅ **After-action review** | replay any recorded exercise, from any point of view (the instructor's free camera, any trainee's or unit's own view), see the event timeline (every shot, hit, order and report), mark moments, compare what each station saw |
 | ✅ **Go live from replay** | branch a new live exercise from any recorded moment ("what if he had turned left?"); the original record stays untouched |
 | ✅ **Game master** | change the AI's skill per side, fire triggers, disarm or re-arm a unit, or run any action by hand while the exercise runs |
 | ✅ **Trainees and players** | briefed before a run, a summary at its end |
@@ -160,14 +160,14 @@ HROT is a serious-gaming engine as well as a CGF: the same simulation that runs 
 
 | | |
 |---|---|
-| ✅ **Play any unit** | take direct control of a soldier, a crew position or a vehicle, in first person or over the shoulder, and release it again |
+| ✅ **Play any unit** | take direct control of a soldier, a crew position or a vehicle, in first person or over the shoulder; the AI hands the unit over and takes it back when the trainee releases it |
 | ✅ **Join, deploy, rejoin** | a trainee joins a running exercise, picks a side and a unit and deploys; leaving and rejoining is supported |
 | 🚧 **Multiplayer** | a server and several player stations in one scenario, each trainee on his own station (the acceptance run is open) |
 | ✅ **Crew the weapons** | man a vehicle's heavy machine gun or an anti-aircraft gun; the rounds are the simulation's own ballistics and damage |
 | ✅ **Drive the vehicles** | a trainee's tank breaks through fences, hedges, garden walls and sandbags and fells lone trees — and the change is seen by everyone |
 | 🚧 **Set up the game** | playable units, deploy roles and kits, spawn areas and respawn delay per scenario (authoring of kits still basic) |
 | ✅ **Mixed teams** | a trainee who takes over a squad leader commands his AI squad from an order wheel; trainees fight AI opponents who see, hear and react to them exactly as to any other unit |
-| ✅ **One record for all** | a trainee's actions are recorded with everyone else's — every shot, hit and order — for the review and the score; any moment can be played again live |
+| ✅ **One record for all** | a trainee's actions are recorded with everyone else's — every shot, hit and order — for the review and the score, and replayed from any point of view — the instructor's free camera or the trainee's own view; any moment can be played again live |
 
 ---
 
