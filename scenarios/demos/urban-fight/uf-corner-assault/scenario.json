@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "demo-city",
-  "description": "What: Urban fight suite U2b (CE-2467, DESIGN_Urban_Fight_Suite.md §5) - the CORNER ASSAULT: 'Blue Squad' (Friend, 6 men, mortal) is ordered SuppressAndManeuver against 'Red Squad' (Hostile, 2 men, the default SOP) holding the west near corner of demo-city's residential street / shop street junction (636-639, 388), watching down the street from behind two parked cars, ~50 m north of Blue. Blue has 3 : 1. Judge: the base of fire suppresses from the street; the assault reaches Red from a side Red does not watch - round the house south-west of the corner (627-641, 360-375) - never by walking up the street into Red's fire."
+  "description": "What: Urban fight suite U2b (CE-2467, DESIGN_Urban_Fight_Suite.md §5) - the CORNER ASSAULT: 'Blue Squad' (Friend, 6 men, mortal) is given the ATTACK order (InfantrySquadAttack, the corner's position) against 'Red Squad' (Hostile, 2 men, the default SOP) holding the west near corner of demo-city's residential street / shop street junction (636-639, 388), watching down the street from behind two parked cars, ~50 m north of Blue. Blue has 3 : 1. Judge: the base of fire suppresses from the street; the assault reaches Red from a side Red does not watch - round the house south-west of the corner (627-641, 360-375) - never by walking up the street into Red's fire."
  },
  "entities": {
   "c2467000-0000-4000-8000-000000000100": {
@@ -32,8 +32,14 @@
     "ForceId": "Friend"
    },
    "Behavior": {
-    "Name": "SuppressAndManeuver",
-    "Params": {},
+    "Name": "InfantrySquadAttack",
+    "Params": {
+     "Position": [
+      637,
+      388,
+      0
+     ]
+    },
     "Origin": "Superior"
    }
   },

@@ -230,5 +230,36 @@ namespace Hrot.SimHost.Tests
                 }
             }
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — a squad on an ATTACK order that still has 3 : 1 over its contacts is not paused by the contact reaction
+        /// under fire (its attack drill is the answer); outnumbered (control) the same squad reacts. ✅ Red-proof: the guard dropped from <c>NotDefending</c>
+        /// ⇒ the superior squad reacts too ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2467_AnAttackOrder_WithSuperiority_IsNotPausedByTheContactReaction_OutnumberedItReacts()
+        {
+            foreach (bool superior in new[] { true, false })
+            {
+                var s = new Squad(members: 6);
+                s.PoolMany(superior ? 1 : 12, new Vector3(0f, 60f, 0f));
+                if (!superior)
+                {
+                    ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+                    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                        ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+                    for (int i = 0; i < 12; i++) span[i].Flags |= SquadContact.AnonymousFlag;   // heard: each counts as one armed man
+                }
+                s.Order("{\"Position\":[0,60,0]}", BehaviorNames.InfantrySquadAttack);
+                s.StartSop("BasicSquadSop");
+                for (int i = 0; i < 10; i++) s.Tick();
+                Assert.Equal(BehaviorNames.InfantrySquadAttack, s.TaskName);
+                Assert.Equal(superior, ReactToContactBehavior.PressesTheAttack(s.Repo, s.Commander));
+
+                s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+                for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+                Assert.Equal(superior ? BehaviorNames.InfantrySquadAttack : BehaviorNames.ReactToContact, s.TaskName);
+            }
+        }
     }
 }

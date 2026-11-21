@@ -484,6 +484,23 @@ namespace Hrot.AI.Behaviors.Brains
             return fighting == 1;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — the squad is RUNNING an ordered attack (<see cref="Hrot.AI.Behaviors.Orders.OrderKind.Attack"/>, not paused)
+        /// with two or more men in the fight and still 3 : 1 over its contacts (<see cref="AfterContact.Superior"/>, R4's test): its attack drill IS the answer
+        /// to the contact, so the contact reaction does not pause it, and a casualty waits until the assault is through (doctrine: the attack continues; the
+        /// wounded are treated on the objective). Superiority lost ⇒ false ⇒ the reaction decides again (break contact, hold — R4, R5). 📐 uf-corner-assault:
+        /// 6 v 2 broke contact four times and cycled care while three men bled out. No allocation.
+        /// </summary>
+        public static bool PressesTheAttack(EntityRepository world, Entity self)
+        {
+            var order = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self);
+            return order.Kind == Hrot.AI.Behaviors.Orders.OrderKind.Attack && !order.Paused
+                && AfterContact.LiveMembers(world, self) >= 2 && AfterContact.Superior(world, self, 0f);
+        }
+
+        /// <summary>The care row's guard: <see cref="PressesTheAttack"/> false.</summary>
+        public static bool NotPressingTheAttack(Entity self, EntityRepository world) => !PressesTheAttack(world, self);
+
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
 
