@@ -4,11 +4,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Toolkit.ScenarioRules;
+using Hrot.Common.Messages;
 
 namespace Hrot.UI.Common.Map3D;
-
-/// <summary>Who is looking: the possessed unit's network id and side, and the station (the node id this station posts orders as).</summary>
-public readonly record struct MessageViewer(int UnitNetId, ForceId Side, int StationId);
 
 /// <summary>
 /// ⭐⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-1; SR-106 / SR-121) — the PLAYER's messages: ONE pure model (no ImGui) that both the subtitle and the log read.
@@ -41,19 +39,9 @@ public sealed class PlayerMessages
         return true;
     }
 
-    /// <summary>Is a message to (<paramref name="kind"/>, <paramref name="value"/>) for <paramref name="viewer"/>? Instructor-addressed ones never are, and an unknown kind matches nothing.</summary>
-    public static bool Addressed(string kind, int value, MessageViewer viewer) => kind switch
-    {
-        "All" => true,
-        "Unit" => viewer.UnitNetId != 0 && value == viewer.UnitNetId,
-        "Side" => value == (int)viewer.Side,
-        "Station" => viewer.StationId != 0 && value == viewer.StationId,
-        _ => false,   // "Instructor" and anything else
-    };
-
     /// <summary>The subtitles to show at <paramref name="now"/> (sim seconds): up to <see cref="SubtitleMax"/>, higher priority first, then the newer.</summary>
     public IReadOnlyList<Entry> Active(double now, MessageViewer viewer)
-        => _all.Where(e => Addressed(e.ToKind, e.ToValue, viewer) && now >= e.SentAt && now - e.SentAt <= e.Seconds)
+        => _all.Where(e => PlayerMessageAddressing.Addressed(e.ToKind, e.ToValue, viewer) && now >= e.SentAt && now - e.SentAt <= e.Seconds)
                .OrderByDescending(e => e.Priority).ThenByDescending(e => e.SentAt).ThenByDescending(e => e.MessageId)
                .Take(SubtitleMax).ToList();
 
@@ -62,7 +50,7 @@ public sealed class PlayerMessages
 
     /// <summary>The log for <paramref name="viewer"/>: newest first, at most <see cref="LogCap"/>.</summary>
     public IReadOnlyList<Entry> Log(MessageViewer viewer)
-        => _all.Where(e => Addressed(e.ToKind, e.ToValue, viewer))
+        => _all.Where(e => PlayerMessageAddressing.Addressed(e.ToKind, e.ToValue, viewer))
                .OrderByDescending(e => e.SentAt).ThenByDescending(e => e.MessageId)
                .Take(LogCap).ToList();
 

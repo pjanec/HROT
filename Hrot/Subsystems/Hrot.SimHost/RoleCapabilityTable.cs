@@ -26,7 +26,7 @@ public sealed record RoleTableInputs
     /// <summary>SUMO traffic: <c>Serving()</c> on a node whose world simulates the cars (the editor, the fused server); <c>Mirroring()</c> on a node that only sees them (CGF, SimHost); null for none (the injected arm).</summary>
     public INodeCapability? Traffic { get; init; }
 
-    /// <summary>The gameplay deploy server (Player Join, R-4115). A Brain's. Null on a host that serves no players (the offline editor, SimHost).</summary>
+    /// <summary>The gameplay deploy server (Player Join, R-4115). A Brain's host composes it (CGF, and ⭐ CE-11027 S12-4 the editor, which serves alone over the in-process hub); null on a host that serves no players (SimHost).</summary>
     public INodeCapability? GameplayServer { get; init; }
 }
 

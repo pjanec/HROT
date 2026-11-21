@@ -228,12 +228,17 @@ namespace Hrot.Editor.DebugApi
         /// ⭐ Player Join S1 — <c>GET /deploy</c> / <c>POST /deploy</c>: this node's gameplay client (<see cref="Hrot.Gameplay.DeployFlowSystem"/>), found through the world of whichever
         /// hosted subsystem composed one (the Player's IG). 404 on a node with none.
         /// </summary>
-        public (JsonNode? Result, string? Error, string? HintCategory, int Status) Deploy(JsonNode? body, bool post)
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) Deploy(JsonNode? body, bool post, string? station = null)
         {
+            // ⭐ CE-11027 S12-4 — station (GET: ?station=; POST: the body's "station") = the whole station id, or "node/seat" — reads / drives ONE seat's flow (the gateway's seats are flows of the editor's world, registered or not); none ⇒ the world's own.
+            if (station is null && post && body is JsonObject bo && bo["station"] is JsonValue sv) station = sv.ToString();   // a POST carries it in the body (DESIGN_Debug_Api_Http_Only.md §4)
+            int seat = 0;
+            if (station is not null && !Hrot.Gameplay.DeployFlowApi.TryParseStation(station, out seat))
+                return (null, "station must be a station id (an integer) or node/seat (e.g. 7/2).", DebugApiHints.Panel, 400);
             Hrot.Gameplay.DeployFlowSystem? flow = null;
             if (_dispatcher != null)
                 foreach (var p in _dispatcher.AllProviders)
-                    if (Hrot.Gameplay.DeployFlowSystem.Of(p.World) is { } f) { flow = f; break; }
+                    if ((station is null ? Hrot.Gameplay.DeployFlowSystem.Of(p.World) : Hrot.Gameplay.DeployFlowSystem.Of(p.World, seat)) is { } f) { flow = f; break; }
             if (flow is null) return (null, Hrot.Gameplay.DeployFlowApi.NoFlow, DebugApiHints.Panel, 404);
             if (!post) return (Hrot.Gameplay.DeployFlowApi.Get(flow), null, null, 200);
             var (result, error, status) = Hrot.Gameplay.DeployFlowApi.Post(flow, body);

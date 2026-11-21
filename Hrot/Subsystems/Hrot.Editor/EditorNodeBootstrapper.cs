@@ -275,7 +275,8 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus, lifecycle: () => EntityCreation?.Elm);
 
         // ⭐⭐⭐ CE-4270 B9 (§4.1ag, R-3077): the ONE role table, the same one CGF and the fused server resolve. The editor's row is the fused set with the network
-        //   off and no gameplay server (it serves no players). The injected arm (Stride's mode 1) puts the supplied tier in the Muscle's slot.
+        //   off, and ⭐ CE-11027 S12-4 (Q114 B) the gameplay deploy server too: it serves alone (no election: networkless, so no second server can exist) over the node's in-process
+        //   hub (LocalGameplayHub.Of(world)) — the gateway's seats are client ends of that hub — with its own EntityCreation as the spawner; `gameplay.deploy-server` gates it as on the Brain. The injected arm (Stride's mode 1) puts the supplied tier in the Muscle's slot.
         var plan = Hrot.SimHost.RoleCapabilityTable.Plan(new Hrot.SimHost.RoleTableInputs
         {
             Brain          = new Hrot.CGF.CgfCapabilities.Brain(cgfLogicPack),
@@ -283,6 +284,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
             TrajectoryPool = muscle != null ? _trajectoryPool : null,
             InjectedMuscle = injectedMuscleCapabilities,
             Traffic        = TrafficPack,
+            GameplayServer = new Hrot.Gameplay.GameplayServerPack(creation: () => EntityCreation, local: true),   // ⭐ CE-11027 S12-4: no election, the local hub, the editor's creation pack (resolved lazily: built after the plan)
         });
 
         ResolvedCapabilities = plan.Resolve(EditorCapabilities.DefaultRole);

@@ -10,6 +10,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis3D;
+using Hrot.Common.Messages;
 using Hrot.Common.Orders;
 using Raylib_cs;
 
@@ -80,7 +81,7 @@ namespace Hrot.UI.Common.Map3D
             var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>() : null;
             int net = map is not null && map.TryGetNetworkId(unit, out int id) ? id : 0;
             var side = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(unit) ? w.GetComponentRO<EntityInfo>(unit).ForceId : ForceId.Neutral;
-            int station = map is not null ? (int)new EntityOrders(w, map, geo: null).StationFor(unit) : 0;
+            var station = map is not null ? (Fdp.Core.StationId)new EntityOrders(w, map, geo: null).StationFor(unit) : default;
             return new MessageViewer(net, side, station);
         }
 

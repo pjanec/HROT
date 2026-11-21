@@ -1,6 +1,7 @@
 using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.ScenarioRules;
+using Hrot.Common.Messages;
 using Hrot.UI.Common.Map3D;
 using Xunit;
 
@@ -13,7 +14,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// </summary>
 public sealed class PlayerMessagesTests
 {
-    private static readonly MessageViewer Me = new(UnitNetId: 42, Side: ForceId.Friend, StationId: 7);
+    private static readonly MessageViewer Me = new(UnitNetId: 42, Side: ForceId.Friend, StationId: (StationId)7);
 
     private static PlayerMessageEvent M(int id, string kind = "All", int value = 0, string text = "hello", float seconds = 6f, byte priority = 0, double at = 10, int origin = 0)
         => new() { MessageId = id, OriginNodeId = (Fdp.Core.NodeId)origin, ToKind = kind, ToValue = value, Text = text, Seconds = seconds, Priority = priority, SentAt = (SimInstant)at };
@@ -33,6 +34,52 @@ public sealed class PlayerMessagesTests
         p.Record(M(9, "Bogus", 42));                         // an unknown kind matches nothing
         Assert.Equal(new[] { 1, 2, 4, 6 }, p.Log(Me).Select(e => e.MessageId).OrderBy(x => x));
         Assert.Equal(new[] { 1 }, p.Log(default).Select(e => e.MessageId));   // no unit, no station: only All (no side message is addressed to a nobody)
+    }
+
+    /// <summary>
+    /// ⭐ CE-11027 S12-4 (Q114 I) — THE addressing rule (<c>Hrot.Common.Messages.PlayerMessageAddressing</c>, below Presentation so the gateway asks it too): every address kind against a viewer on station index 0 and one on
+    /// index 2 of the SAME node — a Station address is the whole station id, so seat 0 and seat 2 each get only their own. 🔴 Mutation: <c>Station</c> compared on the node alone ⇒ seat 2 also gets seat 0's message ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11027_TheAddressingRule_EveryKind_AgainstASeatAtIndex0AndOneAtIndex2()
+    {
+        var node = (NodeId)7;
+        var seat0 = new MessageViewer(42, ForceId.Friend, StationId.Of(node));
+        var seat2 = new MessageViewer(42, ForceId.Friend, StationId.Of(node, 2));
+        int a0 = StationId.Of(node).Value, a2 = StationId.Of(node, 2).Value, other = StationId.Of((NodeId)8, 2).Value;
+        Assert.NotEqual(a0, a2);
+        foreach (var v in new[] { seat0, seat2 })
+        {
+            Assert.True(PlayerMessageAddressing.Addressed("All", 0, v));
+            Assert.True(PlayerMessageAddressing.Addressed("Unit", 42, v));      Assert.False(PlayerMessageAddressing.Addressed("Unit", 43, v));
+            Assert.True(PlayerMessageAddressing.Addressed("Side", (int)ForceId.Friend, v)); Assert.False(PlayerMessageAddressing.Addressed("Side", (int)ForceId.Hostile, v));
+            Assert.False(PlayerMessageAddressing.Addressed("Station", other, v));
+            Assert.False(PlayerMessageAddressing.Addressed("Instructor", 0, v)); Assert.False(PlayerMessageAddressing.Addressed("Bogus", 42, v));
+        }
+        Assert.True(PlayerMessageAddressing.Addressed("Station", a0, seat0));  Assert.False(PlayerMessageAddressing.Addressed("Station", a2, seat0));
+        Assert.True(PlayerMessageAddressing.Addressed("Station", a2, seat2));  Assert.False(PlayerMessageAddressing.Addressed("Station", a0, seat2));
+        Assert.False(PlayerMessageAddressing.Addressed("Station", 0, default));   // the unknown station matches nothing, even for 0
+        Assert.False(PlayerMessageAddressing.Addressed("Unit", 0, default));
+
+        // through the map's log (the same rule): seat 2 reads only the message to seat 2
+        var p = new PlayerMessages();
+        p.Record(M(1, "Station", a0)); p.Record(M(2, "Station", a2));
+        Assert.Equal(new[] { 1 }, p.Log(seat0).Select(e => e.MessageId));
+        Assert.Equal(new[] { 2 }, p.Log(seat2).Select(e => e.MessageId));
+    }
+
+    /// <summary>
+    /// ⭐ CE-11027 S12-4 (Q114 I) — ONE rule: the map's <c>PlayerMessages</c> carries no rule of its own, it asks <c>PlayerMessageAddressing</c>. 🔴 Mutation: a private copy of the switch put back into
+    /// <c>PlayerMessages.cs</c> (or its call site pointed at it) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11027_TheMapHasNoPrivateCopyOfTheAddressRule()
+    {
+        var src = System.IO.File.ReadAllText(System.IO.Path.Combine(Fdp.Testing.TestRepo.Root, "Hrot", "Engine", "Hrot.Presentation", "Map3D", "PlayerMessages.cs"));
+        Assert.Contains("PlayerMessageAddressing.Addressed(", src);
+        Assert.DoesNotContain("\"Instructor\"", src.Replace("Instructor-addressed", ""));   // the rule's own words stay in Hrot.Common
+        Assert.DoesNotContain("kind switch", src);
+        Assert.DoesNotContain("static bool Addressed", src);
     }
 
     [Fact]
