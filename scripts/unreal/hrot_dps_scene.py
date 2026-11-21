@@ -162,6 +162,29 @@ def run():
             if not look: continue
             person_extras(w, i)   # (sets the test-only always-refresh on its body)
             R.setdefault("looks", []).append([round(scene, 2), i, look])
+    snd_job = JOB.get("sound")   # U-18n: the soundscape - rain / night / volumes set once, the game's mixed output recorded to WAV at sim times
+    if snd_job and scene >= 0:
+        gw = UES().get_game_world()
+        if not S.get("snd_set"):
+            S["snd_set"] = True
+            for k, cv in (("rain", "hrot.snd.Rain"), ("wind", "hrot.snd.Wind"), ("night", "hrot.snd.Night")):
+                if k in snd_job: unreal.SystemLibrary.execute_console_command(gw, f"{cv} {snd_job[k]}")
+            rr_ = unreal.HrotShotRenderer.for_world(gw)
+            log(f"sound: world audio active {rr_.activate_world_audio() if rr_ else None}")
+        recs = snd_job.get("record", [])
+        if S.get("rec_on") and time.time() >= S["rec_on"][1]:
+            nm = S.pop("rec_on")[0]
+            unreal.AudioMixerLibrary.stop_recording_output(gw, unreal.AudioRecordingExportType.WAV_FILE, f"dps-{nm}", JOB["shots"].replace("\\", "/") + "/")
+            sc_ = unreal.HrotSoundscape.for_world(gw)
+            R.setdefault("recordings", []).append({"name": f"dps-{nm}.wav", "end": round(scene, 2), "soundscape": sc_.describe() if sc_ else None})
+            log(f"sound: recorded dps-{nm}.wav at scene {scene:.1f} s - {sc_.describe() if sc_ else '(no soundscape)'}")
+        elif not S.get("rec_on") and recs and scene >= recs[0]["at"]:
+            rc = recs.pop(0)
+            for k, cv in (("rain", "hrot.snd.Rain"), ("wind", "hrot.snd.Wind"), ("night", "hrot.snd.Night")):   # a recording may set its own weather
+                if k in rc: unreal.SystemLibrary.execute_console_command(gw, f"{cv} {rc[k]}")
+            unreal.AudioMixerLibrary.start_recording_output(gw, float(rc["seconds"]))
+            S["rec_on"] = (rc["name"], time.time() + float(rc["seconds"]))
+            log(f"sound: recording {rc['name']} for {rc['seconds']} s from scene {scene:.1f} s")
     if S.get("await_file"):   # ⚠ measured (U-18e): the screenshot is taken at a LATER render — the next camera move before its file exists
         path, t0 = S["await_file"]  # changed the earlier picture (two close pictures came out the same)
         if not (os.path.exists(path) and os.path.getsize(path) > 0) and time.time() - t0 < 20: return
@@ -274,6 +297,8 @@ def run():
                                                 "people": {str(i): [w.person_look(i), person_extras(w, i)] for i in w.entity_ids() if w.person_look(i)}}
         R.setdefault("framesAtPicture", {})[name] = [S.get("nf", 0), round(time.time() - S.get("f0", time.time()), 2)]   # U-18i: fps per interval
         if S.get("rig"): R.setdefault("rigAtPicture", {})[name] = S["rig"].describe()
+        sc_ = unreal.HrotSoundscape.for_world(UES().get_game_world())   # U-18n
+        if sc_: R.setdefault("soundAtPicture", {})[name] = sc_.describe()
         R.setdefault("lifeAtPicture", {})[name] = {"fires": w.fire_summary(), "movers": [w.movers_known(), w.movers_drawn()],
                                                     "riders": w.riders_now(), "walkers": w.walkers_drawn(),
                                                     "jets": list(w.jet_shooter_ids()), "animals": {str(i): w.describe(i) for i in w.animal_ids()}}

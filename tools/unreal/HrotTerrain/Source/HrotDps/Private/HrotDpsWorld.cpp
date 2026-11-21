@@ -5,6 +5,7 @@
 #include "HrotDpsSubsystem.h"
 #include "HrotVehicle.h"
 #include "HrotShotRenderer.h"
+#include "HrotSoundscape.h"
 #include "HrotExplosionFx.h"
 #include "HrotMissile.h"
 #include "NiagaraComponent.h"
@@ -312,6 +313,9 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 		if (AHrotVehicle* V = Shooter ? Cast<AHrotVehicle>(Shooter->Actor.Get()) : nullptr)
 		{
 			V->FireMainGun();   // the kit's tuned flash, blast and smoke at its own muzzle (the turret follows Articulation)
+			if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n: the main gun's report (the library's howitzer)
+				if (R) R->PlaySound(Snd->Pick(TEXT("wpn/howitzer")), V->Kit && !V->Kit->Muzzle.IsNearlyZero() ? V->MuzzleTransform().GetLocation() : From,
+				                    Snd->Falloff(30.f, 6000.f), nullptr, 1.f, D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryTankGun ? 1.08f : 1.f);
 			Shooter->MainGunAt = Real;
 			Count(TEXT("main gun"));
 		}
@@ -337,6 +341,12 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 		// HROT draws no tracer for small arms (FireStreams covers machine guns and autocannons only)
 		if (R) R->PlaySound(RifleFx.Sound, From, RifleFx.SoundAttenuation, RifleFx.SoundConcurrency, RifleFx.SoundVolume, RifleFx.SoundPitch);
 		Count(TEXT("rifle shot"));
+		return;
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket:
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm:
+		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n: the launch (the round itself is an entity, drawn as such)
+			if (R) R->PlaySound(Snd->Pick(TEXT("wpn/rpg")), From, Snd->Falloff(10.f, 1500.f));
+		Count(TEXT("rocket launch"));
 		return;
 	default:
 		Count(TEXT("fire of another category"));   // rockets, missiles, grenades: their rounds are entities (Round), drawn as such
@@ -368,7 +378,10 @@ void UHrotDpsWorld::OnImpact(const FHrotDpsSample& S)
 	// chips / dust of Lyra's impact system (the shot renderer's budget)
 	if (R)
 	{
-		R->PlaySound(RifleFx.ImpactSound, At, RifleFx.ImpactAttenuation, RifleFx.ImpactConcurrency);
+		// U-18n: the surface's own hit (metal, armour, stone, wood, glass, flesh) from the IG's library, else Lyra's default
+		UHrotSoundscape* Snd = UHrotSoundscape::Get(this);
+		USoundBase* Hit = Snd ? Snd->ImpactFor(D.Material[0] ? UTF8_TO_TCHAR(D.Material) : TEXT("")) : nullptr;
+		R->PlaySound(Hit ? Hit : RifleFx.ImpactSound.Get(), At, Hit ? Snd->Falloff(2.f, 150.f) : RifleFx.ImpactAttenuation.Get(), RifleFx.ImpactConcurrency);
 		if (RifleFx.Impact && FVector::Dist(At, R->ViewLocation()) < R->ImpactRange && R->TakeBudget(UHrotShotRenderer::EExtra::Impact))
 			if (UNiagaraComponent* C = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), RifleFx.Impact, At, FRotator::ZeroRotator, FVector::OneVector,
 			                                                                        false, false, ENCPoolMethod::AutoRelease))
@@ -1056,6 +1069,7 @@ AActor* UHrotDpsWorld::SpawnAnimal(FEnt& E, const FTransform& At)
 	}
 	AHrotAnimal* A = GetWorld()->SpawnActorDeferred<AHrotAnimal>(AHrotAnimal::StaticClass(), At, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	A->Kind = Kind;
+	A->Family = FName(*Family);   // U-18n: what it sounds like
 	A->FinishSpawning(At);
 	const float Scale = AnimalScales.FindRef(Family);
 	A->SetActorScale3D(FVector(Scale > 0 ? Scale : 1.f));

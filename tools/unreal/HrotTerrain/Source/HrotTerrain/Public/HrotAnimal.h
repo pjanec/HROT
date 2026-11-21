@@ -58,6 +58,8 @@ public:
 	AHrotAnimal();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Animal") TObjectPtr<UHrotAnimalKind> Kind;
+	/** HROT's family (Horse, Pig, Poultry, Bird, ...) - what it sounds like (UHrotSoundscape, U-18n); the kind is only how it looks */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Animal") FName Family;
 
 	// ---- the STATE (HROT's): write the fields, then ApplyState — or call SetState ------------------------------------------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Animal") EHrotAnimalState State = EHrotAnimalState::Idle;

@@ -1,5 +1,9 @@
 // CE-4651 (U-16) — see the header.
 #include "HrotShotRenderer.h"
+#include "Misc/App.h"
+#if WITH_EDITOR
+#include "Settings/LevelEditorMiscSettings.h"
+#endif
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
@@ -135,6 +139,12 @@ bool UHrotShotRenderer::ActivateWorldAudio()
 	if (!H.IsValid()) return false;
 	// ⚠ measured: SetActiveDevice did not hold (the editor picks the active device again from window focus) — SOLO wins over that
 	M->SetSoloDevice(H.GetDeviceID());
+	// ⚠ measured (U-18n): a hidden, unfocused editor still mixes to exact digital silence — the unfocused volume multiplier is 0 and
+	// background audio is off; Movie Render Queue lifts both the same way to record audio (MovieGraphDefaultAudioRenderer.cpp)
+	FApp::SetUnfocusedVolumeMultiplier(1.f);
+#if WITH_EDITOR
+	if (ULevelEditorMiscSettings* Misc = GetMutableDefault<ULevelEditorMiscSettings>()) Misc->bAllowBackgroundAudio = true;
+#endif
 	return true;
 }
 

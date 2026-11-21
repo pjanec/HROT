@@ -4,6 +4,7 @@
 #include "Components/DecalComponent.h"
 #include "Engine/World.h"
 #include "HrotShotRenderer.h"
+#include "HrotSoundscape.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraFunctionLibrary.h"
@@ -97,7 +98,14 @@ bool UHrotExplosionFx::ExplodeWith(UObject* WorldContext, FVector Location, FVec
 		static USoundBase* Bang = LoadRooted<USoundBase>(TEXT("/Game/Audio/Sounds/Explosions/MSS_Explosions_Grenade.MSS_Explosions_Grenade"));
 		static USoundAttenuation* Att = LoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_Grenade.ATT_Grenade"));
 		const FBlastSound S = Sound(Kind);
-		R->PlaySound(Bang, Location, Att, nullptr, S.Volume, S.Pitch);
+		// U-18n: the bigger blasts from the IG's library (a real rocket, mortar and shell); the grenade stays Lyra's; near ones rattle
+		UHrotSoundscape* Snd = UHrotSoundscape::Get(WorldContext);
+		USoundBase* Big = !Snd ? nullptr : Kind == EHrotBlast::Rocket ? Snd->Pick(TEXT("expl/medium")) :
+		                  (Kind == EHrotBlast::Mortar || Kind == EHrotBlast::TankHE) ? Snd->Pick(TEXT("expl/mine")) : nullptr;
+		if (Big) R->PlaySound(Big, Location, Snd->Falloff(40.f, 8000.f), nullptr, 1.f, Kind == EHrotBlast::TankHE ? 0.92f : 1.f);
+		else R->PlaySound(Bang, Location, Att, nullptr, S.Volume, S.Pitch);
+		if (Snd && FVector::Dist(Location, R->ViewLocation()) < 6000.f)
+			R->PlaySound(Snd->Pick(TEXT("expl/debris_rattle")), Location, Snd->Falloff(5.f, 80.f), nullptr, 0.6f);
 	}
 	if (R && (FVector::Dist(Location, R->ViewLocation()) > R->BlastRange || !R->TakeBudget(UHrotShotRenderer::EExtra::Blast))) return false;
 
