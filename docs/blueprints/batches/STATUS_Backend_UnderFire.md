@@ -81,4 +81,5 @@ run reddened; every source is touched after a restore now. Every verdict above w
 | D-UF7a | any live `EntityInfo` entity of a side witnesses, Neutral included | KG-3 says "a live unit of that side"; restrict to combatants if civilians' records cost too much replication |
 | D-SP1a | the solve plans whenever its node has a navmesh (the early return before planning now needs no navmesh too) | a clear route must still carry its steer; costs one plan per refresh on a road-less map — revisit if the solver's budget shows it |
 | D-SP1b | no steer for the straight fallback | a straight line is not a priced path; the bound keeps its own straight line then (behaviors' fallback) |
+| D-UF4a | the published sight (`UnderFireSightHolder`) is NOT in checkpoints; after a restore it is rebuilt on the next serial pass | it is derived from recorded records; ⚠ until that pass a query reads the pre-restore cover — tracked as [CE-3491](../Blueprint_Issues_Tracker.md) (measure the window; rebuild at the restore if it exists) |
 
