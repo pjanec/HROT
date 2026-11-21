@@ -14,7 +14,7 @@ related-designs:
   - UX/DESIGN_Editing_UX.md — OWNS the editing UX (inventory behind §14, the target design, the Details-tab review)
   - PLAN_Dynamic_Terrain.md — OWNS §2b's programme: the tasks (CE-4596…CE-4604), their order and gates; the designs DESIGN_Ground_Patches_And_Road_Blockage.md and DESIGN_Vehicle_Breaching.md
   - USAGES.md — OWNS what PEOPLE use the engine for and what it saves them (demo films, QA bug illustration, reviews, scenarios as tests …)
-  - ../README.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools)
+  - TECHNICAL_OVERVIEW.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools); ../README.md is the product page
 -->
 
 # What HROT can do
@@ -27,21 +27,21 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   design is ruled and its tasks are filed, the build has not started (it will come soon).
 - **Deeper:** the rules behind each bullet, with code and design links, are in [OVERVIEW_Rules_And_Demos.md](OVERVIEW_Rules_And_Demos.md).
   The machinery is in [OVERVIEW_Behaviour_Building_Blocks.md](OVERVIEW_Behaviour_Building_Blocks.md). The engine architecture is in the
-  [README](../README.md).
+  [Technical overview](TECHNICAL_OVERVIEW.md).
 - **Films:** [PLAN_Feature_Films.md](PLAN_Feature_Films.md) lists the clips that show each chapter.
 
-## 1. The engine — in one screen *(depth: [README](../README.md))*
+## 1. The engine — in one screen *(depth: [Technical overview](TECHNICAL_OVERVIEW.md))*
 
-- **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (README §2)
-- **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the image generator (IG), the instructor station,
-  traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (README §3, §9)
+- **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (Technical overview §2)
+- **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the 2-D map, the instructor station,
+  traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (Technical overview §3, §9)
 - **Brain and muscle are split:** the AI decides (intent), the simulation acts and reports back (status).
 - **Replication** over CycloneDDS with per-component translators, ownership transfer and dead reckoning, so every node sees the same
-  world. (README §6)
-- **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (README §10)
+  world. (Technical overview §6)
+- **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (Technical overview §10)
 - **AI authoring three ways:** behaviour trees, state machines (HSM) and blueprint visual scripts, with utility decisions and an
-  environment query system (EQS). (README §4, §5, §7)
-- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (README §8) — what it is used for: §1a
+  environment query system (EQS). (Technical overview §4, §5)
+- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (Technical overview §8) — what it is used for: §1a
 - **Tools:** the scenario editor (author, run, step and save in one process); missions and the order of battle (ORBAT) in panels; HTTP
   diagnostics and an MCP server so an AI agent can drive the engine; **filming** — the film director, §1a
   ([RUNBOOK_Filming.md](RUNBOOK_Filming.md)).
@@ -144,7 +144,8 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
 - **A flame tank burns men in a building through its opening, within the rules of engagement** ✅ (CE-3486 FL-2): the M67 (TKB 117) throws its flame INTO a window and lights who is inside on its line, never one behind the wall; no flame is released with a civilian anywhere in it (Protocol III, AW-20's rule run over the flame) nor where the ROE forbids incendiaries (`Roe.Incendiary`, down the chain; a police force's non-lethal cap holds it already). ▶ ✅ `fl-clear-the-bunker` (4 / 4) · ✅ `fl-roe-holds` (9 / 9, each hold beside a control)
 - **A napalm strike burns men and leaves the ground burning** ✅ (CE-3487 FL-3): an A-10 with Mk 77 firebombs (TKB 410) lays an 80 × 25 m ellipse of fire along its run — every man inside is set alight at once, the ground burns 300 s (it burns whoever walks into it later) under a smoke cloud, and a burned patch is left; never released with a civilian inside the ellipse. ▶ ✅ `fl-napalm-strike` (7 / 7)
 - **A timber house burns, and the men inside it** ✅ (CE-3488 FL-4): a flame jet held 2 s on a timber wall, or a napalm ellipse reaching the house, sets it alight — one fire over its footprint held on the building's damage record, burning its walls' time (600 s), and it burns whoever is inside even where the jet could not reach; brick, concrete and stone never burn. ▶ ✅ `fl-timber-house` (6 / 6, under the parallel checks too)
-- **A dragon flies, lands and breathes fire** ⚠ (CE-4634 D-1, R-3112, fun pack): a rotorcraft on four legs (TKB 411) — takes off, flies a route, lands on its legs and takes off again; its breath (a flamethrower on its neck turret, from the mouth, 50 m) burns the men in front of it, never its own pillion; it is fireproof and an aircraft to radar. A player can fly it (*Drive*) or ride its firing pillion (the existing mechanisms). ▶ ✅ `dr-dragon-flight` (4 / 4) · ✅ `dr-dragon-breath` (8 / 8) · ✅ its 3-D look (D-4: wings beat / glide / fold, the neck aims the breath from the drawn mouth, riders astride — `DragonModelRail`) · ⏳ its autonomous attack (CE-3490 design), its roar and wingbeat sounds, its 2-D symbol (ui)
+- **A dragon flies, lands and breathes fire** ⚠ (CE-4634 D-1, R-3112, fun pack): a rotorcraft on four legs (TKB 411) — takes off, flies a route, lands on its legs and takes off again; its breath (a flamethrower on its neck turret, from the mouth, 50 m) burns the men in front of it, never its own pillion; it is fireproof and an aircraft to radar. A player can fly it (*Drive*) or ride its firing pillion (the existing mechanisms). ▶ ✅ `dr-dragon-flight` (4 / 4) · ✅ `dr-dragon-breath` (8 / 8) · ⏳ its autonomous attack (CE-3490 design), its look and roar (ui)
+- **A dragon (or any rotorcraft with a flamethrower) attacks on its own** ✅ (CE-3490, R-8012; [DESIGN_Breath_Attack.md](designs/air-attack/DESIGN_Breath_Attack.md) §7): ordered to attack a man it STRAFES — in at 60 m, down to 12 m and 10 m/s, breathing only inside its 50 m reach, over him, out and up, and back on a line 120° round, the line laid along the row of men it sees; ordered to strike a timber building it HOVERS 25 m off the nearest burnable wall and breathes on it 3 s; it never breathes on what cannot burn (brick, an armoured hull, an aircraft), nor under an ROE forbidding incendiaries, nor while a civilian is inside the flame it would throw. Scenarios ✅ `dr-dragon-attack` · `dr-dragon-village` · `dr-dragon-holds` (also under the parallel checks). ⭐ **The FLAME HELICOPTER** (TKB 412 "AH-64 (flame)", BA-9, R-8013): the AH-64 with a chin flame projector (60 m) and its Hydra pod — it breathes on men and rockets armour; scenario ✅ `ah-flame-attack`
 - **Vehicles show their hatches, doors, ramps and lights to every renderer** ✅ (CE-4670 VA-S2 / VA-S3): a carrier's ramp opens as its squad dismounts and closes after (`uc-convoy-hit`); a crew's light discipline at night — head and tail lights when dark, the convoy marker, or blacked out (`va-lights-night`); an aircraft's beacon while its engine runs; each type's openings and light groups come from its class, overridable per type; replicated to every node and a late joiner. ⭐ A crewman can put his head out of his hatch (it stays open, he rides exposed) and a station can switch the light discipline — both as requests carried to the vehicle's owner; brake lights are derived by each renderer from deceleration (`VehicleLook.Lights`). ⚠ no scenario yet for head out / the switch: nothing ASKS for them until behaviors' SOP / orders do (rails only); ⏳ our 3D map drawing openings and lights (ui), the searchlight's aim, interior and landing lights (CE-3475). 📄 [DESIGN_Vehicle_Appearance_State.md §6a–§6b](designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md)
 - **A vehicle's partial damage and how it was destroyed are simulation state every renderer reads alike** ✅ (CE-4670 VA-S1): a destroyed track, engine or gun is a part state by its zone's threshold, and a kill is KnockedOut / BurntOut / Catastrophic from the part the killing hit landed on and the type's stowage (a T-72's hull carousel throws its turret) — replicated, the same for a late joiner, drawn on our 3D map (`va-tank-kill-kinds`; `Hrot.Look.Vehicles.VehicleLook`)
 - **Weather changes what units sense:** night and fog shorten sight, thermal ignores night but not fog, wind and rain cover sound,
@@ -682,5 +683,5 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
   clearer cuts a lane (▶ ✅ `mf-engineers-answer`; ⏳ `mf-clear-lane-and-cross` — the whole chain — and `mf-knowledge-survives`, waiting on the
   replay seek fix CE-5041)
 - 🎉 *(2026-11-19, the fun pack)* **The dragon** — it flies, lands, roars and breathes fire (the flame weapons' jet on a neck turret); its look is
-  built; its attack pattern (strafing passes, hovering at a building) awaits approval ([DESIGN_Dragon](designs/fun/DESIGN_Dragon.md), CE-4634)
+  built; it attacks on its own — strafing passes at men and soft vehicles, a hover at a burnable building (CE-3490); the same pattern flies the flame helicopter, TKB 412 "AH-64 (flame)" ([DESIGN_Dragon](designs/fun/DESIGN_Dragon.md), CE-4634; [DESIGN_Breath_Attack](designs/air-attack/DESIGN_Breath_Attack.md))
 
