@@ -9,6 +9,11 @@
 	"Modules": [
 		{
 			"Name": "HrotTerrain",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "HrotTerrainEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
 		},

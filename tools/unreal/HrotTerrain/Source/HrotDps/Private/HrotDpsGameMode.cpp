@@ -10,6 +10,9 @@
 #include "Engine/SkeletalMesh.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "TimerManager.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "HAL/IConsoleManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotDpsGame, Log, All);
 
@@ -49,4 +52,32 @@ void AHrotDpsGameMode::StartPlay()
 	if (!bJoinOnPlay && !bD && !bP && !bTravel) return;
 	if (W->Start(D, P)) { UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: joined the station, domain %d partition '%s'"), D, *P); }
 	else { UE_LOG(LogHrotDpsGame, Error, TEXT("HROT IG: could not join domain %d partition '%s'"), D, *P); }
+	// U-18s: the packaged client's own report (no Python there)
+	float Every = 0, ShotAt = 0, QuitAt = 0;
+	FTimerManager& T = GetWorldTimerManager();
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgStatusEvery="), Every) && Every > 0) T.SetTimer(StatusTimer, this, &AHrotDpsGameMode::LogStatus, Every, true);
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgShotAt="), ShotAt) && ShotAt > 0)
+		T.SetTimer(ShotTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			LogStatus();
+			UKismetSystemLibrary::ExecuteConsoleCommand(this, TEXT("HighResShot 1"));
+			UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: screenshot taken (Saved/Screenshots)"));
+		}), ShotAt, false);
+	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgQuitAt="), QuitAt) && QuitAt > 0)
+		T.SetTimer(QuitTimer, FTimerDelegate::CreateWeakLambda(this, [this]() { LogStatus(); UKismetSystemLibrary::QuitGame(this, nullptr, EQuitPreference::Quit, false); }), QuitAt, false);
+}
+
+void AHrotDpsGameMode::EndPlay(const EEndPlayReason::Type Why)
+{
+	GetWorldTimerManager().ClearAllTimersForObject(this);
+	Super::EndPlay(Why);
+}
+
+void AHrotDpsGameMode::LogStatus()
+{
+	const UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+	if (!W) return;
+	UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG status: level %s | %d entities, %d movers, %d spawned | terrain '%s' | ClientWorld %s | clock %s | events %d kinds"),
+		*GetWorld()->GetMapName(), W->EntityIds().Num(), W->MoversKnown(), W->SpawnedTotal(), *W->StationTerrain(), *W->DescribeClientWorld(), *W->DescribeClock(),
+		W->EventCounts().Num());
 }

@@ -1,4 +1,5 @@
-// CE-4651 — the HROT terrain import for the Unreal image generator.
+// CE-4651 — the HROT terrain import for the Unreal image generator. U-18s: the EDITOR module (HrotTerrainEditor) — a packaged client has none of it;
+// PoseNow / AddPersonState forward to the runtime UHrotRuntimeLibrary (kept here so the scripts keep calling unreal.HrotTerrainLibrary).
 #pragma once
 
 #include "CoreMinimal.h"
@@ -16,7 +17,7 @@ class UMaterialInterface;
  * frame is checkable outside Unreal and nothing is resampled here.
  */
 UCLASS()
-class HROTTERRAIN_API UHrotTerrainLibrary : public UBlueprintFunctionLibrary
+class HROTTERRAINEDITOR_API UHrotTerrainLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 

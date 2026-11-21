@@ -23,7 +23,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "HrotPersonKit.h"
 #include "HrotPersonAnimInstance.h"
-#include "HrotTerrainLibrary.h"
+#include "HrotRuntimeLibrary.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimSequence.h"
@@ -786,7 +786,7 @@ AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 		if (UCharacterMovementComponent* CM = Cast<UCharacterMovementComponent>(C)) { CM->GravityScale = 0.f; CM->SetComponentTickEnabled(false); CM->Deactivate(); }
 		if (USceneComponent* SC = Cast<USceneComponent>(C); SC && K->HideComponents.Contains(SC->GetFName())) { SC->SetVisibility(false, true); SC->SetHiddenInGame(true, true); }
 	}
-	UHrotPersonState* St = UHrotTerrainLibrary::AddPersonState(A);
+	UHrotPersonState* St = UHrotRuntimeLibrary::AddPersonState(A);
 	St->AimTurnRate = 0.f;   // the aim is eased here, on SIM time (HROT's 0.12 s), not by the anim instance's own rate
 	St->WeaponSocket = K->WeaponSocket;
 	St->WeaponOffset = K->WeaponOffset;

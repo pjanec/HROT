@@ -18,12 +18,13 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Engine/Blueprint.h"
 #include "HrotPersonAnimInstance.h"
+#include "HrotRuntimeLibrary.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Modules/ModuleManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotTerrain, Log, All);
 
-IMPLEMENT_MODULE(FDefaultModuleImpl, HrotTerrain)
+IMPLEMENT_MODULE(FDefaultModuleImpl, HrotTerrainEditor)
 
 ALandscape* UHrotTerrainLibrary::ImportHeights(const FString& R16Path, int32 SizeX, int32 SizeY, int32 QuadsPerSection,
 	int32 SectionsPerComponent, FVector LocationCm, FVector ScaleCm, const FString& Label)
@@ -216,25 +217,6 @@ UClass* UHrotTerrainLibrary::BlueprintFromActor(AActor* Actor, const FString& As
 	return Bp->GeneratedClass;
 }
 
-UHrotPersonState* UHrotTerrainLibrary::AddPersonState(AActor* Actor)
-{
-	if (!Actor) return nullptr;
-	if (UHrotPersonState* Existing = Actor->FindComponentByClass<UHrotPersonState>()) return Existing;
-	UHrotPersonState* St = NewObject<UHrotPersonState>(Actor, TEXT("HrotPersonState"), RF_Transactional);
-	Actor->AddInstanceComponent(St);
-	St->RegisterComponent();
-	return St;
-}
+UHrotPersonState* UHrotTerrainLibrary::AddPersonState(AActor* Actor) { return UHrotRuntimeLibrary::AddPersonState(Actor); }
 
-void UHrotTerrainLibrary::PoseNow(USkeletalMeshComponent* Mesh, float Seconds, int32 Steps)
-{
-	if (!Mesh) return;
-	if (!Mesh->GetAnimInstance()) Mesh->InitAnim(true);
-	const int32 N = FMath::Max(1, Steps);
-	for (int32 I = 0; I < N; ++I)
-	{
-		Mesh->TickAnimation(Seconds / N, false);
-		Mesh->RefreshBoneTransforms();
-	}
-	Mesh->MarkRenderDynamicDataDirty();
-}
+void UHrotTerrainLibrary::PoseNow(USkeletalMeshComponent* Mesh, float Seconds, int32 Steps) { UHrotRuntimeLibrary::PoseNow(Mesh, Seconds, Steps); }

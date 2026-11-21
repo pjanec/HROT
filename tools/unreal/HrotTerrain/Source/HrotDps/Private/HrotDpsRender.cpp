@@ -22,7 +22,9 @@
 #include "AudioMixerSubmix.h"
 #include "AudioMixerPlatformNonRealtime.h"
 #include "ContentStreaming.h"
-#include "ShaderCompiler.h"
+#if WITH_EDITOR
+#include "ShaderCompiler.h"   // the warm-up flushes shader compiles (a packaged client has them cooked)
+#endif
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/FileManager.h"

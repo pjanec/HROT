@@ -4,6 +4,9 @@
 // the empty partition), overridden by -HrotDpsDomain=<n> -HrotDpsPartition=<name> on the command line.
 // The look: the content the IG draws with (person kit, civilian kits, the default missile, the stand-in body) applied to UHrotDpsWorld where
 // the world has none of its own — the same set the scene harness uses.
+// U-18s — a PACKAGED client has no Python to drive it, so it reports on itself from the command line: -HrotIgStatusEvery=<s> logs a status
+// line ("HROT IG status: …" — entities, the clock, ClientWorld, the station's terrain), -HrotIgShotAt=<s> takes a screenshot (HighResShot,
+// <Saved>/Screenshots), -HrotIgQuitAt=<s> quits — seconds after play starts.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -17,6 +20,7 @@ class HROTDPS_API AHrotDpsGameMode : public AGameModeBase
 public:
 	AHrotDpsGameMode();
 	virtual void StartPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Why) override;
 
 	/** join the station when play starts */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bJoinOnPlay = true;
@@ -28,4 +32,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<class UHrotMissileKind> DefaultMissileKind;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<USkeletalMesh> PersonMesh;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UAnimationAsset> PersonClip;
+
+private:
+	FTimerHandle StatusTimer, ShotTimer, QuitTimer;
+	void LogStatus();
 };

@@ -10,10 +10,13 @@ class FHrotDpsModule : public IModuleInterface
 
 	virtual void StartupModule() override
 	{
+		// the editor: the plugin's Binaries; U-18s a PACKAGED client: next to the executable (RuntimeDependencies stage it to $(BinaryOutputDir))
 		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("HrotTerrain"));
-		const FString Dll = FPaths::Combine(Plugin ? Plugin->GetBaseDir() : FString(), TEXT("Binaries/Win64/ddsc.dll"));
-		Ddsc = FPlatformProcess::GetDllHandle(*Dll);
-		UE_CLOG(!Ddsc, LogTemp, Error, TEXT("HrotDps: cannot load %s (run scripts/unreal/dps_gen.py and rebuild)"), *Dll);
+		const FString InPlugin = FPaths::Combine(Plugin ? Plugin->GetBaseDir() : FString(), TEXT("Binaries/Win64/ddsc.dll"));
+		const FString ByExe = FPaths::Combine(FPlatformProcess::BaseDir(), TEXT("ddsc.dll"));
+		for (const FString& Dll : { InPlugin, ByExe })
+			if (FPaths::FileExists(Dll) && (Ddsc = FPlatformProcess::GetDllHandle(*Dll)) != nullptr) break;
+		UE_CLOG(!Ddsc, LogTemp, Error, TEXT("HrotDps: cannot load ddsc.dll from %s or %s (run scripts/unreal/dps_gen.py and rebuild)"), *InPlugin, *ByExe);
 	}
 
 	virtual void ShutdownModule() override
