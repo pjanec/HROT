@@ -70,9 +70,20 @@ silence · `frames: map` ignored · no fault check · no 2-D check · `Attach` w
 feature scenario exists in `scripts/scenario-regression.sh`'s set — ⭐ the one to add: `showcases/player-station` with a promoted take
 rendered twice (map, then the gateway's reference client), the acceptance in the linked-client design §3.
 
-## 5. Red-proofs, batch 2
+## 5. Red-proofs, batch 2 — 7 / 7 red
 
-(filled when the run ends)
+| mutation (each compiles) | rail that went red |
+|---|---|
+| T1 the re-anchor gated on Stepping instead of Continuous | `MasterSyncControllerTests.CE11019_*` |
+| R1 the handler asks for the world only when NO terrain is named | `ReferenceHandlerTests.CE11025_*` |
+| R2 the knowledge base among the replay's world parts | `LoadPhaseChainTests.CE11025_*` |
+| R3 a replay reads the staged scenario's overlay | `TerrainLoadStepTests.CE11025_*` |
+| R4 the composition never hands the chain to the replay handler | `EveryEcsHostComposesTheLoadPhaseChainRails.CE11025_*` |
+| R5 the per-frame drain never checks the replay's world | `LoadPhaseChainTests.CE11025_*` |
+| E1 the impact kind not stamped | `EffectStateTests.CE11024_*` |
+
+⚠ The first try of T1 and R1 used `if (false)`, which does not compile (warnings are errors). They were re-run with conditions that compile,
+and only those runs count.
 
 ## 6. Ids allocated
 
