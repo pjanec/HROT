@@ -38,6 +38,21 @@ $e = [IO.File]::ReadAllText($ei)
 $e = [regex]::Replace($e, "(?m)^GameDefaultMap=.*$", "GameDefaultMap=/Game/Maps/IgStart")
 [IO.File]::WriteAllText($ei, $e, [Text.UTF8Encoding]::new($false))
 
+# U-18u: ENCRYPTION (AES-256) - the pak index, the assets and the ini files; the key is compiled into the client and terrain packages are
+# cooked with the same key. It lives ONLY in the project's Config/DefaultCrypto.ini (the Unreal project, not in git) - made once, never printed.
+$ci = "$Proj\Config\DefaultCrypto.ini"
+$crypto = if (Test-Path $ci) { [IO.File]::ReadAllText($ci) } else { "[/Script/CryptoKeys.CryptoKeysSettings]`r`n" }
+if ($crypto -notmatch "(?m)^EncryptionKey=\S+") {
+  $bytes = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $crypto = [regex]::Replace($crypto, "(?m)^EncryptionKey=.*\r?\n?", "")
+  $crypto = $crypto.Replace("[/Script/CryptoKeys.CryptoKeysSettings]", "[/Script/CryptoKeys.CryptoKeysSettings]`r`nEncryptionKey=" + [Convert]::ToBase64String($bytes))
+  "a new AES-256 encryption key written to $ci (keep this file: packages cooked with another key cannot be mounted)"
+}
+foreach ($f in "bEncryptPakIniFiles", "bEncryptPakIndex", "bEncryptUAssetFiles", "bEncryptAllAssetFiles") {
+  if ($crypto -match "(?m)^$f=") { $crypto = [regex]::Replace($crypto, "(?m)^$f=.*$", "$f=True") }
+  else { $crypto = $crypto.TrimEnd() + "`r`n$f=True`r`n" }
+}
+[IO.File]::WriteAllText($ci, $crypto, [Text.UTF8Encoding]::new($false))
 # U-18t: the terrain packages' plugins (Plugins\HrotTerrain_*) are set ASIDE while the base is packaged - a terrain must never land in the base
 $aside = "$Proj\Saved\TerrainPluginsAside"
 $moved = @(Get-ChildItem "$Proj\Plugins" -Directory -Filter "HrotTerrain_*" -ErrorAction SilentlyContinue)
