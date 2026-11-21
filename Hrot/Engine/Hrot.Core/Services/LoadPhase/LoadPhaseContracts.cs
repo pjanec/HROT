@@ -48,6 +48,9 @@ public enum LoadPart
 
     /// <summary>⭐ P-7 / F-28′ — the scenario header's feature preset, handed to the node's <c>NodeFeatures</c>. ⛔ A PROFILE-style part like <see cref="Map3D"/> (never in <see cref="RoleLoadRequirements.PartsFor"/>): <c>NodeBootstrapper</c> requests it for EVERY ECS node, whatever its roles.</summary>
     ScenarioFeatures = 4,
+
+    /// <summary>⭐ <c>CE-11026</c> (R-11009) — the node's linked client (a viewer connected through an extension) has presented the world this load committed. ⛔ A PROFILE-style part like <see cref="Map3D"/> (never in <see cref="RoleLoadRequirements.PartsFor"/>): <c>EcsHostClusterHandlers</c> requests it for EVERY ECS node, placed AFTER <see cref="Terrain"/> and <see cref="Map3D"/>; a node with no linked client resolves it at once.</summary>
+    LinkedClient = 5,
 }
 
 /// <summary>

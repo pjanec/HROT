@@ -190,6 +190,60 @@ namespace Hrot.SimHost.Tests
             Assert.False(built.ChangeCheck.HasChanged(_world));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11026</c> (R-11009) — the composition puts the LINKED CLIENT step in EVERY host's chain, after the terrain, built on the node's OWN registry (a forwarding rail on the CONSTRUCTED object): a client offered to the
+        /// registry the host passes is told at the load's commit; a composition with no registry builds no step.
+        /// 🔴 Mutation: the step built on a fresh <c>new LinkedClients()</c> ⇒ <c>Begun</c> stays empty; <c>LoadPart.LinkedClient</c> not appended to the chain parts ⇒ the parts cell fails.
+        /// </summary>
+        [Fact]
+        public void CE11026_Compose_AddsTheLinkedClientStep_OnTheNodesOwnRegistry()
+        {
+            Directory.CreateDirectory(_staging);
+            var accumulator = new EventAccumulator();
+            var kernel = new ModuleHostKernel(_world, accumulator);
+            var slave  = new ClusterSlave(7, "D16", null, NodeRole.MuscleGround);
+            var (providers, _) = HrotUniversalLoadParts.Build(null, _staging, new CarKinem.Road.RoadNetworkHolder(), null);
+            var registry = new Hrot.Common.Infrastructure.LinkedClients();
+            var client = new CountingLinkedClient();
+            registry.Offer(client);
+
+            EcsHostClusterHandlers.Compose(new EcsHostClusterHandlerInputs
+            {
+                Slave = slave, Kernel = kernel, World = _world, NodeId = (Fdp.Core.NodeId)(7), Role = NodeRole.MuscleGround, HostLabel = "D16",
+                StagingRoot = _staging, LoadProviders = providers, EventAccumulator = accumulator, LinkedClients = registry,
+            });
+
+            var chain = Assert.Single(slave.RegisteredHandlers.OfType<LoadPhaseChain>());
+            Assert.Equal(LoadPart.LinkedClient, chain.Parts[^1]);                                    // after the terrain (and the map when present)
+            Assert.True(chain.Parts.ToList().IndexOf(LoadPart.Terrain) < chain.Parts.ToList().IndexOf(LoadPart.LinkedClient));
+
+            var load = new ExecuteNodeOpIntent
+            {
+                Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
+                DomainPayload = new EditLoadHandlerPayload(ScenarioId: "scn", TargetState: ClusterState.LoadingLive),
+            };
+            chain.Commit(load, _world);
+            Assert.Equal(new[] { load.TransactionId }, client.Begun);                                // the step holds the registry the host passed
+
+            // no registry passed: no step (a rail composition); the part is not requested either
+            var bare = new ClusterSlave(8, "D16b", null, NodeRole.MuscleGround);
+            var (providers2, _) = HrotUniversalLoadParts.Build(null, _staging, new CarKinem.Road.RoadNetworkHolder(), null);
+            EcsHostClusterHandlers.Compose(new EcsHostClusterHandlerInputs
+            {
+                Slave = bare, Kernel = kernel, World = _world, NodeId = (Fdp.Core.NodeId)(8), Role = NodeRole.MuscleGround, HostLabel = "D16b",
+                StagingRoot = _staging, LoadProviders = providers2, EventAccumulator = accumulator,
+            });
+            Assert.DoesNotContain(LoadPart.LinkedClient, Assert.Single(bare.RegisteredHandlers.OfType<LoadPhaseChain>()).Parts);
+        }
+
+        private sealed class CountingLinkedClient : Hrot.Common.Infrastructure.ILinkedClient
+        {
+            public string Name => "counting";
+            public System.Collections.Generic.List<Guid> Begun { get; } = new();
+            public void BeginWorld(Guid loadId) => Begun.Add(loadId);
+            public bool IsWorldReady(Guid loadId, out string? failure, out string? step) { failure = null; step = null; return true; }
+        }
+
         private sealed class SaveStub : IClusterStateHandler
         {
             public bool Committed { get; private set; }

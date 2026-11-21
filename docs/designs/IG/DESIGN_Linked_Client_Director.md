@@ -198,6 +198,16 @@ like `TerrainContent`, `HrotNodeContext.cs:192`) and `EcsHostClusterHandlers` st
 beside the map's (`EcsHostClusterHandlers.cs:172-186`) — the gateway always offers its client when DPS is configured; a node with no linked
 client resolves at once.
 
+**As built (CE-11026, `2026-11-21`)** — `ILinkedClient` (world-readiness members only: `Name`, `BeginWorld(Guid)`, `IsWorldReady(Guid, out failure, out step)`; the frame members come with CE-11018) and `LinkedClients`
+(`Hrot.Core/Infrastructure/LinkedClients.cs`, namespace `Hrot.Common.Infrastructure`; one volatile reference, a lock only on Offer/Withdraw; a second Offer replaces the first with a log line; a Withdraw of a replaced client is ignored);
+`HrotNodeContext.LinkedClients` (`{ get; init; } = new()`, beside `TerrainContent`); `LoadPart.LinkedClient = 5` (appended); `LinkedClientLoadStep` (`Hrot.Core/Services/LoadPhase/`, `MapBuildLoadStep`'s shape).
+Composed in `EcsHostClusterHandlers.Compose` step 7 for EVERY ECS host from `EcsHostClusterHandlerInputs.LinkedClients`, appended to the chain parts AFTER the map's, so it runs after the terrain and the map; the registry travels
+`HostOrchestration` (`linkedClients: context.LinkedClients`) -> `NodeBootstrapper.ComposeClusterSlave(linkedClients:)` -> the handler inputs (rails: `CE11026_*`). Findings:
+- the step remembers at its `Commit` which client it asked; `IsResolved` is true for a load that asked nobody, and polls only the client it asked - so it can never call `IsWorldReady` before `BeginWorld` (the race, red-proved); a client offered AFTER the commit is not waited for by that load;
+- a late joiner's catch-up load runs the step too (the chain skips only the scenario part), so a catch-up calls `BeginWorld` with its own transaction id - the gateway bumps its world epoch for it;
+- `Abort` forgets the asked client; `Failure` / `ProgressStep` are the client's while a client was asked, null otherwise;
+- no deviation from §2b/§2e; a host with no context (a rail composition) passes no registry and gets no step.
+
 ### 2e. Who waits for the linked client on a load — the cluster's load phase (Q113-I)
 
 ```mermaid
@@ -233,7 +243,7 @@ master and live play could not see.
 | DD-022 | CE | what | where |
 |---|---|---|---|
 | H-1, H-2, H-3, H-4 | [CE-11018](../../blueprints/Blueprint_Issues_Tracker.md) | `ILinkedClient` + `FilmFrame` / `FilmJob` / `FilmTrack` + `LinkedClients` (Hrot.Core); `IFrameSink.Begin/End` (default no-ops); `RoutingFrameSink` built once in `DirectorPack.Attach`; the runner passes the film camera, film rate and step with each frame; a faulted frame fails the job with its reason; `frames: auto \| map` on the capture request | Hrot.Core, Hrot.Presentation Director |
-| (I) | [CE-11026](../../blueprints/Blueprint_Issues_Tracker.md) | the `LinkedClients` registry on `HrotNodeContext`; `ILinkedClient` world readiness (`BeginWorld`, `IsWorldReady`); `LinkedClientLoadStep` + `LoadPart.LinkedClient` composed for every ECS host (§2d-1, §2e) — live loads; replay opens follow with J (CE-11025) | Hrot.Core, Hrot.Network.Orchestration |
+| (I) | [CE-11026](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, as-built in §2d-1)** | the `LinkedClients` registry on `HrotNodeContext`; `ILinkedClient` world readiness (`BeginWorld`, `IsWorldReady`); `LinkedClientLoadStep` + `LoadPart.LinkedClient` composed for every ECS host (§2d-1, §2e) — live loads; replay opens follow with J (CE-11025) | Hrot.Core, Hrot.Network.Orchestration |
 | H-5 | ~~CE-11020~~ dropped | ✅ R-11008: no Replay Browser integration — the director renders from the editor's own replay (AAR); a job naming another recording plays once the editor passes its opener (Q113-G, CE-11023); multi-node exercises stay out | — |
 | H-6 | — | no HROT change: the gateway reads the anchors and steps on the node bus and `TimelineEpoch` from `HrotNodeContext.TimeController` (2d) | — |
 | H-7 | [CE-11021](../../blueprints/Blueprint_Issues_Tracker.md) | `sound: client \| hrot` per job; with `client` the encode muxes `FilmTrack` and checks its samples against the frames; `IDirectorSound` stays for map renders | Hrot.Presentation Director |
