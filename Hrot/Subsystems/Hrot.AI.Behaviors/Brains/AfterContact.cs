@@ -30,6 +30,22 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FitShare = 0.5f;
         /// <summary>R2 — the rally hold (s).</summary>
         public const float RallySeconds = 30f;
+        /// <summary>R2 — a LONE man's pause after a broken contact (s): he has nobody to account for (doctrine's reorganisation is a squad act).</summary>
+        public const float LoneRallySeconds = 5f;
+
+        /// <summary>How many of the squad's members are alive and in the fight.</summary>
+        public static int LiveMembers(EntityRepository world, Entity commander)
+        {
+            if (!world.HasComponent<UnitRoster>(commander)) return 0;
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(commander);
+            int n = 0;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (world.IsAlive(m) && Fdp.Toolkit.Combat.Injury.IsInTheFight(world, m)) n++;
+            }
+            return n;
+        }
 
         /// <summary>The squad's side (<c>ForceId</c> as an int), −1 when it has none.</summary>
         public static int SideOf(EntityRepository world, Entity commander)
