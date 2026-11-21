@@ -123,7 +123,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         /// ⭐⭐ CE-2469 SP-1 (R-2140 R3) — the danger answer carries the planned route's STEER POINT, from the same per-side priced route: a Friend that knows the enemy on the
         /// west street steers east round the wood, a Hostile that does not steers straight up the west street; the answer reaches the sensor's buffer and
         /// <see cref="Fdp.Toolkit.Squad.DangerArea.DangerRouteSteer.Of"/> reads it while fresh (4 s), never after. 🔴 Red-proofs: steer from the straight fallback
-        /// (no plan) ⇒ both straight; drop the copy in <c>DangerAreaSensorSystem.Apply</c> ⇒ <c>Of</c> answers false.
+        /// (no plan) ⇒ the unplannable target in the wood answers a steer; drop the copy in <c>DangerAreaSensorSystem.Apply</c> ⇒ <c>Of</c> answers false.
         /// </summary>
         [Fact]
         public void CE2469_TheSteerPoint_TakesThePerSidePricedRoute_AndReachesTheSensor()
@@ -144,13 +144,13 @@ namespace Fdp.Toolkit.Terrain.Tests
             rig.Doors();
             var planner = new RoutePlanner();
 
-            (Vector3 Steer, bool Has, Entity Unit) SolveFor(int side)
+            (Vector3 Steer, bool Has, Entity Unit) SolveFor(int side, Vector3? to = null)
             {
                 var unit = r.CreateEntity();
                 r.AddComponent(unit, new SimTransform { Position = From, Rotation = Quaternion.Identity });
                 r.AddComponent(unit, new EntityInfo { ForceId = (ForceId)side });
                 r.AddComponent(unit, new NavAgentProfile { PreferredLayerMask = Wheeled });
-                var child = Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(r, unit, 1, Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(To));
+                var child = Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(r, unit, 1, Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(to ?? To));
                 var sensor = r.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(child);
                 var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
                 int n = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(r, child, in sensor, areas, planner, null, out var steer, out bool has);
@@ -163,6 +163,8 @@ namespace Fdp.Toolkit.Terrain.Tests
             }
             var friend = SolveFor(Blue);
             var hostile = SolveFor(Red);
+            var nowhere = SolveFor(Red, new Vector3(150, 300, 0));   // inside the wood: no wheeled plan ⇒ the straight leg, and NO steer
+            Assert.False(nowhere.Has, $"a straight fallback carries no steer: {nowhere.Steer}");
             Assert.True(friend.Has && hostile.Has);
             Assert.InRange(Vector3.Distance(From, friend.Steer), 19f, 21f);
             Assert.True(friend.Steer.X > 55f, $"the knowing side steers east round the wood: {friend.Steer}");
