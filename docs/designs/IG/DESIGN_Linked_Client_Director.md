@@ -65,7 +65,7 @@ graph TD
   Q --> ST
   CLK["MasterSyncController - anchors, steps"] -->|"node bus"| EXT
   RB -.->|"no node extensions (H-5)"| EXT
-  LP["cluster load phase - LinkedClientLoadStep NEW"] -->|"ReadyFor(worldEpoch)"| REG
+  LP["cluster load phase - LinkedClientLoadStep NEW"] -->|"IsWorldReady(loadId)"| REG
 ```
 *What the picture shows that prose hid:* the routing happens in the ONE object `DirectorPack.Attach` already builds for every host, so the
 editor and the Replay Browser cannot differ in how a job's frames are routed — and the dashed edge: the Replay Browser composes no node extension
@@ -96,7 +96,8 @@ classDiagram
     <<NEW, Hrot.Core>>
     +Name string
     +Ready bool
-    +ReadyFor(worldEpoch) bool
+    +BeginWorld(loadId) the step's Commit
+    +IsWorldReady(loadId, out failure, out step) bool
     +Begin(FilmJob) Task
     +Frame(FilmFrame) Task
     +End(FilmJob, outcome) Task~FilmTrack?~
@@ -143,7 +144,7 @@ sequenceDiagram
   R->>R: load the item (the door - the cluster loads terrain, then the scenario or recording)
   R->>R: wait - cluster target state, world settled, 3-D map built (ScenarioReadyProbe), paused
   loop each frame until ready, never stepping
-    R->>X: ReadyFor(worldEpoch)?
+    R->>X: IsWorldReady(loadId)?
     X-->>R: not yet (the client loading its world)
   end
   R->>S: Begin(job)
@@ -187,6 +188,16 @@ sequenceDiagram
   G->>G: TimelineEpoch from HrotNodeContext.TimeController
 ```
 
+### 2d-1. The world-readiness contract — why `BeginWorld` (measured `2026-11-21`)
+
+A step that only asked "are the clients ready for world N?" could poll right after the terrain commit, before the gateway has seen the new
+world, and read the OLD world as ready. ⇒ the step's `Commit` calls `ILinkedClient.BeginWorld(loadId)` (the gateway then forces a new
+`Session.WorldEpoch`), and `IsWorldReady(loadId, …)` is true only when every client that asks to be waited for reports Ready for THAT new
+world (gateway DD-022 §3g `ClientWorld`); none asking ⇒ true at once. The registry lives on every node's `HrotNodeContext` (`LinkedClients`,
+like `TerrainContent`, `HrotNodeContext.cs:192`) and `EcsHostClusterHandlers` step 7 composes the `LinkedClientLoadStep` for EVERY ECS host,
+beside the map's (`EcsHostClusterHandlers.cs:172-186`) — the gateway always offers its client when DPS is configured; a node with no linked
+client resolves at once.
+
 ### 2e. Who waits for the linked client on a load — the cluster's load phase (Q113-I)
 
 ```mermaid
@@ -200,7 +211,7 @@ sequenceDiagram
   N->>N: TerrainLoadStep, ScenarioLoadStep, MapBuildLoadStep (MapInLoad)
   N->>X: run (required while a linked client is offered - the gateway connected)
   loop until ready, an error or a stall
-    X->>G: ReadyFor(worldEpoch)?
+    X->>G: IsWorldReady(loadId)?
     G-->>X: not yet (the client loading its world)
   end
   X-->>N: resolved
@@ -222,6 +233,7 @@ master and live play could not see.
 | DD-022 | CE | what | where |
 |---|---|---|---|
 | H-1, H-2, H-3, H-4 | [CE-11018](../../blueprints/Blueprint_Issues_Tracker.md) | `ILinkedClient` + `FilmFrame` / `FilmJob` / `FilmTrack` + `LinkedClients` (Hrot.Core); `IFrameSink.Begin/End` (default no-ops); `RoutingFrameSink` built once in `DirectorPack.Attach`; the runner passes the film camera, film rate and step with each frame; a faulted frame fails the job with its reason; `frames: auto \| map` on the capture request | Hrot.Core, Hrot.Presentation Director |
+| (I) | [CE-11026](../../blueprints/Blueprint_Issues_Tracker.md) | the `LinkedClients` registry on `HrotNodeContext`; `ILinkedClient` world readiness (`BeginWorld`, `IsWorldReady`); `LinkedClientLoadStep` + `LoadPart.LinkedClient` composed for every ECS host (§2d-1, §2e) — live loads; replay opens follow with J (CE-11025) | Hrot.Core, Hrot.Network.Orchestration |
 | H-5 | ~~CE-11020~~ dropped | ✅ R-11008: no Replay Browser integration — the director renders from the editor's own replay (AAR); a job naming another recording plays once the editor passes its opener (Q113-G, CE-11023); multi-node exercises stay out | — |
 | H-6 | — | no HROT change: the gateway reads the anchors and steps on the node bus and `TimelineEpoch` from `HrotNodeContext.TimeController` (2d) | — |
 | H-7 | [CE-11021](../../blueprints/Blueprint_Issues_Tracker.md) | `sound: client \| hrot` per job; with `client` the encode muxes `FilmTrack` and checks its samples against the frames; `IDirectorSound` stays for map renders | Hrot.Presentation Director |
