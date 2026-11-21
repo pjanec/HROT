@@ -66,7 +66,7 @@ public sealed partial class PossessionStationTests
             W.SetSingletonManaged(Map);
             W.SetSingletonManaged<ITkbDatabase>(_db);
             Me = Soldier(Vector3.Zero, 100f, 4242);
-            W.AddComponent(Me, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            W.AddComponent(Me, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         }
 
         public void Dispose() => W.Dispose();
@@ -382,7 +382,7 @@ public sealed partial class PossessionStationTests
         Assert.Equal(PossessionMode.Riding, u.W.GetComponentRO<PossessedBy>(other).Mode);   // the rider stays held
         Assert.Equal(third, PossessionStation.HeldHere(u.W, out _));
 
-        u.W.SetComponent(third, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Riding, Epoch = 9 });
+        u.W.SetComponent(third, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Riding, Epoch = 9 });
         Assert.Equal(Entity.Null, PossessionStation.HeldHere(u.W, out _));     // only riders: nothing to drive
     }
 
@@ -398,7 +398,7 @@ public sealed partial class PossessionStationTests
     {
         using var u = new UseWorld();
         var theirs = u.Soldier(new Vector3(5f, 0f, 0f), 100f, 4343);
-        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 1 });
+        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(77), Mode = PossessionMode.Fps, Epoch = 1 });
         u.Soldier(new Vector3(6f, 0f, 0f), 100f, 4444);
         var orders = new EntityOrders(u.W, u.Map, geo: null);
 
@@ -429,7 +429,7 @@ public sealed partial class PossessionStationTests
             var r = u.Soldier(new Vector3(8f, 1f, 0f), 100f, netId);
             u.W.AddComponent(r, new EntityInfo { ForceId = side });
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(u.W, r, vehicle));
-            u.W.AddComponent(r, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = PossessionMode.Fps, Epoch = 1 });
+            u.W.AddComponent(r, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(station), Mode = PossessionMode.Fps, Epoch = 1 });
             return r;
         }
         var redTank = u.Vehicle(new Vector3(8f, 0f, 0f), 5001);

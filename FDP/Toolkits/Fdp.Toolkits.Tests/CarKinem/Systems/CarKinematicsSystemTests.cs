@@ -2698,11 +2698,11 @@ namespace CarKinem.Tests.Systems
             bool May() => CarKem_MayBreak(repo, e);
 
             Assert.False(May());                                                              // Manual, ManualDrive kept, nobody holds it (released)
-            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
             Assert.True(May());                                                               // a player drives it
-            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
             Assert.False(May());                                                              // a rider: not the hull's controls
-            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
             var nav = repo.GetComponent<NavState>(e); nav.Mode = KinematicsMode.Direct; repo.SetComponent(e, nav);
             Assert.False(May());                                                              // an autonomous move (the AI corner)
             nav.Mode = KinematicsMode.Manual; repo.SetComponent(e, nav);
@@ -2816,7 +2816,7 @@ namespace CarKinem.Tests.Systems
             CarKinem.Controllers.ContactBreach.Reset();
             var (repo, e) = ManualWorld(cls, new Fdp.Toolkit.Navigation.ManualDrive { Forward = throttle });
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)9001 });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();

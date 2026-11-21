@@ -16,7 +16,7 @@ namespace Fdp.Tests
             Assert.Equal(3 | (2 << 16), s.Value);
             Assert.Equal((NodeId)3, s.Node);
             Assert.Equal(2, s.Index);
-            StationId zero = (NodeId)3;                         // implicit from a node: index 0
+            StationId zero = StationId.Of((NodeId)3);              // a node's own station: index 0, said on purpose
             Assert.Equal(3, (int)zero);                         // a single-station node's id is unchanged
             Assert.Equal(0, zero.Index);
             Assert.Equal(StationId.Of((NodeId)3, 0), zero);

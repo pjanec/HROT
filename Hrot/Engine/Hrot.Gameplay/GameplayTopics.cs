@@ -38,6 +38,8 @@ public partial struct DeployRequestTopic
     public byte Kit;
     /// <summary>⭐ S3 — the spawn area the Player chose (an offer's <c>UnitNetId</c> of Kind Area); 0 = any area of the side. APPENDED.</summary>
     public int AreaNetId;
+    /// <summary>⭐ CE-11027 S12-3 (Q114 E) — the station LEAVES: the server frees its slot and its answer at once and tells the possession system to release every unit the station holds. APPENDED LAST.</summary>
+    public bool Leave;
 }
 
 /// <summary>The server's answer to the station's last request. Readers filter by <see cref="RequestId"/>.</summary>

@@ -3782,7 +3782,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });
             Assert.True(WeaponSystems.CanFire(_world, m2, out why), $"held by {why}");
         }
 
@@ -3801,7 +3801,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
+            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });
             Assert.Equal(gunner, WeaponSystems.ControllerOf(_world, m2));                   // seat switching: the gunner's gun
             Span<Entity> keys = stackalloc Entity[4];
             Assert.Equal(1, WeaponSystems.Controlled(_world, gunner, keys));
@@ -3810,7 +3810,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(WeaponSystems.OperatesAStation(_world, gunner));
             Assert.True(WeaponSystems.CanFire(_world, m2, out var why), $"held by {why}");
 
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });   // the driver seat too
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });   // the driver seat too
             Assert.Equal(pickup, WeaponSystems.ControllerOf(_world, m2));
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(pickup);
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(gunner);                         // released

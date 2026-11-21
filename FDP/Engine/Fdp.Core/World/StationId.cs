@@ -38,6 +38,9 @@ namespace Fdp.Core
             return new StationId(node.Value | (index << 16));
         }
 
+        /// <summary>The node's station 0.</summary>
+        public static StationId Of(NodeId node) => Of(node, 0);
+
         /// <summary>The node hosting this station (the low 16 bits).</summary>
         public NodeId Node => new(Value & 0xFFFF);
 
@@ -47,8 +50,8 @@ namespace Fdp.Core
         public static implicit operator int(StationId id) => id.Value;
         /// <summary>⭐ Explicit: a raw number (already packed) becomes a station only on purpose.</summary>
         public static explicit operator StationId(int value) => new(value);
-        /// <summary>A node IS its station 0 (the single-station node's id is unchanged).</summary>
-        public static implicit operator StationId(NodeId node) => Of(node, 0);
+        /// <summary>⭐ EXPLICIT (CE-11027): a node's own station 0 — the single-station node's id is unchanged. ⛔ Never implicit: a <c>(NodeId)</c> hop on a station that arrived as a plain int silently drops its seat; say <see cref="Of(NodeId)"/> for a real node, <c>(StationId)value</c> for a station int.</summary>
+        public static explicit operator StationId(NodeId node) => Of(node, 0);
 
         public bool Equals(StationId other) => Value == other.Value;
         public override bool Equals(object? obj) => obj is StationId o && Equals(o);

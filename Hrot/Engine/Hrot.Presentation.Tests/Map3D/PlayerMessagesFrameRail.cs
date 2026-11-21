@@ -44,7 +44,7 @@ public sealed class PlayerMessagesFrameRail
         var unit = world.CreateEntity();
         world.AddComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
         world.AddComponent(unit, new Health { Current = 80f, Max = 100f });
-        world.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+        world.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         var map = new NetworkEntityMap();
         map.Register(4242, unit);
         world.SetSingletonManaged(map);

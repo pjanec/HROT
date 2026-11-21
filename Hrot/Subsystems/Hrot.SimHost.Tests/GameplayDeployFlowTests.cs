@@ -19,13 +19,15 @@ namespace Hrot.SimHost.Tests
     /// ⭐ Player Join §9 (S1 part B) — the Player's <see cref="DeployFlowSystem"/> state machine over a REAL DDS pair: a server (<see cref="DeployProcessorSystem"/>, part A) on one participant and the
     /// flow on another, on a domain of its own per test. The node facts (gate, run state, "a server exists", Possess) and BOTH clocks are injected, so no test sleeps 10 s.
     /// </summary>
-    public sealed class GameplayDeployFlowTests : IDisposable
+    ///
+    /// <para>⭐ CE-11027 S12-2 — <b>ONE fixture over BOTH transports</b> (Q114 D): this abstract class holds every rail; <see cref="GameplayDeployFlowOverDdsTests"/> runs them on a real DDS pair and
+    /// <see cref="GameplayDeployFlowOverLocalHubTests"/> on the editor's in-process <see cref="LocalGameplayHub"/> (the server end and one client end). The three hooks below are what differs.</para>
+    public abstract class GameplayDeployFlowTests : IDisposable
     {
-        private static int _domain = 160;
+        protected static int _domain = 160;
         private const int ServerNode = 5, Station = 30, Rifleman = 100;
 
-        private readonly DdsParticipant _serverP, _clientP;
-        private readonly GameplayWire _serverWire, _clientWire;
+        protected IGameplayWire _serverWire = null!, _clientWire = null!;
         private readonly EntityRepository _server = new(), _client = new();
         private readonly NetworkEntityMap _serverMap = new(), _clientMap = new();
         private readonly DeployProcessorSystem _proc;
@@ -36,17 +38,25 @@ namespace Hrot.SimHost.Tests
         private bool _gateOpen = true, _live = true, _serverExists = true, _possessOk = true;
         private Entity _serverUnit, _clientUnit;
 
-        public GameplayDeployFlowTests()
+        /// <summary>Makes the transport: the server's wire and the client's wire.</summary>
+        protected abstract void CreateTransport(out IGameplayWire server, out IGameplayWire client);
+        /// <summary>DDS: asserts the client created NO gameplay endpoint (the lazy wire). A hub has no endpoints to count: no-op.</summary>
+        protected virtual void AssertClientCreatedNoEndpoint() { }
+        /// <summary>DDS: asserts the client's request writer exists. A hub: no-op.</summary>
+        protected virtual void AssertClientRequestWriterCreated() { }
+        /// <summary>Starts a second, independent look at the requests the server receives (DDS: a raw reader on the server's participant; a hub: the recording of what the processor took).</summary>
+        protected abstract void BeginRawRequestTap();
+        protected abstract bool TryReadRawRequest(out DeployRequestTopic request);
+
+        protected GameplayDeployFlowTests()
         {
-            uint domain = (uint)Interlocked.Increment(ref _domain);
-            _serverP = new DdsParticipant(domain); _clientP = new DdsParticipant(domain);
+            CreateTransport(out _serverWire, out _clientWire);
             foreach (var w in new[] { _server, _client })
             {
                 w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<PossessedBy>(); w.RegisterComponent<Health>(); w.RegisterEvent<NodeDeparted>(); w.RegisterComponent<GameplaySettings>();
                 w.SetSingleton(new GlobalTime { TotalTime = 100 });
             }
             _server.RegisterComponent<Playable>();
-            _serverWire = new GameplayWire(_serverP); _clientWire = new GameplayWire(_clientP);
             _proc = new DeployProcessorSystem(_serverWire, _serverMap, ServerNode, election: null, nowMs: () => _serverMs);
             var env = new DeployFlowEnvironment(() => _gateOpen, () => _live, () => _serverExists, unit => { _possessCalls.Add(unit); return (_possessOk, _possessOk ? "" : "refused by the brain"); }, () => _clientMs);
             _flow = new DeployFlowSystem(_clientWire, _client, _clientMap, Station, env);
@@ -56,7 +66,7 @@ namespace Hrot.SimHost.Tests
             _clientUnit = Unit(_client, _clientMap, Rifleman, ForceId.Friend, "", playable: false);
         }
 
-        public void Dispose() { _clientWire.Dispose(); _serverWire.Dispose(); _clientP.Dispose(); _serverP.Dispose(); _client.Dispose(); _server.Dispose(); }
+        public virtual void Dispose() { _client.Dispose(); _server.Dispose(); }
 
         private static Entity Unit(EntityRepository w, NetworkEntityMap map, int netId, ForceId side, string slot, bool playable)
         {
@@ -102,7 +112,7 @@ namespace Hrot.SimHost.Tests
             Frame();
             Assert.Equal(DeployFlowState.Waiting, _flow.State);
             Assert.Equal("Waiting for the server to load a scenario", _flow.Reason);
-            Assert.Equal(0, _clientWire.CreatedCount);
+            AssertClientCreatedNoEndpoint();
             _live = true;
             Frame();
             Assert.NotEqual(DeployFlowState.Waiting, _flow.State);
@@ -115,8 +125,55 @@ namespace Hrot.SimHost.Tests
             _serverExists = false;
             for (int i = 0; i < 5; i++) Frame();
             Assert.Equal(DeployFlowState.Observing, _flow.State);
-            Assert.Equal(0, _clientWire.CreatedCount);
-            Assert.False(_clientWire.RequestWriterCreated);
+            AssertClientCreatedNoEndpoint();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11027</c> S12-2 (Q114 D) — a node may host several stations: <c>Of(world, station)</c> finds each flow, <c>Of(world)</c> stays the world's OWN (the first, <c>register: true</c>), and a flow made with
+        /// <c>register: false</c> (a gateway seat) never replaces it; an <c>Unregister</c>ed seat is forgotten. Its <c>Side</c> is the side of its last request. 🔴 Mutation: <c>register: false</c> still overwrites <c>Of(world)</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE11027_ASeatFlowWithRegisterFalse_IsFoundByStation_AndNeverReplacesTheWorldsOwnFlow()
+        {
+            Assert.Same(_flow, DeployFlowSystem.Of(_client));
+            Assert.Same(_flow, DeployFlowSystem.Of(_client, Station));
+            var env = new DeployFlowEnvironment(() => true, () => true, () => true, _ => (true, ""), () => _clientMs);
+            var seat = new DeployFlowSystem(_clientWire, _client, _clientMap, Station + 1, env, register: false);
+            Assert.Same(_flow, DeployFlowSystem.Of(_client));              // the seat did not take over the world's own
+            Assert.Same(seat, DeployFlowSystem.Of(_client, Station + 1));  // but it is found by its station
+            Assert.Same(_flow, DeployFlowSystem.Of(_client, Station));
+            Assert.Null(DeployFlowSystem.Of(_client, Station + 2));
+            var seat2 = new DeployFlowSystem(_clientWire, _client, _clientMap, Station + 2, env);   // register: true (the default) — the latest own wins, as before
+            Assert.Same(seat2, DeployFlowSystem.Of(_client));
+            seat.Unregister(); seat2.Unregister();
+            Assert.Null(DeployFlowSystem.Of(_client, Station + 1));
+            Assert.Null(DeployFlowSystem.Of(_client));                      // seat2 was the own one
+            Assert.Same(_flow, DeployFlowSystem.Of(_client, Station));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11027</c> S12-3 — the flow's <c>Leave()</c> verb: the server frees the station's slot (and publishes the release) and the flow is back to Choosing. From Waiting it does nothing.
+        /// </summary>
+        [Fact]
+        public void CE11027_Leave_FreesTheServersSlot_AndTheFlowGoesBackToChoosing()
+        {
+            Assert.False(_flow.Leave());                       // Waiting: nothing joined
+            ToChoosing();
+            Assert.True(_flow.Request(ForceId.Friend, Rifleman));
+            PumpUntil(() => _proc.TryGetSlot(Station, out _, out _), "the slot");
+            Assert.True(_flow.Leave());
+            Assert.Equal(DeployFlowState.Choosing, _flow.State);
+            PumpUntil(() => !_proc.TryGetSlot(Station, out _, out _), "the slot freed by the leave");
+        }
+
+        /// <summary>⭐ <c>CE-11027</c> S12-2 — the flow's <c>Side</c> is Neutral until it asks, then the side of its last request.</summary>
+        [Fact]
+        public void CE11027_TheFlowsSide_IsTheSideOfItsLastRequest()
+        {
+            Assert.Equal(ForceId.Neutral, _flow.Side);
+            ToChoosing();
+            Assert.True(_flow.Request(ForceId.Friend, Rifleman));
+            Assert.Equal(ForceId.Friend, _flow.Side);
         }
 
         /// <summary>With a server the Player CHOOSES and sees the server's offers: the placed unit, its side, name and holder (free). ✅ Red-proof: the offer reader never read ⇒ no offers ⇒ red.</summary>
@@ -126,7 +183,7 @@ namespace Hrot.SimHost.Tests
             ToChoosing();
             var o = Assert.Single(_flow.Offers);
             Assert.Equal(new DeployOffer(Rifleman, ForceId.Friend, "Rifleman 1", 0), o);
-            Assert.True(_clientWire.RequestWriterCreated);
+            AssertClientRequestWriterCreated();
         }
 
         /// <summary>The whole happy path: Request → Requesting → the server accepts → the Player's EXISTING Possess is called with the unit (once) → TakingControl → Playing when the unit is <c>PossessedBy</c> this station
@@ -173,7 +230,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(_proc.TryGetSlot(Station, out var slot, out _)); Assert.Equal(PlayerSlotState.TakingControl, slot);
             for (int i = 0; i < 5; i++) Frame();
             Assert.Equal(DeployFlowState.TakingControl, _flow.State);                  // not held yet ⇒ not Playing
-            _client.AddComponent(_clientUnit, new PossessedBy { StationNodeId = (NodeId)Station, Mode = PossessionMode.Fps, Epoch = 1 });
+            _client.AddComponent(_clientUnit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)Station, Mode = PossessionMode.Fps, Epoch = 1 });
             PumpUntil(() => _flow.State == DeployFlowState.Playing, "Playing");
             Assert.Equal(Rifleman, _flow.UnitNetId);
         }
@@ -182,7 +239,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void ARefusal_ReturnsToChoosing_NamingTheReasonAndTheHolder()
         {
-            _server.AddComponent(_serverUnit, new PossessedBy { StationNodeId = (NodeId)77, Mode = PossessionMode.Fps, Epoch = 1 });
+            _server.AddComponent(_serverUnit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)77, Mode = PossessionMode.Fps, Epoch = 1 });
             ToChoosing();
             Assert.True(_flow.Request(ForceId.Friend, Rifleman));
             PumpUntil(() => _flow.State == DeployFlowState.Choosing && _flow.LastRefusal.Length > 0, "the refusal");
@@ -267,7 +324,7 @@ namespace Hrot.SimHost.Tests
             ToChoosing();
             Assert.True(_flow.Request(ForceId.Friend, Rifleman));
             PumpUntil(() => _flow.State == DeployFlowState.TakingControl, "TakingControl");
-            var held = new PossessedBy { StationNodeId = (NodeId)Station, Mode = PossessionMode.Fps, Epoch = 1 };
+            var held = new PossessedBy { StationNodeId = (Fdp.Core.StationId)Station, Mode = PossessionMode.Fps, Epoch = 1 };
             _client.AddComponent(_clientUnit, held); _server.AddComponent(_serverUnit, held);
             PumpUntil(() => _flow.State == DeployFlowState.Playing && _proc.TryGetSlot(Station, out var s, out _) && s == PlayerSlotState.Playing, "Playing on both sides");
             for (int i = 0; i < 20; i++) Frame();   // the Player reads the Playing slot
@@ -284,7 +341,7 @@ namespace Hrot.SimHost.Tests
             ToChoosing();
             const int RoleEntity = 900;
             Assert.True(_flow.Request(ForceId.Friend, RoleEntity));
-            using var answer = new DdsWriter<DeployStatusTopic>(_serverP);
+            var answer = _serverWire.Status!;   // the server's own status writer: the answer is written by hand
             for (int i = 0; i < 300 && _flow.State == DeployFlowState.Requesting; i++)
             {
                 answer.Write(new DeployStatusTopic { StationNodeId = Station, RequestId = _flow.RequestId, Accepted = true, UnitNetId = Rifleman });
@@ -343,12 +400,12 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TheFlow_SendsTheKitAndTheArea()
         {
-            using var raw = new DdsReader<DeployRequestTopic>(_serverP);
+            BeginRawRequestTap();
             ToChoosing();
             Assert.True(_flow.Request(ForceId.Friend, Rifleman, kit: 2, areaNetId: 55));
             Assert.Equal((byte)2, _flow.RequestedKit); Assert.Equal(55, _flow.RequestedAreaNetId);
             DeployRequestTopic seen = default;
-            PumpUntil(() => { using var l = raw.Take(); foreach (var s in l) if (s.IsValid) { seen = s.Data; return true; } return false; }, "the raw request");
+            PumpUntil(() => TryReadRawRequest(out seen), "the raw request");
             Assert.Equal((byte)2, seen.Kit); Assert.Equal(55, seen.AreaNetId); Assert.Equal(Rifleman, seen.UnitNetId);
         }
 
@@ -379,6 +436,88 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Role", (string?)jr["kind"]); Assert.Equal(4, (int)jr["max"]!);
             Assert.Equal(new[] { "Rifleman", "Grenadier", "", "" }, ((System.Text.Json.Nodes.JsonArray)jr["kits"]!).Select(k => (string)k!).ToArray());
             Assert.Equal("Area", (string?)offers.Cast<System.Text.Json.Nodes.JsonObject>().Single(o => (int)o["unitNetId"]! == 400)["kind"]);
+        }
+    }
+
+    /// <summary>⭐ CE-11027 S12-2 — every <see cref="GameplayDeployFlowTests"/> rail over a REAL DDS pair (the original transport).</summary>
+    public sealed class GameplayDeployFlowOverDdsTests : GameplayDeployFlowTests
+    {
+        private DdsParticipant _serverP = null!, _clientP = null!;
+        private GameplayWire _serverDds = null!, _clientDds = null!;
+        private DdsReader<DeployRequestTopic>? _raw;
+
+        protected override void CreateTransport(out IGameplayWire server, out IGameplayWire client)
+        {
+            uint domain = (uint)Interlocked.Increment(ref _domain);
+            _serverP = new DdsParticipant(domain); _clientP = new DdsParticipant(domain);
+            _serverDds = new GameplayWire(_serverP); _clientDds = new GameplayWire(_clientP);
+            server = _serverDds; client = _clientDds;
+        }
+
+        protected override void AssertClientCreatedNoEndpoint() { Assert.Equal(0, _clientDds.CreatedCount); Assert.False(_clientDds.RequestWriterCreated); }
+        protected override void AssertClientRequestWriterCreated() => Assert.True(_clientDds.RequestWriterCreated);
+        protected override void BeginRawRequestTap() => _raw = new DdsReader<DeployRequestTopic>(_serverP);
+
+        protected override bool TryReadRawRequest(out DeployRequestTopic request)
+        {
+            request = default;
+            using var l = _raw!.Take();
+            foreach (var s in l) if (s.IsValid) { request = s.Data; return true; }
+            return false;
+        }
+
+        public override void Dispose() { _raw?.Dispose(); _clientDds.Dispose(); _serverDds.Dispose(); _clientP.Dispose(); _serverP.Dispose(); base.Dispose(); }
+    }
+
+    /// <summary>⭐ CE-11027 S12-2 — every <see cref="GameplayDeployFlowTests"/> rail over the editor's in-process <see cref="LocalGameplayHub"/>.</summary>
+    public sealed class GameplayDeployFlowOverLocalHubTests : GameplayDeployFlowTests
+    {
+        private LocalGameplayEnd _serverEnd = null!, _clientEnd = null!;
+        private readonly List<DeployRequestTopic> _tapped = new();
+
+        protected override void CreateTransport(out IGameplayWire server, out IGameplayWire client)
+        {
+            var hub = new LocalGameplayHub();
+            _serverEnd = hub.ServerEnd(); _clientEnd = hub.ClientEnd();
+            server = new TappedServer(_serverEnd, _tapped); client = _clientEnd;
+        }
+
+        protected override void BeginRawRequestTap() => _tapped.Clear();
+
+        protected override bool TryReadRawRequest(out DeployRequestTopic request)
+        {
+            request = _tapped.Count > 0 ? _tapped[0] : default;
+            return _tapped.Count > 0;
+        }
+
+        public override void Dispose() { _clientEnd.Dispose(); _serverEnd.Dispose(); base.Dispose(); }
+
+        /// <summary>The server's wire with a recording of every request the processor took — the hub's stand-in for a second raw reader.</summary>
+        private sealed class TappedServer : IGameplayWire
+        {
+            private readonly IGameplayWire _inner;
+            private readonly Tap _requests;
+            public TappedServer(IGameplayWire inner, List<DeployRequestTopic> sink) { _inner = inner; _requests = new Tap(inner.Requests!, sink); }
+            public IGameplayIn<DeployRequestTopic>? Requests => _requests;
+            public IGameplayOut<DeployStatusTopic>? Status => _inner.Status;
+            public IGameplayOut<DeployOfferTopic>? Offers => _inner.Offers;
+            public IGameplayOut<PlayerSlotTopic>? SlotWriter => _inner.SlotWriter;
+            public IGameplayOut<DeployRequestTopic>? RequestWriter => _inner.RequestWriter;
+            public IGameplayIn<DeployStatusTopic>? StatusReader => _inner.StatusReader;
+            public IGameplayIn<DeployOfferTopic>? OfferReader => _inner.OfferReader;
+            public IGameplayIn<PlayerSlotTopic>? SlotReader => _inner.SlotReader;
+
+            private sealed class Tap : IGameplayIn<DeployRequestTopic>
+            {
+                private readonly IGameplayIn<DeployRequestTopic> _in; private readonly List<DeployRequestTopic> _sink;
+                public Tap(IGameplayIn<DeployRequestTopic> inner, List<DeployRequestTopic> sink) { _in = inner; _sink = sink; }
+                public int TakeInto(List<GameplaySample<DeployRequestTopic>> into)
+                {
+                    int before = into.Count; int n = _in.TakeInto(into);
+                    for (int i = before; i < into.Count; i++) if (into[i].Alive) _sink.Add(into[i].Data);
+                    return n;
+                }
+            }
         }
     }
 }
