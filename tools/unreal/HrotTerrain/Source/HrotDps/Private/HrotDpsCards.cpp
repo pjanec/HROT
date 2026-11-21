@@ -8,6 +8,7 @@
 //   CLIENT's (R-144: DD-024 P-2 rejected) - HROT's numbers are used.
 #include "HrotDpsWorld.h"
 #include "HrotCardLayer.h"
+#include "HrotDpsMotion.h"
 
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -37,6 +38,31 @@ void UHrotDpsWorld::TickCards()
 	Cards->Begin(World, PC->PlayerCameraManager->GetCameraLocation(), PC->PlayerCameraManager->GetFOVAngle(), Vp);
 
 	const int32 Air = DomainAir(), Person = DomainPerson();
+	if (bWireCardsDirty) RegroupWireCards();
+	if (WireCards.Num() > 0)   // DD-024: HROT's own cards — the stand-in below is not used
+	{
+		for (TPair<int32, FWireCard>& It : WireCards)
+		{
+			FEnt* E = Ents.Find(It.Key);
+			if (!E || !E->bHasEntity) continue;   // the guide: a card whose Entity has not arrived is skipped
+			FVector Anchor;
+			if (AActor* A = E->Actor.Get())
+			{
+				FVector O, X; A->GetActorBounds(true, O, X);
+				Anchor = FVector(A->GetActorLocation().X, A->GetActorLocation().Y, O.Z + X.Z);
+			}
+			else if (E->bHasState) Anchor = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 200);   // a commander: + 2 m
+			else continue;
+			const bool bAir = E->Domain == Air;
+			FWireCard& W = It.Value;
+			Cards->Show(It.Key, HashCombineFast(W.Key, bAir ? 1u : 0u), Anchor, [&](HrotCards::FCard& C)
+			{
+				for (const HrotCards::FGizmoCardPrim& P : W.Prims) HrotCards::AddGizmo(C, P, bAir);
+			});
+		}
+		Cards->End();
+		return;
+	}
 	for (TPair<int32, FEnt>& It : Ents)
 	{
 		FEnt& E = It.Value;

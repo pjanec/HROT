@@ -115,8 +115,9 @@ namespace HrotCards
 
 	// ── SimNetGateway DD-024 (R-144): HROT's card gizmos over GizmoFrame — the appended GizmoPrimitive fields, as the adapter reads them ──
 	enum class EGizmoShape : uint8 { LineStrip = 0, Arrow, Circle, Polygon, Box, Text, Icon };   // the contract's GizmoShape
-	/** one card-space primitive (Space = EntityCard): D-1 / D-2. Text: CardX = x px in the row, Width = font px. Box: CardX = centre fraction,
-	 *  CardW = half-width fraction, CardH = height px, FillRgba = fill, ColourRgba = outline (row 0: the frame, fractions of the whole card).
+	/** one card-space primitive (Space = EntityCard), as the client guide's "Entity cards" lays it out. Text: CardX/CardY px in the row, Width =
+	 *  font px. Box: CardX/CardW centre/half-width fractions of the width, CardY/CardH HROT's centre/half-extent (row 0 fractions, rows px),
+	 *  FillRgba the fill, ColourRgba an outline of Width px.
 	 *  Icon: Text = the symbol code, CardH = height px (row 0 = the left cell) */
 	struct FGizmoCardPrim
 	{

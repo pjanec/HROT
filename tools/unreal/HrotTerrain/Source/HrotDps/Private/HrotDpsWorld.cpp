@@ -270,6 +270,7 @@ void UHrotDpsWorld::OnEntity(const FHrotDpsSample& S)
 	E.Domain = uint8(D.Domain);
 	E.Name = UTF8_TO_TCHAR(D.Name);
 	E.Side = D.Side;
+	E.bIsUnit = D.IsUnit;   // U-18y (DD-024)
 	E.ParentId = D.ParentId;
 	E.Dis = FString::Printf(TEXT("%u.%u.%u.%u.%u.%u.%u"), D.Dis.Kind, D.Dis.Domain, D.Dis.Country, D.Dis.Category, D.Dis.Subcategory,
 		D.Dis.Specific, D.Dis.Extra);
@@ -953,7 +954,7 @@ UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
 
 void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 {
-	if (E.Actor.IsValid() || !E.bHasEntity || !E.bHasState) return;
+	if (E.Actor.IsValid() || !E.bHasEntity || !E.bHasState || E.bIsUnit) return;   // a body-less commander gets no stand-in body (DD-024)
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainAnimal)
 	{
 		AActor* A = SpawnAnimal(E, HrotDpsMotion::ToUnreal(E.Shown, OriginCm));

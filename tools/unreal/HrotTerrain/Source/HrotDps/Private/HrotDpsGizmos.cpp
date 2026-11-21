@@ -16,12 +16,24 @@ void UHrotDpsWorld::OnGizmoFrame(const FHrotDpsSample& S)
 {
 	const SimNetGateway_Protocol_DdsPlayer_GizmoFrame& F = *static_cast<const SimNetGateway_Protocol_DdsPlayer_GizmoFrame*>(S.Data);
 	const FString Layer = UTF8_TO_TCHAR(F.Layer);
-	if (!S.bValid || S.bDisposed) { GizmoLayersShown.Remove(Layer); return; }   // a disposed layer = turned off
+	if (!S.bValid || S.bDisposed) { GizmoLayersShown.Remove(Layer); if (GizmoCardPrims.Remove(Layer)) bWireCardsDirty = true; return; }   // a disposed layer = turned off
 	TArray<FGizmoPrim>& Out = GizmoLayersShown.FindOrAdd(Layer);
 	Out.Reset(F.Primitives._length);
+	TArray<HrotCards::FGizmoCardPrim>& LayerCards = GizmoCardPrims.FindOrAdd(Layer);
+	const bool bHadCards = LayerCards.Num() > 0;
+	LayerCards.Reset();
 	for (uint32 I = 0; I < F.Primitives._length; I++)
 	{
 		const SimNetGateway_Protocol_DdsPlayer_GizmoPrimitive& P = F.Primitives._buffer[I];
+		if (P.Space == SimNetGateway_Protocol_DdsPlayer_GizmoSpaceEntityCard)   // U-18y: DD-024 — a card's primitive
+		{
+			HrotCards::FGizmoCardPrim& C = LayerCards.AddDefaulted_GetRef();
+			C.Shape = HrotCards::EGizmoShape(uint8(P.Shape)); C.AnchorId = P.AnchorId; C.Row = P.Row;
+			C.CardX = P.CardX; C.CardY = P.CardY; C.CardW = P.CardW; C.CardH = P.CardH; C.Width = P.Width;
+			C.ColourRgba = P.ColourRgba; C.FillRgba = P.FillRgba;
+			if (P.Text[0]) C.Text = UTF8_TO_TCHAR(P.Text);
+			continue;
+		}
 		FGizmoPrim& G = Out.AddDefaulted_GetRef();
 		G.Shape = uint8(P.Shape);
 		G.Colour = FColor(uint8(P.ColourRgba >> 24), uint8(P.ColourRgba >> 16), uint8(P.ColourRgba >> 8), uint8(P.ColourRgba));
@@ -30,23 +42,46 @@ void UHrotDpsWorld::OnGizmoFrame(const FHrotDpsSample& S)
 		G.Points.Reserve(P.Points._length);
 		for (uint32 K = 0; K < P.Points._length; K++) G.Points.Add(FVector(P.Points._buffer[K].X, P.Points._buffer[K].Y, P.Points._buffer[K].Z));
 	}
+	if (LayerCards.Num() || bHadCards) bWireCardsDirty = true;
 	GizmoFrames++;
+}
+
+void UHrotDpsWorld::RegroupWireCards()
+{
+	bWireCardsDirty = false;
+	WireCards.Reset();
+	for (const TPair<FString, TArray<HrotCards::FGizmoCardPrim>>& L : GizmoCardPrims)
+		for (const HrotCards::FGizmoCardPrim& P : L.Value) WireCards.FindOrAdd(P.AnchorId).Prims.Add(P);
+	for (TPair<int32, FWireCard>& C : WireCards)   // the key: a card is rebuilt only when what it shows changed
+	{
+		uint32 K = 0;
+		for (const HrotCards::FGizmoCardPrim& P : C.Value.Prims)
+			K = HashCombineFast(K, HashCombineFast(GetTypeHash(P.Text), HashCombineFast(uint32(P.Shape) | (uint32(P.Row) << 8),
+				HashCombineFast(P.ColourRgba ^ P.FillRgba, GetTypeHash(P.CardX) ^ GetTypeHash(P.CardY) ^ GetTypeHash(P.CardW) ^ GetTypeHash(P.CardH) ^ GetTypeHash(P.Width)))));
+		C.Value.Key = K;
+	}
 }
 
 void UHrotDpsWorld::SendGizmoView(double Real)
 {
+	if (LabelMode != SentLabelMode) NextGizmoView = 0;   // a mode change: say it now
 	if (Real < NextGizmoView || !MyClientId) return;
 	NextGizmoView = Real + 2.0;
 	UHrotDpsSubsystem* Dps = GEngine ? GEngine->GetEngineSubsystem<UHrotDpsSubsystem>() : nullptr;
 	if (!Dps || !Dps->IsRunning()) return;
-	if (GizmoLayers.Num() == 0 && !bGizmoViewSent) return;   // no view, no work (and nothing to withdraw)
+	// the asked layers + the label mode's (R-143 / DD-024: 2 = UnitCards + UnitSymbols, 3 = also Labels)
+	TArray<FString> All = GizmoLayers;
+	if (LabelMode >= 2) { All.AddUnique(TEXT("UnitCards")); All.AddUnique(TEXT("UnitSymbols")); }
+	if (LabelMode >= 3) All.AddUnique(TEXT("Labels"));
+	SentLabelMode = LabelMode;
+	if (All.Num() == 0 && !bGizmoViewSent) return;   // no view, no work (and nothing to withdraw)
 	TArray<SimNetGateway_Protocol_DdsPlayer_NameItem> Names;
-	for (const FString& L : GizmoLayers) { SimNetGateway_Protocol_DdsPlayer_NameItem& N = Names.AddZeroed_GetRef(); FCStringAnsi::Strncpy(N.Name, TCHAR_TO_UTF8(*L), sizeof(N.Name)); }
+	for (const FString& L : All) { SimNetGateway_Protocol_DdsPlayer_NameItem& N = Names.AddZeroed_GetRef(); FCStringAnsi::Strncpy(N.Name, TCHAR_TO_UTF8(*L), sizeof(N.Name)); }
 	SimNetGateway_Protocol_DdsPlayer_GizmoView V{};
 	V.Layers._length = V.Layers._maximum = uint32(Names.Num()); V.Layers._buffer = Names.GetData(); V.Layers._release = false;
 	V.RateHz = 10.f; V.ClientId = MyClientId;
 	Dps->Client().Write(TEXT("DPS_GizmoView"), &V);
-	bGizmoViewSent = GizmoLayers.Num() > 0;
+	bGizmoViewSent = All.Num() > 0;
 }
 
 void UHrotDpsWorld::DrawGizmos()
@@ -102,7 +137,12 @@ void UHrotDpsWorld::SetGizmoLayers(const TArray<FString>& Layers)
 {
 	GizmoLayers = Layers;
 	NextGizmoView = 0;   // say it now
-	for (auto It = GizmoLayersShown.CreateIterator(); It; ++It) if (!Layers.Contains(It.Key())) It.RemoveCurrent();
+	static const TCHAR* CardLayers[] = { TEXT("UnitCards"), TEXT("UnitSymbols"), TEXT("Labels") };   // kept for the label mode
+	for (auto It = GizmoLayersShown.CreateIterator(); It; ++It)
+	{
+		bool bCard = false; for (const TCHAR* C : CardLayers) bCard |= It.Key() == C;
+		if (!bCard && !Layers.Contains(It.Key())) It.RemoveCurrent();
+	}
 }
 
 FString UHrotDpsWorld::DescribeGizmos() const

@@ -94,14 +94,15 @@ bool FHrotCardsGizmoTest::RunTest(const FString&)
 {
 	// DD-024: HROT's Frame (a background box + an outline box on row 0), Bar (row 10, two fraction boxes), Text (row 20) -> the same card the
 	// stand-in builds; the client's cutoffs (R-144) applied by kind, none for an Air anchor
-	auto Prim = [](EGizmoShape Sh, uint8 Row, float X, float W, float H, uint32 Col, uint32 Fill, const TCHAR* T = TEXT(""), float Px = 0)
-	{ FGizmoCardPrim P; P.Shape = Sh; P.AnchorId = 42; P.Row = Row; P.CardX = X; P.CardW = W; P.CardH = H; P.ColourRgba = Col; P.FillRgba = Fill; P.Text = T; P.Width = Px; return P; };
+	// (X, W) fractions of the width; (Y, H) HROT's centre / half-extent; Px = Width (a Text's font px, a Box's outline px)
+	auto Prim = [](EGizmoShape Sh, uint8 Row, float X, float W, float Y, float H, uint32 Col, uint32 Fill, const TCHAR* T = TEXT(""), float Px = 0)
+	{ FGizmoCardPrim P; P.Shape = Sh; P.AnchorId = 42; P.Row = Row; P.CardX = X; P.CardW = W; P.CardY = Y; P.CardH = H; P.ColourRgba = Col; P.FillRgba = Fill; P.Text = T; P.Width = Px; return P; };
 	FCard C;
-	TestTrue(TEXT("frame background"), AddGizmo(C, Prim(EGizmoShape::Box, 0, 0.5f, 0.5f, 0.5f, 0x14161A96, 0x14161A96), false));
-	TestTrue(TEXT("frame outline"), AddGizmo(C, Prim(EGizmoShape::Box, 0, 0.5f, 0.5f, 0.5f, 0xFF0000FF, 0), false));
-	TestTrue(TEXT("bar back"), AddGizmo(C, Prim(EGizmoShape::Box, 10, 0.5f, 0.5f, 4, 0x282828DC, 0x282828DC), false));
-	TestTrue(TEXT("name"), AddGizmo(C, Prim(EGizmoShape::Text, 20, 0, 0, 0, 0xF0F0F0FF, 0, TEXT("T-72 #42"), 13), false));
-	TestFalse(TEXT("a world-space shape is not a card's"), AddGizmo(C, Prim(EGizmoShape::Arrow, 0, 0, 0, 0, 0, 0), false));
+	TestTrue(TEXT("frame background"), AddGizmo(C, Prim(EGizmoShape::Box, 0, 0.5f, 0.5f, 0.5f, 0.5f, 0x14161A96, 0x14161A96), false));
+	TestTrue(TEXT("frame outline"), AddGizmo(C, Prim(EGizmoShape::Box, 0, 0.5f, 0.5f, 0.5f, 0.5f, 0xFF0000FF, 0, TEXT(""), 1), false));
+	TestTrue(TEXT("bar back"), AddGizmo(C, Prim(EGizmoShape::Box, 10, 0.5f, 0.5f, 2, 2, 0x282828DC, 0x282828DC), false));
+	TestTrue(TEXT("name"), AddGizmo(C, Prim(EGizmoShape::Text, 20, 0, 0, 0, 0, 0xF0F0F0FF, 0, TEXT("T-72 #42"), 13), false));
+	TestFalse(TEXT("a world-space shape is not a card's"), AddGizmo(C, Prim(EGizmoShape::Arrow, 0, 0, 0, 0, 0, 0, 0), false));
 	TestEqual(TEXT("the card's anchor"), C.EntityId, int64(42));
 	TestEqual(TEXT("four items"), C.Items.Num(), 4);
 	TestTrue(TEXT("the outline is an outline"), C.Items[1].Thickness > 0 && C.Items[1].Fill == 0);
@@ -112,11 +113,11 @@ bool FHrotCardsGizmoTest::RunTest(const FString&)
 	TestEqual(TEXT("  like the stand-in: 72 x 27"), FVector2f(L.W, L.H), FVector2f(72, 27));
 	TestTrue(TEXT("1.5 m/px: the name only"), Layout(C, 1.5f, Measure, L) && L.VisibleMask == (uint64(1) << 3));
 	FCard Air;
-	AddGizmo(Air, Prim(EGizmoShape::Box, 0, 0.5f, 0.5f, 0.5f, 0x0064FFFF, 0), true);
-	AddGizmo(Air, Prim(EGizmoShape::Text, 20, 0, 0, 0, 0xF0F0F0FF, 0, TEXT("Eagle 1"), 13), true);
+	AddGizmo(Air, Prim(EGizmoShape::Box, 0, 0.5f, 0.5f, 0.5f, 0.5f, 0x0064FFFF, 0, TEXT(""), 1), true);
+	AddGizmo(Air, Prim(EGizmoShape::Text, 20, 0, 0, 0, 0, 0xF0F0F0FF, 0, TEXT("Eagle 1"), 13), true);
 	TestTrue(TEXT("rule A: an aircraft's card at 50 m/px"), Layout(Air, 50.f, Measure, L) && L.VisibleMask == 3);
 	FCard U;
-	TestTrue(TEXT("a symbol cell"), AddGizmo(U, Prim(EGizmoShape::Icon, 0, 0, 0, 22, 0xFFFFFFFF, 0, TEXT("SFGPUCI----B---")), false));
+	TestTrue(TEXT("a symbol cell"), AddGizmo(U, Prim(EGizmoShape::Icon, 0, 0, 0, 0, 22, 0xFFFFFFFF, 0, TEXT("SFGPUCI----B---")), false));
 	TestTrue(TEXT("  as a symbol of 22 px"), U.Items[0].Kind == EItem::Symbol && U.Items[0].Px == 22.f);
 	return true;
 }

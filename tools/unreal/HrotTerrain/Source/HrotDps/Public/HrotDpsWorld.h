@@ -31,6 +31,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HrotCards.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "HrotDpsMotion.h"
 #include "HrotDpsPeople.h"
@@ -224,6 +225,7 @@ private:
 		float StepPhase = 0;   // U-18n: the stride, a footstep at each whole number
 		uint8 Side = 0;
 		int32 ParentId = 0;   // Entity.ParentId: mounted on / part of another entity
+		bool bIsUnit = false;   // U-18y: Entity.IsUnit — a body-less commander (DD-024): no stand-in body, its card at its position + 2 m
 		// a person (U-18d)
 		bool bHasPerson = false;
 		HrotDpsPeople::FIn Person;
@@ -305,6 +307,13 @@ private:
 	void TickCards();
 	struct FGizmoPrim { uint8 Shape = 0; FColor Colour = FColor::White; float Width = 0; FString Text; TArray<FVector> Points; };
 	TMap<FString, TArray<FGizmoPrim>> GizmoLayersShown;
+	/** U-18y — DD-024: the card-space primitives of each layer, and the cards they make (regrouped when a frame arrives, not per frame) */
+	TMap<FString, TArray<HrotCards::FGizmoCardPrim>> GizmoCardPrims;
+	struct FWireCard { TArray<HrotCards::FGizmoCardPrim> Prims; uint32 Key = 0; };
+	TMap<int32, FWireCard> WireCards;
+	bool bWireCardsDirty = false;
+	int32 SentLabelMode = -1;
+	void RegroupWireCards();
 	double NextGizmoView = 0;
 	bool bGizmoViewSent = false;
 	int32 GizmoFrames = 0;

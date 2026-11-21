@@ -57,7 +57,7 @@ def level():
     sky = EAS().spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 500)); sky.light_component.set_editor_property("real_time_capture", True)
     for c in ("t.IdleWhenNotForeground 0", "r.VSync 0"): unreal.SystemLibrary.execute_console_command(None, c)
     unreal.EditorLevelLibrary.get_editor_world().get_world_settings().set_editor_property("default_game_mode", unreal.HrotDpsGameMode.static_class())
-    LES().editor_set_viewport_realtime(True)
+    if not LES().save_current_level(): raise RuntimeError("save failed")   # as the travel test: Play on an UNSAVED level ends the unattended editor
     LES().editor_request_begin_play()
     S.update(phase="join", t=time.time() + 8)
 

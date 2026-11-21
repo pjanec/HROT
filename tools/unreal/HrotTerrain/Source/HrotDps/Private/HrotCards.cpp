@@ -414,23 +414,14 @@ namespace HrotCards
 			I.Kind = EItem::Text; I.A = FVector2f(P.CardX, P.CardY); I.Colour = P.ColourRgba; I.Text = P.Text.Left(31);
 			I.Px = P.Width > 0 ? FMath::Clamp(P.Width, 6.f, 64.f) : DefaultTextPx; I.MaxMetresPerPixel = TextCut;
 			break;
-		case EGizmoShape::Box:
-			I.Kind = EItem::Box; I.Fill = P.FillRgba; I.MaxMetresPerPixel = FrameCut;
-			if (P.Row == 0)   // the frame: fractions of the whole card; an outline when the colour differs from the fill
-			{
-				I.A = FVector2f(P.CardX, P.CardY > 0 ? P.CardY : 0.5f); I.B = FVector2f(P.CardW, P.CardH > 0 && P.CardH <= 1.f ? P.CardH : 0.5f);
-				I.Colour = P.ColourRgba; I.Thickness = (P.ColourRgba != P.FillRgba && (P.ColourRgba & 0xFF)) ? 1.f : 0.f;
-				if (I.Thickness > 0 && (P.FillRgba & 0xFF))   // HROT draws the frame as a background box then an outline box: split them
-				{
-					FItem Back = I; Back.Colour = Back.Fill; Back.Thickness = 0; Card.Items.Add(Back);
-					I.Fill = 0;
-				}
-			}
-			else   // a bar or a tick: x a fraction of the row's inner width, y pixels
-			{
-				I.bFraction = true; I.A = FVector2f(P.CardX, P.CardH * 0.5f); I.B = FVector2f(P.CardW, P.CardH * 0.5f); I.Colour = P.FillRgba ? P.FillRgba : P.ColourRgba;
-				if (!I.Fill) I.Fill = I.Colour;
-			}
+		case EGizmoShape::Box:   // the guide: CardX / CardW centre and half-width as fractions of the width; CardY / CardH HROT's centre and
+			// half-extent (fractions of the card on row 0, pixels in a row); FillRgba the fill (0 none); ColourRgba an outline of Width px (0 none)
+			I.Kind = EItem::Box; I.MaxMetresPerPixel = FrameCut;
+			I.A = FVector2f(P.CardX, P.CardY); I.B = FVector2f(P.CardW, P.CardH);
+			I.bFraction = P.Row != 0;
+			I.Fill = P.FillRgba;
+			I.Thickness = (P.Width > 0 && (P.ColourRgba & 0xFF)) ? P.Width : 0.f;
+			I.Colour = I.Thickness > 0 ? P.ColourRgba : P.FillRgba;
 			break;
 		case EGizmoShape::Icon:
 			I.Kind = EItem::Symbol; I.Text = P.Text; I.Px = P.CardH > 0 ? FMath::Clamp(P.CardH, 6.f, 256.f) : DefaultSymbolPx; I.MaxMetresPerPixel = FrameCut;
