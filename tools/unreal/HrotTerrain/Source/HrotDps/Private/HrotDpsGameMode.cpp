@@ -100,6 +100,19 @@ void AHrotDpsGameMode::StartPlay()
 			if (AHrotDpsCamera* Cam = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(this, 0))) Cam->Director();
 		}), 1.0f, false);
 	}
+	if (FParse::Param(FCommandLine::Get(), TEXT("HrotIgFollowFirst")))   // a live check without a station view: follow the first unit with a body
+	{
+		FTimerHandle H;
+		TSharedRef<bool> bDone = MakeShared<bool>(false);
+		T.SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this, bDone]()
+		{
+			if (*bDone) return;
+			AHrotDpsCamera* Cam = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(this, 0));
+			const UHrotDpsWorld* FW = UHrotDpsWorld::Get(this);
+			if (!Cam || !FW) return;
+			for (int32 Id : FW->EntityIds()) if (FW->ActorOf(Id)) { Cam->Follow(Id, 40.f); *bDone = true; UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: following entity %d"), Id); return; }
+		}), 4.0f, true);   // again every 4 s until there is one (a level loads, entities arrive later)
+	}
 	float ShotEvery = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgShotEvery="), ShotEvery) && ShotEvery > 0)
 		T.SetTimer(ShotEveryTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
