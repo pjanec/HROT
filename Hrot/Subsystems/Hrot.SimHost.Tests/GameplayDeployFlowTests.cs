@@ -151,6 +151,21 @@ namespace Hrot.SimHost.Tests
             Assert.Same(_flow, DeployFlowSystem.Of(_client, Station));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-11027</c> S12-3 — the flow's <c>Leave()</c> verb: the server frees the station's slot (and publishes the release) and the flow is back to Choosing. From Waiting it does nothing.
+        /// </summary>
+        [Fact]
+        public void CE11027_Leave_FreesTheServersSlot_AndTheFlowGoesBackToChoosing()
+        {
+            Assert.False(_flow.Leave());                       // Waiting: nothing joined
+            ToChoosing();
+            Assert.True(_flow.Request(ForceId.Friend, Rifleman));
+            PumpUntil(() => _proc.TryGetSlot(Station, out _, out _), "the slot");
+            Assert.True(_flow.Leave());
+            Assert.Equal(DeployFlowState.Choosing, _flow.State);
+            PumpUntil(() => !_proc.TryGetSlot(Station, out _, out _), "the slot freed by the leave");
+        }
+
         /// <summary>⭐ <c>CE-11027</c> S12-2 — the flow's <c>Side</c> is Neutral until it asks, then the side of its last request.</summary>
         [Fact]
         public void CE11027_TheFlowsSide_IsTheSideOfItsLastRequest()

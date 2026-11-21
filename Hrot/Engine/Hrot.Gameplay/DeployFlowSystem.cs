@@ -201,6 +201,19 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
         return Send(side, 0, observe: true);
     }
 
+    /// <summary>
+    /// ⭐ CE-11027 S12-3 (Q114 E) — this station LEAVES the deploy (a seat that ended, a Player that quit): the server frees its slot and answer at once and every unit it holds is released. The flow goes back to Choosing
+    /// (Observing when no server exists). Not from Waiting (nothing was joined). Returns false when it did nothing.
+    /// </summary>
+    public bool Leave()
+    {
+        if (State == DeployFlowState.Waiting) return false;
+        _wire.RequestWriter?.Write(new DeployRequestTopic { RequestId = Guid.NewGuid().ToString("N"), StationNodeId = _station, Leave = true });
+        Reset();
+        State = _serverExists ? DeployFlowState.Choosing : DeployFlowState.Observing;
+        return true;
+    }
+
     /// <summary>The Player stops observing and goes back to choosing (the screen's "Choose a unit" after "keep observing").</summary>
     public bool StopObserving()
     {

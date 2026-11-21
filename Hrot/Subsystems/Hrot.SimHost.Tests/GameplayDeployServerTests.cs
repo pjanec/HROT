@@ -363,6 +363,95 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(StationA, _statusDisposed);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 E) — a station that LEAVES (<c>Leave</c> request): its slot is disposed, its durable answer deleted and a <c>ReleaseStationEvent</c> for it is published on the world bus at once; another
+        /// station's slot stays. 🔴 Mutation: the leave frees the slot but publishes no <c>ReleaseStationEvent</c> ⇒ the event assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE11027_ALeavingStation_LosesItsSlotAndAnswer_AndTheReleaseIsPublished()
+        {
+            Unit(Rifleman, ForceId.Friend); Unit(Rifleman + 1, ForceId.Friend);
+            Assert.True(Request(StationA, ForceId.Friend, Rifleman).Accepted);
+            Assert.True(Request(StationB, ForceId.Friend, Rifleman + 1).Accepted);
+            Assert.Equal(2, _proc.SlotCount);
+
+            _station.RequestWriter!.Write(new DeployRequestTopic { RequestId = "leave", StationNodeId = StationA, Leave = true });
+            PumpUntil(() => _proc.SlotCount == 1, "the slot freed");
+            // the release is on the bus: published by the Execute that freed the slot (no swap since), readable after the next swap
+            _w.Bus.SwapBuffers();
+            var released = _w.Bus.Read<ReleaseStationEvent>().ToArray();
+            Assert.Contains(released, e => e.StationNodeId == StationA);
+            Assert.DoesNotContain(released, e => e.StationNodeId == StationB);
+            Assert.False(_proc.TryGetSlot(StationA, out _, out _));
+            Assert.True(_proc.TryGetSlot(StationB, out _, out _));
+            PumpUntil(() => _statusDisposed.Contains(StationA) && _slotLog.Exists(s => !s.valid && s.slot.StationNodeId == StationA), "the answer and the slot disposed");
+            Assert.DoesNotContain(StationB, _statusDisposed);
+            Assert.False(StationReservations.Of(_w).TryReservedFor(Rifleman, out _));
+            Assert.True(StationReservations.Of(_w).TryReservedFor(Rifleman + 1, out _));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 G) — two stations ask for a role with ONE place left in ONE frame: exactly one spawn happens, the other is refused <c>RoleFull</c> (the pending spawn counts against the Max, per role).
+        /// 🔴 Mutation: <c>RoleFull</c> ignores the pending spawns ⇒ two spawns.
+        /// </summary>
+        [Fact]
+        public void CE11027_TwoStationsAskForTheLastPlaceOfARole_InOneFrame_OneSpawnHappens()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(100f, 200f, 5f));
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 1);
+            string a = Ask(StationA, ForceId.Friend, 300);
+            string b = Ask(StationB, ForceId.Friend, 300);   // both written before the server runs a frame: both are read in ONE ReadRequests
+            PumpUntil(() => _spawnCalls.Count >= 1, "a spawn");
+            PumpUntil(() => _statuses.Exists(x => !x.Accepted), "the refusal");
+            var refused = _statuses.Find(x => !x.Accepted);
+            Assert.Equal("RoleFull", refused.Reason);
+            Assert.Contains(refused.RequestId, new[] { a, b });
+            Assert.Equal(1, _spawnCalls.Count);
+            for (int i = 0; i < 3; i++) Tick();
+            Assert.Equal(1, _spawnCalls.Count);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 H) — a LOAD (the world epoch moves) clears the server's tables: slots, answers, offers and pending spawns are forgotten and DISPOSED on the wire; a stale slot from before is gone, also from
+        /// the reservations. 🔴 Mutation: no forgetting at <c>WorldEpoch.Moved</c> ⇒ the slot stays.
+        /// </summary>
+        [Fact]
+        public void CE11027_ALoad_ClearsTheServersTables_AndDisposesThemOnTheWire()
+        {
+            var unit = Unit(Rifleman, ForceId.Friend);
+            Assert.True(Request(StationA, ForceId.Friend, Rifleman).Accepted);
+            PumpUntil(() => _offersSeen.ContainsKey(Rifleman), "the offer");
+            Assert.Equal(1, _proc.SlotCount);
+
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(_w);   // a load: the world was replaced
+            PumpUntil(() => _proc.SlotCount == 0, "the slot forgotten");
+            PumpUntil(() => _slotLog.Exists(s => !s.valid && s.slot.StationNodeId == StationA) && _statusDisposed.Contains(StationA), "the slot and the answer disposed on the wire");
+            Assert.False(StationReservations.Of(_w).TryReservedFor(Rifleman, out _));
+            Assert.False(_proc.TryGetSlot(StationA, out _, out _));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11027</c> S12-3 (Q114 H) — while a REPLAY restores (<c>IReplayRestoreGated.IsReplayRestoring</c>) the server publishes no offer and no slot and takes no request; when it ends it offers again. 🔴 Mutation: the gate
+        /// inverted ⇒ an offer is published during the replay (and none after).
+        /// </summary>
+        [Fact]
+        public void CE11027_DuringAReplayRestore_NoOfferAndNoSlotIsPublished_AndAfterItTheServerOffersAgain()
+        {
+            bool replaying = true;
+            _proc.IsReplayRestoring = () => replaying;
+            Unit(Rifleman, ForceId.Friend);
+            for (int i = 0; i < 6; i++) Tick();
+            Assert.Empty(_offersSeen);
+            _station.RequestWriter!.Write(new DeployRequestTopic { RequestId = "r", StationNodeId = StationA, Side = (byte)ForceId.Friend, UnitNetId = Rifleman });
+            for (int i = 0; i < 6; i++) Tick();
+            Assert.Equal(0, _proc.SlotCount);                       // the request of a live Player is not taken against the recording
+            Assert.Empty(_slotLog); Assert.Empty(_statuses);
+
+            replaying = false;
+            PumpUntil(() => _offersSeen.ContainsKey(Rifleman), "offers again after the replay");
+            Assert.Equal(0, _proc.SlotCount);                       // and the dropped request stays dropped
+        }
+
         /// <summary>An observer request (<c>Observe</c>) makes a Choosing slot of the side with no unit. ✅ Red-proof: the observe branch removed ⇒ the request is refused as no such unit ⇒ red.</summary>
         [Fact]
         public void AnObserveRequest_MakesAChoosingSlotWithNoUnit()

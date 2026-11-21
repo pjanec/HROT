@@ -26,7 +26,7 @@ namespace Hrot.Gameplay;
 [UpdateInPhase(SystemPhase.Input)]
 [TickMode(TickPolicy.EveryFrame)]
 [NodeFeature(GameplayFeatures.DeployServerId)]
-public sealed class DeployProcessorSystem : IEcsModuleSystem
+public sealed class DeployProcessorSystem : IEcsModuleSystem, Fdp.Interfaces.IReplayRestoreGated
 {
     /// <summary>S1-d — a reservation not taken within this many seconds of sim time lapses.</summary>
     public const double ReservationSeconds = 30.0;
@@ -93,6 +93,13 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     private long _nextElectionMs, _nextOfferMs;
     [Fdp.Core.WorldDerived("dirty flag asking for an offers re-publish")]
     private bool _offersDirty;
+    [Fdp.Core.WorldDerived("the world epoch last seen: a world replacement (a load, a restore) forgets every table")]
+    private int _worldEpoch;
+    [Fdp.Core.WorldDerived("true while the last frame was gated off by a replay restore")]
+    private bool _wasGated;
+
+    /// <summary>⭐ CE-11027 S12-3 — set by the node's record / replay controller (<see cref="Fdp.Interfaces.IReplayRestoreGated"/>): true while this node restores a recording. The server then publishes no offer and no slot, reads no request.</summary>
+    public Func<bool>? IsReplayRestoring { get; set; }
 
     /// <param name="wire">This node's gameplay wire.</param>
     /// <param name="map">The node's network entity map (UnitNetId → entity).</param>
@@ -141,6 +148,16 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
             _isServer = serves;
         }
         if (!_isServer) return;
+        if (IsReplayRestoring?.Invoke() == true)
+        {
+            // ⭐ CE-11027 S12-3 (Q114 H) — a replay restores the recording's world: nothing is offered or slotted against it, and the requests of a live Player are not kept for after.
+            _wasGated = true;
+            var gated = _wire.Requests;
+            if (gated is not null) { _taken.Clear(); gated.TakeInto(_taken); _taken.Clear(); }
+            return;
+        }
+        if (_wasGated) { _wasGated = false; _offersDirty = true; }   // the replay ended: offer again
+        if (WorldEpoch.Moved(repo, ref _worldEpoch)) ForgetWorld(repo);   // ⭐ CE-11027 S12-3 (Q114 H) — a load: the tables belong to the world that ended
 
         double simNow = (_clock ??= SimClock.Of(repo)).TotalTime;   // ⭐ ONE boxed clock, kept: SimClock.Of returns the interface, so asking per frame would box a struct (24 B) every frame (R-2084)
         ReadRequests(repo, simNow);
@@ -165,6 +182,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
 
     private void Handle(EntityRepository repo, in DeployRequestTopic r, double simNow)
     {
+        if (r.Leave) { Leave(repo, r.StationNodeId); return; }
         var side = (ForceId)r.Side;
         if (r.Observe)
         {
@@ -228,7 +246,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
             if (personType == 0) { Answer(r, false, "the role has no person type", 0, r.UnitNetId); return; }
         }
         if (roleSide != side) { Answer(r, false, "WrongSide", 0, r.UnitNetId); return; }
-        if (max > 0 && AliveOf(repo, r.UnitNetId) >= max) { Answer(r, false, "RoleFull", 0, r.UnitNetId); return; }
+        if (max > 0 && AliveOf(repo, r.UnitNetId) + PendingOf(r.UnitNetId, r.StationNodeId) >= max) { Answer(r, false, "RoleFull", 0, r.UnitNetId); return; }
         if (_spawner is null) { Answer(r, false, "spawning unavailable", 0, r.UnitNetId); return; }
         Entity? chosen = null;   // ⭐ S3-c — the Player's area, if it named one
         if (r.AreaNetId != 0)
@@ -273,6 +291,15 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
                 Answer(request, false, SpawnTimedOut, 0, p.RoleNetId);
             }
         }
+    }
+
+    /// <summary>⭐ CE-11027 S12-3 (Q114 G) — the spawns of <paramref name="roleNetId"/> still waiting for their man (a station's own earlier request is replaced by its new one, so it does not count against it): a role with one place left must not be filled twice in one frame.</summary>
+    private int PendingOf(int roleNetId, int exceptStation)
+    {
+        int n = 0;
+        for (int i = 0; i < _pending.Count; i++)
+            if (_pending[i].RoleNetId == roleNetId && _pending[i].Station != exceptStation) n++;
+        return n;
     }
 
     /// <summary>How many of the men this server made for <paramref name="roleNetId"/> are alive now.</summary>
@@ -416,6 +443,20 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
         if (_answered.Remove(station)) _wire.Status?.DisposeInstance(new DeployStatusTopic { StationNodeId = station });
     }
 
+    /// <summary>
+    /// ⭐ CE-11027 S12-3 (Q114 E) — a station left: its slot, its durable answer and its pending spawn go at once (as <see cref="ReadDepartures"/> does for a node), and <see cref="ReleaseStationEvent"/> is published on the world bus so
+    /// the possession system releases every unit it holds. A station that joined nothing: a no-op, but the event is still sent (it may hold a unit from an earlier deploy).
+    /// </summary>
+    private void Leave(EntityRepository repo, int station)
+    {
+        for (int i = _slots.Count - 1; i >= 0; i--) if (_slots[i].Station == station) DisposeSlotAt(repo, i);
+        DisposeAnswer(station);
+        for (int i = _pending.Count - 1; i >= 0; i--) if (_pending[i].Station == station) _pending.RemoveAt(i);
+        if (!repo.Bus.IsRegistered<ReleaseStationEvent>()) repo.Bus.Register<ReleaseStationEvent>();
+        repo.Bus.Publish(new ReleaseStationEvent { StationNodeId = (Fdp.Core.StationId)station });
+        _offersDirty = true;
+    }
+
     // ── offers ──────────────────────────────────────────────────────────────────────────────
 
     private void PublishOffers(EntityRepository repo)
@@ -518,6 +559,14 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     // ── standing down ───────────────────────────────────────────────────────────────────────
 
     /// <summary>A lower-id server appeared: retract everything this one published, so the new server is the only voice (it re-offers the units itself).</summary>
+    private void ForgetWorld(EntityRepository repo)
+    {
+        StandDown(repo);          // slots, answers and offers: gone from the wire
+        _pending.Clear();         // a spawn in flight belongs to the world that ended
+        _spawned.Clear();         // so do the men this server made
+        _offersDirty = true;
+    }
+
     private void StandDown(EntityRepository repo)
     {
         for (int i = _slots.Count - 1; i >= 0; i--) DisposeSlotAt(repo, i);

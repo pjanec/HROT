@@ -149,6 +149,126 @@ namespace Hrot.SimHost.Tests
             Assert.True(w.HasComponent<PossessedBy>(other));
         }
 
+        private static EntityRepository PossessionWorld(out PossessionSystem possession, out System.Func<Entity> newUnit)
+        {
+            var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(w);
+            possession = new PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+            newUnit = () =>
+            {
+                var u = w.CreateEntity();
+                w.AddComponent(u, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+                w.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(u, true);
+                return u;
+            };
+            return w;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 E) — a station that RIDES a man and DRIVES a vehicle leaves (<c>ReleaseStationEvent</c>): BOTH units are free, another station's unit is kept; a station that holds nothing is a no-op.
+        /// 🔴 Mutation: <c>ReleaseStation</c> releases only the first unit ⇒ the second stays held.
+        /// </summary>
+        [Fact]
+        public void CE11027_AStationThatRidesAndDrives_Leaves_BothUnitsAreFree_AndANoOpForAStationThatHoldsNothing()
+        {
+            using var w = PossessionWorld(out var possession, out var newUnit);
+            w.Bus.Register<ReleaseStationEvent>();
+            var seat = StationId.Of((NodeId)7, 1);
+            Entity Held(StationId st, PossessionMode mode) { var u = newUnit(); w.AddComponent(u, new PossessedBy { StationNodeId = st, Mode = mode, Epoch = 1 }); return u; }
+            var man = Held(seat, PossessionMode.Riding);
+            var vehicle = Held(seat, PossessionMode.Fps);
+            var other = Held(StationId.Of((NodeId)7, 2), PossessionMode.Fps);
+            void Frame() { w.Bus.SwapBuffers(); possession.Execute(w, 0.016f); }
+
+            w.Bus.Publish(new ReleaseStationEvent { StationNodeId = StationId.Of((NodeId)9, 0) });   // holds nothing
+            Frame();
+            Assert.True(w.HasComponent<PossessedBy>(man) && w.HasComponent<PossessedBy>(vehicle) && w.HasComponent<PossessedBy>(other));
+
+            w.Bus.Publish(new ReleaseStationEvent { StationNodeId = seat });
+            Frame();
+            Assert.False(w.HasComponent<PossessedBy>(man));
+            Assert.False(w.HasComponent<PossessedBy>(vehicle));
+            Assert.True(w.HasComponent<PossessedBy>(other));          // the other seat of the node keeps its unit
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 G) — a KILLED rider (held in Riding) frees his station's VEHICLE as well as his own body. A killed unit held in Fps frees only itself. 🔴 Mutation: the killed-rider sweep releases only the body ⇒ the vehicle stays held.
+        /// </summary>
+        [Fact]
+        public void CE11027_AKilledRider_FreesTheVehicleHisStationDrove()
+        {
+            using var w = PossessionWorld(out var possession, out var newUnit);
+            var seat = StationId.Of((NodeId)7, 1);
+            Entity Held(StationId st, PossessionMode mode, float health) { var u = newUnit(); w.AddComponent(u, new PossessedBy { StationNodeId = st, Mode = mode, Epoch = 1 }); w.AddComponent(u, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f }); return u; }
+            var rider = Held(seat, PossessionMode.Riding, 100f);
+            var vehicle = Held(seat, PossessionMode.Fps, 100f);
+            var otherRider = Held(StationId.Of((NodeId)7, 2), PossessionMode.Riding, 100f);
+            var otherVehicle = Held(StationId.Of((NodeId)7, 2), PossessionMode.Fps, 100f);
+            void Frame() { w.Bus.SwapBuffers(); possession.Execute(w, 0.016f); }
+
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(rider).Current = 0f;
+            Frame();
+            Assert.False(w.HasComponent<PossessedBy>(rider));
+            Assert.False(w.HasComponent<PossessedBy>(vehicle));        // the vehicle the dead man drove
+            Assert.True(w.HasComponent<PossessedBy>(otherRider)); Assert.True(w.HasComponent<PossessedBy>(otherVehicle));   // the other seat is untouched
+
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(otherVehicle).Current = 0f;       // a killed unit held in Fps: only itself
+            Frame();
+            Assert.False(w.HasComponent<PossessedBy>(otherVehicle));
+            Assert.True(w.HasComponent<PossessedBy>(otherRider));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11027</c> S12-3 — the NEW event is a recorder citizen: a recording that contains <c>ReleaseStationEvent</c> plays back with the station (index and node) intact, a manifest that already names it validates, and an OLD
+        /// manifest (without it) still validates — a manifest only GAINS an event. Its layout hash is hashed under the id <c>5203</c>.
+        /// </summary>
+        [Fact]
+        public void CE11027_TheNewEvent_RecordsAndPlaysBack_AndOldManifestsStillValidate()
+        {
+            var seat = StationId.Of((NodeId)7, 2);
+            string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ce11027_" + System.Guid.NewGuid().ToString("N") + ".fdp");
+            try
+            {
+                using (var fs = System.IO.File.Create(path))
+                using (var writer = new System.IO.BinaryWriter(fs))
+                using (var repo = new EntityRepository())
+                using (var bus = new FdpEventBus())
+                {
+                    writer.Write((uint)1); writer.Write((ulong)0);
+                    bus.Publish(new ReleaseStationEvent { StationNodeId = seat });
+                    repo.Tick();
+                    new Fdp.Core.FlightRecorder.RecorderSystem().RecordKeyframe(repo, writer, 0L, bus);
+                }
+                using (var fs = System.IO.File.OpenRead(path))
+                using (var reader = new System.IO.BinaryReader(fs))
+                using (var repo = new EntityRepository())
+                using (var bus = new FdpEventBus())
+                {
+                    reader.ReadUInt32(); reader.ReadUInt64();
+                    new Fdp.Core.FlightRecorder.PlaybackSystem().ApplyFrame(repo, reader, bus);
+                    var got = Assert.Single(bus.Read<ReleaseStationEvent>().ToArray());
+                    Assert.Equal(seat, got.StationNodeId);
+                    Assert.Equal(2, got.StationNodeId.Index);
+                }
+            }
+            finally { try { System.IO.File.Delete(path); } catch { } }
+
+            var newType = typeof(ReleaseStationEvent);
+            var meta = new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata
+            {
+                EventManifest = new System.Collections.Generic.Dictionary<int, Fdp.Core.FlightRecorder.ComponentSchemaInfo>
+                {
+                    [PossessionEventIds.ReleaseStation] = new() { Name = newType.FullName!, Size = Fdp.Core.TypeLayout.SizeOf(newType), LayoutHash = Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(newType), IsManaged = false },
+                    [PossessionEventIds.PossessRequest] = new() { Name = typeof(PossessRequestEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(PossessRequestEvent)), LayoutHash = 0xEDB181D40B5C0FA7UL, IsManaged = false },
+                },
+            };
+            Assert.Empty(Fdp.Core.FlightRecorder.SchemaValidator.Validate(meta));
+            Assert.Equal(5203, PossessionEventIds.ReleaseStation);
+            // (the old-manifest half is CE11027_AManifestRecordedAtTheOldType_StillValidates: no entry for the new event ⇒ nothing to check)
+        }
+
         private static (EntityRepository World, Entity Unit, NetworkEntityMap Map) Node(int netId)
         {
             var w = new EntityRepository();
