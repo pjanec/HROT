@@ -76,8 +76,9 @@ void UHrotDpsWorld::DrawGizmos()
 				{
 					FVector A = U(0), B = U(1), C = U(2);
 					for (FVector* V : { &A, &B, &C }) V->Z = GizmoLiftCm + OriginCm.Z;
-					DrawDebugLine(W, A, B, G.Colour, false, -1.f, SDPG_World, 1.f); DrawDebugLine(W, B, C, G.Colour, false, -1.f, SDPG_World, 1.f);
-					DrawDebugLine(W, C, A, G.Colour, false, -1.f, SDPG_World, 1.f);
+					const TArray<FVector> Verts = { A, B, C };
+					const TArray<int32> Tris = { 0, 1, 2, 0, 2, 1 };   // both faces: seen from above or below
+					DrawDebugMesh(W, Verts, Tris, G.Colour, false, -1.f, SDPG_World);   // filled (U-18z)
 				}
 				break;
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeBox:

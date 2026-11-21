@@ -113,6 +113,26 @@ namespace HrotCards
 	/** paints a laid-out card with its top-left at TopLeft, and the leader line from the card's bottom to Anchor (HROT DrawCard) */
 	HROTDPS_API void Paint(const FCard& Card, const FLayout& L, FVector2f TopLeft, FVector2f Anchor, ICardCanvas& Canvas);
 
+	// ── SimNetGateway DD-024 (R-144): HROT's card gizmos over GizmoFrame — the appended GizmoPrimitive fields, as the adapter reads them ──
+	enum class EGizmoShape : uint8 { LineStrip = 0, Arrow, Circle, Polygon, Box, Text, Icon };   // the contract's GizmoShape
+	/** one card-space primitive (Space = EntityCard): D-1 / D-2. Text: CardX = x px in the row, Width = font px. Box: CardX = centre fraction,
+	 *  CardW = half-width fraction, CardH = height px, FillRgba = fill, ColourRgba = outline (row 0: the frame, fractions of the whole card).
+	 *  Icon: Text = the symbol code, CardH = height px (row 0 = the left cell) */
+	struct FGizmoCardPrim
+	{
+		EGizmoShape Shape = EGizmoShape::Box;
+		int32 AnchorId = 0;
+		uint8 Row = 0;
+		float CardX = 0, CardY = 0, CardW = 0, CardH = 0, Width = 0;
+		uint32 ColourRgba = 0xFFFFFFFF, FillRgba = 0;
+		FString Text;
+	};
+	/** the client's distance rule (R-144: each client chooses; HROT's numbers): frame / bar / symbol cut at FrameMpp, text at TextMpp; an
+	 *  Air anchor's card is never cut (rule A) */
+	struct FCutoffs { float FrameMpp = 1.f, TextMpp = 2.f; };
+	/** adds one card-space primitive to its card (HROT EntityCards.cs helpers, inverted); false for a shape a card does not use */
+	HROTDPS_API bool AddGizmo(FCard& Card, const FGizmoCardPrim& P, bool bAirAnchor, const FCutoffs& Cut = FCutoffs());
+
 	/** HROT's side colours (ResolvedStyleConstants tints): Side 1 friend blue, 2 hostile red, else neutral green */
 	HROTDPS_API uint32 SideColour(uint8 Side);
 	/** a hash of what the card shows (its items), for redraw-on-change */

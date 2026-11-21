@@ -90,6 +90,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationClientWorldLost() const { return FakeWorldLost; }
 	/** Entity (a ground unit) + its EntityState at sim time SimTime: position (m, ENU), velocity (m/s), heading (deg, counter-clockwise from east) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationEntity(int32 EntityId, double SimTime, FVector PositionM, FVector VelocityM, float HeadingDeg);
+	/** U-18z — a GizmoFrame for Layer: a test pattern around CentreM (ENU m): a line strip, an arrow, a sphere, a filled triangle, a box and a
+	 *  text (one of each shape the gateway sends), the first Count of them (0 = an empty layer) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationGizmoFrame(const FString& Layer, FVector CentreM, int32 Count);
 	/** U-18y — the same with its Entity's Domain (the contract's number: 1 person, 2 ground, 3 air …), Side (0 neutral, 1 friend, 2 hostile) and Name */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationEntityAs(int32 EntityId, int32 Domain, int32 InSide, const FString& Name, double SimTime,
 		FVector PositionM, FVector VelocityM, float HeadingDeg);

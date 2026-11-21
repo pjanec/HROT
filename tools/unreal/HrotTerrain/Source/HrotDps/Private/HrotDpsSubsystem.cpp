@@ -405,3 +405,29 @@ static FAutoConsoleCommand GDpsStats(TEXT("hrot.dps.stats"), TEXT("samples taken
 		UE_LOG(LogTemp, Display, TEXT("DPS %s, running %d"), *UHrotDpsSubsystem::Contract(), S->IsRunning());
 		for (const TPair<FString, int64>& C : S->Counts()) UE_LOG(LogTemp, Display, TEXT("  %-22s %lld"), *C.Key, C.Value);
 	}));
+
+bool UHrotDpsSubsystem::FakeStationGizmoFrame(const FString& Layer, FVector C, int32 Count)
+{
+	SimNetGateway_Protocol_DdsPlayer_GizmoFrame F{};
+	FCStringAnsi::Strncpy(F.Producer, "fake", sizeof(F.Producer));
+	FCStringAnsi::Strncpy(F.Layer, TCHAR_TO_UTF8(*Layer), sizeof(F.Layer));
+	using P = SimNetGateway_Protocol_DdsPlayer_GizmoPrimitive;
+	using V = SimNetGateway_Protocol_DdsPlayer_Vec3d;
+	TArray<P> Prims; TArray<TArray<V>> Pts;
+	auto Add = [&](SimNetGateway_Protocol_DdsPlayer_GizmoShape Shape, std::initializer_list<V> Points, uint32 Rgba, float W, const char* Text)
+	{
+		Pts.Add(TArray<V>(Points));
+		P& Pr = Prims.AddZeroed_GetRef(); Pr.Shape = Shape; Pr.ColourRgba = Rgba; Pr.Width = W;
+		if (Text) FCStringAnsi::Strncpy(Pr.Text, Text, sizeof(Pr.Text));
+	};
+	Add(SimNetGateway_Protocol_DdsPlayer_GizmoShapeLineStrip, { { C.X, C.Y, C.Z + 0.5 }, { C.X + 10, C.Y + 5, C.Z + 0.5 } }, 0x00FF00FF, 3, nullptr);
+	Add(SimNetGateway_Protocol_DdsPlayer_GizmoShapeArrow, { { C.X, C.Y - 5, C.Z + 1 }, { C.X + 8, C.Y - 5, C.Z + 1 } }, 0xFFFF00FF, 3, nullptr);
+	Add(SimNetGateway_Protocol_DdsPlayer_GizmoShapeCircle, { { C.X + 12, C.Y, C.Z + 1 } }, 0xFF0000FF, 1.5f, nullptr);
+	Add(SimNetGateway_Protocol_DdsPlayer_GizmoShapePolygon, { { C.X, C.Y + 8, 0 }, { C.X + 4, C.Y + 8, 0 }, { C.X + 2, C.Y + 12, 0 } }, 0x00FFFF80, 0, nullptr);
+	Add(SimNetGateway_Protocol_DdsPlayer_GizmoShapeBox, { { C.X + 6, C.Y + 10, 0 }, { 2, 1, 30 } }, 0xFF00FFFF, 2, nullptr);
+	Add(SimNetGateway_Protocol_DdsPlayer_GizmoShapeText, { { C.X + 2, C.Y - 8, 0 } }, 0xFFFFFFFF, 0, "fake gizmo text");
+	while (Prims.Num() > FMath::Max(0, Count)) { Prims.Pop(); Pts.Pop(); }
+	for (int32 I = 0; I < Prims.Num(); I++) { Prims[I].Points._length = Prims[I].Points._maximum = uint32(Pts[I].Num()); Prims[I].Points._buffer = Pts[I].GetData(); }
+	F.Primitives._length = F.Primitives._maximum = uint32(Prims.Num()); F.Primitives._buffer = Prims.GetData();
+	return Dps.Write(TEXT("DPS_GizmoFrame"), &F);
+}

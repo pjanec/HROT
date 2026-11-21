@@ -17,7 +17,7 @@ import unreal
 
 JOB = json.load(open(os.environ["HROT_DPS_LABELS_JOB"], encoding="utf-8-sig"))
 R = {"log": [], "checks": [], "shots": []}
-S = {"handle": None, "phase": "level", "t": time.time() + 5}   # the editor settles first (a new_level on its 2nd frame failed to save)
+S = {"handle": None, "phase": "level", "tries": 0}
 LES = lambda: unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 UES = lambda: unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
 EAS = lambda: unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -38,6 +38,7 @@ def check(name, ok, detail):
 
 
 def finish(ok, why=""):
+    log(f"finish ok={ok} why={why}")
     R["ok"] = ok and all(c["ok"] for c in R["checks"]); R["why"] = why
     json.dump(R, open(JOB["out"], "w", encoding="utf-8"), indent=1)
     if S["handle"] is not None: unreal.unregister_slate_post_tick_callback(S["handle"]); S["handle"] = None
@@ -45,7 +46,7 @@ def finish(ok, why=""):
 
 
 def level():
-    if not LES().new_level("/Game/Maps/DpsLabels"): raise RuntimeError("new_level failed")
+    if not LES().new_level("/Game/Maps/DpsCards"): raise RuntimeError("new_level failed")   # (a retry after a failed save crashes the editor)
     floor = EAS().spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, 0))
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane")); floor.set_actor_scale3d(unreal.Vector(8000, 8000, 1))
     wall = EAS().spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(5200, 1150, 600))   # ENU (52, -11.5) -> Unreal y = +1150
@@ -107,18 +108,42 @@ def sheet():
     ok = unreal.HrotCardLayer.export_symbol_sheet(S["gw"], path)
     check("symbol sheet exported", ok, path)
     R["shots"].append(path)
-    S.update(phase="end", t=time.time() + 2.0)
+    # U-18z: HROT's gizmos - ask for a layer, the fake station publishes its test pattern near the units, it is drawn
+    S["w"].set_editor_property("label_mode", 1)
+    S["w"].set_gizmo_layers(["Paths"])
+    S["sub"].fake_station_gizmo_frame("Paths", unreal.Vector(20, -2, 0), 6)
+    S.update(phase="gizmo", t=time.time() + 2.0)
+
+
+def gizmo():
+    d = S["w"].describe_gizmos(); R["gizmos"] = d
+    check("gizmos: the layer arrived with its 6 primitives", "1 layers shown, 6 primitives" in d, d)
+    path = os.path.join(JOB["shots"], "gizmos.png").replace("\\", "/")
+    unreal.SystemLibrary.execute_console_command(S["gw"], f'HighResShot 1 filename="{path}"')
+    R["shots"].append(path)
+    S.update(phase="end", t=time.time() + 2.5)
 
 
 def tick(dt):
+    if S.get("busy"): return   # new_level / PIE pump Slate: a re-entered tick would start a second new_level inside the first (its save fails, a retry crashes)
+    S["busy"] = True
+    try:
+        tick_once()
+    finally:
+        S["busy"] = False
+
+
+def tick_once():
     try:
         if time.time() < S.get("t", 0): return
         ph = S["phase"]
+        if ph != S.get("logged"): S["logged"] = ph; log(f"phase {ph}")
         if ph == "level": level()
         elif ph == "join": join()
         elif ph == "camera": camera()
         elif ph == "shoot": shoot()
         elif ph == "sheet": sheet()
+        elif ph == "gizmo": gizmo()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
         if time.time() - T0 > 240: finish(False, "timeout")
     except Exception:
