@@ -38,6 +38,7 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | **Real places, fast** | A 5.5 × 5.5 km area with ≈ 1 800 enterable houses imports in seconds and loads in about 25 s. |
 | **Review without stopping** | Pause a live exercise, rewind to show the trainee what happened, then carry on live — or branch a new exercise from any recorded moment. |
 | **Echelons from team to battalion** | Higher echelons can run as aggregated units that fight as numbers and **deaggregate into individual soldiers and vehicles on contact**, keeping every identity. |
+| **Objective evaluation** | Exercises are scored by measurable objectives and standards, live and in the debrief, and every score traces back to the recorded moment that earned it. |
 | **Deterministic and verifiable** | The same scenario gives the same result at 1, 4 or 8 threads, and every scenario states its expectations as machine-checked conditions. |
 | **A brain you can take with you** | The AI "brain" is separate from the world it acts in: perception, motion and navigation sit behind interfaces. HROT's own implementations are strong, but they are **reference implementations** — plug in your environment's sensors, vehicle dynamics or pathfinding and the same tactics run on top of them. |
 | **Open to your systems** | A documented publish/subscribe wire, a written DIS mapping, and renderer-facing state including physics-based thermal drivers. |
