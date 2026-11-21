@@ -10,6 +10,10 @@
 //
 //   menu          a RIGHT-CLICK (press and release, no drag — a drag is the look / the orbit) on a unit opens its menu, as HROT's map:
 //                 "Follow with the camera" (F) · "Possess (FPS)" (P; greyed with the reason when this station may not play it)
+//   director (U-18p) V shows the STATION's suggested view (DPS View, DD-022 §3d): bound to a unit (orbit / shoulder / eyes / chase) the
+//                 follow rig places it from the binding against OUR prediction of that unit (camera and unit share one curve, so the
+//                 unit does not shake in the frame); unbound (free, fixed, a director flight) the view's own pose, dead-reckoned with its
+//                 rates; a new CutSeq is a hard cut. Without a suggestion it holds where it is. V again, W/A/S/D or Esc: free flight there
 //   player (U-18m) possessed — HROT's FpsCameraDriver: over the shoulder by default (O: his eyes), the wheel the distance; the mouse turns
 //                 the view (his body lags 45° standing, turns at 540°/s moving; W/A/S/D relative to the camera); RMB zooms (45° → 30°);
 //                 LMB fires (a press locks the shot, held the trigger); 1-4 weapon, R round, L sight / lock, F use, C / Z crouch / prone,
@@ -28,7 +32,7 @@
 class UCameraComponent;
 
 UENUM(BlueprintType)
-enum class EHrotCameraMode : uint8 { Free, Follow, Player };
+enum class EHrotCameraMode : uint8 { Free, Follow, Player, Director };
 
 /** one row of the unit menu (right-click) */
 USTRUCT(BlueprintType)
@@ -56,6 +60,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Follow(int32 EntityId, float Distance = 14.f);
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Free();
+	/** U-18p — show the station's suggested view (V) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Director();
 	/** turns the follow orbit (degrees; yaw counter-clockwise like HROT, pitch up +) — what a right-button drag does */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Orbit(float YawDeg, float PitchDeg);
 	/** the follow's place on the continuum (m; 0 = his eyes) */
@@ -171,6 +177,10 @@ private:
 	float TestLookYaw = 0, TestLookPitch = 0, TestForward = 0, TestSide = 0;
 	bool TestFirePress = false, TestTrigger = false, TestZoom = false;
 	void PlaceFollow(float Dt);
+	void PlaceDirector(float Dt);
+	int32 FollowSide = 1;          // the shoulder (+1 right); the director's binding sets it
+	uint32 DirectorCut = 0;
+	bool bDirectorBound = false;
 	void FreeLook(float DYaw, float DPitch);
 	float HeightAboveGround(const FVector& At) const;
 	/** the first blocking hit's fraction along From → To (Unreal), ignoring the followed actor and its riders; −1 = none */

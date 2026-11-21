@@ -50,6 +50,11 @@ public:
 	/** writes one sample (the generated C struct) of `Topic` (the player topics: JoinRequest, ControlFrame, Leave, GizmoView) */
 	bool Write(const FString& Topic, const void* Sample);
 
+	/** U-18p — a reader / writer of `Topic` (its QoS, this partition) that Poll() never touches: a raw DDS handle for a thread of its own
+	 *  (dds_* calls are thread-safe; the client's maps are not). Deleted with the client — stop the thread before Stop(). 0 = failed */
+	int32 MakeRawReader(const FString& Topic);
+	int32 MakeRawWriter(const FString& Topic);
+
 	/** samples taken per topic since Start */
 	const TMap<FString, int64>& GetCounts() const { return Counts; }
 

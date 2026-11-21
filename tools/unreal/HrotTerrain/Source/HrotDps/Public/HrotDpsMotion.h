@@ -73,20 +73,69 @@ namespace HrotDpsMotion
  *  ⭐ It only moves FORWARD on samples: a sample is never newer than the producer's clock, so the newest SimTime seen is a lower bound
  *  (latency only makes samples older). ⚠ A late joiner's TRANSIENT_LOCAL history carries OLD times — they must not pull it back;
  *  a backward jump (a replay seek) comes as a new world epoch, which resets it. */
+//
+/// ⭐ U-18p (DD-022 §3b, round 7) — once the station's `SimClock` arrives the clock is HROT's SLAVE FORMULA and samples no longer move it:
+///   Continuous  sim(now) = AnchorSimTime + (stationNow − AnchorWallTicks) / 10⁷ × TimeScale,  stationNow = LocalTicks(now) + offset
+///   Stepped     sim = AnchorSimTime (held; a ClockStep presents its TargetSimTime exactly — never extrapolated past it)
+/// A re-anchor within one TimelineEpoch EASES a small difference out over the guide's 0.25 s blend; a pause freezes at once (D-A2); a new
+/// TimelineEpoch JUMPS. The offset comes ONLY from the ClockProbe / ClockEcho handshake (HROT's TimeConfig: drop RTT > 200 ms, hard-snap
+/// the first or a > 1 s change, else steer 10 %) — ⚠ never from this machine's UtcNow: HROT's tick is UTC read once at ITS process start
+/// plus a stopwatch (HighResUtcClock), so two processes on one machine differ.
 struct HROTDPS_API FHrotDpsClock
 {
-	/** sim time at local real time `RealNow` (FPlatformTime::Seconds); 0 before the first sample */
-	double Now(double RealNow) const { return bValid ? Base + (RealNow - RealBase) * Scale : 0.0; }
-	bool IsValid() const { return bValid; }
-	double GetScale() const { return Scale; }
+	/** sim time at local real time `RealNow` (FPlatformTime::Seconds); 0 before the first sample or anchor */
+	double Now(double RealNow) const;
+	bool IsValid() const { return bValid || bAnchored; }
+	/** sim seconds per real second now (0 while paused or stepped) */
+	double GetScale() const { return bAnchored ? (bStepped ? 0.0 : AScale) : Scale; }
 
-	/** a state or event sample stamped `SimTime` arrived at `RealNow` */
+	/** a state or event sample stamped `SimTime` arrived at `RealNow` (moves the clock only until the first anchor) */
 	void OnSample(double SimTime, double RealNow);
-	/** Session: the time scale (0 while paused); keeps the current estimate continuous */
+	/** Session: the time scale (0 while paused); keeps the current estimate continuous (ignored once anchored) */
 	void OnRate(double NewScale, double RealNow);
+	/** a new world: forgets the sample-fed estimate. ⭐ The anchor and the offset stay — SimClock is keep-last-1 and is not re-sent */
 	void Reset() { bValid = false; }
 
+	// ── U-18p: the station's anchor ──
+	/** SimClock. Returns true when the time JUMPED (a new TimelineEpoch, or the first anchor): curves must not blend across it */
+	bool OnAnchor(bool bInStepped, int64 AnchorWallTicks, double AnchorSimTime, double TimeScale, int64 TimelineEpoch, int64 StepSeq, double RealNow);
+	/** ClockStep: while Stepped, presents TargetSimTime exactly. Returns true on a jump (a new TimelineEpoch) */
+	bool OnStep(int64 StepSeq, double TargetSimTime, int64 TimelineEpoch, double RealNow);
+	bool IsAnchored() const { return bAnchored; }
+	bool IsStepped() const { return bAnchored && bStepped; }
+	int64 GetTimelineEpoch() const { return TEpoch; }
+	int64 GetStepSeq() const { return StepSeq; }
+
+	// ── U-18p: this machine's wall ticks and the offset to the station's (100 ns since 0001-01-01 UTC) ──
+	/** pins this machine's tick at one real time (once, at start: UtcNow then, the monotonic FPlatformTime::Seconds after) */
+	void SetTickBase(int64 Ticks, double Real) { TickBase = Ticks; TickReal = Real; }
+	int64 LocalTicks(double RealNow) const { return TickBase + int64(FMath::RoundToDouble((RealNow - TickReal) * 1e7)); }
+	/** ClockEcho (NTP: offset = ((recv − send) + (transmit − back)) / 2, RTT = (back − send) − (transmit − recv)). False = dropped (RTT > 200 ms) */
+	bool OnEcho(int64 ClientSend, int64 StationReceive, int64 StationTransmit, int64 ClientBack);
+	bool HasOffset() const { return bOffset; }
+	double GetOffsetTicks() const { return Offset; }
+	double GetLastRttMs() const { return LastRttMs; }
+	int32 GetEchoes() const { return Echoes; }
+	int32 GetEchoesDropped() const { return Dropped; }
+
+	static constexpr double EaseSeconds = 0.25;        // the guide's correction blend
+	static constexpr double EaseUpTo = 0.5;            // a larger re-anchor difference is a snap, not an ease
+	static constexpr double MaxRttMs = 200.0;          // HROT TimeConfig
+	static constexpr double SnapOffsetTicks = 1e7;     // 1 s
+	static constexpr double SteerGain = 0.1;
+
 private:
+	double Formula(double RealNow) const;
 	double Base = 0, RealBase = 0, Scale = 1;
 	bool bValid = false;
+	// the anchor
+	bool bAnchored = false, bStepped = false;
+	int64 AnchorWall = 0, TEpoch = 0, StepSeq = 0;
+	double AnchorSim = 0, AScale = 1;
+	double EaseD = 0, EaseStart = -1;
+	// the wall
+	int64 TickBase = 0;
+	double TickReal = 0, Offset = 0, LastRttMs = -1;
+	bool bOffset = false;
+	int32 Echoes = 0, Dropped = 0;
 };

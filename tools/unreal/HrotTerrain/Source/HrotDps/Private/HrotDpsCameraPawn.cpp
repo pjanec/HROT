@@ -1,6 +1,7 @@
 // CE-4651 (U-18l) — see HrotDpsCameraPawn.h
 #include "HrotDpsCameraPawn.h"
 #include "HrotDpsWorld.h"
+#include "HrotDpsNative.h"   // U-18p: the View enums
 #include "HrotDpsStation.h"
 #include "HrotDpsHud.h"
 #include "Engine/Engine.h"
@@ -96,7 +97,52 @@ void AHrotDpsCamera::Free()
 {
 	// back to free flight at the SAME spot (HROT: the operator takes the camera where it is)
 	if (AActor* H = HiddenBody.Get()) HideBody(H, false);
+	if (Mode == EHrotCameraMode::Director) { Cam->SetFieldOfView(FreeFov); bDirectorBound = false; FollowSide = 1; }   // U-18p
 	Mode = EHrotCameraMode::Free; FollowId = 0; FlyVelocity = FVector::ZeroVector;
+}
+
+void AHrotDpsCamera::Director()
+{
+	if (AActor* H = HiddenBody.Get()) HideBody(H, false);
+	Mode = EHrotCameraMode::Director; FollowId = 0; FlyVelocity = FVector::ZeroVector;
+	DirectorCut = 0; bDirectorBound = false; bPlaced = false;
+}
+
+void AHrotDpsCamera::PlaceDirector(float Dt)
+{
+	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+	if (!W) return;
+	const UHrotDpsWorld::FViewNow V = W->ViewNow();
+	if (!V.bHas) return;   // no suggestion now: hold where we are
+	const bool bCut = V.CutSeq != DirectorCut;
+	DirectorCut = V.CutSeq;
+	// the vertical field of view (HROT's) -> Unreal's horizontal one
+	FVector2D Vp(16, 9); if (GEngine && GEngine->GameViewport) GEngine->GameViewport->GetViewportSize(Vp);
+	const double Aspect = Vp.Y > 0 ? Vp.X / Vp.Y : 16.0 / 9.0;
+	Cam->SetFieldOfView(float(FMath::RadiansToDegrees(2.0 * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(double(V.FovDeg)) * 0.5) * Aspect))));
+	const bool bBindable = V.TargetId != 0 && (V.Mode == SimNetGateway_Protocol_DdsPlayer_ViewModeOrbit || V.Mode == SimNetGateway_Protocol_DdsPlayer_ViewModeEyes ||
+		V.Mode == SimNetGateway_Protocol_DdsPlayer_ViewModeShoulder || V.Mode == SimNetGateway_Protocol_DdsPlayer_ViewModeChase);
+	FVector PosM; FQuat Rot; int32 Domain = 0;
+	if (bBindable && W->PoseNow(V.TargetId, PosM, Rot, Domain))
+	{
+		// bound: OUR follow rig on the station's binding — the look direction from the station's view, the distance and the shoulder its own
+		if (bCut || !bDirectorBound || FollowId != V.TargetId) { Arm = 0; LookYawOffset = LookPitchOffset = 0; }
+		bDirectorBound = true;
+		FollowId = V.TargetId;
+		FollowDistance = V.Mode == SimNetGateway_Protocol_DdsPlayer_ViewModeEyes ? 0.f : V.Distance;
+		FollowSide = V.Side < 0 ? -1 : 1;
+		const FVector3d Fwd = V.Q.RotateVector(FVector3d(1, 0, 0));
+		Yaw = FMath::Atan2(Fwd.Y, Fwd.X);
+		Pitch = FMath::Clamp(FMath::Asin(FMath::Clamp(Fwd.Z, -1.0, 1.0)), -1.4, 1.4);
+		bPlaced = true;
+		PlaceFollow(Dt);
+		if (Mode != EHrotCameraMode::Director) Director();   // PlaceFollow lets go when the unit is gone: stay with the station
+		return;
+	}
+	if (bDirectorBound) { if (AActor* H = HiddenBody.Get()) HideBody(H, false); bDirectorBound = false; FollowId = 0; }
+	FollowSide = 1;
+	// unbound: the station's own pose, dead-reckoned with its rates (W blends within one cut, jumps on a new one)
+	Cam->SetWorldLocationAndRotation(W->EnuMToUnreal(FVector(V.P)), HrotDpsMotion::ToUnreal(V.Q));
 }
 
 void AHrotDpsCamera::Orbit(float YawDeg, float PitchDeg)
@@ -111,6 +157,12 @@ FTransform AHrotDpsCamera::CameraTransform() const { return Cam->GetComponentTra
 
 FString AHrotDpsCamera::Describe() const
 {
+	if (Mode == EHrotCameraMode::Director)
+	{
+		const UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+		return FString::Printf(TEXT("director %s: %s"), bDirectorBound ? *FString::Printf(TEXT("bound to %d at %.2f m, arm %.2f m"), FollowId, FollowDistance, Arm) : TEXT("the view's pose"),
+			W ? *W->DescribeView() : TEXT("-"));
+	}
 	if (Mode == EHrotCameraMode::Free) return PossessWanted ? FString::Printf(TEXT("free, possessing %d"), PossessWanted) : TEXT("free");
 	if (Mode == EHrotCameraMode::Player)
 	{
@@ -140,6 +192,7 @@ void AHrotDpsCamera::Tick(float Dt)
 	if (Mode == EHrotCameraMode::Player) { TickPlayer(Dt, Cast<APlayerController>(GetController())); return; }
 	TickInput(Dt);
 	if (Mode == EHrotCameraMode::Follow) PlaceFollow(Dt);
+	else if (Mode == EHrotCameraMode::Director) PlaceDirector(Dt);
 }
 
 float AHrotDpsCamera::HeightAboveGround(const FVector& At) const
@@ -196,7 +249,7 @@ void AHrotDpsCamera::PlaceFollow(float Dt)
 		return;
 	}
 	const FVector3d Fwd = Forward(Yaw, Pitch);
-	const FVector3d Piv = Pivot(Centre, Eye, Fwd, FollowDistance, S, +1);
+	const FVector3d Piv = Pivot(Centre, Eye, Fwd, FollowDistance, S, FollowSide);
 	const FVector3d Wanted = Camera(Piv, Fwd, FollowDistance, true);
 	const double T = FirstHit(W->EnuMToUnreal(FVector(Piv)), W->EnuMToUnreal(FVector(Wanted)));
 	const FVector3d FreeAt = SpringArm(Piv, Wanted, T);
@@ -275,6 +328,12 @@ void AHrotDpsCamera::TickInput(float Dt)
 	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::P) && Selected) Possess(Selected);
 	if (PossessWanted && PC->WasInputKeyJustPressed(EKeys::Escape)) { LetGo(); return; }   // a request not taken yet: withdrawn
 
+	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::V)) { if (Mode == EHrotCameraMode::Director) Free(); else Director(); return; }   // U-18p
+	if (Mode == EHrotCameraMode::Director)
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::Escape) || bW || bS || bA || bD) Free();   // free flight where it is
+		return;
+	}
 	if (Mode == EHrotCameraMode::Follow)
 	{
 		if (PC->WasInputKeyJustPressed(EKeys::Escape) || bW || bS || bA || bD) { Free(); return; }   // the operator takes the camera back

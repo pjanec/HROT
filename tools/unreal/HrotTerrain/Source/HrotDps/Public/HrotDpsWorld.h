@@ -153,6 +153,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 WalkersDrawn() const;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> RiderIds() const;
 
+	// ── U-18p: round 7 (SimNetGateway DD-022 §3b-3d, §3g) — HrotDpsWorldClock.cpp ──
+	/** report this world to the station as one to WAIT FOR on every load (ClientWorld.WaitForMe); false = a passive viewer */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bWaitForMe = true;
+	/** "anchored continuous|stepped|samples sim <t> scale <s> epoch <e> step <n> | offset <ms> rtt <ms> echoes <n>/<dropped> | steps <n> anchors <n>" */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeClock() const;
+	/** "none" or "<source> <mode> target <id> d <m> side <s> cut <n> at (x, y, z) fov <deg>" — the station's suggested view now */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeView() const;
+	/** what ClientWorld last said: "<epoch> Ready|Loading|Failed <step>" */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeClientWorld() const { return WorldSaid; }
+
+	/** the station's suggested view (View) for THIS frame, dead-reckoned on the sim clock like an entity (Hermite-free LIVE mode) */
+	struct FViewNow
+	{
+		bool bHas = false;           // a View instance with a source
+		uint8 Source = 0, Mode = 0;  // ViewSource, ViewMode
+		int32 TargetId = 0;          // bound to this unit (0 = none)
+		float Distance = 0, Side = 1;
+		uint32 CutSeq = 0;
+		FVector3d P = FVector3d::ZeroVector;   // contract m
+		FQuat4d Q = FQuat4d::Identity;         // body -> ENU, forward +x
+		float FovDeg = 60;                     // VERTICAL (HROT's FovyDegrees)
+	};
+	FViewNow ViewNow() const;
+
 	virtual bool DoesSupportWorldType(const EWorldType::Type T) const override { return T == EWorldType::Game || T == EWorldType::PIE; }
 	virtual void Deinitialize() override;
 	virtual void Tick(float DeltaTime) override;
@@ -214,9 +238,40 @@ private:
 		FHrotDpsPose Shown;
 		FHrotDpsCorrection Blend;
 		double BlendStart = -1;   // real seconds; < 0 = no correction running
+		double SampleReal = -1;   // U-18p: real seconds of the last EntityState — older than the last timeline jump = no blend
 		TWeakObjectPtr<AActor> Actor;
 	};
 	TMap<int32, FEnt> Ents;
+	// U-18p — the clock's feed, the suggested view, ClientWorld
+	struct FView
+	{
+		bool bHas = false;
+		uint8 Source = 0, Mode = 0;
+		int32 TargetId = 0;
+		float Distance = 0, Side = 1, Fov = 60, FovRate = 0;
+		uint32 CutSeq = 0;
+		FHrotDpsTrackPoint Track;
+		FHrotDpsCorrection Blend;
+		double BlendStart = -1, SampleReal = -1;
+	};
+	FView View;
+	double TimelineCut = -1;   // real seconds of the last timeline jump (a seek, a load): curves never blend across it
+	double NextProbe = 0, NextWorldReport = 0;
+	uint32 WorldSaidEpoch = 0; uint8 WorldSaidState = 0;
+	FString WorldSaid;
+	int32 Anchors = 0, Steps = 0, AckWanted = 0, ViewSamples = 0;
+	void OnSimClock(const struct FHrotDpsSample& S);
+	void OnClockEcho(const struct FHrotDpsSample& S);
+	void OnClockStep(const struct FHrotDpsSample& S);
+	void OnView(const struct FHrotDpsSample& S);
+	void OnTimelineJump(double Real);
+	void TickClock(double Real);
+	void StartClock(class FHrotDpsClient& C, uint64 ClientId);
+	void StopClock();
+	TSharedPtr<class FHrotDpsProbeThread> Probe;
+	uint64 MyClientId = 0;
+	bool bLoggedStepped = false, bLoggedOffset = false;
+	FHrotDpsPose ViewPoseAt(double Real) const;
 	// U-18h — traffic (Mover / MoverTracks: never an Entity)
 	struct FMover
 	{

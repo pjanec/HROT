@@ -138,6 +138,30 @@ int32 FHrotDpsClient::Poll()
 	return Total;
 }
 
+int32 FHrotDpsClient::MakeRawReader(const FString& Topic)
+{
+	const FHrotDpsTopicDef* Def;
+	const int32 T = TopicOf(Topic, Def);
+	if (!T) return 0;
+	dds_qos_t* Q = QosOf(*Def);
+	const int32 Rd = dds_create_reader(Subscriber, T, Q, nullptr);
+	dds_delete_qos(Q);
+	if (Rd < 0) { UE_LOG(LogHrotDps, Error, TEXT("raw reader %s: %hs"), *Topic, dds_strretcode(Rd)); return 0; }
+	return Rd;
+}
+
+int32 FHrotDpsClient::MakeRawWriter(const FString& Topic)
+{
+	const FHrotDpsTopicDef* Def;
+	const int32 T = TopicOf(Topic, Def);
+	if (!T) return 0;
+	dds_qos_t* Q = QosOf(*Def);
+	const int32 W = dds_create_writer(Publisher, T, Q, nullptr);
+	dds_delete_qos(Q);
+	if (W < 0) { UE_LOG(LogHrotDps, Error, TEXT("raw writer %s: %hs"), *Topic, dds_strretcode(W)); return 0; }
+	return W;
+}
+
 bool FHrotDpsClient::Write(const FString& Topic, const void* Sample)
 {
 	int32 W = Writers.FindRef(Topic);

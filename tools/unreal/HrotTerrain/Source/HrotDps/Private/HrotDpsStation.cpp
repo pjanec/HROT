@@ -38,11 +38,7 @@ void UHrotDpsStation::Connect()
 	if (!Dps || !Dps->IsRunning()) return;
 	FHrotDpsClient& C = Dps->Client();
 	// a random nonzero ClientId (the guide): the gateway tells this station from another
-	if (ClientId == 0)
-	{
-	FRandomStream R(int32(FPlatformTime::Cycles64() ^ (uint64(FPlatformProcess::GetCurrentProcessId()) << 20)));
-	ClientId = (uint64(uint32(R.GetUnsignedInt())) << 32) | uint32(R.GetUnsignedInt()) | 1ull;
-	}
+	if (ClientId == 0) ClientId = Dps->GetClientId();   // U-18p: the process's one id (the clock probe and ClientWorld say it too)
 	auto Sub = [this, &C](const TCHAR* Topic, void (UHrotDpsStation::*Fn)(const FHrotDpsSample&))
 	{
 		Subs.Add({ Topic, C.Subscribe(Topic, [this, Fn](const FHrotDpsSample& S) { (this->*Fn)(S); }) });

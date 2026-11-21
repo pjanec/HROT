@@ -92,4 +92,95 @@ bool FHrotDpsClockTest::RunTest(const FString&)
 	return true;
 }
 
+// U-18p (DD-022 §3b/§3c) — the station's anchor: HROT's slave formula, steps, the ease, the epoch jump, the probe's offset
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotDpsAnchorTest, "Hrot.Dps.Motion.Anchor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotDpsAnchorTest::RunTest(const FString&)
+{
+	constexpr int64 Base = 638000000000000000ll;   // some UTC tick
+	constexpr int64 S = 10000000;                  // ticks per second
+	FHrotDpsClock C;
+	C.SetTickBase(Base, 100.0);
+	TestEqual(TEXT("local ticks follow the monotonic clock"), C.LocalTicks(102.5), Base + 25000000);
+	C.OnSample(5, 100);
+	// the station is 3 s ahead of this machine's tick (another process start): the echo says so
+	const int64 Off = 3 * S;
+	TestTrue(TEXT("echo taken"), C.OnEcho(Base, Base + Off + 20000, Base + Off + 30000, Base + 50000));   // 5 ms there and back, 1 ms inside
+	TestEqual(TEXT("offset = 3 s (+ the symmetric half)"), C.GetOffsetTicks(), double(Off), 1.0);
+	TestEqual(TEXT("rtt 4 ms"), C.GetLastRttMs(), 4.0, 1e-9);
+	TestFalse(TEXT("a 250 ms round trip is dropped"), C.OnEcho(Base, Base + Off, Base + Off, Base + 2500000));
+	TestEqual(TEXT("dropped counted"), C.GetEchoesDropped(), 1);
+
+	// Continuous, scale 2, anchored at the station's tick for real 101 s: sim = 40 + (stationNow - anchor) * 2
+	const int64 AnchorWall = Base + S + Off;
+	TestTrue(TEXT("the first anchor is a jump"), C.OnAnchor(false, AnchorWall, 40.0, 2.f, 1, 0, 101.0));
+	TestEqual(TEXT("formula at the anchor"), C.Now(101.0), 40.0, 1e-6);
+	TestEqual(TEXT("formula 1.5 s later"), C.Now(102.5), 43.0, 1e-6);
+	C.OnSample(500, 102.5);
+	TestEqual(TEXT("samples no longer move it"), C.Now(102.5), 43.0, 1e-6);
+	TestEqual(TEXT("scale"), C.GetScale(), 2.0, 1e-9);
+
+	// a re-anchor in the same epoch 0.1 s off: eased out over 0.25 s, never a jump
+	TestFalse(TEXT("same epoch: not a jump"), C.OnAnchor(false, Base + 2 * S + Off, 41.9, 2.f, 1, 0, 103.0));   // 41.9 at real 102 s, where the old said 42.0
+	TestEqual(TEXT("ease starts where it was"), C.Now(103.0), 44.0, 1e-6);   // the old curve at 103 s (the new one says 43.9)
+	TestEqual(TEXT("ease is done after 0.25 s"), C.Now(103.25), 41.9 + 1.25 * 2, 1e-6);
+
+	// pause = Stepped: frozen at once at AnchorSimTime (D-A2); a step presents its target exactly
+	C.OnAnchor(true, Base + 4 * S + Off, 50.0, 2.f, 1, 7, 105.0);
+	TestEqual(TEXT("frozen"), C.Now(105.0), 50.0, 1e-12);
+	TestEqual(TEXT("still frozen"), C.Now(109.0), 50.0, 1e-12);
+	TestEqual(TEXT("stepped: scale 0"), C.GetScale(), 0.0, 1e-12);
+	TestFalse(TEXT("a step of the epoch"), C.OnStep(8, 50.0 + 1.0 / 60, 1, 109.5));
+	TestEqual(TEXT("the step's target, exactly"), C.Now(120.0), 50.0 + 1.0 / 60, 1e-12);
+	TestEqual(TEXT("step seq"), C.GetStepSeq(), int64(8));
+
+	// a seek: a new TimelineEpoch jumps (no ease), backwards too
+	TestTrue(TEXT("new epoch is a jump"), C.OnAnchor(false, Base + 21 * S + Off, 10.0, 1.f, 2, 0, 121.0));   // the station's tick at real 121 s
+	TestEqual(TEXT("jumped, no ease"), C.Now(121.0), 10.0, 1e-6);
+	TestEqual(TEXT("then runs"), C.Now(122.0), 11.0, 1e-6);
+	C.Reset();   // a new world: the anchor stays
+	TestEqual(TEXT("Reset keeps the anchor"), C.Now(122.0), 11.0, 1e-6);
+
+	// the offset steers 10 % for a small change, snaps for one over 1 s
+	const double O0 = C.GetOffsetTicks();
+	C.OnEcho(Base, Base + Off + 1000000 + 20000, Base + Off + 1000000 + 30000, Base + 50000);   // +100 ms
+	TestEqual(TEXT("steered 10 %"), C.GetOffsetTicks(), O0 + 100000.0, 1.0);
+	C.OnEcho(Base, Base + Off + 30000000, Base + Off + 30000000, Base);
+	TestEqual(TEXT("> 1 s: snapped"), C.GetOffsetTicks(), double(Off + 30000000), 1.0);
+	return true;
+}
+
+// U-18p — the clock equals HROT's SlaveSyncController formula over a seeded random run of play / pause / step / scale / seek (DD-022 §7)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotDpsAnchorPropertyTest, "Hrot.Dps.Motion.AnchorProperty",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotDpsAnchorPropertyTest::RunTest(const FString&)
+{
+	FRandomStream R(4242);
+	constexpr int64 Base = 638000000000000000ll;
+	FHrotDpsClock C; C.SetTickBase(Base, 0.0);
+	// no offset: the station's tick is this machine's (the probe's own rails above)
+	double Real = 0, Sim = 0, Scale = 1; bool bStepped = false; int64 Epoch = 1, Seq = 0;
+	int32 Jumps = 0, EpochChanges = 0, Fails = 0;
+	auto Truth = [&](double At) { return bStepped ? Sim : Sim + (At - Real) * Scale; };   // the slave formula, anchored at (Real, Sim)
+	for (int32 I = 0; I < 400; ++I)
+	{
+		const double Next = Real + R.FRandRange(0.01, 0.7);
+		for (double T = Real; T < Next; T += 0.05)   // between events: the clock is the formula (eases excluded: none here, see below)
+			if (FMath::Abs(C.Now(T) - Truth(T)) > 1e-6 && C.IsAnchored()) ++Fails;
+		const double Anchor = Truth(Next);
+		Real = Next; Sim = Anchor;
+		const int32 Op = R.RandRange(0, 4);
+		if (Op == 0) bStepped = true;                                       // pause
+		else if (Op == 1) bStepped = false;                                 // play
+		else if (Op == 2 && bStepped) { Sim += 1.0 / 60; ++Seq; if (C.OnStep(Seq, Sim, Epoch, Real)) ++Jumps; continue; }
+		else if (Op == 3) Scale = R.FRandRange(0.1, 4.0);                   // a scale change: the gateway re-anchors
+		else { Epoch++; EpochChanges++; Sim = R.FRandRange(0, 600); }       // a seek
+		Scale = double(float(Scale));   // the wire's float
+		if (C.OnAnchor(bStepped, C.LocalTicks(Real), Sim, float(Scale), Epoch, Seq, Real)) ++Jumps;
+	}
+	TestEqual(TEXT("the formula everywhere (re-anchors are continuous, so nothing eased)"), Fails, 0);
+	TestEqual(TEXT("one jump per epoch change, plus the first anchor"), Jumps, EpochChanges + 1);
+	return true;
+}
+
 #endif

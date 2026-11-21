@@ -139,6 +139,11 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_GroundMarks"), &UHrotDpsWorld::OnGroundMarks);
 	Sub(TEXT("DPS_Mover"), &UHrotDpsWorld::OnMover);
 	Sub(TEXT("DPS_MoverTracks"), &UHrotDpsWorld::OnMoverTracks);
+	// U-18p — round 7: the station's clock and steps, its suggested view; the echo goes to the probe thread's own reader
+	Sub(TEXT("DPS_SimClock"), &UHrotDpsWorld::OnSimClock);
+	Sub(TEXT("DPS_ClockStep"), &UHrotDpsWorld::OnClockStep);
+	Sub(TEXT("DPS_View"), &UHrotDpsWorld::OnView);
+	StartClock(C, Dps->GetClientId());
 	// U-18m — the player station's readers on this fresh client (the old client's went with it)
 	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Reconnect();
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: joined domain %d partition '%s'"), Domain, *Partition);
@@ -151,6 +156,7 @@ void UHrotDpsWorld::Stop()
 		if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>())
 			for (const TPair<FString, int32>& S : Subs) Dps->Client().Unsubscribe(S.Key, S.Value);
 	Subs.Reset();
+	StopClock();   // U-18p: the probe thread ends before the client's participant can go
 	Clear();
 }
 
@@ -230,8 +236,10 @@ void UHrotDpsWorld::OnState(const FHrotDpsSample& S)
 	K.W = V3(D.AngularVelocity); K.WDot = V3(D.AngularAcceleration);
 	// a correction: blend from where the OLD curve puts it NOW. ⚠ measured (U-18b): blending from the last DRAWN pose (one frame old,
 	// or older after a stall) pulled every entity back by a frame of travel — 0.6 m at 12 m/s, 5 m after a 1 s stall
-	if (E.bHasState) { E.Blend = HrotDpsMotion::Correction(PoseAt(E, R), HrotDpsMotion::Extrapolate(K, Clock.Now(R))); E.BlendStart = R; }
-	else E.Shown = HrotDpsMotion::Extrapolate(K, Clock.Now(R));
+	// U-18p: never across a timeline jump (a seek, a load: TimelineEpoch) — the old curve belongs to another time
+	if (E.bHasState && E.SampleReal >= TimelineCut) { E.Blend = HrotDpsMotion::Correction(PoseAt(E, R), HrotDpsMotion::Extrapolate(K, Clock.Now(R))); E.BlendStart = R; }
+	else { E.BlendStart = -1; E.Shown = HrotDpsMotion::Extrapolate(K, Clock.Now(R)); }
+	E.SampleReal = R;
 	E.Track = K;
 	E.Bank = D.Bank;
 	E.bHasState = true;
@@ -998,6 +1006,7 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 void UHrotDpsWorld::Tick(float)
 {
 	const double R = RealNow();
+	TickClock(R);   // U-18p: the probe's echoes, ClientWorld
 	const double Prev = Placed;
 	Placed = Clock.Now(R);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
