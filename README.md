@@ -7,7 +7,7 @@
 - **A synthetic environment that changes under fire** — walls are breached, ground is cratered, buildings burn, minefields are cleared lane
   by lane, and every node of the exercise sees the same change at the same moment.
 - **Your area of operations in minutes** — built from OpenStreetMap or imported from another simulator's terrain, with every house
-  enterable, at 5 km scale.
+  enterable.
 - **Every exercise recorded, reviewable and resumable** — review during the action, debrief after it, and go live again from any moment.
 - **A brain that fits your world** — the AI runs on HROT's own perception, motion and navigation, or on yours: they are
   interchangeable reference implementations.
@@ -35,7 +35,7 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 |---|---|
 | **AI that fights like soldiers** | Behaviour is driven by what each soldier perceives and how much stress he is under, not by scripts. A suppressed man goes to cover; a squad bounds from cover to cover; a defence that breaks rallies, reports and does not walk back into the ground it lost. |
 | **A world that changes** | Breaches, craters, collapsing buildings, burning houses, felled trees and cleared minefield lanes change sight, fire and movement for every unit in the same tick, and survive save, replay and seek. |
-| **Real places, fast** | A 5.5 × 5.5 km area with ≈ 1 800 enterable houses imports in seconds and loads in about 25 s. |
+| **Real places, on demand** | An area built from OpenStreetMap or imported from another simulator's terrain — heights, roads, woods, walls and every building enterable — ready for the AI to fight in. |
 | **Review without stopping** | Pause a live exercise, rewind to show the trainee what happened, then carry on live — or branch a new exercise from any recorded moment. |
 | **Echelons from team to battalion** | Higher echelons can run as aggregated units that fight as numbers and **deaggregate into individual soldiers and vehicles on contact**, keeping every identity. |
 | **Objective evaluation** | Exercises are scored by measurable objectives and standards, live and in the debrief, and every score traces back to the recorded moment that earned it. |
@@ -199,7 +199,7 @@ scenarios.
 
 | | |
 |---|---|
-| ✅ **Large areas** | 5.5 × 5.5 km, 1 m elevation, ≈ 1 800 enterable houses, 1 000 soldiers with vehicles and aircraft, loaded in about 25 s |
+| ✅ **Large areas, large forces** | town-sized built-up areas and battalion-size forces, with aggregated units for the higher echelons; the limits depend on the hardware and on the perception and navigation implementation in use |
 | ✅ **Multithreaded** | the simulation runs in parallel per entity, with machine checks that keep it safe |
 | ✅ **Deterministic** | the same scenario, the same result, at any thread count — the basis for repeatable training and analysis |
 
