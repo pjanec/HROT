@@ -320,6 +320,12 @@ private:
 	void OnGizmoFrame(const struct FHrotDpsSample& S);
 	void SendGizmoView(double Real);
 	void DrawGizmos();
+	/** U-18z: the gizmo lines live in OUR line batcher, rebuilt when a frame arrives (a one-frame DrawDebug from a subsystem's tick was
+	 *  flushed before it was drawn: measured "6 drawn", nothing on screen); the texts are text-only cards */
+	struct FGizmoText { FVector At; FString Text; FColor Colour; uint32 Key = 0; };
+	TArray<FGizmoText> GizmoTexts;
+	bool bGizmosDirty = false;
+	TWeakObjectPtr<class ULineBatchComponent> GizmoLines;
 	// U-18h — traffic (Mover / MoverTracks: never an Entity)
 	struct FMover
 	{

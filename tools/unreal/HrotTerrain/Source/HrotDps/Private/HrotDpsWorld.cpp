@@ -1086,9 +1086,9 @@ void UHrotDpsWorld::Tick(float)
 	DrawStreams(Placed);
 	TickSpots(Placed);
 	TickMovers(R);
-	TickCards();   // U-18y: after every pose (a card hangs above the drawn body)
 	SendGizmoView(R);   // U-18z
-	DrawGizmos();
+	DrawGizmos();       // (its texts are drawn by TickCards, so first)
+	TickCards();   // U-18y: after every pose (a card hangs above the drawn body)
 }
 
 // ── read back ──

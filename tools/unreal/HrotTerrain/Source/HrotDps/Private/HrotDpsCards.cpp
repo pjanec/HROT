@@ -20,7 +20,8 @@ void UHrotDpsWorld::TickCards()
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
-	if (LabelMode <= 1)
+	const bool bEntityCards = LabelMode >= 2;
+	if (!bEntityCards && GizmoTexts.Num() == 0)   // U-18z: gizmo texts are cards too (text-only, depth-tested like a label)
 	{
 		if (Cards && Cards->Shown() > 0) Cards->Clear();
 		return;
@@ -39,6 +40,13 @@ void UHrotDpsWorld::TickCards()
 
 	const int32 Air = DomainAir(), Person = DomainPerson();
 	if (bWireCardsDirty) RegroupWireCards();
+	// U-18z: the gizmo texts — a text-only card at the point (ids below 0: never an entity's)
+	for (int32 I = 0; I < GizmoTexts.Num(); I++)
+	{
+		const FGizmoText& T = GizmoTexts[I];
+		Cards->Show(-1 - I, T.Key, T.At, [&](HrotCards::FCard& C) { C.Text(1, T.Text, (uint32(T.Colour.R) << 24) | (uint32(T.Colour.G) << 16) | (uint32(T.Colour.B) << 8) | T.Colour.A); });
+	}
+	if (!bEntityCards) { Cards->End(); return; }
 	if (WireCards.Num() > 0)   // DD-024: HROT's own cards — the stand-in below is not used
 	{
 		for (TPair<int32, FWireCard>& It : WireCards)
