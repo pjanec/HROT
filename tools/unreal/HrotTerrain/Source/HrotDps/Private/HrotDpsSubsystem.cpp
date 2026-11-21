@@ -14,6 +14,10 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
 void UHrotDpsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -194,12 +198,18 @@ FString UHrotDpsSubsystem::TerrainsDir()
 	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Terrains")));
 }
 
-FString UHrotDpsSubsystem::ResolveTerrain(const FString& Terrain, FString& OutWhy)
+FString UHrotDpsSubsystem::ResolveTerrainVersion(const FString& Terrain, const FString& BaseHash, const FString& OverlayHash, FString& OutWhy)
 {
 	OutWhy.Reset();
 	if (Terrain.IsEmpty()) return FString();
 	const FString Here = LevelForTerrain(Terrain);
-	if (!Here.IsEmpty()) return Here;
+	if (!Here.IsEmpty())
+	{
+		if (!BaseHash.IsEmpty() || !OverlayHash.IsEmpty())
+			UE_LOG(LogTemp, Display, TEXT("HROT IG: terrain '%s' drawn by the working level %s - its version is not checked (base %s, overlay %s)"), *Terrain, *Here,
+				*BaseHash.Left(12), *OverlayHash.Left(12));
+		return Here;
+	}
 	// U-18t: the terrain's own cooked package (a content plugin cooked as DLC against the client's release)
 	const FString N = Terrain.Replace(TEXT("-"), TEXT("_"));
 	const FString Plugin = TEXT("HrotTerrain_") + N;
@@ -211,6 +221,35 @@ FString UHrotDpsSubsystem::ResolveTerrain(const FString& Terrain, FString& OutWh
 		return FString();
 	}
 	const FString Dir = FPaths::Combine(TerrainsDir(), N);
+	// U-18x: the package's identity - which HROT terrain (by content) it was built from, which overlays it carries
+	if (!BaseHash.IsEmpty() || !OverlayHash.IsEmpty())
+	{
+		FString Text;
+		TSharedPtr<FJsonObject> M;
+		if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(Dir, TEXT("hrot-terrain.json"))) || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), M) || !M)
+		{
+			OutWhy = FString::Printf(TEXT("the station names terrain '%s' base %s, but the package in %s states no version (no hrot-terrain.json - re-run hrot_package_terrain.ps1)"),
+				*Terrain, *BaseHash.Left(12), *Dir);
+			return FString();
+		}
+		const FString Have = M->GetStringField(TEXT("baseHash"));
+		if (!BaseHash.IsEmpty() && Have != BaseHash)
+		{
+			OutWhy = FString::Printf(TEXT("no bundle for terrain '%s' base %s (the package in %s is base %s)"), *Terrain, *BaseHash.Left(12), *Dir, *Have.Left(12));
+			return FString();
+		}
+		if (!OverlayHash.IsEmpty())
+		{
+			bool bHas = false;
+			const TArray<TSharedPtr<FJsonValue>>* O = nullptr;
+			if (M->TryGetArrayField(TEXT("overlays"), O)) for (const TSharedPtr<FJsonValue>& V : *O) bHas |= V->AsString() == OverlayHash;
+			if (!bHas)
+			{
+				OutWhy = FString::Printf(TEXT("no bundle for terrain '%s' with overlay %s (the package in %s carries the base only)"), *Terrain, *OverlayHash.Left(12), *Dir);
+				return FString();
+			}
+		}
+	}
 	TArray<FString> Paks;
 	IFileManager::Get().FindFiles(Paks, *FPaths::Combine(Dir, TEXT("*.pak")), true, false);
 	if (Paks.Num() == 0)

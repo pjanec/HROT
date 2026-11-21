@@ -45,7 +45,11 @@ public:
 	/** U-18t — the level for a terrain, MOUNTING its cooked package when needed: TerrainLevels, the /Game/Maps convention, then the terrain
 	 *  package HrotTerrain_<name> (its level /HrotTerrain_<name>/Maps/<name>): present already (the editor) or mounted from
 	 *  <TerrainsDir>/<name>/*.pak (+ its IoStore container) with its content path registered. "" = none; OutWhy says where it looked */
-	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString ResolveTerrain(const FString& Terrain, FString& OutWhy);
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString ResolveTerrain(const FString& Terrain, FString& OutWhy) { return ResolveTerrainVersion(Terrain, FString(), FString(), OutWhy); }
+	/** U-18x — the same, by name AND content (Session.TerrainBaseHash / TerrainOverlayHash): a package's hrot-terrain.json must name the base
+	 *  hash the station states, and carry the overlay it states; else "" and OutWhy says which differs. The editor's /Game/Maps levels are not
+	 *  checked (a working copy), only logged */
+	FString ResolveTerrainVersion(const FString& Terrain, const FString& BaseHash, const FString& OverlayHash, FString& OutWhy);
 	/** where terrain packages are looked for: -HrotTerrains=<dir>, else <ProjectDir>/Terrains (a packaged client: <App>/HrotUnreal/Terrains) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") static FString TerrainsDir();
 	/** the terrain packages mounted so far ("HrotTerrain_farm <- <pak>") */

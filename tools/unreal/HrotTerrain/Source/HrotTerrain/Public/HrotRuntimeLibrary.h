@@ -4,7 +4,17 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "UObject/UObjectGlobals.h"
 #include "HrotRuntimeLibrary.generated.h"
+
+/** an asset loaded once and kept (rooted): the weapon presets' and the blasts' sounds. ONE definition - two file-local copies collided in a
+ *  unity build (U-18s, measured) */
+template <class T> T* HrotLoadRooted(const TCHAR* Path)
+{
+	T* A = LoadObject<T>(nullptr, Path);
+	if (A && !A->IsRooted()) A->AddToRoot();
+	return A;
+}
 
 UCLASS()
 class HROTTERRAIN_API UHrotRuntimeLibrary : public UBlueprintFunctionLibrary

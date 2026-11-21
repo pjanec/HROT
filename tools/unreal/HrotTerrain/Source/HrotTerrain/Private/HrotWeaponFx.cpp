@@ -1,4 +1,5 @@
 // CE-4651 (U-16) — see the header.
+#include "HrotRuntimeLibrary.h"
 #include "HrotWeaponFx.h"
 #include "HrotShotRenderer.h"
 
@@ -13,15 +14,6 @@
 #include "Sound/SoundBase.h"
 #include "Sound/SoundConcurrency.h"
 
-namespace
-{
-	template <class T> T* LoadRooted(const TCHAR* Path)   // the sounds of the presets: loaded once, kept
-	{
-		T* A = LoadObject<T>(nullptr, Path);
-		if (A && !A->IsRooted()) A->AddToRoot();
-		return A;
-	}
-}
 
 FHrotShotFx UHrotWeaponFx::LyraRifleFx()
 {
@@ -35,12 +27,12 @@ FHrotShotFx UHrotWeaponFx::LyraRifleFx()
 	Fx.Impact = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/Effects/Particles/Impacts/NS_ImpactConcrete.NS_ImpactConcrete"));
 	// ⭐ Lyra's own sounds (/Game/Audio, copied from the Lyra project, U-17k): the rifle's MetaSound (close + distant layers), its
 	// attenuation and its concurrency (the farthest guns stop when too many fire); the plaster impact
-	Fx.Sound = LoadRooted<USoundBase>(TEXT("/Game/Audio/Sounds/Weapons/Rifle/MSS_Weapons_Rifle_Fire.MSS_Weapons_Rifle_Fire"));
-	Fx.SoundAttenuation = LoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_Rifle.ATT_Rifle"));
-	Fx.SoundConcurrency = LoadRooted<USoundConcurrency>(TEXT("/Game/Audio/Concurrency/SCON_Guns_StopFarthest.SCON_Guns_StopFarthest"));
-	Fx.ImpactSound = LoadRooted<USoundBase>(TEXT("/Game/Audio/MetaSounds/sfx_ImpactDefault_nl_meta_Preset.sfx_ImpactDefault_nl_meta_Preset"));
-	Fx.ImpactAttenuation = LoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_FX_BulletImpact.ATT_FX_BulletImpact"));
-	Fx.ImpactConcurrency = LoadRooted<USoundConcurrency>(TEXT("/Game/Audio/Concurrency/SCON_Impacts.SCON_Impacts"));
+	Fx.Sound = HrotLoadRooted<USoundBase>(TEXT("/Game/Audio/Sounds/Weapons/Rifle/MSS_Weapons_Rifle_Fire.MSS_Weapons_Rifle_Fire"));
+	Fx.SoundAttenuation = HrotLoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_Rifle.ATT_Rifle"));
+	Fx.SoundConcurrency = HrotLoadRooted<USoundConcurrency>(TEXT("/Game/Audio/Concurrency/SCON_Guns_StopFarthest.SCON_Guns_StopFarthest"));
+	Fx.ImpactSound = HrotLoadRooted<USoundBase>(TEXT("/Game/Audio/MetaSounds/sfx_ImpactDefault_nl_meta_Preset.sfx_ImpactDefault_nl_meta_Preset"));
+	Fx.ImpactAttenuation = HrotLoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_FX_BulletImpact.ATT_FX_BulletImpact"));
+	Fx.ImpactConcurrency = HrotLoadRooted<USoundConcurrency>(TEXT("/Game/Audio/Concurrency/SCON_Impacts.SCON_Impacts"));
 	return Fx;
 }
 

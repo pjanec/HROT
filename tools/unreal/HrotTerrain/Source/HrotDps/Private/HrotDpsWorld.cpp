@@ -64,7 +64,7 @@ void UHrotDpsWorld::FollowTerrain(uint32 NewEpoch, const FString& Terrain)
 	if (!Dps || !bFollowTerrain || Terrain.IsEmpty()) { if (Dps) Dps->EndTravel(); return; }
 	const FString Here = UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName());
 	FString Why;
-	const FString Level = Dps->ResolveTerrain(Terrain, Why);   // U-18t: mounts the terrain's package when it has one
+	const FString Level = Dps->ResolveTerrainVersion(Terrain, ShownBase, ShownOverlay, Why);   // U-18t: mounts the terrain's package; U-18x: by version
 	if (Level.IsEmpty())
 	{
 		WorldFail = Why;
@@ -238,7 +238,12 @@ void UHrotDpsWorld::OnSession(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
 	const FSession& D = *static_cast<const FSession*>(S.Data);
-	if (!bEpoch || D.WorldEpoch != Epoch) FollowTerrain(D.WorldEpoch, UTF8_TO_TCHAR(D.Terrain));   // U-18r
+	if (!bEpoch || D.WorldEpoch != Epoch || ShownTerrain != UTF8_TO_TCHAR(D.Terrain) || ShownBase != UTF8_TO_TCHAR(D.TerrainBaseHash) || ShownOverlay != UTF8_TO_TCHAR(D.TerrainOverlayHash))
+	{
+		// U-18r: a new world; U-18x: or a changed terrain / version (the gateway re-sends Session for it)
+		ShownBase = UTF8_TO_TCHAR(D.TerrainBaseHash); ShownOverlay = UTF8_TO_TCHAR(D.TerrainOverlayHash);
+		FollowTerrain(D.WorldEpoch, UTF8_TO_TCHAR(D.Terrain));
+	}
 	if (bEpoch && D.WorldEpoch != Epoch)   // §3.11: a new world — drop everything; the next samples rebuild it
 	{
 		UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: epoch %u -> %u, %d entities dropped"), Epoch, D.WorldEpoch, Ents.Num());
@@ -356,11 +361,11 @@ static void CrackNear(UObject* Ctx, const FVector& From, const FFire& D)
 	const FVector V = R->ViewLocation();
 	const double T = FVector::DotProduct(V - From, Along);
 	if (T < 1500.0 || T > 150000.0) return;
-	const FVector Near = From + Along * T;
-	if (FVector::DistSquared(Near, V) > FMath::Square(800.0)) return;
+	const FVector PassAt = From + Along * T;   // (not `Near`: HrotCamera::Near is visible in a unity build)
+	if (FVector::DistSquared(PassAt, V) > FMath::Square(800.0)) return;
 	const double Speed = FVector3d(D.Velocity.X, D.Velocity.Y, D.Velocity.Z).Size();
 	if (Speed < 340.0) return;
-	R->PlaySound(Snd->Pick(Speed > 850.0 ? TEXT("crack/sniper") : TEXT("crack/bullet")), Near, Snd->Falloff(3.f, 40.f));
+	R->PlaySound(Snd->Pick(Speed > 850.0 ? TEXT("crack/sniper") : TEXT("crack/bullet")), PassAt, Snd->Falloff(3.f, 40.f));
 }
 
 void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)

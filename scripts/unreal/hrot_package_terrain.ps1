@@ -4,6 +4,7 @@
 # 2. the terrain's level copied into it as /HrotTerrain_<name>/Maps/<name> (scripts/unreal/hrot_terrain_into_package.py)
 # 3. BuildCookRun as DLC against the client's release: -dlcname -basedonreleaseversion -> only what the release lacks is cooked in
 # 4. the package (pak + IoStore utoc/ucas) copied into <Client>\Windows\HrotUnreal\Terrains\<name>\ - the client mounts it by name
+# 5. hrot-terrain.json beside it: the HROT terrain's content hash (scripts/unreal/hrot_terrain_manifest.py)
 param([Parameter(Mandatory = $true)][string]$Terrain, [string]$Source = "", [string]$Release = "1.0", [string]$Client = "D:\Work\HrotIG\1.0",
       [string]$Project = "D:\Work\HrotUnreal\HrotUnreal.uproject", [string]$Engine = "C:\UE_5.8\UE_5.8")
 $ErrorActionPreference = "Stop"
@@ -39,4 +40,7 @@ Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue; New-Item -ItemTy
 $files = Get-ChildItem -Recurse "$pd\Saved\StagedBuilds" -File | Where-Object { $_.Extension -in ".pak", ".utoc", ".ucas", ".sig" }
 if (-not $files) { "no package files under $pd\Saved\StagedBuilds"; exit 4 }
 $files | % { Copy-Item $_.FullName $out; "{0,9:N1} MB  {1}" -f ($_.Length / 1MB), $_.Name }
+# 5. U-18x: the package's identity - the HROT terrain it was built from, by content (the client checks Session.TerrainBaseHash against it)
+python "$Here\hrot_terrain_manifest.py" $Terrain $out --source $Source
+if ($LASTEXITCODE -ne 0) { "the manifest was not written (no HROT terrain '$Terrain'?)"; exit 5 }
 "terrain package '$Terrain' -> $out"

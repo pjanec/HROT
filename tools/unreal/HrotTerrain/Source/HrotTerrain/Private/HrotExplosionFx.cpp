@@ -1,4 +1,5 @@
 // CE-4651 (U-16 / U-17) — see the header.
+#include "HrotRuntimeLibrary.h"
 #include "HrotExplosionFx.h"
 
 #include "Components/DecalComponent.h"
@@ -73,12 +74,6 @@ namespace
 		}
 		return { 1.f, 1.f };
 	}
-	template <class T> T* LoadRooted(const TCHAR* Path)
-	{
-		T* A = LoadObject<T>(nullptr, Path);
-		if (A && !A->IsRooted()) A->AddToRoot();
-		return A;
-	}
 }
 
 bool UHrotExplosionFx::Explode(UObject* WorldContext, FVector Location, FVector Normal, EHrotBlast Kind)
@@ -95,8 +90,8 @@ bool UHrotExplosionFx::ExplodeWith(UObject* WorldContext, FVector Location, FVec
 	if (R) R->Flash(Location + Normal * 50.f, L.LightIntensity, L.LightRadius, L.LightSeconds);   // seen from afar too
 	if (R)   // ⭐ heard from afar too — and later: the sound travels (UHrotShotRenderer::PlaySound)
 	{
-		static USoundBase* Bang = LoadRooted<USoundBase>(TEXT("/Game/Audio/Sounds/Explosions/MSS_Explosions_Grenade.MSS_Explosions_Grenade"));
-		static USoundAttenuation* Att = LoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_Grenade.ATT_Grenade"));
+		static USoundBase* Bang = HrotLoadRooted<USoundBase>(TEXT("/Game/Audio/Sounds/Explosions/MSS_Explosions_Grenade.MSS_Explosions_Grenade"));
+		static USoundAttenuation* Att = HrotLoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_Grenade.ATT_Grenade"));
 		const FBlastSound S = Sound(Kind);
 		// U-18n: the bigger blasts from the IG's library (a real rocket, mortar and shell); the grenade stays Lyra's; near ones rattle
 		UHrotSoundscape* Snd = UHrotSoundscape::Get(WorldContext);

@@ -62,12 +62,11 @@ $aside = "$Proj\Saved\TerrainPluginsAside"
 $moved = @(Get-ChildItem "$Proj\Plugins" -Directory -Filter "HrotTerrain_*" -ErrorAction SilentlyContinue)
 if ($moved) { New-Item -ItemType Directory -Force $aside | Out-Null; $moved | % { Move-Item $_.FullName (Join-Path $aside $_.Name) -Force; "aside: $($_.Name)" } }
 try {
-  # -DisableUnity: UBT's adaptive unity works out the files being edited from `git status` of the Unreal project, which cannot see the HrotTerrain
   # sources (a link into the HROT repo) -> the unity files then redefine anonymous-namespace helpers (measured U-18w); no unity = every file alone
   # build, cook, pak, stage, archive; the release version the terrain packages are cooked against
   $archive = Join-Path $Out $Release
   & "$Engine\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun "-project=$Project" -platform=Win64 "-clientconfig=$Config" -build -cook -stage -pak -iostore `
-    -ubtargs=-DisableUnity -archive "-archivedirectory=$archive" -map=/Game/Maps/IgStart "-createreleaseversion=$Release" -unattended -utf8output -nop4 -nocompileeditor
+    -archive "-archivedirectory=$archive" -map=/Game/Maps/IgStart "-createreleaseversion=$Release" -unattended -utf8output -nop4 -nocompileeditor
   $code = $LASTEXITCODE
   "BuildCookRun exit $code; archive $archive; release $Proj\Releases\$Release"
 } finally {

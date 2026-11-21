@@ -32,10 +32,10 @@ namespace
 	using FClockStep = SimNetGateway_Protocol_DdsPlayer_ClockStep;
 	using FViewS = SimNetGateway_Protocol_DdsPlayer_View;
 	using FClientWorld = SimNetGateway_Protocol_DdsPlayer_ClientWorld;
-	double Real() { return FPlatformTime::Seconds(); }
-	FVector3d V3(const SimNetGateway_Protocol_DdsPlayer_Vec3d& V) { return FVector3d(V.X, V.Y, V.Z); }
-	FVector3d V3(const SimNetGateway_Protocol_DdsPlayer_Vec3f& V) { return FVector3d(V.X, V.Y, V.Z); }
-	void Copy(char* To, int32 Cap, const FString& S) { FCStringAnsi::Strncpy(To, TCHAR_TO_UTF8(*S), Cap); }
+	double ClockReal() { return FPlatformTime::Seconds(); }
+	FVector3d ClockV3(const SimNetGateway_Protocol_DdsPlayer_Vec3d& V) { return FVector3d(V.X, V.Y, V.Z); }
+	FVector3d ClockV3(const SimNetGateway_Protocol_DdsPlayer_Vec3f& V) { return FVector3d(V.X, V.Y, V.Z); }
+	void ClockCopy(char* To, int32 Cap, const FString& S) { FCStringAnsi::Strncpy(To, TCHAR_TO_UTF8(*S), Cap); }
 
 	const TCHAR* SourceName(uint8 S)
 	{
@@ -94,9 +94,9 @@ public:
 			P.ClientSendTicks = Ticks();
 			dds_write(Writer, &P);
 			// wait for our echo up to 300 ms (an RTT over 200 ms is dropped anyway), then rest out the second
-			const double Until = Real() + 0.3;
+			const double Until = ClockReal() + 0.3;
 			bool bGot = false;
-			while (!bStop && !bGot && Real() < Until)
+			while (!bStop && !bGot && ClockReal() < Until)
 			{
 				dds_attach_t Fired;
 				if (dds_waitset_wait(Waitset, &Fired, 1, DDS_MSECS(50)) <= 0) continue;
@@ -114,14 +114,14 @@ public:
 				if (N > 0) dds_return_loan(Reader, Buf, N);
 			}
 			Sent.IncrementExchange();
-			for (double Rest = Until + 0.7; !bStop && Real() < Rest;) FPlatformProcess::Sleep(0.02f);
+			for (double Rest = Until + 0.7; !bStop && ClockReal() < Rest;) FPlatformProcess::Sleep(0.02f);
 		}
 		return 0;
 	}
 	int32 ProbesSent() const { return Sent.Load(); }
 
 private:
-	int64 Ticks() const { return TickBase + int64(FMath::RoundToDouble((Real() - TickReal) * 1e7)); }   // FHrotDpsClock::LocalTicks
+	int64 Ticks() const { return TickBase + int64(FMath::RoundToDouble((ClockReal() - TickReal) * 1e7)); }   // FHrotDpsClock::LocalTicks
 	int32 Writer = 0, Reader = 0, Waitset = 0;
 	uint64 ClientId = 0;
 	int64 TickBase = 0;
@@ -136,7 +136,7 @@ private:
 void UHrotDpsWorld::StartClock(FHrotDpsClient& C, uint64 ClientId)
 {
 	Clock = FHrotDpsClock();
-	const double R = Real();
+	const double R = ClockReal();
 	Clock.SetTickBase(FDateTime::UtcNow().GetTicks(), R);   // this machine's tick: UTC once, then the monotonic clock (as HROT's own)
 	View = FView();
 	TimelineCut = -1; NextWorldReport = 0; WorldSaid.Reset(); WorldSaidEpoch = 0; WorldSaidState = 0;
@@ -155,7 +155,7 @@ void UHrotDpsWorld::OnSimClock(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
 	const FSimClock& D = *static_cast<const FSimClock*>(S.Data);
-	const double R = Real();
+	const double R = ClockReal();
 	const bool bStepped = D.Mode == SimNetGateway_Protocol_DdsPlayer_ClockModeStepped;
 	if (Clock.OnAnchor(bStepped, D.AnchorWallTicks, D.AnchorSimTime, D.TimeScale, D.TimelineEpoch, D.StepSeq, R)) OnTimelineJump(R);
 	if (++Anchors <= 3 || bStepped != bLoggedStepped)
@@ -169,7 +169,7 @@ void UHrotDpsWorld::OnClockStep(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
 	const FClockStep& D = *static_cast<const FClockStep*>(S.Data);
-	const double R = Real();
+	const double R = ClockReal();
 	if (Clock.OnStep(D.StepSeq, D.TargetSimTime, D.TimelineEpoch, R)) OnTimelineJump(R);
 	++Steps;
 	if (D.AckRequired) ++AckWanted;   // ⏳ a render job's step: StepAck after the D-B4 barrier (round 7 §2, with FrameRequest)
@@ -189,14 +189,14 @@ void UHrotDpsWorld::OnView(const FHrotDpsSample& S)
 {
 	if (!S.bValid) { if (!S.bAlive) View.bHas = false; return; }
 	const FViewS& D = *static_cast<const FViewS*>(S.Data);
-	const double R = Real();
+	const double R = ClockReal();
 	Clock.OnSample(D.SimTime, R);
 	FHrotDpsTrackPoint K;
 	K.T = D.SimTime;
-	K.P = V3(D.Position);
+	K.P = ClockV3(D.Position);
 	K.Q = FQuat4d(D.Orientation.X, D.Orientation.Y, D.Orientation.Z, D.Orientation.W).GetNormalized();
-	K.V = V3(D.Velocity); K.A = V3(D.Acceleration);
-	K.W = K.Q.RotateVector(V3(D.AngularVelocity));   // the contract states it in the BODY frame; the curve turns by a world-frame rate
+	K.V = ClockV3(D.Velocity); K.A = ClockV3(D.Acceleration);
+	K.W = K.Q.RotateVector(ClockV3(D.AngularVelocity));   // the contract states it in the BODY frame; the curve turns by a world-frame rate
 	// one CutSeq blends like an entity (from where the OLD curve puts it now); a new cut, a new source or a timeline jump: a hard cut
 	const bool bSameShot = View.bHas && View.CutSeq == D.CutSeq && View.Source == uint8(D.Source) && View.SampleReal >= TimelineCut;
 	if (bSameShot) { View.Blend = HrotDpsMotion::Correction(ViewPoseAt(R), HrotDpsMotion::Extrapolate(K, Clock.Now(R))); View.BlendStart = R; }
@@ -222,7 +222,7 @@ UHrotDpsWorld::FViewNow UHrotDpsWorld::ViewNow() const
 {
 	FViewNow Out;
 	if (!View.bHas) return Out;
-	const double R = Real();
+	const double R = ClockReal();
 	const FHrotDpsPose Pose = ViewPoseAt(R);
 	Out.bHas = true;
 	Out.Source = View.Source; Out.Mode = View.Mode; Out.TargetId = View.TargetId;
@@ -266,22 +266,21 @@ void UHrotDpsWorld::TickClock(double R)
 	W.ClientId = MyClientId;
 	W.WorldEpoch = Ep;
 	W.State = SimNetGateway_Protocol_DdsPlayer_ClientWorldState(State);
-	Copy(W.Step, sizeof(W.Step), Step);
-	Copy(W.Reason, sizeof(W.Reason), Reason);
+	ClockCopy(W.Step, sizeof(W.Step), Step);
+	ClockCopy(W.Reason, sizeof(W.Reason), Reason);
 	W.WaitForMe = bWaitForMe;
 	const TCHAR* Name = State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateReady ? TEXT("Ready") : State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateFailed ? TEXT("Failed") : TEXT("Loading");
 	if (Dps->Client().Write(TEXT("DPS_ClientWorld"), &W) && (State != WorldSaidState || Ep != WorldSaidEpoch))
 		UE_LOG(LogHrotDpsClock, Display, TEXT("DPS ClientWorld: epoch %u %s '%s'%s wait-for-me %d"), Ep, Name, *Step, Reason.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" (%s)"), *Reason), bWaitForMe);
 	WorldSaid = FString::Printf(TEXT("%u %s %s"), Ep, Name, *Step);
 	WorldSaidState = State; WorldSaidEpoch = Ep;
-	WorldSaid = FString::Printf(TEXT("%u %s %s"), Epoch, bEpoch ? TEXT("Ready") : TEXT("Loading"), *Step);
 }
 
 // ── read back ──
 
 FString UHrotDpsWorld::DescribeClock() const
 {
-	const double R = Real();
+	const double R = ClockReal();
 	const TCHAR* Kind = Clock.IsAnchored() ? (Clock.IsStepped() ? TEXT("anchored stepped") : TEXT("anchored continuous")) : TEXT("samples");
 	return FString::Printf(TEXT("%s sim %.3f scale %.2f epoch %lld step %lld | offset %s rtt %.2f ms echoes %d/%d dropped, probes %d | steps %d (ack wanted %d) anchors %d views %d"),
 		Kind, Clock.Now(R), Clock.GetScale(), Clock.GetTimelineEpoch(), Clock.GetStepSeq(),

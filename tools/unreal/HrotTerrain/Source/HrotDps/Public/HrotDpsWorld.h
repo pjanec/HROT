@@ -184,7 +184,7 @@ public:
 	};
 	FViewNow ViewNow() const;
 	void FollowTerrain(uint32 NewEpoch, const FString& Terrain);
-	FString WorldFail, PendingLevel, ShownTerrain;
+	FString WorldFail, PendingLevel, ShownTerrain, ShownBase, ShownOverlay;
 	bool bLeaving = false;
 	/** U-18q — the station's TimelineEpoch now (0 before an anchor) */
 	int64 TimelineEpochNow() const { return Clock.GetTimelineEpoch(); }

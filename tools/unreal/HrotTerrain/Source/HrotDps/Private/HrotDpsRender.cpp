@@ -49,8 +49,8 @@ namespace
 	using FRenderJob = SimNetGateway_Protocol_DdsPlayer_RenderJob;
 	using FFrameReq = SimNetGateway_Protocol_DdsPlayer_FrameRequest;
 	using FClockStep = SimNetGateway_Protocol_DdsPlayer_ClockStep;
-	double Real() { return FPlatformTime::Seconds(); }
-	void Copy(char* To, int32 Cap, const FString& S) { FCStringAnsi::Strncpy(To, TCHAR_TO_UTF8(*S), Cap); }
+	double RenderReal() { return FPlatformTime::Seconds(); }
+	void RenderCopy(char* To, int32 Cap, const FString& S) { FCStringAnsi::Strncpy(To, TCHAR_TO_UTF8(*S), Cap); }
 	Audio::FMixerDevice* MixerOf(UWorld* W)
 	{
 		if (!W) return nullptr;
@@ -63,7 +63,7 @@ namespace
 		Audio::IAudioMixerPlatformInterface* P = M ? M->GetAudioMixerPlatform() : nullptr;
 		return P && P->IsNonRealtime() ? static_cast<Audio::FMixerPlatformNonRealtime*>(P) : nullptr;
 	}
-	const TCHAR* StateName(uint8 S)
+	const TCHAR* RenderStateName(uint8 S)
 	{
 		switch (S)
 		{
@@ -143,14 +143,14 @@ void UHrotDpsRender::Announce(double Now)
 	NextAnnounce = Now + 2.0;   // ⚠ player QoS is VOLATILE: a gateway that starts later must hear it again
 	SimNetGateway_Protocol_DdsPlayer_RenderClient R{};
 	R.ClientId = ClientId;
-	Copy(R.Name, sizeof(R.Name), FString::Printf(TEXT("unreal-ig %s"), FPlatformProcess::ComputerName()));
+	RenderCopy(R.Name, sizeof(R.Name), FString::Printf(TEXT("unreal-ig %s"), FPlatformProcess::ComputerName()));
 	R.Ready = true;
 	R.MaxWidth = MaxWidth; R.MaxHeight = MaxHeight; R.MaxSupersample = MaxSupersample;
 	R.Formats = 1;   // PNG
 	Audio::FMixerDevice* M = MixerOf(GetWorld());
 	R.AudioFormats = NrtOf(M) ? 1u : 0u;   // WAV PCM16, only with the non-real-time device
 	R.MaxSampleRate = M ? int32(M->GetSampleRate()) : 0;
-	Copy(R.ReadyJobId, sizeof(R.ReadyJobId), ReadyJobId);
+	RenderCopy(R.ReadyJobId, sizeof(R.ReadyJobId), ReadyJobId);
 	Dps->Client().Write(TEXT("DPS_RenderClient"), &R);
 }
 
@@ -159,7 +159,7 @@ void UHrotDpsRender::Tick(float)
 	if (!bEnabled) return;
 	Connect();
 	if (!Subs.Num()) return;
-	Announce(Real());
+	Announce(RenderReal());
 }
 
 // ── the job ──
@@ -170,7 +170,7 @@ void UHrotDpsRender::OnJob(const FHrotDpsSample& S)
 	const FString Id = UTF8_TO_TCHAR(J.JobId);
 	if (!S.bValid) { if (!S.bAlive && bJob && Id == JobId) { LastWhy = TEXT("the job's instance went away"); EndJob(false); } return; }
 	if (J.ClientId != ClientId) return;
-	UE_LOG(LogHrotDpsRender, Display, TEXT("DPS RenderJob %s %s (%s) %d fps %dx%d x%d audio %d"), *Id, StateName(uint8(J.State)), UTF8_TO_TCHAR(J.What), J.Fps,
+	UE_LOG(LogHrotDpsRender, Display, TEXT("DPS RenderJob %s %s (%s) %d fps %dx%d x%d audio %d"), *Id, RenderStateName(uint8(J.State)), UTF8_TO_TCHAR(J.What), J.Fps,
 		J.Width, J.Height, int32(J.Supersample), J.Audio ? 1 : 0);
 	switch (J.State)
 	{
@@ -178,7 +178,7 @@ void UHrotDpsRender::OnJob(const FHrotDpsSample& S)
 	case SimNetGateway_Protocol_DdsPlayer_RenderStateDone: if (bJob && Id == JobId) EndJob(true); break;
 	case SimNetGateway_Protocol_DdsPlayer_RenderStateFailed:
 	case SimNetGateway_Protocol_DdsPlayer_RenderStateCancelled:
-		if (bJob && Id == JobId) { LastWhy = FString::Printf(TEXT("job %s by the station: %s"), StateName(uint8(J.State)), UTF8_TO_TCHAR(J.Reason)); EndJob(false); }
+		if (bJob && Id == JobId) { LastWhy = FString::Printf(TEXT("job %s by the station: %s"), RenderStateName(uint8(J.State)), UTF8_TO_TCHAR(J.Reason)); EndJob(false); }
 		break;
 	default: break;
 	}
@@ -198,9 +198,9 @@ void UHrotDpsRender::FailJob(const FString& Why)
 	UE_LOG(LogHrotDpsRender, Warning, TEXT("DPS render job %s fails: %s"), *JobId, *Why);
 	UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>();
 	SimNetGateway_Protocol_DdsPlayer_RenderJobResult R{};
-	R.ClientId = ClientId; Copy(R.JobId, sizeof(R.JobId), JobId);
+	R.ClientId = ClientId; RenderCopy(R.JobId, sizeof(R.JobId), JobId);
 	R.Status = SimNetGateway_Protocol_DdsPlayer_FrameStatusFailed;
-	Copy(R.Reason, sizeof(R.Reason), Why);
+	RenderCopy(R.Reason, sizeof(R.Reason), Why);
 	Dps->Client().Write(TEXT("DPS_RenderJobResult"), &R);
 }
 
@@ -252,7 +252,7 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 	if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld()))
 		SR->TimeSource = [W = TWeakObjectPtr<UWorld>(GetWorld())]() { UHrotDpsWorld* DW = W.IsValid() ? UHrotDpsWorld::Get(W.Get()) : nullptr; return DW ? DW->SimNow() : 0.0; };
 	// warm-up: shaders and streaming (the first frame after a rebuild hitched 28 s — DD-022 Q-4)
-	const double T0 = Real();
+	const double T0 = RenderReal();
 #if WITH_EDITOR
 	if (GShaderCompilingManager) GShaderCompilingManager->FinishAllCompilation();
 #endif
@@ -261,7 +261,7 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 	ReadyJobId = JobId; NextAnnounce = 0;   // said at once
 	Phase = EPhase::Waiting;
 	if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) Dps->Client().ResetStepCount(true);   // step 0 counts from ReadyJobId
-	UE_LOG(LogHrotDpsRender, Display, TEXT("DPS render job %s ready after %.1f s warm-up (%dx%d x%d, %d fps, audio %s) -> '%s'"), *JobId, Real() - T0,
+	UE_LOG(LogHrotDpsRender, Display, TEXT("DPS render job %s ready after %.1f s warm-up (%dx%d x%d, %d fps, audio %s) -> '%s'"), *JobId, RenderReal() - T0,
 		Width, Height, Supersample, Fps, bAudio ? *FString::Printf(TEXT("%d Hz x %d"), int32(M->GetSampleRate()), Channels) : TEXT("off"), *DirAbs);
 }
 
@@ -275,14 +275,14 @@ void UHrotDpsRender::EndJob(bool bDone)
 	if (bDone && bJobOk)
 	{
 		SimNetGateway_Protocol_DdsPlayer_RenderJobResult R{};
-		R.ClientId = ClientId; Copy(R.JobId, sizeof(R.JobId), JobId);
+		R.ClientId = ClientId; RenderCopy(R.JobId, sizeof(R.JobId), JobId);
 		R.Status = SimNetGateway_Protocol_DdsPlayer_FrameStatusWritten;
 		if (bAudio)
 		{
 			const FString Rel = Dir.IsEmpty() ? JobId + TEXT(".wav") : FPaths::Combine(Dir, JobId + TEXT(".wav"));
 			FString Abs, Why; int64 N = 0;
-			if (SafePath(Rel, Abs) && WriteTrack(Abs, N, Why)) { Copy(R.TrackFile, sizeof(R.TrackFile), Rel); R.TrackSamples = N; }
-			else { R.Status = SimNetGateway_Protocol_DdsPlayer_FrameStatusFailed; Copy(R.Reason, sizeof(R.Reason), Why.IsEmpty() ? TEXT("track path") : Why); LastWhy = Why; }
+			if (SafePath(Rel, Abs) && WriteTrack(Abs, N, Why)) { RenderCopy(R.TrackFile, sizeof(R.TrackFile), Rel); R.TrackSamples = N; }
+			else { R.Status = SimNetGateway_Protocol_DdsPlayer_FrameStatusFailed; RenderCopy(R.Reason, sizeof(R.Reason), Why.IsEmpty() ? TEXT("track path") : Why); LastWhy = Why; }
 			UE_LOG(LogHrotDpsRender, Display, TEXT("DPS render job %s: track '%s' %lld samples (%d frames x %d Hz / %d fps = %lld)"), *JobId, *Rel, N, Frames, TrackRate, Fps,
 				int64(FMath::RoundToDouble(double(Frames) * TrackRate / Fps)));
 		}
@@ -328,7 +328,7 @@ void UHrotDpsRender::OnFrame(const FHrotDpsSample& S)
 		for (uint32 K = 0; K < G.Points._length; ++K) Gr.Points.Add(FVector3d(G.Points._buffer[K].X, G.Points._buffer[K].Y, G.Points._buffer[K].Z));
 		R.Graphics.Add(MoveTemp(Gr));
 	}
-	R.SeenAt = Real();
+	R.SeenAt = RenderReal();
 	if (D.LayersOn._length || D.LayersOff._length) UE_LOG(LogHrotDpsRender, Verbose, TEXT("frame %d: layers on/off not drawn by this client"), R.Index);
 	Queue.Add(MoveTemp(R));
 }
@@ -360,7 +360,7 @@ bool UHrotDpsRender::BarrierMet(const FRequest& R, double Now)
 void UHrotDpsRender::OnEndFrame()
 {
 	if (!bJob || !bJobOk) return;
-	const double Now = Real();
+	const double Now = RenderReal();
 	if (Phase == EPhase::Advancing)
 	{
 		if (GFrameCounter < AdvanceFrame) return;   // the advancing frame has not been ticked yet
@@ -376,10 +376,10 @@ void UHrotDpsRender::OnEndFrame()
 	if (!BarrierMet(R, Now)) { if (Now - R.SeenAt > 0.05 && R.Index != -1) ++BarrierWaits; return; }
 	if (R.Kind == SimNetGateway_Protocol_DdsPlayer_FrameKindSilence)
 	{
-		const FRequest Copy = R; Queue.RemoveAt(0);
+		const FRequest RenderCopy = R; Queue.RemoveAt(0);
 		const int32 N = bAudio ? MixFrame(true) : 0;
 		++Silences;
-		Present(Copy, true, FString(), FString(), 0.f, N);
+		Present(RenderCopy, true, FString(), FString(), 0.f, N);
 		return;
 	}
 	Advance(R);
@@ -399,12 +399,12 @@ void UHrotDpsRender::Advance(const FRequest& R)
 	}
 	AdvanceFrame = GFrameCounter + 1;
 	Phase = EPhase::Advancing;
-	PhaseStart = Real();
+	PhaseStart = RenderReal();
 }
 
 void UHrotDpsRender::RenderFrame(const FRequest& R)
 {
-	const double T0 = Real();
+	const double T0 = RenderReal();
 	UWorld* W = GetWorld();
 	UHrotDpsWorld* DW = UHrotDpsWorld::Get(W);
 	FString Abs;
@@ -474,7 +474,7 @@ void UHrotDpsRender::RenderFrame(const FRequest& R)
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Abs), true);
 	const bool bSaved = FFileHelper::SaveArrayToFile(TArrayView64<const uint8>(Png.GetData(), Png.Num()), *Abs);
 	const int32 N = bAudio ? MixFrame(false) : 0;
-	const float Ms = float((Real() - T0) * 1000.0);
+	const float Ms = float((RenderReal() - T0) * 1000.0);
 	if (bSaved) ++Written; else ++Failed;
 	Present(R, bSaved, R.File, bSaved ? FString() : FString::Printf(TEXT("could not write '%s'"), *Abs), Ms, N);
 }
@@ -492,10 +492,10 @@ void UHrotDpsRender::Present(const FRequest& R, bool bOk, const FString& File, c
 	}
 	StepsSeen.Remove(R.StepSeq);
 	SimNetGateway_Protocol_DdsPlayer_FrameDone D{};
-	D.ClientId = ClientId; Copy(D.JobId, sizeof(D.JobId), R.JobId);
+	D.ClientId = ClientId; RenderCopy(D.JobId, sizeof(D.JobId), R.JobId);
 	D.FrameIndex = R.Index; D.StepSeq = R.StepSeq;
 	D.Status = bOk ? SimNetGateway_Protocol_DdsPlayer_FrameStatusWritten : SimNetGateway_Protocol_DdsPlayer_FrameStatusFailed;
-	Copy(D.File, sizeof(D.File), File); D.AudioSamples = AudioSamples; Copy(D.Reason, sizeof(D.Reason), Why); D.RenderMs = Ms;
+	RenderCopy(D.File, sizeof(D.File), File); D.AudioSamples = AudioSamples; RenderCopy(D.Reason, sizeof(D.Reason), Why); D.RenderMs = Ms;
 	C.Write(TEXT("DPS_FrameDone"), &D);
 	if (!bOk) { LastWhy = Why; UE_LOG(LogHrotDpsRender, Warning, TEXT("frame %d failed: %s"), R.Index, *Why); }
 }
