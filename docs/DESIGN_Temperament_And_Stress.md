@@ -354,7 +354,7 @@ burst detector, and a burst is not what matters — duration is).
 | unchanged | a hit 0.25 · a friend down 0.2 within 15 m · outnumbered 0.02 / s · alone 0.01 / s · heard close · a shell burst (§7.6) | ⭐ these are what tip a man |
 
 Rails: `StressSystemTests.CE2470_Fire_IsARate_ABurstIsNoMoreThanARound_HalfInCover` (supersedes `CE2376_ANearMissInCover_CountsHalf`), `CE2270_AHit_RaisesHim…`,
-`CE2270_TheSystem_ReadsTheEdges…`. Scenarios: `ts-fire-discipline`, `ts-three-defenders`, `ts-aggression`, `ts-house-defenders`.
+`CE2270_TheSystem_ReadsTheEdges…`. Scenarios: `ts-fire-discipline` ✅, `ts-three-defenders` ✅, `ts-aggression` ✅, `ts-house-defenders` ✅ after its check followed D-6: 📐 probed, the Waverer is no longer broken through the walls (per-round fire broke him at 175 s before anyone reached him); the squad reaches his closet and he surrenders CALM at 150 s — CE-3462 D-6 (*"a cornered low-resolve man gives up at once, calm or not"*) ⇒ the row "breaks, then surrenders after the break" became "he gives up".
 
 ## ⛔ HISTORY
 
