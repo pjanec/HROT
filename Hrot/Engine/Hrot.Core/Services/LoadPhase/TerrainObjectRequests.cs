@@ -203,6 +203,16 @@ public static class TerrainObjectRequests
                 foreach (var ((row, col), level) in k.Cells) r.Set(col, row, (MineCellKnowledge)level);
                 requests.Add(Req(MinefieldKnowledge.TkbType, r));
             }
+        // ⭐ CE-2468 UF-3 (K1) — the places under fire: made LOADED, holding the saved AGE (never an absolute time); the loading node's writer rebases each on its first tick
+        if (!Holds<UnderFireKnowledge>(world))
+            foreach (var u in saved.UnderFire)
+            {
+                var r = new UnderFireKnowledge { Cause = u.Cause, Point = u.Point, RangeM = u.RangeM, EnemyStrength = u.EnemyStrength };
+                r.Header.SubjectKind = SubjectKind.Place; r.Header.Subject = u.Subject; r.Header.ObjectIndex = -1; r.Header.SidePlus1 = u.SidePlus1;
+                r.Header.Kind = PlaceKnowledgeKind.UnderFire; r.Header.Chunk = u.Chunk; r.Header.Source = u.Source;
+                r.Header.State = UnderFireKnowledge.StateLoaded; r.Header.LearnedAt = (SimInstant)u.AgeSeconds;
+                requests.Add(Req(UnderFireKnowledge.TkbType, r));
+            }
         if (!Holds<MinefieldStrikes>(world))
             foreach (var (field, mines) in saved.Strikes)
             {

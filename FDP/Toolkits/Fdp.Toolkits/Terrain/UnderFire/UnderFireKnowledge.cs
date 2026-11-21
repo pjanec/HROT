@@ -25,6 +25,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ TKB 7211 <c>UnderFireKnowledgeRecord</c> (the record block; 7202–7210 taken — measured on every branch 2026-11-21).</summary>
         public const long TkbType = 7211;
         public const byte StateActive = 0, StateCooled = 1;
+        /// <summary>⭐ CE-2468 UF-3 (K1) — made by a scenario LOAD: <see cref="PlaceKnowledgeHeader.LearnedAt"/> holds the saved AGE (seconds), not a time, until the owning node's writer
+        /// rebases it on its first tick (learned-at = now − age) — whatever the clock did between the load and the first tick. No reader treats it as fresh meanwhile.</summary>
+        public const byte StateLoaded = 2;
 
         public PlaceKnowledgeHeader Header;
         public UnderFireCause Cause;
@@ -62,7 +65,7 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>Is this record fresh at <paramref name="now"/> — not Cooled, and inside its cause's cool time?</summary>
-        public readonly bool FreshAt(double now) => Header.State != StateCooled && now - Header.LearnedAt.Seconds < UnderFireRules.CoolSeconds(Cause);
+        public readonly bool FreshAt(double now) => Header.State == StateActive && now - Header.LearnedAt.Seconds < UnderFireRules.CoolSeconds(Cause);
     }
 
     /// <summary>One piece of evidence for a side: the writer's item (see <see cref="UnderFireEvents"/>).</summary>

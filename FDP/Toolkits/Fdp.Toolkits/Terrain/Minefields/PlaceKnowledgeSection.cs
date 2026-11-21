@@ -21,13 +21,33 @@ namespace Fdp.Toolkit.Terrain
         public readonly SortedDictionary<(byte Row, byte Col), byte> Cells = new();
     }
 
+    /// <summary>
+    /// ⭐ CE-2468 UF-3 (DESIGN_Minefields.md §9b.1 K1) — one side's saved knowledge of one place under fire: the record's payload and its AGE at the save (now − learned-at),
+    /// ⛔ never the absolute time — a load rebases it on the load's clock.
+    /// </summary>
+    public sealed class SavedUnderFire
+    {
+        public Guid Subject;
+        public byte SidePlus1;
+        public ushort Chunk;
+        public UnderFireCause Cause;
+        public Vector3 Point;
+        public float RangeM, EnemyStrength;
+        public KnowledgeSource Source;
+        public bool Cooled;
+        /// <summary>Seconds between the last evidence and the save (≥ 0).</summary>
+        public double AgeSeconds;
+    }
+
     /// <summary>Everything <see cref="PlaceKnowledgeSection"/> holds, read back: knowledge records, struck / cleared mines per field, lanes per field.</summary>
     public sealed class SavedPlaceKnowledge
     {
         public readonly List<SavedKnowledge> Knowledge = new();
+        /// <summary>⭐ CE-2468 UF-3 — the places under fire each side knew, by age.</summary>
+        public readonly List<SavedUnderFire> UnderFire = new();
         public readonly SortedDictionary<Guid, SortedDictionary<(short Row, short Col), MineGone>> Strikes = new();
         public readonly SortedDictionary<Guid, List<(Vector2 A, Vector2 B, float Width, byte SidePlus1)>> Lanes = new();
-        public bool IsEmpty => Knowledge.Count == 0 && Strikes.Count == 0 && Lanes.Count == 0;
+        public bool IsEmpty => Knowledge.Count == 0 && Strikes.Count == 0 && Lanes.Count == 0 && UnderFire.Count == 0;
     }
 
     /// <summary>
@@ -46,7 +66,7 @@ namespace Fdp.Toolkit.Terrain
     public static unsafe class PlaceKnowledgeSection
     {
         public const string Name = "Knowledge";
-        private const string CellsProperty = "cells", MinesProperty = "mines", LanesProperty = "lanes";
+        private const string CellsProperty = "cells", MinesProperty = "mines", LanesProperty = "lanes", UnderFireProperty = "underFire";
 
         // ── keys ───────────────────────────────────────────────────────────────────
         public static string EntryKey(Guid subject, byte sidePlus1, PlaceKnowledgeKind kind, ushort chunk)
@@ -61,6 +81,8 @@ namespace Fdp.Toolkit.Terrain
         public static bool IsKnowledgeEntry(JsonNode? entry) => entry is JsonObject o && o[CellsProperty] is JsonArray;
         public static bool IsStrikesEntry(JsonNode? entry) => entry is JsonObject o && o[MinesProperty] is JsonArray;
         public static bool IsLanesEntry(JsonNode? entry) => entry is JsonObject o && o[LanesProperty] is JsonArray;
+        /// <summary>⭐ CE-2468 UF-3 — an under-fire entry: <c>{ "underFire": [cause, x, y, z, range, strength], "age": s, "source": n, "cooled": true? }</c> under the kind-2 key.</summary>
+        public static bool IsUnderFireEntry(JsonNode? entry) => entry is JsonObject o && o[UnderFireProperty] is JsonArray;
 
         // ── save ───────────────────────────────────────────────────────────────────
         /// <summary>
@@ -84,6 +106,29 @@ namespace Fdp.Toolkit.Terrain
                     if (byKey.TryGetValue(key, out var have)) MergeInto(have, item); else byKey[key] = item;
                 }
             foreach (var k in byKey.Values) if (!IsBlank(k)) saved.Knowledge.Add(k);
+
+            // ⭐ CE-2468 UF-3 (K1) — the places under fire, by AGE: now − learned-at, on this host's clock
+            if (repo.IsComponentTypeRegistered<UnderFireKnowledge>())
+            {
+                double now = Fdp.Toolkit.Combat.HitModel.Now(repo);
+                var byUf = new Dictionary<string, SavedUnderFire>(StringComparer.Ordinal);
+                foreach (var e in repo.Query().With<UnderFireKnowledge>().WithLifecycle(EntityLifecycle.AllButTearDown).Build())
+                {
+                    if (!RecordWriterCore<UnderFireKnowledge, KnowledgeKey, UnderFireItem>.OwnsRecord(repo, e, UnderFireWriter.OwnershipKey)) continue;
+                    var r = repo.GetComponentRO<UnderFireKnowledge>(e);
+                    if (r.Header.SidePlus1 == 0 || r.Header.Subject == Guid.Empty || r.Cause == 0) continue;
+                    var u = new SavedUnderFire
+                    {
+                        Subject = r.Header.Subject, SidePlus1 = r.Header.SidePlus1, Chunk = r.Header.Chunk, Cause = r.Cause, Point = r.Point, RangeM = r.RangeM,
+                        EnemyStrength = r.EnemyStrength, Source = r.Header.Source, Cooled = r.Header.State == UnderFireKnowledge.StateCooled,
+                        // a record not yet rebased since its own load still holds its age (UnderFireKnowledge.StateLoaded)
+                        AgeSeconds = r.Header.State == UnderFireKnowledge.StateLoaded ? r.Header.LearnedAt.Seconds : Math.Max(0d, now - r.Header.LearnedAt.Seconds),
+                    };
+                    string key = EntryKey(u.Subject, u.SidePlus1, PlaceKnowledgeKind.UnderFire, u.Chunk);
+                    if (byUf.TryGetValue(key, out var have)) MergeInto(have, u); else byUf[key] = u;
+                }
+                saved.UnderFire.AddRange(byUf.Values);
+            }
 
             if (repo.IsComponentTypeRegistered<MinefieldStrikes>())
                 foreach (var e in repo.Query().With<MinefieldStrikes>().WithLifecycle(EntityLifecycle.AllButTearDown).Build())
@@ -159,6 +204,13 @@ namespace Fdp.Toolkit.Terrain
             if (from.LearnedAt > into.LearnedAt) { into.LearnedAt = from.LearnedAt; into.Source = from.Source; }
         }
 
+        /// <summary>⭐ CE-2468 UF-3 — the under-fire kind's merge: NEWEST wins (the smaller age), the point / cause of the record kept (the same key ⇒ the same place).</summary>
+        public static void MergeInto(SavedUnderFire into, SavedUnderFire from)
+        {
+            if (from.AgeSeconds >= into.AgeSeconds) return;
+            into.AgeSeconds = from.AgeSeconds; into.RangeM = from.RangeM; into.EnemyStrength = from.EnemyStrength; into.Source = from.Source; into.Cooled = from.Cooled;
+        }
+
         // ── json ───────────────────────────────────────────────────────────────────
         private static JsonObject ToJson(SavedPlaceKnowledge s)
         {
@@ -167,6 +219,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (var k in s.Knowledge) entries[EntryKey(k.Subject, k.SidePlus1, k.Kind, k.Chunk)] = KnowledgeJson(k);
             foreach (var (field, d) in s.Strikes) entries[StrikesKey(field)] = StrikesJson(d);
             foreach (var (field, l) in s.Lanes) entries[LanesKey(field)] = LanesJson(l);
+            foreach (var u in s.UnderFire) entries[EntryKey(u.Subject, u.SidePlus1, PlaceKnowledgeKind.UnderFire, u.Chunk)] = UnderFireJson(u);
             foreach (var (key, node) in entries) section[key] = node;
             return section;
         }
@@ -179,6 +232,18 @@ namespace Fdp.Toolkit.Terrain
             if (k.Marked) o["marked"] = true;
             o["learnedAt"] = (double)k.LearnedAt;
             o["source"] = (int)k.Source;
+            return o;
+        }
+
+        private static JsonObject UnderFireJson(SavedUnderFire u)
+        {
+            var o = new JsonObject
+            {
+                [UnderFireProperty] = new JsonArray((int)u.Cause, u.Point.X, u.Point.Y, u.Point.Z, u.RangeM, u.EnemyStrength),
+                ["age"] = u.AgeSeconds,
+                ["source"] = (int)u.Source,
+            };
+            if (u.Cooled) o["cooled"] = true;
             return o;
         }
 
@@ -237,6 +302,26 @@ namespace Fdp.Toolkit.Terrain
                         }
                         result.Knowledge.Add(k);
                     }
+                    else if (IsUnderFireEntry(entry))
+                    {
+                        if (parts.Length != 4) throw new FormatException("an under-fire key is <guid>|<side+1>|<kind>|<chunk>");
+                        if ((PlaceKnowledgeKind)int.Parse(parts[2], CultureInfo.InvariantCulture) != PlaceKnowledgeKind.UnderFire) throw new FormatException("an under-fire entry under another kind's key");
+                        byte side = byte.Parse(parts[1], CultureInfo.InvariantCulture);
+                        if (side == 0) throw new FormatException("side + 1 is 0");
+                        var v = (JsonArray)entry[UnderFireProperty]!;
+                        if (v.Count != 6) throw new FormatException("underFire is not [cause, x, y, z, range, strength]");
+                        int cause = v[0]!.GetValue<int>();
+                        if (cause is not ((int)UnderFireCause.Indirect or (int)UnderFireCause.Direct)) throw new FormatException($"underFire's cause {cause} is not 1 (Indirect) or 2 (Direct)");
+                        double age = entry["age"]?.GetValue<double>() ?? throw new FormatException("an under-fire entry has no age");
+                        if (!(age >= 0d)) throw new FormatException("age must be ≥ 0");
+                        result.UnderFire.Add(new SavedUnderFire
+                        {
+                            Subject = guid, SidePlus1 = side, Chunk = ushort.Parse(parts[3], CultureInfo.InvariantCulture), Cause = (UnderFireCause)cause,
+                            Point = new Vector3(v[1]!.GetValue<float>(), v[2]!.GetValue<float>(), v[3]!.GetValue<float>()), RangeM = v[4]!.GetValue<float>(),
+                            EnemyStrength = v[5]!.GetValue<float>(), AgeSeconds = age, Source = (KnowledgeSource)(entry["source"]?.GetValue<int>() ?? 0),
+                            Cooled = entry["cooled"]?.GetValue<bool>() ?? false,
+                        });
+                    }
                     else if (IsStrikesEntry(entry))
                     {
                         var rows = (JsonArray)entry[MinesProperty]!;
@@ -288,6 +373,14 @@ namespace Fdp.Toolkit.Terrain
                 if (byKey.TryGetValue(kk, out var h)) MergeInto(h, k); else byKey[kk] = k;
             }
             merged.Knowledge.AddRange(byKey.Values);
+            var byUf = new Dictionary<string, SavedUnderFire>(StringComparer.Ordinal);
+            foreach (var u in a.UnderFire) byUf[EntryKey(u.Subject, u.SidePlus1, PlaceKnowledgeKind.UnderFire, u.Chunk)] = u;
+            foreach (var u in b.UnderFire)
+            {
+                string uk = EntryKey(u.Subject, u.SidePlus1, PlaceKnowledgeKind.UnderFire, u.Chunk);
+                if (byUf.TryGetValue(uk, out var h)) MergeInto(h, u); else byUf[uk] = u;
+            }
+            merged.UnderFire.AddRange(byUf.Values);
             foreach (var src in new[] { a, b })
             {
                 foreach (var (f, d) in src.Strikes) foreach (var ((row, col), how) in d) AddMine(merged, f, row, col, how);
