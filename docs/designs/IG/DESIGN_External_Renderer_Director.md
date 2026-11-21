@@ -67,7 +67,8 @@ graph TD
 ```
 *What the picture shows that prose hid:* the routing happens in the ONE object `DirectorPack.Attach` already builds for every host, so the
 editor and the Replay Browser cannot differ in how a renderer is chosen — and the dashed edge: the Replay Browser composes no node extension
-today, so a film rendered from a recording cannot reach the gateway until H-5.
+today — but the editor's replay (AAR) hosts the same director over its own recording (Review Perspective §1), so a film from the editor's
+recording reaches the gateway without it; H-5 is only for jobs naming another recording and multi-node exercises.
 
 ### 2b. Classes
 
@@ -181,7 +182,7 @@ sequenceDiagram
 | DD-022 | CE | what | where |
 |---|---|---|---|
 | H-1, H-2, H-3, H-4 | [CE-11018](../../blueprints/Blueprint_Issues_Tracker.md) | `IExternalFrameRenderer` + `FilmFrame` / `FilmJob` / `FilmTrack` + `ExternalRenderers` (Hrot.Core); `IFrameSink.Begin/End` (default no-ops); `RoutingFrameSink` built once in `DirectorPack.Attach`; the runner passes the film camera, film rate and step with each frame; a faulted frame fails the job with its reason; `renderer: auto \| map` on the capture request | Hrot.Core, Hrot.Presentation Director |
-| H-5 | [CE-11020](../../blueprints/Blueprint_Issues_Tracker.md) | the Replay Browser composes node extensions (Q113-C) | Hrot.ReplayBrowser |
+| H-5 | [CE-11020](../../blueprints/Blueprint_Issues_Tracker.md) | slice 2 only: a job or reel item naming ANOTHER recording (the editor has no opener, `DirectorRenders.cs:243`) and multi-node exercises — the Replay Browser composing node extensions, or the editor gaining the opener (Q113-C). Slice 1 renders from the editor's own replay (AAR) with no host change | Hrot.ReplayBrowser or Hrot.Editor |
 | H-6 | — | no HROT change: the gateway reads the anchors and steps on the node bus and `TimelineEpoch` from `HrotNodeContext.TimeController` (2d) | — |
 | H-7 | [CE-11021](../../blueprints/Blueprint_Issues_Tracker.md) | `sound: renderer \| hrot` per job; with `renderer` the encode muxes `FilmTrack` and checks its samples against the frames; `IDirectorSound` stays for map renders | Hrot.Presentation Director |
 | H-8 / F-H1 | [CE-11019](../../blueprints/Blueprint_Issues_Tracker.md) | a running scale change publishes a Continuous re-anchor, so cluster slaves follow it | Fdp.Toolkits Time (backend's area: a cross-lane edit) |
