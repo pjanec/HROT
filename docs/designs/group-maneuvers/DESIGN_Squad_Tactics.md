@@ -1830,6 +1830,44 @@ each red-proved; the parallel checks (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`) o
 
 **Rails** (`SquadManeuverTests.AfterContact.cs`, all under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`, each red-proved by a compiling mutation): `CE2466_R1_R2_…` (per-position learn, rally, LACE + SPOTs) · `CE2466_R4_…` (assault → break contact at a remembered force; control without the record) · `CE2466_R6_CoveredGround…` (not a crossing, its own condition) · `CE2466_R6_TheSop…` (held short, FireSupport + TaskFailed at 120 s, still held after the record cools). Updated for the rally: `CE2123_ReactToContact_…BreaksContact…`, `CE2465_BreakContact_EndsInALull…`; `CE2161_…` for the new kind. Squad gates 442/442.
 
+### 7.10 An ordered attack presses on while it is superior *(behaviors, `2026-11-21`, `CE-2467`; build-state: BUILT)*
+
+🔒 User, `2026-11-21`: *"ok follow your lean"* — on: *"recast CE-2467 as 'the ordered attack is abandoned under fire'"*.
+
+📐 **Measured** (`uf-corner-assault`, U2b: a 6-man squad on an ATTACK order v 2 men at a corner, live probes to 300 s): the assault's ROUTE went round the houses
+(B4 west round the house (628,343)→(625,377); B2/B5 behind the east row (676,353)→(679,375)) — ⛔ CE-2467's first premise, "it walks up the street", was
+WRONG. ⭐ What failed: at the first hit the squad's contact reaction paused the attack — break contact, casualty care, break contact, hold — four times;
+6 v 2 broke contact, three men bled out, and from 146 s three healthy men sat in `SquadHold` 40 m from one standing enemy.
+
+**The proven solution** (doctrine): an attack, once launched, is carried through while the attacker keeps superiority; casualties are treated on the objective
+(buddy aid only where it does not stop the assault); the attack is broken off only when superiority is lost.
+
+```mermaid
+graph TD
+  SOP[BasicSquadSop rows: under fire / leader down / member down / contact] -->|guard| ND[SquadDefendBehavior.NotDefending]
+  ND --> D[not defending]
+  ND --> SBF[not supporting by fire - CE-2436]
+  ND --> CP[not manning a checkpoint - CE-4622]
+  ND --> PA[NOT PressesTheAttack - CE-2467]
+  CARE[care-in-a-lull row] -->|guard| NPA[NotPressingTheAttack - CE-2467]
+  PA --> CO[CurrentOrders.Of: Attack, running]
+  PA --> SUP[AfterContact.Superior - R4's 3 : 1]
+```
+*What the picture shows that the prose hid:* the guard is ONE more clause of the existing composite "the squad's own task fights its contact" — no fourth
+copy per row; and superiority is the SAME test R4 uses, so "press on" and "never assault a force you broke from" can never disagree.
+
+| | as built | where |
+|---|---|---|
+| the guard | `ReactToContactBehavior.PressesTheAttack`: the order is `OrderKind.Attack` and RUNNING (not paused), ≥ 2 men in the fight, `AfterContact.Superior` (enemy share ≤ 0.25) | `SquadContactBehaviors.cs` |
+| the contact rows | `NotDefending` gains `!PressesTheAttack` — the four contact rows already carry it | `SquadDefendBehavior.NotDefending` |
+| the care row | a new guard `NotPressingTheAttack` | `BasicSquadSop` (id c2467…a3) |
+| superiority lost | the guard opens: the reaction decides again (break contact / hold — R4, R5, §7.9) | — |
+| the lone man | unchanged — `PressesOn` (CE-2454) | — |
+
+Rejected: **the order-conduct table** (CE-4621) — static per order kind, but pressing on depends on superiority NOW · **a separate guard on each row** — four
+copies of one rule (ruling 9) · **price the flank route with UnderFire** — the routes already went round (measured); kept for later if a scenario shows otherwise.
+Rail: `SquadManeuverTests.CE2467_AnAttackOrder_WithSuperiority_IsNotPausedByTheContactReaction_OutnumberedItReacts`. Scenario: `uf-corner-assault` (U2b).
+
 #### 7.9.7 The independent review — `2026-11-21` *(two read-only reviewers, one per half; findings verified where marked ✅; resolutions folded above and in Minefields §9b)*
 
 🔒 User, `2026-11-21`: *"We should not leave anything for the build to check. We need to check first, could you please start a review, independent review of that design with the goal of finding gaps and flaws."*
