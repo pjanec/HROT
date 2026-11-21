@@ -539,7 +539,7 @@ namespace Hrot.Editor.Director
             var at = new List<System.Numerics.Vector2>();
             foreach (var id in UnitsNamed(who))
                 if (HealthOf(id) is > 0f && (!c.Fighting || InTheFight(id)) && PositionOf(id) is { } p) at.Add(new System.Numerics.Vector2(p.X, p.Y));
-            if (at.Count < 2) return false;
+            if (at.Count < Math.Max(2, c.Men)) return false;   // ⭐ CE-2466 — fewer than men is no knot
             var centre = System.Numerics.Vector2.Zero;
             foreach (var p in at) centre += p;
             centre /= at.Count;

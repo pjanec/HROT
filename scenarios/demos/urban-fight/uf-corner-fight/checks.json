@@ -39,13 +39,14 @@
       "after": "Blue fires"
     },
     {
-      "name": "L1 Blue is no knot (all within 3 m) for 10 s after the first half minute",
+      "name": "L1 Blue is no knot (three or more, all within 3 m) for 10 s after the first half minute",
       "never": {
         "on": "bunched",
         "who": "*Blue Squad ",
         "m": 3,
         "fighting": true,
-        "for": 10
+        "for": 10,
+        "men": 3
       },
       "after": 30
     },
@@ -82,13 +83,14 @@
       "after": "Blue fires"
     },
     {
-      "name": "L1 Red is no knot (all within 3 m) for 10 s after the first half minute",
+      "name": "L1 Red is no knot (three or more, all within 3 m) for 10 s after the first half minute",
       "never": {
         "on": "bunched",
         "who": "*Red Squad ",
         "m": 3,
         "fighting": true,
-        "for": 10
+        "for": 10,
+        "men": 3
       },
       "after": 30
     },

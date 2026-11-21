@@ -210,6 +210,36 @@ public sealed class ScenarioChecksTests
         Assert.True(v["fighting"], "but not the row over the men in the fight");
     }
 
+    [Fact]
+    public void CE2466_Bunched_Men_APairIsNoKnotOfThree()
+    {
+        var checks = Parse("""
+            {"runFor":5,"expect":[
+              {"name":"two","never":{"on":"bunched","who":"*Red ","m":3}},
+              {"name":"three","never":{"on":"bunched","who":"*Red ","m":3,"men":3}}]}
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        for (int i = 1; i <= 2; i++)
+        {
+            w.U.Ids[$"Red Rifleman {i}"] = i;
+            w.Comps[i] = new JsonObject
+            {
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(668 + 2 * i, 381, 0) },
+                ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 },
+            };
+        }
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(5);
+        var v = book.Verdicts().ToDictionary(x => x.Name, x => x.Ok);
+        Assert.False(v["two"], "a pair 2 m apart is a knot of two");
+        Assert.True(v["three"], "but not a knot of three");
+        Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "close", "who": "A", "point": [0,0], "m": 1, "men": 3}, {"name": "b", "on": "bunched", "who": "A", "m": 1, "men": 1}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("men belongs to a bunched cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("men is an integer >= 2", StringComparison.Ordinal));
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);

@@ -58,6 +58,9 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ <c>CE-2455</c> — <c>cover</c> / <c>still</c> / <c>field</c> / <c>bunched</c>: judge only the units still IN THE FIGHT (alive and not incapacitated —
         /// <c>Injury.StateOf</c>'s rule). 📌 A downed man lies still in the open by definition: without it he reads as an idle man (`2026-11-20`, the stair "stand-off").</summary>
         public bool Fighting { get; init; }
+        /// <summary>⭐ <c>CE-2466</c> — <c>bunched</c>: the fewest men that make a knot (default 2). 📐 U2: the last two Red holding one corner 2.8 m apart is a
+        /// buddy pair sharing cover, not a squad collapsed into a knot.</summary>
+        public int Men { get; init; } = 2;
 
         public string On => Spec.On;
 
@@ -255,7 +258,7 @@ namespace Hrot.Editor.Director
             var spec = new JsonObject();
             var where_ = new List<(string, string, JsonNode?)>();
             string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null, to = null, building = null;
-            bool dead = false, upright = false, fighting = false;
+            bool dead = false, upright = false, fighting = false; int men = 2;
             double forSeconds = 0d;
             var also = new List<(string, string, JsonNode?)>();
             int elements = 1;
@@ -280,6 +283,9 @@ namespace Hrot.Editor.Director
                     case "dead": dead = v is JsonValue dv && dv.TryGetValue<bool>(out var db) && db; break;
                     case "upright": upright = v is JsonValue uv && uv.TryGetValue<bool>(out var ub) && ub; break;   // ⭐ CE-8316
                     case "fighting": fighting = v is JsonValue fv && fv.TryGetValue<bool>(out var fb) && fb; break;   // ⭐ CE-2455
+                    case "men":   // ⭐ CE-2466 — bunched: the smallest group that is a knot (a buddy pair sharing a corner is not one)
+                        if (v is JsonValue nv && nv.TryGetValue<int>(out var nm) && nm >= 2) men = nm; else problems.Add($"{where}: men is an integer >= 2");
+                        break;
                     case "for": forSeconds = v is JsonValue sv2 && sv2.TryGetValue<double>(out var sd) ? sd : -1d; break;   // ⭐ CE-2455
                     case "also":
                         if (v is not JsonArray conds) { problems.Add($"{where}: also is a list of {{path, op, value}}"); break; }
@@ -344,6 +350,7 @@ namespace Hrot.Editor.Director
             if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
             if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
             if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed" or "close" or "far")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched, exposed, close or far cue");
+            if (men != 2 && on != "bunched") problems.Add($"{where}: men belongs to a bunched cue");
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
             if (upright && on is not ("cover" or "exposed")) problems.Add($"{where}: upright belongs to a cover or exposed cue");
             if (also.Count > 0 && on != "field") problems.Add($"{where}: also belongs to a field cue");
@@ -390,7 +397,7 @@ namespace Hrot.Editor.Director
             if (where_.Count > 0 && on is not ("shot" or "blast" or "field")) problems.Add($"{where}: where filters a shot or a blast row (or, on a field cue, the elements of a * path)");
             if (where_.Count > 0 && on == "field" && !(path ?? "").Contains(".*.", StringComparison.Ordinal)) problems.Add($"{where}: where on a field cue filters the elements of a path with a * part");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Upright = upright, Also = also, For = forSeconds, Fighting = fighting };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Upright = upright, Also = also, For = forSeconds, Fighting = fighting, Men = men };
         }
     }
 }
