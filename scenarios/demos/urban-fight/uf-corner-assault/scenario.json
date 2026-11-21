@@ -1,0 +1,327 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "demo-city",
+  "description": "What: Urban fight suite U2b (CE-2467, DESIGN_Urban_Fight_Suite.md §5) - the CORNER ASSAULT: 'Blue Squad' (Friend, 6 men, mortal) is ordered SuppressAndManeuver against 'Red Squad' (Hostile, 2 men, the default SOP) holding the west near corner of demo-city's residential street / shop street junction (627-630, 384), ~50 m north of Blue. Blue has 3 : 1. Judge: the base of fire suppresses from the street; the assault reaches Red from a side Red does not watch - round the house south-west of the corner (627-641, 360-375) - never by walking up the street into Red's fire."
+ },
+ "entities": {
+  "c2467000-0000-4000-8000-000000000100": {
+   "SimTransform": {
+    "Position": [
+     650,
+     333,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "SuppressAndManeuver",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000101": {
+   "SimTransform": {
+    "Position": [
+     644,
+     336,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000100",
+    "Designation": "Wingman"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000102": {
+   "SimTransform": {
+    "Position": [
+     656,
+     336,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2004
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad Grenadier 2",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000100",
+    "Designation": "Wingman"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000103": {
+   "SimTransform": {
+    "Position": [
+     650,
+     333,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad Leader",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000100",
+    "Designation": "SquadLeader"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000104": {
+   "SimTransform": {
+    "Position": [
+     644,
+     330,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad Rifleman 4",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000100",
+    "Designation": "Wingman"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000105": {
+   "SimTransform": {
+    "Position": [
+     656,
+     330,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2004
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad Grenadier 5",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000100",
+    "Designation": "Wingman"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000106": {
+   "SimTransform": {
+    "Position": [
+     650,
+     327,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad Rifleman 6",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000100",
+    "Designation": "Wingman"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000200": {
+   "SimTransform": {
+    "Position": [
+     628,
+     384,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red Squad",
+    "ForceId": "Hostile"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000201": {
+   "SimTransform": {
+    "Position": [
+     627,
+     384,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.4924236,
+     0.8703557
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad Leader",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000200",
+    "Designation": "SquadLeader"
+   }
+  },
+  "c2467000-0000-4000-8000-000000000202": {
+   "SimTransform": {
+    "Position": [
+     630,
+     384,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.4924236,
+     0.8703557
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Squad Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c2467000-0000-4000-8000-000000000200",
+    "Designation": "Wingman"
+   }
+  }
+ }
+}
