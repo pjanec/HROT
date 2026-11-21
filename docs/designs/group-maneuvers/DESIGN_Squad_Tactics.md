@@ -1865,8 +1865,17 @@ copy per row; and superiority is the SAME test R4 uses, so "press on" and "never
 | superiority lost | the guard opens: the reaction decides again (break contact / hold — R4, R5, §7.9) | — |
 | the lone man | unchanged — `PressesOn` (CE-2454) | — |
 
+⭐⭐ **The route half** *(user `2026-11-21`: "Yes.")* — 📐 the deterministic U2 run (`ddfbd8c65`) REVERSES the "routes went round" finding above for U2:
+the reaction's assault took the flank point (651, 392) — the junction mouth — straight up the enemy's street, a man stood there in Red's sight 98–108 s.
+⚠ **The U2b probe that said "routes go round" was one live run in a different layout — too broad a conclusion.** ⭐ Built: `SuppressAndManeuverPlay.Start`
+LEARNS the ground the enemy covers (`AfterContact.Learn` — the SAME `Direct` record a break contact writes, R1) and asks its flank only once the side
+`Remembers` it (`FlankWaitSeconds` 2 s at most) ⇒ the flank query's EQS path cost and every mover's route are priced round that ground ON THE NAVMESH NODE
+(Minefields §9b UF-5) — the brain asks; it never reads terrain (R-2037). The last leg, through the enemy's position, crosses it as it must. ⚠ To measure:
+a priced detour beyond the flank search's reach (farthest × 1.5 + 25 m) reads as no path ⇒ no flank ⇒ the assault goes straight through.
+Rail: `CE2467_TheAssault_LearnsTheGroundTheEnemyCovers_AndAsksItsFlankOnceThatIsKnown`.
+
 Rejected: **the order-conduct table** (CE-4621) — static per order kind, but pressing on depends on superiority NOW · **a separate guard on each row** — four
-copies of one rule (ruling 9) · **price the flank route with UnderFire** — the routes already went round (measured); kept for later if a scenario shows otherwise.
+copies of one rule (ruling 9) · ~~price the flank route with UnderFire — the routes already went round~~ ⛔ SUPERSEDED the same day: U2 showed they do not (above).
 Rail: `SquadManeuverTests.CE2467_AnAttackOrder_WithSuperiority_IsNotPausedByTheContactReaction_OutnumberedItReacts`. Scenario: `uf-corner-assault` (U2b).
 
 #### 7.9.7 The independent review — `2026-11-21` *(two read-only reviewers, one per half; findings verified where marked ✅; resolutions folded above and in Minefields §9b)*
