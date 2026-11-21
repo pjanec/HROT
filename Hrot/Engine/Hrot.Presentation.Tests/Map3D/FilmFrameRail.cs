@@ -120,6 +120,60 @@ public sealed class FilmFrameRail
         film.Dispose();
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-11018</c> (DESIGN_Linked_Client_Director.md D-3) — a POSE-ONLY capture (a linked client renders the frame) goes through the same mailbox and the same
+    /// camera placement as a rendered one: on the same shot it hands back the SAME camera the render used, and writes nothing; on the 2-D map it is refused with the
+    /// reason. 🔴 Mutation: return the camera before <c>_director.Place</c> (the frame's own camera update skipped) ⇒ a different pose after a cut.
+    /// </summary>
+    [SkippableFact]
+    public void CE11018_APoseOnlyCapture_HandsBackTheRendersCamera_WritesNothing_AndIsRefusedIn2D()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        FilmStudio.Reset();
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        var query = WorldQuery.Of(world)!;
+        var mid = (terrain.BoundsMin + terrain.BoundsMax) / 2f;
+        var ground = new Vector3(mid.X, mid.Y, query.GroundHeightAt(mid.X, mid.Y));
+        string dir = Path.Combine(Path.GetTempPath(), "hrot-film-pose-rail");
+        Directory.CreateDirectory(dir);
+        string rendered = Path.Combine(dir, "rendered.png"), posed = Path.Combine(dir, "posed.png");
+        if (File.Exists(posed)) File.Delete(posed);
+
+        using var frame = UiFrameHarness.Begin(640, 400);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var view = new MapViewSwitch(canvas, canvas.Camera);
+        view.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var film = new FilmCaptureLayer(canvas, view, () => world);
+        canvas.AddLayer(film);
+        FilmStudio.Direct(FilmShot.Looking(ground + new Vector3(-20f, -30f, 14f), ground)! with { FovDeg = 30f });
+        film.Update(0.016f);
+        view.Camera3D.Update(0.016f);
+        frame.Step(canvas.Draw);
+
+        var render = FilmStudio.Capture(new FilmCaptureRequest(rendered, 320, 180));
+        film.Update(0.016f);
+        frame.Step(canvas.Draw);
+        var pose = FilmStudio.Capture(new FilmCaptureRequest(posed, 320, 180, PoseOnly: true));
+        film.Update(0.016f);
+        Assert.True(render.IsCompletedSuccessfully && pose.IsCompletedSuccessfully, (render.Exception ?? pose.Exception)?.ToString());
+        Assert.Equal(render.Result.Camera, pose.Result.Camera);
+        Assert.Equal(30f, pose.Result.Camera.FovDeg, 3);
+        Assert.True(Vector3.Distance(pose.Result.Camera.Position, ground + new Vector3(-20f, -30f, 14f)) < 0.05f, $"the eye {pose.Result.Camera.Position}");
+        Assert.False(File.Exists(posed), "a pose-only capture writes nothing");
+
+        FilmStudio.TwoD = true;
+        frame.Step(canvas.Draw);
+        var flat = FilmStudio.Capture(new FilmCaptureRequest(posed, 320, 180, PoseOnly: true));
+        for (int i = 0; i < 4 && !flat.IsCompleted; i++) { film.Update(0.016f); frame.Step(canvas.Draw); }
+        Assert.True(flat.IsFaulted, "a 2-D pose capture is refused");
+        Assert.Contains("2-D map", flat.Exception!.GetBaseException().Message);
+        FilmStudio.Reset();
+        film.Dispose();
+    }
+
     // ── ⭐ CE-1380 / CE-1379 (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1380 / CE-1379 as built") — ONE film pass in both modes ─────────────────
 
     private static readonly Fdp.Toolkit.Diagnostics.Gizmos.Rgba32 Cyan = new(0, 255, 255);

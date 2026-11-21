@@ -1820,7 +1820,8 @@ namespace Hrot.Editor
                     Index:     () => _node?.ShownTimeline?.Index,
                     Scenario:  () => _editorLogic?.LoadedScenarioName,
                     IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false,   // ⭐ CE-4121 — the live source: always complete
-                    History:   EditHistory));   // ⭐ U4 — the take editor's steps ride the editor's ONE history (Edit ▸ Undo / Redo / History)
+                    History:   EditHistory,   // ⭐ U4 — the take editor's steps ride the editor's ONE history (Edit ▸ Undo / Redo / History)
+                    LinkedClients: () => _node?.LinkedClients));   // ⭐ CE-11018 — the node's linked client films a job's frames (the silent-default rule: the editor HAS the registry)
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 

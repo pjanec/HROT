@@ -26,6 +26,8 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <param name="Scenario">⭐ CE-4059 — the scenario the shown run belongs to (a draft is a take of it).</param>
     /// <param name="ScenarioTakes">⭐ CE-1304 P4 (§11s) — the SCENARIOS root's takes, when this host's own takes are a recording's (the Replay Browser): promote
     /// copies a take there. Null = this host's takes are the scenario's (the editor): nothing to promote to.</param>
+    /// <param name="LinkedClients">⭐ <c>CE-11018</c> (DESIGN_Linked_Client_Director.md §2a) — the node's linked-client registry: a job's frames go to its client when one can film
+    /// (<see cref="RoutingFrameSink"/>). ⚠ A host that HAS a node context must pass its <c>HrotNodeContext.LinkedClients</c> (the silent-default rule), late-bound (the node may be rebuilt); null = the map only.</param>
     /// <param name="Recordings">⭐ CE-1391 (§11u "as built: CE-1391") — the host's ONE recording opener (the Replay Browser's <c>IReplayBrowserControl</c>, the one
     /// <c>POST /replay</c> ends in): the render queue opens a job's recording and the runner a reel item's through it — with or without a debug HTTP host. Null = this
     /// host opens no recordings (the editor): such a job fails, such a reel is refused.</param>
@@ -46,7 +48,8 @@ namespace Hrot.UI.Common.Map3D.Director
         Func<TakeStore?>? ScenarioTakes = null,
         Hrot.Presentation.DebugApi.IRecordingOpener? Recordings = null,
         Func<bool>? IndexComplete = null,
-        Hrot.Presentation.Edits.EditHistory? History = null);   // ⭐ U4 — the host's ONE edit history (the editor's); null ⇒ the take session keeps a private one
+        Hrot.Presentation.Edits.EditHistory? History = null,
+        Func<Hrot.Common.Infrastructure.LinkedClients?>? LinkedClients = null);   // ⭐ CE-11018 — the node's linked-client registry (HrotNodeContext.LinkedClients); null ⇒ the map films every job   // ⭐ U4 — the host's ONE edit history (the editor's); null ⇒ the take session keeps a private one
 
     /// <summary>
     /// ⭐ <c>CE-1303</c> P1 (§11j, CR-2) — the ONE registrar of the film director: builds the runner (with the window / layer / audio / frame
@@ -98,7 +101,8 @@ namespace Hrot.UI.Common.Map3D.Director
             var cinema = new WindowCinema(h.Wm);
             var layers = new MapLayerOverride(h.Layers);
             DirectorRunner? runner = null;
-            var sink = h.Headless ? null : new FilmFrameSink();
+            // ⭐ CE-11018 (D-2) — ONE sink for the runner, the stills and the render queue: the map's, routed per job to the node's linked client
+            var sink = h.Headless ? null : new RoutingFrameSink(new FilmFrameSink(), h.LinkedClients);
             runner = new DirectorRunner(h.Host, cinema, layers,
                 sink,
                 new AudioDirectorSound(() => runner?.FilmSimTime ?? double.NaN),

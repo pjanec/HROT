@@ -41,6 +41,8 @@ namespace Hrot.UI.Common.Map3D.Director
         public string? Movie { get; init; }
         /// <summary>False: the frames only, no movie (no ffmpeg).</summary>
         public bool Encode { get; init; } = true;
+        /// <summary>⭐ CE-11018 (Q113-B) — where the job's scene frames come from: auto (the node's linked client when one can film, else the map) · map.</summary>
+        public Hrot.Common.Infrastructure.FilmFrames Frames { get; init; } = Hrot.Common.Infrastructure.FilmFrames.Auto;
         /// <summary>Stills: film seconds (else every key with <see cref="EveryKey"/>, else the take's still keys).</summary>
         public IReadOnlyList<double>? Times { get; init; }
         public bool EveryKey { get; init; }
@@ -166,6 +168,9 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>Null when this host can render, else why not (a headless host has no frame to capture).</summary>
         public string? Refusal => _sink == null ? NoRenderer : null;
+
+        /// <summary>⭐ CE-11018 — the frame sink the queue's jobs render through (rails: the pack's one sink).</summary>
+        public IFrameSink? Sink => _sink;
 
         /// <summary>Every job: the queued in order, the running one, the ended ones (the last <see cref="MaxEnded"/>).</summary>
         public IReadOnlyList<RenderJob> Jobs => _jobs;
@@ -297,7 +302,7 @@ namespace Hrot.UI.Common.Map3D.Director
             var folder = r.Dir ?? (oneTake
                 ? Path.Combine(Path.GetDirectoryName(store.TakePath(scenario!, r.Take))!, r.Take + ".render", job.Id)
                 : Path.Combine(store.ScenariosRoot, ".renders", (string.IsNullOrEmpty(reel.Name) ? "reel" : reel.Name).Replace('/', '-'), job.Id));
-            var capture = new CaptureOptions(Path.GetFullPath(folder), r.Fps, r.Width, r.Height, r.Supersample, r.Captions, r.Movie, r.Encode);
+            var capture = new CaptureOptions(Path.GetFullPath(folder), r.Fps, r.Width, r.Height, r.Supersample, r.Captions, r.Movie, r.Encode, r.Frames);
             job.Dir = capture.Dir;
             job.Capture = capture;
             job.Items = reel.Items.Count;
