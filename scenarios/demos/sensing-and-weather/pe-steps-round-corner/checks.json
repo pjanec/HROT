@@ -7,20 +7,20 @@
       "on": "near",
       "who": "Red Walker",
       "point": [
-        105,
-        112
+        104,
+        110.5
       ],
       "within": 3
     }
   },
   "expect": [
     {
-      "name": "he walks behind the house",
+      "name": "he jogs along the far wall",
       "on": "near",
       "who": "Red Walker",
       "point": [
-        105,
-        112
+        104,
+        110.5
       ],
       "within": 3
     },

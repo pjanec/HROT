@@ -989,11 +989,17 @@ classDiagram
 | P5 | `pe-shelled` | rounds landing among the listeners, no enemy near | every man and the squad `contacts == 0` (R-2071) |
 | P2 | `pe-house-shot` | a shooter in a room; listeners in the corridor, another room, outside a window | squad `matched == 1`, `duplicate == 0`; after CE-2475 `phantom == 0` |
 | P2b | `pe-wall-and-door` | a shooter behind ONE wall, a door off to the listener's side | his contact within m of the SHOOTER, not the door (CE-2475) |
-| P6 | `pe-steps-round-corner` | a man walking along House A's far side (bt-range), two listeners south of it — the house always between | an ear hears him (`contacts ≥ 1`, any); `through: false` ⇒ `contacts == 0` always (no straight hearing, no sighting) |
+| P6 | `pe-steps-round-corner` | a man JOGGING (2.5 m/s) along House A's north wall, stopping short of its NE corner; two listeners just east of the house, 8–12 m round that corner — the house always between (📐 a walker's steps carry ~6 m at 1.2 m/s) | an ear hears him (`contacts ≥ 1`, any); `through: false` ⇒ `contacts == 0` always (no straight hearing, no sighting) |
 | P7 | `pe-seen-then-hidden` | a man crosses open ground 20 m in front of two listeners, then stops behind House A | both identify him while crossing (`matched == 1`, 2 s, before `hidden`); never `matched == 0` in the 20 s after `hidden`; `contacts == 0` at the end (130 s: the ~70 s fade, `ThreatScoreDecayPerSecond` 0.1 to `ForgetThreatScore` 0.5) |
 | P8 | P1, listeners on two nodes (cluster, nightly) | ⚠ the per-node token (§8.6d): 1 or 2 — needs the dump to carry heard contacts |
 
 ##### What the suite found first (`2026-11-22`)
+
+| ⚠ **suite setup, found writing P6 / P7 (`2026-11-22`)** | |
+|---|---|
+| the LISTENERS were not passive | each man had `InertSop` + `HoldFire`, but the squad entity did not — its standing behaviour MOVED them (📐 P7: an ear walked 25 m to the corner and kept SEEING the hidden man; `pe-house-shot`'s ears wandered the corridor). ⭐ the squad gets the same passive settings |
+| `pe-house-shot`'s shooter never fired at his target | seeing the listeners he went to `FightFromCover`; his shots were at an ear that had wandered into his room. ⭐ the shooter's reactions `StayOnTask` — he fires from 1.1 s. ✅ all seven `pe-*` pass with both fixed |
+
 
 | run | found | outcome |
 |---|---|---|

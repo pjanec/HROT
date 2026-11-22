@@ -26,17 +26,21 @@ def man(name, force, x, y, tkb=2002, hp=1000, extra=None):
 def squad_of_ears(series, ears, base=100):
     """Blue Squad (Friend) of passive listeners at `ears` [(x, y)…]; returns (entities, squad guid)."""
     sq = guid(series, base)
+    # ⭐ the squad itself is passive too: without it its own standing behaviour moved the "listeners" (📐 P7: an ear walked 25 m to the corner
+    #   and kept SEEING the hidden man; pe-house-shot's ears wandered the corridor) — perception is judged, never tactics
     ents = {sq: {"SimTransform": {"Position": [ears[0][0], ears[0][1], 0], "Rotation": NORTH}, "TkbIdentity": {"TkbType": 302},
-                 "EntityInfo": {"Name": "Blue Squad", "ForceId": "Friend"}}}
+                 "EntityInfo": {"Name": "Blue Squad", "ForceId": "Friend"}, **PASSIVE}}
     for i, (x, y) in enumerate(ears):
         ents[guid(series, base + 1 + i)] = man(f"Blue Squad Ear {i + 1}", "Friend", x, y, extra={
             **PASSIVE, "UnitSubordinate": {"CommanderGuid": sq, "Designation": "SquadLeader" if i == 0 else "Wingman"}})
     return ents, sq
 
 
-def shooter(series, n, name, x, y, target):
-    return {guid(series, n): man(name, "Hostile", x, y, hp=1000, extra={
-        "Behavior": {"Name": "FireAtTarget", "Params": {"targetNetworkId": target}, "Origin": "Superior"}})}
+def shooter(series, n, name, x, y, target, stay=False):
+    """stay: his reactions do not take him off the task (📐 P2: seeing the listeners he went to FightFromCover and never fired at his target)."""
+    extra = {"Behavior": {"Name": "FireAtTarget", "Params": {"targetNetworkId": target}, "Origin": "Superior"}}
+    if stay: extra["Roe"] = {"Fire": "FireAtWill", "Reactions": "StayOnTask", "SetBy": "Operator", "ForceLevel": "Lethal"}
+    return {guid(series, n): man(name, "Hostile", x, y, hp=1000, extra=extra)}
 
 
 def target(series, n, x, y):
@@ -164,7 +168,7 @@ write("pe-shelled", "indirect-fire-range",
 HOUSE_SHOOTER = (102, 103)
 ents, _ = squad_of_ears(2, [(108, 102), (116, 103.6), (102, 93), (104, 114)])   # east room · outside the east window · south · north
 ents.update(target(2, 300, 103, 107))
-ents.update(shooter(2, 200, "Red Shooter", *HOUSE_SHOOTER, guid(2, 300)))
+ents.update(shooter(2, 200, "Red Shooter", *HOUSE_SHOOTER, guid(2, 300), stay=True))
 write("pe-house-shot", "bt-range",
       "CE-2476 / CE-2475 perception suite P2 (Sensing §8.6e) - on bt-range a 'Red Shooter' in House A's west room (102,103) fires at a 'Blue Target' "
       "in the same room; four passive Blue listeners hear him from the east room (one inner wall, the hall door open beside it), outside the east "
@@ -191,18 +195,20 @@ def walker(series, n, name, x, y, to, speed=1.2):
         "Roe": PASSIVE["Roe"], "Sop": PASSIVE["Sop"],
         "Behavior": {"Name": "AdvanceTo", "Params": {"Objective": [to[0], to[1], 0], "Speed": speed, "ArrivalRadius": 1.5}, "Origin": "Superior"}})}
 
-ents, _ = squad_of_ears(6, [(103, 94), (107, 94)])
-ents.update(walker(6, 200, "Red Walker", 93, 112, (117, 112)))
+#    📐 a walker's steps carry ~6 m at 1.2 m/s (scaled by speed): he JOGS (2.5 m/s) along the north wall and stops before the NE corner; the two
+#    listeners stand just east of the house, 8-12 m round that corner — never in sight of him (every line crosses the house)
+ents, _ = squad_of_ears(6, [(112, 103), (112, 104.5)])
+ents.update(walker(6, 200, "Red Walker", 96, 110.5, (106, 110.5), speed=2.5))
 write("pe-steps-round-corner", "bt-range",
-      "CE-2476 perception suite P6 (Sensing §8.6e) - on bt-range a 'Red Walker' walks west to east along the far (north) side of House A, 17-20 m "
-      "from two passive Blue listeners standing south of it; the house is always between them.",
+      "CE-2476 perception suite P6 (Sensing §8.6e) - on bt-range a 'Red Walker' jogs west to east along the north wall of House A and stops short of "
+      "its north-east corner; two passive Blue listeners stand just east of the house, 8-12 m round that corner; the house is always between them.",
       "his steps are heard, but only ROUND the house's corners: a place to look (D-8), never a place he is - no listener ever holds a straight "
       "hearing or a sighting of him. Fail: nobody hears him, or a listener believes a spot for him through the house.",
       ents,
       {"runFor": 30, "golden": False,
-       "anchors": {"behind": {"on": "near", "who": "Red Walker", "point": [105, 112], "within": 3}},
+       "anchors": {"behind": {"on": "near", "who": "Red Walker", "point": [104, 110.5], "within": 3}},
        "expect": [
-           {"name": "he walks behind the house", "on": "near", "who": "Red Walker", "point": [105, 112], "within": 3},
+           {"name": "he jogs along the far wall", "on": "near", "who": "Red Walker", "point": [104, 110.5], "within": 3},
            {"name": "a listener hears his steps", **per_man("contacts", ">=", 1, quantifier="any")},
            {"name": "no listener ever holds a SPOT for him (no straight hearing, no sighting: through the house he is only a place to look)",
             "never": {**per_man("contacts", ">", 0), "through": False}},
