@@ -41,7 +41,8 @@ public sealed class SeatRuntime : IDisposable
     internal ulong OutOfFight;
 
     // ⭐ CE-4679 — the think-pause hold (frame thread, CommanderActionSystem)
-    internal bool Holding, PausedByUs, UserPaused, OwnPauseSeen;
+    internal volatile bool Holding;   // read from any thread (a stepping run's hold, GET /commanders)
+    internal bool PausedByUs, UserPaused, OwnPauseSeen;
     internal long HoldSince;
 
     /// <summary>True while this seat holds the clock for its mind.</summary>
@@ -82,6 +83,19 @@ public sealed class CommanderSeats : IDisposable
 
     /// <summary>⭐ CE-4679 — the host's recording now (the model log is written beside it); null = no log.</summary>
     public Func<string?>? RecordingPath { get; set; }
+
+    /// <summary>
+    /// ⭐ CE-4679 — does the node's clock run FREE (continuous), so a hold may pause and resume it? null = yes. ⛔ A STEPPED clock (a verify run, run-to,
+    /// <c>/sim/step</c>) must never get the seat's <c>ResumeTimeIntent</c> — it switches the master to continuous and ends the stepping. There the seat
+    /// only marks its hold (<see cref="AnyHoldsClock"/>) and the one stepping the clock withholds its next step.
+    /// </summary>
+    public Func<bool>? ClockRunsFree { get; set; }
+
+    /// <summary>⭐ CE-4679 — some seat is holding the clock for its mind now (any thread): a run that steps the clock waits for it.</summary>
+    public bool AnyHoldsClock
+    {
+        get { foreach (var s in Snapshot) if (s.HoldsClock) return true; return false; }
+    }
 
     public bool TryGet(Entity commander, out SeatRuntime seat) => _seats.TryGetValue(commander, out seat!);
     public int Count => _seats.Count;

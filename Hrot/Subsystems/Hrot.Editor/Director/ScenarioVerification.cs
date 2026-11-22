@@ -46,6 +46,10 @@ namespace Hrot.Editor.Director
         /// ids — and kind); empty where the host serves none.</summary>
         JsonArray Reports() => new();
 
+        /// <summary>⭐ CE-4679 — a commander seat holds the clock for its mind (think-pause): the run steps no further until it answers. False where
+        /// the host has no seats.</summary>
+        bool CommanderHoldsClock() => false;
+
         /// <summary>Patches one component; null when written, else why not.</summary>
         string? SetComponent(int networkId, string component, JsonObject patch);
     }

@@ -63,14 +63,14 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         {
             if (!world.IsAlive(seat.Commander) || !world.HasComponent<CommanderSeat>(seat.Commander)) continue;
             if (seat.Runner != null && world.GetComponentRO<CommanderSeat>(seat.Commander).Mode == CommanderMode.ThinkPause)
-                Hold(world, seat, now);
+                Hold(world, seats, seat, now);
             while (seat.Channel.TryTake(out var action)) Apply(world, seat, action, now);
         }
     }
 
     // ── ⭐ CE-4679 — the think-pause hold ─────────────────────────────────────────────────────────
 
-    private void Hold(EntityRepository world, SeatRuntime seat, double now)
+    private void Hold(EntityRepository world, CommanderSeats seats, SeatRuntime seat, double now)
     {
         var bus = _clockBus ?? world.Bus;
         if (!seat.Holding)
@@ -79,7 +79,8 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
             seat.Holding = true;
             seat.HoldSince = System.Diagnostics.Stopwatch.GetTimestamp();
             seat.UserPaused = seat.OwnPauseSeen = false;
-            seat.PausedByUs = Advancing(world);
+            // ⛔ only a FREE-running clock is paused (and later resumed) — a stepped one is held by its stepper, which reads AnyHoldsClock
+            seat.PausedByUs = Advancing(world) && (seats.ClockRunsFree?.Invoke() ?? true);
             if (seat.PausedByUs) Publish(bus, new Fdp.Toolkit.Time.Domain.PauseTimeIntent());
             return;
         }

@@ -33,6 +33,9 @@ namespace Hrot.Editor.DebugApi
             return new JsonObject { ["commanders"] = list };
         }
 
+        /// <summary>⭐ CE-4679 — some seat holds the clock for its mind now: a run that STEPS the clock (verify, run-to) withholds its next step.</summary>
+        public bool AnyCommanderHoldsClock() => Seats?.AnyHoldsClock ?? false;
+
         /// <summary>The seat, or why not (a 404).</summary>
         public SeatRuntime? CommanderSeat(int id, out string? why)
         {

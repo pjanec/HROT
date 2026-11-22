@@ -307,5 +307,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, clock.Resumes);
             s.Seats.Dispose();
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-4679 ① — a STEPPED clock (a verify run, run-to, <c>/sim/step</c>) is never paused or resumed by a seat: a resume would switch the master to
+        /// continuous and end the stepping. The seat only marks its hold (<see cref="CommanderSeats.AnyHoldsClock"/>), which the stepper reads to withhold
+        /// its next step, and clears it when the mind answers.
+        /// 🔴 Mutation: the free-running check dropped ⇒ the seat pauses and resumes the stepped clock.
+        /// </summary>
+        [Fact]
+        public void CE4679_AStepperClock_IsNeverPausedOrResumedByASeat_TheHoldIsMarkedForTheStepper()
+        {
+            var clock = new RailClock();
+            var mind = new SlowMind();
+            var s = new Seated(mind, clockBus: clock.Bus);
+            s.Seats.ClockRunsFree = () => false;   // the master is stepping
+            for (int i = 0; i < 5; i++) { s.Tick(); clock.EndFrame(); }
+            mind.Slow = true;
+            s.P.ReportSpot(s.P.Alpha, new Vector3(100f, 130f, 0f), 3);
+            for (int i = 0; i < 5; i++) { s.Tick(); clock.EndFrame(); }
+            Assert.True(s.Seats.AnyHoldsClock);           // ⭐ the stepper's signal
+            mind.Gate.Set();
+            for (int i = 0; i < 20 && s.Seats.AnyHoldsClock; i++) { Thread.Sleep(10); s.Tick(); clock.EndFrame(); }
+            Assert.False(s.Seats.AnyHoldsClock);
+            Assert.Equal(0, clock.Pauses);                // ⭐ never a pause …
+            Assert.Equal(0, clock.Resumes);               // ⭐ … and never a resume of a stepped clock
+            s.Seats.Dispose();
+        }
     }
 }

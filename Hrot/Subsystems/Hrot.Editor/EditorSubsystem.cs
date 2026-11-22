@@ -1591,6 +1591,7 @@ namespace Hrot.Editor
             string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
             _bootstrapper = new EditorNodeBootstrapper(EditorNodeId, isolatedTempRoot, _fdpEventHistory, _navmesh, _blueprintRegistry, MuscleCapabilitiesFactory, TranslatorPlacements);
             _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
+            _bootstrapper.ClockRunsFree = () => _timeController?.GetMode() != Fdp.ModuleHost.Time.TimeMode.Deterministic;   // ⭐ CE-4679 — the master steps ⇒ a seat's hold is the stepper's
             _bootstrapper.RecordingPath = () => _clusterHandlers?.RecordReplayController?.ActiveRecordingModule?.FilePath;   // ⭐ CE-4679 — a commander seat's model log sits beside the recording
             _bootstrapper.MapBuildStatus = () => _map3DBuild;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
             _node = _bootstrapper.BootstrapNode(
