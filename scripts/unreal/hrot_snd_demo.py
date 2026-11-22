@@ -16,7 +16,7 @@ hrot.snd.Debug 1 draws the SOUND LOG lower-left (RADIO / WORLD / WEAPON / AMBIEN
   8 stop       all rows disposed, 'Demo done'
 The result json lists every step with the sound-log lines seen during it (UHrotDpsSubsystem.get_sound_log_lines), and the machine checks.
 """
-import json, os, re, time, traceback
+import glob, json, os, re, time, traceback
 import unreal
 
 JOB = json.load(open(os.environ["HROT_SND_DEMO_JOB"], encoding="utf-8-sig"))
@@ -49,11 +49,17 @@ def finish(ok, why=""):
 
 
 def level():
-    old = os.path.join(unreal.Paths.project_content_dir(), "Maps", "DpsSndDemo.umap")   # new_level refuses a path that already exists (a scratch level of the last run)
-    # the asset registry still knows a removed file (measured 2026-11-22: os.remove alone, then new_level "an asset already exists") => delete the ASSET
-    if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/DpsSndDemo"): log(f"old scratch level deleted: {unreal.EditorAssetLibrary.delete_asset('/Game/Maps/DpsSndDemo')}")
-    if os.path.exists(old): os.remove(old)
-    if not LES().new_level("/Game/Maps/DpsSndDemo"): raise RuntimeError("new_level failed")
+    # the EDITOR mutes an unfocused window on its own (EditorEngine.cpp: volume 0 unless LevelEditorMiscSettings.bAllowBackgroundAudio), on top of
+    # the project's [Audio] UnfocusedVolumeMultiplier=1.0 which only a packaged client honours. Measured 2026-11-22: the user wrote notes in
+    # another window and heard nothing after step 2 while every sound was logged as started
+    unreal.get_default_object(unreal.LevelEditorMiscSettings).set_editor_property("allow_background_audio", True)
+    # new_level refuses an existing path, and neither os.remove nor delete_asset clears it reliably (measured 2026-11-22: failed on 2 runs of 3)
+    # => a fresh name per run; the files of earlier runs are removed from disk (never the one being made)
+    for f in glob.glob(os.path.join(unreal.Paths.project_content_dir(), "Maps", "DpsSndDemo*.umap")):
+        try: os.remove(f)
+        except OSError: pass
+    name = "/Game/Maps/DpsSndDemo_%d" % int(time.time())
+    if not LES().new_level(name): raise RuntimeError("new_level failed: " + name)
     floor = EAS().spawn_actor_from_class(unreal.StaticMeshActor, V(0, 0, 0))
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane")); floor.set_actor_scale3d(V(8000, 8000, 1))
     sun = EAS().spawn_actor_from_class(unreal.DirectionalLight, V(0, 0, 1000), unreal.Rotator(pitch=-40, yaw=60, roll=0))
