@@ -37,6 +37,7 @@
 #include "Animation/SkeletalMeshActor.h"
 #include "Animation/AnimationAsset.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMeshActor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
@@ -1283,21 +1284,57 @@ double UHrotDpsWorld::SimNow() const { return Clock.Now(RealNow()); }
 
 TArray<int32> UHrotDpsWorld::EntityIds() const { TArray<int32> Ids; Ents.GetKeys(Ids); Ids.Sort(); return Ids; }
 
-bool UHrotDpsWorld::CentreOf(int32 EntityId, FVector& Out) const
+bool UHrotDpsWorld::BodyBox(int32 EntityId, FBox& Out, bool& bOutMan) const
 {
 	const FEnt* E = Ents.Find(EntityId);
+	bOutMan = false;
 	if (!E) return false;
 	if (const AActor* A = E->Actor.Get())
 	{
 		if (A->IsHidden()) return false;
-		if (E->bHasPerson || E->Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) { Out = A->GetActorLocation() + FVector(0, 0, 100); return true; }
-		FVector Ext; A->GetActorBounds(false, Out, Ext);
+		bOutMan = E->bHasPerson || E->Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson;
+		// the body's OWN mesh components - never the whole actor's bounds (they take in effects, the parts' sockets, anything attached) and never a held rifle
+		FBox Box(ForceInit);
+		if (bOutMan) { TArray<USkeletalMeshComponent*> Sk; A->GetComponents(Sk); for (const USkeletalMeshComponent* M : Sk) if (M->IsVisible() && M->IsRegistered()) Box += M->Bounds.GetBox(); }
+		else { TArray<UMeshComponent*> Ms; A->GetComponents(Ms); for (const UMeshComponent* M : Ms) if (M->IsVisible() && M->IsRegistered()) Box += M->Bounds.GetBox(); }
+		if (!Box.IsValid) { FVector C, Ext; A->GetActorBounds(true, C, Ext); Box = FBox(C - Ext, C + Ext); }
+		Out = Box;
 		return true;
 	}
 	// a body-less UNIT (its card is drawn there) only: the ~500 undrawn entities (doors, groups, the terrain's buildings - Domain Other, measured live
 	// U-18g) also have a state, and offered to the pick they took every click near a soldier (live 2026-11-22: "clicking on the soldier did nothing")
-	if (E->bIsUnit && E->bHasState) { Out = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 160); return true; }
+	if (E->bIsUnit && E->bHasState) { const FVector P = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 160); Out = FBox(P - FVector(40), P + FVector(40)); return true; }
 	return false;
+}
+
+AActor* UHrotDpsWorld::AttachTestPart(int32 EntityId, float UpM)
+{
+	AActor* Host = ActorOf(EntityId);
+	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (!Host || !Cube) return nullptr;
+	FActorSpawnParameters P; P.ObjectFlags |= RF_Transient;
+	AStaticMeshActor* Part = GetWorld()->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), Host->GetActorLocation() + FVector(0, 0, UpM * 100.f), FRotator::ZeroRotator, P);
+	if (!Part) return nullptr;
+	Part->SetMobility(EComponentMobility::Movable);
+	Part->GetStaticMeshComponent()->SetStaticMesh(Cube);
+	Part->SetActorScale3D(FVector(0.5f));
+	Part->AttachToActor(Host, FAttachmentTransformRules::KeepWorldTransform);
+	return Part;
+}
+
+FString UHrotDpsWorld::BodyBoxText(int32 EntityId) const
+{
+	FBox B; bool bMan;
+	if (!BodyBox(EntityId, B, bMan)) return FString();
+	return FString::Printf(TEXT("%.1f %.1f %.1f %.1f %.1f %.1f"), B.Min.X / 100, B.Min.Y / 100, B.Min.Z / 100, B.Max.X / 100, B.Max.Y / 100, B.Max.Z / 100);
+}
+
+bool UHrotDpsWorld::CentreOf(int32 EntityId, FVector& Out) const
+{
+	FBox B; bool bMan;
+	if (!BodyBox(EntityId, B, bMan)) return false;
+	Out = B.GetCenter();
+	return true;
 }
 
 AActor* UHrotDpsWorld::ActorOf(int32 EntityId) const { const FEnt* E = Ents.Find(EntityId); return E ? E->Actor.Get() : nullptr; }

@@ -127,6 +127,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") AActor* ActorOf(int32 EntityId) const;
 	/** U-19g: where an entity IS for a screen pick / mark (Unreal cm): a man's body centre (~1 m up), a vehicle's bounds centre, a body-less unit's anchor; false = not drawn / hidden */
 	bool CentreOf(int32 EntityId, FVector& OutUnreal) const;
+	/** U-19g: the entity's OWN body as a world box (Unreal cm): a man's skeletal meshes (feet -> head), a vehicle's mesh components (not attached actors, effects, a held rifle),
+	 *  a body-less unit's card anchor +-40 cm; bOutMan = a person. false = not drawn / hidden */
+	bool BodyBox(int32 EntityId, FBox& Out, bool& bOutMan) const;
+	/** the box as text "minx miny minz maxx maxy maxz" (m, 1 decimal) - a scene check reads it */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString BodyBoxText(int32 EntityId) const;
+	/** test hook: a 0.5 m cube ACTOR attached to the entity's actor, UpM metres above it (an M2 mount, an antenna) - the body box and the brackets must ignore it; returns it */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") AActor* AttachTestPart(int32 EntityId, float UpM);
 	/** the entity's shown position in the CONTRACT's frame (metres, ENU) — what a test compares with the publisher's track */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FVector ShownPosition(int32 EntityId) const;
 	/** one line: name, domain, type, what drew it, damage */

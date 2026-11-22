@@ -245,6 +245,16 @@ void AHrotDpsCamera::PlaceFollow(float Dt)
 	if (!bPlaced) { Yaw = FMath::Atan2(BodyFwd.Y, BodyFwd.X); Pitch = -0.35; bPlaced = true; }
 	AActor* Body = W->ActorOf(FollowId);
 	if ((FollowDistance < EyesBelow) != HiddenBody.IsValid()) HideBody(Body, FollowDistance < EyesBelow);
+	{   // U-19g: crossing the eyes stage keeps the view direction (a jump to "some fixed direction" was reported live)
+		const bool bEyes = FollowDistance < EyesBelow;
+		if (Mode == EHrotCameraMode::Follow && bEyes != bWasEyes)
+		{
+			const double BYaw = FMath::Atan2(BodyFwd.Y, BodyFwd.X), BPitch = FMath::Asin(FMath::Clamp(BodyFwd.Z, -1.0, 1.0));
+			if (bEyes) HrotCamera::EyesEntry(Yaw, Pitch, BYaw, BPitch, LookYawOffset, LookPitchOffset);
+			else HrotCamera::EyesLook(BYaw, BPitch, LookYawOffset, LookPitchOffset, Yaw, Pitch);   // out: the orbit continues from the gaze
+		}
+		bWasEyes = bEyes;
+	}
 	if (FollowDistance < EyesBelow)
 	{
 		// at his eyes: where HE looks (his heading — ⏳ the gaze from PersonAim's look target), the held offset springing back
@@ -312,16 +322,14 @@ int32 AHrotDpsCamera::PickAt(const FVector2D& ScreenPx) const
 	TArray<HrotDpsPick::FCand> Cands;
 	for (const int32 Id : W->EntityIds())
 	{
-		FVector C;
-		if (!W->CentreOf(Id, C)) continue;
-		FVector2D S;
-		if (!PC->ProjectWorldLocationToScreen(C, S, false)) continue;
-		Cands.Add({ Id, S, FVector::Dist(C, Eye) });
+		FBox2D R; FVector2D A, B; bool bMan; double Depth;
+		if (!ProjectBody(Id, R, A, B, bMan, Depth)) continue;
+		Cands.Add({ Id, A, Depth, B, bMan });
 	}
 	const int32 Picked = HrotDpsPick::Choose(Cands, ScreenPx, HitId, HitDepth);
 	// a user action, not per frame: the nearest candidate and the viewport, so a miss can be told from a scale mismatch (DPI) after a live run
 	const HrotDpsPick::FCand* Nearest = nullptr; float NearD = 1e9f;
-	for (const HrotDpsPick::FCand& C : Cands) { const float D = float(FVector2D::Distance(C.Screen, ScreenPx)); if (D < NearD) { NearD = D; Nearest = &C; } }
+	for (const HrotDpsPick::FCand& C : Cands) { const float D = C.bSeg ? HrotDpsPick::DistToSegment(ScreenPx, C.Screen, C.B) : float(FVector2D::Distance(C.Screen, ScreenPx)); if (D < NearD) { NearD = D; Nearest = &C; } }
 	int32 VX = 0, VY = 0; PC->GetViewportSize(VX, VY);
 	UE_LOG(LogTemp, Display, TEXT("HROT pick at (%.0f, %.0f) viewport %dx%d: %d candidates, nearest %d at (%.0f, %.0f) %.0f px, trace hit %d, picked %d"),
 		ScreenPx.X, ScreenPx.Y, VX, VY, Cands.Num(), Nearest ? Nearest->Id : 0, Nearest ? Nearest->Screen.X : -1.0, Nearest ? Nearest->Screen.Y : -1.0, Nearest ? NearD : -1.f, HitId, Picked);
@@ -332,9 +340,45 @@ FVector2D AHrotDpsCamera::ScreenOf(int32 EntityId) const
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
-	FVector C; FVector2D S;
-	if (!PC || !W || !W->CentreOf(EntityId, C) || !PC->ProjectWorldLocationToScreen(C, S, false)) return FVector2D(-1, -1);
-	return S;
+	FBox2D R; FVector2D A, B; bool bMan; double Depth;
+	if (!PC || !W || !ProjectBody(EntityId, R, A, B, bMan, Depth)) return FVector2D(-1, -1);
+	return (A + B) * 0.5;   // a man: mid-body; else the box centre
+}
+
+bool AHrotDpsCamera::ProjectBody(int32 EntityId, FBox2D& Rect, FVector2D& A, FVector2D& B, bool& bMan, double& Depth) const
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	const UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+	FBox Box;
+	if (!PC || !W || !W->BodyBox(EntityId, Box, bMan)) return false;
+	Rect = FBox2D(ForceInit);
+	for (int32 I = 0; I < 8; ++I)
+	{
+		const FVector P((I & 1) ? Box.Max.X : Box.Min.X, (I & 2) ? Box.Max.Y : Box.Min.Y, (I & 4) ? Box.Max.Z : Box.Min.Z);
+		FVector2D S;
+		if (PC->ProjectWorldLocationToScreen(P, S, false)) Rect += S;
+	}
+	if (!Rect.bIsValid) return false;
+	const float Margin = bMan ? 6.f : 4.f;
+	Rect = FBox2D(Rect.Min - FVector2D(Margin, Margin), Rect.Max + FVector2D(Margin, Margin));
+	const FVector C = Box.GetCenter();
+	if (bMan)
+	{
+		const FVector Foot(C.X, C.Y, Box.Min.Z), Head(C.X, C.Y, Box.Max.Z);
+		if (!PC->ProjectWorldLocationToScreen(Foot, A, false) || !PC->ProjectWorldLocationToScreen(Head, B, false)) return false;
+	}
+	else if (!PC->ProjectWorldLocationToScreen(C, A, false)) return false;
+	else B = A;
+	Depth = FVector::Dist(C, Cam->GetComponentLocation());
+	return true;
+}
+
+FRotator AHrotDpsCamera::ViewRotation() const { return Cam->GetComponentRotation(); }
+
+FBox2D AHrotDpsCamera::ScreenRectOf(int32 EntityId) const
+{
+	FBox2D R; FVector2D A, B; bool bMan; double Depth;
+	return ProjectBody(EntityId, R, A, B, bMan, Depth) ? R : FBox2D(ForceInit);
 }
 
 int32 AHrotDpsCamera::TestClick(FVector2D ScreenPx, bool bRight)
@@ -358,8 +402,21 @@ void AHrotDpsCamera::TickInput(float Dt)
 
 	// U-18m — the unit menu: a right CLICK (short, no drag) opens it; a click on a row runs it, elsewhere closes it
 	float MouseX = 0, MouseY = 0; PC->GetMousePosition(MouseX, MouseY);
-	if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton)) { RmbDownAt = FPlatformTime::Seconds(); RmbTravel = 0; }
+	if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton)) { RmbDownAt = FPlatformTime::Seconds(); RmbTravel = 0; RmbPressAt = FVector2D(MouseX, MouseY); }
 	if (bRmb) RmbTravel += (FMath::Abs(Mx) + FMath::Abs(My)) * MouseScale;
+	// U-19g: RMB held for LOOK (past a click's time or travel) captures the mouse - hidden, relative, never stopped by the screen edge - and the cursor
+	// comes back where the press began; a short click is untouched (it opens the menu at the click point)
+	if (bRmb && !bLookCaptured && RmbDownAt >= 0 && !MenuEntity && (RmbTravel >= MenuClickTravel || FPlatformTime::Seconds() - RmbDownAt >= MenuClickSeconds))
+	{
+		bLookCaptured = true; PC->SetShowMouseCursor(false); PC->SetInputMode(FInputModeGameOnly());
+	}
+	if (bLookCaptured && !bRmb)
+	{
+		bLookCaptured = false;
+		FInputModeGameAndUI In; In.SetHideCursorDuringCapture(false); PC->SetInputMode(In);
+		PC->SetShowMouseCursor(true);
+		PC->SetMouseLocation(FMath::RoundToInt(RmbPressAt.X), FMath::RoundToInt(RmbPressAt.Y));
+	}
 	if (PC->WasInputKeyJustReleased(EKeys::RightMouseButton) && RmbDownAt >= 0)
 	{
 		if (FPlatformTime::Seconds() - RmbDownAt < MenuClickSeconds && RmbTravel < MenuClickTravel)

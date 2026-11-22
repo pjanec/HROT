@@ -320,7 +320,7 @@ def pick():
     if st["step"] == 0:
         pawn.place_at_rotator(w.enu_m_to_unreal(unreal.Vector(0, 0, 2)), unreal.Rotator(pitch=-1.5, yaw=0, roll=0), 90.0)
         pawn.select(0)
-        st["step"] = 1; S["t"] = time.time() + 1.5; return
+        st["step"] = 1; S["t"] = time.time() + 3.5; return   # (a skeletal body's bounds are those of its last RENDER)
     if st["step"] == 1:
         sp = pawn.screen_of(1)
         check("pick: man 1, 30 m ahead, projects onto the screen", sp.x >= 0 and sp.y >= 0, f"({sp.x:.0f}, {sp.y:.0f})")
@@ -338,6 +338,51 @@ def pick():
         pawn.select(0)
         got = pawn.test_click(unreal.Vector2D(sp.x, sp.y), True)
         check("pick: a right click on him selects him and opens the unit menu", got == 1 and pawn.selected_id() == 1 and pawn.is_menu_open(), f"picked {got}, menu {pawn.is_menu_open()}")
+        pawn.close_menu()
+        # U-19g: a man is a SEGMENT feet -> head: his BODY (not only his head) picks him; 30 px beside him misses
+        r = pawn.screen_rect_of(1); h = r.max.y - r.min.y; x = (r.min.x + r.max.x) / 2
+        low = unreal.Vector2D(x, r.min.y + 0.7 * h)
+        pawn.select(0); got = pawn.test_click(low, False)
+        check("pick: a click on his LOWER body (70 % down his rectangle) selects him", got == 1, f"picked {got} at ({low.x:.0f}, {low.y:.0f}), rect y {r.min.y:.0f}..{r.max.y:.0f}")
+        pawn.select(0); got = pawn.test_click(unreal.Vector2D(x + 30 + (r.max.x - r.min.x) / 2, r.min.y + 0.5 * h), False)
+        check("pick: a click 30 px beside his body misses him", got != 1, f"picked {got}")
+        # the vehicle's brackets enclose ITS body: a part attached to it (an M2 mount, an antenna), 6 m above, does not stretch them
+        veh = w.actor_of(2)
+        bt = w.body_box_text(2); bz = [float(v) for v in bt.split()]
+        part = w.attach_test_part(2, 6.0)
+        st["bt"] = bt; st["bz"] = bz; st["part"] = part
+        st["step"] = 3; S["t"] = time.time() + 1.0; return
+    if st["step"] == 3:
+        part, bz = st["part"], st["bz"]
+        bt2 = w.body_box_text(2)
+        check("pick: the vehicle's body box ignores an attached part 6 m above it", bt2 == st["bt"] and (bz[5] - bz[2]) < 5.0, f"before {st['bt']}, after {bt2}")
+        r = pawn.screen_rect_of(2)
+        res = unreal.GameplayStatics.project_world_to_screen(unreal.GameplayStatics.get_player_controller(gw, 0), part.get_actor_location(), False)
+        ok, ps = res if isinstance(res, tuple) else (True, res)
+        check("pick: the selection rectangle of the vehicle stops below the part (encloses the body, not the part)", r.is_valid and ok and r.min.y > ps.y, f"rect y {r.min.y:.0f}..{r.max.y:.0f}, part at y {ps.y:.0f}")
+        pawn.select(2)
+        n0 = pawn.get_editor_property("selection_marks_drawn")
+        st["n0"] = n0; st["part"].destroy_actor()
+        st["step"] = 4; S["t"] = time.time() + 0.5; return
+    if st["step"] == 4:
+        S["w"].set_editor_property("label_mode", 1)
+        # U-19g: entering and leaving his eyes keeps the view direction (a jump to a fixed direction was reported live)
+        pawn.follow(1, 3.0)
+        st["step"] = 5; S["t"] = time.time() + 1.5; return
+    if st["step"] == 5:
+        pawn.orbit(40.0, 10.0); pawn.step_follow_for_test()
+        import re
+        dist = lambda: float(re.search(r"at ([0-9.]+) m", pawn.describe()).group(1))
+        ang = lambda a, b: abs((a.yaw - b.yaw + 180) % 360 - 180) + abs(a.pitch - b.pitch)
+        worst = 0.0; stages = 0; last = pawn.view_rotation()
+        for i in range(40):                       # in: wheel until under 0.4 m, comparing each step's rotation with the last
+            pawn.wheel(1.0); pawn.step_follow_for_test(); r1 = pawn.view_rotation(); d = ang(last, r1); worst = max(worst, d); last = r1
+            if dist() < 0.4: stages += 1; break
+        for i in range(40):                       # out
+            pawn.wheel(-1.0); pawn.step_follow_for_test(); r1 = pawn.view_rotation(); d = ang(last, r1); worst = max(worst, d); last = r1
+            if dist() >= 0.4: stages += 1; break
+        check("follow: the eyes stage was entered and left", stages == 2, f"{stages} stage changes; {pawn.describe()}")
+        check("follow: crossing the eyes stage (in and out) never turns the view by 5 deg or more in one step", worst < 5.0, f"worst single-step change {worst:.2f} deg")
         S.update(phase="end", t=time.time() + 0.5)
 
 

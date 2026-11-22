@@ -168,13 +168,14 @@ namespace
 	void DrawSelection(FPainter& P, AHrotDpsCamera* Cam)
 	{
 		if (!Cam->SelectedId()) return;
-		const FVector2D S = Cam->ScreenOf(Cam->SelectedId());
-		if (S.X < 0.f) return;
+		const FBox2D R = Cam->ScreenRectOf(Cam->SelectedId());   // the entity's own body, projected (not a fixed square at a point)
+		if (!R.bIsValid) return;
 		++Cam->SelectionMarksDrawn;
-		const float R = 24.f, L = 9.f, T = 2.f;
+		const FVector2D C = R.GetCenter(), Half = FVector2D(FMath::Max(R.GetExtent().X, 14.f), FMath::Max(R.GetExtent().Y, 14.f));
+		const float L = FMath::Min(9.f, FMath::Min(Half.X, Half.Y)), T = 2.f;
 		for (int32 Sx = -1; Sx <= 1; Sx += 2) for (int32 Sy = -1; Sy <= 1; Sy += 2)
 		{
-			const float X = S.X + Sx * R, Y = S.Y + Sy * R;
+			const float X = C.X + Sx * Half.X, Y = C.Y + Sy * Half.Y;
 			P.Line(X, Y, X - Sx * L, Y, Yellow, T); P.Line(X, Y, X, Y - Sy * L, Yellow, T);
 		}
 	}

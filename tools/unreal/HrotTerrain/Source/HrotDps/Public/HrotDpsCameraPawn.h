@@ -72,6 +72,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void SetFollowDistance(float Distance) { FollowDistance = Distance; }
 	/** a wheel move while following (+ in, − out) — the continuum's step */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Wheel(float Notches);
+	/** U-19g test hooks: the view's rotation, and one follow placement with no time passing (the eyes' spring does not move: a stage change is read exactly) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera|Test") FRotator ViewRotation() const;
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera|Test") void StepFollowForTest() { if (Mode == EHrotCameraMode::Follow) PlaceFollow(0.f); }
 
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") EHrotCameraMode GetMode() const { return Mode; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") int32 FollowedId() const { return FollowId; }
@@ -82,6 +85,8 @@ public:
 	int32 PickAt(const FVector2D& ScreenPx) const;
 	/** where an entity is on the screen (px, as the mouse position), (-1, -1) = unknown / behind the camera / off the viewport */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") FVector2D ScreenOf(int32 EntityId) const;
+	/** U-19g: the screen rectangle of an entity's own body (the 8 corners of its box projected; + a small margin) - what the selection brackets enclose; bIsValid false = not on screen */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") FBox2D ScreenRectOf(int32 EntityId) const;
 	/** U-19g probe: how many frames the HUD drew the selection brackets */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Camera|Test") int32 SelectionMarksDrawn = 0;
 	/** U-19g test hook: a left (select) or right (select + the unit menu) CLICK at ScreenPx, as TickInput does for the mouse; returns the entity picked */
@@ -177,6 +182,8 @@ private:
 	int32 MenuEntity = 0;
 	FVector2D MenuAt = FVector2D::ZeroVector;
 	double RmbDownAt = -1; float RmbTravel = 0;
+	bool bWasEyes = false;                 // U-19g: the follow camera was at his eyes last frame
+	bool bLookCaptured = false; FVector2D RmbPressAt = FVector2D::ZeroVector;   // U-19g: RMB held for look: the mouse is captured, the press point is restored on release
 	// the player
 	int32 PossessWanted = 0, PlayerUnit = 0;
 	double PlayerYaw = 0, PlayerPitch = 0, BodyYaw = 0;
@@ -199,6 +206,8 @@ private:
 	/** the first blocking hit's fraction along From → To (Unreal), ignoring the followed actor and its riders; −1 = none */
 	double FirstHit(const FVector& From, const FVector& To) const;
 	int32 PickUnderCursor() const;
+	/** projects an entity's body: its screen rectangle, and the pick geometry (a man: the segment feet -> head; else the box centre, A == B) */
+	bool ProjectBody(int32 EntityId, FBox2D& Rect, FVector2D& A, FVector2D& B, bool& bMan, double& Depth) const;
 	/** ⚠ measured LIVE (U-18l): at his eyes the camera was INSIDE his head (helmet and gun from within) — his own meshes are hidden
 	 *  while the camera is at his eyes (component visibility: the actor's hidden flag is the seat rule's) and shown again after */
 	void HideBody(AActor* A, bool bHide);

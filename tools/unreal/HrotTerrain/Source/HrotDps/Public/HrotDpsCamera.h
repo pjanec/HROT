@@ -22,6 +22,16 @@ namespace HrotCamera
 	constexpr float VehicleLiftPerMetre = 2.5f / 9.f, FlyerLiftPerMetre = 4.5f / 18.f;
 	constexpr float ArmMargin = 0.25f, ArmOutRate = 4.f, SqueezedAboveEyes = 0.6f;
 
+	/** U-19g: ENTERING his eyes the camera keeps the look it had: the offsets (from his heading) that make the eyes' gaze = the orbit's Yaw / Pitch (no jump) */
+	inline void EyesEntry(double Yaw, double Pitch, double BodyYaw, double BodyPitch, double& OffYaw, double& OffPitch)
+	{
+		OffYaw = FMath::UnwindRadians(Yaw - BodyYaw); OffPitch = FMath::Clamp(Pitch - BodyPitch, -1.2, 1.2);
+	}
+	/** the eyes' gaze: his heading + the held offsets (and, LEAVING the eyes, the orbit's Yaw / Pitch to continue from) */
+	inline void EyesLook(double BodyYaw, double BodyPitch, double OffYaw, double OffPitch, double& Yaw, double& Pitch)
+	{
+		Yaw = BodyYaw + OffYaw; Pitch = FMath::Clamp(BodyPitch + OffPitch, -1.4, 1.4);
+	}
 	HROTDPS_API float ScaleOf(EScheme S);
 	HROTDPS_API float DefaultDistance(EScheme S);
 	HROTDPS_API float MaxPlayDistance(EScheme S);
