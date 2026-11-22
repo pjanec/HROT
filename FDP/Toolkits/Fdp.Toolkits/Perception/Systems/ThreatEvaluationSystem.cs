@@ -280,7 +280,8 @@ namespace Fdp.Toolkit.Perception.Systems
                                                                seenNow.Slice(0, seenCount), PerceptionConstants.HeardBoostPerContact, tick, h.Sound))
                         continue;
                     TargetMemory.HearContact(ref mem, h.X, h.Y, h.Z, h.Radius, h.SourceClass,
-                                             PerceptionConstants.HeardBoostPerContact, tick, h.Via, h.Sound);   // ⭐ CE-4666 (D-8) · CE-2474 the token
+                                             PerceptionConstants.HeardBoostPerContact, tick, h.Via, h.Sound,   // ⭐ CE-4666 (D-8) · CE-2474 the token
+                                             deltaTime > 0f ? deltaTime : 1f / 60f);   // ⭐ CE-2492 — how far he may have walked since
                 }
                 changed = true;
             }
