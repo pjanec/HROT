@@ -900,6 +900,46 @@ Rails: `AcousticHearingTests.AQ106_ASoundRoundTheCorner_IsHeard_FromTheDoorway` 
 `SquadPerceptionMergeSystemTests.CE4666_AShotHeardThroughAnOpening_IsMarkedSo_UntilHeardStraight`,
 `SquadManeuverTests.CE4666_AContactHeardOnlyThroughAnOpening_IsNoElement_HeardStraightItIs`.
 
+#### 8.6d `CE-2474` — ONE sound is ONE contact, and a shot from a man you SEE is HIM *(behaviors, `2026-11-22`; 🔒 user: "Can't we consider the same sound heard by multiple people as one single enemy?" · "Can't we somehow assign the sound position to the seen position of the enemy?" · "yes, go ahead with both parts"; build-state: BUILDING)*
+
+📐 **Measured** (`uf-corner-assault`, deterministic, 16 s): ONE shot of Red Rifleman 1 (seen at (628, 387)) heard by four Blue men became FOUR pooled
+contacts — estimates at (631, 379), (642, 379), (642, 378) and, heard round a corner (D-8), (659, 334) beside the listener himself; each missed by more than
+its circle, so the circle rule (CE-2107 `AbsorbHeardBySightings`) folded none of them. 6 v 2 read as 6 v 4–5 and the attack was paused.
+
+**The proven solution** (sound ranging; a fire team's "that shot came from him"): hearings of ONE report are fused as one event — the listeners know it was one
+bang, not who fired; and a report heard from the bearing of a man you SEE firing is attributed to him. ⭐ Adopted both; the anonymity rule (§6 D) holds:
+the sound's id is a TOKEN of the emission (the ring's serial), never its source.
+
+```mermaid
+classDiagram
+  class SoundEmissionRing { <<existing>> SoundEmission.Serial «one per sound» }
+  class AcousticPerception { <<existing, grows>> Answer «EntityId = −Serial: the sound's token, never the source» }
+  class SensorMemoryStage { <<existing, grows>> HearAll «EntityId ≤ 0 ⇒ heard; Sound = −EntityId» }
+  class SoundContactEvent { <<existing, grows>> +long Sound }
+  class AudioTargetDetected { <<existing DDS, grows>> +long Sound }
+  class TargetMemory { <<existing, grows>> +fixed long SoundIds «per slot, the last sound heard into it» · HearContact(…, sound) · AttributeToSeen(…) }
+  class ThreatEvaluationSystem { <<existing>> heard loop: AttributeToSeen first, else HearContact }
+  class SquadContact { <<existing, grows>> +long SoundId }
+  class SquadPerceptionMergeSystem { <<existing, grows>> MergeHeard: same SoundId ⇒ same contact (a seen one keeps its position) }
+  SoundEmissionRing --> AcousticPerception : the serial
+  AcousticPerception --> SensorMemoryStage
+  SensorMemoryStage --> SoundContactEvent
+  SoundContactEvent --> AudioTargetDetected : another node
+  SoundContactEvent --> ThreatEvaluationSystem
+  ThreatEvaluationSystem --> TargetMemory
+  TargetMemory --> SquadPerceptionMergeSystem : members' slots
+  SquadPerceptionMergeSystem --> SquadContact
+```
+*What the picture shows that prose hid:* the token rides an EXISTING field on every hop but the two structs that hold slots (`TargetMemory`, `SquadContact`),
+and only ONE wire message (`AudioTargetDetected`) changes — the memory and the pool are brain-local, never sent.
+
+| rule | as built |
+|---|---|
+| ① one sound, one contact | the squad pool fuses a member's heard slot into the pooled contact with the SAME `SoundId` whatever the distance; a SEEN contact carrying it keeps its own position (D-8: a straight hearing clears `HeardThroughFlag`) |
+| ② a shot from a man you see is him | a heard SHOT (not a footstep, not a burst — R-2071) whose bearing from the listener is within `AttributeDegrees` 12° of an identified contact he has in sight now (`InSightTicks`) refreshes THAT contact (and stamps the sound's id on it) instead of a new anonymous slot |
+| ③ the half weight (CE-2474, `52df639bb`) | ⛔ WITHDRAWN (user: "Why are we halving?") — after ① and ② a heard contact left over is a genuinely unknown enemy and counts whole |
+| unchanged | bursts (R-2071), a sound heard only through an opening (D-8) for the SPOT, anonymity (§6 D) |
+
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
 ⭐ **`2026-11-18`, CE-4658 (backend):** every body now HAS a heat signature — `ThermalDefaults` by its locomotion class, stamped by `SignatureTkbTranslator` where a type authors none — and the sensor computes the heat from the replicated drivers (`HeatSource`); a dedicated **thermal observer (TKB 215)** carries the sight, the M1 / Bradley carriage stays withdrawn. 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md).
