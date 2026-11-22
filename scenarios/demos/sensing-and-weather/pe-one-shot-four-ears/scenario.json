@@ -7,14 +7,14 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: CE-2476 perception suite P1 (Sensing \u00a78.6e) - on basic-desert one hidden 'Red Shooter' (100,400) fires at a 'Blue Target' 60 m north of him; four passive Blue listeners (the 'Blue Squad', hold fire, stay on task) stand ~250 m south - beyond sight, inside a rifle's hearing. Judge: every listener believes ONE enemy where the shooter is (matched 1, no phantom, no duplicate), and so does the squad's pool. Fail: a man or the squad counts the one shooter twice, or believes an enemy where none is. Check: scripts/scenario-regression.sh pe-one-shot-four-ears"
+    "description": "What: CE-2476 perception suite P1 (Sensing \u00a78.6e) - on basic-desert one hidden 'Red Shooter' (100,400) fires at a 'Blue Target' 60 m north of him; four passive Blue listeners (the 'Blue Squad', hold fire, stay on task) stand 175-190 m south - beyond sight (150 m), inside a soldier's ear (200 m). Judge: every listener believes ONE enemy where the shooter is (matched 1, no phantom, no duplicate), and so does the squad's pool. Fail: a man or the squad counts the one shooter twice, or believes an enemy where none is. Check: scripts/scenario-regression.sh pe-one-shot-four-ears"
   },
   "entities": {
     "c2470001-0000-4000-8000-000000000100": {
       "SimTransform": {
         "Position": [
           60,
-          150,
+          225,
           0
         ],
         "Rotation": [
@@ -36,7 +36,7 @@
       "SimTransform": {
         "Position": [
           60,
-          150,
+          225,
           0
         ],
         "Rotation": [
@@ -80,7 +80,7 @@
       "SimTransform": {
         "Position": [
           90,
-          140,
+          215,
           0
         ],
         "Rotation": [
@@ -124,7 +124,7 @@
       "SimTransform": {
         "Position": [
           120,
-          150,
+          225,
           0
         ],
         "Rotation": [
@@ -168,7 +168,7 @@
       "SimTransform": {
         "Position": [
           150,
-          145,
+          220,
           0
         ],
         "Rotation": [

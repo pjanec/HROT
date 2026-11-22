@@ -12,7 +12,9 @@ namespace Hrot.Editor.Director
     /// man (or a squad's contact pool) BELIEVES, scored against the real enemies: the four errors of multi-target tracking evaluation.
     /// <list type="bullet">
     ///   <item>an IDENTIFIED contact of a truth entity is matched to it; one of a non-truth entity is ignored (a civilian is not an error);</item>
-    ///   <item>a HEARD contact is matched to the nearest live truth within its radius + <c>m</c> (a pooled one carries no radius: <c>m</c> alone);
+    ///   <item>a HEARD contact is matched to the nearest live truth within its radius + <c>m</c> — a POOLED one carries no radius, so it takes the widest
+    ///     circle among the members who heard it (<c>SourceMembersMask</c>: each one's heard slot nearest the pooled point) — the pool is never surer than
+    ///     its ears (📐 pe-shelled: a gun heard 3.8 km off read as a "phantom" against a bare 10 m gate);
     ///     matched to none ⇒ a <see cref="Result.Phantom"/>;</item>
     ///   <item>per truth: no contact ⇒ <see cref="Result.Missed"/>; n ≥ 2 ⇒ n − 1 <see cref="Result.Duplicate"/>;</item>
     ///   <item>skipped: a burst (R-2071 — never an enemy claim); with <c>through = false</c> a contact heard only through an opening (D-8).</item>
@@ -48,7 +50,8 @@ namespace Hrot.Editor.Director
                     var c = span[i];
                     bool heard = (c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0;
                     if (heard && !through && (c.Flags & SquadContact.HeardThroughFlag) != 0) continue;
-                    Count(c.EntityId, heard, new Vector3(c.PositionX, c.PositionY, c.PositionZ), m, truth, hits, ref contacts, ref phantom);
+                    var at = new Vector3(c.PositionX, c.PositionY, c.PositionZ);
+                    Count(c.EntityId, heard, at, heard ? m + EarsRadius(world, holder, c.SourceMembersMask, at) : 0f, truth, hits, ref contacts, ref phantom);
                 }
             }
             else
@@ -65,6 +68,30 @@ namespace Hrot.Editor.Director
                 }
             }
             return Tally(contacts, phantom, hits);
+        }
+
+        /// <summary>The widest circle among the members (<paramref name="mask"/>, roster order) of their heard slot nearest <paramref name="at"/>; 0 when none.</summary>
+        private static unsafe float EarsRadius(EntityRepository world, Entity commander, ushort mask, Vector3 at)
+        {
+            if (!world.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(commander)) return 0f;
+            var roster = world.GetComponent<Fdp.Core.CommandHierarchy.UnitRoster>(commander);
+            float widest = 0f;
+            for (int m = 0; m < roster.Count && m < 16; m++)
+            {
+                if ((mask & (1 << m)) == 0) continue;
+                var member = roster.SubordinateEntities[m];
+                if (!world.IsAlive(member) || !world.HasComponent<TargetMemory>(member)) continue;
+                var mem = world.GetComponent<TargetMemory>(member);
+                float nearest = float.MaxValue, radius = 0f;
+                for (int i = 0; i < mem.Count; i++)
+                {
+                    if (!TargetMemory.IsAnonymous(in mem, i)) continue;
+                    float d = Vector2.Distance(new Vector2(mem.PositionsX[i], mem.PositionsY[i]), new Vector2(at.X, at.Y));
+                    if (d < nearest) { nearest = d; radius = mem.Radius[i]; }
+                }
+                if (radius > widest) widest = radius;
+            }
+            return widest;
         }
 
         private static void Count(long id, bool heard, Vector3 at, float gate, IReadOnlyList<(Entity Who, Vector3 At)> truth, int[] hits,

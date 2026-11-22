@@ -471,5 +471,29 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(628f, c.PositionX);
             Assert.Equal((ushort)0b0011, c.SourceMembersMask);
         }
+
+        /// <summary>⭐⭐ <c>CE-2477</c> (Sensing §8.6e) — 📐 <c>pe-seen-shooter</c>: a man who HEARS one shooter 150 times must not end up surer than a lone
+        /// ear can be — the fused circle stops at a third of one hearing's (26 m ⇒ ≥ 8.7 m), so when he then SEES the shooter 2.8 m from the heard point
+        /// the sighting absorbs it: ONE contact, not the seen man plus a heard ghost. 🔴 Red-proof: <c>FusedRadius</c> without the floor ⇒ the circle
+        /// shrinks to ~2 m ⇒ 2 contacts.</summary>
+        [Fact]
+        public unsafe void CE2477_ManyHearings_NeverSharperThanALoneEar_SoASightingStillAbsorbsThem()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            const byte smallArms = 4;
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            for (int k = 0; k < 150; k++)
+            {
+                float a = k * 2.399f, r = 26f * ((k * 7919) % 100) / 100f;   // spread within the 26 m circle around (100, 250)
+                TargetMemory.HearContact(ref mem, 99f + r * System.MathF.Cos(a) * 0.1f, 252f + r * System.MathF.Sin(a) * 0.1f, 0f, 26f, smallArms, 1f, (uint)k + 1);
+            }
+            Assert.Equal(1, mem.Count);
+            Assert.True(mem.Radius[0] >= 26f / 3f - 1e-3f, $"fused radius {mem.Radius[0]}");
+
+            var enemy = repo.CreateEntity();
+            Assert.True(TargetMemory.AbsorbBySighting(ref mem, (long)enemy.PackedValue, 100.86f, 249.87f, System.ReadOnlySpan<byte>.Empty));
+            Assert.Equal(1, mem.Count);
+            Assert.False(TargetMemory.IsAnonymous(in mem, 0));
+        }
     }
 }

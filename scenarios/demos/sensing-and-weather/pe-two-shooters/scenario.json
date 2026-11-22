@@ -7,14 +7,14 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: CE-2476 perception suite P4 (Sensing \u00a78.6e) - the guard against OVER-merging: on basic-desert two hidden Red riflemen 30 m apart (85,400 / 115,400) fire at a 'Blue Target'; four passive Blue listeners stand ~250 m south (7 degrees apart as they hear them). Judge: the squad believes TWO enemies (matched 2) - never one; no phantom. Fail: the two shooters are merged into one contact. Check: scripts/scenario-regression.sh pe-two-shooters"
+    "description": "What: CE-2476 perception suite P4 (Sensing \u00a78.6e) - the guard against OVER-merging: on basic-desert two hidden Red riflemen 30 m apart (85,400 / 115,400) fire at a 'Blue Target'; four passive Blue listeners stand 175-190 m south (about 10 degrees apart as they hear them). Judge: the squad believes TWO enemies (matched 2) - never one; no phantom. Fail: the two shooters are merged into one contact. Check: scripts/scenario-regression.sh pe-two-shooters"
   },
   "entities": {
     "c2470004-0000-4000-8000-000000000100": {
       "SimTransform": {
         "Position": [
           60,
-          150,
+          225,
           0
         ],
         "Rotation": [
@@ -36,7 +36,7 @@
       "SimTransform": {
         "Position": [
           60,
-          150,
+          225,
           0
         ],
         "Rotation": [
@@ -80,7 +80,7 @@
       "SimTransform": {
         "Position": [
           90,
-          140,
+          215,
           0
         ],
         "Rotation": [
@@ -124,7 +124,7 @@
       "SimTransform": {
         "Position": [
           120,
-          150,
+          225,
           0
         ],
         "Rotation": [
@@ -168,7 +168,7 @@
       "SimTransform": {
         "Position": [
           150,
-          145,
+          220,
           0
         ],
         "Rotation": [

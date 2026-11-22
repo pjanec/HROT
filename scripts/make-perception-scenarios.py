@@ -66,7 +66,7 @@ def write(name, terrain, what, judge, ents, checks):
         f.write('\n')
 
 
-FOUR_EARS = [(60, 150), (90, 140), (120, 150), (150, 145)]   # ~250 m south of the shooter: beyond sight (150 m), inside a rifle's hearing
+FOUR_EARS = [(60, 225), (90, 215), (120, 225), (150, 220)]   # 175-190 m south of the shooter: beyond sight (150 m), inside a soldier's ear (200 m — a rifle is not a LOUD class, IsLoud)
 
 # ── P1 — one hidden shooter, four ears ────────────────────────────────────────────────────────────────────────────────
 ents, _ = squad_of_ears(1, FOUR_EARS)
@@ -74,7 +74,7 @@ ents.update(target(1, 300, 100, 460))
 ents.update(shooter(1, 200, "Red Shooter", 100, 400, guid(1, 300)))
 write("pe-one-shot-four-ears", "basic-desert",
       "CE-2476 perception suite P1 (Sensing §8.6e) - on basic-desert one hidden 'Red Shooter' (100,400) fires at a 'Blue Target' 60 m north of him; "
-      "four passive Blue listeners (the 'Blue Squad', hold fire, stay on task) stand ~250 m south - beyond sight, inside a rifle's hearing.",
+      "four passive Blue listeners (the 'Blue Squad', hold fire, stay on task) stand 175-190 m south - beyond sight (150 m), inside a soldier's ear (200 m).",
       "every listener believes ONE enemy where the shooter is (matched 1, no phantom, no duplicate), and so does the squad's pool. "
       "Fail: a man or the squad counts the one shooter twice, or believes an enemy where none is.",
       ents,
@@ -91,12 +91,12 @@ write("pe-one-shot-four-ears", "basic-desert",
        ]})
 
 # ── P3 — the shooter in plain view of two ears ────────────────────────────────────────────────────────────────────────
-ents, _ = squad_of_ears(3, [(90, 150), (110, 150), (40, 60), (160, 60)])   # ears 1-2 ~100 m from him (in sight), 3-4 ~200 m (heard only)
+ents, _ = squad_of_ears(3, [(90, 150), (110, 150), (50, 80), (150, 80)])   # ears 1-2 ~100 m from him (in sight), 3-4 ~177 m (heard only, inside the 200 m ear)
 ents.update(target(3, 300, 100, 310))
 ents.update(shooter(3, 200, "Red Shooter", 100, 250, guid(3, 300)))
 write("pe-seen-shooter", "basic-desert",
       "CE-2476 perception suite P3 (Sensing §8.6e; CE-2474 attribution) - on basic-desert a 'Red Shooter' (100,250) fires at a 'Blue Target' 60 m north; "
-      "two passive Blue listeners stand 100 m south of him in plain view, two more 200 m off (heard only).",
+      "two passive Blue listeners stand 100 m south of him in plain view, two more ~177 m off (heard only).",
       "the two who SEE him hold him as one identified contact - his shots are his, no heard phantom beside him; the squad's pool holds one enemy. "
       "Fail: a seeing man also holds a heard contact for the same shooter (a duplicate) or one elsewhere (a phantom).",
       ents,
@@ -121,7 +121,7 @@ ents.update(shooter(4, 200, "Red Shooter A", 85, 400, guid(4, 300)))
 ents.update(shooter(4, 201, "Red Shooter B", 115, 400, guid(4, 300)))
 write("pe-two-shooters", "basic-desert",
       "CE-2476 perception suite P4 (Sensing §8.6e) - the guard against OVER-merging: on basic-desert two hidden Red riflemen 30 m apart (85,400 / 115,400) fire "
-      "at a 'Blue Target'; four passive Blue listeners stand ~250 m south (7 degrees apart as they hear them).",
+      "at a 'Blue Target'; four passive Blue listeners stand 175-190 m south (about 10 degrees apart as they hear them).",
       "the squad believes TWO enemies (matched 2) - never one; no phantom. Fail: the two shooters are merged into one contact.",
       ents,
       {"runFor": 40, "golden": False,

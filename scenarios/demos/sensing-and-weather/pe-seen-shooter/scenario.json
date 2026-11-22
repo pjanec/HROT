@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: CE-2476 perception suite P3 (Sensing \u00a78.6e; CE-2474 attribution) - on basic-desert a 'Red Shooter' (100,250) fires at a 'Blue Target' 60 m north; two passive Blue listeners stand 100 m south of him in plain view, two more 200 m off (heard only). Judge: the two who SEE him hold him as one identified contact - his shots are his, no heard phantom beside him; the squad's pool holds one enemy. Fail: a seeing man also holds a heard contact for the same shooter (a duplicate) or one elsewhere (a phantom). Check: scripts/scenario-regression.sh pe-seen-shooter"
+    "description": "What: CE-2476 perception suite P3 (Sensing \u00a78.6e; CE-2474 attribution) - on basic-desert a 'Red Shooter' (100,250) fires at a 'Blue Target' 60 m north; two passive Blue listeners stand 100 m south of him in plain view, two more ~177 m off (heard only). Judge: the two who SEE him hold him as one identified contact - his shots are his, no heard phantom beside him; the squad's pool holds one enemy. Fail: a seeing man also holds a heard contact for the same shooter (a duplicate) or one elsewhere (a phantom). Check: scripts/scenario-regression.sh pe-seen-shooter"
   },
   "entities": {
     "c2470003-0000-4000-8000-000000000100": {
@@ -123,8 +123,8 @@
     "c2470003-0000-4000-8000-000000000103": {
       "SimTransform": {
         "Position": [
-          40,
-          60,
+          50,
+          80,
           0
         ],
         "Rotation": [
@@ -167,8 +167,8 @@
     "c2470003-0000-4000-8000-000000000104": {
       "SimTransform": {
         "Position": [
-          160,
-          60,
+          150,
+          80,
           0
         ],
         "Rotation": [

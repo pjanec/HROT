@@ -987,6 +987,15 @@ classDiagram
 | P7 | `pe-seen-then-hidden` | a man crosses open ground, then hides | identified within the dwell; forgotten after the fade, not before |
 | P8 | P1, listeners on two nodes (cluster, nightly) | ⚠ the per-node token (§8.6d): 1 or 2 — needs the dump to carry heard contacts |
 
+##### What the suite found first (`2026-11-22`)
+
+| run | found | outcome |
+|---|---|---|
+| P1 with ears at 250 m | nobody heard a thing: a rifle is not a LOUD class, so it is heard within the 200 m ear (`/perception/hearing` → `BeyondHisEar`) | the layout moved inside 200 m; ⚠ `bw-unheard` rests on the same mistake (CE-2478) |
+| P3 | a man who heard a shooter 146 times was sure to 2.15 m at 177 m; seeing him 2.76 m off, he held TWO contacts | ✅ CE-2477 — `TargetMemory.FusedRadius`, floored at ⅓ of one hearing's circle |
+| P4, P5 | the squad's pooled heard contacts were judged against a bare 10 m gate | the score's fault: a pooled contact now takes the widest circle of the ears that heard it (`PerceptionScore.EarsRadius`) |
+| P1 (corrected), P4 "holds both" | ✅ one shot is one contact for every man and the squad; two shooters 30 m apart are two | — |
+
 ##### CE-2475 — the FIRST WAVEFRONT: where a sound seems to come from when it arrives by two ways
 
 📐 **How it is** (`SoundPaths.Route`, `:76-101`): both ways are solved — the straight line through the walls (`StraightDb`) and the way through openings / round corners (`PathDb`) — and the LOUDER WINS outright (AQ106 B), heard from the last opening (AQ106 F). ⛔ A man 15 m from a shooter behind one thin wall, a door to his left, hears the shot "from the door".

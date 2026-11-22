@@ -328,6 +328,17 @@ namespace Fdp.Toolkit.Perception.Components
             }
         }
 
+        /// <summary>⭐ <c>CE-2477</c> (Sensing §8.6e) — the tightest a fused heard circle may get, as a share of ONE hearing's circle: a lone listener
+        /// localises a sound to a few degrees of bearing and judges range only by loudness, so however many shots he hears the estimate does not
+        /// sharpen past ~a third of one hearing's circle (≈ 3° at the 0.15 × distance circle). 📐 pe-seen-shooter: 146 fused shots took 26 m to
+        /// 2.15 m at 177 m, and the shooter, SEEN 2.76 m off, no longer absorbed his own heard contact — one man, two contacts.</summary>
+        public const float FusedRadiusFloor = 1f / 3f;
+
+        /// <summary>⭐ <c>CE-2477</c> — the inverse-variance radius of a fusion of total weight <paramref name="weight"/>, floored at
+        /// <see cref="FusedRadiusFloor"/> × the newest hearing's <paramref name="radius"/>.</summary>
+        public static float FusedRadius(float weight, float radius)
+            => System.MathF.Max(1f / System.MathF.Sqrt(weight), radius * FusedRadiusFloor);
+
         /// <summary>⭐ CE-3063 (§6.1a K3) — two sound classes may be the same source: equal, or either unknown (0).</summary>
         public static bool ClassesCompatible(byte a, byte b) => a == 0 || b == 0 || a == b;
 
@@ -381,7 +392,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.PositionsX[best]   = (mem.PositionsX[best] * w1 + x * w2) / w;
                 mem.PositionsY[best]   = (mem.PositionsY[best] * w1 + y * w2) / w;
                 mem.PositionsZ[best]   = (mem.PositionsZ[best] * w1 + z * w2) / w;
-                mem.Radius[best]       = 1f / System.MathF.Sqrt(w);
+                mem.Radius[best]       = FusedRadius(w, radius);   // ⭐ CE-2477 — never surer than a lone ear can be
                 mem.Freshness[best] += scoreBoost;
                 mem.LastSeenTick[best]  = tick;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
