@@ -1026,8 +1026,13 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	if (In.Held == HrotDpsPeople::HeldNone)
 		if (const TArray<FString>* M = MountCategories.Find(E.TypeId))
 		{
+			// a FIREARM in his hands - a throw ("grenade": the civilians' only mount, CE-3234's stone) is not one (live 2026-11-22: every civilian
+			// carried a rifle; the wire said Held None, his type's one mount was Grenade). The selected mount if it is one, else any he has
+			auto Firearm = [](const FString& C) { return C != TEXT("unknown") && C != TEXT("grenade"); };
 			const int32 Slot = M->IsValidIndex(E.ActiveSlot) ? E.ActiveSlot : 0;
-			if (M->IsValidIndex(Slot) && (*M)[Slot] != TEXT("unknown")) In.Held = HrotDpsPeople::HeldWeapon;
+			bool bArmed = M->IsValidIndex(Slot) && Firearm((*M)[Slot]);
+			for (int32 I = 0; I < M->Num() && !bArmed; ++I) bArmed = Firearm((*M)[I]);
+			if (bArmed) In.Held = HrotDpsPeople::HeldWeapon;
 		}
 	In.Speed = float(FVector2D(E.Track.V.X, E.Track.V.Y).Size());
 	In.LastGait = E.LastGait;
@@ -1054,6 +1059,9 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	if (E.bRiding && E.SeatPose.IsValid()) { Base = E.SeatPose.Get(); Role = TEXT("Seat.Riding"); }
 	// a hit on him (U-18e): the flinch plays once over the body, unless he is going down (his Injury wins) or prone
 	const double Real = RealNow();
+	if (St->BaseAnim != Base)   // the live hunt for the lying civilians (2026-11-22): every change of a person's body clip, on change only
+		UE_LOG(LogTemp, Display, TEXT("HROT person %d body clip -> %s (role %s, stance %d, held %d, injury %d)"), int32(EntityOfActor(A)), Base ? *Base->GetName() : TEXT("none"),
+			*Role.ToString(), int32(L.Stance), int32(In.Held), int32(In.Injury));
 	St->BaseAnim = Base;
 	St->bBaseLoops = L.bLoops;
 	St->BlendTime = L.BlendTime;
