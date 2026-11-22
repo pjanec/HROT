@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); NOW ★ the Haiku proof run (run 2 — run 1 found two defects, fixed). L-2b B-1 code written, held in a scratch patch until L-2 closes.
+⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). L-2b B-1 code written, held in a scratch patch until L-2 closes.
 L-1 (below): DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
 `STATUS_Backend_Queue.md` → **CE-3445 T2** (rare mode-3 stepped divergence) — a resume continues there. ⚠ `backend-wip-llm-commander` is stale
 (its content is all on `backend`; the remote refused the delete).
@@ -75,7 +75,7 @@ its next step — the instrumented 1- vs 4-thread scale-rig pair — is hours of
 | ④ | the model log beside the recording | DONE | (this commit) | `CE4679_TheModelLog_SitsBesideTheRecording_AndNamesEachOrderAndVerdict` |
 | ⑤ | `llm-platoon-attack` gives the commander a fight (≥ 60 s in contact) | DONE — Blue starts behind the L-Block, objective / support behind the Low Wall, six 1.5 m walls on the lane; contact 76 s → past 420 s; the two "≥ 60 s" rows added; ⚠ the L-1 break-contact row WITHDRAWN (DECISIONS CE-4679 #8) | (this commit) | ✅ PASS 8/8 (two runs, the same times: Red fires 76.1 s, attack 78.25 s, contact rows 141.9 s) |
 | ⑥ | CE-4677 `/sitrep` stops reading a contact's `alive` from the world | DONE | (this commit) | `DebugApiOrdersTests.CE4677_AContactKilledOutOfSight_StillReadsAsTheSideLastKnewIt` (+ DebugApiOrdersTests 18/18) |
-| ★ | the proof run: a Haiku subagent plays Blue's commander through the routes only | IN PROGRESS — run 1 found TWO defects, both fixed and railed: (a) a stepped (verify) clock ignored the pause and a resume would end the stepping (`a608e6926`); (b) the heartbeat never fired under routine SITREPs, so the mind was asked once (`33b68a6ad`). Also CE-3493: `--verify-replay` OOM on 420 s (scratch copy uses a 30 s interval). Run 2 under way | | |
+| ★ | the proof run: a Haiku subagent plays Blue's commander through the routes only | ⚠ DONE but for the replay half — see §L-2 ★ below | `a608e6926` `33b68a6ad` | `CE4679_AStepperClock_*`, `CE4679_RoutineSitreps_*` (the two defects it found) |
 
 # L-2b (CE-4680) — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L2b.md` — QUEUED after L-2
 
@@ -90,3 +90,34 @@ its next step — the instrumented 1- vs 4-thread scale-rig pair — is hours of
 | ⚠ a direct squad order in the SAME frame as the clear | ⚠ `CommandOrders.Order` records under the commander's CURRENT run (`BehaviorOwnedParts.OwnerOf`) ⇒ an order given before the clear is processed belongs to the play's run and is RELEASED with it. ⇒ the clear first, the direct order on a later frame (once the run is gone) | — (a sequencing fact, to rail) |
 
 ⇒ ⭐ the premise HOLDS; B-1 is buildable. The giver-less publish and the clear-then-order sequencing are the two things its rails must pin.
+
+## L-2 ★ — the proof run, as it went (`2026-11-22`)
+
+Haiku-model subagent, routes ONLY (`/briefing`, `/tools`, `/feed?after&wait=30`, `/act`); `llm-platoon-attack` copied with `"Mind": "External", "Mode": "ThinkPause"`
+(scratch, never committed). Three runs:
+
+| run | what happened | outcome |
+|---|---|---|
+| 1 | ⛔ asked ONCE (seq 1), never again: routine SITREPs kept the 30 s heartbeat from firing; also the verify run's STEPPED clock ran on while it thought | two defects → fixed + railed (`a608e6926` the stepped clock, `33b68a6ad` the heartbeat) |
+| 2 | 28 questions, 8 orders, **0 refused**; clock held at each question | the replay check ran out of memory (CE-3493) |
+| 3 | plain `--verify` (no recording): 19 questions, 8 orders, **0 refused** | **6/8 rows PASS** — every plumbing row, incl. *"a squad attacks within 1 s of the first SPOT"* (81.75 s: the Haiku commander's own Attack); the two TACTICAL rows (contact ≥ 60 s) **FAIL**, explained below |
+
+⭐ **Why the tactical rows failed (run 3):** the commander sent Bravo to support by fire from the start and Alpha forward; at the SPOT it ordered Alpha
+to attack, then Bravo too. ⛔ Bravo's `Attack` from the start **did not move it** (it re-tasked Bravo with a `Move` a minute later), and Alpha went
+**Set** at the objective behind the wall and stayed — the fight stalled after ~2:20, so no Red shot fell 60 s after the first. The same two stalls
+show in the scripted runs ⇒ the squads' attack play, not the commander: NOTE to behaviors `NOTE_Backend_To_Behaviors_Squad_Attack_Stalls.md`.
+
+⛔ **Not shown: "the run replays to the same end".** `--verify-replay` dies of memory on this 420 s scenario — with the seat REMOVED too (2.5 → 8.9 GB
+during the live run) ⇒ CE-3493, not the seat. ⚠ The model log is written beside the recording; the unrecorded run 3 had none (rail
+`CE4679_TheModelLog_*` proves the file).
+
+The radio log and the answers (run 3, verbatim):
+- `00:00:00 NOTE: Opening: Red defends house. Alpha moves to support (cover), Bravo supports by fire from start. Need to learn Red strength.`
+- `00:00:00 ORDER Move Alpha Squad → support: given` · `00:00:00 ORDER SupportByFire Bravo Squad → house: given`
+- `00:01:21 ALPHA SQUAD: spot, 1 enemy (Individual), house`
+- `00:01:21 NOTE: Alpha spotted 1 enemy (Individual) at house. Attack house with Alpha; Bravo continues SupportByFire on house.` · `00:01:21 ORDER Attack Alpha Squad → house: given`
+- `00:01:35 ALPHA SQUAD: spot, 2 enemy (Team), house` · `00:01:35 NOTE: Red now 2 (Team) at house; Alpha Amber. Mass force: Bravo attacks house too, Alpha keeps pressing.`
+- `00:02:00 ALPHA SQUAD: progress, Set, at objective`
+- `00:02:30 NOTE: Bravo has not moved from start under Attack order. Re-task Bravo: Move to objective to join Alpha.`
+- `00:04:30 NOTE: 4:30 of ~7 min. Alpha Amber at objective, Bravo Green 60 m E of objective. Commit both: Attack house together.`
+- `00:04:33 BRAVO SQUAD: progress, Set, at 20 m E of objective`
