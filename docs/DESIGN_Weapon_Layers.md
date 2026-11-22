@@ -1262,18 +1262,21 @@ classDiagram
         +Choose(world, shooter, target, mount, blind) BurstPlan
     }
     class BurstPlan { <<readonly struct>> +byte Rounds +float PauseSeconds }
-    class FireBurst {
-        <<new unmanaged component on the shooter, recorded>>
+    class BurstState {
+        <<new, in the action's channel State beside RoundsFired>>
         +uint Id
         +byte Rounds
         +byte Fired
-        +byte Mount
     }
+    class WeaponFireIntent { <<existing event, appended>> +uint BurstId +byte BurstRounds +byte BurstIndex }
+    class WeaponFireNotification { <<existing recorded event, appended>> +uint BurstId +byte BurstRounds +byte BurstIndex }
     class AimAndFireExecutor { <<existing>> per-shot path: plan a burst, fire Rounds at cyclic, then pause }
     class FirePacing { <<existing>> jitter of every gap }
     class BarrelHeat { <<existing>> the latch still gates every round }
     AimAndFireExecutor ..> FireBursts : asks at each burst start
-    AimAndFireExecutor ..> FireBurst : writes on its OWN entity
+    AimAndFireExecutor ..> BurstState : its own action's state
+    AimAndFireExecutor ..> WeaponFireIntent : stamps the burst on each round
+    WeaponFireIntent ..> WeaponFireNotification : the muscle copies it
     AimAndFireExecutor ..> FirePacing
     AimAndFireExecutor ..> BarrelHeat
     FireBursts --> BurstPlan
@@ -1283,13 +1286,13 @@ classDiagram
 sequenceDiagram
     participant E as AimAndFireExecutor (the shooter's brain)
     participant R as FireBursts.Choose
-    participant S as the shooter's FireBurst
-    participant F as WeaponFireNotification (per round, unchanged)
+    participant S as BurstState (the action's own)
+    participant F as WeaponFireIntent then Notification (per round)
     E->>R: a new burst (range, target seen and moving, blind, mount)
     R-->>E: Rounds N, pause P
-    E->>S: Id + 1, Rounds N, Fired 0 (added with its final value)
+    E->>S: Id + 1, Rounds N, Fired 0
     loop N rounds
-        E->>F: one round (as today)
+        E->>F: one round, BurstId, BurstRounds N, BurstIndex Fired
         E->>S: Fired + 1
         E->>E: wait the cyclic gap x FirePacing
     end
@@ -1299,12 +1302,12 @@ sequenceDiagram
 | rule | why |
 |---|---|
 | ⭐ **`FireBursts.Choose` is the one rule** (deterministic: `SimRng` per shooter, no wall clock): a SmallArms rifle — seen target beyond 150 m ⇒ 1 round, the asked interval (today); within 50 m, or the target moving across ⇒ 2–3; blind / suppressing ⇒ 3–5, a longer pause; else 1–2. A machine gun keeps §5k (heat-latched, as the user asked). Any single-shot category ⇒ 1 | one place to tune; the numbers are first values, stated so a scenario can judge them |
-| ⭐ **`FireBurst` is written by the shooter's own brain**, added with its final value (CLAUDE.md parallel rules); unmanaged, recorded | a renderer (the gateway) reads which rounds belong together; ⛔ **never a field on `WeaponFireNotification`** — a recorded EVENT whose layout change refuses every old recording (`SchemaValidator.cs:141-147`) and changes the NED wire |
-| ⭐ **player fire has no `FireBurst`** (operator fire, `AimAndFireExecutor` operator path) | the user: the player's burst length is never known |
+| ⭐ **the burst rides on each round**: `WeaponFireIntent` and `WeaponFireNotification` gain `BurstId` (0 = no planned burst), `BurstRounds`, `BurstIndex` (appended); the muscle copies them from the intent; the brain keeps the burst in its own action state | a renderer (the gateway) reads which rounds belong together from the round itself. 🔒 R-11013 (user, `2026-11-22`): *"We can break the recordings. We do not need to hack around it."* — old recordings with the earlier `WeaponFireNotification` layout no longer load (`SchemaValidator.cs:141-147`); ⛔ SUPERSEDED: a separate `FireBurst` component on the shooter (written to keep the event's layout) |
+| ⭐ **player fire has BurstId 0** (operator fire, `AimAndFireExecutor` operator path) | the user: the player's burst length is never known |
 | barrel heat and fire pacing apply to every round, unchanged | a burst cannot overshoot the latch |
 
-**Acceptance (rails + a feature scenario, R-4277):** the rule's table per row; N rounds at the cyclic gap then the pause; `FireBurst` counts them;
-an operator's rounds have none; 1 / 4 / 8 threads give the same rounds (`stepped-hash.py`); `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` on the rails;
+**Acceptance (rails + a feature scenario, R-4277):** the rule's table per row; N rounds at the cyclic gap then the pause; each round carries BurstId / BurstRounds / BurstIndex;
+an operator's rounds carry 0; 1 / 4 / 8 threads give the same rounds (`stepped-hash.py`); `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` on the rails;
 a scenario `rifle-bursts` (a fire team engages at 40 m and at 200 m: bursts near, singles far) with `checks.json` expect rows.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
