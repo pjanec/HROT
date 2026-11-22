@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Squad.Systems
             for (int i = pool.Count - 1; i >= 0; i--)   // downward: the slot swapped into i was already visited
             {
                 if ((span[i].Flags & SquadContact.AnonymousFlag) == 0) continue;
-                float r = radii[i];
+                float r = radii[i] + TargetMemory.KnownMoveSlackMetres;   // ⭐ CE-2487 — the man seen may have moved a few steps since he was heard
                 int best = -1; float bestD2 = float.MaxValue;
                 for (int j = 0; j < pool.Count; j++)
                 {

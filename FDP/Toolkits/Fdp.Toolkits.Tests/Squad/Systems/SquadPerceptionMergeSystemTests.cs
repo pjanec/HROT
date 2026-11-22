@@ -525,8 +525,39 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 103.66f, 105.17f, 50f, tick: 1);
             Assert.Equal((long)enemy.PackedValue, TargetMemory.HearContact(ref mem, 105.9f, 106.8f, 0f, 1.1f, 4, 10f, 2));
             Assert.Equal(1, mem.Count);
+            // ⭐ CE-2488 — heard outside the circle of the old spot: he is now believed where he was heard
+            Assert.Equal(105.9f, mem.PositionsX[0], 3);
+            Assert.Equal(106.8f, mem.PositionsY[0], 3);
+            // ⭐ CE-2488 — a point round an opening refreshes him but does not move him (it is the way in, D-8)
+            TargetMemory.HearContact(ref mem, 107.5f, 106.8f, 0f, 0.5f, 4, 10f, 3, via: 1);
+            Assert.Equal(105.9f, mem.PositionsX[0], 3);
             Assert.True(TargetMemory.HearContact(ref mem, 111.0f, 108.0f, 0f, 1.1f, 4, 10f, 3) < 0, "8 m off: another");
             Assert.Equal(2, mem.Count);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2487</c> (📐 pe-house-shot) — CE-2486 the other way round. ① A man HEARD at (106.2, 107.0), sure to 0.7 m, then SEEN 0.9 m from
+        /// there is that man: one slot. A man seen 8 m off is another. ② The squad pool: one member sees him at (105.4, 107.0), another heard him round an
+        /// opening at (107.9, 108.9), 3.1 m off a 0.7 m circle — one pooled contact. 🔴 Red-proof: no slack ⇒ 2 slots / 2 pooled contacts ⇒ red.</summary>
+        [Fact]
+        public void CE2487_HeardFirst_ThenSeenAFewStepsFromThePoint_IsHim()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem, 106.2f, 107.0f, 0f, 0.7f, 4, 50f, 1);
+            var far = repo.CreateEntity(); var him = repo.CreateEntity();
+            Assert.False(TargetMemory.AbsorbBySighting(ref mem, (long)far.PackedValue, 114.2f, 107.0f, System.ReadOnlySpan<byte>.Empty), "8 m off: another");
+            Assert.True(TargetMemory.AbsorbBySighting(ref mem, (long)him.PackedValue, 105.4f, 107.0f, System.ReadOnlySpan<byte>.Empty));
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)him.PackedValue, mem.EntityIds[0]);
+
+            ref var seer = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            seer = default;
+            TargetMemory.AddOrUpdateTarget(ref seer, (long)him.PackedValue, 105.4f, 107.0f, 50f, tick: 1);
+            ref var ear = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref ear, 107.9f, 108.9f, 0f, 0.7f, 4, 30f, 1, via: 1);
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            Assert.Equal((long)him.PackedValue, GetContact(commander, 0).EntityId);
         }
     }
 }

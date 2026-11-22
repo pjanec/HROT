@@ -378,6 +378,12 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Modalities[best]   |= (byte)SensorModality.Acoustic;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
                 if (sound != 0) mem.SoundIds[best] = sound;   // ⭐ CE-2474
+                // ⭐ CE-2488 — heard OUTSIDE the circle of where he was seen: he has moved, and the ear says where to (📐 ia-house-hunt: CE-2486 kept the stale
+                //   spot, a room away, and the hunt went there). ⛔ Not a point heard round an opening — that is where to look, not where he is (D-8)
+                if (via == 0 && bestD2 > radius * radius)
+                {
+                    mem.PositionsX[best] = x; mem.PositionsY[best] = y; mem.PositionsZ[best] = z;
+                }
                 long known = mem.EntityIds[best];
                 Sort(ref mem);
                 return known;
@@ -498,7 +504,9 @@ namespace Fdp.Toolkit.Perception.Components
                 for (int k = 0; !compatible && k < entityClasses.Length; k++) compatible = ClassesCompatible(c, entityClasses[k]);
                 if (!compatible) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
-                bool inside = d2 <= mem.Radius[i] * mem.Radius[i];
+                // ⭐ CE-2487 — CE-2486's slack, the other way round: heard first, seen a few steps from the point (📐 pe-house-shot, 0.9 m off a 0.7 m circle)
+                float reach = mem.Radius[i] + KnownMoveSlackMetres;
+                bool inside = d2 <= reach * reach;
                 // ⭐ CE-2485 — a contact heard THROUGH AN OPENING (D-8: its point is the way in) is his when he stands BEYOND that point, within
                 //   AttributeThroughDegrees of its bearing from the listener (📐 uf-corner-assault: steps heard round the corner, the man then seen behind it,
                 //   held as two enemies — the attack stopped at 23.9 s; pe-house-shot: heard via the stairwell, seen through the door)
