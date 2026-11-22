@@ -48,6 +48,7 @@ public static class CgfComponentRegistry
         NavigationSolverComponentRegistry.RegisterAll(world);
 
         world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
+        world.RegisterComponent<Hrot.CGF.Commander.CommanderSeat>();   // ⭐ CE-4676 — a commander whose orders come from a mind (a scenario field)
 
         world.RegisterEvent<DamageAssessedEvent>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 — the one kill authority, read by the scenario measures

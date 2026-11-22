@@ -69,6 +69,9 @@ namespace Hrot.CGF
         private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
         private readonly RouteContextSystem           _routeContextSystem;
         private readonly TacticalIntentResolutionSystem _tacticalIntentResolutionSystem;
+
+        /// <summary>⭐ CE-4676 (DESIGN_LLM_Commander §5) — the commander seats of this node's world: the feed opens them, the action system drains them.</summary>
+        public Hrot.CGF.Commander.CommanderSeats CommanderSeats { get; } = new();
         private readonly Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem _squadCoordinationSystem;   // CE-454
         // CE-221: UnitHierarchySystem and EqsResultUpdateSystem are CROSS-ROLE INFRASTRUCTURE and no
         // longer live in this pack. They are contributed once per node by
@@ -230,6 +233,9 @@ namespace Hrot.CGF
             foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);
 
             simList.Add(_missionAdapterSystem);
+            // ⭐ CE-4676 (DESIGN_LLM_Commander §3) — a seated commander's orders, from his mind, validated and given through CommandOrders (origin
+            //   Superior) — before the resolver, which takes them this frame as it takes a play's
+            simList.Add(new Hrot.CGF.Commander.CommanderActionSystem(CommanderSeats));
             simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             // ⛔ CE-2144 (R-2008) — HealthApplicationSystem is NOT pack content: any live-simulation node may own Health, so it is the
@@ -265,6 +271,8 @@ namespace Hrot.CGF
             simList.Add(new Fdp.Toolkit.Squad.Command.EmitterLocatingSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffComposerSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffInboxSystem(gateOnAuthority));
+            // ⭐ CE-4676 — a seated commander's FEED, after the inbox (this frame's reports are in his history)
+            simList.Add(new Hrot.CGF.Commander.CommanderFeedSystem(CommanderSeats, gateOnAuthority));
             // ⭐ CE-2273 DA-A — a unit's authored proficiency reaches its men (written on each man: the hit model reads only him).
             simList.Add(new Fdp.Toolkit.Behavior.Systems.ProficiencyFillSystem(gateOnAuthority));
             // ⭐ CE-2360 (AQ102 I) — a live grenade lying near a man: his reflex (run, drop, throw it back) as a reaction, before the brain

@@ -5,6 +5,19 @@ related-designs:
 -->
 # DECISIONS — backend (newest at the top)
 
+## CE-4676 — the LLM commander L-1: lane decisions TAKEN (not waiting on an answer) · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+None of these needed the user (no design or ruling decides them, each is small and reversible). They are listed so the coordinator can overrule one.
+
+| # | decision | why — and what would change it |
+|---|---|---|
+| 1 | ⭐ **think-pause in L-1 = the FRAME holds** (`CommanderActionSystem` waits up to 2 s of wall time for the mind to answer every wake), not a pause of the sim clock | the scripted mind answers in microseconds, so the run is repeatable with no clock involvement. ⚠ L-2 (a Haiku worker, tens of seconds) needs the CLOCK paused instead — a held frame would freeze the editor's UI |
+| 2 | **the orders L-1 takes:** Move · Hold · Attack (by the squad's class, `CommandOrders.Order`) · SupportByFire (= Attack with `HoldBack`, R-8303) · Defend / BreakContact (the concrete `SquadDefend` / `BreakContact` through `CommandOrders.Route`, as `PlatoonDefendBehavior` sends them) | ⛔ **not** BoundingOverwatch / SuppressAndManeuver / ClearBuilding: no measured params path from a platoon to a squad for them. The handoff says "if they resolve for a squad"; they are a refusal with the list until measured |
+| 3 | `target` resolves as a PLACE (like `where`) | L-1's mind has no entity ids for the enemy, only reported places. An entity target is L-2's tool |
+| 4 | ⭐ **a `report` cue in the checks grammar** (`{"on":"report","by":…,"target":…,"is":"Spot"}` over the node's `SquadReportLog`, editor tier) | the scenario's done-when checks ①③ cannot be said without it (CLAUDE.md: a cue the grammar cannot say ⇒ extend the grammar) |
+| 5 | the seat's code lives in **`Hrot.CGF/Commander/`**, not in behaviors' assembly | it calls the command chain and never changes it; the CGF pack registers it on every brain node (editor + CGF) |
+| 6 | the seat ENFORCES its premise at open: `AssignSopEvent(InertSop, Superior)` if the SOP is not already `InertSop`, and a clear of any running task | the scenario also writes `"Sop": InertSop` — the enforcement makes a seat added at run time (L-2's `/mind`) safe too |
+
 ## CE-3473 — a ramming CAR never breaks the barrels (`cp-ram-barrier`, Checkpoint RM-5) · `2026-11-18` · ✅ **DECIDED `2026-11-18`**
 
 **DECIDED `2026-11-18` (the user):** *"follow your lean; also realistic bullet stopping power (if barrel is full of liquid, it might be a serious/resistive obstacle for both the ramming car as well as for bullets"* ⇒ option A, and a barrel's FILL (empty / liquid / …) decides BOTH its breach strength and its protection from fire — one property, read by both.

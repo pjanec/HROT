@@ -1,0 +1,355 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Numerics;
+using System.Text;
+using System.Text.Json.Nodes;
+using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Squad;
+using Fdp.Toolkit.Squad.Command;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.CGF.Commander;
+
+/// <summary>⭐ <c>CE-4676</c> — one seat's runtime on the frame thread: its channel, its mind's runner, its places, and what the feed has already said.</summary>
+public sealed class SeatRuntime : IDisposable
+{
+    public Entity Commander { get; init; }
+    public string Name { get; init; } = "";
+    public CommanderChannel Channel { get; } = new();
+    public Gazetteer Places { get; init; } = new();
+    public MindRunner? Runner { get; set; }
+
+    // what the feed already said (frame thread)
+    internal double LastItemAt, LastSnapshotAt, LastFightCheckAt;
+    internal bool HasHead;
+    internal CommandReportEntry Head;
+    internal ulong OutOfFight;
+
+    public void Dispose() => Runner?.Dispose();
+}
+
+/// <summary>
+/// ⭐ <c>CE-4676</c> — the seats of one world, shared by <see cref="CommanderFeedSystem"/> (which opens and closes them) and
+/// <see cref="CommanderActionSystem"/> (which drains them). Frame thread only.
+/// </summary>
+public sealed class CommanderSeats : IDisposable
+{
+    private readonly Dictionary<Entity, SeatRuntime> _seats = new();
+
+    /// <summary>Makes the mind a seat asks for; null = not built yet (the seat then says so and gives no orders). Rails replace it.</summary>
+    public Func<CommanderSeat, IMind?> MindFor { get; set; } = seat => seat.Mind == CommanderMind.Scripted ? new ScriptedMind() : null;
+
+    public bool TryGet(Entity commander, out SeatRuntime seat) => _seats.TryGetValue(commander, out seat!);
+    public int Count => _seats.Count;
+    public Dictionary<Entity, SeatRuntime>.ValueCollection All => _seats.Values;
+
+    internal void Add(SeatRuntime seat) => _seats[seat.Commander] = seat;
+
+    internal void Remove(Entity commander)
+    {
+        if (_seats.Remove(commander, out var seat)) seat.Dispose();
+    }
+
+    public void Dispose()
+    {
+        foreach (var s in _seats.Values) s.Dispose();
+        _seats.Clear();
+    }
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-4676</c> (DESIGN_LLM_Commander §3, §5) — the seat's FEED, written on the frame thread after the staff's inbox (this frame's reports are in):
+/// a <c>snapshot</c> at the seat's start and every <see cref="CommanderSeat.Snapshot"/> s, a <c>report</c> for each report into the commander
+/// (<see cref="CommandReportHistory"/>), an <c>event</c> when a squad falls out of the fight, and a <c>heartbeat</c> when nothing came for
+/// <see cref="CommanderSeat.Heartbeat"/> s. Each item: a seq, the sim time, a JSON form and ONE radio line (the places from the <see cref="Gazetteer"/>).
+/// ⭐ Opening a seat: the commander's own play is taken away (<c>InertSop</c>, no task — §9 ①), every squad is asked a routine SITREP (§9 ④), and the
+/// mind's runner starts. ⭐ 0 B per steady frame: a frame with no new report, no fall and no due heartbeat reads three components and writes nothing.
+/// </summary>
+[UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
+public sealed class CommanderFeedSystem : IEcsModuleSystem
+{
+    public const string InertSop = "InertSop";
+    public const float RoutineSitrepSeconds = 30f;
+    private const double FightCheckSeconds = 1.0;
+
+    private readonly CommanderSeats _seats;
+    private readonly bool _gateOnAuthority;
+    [Fdp.Core.FrameScratch("scratch — cleared at the top of each run")]
+    private readonly List<Entity> _gone = new();
+    [Fdp.Core.FrameScratch("scratch — the new history entries of one seat, oldest first")]
+    private readonly List<CommandReportEntry> _fresh = new();
+    private EntityQuery? _query;
+
+    public CommanderFeedSystem(CommanderSeats seats, bool gateOnAuthority = false)
+    {
+        _seats = seats ?? throw new ArgumentNullException(nameof(seats));
+        _gateOnAuthority = gateOnAuthority;
+    }
+
+    public void Execute(ISimulationView view, float deltaTime)
+    {
+        if (view is not EntityRepository world || !world.IsComponentTypeRegistered<CommanderSeat>()) return;
+        double now = Now(world);
+        _query ??= world.Query().With<CommanderSeat>().Build();
+        foreach (var commander in _query)
+        {
+            if (_gateOnAuthority && !(world.HasComponent<BehaviorState>(commander) && world.HasAuthority<BehaviorState>(commander))) continue;
+            if (!_seats.TryGet(commander, out var seat)) seat = Open(world, commander, now);
+            Feed(world, seat, now);
+        }
+
+        // a seat whose commander is gone (or lost the component) closes, and its mind stops
+        _gone.Clear();
+        foreach (var s in _seats.All)
+            if (!world.IsAlive(s.Commander) || !world.HasComponent<CommanderSeat>(s.Commander)) _gone.Add(s.Commander);
+        for (int i = 0; i < _gone.Count; i++) _seats.Remove(_gone[i]);
+    }
+
+    // ── opening a seat ───────────────────────────────────────────────────────────────────────
+
+    private SeatRuntime Open(EntityRepository world, Entity commander, double now)
+    {
+        var config = world.GetComponentRO<CommanderSeat>(commander);
+        var seat = new SeatRuntime { Commander = commander, Name = NameOf(world, commander), Places = Gazetteer.Of(world) };
+        _seats.Add(seat);
+        TakeAwayOwnPlay(world, commander);
+
+        // ⭐ §9 ④ — a routine SITREP from every squad, so the picture fills without the mind asking
+        var roster = Squads(world, commander);
+        for (int i = 0; i < roster.Count; i++)
+            CommandOrders.AskSitrep(world, roster.SubordinateEntities[i], RoutineSitrepSeconds);
+
+        var mind = _seats.MindFor(config);
+        if (mind == null)
+        {
+            seat.Channel.Publish(FeedKind.OrderState, now, false, $"{Clock(now)} SEAT: no {config.Mind} mind in this build — the seat gives no orders",
+                                 new JsonObject { ["kind"] = "order-state", ["state"] = "refused", ["reason"] = $"the {config.Mind} mind is not built yet" }.ToJsonString());
+        }
+        else
+        {
+            seat.Runner = new MindRunner(seat.Channel, mind, seat.Name, Prefix(world, seat, roster));
+            seat.Runner.Start();
+        }
+        Snapshot(world, seat, now, wake: true);   // ⭐ the board at the start: the mind's first call
+        return seat;
+    }
+
+    /// <summary>⭐ §9 ① (measured: an idle platoon runs only its type's default SOP) — the explicit none, and no task.</summary>
+    private static void TakeAwayOwnPlay(EntityRepository world, Entity commander)
+    {
+        int inert = BehaviorHash.FromName(InertSop);
+        bool hasInert = world.HasComponent<SopState>(commander) && world.GetComponentRO<SopState>(commander).SopHash == inert;
+        if (!hasInert && world.Bus.IsRegisteredManaged<AssignSopEvent>())
+            world.Bus.PublishManaged(new AssignSopEvent { Entity = commander, BehaviorName = InertSop, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+        if (world.HasComponent<BehaviorState>(commander))
+        {
+            var state = world.GetComponentRO<BehaviorState>(commander);
+            int sop = world.HasComponent<SopState>(commander) ? world.GetComponentRO<SopState>(commander).SopHash : 0;
+            if (state.ActiveBehaviorHash != 0 && state.ActiveBehaviorHash != sop && state.ActiveBehaviorHash != inert && world.Bus.IsRegistered<ClearBehaviorEvent>())
+                world.Bus.Publish(new ClearBehaviorEvent { Entity = commander, Origin = BehaviorOrigin.Superior });
+        }
+    }
+
+    // ── the feed ─────────────────────────────────────────────────────────────────────────────
+
+    private void Feed(EntityRepository world, SeatRuntime seat, double now)
+    {
+        var config = world.GetComponentRO<CommanderSeat>(seat.Commander);
+        Reports(world, seat, now);
+        if (now - seat.LastFightCheckAt >= FightCheckSeconds) Falls(world, seat, now);
+        if (now - seat.LastSnapshotAt >= config.Snapshot) Snapshot(world, seat, now);
+        if (now - seat.LastItemAt >= config.Heartbeat)
+            Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (no traffic)",
+                    new JsonObject { ["kind"] = "heartbeat", ["t"] = Round(now) }.ToJsonString());
+    }
+
+    /// <summary>The reports into the commander that the feed has not said yet, oldest first (the history is newest first).</summary>
+    private void Reports(EntityRepository world, SeatRuntime seat, double now)
+    {
+        if (!world.HasComponent<CommandReportHistory>(seat.Commander)) return;
+        ref readonly var history = ref world.GetComponentRO<CommandReportHistory>(seat.Commander);
+        if (history.Count == 0 || (seat.HasHead && SameEntry(history.Items[0], seat.Head))) return;   // ⭐ the steady frame: one compare
+        _fresh.Clear();
+        for (int i = 0; i < history.Count; i++)
+        {
+            var e = history.Items[i];
+            if (seat.HasHead && SameEntry(e, seat.Head)) break;
+            if (e.Traffic == CommandTraffic.Incoming) _fresh.Add(e);
+        }
+        seat.Head = history.Items[0];
+        seat.HasHead = true;
+        for (int i = _fresh.Count - 1; i >= 0; i--) Report(world, seat, _fresh[i], now);
+    }
+
+    private static bool SameEntry(in CommandReportEntry a, in CommandReportEntry b)
+        => a.At.Equals(b.At) && a.Report.Seq == b.Report.Seq && a.FromNetId == b.FromNetId && a.Report.Kind == b.Report.Kind && a.Traffic == b.Traffic;
+
+    private void Report(EntityRepository world, SeatRuntime seat, in CommandReportEntry e, double now)
+    {
+        var r = e.Report;
+        var from = SenderOf(world, seat.Commander, e.FromNetId);
+        string who = from.IsNull ? $"#{e.FromNetId}" : NameOf(world, from);
+        var at = new Vector2(r.At.X, r.At.Y);
+        string place = seat.Places.Describe(at);
+        var json = new JsonObject
+        {
+            ["kind"] = "report", ["t"] = Round(now), ["from"] = who, ["report"] = r.Kind.ToString(),
+            ["at"] = new JsonArray(Round(r.At.X), Round(r.At.Y)), ["place"] = place,
+        };
+        var radio = new StringBuilder(Clock(now)).Append(' ').Append(who.ToUpperInvariant()).Append(": ");
+        bool wake = true;
+        switch (r.Kind)
+        {
+            case ReportKind.Spot:
+            case ReportKind.Contact:
+                json["count"] = r.Count; json["size"] = r.Size.ToString(); json["activity"] = r.Activity.ToString();
+                radio.Append(r.Kind == ReportKind.Spot ? "spot, " : "contact, ")
+                     .Append(r.Count > 0 ? r.Count.ToString(CultureInfo.InvariantCulture) + " enemy" : "enemy")
+                     .Append(" (").Append(r.Size).Append("), ").Append(place);
+                break;
+            case ReportKind.Sitrep:
+                json["strength"] = r.Strength.ToString(); json["ammo"] = r.Ammo.ToString();
+                radio.Append("sitrep, strength ").Append(r.Strength).Append(", ammo ").Append(r.Ammo).Append(", at ").Append(place);
+                wake = false;   // routine: it waits for the next call
+                break;
+            case ReportKind.Lace:
+                json["wia"] = r.Wia; json["kia"] = r.Kia; json["ammo"] = r.Ammo.ToString();
+                radio.Append("LACE, ").Append(r.Wia).Append(" wounded, ").Append(r.Kia).Append(" killed, ammo ").Append(r.Ammo);
+                break;
+            case ReportKind.Progress:
+                json["subtype"] = ((ProgressKind)r.Subtype).ToString();
+                radio.Append("progress, ").Append((ProgressKind)r.Subtype).Append(", at ").Append(place);
+                break;
+            case ReportKind.Request:
+                json["subtype"] = ((RequestKind)r.Subtype).ToString();
+                radio.Append("request, ").Append((RequestKind)r.Subtype).Append(", at ").Append(place);
+                break;
+            default:
+                radio.Append(r.Kind);
+                break;
+        }
+        Publish(seat, FeedKind.Report, now, wake, radio.ToString(), json.ToJsonString());
+    }
+
+    /// <summary>The unit a report came from: one of his own (keyed as the picture keys them, <see cref="CommandPictureOps.NetIdOf"/>), else by network id.</summary>
+    private static Entity SenderOf(EntityRepository world, Entity commander, int netId)
+    {
+        var roster = Squads(world, commander);
+        for (int i = 0; i < roster.Count; i++)
+            if (world.IsAlive(roster.SubordinateEntities[i]) && CommandPictureOps.NetIdOf(world, roster.SubordinateEntities[i]) == netId) return roster.SubordinateEntities[i];
+        return Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, netId);
+    }
+
+    /// <summary>A squad that falls out of the fight (its members below its minimum) is an event — once.</summary>
+    private void Falls(EntityRepository world, SeatRuntime seat, double now)
+    {
+        seat.LastFightCheckAt = now;
+        var roster = Squads(world, seat.Commander);
+        for (int i = 0; i < roster.Count && i < 64; i++)
+        {
+            ulong bit = 1UL << i;
+            var squad = roster.SubordinateEntities[i];
+            bool out_ = !world.IsAlive(squad) || !CombatEffective.IsInTheFight(world, squad);
+            if (!out_ || (seat.OutOfFight & bit) != 0) continue;
+            seat.OutOfFight |= bit;
+            string name = world.IsAlive(squad) ? NameOf(world, squad) : $"squad {i + 1}";
+            Publish(seat, FeedKind.Event, now, true, $"{Clock(now)} {name.ToUpperInvariant()}: out of the fight",
+                    new JsonObject { ["kind"] = "event", ["t"] = Round(now), ["event"] = "combat-ineffective", ["squad"] = name }.ToJsonString());
+        }
+    }
+
+    private void Snapshot(EntityRepository world, SeatRuntime seat, double now, bool wake = false)
+    {
+        seat.LastSnapshotAt = now;
+        var squads = new JsonArray();
+        var radio = new StringBuilder(Clock(now)).Append(" SNAPSHOT — ").Append(seat.Name).Append(':');
+        var roster = Squads(world, seat.Commander);
+        bool havePicture = world.HasComponent<CommandPicture>(seat.Commander);
+        for (int i = 0; i < roster.Count; i++)
+        {
+            var squad = roster.SubordinateEntities[i];
+            if (!world.IsAlive(squad)) continue;
+            string name = NameOf(world, squad);
+            Vector3 at = world.HasComponent<SimTransform>(squad) ? (Vector3)world.GetComponentRO<SimTransform>(squad).Position : Vector3.Zero;
+            bool inFight = CombatEffective.IsInTheFight(world, squad);
+            var row = new JsonObject
+            {
+                ["name"] = name, ["at"] = new JsonArray(Round(at.X), Round(at.Y)), ["place"] = seat.Places.Describe(new Vector2(at.X, at.Y)), ["inFight"] = inFight,
+            };
+            if (havePicture)
+            {
+                ref readonly var picture = ref world.GetComponentRO<CommandPicture>(seat.Commander);
+                int r = CommandPictureOps.RowOf(in picture, CommandPictureOps.NetIdOf(world, squad));
+                if (r >= 0)
+                {
+                    var sub = picture.Subordinates.Items[r];
+                    row["strength"] = sub.Strength.ToString(); row["ammo"] = sub.Ammo.ToString();
+                    if (sub.LastSitrepAt.Seconds > 0) row["sitrepAge"] = Round(now - sub.LastSitrepAt.Seconds);
+                }
+            }
+            squads.Add(row);
+            radio.Append(' ').Append(name.ToUpperInvariant()).Append(" at ").Append(row["place"]).Append(inFight ? "" : " (out of the fight)").Append(';');
+        }
+        var elements = new JsonArray();
+        if (havePicture)
+        {
+            ref readonly var pic = ref world.GetComponentRO<CommandPicture>(seat.Commander);
+            for (int i = 0; i < pic.Elements.Count; i++)
+            {
+                var el = pic.Elements.Items[i];
+                var p = new Vector2(el.At.X, el.At.Y);
+                elements.Add(new JsonObject
+                {
+                    ["at"] = new JsonArray(Round(p.X), Round(p.Y)), ["place"] = seat.Places.Describe(p), ["count"] = el.Count,
+                    ["size"] = el.Size.ToString(), ["age"] = Round(now - el.ObservedAt.Seconds),
+                });
+                radio.Append(" enemy ").Append(el.Count).Append(" at ").Append(seat.Places.Describe(p)).Append(';');
+            }
+        }
+        var places = new JsonArray();
+        foreach (var (n, _) in seat.Places.Places) places.Add(n);
+        Publish(seat, FeedKind.Snapshot, now, wake, radio.ToString(),
+                new JsonObject { ["kind"] = "snapshot", ["t"] = Round(now), ["commander"] = seat.Name, ["squads"] = squads, ["elements"] = elements, ["places"] = places }.ToJsonString());
+    }
+
+    private static string Prefix(EntityRepository world, SeatRuntime seat, in UnitRoster roster)
+    {
+        var sb = new StringBuilder();
+        sb.Append("You are ").Append(seat.Name).Append(", a platoon commander. You command squads, never single soldiers; they fight with their own drills.\n");
+        sb.Append("Your squads:");
+        for (int i = 0; i < roster.Count; i++)
+            if (world.IsAlive(roster.SubordinateEntities[i])) sb.Append(' ').Append(NameOf(world, roster.SubordinateEntities[i]));
+        sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
+        sb.Append("Actions: order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact · hold(squad) · ask_sitrep(squad) · note(text).");
+        return sb.ToString();
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────────────────────
+
+    private static void Publish(SeatRuntime seat, FeedKind kind, double now, bool wake, string radio, string json)
+    {
+        seat.LastItemAt = now;
+        seat.Channel.Publish(kind, now, wake, radio, json);
+    }
+
+    internal static UnitRoster Squads(EntityRepository world, Entity commander)
+        => world.HasComponent<UnitRoster>(commander) ? world.GetComponentRO<UnitRoster>(commander) : default;
+
+    internal static string NameOf(EntityRepository world, Entity e)
+        => world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).Name.ToString() : $"#{e.Index}";
+
+    internal static double Now(EntityRepository world)
+        => world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+
+    internal static string Clock(double seconds)
+        => TimeSpan.FromSeconds(Math.Max(0d, seconds)).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+
+    internal static double Round(double v) => Math.Round(v, 1);
+}
