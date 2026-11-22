@@ -168,5 +168,18 @@ namespace Hrot.Player.Tests
             Assert.Equal(Entity.Null, events[0].Shooter);
             Assert.Equal(Entity.Null, events[0].Target);
         }
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013) — a remote reader gets the burst stamp of the round it hears. ✅ Red-proof: the mapped line removed ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void CE11033_TheBurstStamp_SurvivesTheNotificationIngress()
+        {
+            var translator = BuildTranslator();
+            var a = _world.CreateEntity(); var b = _world.CreateEntity();
+            _entityMap.Register(1, a); _entityMap.Register(2, b);
+            var msg = new WeaponFire { ShooterEntityId = 1, TargetEntityId = 2, BurstId = 0xABCD_0102u, BurstRounds = 3, BurstIndex = 2 };
+            var events = ProcessAndFlush(translator, in msg);
+            Assert.Equal(1, events.Length);
+            Assert.Equal((0xABCD_0102u, (byte)3, (byte)2), (events[0].BurstId, events[0].BurstRounds, events[0].BurstIndex));
+        }
     }
 }
