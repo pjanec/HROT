@@ -113,6 +113,7 @@ void UHrotDpsWorld::DrawGizmos()
 		TanHalf = FMath::Tan(FMath::DegreesToRadians(PC->PlayerCameraManager->GetFOVAngle()) * 0.5f);
 		FVector2D S; if (UGameViewportClient* G = W->GetGameViewport()) { G->GetViewportSize(S); if (S.X > 0) ViewW = float(S.X); }
 	}
+	if (GizmoLineMaterial != GizBuiltMaterial || GizmoLinePxFloor != GizBuiltFloor) bGizmosDirty = true;   // the look changed
 	if (!bGizmosDirty)   // otherwise rebuilt only when a frame (or the asked layers) changed, and when the camera moved enough to change a width: 0 B per steady frame (R-2084)
 	{
 		if (GizmoLayersShown.Num() == 0 || !GizmoLines.IsValid() || GizmoBuiltTanHalfFov <= 0) return;
@@ -144,16 +145,22 @@ void UHrotDpsWorld::DrawGizmos()
 		Mesh->SetCastShadow(false); Mesh->bCastDynamicShadow = false; Mesh->bAffectDistanceFieldLighting = false; Mesh->bAffectDynamicIndirectLighting = false;
 		Mesh->bVisibleInRayTracing = false; Mesh->bVisibleInReflectionCaptures = false; Mesh->bVisibleInRealTimeSkyCaptures = false; Mesh->bReceivesDecals = false;
 		Mesh->RegisterComponent();
-		Mesh->SetMaterial(0, Cast<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Hrot/Fx/Labels/M_HrotGizmoLine.M_HrotGizmoLine")).TryLoad()));
-		GizmoMesh = Mesh;
+		GizmoMesh = Mesh; GizBuiltMaterial = TEXT("?");
 	}
+	if (GizBuiltMaterial != GizmoLineMaterial)
+	{
+		const FString Name = TEXT("M_HrotGizmoLine") + GizmoLineMaterial;
+		Mesh->SetMaterial(0, Cast<UMaterialInterface>(FSoftObjectPath(FString::Printf(TEXT("/Game/Hrot/Fx/Labels/%s.%s"), *Name, *Name)).TryLoad()));
+		GizBuiltMaterial = GizmoLineMaterial;
+	}
+	GizBuiltFloor = GizmoLinePxFloor;
 	LB->Flush();
 	GizmoTexts.Reset();
 	GizmosDrawn = 0;
 	// one line of Px pixels = a camera-facing ribbon quad: half-width (Px / 2 + 1 px of anti-aliasing fringe) in cm AT EACH END'S distance, extruded
 	// along normalize(cross(segment, view)); UV = (Px, -1 / +1 across the width) so the material knows where the solid core ends (M_HrotGizmoLine)
 	GizVerts.Reset(); GizNormals.Reset(); GizTris.Reset(); GizUv.Reset(); GizCols.Reset();
-	auto Line = [&](const FVector& A, const FVector& B, const FLinearColor& Col, float Px)
+	auto Line = [&](const FVector& A, const FVector& B, const FColor& Col, float Px)
 	{
 		const FVector Dir = B - A;
 		const FVector Mid = (A + B) * 0.5;
@@ -164,7 +171,7 @@ void UHrotDpsWorld::DrawGizmos()
 		const float Ha = HrotCards::PxToCm(Px * 0.5f + 1.f, Da, TanHalf, ViewW), Hb = HrotCards::PxToCm(Px * 0.5f + 1.f, Db, TanHalf, ViewW);
 		const int32 V0 = GizVerts.Num();
 		GizVerts.Add(A + Across * Ha); GizVerts.Add(A - Across * Ha); GizVerts.Add(B + Across * Hb); GizVerts.Add(B - Across * Hb);
-		const FColor C = Col.ToFColor(false);   // the linear value as bytes: the material reads the vertex colour as linear
+		const FColor C = Col;   // the gizmo's RGBA as it is (the material reads vertex colours as they are)
 		for (int32 K = 0; K < 4; K++) { GizNormals.Add(FVector::UpVector); GizCols.Add(C); GizUv.Add(FVector2D(Px, (K & 1) ? -1.0 : 1.0)); }
 		GizTris.Append({ V0, V0 + 1, V0 + 2, V0 + 2, V0 + 1, V0 + 3 });
 	};
@@ -233,8 +240,8 @@ void UHrotDpsWorld::DrawGizmos()
 			}
 			auto U = [&](int32 I) { return EnuMToUnreal(G.Points[I]); };   // a shape with height: drawn as given
 			GizmosDrawn++;
-			const float Px = FMath::Max(G.Width, 1.5f);   // the wire's Width is pixels (HROT's map); a Circle's is its radius, below
-			const FLinearColor Col(G.Colour);
+			const float Px = FMath::Max(G.Width, GizmoLinePxFloor);   // the wire's Width is pixels (HROT's map); a Circle's is its radius, below
+			const FColor Col = G.Colour;
 			auto Polyline = [&](bool bHead)
 			{
 				for (int32 I = 0; I + 1 < G.Drape.Num(); I++) Line(G.Drape[I], G.Drape[I + 1], Col, Px);

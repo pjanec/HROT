@@ -188,6 +188,9 @@ public:
 	// ── U-18z: HROT's gizmos (GizmoView / GizmoFrame; HrotDpsGizmos.cpp) ──
 	/** the layers asked of the station (HROT DebugTraceLayers names: Paths, Contacts, FireTraces, ...); empty = no view, no work */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TArray<FString> GizmoLayers;
+	/** the gizmo lines' look (compared in the scene): the material variant ("" = M_HrotGizmoLine, "NoRaa", "Post" = after TSR) and the thinnest line in px */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") FString GizmoLineMaterial;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float GizmoLinePxFloor = 1.5f;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void SetGizmoLayers(const TArray<FString>& Layers);
 	/** "gizmos asked [..], <n> layers shown, <p> primitives, <f> frames" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeGizmos() const;
@@ -342,6 +345,7 @@ private:
 	TWeakObjectPtr<class UProceduralMeshComponent> GizmoMesh;   // the thick anti-aliased lines: one camera-facing ribbon quad per segment (M_HrotGizmoLine)
 	TArray<FVector> GizVerts, GizNormals; TArray<int32> GizTris; TArray<FVector2D> GizUv; TArray<FColor> GizCols;   // reused, never shrunk (R-2084)
 	int32 GizSectionVerts = -1;
+	FString GizBuiltMaterial; float GizBuiltFloor = 0;
 	FVector GizmoBuiltLoc = FVector::ZeroVector; float GizmoBuiltTanHalfFov = 0, GizmoBuiltW = 0, GizmoNearestCm = 1e9f;
 	TWeakObjectPtr<class ULineBatchComponent> GizmoLines;
 	// U-18h — traffic (Mover / MoverTracks: never an Entity)

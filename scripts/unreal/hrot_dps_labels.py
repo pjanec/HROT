@@ -143,7 +143,24 @@ def gizmofar():
     path = os.path.join(JOB["shots"], "gizmos-far.png").replace("\\", "/")
     unreal.SystemLibrary.execute_console_command(S["gw"], f'HighResShot 1 filename="{path}"')
     R["shots"].append(path)
-    S.update(phase="end", t=time.time() + 2.5)
+    # HROT's 3-D map view: ~25 m above the pattern, ~25 m back, pitched down 45 deg - the pattern fills the frame; the look variants of the lines
+    pawn = unreal.GameplayStatics.get_player_pawn(S["gw"], 0)
+    pawn.place_at_rotator(S["w"].enu_m_to_unreal(unreal.Vector(-5, -2, 25)), unreal.Rotator(pitch=-45, yaw=0, roll=0), 90.0)
+    S.update(phase="gizmotop", t=time.time() + 2.0, variants=[("a", "", 1.5), ("b", "", 2.5), ("c", "NoRaa", 2.5), ("e", "Post", 2.5)], variant=None)
+
+
+def gizmotop():
+    w = S["w"]
+    if S["variant"] is None:
+        if not S["variants"]: S.update(phase="end", t=time.time() + 1.0); return
+        S["variant"] = S["variants"].pop(0); _, mat, floor = S["variant"]
+        w.set_editor_property("gizmo_line_material", mat); w.set_editor_property("gizmo_line_px_floor", floor)
+        S["t"] = time.time() + 3.0; return   # (the first use of a material compiles its shaders)
+    v = S["variant"][0]
+    path = os.path.join(JOB["shots"], f"gizmos-top-{v}.png").replace("\\", "/")
+    unreal.SystemLibrary.execute_console_command(S["gw"], f'HighResShot 1 filename="{path}"')
+    R["shots"].append(path)
+    S.update(variant=None, t=time.time() + 1.5)
 
 
 def tick(dt):
@@ -167,6 +184,7 @@ def tick_once():
         elif ph == "sheet": sheet()
         elif ph == "gizmo": gizmo()
         elif ph == "gizmofar": gizmofar()
+        elif ph == "gizmotop": gizmotop()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
         if time.time() - T0 > 240: finish(False, "timeout")
     except Exception:
