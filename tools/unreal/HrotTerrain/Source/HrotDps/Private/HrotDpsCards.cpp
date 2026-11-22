@@ -4,7 +4,7 @@
 //   then the cards are built HERE from Entity data in exactly their shape — row 0 the frame (side colour, ≤ 1 m/px), row 10 the health bar
 //   (≤ 1 m/px; from the coarse EntityState / VehicleLook damage), row 20 "<name> #<id>" (≤ 2 m/px; an aircraft's at any distance, HROT
 //   AircraftNameGizmo / R-143 rule A; R-144: the whole card of an aircraft is never cut). The modes are R-143's: 1 none, 2 commanders + every
-//   aircraft, 3 every unit. DPS says nothing about commanders yet (DD-024 IsUnit), so mode 2 shows the aircraft only. The cutoffs are the
+//   aircraft, 3 every unit; a commander's card is a unit's (Entity.IsUnit, gateway NOTE-2026-11-22-Gateway-Entity-Status). The cutoffs are the
 //   CLIENT's (R-144: DD-024 P-2 rejected) - HROT's numbers are used.
 #include "HrotDpsWorld.h"
 #include "HrotCardLayer.h"
@@ -89,13 +89,19 @@ void UHrotDpsWorld::TickCards()
 	{
 		FEnt& E = It.Value;
 		AActor* A = E.Actor.Get();
-		if (!A || !E.bHasEntity || E.bRound || E.bAnimal || E.bRiding) continue;   // HROT Seeable.OnMap: no card for a round, an animal, a seated man
+		if (!E.bHasEntity || E.bRound || E.bAnimal || E.bRiding) continue;   // HROT Seeable.OnMap: no card for a round, an animal, a seated man
 		const bool bAir = E.Domain == Air;
-		if (LabelMode == 2 && !bAir) continue;   // commanders: none on the wire yet (G-3)
-		// the anchor: the drawn body's top (HROT EntityBodyLayer3D.cs:2165-2178)
-		FVector Origin, Extent;
-		A->GetActorBounds(true, Origin, Extent);
-		const FVector Anchor(A->GetActorLocation().X, A->GetActorLocation().Y, Origin.Z + Extent.Z);
+		if (LabelMode == 2 && !bAir && !E.bIsUnit) continue;   // mode 2 = the units (Entity.IsUnit, gateway DD-025 note) + every aircraft
+		// the anchor: the drawn body's top (HROT EntityBodyLayer3D.cs:2165-2178); a unit has no body: its pose + 2 m
+		FVector Anchor;
+		if (A)
+		{
+			FVector Origin, Extent;
+			A->GetActorBounds(true, Origin, Extent);
+			Anchor = FVector(A->GetActorLocation().X, A->GetActorLocation().Y, Origin.Z + Extent.Z);
+		}
+		else if (E.bIsUnit && E.bHasState) Anchor = HrotDpsMotion::ToUnreal(E.Shown, OriginCm).GetLocation() + FVector(0, 0, 200);
+		else continue;
 		const uint8 Damage = E.Damage;
 		const uint32 Key = HashCombineFast(HashCombineFast(GetTypeHash(E.Name), uint32(LabelMode) | (uint32(E.Side) << 4) | (uint32(Damage) << 12) | (bAir ? 1u << 20 : 0u)),
 			GetTypeHash(E.Domain == Person));
