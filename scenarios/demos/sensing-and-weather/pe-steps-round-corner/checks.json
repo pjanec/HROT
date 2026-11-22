@@ -1,0 +1,50 @@
+{
+  "$doc": "CE-2476 perception suite (Sensing \u00a78.6e) - pe-steps-round-corner",
+  "runFor": 30,
+  "golden": false,
+  "anchors": {
+    "behind": {
+      "on": "near",
+      "who": "Red Walker",
+      "point": [
+        105,
+        112
+      ],
+      "within": 3
+    }
+  },
+  "expect": [
+    {
+      "name": "he walks behind the house",
+      "on": "near",
+      "who": "Red Walker",
+      "point": [
+        105,
+        112
+      ],
+      "within": 3
+    },
+    {
+      "name": "a listener hears his steps",
+      "on": "perceives",
+      "who": "*Blue Squad Ear",
+      "truth": "*Red",
+      "metric": "contacts",
+      "op": ">=",
+      "value": 1,
+      "quantifier": "any"
+    },
+    {
+      "name": "no listener ever holds a SPOT for him (no straight hearing, no sighting: through the house he is only a place to look)",
+      "never": {
+        "on": "perceives",
+        "who": "*Blue Squad Ear",
+        "truth": "*Red",
+        "metric": "contacts",
+        "op": ">",
+        "value": 0,
+        "through": false
+      }
+    }
+  ]
+}

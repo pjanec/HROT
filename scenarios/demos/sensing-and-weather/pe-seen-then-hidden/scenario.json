@@ -1,0 +1,177 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: CE-2476 perception suite P7 (Sensing \u00a78.6e) - on bt-range a 'Red Walker' crosses open ground 20 m in front of two passive Blue listeners, then walks behind House A and stops there out of their sight. Judge: he is identified while he crosses (within the sighting dwell); once hidden he is REMEMBERED for a while (a man does not forget an enemy who ducked out of sight) and FORGOTTEN once the memory fades (~70 s), not before 20 s. Fail: never identified, dropped the moment he hides, or held for ever. Check: scripts/scenario-regression.sh pe-seen-then-hidden"
+  },
+  "entities": {
+    "c2470007-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          118,
+          85,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad",
+        "ForceId": "Friend"
+      }
+    },
+    "c2470007-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          118,
+          85,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad Ear 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2470007-0000-4000-8000-000000000100",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2470007-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          126,
+          85,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad Ear 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2470007-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c2470007-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          132,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Walker",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "AdvanceTo",
+        "Params": {
+          "Objective": [
+            104,
+            113,
+            0
+          ],
+          "Speed": 1.0,
+          "ArrivalRadius": 1.5
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

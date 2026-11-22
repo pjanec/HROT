@@ -66,7 +66,7 @@ def write(name, terrain, what, judge, ents, checks):
         f.write('\n')
 
 
-FOUR_EARS = [(60, 225), (90, 215), (120, 225), (150, 220)]   # 175-190 m south of the shooter: beyond sight (150 m), inside a soldier's ear (200 m — a rifle is not a LOUD class, IsLoud)
+FOUR_EARS = [(60, 225), (90, 215), (120, 225), (150, 220)]   # 175-190 m south of the shooter: beyond sight (150 m); a rifle is heard far beyond (CE-2480: a LOUD class, 1.5 km)
 
 # ── P1 — one hidden shooter, four ears ────────────────────────────────────────────────────────────────────────────────
 ents, _ = squad_of_ears(1, FOUR_EARS)
@@ -184,4 +184,48 @@ write("pe-house-shot", "bt-range",
                {**per_man("phantom", ">", 0), "through": False}, "after": "first shot"},
        ]})
 
-print("wrote pe-one-shot-four-ears, pe-seen-shooter, pe-two-shooters, pe-shelled, pe-house-shot")
+# ── P6 — steps round a corner (bt-range House A: x 100-110, y 100-108): a man walks along the house's far (north) side; two listeners south of it,
+#    the house always between them ⇒ heard only round its corners (D-8: where to look), never seen, never a straight hearing ───────────────────────
+def walker(series, n, name, x, y, to, speed=1.2):
+    return {guid(series, n): man(name, "Hostile", x, y, extra={
+        "Roe": PASSIVE["Roe"], "Sop": PASSIVE["Sop"],
+        "Behavior": {"Name": "AdvanceTo", "Params": {"Objective": [to[0], to[1], 0], "Speed": speed, "ArrivalRadius": 1.5}, "Origin": "Superior"}})}
+
+ents, _ = squad_of_ears(6, [(103, 94), (107, 94)])
+ents.update(walker(6, 200, "Red Walker", 93, 112, (117, 112)))
+write("pe-steps-round-corner", "bt-range",
+      "CE-2476 perception suite P6 (Sensing §8.6e) - on bt-range a 'Red Walker' walks west to east along the far (north) side of House A, 17-20 m "
+      "from two passive Blue listeners standing south of it; the house is always between them.",
+      "his steps are heard, but only ROUND the house's corners: a place to look (D-8), never a place he is - no listener ever holds a straight "
+      "hearing or a sighting of him. Fail: nobody hears him, or a listener believes a spot for him through the house.",
+      ents,
+      {"runFor": 30, "golden": False,
+       "anchors": {"behind": {"on": "near", "who": "Red Walker", "point": [105, 112], "within": 3}},
+       "expect": [
+           {"name": "he walks behind the house", "on": "near", "who": "Red Walker", "point": [105, 112], "within": 3},
+           {"name": "a listener hears his steps", **per_man("contacts", ">=", 1, quantifier="any")},
+           {"name": "no listener ever holds a SPOT for him (no straight hearing, no sighting: through the house he is only a place to look)",
+            "never": {**per_man("contacts", ">", 0), "through": False}},
+       ]})
+
+# ── P7 — seen, then hidden: a man crosses open ground in view of two listeners, then walks behind House A and stops ────────────────────────────
+ents, _ = squad_of_ears(7, [(118, 85), (126, 85)])
+ents.update(walker(7, 200, "Red Walker", 132, 104, (104, 113), speed=1.0))
+write("pe-seen-then-hidden", "bt-range",
+      "CE-2476 perception suite P7 (Sensing §8.6e) - on bt-range a 'Red Walker' crosses open ground 20 m in front of two passive Blue listeners, "
+      "then walks behind House A and stops there out of their sight.",
+      "he is identified while he crosses (within the sighting dwell); once hidden he is REMEMBERED for a while (a man does not forget an enemy who "
+      "ducked out of sight) and FORGOTTEN once the memory fades (~70 s), not before 20 s. Fail: never identified, dropped the moment he hides, "
+      "or held for ever.",
+      ents,
+      {"runFor": 130, "golden": False,
+       "anchors": {"hidden": {"on": "near", "who": "Red Walker", "point": [104, 113], "within": 2}},
+       "expect": [
+           {"name": "he reaches his hiding place", "on": "near", "who": "Red Walker", "point": [104, 113], "within": 2},
+           {"name": "both listeners identify him while he crosses (2 s)", **per_man("matched", "==", 1, quantifier="all", **{"for": 2}), "before": "hidden"},
+           {"name": "...and still remember him for 20 s after he hid", "never": per_man("matched", "==", 0, quantifier="any"),
+            "after": "hidden", "before": "hidden+20"},
+           {"name": "...and have forgotten him at the end (the memory faded)", **per_man("contacts", "==", 0, quantifier="all"), "atEnd": True},
+       ]})
+
+print("wrote pe-one-shot-four-ears, pe-seen-shooter, pe-two-shooters, pe-shelled, pe-house-shot, pe-steps-round-corner, pe-seen-then-hidden")

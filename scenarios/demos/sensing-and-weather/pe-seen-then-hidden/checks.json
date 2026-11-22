@@ -1,0 +1,65 @@
+{
+  "$doc": "CE-2476 perception suite (Sensing \u00a78.6e) - pe-seen-then-hidden",
+  "runFor": 130,
+  "golden": false,
+  "anchors": {
+    "hidden": {
+      "on": "near",
+      "who": "Red Walker",
+      "point": [
+        104,
+        113
+      ],
+      "within": 2
+    }
+  },
+  "expect": [
+    {
+      "name": "he reaches his hiding place",
+      "on": "near",
+      "who": "Red Walker",
+      "point": [
+        104,
+        113
+      ],
+      "within": 2
+    },
+    {
+      "name": "both listeners identify him while he crosses (2 s)",
+      "on": "perceives",
+      "who": "*Blue Squad Ear",
+      "truth": "*Red",
+      "metric": "matched",
+      "op": "==",
+      "value": 1,
+      "quantifier": "all",
+      "for": 2,
+      "before": "hidden"
+    },
+    {
+      "name": "...and still remember him for 20 s after he hid",
+      "never": {
+        "on": "perceives",
+        "who": "*Blue Squad Ear",
+        "truth": "*Red",
+        "metric": "matched",
+        "op": "==",
+        "value": 0,
+        "quantifier": "any"
+      },
+      "after": "hidden",
+      "before": "hidden+20"
+    },
+    {
+      "name": "...and have forgotten him at the end (the memory faded)",
+      "on": "perceives",
+      "who": "*Blue Squad Ear",
+      "truth": "*Red",
+      "metric": "contacts",
+      "op": "==",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}
