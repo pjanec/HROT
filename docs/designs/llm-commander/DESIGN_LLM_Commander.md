@@ -1,170 +1,271 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
-updated: 2026-11-22
-build-state: DESIGN — not ready to build; the open questions in §7 come first
-current-answer: §1 the shape · §3 continuous streaming (the target) · §4 several commanders on one model · §6 what HROT lacks
-stale-below: nothing
+updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
+build-state: DESIGN — not ready to build; §12 first
+current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
+stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
 known-conflict: none
 related-designs:
-  - ../../DESIGN_Entity_Control.md — OWNS the "AI player" seam this builds on: C-9 the side-filtered sitrep, C-10 the side lock, C-11 HTTP orders at origin Operator
-  - ../group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS the reports (§6), the commander's reported picture CommandPicture and its approved-not-built replication (§8b), the HQ that answers requests (§8d)
+  - ../../DESIGN_Entity_Control.md — OWNS the "AI player" seam: C-9 the side-filtered sitrep, C-10 the side lock, C-11 HTTP orders at origin Operator
+  - ../group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS the reports (§6), the commander's reported picture CommandPicture (§8b), the order a commander gives (§7a CC-9)
   - ../../DESIGN_Orders_Params_Entity_Classes.md — OWNS the order catalogue (GET /orders), the params DTOs and the receiver-side resolution (§8, §9)
-  - ../../blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — OWNS the order origins and their rank (who may replace whose order)
-  - ../../UX/DESIGN_Mission_Plan_Editor.md — OWNS a unit's mission plan (tasks + triggers) — a later way for the LLM to hand down a whole phase
-  - ../../DESIGN_Scenario_Rules.md — OWNS objectives and their status, the score the commander is told about
+  - ../../blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — OWNS the order origins and their rank
+  - ../../DESIGN_Node_Extensions.md — OWNS how an extra joins a node (INodeExtension → INodeCapability); the commander pack is composed the same way
+  - ../../UX/DESIGN_Mission_Plan_Editor.md — OWNS a unit's mission plan — a later way to hand down a whole phase
+  - ../../DESIGN_Scenario_Rules.md — OWNS objectives and their status
 -->
 
-# An LLM as the commander of a side — preliminary idea
+# An LLM as a commander — preliminary idea
 
-🔒 **User, `2026-11-22`:** *"two large language models. Each one is controlling his side … they should play the role of a commander, not controlling
-every individual unit … maybe they should work on the level of platoons … the squads can still operate on their own using the game AI"* ·
-*"I need this to run continuously … the information might need to be streamed into the LLM as the simulation goes"* · *"maybe in some
-configuration we could take a stronger model and control multiple commanders at the same level at once"*.
+🔒 **User, `2026-11-22`:** *"they should play the role of a commander, not controlling every individual unit"* · *"I need this to run
+continuously … the information might need to be streamed into the LLM"* · *"start with platoon commander commanding squads on a little
+scenario … one side … full game AI and other side by large language model, simulated by Haiku worker as the first iteration, and later … a real
+local language model using Ollama"* · *"build the commander bridge into the HROT … so the commander bridge could talk to the LLMs directly"* ·
+*"one notebook … Ollama … 8 gigabytes … RTX 3070"* · *"This is not at all about fairness … I need to develop the way how the HROT units can be
+controlled via LLMs."*
 
-⭐ **The idea in one line:** a local LLM takes the seat of a **company (or battalion) commander**; a **commander bridge** outside HROT turns the side's
-reported picture into radio-style text, and the model's tool calls into the orders HROT already understands. Below the commander, HROT's own AI
-fights unchanged.
+## 0. What "today's side summary" is
 
-## 1. The shape
+`GET /sitrep?side=Friend` (`DebugApiService.Orders.cs:392`, built for the "AI player" — [Entity Control](../../DESIGN_Entity_Control.md) C-9).
+**Computed on each call** on the brain node: it walks every live entity, lists the side's own units (position, health, ammo, current order) and
+merges every own unit's **`TargetMemory`** — what each soldier has seen or heard — into one contact list, freshest first; a heard contact has no
+id. ⚠ It knows more than a commander (raw memory of every man, not what was reported), and one field leaks truth (`alive` of a contact is read
+from the world). ⇒ **for a platoon commander the better source is his own `CommandPicture`** — the reported elements, his squads' rows and their
+requests (Command Chain §6). In the editor (one process) it is local, so its missing replication does not matter for the test.
+
+## 1. The test
+
+| | |
+|---|---|
+| **Blue** | ONE body-less platoon commander (TKB 305), **its brain replaced by an LLM**, over 2–3 squads that keep the game AI |
+| **Red** | a squad (or two) under the full game AI — defending a house or a hill |
+| **Terrain / host** | `test-town`, in the **editor** (one process, no network) — a new scenario on the pattern of `cc-platoon-bound` (a body-less platoon, two squads, reports up) |
+| **Minds, in order** | ① **scripted** (fixed rules, for the rails) → ② **Haiku worker** (a Claude Code subagent on the HTTP mailbox, §4) → ③ **Ollama** on the same laptop |
+
+⭐ The platoon commander gives **squad orders** (`Move`, `Hold`, `Attack`, `Defend`, `BreakContact`, the squad plays `BoundingOverwatch`,
+`SuppressAndManeuver`, `ClearBuilding`), asks for SITREPs, and later calls fire. The squads fight with HROT's AI.
+
+## 2. The module view — the bridge lives inside HROT
 
 ```mermaid
-graph LR
-  subgraph HROT["HROT (editor or cluster) — unchanged AI below the commander"]
-    API["HTTP API<br/>/sitrep?side · reports · objectives · orders · sim"]
-    CO["company / platoon commanders<br/>(body-less entities, CompanyAttack, PlatoonDefend …)"]
-    SQ["squads and soldiers<br/>(the existing behaviours)"]
-    CO --> SQ
-    API --> CO
+graph TD
+  subgraph NODE["the editor (brain node) — the frame thread"]
+    REP["reports into the commander<br/>(staff systems, SquadReportLog)"]
+    PIC["CommandPicture + squad rows<br/>(on the platoon commander)"]
+    FEED["CommanderFeedSystem — NEW<br/>serial, on events + heartbeat"]
+    ACT["CommanderActionSystem — NEW<br/>serial pre-pass: validate, then CommandOrders.Order"]
+    SQ["squads — game AI (unchanged)"]
+    REP --> FEED
+    PIC --> FEED
+    ACT -->|"origin Superior"| SQ
   end
-  subgraph BB["commander bridge — Blue"]
-    BF["feed: picture + events"] --> BC["context keeper"]
-    BC --> BS["scheduler"]
-    BS --> BT["tool gate<br/>(schema from GET /orders)"]
+  CH["CommanderChannel — NEW<br/>feed ring (seq) out · action queue in<br/>thread-safe, no world access"]
+  FEED -->|"feed items"| CH
+  CH -->|"actions"| ACT
+  subgraph BG["background — one MindRunner per seat"]
+    CK["context keeper<br/>(prefix · snapshot · radio log)"]
+    MIND["IMind"]
+    CK --> MIND
   end
-  subgraph RB["commander bridge — Red"]
-    RF["feed"] --> RC["context keeper"] --> RS["scheduler"] --> RT["tool gate"]
-  end
-  LLM1["local model server<br/>(llama.cpp / Ollama, OpenAI-compatible)"]
-  API -- "side-locked reads" --> BF
-  API -- "side-locked reads" --> RF
-  BS <--> LLM1
-  RS <--> LLM1
-  BT -- "orders" --> API
-  RT -- "orders" --> API
+  CH <--> CK
+  MIND --> SCR["ScriptedMind"]
+  MIND --> EXT["ExternalMind — waits for POST /act"]
+  MIND --> OLL["OllamaMind — HTTP to localhost:11434"]
+  HTTP["HTTP: /commanders/{id}/feed · /stream · /briefing · /act"]
+  CH <--> HTTP
+  HAIKU["Haiku worker (Claude Code subagent)"] <--> HTTP
+  OLL <--> OS["Ollama server (same laptop)"]
 ```
 
-*What the picture shows that prose hid: the model never talks to HROT — every read passes the side lock and every order passes a schema check
-in the bridge; and both sides may share ONE model server (§4) while keeping separate contexts.*
+*What the picture shows that prose hid: the frame thread never waits for a model — it only writes feed items and drains actions; the model runs
+on a background thread and never touches the world; and the Haiku worker and Ollama are two minds on the SAME channel, so moving from one to the
+other changes nothing in HROT's simulation.*
 
-| piece | what it does | exists? |
+## 3. The stream — what flows, and how
+
+**Feed items** (out of HROT, each with a sequence number and a sim time):
+
+| kind | from | when |
 |---|---|---|
-| side-filtered picture | own units + contacts the side's units hold | ✅ `GET /sitrep?side=` (Entity Control C-9) |
-| side lock | orders to the other side refused | ✅ `POST /orders/side-lock` (C-10) — ⚠ reads other than the sitrep are NOT locked (§6) |
-| platoon / company plays | split an order into squad orders | ✅ `CompanyAttack`, `CompanyDefend`, `PlatoonAttack/Defend/Bound/SupportByFire/Hold` |
-| reports up the chain | contact, SPOT, SITREP, LACE, progress, requests | ✅ (Command Chain §6) |
-| fire support | `Strike`, `ObserveFire`; the HQ answers requests | ✅ (Command Chain §8d) |
-| the bridge | feed, context, scheduler, tool gate | ⛔ new, outside HROT |
+| `snapshot` | `CommandPicture`, the squads' rows (strength, ammo colour, task, position, last report age), objectives | at seat start, every few minutes, and when the radio log grows long |
+| `report` | each report addressed to the commander (contact, SPOT, SITREP, LACE, progress, request) | as it arrives (`SquadReportLog` entry to the commander) |
+| `order-state` | an order he gave started / ended / was refused | as it changes |
+| `event` | a squad leader down, an objective changed, a squad under fire (sense change on a subordinate) | as it happens |
+| `heartbeat` | sim time | every N s, when nothing else came |
 
-## 2. What the commander is told, and what he can do
+⭐ **Text, not raw state.** Each item carries both a JSON form (for rails and tools) and **one radio line** (*"14:02:10 ALPHA: contact, 3
+enemy, house 2, 120 m NE of the church, engaging"*). Positions go through a **gazetteer** — named points of the scenario (objectives, buildings,
+the church) and a coarse grid — because a small model reasons badly about coordinates.
 
-**Told** (text, never raw state):
-- **Standing part** (rarely changes): his mission and intent from above, the order of battle down to platoon, a **gazetteer** — objectives, phase
-  lines, named villages and hills, a coarse grid. ⭐ Positions are said relative to it (*"500 m NE of Hill 312"*): models reason badly about raw
-  coordinates.
-- **Situation:** each subordinate's strength and ammo colour, task, position, last report's age; the enemy as SPOT lines — size, activity,
-  where, how old, seen or only heard; the objectives and their state.
-- **Radio log:** the reports and events since the last look, as a radio operator would pass them on.
+**The context keeper** (per seat, background) — what the model sees on each call:
 
-**Can do** (tool calls, checked against the schema `GET /orders` publishes):
-`order(unit, kind, params)` · `request_fire(target, effect)` · `set_reporting(unit, rate)` · `hold(unit)` / `release(unit)` ·
-`ask(unit)` (a SITREP now) · `note(text)` (his own running estimate, kept in his context — §3).
+| part | content | why |
+|---|---|---|
+| **prefix** (stable) | role, rules, the tools, the gazetteer, the order of battle | ⭐ Ollama reuses the cached prefix ⇒ each call pays only for the new lines |
+| **snapshot** | the last `snapshot` as text | the board |
+| **radio log** | every radio line since that snapshot | the continuous update |
+| **his notes** | what he wrote with `note()` | his running estimate survives a new snapshot |
 
-⭐ **The echelon:** he orders his **direct subordinates only** (platoons, the fire-support asset). The play under each platoon is HROT's.
+**When the mind is called** (the scheduler): at once on a *wake* item (a contact, a request, a leader down, an order refused or done, an
+objective change), else on the heartbeat (30–60 s). One call at a time; items that arrive meanwhile wait for the next call.
 
-## 3. Continuous operation — the target
+**Two run modes, one stream:**
+- ⭐ **think-pause** (development) — the seat pauses the simulation while the mind thinks and resumes when the actions are in. ⇒ the Haiku
+  worker's tens of seconds per call do not matter; a run is repeatable.
+- ⭐ **continuous** (the target) — the simulation never stops; an action carries the feed seq it was made on, and the action system refuses one
+  whose subject is gone (a dead squad, a released order) and feeds the refusal back.
 
-Turn-based pausing stays as the **development mode** (deterministic, fair whatever the model's speed). The product runs **without pauses**: the
-picture streams in, the model is woken when it matters, and its orders land while the battle goes on.
+**The HTTP surface** (so any outside mind — the Haiku worker first — and a person debugging see exactly what the model sees):
+
+| route | |
+|---|---|
+| `GET /commanders` | the seats: commander, side, mind, mode |
+| `GET /commanders/{id}/briefing` | the context as the model would get it now (prefix + snapshot + log + notes) |
+| `GET /commanders/{id}/feed?after=<seq>&wait=<s>` | the items after a seq — ⭐ long-poll: returns at once if there are any, else waits up to `wait` |
+| `GET /commanders/{id}/stream` | the same as server-sent events, for a live view |
+| `POST /commanders/{id}/act {seq, actions:[…]}` | the ExternalMind's answer; validated like a model's tool calls |
+| `POST /commanders/{id}/mind {kind, model, mode}` | switch mind / mode at run time |
+
+⭐ The orders themselves are the existing ones (`CommandOrders.Order` at origin **Superior**, as if the platoon commander's own play gave them),
+so a squad's reaction, its SOPs and the rank rules (AQ83) stay as they are, and the orders are in the recording like any other.
+
+## 4. The three minds
+
+| mind | how it answers | for |
+|---|---|---|
+| **ScriptedMind** | fixed rules (*"on SPOT: the nearest squad attacks, the other holds"*) | the rails: the channel, the action system and the stream are proven without any model |
+| **ExternalMind** | waits for `POST /act`; the call times out to "no orders" | ⭐ the **Haiku worker**: a Claude Code subagent (model haiku) loops `GET …/feed?wait=` → reads the briefing → `POST …/act` — in **think-pause** mode. Cheap to start; any other outside agent can use it later |
+| **OllamaMind** | `POST /api/chat` to `localhost:11434` with the briefing as messages and the actions as **tools** (JSON schema); a malformed or illegal call goes back as a tool error, once | the real thing — continuous mode, on the laptop |
+
+⭐ **The actions** (tools), few on purpose (a small model handles few tools well): `order(squad, kind, where|target)` · `hold(squad)` ·
+`ask_sitrep(squad)` · `note(text)` · later `request_fire(where)`. `where` is a gazetteer name or "N m <dir> of <name>"; the action system turns it
+into the order's params.
+
+## 5. Classes and the sequence
+
+```mermaid
+classDiagram
+  class CommanderSeat { <<component, NEW>> Mind kind · Mode (ThinkPause|Continuous) · HeartbeatSeconds }
+  class CommanderFeedSystem { <<NEW, serial>> builds feed items from the picture + reports }
+  class CommanderActionSystem { <<NEW, serial pre-pass>> validates, issues orders }
+  class CommanderChannel { <<NEW>> FeedRing (seq) · ActionQueue }
+  class MindRunner { <<NEW, background>> ContextKeeper · scheduler }
+  class IMind { <<interface, NEW>> ThinkAsync(Briefing) Actions }
+  class ScriptedMind
+  class ExternalMind
+  class OllamaMind
+  class CommandPicture { <<existing>> Elements · Subordinates · Requests }
+  class SquadReportLog { <<existing>> 256 reports seen on the node }
+  class CommandOrders { <<existing>> Order(commander, member, name, json) · AskSitrep }
+  class Gazetteer { <<NEW>> named points of the scenario ↔ positions }
+  CommanderFeedSystem ..> CommandPicture : reads
+  CommanderFeedSystem ..> SquadReportLog : reads
+  CommanderFeedSystem --> CommanderChannel : writes items
+  CommanderActionSystem --> CommanderChannel : drains actions
+  CommanderActionSystem ..> CommandOrders : calls
+  CommanderActionSystem ..> Gazetteer : where → point
+  MindRunner --> CommanderChannel
+  MindRunner --> IMind
+  IMind <|.. ScriptedMind
+  IMind <|.. ExternalMind
+  IMind <|.. OllamaMind
+  CommanderSeat "1" -- "1" MindRunner
+```
+
+*What the picture shows that prose hid: only two NEW systems touch the world, both serial; everything a model does goes through one channel;
+the existing `CommandOrders` is the only way an order leaves — no second order path.*
 
 ```mermaid
 sequenceDiagram
-  participant H as HROT (running)
-  participant F as bridge feed
-  participant C as context keeper
-  participant S as scheduler
-  participant M as model
-  loop every ~1 s
-    F->>H: read picture + new reports (side-locked)
-    F->>C: deltas as radio lines
+  participant F as frame: CommanderFeedSystem
+  participant C as CommanderChannel
+  participant R as MindRunner (background)
+  participant M as IMind (Ollama / Haiku)
+  participant A as frame: CommanderActionSystem
+  participant S as squads (game AI)
+  F->>C: report "ALPHA: contact …" (seq 41, wake)
+  C->>R: wake
+  opt think-pause mode
+    R->>R: pause the simulation
   end
-  C->>S: wake? (priority event, or heartbeat due)
-  S->>M: standing prefix (cached) + snapshot + radio log since last call
-  Note over M: thinks 2–30 s — HROT keeps running
-  M-->>S: tool calls (orders, notes)
-  S->>S: stale check (as-of time vs now)
-  S->>H: POST orders
-  C->>C: events that arrived meanwhile wait for the next call
+  R->>M: prefix (cached) + snapshot + radio log 30..41 + notes
+  M-->>R: tool calls: order(BRAVO, SupportByFire, house 2) · order(ALPHA, Attack, house 2)
+  R->>C: actions (made on seq 41)
+  A->>C: drain
+  A->>A: validate (subject alive, order legal, where resolves)
+  A->>S: CommandOrders.Order (origin Superior)
+  A->>C: order-state "accepted" (seq 42)
+  opt think-pause mode
+    R->>R: resume
+  end
 ```
 
-*What the picture shows that prose hid: the model is woken by EVENTS, not by the clock, and it is always answering a picture a few seconds old —
-so the orders must be robust to that delay.*
+## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
-| ⭐ mechanism | why |
+| | ⭐ lean |
 |---|---|
-| **The context as a battle board + radio log** — a compact snapshot re-written every few minutes, then an append-only log of radio lines; when the log grows, a fresh snapshot replaces it (and the model's own `note`s carry his estimate across) | the model "updates its context continuously" without the context growing without bound |
-| **A stable prefix first** (role, mission, gazetteer, ORBAT), the changing part after | a local server reuses the cached prefix (llama.cpp prompt cache / KV reuse) ⇒ each wake costs only the new lines |
-| **Wake on events, with a heartbeat** — contact, a request, a casualty threshold, an objective changing, a leader down wake at once; otherwise every 30–90 s | a commander's decision cycle is minutes; the AI below handles the seconds |
-| **One call at a time per commander** — events arriving during a call are coalesced into the next | no overlapping, contradicting answers |
-| **Orders at intent level** (attack objective X, defend line Y, fire on grid Z) — the platoon plays pick routes, cover and targets | an order stays valid while the model thinks; *"shoot that tank"* would not |
-| **Stale check** — an order carries the picture time it was made on; the bridge refuses one whose target has gone, and tells the model why | latency without nonsense |
-| **Command delay is realistic** — the model's thinking time stands in for staff time; for fairness both sides get the same hardware or a delay floor | two models of different speed must not decide the battle |
-| **Everything is logged beside the recording** — each wake's input, the model's reasoning and its orders | the after-action review shows *why* an order was given; and replay stays deterministic because the orders are in the recording |
+| **model** | a 7–8 B instruct model with tool calling, 4-bit (about 5 GB): Qwen 2.5 7B Instruct, Llama 3.1 8B Instruct or Qwen3 8B — try all three on the same scenario |
+| **context** | 8–16 k tokens (the KV cache must fit the remaining ~3 GB); the briefing kept to ~2–4 k |
+| **HROT on the same GPU** | run the editor headless or on the 2-D map during a test; the 3-D map competes for video memory |
+| **small-model care** | few tools, strict schemas, gazetteer names instead of coordinates, one retry with the error; expect some bad calls — the action system refuses them, the run goes on |
+| **speed** | a reply in seconds at this size — fast enough for a platoon commander in continuous mode |
 
-⚠ **A streaming feed needs a push from HROT** — today the bridge would poll (`/squad/reports`, `/entities/{id}/reports`, `/objectives`, `/sitrep`
-at ~1 Hz). A per-side event stream (server-sent events) is the clean form — §6 ⑤.
+## 7. Rules this respects
 
-## 4. Several commanders on one model
+| rule | how |
+|---|---|
+| hot path, no allocation per frame | the feed system acts only on a report, an event or the heartbeat — an allocation there is "on an event", allowed |
+| parallel behaviour code | the two systems are serial (the action system in the serial pre-pass); the background thread never reads or writes the world |
+| one order path (shared, never duplicated) | every order goes through `CommandOrders.Order` — the same call the platoon plays use |
+| a feature works when its scenarios pass (R-4277) | each slice ships its scenarios with machine checks (§11) |
+| replay | the orders are recorded like any other; the model's input and output go to a log beside the recording, never into the simulation |
 
-Two meanings — both possible, and different:
+## 8. Several commanders on one model
 
-| configuration | what it is | ⭐ verdict |
-|---|---|---|
-| **A. one model server, one CONTEXT per commander** | three company commanders of Blue are three sessions on the same server (llama.cpp parallel slots / batching); each knows only his own picture; peers talk through lateral reports the bridge routes | ⭐⭐ **the default** — realistic (each commander has his own fog), cheap (one set of weights), and it scales by slots |
-| **B. one CONTEXT for several peer commanders** | one prompt holds three companies' pictures and answers for all three | ⚠ it is no longer three peers: it sees the union and coordinates perfectly — it **is** the battalion commander. ⇒ build it as **C**, honestly named |
-| **C. a stronger model ABOVE weaker ones** | a strong model as battalion commander (intent, boundaries, priorities of fire, the reserve) ordering company commanders that are smaller models (or A's slots) | ⭐⭐ **the hierarchy the chain of command already has** — the strong model does what only it can (the plan), the small ones keep up with the tempo |
+Every commander is a **seat** with its own context; seats may share ONE model (Ollama serves them in turn). ⭐ A **stronger model above** —
+a company commander over three LLM platoon commanders — is the chain of command HROT already has. ⚠ One context answering for several peers sees
+all their pictures, so it is really their superior: build it as that seat, honestly named.
 
-⭐ **Lean:** A for peers, C when a stronger model is available; B only as a cheap test rig, labelled as a battalion seat. The bridge treats every
-commander as a seat with its own context, side lock and echelon — so A, B and C are configurations, not code paths.
-
-## 5. Rejected — one line each
-
-- **The LLM drives every unit** — too slow and too many tokens; HROT's AI already fights better at that level.
-- **Inference inside HROT** — it would block the frame and allocate on the hot path; the model runs in its own process.
-- **Free-text orders parsed by HROT** — ambiguous; structured tool calls checked against the order schema are reliable.
-- **Real time with turns hidden inside** (pause briefly on every call) — the battle stutters and the opponent waits on the slower model.
-- **An MCP server in HROT** — it was removed; HTTP is the interface. The bridge may offer MCP to its model if the client wants it.
-
-## 6. What HROT lacks (measured `2026-11-22`)
+## 9. What HROT lacks (for this test)
 
 | # | gap | ⭐ lean |
 |---|---|---|
-| ① | the side lock covers orders and `/sitrep` only — `/objectives`, `/entities`, `/combat`, `/events`, `/squad/reports` show ground truth | a **commander seat** whose every read is side-filtered |
-| ② | `/sitrep` merges every unit's own memory — more than a commander knows | start with it; move to the commander's **reported** picture (`CommandPicture`) once its replication (Command Chain §8b ②, approved) is built |
-| ③ | ordering a platoon or company by order name is probably refused on the sending side (the check does not use the echelon routing rows); several orders have no params DTO (Bound, FireAndMovement, ClearBuilding, March, SupportByFire …) | fix the sender check; until then the bridge sends `{kind:"behavior", behavior:"PlatoonAttack", …}` — ⚠ read, not run |
-| ④ | HTTP orders carry origin **Operator** — no superior can replace them, and they clear a mission plan | the LLM IS the top commander and orders its direct subordinates at **Superior** (AQ83's rank) |
-| ⑤ | no push — the bridge must poll; the squad "arrived" events are broken | a per-side event stream (reports, order done / failed, objective changes) |
-| ⑥ | a routine SITREP is sent only when a superior asked for a rate — by default only on Red/Black | the bridge sets the rate at start (`set_reporting`) |
+| ① | no way to take a commander's brain away from its play and hand it to a mind | `CommanderSeat`: the commander's own play is not started while the seat exists |
+| ② | the order-by-name check on the HTTP route probably refuses echelon orders | not on the path: the action system calls `CommandOrders.Order` directly |
+| ③ | no push from HROT | the feed ring + long-poll + server-sent events (§3) |
+| ④ | the squads send a routine SITREP only when asked a rate | the seat asks it at start (`CommandOrders.AskSitrep`) |
+| ⑤ | no gazetteer | a scenario's named points (objectives, named buildings) + a coarse grid |
+| ⑥ | the sitrep leaks the `alive` truth of a contact | fix it (it is the AI player's fog of war) — independent of this |
 
-## 7. Open questions (for the next round)
+## 10. Rejected — one line each
 
-1. **Picture source:** the sitrep now, the reported picture later (lean) — or build the reported picture first?
-2. **Echelon of the first slice:** company commander ordering platoons (lean) or battalion ordering companies?
-3. **Fairness rule for continuous play:** same hardware, or a fixed decision-delay floor per side?
-4. **Where the bridge lives:** a separate program in the repo (lean — Python or C#, it only speaks HTTP) or a HROT node extension?
+- **The bridge outside HROT** — the user wants no external program; inside, it reads the picture directly and gives orders on the one path.
+- **The LLM drives every soldier** — too slow and too many tokens; the squads' AI already fights better.
+- **The sitrep as the source** — it knows what every man remembers, not what was reported to the commander.
+- **The model call on the frame thread** — it would stall the simulation; it runs in the background.
+- **Free-text orders parsed by HROT** — ambiguous; tool calls against a schema are checkable.
 
-## 8. A first slice (when it is taken up)
+## 11. Slices
 
-The bridge alone against today's API, one company per side in the editor, turn-based (§3's development mode); then the continuous scheduler on
-the same feed; then gaps ①–⑤. ⭐ It ships with its scenarios (R-4277): e.g. two models fight `cc-battalion`-sized forces and the checks judge
-that every order was legal, no read crossed the side lock, and the battle ends.
+| slice | builds | done when (scenario checks) |
+|---|---|---|
+| **L-1** | the seat, the feed system, the channel, the action system, the gazetteer, ScriptedMind; the scenario `llm-platoon-attack` (Blue platoon vs a Red squad in a house, test-town) | scripted mind: the right orders land within 1 s of the SPOT; every order goes out at origin Superior; Red is beaten or the platoon breaks contact |
+| **L-2** | the HTTP surface (`/feed` long-poll, `/stream`, `/briefing`, `/act`), ExternalMind, think-pause mode | a Haiku worker plays the scenario to the end; no illegal action is accepted; the run is repeatable from its recording |
+| **L-3** | OllamaMind (tools, retry), the context keeper's prefix / snapshot / log | an 8 B model on the laptop plays it in think-pause, then continuous; the model log beside the recording |
+| **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat | two platoon seats on one model; a company seat above them |
+
+## 12. Open questions — with leans
+
+1. **Where the seat is set:** a scenario field on the commander (*"mind: ollama:qwen2.5:7b"*) — lean — or only at run time over HTTP? ⭐ Both, the field as the default.
+2. **The first Red:** a squad defending a house (lean — `sq-defend-house` exists) or one on a hill (`hill-attack-close`)?
+3. **The model log:** a file beside the recording (lean) or rows in the recording itself?
+4. **Fire support in L-1** or later? ⭐ Later — a platoon commander's first job is his squads.
+
+---
+
+## ⛔ HISTORY — rev 1 (2026-11-22, superseded the same day)
+
+Rev 1 put the bridge OUTSIDE HROT (a separate program on the HTTP API), started at a COMPANY commander, used `GET /sitrep` as the picture, and
+weighed fairness between two models (same hardware or a delay floor). The user moved all four: the bridge inside HROT, a platoon commander first,
+the commander's own reported picture, and *"not at all about fairness"*.
