@@ -13,7 +13,7 @@ related-designs:
 
 # RESUME — behaviors: urban fight realism (U1–U6)
 
-Branch `behaviors`. Ids in the tracker ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md), next free `CE-2475`); rulings next free `R-2142`.
+Branch `behaviors`. Ids in the tracker ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md), next free `CE-2482`); rulings next free `R-2144`.
 
 ## 1. In flight at `ddfbd8c65` (2026-11-21)
 
@@ -21,7 +21,9 @@ Branch `behaviors`. Ids in the tracker ([Blueprint_Issues_Tracker.md](Blueprint_
 |---|---|---|
 | **CE-2474** one shot heard by several men is ONE contact (the ring's place as the bang's token, fused in the squad pool) and a shot from a man in sight is HIM (`AttributeToSeen`, 12°) — Sensing §8.6d | built `2026-11-22` (`11013d0f6`); the half-weight first try reverted | ✅ gated: 70/70 toolkit rails, SimHost 455/457 (the 2 = CE-2471); scenarios 7/8 — ⭐ `uf-corner-fight` (U2) now PASSES; ⛔ `uf-corner-assault` (U2b) still holds at 16.25 s — probe its pool (`probe_u2bdet7.py`) |
 | **CE-2476** perception proven belief against truth — the `perceives` cue + suite `pe-*` (Sensing §8.6e) | cue built + red-proved (`4f61d15f7`); P1 P3 P4 P5 written | run them; then CE-2475 + P2 / P2b |
-| **CE-2475** a sound by two ways is heard from its first wavefront (R-2142) | designed (§8.6e) | build after the P1–P5 baseline |
+| **CE-2477** a fused heard circle never sharper than a lone ear | ✅ built (`69d41f3b6`) — found by `pe-seen-shooter` | — |
+| **CE-2479 / 2480 / 2475** walls at their real loss · a gunshot loud (rifle 1.5 km) · the first wavefront (R-2143, R-2142) | built (`c88623084`), rails green | scenario run in flight: pe-* · U2b · U2 · U1 · bw-unheard · ia-house-hunt · ts-house-defenders · pc-defend-house · rf-wall-hugger · ia-area-defend · agg-break-contact · uf-squad-under-fire |
+| **CE-2481** U2b: one grazed man stopped a 6 v 2 attack (exactly 3 : 1) | built (`c88623084`): a running attack presses until 1.5 : 1 | the U2b run |
 | **CE-2472** break contact ends only with nobody in an enemy's sight (each man's own perception, `LookAt.InSightNow`; R-2037 — the brain never reads terrain) | code pushed; ⚠ `bad8282b8` did NOT compile, fixed in `ddfbd8c65` | ⛔ NOT YET GATED on a good build. Re-run: `SquadManeuverTests` + `BasicSquadSop` + `StressSystemTests` under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`; red-proof = drop `&& !AnyInSight(in ctx)` in `BreakContactPlay.Outcome` ⇒ `CE2465_…` red; then the scenarios below. ⛔ Check the build says `0 Error(s)` before trusting any green |
 | **CE-2470** stress: fire is a rate (`FirePerSecond` 0.06/s while a round passed within 2 s, half in cover) | built, rails red-proved; `ts-*` 4/4 PASS (`ts-house-defenders` check follows D-6) | U2 went red with it — that is CE-2472 |
 | **CE-2467** an ordered attack presses on while 3 : 1 (`PressesTheAttack` in `NotDefending` + the care row) | built, rail red-proved | `uf-corner-assault` (U2b) has NO `checks.json` yet — write it (the assault goes through; casualties cared for after) |
