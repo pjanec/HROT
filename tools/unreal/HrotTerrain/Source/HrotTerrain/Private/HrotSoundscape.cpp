@@ -121,10 +121,11 @@ USoundBase* UHrotSoundscape::ImpactFor(const FString& Material)
 	return nullptr;   // water and the rest: the default (Lyra's) hit
 }
 
-USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach)
+USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach, float AtMaxDb)
 {
 	for (USoundAttenuation* A : Falloffs)
-		if (FMath::IsNearlyEqual(A->Attenuation.AttenuationShapeExtents.X, Inner * 100.f) && FMath::IsNearlyEqual(A->Attenuation.FalloffDistance, (Reach - Inner) * 100.f))
+		if (FMath::IsNearlyEqual(A->Attenuation.AttenuationShapeExtents.X, Inner * 100.f) && FMath::IsNearlyEqual(A->Attenuation.FalloffDistance, (Reach - Inner) * 100.f)
+			&& FMath::IsNearlyEqual(A->Attenuation.dBAttenuationAtMax, AtMaxDb))
 			return A;
 	USoundAttenuation* A = NewObject<USoundAttenuation>(this);
 	FSoundAttenuationSettings& S = A->Attenuation;
@@ -134,6 +135,7 @@ USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach)
 	S.AttenuationShapeExtents = FVector(Inner * 100.f, 0, 0);
 	S.FalloffDistance = (Reach - Inner) * 100.f;
 	S.DistanceAlgorithm = EAttenuationDistanceModel::NaturalSound;
+	S.dBAttenuationAtMax = AtMaxDb;
 	S.bAttenuateWithLPF = true;
 	S.LPFRadiusMin = Inner * 300.f;
 	S.LPFRadiusMax = Reach * 100.f;

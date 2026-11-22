@@ -144,7 +144,7 @@ void UHrotVoicePlayer::PlayClip(const FTx& T, const FString& Set, double& OutSec
 	USoundBase* S = Snd ? Snd->Pick(Set) : nullptr;   // a miss is counted by the soundscape (LibraryMissing)
 	if (!S) return;
 	if (T.bEarpiece) UGameplayStatics::PlaySound2D(GetWorld(), S);
-	else UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, T.At, 1.f, 1.f, 0.f, Snd->Falloff(5.f, 40.f));
+	else UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, T.At, 1.f, 1.f, 0.f, Snd->Falloff(5.f, 40.f, -30.f));
 	OutSeconds = S->GetDuration();
 	{   // U-19f: the sound log - the line (and the answer) carry the HROT meaning, the framing clips (beep, sgt, over, squelch) their set
 		const bool bAnswer = !T.Cue.AnswerSet.IsEmpty() && Set == T.Cue.AnswerSet && Set != T.Cue.Set;
