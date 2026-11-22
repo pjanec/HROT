@@ -16,6 +16,7 @@ related-designs:
 | 5 | several seats holding at once each pause / resume on their own | one seat is L-2's scope; multi-seat arbitration is L-4's (named there) |
 | 6 | the seats are kept WITH the world (`CommanderSeats.For(world)`, the `SquadReportLog` way), not on the pack | the HTTP surface reaches them from the brain world it already has; no host has to remember to wire it |
 | 7 | the model log is `<recording>.commander-<netId>.jsonl` — one line per call (`new` radio lines, `actions`, `raw`) and per verdict (`accepted` / `refused` + reason) | "beside the recording", and the verdict line is what names each order the recording holds |
+| 8 | ⑤ — the L-1 row *"the fight ends before the time limit: … breaks contact with Bravo (measured outcome)"* is WITHDRAWN from `llm-platoon-attack`; the scenario's `$doc` names check ④ (Red beaten OR break contact) as not expressible until the `any` combinator lands (DESIGN_Scenario_Regression §9, R-4077, unbuilt) | ⚠ the handoff says *"the checks stay as they are"* — but that row pinned the one outcome ⑤ exists to remove (Alpha shot down at once). With the fight ⑤ asks for (contact 76 s → past 420 s, a stand-off) its break-contact branch never comes, and the either/or cannot be said; §9's own rule: encode the expressible part and name the rest, never a weaker condition. Reverse: build `any` (predicate model) and restore check ④ as `any: [Red down, BreakContact]` |
 
 ## CE-4676 — the LLM commander L-1: lane decisions TAKEN (not waiting on an answer) · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 

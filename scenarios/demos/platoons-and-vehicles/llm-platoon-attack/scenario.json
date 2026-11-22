@@ -7,14 +7,14 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: LLM commander L-1 (CE-4676, DESIGN_LLM_Commander \u00a71) - a body-less Platoon (TKB 305) whose brain is a SEAT (CommanderSeat, Mind Scripted: no own play, InertSop) over Alpha Squad and Bravo Squad (4 men each) at the start (200,40) on test-town; Red's Defenders (5 men, SquadDefend + BasicSquadSop, the full game AI) hold the sheds ('house', 64,108). Named points: house, objective (100,80), support (140,90), start. The scripted mind sends both squads to the objective; on the first SPOT the squad nearest the enemy attacks the reported place and the other supports by fire from 'support'. Judge: (1) a squad is attacking within 1 s of sim time of the first SPOT/CONTACT into the platoon; (2) the platoon's own play never runs (no PlatoonHold, no ReactToFireFromBuilding); (3) each squad fights with its own AI and reports at least once to the platoon; (4) the fight ends before the time limit. Fail: no order after the spot, an order from the platoon's own SOP, a squad that never reports. Check: scripts/scenario-regression.sh llm-platoon-attack"
+    "description": "What: LLM commander (L-1 CE-4676, L-2 CE-4679; DESIGN_LLM_Commander §1) - a body-less Platoon (TKB 305) whose brain is a SEAT (CommanderSeat, Mind Scripted: no own play, InertSop) over Alpha Squad and Bravo Squad (4 men each), starting behind the L-Block (300,140) on test-town, out of Red's sight; Red's Defenders (5 men, SquadDefend + BasicSquadSop, the full game AI) hold the sheds ('house', 64,108). Named points: house, objective (172,95) and support (160,96) behind the Low Wall, start (300,140); six 1.5 m walls ('Cover 1-6') stagger the lane to the house. The scripted mind sends both squads to the objective; on the first SPOT the squad nearest the enemy attacks the reported place and the other supports by fire from 'support'. Judge: (1) a squad is attacking within 1 s of sim time of the first SPOT/CONTACT into the platoon; (2) the platoon's own play never runs (no PlatoonHold, no ReactToFireFromBuilding); (3) each squad fights with its own AI and reports at least once to the platoon; (4) the squads stay in contact at least 60 s (Red and Blue both still fire a minute after Red's first shot). Fail: no order after the spot, an order from the platoon's own SOP, a squad that never reports, a fight over within a minute. Check: scripts/scenario-regression.sh llm-platoon-attack"
   },
   "entities": {
     "b4676000-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          200,
-          40,
+          300,
+          140,
           0
         ],
         "Rotation": [
@@ -46,8 +46,8 @@
     "b4676000-0000-4000-8000-000000000010": {
       "SimTransform": {
         "Position": [
-          185,
-          40,
+          300,
+          132,
           0
         ],
         "Rotation": [
@@ -72,8 +72,8 @@
     "b4676000-0000-4000-8000-000000000011": {
       "SimTransform": {
         "Position": [
-          180.5,
-          40,
+          295.5,
+          132,
           0
         ],
         "Rotation": [
@@ -105,8 +105,8 @@
     "b4676000-0000-4000-8000-000000000012": {
       "SimTransform": {
         "Position": [
-          183.5,
-          40,
+          298.5,
+          132,
           0
         ],
         "Rotation": [
@@ -138,8 +138,8 @@
     "b4676000-0000-4000-8000-000000000013": {
       "SimTransform": {
         "Position": [
-          186.5,
-          40,
+          301.5,
+          132,
           0
         ],
         "Rotation": [
@@ -171,8 +171,8 @@
     "b4676000-0000-4000-8000-000000000014": {
       "SimTransform": {
         "Position": [
-          189.5,
-          40,
+          304.5,
+          132,
           0
         ],
         "Rotation": [
@@ -204,8 +204,8 @@
     "b4676000-0000-4000-8000-000000000020": {
       "SimTransform": {
         "Position": [
-          215,
-          40,
+          300,
+          148,
           0
         ],
         "Rotation": [
@@ -230,8 +230,8 @@
     "b4676000-0000-4000-8000-000000000021": {
       "SimTransform": {
         "Position": [
-          210.5,
-          40,
+          295.5,
+          148,
           0
         ],
         "Rotation": [
@@ -263,8 +263,8 @@
     "b4676000-0000-4000-8000-000000000022": {
       "SimTransform": {
         "Position": [
-          213.5,
-          40,
+          298.5,
+          148,
           0
         ],
         "Rotation": [
@@ -296,8 +296,8 @@
     "b4676000-0000-4000-8000-000000000023": {
       "SimTransform": {
         "Position": [
-          216.5,
-          40,
+          301.5,
+          148,
           0
         ],
         "Rotation": [
@@ -329,8 +329,8 @@
     "b4676000-0000-4000-8000-000000000024": {
       "SimTransform": {
         "Position": [
-          219.5,
-          40,
+          304.5,
+          148,
           0
         ],
         "Rotation": [
@@ -589,8 +589,8 @@
     "b4676000-0000-4000-8000-000000000201": {
       "SimTransform": {
         "Position": [
-          100,
-          80,
+          172,
+          95,
           0
         ],
         "Rotation": [
@@ -611,8 +611,8 @@
     "b4676000-0000-4000-8000-000000000202": {
       "SimTransform": {
         "Position": [
-          140,
-          90,
+          160,
+          96,
           0
         ],
         "Rotation": [
@@ -633,8 +633,8 @@
     "b4676000-0000-4000-8000-000000000203": {
       "SimTransform": {
         "Position": [
-          200,
-          40,
+          300,
+          140,
           0
         ],
         "Rotation": [
@@ -650,6 +650,162 @@
       "EntityInfo": {
         "Name": "start",
         "ForceId": "Neutral"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000300": {
+      "SimTransform": {
+        "Position": [
+          150,
+          101,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000301": {
+      "SimTransform": {
+        "Position": [
+          136,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000302": {
+      "SimTransform": {
+        "Position": [
+          122,
+          99,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 3"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000303": {
+      "SimTransform": {
+        "Position": [
+          108,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 4"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000304": {
+      "SimTransform": {
+        "Position": [
+          94,
+          98,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 5"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000305": {
+      "SimTransform": {
+        "Position": [
+          82,
+          103,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 6"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
       }
     }
   }

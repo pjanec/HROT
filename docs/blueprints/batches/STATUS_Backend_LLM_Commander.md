@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); NOW ⑤ the scenario, then ★ the proof run.
+⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); NOW ★ the Haiku proof run.
 L-1 (below): DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
 `STATUS_Backend_Queue.md` → **CE-3445 T2** (rare mode-3 stepped divergence) — a resume continues there. ⚠ `backend-wip-llm-commander` is stale
 (its content is all on `backend`; the remote refused the delete).
@@ -73,6 +73,20 @@ its next step — the instrumented 1- vs 4-thread scale-rig pair — is hours of
 | ② | the HTTP surface `/commanders/…` (+ `/tools`) | DONE | (this commit) | `DebugApiCommandersTests.CE4679_TheCommanderRoutes_*` · `CE4679_TheStream_*` · `EveryRoute*` 6/6 |
 | ③ | `ExternalMind` | DONE | (this commit) | the illegal action refused over HTTP (in `CE4679_TheCommanderRoutes_*`) |
 | ④ | the model log beside the recording | DONE | (this commit) | `CE4679_TheModelLog_SitsBesideTheRecording_AndNamesEachOrderAndVerdict` |
-| ⑤ | `llm-platoon-attack` gives the commander a fight (≥ 60 s in contact) | IN PROGRESS — Blue starts behind the L-Block, objective/support behind the Low Wall; the two "≥ 60 s" rows added | | the scenario |
+| ⑤ | `llm-platoon-attack` gives the commander a fight (≥ 60 s in contact) | DONE — Blue starts behind the L-Block, objective / support behind the Low Wall, six 1.5 m walls on the lane; contact 76 s → past 420 s; the two "≥ 60 s" rows added; ⚠ the L-1 break-contact row WITHDRAWN (DECISIONS CE-4679 #8) | (this commit) | ✅ PASS 8/8 (two runs, the same times: Red fires 76.1 s, attack 78.25 s, contact rows 141.9 s) |
 | ⑥ | CE-4677 `/sitrep` stops reading a contact's `alive` from the world | DONE | (this commit) | `DebugApiOrdersTests.CE4677_AContactKilledOutOfSight_StillReadsAsTheSideLastKnewIt` (+ DebugApiOrdersTests 18/18) |
 | ★ | the proof run: a Haiku subagent plays Blue's commander through the routes only | TODO | | |
+
+# L-2b (CE-4680) — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L2b.md` — QUEUED after L-2
+
+## B-1 premise — measured `2026-11-22` (before any code; graph `search_code PlatoonAttack` (60 hits), `search_graph SubordinateOrders` Class + `Release`, `trace_path Release` inbound, + grep)
+
+| the premise | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a play reaches a platoon as its TASK through the order path its superior uses | ✅ the company: `CommandOrders.Route(world, company, platoon, kind, neutral, "PlatoonAttack", json)` → an `AssignTacticalIntentEvent { Entity = platoon, IntentId = play, Origin = Superior }` (`CompanyBehaviors.cs:450`, `CommandNodes.cs:135`) | ✅ `DESIGN_Orders_Params_Entity_Classes.md` §8/§9 (receiver-side resolution) |
+| an order KIND resolves to the platoon's play | ✅ `ResolutionRouting.cs:101–104`: InfantryPlatoon Attack→PlatoonAttack, Hold→PlatoonHold, Bound→PlatoonBound, SupportByFire→PlatoonSupportByFire; Defend→PlatoonDefend (:99) | ✅ same; the routing table is the ONE resolver |
+| ending the play releases its squad orders | ✅ `SubordinateOrders.Release` (`SubordinateOrders.cs:84`) — called by `BehaviorOwnedParts.Release` when the run ends (finished, cleared, replaced, re-assigned; NOT paused): a Clear naming the ordered behaviour, per member | ✅ `DESIGN_Orders_Params_Entity_Classes.md` §7 (the class doc says so) |
+| the seat has no superior to "give" the play | ⚠ `CommandOrders.Route/Assign` RECORD the order on the GIVER (`SubordinateOrders.Record(world, commander, …)`) — the seat's play has no giver entity ⇒ publish the `AssignTacticalIntentEvent` itself at origin Superior (what Route publishes, minus the giver's record) | ⛔ searched `docs/` — no record of a giver-less Superior task; L-2b's own design §5b says "the commander's own task" |
+| ⚠ a direct squad order in the SAME frame as the clear | ⚠ `CommandOrders.Order` records under the commander's CURRENT run (`BehaviorOwnedParts.OwnerOf`) ⇒ an order given before the clear is processed belongs to the play's run and is RELEASED with it. ⇒ the clear first, the direct order on a later frame (once the run is gone) | — (a sequencing fact, to rail) |
+
+⇒ ⭐ the premise HOLDS; B-1 is buildable. The giver-less publish and the clear-then-order sequencing are the two things its rails must pin.

@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — LLM commander L-1 (CE-4676, docs/designs/llm-commander/DESIGN_LLM_Commander.md §1, §11): the Platoon's brain is a seat with the SCRIPTED mind; Alpha Squad and Bravo Squad fight with the game AI; Red's Defenders hold the sheds. FEATURE scenario (no golden until two fresh runs agree, §5). The 'report' cue reads the brain node's report log (editor tier). Measured outcome (2026-11-22, two runs): Red engages at once, Alpha is out of the fight at ~18 s and Bravo breaks contact to 'start' — the fight ends by breaking contact (handoff check ④'s second branch).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — LLM commander (L-1 CE-4676, L-2 CE-4679 ⑤; docs/designs/llm-commander/DESIGN_LLM_Commander.md §1, §11): the Platoon's brain is a seat with the SCRIPTED mind; Alpha Squad and Bravo Squad fight with the game AI; Red's Defenders hold the sheds. L-2 ⑤ gives the commander a fight: Blue starts behind the L-Block (out of Red's sight), the objective and the support position are behind the Low Wall, and six 1.5 m walls stagger the lane to the house. Measured 2026-11-22: contact from 76 s to past 420 s (Alpha Set behind cover, Red worn from 5 to 2). ⚠ NOT EXPRESSED: L-1's check ④ 'the fight ends — Red is beaten OR the platoon breaks contact — before the time limit' needs the 'any' combinator (DESIGN_Scenario_Regression §9, approved R-4077, not built); the L-1 row that encoded only the break-contact branch pinned the measured outcome this fight was made to remove, and is withdrawn (DECISIONS_Backend CE-4679 #8). FEATURE scenario (no golden until two fresh runs agree, §5). The 'report' cue reads the brain node's report log (editor tier).",
   "runFor": 420,
   "golden": false,
   "anchors": {
@@ -10,6 +10,10 @@
         "Spot",
         "Contact"
       ]
+    },
+    "redFires": {
+      "on": "shot",
+      "by": "*Red "
     }
   },
   "expect": [
@@ -58,11 +62,19 @@
       "by": "*Red "
     },
     {
-      "name": "the fight ends before the time limit: Alpha is out of the fight and the scripted mind breaks contact with Bravo (measured outcome: Red sees the start from the sheds)",
-      "on": "task",
-      "who": "Bravo Squad",
-      "is": "BreakContact",
-      "after": "spotted"
+      "name": "the squads are in contact for at least 60 s (Red still fires 60 s after its first shot, and Blue answers)",
+      "on": "shot",
+      "by": "*Red ",
+      "after": "redFires+60"
+    },
+    {
+      "name": "Blue fires back after the first minute of the fight",
+      "on": "shot",
+      "by": [
+        "Alpha *",
+        "Bravo *"
+      ],
+      "after": "redFires+60"
     }
   ]
 }
