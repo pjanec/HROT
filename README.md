@@ -162,7 +162,8 @@ HROT is a serious-gaming engine as well as a CGF: the same simulation that runs 
 |---|---|
 | ✅ **Play any unit** | take direct control of a soldier, a crew position or a vehicle, in first person or over the shoulder; the AI hands the unit over and takes it back when the trainee releases it |
 | ✅ **Join, deploy, rejoin** | a trainee joins a running exercise, picks a side and a unit and deploys; leaving and rejoining is supported |
-| 🚧 **Multiplayer** | a server and several player stations in one scenario, each trainee on his own station (the acceptance run is open) |
+| ✅ **Client-server multiplayer** | one HROT server — the editor, running simulation, AI and deployment in one process — and several external presentation clients (a game engine such as Unreal) connected to it, each trainee with a seat of his own |
+| 🚧 **Peer multiplayer** | HROT's own player stations as full nodes of a distributed exercise (the acceptance run is open) |
 | ✅ **Crew the weapons** | man a vehicle's heavy machine gun or an anti-aircraft gun; the rounds are the simulation's own ballistics and damage |
 | ✅ **Drive the vehicles** | a trainee's tank breaks through fences, hedges, garden walls and sandbags and fells lone trees — and the change is seen by everyone |
 | 🚧 **Set up the game** | playable units, deploy roles and kits, spawn areas and respawn delay per scenario (authoring of kits still basic) |
@@ -220,6 +221,7 @@ scenarios.
 | ✅ **A separable brain** | decision (the brain) and execution (the muscle) are split: the brain issues intents and reads back status, and perception, motion and navigation are reached through interfaces — so the behaviours can run against another simulation's sensors, physics and pathfinding, with HROT's own as the reference |
 | ✅ **Distributed by design** | simulation, AI, instructor, image generator and player stations as separate nodes over a publish/subscribe network (DDS), or all in one process; ownership hand-over and dead reckoning |
 | ✅ **Image-generator ready** | everything a renderer needs is simulation state: poses, turret angles, damage per part and kill kind, hatches and lights, rotors and engines, effects with their causes, fire and thermal drivers — read alike by every renderer through one shared rule library |
+| ✅ **External presentation clients** | an outside renderer links to a HROT node through a gateway and presents the simulation; the built-in director's prepared clips are rendered by it, pictures and sound |
 | ✅ **DIS** | a written mapping of appearance, damage, fire, lights and detonation results for a DIS/HLA gateway |
 | ✅ **A clean wire** | network messages carry only their own types, checked by an automated test — the simulation's internals can evolve without breaking the interface |
 | ✅ **Automation** | every node answers an HTTP API — load, run, step, inspect any entity — so test harnesses and AI agents can drive the real product |
