@@ -148,7 +148,7 @@ The clips: `sound_cut.py --set vox` (mode `whole`) → `D:\Work\Unreal\sounds\mi
 | **U-19b** | the clips (recipes + `whole` mode + import); `HrotVoiceLines`; `UHrotVoicePlayer`; three handlers; three fakes | rail `Hrot.Dps.Voice.Lines`: every row of §2 (incl. Lace by counts, Sitrep by colour, Spot by count, an unknown order ⇒ standby, a civil kind ⇒ none, callsigns stable and distinct); rail `Hrot.Dps.Voice.Player`: per-net queue (third dropped), shout spacing, earpiece vs world by the listener's net; the scene run plays a fake Report and logs the chain (beep → sgt → line → squelch) and `LibraryMissing` 0 |
 | **U-19c** | bursts on `Fire` (DD-027) — §5 | rail `Hrot.Dps.Burst`: index 0 of N starts one `_b<N>` clip, indices 1..N-1 play nothing, `BurstId` 0 plays per round, a gap fades the clip, no clip for N ⇒ the nearest shorter count, none at all ⇒ per round; scene: a fake 3-round burst plays ONE clip |
 | **U-19d** | ambience + weather (DD-028) — §6 | rail `Hrot.Dps.Ambience`: kind fallback (`alarm.airraid.preliminary` → `alarm.airraid` → `alarm`, unknown family ⇒ none), gains (positionless = Intensity, positioned by distance to Radius), ≤ 2 battle beds (the loudest), an event plays once per row, a disposed row fades; rail `Hrot.Dps.Weather`: the region containing the camera wins over the global row, the feather blends, rain mm/h and wind m/s → the soundscape's 0..1; scene: a fake `battle.city` bed and a positioned `alarm.airraid` row start their loops, the dispose fades them, a fake rain row raises `RainAmount` |
-| U-19e | the director's fade and subtitle on `View` | later |
+| **U-19e** | the director's fade and subtitle — §7 | rail `Hrot.Dps.Overlay`: the subtitle's y by position (top 0.08, centre 0.5, bottom as the render path), alpha applied, empty = none, fade 0 = no rect / 1 = opaque; scene: a fake `View` with Fade 0.5 + a subtitle ⇒ the HUD drew both (counters), a render job with `FrameRequest.Fade` 1 writes a black frame |
 
 ## 5. Bursts on `Fire` (U-19c, DD-027) *(unreal-ig, 2026-11-22)*
 
@@ -257,3 +257,14 @@ already read (today set by hand); the war layers get their own player because th
 | the dispose | the writer's dispose reaches `OnAmbience` / `OnWeather` as `!bAlive`; the test client got `FHrotDpsClient::Dispose` | the fakes must be able to end a row |
 | clips (A-7) | `sound_cut.py --set amb` (mode `bed`, exact name match, whole file, stereo, RMS -24 dBFS, a loud take held at a -0.4 dBFS peak): 37 files in `/Game/Hrot/AudioPro/amb/` (30 loops, 7 events); `war_night` is held at RMS -31 (peaks) | no clipping |
 | a device-less run (`-NoSound`) | `Start` finds the clip but has no component; the loop is still counted and timed | the scene runs with no audio device; the clip lookup (`LibraryMissing`) is still proven |
+
+## 7. The director's fade and subtitle (U-19e, DD-022 P-7 / P-8) *(unreal-ig, 2026-11-22)*
+
+HROT's director dips to black and shows a caption; a render job's `FrameRequest` carries `Subtitle` / `SubtitlePosition` / `SubtitleAlpha` (drawn
+into the image today, `HrotDpsRender.cpp:587`) and `Fade` (P-7 — ⛔ not applied yet); the LIVE `View` now carries the same four (P-8).
+
+| # | decision | rejected |
+|---|---|---|
+| F-1 | ONE overlay painter `HrotDpsOverlay::Paint(Canvas, size, subtitle, pos, alpha, fade)` — the subtitle as the render path draws it today, then a black rect at `Fade` over everything — used by the render job's image AND the live HUD | two copies — they drift (the shared-and-unified rule) |
+| F-2 | live: drawn by `AHrotDpsHud` only while the client shows the director's view (`-HrotIgDirector` / the station's suggestion followed); a free or followed camera ignores them | always — a man flying his own camera would see the director's black |
+| F-3 | the values are the last `View` sample's (state, as the pose) — no client-side timing | a client fade ramp — HROT already sends the ramp per frame |
