@@ -2,6 +2,8 @@
 #include "HrotDpsHud.h"
 #include "HrotDpsCameraPawn.h"
 #include "HrotDpsStation.h"
+#include "HrotDpsWorld.h"
+#include "HrotDpsOverlay.h"
 #include "HrotDpsCamera.h"
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
@@ -138,7 +140,7 @@ namespace
 	}
 }
 
-void HrotDpsHud::Draw(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC)
+static void DrawBody(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC)
 {
 	if (!Canvas || !Cam || !GEngine) return;
 	FPainter P{ Canvas };
@@ -156,6 +158,20 @@ void HrotDpsHud::Draw(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* P
 	if (Cam->SelectedId()) L.Add({ FString::Printf(TEXT("Selected unit %d   right-click: menu   F follow   P possess"), Cam->SelectedId()), White });
 	else L.Add({ TEXT("Click a unit to select it, right-click it for its menu"), Grey });
 	P.Lines(L, 16.f, Canvas->ClipY - 16.f);
+}
+
+void HrotDpsHud::Draw(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC)
+{
+	DrawBody(Canvas, Cam, PC);
+	// U-19e (F-2): the director's subtitle and fade only while this client shows the station's suggested view; a free or followed camera ignores them
+	if (!Canvas || !Cam || !GEngine || Cam->GetMode() != EHrotCameraMode::Director) return;
+	UHrotDpsWorld* W = UHrotDpsWorld::Get(Cam);
+	if (!W) return;
+	const UHrotDpsWorld::FOverlayNow O = W->OverlayNow();
+	if (!O.bHas) return;
+	HrotDpsOverlay::FSpec Sp; Sp.Subtitle = O.Subtitle; Sp.Pos = O.Pos; Sp.Alpha = O.Alpha; Sp.Fade = O.Fade;
+	const HrotDpsOverlay::FPainted Pd = HrotDpsOverlay::Paint(Canvas, FVector2D(Canvas->ClipX, Canvas->ClipY), Sp, GEngine->GetLargeFont());
+	W->NoteOverlayDrawn(Pd.bSubtitle, Pd.bFade);
 }
 
 void AHrotDpsHud::DrawHUD()

@@ -110,6 +110,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationOrder(int32 FromId, int32 ToId, const FString& Name, double SimTime);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationView(double SimTime, int32 Mode, int32 TargetId, float Distance, FVector PositionM,
 		FVector VelocityM, float YawDeg, float YawRateDeg, float PitchDeg, float FovDeg, int32 CutSeq);
+	/** U-19e (P-8): the View of FakeStationView with the director's Fade (0..1) and a subtitle (Pos: 1 bottom, 2 top, 3 centre; Alpha) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationViewOverlay(double SimTime, FVector PositionM, float YawDeg, float FovDeg, float Fade, const FString& Subtitle, int32 Pos, float Alpha);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationEchoes() const { return FakeEchoes; }
 	// U-18q — the render side: a job, a step with its barrier, a frame, a shot; what the render client answered
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationRenderJob(const FString& JobId, int32 State, int32 Fps, int32 Width, int32 Height,

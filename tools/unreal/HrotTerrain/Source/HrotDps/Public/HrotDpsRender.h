@@ -62,7 +62,7 @@ private:
 	{
 		FString JobId; int32 Index = 0; uint8 Kind = 0; int64 StepSeq = 0; double SimTime = 0; float FilmRate = 1;
 		FVector3d P = FVector3d::ZeroVector; FQuat4d Q = FQuat4d::Identity; float Fov = 60;
-		int32 Width = 0, Height = 0, Supersample = 1; FString File, Subtitle; uint8 SubPos = 0; float SubAlpha = 1;
+		int32 Width = 0, Height = 0, Supersample = 1; FString File, Subtitle; uint8 SubPos = 0; float SubAlpha = 1, Fade = 0;
 		TArray<FGraphic> Graphics;
 		double SeenAt = 0;
 	};

@@ -435,6 +435,23 @@ bool UHrotDpsSubsystem::FakeStationView(double SimTime, int32 Mode, int32 Target
 	return Dps.Write(TEXT("DPS_View"), &V);
 }
 
+bool UHrotDpsSubsystem::FakeStationViewOverlay(double SimTime, FVector PositionM, float YawDeg, float FovDeg, float Fade, const FString& Subtitle, int32 Pos, float Alpha)
+{
+	SimNetGateway_Protocol_DdsPlayer_View V{};
+	V.Source = SimNetGateway_Protocol_DdsPlayer_ViewSourceDirector;
+	V.Mode = SimNetGateway_Protocol_DdsPlayer_ViewMode(1);
+	V.Side = 1;
+	V.Position = { PositionM.X, PositionM.Y, PositionM.Z };
+	const FQuat4d Q(FVector3d::ZAxisVector, FMath::DegreesToRadians(double(YawDeg)));
+	V.Orientation = { float(Q.X), float(Q.Y), float(Q.Z), float(Q.W) };
+	V.FovDeg = FovDeg; V.CutSeq = 1; V.SimTime = SimTime;
+	FCStringAnsi::Strncpy(V.Shot, "fake overlay", sizeof(V.Shot));
+	V.Fade = Fade;
+	FCStringAnsi::Strncpy(V.Subtitle, TCHAR_TO_UTF8(*Subtitle), sizeof(V.Subtitle));
+	V.SubtitlePosition = SimNetGateway_Protocol_DdsPlayer_SubtitlePosition(Pos); V.SubtitleAlpha = Alpha;
+	return Dps.Write(TEXT("DPS_View"), &V);
+}
+
 uint64 UHrotDpsSubsystem::GetClientId()
 {
 	if (ClientId == 0)

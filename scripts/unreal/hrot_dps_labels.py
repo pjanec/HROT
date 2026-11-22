@@ -15,6 +15,7 @@ U-19b (the squad's radio): a fake Report (Lace, Kia 2) from unit 9 and an Uttera
 LibraryMissing must not grow; then the camera follows man 1 (his net = unit 9: the nearest same-side unit) and an Order from unit 9 is heard in the earpiece, with the receiver's answer.
 U-19c (bursts): a fake 3-round burst (BurstId 77) from man 1 plays ONE clip wpn/rifle_b3, indices 1 and 2 are covered (no per-round rifle sound); a 4-round burst that stops after 2 is cut.
 U-19d (ambience + weather): a fake battle.city bed and a positioned alarm.airraid row start their loops (the bed 6 dB down after the simulated fire), a global rain row sets RainAmount / WindAmount, the dispose fades the loops.
+U-19e (the director's fade and subtitle): a fake View with Fade 0.5 and a subtitle is ignored by a followed camera and drawn by the HUD in director mode.
 Pictures (HighResShot 1 = the viewport's own size): mode 3 (every unit), mode 2 (the units + every aircraft), mode 1 (none); then the symbol sheet (UHrotCardLayer.export_symbol_sheet). Checks read UHrotDpsWorld.describe_labels.
 """
 import glob, json, os, time, traceback
@@ -270,6 +271,36 @@ def ambience():
         R["ambience2"] = A.describe(); log("ambience: " + A.describe())
         check("ambience: the dispose faded both loops out", A.get_editor_property("fades") >= 2 and A.get_editor_property("loops_playing") == 0 and A.loops_text() == "", A.describe())
         check("ambience: the weather row ended (the hand values are the soundscape's again)", w.describe_weather() == "none", w.describe_weather())
+        S.update(phase="overlay", t=time.time() + 0.5)
+
+
+def overlay():
+    """U-19e (DD-022 P-8, F-2): a fake View with Fade 0.5 and a subtitle - ignored while the camera follows a man, drawn by the HUD (both, through the one
+    painter) once it shows the director's view; the render job's frame with FrameRequest.Fade 1 is NOT run here (the render harness is hrot_dps_render7.py) -
+    Hrot.Dps.Overlay rails the painter's maths"""
+    sub, w, gw = S["sub"], S["w"], S["gw"]
+    st = S.setdefault("o", {"step": 0})
+    pawn = unreal.GameplayStatics.get_player_pawn(gw, 0)
+    if st["step"] == 0:
+        sub.fake_station_view_overlay(SIM0, unreal.Vector(0, 0, 5), 0.0, 60.0, 0.5, "Phase two", 3, 0.9)
+        st["step"] = 1; S["t"] = time.time() + 2.0; return
+    if st["step"] == 1:
+        n = (w.get_editor_property("overlay_subtitles_drawn"), w.get_editor_property("overlay_fades_drawn"))
+        check("overlay: a followed camera ignores the director's fade and subtitle (F-2)", n == (0, 0) and "follow" in pawn.describe(), f"drawn {n}; camera {pawn.describe()}")
+        pawn.director()
+        st["step"] = 2; S["t"] = time.time() + 2.5; return
+    if st["step"] == 2:
+        n = (w.get_editor_property("overlay_subtitles_drawn"), w.get_editor_property("overlay_fades_drawn"))
+        R["overlay"] = {"subtitles": n[0], "fades": n[1], "camera": pawn.describe()}; log(f"overlay: drawn {n}, camera {pawn.describe()}")
+        check("overlay: in director mode the HUD drew the subtitle and the fade", n[0] > 0 and n[1] > 0, f"subtitles {n[0]}, fades {n[1]}; camera {pawn.describe()}")
+        sub.fake_station_view_overlay(SIM0, unreal.Vector(0, 0, 5), 0.0, 60.0, 0.0, "", 1, 1.0)   # the dip is over, the caption gone
+        st["step"] = 3; S["t"] = time.time() + 1.0; return
+    if st["step"] == 3:
+        st["n3"] = (w.get_editor_property("overlay_subtitles_drawn"), w.get_editor_property("overlay_fades_drawn"))
+        st["step"] = 4; S["t"] = time.time() + 1.0; return
+    if st["step"] == 4:
+        n = (w.get_editor_property("overlay_subtitles_drawn"), w.get_editor_property("overlay_fades_drawn"))
+        check("overlay: fade 0 and no subtitle draw nothing more", n == st["n3"], f"{st['n3']} -> {n}")
         S.update(phase="end", t=time.time() + 0.5)
 
 
@@ -298,6 +329,7 @@ def tick_once():
         elif ph == "voice": voice()
         elif ph == "burst": burst()
         elif ph == "ambience": ambience()
+        elif ph == "overlay": overlay()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
         if time.time() - T0 > 300: finish(False, "timeout")
     except Exception:

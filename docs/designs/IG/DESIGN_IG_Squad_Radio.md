@@ -268,3 +268,14 @@ into the image today, `HrotDpsRender.cpp:587`) and `Fade` (P-7 — ⛔ not appli
 | F-1 | ONE overlay painter `HrotDpsOverlay::Paint(Canvas, size, subtitle, pos, alpha, fade)` — the subtitle as the render path draws it today, then a black rect at `Fade` over everything — used by the render job's image AND the live HUD | two copies — they drift (the shared-and-unified rule) |
 | F-2 | live: drawn by `AHrotDpsHud` only while the client shows the director's view (`-HrotIgDirector` / the station's suggestion followed); a free or followed camera ignores them | always — a man flying his own camera would see the director's black |
 | F-3 | the values are the last `View` sample's (state, as the pose) — no client-side timing | a client fade ramp — HROT already sends the ramp per frame |
+
+### 7a. As built (U-19e)
+
+| design said | built | why |
+|---|---|---|
+| `HrotDpsOverlay::Paint(Canvas, size, subtitle, pos, alpha, fade)` | `HrotDpsOverlay::Paint(Canvas, Size, FSpec, Font)` (`HrotDpsOverlay.h/.cpp`), with the pure `SubtitleY` / `SubtitleOpacity` / `FadeOpacity` / `HasSubtitle` / `HasFade`; `UHrotDpsRender::DrawOverlay` calls it LAST (the fade covers the director graphics and the subtitle); the graphics stay where they were | F-1 |
+| the render path draws a fade | `FRequest.Fade` ← `FrameRequest.Fade` (P-7 is in the generated struct); the overlay canvas is also opened when only a fade is set | a fade-only frame must still be painted |
+| subtitle alpha | an unset (<= 0) alpha is opaque (as the render path always drew it); the same rule live | one rule |
+| F-2 "director mode" | `AHrotDpsHud` / the debug-draw host (`HrotDpsHud::Draw`) paint it only when `AHrotDpsCamera::GetMode() == Director` (set by `-HrotIgDirector` or the V key) and a View exists | a followed or free camera ignores it |
+| F-3 | `UHrotDpsWorld::OnView` keeps `Fade`, `Subtitle`, `SubtitlePosition`, `SubtitleAlpha` of the last sample; `OverlayNow()`; probes `OverlaySubtitlesDrawn` / `OverlayFadesDrawn` | state, as the pose |
+| scene: a render job with `Fade` 1 writes a black frame | NOT run: the render-job harness (`hrot_dps_render7.py`: job states, lockstep, non-real-time audio) is heavy and `FakeStationFrame` has no Fade argument; `Hrot.Dps.Overlay` rails the painter's maths (y by position, alpha, fade 0 / 0.5 / 1 / clamps) and the render path calls the same `Paint`; the black-frame check is the next addition to that harness | proportion |

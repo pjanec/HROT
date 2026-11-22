@@ -216,6 +216,13 @@ public:
 		float FovDeg = 60;                     // VERTICAL (HROT's FovyDegrees)
 	};
 	FViewNow ViewNow() const;
+	/** U-19e (F-3) — the director's fade and subtitle as the last View sample said (no client-side timing); bHas = the station sends a view */
+	struct FOverlayNow { bool bHas = false; FString Subtitle; uint8 Pos = 0; float Alpha = 1, Fade = 0; };
+	FOverlayNow OverlayNow() const;
+	/** what the live HUD drew in director mode (probes for the scene) */
+	void NoteOverlayDrawn(bool bSubtitle, bool bFade) { if (bSubtitle) ++OverlaySubtitlesDrawn; if (bFade) ++OverlayFadesDrawn; }
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|DPS") int32 OverlaySubtitlesDrawn = 0;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|DPS") int32 OverlayFadesDrawn = 0;
 	void FollowTerrain(uint32 NewEpoch, const FString& Terrain);
 	FString WorldFail, PendingLevel, ShownTerrain, ShownBase, ShownOverlay;
 	bool bLeaving = false;
@@ -297,6 +304,7 @@ private:
 		uint8 Source = 0, Mode = 0;
 		int32 TargetId = 0;
 		float Distance = 0, Side = 1, Fov = 60, FovRate = 0;
+		float Fade = 0, SubAlpha = 1; uint8 SubPos = 0; FString Subtitle;   // U-19e: the director's fade and subtitle (P-8), as the last sample said
 		uint32 CutSeq = 0;
 		FHrotDpsTrackPoint Track;
 		FHrotDpsCorrection Blend;

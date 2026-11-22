@@ -1,5 +1,6 @@
 // CE-4651 (U-18q) — see HrotDpsRender.h
 #include "HrotDpsRender.h"
+#include "HrotDpsOverlay.h"
 #include "HrotDpsNative.h"
 #include "HrotDpsSubsystem.h"
 #include "HrotDpsWorld.h"
@@ -320,7 +321,7 @@ void UHrotDpsRender::OnFrame(const FHrotDpsSample& S)
 	R.Q = FQuat4d(D.Orientation.X, D.Orientation.Y, D.Orientation.Z, D.Orientation.W).GetNormalized();
 	R.Fov = D.FovDeg > 1.f ? D.FovDeg : 60.f;
 	R.Width = D.Width > 0 ? D.Width : Width; R.Height = D.Height > 0 ? D.Height : Height; R.Supersample = D.Supersample > 0 ? int32(D.Supersample) : Supersample;
-	R.File = UTF8_TO_TCHAR(D.File); R.Subtitle = UTF8_TO_TCHAR(D.Subtitle); R.SubPos = uint8(D.SubtitlePosition); R.SubAlpha = D.SubtitleAlpha;
+	R.File = UTF8_TO_TCHAR(D.File); R.Subtitle = UTF8_TO_TCHAR(D.Subtitle); R.SubPos = uint8(D.SubtitlePosition); R.SubAlpha = D.SubtitleAlpha; R.Fade = D.Fade;   // U-19e (P-7)
 	for (uint32 I = 0; I < D.Graphics._length; ++I)
 	{
 		const auto& G = D.Graphics._buffer[I];
@@ -445,7 +446,7 @@ void UHrotDpsRender::RenderFrame(const FRequest& R)
 	bHadFrame = true; LastP = R.P; LastQ = R.Q; LastEpoch = Ep;
 	C->CaptureScene();
 	// the overlay INTO the image (a canvas on the target, after the capture)
-	if (!R.Subtitle.IsEmpty() || R.Graphics.Num())
+	if (!R.Subtitle.IsEmpty() || R.Graphics.Num() || R.Fade > 0.005f)
 	{
 		UCanvas* Canvas = nullptr; FVector2D Size; FDrawToRenderTargetContext Ctx;
 		UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(W, Target, Canvas, Size, Ctx);
@@ -622,13 +623,9 @@ void UHrotDpsRender::DrawOverlay(const FRequest& R, UCanvas* Canvas, FVector2D S
 		if (!G.Text.IsEmpty() && G.Points.Num() && Project(G.Points[0], A2))
 			Canvas->K2_DrawText(Font, G.Text, A2 + FVector2D(8, -8) * Scale, FVector2D(Scale, Scale), Col, 0, FLinearColor::Black, FVector2D(1, 1), false, false, true, FLinearColor::Black);
 	}
-	if (!R.Subtitle.IsEmpty())
-	{
-		const float Y = R.SubPos == SimNetGateway_Protocol_DdsPlayer_SubtitlePositionTop ? 0.08f : R.SubPos == SimNetGateway_Protocol_DdsPlayer_SubtitlePositionCentre ? 0.5f : 0.88f;
-		const FLinearColor Col = FLinearColor::White.CopyWithNewOpacity(R.SubAlpha > 0 ? R.SubAlpha : 1.f);
-		Canvas->K2_DrawText(Font, R.Subtitle, FVector2D(Size.X * 0.5, Size.Y * Y), FVector2D(Scale * 1.6f, Scale * 1.6f), Col, 0, FLinearColor::Black, FVector2D(2, 2), true, true, true,
-			FLinearColor::Black.CopyWithNewOpacity(Col.A));
-	}
+	// the subtitle and the director's fade (P-7) through the ONE painter the live HUD uses (HrotDpsOverlay): the fade covers the graphics too
+	HrotDpsOverlay::FSpec Sp; Sp.Subtitle = R.Subtitle; Sp.Pos = R.SubPos; Sp.Alpha = R.SubAlpha; Sp.Fade = R.Fade;
+	HrotDpsOverlay::Paint(Canvas, Size, Sp, Font);
 }
 
 FString UHrotDpsRender::Describe() const

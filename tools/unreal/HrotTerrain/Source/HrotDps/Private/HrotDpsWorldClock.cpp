@@ -206,9 +206,17 @@ void UHrotDpsWorld::OnView(const FHrotDpsSample& S)
 	View.TargetId = D.TargetId; View.Distance = D.Distance; View.Side = D.Side == 0 ? 1.f : D.Side;
 	View.Fov = D.FovDeg > 1.f ? D.FovDeg : 60.f; View.FovRate = D.FovRate;
 	View.CutSeq = D.CutSeq;
+	View.Fade = D.Fade; View.Subtitle = UTF8_TO_TCHAR(D.Subtitle); View.SubPos = uint8(D.SubtitlePosition); View.SubAlpha = D.SubtitleAlpha;   // U-19e
 	View.Track = K;
 	View.SampleReal = R;
 	++ViewSamples;
+}
+
+UHrotDpsWorld::FOverlayNow UHrotDpsWorld::OverlayNow() const
+{
+	FOverlayNow O;
+	O.bHas = View.bHas; O.Subtitle = View.Subtitle; O.Pos = View.SubPos; O.Alpha = View.SubAlpha; O.Fade = View.Fade;
+	return O;
 }
 
 FHrotDpsPose UHrotDpsWorld::ViewPoseAt(double R) const
