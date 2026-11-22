@@ -403,14 +403,17 @@ namespace Hrot.Map.Definitions.Tkb
         //   that fires an explosive round states how far its burst carries (class Explosion, the translator's default); 0 = a round that
         //   does not burst (ball, AP). 🔴 BR-14 gave the tubes no burst: a shell bursting 35 m from a soldier was heard by nobody.
 
-        // ⭐ BR-14 — the reports. Starter figures, rounded (an open field, no wind); the hearing rule caps them by the listener's ear.
-        private static readonly Report HmgReport      = new(1000f, SoundSourceClass.HeavyWeapon, Family: SoundFamily.HeavyMg);   // the technicals' figure (12.7 / 7.62 mm minigun)
-        private static readonly Report CannonReport   = new(1500f, SoundSourceClass.HeavyWeapon, Burst: 600f, Family: SoundFamily.AaGun);   // the ZU-23's 23 mm (its HEI bursts)
-        private static readonly Report LauncherReport = new(500f,  SoundSourceClass.HeavyWeapon, Burst: 800f, Family: SoundFamily.Launcher);   // a shoulder launch (the urban RPG's, and its burst)
-        private static readonly Report AtgmReport     = new(800f,  SoundSourceClass.HeavyWeapon, Burst: 800f, Family: SoundFamily.Launcher);   // a tripod ATGM's launch and burst
-        private static readonly Report RifleReport    = new(400f,  SoundSourceClass.SmallArms, Family: SoundFamily.Rifle);     // the urban rifle's
-        private static readonly Report PistolReport   = new(200f,  SoundSourceClass.SmallArms, Family: SoundFamily.Rifle);
-        private static readonly Report MgReport       = new(600f,  SoundSourceClass.SmallArms, Family: SoundFamily.Rifle);     // a 7.62 mm RWS
+        // ⭐ BR-14 — the reports. ⭐ CE-2480 (R-2143; 🔒 user: "of course 200 meters for a rifle shot is very small") — at a HUMAN's audibility, the low end
+        //   (an open field, no wind; the weather scales it, §8.2): a rifle's crack is heard 1–3 km off, so 1.5 km; the reports ordered by loudness
+        //   pistol < rifle < 7.62 MG < 12.7 HMG < 23 mm cannon. ⚠ Approximate — no sound-ranging source as the tubes have (§8.5); a gunshot is LOUD
+        //   now (IsLoud), so no ear range caps it.
+        private static readonly Report HmgReport      = new(2500f, SoundSourceClass.HeavyWeapon, Family: SoundFamily.HeavyMg);   // the technicals' figure (12.7 / 7.62 mm minigun)
+        private static readonly Report CannonReport   = new(3000f, SoundSourceClass.HeavyWeapon, Burst: 600f, Family: SoundFamily.AaGun);   // the ZU-23's 23 mm (its HEI bursts)
+        private static readonly Report LauncherReport = new(1500f, SoundSourceClass.HeavyWeapon, Burst: 800f, Family: SoundFamily.Launcher);   // a shoulder launch (the urban RPG's, and its burst)
+        private static readonly Report AtgmReport     = new(1500f, SoundSourceClass.HeavyWeapon, Burst: 800f, Family: SoundFamily.Launcher);   // a tripod ATGM's launch and burst
+        private static readonly Report RifleReport    = new(1500f, SoundSourceClass.SmallArms, Family: SoundFamily.Rifle);     // the urban rifle's
+        private static readonly Report PistolReport   = new(800f,  SoundSourceClass.SmallArms, Family: SoundFamily.Rifle);
+        private static readonly Report MgReport       = new(2000f, SoundSourceClass.SmallArms, Family: SoundFamily.Rifle);     // a 7.62 mm RWS
         /// <summary>
         /// ⭐ CE-3284 (Q95 B1, R-3024) — the tubes and guns at their REAL carry (BR-14's 1.5–5 km starter figures superseded): the low end of
         /// the 1B19 sound-ranging bands (mortars ≤ 81 mm 4–5 km, ≤ 120 mm 6–8 km, howitzers ≤ 105 mm 12–15 km) and the handoff's 15–20 km for a

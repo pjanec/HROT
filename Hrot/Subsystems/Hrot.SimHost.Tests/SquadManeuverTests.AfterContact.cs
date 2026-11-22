@@ -263,6 +263,33 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2481</c> (Squad Tactics §7.10) — a RUNNING ordered attack keeps pressing past the 3 : 1 that starts an assault, down to 1.5 : 1 (the
+        /// culminating point): 📐 uf-corner-assault, 6 v 2 is exactly 3 : 1, and one man grazed (100 → 87.5) at 16.1 s stopped the whole squad. Here the harness's
+        /// six men are unarmed (0.3 each, <c>ThreatDanger.Unarmed</c>): 1.8 against ONE heard enemy is a share of 0.357 — past 3 : 1, inside 1.5 : 1 ⇒ still
+        /// pressing; four men down to a quarter health ⇒ no longer. 🔴 Red-proof: <c>PressesTheAttack</c> back on <c>AssaultShare</c> ⇒ the first assert red.
+        /// </summary>
+        [Fact]
+        public void CE2481_ARunningAttack_PressesUntilOneAndAHalfToOne_NotStoppedByOneGraze()
+        {
+            var s = new Squad(members: 6);
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            s.PoolMany(1, new Vector3(0f, 60f, 0f));
+            ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+            var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+            span[0].Flags |= SquadContact.AnonymousFlag;   // heard: one armed man
+            s.Order("{\"Position\":[0,60,0]}", BehaviorNames.InfantrySquadAttack);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            float share = Fdp.Toolkit.Utility.SquadInputs.EnemyShare(Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(s.Repo, s.Commander), Fdp.Toolkit.Utility.SquadInputs.OwnStrengthOf(s.Repo, s.Commander));
+            Assert.InRange(share, AfterContact.AssaultShare + 0.01f, AfterContact.PressShare - 0.01f);   // the case the hysteresis is for
+            Assert.True(ReactToContactBehavior.PressesTheAttack(s.Repo, s.Commander), $"share {share:0.000}: past 3 : 1, still pressing");
+
+            for (int m = 0; m < 4; m++) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[m]).Current = 25f;
+            Assert.False(ReactToContactBehavior.PressesTheAttack(s.Repo, s.Commander), "past the culminating point");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — an assault LEARNS the ground the enemy covers (a <c>Direct</c> record of its side, the same learn as a break
         /// contact) the moment it starts, and asks the terrain for its flank only once that knowledge is there — so the flank's EQS path cost and the movers' routes
         /// are priced round the enemy's fire on the navmesh node (📐 U2: the flank was the junction mouth, reached straight up the enemy's street). With no record

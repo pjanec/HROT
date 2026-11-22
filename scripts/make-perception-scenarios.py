@@ -159,4 +159,29 @@ write("pe-shelled", "indirect-fire-range",
            {"name": "the squad never holds a phantom", "never": squad("phantom", ">", 0), "after": "first burst"},
        ]})
 
-print("wrote pe-one-shot-four-ears, pe-seen-shooter, pe-two-shooters, pe-shelled")
+# ── P2 — a shot inside a house, heard from four sides (bt-range House A: house-2f at (100,100), 10 x 8 m; the inner wall at x 105 with the
+#    hall door OPEN at (105,106.6); the front door (104.2,100) closed; an east window at (110,103.6)) ─────────────────────────────────────────
+HOUSE_SHOOTER = (102, 103)
+ents, _ = squad_of_ears(2, [(108, 102), (116, 103.6), (102, 93), (104, 114)])   # east room · outside the east window · south · north
+ents.update(target(2, 300, 103, 107))
+ents.update(shooter(2, 200, "Red Shooter", *HOUSE_SHOOTER, guid(2, 300)))
+write("pe-house-shot", "bt-range",
+      "CE-2476 / CE-2475 perception suite P2 (Sensing §8.6e) - on bt-range a 'Red Shooter' in House A's west room (102,103) fires at a 'Blue Target' "
+      "in the same room; four passive Blue listeners hear him from the east room (one inner wall, the hall door open beside it), outside the east "
+      "window, south of the house and north of it - each by a different way (walls, the door, the window).",
+      "the squad believes ONE enemy (matched 1, no duplicate) though every ear heard him by a different way; a hearing that came through an opening "
+      "is a place to look (D-8), a straight one a place he is (CE-2479: a concrete inner wall costs a shot ~24 dB, so through the open hall door is the way). "
+      "Fail: one shot is two enemies in the squad, or a straight hearing puts an enemy where none is.",
+      ents,
+      {"runFor": 40, "golden": False,
+       "anchors": {"first shot": {"on": "shot", "by": "Red Shooter"}},
+       "expect": [
+           {"name": "the shooter fires", "on": "shot", "by": "Red Shooter", "n": 3},
+           {"name": "every ear hears him (contacts >= 1, 5 s)", **per_man("contacts", ">=", 1, quantifier="all", **{"for": 5}), "after": "first shot"},
+           {"name": "the squad's pool holds him once (5 s)", **squad("matched", "==", 1, **{"for": 5}), "after": "first shot"},
+           {"name": "the squad never counts him twice", "never": squad("duplicate", ">", 0), "after": "first shot+2"},
+           {"name": "no straight hearing believes an enemy where none is (a sound heard through an opening says where to LOOK, D-8)", "never":
+               {**per_man("phantom", ">", 0), "through": False}, "after": "first shot"},
+       ]})
+
+print("wrote pe-one-shot-four-ears, pe-seen-shooter, pe-two-shooters, pe-shelled, pe-house-shot")

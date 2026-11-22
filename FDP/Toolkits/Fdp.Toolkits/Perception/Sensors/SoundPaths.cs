@@ -24,8 +24,10 @@ namespace Fdp.Toolkit.Perception.Sensors
     /// (heard when the straight distance ≤ carry × Factor); <see cref="HeardFrom"/> is where it seems to come from — the last opening or corner
     /// on the chosen path, the source itself on the straight line.
     /// </summary>
+    /// ⭐ <c>CE-2475</c> (R-2142, Sensing §8.6e) — <see cref="Smear"/> 0…1: how far the direction was pulled between the straight way and the way round
+    /// (the first wavefront vs the louder later one); the listener is that much less sure (the answer's radius grows with it).
     public readonly record struct SoundRoute(float Factor, Vector3 HeardFrom, SoundVia Via, float StraightDb, float PathMetres, float PathDb,
-                                             int Openings, int Corners, int Crossings);
+                                             int Openings, int Corners, int Crossings, float Smear = 0f);
 
     /// <summary>
     /// ⭐⭐ AQ106 (R-3050; docs/blueprints/Architect_Question_106_Sound_Paths.md, World Query Seam WQ-E v2) — <b>sound round corners and
@@ -87,7 +89,9 @@ namespace Fdp.Toolkit.Perception.Sensors
             var lift = new Vector3(0f, 0f, AcousticPerception.BodyHeight);
             query.Trace(source + lift, ear + lift, TracePurpose.Sound, crossed);
             float straightDb = 0f;
-            for (int i = 0; i < crossed.Count; i++) straightDb += MathF.Min(MathF.Max(0f, crossed[i].Loss), AcousticPerception.WallCapDb);
+            // ⭐ CE-2479 (R-2143) — each piece's REAL transmission loss (materials.json soundDb), scaled by the band below: ⛔ no longer capped at one
+            //   halving (AQ104 E ②'s v1), which made a concrete wall and a hedge alike and every way round barely louder than straight through
+            for (int i = 0; i < crossed.Count; i++) straightDb += MathF.Max(0f, crossed[i].Loss);
             straightDb *= band;
             straight = straight with { Factor = Db(straightDb), StraightDb = straightDb, PathDb = straightDb, Crossings = crossed.Count };
             if (straightDb <= 0f || world is null || world.Buildings.Count == 0) { Straight(waypoints, source, ear); return straight; }   // open air: done
@@ -97,12 +101,38 @@ namespace Fdp.Toolkit.Perception.Sensors
             var path = be < 0 && bs < 0
                 ? AroundBuildings(world, ear, source, sourceClass, d, waypoints)                  // K — both outdoors
                 : ThroughOpenings(world, doors, ear, source, be, bs, sourceClass, d, waypoints);  // A–J — one of them inside
-            if (path is { } p && p.Factor > straight.Factor) return p with { StraightDb = straightDb, Crossings = crossed.Count };
+            if (path is { } p && p.Factor > straight.Factor) return FirstWavefront(p with { StraightDb = straightDb, Crossings = crossed.Count }, straight, ear, source);
             Straight(waypoints, source, ear);
             return straight;
         }
 
         private static float Db(float db) => MathF.Pow(10f, -db / 20f);
+
+        /// <summary>⭐ <c>CE-2475</c> — the straight way's lead below which the ear still takes its DIRECTION from it (dB; the precedence effect holds
+        /// to ~10 dB), and the lead past which the way round alone sets it; between, the image smears from one to the other.</summary>
+        public const float FirstWavefrontDb = 10f, SmearedToDb = 20f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2475</c> (R-2142; Sensing §8.6e; 🔒 user: "in reality the sound propagates through walls as well as around them and the human
+        /// aggregates those") — the way round is LOUDER (it decides whether the sound is heard, AQ106 B), but the straight way through the walls is the
+        /// SHORTEST and arrives first: the ear takes the direction from that first wavefront unless the way round is ≥ <see cref="FirstWavefrontDb"/>
+        /// louder (Wallach 1949, Haas 1951), and from the way round alone past <see cref="SmearedToDb"/>; between, the heard-from point moves from the
+        /// source's direction to the opening's (and the distance with it), <see cref="SoundRoute.Smear"/> says how far, and it counts as heard
+        /// through the opening only past halfway. ⛔ Not a weighted mix of reflections: one way round is what is solved.
+        /// </summary>
+        internal static SoundRoute FirstWavefront(SoundRoute round, SoundRoute straight, Vector3 ear, Vector3 source)
+        {
+            float lead = 20f * MathF.Log10(round.Factor / MathF.Max(straight.Factor, 1e-9f));   // how much louder the way round is (dB)
+            if (lead >= SmearedToDb) return round;
+            if (lead <= FirstWavefrontDb) return round with { HeardFrom = source, Via = SoundVia.Straight, Smear = 0f };
+            float t = (lead - FirstWavefrontDb) / (SmearedToDb - FirstWavefrontDb);
+            Vector3 toSource = source - ear, toOpening = round.HeardFrom - ear;
+            float ds = toSource.Length(), dO = toOpening.Length();
+            Vector3 dir = ds > 1e-3f && dO > 1e-3f ? Vector3.Lerp(toSource / ds, toOpening / dO, t) : toOpening;
+            float len = dir.Length();
+            var from = len > 1e-4f ? ear + dir / len * (ds + (dO - ds) * t) : round.HeardFrom;
+            return round with { HeardFrom = from, Via = t > 0.5f ? round.Via : SoundVia.Straight, Smear = t };
+        }
 
         // the factor a path of length `metres` with `db` of loss gives, against the straight distance d: heard when metres ≤ carry × 10^(−db/20)
         private static float PathFactor(float d, float metres, float db) => metres <= 1e-3f ? 1f : MathF.Min(1f, d / metres) * Db(db);
@@ -157,10 +187,11 @@ namespace Fdp.Toolkit.Perception.Sensors
             // the portals of the (one or two) buildings involved
             var nodes = t_nodes ??= new List<Node>();
             nodes.Clear();
-            float doorDb = MathF.Min(world.Materials.TryGet(TerrainWorld.DoorMaterial, out var m) ? m.SoundAttenuationDb : TerrainWorldQuery.DefaultSoundDb,
-                                     AcousticPerception.WallCapDb) * AcousticPerception.BandFactor(cls);
-            float glassDb = MathF.Min(world.Materials.TryGet(TerrainWorld.PaneMaterial, out var gm) ? gm.SoundAttenuationDb : TerrainWorldQuery.DefaultSoundDb,
-                                      AcousticPerception.WallCapDb) * AcousticPerception.BandFactor(cls);
+            // ⭐ CE-2479 — a closed door and an intact pane at their material's real loss (no one-halving cap)
+            float doorDb = (world.Materials.TryGet(TerrainWorld.DoorMaterial, out var m) ? m.SoundAttenuationDb : TerrainWorldQuery.DefaultSoundDb)
+                           * AcousticPerception.BandFactor(cls);
+            float glassDb = (world.Materials.TryGet(TerrainWorld.PaneMaterial, out var gm) ? gm.SoundAttenuationDb : TerrainWorldQuery.DefaultSoundDb)
+                            * AcousticPerception.BandFactor(cls);
             foreach (int b in bs == be || be < 0 ? new[] { bs } : bs < 0 ? new[] { be } : new[] { bs, be })
             {
                 if (b < 0) continue;

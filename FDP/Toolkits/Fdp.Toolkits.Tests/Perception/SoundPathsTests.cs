@@ -37,15 +37,67 @@ namespace Fdp.Toolkit.Tests.Perception
         {
             var source = new Vector3(2f, 6.6f, 0f); var ear = new Vector3(8f, 4f, 0f);
             var open = Route(House("\"hall\":\"open\""), ear, source, Steps);
+            // ⭐ CE-2479 + CE-2475: the concrete inner wall costs the steps its real 40 dB, so the open door's way wins by far more than 20 dB ⇒ the first
+            //   wavefront through the wall is lost: heard FROM THE DOORWAY (as AQ106 F)
             Assert.Equal(SoundVia.Openings, open.Via);
             Assert.True(open.Factor > 0.8f, $"through the open door {open}");
             Assert.True(Vector2.Distance(new Vector2(open.HeardFrom.X, open.HeardFrom.Y), new Vector2(5f, 6.6f)) < 0.3f, $"heard from {open.HeardFrom}");
-            Assert.Equal(0.501f, Db(open.StraightDb), 2);   // the straight line: one halving (the inner wall)
+            Assert.Equal(40f, open.StraightDb, 1);   // ⭐ CE-2479 — the straight line: the concrete inner wall's REAL 40 dB (was one halving)
 
+            // ⭐ CE-2479 — the shut WOODEN door (15 dB) is still far quieter a way than the concrete wall (40): muffled, and through the door
             var shut = Route(House("\"hall\":\"closed\""), ear, source, Steps);
-            Assert.Equal(SoundVia.Straight, shut.Via);
-            Assert.True(shut.Factor < open.Factor);
-            Assert.Equal(source, shut.HeardFrom);
+            Assert.Equal(SoundVia.Openings, shut.Via);
+            Assert.True(shut.Factor < open.Factor * 0.5f, $"a shut door muffles: {shut.Factor} vs {open.Factor}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2475</c> (R-2142; Sensing §8.6e; 🔒 user: "the human aggregates those and is not absolutely without the sense of from what direction the
+        /// sound comes from") — the FIRST WAVEFRONT: the way round is louder, but the straight way arrives first. Up to 10 dB louder round ⇒ heard from
+        /// the SOURCE's direction (straight); 20 dB or more ⇒ from the opening (as AQ106 F); between ⇒ smeared between the two bearings, less sure, and
+        /// "through the opening" only past halfway. The way round still decides WHETHER it is heard (its factor is kept — AQ106 B).
+        /// 🔴 Red-proof: <c>FirstWavefront</c> returning the way round unchanged ⇒ the 4 dB case is heard from the door ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2475_TheFirstWavefront_SetsTheDirection_UnlessTheWayRoundIsMuchLouder()
+        {
+            var ear = new Vector3(0f, 0f, 0f); var source = new Vector3(10f, 0f, 0f); var door = new Vector3(0f, 10f, 0f);
+            var straight = new SoundRoute(0.5f, source, SoundVia.Straight, 6f, 10f, 6f, 0, 0, 1);
+            SoundRoute Round(float leadDb) => new(0.5f * MathF.Pow(10f, leadDb / 20f), door, SoundVia.Openings, 6f, 14f, 1f, 1, 1, 1);
+
+            var close = SoundPaths.FirstWavefront(Round(4f), straight, ear, source);
+            Assert.Equal(SoundVia.Straight, close.Via);
+            Assert.Equal(source, close.HeardFrom);
+            Assert.Equal(Round(4f).Factor, close.Factor, 5);   // still heard as loud as the way round
+            Assert.Equal(0f, close.Smear);
+
+            var far = SoundPaths.FirstWavefront(Round(26f), straight, ear, source);
+            Assert.Equal((SoundVia.Openings, door), (far.Via, far.HeardFrom));
+
+            var smearedEarly = SoundPaths.FirstWavefront(Round(12f), straight, ear, source);
+            var smearedLate = SoundPaths.FirstWavefront(Round(18f), straight, ear, source);
+            Assert.Equal(SoundVia.Straight, smearedEarly.Via);
+            Assert.Equal(SoundVia.Openings, smearedLate.Via);
+            Assert.InRange(smearedEarly.Smear, 0.15f, 0.25f);
+            float bearingEarly = MathF.Atan2(smearedEarly.HeardFrom.Y, smearedEarly.HeardFrom.X), bearingLate = MathF.Atan2(smearedLate.HeardFrom.Y, smearedLate.HeardFrom.X);
+            Assert.True(bearingEarly > 0.05f && bearingEarly < bearingLate && bearingLate < MathF.PI / 2 - 0.05f, $"between the two bearings: {bearingEarly} < {bearingLate}");
+        }
+
+        /// <summary>⭐ <c>CE-2475</c> + <c>CE-2479</c> on the real house (house-2f: brick outside, a CONCRETE inner wall, 40 dB) — a shot in the west room, an ear in
+        /// the east room. Hall door OPEN: the doorway is ~20 dB louder than the wall ⇒ heard FROM THE DOORWAY (the way round dominates). Hall door SHUT (a wooden
+        /// door, 15 dB): the door way leads by ~10–20 dB ⇒ the image SMEARS between the shot's direction and the door's. A BLAST (Low band, the wall costs it 8 dB)
+        /// ⇒ heard from its own direction through the wall — the first wavefront. 📐 measured `2026-11-22` (TmpRouteDump).</summary>
+        [Fact]
+        public void CE2475_InARealHouse_TheDoorWins_AShutDoorSmears_ABlastComesThroughTheWall()
+        {
+            var source = new Vector3(2f, 6.6f, 0f); var ear = new Vector3(8f, 4f, 0f);
+            var open = Route(House("\"hall\":\"open\""), ear, source, (byte)SoundSourceClass.SmallArms);
+            Assert.Equal(SoundVia.Openings, open.Via);
+            Assert.True(Vector2.Distance(new Vector2(open.HeardFrom.X, open.HeardFrom.Y), new Vector2(5f, 6.6f)) < 0.3f, $"from the doorway: {open.HeardFrom}");
+            var shut = Route(House("\"hall\":\"closed\""), ear, source, (byte)SoundSourceClass.SmallArms);
+            Assert.InRange(shut.Smear, 0.05f, 0.95f);
+            var blast = Route(House("\"hall\":\"closed\""), ear, source, Blast);
+            Assert.Equal(SoundVia.Straight, blast.Via);
+            Assert.Equal(source, blast.HeardFrom);
         }
 
         /// <summary>⭐ E — a WINDOW is an opening: steps in the east room, an ear in the street south of the house; the straight line crosses
@@ -56,7 +108,8 @@ namespace Fdp.Toolkit.Tests.Perception
             var r = Route(House(""), new Vector3(4.2f, -6f, 0f), new Vector3(8f, 4f, 0f), Steps);
             Assert.Equal(SoundVia.Openings, r.Via);
             Assert.True(r.Factor > Db(r.StraightDb), r.ToString());
-            Assert.True(r.HeardFrom.X > 9.5f || r.HeardFrom.Y < 0.5f, $"heard from an opening, not through the wall: {r.HeardFrom}");
+            // ⭐ CE-2479 — with the walls' real loss the way out may be the back door rather than the window: an opening on the house's edge either way
+            Assert.True(r.HeardFrom.X > 9.5f || r.HeardFrom.Y < 0.5f || r.HeardFrom.Y > 7.5f || r.HeardFrom.X < 0.5f, $"heard from an opening, not through the wall: {r.HeardFrom}");
         }
 
         /// <summary>

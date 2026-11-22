@@ -1244,9 +1244,9 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ CE-3276 (R-3023; DESIGN_Thermal_And_Acoustic_Sensing §8.2) — a LOUD sound carries past the listener's ear range: a man whose
-        /// ears reach 200 m hears the 81 mm tube's launch at 1.2 km (its own 5 km carry, CE-3284), and not at 6 km. A QUIET class keeps both caps: a
-        /// small-arms shot that would carry 1.5 km, from the same spot, is not heard at 1.2 km. His own side's gun is never heard (the
-        /// broadphase's rule). 🔴 Red before: the near man heard nothing.
+        /// ears reach 200 m hears the 81 mm tube's launch at 1.2 km (its own 5 km carry, CE-3284), and not at 6 km. ⭐ CE-2480 (R-2143): a GUNSHOT is loud
+        /// too now — the small-arms shot carrying 1.5 km from the same spot IS heard at 1.2 km (⛔ superseded: "a quiet shot is not"). His own side's gun is
+        /// never heard (the broadphase's rule). 🔴 Red before: the near man heard nothing.
         /// </summary>
         [Fact]
         public void CE3276_ALoudLaunch_CarriesPastASoldiersEars_AQuietShotDoesNot()
@@ -1303,10 +1303,12 @@ namespace Hrot.SimHost.Tests
                 _world.Bus.SwapBuffers();
 
                 var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
-                var one = Assert.Single(heard);                                   // the tube's launch, by the near man only
-                Assert.Equal(near, one.Observer);
+                Assert.Equal(2, heard.Length);                                    // the tube's launch AND the rifle's crack (CE-2480), by the near man only
+                Assert.All(heard, h => Assert.Equal(near, h.Observer));
+                Assert.Contains(heard, h => h.SourceClass == (byte)SoundSourceClass.SmallArms);
+                var one = heard.Single(h => h.SourceClass == (byte)SoundSourceClass.HeavyWeapon);
                 Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
-                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // not the rifle, not his own side's gun
+                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // the tube — never his own side's gun
                 Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(at.X, at.Y)) <= one.Radius + 0.01f);
                 Assert.DoesNotContain(heard, h => h.Observer == far);
             }

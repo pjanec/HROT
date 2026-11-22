@@ -1028,6 +1028,30 @@ sequenceDiagram
 
 INVENTORY (`2026-11-22`): `search_graph name_pattern ".*(Perception|Hearing|Acoustic|Visual|Thermal|Sensor|TargetMemory|SquadPerception|Detection|Sound).*Tests?" label Class` → total 53, has_more false (⚠ it MISSED `AcousticHearingTests`, `SoundPathsTests`, `ThreatEvaluationSystemTests` — found by `ls FDP/Toolkits/Fdp.Toolkits.Tests/Perception`, 30 files); check-grammar cues: `ScenarioChecks.Kinds` (`field`, `knowledge`, `far`, `close`, `between`, `window`, `cover`, `bunched`, `still`, `exposed` + the anchor kinds) — none reads a belief; scenarios: `find scenarios -name checks.json` (261) filtered by sensing words → 20, none judges a heard contact or a count. ⛔ Coverage could not be checked (`check_index_coverage` is not in the CLI).
 
+#### 8.6f `CE-2479` / `CE-2480` — walls at their real loss, and a gunshot is LOUD *(behaviors, `2026-11-22`; R-2143; 🔒 user: "Yes, use realistic attenuation through walls, and of course 200 meters for a rifle shot is very small, we need extension"; build-state: BUILDING)*
+
+```mermaid
+graph TD
+  S["a sound: class, carry"] --> L{"IsLoud? heavy weapon, explosion, ⭐ small arms"}
+  L -->|"loud"| C1["heard within carry × weather (§8.2), past the ear range"]
+  L -->|"quiet: steps, engines, rotors"| C2["heard within min(carry, ear range)"]
+  C1 --> R["SoundPaths.Route: straight = Σ material dB × band ⭐ no cap; round = openings, corners"]
+  C2 --> R
+  R --> F["the LOUDER way decides WHETHER (AQ106 B); the first wavefront decides FROM WHERE (CE-2475)"]
+```
+*What the picture shows that prose hid:* the two changes meet in one verdict — a gunshot now reaches far (C1), and once walls cost their real dB the way round can win by enough for the first-wavefront rule to mean something.
+
+| ⭐ as built | was | why |
+|---|---|---|
+| each wall / slab / closed door / intact pane: its `materials.json` soundDb × band (concrete 40, brick 35, glass 20, a wooden door 15; a rifle ×0.6, steps ×1, a blast ×0.2) | `min(dB, 6.02)` — one halving (AQ104 E ②'s v1, `WallCapDb`, removed) | a concrete wall and a hedge were alike; the way round never won by more than a few dB (§8.6e, CE-2475's stopped premise) |
+| small arms are a LOUD class | quiet — capped by the 200 m soldier's ear | 📐 `pe-one-shot-four-ears` at 250 m heard nothing (`/perception/hearing`: `BeyondHisEar`) |
+| carries at a human's audibility, low end: pistol 0.8 · rifle 1.5 · 7.62 MG 2 · 12.7 HMG 2.5 · 23 mm 3 · a shoulder launch / ATGM 1.5 km | 0.2 · 0.4 · 0.6 · 1 · 1.5 · 0.5 / 0.8 km | ⚠ approximate — no sound-ranging source as the tubes have (§8.5); ordered by loudness |
+
+| ⚠ blast radius, measured on the build | |
+|---|---|
+| footsteps through a brick wall now stop at ~0.4 m (25 m × 10^(−35/20)) | ⇒ indoor scenarios that relied on hearing steps through walls change |
+| every soldier hears every rifle shot within ~1.5 km × weather | ⇒ more heard contacts (CE-2474's fusion carries them) and a longer LOUD list each tick (§8.2) |
+
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
 ⭐ **`2026-11-18`, CE-4658 (backend):** every body now HAS a heat signature — `ThermalDefaults` by its locomotion class, stamped by `SignatureTkbTranslator` where a type authors none — and the sensor computes the heat from the replicated drivers (`HeatSource`); a dedicated **thermal observer (TKB 215)** carries the sight, the M1 / Bradley carriage stays withdrawn. 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md).
