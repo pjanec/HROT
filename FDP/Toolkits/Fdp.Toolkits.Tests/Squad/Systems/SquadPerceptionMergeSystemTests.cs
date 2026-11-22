@@ -528,11 +528,15 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             // ⭐ CE-2488 — heard outside the circle of the old spot: he is now believed where he was heard
             Assert.Equal(105.9f, mem.PositionsX[0], 3);
             Assert.Equal(106.8f, mem.PositionsY[0], 3);
-            // ⭐ CE-2488 — a point round an opening refreshes him but does not move him (it is the way in, D-8)
-            TargetMemory.HearContact(ref mem, 107.5f, 106.8f, 0f, 0.5f, 4, 10f, 3, via: 1);
+            // ⭐ CE-2488 — a point round an opening inside his own circle refreshes him but does not move him (it is the way in, D-8)
+            Assert.Equal((long)enemy.PackedValue, TargetMemory.HearContact(ref mem, 106.4f, 106.8f, 0f, 0.6f, 4, 10f, 3, via: 1));
             Assert.Equal(105.9f, mem.PositionsX[0], 3);
-            Assert.True(TargetMemory.HearContact(ref mem, 111.0f, 108.0f, 0f, 1.1f, 4, 10f, 3) < 0, "8 m off: another");
+            // ⭐ CE-2489 (📐 ia-house-hunt) — a point round an opening 3 m off (the stairwell to him) is NOT folded into him: it is the route, its own contact
+            Assert.True(TargetMemory.HearContact(ref mem, 108.9f, 106.8f, 0f, 0.9f, 4, 10f, 3, via: 1) < 0, "the way in stays");
             Assert.Equal(2, mem.Count);
+            Assert.Equal(105.9f, mem.PositionsX[mem.EntityIds[0] == (long)enemy.PackedValue ? 0 : 1], 3);
+            Assert.True(TargetMemory.HearContact(ref mem, 111.0f, 108.0f, 0f, 1.1f, 4, 10f, 3) < 0, "5 m off: another");
+            Assert.Equal(3, mem.Count);
         }
 
         /// <summary>⭐⭐ <c>CE-2487</c> (📐 pe-house-shot) — CE-2486 the other way round. ① A man HEARD at (106.2, 107.0), sure to 0.7 m, then SEEN 0.9 m from
