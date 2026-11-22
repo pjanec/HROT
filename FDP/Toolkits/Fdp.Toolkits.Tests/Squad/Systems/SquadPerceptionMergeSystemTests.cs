@@ -513,5 +513,20 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(1, mem.Count);
             Assert.Equal((long)behind.PackedValue, mem.EntityIds[0]);
         }
+    
+        /// <summary>⭐⭐ <c>CE-2486</c> (📐 pe-house-shot) — a man he SAW at (103.7, 105.2) and now only HEARS, 2.7 m from there with a 1.1 m circle, is that man (he
+        /// moved a few steps): the known contact is refreshed, no heard duplicate. A sound 8 m from him is another. 🔴 Red-proof: no slack ⇒ 2 contacts ⇒ red.</summary>
+        [Fact]
+        public void CE2486_HeardAFewStepsFromWhereHeWasLastSeen_IsHim()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            var enemy = repo.CreateEntity();
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 103.66f, 105.17f, 50f, tick: 1);
+            Assert.Equal((long)enemy.PackedValue, TargetMemory.HearContact(ref mem, 105.9f, 106.8f, 0f, 1.1f, 4, 10f, 2));
+            Assert.Equal(1, mem.Count);
+            Assert.True(TargetMemory.HearContact(ref mem, 111.0f, 108.0f, 0f, 1.1f, 4, 10f, 3) < 0, "8 m off: another");
+            Assert.Equal(2, mem.Count);
+        }
     }
 }

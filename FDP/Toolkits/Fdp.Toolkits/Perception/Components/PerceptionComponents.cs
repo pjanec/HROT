@@ -328,6 +328,11 @@ namespace Fdp.Toolkit.Perception.Components
             }
         }
 
+        /// <summary>⭐ <c>CE-2486</c> (Sensing §8.6e; 📐 pe-house-shot) — a sound heard within its circle PLUS this (m) of a man he already KNOWS is that man: the
+        /// memory holds where he was last SEEN, and a man moves a few steps between sightings. 📐 the ear 12 m from the shooter, sure to 1.1 m, heard him 2.7 m
+        /// from where he had last seen him and held him twice. ⚠ Two enemies closer than this are heard as one — a buddy pair, as a listener would.</summary>
+        public const float KnownMoveSlackMetres = 3f;
+
         /// <summary>⭐ <c>CE-2477</c> (Sensing §8.6e) — the tightest a fused heard circle may get, as a share of ONE hearing's circle: a lone listener
         /// localises a sound to a few degrees of bearing and judges range only by loudness, so however many shots he hears the estimate does not
         /// sharpen past ~a third of one hearing's circle (≈ 3° at the 0.15 × distance circle). 📐 pe-seen-shooter: 146 fused shots took 26 m to
@@ -359,11 +364,12 @@ namespace Fdp.Toolkit.Perception.Components
             radius = radius > 0f ? radius : 1f;
             bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
             int best = -1; float bestD2 = float.MaxValue;
+            float knownReach = radius + KnownMoveSlackMetres;   // ⭐ CE-2486 — he may have moved a few steps since he was last seen
             for (int i = 0; !burst && i < mem.Count; i++)
             {
                 if (mem.Anonymous[i] != 0) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
-                if (d2 <= radius * radius && d2 < bestD2) { best = i; bestD2 = d2; }
+                if (d2 <= knownReach * knownReach && d2 < bestD2) { best = i; bestD2 = d2; }
             }
             if (best >= 0)
             {
