@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). ⭐ NOW L-2b (CE-4680): B-1 … B-6 done, proof 1 (scripted run_play) 8/8; NEXT the Haiku run (proof 2).
+⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). ✅ L-2b (CE-4680) DONE: B-1 … B-6, proof 1 (scripted run_play, 8/8), proof 2 (Haiku). NEXT: CE-3445 T2 resumes (parked behind L-2), unless a new handoff.
 L-1 (below): DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
 `STATUS_Backend_Queue.md` → **CE-3445 T2** (rare mode-3 stepped divergence) — a resume continues there. ⚠ `backend-wip-llm-commander` is stale
 (its content is all on `backend`; the remote refused the delete).
@@ -132,4 +132,26 @@ The radio log and the answers (run 3, verbatim):
 | B-5 | the enemy as reported (size, activity, equipment, age, heard) | DONE but "heard": ⛔ `CommandReport` has no seen / heard bit (`Radius` is spread OR uncertainty) — ask in `NOTE_Backend_To_Behaviors_Squad_Attack_Stalls.md` §2 | (this commit) | `CE4680_TheBriefing_*` |
 | B-6 | place notes (`PlaceNote`, unmanaged, NoReplay, component 321) in the prefix | DONE | (this commit) | `CE4680_TheBriefing_*` |
 | P-1 | proof 1: `llm-platoon-attack` with the scripted mind on `run_play(PlatoonAttack, house)` | ✅ PASS 8/8, two runs, the same times — PlatoonAttack at 78.25 s, Bravo supports (TargetsDown ~3:00), Alpha closes by fire and movement, every Red down, one Bravo man lost; ⚠ the brief and notes did NOT load then (managed, no translator — found by the Haiku run); fixed (unmanaged), the briefing now carries them | (this commit) | the scenario |
-| P-2 | proof 2: the Haiku worker plays it again with the brief, objectives and plays | TODO | | |
+| P-2 | proof 2: the Haiku worker plays it again with the brief, objectives and plays | ✅ DONE — see §L-2b P-2 below: it used `run_play` AND direct orders, every note cites the mission; the house not taken (the squad-attack stall) | | |
+
+## L-2b P-2 — the Haiku run with the mission (`2026-11-22`, routes only, the same four)
+
+⚠ The first L-2b Haiku run found that the brief and notes never LOADED (managed records, no translator) — its briefing had no mission, so it held
+all run. Fixed (`23c79a168`, unmanaged + a load/save rail). The run below is on the fixed build: prefix **415 → 1156 chars** (the mission, four
+place notes, the plays in the action line).
+
+| | |
+|---|---|
+| questions | 32 answered, 2 acts refused (sent with no question waiting — 409, nothing changed) |
+| tools | ⭐ BOTH: `run_play PlatoonAttack → house` at 0:00 (its opening plan), `run_play PlatoonBound → house` at 1:43, `run_play PlatoonAttack` again at 5:51; direct orders (SupportByFire / Move / Attack) in between — ⭐ the "play ENDED — the order lands once its orders are released" path ran live twice |
+| mission | ⭐ cited in every note, e.g. `00:00:00 NOTE: Mission: seize the house (sheds) from Red by 00:07, keep both squads in the fight, no crossing of open ground east of house without fire on it. Plan: PlatoonAttack on house - support by fire from the support position …` |
+| outcome | the house NOT taken: Bravo put fire on it (TargetsDown 1:13), Alpha never assaulted — under the plays or under direct Attack (`00:04:48 NOTE: … Alpha reports Set at support and the Attack order has not moved it`) — the squad-attack stall already with behaviors (`NOTE_Backend_To_Behaviors_Squad_Attack_Stalls.md`) |
+| rows | PASS: PlatoonAttack within 1 s of the SPOT (37 s), reports, Red fires, the fight lasts a minute. FAIL, explained: "both squads to the objective at the start" and "the platoon's own play never runs" are the SCRIPTED mind's rows (the LLM planned otherwise, and its own `PlatoonBound` reads as "own play" to the task cue); "every Red down" — the stall |
+
+Quotes (verbatim):
+- `00:00:36 BRAVO SQUAD: spot, 1 enemy (Individual), house`
+- `00:01:13 BRAVO SQUAD: progress, TargetsDown, at 30 m N of objective`
+- `00:01:43 NOTE: 103s: PlatoonAttack has gone quiet; squads await orders. Alpha stuck 20 m SW of start, Bravo Amber at 60 m NE of objective with TargetsDown. …`
+- `00:02:17 PLAY PlatoonBound ENDED — a direct order to Bravo Squad; it lands once the play's orders are released`
+- `00:04:15 NOTE: 255s: Alpha Set at support … Now the assault: Bravo confirms SupportByFire from the objective, Alpha attacks the house …`
+- `00:06:34 NOTE: 394s: 26 s left to the 00:07 limit. Alpha has held at support throughout; the house is not taken.`
