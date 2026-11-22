@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Temperament_And_Stress.md \u00a76 (CE-2272) \u2014 ts-house-defenders, the scenario's Judge list: (1) the Coward breaks (to ground or away); (2) the Waverer, once broken with a rifle on him, surrenders; (3) the Fanatic never breaks or surrenders and fires on the squad. \u26a0 Left out: (4) the printed figures.",
+  "$doc": "docs/DESIGN_Temperament_And_Stress.md §6 (CE-2272) — ts-house-defenders, the scenario's Judge list: (1) the Coward breaks (to ground or away); (2) the Waverer, once broken with a rifle on him, surrenders; (3) the Fanatic never breaks or surrenders and fires on the squad. ⚠ Left out: (4) the printed figures.",
   "runFor": 240,
   "golden": {
     "every": 10
@@ -14,19 +14,10 @@
       "value": 1
     },
     {
-      "name": "(2) the Waverer breaks",
-      "on": "field",
-      "who": "Waverer",
-      "path": "Stress.Broken",
-      "op": "==",
-      "value": 1
-    },
-    {
-      "name": "(2) the Waverer surrenders",
+      "name": "(2) the Waverer gives up: he surrenders - cornered, calm or not (CE-3462 D-6), or once broken with a rifle on him (TS-6)",
       "on": "task",
       "who": "Waverer",
-      "is": "Surrender",
-      "after": "(2) the Waverer breaks"
+      "is": "Surrender"
     },
     {
       "name": "(3) the Fanatic never breaks",

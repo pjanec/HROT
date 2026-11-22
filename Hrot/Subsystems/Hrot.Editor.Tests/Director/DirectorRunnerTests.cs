@@ -372,6 +372,9 @@ public sealed class DirectorRunnerTests : IDisposable
         public readonly List<Hrot.Common.Infrastructure.FilmJob> Begins = new();
         public readonly List<Hrot.Common.Infrastructure.FilmJobOutcome> Ends = new();
         public int FailAt = -1;
+        /// <summary>⭐ CE-11021 — the track it hands back: the film's own total plus this many samples (null track: <see cref="NoTrack"/>).</summary>
+        public long SampleOffset;
+        public bool NoTrack;
         public string Name => "fake client";
         public void BeginWorld(Guid loadId) { }
         public bool IsWorldReady(Guid loadId, out string? failure, out string? step) { failure = null; step = null; return true; }
@@ -385,7 +388,10 @@ public sealed class DirectorRunnerTests : IDisposable
         public Task<Hrot.Common.Infrastructure.FilmTrack?> EndFilm(Hrot.Common.Infrastructure.FilmJob job, Hrot.Common.Infrastructure.FilmJobOutcome outcome)
         {
             lock (Ends) Ends.Add(outcome);
-            return Task.FromResult<Hrot.Common.Infrastructure.FilmTrack?>(new Hrot.Common.Infrastructure.FilmTrack("r1.wav", 48000, 48000, 2));
+            if (NoTrack) return Task.FromResult<Hrot.Common.Infrastructure.FilmTrack?>(null);
+            int frames; lock (Frames) frames = Frames.Count;
+            long total = (long)Math.Round(frames * 48000.0 / job.Fps, MidpointRounding.AwayFromZero) + SampleOffset;
+            return Task.FromResult<Hrot.Common.Infrastructure.FilmTrack?>(new Hrot.Common.Infrastructure.FilmTrack("r1.wav", total, 48000, 2));
         }
     }
 
@@ -2079,6 +2085,98 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Contains(bad.Problems, p => p.Contains(DirectorRunner.NoRecordings, StringComparison.Ordinal));
         Assert.Equal(RenderState.Done, good.State);
         Assert.Equal(new[] { "s-a" }, q.Host.Loads);
+    }
+
+    // ── ⭐ CE-11021 (DESIGN_Linked_Client_Director §3 row E, Q113-E) — a job's sound from the client ──────────────────────────────────────
+
+    private sealed class HrotSound : IDirectorSound
+    {
+        public void SetTakeSound(bool? on) { }
+        public void BeginLog() { }
+        public bool EndLog(string wavPath, IReadOnlyList<double> frameSimTimes, int fps) => true;   // HROT's mixer made a track
+        public void Reset() { }
+    }
+
+    /// <summary>Plays the two titled takes through a fake linked client with a recording encoder (no ffmpeg); returns the runner and what the encoder was given.</summary>
+    private (DirectorRunner Runner, List<(string? Wav, int Fps)> Encodes, FakeClient Client) RunWithEncoder(Hrot.Common.Infrastructure.FilmSound sound, long offset = 0, bool noTrack = false)
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var view = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+        using var film = new FilmCaptureLayer(canvas, view, () => host.Repo);
+        view.Set(true, animate: false);
+        var clients = new Hrot.Common.Infrastructure.LinkedClients();
+        var client = new FakeClient { SampleOffset = offset, NoTrack = noTrack };
+        clients.Offer(client);
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), new RoutingFrameSink(new Sink(), () => clients), new HrotSound());
+        var encodes = new List<(string? Wav, int Fps)>();
+        runner.Encoder = (frames, fps, chapters, wav, movie) => { lock (encodes) encodes.Add((wav, fps)); return null; };
+        var request = new PlayRequest(new Reel { Name = "cs", Items = new[] { "s-a", "s-b" }.Select(sc => new ReelItem { Scenario = sc, Take = "main", Title = sc }).ToList() },
+                                      Capture: new CaptureOptions(Path.Combine(_root, "cs-" + sound + offset + noTrack), Fps: 30, Encode: true, Sound: sound));
+        Assert.Empty(runner.Play(request));
+        for (int f = 0; f < 40000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            film.Draw3D(default);
+            film.Update(1f / 60f);
+            host.EndFrame();
+            if (runner.Phase == DirectorPhase.Encoding) System.Threading.Thread.Sleep(2);
+        }
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        return (runner, encodes, client);
+    }
+
+    /// <summary>⭐ CE-11021 — <c>sound: client</c>: the encode muxes the CLIENT's WAV (not HROT's, though HROT's mixer made one), once; the job carried <c>Sound = Client</c>. 🔴 Mutation: HROT's sound muxed despite Client.</summary>
+    [Fact]
+    public void CE11021_ClientSound_MuxesTheClientsTrack()
+    {
+        var (runner, encodes, client) = RunWithEncoder(Hrot.Common.Infrastructure.FilmSound.Client);
+        Assert.Null(runner.Error);
+        Assert.Equal(Hrot.Common.Infrastructure.FilmSound.Client, Assert.Single(client.Begins).Sound);
+        Assert.Equal(("r1.wav", 30), Assert.Single(encodes));
+    }
+
+    /// <summary>⭐ CE-11021 — the track's total may miss <c>round(frames x rate / fps)</c> by <see cref="DirectorRunner.TrackSampleTolerance"/> (1024) either way and no more; a larger miss fails the job with both numbers and nothing is encoded. 🔴 Mutation: the check off.</summary>
+    [Theory]
+    [InlineData(1024L, true)]
+    [InlineData(-1024L, true)]
+    [InlineData(1025L, false)]
+    [InlineData(-1025L, false)]
+    public void CE11021_ATrackTotal_WithinTheTolerance_Passes_APastItFailsWithBothNumbers(long offset, bool ok)
+    {
+        Assert.Equal(1024L, DirectorRunner.TrackSampleTolerance);
+        var (runner, encodes, client) = RunWithEncoder(Hrot.Common.Infrastructure.FilmSound.Client, offset);
+        if (ok)
+        {
+            Assert.Null(runner.Error);
+            Assert.Single(encodes);
+            return;
+        }
+        int frames; lock (client.Frames) frames = client.Frames.Count;
+        long expected = (long)Math.Round(frames * 48000.0 / 30, MidpointRounding.AwayFromZero);
+        Assert.Contains((expected + offset).ToString(), runner.Error);   // the client's total …
+        Assert.Contains(expected.ToString(), runner.Error);               // … and what the film needs
+        Assert.Empty(encodes);
+    }
+
+    /// <summary>⭐ CE-11021 — <c>sound: client</c> with no track back (no client filmed the job) fails the job with a reason; nothing is encoded.</summary>
+    [Fact]
+    public void CE11021_ClientSound_WithNoTrack_FailsTheJob()
+    {
+        var (runner, encodes, _) = RunWithEncoder(Hrot.Common.Infrastructure.FilmSound.Client, noTrack: true);
+        Assert.Contains("no track", runner.Error);
+        Assert.Empty(encodes);
+    }
+
+    /// <summary>⭐ CE-11021 — <c>sound: hrot</c> (the default) is unchanged: HROT's own track is muxed, the client's total is never checked (even a 100 000-sample miss passes) and its path is not used.</summary>
+    [Fact]
+    public void CE11021_HrotSound_IsUnchanged_TheClientsTrackIsIgnored()
+    {
+        var (runner, encodes, _) = RunWithEncoder(Hrot.Common.Infrastructure.FilmSound.Hrot, offset: 100_000);
+        Assert.Null(runner.Error);
+        var (wav, _) = Assert.Single(encodes);
+        Assert.EndsWith("sound.wav", wav);   // HROT's mixer's file, not the client's r1.wav
     }
 
 }

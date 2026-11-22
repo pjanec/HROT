@@ -124,10 +124,10 @@ namespace Hrot.Core.Tkb
         private const float ApcEngineRange   = 300f;
         /// <summary>⭐ BR-16 — the RWS station's height on the APC (m): the 2.5 m hull's roof; the weapon's own 0.3 m pivot sits above it.</summary>
         private const float ApcRwsZ = 2.5f;
-        private const float RifleShotRange   = 400f;
+        private const float RifleShotRange   = 1500f;   // ⭐ CE-2480 (R-2143) — a rifle's crack at a human's audibility (was 400, and capped by the 200 m ear)
         /// <summary>⭐ CE-4635 — a flamethrower's roar (m): a loud hiss and a whoomph, heard closer than a rifle's crack.</summary>
         internal const float FlameRoarRange  = 200f;
-        private const float RpgShotRange     = 500f;
+        private const float RpgShotRange     = 1500f;   // ⭐ CE-2480 — a shoulder launch, as NedTkbCatalog's LauncherReport
         private const float RpgBurstRange    = 800f;
         /// <summary>⭐ CE-3284 (Q95 B1) — the 81 mm tube's real carry, shot and burst (the BDC catalogue's <c>Mortar81Report</c>; Sensing §8.5).</summary>
         private const float Mortar81ReportRange = 5000f;

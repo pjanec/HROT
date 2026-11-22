@@ -41,5 +41,10 @@ namespace Fdp.Toolkit.Perception.Events
         /// <summary>⭐ <c>CE-4666</c> (D-8) — 1 when it was heard FROM an opening or a corner on its way (AQ106 F / K): the point is where it
         /// came in, never where its source is; 0 = heard straight.</summary>
         public byte Via;
+
+        /// <summary>⭐ <c>CE-2474</c> (§8.6d) — the TOKEN of the bang heard (the emission's place in this node's sound ring); 0 for a continuous
+        /// sound (a voice, an engine, footsteps). Every ear that heard ONE shot carries the same token, so the squad folds them into one contact.
+        /// ⛔ A token of the emission, never its source — the anonymity rule holds (§6 D).</summary>
+        public long Sound;
     }
 }

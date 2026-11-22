@@ -1,0 +1,62 @@
+{
+  "$doc": "CE-2476 perception suite (Sensing \u00a78.6e) - pe-two-shooters",
+  "runFor": 40,
+  "golden": false,
+  "anchors": {
+    "both fire": {
+      "on": "shot",
+      "by": "Red Shooter B"
+    }
+  },
+  "expect": [
+    {
+      "name": "shooter A fires",
+      "on": "shot",
+      "by": "Red Shooter A",
+      "n": 3
+    },
+    {
+      "name": "shooter B fires",
+      "on": "shot",
+      "by": "Red Shooter B",
+      "n": 3
+    },
+    {
+      "name": "the squad's pool holds BOTH shooters (5 s)",
+      "on": "perceives",
+      "who": "Blue Squad",
+      "squad": true,
+      "truth": "*Red",
+      "metric": "matched",
+      "op": "==",
+      "value": 2,
+      "for": 5,
+      "after": "both fire"
+    },
+    {
+      "name": "the squad never holds a phantom",
+      "never": {
+        "on": "perceives",
+        "who": "Blue Squad",
+        "squad": true,
+        "truth": "*Red",
+        "metric": "phantom",
+        "op": ">",
+        "value": 0
+      },
+      "after": "both fire"
+    },
+    {
+      "name": "no ear ever believes an enemy where none is",
+      "never": {
+        "on": "perceives",
+        "who": "*Blue Squad Ear",
+        "truth": "*Red",
+        "metric": "phantom",
+        "op": ">",
+        "value": 0
+      },
+      "after": "both fire"
+    }
+  ]
+}

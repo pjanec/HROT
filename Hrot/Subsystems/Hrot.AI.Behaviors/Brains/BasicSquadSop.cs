@@ -185,6 +185,9 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c2123000-0000-0000-0000-000000000050"))
                     .Label("Squad member down → react")
                 .Sequence(row => row
+                    .Condition(ReactToContactBehavior.NotPressingTheAttack, Id("c2467000-0000-0000-0000-0000000000a3"))
+                        .Label("Not pressing an attack")
+                        .Comment("CE-2467 (Squad Tactics §7.10): a superior squad on an attack order goes through first; the wounded are treated on the objective.")
                     .Condition(SquadSopConditions.CasualtyInALull, Id("c2123000-0000-0000-0000-0000000000a1"))
                         .Label("A man down to care for, no fire for 10 s")
                     .React(BehaviorNames.CasualtyCare, ReactionUrgency.Contact, Id("c2123000-0000-0000-0000-0000000000a2"))

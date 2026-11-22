@@ -159,6 +159,8 @@ namespace Hrot.SimHost.Tests
             AreaAhead(s, distanceAlongRoute: 15f, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire);
             Assert.True(SquadSopConditions.CoveredByFireAhead(ref p, s.Commander, s.Repo));
             Assert.False(SquadSopConditions.DangerAreaAhead(ref p, s.Commander, s.Repo));
+            AreaAhead(s, distanceAlongRoute: 0f, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire);
+            Assert.False(SquadSopConditions.CoveredByFireAhead(ref p, s.Commander, s.Repo));   // already inside it: no hold in the open (U2)
         }
 
         /// <summary>
@@ -192,6 +194,134 @@ namespace Hrot.SimHost.Tests
             s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor).Count = 0;   // the knowledge cooled
             for (int i = 0; i < 60; i++) s.Tick();
             Assert.Equal(BehaviorNames.CoveredByFireAhead, s.TaskName);   // still held: never back in
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2466</c> R3 (S1; backend's <c>CE-2469</c> steer point) — a BOUND takes its direction from the PRICED route, not the straight line: with the route
+        /// answer's steer point 45° east of the objective's line, the moving element's bound points lie east of its men; with no steer (control) straight north.
+        /// ✅ Red-proof: <c>Aim</c> back to the objective ⇒ the bound goes north ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2466_R3_ABound_FollowsThePricedRoute_NotTheStraightLine()
+        {
+            foreach (bool steer in new[] { false, true })
+            {
+                var s = new Squad(members: 4);
+                s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(6f, 0f, 0f), Rotation = Quaternion.Identity });
+                var sensor = AreaAhead(s, distanceAlongRoute: 500f);
+                void Stamp()
+                {
+                    ref var b = ref s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor);
+                    b.Count = 0; b.LastUpdateTick = 1;
+                    b.LastUpdateTimeSeconds = (float)((Fdp.ModuleHost.Abstractions.ISimulationView)s.Repo).Time;
+                    b.HasSteer = steer ? (byte)1 : (byte)0;
+                    b.SteerPoint = new Vector3(26f, 20f, 0f);   // 20 m along a route bending east (45°)
+                }
+                Stamp();
+                s.Order("{\"Objective\":[6,100,0],\"BoundMetres\":20}");
+                for (int i = 0; i < 6; i++) { Stamp(); s.Tick(); }
+                var moves = s.LastOrders().Where(kv => kv.Value.Intent == BehaviorNames.AdvanceTo).ToList();
+                Assert.NotEmpty(moves);
+                foreach (var (m, o) in moves)
+                {
+                    float east = o.Objective.X - s.At(m).X;
+                    if (steer) Assert.True(east > 5f, $"along the route: east of the man ({east:0.0} m)");
+                    else Assert.True(MathF.Abs(east) < 3f, $"no route: straight at the objective ({east:0.0} m)");
+                }
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — a squad on an ATTACK order that still has 3 : 1 over its contacts is not paused by the contact reaction
+        /// under fire (its attack drill is the answer); outnumbered (control) the same squad reacts. ✅ Red-proof: the guard dropped from <c>NotDefending</c>
+        /// ⇒ the superior squad reacts too ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2467_AnAttackOrder_WithSuperiority_IsNotPausedByTheContactReaction_OutnumberedItReacts()
+        {
+            foreach (bool superior in new[] { true, false })
+            {
+                var s = new Squad(members: 6);
+                s.PoolMany(superior ? 1 : 12, new Vector3(0f, 60f, 0f));
+                if (!superior)
+                {
+                    ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+                    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                        ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+                    for (int i = 0; i < 12; i++) span[i].Flags |= SquadContact.AnonymousFlag;   // heard: each counts as one armed man
+                }
+                s.Order("{\"Position\":[0,60,0]}", BehaviorNames.InfantrySquadAttack);
+                s.StartSop("BasicSquadSop");
+                for (int i = 0; i < 10; i++) s.Tick();
+                Assert.Equal(BehaviorNames.InfantrySquadAttack, s.TaskName);
+                Assert.Equal(superior, ReactToContactBehavior.PressesTheAttack(s.Repo, s.Commander));
+
+                s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+                for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+                Assert.Equal(superior ? BehaviorNames.InfantrySquadAttack : BehaviorNames.ReactToContact, s.TaskName);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2481</c> (Squad Tactics §7.10) — a RUNNING ordered attack keeps pressing past the 3 : 1 that starts an assault, down to 1.5 : 1 (the
+        /// culminating point): 📐 uf-corner-assault, 6 v 2 is exactly 3 : 1, and one man grazed (100 → 87.5) at 16.1 s stopped the whole squad. Here the harness's
+        /// six men are unarmed (0.3 each, <c>ThreatDanger.Unarmed</c>): 1.8 against ONE heard enemy is a share of 0.357 — past 3 : 1, inside 1.5 : 1 ⇒ still
+        /// pressing; four men down to a quarter health ⇒ no longer. 🔴 Red-proof: <c>PressesTheAttack</c> back on <c>AssaultShare</c> ⇒ the first assert red.
+        /// </summary>
+        [Fact]
+        public void CE2481_ARunningAttack_PressesUntilOneAndAHalfToOne_NotStoppedByOneGraze()
+        {
+            var s = new Squad(members: 6);
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            s.PoolMany(1, new Vector3(0f, 60f, 0f));
+            ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+            var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+            span[0].Flags |= SquadContact.AnonymousFlag;   // heard: one armed man
+            s.Order("{\"Position\":[0,60,0]}", BehaviorNames.InfantrySquadAttack);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            float share = Fdp.Toolkit.Utility.SquadInputs.EnemyShare(Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(s.Repo, s.Commander), Fdp.Toolkit.Utility.SquadInputs.OwnStrengthOf(s.Repo, s.Commander));
+            Assert.InRange(share, AfterContact.AssaultShare + 0.01f, AfterContact.PressShare - 0.01f);   // the case the hysteresis is for
+            Assert.True(ReactToContactBehavior.PressesTheAttack(s.Repo, s.Commander), $"share {share:0.000}: past 3 : 1, still pressing");
+
+            for (int m = 0; m < 4; m++) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[m]).Current = 25f;
+            Assert.False(ReactToContactBehavior.PressesTheAttack(s.Repo, s.Commander), "past the culminating point");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — an assault LEARNS the ground the enemy covers (a <c>Direct</c> record of its side, the same learn as a break
+        /// contact) the moment it starts, and asks the terrain for its flank only once that knowledge is there — so the flank's EQS path cost and the movers' routes
+        /// are priced round the enemy's fire on the navmesh node (📐 U2: the flank was the junction mouth, reached straight up the enemy's street). With no record
+        /// it still asks after <see cref="SuppressAndManeuverPlay.FlankWaitSeconds"/>. 🔴 Red-proof: the wait dropped ⇒ the flank is asked before the record ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2467_TheAssault_LearnsTheGroundTheEnemyCovers_AndAsksItsFlankOnceThatIsKnown()
+        {
+            foreach (bool recordLands in new[] { true, false })
+            {
+                var s = new Squad(members: 4);
+                var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+                s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0001);
+                Sides(s, new[] { enemy });
+                if (!s.Repo.IsComponentTypeRegistered<UnderFireKnowledge>()) s.Repo.RegisterComponent<UnderFireKnowledge>();
+                s.Order("{}", BehaviorNames.SuppressAndManeuver);
+                int learned = 0;
+                for (int i = 0; i < 3; i++) { s.Tick(); foreach (var l in s.Repo.Bus.Read<UnderFireLearned>()) { Assert.Equal(UnderFireCause.Direct, l.Cause); learned++; } }
+                Assert.True(learned > 0, "the assault learned the ground the enemy covers");
+                Assert.True(s.FlankQuery().IsNull, "no flank asked before the knowledge is there");
+                if (recordLands)
+                {
+                    Remember(s, new Vector3(0f, 60f, 0f), enemyStrength: 1f);
+                    s.Tick(); s.Tick();
+                    Assert.False(s.FlankQuery().IsNull, "the knowledge is there: the flank is asked");
+                }
+                else
+                {
+                    for (int i = 0; i < (int)(SuppressAndManeuverPlay.FlankWaitSeconds / 0.016) + 5; i++) s.Tick();
+                    Assert.False(s.FlankQuery().IsNull, "no record ever lands: the flank is asked anyway");
+                }
+            }
         }
     }
 }

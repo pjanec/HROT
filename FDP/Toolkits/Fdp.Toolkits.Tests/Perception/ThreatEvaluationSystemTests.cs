@@ -467,6 +467,39 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(1, w3.GetComponent<TargetMemory>(u3).Count);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2474</c> (Sensing §8.6d ②; 🔒 user: "Can't we somehow assign the sound position to the seen position of the enemy?") — he SEES a
+        /// rifleman 40 m north and hears a shot whose estimate lands 8 m off him (within <see cref="TargetMemory.AttributeDegrees"/> of his bearing):
+        /// the shot is HIS — one contact, the seen one, Acoustic added, the shot's token stamped. A shot from the east (off every seen bearing), a
+        /// shot heard round a corner, and footsteps from his bearing are NOT attributed: each is its own heard slot.
+        /// 🔴 Red-proof: skip <c>AttributeToSeen</c> in the heard loop ⇒ 2 slots after the first shot.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2474_AShotFromTheBearingOfAManHeSees_IsThatMan()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            var rifleman = world.CreateEntity();
+            See(world, unit, rifleman, 0f, 40f);
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 6f, Y = 45f, Radius = 6f, Kind = 2, SourceClass = SmallArms, Sound = 31 });
+            world.Bus.SwapBuffers();
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)rifleman.PackedValue, mem.EntityIds[0]);
+            Assert.True((mem.Modalities[0] & (byte)SensorModality.Acoustic) != 0, "heard as well as seen");
+            Assert.Equal(31L, mem.SoundIds[0]);
+
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 60f, Y = 0f, Radius = 9f, Kind = 2, SourceClass = SmallArms, Sound = 32 });
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 0f, Y = 20f, Radius = 6f, Kind = 2, SourceClass = SmallArms, Sound = 33, Via = 1 });
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 0f, Y = 300f, Radius = 40f, Kind = 1, SourceClass = Footsteps });
+            world.Bus.SwapBuffers();
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            mem = world.GetComponent<TargetMemory>(unit);
+            int heard = 0;
+            for (int i = 0; i < mem.Count; i++) if (TargetMemory.IsAnonymous(in mem, i)) heard++;
+            Assert.Equal(3, heard);
+        }
+
         /// <summary>⭐ K3 — danger of a heard slot is read from its class (there is no entity to read).</summary>
         [Fact]
         public void TheDangerOfAHeardSlot_ComesFromItsClass_CE3063()

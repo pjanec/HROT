@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: ⚠ C-3's "saved next time" as an ENTITY is to change — the saved form moves to `header.world` (Scenario Rules SR-71, CE-4154, not built yet) · §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
 known-conflict: docs/designs/cgf-1/CGF-1-DESIGN.md (~line 1113) — the Orchestrator writes a "global weather descriptor" to Orchestrator.json and publishes it on OrchestratorContextTopic. Never built (the save arm was retired, CE-278); SUPERSEDED by §1 here — weather is scenario ENTITIES, not orchestrator context.
 related-designs:
+  - ../audio/DESIGN_Ambience.md — authored ambience layers (the war around the scenario, sirens) in the same shape as the weather; DD-028 sends both to DPS
   - ../sensor-view/DESIGN_Sensor_View.md — the sensor views read WeatherSample and add the MOON to it (§4a: LunarPosition, NaturalLight)
   - ../thermal/DESIGN_Thermal_Drivers.md — the thermal drivers: an infrared image generator reads this weather and sun; TD-8 adds a change's Since
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: uses a 5 km visibility (fog) as a scenario setting of this design

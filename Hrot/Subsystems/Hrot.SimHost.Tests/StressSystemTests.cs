@@ -61,16 +61,14 @@ namespace Hrot.SimHost.Tests
             _w.GetComponentRW<Stress>(e).Level = level;
         }
 
-        /// <summary>TS-4 — a near miss 0.08, a hit 0.25, each × (1 − 0.5 × effective nerve): an ordinary man (nerve 0.5, obedience 0.8 ⇒
-        /// effective 0.70, R-2076) takes 0.65 of it.</summary>
+        /// <summary>TS-4 — a hit 0.25 × (1 − 0.5 × effective nerve): an ordinary man (nerve 0.5, obedience 0.8 ⇒ effective 0.70, R-2076) takes 0.65
+        /// of it. (⛔ CE-2470: a near miss is no longer a stimulus of its own — fire is a rate, <c>CE2470_…</c>.)</summary>
         [Fact]
-        public void CE2270_ANearMissAndAHit_RaiseHim_ByTheirAmount_TimesHisNerve()
+        public void CE2270_AHit_RaisesHim_ByItsAmount_TimesHisNerve()
         {
             var e = Man();
-            StressModel.Add(_w, e, StressModel.NearMiss, 1.0);
-            Assert.Equal(0.052f, Level(e), 4);
             StressModel.Add(_w, e, StressModel.Hit, 1.0);
-            Assert.Equal(0.052f + 0.1625f, Level(e), 4);
+            Assert.Equal(0.1625f, Level(e), 4);
             Assert.Equal(1.0, _w.GetComponentRO<Stress>(e).LastStimulusAt);
         }
 
@@ -112,7 +110,8 @@ namespace Hrot.SimHost.Tests
             _w.SetSingleton(new GlobalTime { TotalTime = 2.0, DeltaTime = 0.016f, TimeScale = 1f });
             new StressSystem().Execute(_w, 0.016f);
 
-            Assert.Equal(0.052f + 0.13f, Level(a), 3);  // his own near miss + the friend 5 m from him (each × 0.65)
+            Assert.Equal(0.13f, Level(a), 3);            // the friend 5 m from him (× 0.65); ⭐ CE-2470 his near miss puts him UNDER FIRE (a rate), no jump
+            Assert.Equal(2.0, _w.GetComponentRO<Stress>(a).LastFireAt);
             Assert.Equal(0.13f, Level(near), 3);         // 5 m from the fallen
             Assert.Equal(0f, Level(far), 3);             // 25 m: too far to feel it
             Assert.Equal(0f, Level(down), 3);            // not himself
@@ -734,25 +733,34 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>CE-2376</c> (DF-2, the measured re-tune) — a near miss on a man IN COVER counts half (0.04 before his nerve); in the open the
-        /// whole 0.08. 📐 Live <c>ia-area-defend</c>: a regular behind a wall under two rifles reached 1.0 in ~10 s and never recovered.
-        /// 🔴 Red-proof: the cover share dropped ⇒ 0.052 in cover too.
+        /// ⭐⭐ <c>CE-2470</c> (Temperament §7.8; user: <i>"if every single bullet counts then machine gun burst could break the guy too early"</i>) — fire stresses a man
+        /// as a RATE while it goes on, never per round: ① a 30-round burst in one second raises him exactly as one round does; ② 20 s of continuous fire on an
+        /// ordinary man ALONE in the open raises him ~0.0155 / s (0.06 + alone 0.01, × his reach 0.65, − the calm 0.03) — far from his 0.70; ③ IN COVER (half the
+        /// fire, twice the calm) he does not rise at all; ④ the fire stopped (no round for 2 s) the rate stops. 🔴 Red-proof: the per-round jump back ⇒ ① red.
+        /// (⛔ SUPERSEDES CE-2376's <c>ANearMissInCover_CountsHalf</c>: the cover's half now applies to the rate.)
         /// </summary>
         [Fact]
-        public void CE2376_ANearMissInCover_CountsHalf()
+        public void CE2470_Fire_IsARate_ABurstIsNoMoreThanARound_HalfInCover()
         {
-            var e = Man(0f);
-            _w.SetSingleton(new GlobalTime { TotalTime = 2.0, DeltaTime = 0.016f, TimeScale = 1f });
-            _w.Bus.Publish(new SensorChangedEvent { Unit = e, What = SensorChange.NearMiss });
-            _w.Bus.SwapBuffers();
-            new StressSystem().Execute(_w, 0.016f);
-            float open = Level(e);
-            Assert.True(open > 0.05f, $"in the open {open}");
+            var one = Man(0f);
+            var burst = Man(100f);
+            StressModel.FireAt(_w, one, 1.0);
+            for (int i = 0; i < 30; i++) StressModel.FireAt(_w, burst, 1.0 + i / 30.0 * 0.99);
+            StressModel.Step(_w, one, 1.99); StressModel.Step(_w, burst, 1.99);
+            Assert.Equal(Level(one), Level(burst), 4);                                  // ①
 
-            var c = Man(100f);
+            var open = Man(200f);
+            for (double t = 0.5; t <= 20.0; t += 0.5) { StressModel.FireAt(_w, open, t); StressModel.Step(_w, open, t); }
+            Assert.InRange(Level(open), 0.25f, 0.35f);                                    // ② ~0.0155 / s × 19.5 s
+            float stopped = Level(open);
+            for (double t = 20.5; t <= 22.0; t += 0.5) StressModel.Step(_w, open, t);
+            for (double t = 22.5; t <= 25.0; t += 0.5) StressModel.Step(_w, open, t);
+            Assert.True(Level(open) < stopped, $"the fire stopped: {Level(open)} < {stopped}");   // ④
+
+            var c = Man(300f);
             _w.SetSingletonManaged<ICoverProvider>(new CoverAtFeet());
-            Assert.Equal(0.04f, StressModel.NearMissIn(_w, c), 4);   // half of TS-4's 0.08 — the number itself, not the constant
-            Assert.Equal(0.026f, StressModel.NearMissIn(_w, c) * StressModel.Reach(_w, c), 4);   // × his reach 0.65
+            for (double t = 0.5; t <= 20.0; t += 0.5) { StressModel.FireAt(_w, c, t); StressModel.Step(_w, c, t); }
+            Assert.Equal(0f, Level(c), 3);                                                // ③
         }
 
         /// <summary>

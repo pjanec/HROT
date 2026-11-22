@@ -70,6 +70,8 @@ namespace Fdp.Toolkit.Squad.Systems
             // ⭐ CE-3063 ② — a heard contact's radius and class, per pool slot, for the merge only (SquadContact keeps its 32 bytes).
             float* heardRadius = stackalloc float[16];
             byte*  heardClass  = stackalloc byte[16];
+            long*  heardSound  = stackalloc long[16];   // ⭐ CE-2474 (§8.6d ①) — the bang each pool slot last heard (0 = none), merge-only
+            for (int i = 0; i < 16; i++) heardSound[i] = 0;
 
             for (int m = 0; m < roster.Count; m++)
             {
@@ -83,14 +85,16 @@ namespace Fdp.Toolkit.Squad.Systems
                     if (TargetMemory.IsBurst(in mem, k)) continue;   // ⭐ R-2071 E-1 — the pool holds enemies; a burst is none
                     if (TargetMemory.IsAnonymous(in mem, k))
                     {
-                        MergeHeard(ref localPool, heardRadius, heardClass, mem.EntityIds[k],
+                        MergeHeard(ref localPool, heardRadius, heardClass, heardSound, mem.EntityIds[k],
                                    mem.PositionsX[k], mem.PositionsY[k], mem.PositionsZ[k], mem.Radius[k], mem.SourceClass[k],
                                    mem.Freshness[k], mem.LastSeenTick[k], mem.Modalities[k], sourceBit,
-                                   TargetMemory.IsHeardThroughAnOpening(in mem, k));   // ⭐ CE-4666 (D-8)
+                                   TargetMemory.IsHeardThroughAnOpening(in mem, k), mem.SoundIds[k]);   // ⭐ CE-4666 (D-8) · CE-2474
                         continue;
                     }
                     MergeContact(
                         ref localPool,
+                        heardSound,
+                        mem.SoundIds[k],
                         mem.EntityIds[k],
                         mem.PositionsX[k],
                         mem.PositionsY[k],
@@ -104,7 +108,9 @@ namespace Fdp.Toolkit.Squad.Systems
 
             // ⭐ CE-2107 — a member's HEARD contact that another member SEES is one contact, as it is in each member's own memory
             //   (TargetMemory.AbsorbBySighting): fold it into the sighting, or the squad counts one enemy twice (SquadEnemyStrengthRatio).
-            AbsorbHeardBySightings(repo, ref localPool, heardRadius, heardClass);
+            // ⭐ CE-2474 (§8.6d ①) — and a heard contact carrying the SAME bang as a seen one IS him, wherever it was placed.
+            AbsorbHeardBySound(ref localPool, heardRadius, heardClass, heardSound);
+            AbsorbHeardBySightings(repo, ref localPool, heardRadius, heardClass, heardSound);
 
             // 6. Sort pool contacts descending by ThreatScore (insertion sort; at most 16 entries).
             var sortSpan = MemoryMarshal.CreateSpan(
@@ -148,7 +154,7 @@ namespace Fdp.Toolkit.Squad.Systems
         /// modalities — and leaves the pool. The sighting keeps its position. The nearest sighting wins.
         /// 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.
         /// </summary>
-        private static void AbsorbHeardBySightings(EntityRepository repo, ref SquadContactPool pool, float* radii, byte* classes)
+        private static void AbsorbHeardBySightings(EntityRepository repo, ref SquadContactPool pool, float* radii, byte* classes, long* sounds)
         {
             var span = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
@@ -180,19 +186,75 @@ namespace Fdp.Toolkit.Squad.Systems
                 seen.Flags             = (ushort)(seen.Flags | (span[i].Flags & ~SquadContact.AnonymousFlag));
 
                 int last = --pool.Count;
-                span[i] = span[last]; radii[i] = radii[last]; classes[i] = classes[last];
+                span[i] = span[last]; radii[i] = radii[last]; classes[i] = classes[last]; sounds[i] = sounds[last];
+                span[last] = default;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2474</c> (Sensing §8.6d ①; 🔒 user: "Can't we consider the same sound heard by multiple people as one single enemy?") — a pooled
+        /// HEARD contact that carries the same bang (<c>TargetMemory.SoundIds</c>) as an IDENTIFIED pooled contact is folded into it whatever the
+        /// distance between their points: a member attributed that shot to the man he sees (<c>TargetMemory.AttributeToSeen</c>), so another member's
+        /// estimate of it — however far off, round a corner — is that man too. The sighting keeps its position.
+        /// </summary>
+        private static void AbsorbHeardBySound(ref SquadContactPool pool, float* radii, byte* classes, long* sounds)
+        {
+            var span = MemoryMarshal.CreateSpan(
+                ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
+            for (int i = pool.Count - 1; i >= 0; i--)   // downward: the slot swapped into i was already visited
+            {
+                if ((span[i].Flags & SquadContact.AnonymousFlag) == 0 || sounds[i] == 0) continue;
+                int seenAt = -1;
+                for (int j = 0; j < pool.Count && seenAt < 0; j++)
+                    if ((span[j].Flags & SquadContact.AnonymousFlag) == 0 && span[j].EntityId > 0 && sounds[j] == sounds[i]) seenAt = j;
+                if (seenAt < 0) continue;
+
+                ref var seen = ref span[seenAt];
+                if (span[i].ThreatScore > seen.ThreatScore) seen.ThreatScore = span[i].ThreatScore;
+                seen.SourceMembersMask = (ushort)(seen.SourceMembersMask | span[i].SourceMembersMask);
+                seen.Flags             = (ushort)(seen.Flags | (span[i].Flags & ~(SquadContact.AnonymousFlag | SquadContact.HeardThroughFlag)));
+
+                int last = --pool.Count;
+                span[i] = span[last]; radii[i] = radii[last]; classes[i] = classes[last]; sounds[i] = sounds[last];
                 span[last] = default;
             }
         }
 
         private static void MergeHeard(
-            ref SquadContactPool pool, float* radii, byte* classes,
+            ref SquadContactPool pool, float* radii, byte* classes, long* sounds,
             long id, float x, float y, float z, float radius, byte sourceClass,
-            float threatScore, uint lastSeenTick, byte modalities, ushort sourceMemberBit, bool through = false)
+            float threatScore, uint lastSeenTick, byte modalities, ushort sourceMemberBit, bool through = false, long sound = 0)
         {
             var span = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
             radius = radius > 0f ? radius : 1f;
+
+            // ⭐ CE-2474 (§8.6d ①) — ONE bang heard by several members is ONE contact, whatever the distance between their estimates (one
+            //   heard round a corner lands beside the listener, D-8): a straight hearing's point wins over a corner one; two of a kind fuse
+            //   by inverse variance, as below.
+            if (sound != 0)
+                for (int i = 0; i < pool.Count; i++)
+                {
+                    if ((span[i].Flags & SquadContact.AnonymousFlag) == 0 || sounds[i] != sound) continue;
+                    ref var same = ref span[i];
+                    bool pooledThrough = (same.Flags & SquadContact.HeardThroughFlag) != 0;
+                    if (pooledThrough && !through) { same.PositionX = x; same.PositionY = y; same.PositionZ = z; radii[i] = radius; }
+                    else if (pooledThrough == through)
+                    {
+                        float v1 = 1f / (radii[i] * radii[i]), v2 = 1f / (radius * radius), v = v1 + v2;
+                        same.PositionX = (same.PositionX * v1 + x * v2) / v;
+                        same.PositionY = (same.PositionY * v1 + y * v2) / v;
+                        same.PositionZ = (same.PositionZ * v1 + z * v2) / v;
+                        radii[i] = TargetMemory.FusedRadius(v, radius);   // ⭐ CE-2477
+                    }
+                    if (classes[i] == 0) classes[i] = sourceClass;
+                    if (threatScore > same.ThreatScore) same.ThreatScore = threatScore;
+                    if (lastSeenTick > same.LastSeenTick) same.LastSeenTick = lastSeenTick;
+                    same.SourceMembersMask = (ushort)(same.SourceMembersMask | sourceMemberBit);
+                    same.Flags             = (ushort)(same.Flags | modalities);
+                    if (!through) same.Flags = (ushort)(same.Flags & ~SquadContact.HeardThroughFlag);
+                    return;
+                }
 
             int best = -1; float bestD2 = float.MaxValue;
             for (int i = 0; i < pool.Count; i++)
@@ -209,13 +271,14 @@ namespace Fdp.Toolkit.Squad.Systems
                 c.PositionX = (c.PositionX * w1 + x * w2) / w;
                 c.PositionY = (c.PositionY * w1 + y * w2) / w;
                 c.PositionZ = (c.PositionZ * w1 + z * w2) / w;
-                radii[best] = 1f / System.MathF.Sqrt(w);
+                radii[best] = TargetMemory.FusedRadius(w, radius);   // ⭐ CE-2477 — the pool is never surer than one of its ears
                 if (classes[best] == 0) classes[best] = sourceClass;
                 if (threatScore > c.ThreatScore) c.ThreatScore = threatScore;
                 if (lastSeenTick > c.LastSeenTick) c.LastSeenTick = lastSeenTick;
                 c.SourceMembersMask = (ushort)(c.SourceMembersMask | sourceMemberBit);
                 c.Flags             = (ushort)(c.Flags | modalities);
                 if (!through) c.Flags = (ushort)(c.Flags & ~SquadContact.HeardThroughFlag);   // ⭐ CE-4666 — one straight hearing makes it a source estimate
+                if (sound != 0) sounds[best] = sound;   // ⭐ CE-2474
                 return;
             }
 
@@ -240,10 +303,12 @@ namespace Fdp.Toolkit.Squad.Systems
             };
             radii[slot] = radius;
             classes[slot] = sourceClass;
+            sounds[slot] = sound;   // ⭐ CE-2474
         }
 
         private static void MergeContact(
             ref SquadContactPool pool,
+            long* sounds, long sound,
             long entityId,
             float posX, float posY, float posZ,
             float threatScore,
@@ -266,6 +331,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 }
                 span[i].SourceMembersMask = (ushort)(span[i].SourceMembersMask | sourceMemberBit);
                 span[i].Flags             = (ushort)(span[i].Flags | modalities);
+                if (sound != 0) sounds[i] = sound;   // ⭐ CE-2474 — the bang a member attributed to him
                 // Position is pinned to the most-recent sighting, independent of threat score.
                 if (lastSeenTick > span[i].LastSeenTick)
                 {
@@ -293,6 +359,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     Flags             = modalities,
                     SourceMembersMask = sourceMemberBit,
                 };
+                sounds[slot] = sound;   // ⭐ CE-2474
                 return;
             }
 
@@ -321,6 +388,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     Flags             = modalities,
                     SourceMembersMask = sourceMemberBit,
                 };
+                sounds[lowestIdx] = sound;   // ⭐ CE-2474
             }
             // Otherwise: new contact loses the eviction race — do nothing.
         }

@@ -115,8 +115,9 @@ public sealed class EffectStateTests
         var specs = new List<EffectSpec>();
         var hit = new RoundImpactNotification { Shooter = rifleman, X = 5, Y = 5, Z = 0, NormalZ = 1, TravelX = 1, Kind = (byte)Fdp.Toolkit.Combat.ImpactKind.Exit };
         Assert.True(EffectRules.ForImpact(in hit, world, tkb, specs) > 0);
-        Assert.All(specs, sp => Assert.Equal(((byte)2, rifleman), (sp.Cause!.Value.Impact, sp.Cause!.Value.Shooter)));   // Exit + 1
-        var e = Spawn(world, specs[0], 3.0);
+        Assert.All(specs, sp => Assert.Equal(rifleman, sp.Cause!.Value.Shooter));
+        Assert.Equal((byte)2, Assert.Single(specs, sp => sp.Cause!.Value.Impact != 0).Cause!.Value.Impact);   // Exit + 1, on ONE effect (CE-11030)
+        var e = Spawn(world, specs.Single(sp => sp.Cause!.Value.Impact != 0), 3.0);
 
         var burst = new List<EffectSpec>();
         EffectRules.ForDetonation(new DetonationNotification { Shooter = rifleman, Target = Entity.Null, HitX = 50, HitY = 20, HitZ = 0.4f, Damage = 1100f }, world, tkb, burst);
@@ -147,5 +148,58 @@ public sealed class EffectStateTests
         {
             try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11030 — a round's impact makes a puff AND a mark and exactly ONE of them is the impact (<c>EffectCause.Impact</c> != 0): a renderer that makes one impact per such entity sees one. 🔴 Mutation: every effect stamped.
+    /// </summary>
+    [Fact]
+    public void CE11030_OneImpact_GivesExactlyOneEntityWithAnImpactKind()
+    {
+        var (world, tkb) = World();
+        var hit = new RoundImpactNotification { X = 5, Y = 5, Z = 0, NormalZ = 1, TravelX = 1, Kind = (byte)Fdp.Toolkit.Combat.ImpactKind.Stop, Ammo = (long)tkb.GetAll().First(t => t.DisType.Kind == 2).TkbType };
+        var specs = new List<EffectSpec>();
+        Assert.True(EffectRules.ForImpact(in hit, world, tkb, specs) >= 2, "a puff and a mark");
+        var entities = specs.Select(sp => Spawn(world, sp, 1.0)).ToList();
+        var impacts = entities.Where(e => world.GetComponentRO<EffectCause>(e).Impact != 0).ToList();
+        Assert.Single(impacts);
+        Assert.Equal((byte)3, world.GetComponentRO<EffectCause>(impacts[0]).Impact);   // Stop + 1
+    }
+
+    /// <summary>⭐ CE-11030 — the effect says the face's normal as the notification did (every effect of the impact; all 0 for a detonation's). 🔴 Mutation: Normal dropped.</summary>
+    [Fact]
+    public void CE11030_AnImpactsEffects_CarryTheNotificationsNormal_AndADetonationsDoNot()
+    {
+        var (world, tkb) = World();
+        var hit = new RoundImpactNotification { X = 5, Y = 5, Z = 0, NormalX = 0.6f, NormalY = -0.0f, NormalZ = 0.8f, Kind = (byte)Fdp.Toolkit.Combat.ImpactKind.Entry };
+        var specs = new List<EffectSpec>();
+        Assert.True(EffectRules.ForImpact(in hit, world, tkb, specs) > 0);
+        Assert.All(specs, sp => Assert.Equal(new Vector3(0.6f, 0f, 0.8f), sp.Cause!.Value.Normal));
+        var burst = new List<EffectSpec>();
+        EffectRules.ForDetonation(new DetonationNotification { Target = Entity.Null, HitX = 50, HitY = 20, HitZ = 0.4f, Damage = 1100f }, world, tkb, burst);
+        Assert.NotEmpty(burst);
+        Assert.All(burst, sp => Assert.Equal((byte)0, sp.Cause!.Value.Impact));
+        Assert.All(burst, sp => Assert.Equal(Vector3.Zero, sp.Cause!.Value.Normal));
+    }
+
+    /// <summary>
+    /// ⭐ CE-11030 — <c>EffectCause</c> is a COMPONENT (a recorded one), so appending <c>Normal</c> changes its layout hash and size: a recording made at the old layout (hash 0x99F49FE46F4AA46E, 40 bytes, hard-coded from the CE-11024
+    /// base) only WARNS and has this component's data skipped (SchemaValidator: components warn, events throw) — it still validates and plays.
+    /// </summary>
+    [Fact]
+    public void CE11030_AManifestRecordedAtTheOldEffectCauseLayout_StillValidates_ItsCauseDataSkipped()
+    {
+        Assert.True(typeof(EffectCause).IsValueType);   // a component struct, not a [EventId] event
+        Assert.Empty(typeof(EffectCause).GetCustomAttributes(typeof(Fdp.Core.EventIdAttribute), false));
+        var meta = new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata
+        {
+            SchemaManifest = new Dictionary<int, Fdp.Core.FlightRecorder.ComponentSchemaInfo>
+            {
+                [Fdp.Core.GlobalComponentIds.EffectCause] = new() { Name = typeof(EffectCause).FullName!, Size = 40, LayoutHash = 0x99F49FE46F4AA46EUL, IsManaged = false },
+            },
+        };
+        var changed = Fdp.Core.FlightRecorder.SchemaValidator.Validate(meta);   // does not throw
+        Assert.Contains(Fdp.Core.GlobalComponentIds.EffectCause, changed);
+        Assert.NotEqual(0x99F49FE46F4AA46EUL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(EffectCause)));
     }
 }

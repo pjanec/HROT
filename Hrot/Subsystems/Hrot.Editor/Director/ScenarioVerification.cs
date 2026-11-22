@@ -222,6 +222,8 @@ namespace Hrot.Editor.Director
                     return StillHolds(c) ? _rel : null;      // ⭐ CE-2455 — per unit
                 case "exposed":
                     return ExposedHolds(c) ? _rel : null;    // ⭐ CE-2456 — per unit
+                case "perceives":
+                    return PerceivesHolds(c) ? _rel : null;  // ⭐ CE-2476 — per unit
                 case "bunched":
                     return Lasted(c, -1, BunchedHolds(c)) ? _rel : null;
                 default:
@@ -342,6 +344,7 @@ namespace Hrot.Editor.Director
             bool far = c.On == "far";
             foreach (var id in UnitsNamed(who))
             {
+                if (c.Fighting && !InTheFight(id)) continue;   // ⭐ CE-2466 — a dead man cannot walk back in: only the men still in the fight
                 if (PositionOf(id) is not { } at) continue;
                 float d = float.MaxValue;
                 if (c.From != null)
@@ -492,6 +495,43 @@ namespace Hrot.Editor.Director
             return Quantified(c.Quantifier, units, held);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2476</c> (Sensing §8.6e) — <c>perceives</c>: for each unit <see cref="AnchorSpec.Who"/> names (with <c>squad</c>, each commander's pool), its
+        /// beliefs scored against the live enemies <see cref="CheckCue.Truth"/> names (<see cref="PerceptionScore"/>); the unit holds when the chosen
+        /// <see cref="CheckCue.Metric"/> compares by <c>op</c> / <c>value</c>. <see cref="CheckCue.Quantifier"/> counts them; <c>for</c> per unit.
+        /// ⚠ The editor tier only (the live memory: the cluster dump hides heard contacts).
+        /// </summary>
+        private bool PerceivesHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || c.Truth is not { } truthName || c.Metric is not { } metric || _w.World is not { } world) return false;
+            var truth = new List<(Entity, System.Numerics.Vector3)>();
+            foreach (var tid in UnitsNamed(truthName))
+            {
+                if (!InTheFight(tid)) continue;
+                var te = new Fdp.Toolkit.Replication.EntityRef(tid).Resolve(world);
+                if (te.IsNull || !world.IsAlive(te) || !world.HasComponent<SimTransform>(te)) continue;
+                truth.Add((te, world.GetComponent<SimTransform>(te).Position));
+            }
+            float m = c.M > 0f ? c.M : c.Squad ? 10f : 5f;
+            int want = c.Value is JsonValue v && v.TryGetValue<int>(out var n) ? n : 0;
+            int units = 0, held = 0;
+            foreach (var id in UnitsNamed(who))
+            {
+                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (e.IsNull || !world.IsAlive(e)) continue;
+                if (!c.Squad && HealthOf(id) is not > 0f) continue;
+                units++;
+                int got = PerceptionScore.Of(world, e, truth, c.Squad, m, c.Through).Of(metric);
+                bool ok = c.Op switch
+                {
+                    "==" => got == want, "!=" => got != want, "<" => got < want, "<=" => got <= want, ">" => got > want, ">=" => got >= want,
+                    _ => false,
+                };
+                if (Lasted(c, id, ok)) held++;
+            }
+            return Quantified(c.Quantifier, units, held);
+        }
+
         /// <summary>⭐ <c>CE-2455</c> — <paramref name="holds"/> for <paramref name="unit"/> (−1 = the cue itself) at this sample, and it has held at every sample
         /// for <see cref="CheckCue.For"/> s; a break starts it again. 0 ⇒ at once.</summary>
         private bool Lasted(CheckCue c, int unit, bool holds)
@@ -538,7 +578,7 @@ namespace Hrot.Editor.Director
             var at = new List<System.Numerics.Vector2>();
             foreach (var id in UnitsNamed(who))
                 if (HealthOf(id) is > 0f && (!c.Fighting || InTheFight(id)) && PositionOf(id) is { } p) at.Add(new System.Numerics.Vector2(p.X, p.Y));
-            if (at.Count < 2) return false;
+            if (at.Count < Math.Max(2, c.Men)) return false;   // ⭐ CE-2466 — fewer than men is no knot
             var centre = System.Numerics.Vector2.Zero;
             foreach (var p in at) centre += p;
             centre /= at.Count;

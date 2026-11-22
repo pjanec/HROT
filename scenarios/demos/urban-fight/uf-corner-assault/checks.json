@@ -1,0 +1,61 @@
+{
+  "$doc": "docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.10 (CE-2467) and DESIGN_Urban_Fight_Suite.md §5 — U2b, the corner ASSAULT: a 6-man squad on an ATTACK order v 2 men behind cars at a corner. Expected: Blue fires; while it holds 3 : 1 its attack is never broken off (no break contact, no hold — the contact reaction does not pause an ordered attack it is winning); the attack wins.",
+  "runFor": 240,
+  "anchors": {
+    "Red beaten": {
+      "on": "field",
+      "who": "*Red Squad ",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 25,
+      "quantifier": "all"
+    }
+  },
+  "expect": [
+    {
+      "name": "L2 Blue fires on the corner",
+      "on": "shot",
+      "by": "*Blue Squad "
+    },
+    {
+      "name": "L4 the ordered attack is never broken off while Blue holds 3 : 1 (6 v 2): no break contact before Red is beaten (CE-2467)",
+      "never": {
+        "on": "field",
+        "who": "Blue Squad",
+        "path": "SquadCognitiveState.ManeuverKind",
+        "op": "==",
+        "value": 8
+      },
+      "before": "Red beaten"
+    },
+    {
+      "name": "L4 ...and no hold either: the contact reaction does not pause it (CE-2467)",
+      "never": {
+        "on": "field",
+        "who": "Blue Squad",
+        "path": "SquadCognitiveState.ManeuverKind",
+        "op": "==",
+        "value": 7
+      },
+      "before": "Red beaten"
+    },
+    {
+      "name": "L3 the attack wins: both Red men are down by the end",
+      "on": "field",
+      "who": "*Red Squad ",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 25,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "L1 no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue Squad ",
+        "hit": "*Blue Squad "
+      }
+    }
+  ]
+}

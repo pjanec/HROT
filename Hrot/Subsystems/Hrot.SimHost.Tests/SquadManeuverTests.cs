@@ -228,6 +228,13 @@ namespace Hrot.SimHost.Tests
 
             /// <summary>⭐ CE-2123 — the commander's flank query, and SimHost's answer to it.</summary>
             public Entity FlankQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, SuppressAndManeuverPlay.FlankSite);
+            /// <summary>⭐ CE-2467 — the flank query once the play asks it: it waits up to <see cref="SuppressAndManeuverPlay.FlankWaitSeconds"/> for the
+            /// enemy's covered ground to be known (no writer lands a record here, so the wait runs out) — tick until it is there.</summary>
+            public Entity AwaitFlank()
+            {
+                for (int i = 0; i < (int)(SuppressAndManeuverPlay.FlankWaitSeconds / 0.016) + 10; i++) { var q = FlankQuery(); if (!q.IsNull) return q; Tick(); }
+                return FlankQuery();
+            }
 
             public void Answer(Entity sensor, Vector3? best)
             {
@@ -827,7 +834,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(4, first.Count);
             foreach (var m in s.Members) Assert.Equal((BehaviorNames.CombatPosture, s.At(m)), first[m]);   // everyone holds until the terrain answers
 
-            var query = s.FlankQuery();
+            var query = s.AwaitFlank();
             Assert.False(query.IsNull, "the commander owns a flank query");
             var cfg = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
             Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindFlankingPosition.BlueprintId, cfg.BlueprintId);
@@ -873,7 +880,7 @@ namespace Hrot.SimHost.Tests
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Orders.Clear();
-            s.Answer(s.FlankQuery(), new Vector3(40f, 60f, 0f));
+            s.Answer(s.AwaitFlank(), new Vector3(40f, 60f, 0f));
             s.Tick(); s.Tick();
             var flank = s.LastOrders();
             Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(40f, 60f, 0f)), flank[s.Members[0]]);   // the one rifleman who did not see him
@@ -890,7 +897,7 @@ namespace Hrot.SimHost.Tests
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Orders.Clear();
-            s.Answer(s.FlankQuery(), null);
+            s.Answer(s.AwaitFlank(), null);
             s.Tick(); s.Tick();
             Assert.Equal(SuppressAndManeuverManeuver.PhaseAssaulting, s.Phase);
             Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 60f, 0f)), s.LastOrders()[s.Members[3]]);
@@ -992,7 +999,7 @@ namespace Hrot.SimHost.Tests
 
             for (int i = 0; i < 10; i++) s.Tick();                                   // past DecideAfterSeconds
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
-            Assert.False(s.FlankQuery().IsNull, "the leader asks the terrain for a flank");
+            Assert.False(s.AwaitFlank().IsNull, "the leader asks the terrain for a flank");
         }
 
         /// <summary>⭐⭐ <c>CE-2158</c> F-e (§7.6.3) — a FAR contact is CLOSED on first: the assault starts as fire and movement toward
@@ -1015,7 +1022,7 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members.Skip(1)) s.Teleport(m, s.At(m) + new Vector3(0f, 110f, 0f));   // MOST of the squad within 50 m;
             for (int i = 0; i < 4; i++) s.Tick();                                                       // member 0 stays behind (stuck)
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
-            Assert.False(s.FlankQuery().IsNull, "closed: the leader asks the terrain for a flank");
+            Assert.False(s.AwaitFlank().IsNull, "closed: the leader asks the terrain for a flank");
         }
 
         /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes toward it
@@ -1753,7 +1760,7 @@ namespace Hrot.SimHost.Tests
             Ticks(s, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
             Assert.Equal(4, s.LastOrders().Count);
-            var query = s.FlankQuery();
+            var query = s.AwaitFlank();
             Assert.False(query.IsNull, "the leader asks the terrain for a flank on the designated enemy");
             Assert.Equal(enemy, s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query).ContextSlot1);
 
@@ -7417,14 +7424,16 @@ namespace Hrot.SimHost.Tests
         /// <summary>⭐⭐ <c>CE-2465</c> (Urban Fight Suite U2-4) — BREAK CONTACT ENDS WHEN THE CONTACT IS BROKEN: each element has bounded once and
         /// the squad is in a lull (no fire at it, no new contact for <see cref="SquadSopConditions.LullSeconds"/>) ⇒ Success, though nobody reached
         /// the point; while it is still under fire it goes on. 📐 Live before: <c>uf-corner-fight</c>, a mover whose cover picks never moved him kept
-        /// the play running 280 s, the squad standing upright and still. ✅ Red-proof: the lull end removed ⇒ never finishes ⇒ red.</summary>
+        /// the play running 280 s, the squad standing upright and still. ✅ Red-proof: the lull end removed ⇒ never finishes ⇒ red.
+        /// ⭐⭐ <c>CE-2472</c> — and NOT while a man still sees an enemy (his own perception: he is in that enemy's sight). 📐 U2: a man whose pick did not
+        /// move him sat 30 m in front of the corner and the drill called the contact broken. 🔴 Red-proof: the sight clause dropped ⇒ done ⇒ red.</summary>
         [Fact]
-        public void CE2465_BreakContact_EndsInALull_WithAnElementShortOfThePoint_AndNotUnderFire()
+        public unsafe void CE2465_BreakContact_EndsInALull_WithAnElementShortOfThePoint_AndNotUnderFire()
         {
-            foreach (bool underFire in new[] { false, true })
+            foreach (var (underFire, inSight) in new[] { (false, false), (true, false), (false, true) })
             {
                 var s = new Squad(members: 2);
-                s.PoolMany(6, new Vector3(0f, 60f, 0f));
+                var enemies = s.PoolMany(6, new Vector3(0f, 60f, 0f));
                 s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
                 for (int i = 0; i < 12; i++) s.Tick();
                 Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
@@ -7436,11 +7445,29 @@ namespace Hrot.SimHost.Tests
                     if (!q.IsNull) s.Answer(q, null);
                     foreach (var m in s.Members) Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived);
                     if (underFire) s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-                    for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+                    for (int i = 0; i < 60 && !done; i++)
+                    {
+                        if (inSight) Sees(s, s.Members[0], enemies[0]);   // the eye re-stamps him every tick
+                        s.Tick(); done = s.Finished(out result);
+                    }
                 }
                 if (underFire) Assert.False(done, "under fire the break contact goes on");
+                else if (inSight) Assert.False(done, "a man still in an enemy's sight: the contact is not broken");
                 else { Assert.True(done, "in a lull the contact is broken: done"); Assert.Equal(Fbt.NodeStatus.Success, result); }
             }
+        }
+
+        /// <summary>⭐ <c>CE-2472</c> — <paramref name="man"/> SEES <paramref name="enemy"/> now (as perception stamps it: the Visual bit, this tick).</summary>
+        private static unsafe void Sees(Squad s, Entity man, Entity enemy)
+        {
+            if (!s.Repo.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(man))
+                s.Repo.AddComponent(man, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(man);
+            mem.EntityIds[0] = (long)enemy.PackedValue;
+            mem.Freshness[0] = 10f;
+            mem.LastSeenTick[0] = Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo);
+            mem.Modalities[0] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+            if (mem.Count < 1) mem.Count = 1;
         }
 
         /// <summary>⭐ <c>CE-2461</c> — a cover point on another storey or a ledge (more than <see cref="SquadCover.MaxClimbMetres"/> above the mover)

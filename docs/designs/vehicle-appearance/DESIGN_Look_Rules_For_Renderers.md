@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-20
+updated: 2026-11-22
 build-state: BUILT (RR-1…RR-6, RR-8…RR-11; RR-7 needs no engine change, D-2)
 current-answer: §3 (what moves where, per item) and §5 (the decisions, with leans)
 stale-below: nothing yet
@@ -143,7 +143,7 @@ move **verbatim** — same constants, same branches — and the map's existing r
 |---|---|---|
 | **RR-6** ([CE-11006](../../blueprints/Blueprint_Issues_Tracker.md)) | `CameraSuggestion` { Source (Operator / Follow / Director), Mode (Free / Orbit / Eyes / Shoulder / Chase / FixedKey), ShoulderSide, Bound, BoundNetId, Distance, Position, LookAt, Orientation (+X forward, +Y left, +Z up), FovyDegrees, Cut, Take } — a world singleton in **Hrot.Core** (not Fdp.Toolkits as D-1 leaned: the follow / director / possession drivers and the map are Hrot, and a node extension references Hrot.Core anyway). Each driver says what it is (`ICameraSuggests.Describe`); the pose is the camera's own | the director names its follow unit by NETWORK id (`BoundNetId`), the others by `Bound`; `Take` = the director's segment on screen (`FilmStudio.ShotName`) |
 | **RR-9** ([CE-11009](../../blueprints/Blueprint_Issues_Tracker.md)) | `Fdp.Toolkit.Combat.ImpactMaterial` (Unknown, Asphalt, Concrete, Brick, Metal, Glass, Wood, Soil, Sand, Vegetation, Water, Snow) = the crossing's terrain material folded through its THERMAL CLASS (the fixed list); on `RoundImpact` (the record), `RoundImpactNotification.Material` and the wire's `RoundImpact.Material` (a byte each); a ground stop is Soil | a byte on the wire, not the enum: the IDL puts enum members in one scope |
-| **RR-10** ([CE-11010](../../blueprints/Blueprint_Issues_Tracker.md)) | `EffectCause` { Surface, Material, Target, Damage, Ammo } (Hrot.Core, id 72, recorded, never saved) on every effect a HIT made — stamped by `EffectRules.ForImpact` / `ForDetonation` on `EffectSpec.Cause`, added by the spawner. ⭐ **CE-11024 (as built `2026-11-21`, backend): two fields APPENDED** — `byte Impact` (`ImpactKind` + 1: 1 Entry, 2 Exit, 3 Stop; 0 = not a round's impact, i.e. a detonation, so a zero never reads as "entered") and `Entity Shooter` (from the impact's or the detonation's `Shooter`); the earlier fields keep their offsets. Rail: `EffectStateTests.CE11024_AnImpactsEffect_CarriesItsKindAndShooter_LiveAndAfterASeek` (record → play back → seek) | — |
+| **RR-10** ([CE-11010](../../blueprints/Blueprint_Issues_Tracker.md)) | `EffectCause` { Surface, Material, Target, Damage, Ammo } (Hrot.Core, id 72, recorded, never saved) on every effect a HIT made — stamped by `EffectRules.ForImpact` / `ForDetonation` on `EffectSpec.Cause`, added by the spawner. ⭐ **CE-11024 (as built `2026-11-21`, backend): two fields APPENDED** — `byte Impact` (`ImpactKind` + 1: 1 Entry, 2 Exit, 3 Stop; 0 = not a round's impact, i.e. a detonation, so a zero never reads as "entered") and `Entity Shooter` (from the impact's or the detonation's `Shooter`); the earlier fields keep their offsets. Rail: `EffectStateTests.CE11024_AnImpactsEffect_CarriesItsKindAndShooter_LiveAndAfterASeek` (record → play back → seek) | ⭐ **CE-11030 (as built `2026-11-21`, ui, from the gateway's T-051): which effect IS the impact, and its normal.** `ForImpact` makes a puff AND a mark, both used to carry the same `Impact`, so a renderer making one impact per effect entity saw two. Now **ONE** effect of a round's impact carries `EffectCause.Impact != 0` — the FIRST spec the rule makes (its puff; the mark, or the puff's absence, never leaves the round without one) — and the others carry 0. Measured first: the only reader of `EffectCause.Impact` in HROT is the CE-11024 rail (`rg "\.Impact"` over `*.cs`: `EffectRules.cs` writer, `EffectStateTests.cs` reader); no renderer, the map or the recorder reads the mark's — so a shared impact id was not needed. ⭐ A third field APPENDED, unmanaged: `Vector3 Normal` (the notification's `NormalX/Y/Z`, all 0 = not stated; on every effect of the impact, 0 on a detonation's). `EffectCause` is a COMPONENT (id 72, not an `[EventId]` event), so its layout hash and size changed (CE-11024 base: `0x99F49FE46F4AA46E`, 40 bytes): `SchemaValidator` only WARNS for a component and skips ITS recorded data, the rest of the recording plays (rail: a manifest at the old hash validates, the cause is in the changed list). Rails (`EffectStateTests`): one impact = exactly one entity with a non-zero `Impact`; its effects carry the notification's `Normal`, a detonation's `Impact` 0 and `Normal` 0; the old manifest. Red-proofs: every effect stamped; `Normal` dropped. The gateway drops its fold (SimNetGateway T-051 finding 1 / 2). |
 | **RR-11** ([CE-11011](../../blueprints/Blueprint_Issues_Tracker.md)) | `LightweightRound.LaunchedAt` (the marker WIDENED — user: *"old recordings not important; rather widen the marker"*), set by `FireProcessingSystem.MarkIfVisible` from the sim clock, sent as `EntityMaster.LaunchedAt` (0 for every other entity), stamped by the master's ingress | ⛔ recordings made before this replay the round marker with the old size |
 
 ⚠ **Component ids:** the ui block (460–475) is full; 72 and 86 were the production-free ids whose only other use is a test struct in a project that never registers Hrot types. Finding them took a measurement the catalogue rail should give for free — [CE-11013](../../blueprints/Blueprint_Issues_Tracker.md).
@@ -157,6 +157,49 @@ move **verbatim** — same constants, same branches — and the map's existing r
 | **streams** ([CE-11016](../../blueprints/Blueprint_Issues_Tracker.md)) | `FireStreams.StreamOfFlash(world, flash, out stream, out firedAt)`; the flash records the stream's own aim (`TowardOf`) |
 
 ⛔ **Rejected: re-raising recorded events in the cluster replay** (`ReplayModule` passes no bus) — events between keyframes are lost or burst on a seek; component state is restored by it. The events stay recorded; nothing reads them in replay.
+
+### 3.4 The director's fade and subtitle on the suggested camera, live (`2026-11-22`, CE-11035, R-11015; build-state: READY-TO-BUILD)
+
+🔒 User, `2026-11-22`: *"yes add live fade and subtitles too"* — a client WATCHING the director live (not rendering a film) gets the dip to
+black and the subtitle the screen shows. ⭐ Measured: the camera already reaches clients live through `CameraSuggestion` (`FilmDirector.Describe`,
+`Film.cs:210-223`); the fade lives only in `FilmStudio.Fade` (`Film.cs:80`, set by `DirectorRunner.cs:1010, :1129`) and the subtitle only in
+`DirectorRunner.SubtitleNow` (`:441`, `:1002`) — both reach a client only inside a render job (`FilmFrame`).
+
+```mermaid
+classDiagram
+    class CameraSuggestion { <<existing node-local singleton, appended>> +float Fade +int CaptionSerial +byte CaptionPosition +float CaptionAlpha }
+    class FilmCaption { <<new node-local managed singleton, NoReplay>> +string Text }
+    class FilmStudio { <<existing>> +Fade +Caption (new, SubtitleFrame or null) }
+    class FilmDirector { <<existing ICameraSuggests>> Describe copies Fade and the caption }
+    class DirectorRunner { <<existing>> sets FilmStudio.Caption where it sets the cinema's subtitle }
+    DirectorRunner ..> FilmStudio
+    FilmDirector ..> FilmStudio : reads
+    FilmDirector ..> CameraSuggestion : writes Fade, CaptionSerial, Position, Alpha
+    FilmDirector ..> FilmCaption : sets the text ONLY when the serial changes
+```
+
+```mermaid
+sequenceDiagram
+    participant R as DirectorRunner
+    participant S as FilmStudio
+    participant D as FilmDirector.Describe
+    participant W as the world (node-local)
+    participant G as the gateway
+    R->>S: Fade 0.4, Caption (Dawn at the bridge, Bottom, 0.8)
+    D->>S: read both
+    D->>W: CameraSuggestion Fade 0.4, CaptionSerial 7, Bottom, 0.8
+    D->>W: FilmCaption Dawn at the bridge (serial changed)
+    G->>W: read the suggestion every frame, the text only on a new serial
+```
+
+| rule | why |
+|---|---|
+| ⭐ the fade and the caption's alpha / position / serial on the unmanaged suggestion; the TEXT on its own managed singleton, replaced only when the serial changes | 0 B per steady frame (CLAUDE.md HOT PATH): a fade animates every frame, the text changes a few times a take |
+| ⭐ only the director writes them; any other driver leaves 0 (no fade, no caption) | the suggestion is composed fresh each frame (`CameraSuggestions.Write`) |
+| ⛔ still node-local, never recorded or replicated | as D-1 |
+
+Acceptance: a rail per field through `CameraSuggestions.Write` with the real `FilmDirector`; the serial changes exactly when the text does;
+0 B per steady frame with a fade animating; a follow / operator camera has Fade 0 and no caption.
 
 ## 4. What this design does NOT move, and why
 
