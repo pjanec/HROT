@@ -75,8 +75,15 @@ namespace Hrot.Common.Diagnostics.Gizmos
         {
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0 || !Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239
-            string name = view.GetComponentRO<EntityInfo>(entity).Name.ToString();
-            draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity)).Row(Row).Text(string.IsNullOrWhiteSpace(name) ? $"#{net}" : $"{name} #{net}", NameColour);
+            // ⭐ CE-11031 (R-2084) — formatted on the STACK (the span overload of CE-4582): the name, " #", the id — no string per card per frame (the string path was ~90 B a card a frame)
+            Span<char> text = stackalloc char[96];   // a name is at most 63 characters; " #" and an int are 13 more
+            int n = view.GetComponentRO<EntityInfo>(entity).Name.CopyTo(text);
+            bool blank = true;
+            for (int i = 0; i < n; i++) if (!char.IsWhiteSpace(text[i])) { blank = false; break; }
+            if (blank) n = 0; else { text[n++] = ' '; }
+            text[n++] = '#';
+            net.TryFormat(text[n..], out int digits, default, System.Globalization.CultureInfo.InvariantCulture);
+            draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity)).Row(Row).Text(text[..(n + digits)], NameColour);
         }
 
         /// <summary>⭐ CE-1971 — a fixed-wing or rotary-wing aircraft (never a bird, a rope or a canopy).</summary>
@@ -138,7 +145,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             ref readonly var s = ref view.GetComponentRO<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>(entity);
-            if (s.State != Fdp.Toolkit.ScenarioRules.ObjectiveState.Active || !s.Kind.ToString().Equals("Bounty", StringComparison.OrdinalIgnoreCase)) return;
+            if (s.State != Fdp.Toolkit.ScenarioRules.ObjectiveState.Active) return;
+            Span<char> kind = stackalloc char[Fdp.Core.FixedString32.MaxLength];   // ⭐ CE-11031 — no string per status per frame
+            if (!MemoryExtensions.Equals((ReadOnlySpan<char>)kind[..s.Kind.CopyTo(kind)], "Bounty", StringComparison.OrdinalIgnoreCase)) return;
             if (!view.HasComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>(entity)) return;
             int subject = view.GetComponentRO<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>(entity).Subject.NetworkId;
             if (subject != 0) draw.Card(subject, DebugTraceLayers.Labels).Row(Row).Text("BOUNTY", Gold);
