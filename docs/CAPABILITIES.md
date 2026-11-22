@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-22 (behaviors: §5 perception checked against the truth — the pe-* suite) · 2026-11-19 (coordinator: §1b sensor views + the AI thermal sensor on °C; §12a flame weapons; §9 rotors and smoke dischargers; §3 the civilian mood seen everywhere; §6 the corridor street fight; §9b the engineers answer; §16 the dragon) · 2026-11-18 (coordinator: §1b data for external renderers — thermal drivers, vehicle appearance, the shared look library; §8 glass windows and removing a baked building; §9 vehicle damage / hatches / lights; §16 fixed today and in progress) · 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-22 (behaviors: §5 perception checked against the truth — the pe-* suite; coordinator: §1b external presentation clients — the linked client, client-server multiplayer through the editor) · 2026-11-19 (coordinator: §1b sensor views + the AI thermal sensor on °C; §12a flame weapons; §9 rotors and smoke dischargers; §3 the civilian mood seen everywhere; §6 the corridor street fight; §9b the engineers answer; §16 the dragon) · 2026-11-18 (coordinator: §1b data for external renderers — thermal drivers, vehicle appearance, the shared look library; §8 glass windows and removing a baked building; §9 vehicle damage / hatches / lights; §16 fixed today and in progress) · 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -14,7 +14,7 @@ related-designs:
   - UX/DESIGN_Editing_UX.md — OWNS the editing UX (inventory behind §14, the target design, the Details-tab review)
   - PLAN_Dynamic_Terrain.md — OWNS §2b's programme: the tasks (CE-4596…CE-4604), their order and gates; the designs DESIGN_Ground_Patches_And_Road_Blockage.md and DESIGN_Vehicle_Breaching.md
   - USAGES.md — OWNS what PEOPLE use the engine for and what it saves them (demo films, QA bug illustration, reviews, scenarios as tests …)
-  - ../README.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools)
+  - TECHNICAL_OVERVIEW.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools); ../README.md is the product page
 -->
 
 # What HROT can do
@@ -27,21 +27,21 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   design is ruled and its tasks are filed, the build has not started (it will come soon).
 - **Deeper:** the rules behind each bullet, with code and design links, are in [OVERVIEW_Rules_And_Demos.md](OVERVIEW_Rules_And_Demos.md).
   The machinery is in [OVERVIEW_Behaviour_Building_Blocks.md](OVERVIEW_Behaviour_Building_Blocks.md). The engine architecture is in the
-  [README](../README.md).
+  [Technical overview](TECHNICAL_OVERVIEW.md).
 - **Films:** [PLAN_Feature_Films.md](PLAN_Feature_Films.md) lists the clips that show each chapter.
 
-## 1. The engine — in one screen *(depth: [README](../README.md))*
+## 1. The engine — in one screen *(depth: [Technical overview](TECHNICAL_OVERVIEW.md))*
 
-- **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (README §2)
-- **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the image generator (IG), the instructor station,
-  traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (README §3, §9)
+- **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (Technical overview §2)
+- **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the 2-D map, the instructor station,
+  traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (Technical overview §3, §9)
 - **Brain and muscle are split:** the AI decides (intent), the simulation acts and reports back (status).
 - **Replication** over CycloneDDS with per-component translators, ownership transfer and dead reckoning, so every node sees the same
-  world. (README §6)
-- **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (README §10)
+  world. (Technical overview §6)
+- **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (Technical overview §10)
 - **AI authoring three ways:** behaviour trees, state machines (HSM) and blueprint visual scripts, with utility decisions and an
-  environment query system (EQS). (README §4, §5, §7)
-- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (README §8) — what it is used for: §1a
+  environment query system (EQS). (Technical overview §4, §5)
+- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (Technical overview §8) — what it is used for: §1a
 - **Tools:** the scenario editor (author, run, step and save in one process); missions and the order of battle (ORBAT) in panels; HTTP
   diagnostics and an MCP server so an AI agent can drive the engine; **filming** — the film director, §1a
   ([RUNBOOK_Filming.md](RUNBOOK_Filming.md)).
@@ -92,6 +92,17 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
 Everything an outside image generator (a game engine, a physics-based thermal renderer, a DIS gateway) needs is SIMULATION STATE — recorded,
 replicated to every node, renderer-agnostic — and HROT's own map reads the same state.
+
+- ✅ *(2026-11-22)* **External presentation clients — the linked client** (CE-11018, CE-11026): an outside renderer (a game engine such as
+  Unreal) joins a HROT node through a gateway node extension and presents the simulation. Every load waits for it; the director's clips,
+  prepared on HROT's own 3-D map, are rendered by the client instead — its pictures and its sound — when one is linked
+  ([DESIGN_Linked_Client_Director](designs/IG/DESIGN_Linked_Client_Director.md)).
+- ✅ *(2026-11-22)* **Client-server multiplayer through the editor** (CE-11027, [Q114](blueprints/Architect_Question_114_Seats_On_One_Node.md),
+  R-11010 / R-11011): the editor works as the all-in-one, networkless SERVER — simulation, AI and HROT's own deploy server in one process —
+  and SEVERAL external presentation clients connect to it through the gateway, each trainee a seat of his own (up to 16 per node): he joins,
+  picks a side and a unit, deploys through HROT's deploy flow, possesses it and leaves, his seat freed. ⚠ This is DIFFERENT from HROT's own
+  Player: a HROT Player is a PEER NODE of the cluster (a DDS participant with its own ECS world); a linked client is a thin presentation
+  client of one server node ([Player Join §12](DESIGN_Player_Join.md)).
 
 - ✅ **Thermal drivers, never temperatures** — every node and an outside thermal imager compute an entity's heat from states and the time they
   began: the engine or body (off · idle · running; standing · moving, and since when), each weapon's last burst, fire as spots on a vehicle, a
