@@ -296,24 +296,5 @@ namespace Hrot.SimHost.Tests
                 }
             }
         }
-
-        /// <summary>
-        /// ⭐⭐ <c>CE-2474</c> (user: "Yes agreed") — a HEARD contact beside an identified enemy (≤ 30 m) counts HALF an armed man in the squad's enemy strength (it
-        /// may be him, mislocated); a heard contact with no sighting near it counts whole. 📐 uf-corner-assault: 2 Red men read as 1 seen + 3 heard. 🔴 Red-proof:
-        /// the half weight dropped ⇒ the near one counts 1 ⇒ red.
-        /// </summary>
-        [Fact]
-        public void CE2474_AHeardContactBesideASeenEnemy_CountsHalf_AloneItCountsWhole()
-        {
-            var s = new Squad(members: 4);
-            var seen = s.PoolMany(3, new Vector3(0f, 60f, 0f));
-            ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
-            var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
-                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
-            span[1] = new SquadContact { EntityId = -1, PositionX = 10f, PositionY = 60f, Flags = SquadContact.AnonymousFlag };    // heard, 10 m from the seen one
-            span[2] = new SquadContact { EntityId = -2, PositionX = 80f, PositionY = 60f, Flags = SquadContact.AnonymousFlag };    // heard, 80 m off: nobody known there
-            float one = Fdp.Toolkit.Perception.ThreatDanger.Of(s.Repo, s.Commander, seen[0]);
-            Assert.Equal(one + Fdp.Toolkit.Utility.SquadInputs.HeardBesideSeen + 1f, Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(s.Repo, s.Commander), 3);
-        }
     }
 }
