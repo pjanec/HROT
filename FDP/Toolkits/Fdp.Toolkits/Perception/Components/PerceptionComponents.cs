@@ -477,8 +477,11 @@ namespace Fdp.Toolkit.Perception.Components
         /// like (<paramref name="entityClasses"/>, any match; empty = unknown) BECOMES it — no duplicate. Its freshness is kept
         /// (the higher of the two when the entity already has a slot). Returns true when one was absorbed.
         /// </summary>
-        public static bool AbsorbBySighting(ref TargetMemory mem, long entityId, float x, float y, System.ReadOnlySpan<byte> entityClasses)
+        public static bool AbsorbBySighting(ref TargetMemory mem, long entityId, float x, float y, System.ReadOnlySpan<byte> entityClasses,
+                                            bool listenerKnown = false, float listenerX = 0f, float listenerY = 0f)
         {
+            float cosThrough = System.MathF.Cos(AttributeThroughDegrees * (System.MathF.PI / 180f));
+            float sx = x - listenerX, sy = y - listenerY, sd2 = sx * sx + sy * sy;
             int anon = -1; float bestD2 = float.MaxValue;
             for (int i = 0; i < mem.Count; i++)
             {
@@ -489,7 +492,16 @@ namespace Fdp.Toolkit.Perception.Components
                 for (int k = 0; !compatible && k < entityClasses.Length; k++) compatible = ClassesCompatible(c, entityClasses[k]);
                 if (!compatible) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
-                if (d2 <= mem.Radius[i] * mem.Radius[i] && d2 < bestD2) { anon = i; bestD2 = d2; }
+                bool inside = d2 <= mem.Radius[i] * mem.Radius[i];
+                // ⭐ CE-2485 — a contact heard THROUGH AN OPENING (D-8: its point is the way in) is his when he stands BEYOND that point, within
+                //   AttributeThroughDegrees of its bearing from the listener (📐 uf-corner-assault: steps heard round the corner, the man then seen behind it,
+                //   held as two enemies — the attack stopped at 23.9 s; pe-house-shot: heard via the stairwell, seen through the door)
+                if (!inside && listenerKnown && mem.Anonymous[i] == HeardThroughAnOpening)
+                {
+                    float hx = mem.PositionsX[i] - listenerX, hy = mem.PositionsY[i] - listenerY, hd2 = hx * hx + hy * hy;
+                    inside = hd2 >= 1f && sd2 >= hd2 && (hx * sx + hy * sy) >= cosThrough * System.MathF.Sqrt(hd2 * sd2);
+                }
+                if (inside && d2 < bestD2) { anon = i; bestD2 = d2; }
             }
             if (anon < 0) return false;
 

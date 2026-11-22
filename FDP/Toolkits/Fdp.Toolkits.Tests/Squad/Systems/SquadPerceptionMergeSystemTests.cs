@@ -495,5 +495,23 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(1, mem.Count);
             Assert.False(TargetMemory.IsAnonymous(in mem, 0));
         }
+
+        /// <summary>⭐⭐ <c>CE-2485</c> (📐 uf-corner-assault) — steps heard ROUND A CORNER (a D-8 point at the corner, 45 m ahead), then the man SEEN behind it
+        /// (54 m, 4° off): one contact, the seen man — not the seen man plus the corner point. A man seen NEARER than the corner, or 90° off it, does not take
+        /// it. 🔴 Red-proof: without the listener (the old gate: inside the circle only) ⇒ the corner point stays ⇒ red.</summary>
+        [Fact]
+        public void CE2485_StepsHeardRoundACorner_ThenTheManSeenBehindIt_IsOneContact()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            const byte steps = 1;
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem, 642f, 379f, 0f, 2f, steps, 50f, 1, via: 1);
+            var near = repo.CreateEntity(); var aside = repo.CreateEntity(); var behind = repo.CreateEntity();
+            Assert.False(TargetMemory.AbsorbBySighting(ref mem, (long)near.PackedValue, 646f, 360f, System.ReadOnlySpan<byte>.Empty, true, 652f, 336f));     // nearer than the corner
+            Assert.False(TargetMemory.AbsorbBySighting(ref mem, (long)aside.PackedValue, 700f, 336f, System.ReadOnlySpan<byte>.Empty, true, 652f, 336f));    // 90° off
+            Assert.True(TargetMemory.AbsorbBySighting(ref mem, (long)behind.PackedValue, 636.5f, 387f, System.ReadOnlySpan<byte>.Empty, true, 652f, 336f));  // beyond, 4° off
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)behind.PackedValue, mem.EntityIds[0]);
+        }
     }
 }

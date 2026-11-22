@@ -168,6 +168,8 @@ namespace Fdp.Toolkit.Perception.Systems
             System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
             System.Span<long> seenNow = stackalloc long[PerceptionConstants.MaxTrackedTargets];   // ⭐ CE-2474 — who he SEES this tick
             int seenCount = 0;
+            bool selfPlaced = view.HasComponent<SimTransform>(entity);   // ⭐ CE-2485 — the listener, for a heard-through point's bearing
+            var selfAt = selfPlaced ? view.GetComponentRO<SimTransform>(entity).Position : default;
 
             ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(entity);
 
@@ -235,7 +237,8 @@ namespace Fdp.Toolkit.Perception.Systems
                             seenNow[seenCount++] = tracksRO.EntityIds[i];
 
                         // ⭐ CE-3063 — a sighting inside a heard contact's circle IS that contact: absorb it, no duplicate.
-                        TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer));
+                        TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer),
+                                                      selfPlaced, selfAt.X, selfAt.Y);   // ⭐ CE-2485 — a heard-through point is his when he is beyond it
 
                         TargetMemory.AddOrUpdateTarget(
                             ref mem,
