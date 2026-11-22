@@ -43,6 +43,8 @@ namespace Hrot.UI.Common.Map3D.Director
         public bool Encode { get; init; } = true;
         /// <summary>⭐ CE-11018 (Q113-B) — where the job's scene frames come from: auto (the node's linked client when one can film, else the map) · map.</summary>
         public Hrot.Common.Infrastructure.FilmFrames Frames { get; init; } = Hrot.Common.Infrastructure.FilmFrames.Auto;
+        /// <summary>⭐ CE-11021 (Q113-E) — the job's soundtrack: hrot (the map's own, the default) · client (the linked client's <c>FilmTrack</c> is muxed).</summary>
+        public Hrot.Common.Infrastructure.FilmSound Sound { get; init; } = Hrot.Common.Infrastructure.FilmSound.Hrot;
         /// <summary>Stills: film seconds (else every key with <see cref="EveryKey"/>, else the take's still keys).</summary>
         public IReadOnlyList<double>? Times { get; init; }
         public bool EveryKey { get; init; }
@@ -302,7 +304,7 @@ namespace Hrot.UI.Common.Map3D.Director
             var folder = r.Dir ?? (oneTake
                 ? Path.Combine(Path.GetDirectoryName(store.TakePath(scenario!, r.Take))!, r.Take + ".render", job.Id)
                 : Path.Combine(store.ScenariosRoot, ".renders", (string.IsNullOrEmpty(reel.Name) ? "reel" : reel.Name).Replace('/', '-'), job.Id));
-            var capture = new CaptureOptions(Path.GetFullPath(folder), r.Fps, r.Width, r.Height, r.Supersample, r.Captions, r.Movie, r.Encode, r.Frames);
+            var capture = new CaptureOptions(Path.GetFullPath(folder), r.Fps, r.Width, r.Height, r.Supersample, r.Captions, r.Movie, r.Encode, r.Frames, r.Sound);
             job.Dir = capture.Dir;
             job.Capture = capture;
             job.Items = reel.Items.Count;

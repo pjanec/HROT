@@ -16,7 +16,8 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <summary>Where and how a capture writes: frames under <see cref="Dir"/>, one movie at <see cref="Movie"/> (§4a: a reel is ONE movie).</summary>
     public sealed record CaptureOptions(string Dir, int Fps = 30, int Width = 1280, int Height = 720, int Supersample = 1,
                                         bool BurnCaptions = true, string? Movie = null, bool Encode = true,
-                                        Hrot.Common.Infrastructure.FilmFrames Frames = Hrot.Common.Infrastructure.FilmFrames.Auto);   // ⭐ CE-11018 (Q113-B) — "frames: auto | map"
+                                        Hrot.Common.Infrastructure.FilmFrames Frames = Hrot.Common.Infrastructure.FilmFrames.Auto,   // ⭐ CE-11018 (Q113-B) — "frames: auto | map"
+                                        Hrot.Common.Infrastructure.FilmSound Sound = Hrot.Common.Infrastructure.FilmSound.Hrot);   // ⭐ CE-11021 (Q113-E) — "sound: hrot | client"
 
     /// <summary>A reel to play, at <see cref="Speed"/> (live only), live / to files (<see cref="Capture"/>) / as a scout.</summary>
     /// <remarks><see cref="Inline"/>: takes given with the request (by <c>scenario/take</c>), not read from a file — film.py's one-off
@@ -389,7 +390,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (request.Mode == DirectorMode.Capture)
             {
                 var c = request.Capture!;
-                _job = new Hrot.Common.Infrastructure.FilmJob(Guid.NewGuid(), Hrot.Common.Infrastructure.FilmJobKind.Reel, request.Reel.Name, c.Fps, c.Width, c.Height, c.Supersample, FramesDir, Frames: c.Frames);
+                _job = new Hrot.Common.Infrastructure.FilmJob(Guid.NewGuid(), Hrot.Common.Infrastructure.FilmJobKind.Reel, request.Reel.Name, c.Fps, c.Width, c.Height, c.Supersample, FramesDir, Sound: c.Sound, Frames: c.Frames);
                 _jobBegin = _sink!.Begin(_job);
             }
             // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema; ⭐ CE-1303 D7 — nor does an iteration pass
@@ -1302,14 +1303,40 @@ namespace Hrot.UI.Common.Map3D.Director
             File.WriteAllText(metaPath, meta.ToString());
             string? wav = Path.Combine(dir, "sound.wav");
             var simTimes = _manifest.OrderBy(m => m.Frame).Select(m => m.Shot == 0 ? double.NaN : m.SimTime + ItemOffset(m.Item)).ToList();
-            if (_sound == null || !_sound.EndLog(wav, simTimes, c.Fps)) wav = null;
-            int fps = c.Fps;
+            bool clientSound = c.Sound == Hrot.Common.Infrastructure.FilmSound.Client;   // ⭐ CE-11021 — the soundtrack is the linked client's: HROT's own is not made
+            if (clientSound || _sound == null || !_sound.EndLog(wav, simTimes, c.Fps)) wav = null;
+            int fps = c.Fps, frameCount = _frameNo;
             var pending = _pendingCapture ?? Task.CompletedTask;
             // ⭐ CE-11018 — the job ends OK: the frame source hands back its track (the linked client's), and the encode waits for it
             var ended = EndJob(Hrot.Common.Infrastructure.FilmJobOutcome.Ok);
             pending = Task.WhenAll(pending, ended);
-            return pending.ContinueWith(_ => Ffmpeg.Encode(frames, fps, metaPath, wav, movie), TaskScheduler.Default);
+            return pending.ContinueWith(_ =>
+            {
+                if (clientSound)
+                {
+                    // ⭐ CE-11021 — mux the client's track, after checking it covers the film
+                    if (ClientTrack is not { } track) return "the job asked for the client's sound (sound: client) but the linked client returned no track";
+                    if (CheckTrack(track, frameCount, fps) is { } miss) return miss;
+                    wav = track.Path;
+                }
+
+                return Encoder(frames, fps, metaPath, wav, movie);
+            }, TaskScheduler.Default);
         }
+
+        /// <summary>⭐ CE-11021 — how far the client's track total may be from <c>round(frames x SampleRate / Fps)</c>: one mixer buffer (measured by the gateway: 71 552 against 72 000).</summary>
+        public const long TrackSampleTolerance = 1024;
+
+        /// <summary>⭐ CE-11021 — null when <paramref name="track"/> covers <paramref name="frames"/> film frames at <paramref name="fps"/> within <see cref="TrackSampleTolerance"/>; else the failure reason with both numbers.</summary>
+        internal static string? CheckTrack(Hrot.Common.Infrastructure.FilmTrack track, int frames, int fps)
+        {
+            long expected = (long)Math.Round(frames * (double)track.SampleRate / fps, MidpointRounding.AwayFromZero);
+            return Math.Abs(track.Samples - expected) <= TrackSampleTolerance ? null
+                : $"the client's sound track has {track.Samples} samples, the film's {frames} frames at {fps} fps need {expected} at {track.SampleRate} Hz (the tolerance is {TrackSampleTolerance})";
+        }
+
+        /// <summary>The movie encoder (ffmpeg); a rail swaps it for one that records its inputs.</summary>
+        internal Func<string, int, string, string?, string, string?> Encoder { get; set; } = Ffmpeg.Encode;
 
         /// <summary>Items restart at sim time 0; the sound track needs one timeline, so each item is offset far apart.</summary>
         internal static double ItemOffset(int item) => item * 100_000d;
