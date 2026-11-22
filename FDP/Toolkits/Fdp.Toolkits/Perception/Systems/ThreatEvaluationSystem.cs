@@ -65,6 +65,9 @@ namespace Fdp.Toolkit.Perception.Systems
         //   handles (SoftClear restarts the generations), so last run's counts would read as this run's: the first step published
         //   AllClear for a tank that had never seen anything (measured live, ua-tank-ammo, every reload but the first).
         private int _epoch;
+        // ⭐ CE-2490 — this tick's sound ring (who fired each bang): read only when the listener SEES that man (the muzzle flash)
+        [Fdp.Core.WorldDerived("a reference to the node's sound ring singleton, re-read each tick")]
+        private Fdp.Toolkit.Perception.Signatures.SoundEmissionRing? _ring;
 
         /// <inheritdoc/>
         public unsafe void Execute(ISimulationView view, float deltaTime)
@@ -76,6 +79,8 @@ namespace Fdp.Toolkit.Perception.Systems
             var ecb  = view.GetCommandBuffer();
             uint tick = PerceptionClock.Now(view);   // ⭐ CE-3292 — LastSeenTick is stamped in sim steps
             double now = view is EntityRepository nowRepo && nowRepo.HasSingleton<GlobalTime>() ? nowRepo.GetSingleton<GlobalTime>().TotalTime : 0d;   // ⭐ CE-2371 — the Alerted leases
+            // ⭐ CE-2490 — the node's sound ring, read once here (serial) so the parallel batches never look the singleton up
+            _ring = Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.In(view);
             // ⭐ CE-3063 — what each unit HEARD this frame (anonymous estimates; R-205). Lists are reused across frames.
             foreach (var list in _heard.Values) list.Clear();
             if (view is EntityRepository heardRepo && heardRepo.Bus.IsRegistered<SoundContactEvent>())
@@ -168,6 +173,8 @@ namespace Fdp.Toolkit.Perception.Systems
             System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
             System.Span<long> seenNow = stackalloc long[PerceptionConstants.MaxTrackedTargets];   // ⭐ CE-2474 — who he SEES this tick
             int seenCount = 0;
+            bool selfPlaced = view.HasComponent<SimTransform>(entity);   // ⭐ CE-2485 — the listener, for a heard-through point's bearing
+            var selfAt = selfPlaced ? view.GetComponentRO<SimTransform>(entity).Position : default;
 
             ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(entity);
 
@@ -235,7 +242,8 @@ namespace Fdp.Toolkit.Perception.Systems
                             seenNow[seenCount++] = tracksRO.EntityIds[i];
 
                         // ⭐ CE-3063 — a sighting inside a heard contact's circle IS that contact: absorb it, no duplicate.
-                        TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer));
+                        TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer),
+                                                      selfPlaced, selfAt.X, selfAt.Y);   // ⭐ CE-2485 — a heard-through point is his when he is beyond it
 
                         TargetMemory.AddOrUpdateTarget(
                             ref mem,
@@ -262,6 +270,12 @@ namespace Fdp.Toolkit.Perception.Systems
                 var self = placed ? view.GetComponentRO<SimTransform>(entity).Position : default;
                 foreach (var h in heardHere)
                 {
+                    // ⭐ CE-2490 (§8.6g) — he SAW that man fire: the flash and the bang are one instant, whatever way the sound came
+                    if (seenCount > 0 && h.Sound != 0 && _ring != null && _ring.TryGetAtPlace(h.Sound, out var bang)
+                        && now - bang.Time <= TargetMemory.FlashBindSeconds
+                        && TargetMemory.AttributeBySeenFlash(ref mem, (long)bang.Source, h.Kind, h.SourceClass, seenNow.Slice(0, seenCount),
+                                                             PerceptionConstants.HeardBoostPerContact, tick, h.Sound))
+                        continue;
                     if (placed && TargetMemory.AttributeToSeen(ref mem, self.X, self.Y, h.X, h.Y, h.Kind, h.SourceClass, h.Via,
                                                                seenNow.Slice(0, seenCount), PerceptionConstants.HeardBoostPerContact, tick, h.Sound))
                         continue;

@@ -1860,6 +1860,7 @@ copy per row; and superiority is the SAME test R4 uses, so "press on" and "never
 | | as built | where |
 |---|---|---|
 | the guard | `ReactToContactBehavior.PressesTheAttack`: the order is `OrderKind.Attack` and RUNNING (not paused), ≥ 2 men in the fight, `AfterContact.Superior` (enemy share ≤ ⭐ `PressShare` 0.4 — 1.5 : 1, CE-2481; ⛔ SUPERSEDED: ≤ 0.25, the 3 : 1 that starts an assault) | `SquadContactBehaviors.cs` |
+| ⭐ heard, then seen (CE-2482, `2026-11-22`; user: "Yes, do that please") | the strength count (`SquadInputs.EnemyDangerOf` — the ONE reader behind every superiority test) counts a heard contact within `ExplainedMetres` 20 m of an identified enemy as 0: he is the man heard. 📐 uf-corner-assault 23 s: both Red seen, older footsteps near them pooled ⇒ 4 (then 3) for 2. Rail `SquadInputsTests.CE2482_*` | `SquadInputs.ExplainedBySeen` |
 | ⭐ hysteresis (CE-2481, `2026-11-22`) | a RUNNING ordered attack is broken off only at the culminating point (1.5 : 1), while R4 still needs 3 : 1 to START an assault. 📐 uf-corner-assault: 6 v 2 is exactly 0.25 — one man grazed (100 → 87.5) at 16.1 s made it 0.254 and the whole squad stopped to react; the pool's count was right (2 contacts, CE-2474). Rail `CE2481_ARunningAttack_PressesUntilOneAndAHalfToOne_NotStoppedByOneGraze` | `AfterContact.PressShare` |
 | the contact rows | `NotDefending` gains `!PressesTheAttack` — the four contact rows already carry it | `SquadDefendBehavior.NotDefending` |
 | the care row | a new guard `NotPressingTheAttack` | `BasicSquadSop` (id c2467…a3) |
@@ -1878,6 +1879,30 @@ Rail: `CE2467_TheAssault_LearnsTheGroundTheEnemyCovers_AndAsksItsFlankOnceThatIs
 Rejected: **the order-conduct table** (CE-4621) — static per order kind, but pressing on depends on superiority NOW · **a separate guard on each row** — four
 copies of one rule (ruling 9) · ~~price the flank route with UnderFire — the routes already went round~~ ⛔ SUPERSEDED the same day: U2 showed they do not (above).
 Rail: `SquadManeuverTests.CE2467_AnAttackOrder_WithSuperiority_IsNotPausedByTheContactReaction_OutnumberedItReacts`. Scenario: `uf-corner-assault` (U2b).
+
+#### 7.10.1 An attack on a PLACE bounds to it first *(behaviors, `2026-11-22`, `CE-2473`; R-8316; build-state: BUILT)*
+
+```mermaid
+sequenceDiagram
+    participant O as AttackOrder {Position, no Target}
+    participant A as InfantrySquadAttack (Sequence)
+    participant B as BoundingOverwatchPlay
+    participant D as SuppressAndManeuverPlay
+    O->>A: Resolve → Bound.Objective = the place (BoundMetres 30)
+    A->>B: BoundToPlace — bound by elements toward the place, contacts met fought by the members' own reactions (§7.10 press-on)
+    B-->>A: Success (both elements within ArrivalRadius = the order's SearchRadius, else 10 m)
+    A->>D: the drill on the squad's top identified enemy — none: it waits (the squad holds the place)
+```
+*What the picture shows that prose hid:* no new play — the attack on a place is the SAME bound a platoon gives its assault squad for an objective
+(`PlatoonAttackBehavior.Bound`), sequenced before the drill. An order naming a TARGET skips the bound (`BoundMetres` 0) and runs exactly as before (D2-G).
+
+| | |
+|---|---|
+| 📐 why | U2b's first checked run, `InfantrySquadAttack {Position}`: the drill waits for a pooled enemy (`SuppressAndManeuverPlay.Start` → Wait) and the resolver read only `Target` — six men idle 120 s, ~50 m from an enemy behind cars |
+| ⭐ the design basis | `AttackOrder.Position` (R-8316): *"the place to attack … the objective is then the place itself"* · D2-G (Orders design): the designation is the knowledge |
+| ⚠ rejected | a "move then attack" play of its own — a second copy of bounding (ruling 9) · aiming the drill at the place — its flank query and its end both need an enemy ENTITY |
+
+Rail `SquadManeuverTests.CE2473_InfantrySquadAttack_APlaceWithNobodyInSight_TheSquadBoundsToIt` (red without the bound).
 
 #### 7.9.7 The independent review — `2026-11-21` *(two read-only reviewers, one per half; findings verified where marked ✅; resolutions folded above and in Minefields §9b)*
 

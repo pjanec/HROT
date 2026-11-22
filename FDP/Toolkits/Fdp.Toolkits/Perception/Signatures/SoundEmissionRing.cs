@@ -190,6 +190,27 @@ namespace Fdp.Toolkit.Perception.Signatures
             return n;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2490</c> (Sensing §8.6g) — the sound at <paramref name="place"/> in this timeline (a heard answer's token, <c>AcousticPerception.SoundOf</c>),
+        /// when the ring still holds it: what lets a listener who SAW the man fire bind the bang he heard to him (the flash and the bang are one instant).
+        /// False when it was overwritten, belongs to an earlier timeline or is being written. Safe beside the writer; no allocation.
+        /// </summary>
+        public bool TryGetAtPlace(long place, out SoundEmission e)
+        {
+            e = default;
+            if (place <= 0) return false;
+            long first = FirstOfTimeline, head = Head;
+            long serial = place - 1 - Volatile.Read(ref _placeOffset) + first;
+            if (serial < first || serial > head || serial <= head - Capacity) return false;
+            ref var slot = ref _slots[serial % Capacity];
+            long stamped = Volatile.Read(ref slot.Serial);
+            var copy = slot;
+            if (stamped != serial || Volatile.Read(ref slot.Serial) != serial) return false;
+            copy.Serial = place;
+            e = copy;
+            return true;
+        }
+
         private int ReadSerials(long after, Span<SoundEmission> into, out long last, double notBefore, double before)
         {
             long head = Head;
