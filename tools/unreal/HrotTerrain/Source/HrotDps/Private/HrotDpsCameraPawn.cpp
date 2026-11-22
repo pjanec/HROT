@@ -319,9 +319,12 @@ int32 AHrotDpsCamera::PickAt(const FVector2D& ScreenPx) const
 		Cands.Add({ Id, S, FVector::Dist(C, Eye) });
 	}
 	const int32 Picked = HrotDpsPick::Choose(Cands, ScreenPx, HitId, HitDepth);
-	FVector PC3; const bool bHas = Picked && W->CentreOf(Picked, PC3);
-	UE_LOG(LogTemp, Display, TEXT("HROT pick at (%.0f, %.0f): %d candidates, trace hit %d, picked %d%s"), ScreenPx.X, ScreenPx.Y, Cands.Num(), HitId, Picked,
-		Picked ? (bHas ? TEXT("") : TEXT(" (no centre)")) : TEXT(" (nothing within reach)"));   // a user action, not per frame
+	// a user action, not per frame: the nearest candidate and the viewport, so a miss can be told from a scale mismatch (DPI) after a live run
+	const HrotDpsPick::FCand* Nearest = nullptr; float NearD = 1e9f;
+	for (const HrotDpsPick::FCand& C : Cands) { const float D = float(FVector2D::Distance(C.Screen, ScreenPx)); if (D < NearD) { NearD = D; Nearest = &C; } }
+	int32 VX = 0, VY = 0; PC->GetViewportSize(VX, VY);
+	UE_LOG(LogTemp, Display, TEXT("HROT pick at (%.0f, %.0f) viewport %dx%d: %d candidates, nearest %d at (%.0f, %.0f) %.0f px, trace hit %d, picked %d"),
+		ScreenPx.X, ScreenPx.Y, VX, VY, Cands.Num(), Nearest ? Nearest->Id : 0, Nearest ? Nearest->Screen.X : -1.0, Nearest ? Nearest->Screen.Y : -1.0, Nearest ? NearD : -1.f, HitId, Picked);
 	return Picked;
 }
 
