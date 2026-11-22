@@ -144,9 +144,10 @@ namespace Fdp.Toolkit.Perception.Sensors
         }
 
         /// <summary>⭐ <c>CE-3276</c> (R-3023, §8.2) — a LOUD class (a heavy weapon, an explosion): heard wherever it carries, past the
-        /// listener's ear range.</summary>
+        /// listener's ear range. ⭐ <c>CE-2480</c> (R-2143; 🔒 user: "of course 200 meters for a rifle shot is very small") — a GUNSHOT is loud too: a
+        /// rifle's crack is heard far past the ear range that bounds a footstep or an engine, so small arms are heard by their carry × the weather.</summary>
         public static bool IsLoud(byte sourceClass)
-            => sourceClass is (byte)SoundSourceClass.HeavyWeapon or (byte)SoundSourceClass.Explosion;
+            => sourceClass is (byte)SoundSourceClass.HeavyWeapon or (byte)SoundSourceClass.Explosion or (byte)SoundSourceClass.SmallArms;
 
         /// <summary>⭐ AQ105 D (R-2080) — how far a SHOUT carries (m): a man whose <c>Utterance</c> is a shouted kind
         /// (<c>Utterances.IsShouted</c>) is heard by an enemy within this, as long as he speaks. High band (walls take their full share).
@@ -154,9 +155,6 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// listener cannot yet tell a voice from steps; both say "a man there".</summary>
         public const float VoiceRange = 40f;
 
-        /// <summary>⭐ AQ104 E ② (R-2079; WQ-E Q3 v1) — the most one wall or slab takes off a sound (dB): it HALVES the distance the sound
-        /// carries (20·log10 2), never more than its material stops (a chain-link fence 0, a hedge 5).</summary>
-        public const float WallCapDb = 6.0206f;
 
         /// <summary>⭐ AQ104 E ② — how high above the feet a sound is made and heard (m): a line at the body, so two men on one floor
         /// cross its walls, never its slab, and a man upstairs is heard through the slab between them.</summary>
@@ -174,7 +172,7 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// <summary>
         /// ⭐⭐ AQ104 E ② (R-2079; docs/DESIGN_World_Query_Seam.md WQ-E Q3 v1, Sensing §8.8) — the share of its carry a sound made at
         /// <paramref name="source"/> keeps at <paramref name="ear"/> on the STRAIGHT line: <c>10^(−Σ/20)</c> over the walls and slabs it crosses,
-        /// each <c>min(its dB, </c><see cref="WallCapDb"/><c>) × </c><see cref="BandFactor"/>. 1 with no world, or nothing between.
+        /// each its material's REAL dB × <see cref="BandFactor"/> (⭐ CE-2479, R-2143 — the one-halving cap of AQ104 E ② is gone). 1 with no world, or nothing between.
         /// ⭐ AQ106 — the ONE implementation is <see cref="SoundPaths.Route"/>; this is its straight half (no buildings given).
         /// </summary>
         public static float WallFactor(Fdp.Toolkit.World.IWorldQuery? world, Vector3 ear, Vector3 source, byte sourceClass)
@@ -347,7 +345,8 @@ namespace Fdp.Toolkit.Perception.Sensors
             if (n == candidates.Length) return;
             var verdict = Judge(in ears, where, carries, sourceClass);
             if (verdict.Reason != HearingReason.Heard) return;
-            Answer(candidates, ref n, verdict.Distance, verdict.Route.HeardFrom, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed, sound);
+            Answer(candidates, ref n, verdict.Distance, verdict.Route.HeardFrom, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed, sound,
+                   verdict.Route.Smear);   // ⭐ CE-2475 — a smeared direction is a less sure one
             // ⭐ CE-4666 (D-8) — heard through an opening or round a corner: the point is the way in, not the source
             if (verdict.Route.Via != SoundVia.Straight)
                 candidates[n - 1].Flags |= AcousticPerception.ViaMask;
@@ -363,9 +362,9 @@ namespace Fdp.Toolkit.Perception.Sensors
 
         // One heard sound, answered as an anonymous estimate placed where it seems to come from (⭐ AQ106 F: the last opening or corner).
         private static void Answer(Span<EqsResult> candidates, ref int n, float d, Vector3 from, float perMeter, SoundKind kind,
-                                   byte sourceClass, ulong source, ulong listener, uint tick, long sound = 0)
+                                   byte sourceClass, ulong source, ulong listener, uint tick, long sound = 0, float smear = 0f)
         {
-            float radius = AcousticPerception.RadiusAt(d, perMeter);
+            float radius = AcousticPerception.RadiusAt(d, perMeter) * (1f + smear);
             var err = AcousticPerception.Error(source, listener, tick, radius);
             candidates[n++] = new EqsResult
             {

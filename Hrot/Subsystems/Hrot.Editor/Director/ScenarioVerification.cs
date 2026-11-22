@@ -222,6 +222,8 @@ namespace Hrot.Editor.Director
                     return StillHolds(c) ? _rel : null;      // ⭐ CE-2455 — per unit
                 case "exposed":
                     return ExposedHolds(c) ? _rel : null;    // ⭐ CE-2456 — per unit
+                case "perceives":
+                    return PerceivesHolds(c) ? _rel : null;  // ⭐ CE-2476 — per unit
                 case "bunched":
                     return Lasted(c, -1, BunchedHolds(c)) ? _rel : null;
                 default:
@@ -489,6 +491,43 @@ namespace Hrot.Editor.Director
                 if (!(c.Upright && prone) && !sheltered)
                     foreach (var o in eyes) if (Fdp.Toolkit.Perception.SightNow.Sees(world, o, me)) { seen = true; break; }
                 if (Lasted(c, id, seen)) held++;
+            }
+            return Quantified(c.Quantifier, units, held);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2476</c> (Sensing §8.6e) — <c>perceives</c>: for each unit <see cref="AnchorSpec.Who"/> names (with <c>squad</c>, each commander's pool), its
+        /// beliefs scored against the live enemies <see cref="CheckCue.Truth"/> names (<see cref="PerceptionScore"/>); the unit holds when the chosen
+        /// <see cref="CheckCue.Metric"/> compares by <c>op</c> / <c>value</c>. <see cref="CheckCue.Quantifier"/> counts them; <c>for</c> per unit.
+        /// ⚠ The editor tier only (the live memory: the cluster dump hides heard contacts).
+        /// </summary>
+        private bool PerceivesHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || c.Truth is not { } truthName || c.Metric is not { } metric || _w.World is not { } world) return false;
+            var truth = new List<(Entity, System.Numerics.Vector3)>();
+            foreach (var tid in UnitsNamed(truthName))
+            {
+                if (!InTheFight(tid)) continue;
+                var te = new Fdp.Toolkit.Replication.EntityRef(tid).Resolve(world);
+                if (te.IsNull || !world.IsAlive(te) || !world.HasComponent<SimTransform>(te)) continue;
+                truth.Add((te, world.GetComponent<SimTransform>(te).Position));
+            }
+            float m = c.M > 0f ? c.M : c.Squad ? 10f : 5f;
+            int want = c.Value is JsonValue v && v.TryGetValue<int>(out var n) ? n : 0;
+            int units = 0, held = 0;
+            foreach (var id in UnitsNamed(who))
+            {
+                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (e.IsNull || !world.IsAlive(e)) continue;
+                if (!c.Squad && HealthOf(id) is not > 0f) continue;
+                units++;
+                int got = PerceptionScore.Of(world, e, truth, c.Squad, m, c.Through).Of(metric);
+                bool ok = c.Op switch
+                {
+                    "==" => got == want, "!=" => got != want, "<" => got < want, "<=" => got <= want, ">" => got > want, ">=" => got >= want,
+                    _ => false,
+                };
+                if (Lasted(c, id, ok)) held++;
             }
             return Quantified(c.Quantifier, units, held);
         }

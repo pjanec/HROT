@@ -142,8 +142,13 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ R4 — the squad now has superiority over <paramref name="enemy"/> (its share ≤ <see cref="AssaultShare"/>).</summary>
-        public static bool Superior(EntityRepository world, Entity commander, float enemy)
-            => SquadInputs.EnemyShare(MathF.Max(enemy, SquadInputs.EnemyDangerOf(world, commander)), SquadInputs.OwnStrengthOf(world, commander)) <= AssaultShare;
+        public static bool Superior(EntityRepository world, Entity commander, float enemy, float share = AssaultShare)
+            => SquadInputs.EnemyShare(MathF.Max(enemy, SquadInputs.EnemyDangerOf(world, commander)), SquadInputs.OwnStrengthOf(world, commander)) <= share;
+
+        /// <summary>⭐ <c>CE-2481</c> (Squad Tactics §7.10) — the enemy share up to which a RUNNING ordered attack keeps pressing (1.5 : 1): the
+        /// culminating point, not the 3 : 1 that starts an assault (<see cref="AssaultShare"/>). One rule for both had no margin — 📐 uf-corner-assault,
+        /// 6 v 2 is exactly 0.25: one man grazed (100 → 87.5 health) at 16.1 s made it 0.254 and the whole squad stopped to react.</summary>
+        public const float PressShare = 0.4f;
 
         /// <summary>⭐ R5 — still fit to fight: the squad's health share ≥ <see cref="FitShare"/>.</summary>
         public static bool Fit(EntityRepository world, Entity commander)

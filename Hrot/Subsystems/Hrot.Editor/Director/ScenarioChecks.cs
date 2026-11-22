@@ -61,13 +61,22 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ <c>CE-2466</c> — <c>bunched</c>: the fewest men that make a knot (default 2). 📐 U2: the last two Red holding one corner 2.8 m apart is a
         /// buddy pair sharing cover, not a squad collapsed into a knot.</summary>
         public int Men { get; init; } = 2;
+        /// <summary>⭐ <c>CE-2476</c> <c>perceives</c> (Sensing §8.6e): the REAL enemies (a name or <c>*part</c>) a unit's beliefs are scored against.</summary>
+        public string? Truth { get; init; }
+        /// <summary>⭐ <c>CE-2476</c> <c>perceives</c>: which count is compared — <c>contacts</c> · <c>matched</c> · <c>missed</c> · <c>phantom</c> · <c>duplicate</c>
+        /// (<see cref="PerceptionScore"/>).</summary>
+        public string? Metric { get; init; }
+        /// <summary>⭐ <c>CE-2476</c> <c>perceives</c>: <see cref="AnchorSpec.Who"/> names commanders, and their squad contact POOL is judged.</summary>
+        public bool Squad { get; init; }
+        /// <summary>⭐ <c>CE-2476</c> <c>perceives</c>: false skips a contact heard only through an opening (D-8 — "look there", not "he is there").</summary>
+        public bool Through { get; init; } = true;
 
         public string On => Spec.On;
 
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed", "perceives" }).ToArray();
         /// <summary>⭐ <c>CE-4672</c> <c>cover</c>: <c>in</c> — a cover point (the terrain's cover database) within <see cref="M"/> of the unit; <c>open</c> — none.</summary>
         public static readonly IReadOnlyList<string> CoverStates = new[] { "in", "open" };
 
@@ -259,6 +268,7 @@ namespace Hrot.Editor.Director
             var where_ = new List<(string, string, JsonNode?)>();
             string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null, to = null, building = null;
             bool dead = false, upright = false, fighting = false; int men = 2;
+            string? truth = null, metric = null; bool squad = false, through = true;   // ⭐ CE-2476
             double forSeconds = 0d;
             var also = new List<(string, string, JsonNode?)>();
             int elements = 1;
@@ -280,6 +290,10 @@ namespace Hrot.Editor.Director
                     case "from": from = v?.ToString(); break;
                     case "to": to = v?.ToString(); break;
                     case "building": building = v?.ToString(); break;
+                    case "truth": truth = v?.ToString(); break;     // ⭐ CE-2476
+                    case "metric": metric = v?.ToString(); break;
+                    case "squad": squad = v is JsonValue qv && qv.TryGetValue<bool>(out var qb) && qb; break;
+                    case "through": through = !(v is JsonValue tv && tv.TryGetValue<bool>(out var tb) && !tb); break;
                     case "dead": dead = v is JsonValue dv && dv.TryGetValue<bool>(out var db) && db; break;
                     case "upright": upright = v is JsonValue uv && uv.TryGetValue<bool>(out var ub) && ub; break;   // ⭐ CE-8316
                     case "fighting": fighting = v is JsonValue fv && fv.TryGetValue<bool>(out var fb) && fb; break;   // ⭐ CE-2455
@@ -314,7 +328,7 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed" or "perceives") || !p.Contains("is not one of", StringComparison.Ordinal)));
             if (on == "window")
             {
                 if (string.IsNullOrWhiteSpace(building)) problems.Add($"{where}: a window cue needs building (its terrain key or label)");
@@ -347,6 +361,15 @@ namespace Hrot.Editor.Director
                 if (parsed.Who == null) problems.Add($"{where}: an exposed cue needs who (the men judged)");
                 if (parsed.By == null) problems.Add($"{where}: an exposed cue needs by (the enemies whose eyes count)");
             }
+            if (on == "perceives")   // ⭐ CE-2476 (Sensing §8.6e) — a unit's beliefs against the real enemies
+            {
+                if (parsed.Who == null) problems.Add($"{where}: a perceives cue needs who (the men, or with squad: true the commanders, whose beliefs are judged)");
+                if (string.IsNullOrWhiteSpace(truth)) problems.Add($"{where}: a perceives cue needs truth (the real enemies, a name or *part)");
+                if (metric == null || !PerceptionScore.Metrics.Contains(metric)) problems.Add($"{where}: a perceives cue's metric is one of {string.Join(", ", PerceptionScore.Metrics)}");
+                if (value is not JsonValue pv2 || !pv2.TryGetValue<int>(out _)) problems.Add($"{where}: a perceives cue's value is a whole count");
+                if (m < 0f) problems.Add($"{where}: m is metres (>= 0)");
+            }
+            else if (truth != null || metric != null || squad || !through) problems.Add($"{where}: truth, metric, squad and through belong to a perceives cue");
             if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
             if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
             if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed" or "close" or "far")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched, exposed, close or far cue");
@@ -397,7 +420,8 @@ namespace Hrot.Editor.Director
             if (where_.Count > 0 && on is not ("shot" or "blast" or "field")) problems.Add($"{where}: where filters a shot or a blast row (or, on a field cue, the elements of a * path)");
             if (where_.Count > 0 && on == "field" && !(path ?? "").Contains(".*.", StringComparison.Ordinal)) problems.Add($"{where}: where on a field cue filters the elements of a path with a * part");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Upright = upright, Also = also, For = forSeconds, Fighting = fighting, Men = men };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Upright = upright, Also = also, For = forSeconds, Fighting = fighting, Men = men,
+                                 Truth = truth, Metric = metric, Squad = squad, Through = through };
         }
     }
 }

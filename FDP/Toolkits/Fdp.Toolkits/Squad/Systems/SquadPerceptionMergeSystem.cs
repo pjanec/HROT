@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Squad.Systems
             for (int i = pool.Count - 1; i >= 0; i--)   // downward: the slot swapped into i was already visited
             {
                 if ((span[i].Flags & SquadContact.AnonymousFlag) == 0) continue;
-                float r = radii[i];
+                float r = radii[i] + TargetMemory.KnownMoveSlackMetres;   // ⭐ CE-2487 — the man seen may have moved a few steps since he was heard
                 int best = -1; float bestD2 = float.MaxValue;
                 for (int j = 0; j < pool.Count; j++)
                 {
@@ -245,7 +245,7 @@ namespace Fdp.Toolkit.Squad.Systems
                         same.PositionX = (same.PositionX * v1 + x * v2) / v;
                         same.PositionY = (same.PositionY * v1 + y * v2) / v;
                         same.PositionZ = (same.PositionZ * v1 + z * v2) / v;
-                        radii[i] = 1f / System.MathF.Sqrt(v);
+                        radii[i] = TargetMemory.FusedRadius(v, radius);   // ⭐ CE-2477
                     }
                     if (classes[i] == 0) classes[i] = sourceClass;
                     if (threatScore > same.ThreatScore) same.ThreatScore = threatScore;
@@ -271,7 +271,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 c.PositionX = (c.PositionX * w1 + x * w2) / w;
                 c.PositionY = (c.PositionY * w1 + y * w2) / w;
                 c.PositionZ = (c.PositionZ * w1 + z * w2) / w;
-                radii[best] = 1f / System.MathF.Sqrt(w);
+                radii[best] = TargetMemory.FusedRadius(w, radius);   // ⭐ CE-2477 — the pool is never surer than one of its ears
                 if (classes[best] == 0) classes[best] = sourceClass;
                 if (threatScore > c.ThreatScore) c.ThreatScore = threatScore;
                 if (lastSeenTick > c.LastSeenTick) c.LastSeenTick = lastSeenTick;

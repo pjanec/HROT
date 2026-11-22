@@ -471,5 +471,93 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(628f, c.PositionX);
             Assert.Equal((ushort)0b0011, c.SourceMembersMask);
         }
+
+        /// <summary>⭐⭐ <c>CE-2477</c> (Sensing §8.6e) — 📐 <c>pe-seen-shooter</c>: a man who HEARS one shooter 150 times must not end up surer than a lone
+        /// ear can be — the fused circle stops at a third of one hearing's (26 m ⇒ ≥ 8.7 m), so when he then SEES the shooter 2.8 m from the heard point
+        /// the sighting absorbs it: ONE contact, not the seen man plus a heard ghost. 🔴 Red-proof: <c>FusedRadius</c> without the floor ⇒ the circle
+        /// shrinks to ~2 m ⇒ 2 contacts.</summary>
+        [Fact]
+        public unsafe void CE2477_ManyHearings_NeverSharperThanALoneEar_SoASightingStillAbsorbsThem()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            const byte smallArms = 4;
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            for (int k = 0; k < 150; k++)
+            {
+                float a = k * 2.399f, r = 26f * ((k * 7919) % 100) / 100f;   // spread within the 26 m circle around (100, 250)
+                TargetMemory.HearContact(ref mem, 99f + r * System.MathF.Cos(a) * 0.1f, 252f + r * System.MathF.Sin(a) * 0.1f, 0f, 26f, smallArms, 1f, (uint)k + 1);
+            }
+            Assert.Equal(1, mem.Count);
+            Assert.True(mem.Radius[0] >= 26f / 3f - 1e-3f, $"fused radius {mem.Radius[0]}");
+
+            var enemy = repo.CreateEntity();
+            Assert.True(TargetMemory.AbsorbBySighting(ref mem, (long)enemy.PackedValue, 100.86f, 249.87f, System.ReadOnlySpan<byte>.Empty));
+            Assert.Equal(1, mem.Count);
+            Assert.False(TargetMemory.IsAnonymous(in mem, 0));
+        }
+
+        /// <summary>⭐⭐ <c>CE-2485</c> (📐 uf-corner-assault) — steps heard ROUND A CORNER (a D-8 point at the corner, 45 m ahead), then the man SEEN behind it
+        /// (54 m, 4° off): one contact, the seen man — not the seen man plus the corner point. A man seen NEARER than the corner, or 90° off it, does not take
+        /// it. 🔴 Red-proof: without the listener (the old gate: inside the circle only) ⇒ the corner point stays ⇒ red.</summary>
+        [Fact]
+        public void CE2485_StepsHeardRoundACorner_ThenTheManSeenBehindIt_IsOneContact()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            const byte steps = 1;
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem, 642f, 379f, 0f, 2f, steps, 50f, 1, via: 1);
+            var near = repo.CreateEntity(); var aside = repo.CreateEntity(); var behind = repo.CreateEntity();
+            Assert.False(TargetMemory.AbsorbBySighting(ref mem, (long)near.PackedValue, 646f, 360f, System.ReadOnlySpan<byte>.Empty, true, 652f, 336f));     // nearer than the corner
+            Assert.False(TargetMemory.AbsorbBySighting(ref mem, (long)aside.PackedValue, 700f, 336f, System.ReadOnlySpan<byte>.Empty, true, 652f, 336f));    // 90° off
+            Assert.True(TargetMemory.AbsorbBySighting(ref mem, (long)behind.PackedValue, 636.5f, 387f, System.ReadOnlySpan<byte>.Empty, true, 652f, 336f));  // beyond, 4° off
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)behind.PackedValue, mem.EntityIds[0]);
+        }
+    
+        /// <summary>⭐⭐ <c>CE-2486</c> (📐 pe-house-shot) — a man he SAW at (103.7, 105.2) and now only HEARS, 2.7 m from there with a 1.1 m circle, is that man (he
+        /// moved a few steps): the known contact is refreshed, no heard duplicate. A sound 8 m from him is another. 🔴 Red-proof: no slack ⇒ 2 contacts ⇒ red.</summary>
+        [Fact]
+        public void CE2486_HeardAFewStepsFromWhereHeWasLastSeen_IsHim()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            var enemy = repo.CreateEntity();
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 103.66f, 105.17f, 50f, tick: 1);
+            Assert.Equal((long)enemy.PackedValue, TargetMemory.HearContact(ref mem, 105.9f, 106.8f, 0f, 1.1f, 4, 10f, 2));
+            Assert.Equal(1, mem.Count);
+            // ⭐ CE-2488 — heard outside the circle of the old spot: he is now believed where he was heard
+            Assert.Equal(105.9f, mem.PositionsX[0], 3);
+            Assert.Equal(106.8f, mem.PositionsY[0], 3);
+            // ⭐ CE-2488 — a point round an opening refreshes him but does not move him (it is the way in, D-8)
+            TargetMemory.HearContact(ref mem, 107.5f, 106.8f, 0f, 0.5f, 4, 10f, 3, via: 1);
+            Assert.Equal(105.9f, mem.PositionsX[0], 3);
+            Assert.True(TargetMemory.HearContact(ref mem, 111.0f, 108.0f, 0f, 1.1f, 4, 10f, 3) < 0, "8 m off: another");
+            Assert.Equal(2, mem.Count);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2487</c> (📐 pe-house-shot) — CE-2486 the other way round. ① A man HEARD at (106.2, 107.0), sure to 0.7 m, then SEEN 0.9 m from
+        /// there is that man: one slot. A man seen 8 m off is another. ② The squad pool: one member sees him at (105.4, 107.0), another heard him round an
+        /// opening at (107.9, 108.9), 3.1 m off a 0.7 m circle — one pooled contact. 🔴 Red-proof: no slack ⇒ 2 slots / 2 pooled contacts ⇒ red.</summary>
+        [Fact]
+        public void CE2487_HeardFirst_ThenSeenAFewStepsFromThePoint_IsHim()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem, 106.2f, 107.0f, 0f, 0.7f, 4, 50f, 1);
+            var far = repo.CreateEntity(); var him = repo.CreateEntity();
+            Assert.False(TargetMemory.AbsorbBySighting(ref mem, (long)far.PackedValue, 114.2f, 107.0f, System.ReadOnlySpan<byte>.Empty), "8 m off: another");
+            Assert.True(TargetMemory.AbsorbBySighting(ref mem, (long)him.PackedValue, 105.4f, 107.0f, System.ReadOnlySpan<byte>.Empty));
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)him.PackedValue, mem.EntityIds[0]);
+
+            ref var seer = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            seer = default;
+            TargetMemory.AddOrUpdateTarget(ref seer, (long)him.PackedValue, 105.4f, 107.0f, 50f, tick: 1);
+            ref var ear = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref ear, 107.9f, 108.9f, 0f, 0.7f, 4, 30f, 1, via: 1);
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            Assert.Equal((long)him.PackedValue, GetContact(commander, 0).EntityId);
+        }
     }
 }

@@ -944,9 +944,14 @@ classDiagram
 | ① one sound, one contact | `MergeHeard` fuses a member's heard slot into the pooled HEARD contact with the same token whatever the distance — a straight hearing's point replaces a corner one, two of a kind fuse by inverse variance, a straight one clears `HeardThroughFlag` (D-8); then `AbsorbHeardBySound` folds a heard contact into the SEEN contact carrying its token (the sighting keeps its position). ✅ `SquadPerceptionMergeSystemTests.CE2474_*` |
 | ② a shot from a man you see is him | `TargetMemory.AttributeToSeen`, called by `ThreatEvaluationSystem`'s heard loop before `HearContact`: a heard SHOT (`Kind` Shot, not a burst — R-2071, not heard via an opening — D-8, its estimate ≥ 1 m from him) within `AttributeDegrees` 12° of the bearing of an identified contact he sees THIS tick (a Visual track) refreshes that contact (Acoustic added, the token stamped) instead of a new anonymous slot; the nearest bearing wins. ✅ `ThreatEvaluationSystemTests.CE2474_AShotFromTheBearingOfAManHeSees_IsThatMan` |
 | ③ the half weight (CE-2474, `52df639bb`) | ⛔ WITHDRAWN (user: "Why are we halving?") — after ① and ② a heard contact left over is a genuinely unknown enemy and counts whole |
+| ⭐ CE-2486 — hearing a man he KNOWS | a sound within its circle + `KnownMoveSlackMetres` 3 m of a known man refreshes him (the memory holds where he was last SEEN). 📐 pe-house-shot: 2.7 m off a 1.1 m circle, held twice before |
+| ⭐ CE-2487 — seeing a man he HEARD | the mirror: a heard contact whose circle + 3 m holds the man now seen is him — per man (`AbsorbBySighting`) and in the squad pool (`AbsorbHeardBySightings`). 📐 pe-house-shot: heard 0.9 m off a 0.7 m circle, seen a moment later; heard round an opening 3.1 m off — both held as extra enemies |
+| ⭐ CE-2488 — where the known man IS now | a straight hearing that refreshes a known man (CE-2486) from OUTSIDE its circle of his old spot moves him to the heard point; a point heard round an opening only refreshes him (D-8). 📐 ia-house-hunt: the stale spot was a room away and the hunt went there |
+| ⭐ CE-2485 — the SIGHTING absorbs a heard-through point (any class) | when the seen man stands beyond the point within 45° of its bearing from the listener (as CE-2484) — not only inside its circle. 📐 uf-corner-assault: corner steps heard first, the man seen behind the corner: 4 enemies for 2 before |
+| ⭐ CE-2484 — a shot heard THROUGH AN OPENING | its point is the way in, so it is the seen man's only when he stands BEYOND it (farther than the point) and within `AttributeThroughDegrees` 45° of its bearing. 📐 pe-house-shot: seen through the hall door, heard via the stairwell 17° off — held as two before |
 | unchanged | bursts (R-2071), a sound heard only through an opening (D-8) for the SPOT, anonymity (§6 D) |
 
-#### 8.6e `CE-2476` / `CE-2475` — PROVING perception: belief against truth, a scenario suite, and the first wavefront *(behaviors, `2026-11-22`; 🔒 user: "wrong perception breaks many behaviors so i think it deserves extra effort to get it right" · "in reality the sound propagates through walls as well as around them and the human aggregates those" · "yes, go ahead in that order"; build-state: READY-TO-BUILD)*
+#### 8.6e `CE-2476` / `CE-2475` — PROVING perception: belief against truth, a scenario suite, and the first wavefront *(behaviors, `2026-11-22`; 🔒 user: "wrong perception breaks many behaviors so i think it deserves extra effort to get it right" · "in reality the sound propagates through walls as well as around them and the human aggregates those" · "yes, go ahead in that order"; build-state: the cue and P1–P5 BUILT; CE-2475 STOPPED on a measured premise — see its claim table)*
 
 📐 **Why** — measured `2026-11-22`: ~95 unit rails test one perception function each with hand-made input; ONE live rail (`HeardShotScenarioTests`) runs a hearing end to end and judges the reaction, not the belief; the sensing scenarios judge only slot 0 of a SEEN contact. ⛔ **No check can see a heard contact** (the memory's dump skips them, `TargetMemoryTranslator.cs:53`) and **none compares belief with truth** ⇒ U2b's "four enemies for one shot" (§8.6d) was invisible to every check; a debug probe found it.
 
@@ -987,6 +992,15 @@ classDiagram
 | P7 | `pe-seen-then-hidden` | a man crosses open ground, then hides | identified within the dwell; forgotten after the fade, not before |
 | P8 | P1, listeners on two nodes (cluster, nightly) | ⚠ the per-node token (§8.6d): 1 or 2 — needs the dump to carry heard contacts |
 
+##### What the suite found first (`2026-11-22`)
+
+| run | found | outcome |
+|---|---|---|
+| P1 with ears at 250 m | nobody heard a thing: a rifle is not a LOUD class, so it is heard within the 200 m ear (`/perception/hearing` → `BeyondHisEar`) | the layout moved inside 200 m; ⚠ `bw-unheard` rests on the same mistake (CE-2478) |
+| P3 | a man who heard a shooter 146 times was sure to 2.15 m at 177 m; seeing him 2.76 m off, he held TWO contacts | ✅ CE-2477 — `TargetMemory.FusedRadius`, floored at ⅓ of one hearing's circle |
+| P4, P5 | the squad's pooled heard contacts were judged against a bare 10 m gate | the score's fault: a pooled contact now takes the widest circle of the ears that heard it (`PerceptionScore.EarsRadius`) |
+| P1 (corrected), P4 "holds both" | ✅ one shot is one contact for every man and the squad; two shooters 30 m apart are two | — |
+
 ##### CE-2475 — the FIRST WAVEFRONT: where a sound seems to come from when it arrives by two ways
 
 📐 **How it is** (`SoundPaths.Route`, `:76-101`): both ways are solved — the straight line through the walls (`StraightDb`) and the way through openings / round corners (`PathDb`) — and the LOUDER WINS outright (AQ106 B), heard from the last opening (AQ106 F). ⛔ A man 15 m from a shooter behind one thin wall, a door to his left, hears the shot "from the door".
@@ -1014,10 +1028,35 @@ sequenceDiagram
 |---|---|---|
 | both ways' losses are solved | ✅ `SoundPaths.cs:92`, `:100` | ✅ AQ106 B |
 | only one is kept as a direction | ✅ `SoundPaths.cs:100`, `:235` | ✅ AQ106 F — no mixing considered |
-| 10 / 20 dB | ⛔ the literature (precedence holds to ~10 dB), not measured here | ⏳ tuned on P2 / P2b |
+| 10 / 20 dB | ⛔⛔ **MEASURED `2026-11-22` — WRONG FOR THIS MODEL**: a wall costs at most ONE halving (`AcousticPerception.WallCapDb` = 6.02 dB) and a corner 0.5–3 dB (`SoundPaths.CornerDb*`), so the way round is almost never ≥ 10 dB louder. Built as specified, it flipped 6 of 87 hearing rails to "heard straight" — ⛔ including the street corner round a SOLID 20 × 20 m block (two faces = 12 dB) and the stair under a slab | ⛔ the literature's thresholds assume REAL transmission loss (an inner wall ~30 dB, a concrete one ~45 dB). ⏸ **STOPPED (R-106), not committed** — the code is kept as a patch; the choice is the user's: make walls realistic (blast radius: every hearing indoors), or put the thresholds on the model's own scale |
 | the readers follow `Via` | ✅ `IsHeardThroughAnOpening`, `AttributeToSeen` (via ⇒ no) | 📄 §8.6c, §8.6d |
 
 INVENTORY (`2026-11-22`): `search_graph name_pattern ".*(Perception|Hearing|Acoustic|Visual|Thermal|Sensor|TargetMemory|SquadPerception|Detection|Sound).*Tests?" label Class` → total 53, has_more false (⚠ it MISSED `AcousticHearingTests`, `SoundPathsTests`, `ThreatEvaluationSystemTests` — found by `ls FDP/Toolkits/Fdp.Toolkits.Tests/Perception`, 30 files); check-grammar cues: `ScenarioChecks.Kinds` (`field`, `knowledge`, `far`, `close`, `between`, `window`, `cover`, `bunched`, `still`, `exposed` + the anchor kinds) — none reads a belief; scenarios: `find scenarios -name checks.json` (261) filtered by sensing words → 20, none judges a heard contact or a count. ⛔ Coverage could not be checked (`check_index_coverage` is not in the CLI).
+
+#### 8.6f `CE-2479` / `CE-2480` — walls at their real loss, and a gunshot is LOUD *(behaviors, `2026-11-22`; R-2143; 🔒 user: "Yes, use realistic attenuation through walls, and of course 200 meters for a rifle shot is very small, we need extension"; build-state: BUILDING)*
+
+```mermaid
+graph TD
+  S["a sound: class, carry"] --> L{"IsLoud? heavy weapon, explosion, ⭐ small arms"}
+  L -->|"loud"| C1["heard within carry × weather (§8.2), past the ear range"]
+  L -->|"quiet: steps, engines, rotors"| C2["heard within min(carry, ear range)"]
+  C1 --> R["SoundPaths.Route: straight = Σ material dB × band ⭐ no cap; round = openings, corners"]
+  C2 --> R
+  R --> F["the LOUDER way decides WHETHER (AQ106 B); the first wavefront decides FROM WHERE (CE-2475)"]
+```
+*What the picture shows that prose hid:* the two changes meet in one verdict — a gunshot now reaches far (C1), and once walls cost their real dB the way round can win by enough for the first-wavefront rule to mean something.
+
+| ⭐ as built | was | why |
+|---|---|---|
+| each wall / slab / closed door / intact pane: its `materials.json` soundDb × band (concrete 40, brick 35, glass 20, a wooden door 15; a rifle ×0.6, steps ×1, a blast ×0.2) | `min(dB, 6.02)` — one halving (AQ104 E ②'s v1, `WallCapDb`, removed) | a concrete wall and a hedge were alike; the way round never won by more than a few dB (§8.6e, CE-2475's stopped premise) |
+| small arms are a LOUD class | quiet — capped by the 200 m soldier's ear | 📐 `pe-one-shot-four-ears` at 250 m heard nothing (`/perception/hearing`: `BeyondHisEar`) |
+| carries at a human's audibility, low end: pistol 0.8 · rifle 1.5 · 7.62 MG 2 · 12.7 HMG 2.5 · 23 mm 3 · a shoulder launch / ATGM 1.5 km | 0.2 · 0.4 · 0.6 · 1 · 1.5 · 0.5 / 0.8 km | ⚠ approximate — no sound-ranging source as the tubes have (§8.5); ordered by loudness |
+
+| ⚠ blast radius, measured on the build | |
+|---|---|
+| footsteps through a brick wall now stop at ~0.4 m (25 m × 10^(−35/20)) | ⇒ indoor scenarios that relied on hearing steps through walls change |
+| every soldier hears every rifle shot within ~1.5 km × weather | ⇒ more heard contacts (CE-2474's fusion carries them) and a longer LOUD list each tick (§8.2) |
+| ⛔ found re-running `ia-house-hunt` (✅ before, ❌ after): steps upstairs now come down the STAIRWELL, placed at the opening the attacker stood on — a heard enemy at his feet | ⭐ CE-2483: an opening or corner within 1.5 m of the ear (`StandingInOpeningM`) is skipped — the sound came from beyond it |
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
