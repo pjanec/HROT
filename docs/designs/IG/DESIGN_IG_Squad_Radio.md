@@ -147,7 +147,7 @@ The clips: `sound_cut.py --set vox` (mode `whole`) → `D:\Work\Unreal\sounds\mi
 | **U-19a** | `dps_gen.py` on the gateway tip (`7b98118`+): the new topics' C types and QoS rows; the plugin builds; the existing rails pass | the topic table lists DPS_Utterance / Report / Order / Ambience / Weather; build green |
 | **U-19b** | the clips (recipes + `whole` mode + import); `HrotVoiceLines`; `UHrotVoicePlayer`; three handlers; three fakes | rail `Hrot.Dps.Voice.Lines`: every row of §2 (incl. Lace by counts, Sitrep by colour, Spot by count, an unknown order ⇒ standby, a civil kind ⇒ none, callsigns stable and distinct); rail `Hrot.Dps.Voice.Player`: per-net queue (third dropped), shout spacing, earpiece vs world by the listener's net; the scene run plays a fake Report and logs the chain (beep → sgt → line → squelch) and `LibraryMissing` 0 |
 | **U-19c** | bursts on `Fire` (DD-027) — §5 | rail `Hrot.Dps.Burst`: index 0 of N starts one `_b<N>` clip, indices 1..N-1 play nothing, `BurstId` 0 plays per round, a gap fades the clip, no clip for N ⇒ the nearest shorter count, none at all ⇒ per round; scene: a fake 3-round burst plays ONE clip |
-| U-19d | ambience + weather (DD-028) | later |
+| **U-19d** | ambience + weather (DD-028) — §6 | rail `Hrot.Dps.Ambience`: kind fallback (`alarm.airraid.preliminary` → `alarm.airraid` → `alarm`, unknown family ⇒ none), gains (positionless = Intensity, positioned by distance to Radius), ≤ 2 battle beds (the loudest), an event plays once per row, a disposed row fades; rail `Hrot.Dps.Weather`: the region containing the camera wins over the global row, the feather blends, rain mm/h and wind m/s → the soundscape's 0..1; scene: a fake `battle.city` bed and a positioned `alarm.airraid` row start their loops, the dispose fades them, a fake rain row raises `RainAmount` |
 | U-19e | the director's fade and subtitle on `View` | later |
 
 ## 5. Bursts on `Fire` (U-19c, DD-027) *(unreal-ig, 2026-11-22)*
@@ -194,3 +194,49 @@ alive — and a cut must travel through the same delay as the sound, or a distan
 | scene: "no per-round rifle sound" | `sounds played` of the renderer rose by exactly 1 (and `HeldStarted` by 1) for a 3-round burst | the `rifle shot` event counts every ROUND (the tracer / visual path), not a sound |
 
 Clips: 112 (7 counts × 4 sets × 4 variants) in `/Game/Hrot/AudioPro/wpn/<stem>b<N>_NN` (private, outside git).
+
+## 6. Ambience and weather (U-19d, DD-028) *(unreal-ig, 2026-11-22)*
+
+HROT keeps ambience LAYERS as entities (HROT `docs/designs/audio/DESIGN_Ambience.md`, CE-11034: a dotted kind, an intensity, optionally a place and a
+radius, an end); the gateway sends them as `DPS_Ambience` STATE rows (a late joiner hears a siren already sounding) and HROT's weather as `DPS_Weather`
+rows (global, or a region with its outline).
+
+```mermaid
+classDiagram
+  class UHrotDpsWorld { <<exists, +2 handlers>> OnAmbience · OnWeather }
+  class FHrotAmbienceMix { <<NEW, pure>> Set(row) · Remove(id) · Gains(listener) · KindToSet(kind) with parent fallback }
+  class FHrotWeatherPick { <<NEW, pure>> Set(row) · Remove(id) · At(listener) ⇒ rain 0..1, wind 0..1 }
+  class UHrotAmbiencePlayer { <<NEW, world subsystem, HrotTerrain>> loops per row, one-shots per event row, 4 s crossfades }
+  class UHrotSoundscape { <<exists>> Pick · One · Falloff · RainAmount · WindAmount }
+  UHrotDpsWorld --> FHrotAmbienceMix
+  UHrotDpsWorld --> FHrotWeatherPick
+  UHrotAmbiencePlayer --> FHrotAmbienceMix : reads gains each second
+  UHrotAmbiencePlayer --> UHrotSoundscape : clips
+  UHrotDpsWorld --> UHrotSoundscape : RainAmount, WindAmount (the existing beds)
+```
+*What the picture shows that prose hid:* weather needs NO new player — it only drives the two numbers the soundscape's existing rain and wind beds
+already read (today set by hand); the war layers get their own player because they are keyed rows, not the soundscape's surroundings.
+
+| kind | the pack's recordings (set) | how |
+|---|---|---|
+| `battle.distant` | `amb/war_distant` — Distant gunshots and indoor battlefield · Sniper shooting in the distance | bed (loop) |
+| `battle.city` | `amb/war_city` — City battlefield ambience | bed |
+| `battle.night` | `amb/war_night` — Nighttime battlefield with distant shots | bed |
+| `battle.heavy` | `amb/war_heavy` — Intense mid range battlefield · Tank fire on the battlefield | bed |
+| `battle.sniper` | `amb/war_sniper` — Sniper shooting in the distance | bed |
+| `battle.ambush` | `amb/war_ambush` — Jungle patrol ambush ambience | bed |
+| `battle.aftermath` | `amb/war_aftermath` — Burning house war zone ambience ×3 | bed |
+| `event.airstrike` · `.drone` · `.rocket` · `.convoy` · `.evacuation` · `.evacuation.city` · `.nuclear` | `amb/ev_airstrike` Tactical airstrike · `ev_drone` Drone attack and explosion · `ev_rocket` Nighttime rocket launch and explosion · `ev_convoy` Armored convoy approaching · `ev_evacuation` Military trucks evacuation ambience · `ev_evacuation_city` Citywide evacuation · `ev_nuclear` Atomic bomb drop and explosion | one-shot, once per row |
+| `alarm.airraid` · `.preliminary` · `alarm.bell` · `alarm.intruder` · `alarm.emergency` | `amb/al_airraid` War air raid siren ×3 · `al_airraid_pre` preliminary alert ×2 · `al_bell` Emergency alarm bell ring ×4 · `al_intruder` Enemy base intruder alarm ×3 · `al_emergency` City emergency sirens and explosions | loop while the row lives |
+| `naval.*` | `amb/nv_ship` ship at sea ×3 · `nv_warship` Warship rumbling ×2 · `nv_underwater` Underwater battlefield | bed |
+
+| # | decision | rejected |
+|---|---|---|
+| A-1 | a kind maps to a set by the table; an unknown kind drops its last part until known; an unknown family ⇒ nothing (logged once) | a hard-coded enum — HROT adds kinds without a contract change |
+| A-2 | positionless ⇒ a 2-D stereo bed at `Intensity` × the ambience volume; positioned ⇒ a source AT `Position` (a siren is heard from the town) with full level within ½ `Radius`, silent at `Radius` | every row 2-D — a siren with no direction |
+| A-3 | ≤ 2 battle beds at once (the two loudest), crossfaded over 4 s; events one at a time (a second waits); alarms ≤ 3 | every row at once — a wall of noise |
+| A-4 | `UntilSim` is HROT's to honour (the row is disposed); the client only fades on dispose (2 s) | a client timer — would drift from HROT |
+| A-5 | the battle beds have shots baked in ⇒ under the simulated fire they are mixed 6 dB lower while simulated shots were heard in the last 10 s | the bed at full level — it contradicts the picture |
+| A-6 | weather: the region whose outline holds the camera (the feather blending toward the global row) else the global row; `RainAmount` = clamp(mm/h ÷ 8), `WindAmount` = clamp(m/s ÷ 15); the hand / console values are used only when no row exists | a new rain player — the beds exist (U-18n) |
+| A-7 | the beds are cut whole (`loopfile`-style, stereo, levelled to the U-18n beds' -24 dBFS RMS) into `/Game/Hrot/AudioPro/amb/` — private | onset cutting — a bed is not a shot |
+| A-8 | the derived "battle beyond what you see" (our note's option ①) is NOT in this slice | scope — HROT's layers come first |
