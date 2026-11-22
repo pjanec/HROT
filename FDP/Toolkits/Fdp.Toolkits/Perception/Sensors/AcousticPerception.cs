@@ -58,6 +58,13 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// marked in <c>FlagsMeaningful</c> (a fire-clear reader keys on that) — read only by <c>SensorMemoryStage.HearAll</c>. 📌 CE-4039 is the
         /// precedent for a shared bit going wrong.</summary>
         public const short ViaMask = 1 << 7;
+
+        /// <summary>⭐ <c>CE-2474</c> (Sensing §8.6d) — a short sound's TOKEN as an answer's <c>EntityId</c>: <c>−(serial + 1)</c>, so it is never 0
+        /// (a continuous sound, no token) and never −1 (the EQS solver's rejection mark, <c>EqsSolverSystem.CompactRejected</c>). ⛔ Not the source.</summary>
+        public static long TokenOf(long serial) => serial > 0 ? -(serial + 1) : 0;
+
+        /// <summary>⭐ <c>CE-2474</c> — the sound's serial back from an answer's <c>EntityId</c> (<see cref="TokenOf"/>); 0 = none.</summary>
+        public static long SoundOf(long entityId) => entityId < -1 ? -entityId - 1 : 0;
         public const short FamilyMask = unchecked((short)(0x7 << 13));
 
         /// <summary>⭐ <c>CE-3283</c> — what a listener's ear can tell a sound by, from his proficiency (Q95 A): below Regular the class only, a
@@ -269,7 +276,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 //   raw serial gave the same shot a different mishearing in every run. ⭐ CE-3315 — the ring hands out the place itself
                 //   (it goes on across a restore, where serial − first did not).
                 uint seed = unchecked((uint)e.Serial);
-                Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, seed, e.Family, e.Token);
+                Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, seed, e.Family, e.Token, e.Serial);   // ⭐ CE-2474 — the serial is the sound's token
             }
             if (!cursors || (known && last == after)) return;   // ⭐ a sensor's FIRST solve always plants its cursor, even with nothing to read —
                                                                      //   else a sound after a long skip would meet the no-cursor window
@@ -335,12 +342,12 @@ namespace Fdp.Toolkit.Perception.Sensors
         //   ⭐ CE-3282 — <paramref name="seed"/> varies the error: the tick for a continuous sound, the ring serial for a short one (two shots
         //   heard in one solve are misheard apart, deterministically).
         private static void Sound(Span<EqsResult> candidates, ref int n, in Ears ears, Vector3 where, float carries, SoundKind kind,
-                                  byte sourceClass, ulong source, uint seed, byte family = 0, ushort token = 0)
+                                  byte sourceClass, ulong source, uint seed, byte family = 0, ushort token = 0, long sound = 0)
         {
             if (n == candidates.Length) return;
             var verdict = Judge(in ears, where, carries, sourceClass);
             if (verdict.Reason != HearingReason.Heard) return;
-            Answer(candidates, ref n, verdict.Distance, verdict.Route.HeardFrom, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed);
+            Answer(candidates, ref n, verdict.Distance, verdict.Route.HeardFrom, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed, sound);
             // ⭐ CE-4666 (D-8) — heard through an opening or round a corner: the point is the way in, not the source
             if (verdict.Route.Via != SoundVia.Straight)
                 candidates[n - 1].Flags |= AcousticPerception.ViaMask;
@@ -356,13 +363,14 @@ namespace Fdp.Toolkit.Perception.Sensors
 
         // One heard sound, answered as an anonymous estimate placed where it seems to come from (⭐ AQ106 F: the last opening or corner).
         private static void Answer(Span<EqsResult> candidates, ref int n, float d, Vector3 from, float perMeter, SoundKind kind,
-                                   byte sourceClass, ulong source, ulong listener, uint tick)
+                                   byte sourceClass, ulong source, ulong listener, uint tick, long sound = 0)
         {
             float radius = AcousticPerception.RadiusAt(d, perMeter);
             var err = AcousticPerception.Error(source, listener, tick, radius);
             candidates[n++] = new EqsResult
             {
-                EntityId        = 0,   // ⛔ anonymous: never the source
+                EntityId        = AcousticPerception.TokenOf(sound),   // ⛔ anonymous: never the source. ⭐ CE-2474 (§8.6d) — a short sound's NEGATIVE ring serial: a token of
+                                                     //   the emission, so every ear's hearing of ONE bang can be folded into one contact (never −1: the solver's rejection mark)
                 PositionX       = from.X + err.X,
                 PositionY       = from.Y + err.Y,
                 PositionZ       = from.Z,

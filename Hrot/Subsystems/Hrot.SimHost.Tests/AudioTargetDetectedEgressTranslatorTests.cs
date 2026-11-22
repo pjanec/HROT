@@ -58,6 +58,7 @@ namespace Hrot.SimHost.Tests
                 Observer = listener, X = origin.X, Y = origin.Y, Z = origin.Z, Radius = radius, Kind = kind, SourceClass = 4,   // CE-3063: small arms
                 Family = 1, Signature = 611,   // ⭐ CE-3283: a mortar, the 81 mm
                 Via = 1,                       // ⭐ CE-4666 (D-8): heard through an opening
+                Sound = 41,                    // ⭐ CE-2474: the bang's token
             });
             _world.Bus.SwapBuffers();
         }
@@ -86,6 +87,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((byte)1, writer.Written[0].Family);        // ⭐ CE-3283 — and what the ear told
             Assert.Equal(611L, writer.Written[0].Signature);
             Assert.Equal((byte)1, writer.Written[0].Via);           // ⭐ CE-4666 (D-8) — and that it came in through an opening
+            Assert.Equal(41L, writer.Written[0].Sound);             // ⭐ CE-2474 — and WHICH bang (the squad folds its hearings into one)
             Assert.Equal(10f, writer.Written[0].OriginX);
             Assert.Equal(20f, writer.Written[0].OriginY);
             Assert.Equal(30f, writer.Written[0].OriginZ);

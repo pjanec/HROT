@@ -228,6 +228,13 @@ namespace Hrot.SimHost.Tests
 
             /// <summary>⭐ CE-2123 — the commander's flank query, and SimHost's answer to it.</summary>
             public Entity FlankQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, SuppressAndManeuverPlay.FlankSite);
+            /// <summary>⭐ CE-2467 — the flank query once the play asks it: it waits up to <see cref="SuppressAndManeuverPlay.FlankWaitSeconds"/> for the
+            /// enemy's covered ground to be known (no writer lands a record here, so the wait runs out) — tick until it is there.</summary>
+            public Entity AwaitFlank()
+            {
+                for (int i = 0; i < (int)(SuppressAndManeuverPlay.FlankWaitSeconds / 0.016) + 10; i++) { var q = FlankQuery(); if (!q.IsNull) return q; Tick(); }
+                return FlankQuery();
+            }
 
             public void Answer(Entity sensor, Vector3? best)
             {
@@ -827,7 +834,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(4, first.Count);
             foreach (var m in s.Members) Assert.Equal((BehaviorNames.CombatPosture, s.At(m)), first[m]);   // everyone holds until the terrain answers
 
-            var query = s.FlankQuery();
+            var query = s.AwaitFlank();
             Assert.False(query.IsNull, "the commander owns a flank query");
             var cfg = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
             Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindFlankingPosition.BlueprintId, cfg.BlueprintId);
@@ -873,7 +880,7 @@ namespace Hrot.SimHost.Tests
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Orders.Clear();
-            s.Answer(s.FlankQuery(), new Vector3(40f, 60f, 0f));
+            s.Answer(s.AwaitFlank(), new Vector3(40f, 60f, 0f));
             s.Tick(); s.Tick();
             var flank = s.LastOrders();
             Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(40f, 60f, 0f)), flank[s.Members[0]]);   // the one rifleman who did not see him
@@ -890,7 +897,7 @@ namespace Hrot.SimHost.Tests
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Orders.Clear();
-            s.Answer(s.FlankQuery(), null);
+            s.Answer(s.AwaitFlank(), null);
             s.Tick(); s.Tick();
             Assert.Equal(SuppressAndManeuverManeuver.PhaseAssaulting, s.Phase);
             Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(0f, 60f, 0f)), s.LastOrders()[s.Members[3]]);
@@ -992,7 +999,7 @@ namespace Hrot.SimHost.Tests
 
             for (int i = 0; i < 10; i++) s.Tick();                                   // past DecideAfterSeconds
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
-            Assert.False(s.FlankQuery().IsNull, "the leader asks the terrain for a flank");
+            Assert.False(s.AwaitFlank().IsNull, "the leader asks the terrain for a flank");
         }
 
         /// <summary>⭐⭐ <c>CE-2158</c> F-e (§7.6.3) — a FAR contact is CLOSED on first: the assault starts as fire and movement toward
@@ -1015,7 +1022,7 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members.Skip(1)) s.Teleport(m, s.At(m) + new Vector3(0f, 110f, 0f));   // MOST of the squad within 50 m;
             for (int i = 0; i < 4; i++) s.Tick();                                                       // member 0 stays behind (stuck)
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
-            Assert.False(s.FlankQuery().IsNull, "closed: the leader asks the terrain for a flank");
+            Assert.False(s.AwaitFlank().IsNull, "closed: the leader asks the terrain for a flank");
         }
 
         /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes toward it
@@ -1753,7 +1760,7 @@ namespace Hrot.SimHost.Tests
             Ticks(s, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
             Assert.Equal(4, s.LastOrders().Count);
-            var query = s.FlankQuery();
+            var query = s.AwaitFlank();
             Assert.False(query.IsNull, "the leader asks the terrain for a flank on the designated enemy");
             Assert.Equal(enemy, s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query).ContextSlot1);
 

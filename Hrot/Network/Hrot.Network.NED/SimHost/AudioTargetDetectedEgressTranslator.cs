@@ -65,6 +65,7 @@ namespace Hrot.Network.NED.SimHost
                     Family           = evt.Family,      // ⭐ CE-3283
                     Signature        = evt.Signature,
                     Via              = evt.Via,         // ⭐ CE-4666 (D-8)
+                    Sound            = evt.Sound,       // ⭐ CE-2474 — the bang's token
                 });
                 SentSampleCount++;
             }

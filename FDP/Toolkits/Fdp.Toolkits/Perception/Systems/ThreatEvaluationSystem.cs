@@ -166,6 +166,8 @@ namespace Fdp.Toolkit.Perception.Systems
         private unsafe void EvaluateOne(ISimulationView view, Entity entity, float deltaTime, uint tick, double now, Fdp.Interfaces.IEntityCommandBuffer ecb, out int threatsNow)
         {
             System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
+            System.Span<long> seenNow = stackalloc long[PerceptionConstants.MaxTrackedTargets];   // ⭐ CE-2474 — who he SEES this tick
+            int seenCount = 0;
 
             ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(entity);
 
@@ -229,6 +231,9 @@ namespace Fdp.Toolkit.Perception.Systems
                                 seenStance = (byte)(Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(view, targetEntity) + 1);
                         }
 
+                        if (seenCount < seenNow.Length && (tracksRO.Modalities[i] == 0 || (tracksRO.Modalities[i] & (byte)SensorModality.Visual) != 0))
+                            seenNow[seenCount++] = tracksRO.EntityIds[i];
+
                         // ⭐ CE-3063 — a sighting inside a heard contact's circle IS that contact: absorb it, no duplicate.
                         TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer));
 
@@ -252,9 +257,17 @@ namespace Fdp.Toolkit.Perception.Systems
             // ⭐ CE-3063 — HEARD: refresh what is known there, else fuse with a compatible heard contact, else a new one.
             if (_heard.TryGetValue(entity, out var heardHere) && heardHere.Count > 0)
             {
+                // ⭐ CE-2474 (§8.6d ②) — a shot from the bearing of a man he SEES is that man: no new anonymous contact
+                bool placed = seenCount > 0 && view.HasComponent<SimTransform>(entity);
+                var self = placed ? view.GetComponentRO<SimTransform>(entity).Position : default;
                 foreach (var h in heardHere)
+                {
+                    if (placed && TargetMemory.AttributeToSeen(ref mem, self.X, self.Y, h.X, h.Y, h.Kind, h.SourceClass, h.Via,
+                                                               seenNow.Slice(0, seenCount), PerceptionConstants.HeardBoostPerContact, tick, h.Sound))
+                        continue;
                     TargetMemory.HearContact(ref mem, h.X, h.Y, h.Z, h.Radius, h.SourceClass,
-                                             PerceptionConstants.HeardBoostPerContact, tick, h.Via);   // ⭐ CE-4666 (D-8)
+                                             PerceptionConstants.HeardBoostPerContact, tick, h.Via, h.Sound);   // ⭐ CE-4666 (D-8) · CE-2474 the token
+                }
                 changed = true;
             }
 
