@@ -264,6 +264,26 @@ namespace Fdp.Toolkit.Utility
             return total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);
         }
 
+        /// <summary>⭐⭐ <c>CE-2474</c> (user, 2026-11-22: "Yes agreed") — a HEARD contact with an identified enemy of the pool within <see cref="HeardBesideSeenMetres"/>
+        /// counts this much (an armed man is 1): it may be that same man mislocated — the pool fuses a sound only when its error circle holds him, and an error
+        /// beyond the circle leaves a duplicate (📐 uf-corner-assault: two Red men read as 1 seen + 3 heard). A heard contact with no sighting near it still
+        /// counts whole — nothing says it is anyone already known.</summary>
+        public const float HeardBesideSeen = 0.5f;
+        /// <summary>⭐ <c>CE-2474</c> — "near" for <see cref="HeardBesideSeen"/> (m): a corner's width and a sound's usual error at small-arms range.</summary>
+        public const float HeardBesideSeenMetres = 30f;
+
+        private static bool SeenNear(ReadOnlySpan<SquadContact> pool, int count, int heard)
+        {
+            float r2 = HeardBesideSeenMetres * HeardBesideSeenMetres;
+            for (int j = 0; j < count; j++)
+            {
+                if (j == heard || (pool[j].Flags & SquadContact.AnonymousFlag) != 0 || pool[j].EntityId <= 0) continue;
+                float dx = pool[j].PositionX - pool[heard].PositionX, dy = pool[j].PositionY - pool[heard].PositionY;
+                if (dx * dx + dy * dy <= r2) return true;
+            }
+            return false;
+        }
+
         /// <summary>⭐ <c>CE-2466</c> — Σ danger of every contact in the commander's pool (a heard one counts as armed, 1). 0 with no pool. No allocation.</summary>
         public static float EnemyDangerOf(EntityRepository repo, Entity commander)
         {
@@ -275,7 +295,7 @@ namespace Fdp.Toolkit.Utility
             float enemy = 0f;
             for (int i = 0; i < state.Contacts.Count; i++)
                 enemy += (span[i].Flags & SquadContact.AnonymousFlag) != 0
-                    ? 1f
+                    ? (SeenNear(span, state.Contacts.Count, i) ? HeardBesideSeen : 1f)
                     : Fdp.Toolkit.Perception.ThreatDanger.Of(repo, commander, new Entity((ulong)span[i].EntityId));
             return enemy;
         }
