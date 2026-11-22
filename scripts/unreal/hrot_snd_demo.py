@@ -50,6 +50,8 @@ def finish(ok, why=""):
 
 def level():
     old = os.path.join(unreal.Paths.project_content_dir(), "Maps", "DpsSndDemo.umap")   # new_level refuses a path that already exists (a scratch level of the last run)
+    # the asset registry still knows a removed file (measured 2026-11-22: os.remove alone, then new_level "an asset already exists") => delete the ASSET
+    if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/DpsSndDemo"): log(f"old scratch level deleted: {unreal.EditorAssetLibrary.delete_asset('/Game/Maps/DpsSndDemo')}")
     if os.path.exists(old): os.remove(old)
     if not LES().new_level("/Game/Maps/DpsSndDemo"): raise RuntimeError("new_level failed")
     floor = EAS().spawn_actor_from_class(unreal.StaticMeshActor, V(0, 0, 0))
