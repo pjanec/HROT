@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-22
-current-answer: §1 in flight · §2 next, in order
+current-answer: §0 state at 9204c0fb1 · §2 next, in order
 stale-below: none
 related-designs:
   - ../designs/group-maneuvers/DESIGN_Urban_Fight_Suite.md — the suite U1–U6 and its rubric (what "realistic" means here)
@@ -13,7 +13,13 @@ related-designs:
 
 # RESUME — behaviors: urban fight realism (U1–U6)
 
-Branch `behaviors`. Ids in the tracker ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md), next free `CE-2482`); rulings next free `R-2144`.
+Branch `behaviors`. Ids in the tracker ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md), next free `CE-2492`); rulings next free `R-2145`.
+
+## 0. ⭐ State at `9204c0fb1` (2026-11-22) — read this first
+
+- ✅ U2b `uf-corner-assault` PASSES; ✅ all five `pe-*` PASS (`pe-house-shot` since CE-2491); ✅ ia-house-hunt, ia-area-defend, ts-house-defenders, pc-defend-house, uf-squad-under-fire, agg-break-contact (one 12-scenario run).
+- built today: CE-2481..2491 — the press-on share, a heard contact explained by a seen enemy, the opening at the ear, the corner point, the 3 m slack (straight hearings only, CE-2489), the muzzle flash binds the bang (R-2144: per man CE-2490, in the squad pool CE-2491, time-invariant). 📄 Sensing §8.6e–§8.6g.
+- ⏳ open: CE-2471 (stress phase reads SimTransform undeclared, pre-existing), CE-2473 (an attack order on a place never moves before contact), P6–P8 of the perception suite, merge `behaviors` → `main` for the nightly.
 
 ## 1. In flight at `ddfbd8c65` (2026-11-21)
 

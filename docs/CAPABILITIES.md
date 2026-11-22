@@ -297,7 +297,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **What he believes is checked against the truth** (CE-2474 / CE-2476 / CE-2477, behaviors `2026-11-22`): one shot heard by several men is ONE
   enemy; a shot from a man he sees is that man; two shooters 30 m apart are two; a burst is never an enemy; however long he listens, a lone ear
   is never surer than it can be. Judged by the `perceives` check (missed · phantom · duplicate against the real enemies) ▶ `pe-one-shot-four-ears` ✅
-  `pe-seen-shooter` ✅ `pe-two-shooters` ✅ `pe-shelled` ✅ · ⏳ indoors (`pe-house-shot`, `pe-wall-and-door`, CE-2475) · ⏳ two nodes (P8).
+  `pe-seen-shooter` ✅ `pe-two-shooters` ✅ `pe-shelled` ✅ · `pe-house-shot` ✅ (a shot seen fired is that man's, whatever way its sound came — R-2144, CE-2490/2491) · ⏳ `pe-wall-and-door` · ⏳ two nodes (P8).
   📄 [Sensing §8.6e](DESIGN_Thermal_And_Acoustic_Sensing.md)
 - **Threat = danger × freshness.** Armed, visible and near contacts come first; a civilian counts 0. ▶ `ua-threat-ranking` ✅
 - **Posture by utility:** advance and attack, take cover, suppress, flee, hold prone or hold, chosen from health, threat and cover,
