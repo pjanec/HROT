@@ -42,7 +42,6 @@ public sealed class CommanderChannel
     private long _lastWake;          // the newest seq that asks for an answer
     private long _answered;          // the newest seq the mind has answered (its actions are in the queue)
     private readonly ConcurrentQueue<CommanderAction> _actions = new();
-    private readonly SemaphoreSlim _items = new(0, int.MaxValue);
 
     /// <summary>The newest item's seq (0 = none yet).</summary>
     public long LatestSeq { get { lock (_gate) return _last; } }
@@ -62,8 +61,8 @@ public sealed class CommanderChannel
             seq = ++_last;
             _ring[(int)((seq - 1) % Capacity)] = new FeedItem(seq, simTime, kind, wake, radio, json);
             if (wake || kind == FeedKind.Heartbeat) _lastWake = seq;
+            Monitor.PulseAll(_gate);   // ⭐ CE-4679 — every waiter (the mind's runner, an HTTP long-poll) wakes
         }
-        _items.Release();
         Fdp.Core.Logging.FdpLog<CommanderChannel>.Info("[Commander] #{0} {1}", seq, radio);   // ⭐ the radio log in the node's log (on an item, never per frame)
         return seq;
     }
@@ -84,10 +83,22 @@ public sealed class CommanderChannel
     /// <summary>The mind's thread: waits until an item newer than <paramref name="after"/> exists, or the timeout / cancellation.</summary>
     public bool WaitForItems(long after, TimeSpan timeout, CancellationToken ct)
     {
-        if (LatestSeq > after) return true;
-        try { _items.Wait(timeout, ct); } catch (OperationCanceledException) { return false; }
-        return LatestSeq > after;
+        var until = DateTime.UtcNow + timeout;
+        lock (_gate)
+        {
+            while (_last <= after)
+            {
+                if (ct.IsCancellationRequested) return false;
+                var left = until - DateTime.UtcNow;
+                if (left <= TimeSpan.Zero) return false;
+                Monitor.Wait(_gate, left < TimeSpan.FromMilliseconds(250) ? left : TimeSpan.FromMilliseconds(250));   // a slice, so a cancel is seen
+            }
+            return true;
+        }
     }
+
+    /// <summary>⭐ CE-4679 — a wake (or heartbeat) the mind has not answered yet.</summary>
+    public bool Thinking { get { lock (_gate) return _answered < _lastWake; } }
 
     /// <summary>The mind's thread: its actions for the items through <paramref name="throughSeq"/>, then the mark that it answered them.</summary>
     public void Answer(long throughSeq, IReadOnlyList<CommanderAction> actions)

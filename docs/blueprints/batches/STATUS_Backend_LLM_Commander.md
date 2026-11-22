@@ -8,7 +8,8 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
+⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); NOW ⑤ the scenario, then ★ the proof run.
+L-1 (below): DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
 `STATUS_Backend_Queue.md` → **CE-3445 T2** (rare mode-3 stepped divergence) — a resume continues there. ⚠ `backend-wip-llm-commander` is stale
 (its content is all on `backend`; the remote refused the delete).
 
@@ -28,6 +29,7 @@ Started at `251e7275f` (`backend` fast-forwarded to `origin/coordinator`). Self-
 | — | 0 B per steady frame | DONE | `9faccd1be` | `CE4676_ASteadyFrame_WithASeatAndNoNewReport_AllocatesNothing` | |
 
 ## 3. Taken from new handoffs
+- `2026-11-22` — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L2b.md` (CE-4680, L-2b: run_play / stop_play, the brief, objectives, squad tasks, enemy detail, place notes) — QUEUED after L-2; B-1's premise is measured first.
 - `HANDOFF_Coordinator_To_Backend_LLM_Commander_L1.md` — taken `2026-11-22` (user: after the linked-client batch, which is DONE — `STATUS_Backend_Linked_Client.md`).
 
 ## 4. Notes sent / received
@@ -67,10 +69,10 @@ its next step — the instrumented 1- vs 4-thread scale-rig pair — is hours of
 
 | # | item | state | sha | rail |
 |---|---|---|---|---|
-| ① | think-pause pauses the SIM CLOCK (one pause path, a hold that never un-pauses the user's pause, bounded) | TODO | | |
-| ② | the HTTP surface `/commanders/…` (+ `/tools`) | TODO | | |
-| ③ | `ExternalMind` | TODO | | |
-| ④ | the model log beside the recording | TODO | | |
-| ⑤ | `llm-platoon-attack` gives the commander a fight (≥ 60 s in contact) | TODO | | |
-| ⑥ | CE-4677 `/sitrep` stops reading a contact's `alive` from the world | TODO | | |
+| ① | think-pause pauses the SIM CLOCK (one pause path, a hold that never un-pauses the user's pause, bounded) | DONE | (this commit) | `CE4679_ASlowMind_HoldsTheSimClock_WhileFramesRunOn_AndItsAnswerResumesIt` · `CE4679_AUserPauseDuringTheHold_OutlivesIt` (3 mutations red) |
+| ② | the HTTP surface `/commanders/…` (+ `/tools`) | DONE | (this commit) | `DebugApiCommandersTests.CE4679_TheCommanderRoutes_*` · `CE4679_TheStream_*` · `EveryRoute*` 6/6 |
+| ③ | `ExternalMind` | DONE | (this commit) | the illegal action refused over HTTP (in `CE4679_TheCommanderRoutes_*`) |
+| ④ | the model log beside the recording | DONE | (this commit) | `CE4679_TheModelLog_SitsBesideTheRecording_AndNamesEachOrderAndVerdict` |
+| ⑤ | `llm-platoon-attack` gives the commander a fight (≥ 60 s in contact) | IN PROGRESS — Blue starts behind the L-Block, objective/support behind the Low Wall; the two "≥ 60 s" rows added | | the scenario |
+| ⑥ | CE-4677 `/sitrep` stops reading a contact's `alive` from the world | DONE | (this commit) | `DebugApiOrdersTests.CE4677_AContactKilledOutOfSight_StillReadsAsTheSideLastKnewIt` (+ DebugApiOrdersTests 18/18) |
 | ★ | the proof run: a Haiku subagent plays Blue's commander through the routes only | TODO | | |

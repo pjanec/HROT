@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
 updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 DISPATCHED (CE-4679, backend — HANDOFF_Coordinator_To_Backend_LLM_Commander_L2.md); L-3…L-4 DESIGN
+build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 (CE-4679, backend): built, as built in §5a-2; L-3…L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
@@ -223,6 +223,44 @@ The §5 diagrams hold, with these as-built facts and deviations (obligation ⑤)
 Rails — `SquadManeuverTests.CE4676_*` (the command chain's own suite, on its `Platoon` fixture): the feed says each report once with its radio line ·
 an illegal action is refused with its reason and changes nothing · the scripted mind sends the nearest squad at the spot, at origin Superior, off
 the frame thread · 0 B per steady frame. `ScenarioChecksTests.CE4676_TheReportCue_*`. The scenario `llm-platoon-attack` (§1).
+
+### 5a-2. ✅ As built — L-2 (CE-4679, backend, `2026-11-22`)
+
+```mermaid
+sequenceDiagram
+    participant Ext as outside mind (HTTP)
+    participant Host as DebugApiHost
+    participant Ch as CommanderChannel
+    participant Run as MindRunner + ExternalMind
+    participant Act as CommanderActionSystem (frame)
+    participant Bus as node bus (the ONE pause)
+    Act->>Ch: a wake (report, refusal, heartbeat)
+    Ch-->>Run: ThinkAsync(briefing) — Pending set
+    Act->>Act: no answer in 50 ms ⇒ hold
+    Act->>Bus: PauseTimeIntent (only if the clock advances)
+    Ext->>Host: GET /commanders/{id}/feed?after&wait (long-poll)
+    Host->>Ch: WaitForItems / ReadAfter (off the frame)
+    Ext->>Host: POST /commanders/{id}/act {actions}
+    Host->>Run: Submit — Pending cleared, answer queued
+    Act->>Act: drain, validate, CommandOrders (origin Superior)
+    Act->>Bus: ResumeTimeIntent (only if it paused and no user pause was seen)
+    Act->>Ch: order-state per action (accepted / refused + reason)
+```
+*What the picture shows that prose hid: the HTTP reads never touch the world (the channel is the only meeting point); the clock is paused and
+resumed by the frame thread only, on the same bus ⏸ uses.*
+
+| piece | as built |
+|---|---|
+| think-pause | ⭐ HYBRID (DECISIONS_Backend CE-4679 #1): the frame waits up to `FastAnswer` (50 ms) — the scripted mind lands on its wake's frame as in L-1; a slower mind gets the CLOCK held through the one pause path, and resumed when its answer is in. ⛔ It never resumes a pause it did not make, nor one a user asked for during the hold (it counts the `PauseTimeIntent`s it reads, minus its own). Bound: `MaxHold` = `ExternalMind`'s 120 s + 10 s ⇒ "no answer — the clock runs on". `CommanderActionSystem` is `TickMode(EveryFrame)` (a held clock is paused and the hold must still end). ⚠ The pause lands on the barrier: sim time stops a few frames after the wake |
+| the seats | ⛔ SUPERSEDED: L-1's seats on the pack. ⭐ Kept WITH the world (`CommanderSeats.For(world)`, as `SquadReportLog`), so the HTTP surface finds them; `Snapshot` / `ByNetworkId` are safe from any thread. A seat's id is its commander's `NetworkIdentity` |
+| the routes | §3's table, plus `GET /commanders/{id}/tools` (the JSON-schema list: order · hold · ask_sitrep · note). The briefing is `Briefing.Text()` of the pending call — byte for byte what the mind is given. The feed long-poll waits at most 60 s; `/stream` is server-sent events (`id:` seq, `data:` the item, a keep-alive every 15 s). `/act` on a non-External seat is 409; a malformed list 400 (nothing changes); an answer when nothing waits 409. `/mind` runs on the main thread (it writes the component and replaces the runner) |
+| `ExternalMind` | holds the pending briefing until `POST /act`; a refusal is a wake, so the outside mind is asked again and may correct itself |
+| the model log | `<recording>.commander-<netId>.jsonl` (the host's `RecordingPath`; the editor wires it from the one recorder): a `call` line per mind call (the new radio lines, the actions, the raw answer) and a `verdict` line per action (accepted / refused + reason) |
+| CE-4677 | `GET /sitrep` no longer reads `alive` from the world for a contact: a contact killed out of sight reads as the side last knew it |
+
+Rails — `SquadManeuverTests.CE4679_*` (the hold: a 10 s mind holds the clock while frames run on, and its answer resumes it · a user pause during the
+hold outlives it) · `DebugApiCommandersTests` (the routes on a real loopback host, the illegal action refused over HTTP, the stream, the model log) ·
+`DebugApiOrdersTests.CE4677_*`.
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 

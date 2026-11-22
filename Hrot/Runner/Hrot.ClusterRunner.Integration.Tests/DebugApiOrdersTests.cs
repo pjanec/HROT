@@ -293,6 +293,28 @@ public sealed class DebugApiOrdersTests
         Assert.Contains(2001, all);
     }
 
+    /// <summary>⭐ CE-4677 (C-9) — the fog of war has no back door: a contact the side remembers reads as it last knew it after the enemy is
+    /// killed out of every own unit's sight — still listed, at the remembered place, and no contact carries an <c>alive</c> read from the world.
+    /// 🔴 Mutation: the map lookup's <c>continue</c> restored ⇒ the killed contact vanishes.</summary>
+    [Fact]
+    public void CE4677_AContactKilledOutOfSight_StillReadsAsTheSideLastKnewIt()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var friend = Unit(h, UnitId, ForceId.Friend, Vector3.Zero);
+        var enemy = Unit(h, 2000, ForceId.Hostile, new Vector3(50, 0, 0));
+        var memory = new TargetMemory();
+        TargetMemory.AddOrUpdateTarget(ref memory, (long)enemy.PackedValue, 50f, 0f, 0.5f, tick: 1);
+        h.Repo.AddComponent(friend, memory);
+
+        h.Repo.DestroyEntity(enemy);   // killed where no friend sees it: the side's memory is unchanged
+        var (fog, error) = svc.GetSitrep("Friend", truth: false);
+        Assert.Null(error);
+        var contact = Assert.Single(fog!["contacts"]!.AsArray());
+        Assert.Equal(50.0, contact!["position"]![0]!.GetValue<double>(), 1);
+        Assert.Null(contact["alive"]);
+    }
+
     /// <summary>⭐ CE-3168 — /entities/command binds the payload's FIELDS (they used to be dropped, publishing an all-default
     /// event), takes an entity as its network id, and refuses a key that names no field.</summary>
     [Fact]

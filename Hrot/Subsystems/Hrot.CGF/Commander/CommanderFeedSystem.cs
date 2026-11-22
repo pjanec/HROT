@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
@@ -16,14 +17,22 @@ using Hrot.AI.Behaviors.Brains;
 
 namespace Hrot.CGF.Commander;
 
-/// <summary>⭐ <c>CE-4676</c> — one seat's runtime on the frame thread: its channel, its mind's runner, its places, and what the feed has already said.</summary>
+/// <summary>⭐ <c>CE-4676</c> — one seat's runtime on the frame thread: its channel, its mind's runner, its places, and what the feed has already said.
+/// ⭐ CE-4679 — its identity, mind and mode are also readable from any thread (the HTTP routes).</summary>
 public sealed class SeatRuntime : IDisposable
 {
     public Entity Commander { get; init; }
     public string Name { get; init; } = "";
+    /// <summary>⭐ CE-4679 — the commander's network id: the seat's id on the HTTP surface.</summary>
+    public int NetworkId { get; init; }
+    public string Side { get; init; } = "";
     public CommanderChannel Channel { get; } = new();
     public Gazetteer Places { get; init; } = new();
+    public string Prefix { get; internal set; } = "";
     public MindRunner? Runner { get; set; }
+    public ModelLog? Log { get; set; }
+    public CommanderMind Mind { get; internal set; }
+    public CommanderMode Mode { get; internal set; }
 
     // what the feed already said (frame thread)
     internal double LastItemAt, LastSnapshotAt, LastFightCheckAt;
@@ -31,35 +40,103 @@ public sealed class SeatRuntime : IDisposable
     internal CommandReportEntry Head;
     internal ulong OutOfFight;
 
-    public void Dispose() => Runner?.Dispose();
+    // ⭐ CE-4679 — the think-pause hold (frame thread, CommanderActionSystem)
+    internal bool Holding, PausedByUs, UserPaused, OwnPauseSeen;
+    internal long HoldSince;
+
+    /// <summary>True while this seat holds the clock for its mind.</summary>
+    public bool HoldsClock => Holding;
+
+    public void Dispose()
+    {
+        Runner?.Dispose();
+        Log?.Dispose();
+    }
 }
 
 /// <summary>
 /// ⭐ <c>CE-4676</c> — the seats of one world, shared by <see cref="CommanderFeedSystem"/> (which opens and closes them) and
-/// <see cref="CommanderActionSystem"/> (which drains them). Frame thread only.
+/// <see cref="CommanderActionSystem"/> (which drains them). ⭐ CE-4679 — kept WITH the world (<see cref="For"/>, the <c>SquadReportLog</c> way), so the
+/// HTTP surface finds them on the brain world; the dictionary is frame-thread only, <see cref="Snapshot"/> is safe from any thread.
 /// </summary>
 public sealed class CommanderSeats : IDisposable
 {
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, CommanderSeats> s_seats = new();
+
+    /// <summary>The seats of <paramref name="world"/>, made on first use.</summary>
+    public static CommanderSeats For(EntityRepository world) => s_seats.GetValue(world, _ => new CommanderSeats());
+
+    /// <summary>The seats only if <paramref name="world"/> has them (readers never create them).</summary>
+    public static CommanderSeats? Peek(EntityRepository world) => s_seats.TryGetValue(world, out var seats) ? seats : null;
+
     private readonly Dictionary<Entity, SeatRuntime> _seats = new();
+    private SeatRuntime[] _snapshot = Array.Empty<SeatRuntime>();
 
     /// <summary>Makes the mind a seat asks for; null = not built yet (the seat then says so and gives no orders). Rails replace it.</summary>
-    public Func<CommanderSeat, IMind?> MindFor { get; set; } = seat => seat.Mind == CommanderMind.Scripted ? new ScriptedMind() : null;
+    public Func<CommanderSeat, IMind?> MindFor { get; set; } = seat => seat.Mind switch
+    {
+        CommanderMind.Scripted => new ScriptedMind(),
+        CommanderMind.External => new ExternalMind(),
+        _ => null,
+    };
+
+    /// <summary>⭐ CE-4679 — the host's recording now (the model log is written beside it); null = no log.</summary>
+    public Func<string?>? RecordingPath { get; set; }
 
     public bool TryGet(Entity commander, out SeatRuntime seat) => _seats.TryGetValue(commander, out seat!);
     public int Count => _seats.Count;
     public Dictionary<Entity, SeatRuntime>.ValueCollection All => _seats.Values;
 
-    internal void Add(SeatRuntime seat) => _seats[seat.Commander] = seat;
+    /// <summary>⭐ CE-4679 — the seats as of the last frame, from any thread.</summary>
+    public IReadOnlyList<SeatRuntime> Snapshot => Volatile.Read(ref _snapshot);
+
+    /// <summary>⭐ CE-4679 — a seat by its commander's network id, from any thread.</summary>
+    public SeatRuntime? ByNetworkId(int networkId)
+    {
+        foreach (var s in Snapshot) if (s.NetworkId == networkId) return s;
+        return null;
+    }
+
+    internal void Add(SeatRuntime seat)
+    {
+        _seats[seat.Commander] = seat;
+        Volatile.Write(ref _snapshot, new List<SeatRuntime>(_seats.Values).ToArray());
+    }
 
     internal void Remove(Entity commander)
     {
-        if (_seats.Remove(commander, out var seat)) seat.Dispose();
+        if (!_seats.Remove(commander, out var seat)) return;
+        seat.Dispose();
+        Volatile.Write(ref _snapshot, new List<SeatRuntime>(_seats.Values).ToArray());
+    }
+
+    /// <summary>
+    /// ⭐ CE-4679 (<c>POST /commanders/{id}/mind</c>) — frame thread: the seat's mind and mode are changed on the commander (the scenario field) and its
+    /// runner is replaced; the feed and the channel go on (seq keeps counting), so the new mind's first call sees what came since.
+    /// </summary>
+    public string? SwitchMind(EntityRepository world, SeatRuntime seat, CommanderMind? mind, CommanderMode? mode)
+    {
+        if (!world.IsAlive(seat.Commander) || !world.HasComponent<CommanderSeat>(seat.Commander)) return "the commander is gone";
+        var config = world.GetComponentRO<CommanderSeat>(seat.Commander);
+        if (mind is { } m) config.Mind = m;
+        if (mode is { } md) config.Mode = md;
+        world.SetComponent(seat.Commander, config);
+        seat.Mode = config.Mode;
+        if (mind is null || mind == seat.Mind) return null;
+        var next = MindFor(config);
+        if (next == null) return $"no {config.Mind} mind in this build";
+        seat.Runner?.Dispose();
+        seat.Mind = config.Mind;
+        seat.Runner = new MindRunner(seat.Channel, next, seat.Name, seat.Prefix) { Log = seat.Log };
+        seat.Runner.Start();
+        return null;
     }
 
     public void Dispose()
     {
         foreach (var s in _seats.Values) s.Dispose();
         _seats.Clear();
+        Volatile.Write(ref _snapshot, Array.Empty<SeatRuntime>());
     }
 }
 
@@ -79,7 +156,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     public const float RoutineSitrepSeconds = 30f;
     private const double FightCheckSeconds = 1.0;
 
-    private readonly CommanderSeats _seats;
+    private CommanderSeats? _seats;
     private readonly bool _gateOnAuthority;
     [Fdp.Core.FrameScratch("scratch — cleared at the top of each run")]
     private readonly List<Entity> _gone = new();
@@ -87,38 +164,49 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     private readonly List<CommandReportEntry> _fresh = new();
     private EntityQuery? _query;
 
-    public CommanderFeedSystem(CommanderSeats seats, bool gateOnAuthority = false)
+    /// <param name="seats">The world's seats; null ⇒ <see cref="CommanderSeats.For"/> the world it runs on (production — the HTTP surface finds them there).</param>
+    public CommanderFeedSystem(CommanderSeats? seats = null, bool gateOnAuthority = false)
     {
-        _seats = seats ?? throw new ArgumentNullException(nameof(seats));
+        _seats = seats;
         _gateOnAuthority = gateOnAuthority;
     }
 
     public void Execute(ISimulationView view, float deltaTime)
     {
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<CommanderSeat>()) return;
+        var seats = _seats ??= CommanderSeats.For(world);
         double now = Now(world);
         _query ??= world.Query().With<CommanderSeat>().Build();
         foreach (var commander in _query)
         {
             if (_gateOnAuthority && !(world.HasComponent<BehaviorState>(commander) && world.HasAuthority<BehaviorState>(commander))) continue;
-            if (!_seats.TryGet(commander, out var seat)) seat = Open(world, commander, now);
+            if (!seats.TryGet(commander, out var seat)) seat = Open(world, seats, commander, now);
             Feed(world, seat, now);
         }
 
         // a seat whose commander is gone (or lost the component) closes, and its mind stops
         _gone.Clear();
-        foreach (var s in _seats.All)
+        foreach (var s in seats.All)
             if (!world.IsAlive(s.Commander) || !world.HasComponent<CommanderSeat>(s.Commander)) _gone.Add(s.Commander);
-        for (int i = 0; i < _gone.Count; i++) _seats.Remove(_gone[i]);
+        for (int i = 0; i < _gone.Count; i++) seats.Remove(_gone[i]);
     }
 
     // ── opening a seat ───────────────────────────────────────────────────────────────────────
 
-    private SeatRuntime Open(EntityRepository world, Entity commander, double now)
+    private SeatRuntime Open(EntityRepository world, CommanderSeats seats, Entity commander, double now)
     {
         var config = world.GetComponentRO<CommanderSeat>(commander);
-        var seat = new SeatRuntime { Commander = commander, Name = NameOf(world, commander), Places = Gazetteer.Of(world) };
-        _seats.Add(seat);
+        int netId = CommandPictureOps.NetIdOf(world, commander);
+        var seat = new SeatRuntime
+        {
+            Commander = commander, Name = NameOf(world, commander), Places = Gazetteer.Of(world), NetworkId = netId,
+            Side = world.HasComponent<EntityInfo>(commander) ? world.GetComponentRO<EntityInfo>(commander).ForceId.ToString() : "",
+            Mind = config.Mind, Mode = config.Mode,
+        };
+        // ⭐ CE-4679 (R-4298) — the model log beside the host's recording: <recording>.commander-<id>.jsonl
+        if (seats.RecordingPath is { } recording)
+            seat.Log = new ModelLog(() => recording() is { Length: > 0 } r ? $"{r}.commander-{netId}.jsonl" : null);
+        seats.Add(seat);
         TakeAwayOwnPlay(world, commander);
 
         // ⭐ §9 ④ — a routine SITREP from every squad, so the picture fills without the mind asking
@@ -126,7 +214,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         for (int i = 0; i < roster.Count; i++)
             CommandOrders.AskSitrep(world, roster.SubordinateEntities[i], RoutineSitrepSeconds);
 
-        var mind = _seats.MindFor(config);
+        seat.Prefix = Prefix(world, seat, roster);
+        var mind = seats.MindFor(config);
         if (mind == null)
         {
             seat.Channel.Publish(FeedKind.OrderState, now, false, $"{Clock(now)} SEAT: no {config.Mind} mind in this build — the seat gives no orders",
@@ -134,7 +223,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         }
         else
         {
-            seat.Runner = new MindRunner(seat.Channel, mind, seat.Name, Prefix(world, seat, roster));
+            seat.Runner = new MindRunner(seat.Channel, mind, seat.Name, seat.Prefix) { Log = seat.Log };
             seat.Runner.Start();
         }
         Snapshot(world, seat, now, wake: true);   // ⭐ the board at the start: the mind's first call

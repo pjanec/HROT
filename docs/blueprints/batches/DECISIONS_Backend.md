@@ -5,6 +5,18 @@ related-designs:
 -->
 # DECISIONS — backend (newest at the top)
 
+## CE-4679 — the LLM commander L-2: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ **the think-pause is HYBRID**: the frame waits up to 50 ms for the answer (as L-1 did); only a mind slower than that gets the clock held (`PauseTimeIntent` on the node bus, the one pause path) | the scripted mind answers in microseconds, so its orders still land on the wake's own frame and its runs still repeat bit for bit; a model gets the real clock pause the handoff asks for |
+| 2 | the seat resumes the clock ONLY if it paused it AND no other `PauseTimeIntent` was seen during the hold (the bus is counted, minus the seat's own) | a user's ⏸ outlives the hold (the handoff's rule). ⚠ The other way round is NOT guarded: a user who presses ▶ during a hold runs the clock while the mind still thinks — the seat does not re-pause |
+| 3 | ⚠ the pause lands on the cluster barrier, so sim time stops a few frames AFTER the wake, not on its frame | the one pause path is the master's; a frame-exact stop would need a second path (⛔ ruling 9). The scripted mind is unaffected (decision 1) |
+| 4 | the hold's bound is `ExternalMind`'s own timeout (120 s) + 10 s; after it the seat says "no answer — the clock runs on with no orders" | the handoff's "bounded by wall time"; one number owns it |
+| 5 | several seats holding at once each pause / resume on their own | one seat is L-2's scope; multi-seat arbitration is L-4's (named there) |
+| 6 | the seats are kept WITH the world (`CommanderSeats.For(world)`, the `SquadReportLog` way), not on the pack | the HTTP surface reaches them from the brain world it already has; no host has to remember to wire it |
+| 7 | the model log is `<recording>.commander-<netId>.jsonl` — one line per call (`new` radio lines, `actions`, `raw`) and per verdict (`accepted` / `refused` + reason) | "beside the recording", and the verdict line is what names each order the recording holds |
+
 ## CE-4676 — the LLM commander L-1: lane decisions TAKEN (not waiting on an answer) · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 None of these needed the user (no design or ruling decides them, each is small and reversible). They are listed so the coordinator can overrule one.

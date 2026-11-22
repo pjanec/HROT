@@ -52,6 +52,16 @@ public sealed class MindRunner : IDisposable
     private readonly List<string> _notes = new();
     private long _seen;
 
+    /// <summary>⭐ CE-4679 — the mind this runner calls (the HTTP routes reach an <see cref="ExternalMind"/> through it).</summary>
+    public IMind Mind => _mind;
+
+    /// <summary>⭐ CE-4679 — the briefing of the last call (or, before any, the prefix and what has come) — <c>GET /commanders/{id}/briefing</c>.</summary>
+    public Briefing? LastBriefing => Volatile.Read(ref _lastBriefing);
+    private Briefing? _lastBriefing;
+
+    /// <summary>⭐ CE-4679 — the seat's model log (each call's new lines and the answer); null = none.</summary>
+    public ModelLog? Log { get; init; }
+
     public MindRunner(CommanderChannel channel, IMind mind, string commander, string prefix)
     {
         _channel = channel ?? throw new ArgumentNullException(nameof(channel));
@@ -100,7 +110,9 @@ public sealed class MindRunner : IDisposable
             {
                 Interlocked.Increment(ref _calls);
                 var briefing = new Briefing(_commander, fresh[^1].SimTime, _prefix, _snapshot, _log.ToArray(), _notes.ToArray(), fresh.ToArray(), _seen);
+                Volatile.Write(ref _lastBriefing, briefing);
                 actions = _mind.ThinkAsync(briefing, ct).GetAwaiter().GetResult();
+                LogCall(briefing, actions);
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex)
@@ -112,6 +124,21 @@ public sealed class MindRunner : IDisposable
                 if (a.Kind == CommanderActionKind.Note && a.Text is { Length: > 0 } note) _notes.Add(note);
             _channel.Answer(_seen, actions);
         }
+    }
+
+    private void LogCall(Briefing briefing, IReadOnlyList<CommanderAction> actions)
+    {
+        if (Log == null) return;
+        var lines = new System.Text.Json.Nodes.JsonArray();
+        foreach (var item in briefing.New) lines.Add(item.Radio);
+        var answer = new System.Text.Json.Nodes.JsonArray();
+        foreach (var a in actions) answer.Add(CommanderTools.ToJson(a));
+        var line = new System.Text.Json.Nodes.JsonObject
+        {
+            ["kind"] = "call", ["seq"] = briefing.ThroughSeq, ["t"] = Math.Round(briefing.SimTime, 2), ["new"] = lines, ["actions"] = answer,
+        };
+        if (_mind is ExternalMind external && external.LastRaw is { } raw) line["raw"] = raw;
+        Log.Write(line);
     }
 
     public void Dispose()

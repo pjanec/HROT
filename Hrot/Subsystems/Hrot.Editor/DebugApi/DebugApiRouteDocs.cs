@@ -3097,6 +3097,96 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"last\":20}",
             ExampleGist: "the last reports up the chain"),
 
+        // ⭐⭐ CE-4679 (DESIGN_LLM_Commander §3, L-2) — the commander seats: what an outside mind sees, and its answer
+        [("GET", "/commanders")] = new RouteDoc(
+            Tool:    "list_commanders",
+            Group:   "K — AI behavior traces",
+            Summary: "The commander seats (CE-4679): a commander whose orders come from a MIND — scripted, an outside agent (External), a local model — with its side, mind, mode and where its feed is.",
+            Returns: "{ commanders:[{id, name, side, mind, mode, latestSeq, answered, thinking, holdsClock, modelLog}] }",
+            Hint:    "No params. A seat opens when its scenario runs (the CommanderSeat field on the commander).",
+            ExampleGist: "the seats of this node"),
+
+        [("GET", "/commanders/{id}/briefing")] = new RouteDoc(
+            Tool:    "get_commander_briefing",
+            Group:   "K — AI behavior traces",
+            Summary: "⭐ The context exactly as the seat's mind is given it (byte for byte): role, rules, tools, places, the last snapshot, the radio log since it, the commander's notes.",
+            Returns: "{ id, waitingForAnswer, throughSeq, text }",
+            Hint:    "Req: id (path, the commander's network id from list_commanders).",
+            Params: new RouteParam[] { new("id", "integer", true, "The commander (list_commanders)") },
+            ExampleArgsJson: "{\"id\":1001}",
+            ExampleGist: "what the commander knows now"),
+
+        [("GET", "/commanders/{id}/tools")] = new RouteDoc(
+            Tool:    "get_commander_tools",
+            Group:   "K — AI behavior traces",
+            Summary: "The commander's actions as a JSON-schema tool list (order · hold · ask_sitrep · note) — what a mind may answer with.",
+            Returns: "{ tools:[{name, description, parameters}] }",
+            Hint:    "Req: id (path).",
+            Params: new RouteParam[] { new("id", "integer", true, "The commander (list_commanders)") },
+            ExampleArgsJson: "{\"id\":1001}",
+            ExampleGist: "the commander's tools"),
+
+        [("GET", "/commanders/{id}/feed")] = new RouteDoc(
+            Tool:    "get_commander_feed",
+            Group:   "K — AI behavior traces",
+            Summary: "⭐ The seat's feed after a seq — snapshot · report · order-state · event · heartbeat, each with a radio line and its data. A LONG-POLL: at once when there are items, else up to wait s (≤ 60).",
+            Returns: "{ id, items:[{seq, t, kind, wake, radio, data}], latestSeq, waitingForAnswer }",
+            Hint:    "Req: id (path). Optional: after (the last seq you have; default 0), wait (seconds to wait for a new item; default 0).",
+            Params: new RouteParam[]
+            {
+                new("id", "integer", true, "The commander (list_commanders)"),
+                new("after", "integer", false, "The last seq already read (default 0)"),
+                new("wait", "number", false, "Seconds to wait for a new item (default 0, at most 60)"),
+            },
+            Notes: new[] { "⭐ waitingForAnswer true = the seat's External mind waits for POST /commanders/{id}/act; in ThinkPause mode the clock is held meanwhile." },
+            ExampleArgsJson: "{\"id\":1001,\"after\":12,\"wait\":30}",
+            ExampleGist: "wait for the next report"),
+
+        [("GET", "/commanders/{id}/stream")] = new RouteDoc(
+            Tool:    "stream_commander_feed",
+            Group:   "K — AI behavior traces",
+            Summary: "The seat's feed as server-sent events (text/event-stream), from a seq on, for a live view. One event per item: id = seq, data = the item as in get_commander_feed.",
+            Returns: "text/event-stream",
+            Hint:    "Req: id (path). Optional: after (default 0).",
+            Params: new RouteParam[]
+            {
+                new("id", "integer", true, "The commander (list_commanders)"),
+                new("after", "integer", false, "Start after this seq (default 0)"),
+            },
+            ManualVerify: true,
+            ExampleGist: "watch the radio log live"),
+
+        [("POST", "/commanders/{id}/act")] = new RouteDoc(
+            Tool:    "commander_act",
+            Group:   "K — AI behavior traces",
+            Summary: "⭐ An outside mind's answer to the pending wake: a list of actions, each validated like any mind's (his squad, in the fight, an order a squad takes, a place that resolves) and answered by an order-state item in the feed.",
+            Returns: "{ id, queued, note }",
+            Hint:    "Req: id (path), actions — [{tool:'order', squad, kind, where} | {tool:'hold', squad} | {tool:'ask_sitrep', squad} | {tool:'note', text}]. Optional: seq.",
+            Params: new RouteParam[]
+            {
+                new("id", "integer", true, "The commander (list_commanders)"),
+                new("actions", "array", true, "The actions (get_commander_tools)"),
+                new("seq", "integer", false, "The feed seq the answer was made on"),
+            },
+            Notes: new[] { "⛔ 409 when nothing is waiting (long-poll the feed for the next wake) or the seat's mind is not External; 400 when the list is malformed — nothing changes." },
+            ExampleArgsJson: "{\"id\":1001,\"actions\":[{\"tool\":\"order\",\"squad\":\"Alpha Squad\",\"kind\":\"Attack\",\"where\":\"house\"}]}",
+            ExampleGist: "Alpha attacks the house"),
+
+        [("POST", "/commanders/{id}/mind")] = new RouteDoc(
+            Tool:    "set_commander_mind",
+            Group:   "K — AI behavior traces",
+            Summary: "Switch a seat's mind (Scripted · External · Ollama) and / or mode (ThinkPause · Continuous) at run time; the feed goes on.",
+            Returns: "{ id, mind, mode }",
+            Hint:    "Req: id (path). Optional: kind, mode.",
+            Params: new RouteParam[]
+            {
+                new("id", "integer", true, "The commander (list_commanders)"),
+                new("kind", "string", false, "Scripted, External or Ollama"),
+                new("mode", "string", false, "ThinkPause or Continuous"),
+            },
+            ExampleArgsJson: "{\"id\":1001,\"kind\":\"External\",\"mode\":\"ThinkPause\"}",
+            ExampleGist: "hand the commander to an outside agent"),
+
         [("GET", "/objectives")] = new RouteDoc(
             Tool:    "get_objectives",
             Group:   "K — AI behavior traces",

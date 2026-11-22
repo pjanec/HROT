@@ -42,8 +42,12 @@ namespace Hrot.SimHost.Tests
             public readonly CommanderActionSystem Act;
             public EntityRepository Repo => P.S.Repo;
 
-            public Seated(IMind mind, int squads = 2)
+            /// <summary>⭐ CE-4679 — the node bus the hold's pause / resume ride (null = the world's bus).</summary>
+            public readonly Fdp.Core.FdpEventBus? ClockBus;
+
+            public Seated(IMind mind, int squads = 2, Fdp.Core.FdpEventBus? clockBus = null)
             {
+                ClockBus = clockBus;
                 P = new Platoon(squads);
                 if (!Repo.IsComponentTypeRegistered<CommanderSeat>()) Repo.RegisterComponent<CommanderSeat>();
                 if (!Repo.IsComponentTypeRegistered<TkbIdentity>()) Repo.RegisterComponent<TkbIdentity>();
@@ -58,7 +62,7 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(P.S.Commander, new CommanderSeat { Mind = CommanderMind.Scripted, Mode = CommanderMode.ThinkPause });
                 Seats.MindFor = _ => mind;
                 Feed = new CommanderFeedSystem(Seats);
-                Act = new CommanderActionSystem(Seats);
+                Act = new CommanderActionSystem(Seats, clockBus);
             }
 
             public void Name(Entity e, string name)
@@ -187,6 +191,121 @@ namespace Hrot.SimHost.Tests
                 best = Math.Min(best, GC.GetAllocatedBytesForCurrentThread() - a0);
             }
             Assert.Equal(0L, best);
+        }
+
+        /// <summary>A mind that thinks for as long as the rail lets it (a gate), then answers.</summary>
+        private sealed class SlowMind : IMind
+        {
+            public readonly ManualResetEventSlim Gate = new(false);
+            public volatile bool Slow;
+            public int Calls;
+            public Func<Briefing, IReadOnlyList<CommanderAction>> Answer = _ => Array.Empty<CommanderAction>();
+            public Task<IReadOnlyList<CommanderAction>> ThinkAsync(Briefing b, CancellationToken ct)
+            {
+                Interlocked.Increment(ref Calls);
+                if (Slow) Gate.Wait(ct);
+                return Task.FromResult(Answer(b));
+            }
+        }
+
+        /// <summary>
+        /// The cluster clock as the master runs it, standing in for it on the rail's node bus: a <c>PauseTimeIntent</c> stops sim time, a
+        /// <c>ResumeTimeIntent</c> runs it; it reads what the frame published (after the swap), as the master does.
+        /// </summary>
+        private sealed class RailClock
+        {
+            public readonly Fdp.Core.FdpEventBus Bus = new();
+            public bool Paused;
+            public double SimTime;
+            public int Pauses, Resumes;
+            public RailClock()
+            {
+                Bus.RegisterManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>();
+                Bus.RegisterManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>();
+            }
+            public void EndFrame()
+            {
+                Bus.SwapBuffers();
+                int p = Bus.ReadManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count, r = Bus.ReadManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>().Count;
+                Pauses += p; Resumes += r;
+                if (p > 0) Paused = true;
+                if (r > 0) Paused = false;
+                if (!Paused) SimTime += 0.016;
+            }
+            public void UserPause() => Bus.PublishManaged(new Fdp.Toolkit.Time.Domain.PauseTimeIntent());
+        }
+
+        private static void RunFor(Seated s, RailClock clock, TimeSpan wall, ref int frames)
+        {
+            var until = DateTime.UtcNow + wall;
+            while (DateTime.UtcNow < until) { s.Tick(); clock.EndFrame(); frames++; Thread.Sleep(5); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4679 ① (L-2) — think-pause HOLDS THE CLOCK, not the frame: a mind that thinks for 10 s gets the clock paused through the one pause path
+        /// (one <c>PauseTimeIntent</c> on the node bus); sim time does not advance while it thinks, yet frames go on (hundreds — the frame never blocks),
+        /// and its answer resumes the clock and lands as orders. A fast mind (the opening snapshot) holds nothing.
+        /// 🔴 Mutations: the hold skipped (the old frame-only wait at 0) ⇒ sim time runs while it thinks; the resume dropped ⇒ the clock stays paused.
+        /// </summary>
+        [Fact]
+        public void CE4679_ASlowMind_HoldsTheSimClock_WhileFramesRunOn_AndItsAnswerResumesIt()
+        {
+            var clock = new RailClock();
+            var mind = new SlowMind();
+            var s = new Seated(mind, clockBus: clock.Bus);
+            int frames = 0;
+            for (int i = 0; i < 5; i++) { s.Tick(); clock.EndFrame(); frames++; }
+            Assert.Equal(0, clock.Pauses);   // the opening snapshot answered at once: no hold
+
+            mind.Slow = true;
+            mind.Answer = _ => new[] { new CommanderAction(CommanderActionKind.Order, "Alpha", "Attack", Where: "house") };
+            s.P.ReportSpot(s.P.Alpha, new Vector3(100f, 130f, 0f), 3);
+            for (int i = 0; i < 3; i++) { s.Tick(); clock.EndFrame(); frames++; }   // the SPOT is said; the seat holds
+            Assert.True(clock.Paused);
+            double held = clock.SimTime;
+            int before = frames;
+            RunFor(s, clock, TimeSpan.FromSeconds(10), ref frames);   // the mind thinks for 10 s
+            Assert.Equal(held, clock.SimTime);          // ⭐ sim time did not advance
+            Assert.True(frames - before > 100, $"frames ran on: {frames - before}");
+            Assert.Equal(0, s.P.OrdersTo(s.P.Alpha, "Order.Attack"));
+            Assert.True(s.Seat.HoldsClock);
+
+            mind.Gate.Set();
+            for (int i = 0; i < 10 && clock.Paused; i++) { Thread.Sleep(20); s.Tick(); clock.EndFrame(); }
+            s.Ticks(2);
+            Assert.False(clock.Paused);                 // ⭐ the answer resumed it
+            Assert.Equal(1, clock.Pauses);
+            Assert.Equal(1, clock.Resumes);
+            Assert.Equal(1, s.P.OrdersTo(s.P.Alpha, "Order.Attack"));
+            s.Seats.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4679 ① — the hold never un-pauses a USER's pause: a pause asked for while the mind thinks outlives the hold (no resume when it answers),
+        /// and a clock the user had paused BEFORE the wake is never paused or resumed by the seat at all.
+        /// 🔴 Mutation: the user-pause check dropped ⇒ the seat resumes the clock the user paused.
+        /// </summary>
+        [Fact]
+        public void CE4679_AUserPauseDuringTheHold_OutlivesIt()
+        {
+            var clock = new RailClock();
+            var mind = new SlowMind();
+            var s = new Seated(mind, clockBus: clock.Bus);
+            for (int i = 0; i < 5; i++) { s.Tick(); clock.EndFrame(); }
+            mind.Slow = true;
+            s.P.ReportSpot(s.P.Alpha, new Vector3(100f, 130f, 0f), 3);
+            for (int i = 0; i < 5; i++) { s.Tick(); clock.EndFrame(); }
+            Assert.True(clock.Paused);
+            Assert.Equal(1, clock.Pauses);
+
+            clock.UserPause();                          // ⏸ while the mind thinks
+            for (int i = 0; i < 5; i++) { s.Tick(); clock.EndFrame(); }
+            mind.Gate.Set();
+            for (int i = 0; i < 20; i++) { Thread.Sleep(10); s.Tick(); clock.EndFrame(); }
+            Assert.False(s.Seat.HoldsClock);            // the answer is in
+            Assert.True(clock.Paused);                  // ⭐ and the user's pause stays
+            Assert.Equal(0, clock.Resumes);
+            s.Seats.Dispose();
         }
     }
 }

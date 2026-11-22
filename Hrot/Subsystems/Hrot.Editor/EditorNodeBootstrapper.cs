@@ -170,6 +170,9 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
     public Hrot.Traffic.TrafficPack? TrafficPack { get; private set; }
     public Hrot.SimHost.NodeBootstrapper Orchestration => _nodeBootstrapper;
 
+    /// <summary>⭐ CE-4679 (DESIGN_LLM_Commander §6) — the file the node records to now (null = not recording): a commander seat's model log sits beside it.</summary>
+    public Func<string?>? RecordingPath { get; set; }
+
     /// <summary>⭐ The node's one trajectory pool (routes written by the solver, read by kinematics), taken from a provider — as on SimHost — so the muscle pack and the solver share it (CE-180: two pools ⇒ routes resolve into memory the kinematics never read).</summary>
     private readonly TrajectoryPoolProvider _trajectoryPool = new();
 
@@ -273,6 +276,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         // ⭐ CE-454 (W3): the one mapper list both Brain hosts share. ⚠ NOT gated on authority (CGF's gate follows a role policy; the editor is offline and has none).
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
         var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus, lifecycle: () => EntityCreation?.Elm);
+        Hrot.CGF.Commander.CommanderSeats.For(context.World).RecordingPath = () => RecordingPath?.Invoke();   // ⭐ CE-4679 — the model log beside the recording
 
         // ⭐⭐⭐ CE-4270 B9 (§4.1ag, R-3077): the ONE role table, the same one CGF and the fused server resolve. The editor's row is the fused set with the network
         //   off, and ⭐ CE-11027 S12-4 (Q114 B) the gameplay deploy server too: it serves alone (no election: networkless, so no second server can exist) over the node's in-process

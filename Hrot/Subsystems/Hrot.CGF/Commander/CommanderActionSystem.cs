@@ -19,19 +19,35 @@ namespace Hrot.CGF.Commander;
 /// ⭐ Think-pause (<see cref="CommanderMode.ThinkPause"/>): before draining, the frame waits (bounded by <see cref="ThinkPauseBudget"/>) until the mind has
 /// answered every wake so far — so the scripted mind's orders land on the same frame in every run.
 /// </summary>
+/// <remarks>⭐⭐ CE-4679 (L-2) — think-pause HOLDS THE CLOCK, not the frame (L-1's decision 1 replaced): a mind that answers within
+/// <see cref="FastAnswer"/> lands in the same frame, as before (the scripted mind's runs still repeat); one that takes longer gets the clock paused
+/// through the ONE pause path (<c>PauseTimeIntent</c> on the node's bus — the same request ⏸ and <c>/sim/pause</c> make), and resumed
+/// (<c>ResumeTimeIntent</c>) when its answer is in — only if the seat paused it and nobody else paused meanwhile: a user's pause outlives the hold. A
+/// mind that never answers is bounded (<see cref="MaxHold"/>): the seat says so and resumes with no orders. The frame, the UI and the HTTP server run
+/// on throughout. ⚠ The pause lands on the cluster's barrier (a few frames after the wake) — sim time stops then, not on the wake's frame.</remarks>
 [UpdateInPhase(SystemPhase.Simulation)]
-[TickMode(TickPolicy.WhenTimeAdvances)]
+[TickMode(TickPolicy.EveryFrame)]   // ⭐ CE-4679 — a held clock is paused: the hold must still end, and the answer still land
 public sealed class CommanderActionSystem : IEcsModuleSystem
 {
-    /// <summary>The most a think-pause frame waits for a mind (wall time — a guard against a hung mind, never a pace).</summary>
-    public static readonly TimeSpan ThinkPauseBudget = TimeSpan.FromSeconds(2);
+    /// <summary>How long a frame waits in place for a fast mind before the seat holds the clock instead (wall time).</summary>
+    public static readonly TimeSpan FastAnswer = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>The longest a seat holds the clock for one wake (wall time) — then "no orders" and the clock runs on.</summary>
+    public static readonly TimeSpan MaxHold = ExternalMind.DefaultTimeout + TimeSpan.FromSeconds(10);
 
     /// <summary>The orders L-1 takes (a squad fulfils each: Move / Hold / Attack by its class, Defend / BreakContact as the platoon plays send them).</summary>
     public static readonly string[] Orders = { "Move", "Hold", "Attack", "SupportByFire", "Defend", "BreakContact" };
 
-    private readonly CommanderSeats _seats;
+    private CommanderSeats? _seats;
+    private readonly Fdp.Core.FdpEventBus? _clockBus;
 
-    public CommanderActionSystem(CommanderSeats seats) => _seats = seats ?? throw new ArgumentNullException(nameof(seats));
+    /// <param name="seats">The world's seats; null ⇒ <see cref="CommanderSeats.For"/> the world it runs on.</param>
+    /// <param name="clockBus">The node's bus — the cluster's ONE pause request rides it (<c>HrotNodeContext.EventBus</c>); null ⇒ the world's bus (a rail).</param>
+    public CommanderActionSystem(CommanderSeats? seats = null, Fdp.Core.FdpEventBus? clockBus = null)
+    {
+        _seats = seats;
+        _clockBus = clockBus;
+    }
 
     /// <summary>Actions given / refused since construction (a rail / diagnostics probe).</summary>
     public int Given { get; private set; }
@@ -39,15 +55,60 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
 
     public void Execute(ISimulationView view, float deltaTime)
     {
-        if (view is not EntityRepository world || _seats.Count == 0) return;
+        if (view is not EntityRepository world) return;
+        var seats = _seats ??= CommanderSeats.For(world);
+        if (seats.Count == 0) return;
         double now = CommanderFeedSystem.Now(world);
-        foreach (var seat in _seats.All)
+        foreach (var seat in seats.All)
         {
             if (!world.IsAlive(seat.Commander) || !world.HasComponent<CommanderSeat>(seat.Commander)) continue;
             if (seat.Runner != null && world.GetComponentRO<CommanderSeat>(seat.Commander).Mode == CommanderMode.ThinkPause)
-                seat.Channel.WaitAnswered(ThinkPauseBudget);
+                Hold(world, seat, now);
             while (seat.Channel.TryTake(out var action)) Apply(world, seat, action, now);
         }
+    }
+
+    // ── ⭐ CE-4679 — the think-pause hold ─────────────────────────────────────────────────────────
+
+    private void Hold(EntityRepository world, SeatRuntime seat, double now)
+    {
+        var bus = _clockBus ?? world.Bus;
+        if (!seat.Holding)
+        {
+            if (!seat.Channel.Thinking || seat.Channel.WaitAnswered(FastAnswer)) return;   // answered in the frame (a fast mind): no hold
+            seat.Holding = true;
+            seat.HoldSince = System.Diagnostics.Stopwatch.GetTimestamp();
+            seat.UserPaused = seat.OwnPauseSeen = false;
+            seat.PausedByUs = Advancing(world);
+            if (seat.PausedByUs) Publish(bus, new Fdp.Toolkit.Time.Domain.PauseTimeIntent());
+            return;
+        }
+
+        // a pause someone else asked for during the hold is theirs: it outlives the hold (our own is the first one seen)
+        if (bus.IsRegisteredManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>())
+        {
+            int pauses = bus.ReadManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
+            if (pauses > 0 && seat.PausedByUs && !seat.OwnPauseSeen) { seat.OwnPauseSeen = true; pauses--; }
+            if (pauses > 0) seat.UserPaused = true;
+        }
+
+        bool timedOut = System.Diagnostics.Stopwatch.GetElapsedTime(seat.HoldSince) > MaxHold;
+        if (seat.Channel.Thinking && !timedOut) return;
+        seat.Holding = false;
+        if (seat.PausedByUs && !seat.UserPaused) Publish(bus, new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
+        if (timedOut)
+            seat.Channel.Publish(FeedKind.OrderState, now, false,
+                $"{CommanderFeedSystem.Clock(now)} SEAT: the mind gave no answer in {MaxHold.TotalSeconds:0} s — the clock runs on with no orders",
+                new JsonObject { ["kind"] = "order-state", ["state"] = "no-answer", ["seconds"] = MaxHold.TotalSeconds }.ToJsonString());
+    }
+
+    private static bool Advancing(EntityRepository world)
+        => world.HasSingleton<GlobalTime>() && world.GetSingleton<GlobalTime>().DeltaTime > 0f;
+
+    private static void Publish<T>(Fdp.Core.FdpEventBus bus, T intent)
+    {
+        if (!bus.IsRegisteredManaged<T>()) bus.RegisterManaged<T>();
+        bus.PublishManaged(intent);
     }
 
     private void Apply(EntityRepository world, SeatRuntime seat, CommanderAction a, double now)
@@ -67,6 +128,11 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         };
         if (why != null) json["reason"] = why;
         if (why == null) Given++; else Refused++;
+        seat.Log?.Write(new JsonObject
+        {
+            ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["action"] = CommanderTools.ToJson(a),
+            ["state"] = why == null ? "accepted" : "refused", ["reason"] = why,
+        });
         seat.Channel.Publish(FeedKind.OrderState, now, why != null,
                              why == null ? $"{CommanderFeedSystem.Clock(now)} ORDER {what}{(a.Where is { } w ? " → " + w : "")}: given"
                                          : $"{CommanderFeedSystem.Clock(now)} ORDER {what}: REFUSED — {why}",
