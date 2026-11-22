@@ -229,7 +229,7 @@ void AHrotDpsCamera::PlaceFollow(float Dt)
 {
 	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
 	FVector PosM; FQuat Rot; int32 Domain = 0;
-	if (!W || !W->PoseNow(FollowId, PosM, Rot, Domain)) { Free(); return; }   // the unit is gone: back to free flight where we are
+	if (!W || !W->PoseNow(FollowId, PosM, Rot, Domain)) { UE_LOG(LogTemp, Display, TEXT("HROT camera: entity %d has no pose - free flight"), FollowId); Free(); return; }   // the unit is gone: back to free flight where we are
 	const FVector3d P(PosM);
 	const EScheme S = Domain == W->DomainAir() ? EScheme::Flyer : (Domain == W->DomainPerson() || Domain == W->DomainAnimal()) ? EScheme::Person : EScheme::Vehicle;
 	// the eye: a person's drawn head (the guide: the character's head socket), else HROT's fallback above the position

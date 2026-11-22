@@ -111,7 +111,10 @@ void AHrotDpsGameMode::StartPlay()
 			if (*bDone) return;
 			AHrotDpsCamera* Cam = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(this, 0));
 			const UHrotDpsWorld* FW = UHrotDpsWorld::Get(this);
-			if (!Cam || !FW || !FW->EntityIds().Contains(FollowId)) return;
+			// it must have a POSE: following an id before its first state frees the camera at once (measured live 2026-11-22: unit 1003 followed, then
+			// free flight, so the listener was on no net and Brown's radio stayed in the world)
+			FVector P; FQuat Q; int32 Dom = 0;
+			if (!Cam || !FW || !FW->PoseNow(FollowId, P, Q, Dom)) return;
 			Cam->Follow(FollowId, 40.f); *bDone = true;
 			UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG: following entity %d (-HrotIgFollow)"), FollowId);
 		}), 1.0f, true);
