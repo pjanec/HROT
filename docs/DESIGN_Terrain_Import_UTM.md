@@ -1288,10 +1288,10 @@ graph TD
   C -->|missing| S{TerrainSources.Resolve name}
   S -->|no input set| N[null: as today]
   S -->|input set found| L[lock file in the target root]
-  L --> I[TerrainImporter.ImportAsync, no navmesh prefill]
+  L --> I[TerrainImporter.ImportAsync + navmesh prefill]
   I -->|temp folder moved into place| T[content root assets/terrain/name]
   T --> D
-  D --> R[the load as today: navtiles baked lazily into its cache]
+  D --> R[the load as today: its navtiles already baked]
 ```
 *Caption: the one hook is INSIDE the catalog, so the 12 construction sites cannot differ — no host has to remember to pass it.*
 
@@ -1318,7 +1318,7 @@ sequenceDiagram
   C->>C: no root holds it
   C->>S: TryImport("Stechovice", first writable root)
   S->>S: input set found, take the lock (another process waits, then finds the folder)
-  S->>I: ImportAsync(set, "Stechovice", NavmeshPrefill none)
+  S->>I: ImportAsync(set, "Stechovice", with NavmeshPrefill)
   I-->>S: folder moved into place, terrain.json records the manifest sha256
   S-->>C: the definition path
   C-->>H: terrain.json (the load continues as today)
@@ -1329,7 +1329,7 @@ sequenceDiagram
 |---|---|---|
 | F-1 | the hook is in `TerrainCatalog` itself (a process-wide `TerrainSources.Import`, set ONCE where every executable starts) | passing it to 12 constructors — the silent-default pattern (a site that forgets imports nothing) |
 | F-2 | the result goes to the catalog's first root that is writable (the content root's `assets/terrain/`; in a dev checkout the repo's, which `.gitignore` CE-4425 already ignores) | a new cache folder — a second place a terrain lives |
-| F-3 | NO navmesh prefill at first use: the load's lazy `NavTileCache` bakes and keeps tiles as today | prefill (488 s on 16 cores) on every first load — the load would wait for tiles it may never need |
+| F-3 | ⭐ **the first-use import PREFILLS the navmesh** (`NavmeshPrefill`, as `hrot-terrain-import` does), inside the same lock, and the first load waits for it. 🔒 User, `2026-11-22`: *"when importing, it might be quite practical to pre-build the nav mesh, because we anyway want to cache the outcomes of the import. So why not to include the nav mesh pre-calculation into that?"* — a node's load bakes the whole mesh anyway when no tiles exist (`NavmeshPrefill`'s own doc: "so its first load bakes nothing"), so the cost is the same and is paid once, inside the cached import. ⛔ SUPERSEDED first version: no prefill, the lazy cache bakes on load | no prefill — the same bake happens at the first load, outside the import's lock and its cache |
 | F-4 | `terrain.json` records the input's `manifest.json` sha256; a differing input re-imports (the existing `versions/` swap) | comparing every file — the manifest already hashes them |
 | F-5 | one machine-wide lock file beside the target; a second process waits for it and then resolves the folder | no lock — two processes write two temp folders and race the move |
 | F-6 | an input set is found by NAME in `assets/terrain-input/<name>/` of the repo and of the content root | a registry file listing sources — a second list to keep in step |
