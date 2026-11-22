@@ -589,6 +589,18 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             int identified = 0;
             for (int i = 0; i < 2; i++) if (GetContact(commander, i).EntityId == (long)him.PackedValue) identified++;
             Assert.Equal(1, identified);
+
+            // ⭐ 2 s later (no new sighting): the pool is rebuilt, and the bang he was seen firing is STILL his (time-invariant). A fresh bang of his,
+            //   fired 2 s after anyone last saw him, is NOT bound — nobody saw that flash.
+            repo.SetSingleton(new GlobalTime { TotalTime = 2d, DeltaTime = 1f / 60f });
+            long late = ring.Append(new Fdp.Toolkit.Perception.Signatures.SoundEmission { Source = him.PackedValue, Kind = 2, Class = 4, Time = (SimInstant)2 });
+            ref var ear2 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref ear2, 120f, 125f, 0f, 0.7f, 4, 30f, 130, via: 1, sound: late);
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 130, mergeIntervalTicks: 1);
+            Assert.Equal(3, GetState(commander).Contacts.Count);
+            identified = 0;
+            for (int i = 0; i < 3; i++) if (GetContact(commander, i).EntityId == (long)him.PackedValue) identified++;
+            Assert.Equal(1, identified);
         }
     }
 }

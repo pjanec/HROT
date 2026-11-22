@@ -1106,7 +1106,7 @@ Rail `ThreatEvaluationSystemTests.CE2490_*` (red without the binding).
 | | |
 |---|---|
 | 📐 measured after CE-2490, `pe-house-shot` 26.1 s | the two ears that held the door point did NOT see the shooter then (last seen ticks 1370 / 1556, the bang heard at 1574) — CE-2490 rightly did not fire; for them the door is where to LOOK (D-8). Ears 1 and 2 DID see him fire — but the pool's same-bang fusion (CE-2474 ①) missed it: each pool slot keeps ONE token, and the members' last tokens differed by a shot (149 / 150) |
-| ⭐ the rule | `AbsorbHeardBySound`: a pooled heard contact whose bang (the ring, on its token) was fired by an IDENTIFIED pooled enemy that a member SEES now (Visual in its modalities, last seen within `FlashSeenTicks` 60 steps ≈ 1 s), within `FlashBindSeconds` of the bang, is that enemy — the squadmate saw the flash |
+| ⭐ the rule | `AbsorbHeardBySound`: a pooled heard contact whose bang (the ring, on its token) was fired by an IDENTIFIED pooled enemy that a member SAW at the bang (Visual in its modalities, last seen no earlier than `FlashBindSeconds` before the bang) is that enemy — the squadmate saw the flash. ⭐ The pool is rebuilt each merge, so the test is TIME-INVARIANT: 📐 a first build tested "bang within 1 s of now" and the door point came back into the pool 1 s after the last shot (27.3 s) |
 | ⛔ what stays | a member's own memory keeps the door point (he saw nothing); only the squad's pool — what every member shares — joins them |
 
 Rail `SquadPerceptionMergeSystemTests.CE2491_*` (red without the ring lookup).

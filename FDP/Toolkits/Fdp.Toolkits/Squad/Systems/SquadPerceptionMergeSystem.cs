@@ -111,8 +111,9 @@ namespace Fdp.Toolkit.Squad.Systems
             // ⭐ CE-2474 (§8.6d ①) — and a heard contact carrying the SAME bang as a seen one IS him, wherever it was placed.
             // ⭐ CE-2491 (R-2144, Sensing §8.6g) — or a heard bang that a SQUADMATE saw the man fire: the flash and the bang are one instant
             var ring = Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.In(repo);
-            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
-            AbsorbHeardBySound(ref localPool, heardRadius, heardClass, heardSound, ring, now, currentTick);
+            var clock = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>() : default;
+            AbsorbHeardBySound(ref localPool, heardRadius, heardClass, heardSound, ring, clock.TotalTime, currentTick,
+                               clock.DeltaTime > 0f ? clock.DeltaTime : 1f / 60f);
             AbsorbHeardBySightings(repo, ref localPool, heardRadius, heardClass, heardSound);
 
             // 6. Sort pool contacts descending by ThreatScore (insertion sort; at most 16 entries).
@@ -200,11 +201,9 @@ namespace Fdp.Toolkit.Squad.Systems
         /// distance between their points: a member attributed that shot to the man he sees (<c>TargetMemory.AttributeToSeen</c>), so another member's
         /// estimate of it — however far off, round a corner — is that man too. The sighting keeps its position.
         /// </summary>
-        /// <summary>⭐ <c>CE-2491</c> — how recently (sim steps, ~1 s at 60) a squadmate must have seen a man for his flash to bind a bang heard elsewhere.</summary>
-        public const uint FlashSeenTicks = 60;
-
         private static void AbsorbHeardBySound(ref SquadContactPool pool, float* radii, byte* classes, long* sounds,
-                                               Fdp.Toolkit.Perception.Signatures.SoundEmissionRing? ring = null, double now = 0d, uint currentTick = 0)
+                                               Fdp.Toolkit.Perception.Signatures.SoundEmissionRing? ring = null, double now = 0d, uint currentTick = 0,
+                                               double stepSeconds = 1d / 60d)
         {
             var span = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
@@ -216,12 +215,16 @@ namespace Fdp.Toolkit.Squad.Systems
                     if ((span[j].Flags & SquadContact.AnonymousFlag) == 0 && span[j].EntityId > 0 && sounds[j] == sounds[i]) seenAt = j;
                 // ⭐ CE-2491 — the bang's own token names who fired it (the ring); a squadmate who SEES that man now saw its flash. 📐 pe-house-shot: two
                 //   ears heard a shot only round a door while two others watched the shooter fire — the members' last tokens differed by one shot.
-                if (seenAt < 0 && ring != null && ring.TryGetAtPlace(sounds[i], out var bang) && bang.Kind == TargetMemory.ShotKind
-                    && now - bang.Time <= TargetMemory.FlashBindSeconds)
+                //   ⭐ the pool is REBUILT each merge, so the test is time-invariant: he was seen no earlier than FlashBindSeconds BEFORE the bang (📐 a
+                //   "bang within 1 s of now" test let the door point back into the pool 1 s after the last shot)
+                if (seenAt < 0 && ring != null && ring.TryGetAtPlace(sounds[i], out var bang) && bang.Kind == TargetMemory.ShotKind)
+                {
+                    double bangAgo = now - bang.Time;
                     for (int j = 0; j < pool.Count && seenAt < 0; j++)
                         if ((span[j].Flags & SquadContact.AnonymousFlag) == 0 && span[j].EntityId == (long)bang.Source
                             && (span[j].Flags & (ushort)SensorModality.Visual) != 0
-                            && currentTick - span[j].LastSeenTick <= FlashSeenTicks) seenAt = j;
+                            && (currentTick - span[j].LastSeenTick) * stepSeconds <= bangAgo + TargetMemory.FlashBindSeconds) seenAt = j;
+                }
                 if (seenAt < 0) continue;
 
                 ref var seen = ref span[seenAt];
