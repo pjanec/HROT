@@ -946,6 +946,79 @@ classDiagram
 | ③ the half weight (CE-2474, `52df639bb`) | ⛔ WITHDRAWN (user: "Why are we halving?") — after ① and ② a heard contact left over is a genuinely unknown enemy and counts whole |
 | unchanged | bursts (R-2071), a sound heard only through an opening (D-8) for the SPOT, anonymity (§6 D) |
 
+#### 8.6e `CE-2476` / `CE-2475` — PROVING perception: belief against truth, a scenario suite, and the first wavefront *(behaviors, `2026-11-22`; 🔒 user: "wrong perception breaks many behaviors so i think it deserves extra effort to get it right" · "in reality the sound propagates through walls as well as around them and the human aggregates those" · "yes, go ahead in that order"; build-state: READY-TO-BUILD)*
+
+📐 **Why** — measured `2026-11-22`: ~95 unit rails test one perception function each with hand-made input; ONE live rail (`HeardShotScenarioTests`) runs a hearing end to end and judges the reaction, not the belief; the sensing scenarios judge only slot 0 of a SEEN contact. ⛔ **No check can see a heard contact** (the memory's dump skips them, `TargetMemoryTranslator.cs:53`) and **none compares belief with truth** ⇒ U2b's "four enemies for one shot" (§8.6d) was invisible to every check; a debug probe found it.
+
+**The proven solution** (multi-target tracking evaluation — association of tracks to ground truth, scored as misses, false tracks, duplicates and position error): ⭐ adopted — those four errors are exactly what breaks a behaviour (a duplicate pauses an attack, a phantom draws fire or cover, a miss means no reaction); ⛔ a single OSPA-style number rejected — a check must say WHICH error.
+
+```mermaid
+classDiagram
+  class ScenarioChecks { <<existing, grows>> Kinds += perceives · parse: truth, metric, op, value, squad, m, through }
+  class CheckCue { <<existing, grows>> Truth · Metric · Squad · Through }
+  class ScenarioVerification { <<existing, grows>> PerceivesHolds(c) }
+  class PerceptionScore { <<NEW, Hrot.Editor.Director>> Of(world, holder, truth, squad, m, through) → (contacts, matched, missed, phantom, duplicate) }
+  class TargetMemory { <<existing>> slots: identified + heard (Radius, Anonymous) }
+  class SquadCognitiveState { <<existing>> Contacts pool }
+  ScenarioChecks --> CheckCue
+  ScenarioVerification --> PerceptionScore : each sample, per unit judged
+  PerceptionScore --> TargetMemory : a man's beliefs
+  PerceptionScore --> SquadCognitiveState : a squad's beliefs, squad true
+```
+*What the picture shows that prose hid:* the score reads the LIVE world (editor tier), the same components the brains read — never the dump, which hides heard contacts.
+
+| `perceives` — the cue | |
+|---|---|
+| `{"on":"perceives","who":"<men or squads>","truth":"<the real enemies>","metric":"contacts·matched·missed·phantom·duplicate","op":"==","value":1}` | holds per unit `who` names, counted by `quantifier` (`any` · `all` · `atLeast:n`); `for`, `never`, `atEnd` as every cue |
+| association | an IDENTIFIED contact of a truth entity is matched to it; a HEARD one to the nearest live truth within its radius + `m` (default 5; a squad's pooled heard contact has no stored radius ⇒ `m` alone, default 10); each truth: 0 contacts = `missed`, n ≥ 2 = n − 1 `duplicate`; a heard contact matched to none = `phantom`; an identified contact of a non-truth entity is ignored (a civilian is not an error) |
+| skipped | bursts (R-2071 — never an enemy claim); with `"through": false` also a contact heard only through an opening (D-8 — "look there") |
+| `squad: true` | `who` names commanders; the beliefs are their `SquadCognitiveState` pool |
+| ⚠ the editor tier only | the cluster tier's dump hides heard contacts — P8 needs the dump to carry them first |
+
+| # | scenario `pe-…` | situation — the listeners only HOLD (`InertSop`, `HoldFire`): perception is judged, never tactics | must hold |
+|---|---|---|---|
+| P1 | `pe-one-shot-four-ears` | one hidden rifleman fires at a target; four listeners 60–120 m off in the open | each man `contacts == 1` and `phantom == 0`; the squad `matched == 1`, `duplicate == 0` |
+| P3 | `pe-seen-shooter` | the same, the shooter in plain view of two listeners | each seeing man: the shooter identified, `phantom == 0` (his shot is his — §8.6d ②) |
+| P4 | ⭐ `pe-two-shooters` | two riflemen 8 m apart firing in turn | the squad `matched == 2` — ⛔ never one (over-merging is the opposite error to U2b's) |
+| P5 | `pe-shelled` | rounds landing among the listeners, no enemy near | every man and the squad `contacts == 0` (R-2071) |
+| P2 | `pe-house-shot` | a shooter in a room; listeners in the corridor, another room, outside a window | squad `matched == 1`, `duplicate == 0`; after CE-2475 `phantom == 0` |
+| P2b | `pe-wall-and-door` | a shooter behind ONE wall, a door off to the listener's side | his contact within m of the SHOOTER, not the door (CE-2475) |
+| P6 | `pe-steps-round-corner` | a man walking behind a building | heard; `through: false` ⇒ no SPOT position |
+| P7 | `pe-seen-then-hidden` | a man crosses open ground, then hides | identified within the dwell; forgotten after the fade, not before |
+| P8 | P1, listeners on two nodes (cluster, nightly) | ⚠ the per-node token (§8.6d): 1 or 2 — needs the dump to carry heard contacts |
+
+##### CE-2475 — the FIRST WAVEFRONT: where a sound seems to come from when it arrives by two ways
+
+📐 **How it is** (`SoundPaths.Route`, `:76-101`): both ways are solved — the straight line through the walls (`StraightDb`) and the way through openings / round corners (`PathDb`) — and the LOUDER WINS outright (AQ106 B), heard from the last opening (AQ106 F). ⛔ A man 15 m from a shooter behind one thin wall, a door to his left, hears the shot "from the door".
+
+**The proven solution** (the precedence effect — Wallach 1949, Haas 1951): the ear takes its DIRECTION from the first arrival — the straight path, the shortest — even when a later one is up to ~10 dB louder; much louder later arrivals take over, and in between the image smears (less sure). ⭐ Adopted for DIRECTION only; AQ106 B stays the rule for WHETHER it is heard. ⛔ Rejected: a weighted mix of every reflection (no echo model; one extra path is what we solve).
+
+```mermaid
+sequenceDiagram
+  participant G as AcousticSensorGenerator
+  participant R as SoundPaths.Route
+  G->>R: ear, source
+  R-->>G: SoundRoute (Factor = the louder · HeardFrom · Via · StraightDb · PathDb)
+  Note over G: Δ = StraightDb − PathDb (how much quieter the wall way is)
+  alt Δ ≤ 10 dB — the first wavefront holds
+    G->>G: heard FROM the source's direction, Via = Straight
+  else 10 < Δ < 20 dB — smeared
+    G->>G: between the two bearings, radius grows with the blend, Via = Openings only past the midpoint
+  else Δ ≥ 20 dB
+    G->>G: heard from the last opening, as now
+  end
+```
+*What the picture shows that prose hid:* no new trace or path search — both numbers are already in `SoundRoute`; only `HeardFrom`, the radius and `Via` change, so every reader (D-8's SPOT rule, §8.6d's attribution) follows by construction.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| both ways' losses are solved | ✅ `SoundPaths.cs:92`, `:100` | ✅ AQ106 B |
+| only one is kept as a direction | ✅ `SoundPaths.cs:100`, `:235` | ✅ AQ106 F — no mixing considered |
+| 10 / 20 dB | ⛔ the literature (precedence holds to ~10 dB), not measured here | ⏳ tuned on P2 / P2b |
+| the readers follow `Via` | ✅ `IsHeardThroughAnOpening`, `AttributeToSeen` (via ⇒ no) | 📄 §8.6c, §8.6d |
+
+INVENTORY (`2026-11-22`): `search_graph name_pattern ".*(Perception|Hearing|Acoustic|Visual|Thermal|Sensor|TargetMemory|SquadPerception|Detection|Sound).*Tests?" label Class` → total 53, has_more false (⚠ it MISSED `AcousticHearingTests`, `SoundPathsTests`, `ThreatEvaluationSystemTests` — found by `ls FDP/Toolkits/Fdp.Toolkits.Tests/Perception`, 30 files); check-grammar cues: `ScenarioChecks.Kinds` (`field`, `knowledge`, `far`, `close`, `between`, `window`, `cover`, `bunched`, `still`, `exposed` + the anchor kinds) — none reads a belief; scenarios: `find scenarios -name checks.json` (261) filtered by sensing words → 20, none judges a heard contact or a count. ⛔ Coverage could not be checked (`check_index_coverage` is not in the CLI).
+
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
 ⭐ **`2026-11-18`, CE-4658 (backend):** every body now HAS a heat signature — `ThermalDefaults` by its locomotion class, stamped by `SignatureTkbTranslator` where a type authors none — and the sensor computes the heat from the replicated drivers (`HeatSource`); a dedicated **thermal observer (TKB 215)** carries the sight, the M1 / Bradley carriage stays withdrawn. 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md).
