@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
 updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 DISPATCHED (CE-4679, backend — HANDOFF_Coordinator_To_Backend_LLM_Commander_L2.md); L-3…L-4 DESIGN
+build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 DISPATCHED (CE-4679, backend — HANDOFF_Coordinator_To_Backend_LLM_Commander_L2.md); L-2b DISPATCHED (CE-4680, backend, after L-2 — §5b); L-3…L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
@@ -224,6 +224,27 @@ Rails — `SquadManeuverTests.CE4676_*` (the command chain's own suite, on its `
 an illegal action is refused with its reason and changes nothing · the scripted mind sends the nearest squad at the spot, at origin Superior, off
 the frame thread · 0 B per steady frame. `ScenarioChecksTests.CE4676_TheReportCue_*`. The scenario `llm-platoon-attack` (§1).
 
+### 5b. L-2b — the commander gets what a decision needs, and the plays as his tools *(DESIGN, user `2026-11-22`: "Yes")*
+
+🔒 User, `2026-11-22`: *"what our game ai platoon commander now do? can his LLM replacement bring something interesting? what info are we going to
+share with the LLM?"* → the answer (chat, same day): the game-AI platoon commander is an EXECUTOR — it runs the task it is given
+(`PlatoonAttack`, `PlatoonDefend`, `PlatoonBound`, `SupportByFire`) and its SOP has two reactions (`BasicPlatoonSop`); nothing CHOOSES the task
+during a run. ⭐ The LLM's value is the deciding: picking the play and its objective, re-planning when it goes wrong, reading an uncertain picture,
+variety, and saying why. ⚠ L-1 lets him give only SQUAD orders, so he would have to re-create the plays' choreography (support SET, then the
+assault) that the game AI already does better.
+
+| # | L-2b adds | source (exists) |
+|---|---|---|
+| B-1 | ⭐ **`run_play(play, objective…)`** — the commander's OWN task is one of the platoon plays (`PlatoonAttack`, `PlatoonDefend`, `PlatoonBound`, `PlatoonHold`); the play gives the squad orders, the mind decides which play and when to change it. **`stop_play()`** ends it. ⭐ A direct squad order while a play runs **ends the play first** (its orders released), said in an `order-state` item — no tug of war between the play and the mind | the plays (behaviors' code, CALLED not changed) — ⚠ to measure: how a play is assigned to a body-less commander as its task, and that ending it releases its squad orders |
+| B-2 | **the mission and intent** in the prefix — *"Task: … · Purpose: … · Constraints: … · Time: until …"* — an authoring-only brief on the seat, set in the scenario | new: a managed `CommanderBrief` (`[DataPolicy(NoReplay)]`, authoring-only — CLAUDE.md "NEW COMPONENTS") |
+| B-3 | **the objectives line** in every snapshot — each objective the side may see: its name, state, owner, progress | `ObjectiveStatus` filtered by `VisibleSides` (Scenario Rules) |
+| B-4 | **each squad's task and progress** in the snapshot — the order it is on (its kind, where), its latest progress (Set, Foothold, FallingBack…), strength / ammo colour, the age of its last report | `CommandPicture.Subordinates` (Progress, Strength, Ammo, LastReportAt, OrderedAt) + `SubordinateOrders` |
+| B-5 | **the enemy as a commander hears it** — size, ACTIVITY, EQUIPMENT, the report's AGE, seen or only heard | the reported elements (`CommandReport`: Size, Activity, Equipment, ObservedAt) |
+| B-6 | **one-line terrain notes on the named places** — *"house: two storeys, windows on the street"*, *"field: open, 150 m, no cover"* — shown in the prefix's places list | new: an optional `Note` on a named Point / tactical area (a scenario field; authoring-only) |
+
+⭐ The briefing stays SHORT (a small model's context): the prefix grows by the brief and the place notes; the snapshot by one line per squad and
+one per objective. ⛔ Still no ground truth: every new line comes from what was reported to him or what his scenario told him.
+
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
 | | ⭐ lean |
@@ -275,6 +296,7 @@ all their pictures, so it is really their superior: build it as that seat, hones
 |---|---|---|
 | **L-1** | the seat, the feed system, the channel, the action system, the gazetteer, ScriptedMind; the scenario `llm-platoon-attack` (Blue platoon vs a Red squad in a house, test-town) | scripted mind: the right orders land within 1 s of the SPOT; every order goes out at origin Superior; Red is beaten or the platoon breaks contact |
 | **L-2** | the HTTP surface (`/feed` long-poll, `/stream`, `/briefing`, `/act`), ExternalMind, think-pause mode | a Haiku worker plays the scenario to the end; no illegal action is accepted; the run is repeatable from its recording |
+| **L-2b** | §5b: `run_play` / `stop_play`, the mission brief, the objectives line, each squad's task and progress, the enemy's activity / equipment / age, terrain notes on named places | the scripted mind runs `PlatoonAttack` on the house and the play's choreography happens (support SET before the assault); the briefing carries every §5b line; the Haiku worker plays the scenario again — its orders cite the mission |
 | **L-3** | OllamaMind (tools, retry), the context keeper's prefix / snapshot / log | an 8 B model on the laptop plays it in think-pause, then continuous; the model log beside the recording |
 | **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat | two platoon seats on one model; a company seat above them |
 
