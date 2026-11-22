@@ -234,6 +234,7 @@ the verdict leaves the process **by its exit code** — the command line and a C
 | cue `on` | holds when | judged by |
 |---|---|---|
 | `shot` | the n-th round `by` a unit, `at` a target, that `hit` one, `where` its row matches (`"penetration": [">", 400]`) — at its firing time | `CombatReport.Shots` rows (the `/combat/shots` route's) |
+| `report` | ⭐ `CE-4676` (backend, `2026-11-22`; the LLM commander): the n-th report the brain node's inbox SAW (`SquadReportLog`) — sent `by` a unit (the sender), `target` the addressee, `is` its kind or kinds (`Contact` · `Spot` · `Sitrep` · `Lace` · `Progress` · `Request`) — at the time the inbox took it. 📌 `"anchors": {"spotted": {"on": "report", "target": "Platoon", "is": ["Spot", "Contact"]}}` — the first SPOT into the platoon. ⚠ the editor tier only (a live repository; a cluster node's log is not served) | `ScenarioVerification.ReadReports` over `SquadReportLog` |
 | `blast` | the n-th burst `by` a unit, `where` it matches (`"warheadSource": ["contains", "M67"]`) | `CombatReport.Detonations` rows |
 | `field` | `who`'s component value at `path` (`Health.Current`, `CivilianState.Mode`) compares by `op` (`== != < <= > >= in contains`; value `"$now"` = the sim time) — for `any` (default), `all` or `atLeast:n` of the units named | the `/entities/{id}` dump |
 | `near` `task` `side` `health` `embark` `gesture` `hit` | as in a take (Film Director §4) | `AnchorBook.HoldsFor` |

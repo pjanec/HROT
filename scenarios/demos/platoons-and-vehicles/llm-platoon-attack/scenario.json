@@ -1,0 +1,656 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: LLM commander L-1 (CE-4676, DESIGN_LLM_Commander \u00a71) - a body-less Platoon (TKB 305) whose brain is a SEAT (CommanderSeat, Mind Scripted: no own play, InertSop) over Alpha Squad and Bravo Squad (4 men each) at the start (200,40) on test-town; Red's Defenders (5 men, SquadDefend + BasicSquadSop, the full game AI) hold the sheds ('house', 64,108). Named points: house, objective (100,80), support (140,90), start. The scripted mind sends both squads to the objective; on the first SPOT the squad nearest the enemy attacks the reported place and the other supports by fire from 'support'. Judge: (1) a squad is attacking within 1 s of sim time of the first SPOT/CONTACT into the platoon; (2) the platoon's own play never runs (no PlatoonHold, no ReactToFireFromBuilding); (3) each squad fights with its own AI and reports at least once to the platoon; (4) the fight ends before the time limit. Fail: no order after the spot, an order from the platoon's own SOP, a squad that never reports. Check: scripts/scenario-regression.sh llm-platoon-attack"
+  },
+  "entities": {
+    "b4676000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Platoon",
+        "ForceId": "Friend"
+      },
+      "CommanderSeat": {
+        "Mind": "Scripted",
+        "Mode": "ThinkPause",
+        "HeartbeatSeconds": 30,
+        "SnapshotSeconds": 120
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          185,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Alpha Squad",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          180.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          183.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          186.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          189.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          215,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Bravo Squad",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          210.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          213.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000023": {
+      "SimTransform": {
+        "Position": [
+          216.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000024": {
+      "SimTransform": {
+        "Position": [
+          219.5,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          64,
+          108,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Defenders",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SquadDefend",
+        "Params": {
+          "Position": [
+            64,
+            108,
+            0
+          ],
+          "SearchRadius": 14,
+          "Speed": 2
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          60,
+          107,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          64,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "MachineGunner"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000103": {
+      "SimTransform": {
+        "Position": [
+          68,
+          107,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000104": {
+      "SimTransform": {
+        "Position": [
+          58,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 4",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000105": {
+      "SimTransform": {
+        "Position": [
+          70,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 5",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          64,
+          108,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "house",
+        "ForceId": "Neutral"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000201": {
+      "SimTransform": {
+        "Position": [
+          100,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "objective",
+        "ForceId": "Neutral"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000202": {
+      "SimTransform": {
+        "Position": [
+          140,
+          90,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "support",
+        "ForceId": "Neutral"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000203": {
+      "SimTransform": {
+        "Position": [
+          200,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "start",
+        "ForceId": "Neutral"
+      }
+    }
+  }
+}

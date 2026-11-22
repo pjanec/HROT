@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
 updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: READY-TO-BUILD for L-1 (CE-4676, backend) — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2…L-4 DESIGN
+build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2…L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
@@ -200,6 +200,29 @@ sequenceDiagram
     R->>R: resume
   end
 ```
+
+### 5a. ✅ As built — L-1 (CE-4676, backend, `2026-11-22`)
+
+The §5 diagrams hold, with these as-built facts and deviations (obligation ⑤):
+
+| piece | as built — `Hrot/Subsystems/Hrot.CGF/Commander/` |
+|---|---|
+| where | ⭐ in the CGF pack (`CgfLogicPack`), so every brain node — the editor and the CGF node — has it; the code CALLS the command chain and changes nothing in it (behaviors' code) |
+| `CommanderSeat` | unmanaged, component id 217, a scenario field (`{"Mind": "Scripted", "Mode": "ThinkPause", "HeartbeatSeconds": 30, "SnapshotSeconds": 120}`), saved with the scenario. ⭐ The feed system ENFORCES §9 ① when it opens a seat: `AssignSopEvent(InertSop, Superior)` if the SOP is not already InertSop, and a clear of any running task — so a seat added at run time is safe too |
+| the frame order | `CommanderActionSystem` before `TacticalIntentResolutionSystem` (an order lands this frame, as a play's does) · `CommanderFeedSystem` after `StaffInboxSystem` (this frame's reports are in). Both serial, `TickMode(WhenTimeAdvances)` |
+| reports into the commander | read from his `CommandReportHistory` (32, newest first — on every commander with a roster), not from `SquadReportLog`: a steady frame is ONE compare of the newest entry (0 B, rail) |
+| ⚠ the first snapshot WAKES the mind | ⛔ deviation from §3's table (a snapshot was not a wake): otherwise a mind's first orders would wait for the first heartbeat |
+| the orders L-1 takes | Move · Hold · Attack (`CommandOrders.Order`, by the squad's class) · SupportByFire (Attack + `HoldBack`, R-8303) · Defend / BreakContact (`CommandOrders.Route` with `SquadDefend` / `BreakContact`, as the platoon plays send them). ⛔ BoundingOverwatch / SuppressAndManeuver / ClearBuilding are refused with the list — no measured params path from a platoon to a squad for them yet |
+| validation | the squad must be in the commander's roster (that is how another side's unit is refused), alive and in the fight (`CombatEffective.IsInTheFight`); the order one of the list; `where` (or `target`, read as a place in L-1) must resolve in the gazetteer. A refusal is an `order-state` item with the reason (a wake) and changes nothing |
+| think-pause | ⚠ deviation: the FRAME holds (`CommanderChannel.WaitAnswered`, at most 2 s of wall time) until the mind answered every wake — the scripted mind answers in microseconds, so a run repeats. ⇒ L-2 must pause the CLOCK instead (a held frame would freeze the editor for a model's seconds) |
+| the gazetteer | the scenario's Point graphics (TKB 8816) and tactical areas (TKB 8803, at their centre) by name; `"N m <dir> of <name>"` (8 directions); `"grid E<i> N<j>"` (100 m). A radio line names the nearest place within 400 m ("30 m N of house") |
+| the mind's thread | `MindRunner` — a background thread per seat; it sees only feed items (the `Briefing`: prefix · snapshot · radio log · notes · the new items) and writes actions; ⛔ no reference to the world (the seat rails run under `HROT_WORLD_GUARD=1`) |
+| the radio log in the node's log | every feed item is also an INFO line `[Commander] #<seq> <radio line>` |
+| the checks | ⭐ a new `report` cue in the scenario grammar (`DESIGN_Scenario_Regression.md` §3) — the done-when checks ①③ could not be said without it; it reads the brain node's report log through the debug service (`GET /squad/reports`), not the UI's mirror world |
+
+Rails — `SquadManeuverTests.CE4676_*` (the command chain's own suite, on its `Platoon` fixture): the feed says each report once with its radio line ·
+an illegal action is refused with its reason and changes nothing · the scripted mind sends the nearest squad at the spot, at origin Superior, off
+the frame thread · 0 B per steady frame. `ScenarioChecksTests.CE4676_TheReportCue_*`. The scenario `llm-platoon-attack` (§1).
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 

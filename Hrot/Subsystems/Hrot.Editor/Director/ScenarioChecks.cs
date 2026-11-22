@@ -76,7 +76,7 @@ namespace Hrot.Editor.Director
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed", "perceives" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed", "perceives", "report" }).ToArray();
         /// <summary>⭐ <c>CE-4672</c> <c>cover</c>: <c>in</c> — a cover point (the terrain's cover database) within <see cref="M"/> of the unit; <c>open</c> — none.</summary>
         public static readonly IReadOnlyList<string> CoverStates = new[] { "in", "open" };
 
@@ -328,7 +328,7 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed" or "perceives") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed" or "perceives" or "report") || !p.Contains("is not one of", StringComparison.Ordinal)));
             if (on == "window")
             {
                 if (string.IsNullOrWhiteSpace(building)) problems.Add($"{where}: a window cue needs building (its terrain key or label)");
@@ -371,7 +371,13 @@ namespace Hrot.Editor.Director
             }
             else if (truth != null || metric != null || squad || !through) problems.Add($"{where}: truth, metric, squad and through belong to a perceives cue");
             if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
-            if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
+            if (forSeconds > 0d && on is "shot" or "blast" or "hit" or "report") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
+            if (on == "report")   // ⭐ CE-4676 — a report the inbox saw: by (the sender), target (the addressee), is (its kind or kinds)
+            {
+                foreach (var k in parsed.Is is JsonArray ks ? ks.Select(x => x?.ToString()) : parsed.Is is JsonValue kv ? new[] { kv.ToString() } : Array.Empty<string?>())
+                    if (!Enum.TryParse<Fdp.Toolkit.Squad.Command.ReportKind>(k, ignoreCase: true, out var rk) || rk == Fdp.Toolkit.Squad.Command.ReportKind.NoReport)
+                        problems.Add($"{where}: a report cue's is is a report kind (Contact, Spot, Sitrep, Lace, Progress, Request), not '{k}'");
+            }
             if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed" or "close" or "far")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched, exposed, close or far cue");
             if (men != 2 && on != "bunched") problems.Add($"{where}: men belongs to a bunched cue");
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
