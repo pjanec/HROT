@@ -7,6 +7,7 @@
 #include "HrotShotRenderer.h"
 #include "HrotSoundscape.h"
 #include "HrotVoicePlayer.h"
+#include "HrotAmbience.h"
 #include "HrotDpsCameraPawn.h"
 #include "HrotExplosionFx.h"
 #include "HrotMissile.h"
@@ -199,6 +200,8 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_Utterance"), &UHrotDpsWorld::OnUtterance);   // U-19b: the squad's radio (DD-026)
 	Sub(TEXT("DPS_Report"), &UHrotDpsWorld::OnReport);
 	Sub(TEXT("DPS_Order"), &UHrotDpsWorld::OnOrder);
+	Sub(TEXT("DPS_Ambience"), &UHrotDpsWorld::OnAmbience);   // U-19d (DD-028): the war layers
+	Sub(TEXT("DPS_Weather"), &UHrotDpsWorld::OnWeather);
 	StartClock(C, Dps->GetClientId());
 	// U-18m — the player station's readers on this fresh client (the old client's went with it)
 	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Reconnect();
@@ -418,6 +421,7 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 	const FFire& D = *static_cast<const FFire*>(S.Data);
 	const double Real = RealNow();
 	Clock.OnSample(D.SimTime, Real);
+	if (UHrotAmbiencePlayer* Amb = UHrotAmbiencePlayer::Get(this)) Amb->NoteShot();   // U-19d (A-5): simulated fire is heard, the baked-in battle beds go 6 dB down
 	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
 	FEnt* Shooter = Ents.Find(D.ShooterId);
 	const bool bPerson = Shooter && Shooter->bHasPerson;
@@ -615,6 +619,62 @@ void UHrotDpsWorld::OnOrder(const FHrotDpsSample& S)
 	const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Order*>(S.Data);
 	Clock.OnSample(D.SimTime, RealNow());
 	SayCue(HrotVoiceLines::ForOrder(UTF8_TO_TCHAR(D.Name)), D.FromId, D.ToId, false);
+}
+
+// -- U-19d: ambience and weather --------------------------------------------------------------------------------------------------------
+void UHrotDpsWorld::OnAmbience(const FHrotDpsSample& S)
+{
+	const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Ambience*>(S.Data);
+	UHrotAmbiencePlayer* P = UHrotAmbiencePlayer::Get(this);
+	if (!P) return;
+	if (!S.bAlive || !S.bValid) { P->RemoveRow(D.Id); Count(TEXT("ambience row ended")); return; }   // disposed: its loop fades (HROT honours UntilSim by disposing)
+	FHrotAmbienceMix::FRow R;
+	R.Id = D.Id; R.Kind = UTF8_TO_TCHAR(D.Kind); R.Intensity = D.Intensity;
+	R.bHasPosition = D.HasPosition;
+	if (D.HasPosition) { R.PositionCm = HrotDpsMotion::ToUnreal(FVector3d(D.Position.X, D.Position.Y, D.Position.Z), OriginCm); R.RadiusCm = D.Radius * 100.f; }
+	P->SetRow(R);
+	Count(TEXT("ambience row"));
+}
+
+void UHrotDpsWorld::OnWeather(const FHrotDpsSample& S)
+{
+	const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Weather*>(S.Data);
+	if (!S.bAlive || !S.bValid) { Weather.Remove(D.Id); Count(TEXT("weather row ended")); ApplyWeather(); return; }
+	FHrotWeatherPick::FRow R;
+	R.Id = D.Id; R.FeatherM = D.FeatherM; R.WindSpeedMps = D.WindSpeedMps; R.PrecipMmPerHour = D.PrecipitationMmPerHour;
+	const auto K = D.Precipitation;
+	R.bRain = K == SimNetGateway_Protocol_DdsPlayer_PrecipitationKindDrizzle || K == SimNetGateway_Protocol_DdsPlayer_PrecipitationKindRain ||
+		K == SimNetGateway_Protocol_DdsPlayer_PrecipitationKindSleet || K == SimNetGateway_Protocol_DdsPlayer_PrecipitationKindHail;
+	for (uint32 I = 0; I < D.Outline._length; ++I) R.Outline.Add(FVector2D(D.Outline._buffer[I].X, D.Outline._buffer[I].Y));
+	Weather.Set(R);
+	Count(R.Outline.Num() >= 3 ? TEXT("weather region") : TEXT("weather global"));
+	ApplyWeather();
+}
+
+void UHrotDpsWorld::ApplyWeather()
+{
+	UHrotSoundscape* Snd = UHrotSoundscape::Get(this);
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+	if (!Snd) return;
+	if (Weather.Num() == 0)   // no row (any more): the soundscape's own hand / console values are back
+	{
+		if (bHandSaved) { Snd->RainAmount = HandRain; Snd->WindAmount = HandWind; bHandSaved = false; }
+		return;
+	}
+	if (!bHandSaved) { HandRain = Snd->RainAmount; HandWind = Snd->WindAmount; bHandSaved = true; }
+	const FVector Cam = R ? R->ViewLocation() : OriginCm;
+	const FVector E = UnrealToEnuM(Cam);
+	const FHrotWeatherPick::FOut O = Weather.At(FVector2D(E.X, E.Y));
+	Snd->RainAmount = O.Rain; Snd->WindAmount = O.Wind;
+}
+
+FString UHrotDpsWorld::DescribeWeather() const
+{
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+	if (Weather.Num() == 0) return TEXT("none");
+	const FVector E = UnrealToEnuM(R ? R->ViewLocation() : OriginCm);
+	const FHrotWeatherPick::FOut O = Weather.At(FVector2D(E.X, E.Y));
+	return FString::Printf(TEXT("%.2f %.2f"), O.Rain, O.Wind);
 }
 
 void UHrotDpsWorld::OnManDowned(const FHrotDpsSample& S)
@@ -1185,6 +1245,7 @@ void UHrotDpsWorld::Tick(float)
 		PendingLevel.Reset();
 	}
 	TickClock(R);   // U-18p: the probe's echoes, ClientWorld
+	if (Weather.Num() && R >= NextWeatherAt) { NextWeatherAt = R + 1.0; ApplyWeather(); }   // U-19d: the camera moves between regions
 	{   // U-19c: a burst whose rounds stopped is faded out (after the same delay as its start)
 		TArray<int32> Cuts; Bursts.PollCuts(R, Cuts);
 		if (Cuts.Num()) if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld())) for (int32 H : Cuts) { SR->FadeHeld(H, 0.06f); Count(TEXT("burst cut")); }

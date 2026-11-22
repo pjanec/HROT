@@ -123,6 +123,10 @@ public:
 	/** "<n> done, last: <index> <Written|Failed> '<file>' <ms> ms audio <n> '<why>'" */
 	/** U-19c - one round of a burst (DD-027): a rifle shot (SmallArms) with BurstId / Rounds / Index; the side comes from ShooterId's Entity */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationBurstRound(double SimTime, int32 ShooterId, FVector OriginM, FVector VelocityMs, int32 BurstId, int32 Rounds, int32 Index);
+	/** U-19d (DD-028) - an ambience row (Kind, Intensity; a place in ENU metres and a radius when bPositioned) and a weather row (a global one when Outline is
+	 *  empty; else a region with its outline, ENU metres); bDispose = the row ends (the writer disposes it) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationAmbience(int32 Id, const FString& Kind, float Intensity, bool bPositioned, FVector PositionM, float RadiusM, bool bDispose);
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationWeather(int32 Id, const TArray<FVector2D>& OutlineM, float FeatherM, float WindSpeedMps, int32 Precipitation, float MmPerHour, bool bDispose);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString FakeStationFrameDone() const { return FakeDone; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationFramesDone() const { return FakeDoneCount; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationStepAcks() const { return FakeAcks; }

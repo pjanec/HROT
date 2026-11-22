@@ -3,7 +3,7 @@
     UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi     HROT_SOUND_JOB = { "root": <cut root>, "dest": "/Game/Hrot/Audio",
                                                                                               "out": <result json> }
 Every WAV under root/<group>/<name>.wav becomes /Game/Hrot/Audio/<group>/<name> (a USoundWave). The loops (the beds, the engines, the
-trot, the fire, the flame) are marked looping; the one-shots (<name>_NN) are not. The raw library and the cut WAVs stay out of git.
+trot, the fire, the flame; U-19d: amb/war_*, al_*, nv_* even as _NN variants) are marked looping; the one-shots (<name>_NN, amb/ev_*) are not. The raw library and the cut WAVs stay out of git.
 """
 import json, os, re, traceback
 import unreal
@@ -18,7 +18,13 @@ def log(m):
     unreal.log_warning(f"[HROT-SOUND] {m}"); R["log"].append(m)
 
 
+# U-19d: the war ambience layers (the purchased pack): beds, alarms and naval beds LOOP even as variants (war_aftermath_01 ..); the events (ev_*) never do
+WAR_LOOPS = ("war_", "al_", "nv_")
+
+
 def is_loop(group, name):
+    if group == "amb" and name.startswith(WAR_LOOPS): return True
+    if group == "amb" and name.startswith("ev_"): return False
     if re.search(r"_\d\d$", name): return False          # a one-shot variant
     return group in LOOP_GROUPS or name in LOOP_NAMES
 

@@ -14,6 +14,7 @@ A flat level, a wall; the camera at the ENU origin 2 m up looking east (90 deg).
 U-19b (the squad's radio): a fake Report (Lace, Kia 2) from unit 9 and an Utterance CmdMove from man 1; the player must log beep > sgt > rep_losses > squelch and the soundscape's
 LibraryMissing must not grow; then the camera follows man 1 (his net = unit 9: the nearest same-side unit) and an Order from unit 9 is heard in the earpiece, with the receiver's answer.
 U-19c (bursts): a fake 3-round burst (BurstId 77) from man 1 plays ONE clip wpn/rifle_b3, indices 1 and 2 are covered (no per-round rifle sound); a 4-round burst that stops after 2 is cut.
+U-19d (ambience + weather): a fake battle.city bed and a positioned alarm.airraid row start their loops (the bed 6 dB down after the simulated fire), a global rain row sets RainAmount / WindAmount, the dispose fades the loops.
 Pictures (HighResShot 1 = the viewport's own size): mode 3 (every unit), mode 2 (the units + every aircraft), mode 1 (none); then the symbol sheet (UHrotCardLayer.export_symbol_sheet). Checks read UHrotDpsWorld.describe_labels.
 """
 import glob, json, os, time, traceback
@@ -237,6 +238,38 @@ def burst():
         d = lambda k: e.get(k, 0) - e0.get(k, 0)
         R["burst2"] = {k: d(k) for k in e if d(k)}
         check("burst: a burst that stops is faded out (one cut)", d("burst clip wpn/rifle_b4") == 1 and d("burst cut") == 1, str(R["burst2"]))
+        S.update(phase="ambience", t=time.time() + 0.5)
+
+
+def ambience():
+    """U-19d (DD-028): a fake battle.city bed and a positioned alarm.airraid row start their loops (the bed 6 dB down: simulated shots were just heard),
+    a global rain row raises RainAmount / WindAmount; the dispose fades the loops (2 s) and the weather row ends"""
+    sub, w, gw = S["sub"], S["w"], S["gw"]
+    A, SND = unreal.HrotAmbiencePlayer.for_world(gw), unreal.HrotSoundscape.for_world(gw)
+    st = S.setdefault("a", {"step": 0})
+    if st["step"] == 0:
+        st["missing0"] = SND.get_editor_property("library_missing"); st["s0"] = A.get_editor_property("loops_started")
+        sub.fake_station_ambience(1, "battle.city", 0.8, False, unreal.Vector(0, 0, 0), 0.0, False)
+        sub.fake_station_ambience(2, "alarm.airraid", 1.0, True, unreal.Vector(40, 0, 0), 300.0, False)
+        sub.fake_station_ambience(3, "weird.unknown", 1.0, False, unreal.Vector(0, 0, 0), 0.0, False)
+        sub.fake_station_weather(1, [], 0.0, 7.5, 2, 4.0, False)   # a global row: rain 4 mm/h, wind 7.5 m/s
+        st["step"] = 1; S["t"] = time.time() + 5.0; return
+    if st["step"] == 1:
+        txt = A.loops_text(); R["ambience"] = A.describe(); log("ambience: " + A.describe())
+        check("ambience: the bed and the positioned alarm started (2 loops, the unknown kind none)", A.get_editor_property("loops_started") - st["s0"] == 2 and "amb/war_city" in txt and "amb/al_airraid" in txt, A.describe())
+        bed = [x for x in txt.split(", ") if x.startswith("amb/war_city")]
+        check("ambience: the bed is 6 dB down under the simulated fire (0.8 x 0.5)", bool(bed) and abs(float(bed[0].split()[-1]) - 0.4) < 0.02, str(bed))
+        check("ambience: the weather row sets the soundscape's rain and wind", abs(SND.get_editor_property("rain_amount") - 0.5) < 0.01 and abs(SND.get_editor_property("wind_amount") - 0.5) < 0.01 and w.describe_weather() == "0.50 0.50",
+              f"rain {SND.get_editor_property('rain_amount')} wind {SND.get_editor_property('wind_amount')} - {w.describe_weather()}")
+        check("ambience: no clip missing from the library", SND.get_editor_property("library_missing") == st["missing0"], f"LibraryMissing {SND.get_editor_property('library_missing')}")
+        sub.fake_station_ambience(1, "", 0.0, False, unreal.Vector(0, 0, 0), 0.0, True)    # the rows end
+        sub.fake_station_ambience(2, "", 0.0, False, unreal.Vector(0, 0, 0), 0.0, True)
+        sub.fake_station_weather(1, [], 0.0, 0.0, 0, 0.0, True)
+        st["step"] = 2; S["t"] = time.time() + 4.0; return
+    if st["step"] == 2:
+        R["ambience2"] = A.describe(); log("ambience: " + A.describe())
+        check("ambience: the dispose faded both loops out", A.get_editor_property("fades") >= 2 and A.get_editor_property("loops_playing") == 0 and A.loops_text() == "", A.describe())
+        check("ambience: the weather row ended (the hand values are the soundscape's again)", w.describe_weather() == "none", w.describe_weather())
         S.update(phase="end", t=time.time() + 0.5)
 
 
@@ -264,6 +297,7 @@ def tick_once():
         elif ph == "gizmotop": gizmotop()
         elif ph == "voice": voice()
         elif ph == "burst": burst()
+        elif ph == "ambience": ambience()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
         if time.time() - T0 > 300: finish(False, "timeout")
     except Exception:

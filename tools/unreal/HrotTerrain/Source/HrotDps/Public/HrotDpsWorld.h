@@ -39,6 +39,7 @@
 #include "HrotDpsLife.h"
 #include "HrotVoiceLines.h"
 #include "HrotBurstTracker.h"
+#include "HrotAmbience.h"
 #include "HrotDpsWorld.generated.h"
 
 class UHrotVehicleKit;
@@ -348,6 +349,18 @@ private:
 	FHrotCallsigns Callsigns;
 	// -- U-19c: bursts (DD-027): one held clip per burst, cut when the rounds stop --
 	FHrotBurstTracker Bursts;
+	// -- U-19d: ambience layers (-> UHrotAmbiencePlayer) and weather (-> the soundscape's RainAmount / WindAmount) --
+	FHrotWeatherPick Weather;
+	double NextWeatherAt = 0;
+	bool bHandSaved = false;   // the soundscape's hand / console rain and wind, kept while weather rows rule
+	float HandRain = 0.f, HandWind = 0.f;
+	void OnAmbience(const struct FHrotDpsSample& S);
+	void OnWeather(const struct FHrotDpsSample& S);
+	void ApplyWeather();
+public:
+	/** "<rain> <wind>" the weather rows give at the camera now, or "none" when no row exists (the soundscape keeps its hand / console values) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeWeather() const;
+private:
 	/** true = this round's own sound is handled by the burst logic (started the burst's clip, or covered by it); false = play it per round */
 	bool BurstSound(uint32 BurstId, int32 Rounds, int32 Index, const TCHAR* Stem, const FVector& At, class USoundAttenuation* Att, class USoundConcurrency* Con);
 	void SendGizmoView(double Real);

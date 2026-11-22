@@ -16,7 +16,10 @@ Reads WAVs (PCM 16/24/32, float 32; mono, stereo, ambisonic AmbiX or surround), 
             round), faded out over 30 ms, peak-levelled like the shots. The recipe's `src` is several substrings joined by `|`, its count the
             variants kept per N (the steadiest), its name the stem: <stem>b<N>_NN
 
-Usage: python sound_cut.py <raw root> <out root> [--set gdc|gdc23|pro|vox|burst] [--only <name substring>]
+  bed     - a whole recording (one file, matched by its EXACT name) kept whole, stereo, RMS-levelled (a loud one is held at a -0.4 dBFS peak):
+            the war ambience layers (U-19d); the output index is the recipe's count field (amb/<set>_NN)
+
+Usage: python sound_cut.py <raw root> <out root> [--set gdc|gdc23|pro|vox|burst|amb] [--only <name substring>]
 The recipes are below; a recipe's `src` is a substring of the file's path under the raw root. Nothing here reads the network.
 """
 import math, os, struct, sys
@@ -213,6 +216,36 @@ R_VOX += [("vox/sgt_" + n.lower(), _VOX_PREFIX + "this is Sergeant " + n, "whole
 R_VOX += [("vox/over", _VOX_PREFIX + "over", "whole", 0, 1, 1, -3), ("vox/over", _VOX_PREFIX + "over 2", "whole", 0, 1, 2, -3)]
 R_VOX += [("radio/beep", "COMTran_Military walkie talkie button beep" + ("" if i == 1 else " %d" % i), "whole", 0, 1, i, -3) for i in range(1, 8)]
 R_VOX += [("radio/squelch", "COMTran_Military walkie talkie static squelch" + ("" if i == 1 else " %d" % i), "whole", 0, 1, i, -3) for i in range(1, 6)]
+# ---- U-19d: the war ambience layers of the PURCHASED pack (docs/designs/IG/DESIGN_IG_Squad_Radio.md §6). PRIVATE like R_PRO. `--set amb`.
+# (name, exact file stem, "bed", 0, 2 channels, output index, RMS dBFS). A set's recordings are its variants _01..
+_A = "AMBWar_"
+_B = "BOATMil_"
+_AMB_SETS = [
+    ("amb/war_distant", [_A + "Distant gunshots and indoor battlefield", _A + "Sniper shooting in the distance"]),
+    ("amb/war_city", [_A + "City battlefield ambience"]),
+    ("amb/war_night", [_A + "Nighttime battlefield with distant shots"]),
+    ("amb/war_heavy", [_A + "Intense mid range battlefield", _A + "Tank fire on the battlefield"]),
+    ("amb/war_sniper", [_A + "Sniper shooting in the distance"]),
+    ("amb/war_ambush", [_A + "Jungle patrol ambush ambience"]),
+    ("amb/war_aftermath", [_A + "Burning house war zone ambience", _A + "Burning house war zone ambience 2", _A + "Burning house war zone ambience 3"]),
+    ("amb/ev_airstrike", [_A + "Tactical airstrike"]),
+    ("amb/ev_drone", [_A + "Drone attack and explosion"]),
+    ("amb/ev_rocket", [_A + "Nighttime rocket launch and explosion"]),
+    ("amb/ev_convoy", [_A + "Armored convoy approaching"]),
+    ("amb/ev_evacuation", [_A + "Military trucks evacuation ambience"]),
+    ("amb/ev_evacuation_city", [_A + "Citywide evacuation"]),
+    ("amb/ev_nuclear", [_A + "Atomic bomb drop and explosion"]),
+    ("amb/al_airraid", [_A + "War air raid siren", _A + "War air raid siren 2", _A + "War air raid siren 3"]),
+    ("amb/al_airraid_pre", [_A + "War air raid siren preliminary alert", _A + "War air raid siren preliminary alert 2"]),
+    ("amb/al_bell", [_A + "Emergency alarm bell ring", _A + "Emergency alarm bell ring 2", _A + "Emergency alarm bell ring 3", _A + "Emergency alarm bell ring 4"]),
+    ("amb/al_intruder", [_A + "Enemy base intruder alarm", _A + "Enemy base intruder alarm 2", _A + "Enemy base intruder alarm 3"]),
+    ("amb/al_emergency", [_A + "City emergency sirens and explosions"]),
+    ("amb/nv_ship", [_B + "Military ship at sea ambience loop", _B + "Military ship at sea ambience loop 2", _B + "Military ship at sea ambience loop 3"]),
+    ("amb/nv_warship", [_B + "Warship rumbling ambience", _B + "Warship rumbling ambience 2"]),
+    ("amb/nv_underwater", [_A + "Underwater battlefield with explosions"]),
+]
+R_AMB = [(n, s, "bed", 0, 2, i + 1, -24) for n, ss in _AMB_SETS for i, s in enumerate(ss)]
+
 # ---- U-19c: bursts of an exact round count. `--set burst`. (name stem, sources joined by |, "burst", tail seconds, 1, variants per N, level)
 _W = "Military Warfare SFX Pack"
 R_BURST = [
@@ -467,7 +500,7 @@ def main():
         for f in fs:
             if f.lower().endswith(".wav"): files.append(os.path.join(d, f))
     total = 0
-    recipes = {"gdc": R, "pro": R_PRO, "gdc23": R_GDC23, "vox": R_VOX, "burst": R_BURST}[sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "gdc"]
+    recipes = {"gdc": R, "pro": R_PRO, "gdc23": R_GDC23, "vox": R_VOX, "burst": R_BURST, "amb": R_AMB}[sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "gdc"]
     for rec in recipes:
         name, src, mode, seconds, want, count, target = rec[:7]
         min_s = rec[7] if len(rec) > 7 else 0.0
@@ -490,13 +523,19 @@ def main():
                           os.path.basename(p)[:46]), flush=True)
                 if len(keep) < count: print("FEW %sb%d: %d variant(s) of %d sources" % (name, n, len(keep), len(hits)))
             continue
-        if mode == "whole":   # exact: the file stem (without the pack's tail) IS the recipe's src
+        if mode in ("whole", "bed"):   # exact: the file stem (without the pack's tail) IS the recipe's src
             hits = sorted(p for p in files if os.path.basename(p)[:-4].replace("_GfxSounds_MilitaryWarfare", "").lower() == src.lower())
         else: hits = sorted(p for p in files if src.lower() in p.lower())
         if not hits: print("MISSING", name, "<-", src); continue
         path = hits[0] if mode != "shots" else None
         try:
-            if mode == "whole":
+            if mode == "bed":
+                w = Wav(hits[0])
+                x, rate = resample(to_channels(w.read(0, w.frames), hits[0], want), w.rate)
+                gain = 10 ** ((target - db(float(np.sqrt(np.mean(x ** 2))))) / 20)
+                gain = min(gain, 0.955 / float(np.max(np.abs(x)) + 1e-9))   # never clipped: a loud recording is held at its peak
+                outs, why = [x * gain], "%.0f s whole, rms %.1f dBFS" % (len(x) / rate, db(float(np.sqrt(np.mean((x * gain) ** 2)))))
+            elif mode == "whole":
                 outs, rate, why = cut_whole(Wav(hits[0]), hits[0], want, target)
             elif mode == "loopfile":   # a finished loop: converted whole (channels, rate, level)
                 w = Wav(hits[0])
@@ -519,7 +558,7 @@ def main():
         except Exception as e:
             print("FAILED", name, e); continue
         for i, x in enumerate(outs):
-            fn = os.path.join(out, *(name + ("_%02d" % (i + 1) if mode == "shots" else "_%02d" % count if mode == "whole" else "") + ".wav").split("/"))
+            fn = os.path.join(out, *(name + ("_%02d" % (i + 1) if mode == "shots" else "_%02d" % count if mode in ("whole", "bed") else "") + ".wav").split("/"))
             write(fn, x, rate)
             total += os.path.getsize(fn)
         src_desc = os.path.basename(hits[0])[:60]

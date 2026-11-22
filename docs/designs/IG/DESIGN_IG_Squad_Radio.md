@@ -240,3 +240,20 @@ already read (today set by hand); the war layers get their own player because th
 | A-6 | weather: the region whose outline holds the camera (the feather blending toward the global row) else the global row; `RainAmount` = clamp(mm/h ÷ 8), `WindAmount` = clamp(m/s ÷ 15); the hand / console values are used only when no row exists | a new rain player — the beds exist (U-18n) |
 | A-7 | the beds are cut whole (`loopfile`-style, stereo, levelled to the U-18n beds' -24 dBFS RMS) into `/Game/Hrot/AudioPro/amb/` — private | onset cutting — a bed is not a shot |
 | A-8 | the derived "battle beyond what you see" (our note's option ①) is NOT in this slice | scope — HROT's layers come first |
+
+### 6a. As built (U-19d)
+
+| design said | built | why |
+|---|---|---|
+| `FHrotAmbienceMix` / `FHrotWeatherPick` in HrotDps | both in **HrotTerrain** (`HrotAmbience.h`) beside `UHrotAmbiencePlayer`; `UHrotDpsWorld` owns the weather pick and hands ambience rows to the player (`SetRow` / `RemoveRow`) | the player (HrotTerrain) reads the mix; HrotDps depends on HrotTerrain, not the reverse (as U-19b) |
+| looping vs one-shot imports | `hrot_sound_import.py`: group `amb`, names `war_*`, `al_*`, `nv_*` LOOP even as `_NN` variants; `ev_*` never loops. The wave carries the flag; the player only starts the component | a component cannot loop a non-looping wave; one rule in the importer, none at play time |
+| a bare family kind | `battle` ⇒ `war_distant`, `alarm` ⇒ `al_emergency`, `naval` ⇒ `nv_ship`; a bare `event` ⇒ none | A-1's fallback needs an end of the chain; an event is always a named one |
+| the war layers' volume | `UHrotAmbiencePlayer::WarVolume` (default 1, console `hrot.snd.War`), not `AmbienceVolume` (0, the free beds) | user's hold on the free beds |
+| A-2 positioned rows | the source sits AT the position with `Falloff(R/2, R)`; the pure `GainOf` (full within R/2, linear to 0 at R) ranks the rows for A-3 and is the 2-D gain only for positionless ones | the engine attenuates a spatial source; the mix must still pick the loudest two |
+| A-5 | `OnFire` calls `NoteShot()` for every Fire; `war_*` beds (not `nv_*`) are ×0.5 for 10 s | a naval bed has no shots baked in |
+| weather outside any region, no global row | blends toward calm (0 rain, 0 wind) while rows exist; with NO rows at all the soundscape's hand / console values are restored | A-6 |
+| `Outline` | the gateway's ground-plane metres (x, y of the points); the camera is converted with `UnrealToEnuM`; polygon test + distance to the edge for the feather | A-6 |
+| precipitation | drizzle, rain, sleet, hail drive the rain bed; snow does not | the rain bed is rain |
+| the dispose | the writer's dispose reaches `OnAmbience` / `OnWeather` as `!bAlive`; the test client got `FHrotDpsClient::Dispose` | the fakes must be able to end a row |
+| clips (A-7) | `sound_cut.py --set amb` (mode `bed`, exact name match, whole file, stereo, RMS -24 dBFS, a loud take held at a -0.4 dBFS peak): 37 files in `/Game/Hrot/AudioPro/amb/` (30 loops, 7 events); `war_night` is held at RMS -31 (peaks) | no clipping |
+| a device-less run (`-NoSound`) | `Start` finds the clip but has no component; the loop is still counted and timed | the scene runs with no audio device; the clip lookup (`LibraryMissing`) is still proven |

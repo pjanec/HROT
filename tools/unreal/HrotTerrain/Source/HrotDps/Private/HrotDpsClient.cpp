@@ -199,6 +199,12 @@ int32 FHrotDpsClient::MakeRawWriter(const FString& Topic)
 	return W;
 }
 
+bool FHrotDpsClient::Dispose(const FString& Topic, const void* Sample)
+{
+	if (!Writers.Contains(Topic)) return false;   // nothing was ever written on this topic
+	return dds_dispose(Writers.FindRef(Topic), Sample) == DDS_RETCODE_OK;
+}
+
 bool FHrotDpsClient::Write(const FString& Topic, const void* Sample)
 {
 	int32 W = Writers.FindRef(Topic);

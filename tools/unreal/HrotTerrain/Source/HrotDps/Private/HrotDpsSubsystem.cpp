@@ -174,6 +174,32 @@ bool UHrotDpsSubsystem::FakeStationBurstRound(double SimTime, int32 ShooterId, F
 	return Dps.Write(TEXT("DPS_Fire"), &F);
 }
 
+bool UHrotDpsSubsystem::FakeStationAmbience(int32 Id, const FString& Kind, float Intensity, bool bPositioned, FVector PositionM, float RadiusM, bool bDispose)
+{
+	SimNetGateway_Protocol_DdsPlayer_Ambience A{};
+	A.Id = Id;
+	if (bDispose) return Dps.Dispose(TEXT("DPS_Ambience"), &A);
+	FCStringAnsi::Strncpy(A.Kind, TCHAR_TO_UTF8(*Kind), sizeof(A.Kind));
+	A.Intensity = Intensity; A.HasPosition = bPositioned; A.Radius = RadiusM;
+	A.Position = { PositionM.X, PositionM.Y, PositionM.Z };
+	return Dps.Write(TEXT("DPS_Ambience"), &A);
+}
+
+bool UHrotDpsSubsystem::FakeStationWeather(int32 Id, const TArray<FVector2D>& OutlineM, float FeatherM, float WindSpeedMps, int32 Precipitation, float MmPerHour, bool bDispose)
+{
+	SimNetGateway_Protocol_DdsPlayer_Weather W{};
+	W.Id = Id;
+	if (bDispose) return Dps.Dispose(TEXT("DPS_Weather"), &W);
+	TArray<SimNetGateway_Protocol_DdsPlayer_Vec3d> Pts;
+	for (const FVector2D& P : OutlineM) Pts.Add({ P.X, P.Y, 0.0 });
+	W.Outline._length = W.Outline._maximum = uint32(Pts.Num());
+	W.Outline._buffer = Pts.Num() ? Pts.GetData() : nullptr;
+	W.Outline._release = false;
+	W.FeatherM = FeatherM; W.WindSpeedMps = WindSpeedMps;
+	W.Precipitation = SimNetGateway_Protocol_DdsPlayer_PrecipitationKind(Precipitation); W.PrecipitationMmPerHour = MmPerHour;
+	return Dps.Write(TEXT("DPS_Weather"), &W);
+}
+
 bool UHrotDpsSubsystem::FakeStationClock(bool bStepped, double AnchorSimTime, float TimeScale, int64 TimelineEpoch, int64 StepSeq)
 {
 	static uint32 Seq = 0;
