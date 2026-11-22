@@ -5,6 +5,22 @@ related-designs:
 -->
 # DECISIONS — backend (newest at the top)
 
+## CE-3445 — nothing takes effect on a paused frame (B) · `2026-11-22` · ✅ **DECIDED by the user**
+
+🔒 User, verbatim: *"i cant imagine how an order could take effect on paused world where no simulation should be running. at most it could be placed to some queue
+to be executed the first frame after the pause."* · *"isnt this the same flaw as fith order? does it need to? why not on the first unpaused frame, wouldnt that be one
+single way for anything?"* · *"'edit mode would then keep the AI as authored data' - i hoped this is what should have been happening. intents are the way to store AI
+settings at editing time … My desire is simplicity and consistency."*
+
+| | |
+|---|---|
+| the rule | ONE way for anything: a behaviour change (an order from HTTP / UI / the commander seat, a brain's order, a unit's type defaults) takes effect only on a frame where time ADVANCES; one that arrives while paused waits (the paused/stepped design's step-reader window) and lands on the next step, in order |
+| editing | the AI is the INTENT (`InitialBrainIntent`: task, SOP, ROE) — kept on the unit for the whole edit session (no longer Transient / consumed), shown and edited by the AI panels, and what the SAVE writes (same JSON keys, so no scenario file changes). A running behaviour exists only once time runs |
+| a run | on its first advancing frame each intent starts through the ingress, as a load does today |
+| supersedes | the paused/stepped design's "BehaviorIngressSystem — EVERY edit" row (Appendix A) and R-192's save-from-the-running-state (`BrainSnapshotTranslator`, Sensors_And_Doctrine §7.5) — kept as HISTORY |
+| why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
+| next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
+
 ## CE-4680 — the LLM commander L-2b: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |
