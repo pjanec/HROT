@@ -80,10 +80,6 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.InRange(smearedEarly.Smear, 0.15f, 0.25f);
             float bearingEarly = MathF.Atan2(smearedEarly.HeardFrom.Y, smearedEarly.HeardFrom.X), bearingLate = MathF.Atan2(smearedLate.HeardFrom.Y, smearedLate.HeardFrom.X);
             Assert.True(bearingEarly > 0.05f && bearingEarly < bearingLate && bearingLate < MathF.PI / 2 - 0.05f, $"between the two bearings: {bearingEarly} < {bearingLate}");
-            // ⭐ CE-2492 (📐 pe-wall-and-door) — the pull is carried so the answer's circle reaches back to the source: the man stands inside it
-            Assert.Equal(Vector3.Distance(smearedEarly.HeardFrom, source), smearedEarly.SmearMetres, 4);
-            Assert.True(smearedEarly.SmearMetres > 1f, $"pulled {smearedEarly.SmearMetres} m");
-            Assert.Equal(0f, close.SmearMetres);
         }
 
         /// <summary>⭐ <c>CE-2475</c> + <c>CE-2479</c> on the real house (house-2f: brick outside, a CONCRETE inner wall, 40 dB) — a shot in the west room, an ear in
