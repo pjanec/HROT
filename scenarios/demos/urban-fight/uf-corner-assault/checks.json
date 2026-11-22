@@ -26,10 +26,10 @@
         "op": "==",
         "value": 8
       },
-      "before": "Red beaten"
+      "before": "Red beaten-0.5"
     },
     {
-      "name": "L4 ...and no hold either: the contact reaction does not pause it (CE-2467)",
+      "name": "L4 ...and no hold either: the contact reaction does not pause it (CE-2467; ⭐ CE-2481 the window ends half a second before Red is beaten — the drill ending in the sample the last Red man falls is the win, not a pause)",
       "never": {
         "on": "field",
         "who": "Blue Squad",
@@ -37,7 +37,7 @@
         "op": "==",
         "value": 7
       },
-      "before": "Red beaten"
+      "before": "Red beaten-0.5"
     },
     {
       "name": "L3 the attack wins: both Red men are down by the end",

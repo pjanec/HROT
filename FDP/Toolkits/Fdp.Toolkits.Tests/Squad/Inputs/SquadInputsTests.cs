@@ -179,6 +179,23 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             Assert.Equal(0.25f, SquadInputs.SquadEnemyStrengthRatio(MakeCtx(commander, Entity.Null)), 3);
         }
 
+        /// <summary>⭐⭐ <c>CE-2482</c> (🔒 user: "Yes, do that please"; 📐 uf-corner-assault 23 s) — a HEARD contact within <see cref="SquadInputs.ExplainedMetres"/>
+        /// (20 m) of an identified enemy is explained by him: one seen enemy + a shot heard 10 m from him is still 1 ÷ (1 + 4) = 0.2; a shot heard 60 m away is a
+        /// second, unknown enemy ⇒ 2 ÷ 6. 🔴 Red-proof: <c>ExplainedBySeen</c> always false ⇒ the near shot counts ⇒ 0.33 ⇒ red.</summary>
+        [Fact]
+        public void CE2482_AHeardContactNearASeenEnemy_IsHim_AFarOneIsAnother()
+        {
+            var (commander, members) = ArmedSquad(4, enemies: 1);   // seen at (5, 0)
+            TargetMemory.HearContact(ref _repo.GetComponentRW<TargetMemory>(members[1]), 15f, 0f, 0f, 2f, 4, 0.5f, 2);
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(_repo, commander, currentTick: 20, mergeIntervalTicks: 1);
+            Assert.Equal(2, _repo.GetComponent<SquadCognitiveState>(commander).Contacts.Count);   // pooled apart (outside the circle)…
+            Assert.Equal(0.2f, SquadInputs.SquadEnemyStrengthRatio(MakeCtx(commander, Entity.Null)), 3);   // …but explained by the seen man
+
+            TargetMemory.HearContact(ref _repo.GetComponentRW<TargetMemory>(members[2]), 65f, 0f, 0f, 2f, 4, 0.5f, 3);
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(_repo, commander, currentTick: 30, mergeIntervalTicks: 1);
+            Assert.Equal(2f / 6f, SquadInputs.SquadEnemyStrengthRatio(MakeCtx(commander, Entity.Null)), 3);
+        }
+
         // ── CE-2123 S2: the squad's contact response, decided once ───────────────
 
         private (Entity commander, Entity[] members) ArmedSquad(int memberCount, int enemies)

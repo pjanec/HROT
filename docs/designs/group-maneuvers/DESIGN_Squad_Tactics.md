@@ -1860,6 +1860,7 @@ copy per row; and superiority is the SAME test R4 uses, so "press on" and "never
 | | as built | where |
 |---|---|---|
 | the guard | `ReactToContactBehavior.PressesTheAttack`: the order is `OrderKind.Attack` and RUNNING (not paused), ≥ 2 men in the fight, `AfterContact.Superior` (enemy share ≤ ⭐ `PressShare` 0.4 — 1.5 : 1, CE-2481; ⛔ SUPERSEDED: ≤ 0.25, the 3 : 1 that starts an assault) | `SquadContactBehaviors.cs` |
+| ⭐ heard, then seen (CE-2482, `2026-11-22`; user: "Yes, do that please") | the strength count (`SquadInputs.EnemyDangerOf` — the ONE reader behind every superiority test) counts a heard contact within `ExplainedMetres` 20 m of an identified enemy as 0: he is the man heard. 📐 uf-corner-assault 23 s: both Red seen, older footsteps near them pooled ⇒ 4 (then 3) for 2. Rail `SquadInputsTests.CE2482_*` | `SquadInputs.ExplainedBySeen` |
 | ⭐ hysteresis (CE-2481, `2026-11-22`) | a RUNNING ordered attack is broken off only at the culminating point (1.5 : 1), while R4 still needs 3 : 1 to START an assault. 📐 uf-corner-assault: 6 v 2 is exactly 0.25 — one man grazed (100 → 87.5) at 16.1 s made it 0.254 and the whole squad stopped to react; the pool's count was right (2 contacts, CE-2474). Rail `CE2481_ARunningAttack_PressesUntilOneAndAHalfToOne_NotStoppedByOneGraze` | `AfterContact.PressShare` |
 | the contact rows | `NotDefending` gains `!PressesTheAttack` — the four contact rows already carry it | `SquadDefendBehavior.NotDefending` |
 | the care row | a new guard `NotPressingTheAttack` | `BasicSquadSop` (id c2467…a3) |
