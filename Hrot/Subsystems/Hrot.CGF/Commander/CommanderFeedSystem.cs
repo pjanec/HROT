@@ -45,6 +45,11 @@ public sealed class SeatRuntime : IDisposable
     // ⭐ CE-4679 — the think-pause hold (frame thread, CommanderActionSystem)
     internal volatile bool Holding;   // read from any thread (a stepping run's hold, GET /commanders)
     internal bool PausedByUs, UserPaused, OwnPauseSeen;
+
+    // ⭐ CE-4680 B-1 — the play the seat gave its commander as his task (frame thread), and the direct orders waiting for it to end
+    internal string? Play;
+    internal uint PlayRun;
+    internal readonly System.Collections.Generic.List<CommanderAction> AfterPlay = new();
     internal long HoldSince;
 
     /// <summary>True while this seat holds the clock for its mind.</summary>
@@ -435,7 +440,9 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         for (int i = 0; i < roster.Count; i++)
             if (world.IsAlive(roster.SubordinateEntities[i])) sb.Append(' ').Append(NameOf(world, roster.SubordinateEntities[i]));
         sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
-        sb.Append("Actions: order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact · hold(squad) · ask_sitrep(squad) · note(text).");
+        sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold — the play orders your squads for you · stop_play() · ")
+          .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact (a direct order ends a running play first) · ")
+          .Append("hold(squad) · ask_sitrep(squad) · note(text).");   // ⭐ CE-4680 B-1
         return sb.ToString();
     }
 

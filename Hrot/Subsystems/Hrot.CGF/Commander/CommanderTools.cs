@@ -22,6 +22,8 @@ public static class CommanderTools
         }
         var kinds = new JsonArray();
         foreach (var k in CommanderActionSystem.Orders) kinds.Add(k);
+        var plays = new JsonArray();
+        foreach (var p in CommanderActionSystem.Plays) plays.Add(p);
         return new JsonArray
         {
             Tool("order", "Give one of your squads an order.",
@@ -30,6 +32,15 @@ public static class CommanderTools
                  "squad", "kind"),
             Tool("hold", "Tell a squad to hold where it is.", new JsonObject { ["squad"] = Str("your squad's name") }, "squad"),
             Tool("ask_sitrep", "Ask a squad for a situation report.", new JsonObject { ["squad"] = Str("your squad's name") }, "squad"),
+            // ⭐ CE-4680 B-1 (§5b) — the platoon plays: the play gives the squad orders (support set, then the assault …); a direct squad order ends it
+            Tool("run_play", "Run one of the platoon's plays as your task: it orders both squads for you (PlatoonAttack: support by fire, then assault; "
+                             + "PlatoonDefend: hold an area; PlatoonBound: one squad covers, the other bounds; PlatoonHold: stay and hold). A direct squad order "
+                             + "ends the running play first.",
+                 new JsonObject { ["play"] = Str("the play", plays),
+                                  ["where"] = Str("the objective / area: a place from the briefing (not needed for PlatoonHold)"),
+                                  ["support"] = Str("PlatoonBound only: where the covering squad sets (default: the objective)") },
+                 "play"),
+            Tool("stop_play", "End the play you are running; your squads keep their last orders until you give new ones.", new JsonObject()),
             Tool("note", "Write a note to yourself; it stays in your briefing.", new JsonObject { ["text"] = Str("the note") }, "text"),
         };
     }
@@ -74,8 +85,15 @@ public static class CommanderTools
                 case "note":
                     actions.Add(new CommanderAction(CommanderActionKind.Note, Text: S("text")));
                     break;
+                case "run_play":   // ⭐ CE-4680 B-1
+                    if (S("play") == null) { problems.Add($"actions[{i}]: run_play needs play"); break; }
+                    actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: S("play"), Where: S("where"), Target: S("support")));
+                    break;
+                case "stop_play":
+                    actions.Add(new CommanderAction(CommanderActionKind.StopPlay));
+                    break;
                 default:
-                    problems.Add($"actions[{i}]: '{tool}' is not a tool — order, hold, ask_sitrep, note");
+                    problems.Add($"actions[{i}]: '{tool}' is not a tool — order, hold, ask_sitrep, run_play, stop_play, note");
                     break;
             }
         }
@@ -88,6 +106,8 @@ public static class CommanderTools
         CommanderActionKind.Order => new JsonObject { ["tool"] = "order", ["squad"] = a.Squad, ["kind"] = a.Order, ["where"] = a.Where ?? a.Target },
         CommanderActionKind.Hold => new JsonObject { ["tool"] = "hold", ["squad"] = a.Squad },
         CommanderActionKind.AskSitrep => new JsonObject { ["tool"] = "ask_sitrep", ["squad"] = a.Squad },
+        CommanderActionKind.RunPlay => new JsonObject { ["tool"] = "run_play", ["play"] = a.Order, ["where"] = a.Where, ["support"] = a.Target },
+        CommanderActionKind.StopPlay => new JsonObject { ["tool"] = "stop_play" },
         _ => new JsonObject { ["tool"] = "note", ["text"] = a.Text },
     };
 }

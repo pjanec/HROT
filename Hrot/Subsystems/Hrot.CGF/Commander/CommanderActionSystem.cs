@@ -4,6 +4,9 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Squad;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.AI.Behaviors.Orders;
@@ -38,6 +41,12 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
     /// <summary>The orders L-1 takes (a squad fulfils each: Move / Hold / Attack by its class, Defend / BreakContact as the platoon plays send them).</summary>
     public static readonly string[] Orders = { "Move", "Hold", "Attack", "SupportByFire", "Defend", "BreakContact" };
 
+    /// <summary>⭐ CE-4680 B-1 (§5b) — the platoon plays a commander may run as his own task (behaviors' code: called, never changed).</summary>
+    public static readonly string[] Plays = { BehaviorNames.PlatoonAttack, BehaviorNames.PlatoonDefend, BehaviorNames.PlatoonBound, BehaviorNames.PlatoonHold };
+
+    /// <summary>A direct squad order that waits for the running play to end (not a verdict — it is given or refused once the play is gone).</summary>
+    private const string Deferred = "\u0001after-play";
+
     private CommanderSeats? _seats;
     private readonly Fdp.Core.FdpEventBus? _clockBus;
 
@@ -64,7 +73,17 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
             if (!world.IsAlive(seat.Commander) || !world.HasComponent<CommanderSeat>(seat.Commander)) continue;
             if (seat.Runner != null && world.GetComponentRO<CommanderSeat>(seat.Commander).Mode == CommanderMode.ThinkPause)
                 Hold(world, seats, seat, now);
-            while (seat.Channel.TryTake(out var action)) Apply(world, seat, action, now);
+            // ⭐ CE-4680 B-1 — the direct orders that ended a play land once its run is gone (its release would take an order given in its run)
+            if (seat.AfterPlay.Count > 0 && !PlayRuns(world, seat) && PlayReleased(world, seat))
+            {
+                for (int i = 0; i < seat.AfterPlay.Count; i++) Apply(world, seat, seat.AfterPlay[i], now);
+                seat.AfterPlay.Clear();
+            }
+            while (seat.Channel.TryTake(out var action))
+            {
+                if (seat.AfterPlay.Count > 0 && action.Kind is CommanderActionKind.Order or CommanderActionKind.Hold) { seat.AfterPlay.Add(action); continue; }   // in order behind the ones waiting
+                Apply(world, seat, action, now);
+            }
         }
     }
 
@@ -115,7 +134,18 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
     private void Apply(EntityRepository world, SeatRuntime seat, CommanderAction a, double now)
     {
         string? why = Act(world, seat, a);
-        string what = a.Kind == CommanderActionKind.Order ? $"{a.Order} {a.Squad}" : $"{a.Kind} {a.Squad}".TrimEnd();
+        string what = a.Kind is CommanderActionKind.Order or CommanderActionKind.RunPlay ? $"{a.Order} {a.Squad}".TrimEnd() : $"{a.Kind} {a.Squad}".TrimEnd();
+        if (ReferenceEquals(why, Deferred) && seat.Play == null) { seat.AfterPlay.Add(a); return; }   // the play ended, its release not yet in
+        if (ReferenceEquals(why, Deferred))
+        {
+            // ⭐ CE-4680 B-1 — no tug of war: the play ends first, said in the feed; the order lands once it has
+            seat.Channel.Publish(FeedKind.OrderState, now, false,
+                                 $"{CommanderFeedSystem.Clock(now)} PLAY {seat.Play} ENDED — a direct order to {a.Squad}; it lands once the play's orders are released",
+                                 new JsonObject { ["kind"] = "order-state", ["state"] = "play-ended", ["play"] = seat.Play, ["for"] = CommanderTools.ToJson(a), ["seq"] = a.MadeOnSeq }.ToJsonString());
+            EndPlay(world, seat);
+            seat.AfterPlay.Add(a);
+            return;
+        }
         if (a.Kind == CommanderActionKind.Note)
         {
             seat.Channel.Publish(FeedKind.OrderState, now, false, $"{CommanderFeedSystem.Clock(now)} NOTE: {a.Text}",
@@ -144,10 +174,18 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
     private static string? Act(EntityRepository world, SeatRuntime seat, CommanderAction a)
     {
         if (a.Kind == CommanderActionKind.Note) return null;
+        if (a.Kind == CommanderActionKind.RunPlay) return RunPlay(world, seat, a);
+        if (a.Kind == CommanderActionKind.StopPlay)
+        {
+            if (!PlayRuns(world, seat)) return "no play is running";
+            EndPlay(world, seat);
+            return null;
+        }
         var squad = SquadNamed(world, seat.Commander, a.Squad, out string? why);
         if (squad.IsNull) return why;
         if (!CombatEffective.IsInTheFight(world, squad)) return $"{a.Squad} is out of the fight";
 
+        if (PlayRuns(world, seat) || !PlayReleased(world, seat)) return Deferred;   // ⭐ CE-4680 B-1 — a direct squad order ends the play first
         switch (a.Kind)
         {
             case CommanderActionKind.Hold:
@@ -187,6 +225,72 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
                 break;
         }
         return null;
+    }
+
+    // ── ⭐ CE-4680 B-1 — the platoon plays as the commander's own task ───────────────────────────────
+
+    /// <summary>
+    /// The play as the commander's TASK: the order a superior gives a platoon (<c>AssignTacticalIntentEvent</c> at origin Superior — what
+    /// <c>CommandOrders.Assign</c> publishes; the seat has no giver to record it on), with its objective from the gazetteer. The play then orders the
+    /// squads (behaviors' code). A new play replaces the running one — its run ends and its squad orders are released (<c>SubordinateOrders.Release</c>).
+    /// </summary>
+    private static string? RunPlay(EntityRepository world, SeatRuntime seat, CommanderAction a)
+    {
+        string? play = Array.Find(Plays, p => p.Equals(a.Order, StringComparison.OrdinalIgnoreCase));
+        if (play == null) return $"'{a.Order}' is not a play — {string.Join(", ", Plays)}";
+        string json = "{}";
+        if (play != BehaviorNames.PlatoonHold)
+        {
+            if (seat.Places.Resolve(a.Where, out string? why) is not { } at) return why ?? "the play needs a place (where)";
+            string p = Point(at);
+            if (play == BehaviorNames.PlatoonBound)
+            {
+                string support = p;   // the covering squad sets at the objective unless told where
+                if (a.Target is { Length: > 0 })
+                {
+                    if (seat.Places.Resolve(a.Target, out why) is not { } sp) return why;
+                    support = Point(sp);
+                }
+                json = $"{{\"SupportPoint\":{support},\"Objective\":{p}}}";
+            }
+            else json = $"{{\"Position\":{p},\"SearchRadius\":30}}";   // PlatoonAttack / PlatoonDefend: the area and its radius
+        }
+        if (!world.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) world.Bus.RegisterManaged<AssignTacticalIntentEvent>();
+        world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = seat.Commander, IntentId = play, JsonParams = json, Origin = BehaviorOrigin.Superior });
+        seat.Play = play;
+        return null;
+    }
+
+    /// <summary>The play the seat gave still runs as the commander's task (and its run is remembered, so its release can be waited for).</summary>
+    private static bool PlayRuns(EntityRepository world, SeatRuntime seat)
+    {
+        bool runs = seat.Play != null && world.IsAlive(seat.Commander) && world.HasComponent<BehaviorState>(seat.Commander)
+                    && world.GetComponentRO<BehaviorState>(seat.Commander).ActiveBehaviorHash == BehaviorHash.FromName(seat.Play);
+        if (runs) seat.PlayRun = BehaviorOwnedParts.OwnerOf(world, seat.Commander);
+        return runs;
+    }
+
+    /// <summary>
+    /// ⭐ The play's run has ended AND released its squad orders. 📌 Measured on the rail: the behaviour hash changes BEFORE the release — an order given
+    /// in between is recorded under the play's run (<c>CommandOrders.Order</c> records the CURRENT run) and is cleared with the play's orders.
+    /// </summary>
+    private static bool PlayReleased(EntityRepository world, SeatRuntime seat)
+    {
+        if (seat.PlayRun == 0) return true;
+        if (BehaviorOwnedParts.OwnerOf(world, seat.Commander) == seat.PlayRun) return false;
+        if (SubordinateOrders.Of(world, seat.Commander) is { } held)
+            for (int i = 0; i < held.Orders.Count; i++)
+                if (held.Orders[i].Run == seat.PlayRun) return false;
+        seat.PlayRun = 0;
+        return true;
+    }
+
+    /// <summary>Ends the play: a clear of the commander's task at origin Superior (its run ends and releases its squad orders).</summary>
+    private static void EndPlay(EntityRepository world, SeatRuntime seat)
+    {
+        if (world.Bus.IsRegistered<ClearBehaviorEvent>())
+            world.Bus.Publish(new ClearBehaviorEvent { Entity = seat.Commander, Origin = BehaviorOrigin.Superior });
+        seat.Play = null;
     }
 
     /// <summary>The commander's own squad of that name, alive; ⛔ never another commander's unit (that is how another side's unit is refused).</summary>

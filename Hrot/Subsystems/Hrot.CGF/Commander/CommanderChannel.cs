@@ -15,7 +15,7 @@ public enum FeedKind : byte { Snapshot = 1, Report = 2, OrderState = 3, Event = 
 public sealed record FeedItem(long Seq, double SimTime, FeedKind Kind, bool Wake, string Radio, string Json);
 
 /// <summary>What a mind asks for (DESIGN_LLM_Commander §4 — the tools).</summary>
-public enum CommanderActionKind : byte { Order = 1, Hold = 2, AskSitrep = 3, Note = 4 }
+public enum CommanderActionKind : byte { Order = 1, Hold = 2, AskSitrep = 3, Note = 4, RunPlay = 5, StopPlay = 6 }   // ⭐ CE-4680 B-1 — the platoon plays
 
 /// <summary>
 /// ⭐ <c>CE-4676</c> — one action a mind took, made on the feed item <see cref="MadeOnSeq"/>. Plain text fields, exactly as a model's tool call gives them:

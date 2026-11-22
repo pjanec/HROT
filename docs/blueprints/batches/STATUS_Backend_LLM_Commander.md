@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). L-2b B-1 code written, held in a scratch patch until L-2 closes.
+⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). ⭐ NOW L-2b (CE-4680): B-1 done; B-2 … B-6 next, then the scripted run_play scenario and the Haiku run.
 L-1 (below): DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
 `STATUS_Backend_Queue.md` → **CE-3445 T2** (rare mode-3 stepped divergence) — a resume continues there. ⚠ `backend-wip-llm-commander` is stale
 (its content is all on `backend`; the remote refused the delete).
@@ -121,3 +121,13 @@ The radio log and the answers (run 3, verbatim):
 - `00:02:30 NOTE: Bravo has not moved from start under Attack order. Re-task Bravo: Move to objective to join Alpha.`
 - `00:04:30 NOTE: 4:30 of ~7 min. Alpha Amber at objective, Bravo Green 60 m E of objective. Commit both: Attack house together.`
 - `00:04:33 BRAVO SQUAD: progress, Set, at 20 m E of objective`
+
+## L-2b items
+| # | item | state | sha | rail |
+|---|---|---|---|---|
+| B-1 | `run_play` / `stop_play` — the plays as the commander's task; a direct order ends the play first and lands after its release | DONE | (this commit) | `CE4680_RunPlay_ThePlaysChoreographyRuns_ADirectOrderEndsItFirst_AndLands` (3 mutations red); the plays' own suites 38/38 (`PlatoonAttack/Bound/Defend/Hold`, `CE2436_*` — behaviors' code, run not changed) |
+| B-2 | the mission brief `CommanderBrief` (NoReplay) in the prefix | TODO | | |
+| B-3 | the objectives line (`ObjectiveStatus` by `VisibleSides`) | TODO | | |
+| B-4 | each squad's task and progress in the snapshot | TODO | | |
+| B-5 | the enemy as reported (size, activity, equipment, age, heard) | TODO — ⚠ "heard" has no field on `CommandReport`; measure first | | |
+| B-6 | place notes (`Note` on a named point / area) | TODO | | |

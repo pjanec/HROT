@@ -7,7 +7,9 @@ using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Components;
+using Hrot.AI.Behaviors.Brains;
 using Hrot.CGF.Commander;
+using Hrot.Map.Definitions.Behavior;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -80,7 +82,18 @@ namespace Hrot.SimHost.Tests
             }
 
             /// <summary>One frame: the action pre-pass, the fixture's frame (orders in, the inbox), then the feed — the pack's order.</summary>
-            public void Tick() { Act.Execute(Repo, 0.016f); P.Tick(); Feed.Execute(Repo, 0.016f); }
+            public void Tick()
+            {
+                Act.Execute(Repo, 0.016f);
+                P.Tick();
+                // ⭐ CE-4680 — the intent resolver's part for the commander's OWN task (the fixture has none): a play named as the intent becomes his
+                //   behaviour, as TacticalIntentResolutionSystem resolves a plain behaviour name in a node
+                for (int i = _resolved; i < P.S.Orders.Count; i++)
+                    if (P.S.Orders[i].Entity.Equals(P.S.Commander)) P.S.Order(P.S.Orders[i].JsonParams, P.S.Orders[i].IntentId);
+                _resolved = P.S.Orders.Count;
+                Feed.Execute(Repo, 0.016f);
+            }
+            private int _resolved;
             public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
 
             public SeatRuntime Seat => Seats.TryGet(P.S.Commander, out var s) ? s : throw new InvalidOperationException("no seat");
@@ -331,6 +344,54 @@ namespace Hrot.SimHost.Tests
             Assert.False(s.Seats.AnyHoldsClock);
             Assert.Equal(0, clock.Pauses);                // ⭐ never a pause …
             Assert.Equal(0, clock.Resumes);               // ⭐ … and never a resume of a stepped clock
+            s.Seats.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4680 B-1 (DESIGN_LLM_Commander §5b) — <c>run_play</c>: the mind runs <c>PlatoonAttack</c> on the house as the commander's own task and the
+        /// PLAY's choreography follows — the support squad first, the assault only once support reports SET — not the mind's. A direct squad order while
+        /// it runs ENDS the play first (said in an <c>order-state</c>), and the squad takes the direct order once the play's orders are released —
+        /// never released with them.
+        /// 🔴 Mutations: the direct order not deferred (given in the play's run) ⇒ the play's release clears it; the play never published ⇒ no task.
+        /// </summary>
+        [Fact]
+        public void CE4680_RunPlay_ThePlaysChoreographyRuns_ADirectOrderEndsItFirst_AndLands()
+        {
+            var mind = new RailMind();
+            int call = 0;
+            bool redirect = false;
+            mind.Answer = b =>
+            {
+                if (Interlocked.Increment(ref call) == 1) return new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: "house") };
+                return Volatile.Read(ref redirect) ? new[] { new CommanderAction(CommanderActionKind.Order, "Alpha", "Move", Where: "start") } : Array.Empty<CommanderAction>();
+            };
+            var s = new Seated(mind, squads: 3);
+            s.Ticks(4);
+            int play = Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.PlatoonAttack);
+            Assert.Equal(play, s.Repo.GetComponentRO<BehaviorState>(s.P.S.Commander).ActiveBehaviorHash);   // ⭐ the play is his task
+            Assert.Contains(s.Items(), i => i.Json.Contains("\"state\":\"accepted\"") && i.Radio.Contains("PlatoonAttack"));
+
+            // the play's choreography (behaviors' code): the assault waits for the support squad's SET
+            s.Ticks(3); s.P.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); s.Ticks(4);
+            Assert.Equal(0, s.P.OrdersTo(s.P.Alpha, BehaviorNames.BoundingOverwatch));
+            s.P.ReportSet(s.P.Bravo); s.Ticks(4);
+            Assert.Equal(1, s.P.OrdersTo(s.P.Alpha, BehaviorNames.BoundingOverwatch));
+
+            // a direct order mid-play: the play ends first, then Alpha takes the move — and keeps it
+            Volatile.Write(ref redirect, true);
+            s.P.ReportSpot(s.P.Charlie, new Vector3(120f, 100f, 0f), 2);   // a wake
+            s.Ticks(8);
+            Assert.Contains(s.Items(), i => i.Json.Contains("\"state\":\"play-ended\""));
+            Assert.NotEqual(play, s.Repo.GetComponentRO<BehaviorState>(s.P.S.Commander).ActiveBehaviorHash);
+            int move = s.P.S.Orders.FindLastIndex(o => o.Entity.Equals(s.P.Alpha) && o.IntentId == "Order.Move");
+            Assert.True(move >= 0, "Alpha took the direct order");
+            Assert.True(s.P.S.Orders.Count(o => o.Entity.Equals(s.P.Alpha) && o.IntentId == "Order.Move") == 1, "given once");
+            // the play's release of Alpha (a clear naming BoundingOverwatch) came BEFORE the move, never after it
+            var held = SubordinateOrders.Of(s.Repo, s.P.S.Commander);
+            Assert.NotNull(held);
+            Assert.Contains(held!.Orders, e => e.Member.Equals(s.P.Alpha) && e.Behavior == "Order.Move");
+            s.Ticks(10);
+            Assert.Contains(SubordinateOrders.Of(s.Repo, s.P.S.Commander)!.Orders, e => e.Member.Equals(s.P.Alpha) && e.Behavior == "Order.Move");
             s.Seats.Dispose();
         }
 

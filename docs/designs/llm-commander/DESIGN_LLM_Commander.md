@@ -280,6 +280,18 @@ assault) that the game AI already does better.
 | B-5 | **the enemy as a commander hears it** — size, ACTIVITY, EQUIPMENT, the report's AGE, seen or only heard | the reported elements (`CommandReport`: Size, Activity, Equipment, ObservedAt) |
 | B-6 | **one-line terrain notes on the named places** — *"house: two storeys, windows on the street"*, *"field: open, 150 m, no cover"* — shown in the prefix's places list | new: an optional `Note` on a named Point / tactical area (a scenario field; authoring-only) |
 
+#### 5b.1 ✅ As built — B-1 `run_play` / `stop_play` (CE-4680, backend, `2026-11-22`)
+
+| piece | as built |
+|---|---|
+| the tools | `run_play {play, where, support?}` — play one of `PlatoonAttack` · `PlatoonDefend` · `PlatoonBound` · `PlatoonHold` (`CommanderActionSystem.Plays`); `stop_play {}`; both in `/tools` and the prefix |
+| giving the play | ⭐ an `AssignTacticalIntentEvent { Entity = the commander, IntentId = the play, Origin = Superior }` — what `CommandOrders.Assign` publishes for a superior, minus the giver's `SubordinateOrders` record (the seat has no giver entity). Params: Attack / Defend `{"Position", "SearchRadius": 30}`; Bound `{"SupportPoint", "Objective"}` (the support point defaults to the objective); Hold `{}` |
+| ending it | `stop_play` or a new play: a `ClearBehaviorEvent` at origin Superior — the run ends and `SubordinateOrders.Release` clears its squad orders (behaviors' code) |
+| ⭐ a direct order mid-play | ends the play first (an `order-state` `play-ended` item), and the order waits in `SeatRuntime.AfterPlay` until the play's run is gone AND its orders are released. 📌 measured on the rail: the behaviour hash changes BEFORE the release, and `CommandOrders.Order` records under the CURRENT run (`BehaviorOwnedParts.OwnerOf`) ⇒ an order given in between was cleared with the play's. Later direct orders queue behind it, in order |
+
+Rail `SquadManeuverTests.CE4680_RunPlay_ThePlaysChoreographyRuns_ADirectOrderEndsItFirst_AndLands` (the support SET before the assault — the
+play's choreography; the direct order lands and is still held 10 frames later).
+
 ⭐ The briefing stays SHORT (a small model's context): the prefix grows by the brief and the place notes; the snapshot by one line per squad and
 one per objective. ⛔ Still no ground truth: every new line comes from what was reported to him or what his scenario told him.
 

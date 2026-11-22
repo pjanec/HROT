@@ -140,7 +140,7 @@ public sealed class DebugApiCommandersTests
         (status, body) = await rig.Get($"/commanders/{CommanderId}/tools");
         Assert.Equal(HttpStatusCode.OK, status);
         var tools = Rig.D(body)["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()).ToArray();
-        Assert.Equal(new[] { "order", "hold", "ask_sitrep", "note" }, tools);
+        Assert.Equal(new[] { "order", "hold", "ask_sitrep", "run_play", "stop_play", "note" }, tools);   // ⭐ CE-4680 B-1 — the plays
 
         (status, body) = await rig.Get($"/commanders/{CommanderId}/briefing");
         Assert.Equal(HttpStatusCode.OK, status);
