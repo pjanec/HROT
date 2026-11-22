@@ -10,6 +10,9 @@
 #include "DpsTopics.h"
 
 #include "Components/LineBatchComponent.h"
+#include "ProceduralMeshComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/SoftObjectPath.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
@@ -22,6 +25,8 @@ void UHrotDpsWorld::OnGizmoFrame(const FHrotDpsSample& S)
 	const FString Layer = UTF8_TO_TCHAR(F.Layer);
 	if (!S.bValid || S.bDisposed) { GizmoLayersShown.Remove(Layer); bGizmosDirty = true; if (GizmoCardPrims.Remove(Layer)) bWireCardsDirty = true; return; }   // a disposed layer = turned off
 	TArray<FGizmoPrim>& Out = GizmoLayersShown.FindOrAdd(Layer);
+	TArray<FGizmoPrim> Old = MoveTemp(Out);   // the same shape resent on the same terrain keeps its draped points
+	const uint32 Stamp = HashCombineFast(HashCombineFast(GetTypeHash(ShownTerrain), GetTypeHash(ShownBase)), GetTypeHash(ShownOverlay));
 	Out.Reset(F.Primitives._length);
 	TArray<HrotCards::FGizmoCardPrim>& LayerCards = GizmoCardPrims.FindOrAdd(Layer);
 	const bool bHadCards = LayerCards.Num() > 0;
@@ -45,6 +50,11 @@ void UHrotDpsWorld::OnGizmoFrame(const FHrotDpsSample& S)
 		if (P.Text[0]) G.Text = UTF8_TO_TCHAR(P.Text);
 		G.Points.Reserve(P.Points._length);
 		for (uint32 K = 0; K < P.Points._length; K++) G.Points.Add(FVector(P.Points._buffer[K].X, P.Points._buffer[K].Y, P.Points._buffer[K].Z));
+		if (Old.IsValidIndex(Out.Num() - 1) && Old[Out.Num() - 1].bDraped && Old[Out.Num() - 1].DrapeStamp == Stamp && Old[Out.Num() - 1].Shape == G.Shape && Old[Out.Num() - 1].Points == G.Points)
+		{
+			FGizmoPrim& O = Old[Out.Num() - 1];
+			G.bDraped = true; G.bGround = O.bGround; G.DrapeStamp = Stamp; G.Drape = MoveTemp(O.Drape);
+		}
 	}
 	if (LayerCards.Num() || bHadCards) bWireCardsDirty = true;
 	GizmoFrames++;
@@ -96,10 +106,10 @@ void UHrotDpsWorld::DrawGizmos()
 	UWorld* W = GetWorld();
 	if (!W) return;
 	// the camera: a line's px width is a world width in cm only at one distance and FOV (HROT's map draws px)
-	FVector Cam = GizmoBuiltLoc; float TanHalf = GizmoBuiltTanHalfFov > 0 ? GizmoBuiltTanHalfFov : 1.f, ViewW = GizmoBuiltW > 0 ? GizmoBuiltW : 1280.f;
+	FVector Cam = GizmoBuiltLoc, Fwd = GizmoBuiltFwd; float TanHalf = GizmoBuiltTanHalfFov > 0 ? GizmoBuiltTanHalfFov : 1.f, ViewW = GizmoBuiltW > 0 ? GizmoBuiltW : 1280.f;
 	if (APlayerController* PC = W->GetFirstPlayerController(); PC && PC->PlayerCameraManager)
 	{
-		Cam = PC->PlayerCameraManager->GetCameraLocation();
+		Cam = PC->PlayerCameraManager->GetCameraLocation(); Fwd = PC->PlayerCameraManager->GetCameraRotation().Vector();
 		TanHalf = FMath::Tan(FMath::DegreesToRadians(PC->PlayerCameraManager->GetFOVAngle()) * 0.5f);
 		FVector2D S; if (UGameViewportClient* G = W->GetGameViewport()) { G->GetViewportSize(S); if (S.X > 0) ViewW = float(S.X); }
 	}
@@ -108,10 +118,11 @@ void UHrotDpsWorld::DrawGizmos()
 		if (GizmoLayersShown.Num() == 0 || !GizmoLines.IsValid() || GizmoBuiltTanHalfFov <= 0) return;
 		const bool bMoved = FVector::DistSquared(Cam, GizmoBuiltLoc) > FMath::Square(0.1f * FMath::Max(GizmoNearestCm, 200.f));
 		const bool bZoomed = FMath::Abs(TanHalf / GizmoBuiltTanHalfFov - 1.f) > 0.15f || FMath::Abs(ViewW / GizmoBuiltW - 1.f) > 0.15f;
-		if (!bMoved && !bZoomed) return;
+		const bool bTurned = FVector::DotProduct(Fwd, GizmoBuiltFwd) < 0.99939f;   // cos 2 deg
+		if (!bMoved && !bZoomed && !bTurned) return;
 	}
 	bGizmosDirty = false;
-	GizmoBuiltLoc = Cam; GizmoBuiltTanHalfFov = TanHalf; GizmoBuiltW = ViewW; GizmoNearestCm = 1e9f;
+	GizmoBuiltLoc = Cam; GizmoBuiltFwd = Fwd; GizmoBuiltTanHalfFov = TanHalf; GizmoBuiltW = ViewW; GizmoNearestCm = 1e9f;
 	ULineBatchComponent* LB = GizmoLines.Get();
 	if (!LB)
 	{
@@ -122,32 +133,126 @@ void UHrotDpsWorld::DrawGizmos()
 		Holder->SetRootComponent(LB); LB->RegisterComponent();
 		GizmoLines = LB;
 	}
-	const float GizmoLiftCm = 20.f;   // a ground line above the ground, not in it
+	UProceduralMeshComponent* Mesh = GizmoMesh.Get();
+	if (!Mesh)
+	{
+		Mesh = NewObject<UProceduralMeshComponent>(LB->GetOwner(), TEXT("Ribbons"));
+		Mesh->SetupAttachment(LB);
+		Mesh->bUseComplexAsSimpleCollision = false;
+		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Mesh->SetGenerateOverlapEvents(false); Mesh->SetCanEverAffectNavigation(false);
+		Mesh->SetCastShadow(false); Mesh->bCastDynamicShadow = false; Mesh->bAffectDistanceFieldLighting = false; Mesh->bAffectDynamicIndirectLighting = false;
+		Mesh->bVisibleInRayTracing = false; Mesh->bVisibleInReflectionCaptures = false; Mesh->bVisibleInRealTimeSkyCaptures = false; Mesh->bReceivesDecals = false;
+		Mesh->RegisterComponent();
+		Mesh->SetMaterial(0, Cast<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Hrot/Fx/Labels/M_HrotGizmoLine.M_HrotGizmoLine")).TryLoad()));
+		GizmoMesh = Mesh;
+	}
 	LB->Flush();
 	GizmoTexts.Reset();
 	GizmosDrawn = 0;
-	// one line of Px pixels, its cm width taken at its midpoint's distance (still SDPG_World: depth-tested)
+	// one line of Px pixels = a camera-facing ribbon quad: half-width (Px / 2 + 1 px of anti-aliasing fringe) in cm AT EACH END'S distance, extruded
+	// along normalize(cross(segment, view)); UV = (Px, -1 / +1 across the width) so the material knows where the solid core ends (M_HrotGizmoLine)
+	GizVerts.Reset(); GizNormals.Reset(); GizTris.Reset(); GizUv.Reset(); GizCols.Reset();
 	auto Line = [&](const FVector& A, const FVector& B, const FLinearColor& Col, float Px)
 	{
-		const float D = float(FVector::Dist((A + B) * 0.5, Cam));
-		GizmoNearestCm = FMath::Min(GizmoNearestCm, D);
-		LB->DrawLine(A, B, Col, SDPG_World, HrotCards::PxToCm(Px, D, TanHalf, ViewW), 0.f);
+		const FVector Dir = B - A;
+		const FVector Mid = (A + B) * 0.5;
+		const FVector Across = FVector::CrossProduct(Dir, Mid - Cam).GetSafeNormal();
+		if (Across.IsNearlyZero()) return;   // a point, or a line pointing at the camera
+		const float Da = float(FVector::Dist(A, Cam)), Db = float(FVector::Dist(B, Cam));
+		GizmoNearestCm = FMath::Min(GizmoNearestCm, float(FVector::Dist(Mid, Cam)));
+		const float Ha = HrotCards::PxToCm(Px * 0.5f + 1.f, Da, TanHalf, ViewW), Hb = HrotCards::PxToCm(Px * 0.5f + 1.f, Db, TanHalf, ViewW);
+		const int32 V0 = GizVerts.Num();
+		GizVerts.Add(A + Across * Ha); GizVerts.Add(A - Across * Ha); GizVerts.Add(B + Across * Hb); GizVerts.Add(B - Across * Hb);
+		const FColor C = Col.ToFColor(false);   // the linear value as bytes: the material reads the vertex colour as linear
+		for (int32 K = 0; K < 4; K++) { GizNormals.Add(FVector::UpVector); GizCols.Add(C); GizUv.Add(FVector2D(Px, (K & 1) ? -1.0 : 1.0)); }
+		GizTris.Append({ V0, V0 + 1, V0 + 2, V0 + 2, V0 + 1, V0 + 3 });
 	};
-	for (const TPair<FString, TArray<FGizmoPrim>>& L : GizmoLayersShown)
-		for (const FGizmoPrim& G : L.Value)
+	// ── draping (HROT GizmoRenderer3D M18): the ground's height under a point (a downward trace against static geometry only: the landscape and
+	// buildings, never a vehicle or a man), lifted by max(6 cm, 0.5 px at that distance) so the line does not fight the terrain's depth ──
+	const uint32 Stamp = HashCombineFast(HashCombineFast(GetTypeHash(ShownTerrain), GetTypeHash(ShownBase)), GetTypeHash(ShownOverlay));
+	auto GroundAt = [&](const FVector& Ue)
+	{
+		FHitResult Hit; float Z = float(OriginCm.Z);
+		const FCollisionObjectQueryParams Obj(ECC_WorldStatic);
+		const FCollisionQueryParams Q(SCENE_QUERY_STAT(HrotGizmoDrape), false);
+		if (W->LineTraceSingleByObjectType(Hit, FVector(Ue.X, Ue.Y, OriginCm.Z + 50000.0), FVector(Ue.X, Ue.Y, OriginCm.Z - 50000.0), Obj, Q)) Z = float(Hit.ImpactPoint.Z);
+		const float D = float(FVector::Dist(FVector(Ue.X, Ue.Y, Z), Cam));
+		return FVector(Ue.X, Ue.Y, Z + FMath::Max(6.f, 0.5f * 2.f * D * TanHalf / ViewW));
+	};
+	constexpr double DrapeStepM = 3.0; constexpr int32 MaxPieces = 160;   // HROT: DrapeStep, MaxSegments
+	auto DrapePoly = [&](TArray<FVector>& Out, const TArray<FVector>& Enu)   // a z = 0 polyline (ENU m), every edge cut into <= 3 m pieces
+	{
+		Out.Reset();
+		for (int32 I = 0; I < Enu.Num(); I++)
+		{
+			Out.Add(GroundAt(EnuMToUnreal(Enu[I])));
+			if (I + 1 >= Enu.Num()) break;
+			const int32 N = FMath::Clamp(FMath::CeilToInt(FVector::Dist2D(Enu[I], Enu[I + 1]) / DrapeStepM), 1, MaxPieces);
+			for (int32 K = 1; K < N; K++) Out.Add(GroundAt(EnuMToUnreal(FMath::Lerp(Enu[I], Enu[I + 1], double(K) / N))));
+		}
+	};
+	for (TPair<FString, TArray<FGizmoPrim>>& L : GizmoLayersShown)
+		for (FGizmoPrim& G : L.Value)
 		{
 			if (G.Points.Num() == 0) continue;
-			auto U = [&](int32 I) { return EnuMToUnreal(G.Points[I]) + FVector(0, 0, GizmoLiftCm); };
+			if (!G.bDraped)
+			{
+				G.bDraped = true; G.DrapeStamp = Stamp; G.Drape.Reset();
+				const bool bPoint = G.Shape == SimNetGateway_Protocol_DdsPlayer_GizmoShapeCircle || G.Shape == SimNetGateway_Protocol_DdsPlayer_GizmoShapeBox || G.Shape == SimNetGateway_Protocol_DdsPlayer_GizmoShapeText;
+				G.bGround = true;   // all the points z = 0 (a Circle's / Box's / Text's: the centre; a Box's second point is extents + an angle)
+				for (int32 I = 0; I < (bPoint ? 1 : G.Points.Num()); I++) G.bGround &= FMath::IsNearlyZero(G.Points[I].Z, 1e-3);
+				if (G.bGround)
+				{
+					TArray<FVector> Enu;
+					switch (G.Shape)
+					{
+					case SimNetGateway_Protocol_DdsPlayer_GizmoShapeLineStrip: Enu = G.Points; DrapePoly(G.Drape, Enu); break;
+					case SimNetGateway_Protocol_DdsPlayer_GizmoShapeArrow: if (G.Points.Num() >= 2) { Enu = { G.Points[0], G.Points[1] }; DrapePoly(G.Drape, Enu); } break;
+					case SimNetGateway_Protocol_DdsPlayer_GizmoShapePolygon: for (int32 I = 0; I < FMath::Min(3, G.Points.Num()); I++) G.Drape.Add(GroundAt(EnuMToUnreal(G.Points[I]))); break;
+					case SimNetGateway_Protocol_DdsPlayer_GizmoShapeText: G.Drape.Add(GroundAt(EnuMToUnreal(G.Points[0]))); break;
+					case SimNetGateway_Protocol_DdsPlayer_GizmoShapeCircle:   // a ground circle is a horizontal ring (a selection ring), Width = its radius
+					{
+						const double R = FMath::Max(0.1, double(G.Width)); const int32 N = FMath::Clamp(FMath::CeilToInt(2.0 * PI * R / DrapeStepM), 24, MaxPieces);
+						for (int32 K = 0; K <= N; K++) Enu.Add(G.Points[0] + FVector(FMath::Cos(2.0 * PI * K / N) * R, FMath::Sin(2.0 * PI * K / N) * R, 0));
+						DrapePoly(G.Drape, Enu);
+						break;
+					}
+					case SimNetGateway_Protocol_DdsPlayer_GizmoShapeBox:   // a ground box is its rectangle: centre, then (extent x, extent y, angle deg CCW)
+						if (G.Points.Num() >= 2)
+						{
+							const double Ex = G.Points[1].X, Ey = G.Points[1].Y, A = FMath::DegreesToRadians(G.Points[1].Z), Cs = FMath::Cos(A), Sn = FMath::Sin(A);
+							const double Cx[5] = { -Ex, Ex, Ex, -Ex, -Ex }, Cy[5] = { -Ey, -Ey, Ey, Ey, -Ey };
+							for (int32 K = 0; K < 5; K++) Enu.Add(G.Points[0] + FVector(Cx[K] * Cs - Cy[K] * Sn, Cx[K] * Sn + Cy[K] * Cs, 0));
+							DrapePoly(G.Drape, Enu);
+						}
+						break;
+					default: break;
+					}
+				}
+			}
+			auto U = [&](int32 I) { return EnuMToUnreal(G.Points[I]); };   // a shape with height: drawn as given
 			GizmosDrawn++;
-			const float Px = FMath::Max(G.Width, 1.5f);   // the wire's Width is pixels (HROT's map); Circle's is its radius, below
+			const float Px = FMath::Max(G.Width, 1.5f);   // the wire's Width is pixels (HROT's map); a Circle's is its radius, below
 			const FLinearColor Col(G.Colour);
+			auto Polyline = [&](bool bHead)
+			{
+				for (int32 I = 0; I + 1 < G.Drape.Num(); I++) Line(G.Drape[I], G.Drape[I + 1], Col, Px);
+				if (bHead && G.Drape.Num() >= 2)
+				{
+					const FVector B = G.Drape.Last(), Dir = (B - G.Drape[G.Drape.Num() - 2]).GetSafeNormal(), Lateral = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
+					Line(B, B - Dir * 60.f + Lateral * 25.f, Col, Px); Line(B, B - Dir * 60.f - Lateral * 25.f, Col, Px);
+				}
+			};
 			switch (G.Shape)
 			{
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeLineStrip:
-				for (int32 I = 0; I + 1 < G.Points.Num(); I++) Line(U(I), U(I + 1), Col, Px);
+				if (G.bGround) Polyline(false);
+				else for (int32 I = 0; I + 1 < G.Points.Num(); I++) Line(U(I), U(I + 1), Col, Px);
 				break;
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeArrow:
-				if (G.Points.Num() >= 2)
+				if (G.bGround) Polyline(true);
+				else if (G.Points.Num() >= 2)
 				{
 					const FVector A = U(0), B = U(1);
 					const FVector Dir = (B - A).GetSafeNormal(), Lateral = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
@@ -155,27 +260,28 @@ void UHrotDpsWorld::DrawGizmos()
 					Line(B, B - Dir * 60.f + Lateral * 25.f, Col, Px); Line(B, B - Dir * 60.f - Lateral * 25.f, Col, Px);   // the head
 				}
 				break;
-			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeCircle:   // HROT draws a sphere: Width = the radius in metres; three great circles of 1.5 px lines
-			{
-				const FVector C = U(0); const float R = FMath::Max(10.f, G.Width * 100.f);
-				constexpr int32 Seg = 24;
-				for (int32 Axis = 0; Axis < 3; Axis++)
-					for (int32 K = 0; K < Seg; K++)
-					{
-						auto At = [&](int32 I) { const float T = 2.f * PI * I / Seg, X = FMath::Cos(T) * R, Y = FMath::Sin(T) * R; return C + (Axis == 0 ? FVector(X, Y, 0) : Axis == 1 ? FVector(X, 0, Y) : FVector(0, X, Y)); };
-						Line(At(K), At(K + 1), Col, 1.5f);
-					}
+			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeCircle:
+				if (G.bGround) { Polyline(false); break; }
+				{   // HROT draws a sphere with height: Width = the radius in metres; three great circles of 1.5 px lines
+					const FVector C = U(0); const float R = FMath::Max(10.f, G.Width * 100.f);
+					constexpr int32 Seg = 24;
+					for (int32 Axis = 0; Axis < 3; Axis++)
+						for (int32 K = 0; K < Seg; K++)
+						{
+							auto At = [&](int32 I) { const float T = 2.f * PI * I / Seg, X = FMath::Cos(T) * R, Y = FMath::Sin(T) * R; return C + (Axis == 0 ? FVector(X, Y, 0) : Axis == 1 ? FVector(X, 0, Y) : FVector(0, X, Y)); };
+							Line(At(K), At(K + 1), Col, 1.5f);
+						}
+				}
 				break;
-			}
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapePolygon:
-				if (G.Points.Num() >= 3)   // a filled triangle, z 0 on the wire: put on the ground (the origin's height)
+				if (G.Points.Num() >= 3)   // a filled triangle: on the ground when z = 0, else as given
 				{
-					TArray<FVector> V = { U(0), U(1), U(2) };
-					for (FVector& X : V) X.Z = GizmoLiftCm + OriginCm.Z;
+					TArray<FVector> V = G.bGround && G.Drape.Num() == 3 ? G.Drape : TArray<FVector>{ U(0), U(1), U(2) };
 					LB->DrawMesh(V, { 0, 1, 2, 0, 2, 1 }, G.Colour, SDPG_World, 0.f);
 				}
 				break;
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeBox:
+				if (G.bGround) { Polyline(false); break; }
 				if (G.Points.Num() >= 2)   // centre, then (extent x, extent y, angle deg) in metres; the 12 edges
 				{
 					const FVector3d E = G.Points[1];
@@ -191,13 +297,17 @@ void UHrotDpsWorld::DrawGizmos()
 				if (!G.Text.IsEmpty())
 				{
 					FGizmoText& T = GizmoTexts.AddDefaulted_GetRef();
-					T.At = U(0); T.Text = G.Text; T.Colour = G.Colour;
+					T.At = G.bGround && G.Drape.Num() ? G.Drape[0] : U(0); T.Text = G.Text; T.Colour = G.Colour;
 					T.Key = HashCombineFast(GetTypeHash(G.Text), G.Colour.ToPackedRGBA());
 				}
 				break;
 			default: break;
 			}
 		}
+	// the ribbons: the same vertex count = an in-place update (a steady frame allocates nothing), else the section is made again
+	if (GizVerts.Num() == 0) { Mesh->ClearMeshSection(0); GizSectionVerts = -1; }
+	else if (GizVerts.Num() == GizSectionVerts) Mesh->UpdateMeshSection(0, GizVerts, GizNormals, GizUv, GizCols, TArray<FProcMeshTangent>());
+	else { Mesh->CreateMeshSection(0, GizVerts, GizTris, GizNormals, GizUv, GizCols, TArray<FProcMeshTangent>(), false); GizSectionVerts = GizVerts.Num(); }
 }
 
 void UHrotDpsWorld::SetGizmoLayers(const TArray<FString>& Layers)

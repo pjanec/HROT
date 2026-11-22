@@ -310,7 +310,14 @@ private:
 	bool bLoggedStepped = false, bLoggedOffset = false;
 	FHrotDpsPose ViewPoseAt(double Real) const;
 	void TickCards();
-	struct FGizmoPrim { uint8 Shape = 0; FColor Colour = FColor::White; float Width = 0; FString Text; TArray<FVector> Points; };
+	struct FGizmoPrim
+	{
+		uint8 Shape = 0; FColor Colour = FColor::White; float Width = 0; FString Text; TArray<FVector> Points;
+		// HROT M18 draping (GizmoRenderer3D.cs): a shape whose points are all z = 0 lies on the ground. Done ONCE per gizmo frame (the points are kept
+		// when the next frame resends the same shape on the same terrain), the camera-driven rebuilds only redo the ribbon widths
+		bool bDraped = false, bGround = false; uint32 DrapeStamp = 0;
+		TArray<FVector> Drape;   // Unreal world cm: the ground polyline (every 3 m), lifted; a closed shape repeats its first point
+	};
 	TMap<FString, TArray<FGizmoPrim>> GizmoLayersShown;
 	/** U-18y — DD-024: the card-space primitives of each layer, and the cards they make (regrouped when a frame arrives, not per frame) */
 	TMap<FString, TArray<HrotCards::FGizmoCardPrim>> GizmoCardPrims;
@@ -331,6 +338,10 @@ private:
 	TArray<FGizmoText> GizmoTexts;
 	bool bGizmosDirty = false;
 	/** the camera the lines' widths were built for (px -> cm depends on distance and FOV): rebuilt when it moves > 10 % of the nearest line's distance, or the FOV / viewport changes > 15 % */
+	FVector GizmoBuiltFwd = FVector::ForwardVector;   // the ribbons face the camera: rebuilt when it turns > 2 deg
+	TWeakObjectPtr<class UProceduralMeshComponent> GizmoMesh;   // the thick anti-aliased lines: one camera-facing ribbon quad per segment (M_HrotGizmoLine)
+	TArray<FVector> GizVerts, GizNormals; TArray<int32> GizTris; TArray<FVector2D> GizUv; TArray<FColor> GizCols;   // reused, never shrunk (R-2084)
+	int32 GizSectionVerts = -1;
 	FVector GizmoBuiltLoc = FVector::ZeroVector; float GizmoBuiltTanHalfFov = 0, GizmoBuiltW = 0, GizmoNearestCm = 1e9f;
 	TWeakObjectPtr<class ULineBatchComponent> GizmoLines;
 	// U-18h — traffic (Mover / MoverTracks: never an Entity)

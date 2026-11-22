@@ -69,6 +69,10 @@ def join():
     if gw is None: raise RuntimeError("PIE did not start")
     w = unreal.HrotDpsWorld.for_world(gw)
     if not w.start(int(JOB["domain"]), JOB["partition"]): raise RuntimeError("DPS start failed")
+    # the TEST renders at 100 % (only the scene sets this): an upscaled frame would hide whether the gizmo lines are anti-aliased
+    for c in ("r.ScreenPercentage 100", "r.SecondaryScreenPercentage.GameViewport 100"): unreal.SystemLibrary.execute_console_command(gw, c)
+    sp = [unreal.SystemLibrary.get_console_variable_float_value(n) for n in ("r.ScreenPercentage", "r.SecondaryScreenPercentage.GameViewport")]
+    log(f"screen percentage {sp[0]} / secondary {sp[1]} (the scene forces 100)")
     w.set_editor_property("label_mode", 3)
     sub = unreal.get_engine_subsystem(unreal.HrotDpsSubsystem)
     sub.fake_station_start(0.0)
