@@ -112,6 +112,9 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// to ~10 dB), and the lead past which the way round alone sets it; between, the image smears from one to the other.</summary>
         public const float FirstWavefrontDb = 10f, SmearedToDb = 20f;
 
+        /// <summary>⭐ <c>CE-2483</c> — an opening (or a corner) closer to the ear than this IS where he stands (m): the sound came from beyond it.</summary>
+        public const float StandingInOpeningM = 1.5f;
+
         /// <summary>
         /// ⭐⭐ <c>CE-2475</c> (R-2142; Sensing §8.6e; 🔒 user: "in reality the sound propagates through walls as well as around them and the human
         /// aggregates those") — the way round is LOUDER (it decides whether the sound is heard, AQ106 B), but the straight way through the walls is the
@@ -263,7 +266,13 @@ namespace Fdp.Toolkit.Perception.Sensors
                 for (int j = k - 1; j >= 0; j--) waypoints.Add(nodes[chain[j]].At);
                 waypoints.Add(ear);
             }
-            return new SoundRoute(PathFactor(d, metres, db), nodes[chain[0]].At, SoundVia.Openings, 0f, metres, db, k, corners, 0);   // F — from the last opening
+            // ⭐ CE-2483 — F's "from the last opening", unless he STANDS IN it: then it came from beyond it — the opening before, or the source itself
+            //   (📐 ia-house-hunt: the attacker on the stair heard the defender's steps "at his own feet", the stairwell he stood in, and turned on it)
+            int last = 0;
+            while (last < k && Vector3.Distance(nodes[chain[last]].At, ear) < StandingInOpeningM) last++;
+            return last < k
+                ? new SoundRoute(PathFactor(d, metres, db), nodes[chain[last]].At, SoundVia.Openings, 0f, metres, db, k, corners, 0)   // F — from the last opening
+                : new SoundRoute(PathFactor(d, metres, db), source, SoundVia.Straight, 0f, metres, db, k, corners, 0);
         }
 
         private static bool Turns(Vector3 a, Vector3 b, Vector3 c, float cosCorner)
@@ -338,8 +347,12 @@ namespace Fdp.Toolkit.Perception.Sensors
                 for (int i = 1; i < pts.Count - 1; i++) waypoints.Add(new Vector3(pts[i], z));
                 waypoints.Add(ear);
             }
-            var lastCorner = pts.Count > 2 ? new Vector3(pts[^2], ear.Z) : source;
-            return new SoundRoute(PathFactor(d, metres, db), lastCorner, SoundVia.AroundBuildings, 0f, metres, db, 0, corners, 0);
+            // ⭐ CE-2483 — the last corner he does not stand at (as F's openings)
+            int lc = pts.Count - 2;
+            while (lc >= 1 && Vector2.Distance(pts[lc], Xy(ear)) < StandingInOpeningM) lc--;
+            return lc >= 1
+                ? new SoundRoute(PathFactor(d, metres, db), new Vector3(pts[lc], ear.Z), SoundVia.AroundBuildings, 0f, metres, db, 0, corners, 0)
+                : new SoundRoute(PathFactor(d, metres, db), source, SoundVia.Straight, 0f, metres, db, 0, corners, 0);
         }
 
         // does a→b pass through the convex polygon's interior (not just touch it)? t = where it enters (0..1)

@@ -1051,6 +1051,7 @@ graph TD
 |---|---|
 | footsteps through a brick wall now stop at ~0.4 m (25 m × 10^(−35/20)) | ⇒ indoor scenarios that relied on hearing steps through walls change |
 | every soldier hears every rifle shot within ~1.5 km × weather | ⇒ more heard contacts (CE-2474's fusion carries them) and a longer LOUD list each tick (§8.2) |
+| ⛔ found re-running `ia-house-hunt` (✅ before, ❌ after): steps upstairs now come down the STAIRWELL, placed at the opening the attacker stood on — a heard enemy at his feet | ⭐ CE-2483: an opening or corner within 1.5 m of the ear (`StandingInOpeningM`) is skipped — the sound came from beyond it |
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 

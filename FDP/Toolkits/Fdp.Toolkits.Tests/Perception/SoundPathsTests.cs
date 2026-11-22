@@ -100,6 +100,22 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(source, blast.HeardFrom);
         }
 
+        /// <summary>⭐ <c>CE-2483</c> (📐 ia-house-hunt) — a man STANDING IN the opening a sound came through does not hear it "at his own feet": steps upstairs, the
+        /// listener on the stair's foot portal ⇒ heard from beyond it (the source, or the opening before), never within 1.5 m of himself. From the east room's far
+        /// corner the same steps still come from the stairwell (AQ106 F unchanged). 🔴 Red-proof: the skip loop removed ⇒ heard from the opening under him ⇒ red.</summary>
+        [Fact]
+        public void CE2483_StandingInTheOpening_TheSoundComesFromBeyondIt()
+        {
+            var w = House("");
+            var source = new Vector3(2f, 4f, 3f);
+            var far = Route(w, new Vector3(9f, 2f, 0f), source, Steps);
+            Assert.Equal(SoundVia.Openings, far.Via);
+            var stairFoot = far.HeardFrom;   // the stairwell, as heard from across the room
+            var onIt = Route(w, new Vector3(stairFoot.X, stairFoot.Y, 0.5f), source, Steps);
+            Assert.True(Vector3.Distance(onIt.HeardFrom, new Vector3(stairFoot.X, stairFoot.Y, 0.5f)) >= SoundPaths.StandingInOpeningM,
+                        $"not at his own feet: heard from {onIt.HeardFrom}, he stands at {stairFoot}");
+        }
+
         /// <summary>⭐ E — a WINDOW is an opening: steps in the east room, an ear in the street south of the house; the straight line crosses
         /// the south wall, the way out through the east window is louder and heard from the window.</summary>
         [Fact]
