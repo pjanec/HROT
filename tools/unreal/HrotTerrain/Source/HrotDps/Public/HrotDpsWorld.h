@@ -330,6 +330,8 @@ private:
 	struct FGizmoText { FVector At; FString Text; FColor Colour; uint32 Key = 0; };
 	TArray<FGizmoText> GizmoTexts;
 	bool bGizmosDirty = false;
+	/** the camera the lines' widths were built for (px -> cm depends on distance and FOV): rebuilt when it moves > 10 % of the nearest line's distance, or the FOV / viewport changes > 15 % */
+	FVector GizmoBuiltLoc = FVector::ZeroVector; float GizmoBuiltTanHalfFov = 0, GizmoBuiltW = 0, GizmoNearestCm = 1e9f;
 	TWeakObjectPtr<class ULineBatchComponent> GizmoLines;
 	// U-18h — traffic (Mover / MoverTracks: never an Entity)
 	struct FMover

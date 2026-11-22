@@ -137,6 +137,19 @@ bool FHrotCardsGizmoTest::RunTest(const FString&)
 	return true;
 }
 
+// a gizmo line's pixel width in world cm: the viewport's width covers 2 d tan(hfov/2) at distance d
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotCardsGizmoPxTest, "Hrot.Dps.Cards.GizmoPx",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotCardsGizmoPxTest::RunTest(const FString&)
+{
+	// 90 deg: tan 1; 1000 px wide, 3000 cm away: the view spans 6000 cm, 6 cm a pixel
+	TestEqual(TEXT("2 px at 30 m = 12 cm"), PxToCm(2.f, 3000.f, 1.f, 1000.f), 12.f);
+	TestEqual(TEXT("below 1.5 px is 1.5 px (0 = the default)"), PxToCm(0.f, 3000.f, 1.f, 1000.f), 9.f);
+	TestEqual(TEXT("3x farther, 3x wider"), PxToCm(2.f, 9000.f, 1.f, 1000.f), 36.f);
+	TestTrue(TEXT("a narrower FOV: thinner"), PxToCm(2.f, 3000.f, 0.5f, 1000.f) < 12.f);
+	return true;
+}
+
 // DD-025: the card content HROT's gizmos give, built from the gateway's EntityStatus (UnitCardGizmo / MindStateGizmo / HealthBarGizmo)
 namespace
 {

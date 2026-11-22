@@ -12,6 +12,9 @@
 #include "Components/LineBatchComponent.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 
 void UHrotDpsWorld::OnGizmoFrame(const FHrotDpsSample& S)
 {
@@ -91,8 +94,24 @@ void UHrotDpsWorld::SendGizmoView(double Real)
 void UHrotDpsWorld::DrawGizmos()
 {
 	UWorld* W = GetWorld();
-	if (!W || !bGizmosDirty) return;   // rebuilt only when a frame (or the asked layers) changed — 0 B per steady frame (R-2084)
+	if (!W) return;
+	// the camera: a line's px width is a world width in cm only at one distance and FOV (HROT's map draws px)
+	FVector Cam = GizmoBuiltLoc; float TanHalf = GizmoBuiltTanHalfFov > 0 ? GizmoBuiltTanHalfFov : 1.f, ViewW = GizmoBuiltW > 0 ? GizmoBuiltW : 1280.f;
+	if (APlayerController* PC = W->GetFirstPlayerController(); PC && PC->PlayerCameraManager)
+	{
+		Cam = PC->PlayerCameraManager->GetCameraLocation();
+		TanHalf = FMath::Tan(FMath::DegreesToRadians(PC->PlayerCameraManager->GetFOVAngle()) * 0.5f);
+		FVector2D S; if (UGameViewportClient* G = W->GetGameViewport()) { G->GetViewportSize(S); if (S.X > 0) ViewW = float(S.X); }
+	}
+	if (!bGizmosDirty)   // otherwise rebuilt only when a frame (or the asked layers) changed, and when the camera moved enough to change a width: 0 B per steady frame (R-2084)
+	{
+		if (GizmoLayersShown.Num() == 0 || !GizmoLines.IsValid() || GizmoBuiltTanHalfFov <= 0) return;
+		const bool bMoved = FVector::DistSquared(Cam, GizmoBuiltLoc) > FMath::Square(0.1f * FMath::Max(GizmoNearestCm, 200.f));
+		const bool bZoomed = FMath::Abs(TanHalf / GizmoBuiltTanHalfFov - 1.f) > 0.15f || FMath::Abs(ViewW / GizmoBuiltW - 1.f) > 0.15f;
+		if (!bMoved && !bZoomed) return;
+	}
 	bGizmosDirty = false;
+	GizmoBuiltLoc = Cam; GizmoBuiltTanHalfFov = TanHalf; GizmoBuiltW = ViewW; GizmoNearestCm = 1e9f;
 	ULineBatchComponent* LB = GizmoLines.Get();
 	if (!LB)
 	{
@@ -107,25 +126,47 @@ void UHrotDpsWorld::DrawGizmos()
 	LB->Flush();
 	GizmoTexts.Reset();
 	GizmosDrawn = 0;
+	// one line of Px pixels, its cm width taken at its midpoint's distance (still SDPG_World: depth-tested)
+	auto Line = [&](const FVector& A, const FVector& B, const FLinearColor& Col, float Px)
+	{
+		const float D = float(FVector::Dist((A + B) * 0.5, Cam));
+		GizmoNearestCm = FMath::Min(GizmoNearestCm, D);
+		LB->DrawLine(A, B, Col, SDPG_World, HrotCards::PxToCm(Px, D, TanHalf, ViewW), 0.f);
+	};
 	for (const TPair<FString, TArray<FGizmoPrim>>& L : GizmoLayersShown)
 		for (const FGizmoPrim& G : L.Value)
 		{
 			if (G.Points.Num() == 0) continue;
 			auto U = [&](int32 I) { return EnuMToUnreal(G.Points[I]) + FVector(0, 0, GizmoLiftCm); };
 			GizmosDrawn++;
-			const float Th = FMath::Clamp(G.Width, 1.f, 20.f);
+			const float Px = FMath::Max(G.Width, 1.5f);   // the wire's Width is pixels (HROT's map); Circle's is its radius, below
 			const FLinearColor Col(G.Colour);
 			switch (G.Shape)
 			{
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeLineStrip:
-				for (int32 I = 0; I + 1 < G.Points.Num(); I++) LB->DrawLine(U(I), U(I + 1), Col, SDPG_World, Th, 0.f);
+				for (int32 I = 0; I + 1 < G.Points.Num(); I++) Line(U(I), U(I + 1), Col, Px);
 				break;
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeArrow:
-				if (G.Points.Num() >= 2) LB->DrawDirectionalArrow(U(0), U(1), 60.f, Col, 0.f, SDPG_World, Th);
+				if (G.Points.Num() >= 2)
+				{
+					const FVector A = U(0), B = U(1);
+					const FVector Dir = (B - A).GetSafeNormal(), Lateral = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
+					Line(A, B, Col, Px);
+					Line(B, B - Dir * 60.f + Lateral * 25.f, Col, Px); Line(B, B - Dir * 60.f - Lateral * 25.f, Col, Px);   // the head
+				}
 				break;
-			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeCircle:   // HROT draws a sphere: Width = the radius in metres
-				LB->DrawSphere(U(0), FMath::Max(10.f, G.Width * 100.f), 16, Col, 0.f, SDPG_World, 1.f);
+			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeCircle:   // HROT draws a sphere: Width = the radius in metres; three great circles of 1.5 px lines
+			{
+				const FVector C = U(0); const float R = FMath::Max(10.f, G.Width * 100.f);
+				constexpr int32 Seg = 24;
+				for (int32 Axis = 0; Axis < 3; Axis++)
+					for (int32 K = 0; K < Seg; K++)
+					{
+						auto At = [&](int32 I) { const float T = 2.f * PI * I / Seg, X = FMath::Cos(T) * R, Y = FMath::Sin(T) * R; return C + (Axis == 0 ? FVector(X, Y, 0) : Axis == 1 ? FVector(X, 0, Y) : FVector(0, X, Y)); };
+						Line(At(K), At(K + 1), Col, 1.5f);
+					}
 				break;
+			}
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapePolygon:
 				if (G.Points.Num() >= 3)   // a filled triangle, z 0 on the wire: put on the ground (the origin's height)
 				{
@@ -135,10 +176,15 @@ void UHrotDpsWorld::DrawGizmos()
 				}
 				break;
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeBox:
-				if (G.Points.Num() >= 2)   // centre, then (extent x, extent y, angle deg) in metres
+				if (G.Points.Num() >= 2)   // centre, then (extent x, extent y, angle deg) in metres; the 12 edges
 				{
 					const FVector3d E = G.Points[1];
-					LB->DrawBox(U(0), FVector(E.X * 100.0, E.Y * 100.0, 10.0), FQuat(FVector::UpVector, -FMath::DegreesToRadians(E.Z)), Col, 0.f, SDPG_World, Th);
+					const FVector C = U(0); const FQuat Q(FVector::UpVector, -FMath::DegreesToRadians(E.Z));
+					const FVector Ext(E.X * 100.0, E.Y * 100.0, 10.0);
+					auto Cn = [&](int32 I) { return C + Q.RotateVector(FVector((I & 1) ? Ext.X : -Ext.X, (I & 2) ? Ext.Y : -Ext.Y, (I & 4) ? Ext.Z : -Ext.Z)); };
+					for (int32 I = 0; I < 8; I++)
+						for (int32 Bit = 1; Bit < 8; Bit <<= 1)
+							if (!(I & Bit)) Line(Cn(I), Cn(I | Bit), Col, Px);
 				}
 				break;
 			case SimNetGateway_Protocol_DdsPlayer_GizmoShapeText:

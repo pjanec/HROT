@@ -161,6 +161,13 @@ namespace HrotCards
 	 *  when no status has arrived */
 	HROTDPS_API void BuildStatusCard(FCard& Card, const FStatusFacts& F, int32 Mode, bool bAir, bool bUnit, const FString& NameText, uint8 Side, uint8 CoarseDamage);
 
+	/** a line of PxWidth pixels at DistCm from the camera, in world centimetres (the line batcher's thickness): the viewport's width W covers
+	 *  2 * d * tan(hfov / 2) at that distance. Floored at 1.5 px (a thinner line breaks up under temporal upsampling) */
+	inline float PxToCm(float PxWidth, float DistCm, float TanHalfFov, float ViewportW)
+	{
+		return FMath::Max(PxWidth, 1.5f) * 2.f * FMath::Max(DistCm, 1.f) * TanHalfFov / FMath::Max(ViewportW, 1.f);
+	}
+
 	/** HROT's side colours (ResolvedStyleConstants tints): Side 1 friend blue, 2 hostile red, else neutral green */
 	HROTDPS_API uint32 SideColour(uint8 Side);
 	/** a hash of what the card shows (its items), for redraw-on-change */

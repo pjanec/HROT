@@ -129,6 +129,16 @@ def gizmo():
     path = os.path.join(JOB["shots"], "gizmos.png").replace("\\", "/")
     unreal.SystemLibrary.execute_console_command(S["gw"], f'HighResShot 1 filename="{path}"')
     R["shots"].append(path)
+    # the lines are px wide (rebuilt as the camera moves): the same pattern from 3x farther, still continuous
+    pawn = unreal.GameplayStatics.get_player_pawn(S["gw"], 0)
+    pawn.place_at_rotator(S["w"].enu_m_to_unreal(unreal.Vector(-40, 0, 2)), unreal.Rotator(pitch=-1.5, yaw=0, roll=0), 90.0)
+    S.update(phase="gizmofar", t=time.time() + 2.5)
+
+
+def gizmofar():
+    path = os.path.join(JOB["shots"], "gizmos-far.png").replace("\\", "/")
+    unreal.SystemLibrary.execute_console_command(S["gw"], f'HighResShot 1 filename="{path}"')
+    R["shots"].append(path)
     S.update(phase="end", t=time.time() + 2.5)
 
 
@@ -152,6 +162,7 @@ def tick_once():
         elif ph == "shoot": shoot()
         elif ph == "sheet": sheet()
         elif ph == "gizmo": gizmo()
+        elif ph == "gizmofar": gizmofar()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
         if time.time() - T0 > 240: finish(False, "timeout")
     except Exception:
