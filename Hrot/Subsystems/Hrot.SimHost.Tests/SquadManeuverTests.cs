@@ -1771,6 +1771,20 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐⭐ <c>CE-2473</c> (R-8316; 📐 U2b: a place order left six men idle for 120 s) — ATTACK on a PLACE, nobody in sight: the squad
+        /// BOUNDS to it at once (the bounding-overwatch play a platoon gives its assault squad for an objective) — its movers advance toward the place.
+        /// 🔴 Red-proof: skip the bound ⇒ the drill waits for a contact, kind None, no orders.</summary>
+        [Fact]
+        public void CE2473_InfantrySquadAttack_APlaceWithNobodyInSight_TheSquadBoundsToIt()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Position\":[0,60,0]}", BehaviorNames.InfantrySquadAttack);
+            Ticks(s, 3);   // the order enters Input one frame later (E-3)
+            Assert.True(BoundingOverwatchManeuver.ManeuverKind == s.Kind, $"task={s.TaskName} kind={s.Kind} orders={s.Orders.Count}");
+            var o = s.LastOrders();
+            Assert.Contains(s.Members, m => o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo && x.Objective.Y > 1f);
+        }
+
         /// <summary>⭐⭐ D2-B (AQ90 A5) — a drill that ENDS clears each member's order, naming what it was told (so a member's own
         /// reaction or a newer order is left alone); a drill REPLACED from outside does the same.</summary>
         [Fact]
