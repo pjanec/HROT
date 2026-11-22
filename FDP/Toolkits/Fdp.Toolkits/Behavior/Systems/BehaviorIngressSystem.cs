@@ -207,6 +207,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
                 // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
                 BehaviorOwnedParts.Release(repo, evt.Entity, repo.GetComponentRO<BehaviorState>(evt.Entity).InstanceId);
+                BehaviorChangeTrace.Note(repo, evt.Entity, evt.BehaviorHash, evt.Origin, "assign-unhosted");   // ⭐ CE-3445 — off unless HROT_TRACE_BEHAVIOR_NETIDS
                 ref var unhosted = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 unhosted.Origin = BehaviorOriginRank.AfterAssign(evt.Origin, unhosted);   // ⭐ CE-3034 — before the hash moves
                 unhosted.Urgency = UrgencyAfterAssign(evt.Origin, ReactionUrgency.NotAReaction, unhosted.Urgency);
@@ -549,6 +550,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             repo.SetManagedComponent<PausedTask>(entity, null!);   // taken, not dropped: the held storage is the task's again
             if (!paused.Restart && paused.Hash != BehaviorIds.None && repo.HasComponent<BehaviorState>(entity))
             {
+                BehaviorChangeTrace.Note(repo, entity, paused.Hash, paused.Origin, "resume-paused");   // ⭐ CE-3445
                 ref var state = ref repo.GetComponentRW<BehaviorState>(entity);
                 state.ActiveBehaviorHash = paused.Hash;
                 state.InstanceId = paused.InstanceId;
@@ -670,6 +672,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
             //   ⚠ Also on a re-assign of the SAME behaviour: a new run asks its own questions.
+            BehaviorChangeTrace.Note(repo, entity, behaviorId, origin, keepsTask ? "assign-keeps-task" : "assign");   // ⭐ CE-3445
             if (!keepsTask) BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
@@ -1844,6 +1847,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
 
             // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+            BehaviorChangeTrace.Note(repo, entity, BehaviorIds.None, BehaviorOrigin.Unmarked, "clear");   // ⭐ CE-3445
             BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             behavior.ActiveBehaviorHash = BehaviorIds.None;
@@ -1980,5 +1984,37 @@ namespace Fdp.Toolkit.Behavior.Systems
         //   ⭐ RootHsmAccess.ResetInstance replaces it and routes to the size-driven
         //     HsmInstanceManager.Initialize added by O7c-③: the width comes from the SLOT, so a 64-
         //     or 256-byte machine is bound correctly for the first time.
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3445</c> (a rare 4-thread stepped divergence: a squad's first soldier changes behaviour one step late) — a DIAGNOSTIC: every behaviour
+    /// change the ingress makes on the network ids in <c>HROT_TRACE_BEHAVIOR_NETIDS</c> ("1203,1477,1686") is logged with the frame, the old and new
+    /// hash, the origin and the path. ⛔ Off unless the variable is set (read once); serial (the ingress is serial), allocation only when it logs.
+    /// </summary>
+    internal static class BehaviorChangeTrace
+    {
+        private static readonly int[] Ids = Parse(System.Environment.GetEnvironmentVariable("HROT_TRACE_BEHAVIOR_NETIDS"));
+
+        private static int[] Parse(string? v)
+        {
+            if (string.IsNullOrWhiteSpace(v)) return System.Array.Empty<int>();
+            var list = new System.Collections.Generic.List<int>();
+            foreach (var part in v.Split(',', System.StringSplitOptions.RemoveEmptyEntries))
+                if (int.TryParse(part.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id)) list.Add(id);
+            return list.ToArray();
+        }
+
+        public static void Note(EntityRepository repo, Entity entity, int newHash, BehaviorOrigin origin, string path)
+        {
+            if (Ids.Length == 0 || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                || !repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)) return;
+            int net = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value;
+            if (System.Array.IndexOf(Ids, net) < 0) return;
+            long frame = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().FrameNumber : -1;
+            double t = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : -1;
+            int old = repo.HasComponent<BehaviorState>(entity) ? repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash : 0;
+            Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"[BehTrace] frame {frame} t {t:0.0000} net {net}: {old} -> {newHash} origin {origin} via {path}"));
+        }
     }
 }
