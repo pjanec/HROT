@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → `behaviors`: THE LLM COMMANDER, slice L-1 (CE-4676)
 
-**For:** behaviors (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at the commit that adds this file**; ⛔ scope FROZEN there — later
+**For:** behaviors (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at the commit that adds this file; RE-DISPATCHED (rule 1a — not started) at the commit that adds the measured ① premise**; ⛔ scope FROZEN there — later
 documents are FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-22`: *"start with platoon commander commanding squads on a little scenario … one side … full game AI and other side by large
@@ -30,7 +30,7 @@ deviation is folded back into the design (obligation ⑤). Then Command Chain Ex
 
 | # | builds | design |
 |---|---|---|
-| ① | **`CommanderSeat`** on a commander: which mind, which mode; set by a scenario field on the commander (R-4298), saved with the scenario. ⭐ While the seat exists the commander's OWN play does not run — its orders come only from the mind | §5, §9 ① |
+| ① | **`CommanderSeat`** on a commander: which mind, which mode; set by a scenario field on the commander (R-4298), saved with the scenario. ⭐ While the seat exists the commander's OWN play does not run — its orders come only from the mind: the seat puts `InertSop` on it and no task (measured below) | §5, §9 ① |
 | ② | **`CommanderFeedSystem`** (serial; on a report, an event or the heartbeat — never every frame): feed items `snapshot` · `report` · `order-state` · `event` · `heartbeat`, each with a seq, a sim time, a JSON form and ONE radio line | §3 |
 | ③ | **`CommanderChannel`**: the feed ring (seq) out, the action queue in; thread-safe; ⛔ nothing on the mind's side reads or writes the world | §2, §5 |
 | ④ | **`MindRunner` + `IMind` + `ScriptedMind`**: one runner per seat on a background thread; wake on a wake item, else the heartbeat; one call at a time. The scripted mind: fixed rules (*"on a SPOT: the nearest squad attacks the spot, the other supports by fire / holds"*) | §3, §4 |
@@ -42,8 +42,14 @@ deviation is folded back into the design (obligation ⑤). Then Command Chain Ex
 ⭐ **The actions L-1 accepts:** `order(squad, kind, where|target)` with kind ∈ Move · Hold · Attack · Defend · BreakContact (+ the squad plays
 `BoundingOverwatch`, `SuppressAndManeuver`, `ClearBuilding` if they resolve for a squad) · `hold(squad)` · `ask_sitrep(squad)` · `note(text)`.
 
-⚠ **To measure before building ①** (claim table in your status file): what a body-less platoon commander does today with no task — does its SOP
-react (e.g. to `SquadContact`) and give orders? The seat must stop exactly that, and nothing the squads do themselves.
+✅ **Measured by the coordinator `2026-11-22` (the item-① premise):** a body-less platoon (TKB 305) with no task runs its type's default SOP
+**`BasicPlatoonSop`** (`NedTkbCatalog.cs:1289`; `Brains/BasicPlatoonSop.cs`). It has exactly two rows, both reading the platoon's PICTURE:
+① a fresh report + fired on from a building ⇒ react `ReactToFireFromBuilding` (orders a squad to clear it); ② a fresh report + an enemy element
+(team or larger, ≤ 400 m, seen ≤ 30 s) ⇒ react `PlatoonHold` (every squad holds). ⇒ ⭐ **the seat sets the commander's SOP to `InertSop`**
+(the explicit none, `CivilianInertPilotSops.cs:41`, AQ97 C — already a scenario field, as in `cc-platoon-bound`) and gives it no task: no new
+suppression mechanism. ⚠ What stays, on purpose: the staff (reports up) is not the SOP and keeps running; the SQUADS keep their own SOPs and
+reactions — a squad's reaction (origin Reaction) PAUSES a Superior order and the order resumes after (`BehaviorOrigin.cs:75`), which is the game
+AI fighting under the LLM's orders, not a leak.
 
 ## Done when — the scenario's checks (R-4277; `scripts/scenario-regression.sh llm-platoon-attack`)
 

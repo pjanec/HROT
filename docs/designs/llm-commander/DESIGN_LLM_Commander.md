@@ -231,7 +231,7 @@ all their pictures, so it is really their superior: build it as that seat, hones
 
 | # | gap | ⭐ lean |
 |---|---|---|
-| ① | no way to take a commander's brain away from its play and hand it to a mind | `CommanderSeat`: the commander's own play is not started while the seat exists |
+| ① | no way to take a commander's brain away from its play and hand it to a mind | `CommanderSeat`: no task + **`InertSop`** — ✅ measured `2026-11-22`: an idle platoon runs only `BasicPlatoonSop` (two picture rows: clear a building that fired, or hold every squad on a reported element), and `InertSop` is the existing explicit none; the squads keep their own reactions (they pause his order, then it resumes) |
 | ② | the order-by-name check on the HTTP route probably refuses echelon orders | not on the path: the action system calls `CommandOrders.Order` directly |
 | ③ | no push from HROT | the feed ring + long-poll + server-sent events (§3) |
 | ④ | the squads send a routine SITREP only when asked a rate | the seat asks it at start (`CommandOrders.AskSitrep`) |
