@@ -944,6 +944,8 @@ classDiagram
 | ① one sound, one contact | `MergeHeard` fuses a member's heard slot into the pooled HEARD contact with the same token whatever the distance — a straight hearing's point replaces a corner one, two of a kind fuse by inverse variance, a straight one clears `HeardThroughFlag` (D-8); then `AbsorbHeardBySound` folds a heard contact into the SEEN contact carrying its token (the sighting keeps its position). ✅ `SquadPerceptionMergeSystemTests.CE2474_*` |
 | ② a shot from a man you see is him | `TargetMemory.AttributeToSeen`, called by `ThreatEvaluationSystem`'s heard loop before `HearContact`: a heard SHOT (`Kind` Shot, not a burst — R-2071, not heard via an opening — D-8, its estimate ≥ 1 m from him) within `AttributeDegrees` 12° of the bearing of an identified contact he sees THIS tick (a Visual track) refreshes that contact (Acoustic added, the token stamped) instead of a new anonymous slot; the nearest bearing wins. ✅ `ThreatEvaluationSystemTests.CE2474_AShotFromTheBearingOfAManHeSees_IsThatMan` |
 | ③ the half weight (CE-2474, `52df639bb`) | ⛔ WITHDRAWN (user: "Why are we halving?") — after ① and ② a heard contact left over is a genuinely unknown enemy and counts whole |
+| ⭐ CE-2485 — the SIGHTING absorbs a heard-through point (any class) | when the seen man stands beyond the point within 45° of its bearing from the listener (as CE-2484) — not only inside its circle. 📐 uf-corner-assault: corner steps heard first, the man seen behind the corner: 4 enemies for 2 before |
+| ⭐ CE-2484 — a shot heard THROUGH AN OPENING | its point is the way in, so it is the seen man's only when he stands BEYOND it (farther than the point) and within `AttributeThroughDegrees` 45° of its bearing. 📐 pe-house-shot: seen through the hall door, heard via the stairwell 17° off — held as two before |
 | unchanged | bursts (R-2071), a sound heard only through an opening (D-8) for the SPOT, anonymity (§6 D) |
 
 #### 8.6e `CE-2476` / `CE-2475` — PROVING perception: belief against truth, a scenario suite, and the first wavefront *(behaviors, `2026-11-22`; 🔒 user: "wrong perception breaks many behaviors so i think it deserves extra effort to get it right" · "in reality the sound propagates through walls as well as around them and the human aggregates those" · "yes, go ahead in that order"; build-state: the cue and P1–P5 BUILT; CE-2475 STOPPED on a measured premise — see its claim table)*
@@ -1051,6 +1053,7 @@ graph TD
 |---|---|
 | footsteps through a brick wall now stop at ~0.4 m (25 m × 10^(−35/20)) | ⇒ indoor scenarios that relied on hearing steps through walls change |
 | every soldier hears every rifle shot within ~1.5 km × weather | ⇒ more heard contacts (CE-2474's fusion carries them) and a longer LOUD list each tick (§8.2) |
+| ⛔ found re-running `ia-house-hunt` (✅ before, ❌ after): steps upstairs now come down the STAIRWELL, placed at the opening the attacker stood on — a heard enemy at his feet | ⭐ CE-2483: an opening or corner within 1.5 m of the ear (`StandingInOpeningM`) is skipped — the sound came from beyond it |
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 

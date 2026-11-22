@@ -150,6 +150,10 @@ namespace Fdp.Toolkit.Squad.Systems
                 {
                     int m = 0;
                     for (int i = 0; i < n; i++) if (_depth[i] == level) _level[m++] = _all[i];   // query order within a level
+                    // ⭐ CE-2485 (found by StarterPack CE3088 under HROT_READ_CHECK=1, once a heard corner point folds into the man seen behind it) —
+                    //   the fire distribution judges an identified TARGET (its position, health, side: EngagementAreas, IsOutOfTheFight): the BRAINS' common
+                    //   read set, declared here too (idempotent) so this phase never leans on another having declared it first — ThreatEvaluationSystem's CE-4623
+                    if (m > 0) Fdp.Toolkit.Behavior.BrainReads.Declare();
                     if (m > 0) Fdp.Core.Jobs.ParallelEntities.Run(repo, _level, m, new SquadJob { System = this });
                 }
             }
