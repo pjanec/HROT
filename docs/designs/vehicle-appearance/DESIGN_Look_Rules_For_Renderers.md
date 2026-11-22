@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-20
+updated: 2026-11-22
 build-state: BUILT (RR-1…RR-6, RR-8…RR-11; RR-7 needs no engine change, D-2)
 current-answer: §3 (what moves where, per item) and §5 (the decisions, with leans)
 stale-below: nothing yet
@@ -157,6 +157,49 @@ move **verbatim** — same constants, same branches — and the map's existing r
 | **streams** ([CE-11016](../../blueprints/Blueprint_Issues_Tracker.md)) | `FireStreams.StreamOfFlash(world, flash, out stream, out firedAt)`; the flash records the stream's own aim (`TowardOf`) |
 
 ⛔ **Rejected: re-raising recorded events in the cluster replay** (`ReplayModule` passes no bus) — events between keyframes are lost or burst on a seek; component state is restored by it. The events stay recorded; nothing reads them in replay.
+
+### 3.4 The director's fade and subtitle on the suggested camera, live (`2026-11-22`, CE-11035, R-11015; build-state: READY-TO-BUILD)
+
+🔒 User, `2026-11-22`: *"yes add live fade and subtitles too"* — a client WATCHING the director live (not rendering a film) gets the dip to
+black and the subtitle the screen shows. ⭐ Measured: the camera already reaches clients live through `CameraSuggestion` (`FilmDirector.Describe`,
+`Film.cs:210-223`); the fade lives only in `FilmStudio.Fade` (`Film.cs:80`, set by `DirectorRunner.cs:1010, :1129`) and the subtitle only in
+`DirectorRunner.SubtitleNow` (`:441`, `:1002`) — both reach a client only inside a render job (`FilmFrame`).
+
+```mermaid
+classDiagram
+    class CameraSuggestion { <<existing node-local singleton, appended>> +float Fade +int CaptionSerial +byte CaptionPosition +float CaptionAlpha }
+    class FilmCaption { <<new node-local managed singleton, NoReplay>> +string Text }
+    class FilmStudio { <<existing>> +Fade +Caption (new, SubtitleFrame or null) }
+    class FilmDirector { <<existing ICameraSuggests>> Describe copies Fade and the caption }
+    class DirectorRunner { <<existing>> sets FilmStudio.Caption where it sets the cinema's subtitle }
+    DirectorRunner ..> FilmStudio
+    FilmDirector ..> FilmStudio : reads
+    FilmDirector ..> CameraSuggestion : writes Fade, CaptionSerial, Position, Alpha
+    FilmDirector ..> FilmCaption : sets the text ONLY when the serial changes
+```
+
+```mermaid
+sequenceDiagram
+    participant R as DirectorRunner
+    participant S as FilmStudio
+    participant D as FilmDirector.Describe
+    participant W as the world (node-local)
+    participant G as the gateway
+    R->>S: Fade 0.4, Caption (Dawn at the bridge, Bottom, 0.8)
+    D->>S: read both
+    D->>W: CameraSuggestion Fade 0.4, CaptionSerial 7, Bottom, 0.8
+    D->>W: FilmCaption Dawn at the bridge (serial changed)
+    G->>W: read the suggestion every frame, the text only on a new serial
+```
+
+| rule | why |
+|---|---|
+| ⭐ the fade and the caption's alpha / position / serial on the unmanaged suggestion; the TEXT on its own managed singleton, replaced only when the serial changes | 0 B per steady frame (CLAUDE.md HOT PATH): a fade animates every frame, the text changes a few times a take |
+| ⭐ only the director writes them; any other driver leaves 0 (no fade, no caption) | the suggestion is composed fresh each frame (`CameraSuggestions.Write`) |
+| ⛔ still node-local, never recorded or replicated | as D-1 |
+
+Acceptance: a rail per field through `CameraSuggestions.Write` with the real `FilmDirector`; the serial changes exactly when the text does;
+0 B per steady frame with a fade animating; a follow / operator camera has Fade 0 and no caption.
 
 ## 4. What this design does NOT move, and why
 
