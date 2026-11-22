@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             var ring = Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.In(view);   // ⭐ CE-3283 — the token's TKB type, this node's ring
             foreach (ref readonly var r in results)
             {
-                if (r.EntityId != 0) continue;
+                if (r.EntityId > 0) continue;   // ⭐ CE-2474 — a heard answer's id is 0 or its sound's token (negative), never an entity
                 _heard.Add(new SoundContactEvent
                 {
                     Observer = unit, X = r.PositionX, Y = r.PositionY, Z = r.PositionZ,
@@ -113,6 +113,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                     Family      = (byte)((r.Flags >> AcousticPerception.FamilyShift) & 0x7),   // ⭐ CE-3283 — the top 3 bits (the mask keeps the sign out)
                     Signature   = ring?.TypeOf(r.SignatureToken) ?? 0L,
                     Via         = (r.Flags & AcousticPerception.ViaMask) != 0 ? (byte)1 : (byte)0,   // ⭐ CE-4666 (D-8)
+                    Sound       = AcousticPerception.SoundOf(r.EntityId),   // ⭐ CE-2474 (§8.6d) — the bang's token, never its source
                 });
             }
         }

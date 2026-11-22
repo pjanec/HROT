@@ -101,6 +101,10 @@ namespace Fdp.Toolkit.Perception.Components
         /// <summary>⭐ K3 — what the contact SOUNDED like (<c>Tkb.Domain.SoundSourceClass</c>); 0 = unknown.</summary>
         public fixed byte SourceClass[PerceptionConstants.MaxTrackedTargets];
 
+        /// <summary>⭐ <c>CE-2474</c> (Sensing §8.6d) — the TOKEN of the last sound heard into the slot (the emission's serial; 0 = none).
+        /// ⛔ Never the source: it says "this is the bang I heard", so the squad can fold everyone's hearing of one bang into one contact.</summary>
+        public fixed long SoundIds[PerceptionConstants.MaxTrackedTargets];
+
         /// <summary>The last synthetic serial given to an anonymous contact (its id is <c>-serial</c>), so a behaviour can
         /// follow ONE heard contact across ticks.</summary>
         public int AnonymousSerial;
@@ -232,6 +236,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Anonymous[slot]    = 0;
                 mem.Radius[slot]       = 0f;
                 mem.SourceClass[slot]  = 0;
+                mem.SoundIds[slot]     = 0;
                 mem.SeenStance[slot]   = seenStance;
                 mem.Count++;
                 mem.ChangeEpoch++;
@@ -262,6 +267,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.Anonymous[lowestIdx]    = 0;
                     mem.Radius[lowestIdx]       = 0f;
                     mem.SourceClass[lowestIdx]  = 0;
+                    mem.SoundIds[lowestIdx]     = 0;
                     mem.SeenStance[lowestIdx]   = seenStance;
                     mem.ChangeEpoch++;
                 }
@@ -286,6 +292,7 @@ namespace Fdp.Toolkit.Perception.Components
                 byte   anonTmp  = mem.Anonymous[i];
                 float  radTmp   = mem.Radius[i];
                 byte   clsTmp   = mem.SourceClass[i];
+                long   sndTmp   = mem.SoundIds[i];
                 byte   stTmp    = mem.SeenStance[i];
 
                 int j = i - 1;
@@ -301,6 +308,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.Anonymous[j + 1]    = mem.Anonymous[j];
                     mem.Radius[j + 1]       = mem.Radius[j];
                     mem.SourceClass[j + 1]  = mem.SourceClass[j];
+                    mem.SoundIds[j + 1]     = mem.SoundIds[j];
                     mem.SeenStance[j + 1]   = mem.SeenStance[j];
                     j--;
                 }
@@ -315,6 +323,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Anonymous[j + 1]    = anonTmp;
                 mem.Radius[j + 1]       = radTmp;
                 mem.SourceClass[j + 1]  = clsTmp;
+                mem.SoundIds[j + 1]     = sndTmp;
                 mem.SeenStance[j + 1]   = stTmp;
             }
         }
@@ -334,7 +343,7 @@ namespace Fdp.Toolkit.Perception.Components
         /// Returns the slot's id. ⛔ Never an identity: the source is not known here, only "something about here".
         /// </summary>
         public static long HearContact(ref TargetMemory mem, float x, float y, float z, float radius, byte sourceClass,
-                                       float scoreBoost, uint tick, byte via = 0)
+                                       float scoreBoost, uint tick, byte via = 0, long sound = 0)
         {
             radius = radius > 0f ? radius : 1f;
             bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
@@ -351,6 +360,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.LastSeenTick[best]  = tick;
                 mem.Modalities[best]   |= (byte)SensorModality.Acoustic;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
+                if (sound != 0) mem.SoundIds[best] = sound;   // ⭐ CE-2474
                 long known = mem.EntityIds[best];
                 Sort(ref mem);
                 return known;
@@ -376,6 +386,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.LastSeenTick[best]  = tick;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
                 if (via == 0) mem.Anonymous[best] = HeardStraight;   // ⭐ CE-4666 (D-8) — one straight hearing makes the fused point a source estimate
+                if (sound != 0) mem.SoundIds[best] = sound;   // ⭐ CE-2474
                 long fused = mem.EntityIds[best];
                 Sort(ref mem);
                 return fused;
@@ -389,10 +400,57 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Anonymous[i]   = via != 0 ? HeardThroughAnOpening : HeardStraight;   // ⭐ CE-4666 (D-8)
                 mem.Radius[i]      = radius;
                 mem.SourceClass[i] = sourceClass;
+                mem.SoundIds[i]    = sound;   // ⭐ CE-2474
                 break;
             }
             return id;
         }
+
+        /// <summary>⭐ <c>CE-2474</c> (Sensing §8.6d ②) — how far off a seen man's bearing a heard shot may come and still be HIS (degrees).</summary>
+        public const float AttributeDegrees = 12f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2474</c> (Sensing §8.6d ②; 🔒 user: "Can't we somehow assign the sound position to the seen position of the enemy?") — a
+        /// listener at (<paramref name="fromX"/>, <paramref name="fromY"/>) heard a SHOT whose estimate lies at (<paramref name="x"/>, <paramref name="y"/>):
+        /// when an identified contact he SEES NOW (<paramref name="seenNow"/>) stands within <see cref="AttributeDegrees"/> of that bearing, the shot is
+        /// HIS — that slot is refreshed (Acoustic added, the sound's token stamped) instead of a new anonymous slot. The nearest bearing wins.
+        /// ⛔ Not for a footstep or an engine (only a shot is sudden and directional), never for a burst (R-2071: where a round LANDED), never for a
+        /// hearing through an opening or round a corner (D-8: its bearing points at the way in, not the source).
+        /// Returns true when it attributed.
+        /// </summary>
+        public static bool AttributeToSeen(ref TargetMemory mem, float fromX, float fromY, float x, float y, byte kind, byte sourceClass, byte via,
+                                           System.ReadOnlySpan<long> seenNow, float scoreBoost, uint tick, long sound)
+        {
+            if (kind != ShotKind || sourceClass == BurstClass || via != 0 || seenNow.IsEmpty) return false;
+            float hx = x - fromX, hy = y - fromY, hd2 = hx * hx + hy * hy;
+            if (hd2 < 1f) return false;   // an estimate on top of the listener has no bearing
+            float hd = System.MathF.Sqrt(hd2);
+            float cosMax = System.MathF.Cos(AttributeDegrees * (System.MathF.PI / 180f));
+            int best = -1; float bestCos = cosMax;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] != 0) continue;
+                long id = mem.EntityIds[i];
+                bool seen = false;
+                for (int k = 0; k < seenNow.Length && !seen; k++) seen = seenNow[k] == id;
+                if (!seen) continue;
+                float sx = mem.PositionsX[i] - fromX, sy = mem.PositionsY[i] - fromY, sd2 = sx * sx + sy * sy;
+                if (sd2 < 1e-4f) continue;
+                float cos = (hx * sx + hy * sy) / (hd * System.MathF.Sqrt(sd2));
+                if (cos >= bestCos) { best = i; bestCos = cos; }
+            }
+            if (best < 0) return false;
+            mem.Freshness[best]   += scoreBoost;
+            mem.LastSeenTick[best] = tick;
+            mem.Modalities[best]  |= (byte)SensorModality.Acoustic;
+            if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
+            if (sound != 0) mem.SoundIds[best] = sound;
+            Sort(ref mem);
+            return true;
+        }
+
+        /// <summary><c>Signatures.SoundKind.Shot</c>.</summary>
+        public const byte ShotKind = 2;
 
         /// <summary>
         /// ⭐⭐ <c>CE-3063</c> — a sense confirmed <paramref name="entityId"/> at (<paramref name="x"/>, <paramref name="y"/>): an
@@ -423,6 +481,7 @@ namespace Fdp.Toolkit.Perception.Components
                 if (mem.Freshness[anon] > mem.Freshness[known]) mem.Freshness[known] = mem.Freshness[anon];
                 mem.Modalities[known] |= mem.Modalities[anon];
                 if (mem.SourceClass[known] == 0) mem.SourceClass[known] = mem.SourceClass[anon];
+                if (mem.SoundIds[anon] != 0) mem.SoundIds[known] = mem.SoundIds[anon];   // ⭐ CE-2474 — the bang is now his
                 Forget(ref mem, anon);
             }
             else
@@ -456,6 +515,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Anonymous[i]    = mem.Anonymous[i + 1];
                 mem.Radius[i]       = mem.Radius[i + 1];
                 mem.SourceClass[i]  = mem.SourceClass[i + 1];
+                mem.SoundIds[i]     = mem.SoundIds[i + 1];
                 mem.SeenStance[i]   = mem.SeenStance[i + 1];   // ⭐ CE-2326
             }
             mem.Count--;

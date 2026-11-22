@@ -900,7 +900,7 @@ Rails: `AcousticHearingTests.AQ106_ASoundRoundTheCorner_IsHeard_FromTheDoorway` 
 `SquadPerceptionMergeSystemTests.CE4666_AShotHeardThroughAnOpening_IsMarkedSo_UntilHeardStraight`,
 `SquadManeuverTests.CE4666_AContactHeardOnlyThroughAnOpening_IsNoElement_HeardStraightItIs`.
 
-#### 8.6d `CE-2474` — ONE sound is ONE contact, and a shot from a man you SEE is HIM *(behaviors, `2026-11-22`; 🔒 user: "Can't we consider the same sound heard by multiple people as one single enemy?" · "Can't we somehow assign the sound position to the seen position of the enemy?" · "yes, go ahead with both parts"; build-state: BUILDING)*
+#### 8.6d `CE-2474` — ONE sound is ONE contact, and a shot from a man you SEE is HIM *(behaviors, `2026-11-22`; 🔒 user: "Can't we consider the same sound heard by multiple people as one single enemy?" · "Can't we somehow assign the sound position to the seen position of the enemy?" · "yes, go ahead with both parts"; build-state: BUILT)*
 
 📐 **Measured** (`uf-corner-assault`, deterministic, 16 s): ONE shot of Red Rifleman 1 (seen at (628, 387)) heard by four Blue men became FOUR pooled
 contacts — estimates at (631, 379), (642, 379), (642, 378) and, heard round a corner (D-8), (659, 334) beside the listener himself; each missed by more than
@@ -913,14 +913,14 @@ the sound's id is a TOKEN of the emission (the ring's serial), never its source.
 ```mermaid
 classDiagram
   class SoundEmissionRing { <<existing>> SoundEmission.Serial «one per sound» }
-  class AcousticPerception { <<existing, grows>> Answer «EntityId = −Serial: the sound's token, never the source» }
-  class SensorMemoryStage { <<existing, grows>> HearAll «EntityId ≤ 0 ⇒ heard; Sound = −EntityId» }
+  class AcousticPerception { <<existing, grows>> Answer «EntityId = TokenOf(serial) = −(serial+1)» · SoundOf(id) }
+  class SensorMemoryStage { <<existing, grows>> HearAll «EntityId ≤ 0 ⇒ heard; Sound = SoundOf(EntityId)» }
   class SoundContactEvent { <<existing, grows>> +long Sound }
   class AudioTargetDetected { <<existing DDS, grows>> +long Sound }
   class TargetMemory { <<existing, grows>> +fixed long SoundIds «per slot, the last sound heard into it» · HearContact(…, sound) · AttributeToSeen(…) }
   class ThreatEvaluationSystem { <<existing>> heard loop: AttributeToSeen first, else HearContact }
-  class SquadContact { <<existing, grows>> +long SoundId }
-  class SquadPerceptionMergeSystem { <<existing, grows>> MergeHeard: same SoundId ⇒ same contact (a seen one keeps its position) }
+  class SquadContact { <<existing, unchanged — 32 bytes>> }
+  class SquadPerceptionMergeSystem { <<existing, grows>> heardSound[16] «merge-only, beside heardRadius / heardClass» · MergeHeard: same token ⇒ same contact · AbsorbHeardBySound }
   SoundEmissionRing --> AcousticPerception : the serial
   AcousticPerception --> SensorMemoryStage
   SensorMemoryStage --> SoundContactEvent
@@ -930,13 +930,19 @@ classDiagram
   TargetMemory --> SquadPerceptionMergeSystem : members' slots
   SquadPerceptionMergeSystem --> SquadContact
 ```
-*What the picture shows that prose hid:* the token rides an EXISTING field on every hop but the two structs that hold slots (`TargetMemory`, `SquadContact`),
-and only ONE wire message (`AudioTargetDetected`) changes — the memory and the pool are brain-local, never sent.
+*What the picture shows that prose hid:* the token rides an EXISTING field on the sensor hop (the answer's `EntityId`), and only ONE wire message
+(`AudioTargetDetected`) and ONE stored struct (`TargetMemory`) grow — the pool keeps it beside the radius and class it already holds for the merge only.
+
+| ⭐ as built — deviations from the first draft | why |
+|---|---|
+| the token is `−(serial + 1)`, never `−serial` | 📐 `−1` is the EQS solver's rejection mark (`EqsSolverSystem.CompactRejected`): the first sound of a timeline (place 1) would have vanished |
+| the pool keeps the token in a merge-only `heardSound[16]`, NOT a `SquadContact.SoundId` | `SquadContact` is deliberately 32 bytes (the merge's own comment); the token is needed only while merging, exactly like the radius and class already kept there |
+| ⚠ the token is a place in the HEARING node's ring | members heard on two different sensor nodes number one bang differently ⇒ no same-sound fusion across nodes (the circle rule still applies); a false match needs the same place AND a compatible class. Single-node runs (the editor, the scenario suite) are exact |
 
 | rule | as built |
 |---|---|
-| ① one sound, one contact | the squad pool fuses a member's heard slot into the pooled contact with the SAME `SoundId` whatever the distance; a SEEN contact carrying it keeps its own position (D-8: a straight hearing clears `HeardThroughFlag`) |
-| ② a shot from a man you see is him | a heard SHOT (not a footstep, not a burst — R-2071) whose bearing from the listener is within `AttributeDegrees` 12° of an identified contact he has in sight now (`InSightTicks`) refreshes THAT contact (and stamps the sound's id on it) instead of a new anonymous slot |
+| ① one sound, one contact | `MergeHeard` fuses a member's heard slot into the pooled HEARD contact with the same token whatever the distance — a straight hearing's point replaces a corner one, two of a kind fuse by inverse variance, a straight one clears `HeardThroughFlag` (D-8); then `AbsorbHeardBySound` folds a heard contact into the SEEN contact carrying its token (the sighting keeps its position). ✅ `SquadPerceptionMergeSystemTests.CE2474_*` |
+| ② a shot from a man you see is him | `TargetMemory.AttributeToSeen`, called by `ThreatEvaluationSystem`'s heard loop before `HearContact`: a heard SHOT (`Kind` Shot, not a burst — R-2071, not heard via an opening — D-8, its estimate ≥ 1 m from him) within `AttributeDegrees` 12° of the bearing of an identified contact he sees THIS tick (a Visual track) refreshes that contact (Acoustic added, the token stamped) instead of a new anonymous slot; the nearest bearing wins. ✅ `ThreatEvaluationSystemTests.CE2474_AShotFromTheBearingOfAManHeSees_IsThatMan` |
 | ③ the half weight (CE-2474, `52df639bb`) | ⛔ WITHDRAWN (user: "Why are we halving?") — after ① and ② a heard contact left over is a genuinely unknown enemy and counts whole |
 | unchanged | bursts (R-2071), a sound heard only through an opening (D-8) for the SPOT, anonymity (§6 D) |
 

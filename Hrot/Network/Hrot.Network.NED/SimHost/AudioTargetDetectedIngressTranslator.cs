@@ -50,6 +50,7 @@ namespace Hrot.Network.NED.SimHost
                     Observer = listener, X = data.OriginX, Y = data.OriginY, Z = data.OriginZ, Radius = data.Radius, Kind = data.Kind, SourceClass = data.SourceClass,
                     Family = data.Family, Signature = data.Signature,   // ⭐ CE-3283
                     Via = data.Via,   // ⭐ CE-4666 (D-8)
+                    Sound = data.Sound,   // ⭐ CE-2474 — the bang's token
                 });
             }
         }
