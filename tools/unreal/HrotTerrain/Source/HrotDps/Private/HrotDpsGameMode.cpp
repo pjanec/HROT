@@ -56,6 +56,7 @@ void AHrotDpsGameMode::StartPlay()
 	// U-18t: a terrain by name (a preview / a check without a station), and the camera
 	int32 Labels = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgLabels="), Labels)) W->LabelMode = FMath::Clamp(Labels, 1, 3);   // U-18y: 1 off, 2 commanders, 3 every unit (R-143)
+	if (FParse::Param(FCommandLine::Get(), TEXT("HrotIgWireCards"))) W->bWireCards = true;   // HROT's own cards over gizmos (DD-024), optional
 	FString Terrain;
 	if (FParse::Value(FCommandLine::Get(), TEXT("HrotIgTerrain="), Terrain) && !Terrain.IsEmpty()) W->ShowTerrain(Terrain);
 	FString View;

@@ -178,6 +178,9 @@ public:
 	 *  from Entity data in HROT's shape — and DPS says nothing about commanders yet, so mode 2 shows the aircraft only */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 LabelMode = 2;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void CycleLabels() { LabelMode = LabelMode % 3 + 1; }
+	// U-18y (user 2026-11-22): the client draws its cards from entity data; HROT's own cards over gizmos (DD-024: UnitCards / UnitSymbols /
+	// Labels) are OPTIONAL - subscribed only when this is set (-HrotIgWireCards)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bWireCards = false;
 	/** "labels <mode>: <n> cards, <r> repaints, <b> rebuilds" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeLabels() const;
 	UPROPERTY(Transient) TObjectPtr<class UHrotCardLayer> Cards;

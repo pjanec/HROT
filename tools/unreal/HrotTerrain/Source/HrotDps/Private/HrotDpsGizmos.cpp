@@ -71,10 +71,12 @@ void UHrotDpsWorld::SendGizmoView(double Real)
 	NextGizmoView = Real + 2.0;
 	UHrotDpsSubsystem* Dps = GEngine ? GEngine->GetEngineSubsystem<UHrotDpsSubsystem>() : nullptr;
 	if (!Dps || !Dps->IsRunning()) return;
-	// the asked layers + the label mode's (R-143 / DD-024: 2 = UnitCards + UnitSymbols, 3 = also Labels)
+	// the asked layers + (only with bWireCards) the label mode's HROT cards (R-143 / DD-024: 2 = UnitCards + UnitSymbols, 3 = also Labels);
+	// without them the cards are the client's own, from entity data (TickCards)
 	TArray<FString> All = GizmoLayers;
-	if (LabelMode >= 2) { All.AddUnique(TEXT("UnitCards")); All.AddUnique(TEXT("UnitSymbols")); }
-	if (LabelMode >= 3) All.AddUnique(TEXT("Labels"));
+	if (bWireCards && LabelMode >= 2) { All.AddUnique(TEXT("UnitCards")); All.AddUnique(TEXT("UnitSymbols")); }
+	if (bWireCards && LabelMode >= 3) All.AddUnique(TEXT("Labels"));
+	if (!bWireCards && WireCards.Num() > 0) { WireCards.Reset(); for (auto& L : GizmoCardPrims) L.Value.Reset(); }   // switched off: back to our own
 	SentLabelMode = LabelMode;
 	if (All.Num() == 0 && !bGizmoViewSent) return;   // no view, no work (and nothing to withdraw)
 	TArray<SimNetGateway_Protocol_DdsPlayer_NameItem> Names;
