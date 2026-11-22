@@ -1993,7 +1993,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     internal static class BehaviorChangeTrace
     {
-        private static readonly int[] Ids = Parse(System.Environment.GetEnvironmentVariable("HROT_TRACE_BEHAVIOR_NETIDS"));
+        private static readonly string? Raw = System.Environment.GetEnvironmentVariable("HROT_TRACE_BEHAVIOR_NETIDS");
+        private static readonly bool All = Raw?.Trim() == "*";   // every entity (a whole-run diff)
+        private static readonly int[] Ids = All ? new[] { -1 } : Parse(Raw);
 
         private static int[] Parse(string? v)
         {
@@ -2009,12 +2011,12 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (Ids.Length == 0 || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                 || !repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)) return;
             int net = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value;
-            if (System.Array.IndexOf(Ids, net) < 0) return;
+            if (!All && System.Array.IndexOf(Ids, net) < 0) return;
             long frame = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().FrameNumber : -1;
             double t = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : -1;
             int old = repo.HasComponent<BehaviorState>(entity) ? repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash : 0;
             Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                $"[BehTrace] frame {frame} t {t:0.0000} net {net}: {old} -> {newHash} origin {origin} via {path}"));
+                $"[BehTrace] frame {frame} t {t:0.0000} net {net} (#{entity.Index}): {old} -> {newHash} origin {origin} via {path}"));
         }
     }
 }
