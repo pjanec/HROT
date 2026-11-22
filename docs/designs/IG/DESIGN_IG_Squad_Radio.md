@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-22
-build-state: READY-TO-BUILD (U-19a contract, U-19b voice — CE-4651)
+updated: 2026-11-22  (as-built folded in at U-19b)
+build-state: BUILT (U-19a contract, U-19b voice — CE-4651); U-19c..e READY-TO-BUILD
 current-answer: the whole file — §1 diagrams, §2 the line map, §3 decisions, §4 slices and rails
 stale-below: none
 known-rot: none
@@ -124,6 +124,21 @@ Callsign: a unit's first transmission takes the next unused of the 11 sergeant n
 | V-3 | **One transmission at a time per net**, queue ≤ 2 (the oldest dropped); a speaker's world shouts ≥ 2 s apart; ≤ 3 voices at once overall | every event spoken — a firefight would be a babble |
 | V-4 | `Synthetic` reports play (they are how the rails and the debug API test this); `bSilentSynthetic` switches them off | silent by default — the fake path would test nothing |
 | V-5 | the clips are WHOLE spoken lines: `sound_cut.py` mode `whole` (leading / trailing silence below -50 dB trimmed, mono, peak -3 dBFS) into `/Game/Hrot/AudioPro/vox/<set>_NN` and `/radio/` — private, as U-18o | cutting by onsets — a phrase is not a shot |
+
+## 3a. As built (U-19b) — deviations from §1–§3, marked here so §1's boxes are read with them
+
+| design said | built | why |
+|---|---|---|
+| `FVoiceCue { Set, bRadio, SpeakerId, NetId, Callsign, Answer }` in `HrotVoiceLines` | `FVoiceCue { Set, bRadio, AnswerSet, Callsign, ToId }` lives in **HrotTerrain** (`HrotVoicePlayer.h`); speaker and net are `Play(...)` arguments | `HrotDps` depends on `HrotTerrain`, never the reverse: the player (HrotTerrain) must name the cue's type |
+| one `ack` set (affirmative · yes · ready to move) | `ack` = affirmative · yes (a man's `CallAck`); **`ack_order`** = affirmative · ready to move (an order's answer) | `ready to move` is not a reply to `CallAck`; one set per meaning |
+| queue / spacing logic "in a pure helper" | `FHrotVoiceSched` (HrotTerrain, pure, `Now` injected): `Offer` / `PopStartable` / `Finish` / `AllowShout` / `BuildChain` / `IsEarpiece` — railed as `Hrot.Dps.Voice.Player` | the rails need no world and no audio |
+| Sitrep Strength green / amber / red | Unknown and Black ⇒ no line | the design names three colours; a destroyed unit does not radio |
+| Progress kinds not in the row (PhaseLine, Foothold, RoomBlocked, Detained, FireLifted) | no line | §2 lists none; add a row when the user wants one |
+| "over" (1 in 2) | every second radio transmission, counted from the second (the 1st has none) | deterministic, so the scene check and the rail can state the chain |
+| the order's answer | the chain repeats the frame: `+1.5 s` beep → `ack_order` → squelch, same net, still one transmission | the receiver keys the radio too |
+| the world voice position of a Report / Order | the FromId entity's actor (+1.6 m) or, body-less, its shown position + 1.6 m | `HrotDpsCards.cpp` uses +2 m for the card; a voice is at head height |
+
+The clips: `sound_cut.py --set vox` (mode `whole`) → `D:\Work\Unreal\sounds\military_cut\{vox,radio}` (outside git) → `/Game/Hrot/AudioPro/{vox,radio}` (78 clips, no source missing).
 
 ## 4. Slices and rails
 

@@ -7,7 +7,10 @@ Reads WAVs (PCM 16/24/32, float 32; mono, stereo, ambisonic AmbiX or surround), 
             its tail into the audio just before it; beds stereo, point sources mono
   shots   - the N loudest separate onsets, each from 10 ms before its onset until it decays 50 dB (or MaxLen), faded out
 
-Usage: python sound_cut.py <raw root> <out root> [--set gdc|gdc23|pro] [--only <name substring>]
+  whole   - a whole spoken line / short cue (one file, matched by its EXACT name): leading and trailing audio below -50 dB of its peak
+            trimmed (30 ms margin), mono, peak-normalised; the output index is the recipe's count field (vox/<set>_NN)
+
+Usage: python sound_cut.py <raw root> <out root> [--set gdc|gdc23|pro|vox] [--only <name substring>]
 The recipes are below; a recipe's `src` is a substring of the file's path under the raw root. Nothing here reads the network.
 """
 import math, os, struct, sys
@@ -158,6 +161,52 @@ R_PRO = [
     ("hit/bone", "Bone snap crack", "shots", 1, 1, 4, -4),
 ]
 
+# ---- the PURCHASED pack's voice lines (U-19b, docs/designs/IG/DESIGN_IG_Squad_Radio.md §2) - PRIVATE like R_PRO. `--set vox`.
+# whole-line recipes: (name, exact file stem, "whole", 0, 1, output index, -3). The synonyms of a set are its variants _01.._NN.
+_VOX_PREFIX = "COMTran_Military radio voice, "
+_VOX_SETS = [
+    ("cmd_move", ["move out", "go", "push forward", "advancing on the enemy"]),
+    ("cmd_hold", ["hold", "holding position"]),
+    ("cmd_fallback", ["break contact"]),
+    ("cmd_down", ["get down", "take cover"]),
+    ("call_cover", ["covering fire", "cover me"]),
+    ("call_suppress", ["suppressing fire"]),
+    ("call_reload", ["reloading"]),
+    ("call_fragout", ["grenade out"]),
+    ("call_contact", ["enemy spotted", "hostiles in the area"]),
+    ("call_grenade", ["incoming"]),
+    ("ack", ["affirmative", "yes"]),
+    ("call_clear", ["the area is clear"]),
+    ("call_medic", ["need medical attention"]),
+    ("rep_contact", ["enemy spotted", "target acquired"]),
+    ("rep_spot", ["hostiles in the area"]),
+    ("rep_spot_big", ["enemy forces approaching", "we have hostile forces incoming"]),
+    ("rep_set", ["in position", "ready to move"]),
+    ("rep_done", ["objective complete", "the area is clear"]),
+    ("rep_fallback", ["break contact", "i'm moving to a better position for cover"]),
+    ("rep_failed", ["the mission is a failure"]),
+    ("rep_targetsdown", ["target neutralized", "the enemy has retreated"]),
+    ("rep_losses", ["we're taking heavy losses"]),
+    ("rep_status_ok", ["holding position"]),
+    ("rep_advantage", ["we have the advantage"]),
+    ("rep_tight", ["we're in a tight spot, requesting immediate assistance"]),
+    ("rep_casevac", ["need medical attention"]),
+    ("rep_fires", ["request immediate support"]),
+    ("rep_backup", ["requesting backup", "need backup"]),
+    ("rep_permission", ["permission to engage"]),
+    ("ord_attack", ["attack", "open fire"]),
+    ("ord_defend", ["defend", "we need to hold this position at all costs"]),
+    ("ord_flank", ["move to flank"]),
+    ("ord_move", ["move out"]),
+    ("ord_standby", ["standby for orders"]),
+    ("ack_order", ["affirmative", "ready to move"]),    # the receiver's answer to an order (the free-standing `ack` is "affirmative / yes")
+]
+_VOX_NAMES = ["Brown", "Cheen", "Cooper", "Garcia", "Johnson", "Lee", "Martinez", "Nguyen", "Patel", "Ramirez", "Taylor"]
+R_VOX = [("vox/" + s, _VOX_PREFIX + t, "whole", 0, 1, i + 1, -3) for s, ts in _VOX_SETS for i, t in enumerate(ts)]
+R_VOX += [("vox/sgt_" + n.lower(), _VOX_PREFIX + "this is Sergeant " + n, "whole", 0, 1, 1, -3) for n in _VOX_NAMES]
+R_VOX += [("vox/over", _VOX_PREFIX + "over", "whole", 0, 1, 1, -3), ("vox/over", _VOX_PREFIX + "over 2", "whole", 0, 1, 2, -3)]
+R_VOX += [("radio/beep", "COMTran_Military walkie talkie button beep" + ("" if i == 1 else " %d" % i), "whole", 0, 1, i, -3) for i in range(1, 8)]
+R_VOX += [("radio/squelch", "COMTran_Military walkie talkie static squelch" + ("" if i == 1 else " %d" % i), "whole", 0, 1, i, -3) for i in range(1, 6)]
 # ---- GDC 2023 additions (free): the animals the 2024 bundle lacks
 R_GDC23 = [
     ("animal/goose_flock", "Excited gaggle vocals", "shots", 4, 1, 6, -3),
@@ -325,6 +374,18 @@ def cut_shots(w, path, seconds, want, count, target, min_s=0.0):
     return outs, OUT_RATE if w.rate % OUT_RATE == 0 else w.rate, "%d onsets, kept %d" % (len(onsets), len(outs))
 
 
+def cut_whole(w, path, want, target):
+    """a whole spoken line: trim the silence at both ends (below -50 dB of the peak, 30 ms margin), mono, 48 kHz, peak at `target`"""
+    x = to_channels(w.read(0, w.frames), path, want)
+    m = np.max(np.abs(x), axis=1)
+    peak = float(np.max(m) + 1e-9)
+    loud = np.where(m > peak * 10 ** (-50 / 20))[0]
+    if len(loud) == 0: return [], w.rate, "silent"
+    margin = int(0.03 * w.rate)
+    x = x[max(0, int(loud[0]) - margin): int(loud[-1]) + 1 + margin]
+    x, rate = resample(x, w.rate)
+    return [x * (10 ** ((target - db(float(np.max(np.abs(x)) + 1e-9))) / 20))], rate, "trimmed to %.2f s" % (len(x) / rate)
+
 def main():
     raw, out = sys.argv[1], sys.argv[2]
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
@@ -333,16 +394,20 @@ def main():
         for f in fs:
             if f.lower().endswith(".wav"): files.append(os.path.join(d, f))
     total = 0
-    recipes = {"gdc": R, "pro": R_PRO, "gdc23": R_GDC23}[sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "gdc"]
+    recipes = {"gdc": R, "pro": R_PRO, "gdc23": R_GDC23, "vox": R_VOX}[sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "gdc"]
     for rec in recipes:
         name, src, mode, seconds, want, count, target = rec[:7]
         min_s = rec[7] if len(rec) > 7 else 0.0
         if only and only not in name: continue
-        hits = sorted(p for p in files if src.lower() in p.lower())
+        if mode == "whole":   # exact: the file stem (without the pack's tail) IS the recipe's src
+            hits = sorted(p for p in files if os.path.basename(p)[:-4].replace("_GfxSounds_MilitaryWarfare", "").lower() == src.lower())
+        else: hits = sorted(p for p in files if src.lower() in p.lower())
         if not hits: print("MISSING", name, "<-", src); continue
         path = hits[0] if mode != "shots" else None
         try:
-            if mode == "loopfile":   # a finished loop: converted whole (channels, rate, level)
+            if mode == "whole":
+                outs, rate, why = cut_whole(Wav(hits[0]), hits[0], want, target)
+            elif mode == "loopfile":   # a finished loop: converted whole (channels, rate, level)
                 w = Wav(hits[0])
                 x = to_channels(w.read(0, w.frames), hits[0], want)
                 x, rate = resample(x, w.rate)
@@ -363,7 +428,7 @@ def main():
         except Exception as e:
             print("FAILED", name, e); continue
         for i, x in enumerate(outs):
-            fn = os.path.join(out, *(name + ("_%02d" % (i + 1) if mode == "shots" else "") + ".wav").split("/"))
+            fn = os.path.join(out, *(name + ("_%02d" % (i + 1) if mode == "shots" else "_%02d" % count if mode == "whole" else "") + ".wav").split("/"))
             write(fn, x, rate)
             total += os.path.getsize(fn)
         src_desc = os.path.basename(hits[0])[:60]

@@ -102,6 +102,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationUnit(int32 EntityId, int32 InSide, const FString& Name, double SimTime, FVector PositionM);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationStatus(int32 EntityId, const FString& Symbol, float HealthCurrent, float HealthMax, int32 StrengthPresent,
 		int32 StrengthAuthorized, float AmmoShare, float MindFill, float MindBreak, int32 MindBand, const FString& Behaviour, const FString& Task);
+	/** U-19b — the squad's radio (DD-026): an Utterance (Kind text, e.g. "CmdMove"), a Report (ReportKind number, Sub, Count, Activity, Strength colour,
+	 *  Wia, Kia, Synthetic) from FromId to ToId (0 = HQ), an Order (Name) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationUtterance(int32 SpeakerId, const FString& Kind, double SimTime);
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationReport(int32 FromId, int32 ToId, int32 Kind, int32 Sub, int32 Count, int32 Activity,
+		int32 Strength, int32 Wia, int32 Kia, bool bSynthetic, double SimTime);
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationOrder(int32 FromId, int32 ToId, const FString& Name, double SimTime);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationView(double SimTime, int32 Mode, int32 TargetId, float Distance, FVector PositionM,
 		FVector VelocityM, float YawDeg, float YawRateDeg, float PitchDeg, float FovDeg, int32 CutSeq);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationEchoes() const { return FakeEchoes; }

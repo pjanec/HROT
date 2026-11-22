@@ -37,6 +37,7 @@
 #include "HrotDpsPeople.h"
 #include "HrotWeaponFx.h"
 #include "HrotDpsLife.h"
+#include "HrotVoiceLines.h"
 #include "HrotDpsWorld.generated.h"
 
 class UHrotVehicleKit;
@@ -192,6 +193,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") FString GizmoLineMaterial = TEXT("Post");
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float GizmoLinePxFloor = 2.5f;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void SetGizmoLayers(const TArray<FString>& Layers);
+	// ── U-19b: the squad's radio (HrotVoiceLines → UHrotVoicePlayer; docs/designs/IG/DESIGN_IG_Squad_Radio.md) ──
+	/** a Synthetic report (a rail's / the debug API's) is not spoken when this is set (V-4: spoken by default) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bSilentSynthetic = false;
+	/** the net the listener is on: the unit of the man the camera follows (V-2: the nearest same-side IsUnit entity within 150 m of him; himself when he is one); 0 = none */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 ListenerNet() const;
 	/** "gizmos asked [..], <n> layers shown, <p> primitives, <f> frames" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeGizmos() const;
 
@@ -333,6 +339,12 @@ private:
 	bool bGizmoViewSent = false;
 	int32 GizmoFrames = 0, GizmosDrawn = 0;   // GizmosDrawn: primitives drawn in the last frame
 	void OnGizmoFrame(const struct FHrotDpsSample& S);
+	void OnUtterance(const struct FHrotDpsSample& S);
+	void OnReport(const struct FHrotDpsSample& S);
+	void OnOrder(const struct FHrotDpsSample& S);
+	/** hand a cue to the player: heard from entity `FromId` (the net it speaks on), at his head / unit anchor */
+	void SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout);
+	FHrotCallsigns Callsigns;
 	void SendGizmoView(double Real);
 	void DrawGizmos();
 	/** U-18z: the gizmo lines live in OUR line batcher, rebuilt when a frame arrives (a one-frame DrawDebug from a subsystem's tick was

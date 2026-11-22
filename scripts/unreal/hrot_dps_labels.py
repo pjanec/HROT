@@ -11,6 +11,8 @@ A flat level, a wall; the camera at the ENU origin 2 m up looking east (90 deg).
   an aircraft, far       7 air friend 'Eagle 1' (2600,60, 300 up) - its name at any distance (R-143 rule A)
   DD-025 EntityStatus    9 a body-less UNIT (Entity.IsUnit) 'Alpha' (12,4): symbol, strength 7/9 (amber), ammo 0.3, task Assault
                          10 person friend 'Broken man' (12,-4): health 30/100, Broken mind (fill 0.8, break tick 0.6), behaviour Flee
+U-19b (the squad's radio): a fake Report (Lace, Kia 2) from unit 9 and an Utterance CmdMove from man 1; the player must log beep > sgt > rep_losses > squelch and the soundscape's
+LibraryMissing must not grow; then the camera follows man 1 (his net = unit 9: the nearest same-side unit) and an Order from unit 9 is heard in the earpiece, with the receiver's answer.
 Pictures (HighResShot 1 = the viewport's own size): mode 3 (every unit), mode 2 (the units + every aircraft), mode 1 (none); then the symbol sheet (UHrotCardLayer.export_symbol_sheet). Checks read UHrotDpsWorld.describe_labels.
 """
 import glob, json, os, time, traceback
@@ -152,7 +154,7 @@ def gizmofar():
 def gizmotop():
     w = S["w"]
     if S["variant"] is None:
-        if not S["variants"]: S.update(phase="end", t=time.time() + 1.0); return
+        if not S["variants"]: S.update(phase="voice", t=time.time() + 1.0); return
         S["variant"] = S["variants"].pop(0); _, mat, floor = S["variant"]
         w.set_editor_property("gizmo_line_material", mat); w.set_editor_property("gizmo_line_px_floor", floor)
         S["t"] = time.time() + 3.0; return   # (the first use of a material compiles its shaders)
@@ -161,6 +163,41 @@ def gizmotop():
     unreal.SystemLibrary.execute_console_command(S["gw"], f'HighResShot 1 filename="{path}"')
     R["shots"].append(path)
     S.update(variant=None, t=time.time() + 1.5)
+
+
+def voice():
+    """U-19b: a fake Report + Utterance are spoken (the chain beep > sgt > line > squelch, no missing clip), then an Order in the earpiece"""
+    sub, w, gw = S["sub"], S["w"], S["gw"]
+    P, SND = unreal.HrotVoicePlayer.for_world(gw), unreal.HrotSoundscape.for_world(gw)
+    st = S.setdefault("v", {"step": 0})
+    if st["step"] == 0:
+        st["missing0"] = SND.get_editor_property("library_missing")
+        sub.fake_station_report(9, 0, 4, 0, 0, 0, 0, 0, 2, True, SIM0)           # Lace, Kia 2
+        sub.fake_station_utterance(1, "CmdMove", SIM0)
+        st["step"] = 1; S["t"] = time.time() + 8.5; return
+    if st["step"] == 1:
+        log("voice: " + P.describe()); R["voice"] = P.describe(); played = P.played_text().split(" > ")
+        radio = [c for c in played if c != "vox/cmd_move"]
+        want = ["radio/beep", "vox/sgt_brown", "vox/rep_losses", "radio/squelch"]
+        check("voice: the report's chain beep > sgt > rep_losses > squelch", radio == want, " > ".join(played))
+        check("voice: the shout cmd_move played", "vox/cmd_move" in played, " > ".join(played))
+        check("voice: no clip missing from the library", SND.get_editor_property("library_missing") == st["missing0"], f"LibraryMissing {st['missing0']} -> {SND.get_editor_property('library_missing')}")
+        check("voice: 2 transmissions, none dropped", P.get_editor_property("transmissions") == 2 and P.get_editor_property("dropped") == 0, P.describe())
+        # the earpiece: follow man 1 (side 1); his net is unit 9 (the nearest same-side unit)
+        pawn = unreal.GameplayStatics.get_player_pawn(gw, 0)
+        pawn.follow(1, 14.0)
+        st["step"] = 2; S["t"] = time.time() + 1.5; return
+    if st["step"] == 2:
+        check("voice: the followed man's net is unit 9", w.listener_net() == 9, f"listener_net {w.listener_net()}")
+        st["ear0"] = P.get_editor_property("earpiece")
+        sub.fake_station_order(9, 0, "Move out", SIM0)
+        st["step"] = 3; S["t"] = time.time() + 9.5; return
+    if st["step"] == 3:
+        played = P.played_text().split(" > "); R["voice2"] = P.describe(); log("voice: " + P.describe())
+        check("voice: the order is heard in the earpiece", P.get_editor_property("earpiece") == st["ear0"] + 1, P.describe())
+        check("voice: the order's line and the receiver's answer", "vox/ord_move" in played and played[-2] == "vox/ack_order", " > ".join(played[-6:]))
+        check("voice: no clip missing after the order", SND.get_editor_property("library_missing") == st["missing0"], f"LibraryMissing {SND.get_editor_property('library_missing')}")
+        S.update(phase="end", t=time.time() + 0.5)
 
 
 def tick(dt):
@@ -185,8 +222,9 @@ def tick_once():
         elif ph == "gizmo": gizmo()
         elif ph == "gizmofar": gizmofar()
         elif ph == "gizmotop": gizmotop()
+        elif ph == "voice": voice()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
-        if time.time() - T0 > 240: finish(False, "timeout")
+        if time.time() - T0 > 300: finish(False, "timeout")
     except Exception:
         log(traceback.format_exc()); finish(False, "exception")
 

@@ -6,6 +6,8 @@
 #include "HrotVehicle.h"
 #include "HrotShotRenderer.h"
 #include "HrotSoundscape.h"
+#include "HrotVoicePlayer.h"
+#include "HrotDpsCameraPawn.h"
 #include "HrotExplosionFx.h"
 #include "HrotMissile.h"
 #include "NiagaraComponent.h"
@@ -194,6 +196,9 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_ClockStep"), &UHrotDpsWorld::OnClockStep);
 	Sub(TEXT("DPS_View"), &UHrotDpsWorld::OnView);
 	Sub(TEXT("DPS_GizmoFrame"), &UHrotDpsWorld::OnGizmoFrame);   // U-18z
+	Sub(TEXT("DPS_Utterance"), &UHrotDpsWorld::OnUtterance);   // U-19b: the squad's radio (DD-026)
+	Sub(TEXT("DPS_Report"), &UHrotDpsWorld::OnReport);
+	Sub(TEXT("DPS_Order"), &UHrotDpsWorld::OnOrder);
 	StartClock(C, Dps->GetClientId());
 	// U-18m — the player station's readers on this fresh client (the old client's went with it)
 	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Reconnect();
@@ -521,6 +526,75 @@ void UHrotDpsWorld::OnImpact(const FHrotDpsSample& S)
 			}
 	}
 	Count(FString::Printf(TEXT("impact %s"), D.Material[0] ? UTF8_TO_TCHAR(D.Material) : TEXT("(no material)")));
+}
+
+// ── U-19b: the squad's radio ───────────────────────────────────────────────────────────────────────────────────────────────────────
+int32 UHrotDpsWorld::ListenerNet() const
+{
+	const AHrotDpsCamera* Pawn = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	const int32 Id = Pawn ? Pawn->FollowedId() : 0;
+	const FEnt* F = Id ? Ents.Find(Id) : nullptr;
+	if (!F) return 0;
+	if (F->bIsUnit) return Id;   // he IS a unit (a commander): his own net
+	if (!F->bHasState) return 0;
+	const FVector Me = HrotDpsMotion::ToUnreal(F->Shown, OriginCm).GetLocation();
+	int32 Best = 0; double BestD = FMath::Square(15000.0);   // 150 m
+	for (const TPair<int32, FEnt>& KV : Ents)
+	{
+		const FEnt& U = KV.Value;
+		if (!U.bIsUnit || !U.bHasState || U.Side != F->Side) continue;
+		const double D = FVector::DistSquared(Me, HrotDpsMotion::ToUnreal(U.Shown, OriginCm).GetLocation());
+		if (D < BestD || (D == BestD && Best != 0 && KV.Key < Best)) { BestD = D; Best = KV.Key; }
+	}
+	return Best;
+}
+
+void UHrotDpsWorld::SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout)
+{
+	if (Cue.IsEmpty()) return;
+	UHrotVoicePlayer* P = UHrotVoicePlayer::Get(this);
+	const FEnt* E = Ents.Find(FromId);
+	if (!P || !E) { Count(TEXT("voice: speaker not known")); return; }
+	FVector At;
+	if (E->Actor.IsValid()) At = E->Actor->GetActorLocation() + (E->bHasPerson ? FVector(0, 0, 160) : FVector::ZeroVector);   // a man's head
+	else if (E->bHasState) At = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 160);   // a body-less unit: its anchor
+	else { Count(TEXT("voice: speaker not placed")); return; }
+	Cue.ToId = ToId;
+	if (Cue.bRadio) Cue.Callsign = Callsigns.For(FromId);
+	const bool bEar = FHrotVoiceSched::IsEarpiece(Cue, FromId, ListenerNet());
+	Count(FString::Printf(TEXT("voice %s%s"), *Cue.Set, bEar ? TEXT(" (earpiece)") : TEXT("")));
+	P->Play(Cue, bShout ? 0 : FromId, FromId, At, bEar);
+}
+
+void UHrotDpsWorld::OnUtterance(const FHrotDpsSample& S)
+{
+	if (!S.bValid) return;
+	const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Utterance*>(S.Data);
+	Clock.OnSample(D.SimTime, RealNow());
+	const FVoiceCue Cue = HrotVoiceLines::ForUtterance(UTF8_TO_TCHAR(D.Kind));
+	if (Cue.IsEmpty()) { Count(TEXT("voice: no line (utterance)")); return; }
+	SayCue(Cue, D.SpeakerId, 0, true);
+}
+
+void UHrotDpsWorld::OnReport(const FHrotDpsSample& S)
+{
+	if (!S.bValid) return;
+	const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Report*>(S.Data);
+	Clock.OnSample(D.SimTime, RealNow());
+	if (D.Synthetic && bSilentSynthetic) { Count(TEXT("voice: synthetic report silenced")); return; }
+	HrotVoiceLines::FReportFields R;
+	R.Kind = int32(D.Kind); R.Sub = D.Sub; R.Count = D.Count; R.Activity = int32(D.Activity); R.Strength = int32(D.Strength); R.Wia = D.Wia; R.Kia = D.Kia;
+	const FVoiceCue Cue = HrotVoiceLines::ForReport(R);
+	if (Cue.IsEmpty()) { Count(TEXT("voice: no line (report)")); return; }
+	SayCue(Cue, D.FromId, D.ToId, false);
+}
+
+void UHrotDpsWorld::OnOrder(const FHrotDpsSample& S)
+{
+	if (!S.bValid) return;
+	const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Order*>(S.Data);
+	Clock.OnSample(D.SimTime, RealNow());
+	SayCue(HrotVoiceLines::ForOrder(UTF8_TO_TCHAR(D.Name)), D.FromId, D.ToId, false);
 }
 
 void UHrotDpsWorld::OnManDowned(const FHrotDpsSample& S)

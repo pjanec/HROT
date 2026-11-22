@@ -353,6 +353,33 @@ bool UHrotDpsSubsystem::FakeStationStatus(int32 EntityId, const FString& Symbol,
 	return Dps.Write(TEXT("DPS_EntityStatus"), &S);
 }
 
+bool UHrotDpsSubsystem::FakeStationUtterance(int32 SpeakerId, const FString& Kind, double SimTime)
+{
+	SimNetGateway_Protocol_DdsPlayer_Utterance U{};
+	U.SimTime = SimTime; U.SpeakerId = SpeakerId;
+	FCStringAnsi::Strncpy(U.Kind, TCHAR_TO_UTF8(*Kind), sizeof(U.Kind));
+	return Dps.Write(TEXT("DPS_Utterance"), &U);
+}
+
+bool UHrotDpsSubsystem::FakeStationReport(int32 FromId, int32 ToId, int32 Kind, int32 Sub, int32 Count, int32 Activity, int32 Strength, int32 Wia, int32 Kia,
+	bool bSynthetic, double SimTime)
+{
+	SimNetGateway_Protocol_DdsPlayer_Report R{};
+	R.SimTime = SimTime; R.FromId = FromId; R.ToId = ToId;
+	R.Kind = SimNetGateway_Protocol_DdsPlayer_ReportKind(Kind); R.Sub = uint8(Sub); R.Count = uint8(Count);
+	R.Activity = SimNetGateway_Protocol_DdsPlayer_ElementActivity(Activity); R.Strength = SimNetGateway_Protocol_DdsPlayer_StatusColour(Strength);
+	R.Wia = uint8(Wia); R.Kia = uint8(Kia); R.Synthetic = bSynthetic;
+	return Dps.Write(TEXT("DPS_Report"), &R);
+}
+
+bool UHrotDpsSubsystem::FakeStationOrder(int32 FromId, int32 ToId, const FString& Name, double SimTime)
+{
+	SimNetGateway_Protocol_DdsPlayer_Order O{};
+	O.SimTime = SimTime; O.FromId = FromId; O.ToId = ToId;
+	FCStringAnsi::Strncpy(O.Name, TCHAR_TO_UTF8(*Name), sizeof(O.Name));
+	return Dps.Write(TEXT("DPS_Order"), &O);
+}
+
 bool UHrotDpsSubsystem::FakeStationView(double SimTime, int32 Mode, int32 TargetId, float Distance, FVector PositionM, FVector VelocityM, float YawDeg,
 	float YawRateDeg, float PitchDeg, float FovDeg, int32 CutSeq)
 {
