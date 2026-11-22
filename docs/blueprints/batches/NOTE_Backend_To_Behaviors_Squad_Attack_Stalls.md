@@ -24,3 +24,10 @@ an outside mind on `/commanders/{id}/act` (① — order `Attack` to a squad at 
 ⚠ My guesses, unmeasured — do not build on them: ① an Attack whose position is beyond some engagement / survey range waits for a picture that never
 comes; ② "Set" is the attack's support-position arrival and the assault waits for a second condition (a commander's go?) that a body-less platoon with
 `InertSop` never gives.
+
+## 2. ⭐ A second, unrelated ask — a report cannot say "seen" or "only heard" (CE-4680 B-5)
+
+`CommandReport` (FDP/Toolkits/Fdp.Toolkits/Squad/Command/CommandReports.cs) has Size, Activity, Equipment, ObservedAt — ⛔ but **no seen / heard bit**.
+`Radius` cannot stand in for it: it is the group's spread on a SEEN spot (`StaffSystems.cs:243-260`) and the sound's uncertainty on a HEARD one
+(`StaffSystems.cs:307`). The LLM commander's design (§5b B-5) wants the briefing to say *"heard, not seen"*. ⇒ ⭐ ask: one byte on `CommandReport`
+(and `ReportedElement`) — `Source: Seen | Heard | Both` — set where the report is built. Until then the seat shows size, activity, equipment and age only.

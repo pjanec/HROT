@@ -49,6 +49,8 @@ public sealed class SeatRuntime : IDisposable
     // ⭐ CE-4680 B-1 — the play the seat gave its commander as his task (frame thread), and the direct orders waiting for it to end
     internal string? Play;
     internal uint PlayRun;
+    /// <summary>⭐ CE-4680 B-4 — the last direct order the seat gave each squad ("Attack → house"): a commander with no running task records no <c>SubordinateOrders</c> (run 0).</summary>
+    internal readonly System.Collections.Generic.Dictionary<Entity, string> Given = new();
     internal readonly System.Collections.Generic.List<CommanderAction> AfterPlay = new();
     internal long HoldSince;
 
@@ -323,9 +325,13 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             case ReportKind.Spot:
             case ReportKind.Contact:
                 json["count"] = r.Count; json["size"] = r.Size.ToString(); json["activity"] = r.Activity.ToString();
+                json["equipment"] = r.Equipment.ToString();
+                json["age"] = Round(Math.Max(0d, now - r.ObservedAt.Seconds));
                 radio.Append(r.Kind == ReportKind.Spot ? "spot, " : "contact, ")
                      .Append(r.Count > 0 ? r.Count.ToString(CultureInfo.InvariantCulture) + " enemy" : "enemy")
-                     .Append(" (").Append(r.Size).Append("), ").Append(place);
+                     .Append(" (").Append(r.Size).Append(')');
+                AppendDetail(radio, r.Activity, r.Equipment, now - r.ObservedAt.Seconds);   // ⭐ CE-4680 B-5
+                radio.Append(", ").Append(place);
                 break;
             case ReportKind.Sitrep:
                 json["strength"] = r.Strength.ToString(); json["ammo"] = r.Ammo.ToString();
@@ -405,10 +411,22 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                     var sub = picture.Subordinates.Items[r];
                     row["strength"] = sub.Strength.ToString(); row["ammo"] = sub.Ammo.ToString();
                     if (sub.LastSitrepAt.Seconds > 0) row["sitrepAge"] = Round(now - sub.LastSitrepAt.Seconds);
+                    // ⭐ CE-4680 B-4 — the latest progress on its current order, and how old its last report is
+                    if (sub.Progress != 0) row["progress"] = sub.Progress.ToString();
+                    if (sub.LastReportAt.Seconds > 0) row["reportAge"] = Round(now - sub.LastReportAt.Seconds);
                 }
             }
+            string? task = TaskOf(world, seat, squad);   // ⭐ CE-4680 B-4 — the order he is on (his commander's record)
+            if (task != null) row["task"] = task;
             squads.Add(row);
-            radio.Append(' ').Append(name.ToUpperInvariant()).Append(" at ").Append(row["place"]).Append(inFight ? "" : " (out of the fight)").Append(';');
+            radio.Append(' ').Append(name.ToUpperInvariant()).Append(" at ").Append(row["place"]).Append(inFight ? "" : " (out of the fight)");
+            var detail = new StringBuilder();
+            if (task != null) detail.Append(task);
+            if (row["progress"] is { } prog) detail.Append(detail.Length > 0 ? ", " : "").Append((string)prog!);
+            if (row["strength"] is { } st) detail.Append(detail.Length > 0 ? ", " : "").Append("strength ").Append((string)st!).Append(" ammo ").Append((string)row["ammo"]!);
+            if (row["reportAge"] is { } age) detail.Append(detail.Length > 0 ? ", " : "").Append("last report ").Append(((double)age!).ToString("0", CultureInfo.InvariantCulture)).Append(" s ago");
+            if (detail.Length > 0) radio.Append(" (").Append(detail).Append(')');
+            radio.Append(';');
         }
         var elements = new JsonArray();
         if (havePicture)
@@ -421,15 +439,74 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                 elements.Add(new JsonObject
                 {
                     ["at"] = new JsonArray(Round(p.X), Round(p.Y)), ["place"] = seat.Places.Describe(p), ["count"] = el.Count,
-                    ["size"] = el.Size.ToString(), ["age"] = Round(now - el.ObservedAt.Seconds),
+                    ["size"] = el.Size.ToString(), ["activity"] = el.Activity.ToString(), ["equipment"] = el.Equipment.ToString(),
+                    ["age"] = Round(now - el.ObservedAt.Seconds),
                 });
-                radio.Append(" enemy ").Append(el.Count).Append(" at ").Append(seat.Places.Describe(p)).Append(';');
+                radio.Append(" enemy ").Append(el.Count).Append(" (").Append(el.Size).Append(')');
+                AppendDetail(radio, el.Activity, el.Equipment, now - el.ObservedAt.Seconds);   // ⭐ CE-4680 B-5
+                radio.Append(" at ").Append(seat.Places.Describe(p)).Append(';');
             }
         }
+        var objectives = Objectives(world, seat, radio);   // ⭐ CE-4680 B-3
         var places = new JsonArray();
         foreach (var (n, _) in seat.Places.Places) places.Add(n);
         Publish(seat, FeedKind.Snapshot, now, wake, radio.ToString(),
-                new JsonObject { ["kind"] = "snapshot", ["t"] = Round(now), ["commander"] = seat.Name, ["squads"] = squads, ["elements"] = elements, ["places"] = places }.ToJsonString());
+                new JsonObject { ["kind"] = "snapshot", ["t"] = Round(now), ["commander"] = seat.Name, ["squads"] = squads, ["elements"] = elements, ["objectives"] = objectives, ["places"] = places }.ToJsonString());
+    }
+
+    /// <summary>⭐ CE-4680 B-5 — what an element is doing and has, and how old the word is (only what was reported).</summary>
+    private static void AppendDetail(StringBuilder radio, ElementActivity activity, ElementEquipment equipment, double age)
+    {
+        if (activity != ElementActivity.ActivityUnknown) radio.Append(", ").Append(activity);
+        if (equipment != ElementEquipment.NoEquipment) radio.Append(", ").Append(equipment);
+        if (age >= 10d) radio.Append(", ").Append(age.ToString("0", CultureInfo.InvariantCulture)).Append(" s old");
+    }
+
+    /// <summary>⭐ CE-4680 B-4 — the order the commander holds for <paramref name="squad"/> (his <c>SubordinateOrders</c>): its kind and where.</summary>
+    private static string? TaskOf(EntityRepository world, SeatRuntime seat, Entity squad)
+    {
+        if (SubordinateOrders.Of(world, seat.Commander) is not { } held) return seat.Given.TryGetValue(squad, out var mine) ? mine : null;
+        for (int i = 0; i < held.Orders.Count; i++)
+        {
+            var e = held.Orders[i];
+            if (!e.Member.Equals(squad)) continue;
+            string kind = e.Behavior.StartsWith("Order.", StringComparison.Ordinal) ? e.Behavior.Substring(6) : e.Behavior;
+            if (kind.Length == 0) return null;
+            string? where = null;
+            try
+            {
+                if (JsonNode.Parse(e.Json ?? "") is JsonObject j && (j["Position"] ?? j["Location"] ?? j["To"] ?? j["Objective"]) is JsonArray pt && pt.Count >= 2)
+                    where = seat.Places.Describe(new Vector2((float)pt[0]!.GetValue<double>(), (float)pt[1]!.GetValue<double>()));
+            }
+            catch (System.Text.Json.JsonException) { }
+            return where == null ? kind : kind + " → " + where;
+        }
+        return seat.Given.TryGetValue(squad, out var given) ? given : null;
+    }
+
+    /// <summary>⭐ CE-4680 B-3 — the objectives the seat's side may see (<c>VisibleSides</c>; 0 / 0xFF = everybody): name, state, owner, progress.</summary>
+    private static JsonArray Objectives(EntityRepository world, SeatRuntime seat, StringBuilder radio)
+    {
+        var list = new JsonArray();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>()) return list;
+        int side = world.HasComponent<EntityInfo>(seat.Commander) ? (int)world.GetComponentRO<EntityInfo>(seat.Commander).ForceId : 0;
+        bool first = true;
+        foreach (var e in world.Query().With<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>().Build())
+        {
+            ref readonly var o = ref world.GetComponentRO<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>(e);
+            if (o.Role != Fdp.Toolkit.ScenarioRules.ObjectiveRole.Objective) continue;
+            if (o.VisibleSides is not (0 or 0xFF) && (side >= 8 || (o.VisibleSides & (1 << side)) == 0)) continue;
+            string title = o.Title.ToString();
+            if (title.Length == 0) title = NameOf(world, e);
+            var row = new JsonObject { ["name"] = title, ["state"] = o.State.ToString(), ["owner"] = o.Owner.ToString() };
+            if (o.ProgressNeed > 0) { row["progress"] = o.ProgressCur; row["need"] = o.ProgressNeed; }
+            list.Add(row);
+            radio.Append(first ? " OBJECTIVES:" : ",").Append(' ').Append(title).Append(' ').Append(o.State);
+            if (o.ProgressNeed > 0) radio.Append(' ').Append(o.ProgressCur).Append('/').Append(o.ProgressNeed);
+            first = false;
+        }
+        if (!first) radio.Append(';');
+        return list;
     }
 
     private static string Prefix(EntityRepository world, SeatRuntime seat, in UnitRoster roster)
@@ -439,7 +516,14 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         sb.Append("Your squads:");
         for (int i = 0; i < roster.Count; i++)
             if (world.IsAlive(roster.SubordinateEntities[i])) sb.Append(' ').Append(NameOf(world, roster.SubordinateEntities[i]));
+        // ⭐ CE-4680 B-2 — the mission, as his scenario gives it
+        if (world.HasManagedComponent<CommanderBrief>(seat.Commander)
+            && ((ISimulationView)world).GetManagedComponentRO<CommanderBrief>(seat.Commander) is { } brief && brief.Line() is { Length: > 0 } mission)
+            sb.Append('\n').Append(mission);
         sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
+        // ⭐ CE-4680 B-6 — the places' terrain notes, one line each
+        foreach (var (n, _) in seat.Places.Places)
+            if (seat.Places.NoteOf(n) is { } note) sb.Append("  ").Append(n).Append(": ").Append(note).Append('\n');
         sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold — the play orders your squads for you · stop_play() · ")
           .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact (a direct order ends a running play first) · ")
           .Append("hold(squad) · ask_sitrep(squad) · note(text).");   // ⭐ CE-4680 B-1

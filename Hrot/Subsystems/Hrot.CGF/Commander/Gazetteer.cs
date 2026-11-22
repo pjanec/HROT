@@ -25,6 +25,11 @@ public sealed class Gazetteer
     /// <summary>The places, in the scenario's order (the model's prefix lists them).</summary>
     public IReadOnlyList<(string Name, Vector2 At)> Places => _places;
 
+    private readonly Dictionary<string, string> _notes = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>⭐ CE-4680 B-6 — the place's one-line terrain note (<see cref="PlaceNote"/>), or null.</summary>
+    public string? NoteOf(string name) => _notes.TryGetValue(name, out var n) ? n : null;
+
     /// <summary>Reads the named points and areas of <paramref name="world"/> (on a seat's start — they do not move).</summary>
     public static Gazetteer Of(EntityRepository world)
     {
@@ -45,6 +50,9 @@ public sealed class Gazetteer
                 p += sum / pts.Count;   // the points are offsets from the area's own position
             }
             g.Add(name, p);
+            if (world.HasManagedComponent<PlaceNote>(e)
+                && ((ISimulationView)world).GetManagedComponentRO<PlaceNote>(e) is { Text.Length: > 0 } note)
+                g._notes[name] = note.Text.Trim();
         }
         return g;
     }

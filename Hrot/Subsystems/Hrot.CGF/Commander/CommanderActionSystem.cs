@@ -159,6 +159,9 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         };
         if (why != null) json["reason"] = why;
         if (why == null) Given++; else Refused++;
+        if (why == null && a.Kind is CommanderActionKind.Order or CommanderActionKind.Hold
+            && SquadNamed(world, seat.Commander, a.Squad, out _) is { IsNull: false } ordered)   // ⭐ CE-4680 B-4 — the squad's task, as he gave it
+            seat.Given[ordered] = a.Kind == CommanderActionKind.Hold || a.Order is "Hold" ? "Hold" : $"{a.Order} → {a.Where ?? a.Target}";
         seat.Log?.Write(new JsonObject
         {
             ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["action"] = CommanderTools.ToJson(a),

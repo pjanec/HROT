@@ -126,8 +126,8 @@ The radio log and the answers (run 3, verbatim):
 | # | item | state | sha | rail |
 |---|---|---|---|---|
 | B-1 | `run_play` / `stop_play` — the plays as the commander's task; a direct order ends the play first and lands after its release | DONE | (this commit) | `CE4680_RunPlay_ThePlaysChoreographyRuns_ADirectOrderEndsItFirst_AndLands` (3 mutations red); the plays' own suites 38/38 (`PlatoonAttack/Bound/Defend/Hold`, `CE2436_*` — behaviors' code, run not changed) |
-| B-2 | the mission brief `CommanderBrief` (NoReplay) in the prefix | TODO | | |
-| B-3 | the objectives line (`ObjectiveStatus` by `VisibleSides`) | TODO | | |
-| B-4 | each squad's task and progress in the snapshot | TODO | | |
-| B-5 | the enemy as reported (size, activity, equipment, age, heard) | TODO — ⚠ "heard" has no field on `CommandReport`; measure first | | |
-| B-6 | place notes (`Note` on a named point / area) | TODO | | |
+| B-2 | the mission brief `CommanderBrief` (managed, NoReplay, component 320) in the prefix | DONE | (this commit) | `CE4680_TheBriefing_*` |
+| B-3 | the objectives line (`ObjectiveStatus` by `VisibleSides`) | DONE | (this commit) | `CE4680_TheBriefing_*` — a Red-only objective never listed (red-proved) |
+| B-4 | each squad's task and progress in the snapshot | DONE — the task from `SubordinateOrders`, else the seat's own last order (📌 a commander with no running task — run 0 — records none) | (this commit) | `CE4680_TheBriefing_*` (red-proved) |
+| B-5 | the enemy as reported (size, activity, equipment, age, heard) | DONE but "heard": ⛔ `CommandReport` has no seen / heard bit (`Radius` is spread OR uncertainty) — ask in `NOTE_Backend_To_Behaviors_Squad_Attack_Stalls.md` §2 | (this commit) | `CE4680_TheBriefing_*` |
+| B-6 | place notes (`PlaceNote`, managed, NoReplay, component 321) in the prefix | DONE | (this commit) | `CE4680_TheBriefing_*` |

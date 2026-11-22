@@ -420,5 +420,66 @@ namespace Hrot.SimHost.Tests
             Assert.True(s.Seat.Runner!.Calls >= 4, $"the mind was asked {s.Seat.Runner.Calls} times in 6 s with a 1 s heartbeat");
             s.Seats.Dispose();
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-4680 B-2 … B-6 (§5b) — what a decision needs, all from his scenario or a report to him: the MISSION and the places' terrain NOTES in
+        /// the prefix; in the snapshot each OBJECTIVE his side may see (⛔ one hidden from Blue never appears), each squad's TASK and PROGRESS, and the
+        /// enemy's ACTIVITY, EQUIPMENT and the report's AGE.
+        /// 🔴 Mutations: the VisibleSides filter dropped ⇒ the Red-only objective is listed; the task lookup dropped ⇒ no "Attack → house".
+        /// </summary>
+        [Fact]
+        public void CE4680_TheBriefing_CarriesTheMission_PlaceNotes_Objectives_SquadTasks_AndTheEnemysDetail()
+        {
+            var mind = new RailMind();
+            int call = 0;
+            mind.Answer = _ => Interlocked.Increment(ref call) == 1
+                ? new[] { new CommanderAction(CommanderActionKind.Order, "Alpha", "Attack", Where: "house") }
+                : Array.Empty<CommanderAction>();
+            var s = new Seated(mind);   // the seat opens on the first tick: the brief and notes are set before it
+            var repo = s.Repo;
+            repo.RegisterManagedComponent<CommanderBrief>();
+            repo.RegisterManagedComponent<PlaceNote>();
+            repo.SetManagedComponent(s.P.S.Commander, new CommanderBrief { Task = "seize the house", Purpose = "open the road", Time = "by 00:06" });
+            foreach (var e in repo.Query().With<TkbIdentity>().With<EntityInfo>().Build())
+                if (repo.GetComponentRO<EntityInfo>(e).Name.ToString() == "house")
+                    repo.SetManagedComponent(e, new PlaceNote { Text = "sheds, one storey, open ground to the east" });
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>()) repo.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
+            void Objective(string title, ForceId visibleTo)
+            {
+                var o = repo.CreateEntity();
+                repo.AddComponent(o, new Fdp.Toolkit.ScenarioRules.ObjectiveStatus
+                {
+                    Role = Fdp.Toolkit.ScenarioRules.ObjectiveRole.Objective, State = Fdp.Toolkit.ScenarioRules.ObjectiveState.Active,
+                    Owner = ForceId.Friend, Title = new FixedString64(title), VisibleSides = (byte)(1 << (int)visibleTo), ProgressCur = 1, ProgressNeed = 3,
+                });
+            }
+            Objective("Take the house", ForceId.Friend);
+            Objective("Hold the sheds", ForceId.Hostile);   // Red's own — never Blue's
+            var cfg = repo.GetComponentRO<CommanderSeat>(s.P.S.Commander);
+            cfg.SnapshotSeconds = 0.5f;
+            repo.SetComponent(s.P.S.Commander, cfg);
+
+            s.Ticks(4);
+            string prefix = s.Seat.Prefix;
+            Assert.Contains("Mission — Task: seize the house · Purpose: open the road · Time: by 00:06", prefix);   // B-2
+            Assert.Contains("house: sheds, one storey, open ground to the east", prefix);                          // B-6
+
+            s.P.ReportSet(s.P.Alpha);
+            s.P.Report(s.P.Bravo, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = new Vector3(100f, 130f, 0f), Count = 3, Size = Fdp.Toolkit.Squad.Command.ElementSize.Team,
+                Activity = Fdp.Toolkit.Squad.Command.ElementActivity.Firing, Equipment = Fdp.Toolkit.Squad.Command.ElementEquipment.MachineGun,
+            }, observedAgo: 20f);
+            s.Ticks(40);
+            var spot = s.Items().Last(i => i.Kind == FeedKind.Report && i.Radio.Contains("spot"));
+            Assert.Contains("Firing, MachineGun, 20 s old", spot.Radio);                                            // B-5
+            var snap = s.Items().Last(i => i.Kind == FeedKind.Snapshot).Radio;
+            Assert.Contains("OBJECTIVES: Take the house Active 1/3", snap);                                         // B-3
+            Assert.DoesNotContain("Hold the sheds", snap);
+            Assert.Contains("ALPHA at", snap);
+            Assert.Contains("Attack → house", snap);                                                                // B-4
+            Assert.Contains("Set", snap);
+            s.Seats.Dispose();
+        }
     }
 }
