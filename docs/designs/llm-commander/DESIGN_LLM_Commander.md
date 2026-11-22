@@ -292,6 +292,17 @@ assault) that the game AI already does better.
 Rail `SquadManeuverTests.CE4680_RunPlay_ThePlaysChoreographyRuns_ADirectOrderEndsItFirst_AndLands` (the support SET before the assault — the
 play's choreography; the direct order lands and is still held 10 frames later).
 
+#### 5b.2 ✅ As built — B-2 … B-6 (CE-4680, backend, `2026-11-22`)
+
+| # | as built |
+|---|---|
+| B-2 | `CommanderBrief` (Hrot.CGF; managed record, `NoReplay`, component 320) — `{"Task", "Purpose", "Constraints", "Time"}` on the commander; one prefix line *"Mission — Task: … · Purpose: … · Constraints: … · Time: …"* |
+| B-3 | the snapshot's *"OBJECTIVES: <title> <state> <cur>/<need>"* — every `ObjectiveStatus` with Role Objective whose `VisibleSides` is 0 / 0xFF or holds the seat's ForceId bit |
+| B-4 | each squad's row: its TASK (*"FireAndMovement → 50 m NE of house"*), latest PROGRESS, strength / ammo, the age of its last report. ⚠ The task comes from the commander's `SubordinateOrders`, else the SEAT's own last direct order — 📌 measured on the rail: a commander with no running task (run 0) records no `SubordinateOrders` at all |
+| B-5 | the report lines and the snapshot's elements carry ACTIVITY, EQUIPMENT and the report's AGE (*"Firing, MachineGun, 20 s old"*). ⛔ "seen or only heard" is NOT shown — `CommandReport` has no such bit (`Radius` is a seen group's spread or a sound's uncertainty) ⇒ asked of behaviors, `NOTE_Backend_To_Behaviors_Squad_Attack_Stalls.md` §2 |
+| B-6 | `PlaceNote` (managed, `NoReplay`, component 321) — `{"Text"}` on a named Point / area; the prefix lists *"  <place>: <note>"* |
+| the scripted mind | `ScriptedMind.UsePlays` (on in production): on a SPOT it runs `PlatoonAttack` on the reported place instead of ordering each squad (L-1's rule stays for its rail). The prefix's size is logged at seat open: `llm-platoon-attack` **614 chars** with the brief and four notes |
+
 ⭐ The briefing stays SHORT (a small model's context): the prefix grows by the brief and the place notes; the snapshot by one line per squad and
 one per objective. ⛔ Still no ground truth: every new line comes from what was reported to him or what his scenario told him.
 

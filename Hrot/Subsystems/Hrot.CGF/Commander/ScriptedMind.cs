@@ -27,6 +27,12 @@ public sealed class ScriptedMind : IMind
         _advanceTo = advanceTo; _supportAt = supportAt; _fallBackTo = fallBackTo;
     }
 
+    /// <summary>
+    /// ⭐ CE-4680 B-1 (§5b) — on a SPOT run the platoon's own <c>PlatoonAttack</c> play on the reported place (the play's choreography — support
+    /// set, then the assault — is the game AI's), instead of ordering each squad itself (L-1's rule, kept for its rail when false).
+    /// </summary>
+    public bool UsePlays { get; init; }
+
     /// <summary>A reported enemy this far from the one already attacked is a NEW target (m).</summary>
     public const float NewTargetMetres = 60f;
 
@@ -76,6 +82,13 @@ public sealed class ScriptedMind : IMind
     private void Engage(Vector2 enemy, string place, List<CommanderAction> actions)
     {
         if (_attacking != null && Vector2.Distance(enemy, _attackAt) < NewTargetMetres) return;   // the same enemy: the attack goes on
+        if (UsePlays)
+        {
+            _attacking = "the platoon";
+            _attackAt = enemy;
+            actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: place));
+            return;
+        }
         string? nearest = null;
         float best = float.MaxValue;
         foreach (var s in _squads)

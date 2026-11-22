@@ -85,7 +85,7 @@ public sealed class CommanderSeats : IDisposable
     /// <summary>Makes the mind a seat asks for; null = not built yet (the seat then says so and gives no orders). Rails replace it.</summary>
     public Func<CommanderSeat, IMind?> MindFor { get; set; } = seat => seat.Mind switch
     {
-        CommanderMind.Scripted => new ScriptedMind(),
+        CommanderMind.Scripted => new ScriptedMind { UsePlays = true },   // ⭐ CE-4680 — the scripted commander runs the platoon's plays
         CommanderMind.External => new ExternalMind(),
         _ => null,
     };
@@ -238,6 +238,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             CommandOrders.AskSitrep(world, roster.SubordinateEntities[i], RoutineSitrepSeconds);
 
         seat.Prefix = Prefix(world, seat, roster);
+        Fdp.Core.Logging.FdpLog<CommanderFeedSystem>.Info("[Commander] seat {0} open — prefix {1} chars", seat.Name, seat.Prefix.Length);   // ⭐ CE-4680 — the briefing's size (an 8 B model's context, L-3)
         var mind = seats.MindFor(config);
         if (mind == null)
         {

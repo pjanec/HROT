@@ -5,6 +5,16 @@ related-designs:
 -->
 # DECISIONS — backend (newest at the top)
 
+## CE-4680 — the LLM commander L-2b: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ `llm-platoon-attack`: the L-2 row *"Red still fires 60 s after its first shot"* is REPLACED by *"Blue still fires 60 s after Red's first shot"*, and L-1's check ④ is BACK as *"every Red man down by the time limit"* (reverses CE-4679 #8's withdrawal for this branch) | 📐 measured, two probe runs: with `run_play(PlatoonAttack)` the play beats Red — every Red down, one Bravo man lost — after about a minute of Red fire, so Red's last shot falls just before +60 s. The row was there to prove "a fight, not a rout"; the fight still lasts a minute (Blue's side), and the outcome is now the check-④ branch that IS expressible |
+| 2 | `ScriptedMind.UsePlays` — on in production, off for L-1's rail | the handoff's proof 1 wants the scripted mind on `run_play`; L-1's rail pins the direct-order rule, which stays a valid mind |
+| 3 | B-4's task falls back to the SEAT's own last direct order when the commander holds no `SubordinateOrders` | 📌 measured: `SubordinateOrders.Record` records nothing for a commander with no running task (run 0) — the seat's own record is the only source then |
+| 4 | B-5's "heard" is NOT shown; asked of behaviors | ⛔ `CommandReport` has no seen / heard bit; `Radius` means two different things (a seen group's spread, a sound's uncertainty) — guessing from it would be a ground-truth-free lie |
+| 5 | component ids 320 / 321 (not the lane block) | backend's block 434–449 is full; 320 / 321 are on the catalogue rail's FREE list, no branch declares them (318 / 319 are the minefields') |
+
 ## CE-4679 — the LLM commander L-2: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |

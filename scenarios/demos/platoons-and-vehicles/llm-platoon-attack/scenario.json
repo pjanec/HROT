@@ -41,6 +41,12 @@
         "Name": "InertSop",
         "Params": {},
         "Origin": "Superior"
+      },
+      "CommanderBrief": {
+        "Task": "seize the house (the sheds) from Red's squad",
+        "Purpose": "open the road west for the company",
+        "Constraints": "keep both squads in the fight; do not cross the open ground east of the house without fire on it",
+        "Time": "by 00:07"
       }
     },
     "b4676000-0000-4000-8000-000000000010": {
@@ -584,6 +590,9 @@
       "EntityInfo": {
         "Name": "house",
         "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "the sheds, one storey; Red holds the south side; 100 m of open ground to the east"
       }
     },
     "b4676000-0000-4000-8000-000000000201": {
@@ -606,6 +615,9 @@
       "EntityInfo": {
         "Name": "objective",
         "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "behind the Low Wall's east end; cover from the house, about 110 m from it"
       }
     },
     "b4676000-0000-4000-8000-000000000202": {
@@ -628,6 +640,9 @@
       "EntityInfo": {
         "Name": "support",
         "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "behind the Low Wall; sees the sheds' south side over the wall"
       }
     },
     "b4676000-0000-4000-8000-000000000203": {
@@ -650,6 +665,9 @@
       "EntityInfo": {
         "Name": "start",
         "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "behind the L-Block, out of sight of the house"
       }
     },
     "b4676000-0000-4000-8000-000000000300": {

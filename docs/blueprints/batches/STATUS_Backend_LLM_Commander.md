@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). ⭐ NOW L-2b (CE-4680): B-1 done; B-2 … B-6 next, then the scripted run_play scenario and the Haiku run.
+⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). ⭐ NOW L-2b (CE-4680): B-1 … B-6 done, proof 1 (scripted run_play) 8/8; NEXT the Haiku run (proof 2).
 L-1 (below): DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
 `STATUS_Backend_Queue.md` → **CE-3445 T2** (rare mode-3 stepped divergence) — a resume continues there. ⚠ `backend-wip-llm-commander` is stale
 (its content is all on `backend`; the remote refused the delete).
@@ -131,3 +131,5 @@ The radio log and the answers (run 3, verbatim):
 | B-4 | each squad's task and progress in the snapshot | DONE — the task from `SubordinateOrders`, else the seat's own last order (📌 a commander with no running task — run 0 — records none) | (this commit) | `CE4680_TheBriefing_*` (red-proved) |
 | B-5 | the enemy as reported (size, activity, equipment, age, heard) | DONE but "heard": ⛔ `CommandReport` has no seen / heard bit (`Radius` is spread OR uncertainty) — ask in `NOTE_Backend_To_Behaviors_Squad_Attack_Stalls.md` §2 | (this commit) | `CE4680_TheBriefing_*` |
 | B-6 | place notes (`PlaceNote`, managed, NoReplay, component 321) in the prefix | DONE | (this commit) | `CE4680_TheBriefing_*` |
+| P-1 | proof 1: `llm-platoon-attack` with the scripted mind on `run_play(PlatoonAttack, house)` | ✅ PASS 8/8, two runs, the same times — PlatoonAttack at 78.25 s, Bravo supports (TargetsDown ~3:00), Alpha closes by fire and movement, every Red down, one Bravo man lost; the briefing prefix 415 → **614 chars** (the brief + four place notes) | (this commit) | the scenario |
+| P-2 | proof 2: the Haiku worker plays it again with the brief, objectives and plays | TODO | | |
