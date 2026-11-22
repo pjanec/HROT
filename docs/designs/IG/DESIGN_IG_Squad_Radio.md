@@ -217,13 +217,15 @@ classDiagram
 *What the picture shows that prose hid:* weather needs NO new player — it only drives the two numbers the soundscape's existing rain and wind beds
 already read (today set by hand); the war layers get their own player because they are keyed rows, not the soundscape's surroundings.
 
+⭐ **Remapped 2026-11-22 by the user's ear** — the pack's names lie: "Sniper shooting in the distance" is a close fight, "Intense mid range battlefield" is sparse single shots. All 11 loop joints heard seamless.
+
 | kind | the pack's recordings (set) | how |
 |---|---|---|
-| `battle.distant` | `amb/war_distant` — Distant gunshots and indoor battlefield · Sniper shooting in the distance | bed (loop) |
+| `battle.distant` | `amb/war_distant` — Distant gunshots and indoor battlefield | bed (loop) |
 | `battle.city` | `amb/war_city` — City battlefield ambience | bed |
 | `battle.night` | `amb/war_night` — Nighttime battlefield with distant shots | bed |
-| `battle.heavy` | `amb/war_heavy` — Intense mid range battlefield · Tank fire on the battlefield | bed |
-| `battle.sniper` | `amb/war_sniper` — Sniper shooting in the distance | bed |
+| `battle.heavy` | `amb/war_heavy` — Sniper shooting in the distance (heard: a CLOSE fight) · Tank fire on the battlefield (heard: distant artillery) | bed |
+| `battle.sniper` | `amb/war_sniper` — Intense mid range battlefield (heard: individual mid-distance shots over a far rumble) | bed |
 | `battle.ambush` | `amb/war_ambush` — Jungle patrol ambush ambience | bed |
 | `battle.aftermath` | `amb/war_aftermath` — Burning house war zone ambience ×3 | bed |
 | `event.airstrike` · `.drone` · `.rocket` · `.convoy` · `.evacuation` · `.evacuation.city` · `.nuclear` | `amb/ev_airstrike` Tactical airstrike · `ev_drone` Drone attack and explosion · `ev_rocket` Nighttime rocket launch and explosion · `ev_convoy` Armored convoy approaching · `ev_evacuation` Military trucks evacuation ambience · `ev_evacuation_city` Citywide evacuation · `ev_nuclear` Atomic bomb drop and explosion | one-shot, once per row |

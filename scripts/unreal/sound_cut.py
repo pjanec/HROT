@@ -221,11 +221,11 @@ R_VOX += [("radio/squelch", "COMTran_Military walkie talkie static squelch" + ("
 _A = "AMBWar_"
 _B = "BOATMil_"
 _AMB_SETS = [
-    ("amb/war_distant", [_A + "Distant gunshots and indoor battlefield", _A + "Sniper shooting in the distance"]),
+    ("amb/war_distant", [_A + "Distant gunshots and indoor battlefield"]),
     ("amb/war_city", [_A + "City battlefield ambience"]),
     ("amb/war_night", [_A + "Nighttime battlefield with distant shots"]),
-    ("amb/war_heavy", [_A + "Intense mid range battlefield", _A + "Tank fire on the battlefield"]),
-    ("amb/war_sniper", [_A + "Sniper shooting in the distance"]),
+    ("amb/war_heavy", [_A + "Sniper shooting in the distance", _A + "Tank fire on the battlefield"]),   # heard 2026-11-22: the "Sniper" take is a CLOSE fight, "Tank fire" distant artillery
+    ("amb/war_sniper", [_A + "Intense mid range battlefield"]),   # heard 2026-11-22: individual mid-distance shots over a far rumble - not a heavy battle
     ("amb/war_ambush", [_A + "Jungle patrol ambush ambience"]),
     ("amb/war_aftermath", [_A + "Burning house war zone ambience", _A + "Burning house war zone ambience 2", _A + "Burning house war zone ambience 3"]),
     ("amb/ev_airstrike", [_A + "Tactical airstrike"]),
