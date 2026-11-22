@@ -473,13 +473,45 @@ namespace Fdp.Toolkit.Perception.Components
                 if (cos >= bestCos) { best = i; bestCos = cos; }
             }
             if (best < 0) return false;
-            mem.Freshness[best]   += scoreBoost;
-            mem.LastSeenTick[best] = tick;
-            mem.Modalities[best]  |= (byte)SensorModality.Acoustic;
-            if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
-            if (sound != 0) mem.SoundIds[best] = sound;
-            Sort(ref mem);
+            CreditShot(ref mem, best, sourceClass, scoreBoost, tick, sound);
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-2490</c> — how long after a bang its flash, seen, still binds it (s): the sound and the flash are one instant; this is the
+        /// engine's own lag (the acoustic solve, the sighting's hysteresis), not a human's.</summary>
+        public const double FlashBindSeconds = 1.0;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2490</c> (Sensing §8.6g; 🔒 user: "its the timing that binds the visual muzzle flash with the sound from side doors, so it should be
+        /// perceived as single guys") — a listener heard a SHOT fired by <paramref name="shooter"/>, and he SEES that man now (<paramref name="seenNow"/>):
+        /// he saw the muzzle flash at the moment of the bang, so the shot is that man's WHATEVER WAY THE SOUND CAME — round a door, up a stair. That slot is
+        /// credited (Acoustic added, the sound's token stamped) instead of a new anonymous slot. ⛔ Only through sight: a shooter he does not see stays
+        /// anonymous (§6 D). Not a burst (where a round LANDED, R-2071). Returns true when it attributed.
+        /// </summary>
+        public static bool AttributeBySeenFlash(ref TargetMemory mem, long shooter, byte kind, byte sourceClass,
+                                                System.ReadOnlySpan<long> seenNow, float scoreBoost, uint tick, long sound)
+        {
+            if (kind != ShotKind || sourceClass == BurstClass || shooter <= 0) return false;
+            bool seen = false;
+            for (int k = 0; k < seenNow.Length && !seen; k++) seen = seenNow[k] == shooter;
+            if (!seen) return false;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] != 0 || mem.EntityIds[i] != shooter) continue;
+                CreditShot(ref mem, i, sourceClass, scoreBoost, tick, sound);
+                return true;
+            }
+            return false;
+        }
+
+        private static void CreditShot(ref TargetMemory mem, int slot, byte sourceClass, float scoreBoost, uint tick, long sound)
+        {
+            mem.Freshness[slot]   += scoreBoost;
+            mem.LastSeenTick[slot] = tick;
+            mem.Modalities[slot]  |= (byte)SensorModality.Acoustic;
+            if (mem.SourceClass[slot] == 0) mem.SourceClass[slot] = sourceClass;
+            if (sound != 0) mem.SoundIds[slot] = sound;
+            Sort(ref mem);
         }
 
         /// <summary><c>Signatures.SoundKind.Shot</c>.</summary>

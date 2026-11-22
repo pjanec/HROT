@@ -511,6 +511,42 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(34L, mem.SoundIds[slot]);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2490</c> (Sensing §8.6g; 🔒 user: "its the timing that binds the visual muzzle flash with the sound from side doors") — 📐 pe-house-shot:
+        /// he SEES the rifleman 40 m north and hears his shot round a door to the EAST (off every seen bearing, the point nearer than him): he saw the
+        /// flash at the bang, so it is HIS — one contact. The same doorway bang fired by a man he does NOT see stays anonymous, and so does a bang of
+        /// the rifleman's 5 s old (the flash binds only the same instant). 🔴 Red-proof: skip the flash binding ⇒ 2 slots after the first shot.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2490_AShotHeardRoundADoor_FromAManHeSawFire_IsThatMan()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            var rifleman = world.CreateEntity();
+            var unseen   = world.CreateEntity();
+            See(world, unit, rifleman, 0f, 40f);
+            var ring = Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.Of(world);
+            long Bang(Entity by, double at) => ring.Append(new Fdp.Toolkit.Perception.Signatures.SoundEmission
+                { Source = by.PackedValue, Kind = 2, Class = SmallArms, Time = (SimInstant)at });
+            long his = Bang(rifleman, 0), theirs = Bang(unseen, 0), stale = Bang(rifleman, -5);
+
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 3f, Y = 0f, Radius = 1f, Kind = 2, SourceClass = SmallArms, Sound = his, Via = 1 });
+            world.Bus.SwapBuffers();
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)rifleman.PackedValue, mem.EntityIds[0]);
+            Assert.Equal(his, mem.SoundIds[0]);
+
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 3f, Y = 0f, Radius = 1f, Kind = 2, SourceClass = SmallArms, Sound = theirs, Via = 1 });
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 6f, Y = 0f, Radius = 1f, Kind = 2, SourceClass = SmallArms, Sound = stale, Via = 1 });
+            world.Bus.SwapBuffers();
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            mem = world.GetComponent<TargetMemory>(unit);
+            int heard = 0;
+            for (int i = 0; i < mem.Count; i++) if (TargetMemory.IsAnonymous(in mem, i)) heard++;
+            Assert.Equal(2, heard);
+        }
+
         /// <summary>⭐ K3 — danger of a heard slot is read from its class (there is no entity to read).</summary>
         [Fact]
         public void TheDangerOfAHeardSlot_ComesFromItsClass_CE3063()
