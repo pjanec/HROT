@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
 updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: DESIGN — not ready to build; §12 first
+build-state: READY-TO-BUILD for L-1 (CE-4676, behaviors) — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2…L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
@@ -235,7 +235,7 @@ all their pictures, so it is really their superior: build it as that seat, hones
 | ② | the order-by-name check on the HTTP route probably refuses echelon orders | not on the path: the action system calls `CommandOrders.Order` directly |
 | ③ | no push from HROT | the feed ring + long-poll + server-sent events (§3) |
 | ④ | the squads send a routine SITREP only when asked a rate | the seat asks it at start (`CommandOrders.AskSitrep`) |
-| ⑤ | no gazetteer | a scenario's named points (objectives, named buildings) + a coarse grid |
+| ⑤ | no gazetteer | ⭐ the scenario's named **Point** map graphics (TKB 8816, drawn by `NamedPointGizmo`) and **tactical areas**, + a coarse grid — they exist; the gazetteer only reads them |
 | ⑥ | the sitrep leaks the `alive` truth of a contact | fix it (it is the AI player's fog of war) — independent of this |
 
 ## 10. Rejected — one line each
@@ -255,7 +255,7 @@ all their pictures, so it is really their superior: build it as that seat, hones
 | **L-3** | OllamaMind (tools, retry), the context keeper's prefix / snapshot / log | an 8 B model on the laptop plays it in think-pause, then continuous; the model log beside the recording |
 | **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat | two platoon seats on one model; a company seat above them |
 
-## 12. Open questions — with leans
+## 12. Decisions — ✅ APPROVED `2026-11-22` (R-4298: *"leans approved"*)
 
 1. **Where the seat is set:** a scenario field on the commander (*"mind: ollama:qwen2.5:7b"*) — lean — or only at run time over HTTP? ⭐ Both, the field as the default.
 2. **The first Red:** a squad defending a house (lean — `sq-defend-house` exists) or one on a hill (`hill-attack-close`)?
