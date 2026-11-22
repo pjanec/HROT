@@ -518,8 +518,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         for (int i = 0; i < roster.Count; i++)
             if (world.IsAlive(roster.SubordinateEntities[i])) sb.Append(' ').Append(NameOf(world, roster.SubordinateEntities[i]));
         // ⭐ CE-4680 B-2 — the mission, as his scenario gives it
-        if (world.HasManagedComponent<CommanderBrief>(seat.Commander)
-            && ((ISimulationView)world).GetManagedComponentRO<CommanderBrief>(seat.Commander) is { } brief && brief.Line() is { Length: > 0 } mission)
+        if (world.IsComponentTypeRegistered<CommanderBrief>() && world.HasComponent<CommanderBrief>(seat.Commander)
+            && world.GetComponentRO<CommanderBrief>(seat.Commander).Line() is { Length: > 0 } mission)
             sb.Append('\n').Append(mission);
         sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
         // ⭐ CE-4680 B-6 — the places' terrain notes, one line each

@@ -437,12 +437,15 @@ namespace Hrot.SimHost.Tests
                 : Array.Empty<CommanderAction>();
             var s = new Seated(mind);   // the seat opens on the first tick: the brief and notes are set before it
             var repo = s.Repo;
-            repo.RegisterManagedComponent<CommanderBrief>();
-            repo.RegisterManagedComponent<PlaceNote>();
-            repo.SetManagedComponent(s.P.S.Commander, new CommanderBrief { Task = "seize the house", Purpose = "open the road", Time = "by 00:06" });
+            if (!repo.IsComponentTypeRegistered<CommanderBrief>()) repo.RegisterComponent<CommanderBrief>();
+            if (!repo.IsComponentTypeRegistered<PlaceNote>()) repo.RegisterComponent<PlaceNote>();
+            repo.AddComponent(s.P.S.Commander, new CommanderBrief
+            {
+                Task = new FixedString128("seize the house"), Purpose = new FixedString128("open the road"), Time = new FixedString128("by 00:06"),
+            });
             foreach (var e in repo.Query().With<TkbIdentity>().With<EntityInfo>().Build())
                 if (repo.GetComponentRO<EntityInfo>(e).Name.ToString() == "house")
-                    repo.SetManagedComponent(e, new PlaceNote { Text = "sheds, one storey, open ground to the east" });
+                    repo.AddComponent(e, new PlaceNote { Text = new FixedString128("sheds, one storey, open ground to the east") });
             if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>()) repo.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
             void Objective(string title, ForceId visibleTo)
             {
@@ -480,6 +483,40 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("Attack → house", snap);                                                                // B-4
             Assert.Contains("Set", snap);
             s.Seats.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4680 B-2 / B-6 — the mission and the place notes LOAD with the scenario and SURVIVE a save: <c>llm-platoon-attack</c> read by the
+        /// product's scenario serializer gives the Platoon its <see cref="CommanderBrief"/> and the house its <see cref="PlaceNote"/>, and serializing
+        /// the world writes both back. 📌 Why this rail exists: as managed records they never loaded (no translator) — the briefing rail set them by hand
+        /// and stayed green while the Haiku commander read a briefing with no mission.
+        /// 🔴 Mutation: the brief made managed again (no translator) ⇒ nothing loads.
+        /// </summary>
+        [Fact]
+        public void CE4680_TheMissionAndPlaceNotes_LoadWithTheScenario_AndSurviveASave()
+        {
+            var repo = new EntityRepository();
+            Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
+            Hrot.CGF.CgfComponentRegistry.RegisterAll(repo);
+            var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(new Fdp.Toolkit.Behavior.BehaviorRegistry(), null, Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip);
+            string json = System.IO.File.ReadAllText(System.IO.Path.Combine(Fdp.Testing.TestRepo.Root, "scenarios", "demos", "platoons-and-vehicles", "llm-platoon-attack", "scenario.json"));
+            serializer.Deserialize(repo, json);
+            Entity platoon = default, house = default;
+            foreach (var e in repo.Query().With<EntityInfo>().Build())
+            {
+                string n = repo.GetComponentRO<EntityInfo>(e).Name.ToString();
+                if (n == "Platoon") platoon = e;
+                if (n == "house" && repo.HasComponent<TkbIdentity>(e)) house = e;
+            }
+            Assert.True(repo.HasComponent<CommanderBrief>(platoon), "the Platoon's CommanderBrief loaded");
+            Assert.StartsWith("Mission — Task: seize the house", repo.GetComponentRO<CommanderBrief>(platoon).Line());
+            Assert.True(repo.HasComponent<PlaceNote>(house), "the house's PlaceNote loaded");
+            Assert.StartsWith("the sheds, one storey", repo.GetComponentRO<PlaceNote>(house).Text.ToString());
+
+            var saved = serializer.Serialize(repo, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Scenario")).ToJsonString();
+            Assert.Contains("\"CommanderBrief\"", saved);
+            Assert.Contains("seize the house", saved);
+            Assert.Contains("\"PlaceNote\"", saved);
         }
     }
 }

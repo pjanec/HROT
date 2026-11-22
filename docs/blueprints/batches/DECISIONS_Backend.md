@@ -13,6 +13,7 @@ related-designs:
 | 2 | `ScriptedMind.UsePlays` — on in production, off for L-1's rail | the handoff's proof 1 wants the scripted mind on `run_play`; L-1's rail pins the direct-order rule, which stays a valid mind |
 | 3 | B-4's task falls back to the SEAT's own last direct order when the commander holds no `SubordinateOrders` | 📌 measured: `SubordinateOrders.Record` records nothing for a commander with no running task (run 0) — the seat's own record is the only source then |
 | 4 | B-5's "heard" is NOT shown; asked of behaviors | ⛔ `CommandReport` has no seen / heard bit; `Radius` means two different things (a seen group's spread, a sound's uncertainty) — guessing from it would be a ground-truth-free lie |
+| 6 | ⭐ `CommanderBrief` / `PlaceNote` are UNMANAGED (`FixedString128` fields), not the handoff's managed record | 📌 measured: a managed component needs a scenario translator, and in `Hrot.EcsNode`'s serializer list (which cannot see `Hrot.CGF`) — the unmanaged form is auto-serialized like `CommanderSeat`, and `NoReplay` keeps it out of recordings. Cost: 127 UTF-8 bytes per field |
 | 5 | component ids 320 / 321 (not the lane block) | backend's block 434–449 is full; 320 / 321 are on the catalogue rail's FREE list, no branch declares them (318 / 319 are the minefields') |
 
 ## CE-4679 — the LLM commander L-2: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**

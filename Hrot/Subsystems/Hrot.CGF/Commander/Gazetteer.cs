@@ -50,9 +50,9 @@ public sealed class Gazetteer
                 p += sum / pts.Count;   // the points are offsets from the area's own position
             }
             g.Add(name, p);
-            if (world.HasManagedComponent<PlaceNote>(e)
-                && ((ISimulationView)world).GetManagedComponentRO<PlaceNote>(e) is { Text.Length: > 0 } note)
-                g._notes[name] = note.Text.Trim();
+            if (world.IsComponentTypeRegistered<PlaceNote>() && world.HasComponent<PlaceNote>(e)
+                && world.GetComponentRO<PlaceNote>(e).Text.ToString().Trim() is { Length: > 0 } note)
+                g._notes[name] = note;
         }
         return g;
     }

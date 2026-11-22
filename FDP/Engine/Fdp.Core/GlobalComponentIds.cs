@@ -1405,10 +1405,10 @@ namespace Fdp.Core
         public const int CommanderSeat = 217;
 
         /// <summary>⭐ <c>CE-4680</c> B-2 (Hrot.CGF) — <c>CommanderBrief</c>: a seated commander's mission (Task · Purpose · Constraints · Time), authoring-only
-        /// (managed, NoReplay). ⚠ 320: on the catalogue rail's FREE list (2026-11-22; 318 / 319 are the minefields'); no branch declares it; the only other user is a Fdp.Core.Tests fixture (ParallelSyncTests), whose world never loads the CGF registry.</summary>
+        /// (unmanaged, NoReplay — auto-serialized with the scenario). ⚠ 320: on the catalogue rail's FREE list (2026-11-22; 318 / 319 are the minefields'); no branch declares it; the only other user is a Fdp.Core.Tests fixture (ParallelSyncTests), whose world never loads the CGF registry.</summary>
         public const int CommanderBrief = 320;
 
-        /// <summary>⭐ <c>CE-4680</c> B-6 (Hrot.CGF) — <c>PlaceNote</c>: a one-line terrain note on a named place, authoring-only (managed, NoReplay).
+        /// <summary>⭐ <c>CE-4680</c> B-6 (Hrot.CGF) — <c>PlaceNote</c>: a one-line terrain note on a named place, authoring-only (unmanaged, NoReplay).
         /// ⚠ 321: on the FREE list, as 320.</summary>
         public const int PlaceNote = 321;
 
