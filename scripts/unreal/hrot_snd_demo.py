@@ -52,7 +52,7 @@ def level():
     # the EDITOR mutes an unfocused window on its own (EditorEngine.cpp: volume 0 unless LevelEditorMiscSettings.bAllowBackgroundAudio), on top of
     # the project's [Audio] UnfocusedVolumeMultiplier=1.0 which only a packaged client honours. Measured 2026-11-22: the user wrote notes in
     # another window and heard nothing after step 2 while every sound was logged as started
-    unreal.get_default_object(unreal.LevelEditorMiscSettings).set_editor_property("allow_background_audio", True)
+    # (LevelEditorMiscSettings is not exposed to Python => set in the editor's Saved EditorPerProjectUserSettings.ini: [/Script/UnrealEd.LevelEditorMiscSettings] bAllowBackgroundAudio=True)
     # new_level refuses an existing path, and neither os.remove nor delete_asset clears it reliably (measured 2026-11-22: failed on 2 runs of 3)
     # => a fresh name per run; the files of earlier runs are removed from disk (never the one being made)
     for f in glob.glob(os.path.join(unreal.Paths.project_content_dir(), "Maps", "DpsSndDemo*.umap")):
