@@ -109,7 +109,10 @@ namespace Fdp.Toolkit.Squad.Systems
             // ⭐ CE-2107 — a member's HEARD contact that another member SEES is one contact, as it is in each member's own memory
             //   (TargetMemory.AbsorbBySighting): fold it into the sighting, or the squad counts one enemy twice (SquadEnemyStrengthRatio).
             // ⭐ CE-2474 (§8.6d ①) — and a heard contact carrying the SAME bang as a seen one IS him, wherever it was placed.
-            AbsorbHeardBySound(ref localPool, heardRadius, heardClass, heardSound);
+            // ⭐ CE-2491 (R-2144, Sensing §8.6g) — or a heard bang that a SQUADMATE saw the man fire: the flash and the bang are one instant
+            var ring = Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.In(repo);
+            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            AbsorbHeardBySound(ref localPool, heardRadius, heardClass, heardSound, ring, now, currentTick);
             AbsorbHeardBySightings(repo, ref localPool, heardRadius, heardClass, heardSound);
 
             // 6. Sort pool contacts descending by ThreatScore (insertion sort; at most 16 entries).
@@ -197,7 +200,11 @@ namespace Fdp.Toolkit.Squad.Systems
         /// distance between their points: a member attributed that shot to the man he sees (<c>TargetMemory.AttributeToSeen</c>), so another member's
         /// estimate of it — however far off, round a corner — is that man too. The sighting keeps its position.
         /// </summary>
-        private static void AbsorbHeardBySound(ref SquadContactPool pool, float* radii, byte* classes, long* sounds)
+        /// <summary>⭐ <c>CE-2491</c> — how recently (sim steps, ~1 s at 60) a squadmate must have seen a man for his flash to bind a bang heard elsewhere.</summary>
+        public const uint FlashSeenTicks = 60;
+
+        private static void AbsorbHeardBySound(ref SquadContactPool pool, float* radii, byte* classes, long* sounds,
+                                               Fdp.Toolkit.Perception.Signatures.SoundEmissionRing? ring = null, double now = 0d, uint currentTick = 0)
         {
             var span = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
@@ -207,6 +214,14 @@ namespace Fdp.Toolkit.Squad.Systems
                 int seenAt = -1;
                 for (int j = 0; j < pool.Count && seenAt < 0; j++)
                     if ((span[j].Flags & SquadContact.AnonymousFlag) == 0 && span[j].EntityId > 0 && sounds[j] == sounds[i]) seenAt = j;
+                // ⭐ CE-2491 — the bang's own token names who fired it (the ring); a squadmate who SEES that man now saw its flash. 📐 pe-house-shot: two
+                //   ears heard a shot only round a door while two others watched the shooter fire — the members' last tokens differed by one shot.
+                if (seenAt < 0 && ring != null && ring.TryGetAtPlace(sounds[i], out var bang) && bang.Kind == TargetMemory.ShotKind
+                    && now - bang.Time <= TargetMemory.FlashBindSeconds)
+                    for (int j = 0; j < pool.Count && seenAt < 0; j++)
+                        if ((span[j].Flags & SquadContact.AnonymousFlag) == 0 && span[j].EntityId == (long)bang.Source
+                            && (span[j].Flags & (ushort)SensorModality.Visual) != 0
+                            && currentTick - span[j].LastSeenTick <= FlashSeenTicks) seenAt = j;
                 if (seenAt < 0) continue;
 
                 ref var seen = ref span[seenAt];

@@ -1101,6 +1101,16 @@ classDiagram
 
 Rail `ThreatEvaluationSystemTests.CE2490_*` (red without the binding).
 
+##### `CE-2491` — the SQUAD binds it too: a bang a squadmate saw fired
+
+| | |
+|---|---|
+| 📐 measured after CE-2490, `pe-house-shot` 26.1 s | the two ears that held the door point did NOT see the shooter then (last seen ticks 1370 / 1556, the bang heard at 1574) — CE-2490 rightly did not fire; for them the door is where to LOOK (D-8). Ears 1 and 2 DID see him fire — but the pool's same-bang fusion (CE-2474 ①) missed it: each pool slot keeps ONE token, and the members' last tokens differed by a shot (149 / 150) |
+| ⭐ the rule | `AbsorbHeardBySound`: a pooled heard contact whose bang (the ring, on its token) was fired by an IDENTIFIED pooled enemy that a member SEES now (Visual in its modalities, last seen within `FlashSeenTicks` 60 steps ≈ 1 s), within `FlashBindSeconds` of the bang, is that enemy — the squadmate saw the flash |
+| ⛔ what stays | a member's own memory keeps the door point (he saw nothing); only the squad's pool — what every member shares — joins them |
+
+Rail `SquadPerceptionMergeSystemTests.CE2491_*` (red without the ring lookup).
+
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
 ⭐ **`2026-11-18`, CE-4658 (backend):** every body now HAS a heat signature — `ThermalDefaults` by its locomotion class, stamped by `SignatureTkbTranslator` where a type authors none — and the sensor computes the heat from the replicated drivers (`HeatSource`); a dedicated **thermal observer (TKB 215)** carries the sight, the M1 / Bradley carriage stays withdrawn. 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md).

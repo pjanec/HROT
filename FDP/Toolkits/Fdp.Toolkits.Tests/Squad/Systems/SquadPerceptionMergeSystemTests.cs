@@ -563,5 +563,32 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(1, GetState(commander).Contacts.Count);
             Assert.Equal((long)him.PackedValue, GetContact(commander, 0).EntityId);
         }
+
+        /// <summary>⭐⭐ <c>CE-2491</c> (R-2144, Sensing §8.6g; 📐 pe-house-shot) — one member SEES the shooter (his memory carries an older bang's token);
+        /// another hears this bang ONLY round a door 16 m away (far beyond any slack): the squadmate saw its flash, so the pool holds ONE contact, the
+        /// seen man. A bang by a man nobody sees, heard there too, stays its own heard contact. 🔴 Red-proof: no ring lookup ⇒ 3 pooled contacts.</summary>
+        [Fact]
+        public void CE2491_ABangHeardRoundADoor_ThatASquadmateSawFired_IsTheSeenMan()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            var him = repo.CreateEntity(); var unseen = repo.CreateEntity();
+            var ring = Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.Of(repo);
+            long older = ring.Append(new Fdp.Toolkit.Perception.Signatures.SoundEmission { Source = him.PackedValue, Kind = 2, Class = 4, Time = (SimInstant)0 });
+            long his   = ring.Append(new Fdp.Toolkit.Perception.Signatures.SoundEmission { Source = him.PackedValue, Kind = 2, Class = 4, Time = (SimInstant)0 });
+            long theirs = ring.Append(new Fdp.Toolkit.Perception.Signatures.SoundEmission { Source = unseen.PackedValue, Kind = 2, Class = 4, Time = (SimInstant)0 });
+
+            ref var seer = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref seer, (long)him.PackedValue, 104.1f, 107.5f, 50f, tick: 10);
+            seer.SoundIds[0] = older;
+            ref var ear = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref ear, 120f, 108f, 0f, 0.7f, 4, 30f, 10, via: 1, sound: his);
+            TargetMemory.HearContact(ref ear, 120f, 95f, 0f, 0.7f, 4, 30f, 10, via: 1, sound: theirs);
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+            Assert.Equal(2, GetState(commander).Contacts.Count);
+            int identified = 0;
+            for (int i = 0; i < 2; i++) if (GetContact(commander, i).EntityId == (long)him.PackedValue) identified++;
+            Assert.Equal(1, identified);
+        }
     }
 }
