@@ -774,6 +774,85 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2476</c> (Sensing §8.6e) — <c>perceives</c>: a man's beliefs scored against the real enemy. One heard contact inside its circle of the
+    /// shooter is MATCHED; two are a DUPLICATE (U2b's four-for-one); one far off is a PHANTOM and leaves the shooter MISSED; a burst is no claim
+    /// (R-2071); an identified civilian is no error; a squad's pool is judged with <c>squad: true</c>. 🔴 Red-proofs: <c>PerceptionScore</c> not
+    /// skipping bursts ⇒ "the shelled man believes nothing" red; counting a second match as matched instead of a duplicate ⇒ "two for one" red.
+    /// </summary>
+    [Fact]
+    public unsafe void CE2476_Perceives_IsBeliefAgainstTruth()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "one for one", "on": "perceives", "who": "Ear One", "truth": "*Red", "metric": "matched", "value": 1},
+                {"name": "one for one, no phantom", "on": "perceives", "who": "Ear One", "truth": "*Red", "metric": "phantom", "value": 0},
+                {"name": "two for one", "on": "perceives", "who": "Ear Two", "truth": "*Red", "metric": "duplicate", "value": 1},
+                {"name": "far off is a phantom", "on": "perceives", "who": "Ear Far", "truth": "*Red", "metric": "phantom", "value": 1},
+                {"name": "far off misses him", "on": "perceives", "who": "Ear Far", "truth": "*Red", "metric": "missed", "value": 1},
+                {"name": "the shelled man believes nothing", "on": "perceives", "who": "Ear Shelled", "truth": "*Red", "metric": "contacts", "value": 0},
+                {"name": "a seen civilian is no error", "on": "perceives", "who": "Ear Civ", "truth": "*Red", "metric": "phantom", "value": 0},
+                {"name": "four of the five ears hear something", "on": "perceives", "who": "*Ear", "truth": "*Red", "metric": "contacts", "op": ">=", "value": 1, "quantifier": "atLeast:4"},
+                {"name": "the squad counts two for one", "on": "perceives", "who": "Blue Squad", "squad": true, "truth": "*Red", "metric": "duplicate", "value": 1}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var w = new FakeWorld { World = world };
+        Entity Unit(string name, int nid, float x)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new NetworkIdentity { Value = nid });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
+            w.U.Ids[name] = nid;
+            w.Comps[nid] = new JsonObject { ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 } };
+            return e;
+        }
+        const byte rifle = 4;
+        Unit("Red", 201, 100f);
+        var civ = Unit("Civilian", 301, 50f);
+        void Hears(Entity ear, params (float X, byte Cls)[] heard)
+        {
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+            uint tick = 1;
+            foreach (var (x, cls) in heard)
+                Fdp.Toolkit.Perception.Components.TargetMemory.HearContact(ref mem, x, 0f, 0f, 5f, cls, 50f, tick++, sound: tick);
+            world.AddComponent(ear, mem);
+        }
+        Hears(Unit("Ear One", 101, 0f), (103f, rifle));
+        Hears(Unit("Ear Two", 102, 0f), (103f, rifle), (90f, rifle));            // two circles that do not meet: two contacts, one shooter
+        Hears(Unit("Ear Far", 103, 0f), (300f, rifle));
+        Hears(Unit("Ear Shelled", 104, 0f), (99f, Fdp.Toolkit.Perception.Components.TargetMemory.BurstClass));
+        var civEar = Unit("Ear Civ", 105, 0f);
+        var seen = new Fdp.Toolkit.Perception.Components.TargetMemory();
+        Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref seen, (long)civ.PackedValue, 50f, 0f, 50f, 1);
+        Fdp.Toolkit.Perception.Components.TargetMemory.HearContact(ref seen, 101f, 0f, 0f, 5f, rifle, 50f, 2);
+        world.AddComponent(civEar, seen);
+        var squad = Unit("Blue Squad", 100, 0f);
+        var state = new Fdp.Toolkit.Squad.SquadCognitiveState();
+        var slots = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+            ref System.Runtime.CompilerServices.Unsafe.As<Fdp.Toolkit.Squad.SquadContactPoolSlots, Fdp.Toolkit.Squad.SquadContact>(ref state.Contacts.Contacts), 16);
+        slots[0] = new Fdp.Toolkit.Squad.SquadContact { EntityId = -1, PositionX = 104, Flags = Fdp.Toolkit.Squad.SquadContact.AnonymousFlag };
+        slots[1] = new Fdp.Toolkit.Squad.SquadContact { EntityId = -2, PositionX = 95, Flags = Fdp.Toolkit.Squad.SquadContact.AnonymousFlag };
+        state.Contacts.Count = 2;
+        world.AddComponent(squad, state);
+
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        foreach (var (name, verdict) in v) Assert.True(verdict.Ok, name);
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "perceives", "who": "A", "truth": "*Red", "metric": "ghosts", "value": 0}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("metric is one of", StringComparison.Ordinal));
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "field", "who": "A", "path": "Health.Current", "value": 1, "truth": "*Red"}] }""", out var stray);
+        Assert.Contains(stray, p => p.Contains("belong to a perceives cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2443</c> — <c>also</c> on a field cue: every extra condition holds on the SAME unit ("a man inside the field's x-span AND above the lane's band");
     /// a man who meets one condition and another man the other does not make it hold. 🔴 Red-proof: judge <c>also</c> on ANY unit ⇒ the split pair holds ⇒ red.
     /// </summary>

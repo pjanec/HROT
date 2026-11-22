@@ -1,0 +1,94 @@
+{
+  "$doc": "CE-2476 perception suite (Sensing \u00a78.6e) - pe-one-shot-four-ears",
+  "runFor": 40,
+  "golden": false,
+  "anchors": [
+    {
+      "name": "first shot",
+      "on": "shot",
+      "by": "Red Shooter"
+    }
+  ],
+  "expect": [
+    {
+      "name": "the shooter fires",
+      "on": "shot",
+      "by": "Red Shooter",
+      "n": 3
+    },
+    {
+      "name": "every ear holds the shooter (matched 1, 5 s)",
+      "on": "perceives",
+      "who": "*Blue Squad Ear",
+      "truth": "*Red",
+      "metric": "matched",
+      "op": "==",
+      "value": 1,
+      "quantifier": "all",
+      "for": 5,
+      "after": "first shot"
+    },
+    {
+      "name": "no ear ever counts him twice",
+      "never": {
+        "on": "perceives",
+        "who": "*Blue Squad Ear",
+        "truth": "*Red",
+        "metric": "duplicate",
+        "op": ">",
+        "value": 0
+      },
+      "after": "first shot"
+    },
+    {
+      "name": "no ear ever believes an enemy where none is",
+      "never": {
+        "on": "perceives",
+        "who": "*Blue Squad Ear",
+        "truth": "*Red",
+        "metric": "phantom",
+        "op": ">",
+        "value": 0
+      },
+      "after": "first shot"
+    },
+    {
+      "name": "the squad's pool holds him once (5 s)",
+      "on": "perceives",
+      "who": "Blue Squad",
+      "squad": true,
+      "truth": "*Red",
+      "metric": "matched",
+      "op": "==",
+      "value": 1,
+      "for": 5,
+      "after": "first shot"
+    },
+    {
+      "name": "the squad never counts him twice",
+      "never": {
+        "on": "perceives",
+        "who": "Blue Squad",
+        "squad": true,
+        "truth": "*Red",
+        "metric": "duplicate",
+        "op": ">",
+        "value": 0
+      },
+      "after": "first shot+2"
+    },
+    {
+      "name": "the squad never holds a phantom",
+      "never": {
+        "on": "perceives",
+        "who": "Blue Squad",
+        "squad": true,
+        "truth": "*Red",
+        "metric": "phantom",
+        "op": ">",
+        "value": 0
+      },
+      "after": "first shot"
+    }
+  ]
+}
