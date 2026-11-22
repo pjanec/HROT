@@ -68,6 +68,8 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   and contact sheets; MP4 with sound rendered from a recording; promote a take back to its scenario.
   ([Film Production](DESIGN_Film_Production.md), [PLAN_Feature_Films §1c](PLAN_Feature_Films.md)) ⚠ first clip from a Live recording
   `2026-10-30`; gaps CE-4117, CE-4119
+  ✅ *(2026-11-22, CE-11035)* the director's dip to black and its subtitle also reach a live client on the suggested camera (`Fade`, the caption's serial / position /
+  alpha, the text on `FilmCaption`; [Look Rules §3.4](designs/vehicle-appearance/DESIGN_Look_Rules_For_Renderers.md)) — DPS `View` sending still to come (DD-022 P-8)
 - **Scenarios are tests:** each scenario carries machine-checkable conditions; a verify run checks them and records the run; a night run
   covers all of them. ([DESIGN_Scenario_Regression](DESIGN_Scenario_Regression.md)) ✅ · Their documentation as stills per check ⏳ (the take
   builder is built, the rendering is not wired)

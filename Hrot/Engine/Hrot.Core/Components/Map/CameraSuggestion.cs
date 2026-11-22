@@ -44,4 +44,20 @@ public struct CameraSuggestion
     public int Cut;
     /// <summary>The take / shot on screen (the director's segment id), empty otherwise.</summary>
     public FixedString64 Take;
+    /// <summary>⭐ CE-11035 (R-11015) — the black over the picture the director shows (0 = none, 1 = full); 0 for any other source.</summary>
+    public float Fade;
+    /// <summary>⭐ CE-11035 — grows by one exactly when the subtitle's TEXT changes; the text is on <see cref="FilmCaption"/> (read it only on a new serial).</summary>
+    public int CaptionSerial;
+    /// <summary>⭐ CE-11035 — where the subtitle sits: 0 bottom, 1 top, 2 middle (the director's <c>SubtitlePosition</c>).</summary>
+    public byte CaptionPosition;
+    /// <summary>⭐ CE-11035 — how visible the subtitle is now (0 = none on screen; the director fades it in and out).</summary>
+    public float CaptionAlpha;
 }
+
+/// <summary>
+/// ⭐ CE-11035 (R-11015; DESIGN_Look_Rules_For_Renderers.md §3.4) — the subtitle's text, a node-local MANAGED singleton an immutable record REPLACED whole, and only when
+/// <see cref="CameraSuggestion.CaptionSerial"/> changes (so 0 B in a steady frame). ⛔ Never recorded (NoReplay: derivable from the director), saved or replicated.
+/// </summary>
+[ComponentId(GlobalComponentIds.FilmCaption)]
+[DataPolicy(DataPolicy.NoReplay | DataPolicy.NoScenario | DataPolicy.NoPreview | DataPolicy.NodeLocal)]
+public sealed record FilmCaption(string Text);

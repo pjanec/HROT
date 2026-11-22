@@ -158,7 +158,7 @@ move **verbatim** — same constants, same branches — and the map's existing r
 
 ⛔ **Rejected: re-raising recorded events in the cluster replay** (`ReplayModule` passes no bus) — events between keyframes are lost or burst on a seek; component state is restored by it. The events stay recorded; nothing reads them in replay.
 
-### 3.4 The director's fade and subtitle on the suggested camera, live (`2026-11-22`, CE-11035, R-11015; build-state: READY-TO-BUILD)
+### 3.4 The director's fade and subtitle on the suggested camera, live (`2026-11-22`, CE-11035, R-11015; build-state: BUILT, as-built below)
 
 🔒 User, `2026-11-22`: *"yes add live fade and subtitles too"* — a client WATCHING the director live (not rendering a film) gets the dip to
 black and the subtitle the screen shows. ⭐ Measured: the camera already reaches clients live through `CameraSuggestion` (`FilmDirector.Describe`,
@@ -197,6 +197,18 @@ sequenceDiagram
 | ⭐ the fade and the caption's alpha / position / serial on the unmanaged suggestion; the TEXT on its own managed singleton, replaced only when the serial changes | 0 B per steady frame (CLAUDE.md HOT PATH): a fade animates every frame, the text changes a few times a take |
 | ⭐ only the director writes them; any other driver leaves 0 (no fade, no caption) | the suggestion is composed fresh each frame (`CameraSuggestions.Write`) |
 | ⛔ still node-local, never recorded or replicated | as D-1 |
+
+⭐ **As-built (`2026-11-22`)** — deviations from the sketch above, the prior state SUPERSEDED:
+
+| prior (the sketch) | as-built |
+|---|---|
+| ~~`FilmStudio.Caption` = a `SubtitleFrame` or null, the serial kept by `Describe`~~ SUPERSEDED | `FilmStudio.Caption` (set by `DirectorRunner` beside `_cinema.Subtitle`) owns the SERIAL too: it grows by one exactly when the shown text differs from the last one; `FilmStudio.ReadCaption` reads serial / last text / position / alpha in one locked read (0 B). `Release()` clears the frame, keeps serial and text |
+| ~~"no subtitle: text empty"~~ SUPERSEDED | no subtitle: alpha 0, serial unchanged, `FilmCaption.Text` keeps the last line (empty before the first); the same text shown again is no new serial (a client's cached text is right) |
+| the text set "when the serial changes" | `FilmDirector` remembers the serial / world it last published and sets `FilmCaption` when either differs or the singleton is absent — 0 B otherwise |
+| component id | `GlobalComponentIds.FilmCaption = 87` (a managed record, NoReplay/NoScenario/NoPreview/NodeLocal) |
+
+Rails: `FilmTests.CE11035_*` (fade follows; subtitle serial / text / position / alpha; set only on a serial change; 0 B per steady frame) and
+`DirectorRunnerTests.CE11035_ALivePlay_HandsTheSubtitleToTheStudio_ForTheSuggestedCamera`.
 
 Acceptance: a rail per field through `CameraSuggestions.Write` with the real `FilmDirector`; the serial changes exactly when the text does;
 0 B per steady frame with a fade animating; a follow / operator camera has Fade 0 and no caption.

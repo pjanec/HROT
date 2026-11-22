@@ -383,6 +383,10 @@ namespace Fdp.Core
         /// replicated or saved). Id measured 2026-11-20: production-free on every lane, its only other use a test struct in Fdp.ModuleHost.Tests (never registers Hrot types).</summary>
         public const int CameraSuggestion        = 86;
 
+        /// <summary><c>FilmCaption</c> — ⭐ CE-11035 (R-11015): the director's subtitle text on this node (a managed singleton, node-local, never recorded or saved; set only when the
+        /// suggested camera's caption serial changes). Id measured 2026-11-22: production-free, its only other use a test struct in Fdp.ModuleHost.Tests (never registers Hrot types).</summary>
+        public const int FilmCaption             = 87;
+
         /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
         /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
         /// ⚠ 126 fixed by the coordinator (127 taken by CheckpointWatch; 128 RELEASED to the air lane — MissileDefenceState, R-4285).</summary>

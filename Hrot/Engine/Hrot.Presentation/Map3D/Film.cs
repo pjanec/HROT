@@ -103,10 +103,44 @@ public static class FilmStudio
     }
 
     /// <summary>Gives the view back (the free camera keeps the last pose; the black clears; ⭐ CE-1304 / CE-1305 — the 3-D map and no graphics again).</summary>
-    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; _twoD = false; _graphics = Array.Empty<Director.GraphicFrame>(); _userHolds = false; _locked = false; } }
+    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; _twoD = false; _graphics = Array.Empty<Director.GraphicFrame>(); _userHolds = false; _locked = false; _caption = null; } }
 
     private static bool _directorCamera = true, _userHolds, _locked;
     private static int _cut, _cutAtTake;
+
+    private static Director.SubtitleFrame? _caption;
+    private static int _captionSerial;
+    private static string _captionText = string.Empty;
+
+    /// <summary>
+    /// ⭐ CE-11035 (R-11015; DESIGN_Look_Rules_For_Renderers.md §3.4) — the subtitle on screen now (null = none), set by the director where it hands the cinema its subtitle.
+    /// The serial grows by one exactly when the TEXT shown changes (a new line; the same text again, or none, leaves it) — the suggested camera's caption serial.
+    /// Cleared by <see cref="Release"/> (the serial and the last text are kept: a client compares serials).
+    /// </summary>
+    public static Director.SubtitleFrame? Caption
+    {
+        get { lock (Gate) return _caption; }
+        set
+        {
+            lock (Gate)
+            {
+                _caption = value;
+                if (value != null && !string.Equals(value.Text, _captionText, StringComparison.Ordinal)) { _captionText = value.Text; _captionSerial++; }
+            }
+        }
+    }
+
+    /// <summary>⭐ CE-11035 — the caption as one read: its serial, the text last shown, and (alpha 0 = none on screen) position and alpha. 0 B.</summary>
+    public static void ReadCaption(out int serial, out string text, out byte position, out float alpha)
+    {
+        lock (Gate)
+        {
+            serial = _captionSerial; text = _captionText;
+            position = _caption != null ? (byte)_caption.Position : (byte)0;
+            alpha = _caption != null ? _caption.Alpha : 0f;
+        }
+    }
+
 
     /// <summary>
     /// ⭐ Seats H4 (📄 docs/UX/DESIGN_Seats_And_Hats.md §3.4; 🔒 user, 2026-11-06: "while director is playing, i still like to move around (director overrides
@@ -193,6 +227,7 @@ public static class FilmStudio
             _animateViewSwitch = true;
             _graphics = Array.Empty<Director.GraphicFrame>();
             _directorCamera = true; _userHolds = false; _locked = false; _cut = _cutAtTake = 0; _shotName = null;
+            _caption = null; _captionSerial = 0; _captionText = string.Empty;
             while (Waiting.Count > 0) Waiting.Dequeue().Done.TrySetCanceled();
         }
     }
@@ -220,7 +255,19 @@ public sealed class FilmDirector : ICameraDriver, ICameraSuggests
         }
         s.Cut = FilmStudio.Cut;
         if (FilmStudio.ShotName is { Length: > 0 } name) s.Take = new Fdp.Core.FixedString64(name);
+        // ⭐ CE-11035 (R-11015, §3.4) — the black over the picture and the subtitle: numbers on the suggestion; the TEXT on its own managed singleton, set ONLY when the serial changes
+        s.Fade = FilmStudio.Fade;
+        FilmStudio.ReadCaption(out int serial, out string text, out byte position, out float alpha);
+        s.CaptionSerial = serial; s.CaptionPosition = position; s.CaptionAlpha = alpha;
+        if (serial != _publishedSerial || !ReferenceEquals(world, _publishedWorld) || !world.HasSingletonManaged<Hrot.Map.Common.Components.FilmCaption>())
+        {
+            world.SetSingletonManaged(new Hrot.Map.Common.Components.FilmCaption(text));
+            _publishedSerial = serial; _publishedWorld = world;
+        }
     }
+
+    private int _publishedSerial = -1;
+    private EntityRepository? _publishedWorld;
 
     private readonly Func<EntityRepository?> _world;
 
