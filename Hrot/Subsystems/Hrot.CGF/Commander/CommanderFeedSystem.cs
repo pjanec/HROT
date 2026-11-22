@@ -36,6 +36,8 @@ public sealed class SeatRuntime : IDisposable
 
     // what the feed already said (frame thread)
     internal double LastItemAt, LastSnapshotAt, LastFightCheckAt;
+    /// <summary>⭐ CE-4679 — the last item that asked the mind to think (a wake or a heartbeat): the heartbeat counts from it, not from any item.</summary>
+    internal double LastWakeAt;
     internal bool HasHead;
     internal CommandReportEntry Head;
     internal ulong OutOfFight;
@@ -268,8 +270,11 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         Reports(world, seat, now);
         if (now - seat.LastFightCheckAt >= FightCheckSeconds) Falls(world, seat, now);
         if (now - seat.LastSnapshotAt >= config.Snapshot) Snapshot(world, seat, now);
-        if (now - seat.LastItemAt >= config.Heartbeat)
-            Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (no traffic)",
+        // ⭐ CE-4679 (§3 "else on the heartbeat") — the mind is asked at least every Heartbeat s: counted from the last WAKE, not the last item.
+        //   📌 Found by the Haiku run: routine SITREPs every 30 s kept "no item for 30 s" from ever holding, so before contact the mind was never asked
+        //   again after its first answer — the squads stood at the start.
+        if (now - seat.LastWakeAt >= config.Heartbeat)
+            Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (no news — your squads await orders)",
                     new JsonObject { ["kind"] = "heartbeat", ["t"] = Round(now) }.ToJsonString());
     }
 
@@ -439,6 +444,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     private static void Publish(SeatRuntime seat, FeedKind kind, double now, bool wake, string radio, string json)
     {
         seat.LastItemAt = now;
+        if (wake || kind == FeedKind.Heartbeat) seat.LastWakeAt = now;
         seat.Channel.Publish(kind, now, wake, radio, json);
     }
 

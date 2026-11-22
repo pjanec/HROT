@@ -333,5 +333,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, clock.Resumes);               // ⭐ … and never a resume of a stepped clock
             s.Seats.Dispose();
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-4679 (§3 "else on the heartbeat") — before any contact the mind is still asked again every heartbeat, though routine SITREPs keep
+        /// coming: the heartbeat counts from the last WAKE, not from the last item. 📌 Found by the Haiku run: SITREPs every 30 s kept the 30 s
+        /// heartbeat from ever firing, so an outside mind was asked once and the squads stood at the start.
+        /// 🔴 Mutation: the heartbeat counted from the last item again ⇒ one call only.
+        /// </summary>
+        [Fact]
+        public void CE4679_RoutineSitreps_NeverStopTheHeartbeat_TheMindIsAskedAgainBeforeContact()
+        {
+            var mind = new RailMind();
+            var s = new Seated(mind);
+            var cfg = s.Repo.GetComponentRO<CommanderSeat>(s.P.S.Commander);
+            cfg.HeartbeatSeconds = 1f;
+            s.Repo.SetComponent(s.P.S.Commander, cfg);
+            s.Ticks(2);
+            for (int i = 0; i < 12; i++)   // a SITREP from Alpha every 0.5 s for 6 s
+            {
+                s.P.Report(s.P.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Sitrep });
+                s.Ticks(31);
+            }
+            Thread.Sleep(100);
+            Assert.Contains(s.Items(), i => i.Kind == FeedKind.Heartbeat);
+            Assert.True(s.Seat.Runner!.Calls >= 4, $"the mind was asked {s.Seat.Runner.Calls} times in 6 s with a 1 s heartbeat");
+            s.Seats.Dispose();
+        }
     }
 }
