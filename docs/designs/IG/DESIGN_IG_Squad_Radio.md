@@ -146,6 +146,37 @@ The clips: `sound_cut.py --set vox` (mode `whole`) → `D:\Work\Unreal\sounds\mi
 |---|---|---|
 | **U-19a** | `dps_gen.py` on the gateway tip (`7b98118`+): the new topics' C types and QoS rows; the plugin builds; the existing rails pass | the topic table lists DPS_Utterance / Report / Order / Ambience / Weather; build green |
 | **U-19b** | the clips (recipes + `whole` mode + import); `HrotVoiceLines`; `UHrotVoicePlayer`; three handlers; three fakes | rail `Hrot.Dps.Voice.Lines`: every row of §2 (incl. Lace by counts, Sitrep by colour, Spot by count, an unknown order ⇒ standby, a civil kind ⇒ none, callsigns stable and distinct); rail `Hrot.Dps.Voice.Player`: per-net queue (third dropped), shout spacing, earpiece vs world by the listener's net; the scene run plays a fake Report and logs the chain (beep → sgt → line → squelch) and `LibraryMissing` 0 |
-| U-19c | bursts on `Fire` (DD-027) | later |
+| **U-19c** | bursts on `Fire` (DD-027) — §5 | rail `Hrot.Dps.Burst`: index 0 of N starts one `_b<N>` clip, indices 1..N-1 play nothing, `BurstId` 0 plays per round, a gap fades the clip, no clip for N ⇒ the nearest shorter count, none at all ⇒ per round; scene: a fake 3-round burst plays ONE clip |
 | U-19d | ambience + weather (DD-028) | later |
 | U-19e | the director's fade and subtitle on `View` | later |
+
+## 5. Bursts on `Fire` (U-19c, DD-027) *(unreal-ig, 2026-11-22)*
+
+🔒 HROT's user (DD-027): *"send the burst information to the DPS instead of a single shot … cannot apply to player"*. Each round stays one `Fire`
+sample (tracers, impacts); `BurstId` / `BurstRounds` / `BurstIndex` say which rounds the AI fired as one burst.
+
+```mermaid
+sequenceDiagram
+  participant G as gateway (DPS_Fire)
+  participant W as UHrotDpsWorld.OnFire
+  participant B as FHrotBurstTracker (pure)
+  participant R as UHrotShotRenderer
+  G->>W: Fire (BurstId 7, Rounds 3, Index 0)
+  W->>B: OnRound(7, 3, 0, now)
+  B-->>W: Start "wpn/rifle_b3"
+  W->>R: PlaySoundHeld(clip, muzzle, falloff) ⇒ handle (the speed-of-sound delay as every shot)
+  G->>W: Fire (7, 3, 1) and (7, 3, 2)
+  W->>B: OnRound ⇒ Covered (no sound)
+  Note over B: a round overdue (> 2 × the seen spacing + 80 ms, first spacing assumed 100 ms) ⇒ Cut
+  B-->>W: Cut(handle) ⇒ R fades it over 60 ms, after the same delay
+```
+*What the picture shows that prose hid:* the burst's sound is decided ONCE, at index 0, from `BurstRounds`; the later rounds only keep it
+alive — and a cut must travel through the same delay as the sound, or a distant burst would stop before it is heard.
+
+| # | decision | rejected |
+|---|---|---|
+| B-1 | clips with an EXACT round count: `sound_cut.py` mode `burst` finds a file's onsets and cuts every run of N consecutive rounds (N = 2..8) plus its decay ⇒ `wpn/<set>_b<N>_NN` for `rifle`, `rifle_east`, `mg`, `mg_heavy` (sources: the pack's short burst / full auto / burst files of that class) | one long burst clip faded at round N — the cadence of the cut would not end on a round |
+| B-2 | no clip of N ⇒ the longest shorter one, then per-round for the rest; none at all ⇒ per round (today's path) | silence |
+| B-3 | `BurstId` 0 (an aimed single, a player's round) ⇒ per round, unchanged | |
+| B-4 | the recording's own cadence is kept (it differs a little from the sim's round spacing; tracers stay per round) | time-stretching — artefacts, and nobody counts |
+| B-5 | the state is a pure `FHrotBurstTracker` (per `BurstId`; forgotten 2 s after its last round), railed without audio | |
