@@ -4,7 +4,7 @@
 
 A flat level, a wall; the camera at the ENU origin 2 m up looking east (90 deg). Entities (metres, ENU):
   near (full cards)      1 person friend 'Rifleman' (30,-3) | 2 ground hostile 'T-72' (40,4) | 3 ground neutral, unnamed -> '#3' (50,10)
-                         8 person hostile 'Sniper' (25,8)
+                         8 person hostile 'Sniper' (25,18)
   behind the wall        4 ground friend 'Hidden' (60,-12); the wall at x 52, y -16..-7, 12 m tall (its card must NOT show)
   1-2 m/px (name only)   5 ground friend 'Far truck' (900,30)
   > 2 m/px (nothing)     6 ground friend 'Very far' (2600,-40)
@@ -25,7 +25,7 @@ EAS = lambda: unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 T0 = time.time()
 SIM0 = 10.0
 PERSON, GROUND, AIR = 1, 2, 3
-ENTS = [(1, PERSON, 1, "Rifleman", (30, -3, 0)), (2, GROUND, 2, "T-72", (40, 4, 0)), (3, GROUND, 0, "", (50, 10, 0)), (8, PERSON, 2, "Sniper", (25, 8, 0)),
+ENTS = [(1, PERSON, 1, "Rifleman", (30, -3, 0)), (2, GROUND, 2, "T-72", (40, 4, 0)), (3, GROUND, 0, "", (50, 10, 0)), (8, PERSON, 2, "Sniper", (25, 18, 0)),
         (4, GROUND, 1, "Hidden", (60, -12, 0)), (5, GROUND, 1, "Far truck", (900, 30, 0)), (6, GROUND, 1, "Very far", (2600, -40, 0)),
         (7, AIR, 1, "Eagle 1", (2600, 60, 300))]
 

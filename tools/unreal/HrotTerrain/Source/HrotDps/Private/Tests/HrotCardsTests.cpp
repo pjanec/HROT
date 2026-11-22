@@ -82,6 +82,21 @@ bool FHrotCardsLayoutTest::RunTest(const FString&)
 	for (const FPlaced& P : L.Placed)
 		if (!P.bCardWide) { TestEqual(TEXT("  the name right of the cell"), P.Origin.X, 48.f); TestEqual(TEXT("  centred beside the symbol"), P.Origin.Y, 4.f + (34.f - 13.f) * 0.5f); }
 
+	// HROT EntityCardRenderer.Layout (checked line by line): the content height = max(the symbol's, the rows'), the rows centred only when shorter.
+	// A unit with FOUR rows taller than its symbol: strength bar + ticks (7), ammo (3), name (13), info (12) + 3 gaps = 41 > the symbol's 34
+	FCard T4; T4.EntityId = 9;
+	T4.Frame(SideColour(1)); T4.Symbol(Sq, 22);
+	T4.Bar(10, 0.8f, 0xF2C033FF, 0x3A3A3ADC, 5.f, 1.f, 1.f); T4.Tick(10, 0.7f, 0xDCDCE1FF, 7.f, 1.f); T4.Tick(10, 0.9f, 0xDCDCE1FF, 7.f, 1.f);
+	T4.Bar(13, 0.3f, 0xF2C033FF, 0x3A3A3ADC, 3.f, 1.f);
+	T4.Text(20, TEXT("Alpha #9"), 0xFFFFFFFF, 13, 0, 2.f);
+	T4.Text(40, TEXT("7/9"), 0xF2C033FF, 12, 0, 2.f); T4.Text(40, TEXT("· Assault"), 0x3EC6B0FF, 12, 0, 2.f, true);
+	TestTrue(TEXT("a symbol card with four rows"), Layout(T4, 0.f, Measure, L));
+	TestEqual(TEXT("  H = the rows' 41 + padding 8 (not the symbol's 42)"), L.H, 49.f);
+	float RowsTop = 1e9f, RowsBottom = -1e9f;
+	for (const FPlaced& P : L.Placed)
+		if (!P.bCardWide) { RowsTop = FMath::Min(RowsTop, P.Origin.Y); RowsBottom = FMath::Max(RowsBottom, P.Origin.Y + P.RowHeight); TestTrue(TEXT("  every row inside the card, a padding from its edge"), P.Origin.Y >= Padding && P.Origin.Y + P.RowHeight <= L.H - Padding); }
+	TestTrue(TEXT("  the rows span exactly the content (41)"), FMath::IsNearlyEqual(RowsBottom - RowsTop, 41.f));
+	TestTrue(TEXT("  the info run follows the strength text"), L.Placed.ContainsByPredicate([&](const FPlaced& P) { return T4.Items[P.Item].bAfterPrev && P.ExtraX > 0; }));
 	TestTrue(TEXT("the hash moves with the content"), HashOf(C) != HashOf(U));
 	FCard C2 = C; C2.Items.Last().Text = TEXT("T-72 #1044");
 	TestTrue(TEXT("  a renamed card redraws"), HashOf(C) != HashOf(C2));
