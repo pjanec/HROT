@@ -30,7 +30,7 @@ spells it (`manifest.json`, `heights/heights.{f32,hdr,json}`, `buildings/buildin
 | **Re-hash** | the manifest's `sha256` / `bytes` must match the files you commit (`InputSetChecks` refuses a mismatch) |
 | **Prove it before you push** | import the committed folder with `hrot-terrain-import` into a scratch content root and compare with your current `Stechovice`: the height posts (max / mean difference — small, from the resample) and the building count. Report the import's wall time |
 | **Never** | the imported folder, `navtiles/`, or the 1 m `heights.f32` |
-| **`.gitignore`** | ⚠ measured on `ui`: `.gitignore:111` `terrain-input/` ignores it — add `!assets/terrain-input/Stechovice/` (and `!assets/terrain-input/Stechovice/**`) after that line, in the same commit |
+| **`.gitignore`** | ⚠ measured on `ui`: `.gitignore:111` `terrain-input/` ignores it, and git cannot re-include a folder inside an ignored one. Add these three lines right after it, in the same commit (tested on `ui`: Stechovice included; the root `terrain-input/` and any other input set still ignored): `!assets/terrain-input/` · `assets/terrain-input/*` · `!assets/terrain-input/Stechovice/` |
 
 ## 3. Reply with
 
