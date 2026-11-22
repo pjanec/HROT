@@ -143,16 +143,21 @@ void UHrotVoicePlayer::PlayClip(const FTx& T, const FString& Set, double& OutSec
 	UHrotSoundscape* Snd = UHrotSoundscape::Get(this);
 	USoundBase* S = Snd ? Snd->Pick(Set) : nullptr;   // a miss is counted by the soundscape (LibraryMissing)
 	if (!S) return;
+	// world speech: full to 5 m, -30 dB at 40 m (HROT's VoiceRange), held there by the natural-sound curve, CUT at 50 m
+	// (heard 2026-11-22: "the faint at 50 was ok but so weak that we can cut it there")
+	static constexpr float VoiceCutM = 50.f;
+	float DistM = -1.f;
+	if (!T.bEarpiece) { const UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld()); if (R) DistM = FVector::Dist(T.At, R->ViewLocation()) / 100.f; }
+	const bool bCut = DistM > VoiceCutM;
 	if (T.bEarpiece) UGameplayStatics::PlaySound2D(GetWorld(), S);
-	else UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, T.At, 1.f, 1.f, 0.f, Snd->Falloff(5.f, 40.f, -30.f));
+	else if (!bCut) UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, T.At, 1.f, 1.f, 0.f, Snd->Falloff(5.f, 40.f, -30.f));
 	OutSeconds = S->GetDuration();
 	{   // U-19f: the sound log - the line (and the answer) carry the HROT meaning, the framing clips (beep, sgt, over, squelch) their set
 		const bool bAnswer = !T.Cue.AnswerSet.IsEmpty() && Set == T.Cue.AnswerSet && Set != T.Cue.Set;
 		const bool bLine = Set == T.Cue.Set || bAnswer;
 		FString Detail = bLine ? (bAnswer ? TEXT("answer: ") + T.Cue.Why : T.Cue.Why) : Set;
-		float DistM = -1.f;
-		if (!T.bEarpiece) { const UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld()); if (R) DistM = FVector::Dist(T.At, R->ViewLocation()) / 100.f; }
-		if (DistM > 40.f) Detail += TEXT(" (inaudible, beyond 40 m)");   // the voice falloff ends at 40 m (Falloff(5, 40))
+		if (bCut) Detail += TEXT(" (not played, beyond 50 m)");
+		else if (DistM > 40.f) Detail += TEXT(" (faint, beyond 40 m)");
 		FHrotSoundLog::Get().Add(T.bEarpiece ? EHrotSndChannel::Radio : EHrotSndChannel::World, S->GetName(), Detail, DistM);
 	}
 	++Played;

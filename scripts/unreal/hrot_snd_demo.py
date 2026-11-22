@@ -8,7 +8,7 @@ hrot.snd.Debug 1 draws the SOUND LOG lower-left (RADIO / WORLD / WEAPON / AMBIEN
 1..4 around it ~10 m apart, two hostiles far east. Steps:
   1 order      a shout in the WORLD, camera 4 m from man 1                         -> a WORLD line  '... man 1 Utterance CmdMove'
   2 radio      the camera follows man 1: his unit's net is in the EARPIECE         -> RADIO lines (an Order, a Report Contact, beep / sgt / squelch)
-  3 away       shouts from 5, 20, 35 and 50 m                                      -> WORLD lines with 5 / 20 / 35 m; at 50 m the line says 'inaudible, beyond 40 m'
+  3 away       shouts from 5, 20, 35, 45 and 60 m                                  -> WORLD lines with 5 / 20 / 35 m; 45 m 'faint, beyond 40 m'; 60 m 'not played, beyond 50 m'
   4 bursts     3 (rifle), 5 (AK of the east) and 7 (machine gun) rounds, 60 m away -> one WEAPON line each, the clip's own round count in its name
   5 battle     a city battle bed fades in                                          -> an AMBIENCE line 'battle.city'
   6 siren      an air-raid siren from the town 70 m to the north                   -> an AMBIENCE line 'alarm.airraid'
@@ -127,12 +127,14 @@ def build_steps():
         dur=max(PACE, 16.0), shot=True,
         verify=lambda s: check("2 radio: RADIO earpiece lines - the order, the report, the framing clips",
                                sum(1 for l in s["lines"] if " RADIO " in l) >= 6 and has(s, "RADIO", "earpiece", "Order Move out") and has(s, "RADIO", "Report Contact from unit 9") and has(s, "RADIO", "beep"), str(s["lines"])))
-    # 3: moving away: shouts at 5, 20, 35, 50 m
-    for d in (5, 20, 35, 50):
-        add(f"away{d}", f"Moving away - {d} m from him" + (" - his shouts fade, gone by 40 m" if d == 5 else ""),
+    # 3: moving away: shouts at 5, 20, 35, 45 (faint) and 60 m (cut at 50 m)
+    for d in (5, 20, 35, 45, 60):
+        add(f"away{d}", f"Moving away - {d} m from him" + (" - his shouts fade, cut at 50 m" if d == 5 else ""),
             [(0.0, (lambda d=d: cam(10 - d, 0, 2, 0))), (0.8, lambda: sub.fake_station_utterance(1, "CallReloading", SIM0))],
-            verify=(lambda s, d=d: check(f"3 away: the {d} m shout" + (" is logged as inaudible" if d == 50 else " is a WORLD line"),
-                                         (has(s, "WORLD", "man 1 Utterance CallReloading", "inaudible") if d == 50 else has(s, "WORLD %d m" % d, "man 1 Utterance CallReloading") and not has(s, "inaudible")), str(s["lines"]))))
+            verify=(lambda s, d=d: check(f"3 away: the {d} m shout" + {45: " is logged as faint", 60: " is logged as not played"}.get(d, " is a WORLD line"),
+                                         {45: has(s, "WORLD", "man 1 Utterance CallReloading", "faint, beyond 40 m"),
+                                          60: has(s, "WORLD", "man 1 Utterance CallReloading", "not played, beyond 50 m")}.get(d,
+                                          has(s, "WORLD %d m" % d, "man 1 Utterance CallReloading") and not has(s, "beyond")), str(s["lines"]))))
     # 4: bursts, 60 m away: the camera at the origin looking east, the muzzle 60 m east
     base = [(0.0, lambda: cam(0, 0, 2, 0))]
     for (nm, shooter, mg, rounds, bid, pat) in (("burst3", 2, False, 3, 301, "_b3"), ("burst5", 21, False, 5, 302, "_b5"), ("burst7", 3, True, 7, 303, "_b7")):
