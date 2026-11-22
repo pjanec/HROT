@@ -9,9 +9,9 @@ related-designs:
   - PROTOCOL_Autonomous_Lanes.md — how you work
 -->
 
-# HANDOFF — coordinator → `behaviors`: THE LLM COMMANDER, slice L-1 (CE-4676)
+# HANDOFF — coordinator → `backend`: THE LLM COMMANDER, slice L-1 (CE-4676)
 
-**For:** behaviors (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at the commit that adds this file; RE-DISPATCHED (rule 1a — not started) at the commit that adds the measured ① premise**; ⛔ scope FROZEN there — later
+**For:** backend (ids `CE-3000`…, `R-3000`…). ⚠ **Moved from behaviors `2026-11-22`** (user: *"backend should take it"* — behaviors is busy; it had not started). **From:** coordinator. **Dispatched at the commit that adds this file; RE-DISPATCHED (rule 1a — not started) at the commit that adds the measured ① premise**; ⛔ scope FROZEN there — later
 documents are FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-22`: *"start with platoon commander commanding squads on a little scenario … one side … full game AI and other side by large
@@ -19,8 +19,9 @@ language model"* · *"build the commander bridge into the HROT"* · *"I need to 
 *"leans approved, write handoff for L-1"* (R-4298).
 
 ## ⭐ Priority
-After the row in progress, before your remaining second-tier rows. Status in `STATUS_Behaviors_LLM_Commander.md` (protocol §3), decisions you
-take to `DECISIONS_Behaviors.md`.
+After the row in progress, before your remaining second-tier rows. Status in `STATUS_Backend_LLM_Commander.md` (protocol §3), decisions you
+take to `DECISIONS_Backend.md`. ⚠ The command chain (`CommandOrders`, the staff, the platoon SOP) is behaviors' code: read it, call it, ⛔ do
+not change it — a change it needs is a NOTE to behaviors.
 
 ## Read first
 The design END TO END ([DESIGN_LLM_Commander](../../designs/llm-commander/DESIGN_LLM_Commander.md)) — ⭐ build §5's class diagram and sequence; a
