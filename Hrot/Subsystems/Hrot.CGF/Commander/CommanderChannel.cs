@@ -64,6 +64,7 @@ public sealed class CommanderChannel
             if (wake || kind == FeedKind.Heartbeat) _lastWake = seq;
         }
         _items.Release();
+        Fdp.Core.Logging.FdpLog<CommanderChannel>.Info("[Commander] #{0} {1}", seq, radio);   // ⭐ the radio log in the node's log (on an item, never per frame)
         return seq;
     }
 

@@ -264,6 +264,8 @@ public sealed class ScenarioChecksTests
         public string? NameOfEntityIndex(int index) => U.Ids.FirstOrDefault(kv => kv.Value == index).Key;
         public JsonArray Shots() => (JsonArray)ShotRows.DeepClone();
         public JsonArray Blasts() => (JsonArray)BlastRows.DeepClone();
+        public readonly JsonArray ReportRows = new();
+        public JsonArray Reports() => (JsonArray)ReportRows.DeepClone();
         public string? SetComponent(int networkId, string component, JsonObject patch) => null;
 
         public FakeWorld Unit(string name, int id, double health, double x)
@@ -850,6 +852,45 @@ public sealed class ScenarioChecksTests
         Assert.Contains(bad, p => p.Contains("metric is one of", StringComparison.Ordinal));
         Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "field", "who": "A", "path": "Health.Current", "value": 1, "truth": "*Red"}] }""", out var stray);
         Assert.Contains(stray, p => p.Contains("belong to a perceives cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4676</c> — the <c>report</c> cue: the n-th report the inbox saw, by its sender, to its addressee, of a kind — at the time the inbox took
+    /// it; a report to someone else or of another kind does not count; an unknown kind is refused at parse.
+    /// 🔴 Mutation: the addressee filter dropped ⇒ "nothing to the company" holds.
+    /// </summary>
+    [Fact]
+    public void CE4676_TheReportCue_FindsTheNthReportBySenderAddresseeAndKind()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "anchors": {"spotted": {"on": "report", "target": "Platoon", "is": ["Spot", "Contact"]}},
+              "expect": [
+                {"name": "alpha reports", "on": "report", "by": "Alpha", "target": "Platoon"},
+                {"name": "bravo's second report", "on": "report", "by": "Bravo", "target": "Platoon", "n": 2},
+                {"name": "nothing to the company", "never": {"on": "report", "target": "Company"}},
+                {"name": "no request", "never": {"on": "report", "is": "Request"}}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        w.U.Ids["Platoon"] = 1; w.U.Ids["Alpha"] = 2; w.U.Ids["Bravo"] = 3; w.U.Ids["Company"] = 4;
+        long serial = 0;
+        void Saw(int from, string kind, double at)   // as GET /squad/reports writes a row: newest first
+            => w.ReportRows.Insert(0, new JsonObject { ["serial"] = ++serial, ["seenAt"] = at, ["from"] = from, ["to"] = 1, ["kind"] = kind });
+        var book = new ConditionBook(checks, w, 0);
+        Saw(3, "Sitrep", 1.0);
+        book.Observe(1.5);
+        Saw(2, "Spot", 2.0);
+        Saw(3, "Contact", 2.5);
+        book.Observe(3.0);
+        Assert.Equal(2.0, book.Times["spotted"], 3);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["alpha reports"].Ok);
+        Assert.Equal(2.5, v["bravo's second report"].Time!.Value, 3);
+        Assert.True(v["nothing to the company"].Ok);
+        Assert.True(v["no request"].Ok);
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "report", "is": "Shout"}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("a report cue's is is a report kind", StringComparison.Ordinal));
     }
 
     /// <summary>

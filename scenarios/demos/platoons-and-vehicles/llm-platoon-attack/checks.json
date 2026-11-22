@@ -1,0 +1,16 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — LLM commander L-1 (CE-4676, docs/designs/llm-commander/DESIGN_LLM_Commander.md §1, §11): the Platoon's brain is a seat with the SCRIPTED mind; Alpha Squad and Bravo Squad fight with the game AI; Red's Defenders hold the sheds. FEATURE scenario (no golden until two fresh runs agree, §5). The 'report' cue reads the brain node's report log (editor tier).",
+  "runFor": 420,
+  "golden": false,
+  "anchors": {
+    "spotted": {"on": "report", "target": "Platoon", "is": ["Spot", "Contact"]}
+  },
+  "expect": [
+    {"name": "both squads are sent to the objective at the start", "on": "task", "who": "*Squad", "is": "InfantrySquadMove", "before": 5},
+    {"name": "a squad attacks within 1 s of the first SPOT into the platoon", "on": "task", "who": "*Squad", "is": "InfantrySquadAttack", "after": "spotted", "before": "spotted+1"},
+    {"name": "the platoon's own play never runs (no PlatoonHold, no ReactToFireFromBuilding)", "never": {"on": "task", "who": "Platoon", "is": ["PlatoonHold", "ReactToFireFromBuilding", "PlatoonBound"]}},
+    {"name": "Alpha Squad reports to the platoon", "on": "report", "by": "Alpha Squad", "target": "Platoon"},
+    {"name": "Bravo Squad reports to the platoon", "on": "report", "by": "Bravo Squad", "target": "Platoon"},
+    {"name": "Red fires (the fight happens)", "on": "shot", "by": "*Red "}
+  ]
+}

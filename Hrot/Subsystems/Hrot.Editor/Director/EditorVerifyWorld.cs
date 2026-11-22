@@ -43,6 +43,9 @@ namespace Hrot.Editor.Director
 
         public JsonArray Blasts() => Service.GetDetonations(int.MaxValue)["detonations"] as JsonArray ?? new JsonArray();
 
+        /// <summary>⭐ CE-4676 — the brain node's report log, as <c>GET /squad/reports</c> serves it.</summary>
+        public JsonArray Reports() => Service.GetSquadReports(Fdp.Toolkit.Squad.Command.SquadReportLog.Capacity, null)["reports"] as JsonArray ?? new JsonArray();
+
         public string? SetComponent(int networkId, string component, JsonObject patch)
             => Service.EditEntityComponent(networkId, component, patch.DeepClone()).error;
     }
