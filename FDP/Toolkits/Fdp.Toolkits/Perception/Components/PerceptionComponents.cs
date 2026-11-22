@@ -420,23 +420,30 @@ namespace Fdp.Toolkit.Perception.Components
         /// <summary>⭐ <c>CE-2474</c> (Sensing §8.6d ②) — how far off a seen man's bearing a heard shot may come and still be HIS (degrees).</summary>
         public const float AttributeDegrees = 12f;
 
+        /// <summary>⭐ <c>CE-2484</c> — the same for a shot heard THROUGH AN OPENING (D-8): its point is the way in, so the seen man must stand BEYOND it (farther
+        /// than the opening) and within this of its bearing — the sound bent round the opening's edge. 📐 pe-house-shot: the east-room ear saw the shooter
+        /// through the hall door and heard his shots via the stairwell 17° off — one man, held as two.</summary>
+        public const float AttributeThroughDegrees = 45f;
+
         /// <summary>
         /// ⭐⭐ <c>CE-2474</c> (Sensing §8.6d ②; 🔒 user: "Can't we somehow assign the sound position to the seen position of the enemy?") — a
         /// listener at (<paramref name="fromX"/>, <paramref name="fromY"/>) heard a SHOT whose estimate lies at (<paramref name="x"/>, <paramref name="y"/>):
         /// when an identified contact he SEES NOW (<paramref name="seenNow"/>) stands within <see cref="AttributeDegrees"/> of that bearing, the shot is
         /// HIS — that slot is refreshed (Acoustic added, the sound's token stamped) instead of a new anonymous slot. The nearest bearing wins.
-        /// ⛔ Not for a footstep or an engine (only a shot is sudden and directional), never for a burst (R-2071: where a round LANDED), never for a
-        /// hearing through an opening or round a corner (D-8: its bearing points at the way in, not the source).
+        /// ⛔ Not for a footstep or an engine (only a shot is sudden and directional), never for a burst (R-2071: where a round LANDED). ⭐ CE-2484 — a hearing
+        /// through an opening or round a corner (D-8: its point is the way in) is attributed only to a seen man BEYOND that point, within
+        /// <see cref="AttributeThroughDegrees"/>.
         /// Returns true when it attributed.
         /// </summary>
         public static bool AttributeToSeen(ref TargetMemory mem, float fromX, float fromY, float x, float y, byte kind, byte sourceClass, byte via,
                                            System.ReadOnlySpan<long> seenNow, float scoreBoost, uint tick, long sound)
         {
-            if (kind != ShotKind || sourceClass == BurstClass || via != 0 || seenNow.IsEmpty) return false;
+            if (kind != ShotKind || sourceClass == BurstClass || seenNow.IsEmpty) return false;
             float hx = x - fromX, hy = y - fromY, hd2 = hx * hx + hy * hy;
             if (hd2 < 1f) return false;   // an estimate on top of the listener has no bearing
             float hd = System.MathF.Sqrt(hd2);
-            float cosMax = System.MathF.Cos(AttributeDegrees * (System.MathF.PI / 180f));
+            // ⭐ CE-2484 — heard through an opening: the shooter is BEYOND the opening, within a wider cone (the sound bent round its edge)
+            float cosMax = System.MathF.Cos((via != 0 ? AttributeThroughDegrees : AttributeDegrees) * (System.MathF.PI / 180f));
             int best = -1; float bestCos = cosMax;
             for (int i = 0; i < mem.Count; i++)
             {
@@ -447,6 +454,7 @@ namespace Fdp.Toolkit.Perception.Components
                 if (!seen) continue;
                 float sx = mem.PositionsX[i] - fromX, sy = mem.PositionsY[i] - fromY, sd2 = sx * sx + sy * sy;
                 if (sd2 < 1e-4f) continue;
+                if (via != 0 && sd2 < hd2) continue;   // ⭐ CE-2484 — nearer than the opening: not the man beyond it
                 float cos = (hx * sx + hy * sy) / (hd * System.MathF.Sqrt(sd2));
                 if (cos >= bestCos) { best = i; bestCos = cos; }
             }

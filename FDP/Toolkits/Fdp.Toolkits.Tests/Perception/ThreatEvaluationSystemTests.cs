@@ -471,7 +471,8 @@ namespace Fdp.Toolkit.Perception.Tests
         /// ⭐⭐ <c>CE-2474</c> (Sensing §8.6d ②; 🔒 user: "Can't we somehow assign the sound position to the seen position of the enemy?") — he SEES a
         /// rifleman 40 m north and hears a shot whose estimate lands 8 m off him (within <see cref="TargetMemory.AttributeDegrees"/> of his bearing):
         /// the shot is HIS — one contact, the seen one, Acoustic added, the shot's token stamped. A shot from the east (off every seen bearing), a
-        /// shot heard round a corner, and footsteps from his bearing are NOT attributed: each is its own heard slot.
+        /// shot heard round a corner from a point AHEAD of him (⭐ CE-2484: a through-opening hearing is his only when he stands beyond its point), and
+        /// footsteps from his bearing are NOT attributed: each is its own heard slot.
         /// 🔴 Red-proof: skip <c>AttributeToSeen</c> in the heard loop ⇒ 2 slots after the first shot.
         /// </summary>
         [Fact]
@@ -490,7 +491,7 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(31L, mem.SoundIds[0]);
 
             world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 60f, Y = 0f, Radius = 9f, Kind = 2, SourceClass = SmallArms, Sound = 32 });
-            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 0f, Y = 20f, Radius = 6f, Kind = 2, SourceClass = SmallArms, Sound = 33, Via = 1 });
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 0f, Y = 60f, Radius = 6f, Kind = 2, SourceClass = SmallArms, Sound = 33, Via = 1 });   // beyond him
             world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 0f, Y = 300f, Radius = 40f, Kind = 1, SourceClass = Footsteps });
             world.Bus.SwapBuffers();
             sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
@@ -498,6 +499,16 @@ namespace Fdp.Toolkit.Perception.Tests
             int heard = 0;
             for (int i = 0; i < mem.Count; i++) if (TargetMemory.IsAnonymous(in mem, i)) heard++;
             Assert.Equal(3, heard);
+
+            // ⭐ CE-2484 — a shot heard THROUGH AN OPENING 20 m ahead and 30° off his bearing (inside 45°), the seen rifleman beyond it: it is HIS
+            int before = world.GetComponent<TargetMemory>(unit).Count;
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = 10f, Y = 17.3f, Radius = 3f, Kind = 2, SourceClass = SmallArms, Sound = 34, Via = 1 });
+            world.Bus.SwapBuffers();
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(before, mem.Count);
+            int slot = -1; for (int i = 0; i < mem.Count; i++) if (mem.EntityIds[i] == (long)rifleman.PackedValue) slot = i;
+            Assert.Equal(34L, mem.SoundIds[slot]);
         }
 
         /// <summary>⭐ K3 — danger of a heard slot is read from its class (there is no entity to read).</summary>
