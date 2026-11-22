@@ -304,6 +304,7 @@ void UHrotDpsWorld::OnStatus(const FHrotDpsSample& S)
 	F.HealthCurrent = D.HealthCurrent; F.HealthMax = D.HealthMax; F.AmmoShare = D.AmmoShare; F.MindFill = D.MindFill; F.MindBreak = D.MindBreak;
 	F.StrengthPresent = D.StrengthPresent; F.StrengthAuthorized = D.StrengthAuthorized;
 	F.MindBand = HrotCards::EMindBand(uint8(D.MindBand));
+	E.UnitId = D.UnitId;   // T-068
 	E.StatusKey = F.Hash();
 }
 
@@ -560,6 +561,7 @@ int32 UHrotDpsWorld::ListenerNet() const
 	const FEnt* F = Id ? Ents.Find(Id) : nullptr;
 	if (!F) return 0;
 	if (F->bIsUnit) return Id;   // he IS a unit (a commander): his own net
+	if (F->UnitId != 0) return F->UnitId;   // T-068: HROT names his unit
 	if (!F->bHasState) return 0;
 	const FVector Me = HrotDpsMotion::ToUnreal(F->Shown, OriginCm).GetLocation();
 	int32 Best = 0; double BestD = FMath::Square(15000.0);   // 150 m

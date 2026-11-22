@@ -198,7 +198,7 @@ public:
 	// ── U-19b: the squad's radio (HrotVoiceLines → UHrotVoicePlayer; docs/designs/IG/DESIGN_IG_Squad_Radio.md) ──
 	/** a Synthetic report (a rail's / the debug API's) is not spoken when this is set (V-4: spoken by default) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bSilentSynthetic = false;
-	/** the net the listener is on: the unit of the man the camera follows (V-2: the nearest same-side IsUnit entity within 150 m of him; himself when he is one); 0 = none */
+	/** the net the listener is on: the unit of the man the camera follows - his EntityStatus.UnitId (T-068); without one, the nearest same-side IsUnit entity within 150 m (V-2); himself when he is one; 0 = none */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 ListenerNet() const;
 	/** "gizmos asked [..], <n> layers shown, <p> primitives, <f> frames" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeGizmos() const;
@@ -248,6 +248,7 @@ private:
 		int32 ParentId = 0;   // Entity.ParentId: mounted on / part of another entity
 		HrotCards::FStatusFacts Status;   // U-18y (DD-025): the gateway's EntityStatus (Status.bHas = one arrived); StatusKey = its hash
 		uint32 StatusKey = 0;
+		int32 UnitId = 0;       // U-19b / T-068: EntityStatus.UnitId - the unit (IsUnit commander) this man belongs to, 0 = none / not sent
 		bool bIsUnit = false;   // U-18y: Entity.IsUnit — a body-less commander (DD-024): no stand-in body, its card at its position + 2 m
 		// a person (U-18d)
 		bool bHasPerson = false;
