@@ -6,6 +6,7 @@
 #include "Subsystems/EngineSubsystem.h"
 #include "Containers/Ticker.h"
 #include "HrotDpsClient.h"
+#include "HrotSoundLog.h"
 #include "HrotDpsSubsystem.generated.h"
 
 UCLASS()
@@ -125,10 +126,17 @@ public:
 	/** "<n> done, last: <index> <Written|Failed> '<file>' <ms> ms audio <n> '<why>'" */
 	/** U-19c - one round of a burst (DD-027): a rifle shot (SmallArms) with BurstId / Rounds / Index; the side comes from ShooterId's Entity */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationBurstRound(double SimTime, int32 ShooterId, FVector OriginM, FVector VelocityMs, int32 BurstId, int32 Rounds, int32 Index);
+	/** U-19f: the same from a machine gun (the mg_ clips) when bMachineGun, a rifle otherwise */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationBurstRoundAs(double SimTime, int32 ShooterId, FVector OriginM, FVector VelocityMs, int32 BurstId, int32 Rounds, int32 Index, bool bMachineGun);
 	/** U-19d (DD-028) - an ambience row (Kind, Intensity; a place in ENU metres and a radius when bPositioned) and a weather row (a global one when Outline is
 	 *  empty; else a region with its outline, ENU metres); bDispose = the row ends (the writer disposes it) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationAmbience(int32 Id, const FString& Kind, float Intensity, bool bPositioned, FVector PositionM, float RadiusM, bool bDispose);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationWeather(int32 Id, const TArray<FVector2D>& OutlineM, float FeatherM, float WindSpeedMps, int32 Precipitation, float MmPerHour, bool bDispose);
+	/** U-19f - the sound log (HrotSoundLog.h): every line since the last ClearSoundLog, "<n> WORLD 18 m . cmd_move_03 - man 31 Utterance CmdMove" - what a scene check / the sound demo reads back */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") static TArray<FString> GetSoundLogLines() { return FHrotSoundLog::Get().Transcript(); }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") static void ClearSoundLog() { FHrotSoundLog::Get().Clear(); }
+	/** the caption (top-centre, while hrot.snd.Debug is 1) for Seconds */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") static void SetSoundCaption(const FString& Text, float Seconds) { FHrotSoundLog::Get().SetCaption(Text, Seconds); }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString FakeStationFrameDone() const { return FakeDone; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationFramesDone() const { return FakeDoneCount; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationStepAcks() const { return FakeAcks; }

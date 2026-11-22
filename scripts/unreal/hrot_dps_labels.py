@@ -184,6 +184,11 @@ def voice():
         want = ["radio/beep", "vox/sgt_brown", "vox/rep_losses", "radio/squelch"]
         check("voice: the report's chain beep > sgt > rep_losses > squelch", radio == want, " > ".join(played))
         check("voice: the shout cmd_move played", "vox/cmd_move" in played, " > ".join(played))
+        # U-19f: the same sequence is on the sound log (the transcript UHrotDpsSubsystem.get_sound_log_lines reads): beep, sgt, the report's line with its HROT meaning, squelch
+        sl = list(unreal.HrotDpsSubsystem.get_sound_log_lines()); R["sound_log"] = sl
+        pos = [next((i for i, l in enumerate(sl) if k in l), -1) for k in ("radio/beep", "vox/sgt_brown", "Report Lace from unit 9", "radio/squelch")]
+        check("voice: the sound log lists beep > sgt > the report (with its meaning) > squelch, in that order", all(i >= 0 for i in pos) and pos == sorted(pos), f"{pos} - {sl}")
+        check("voice: the sound log names the shout and who said it", any("WORLD" in l and "man 1 Utterance CmdMove" in l for l in sl), str(sl))
         check("voice: no clip missing from the library", SND.get_editor_property("library_missing") == st["missing0"], f"LibraryMissing {st['missing0']} -> {SND.get_editor_property('library_missing')}")
         check("voice: 2 transmissions, none dropped", P.get_editor_property("transmissions") == 2 and P.get_editor_property("dropped") == 0, P.describe())
         # the earpiece: follow man 1 (side 1); his net is unit 9 (the nearest same-side unit)
@@ -199,6 +204,8 @@ def voice():
         played = P.played_text().split(" > "); R["voice2"] = P.describe(); log("voice: " + P.describe())
         check("voice: the order is heard in the earpiece", P.get_editor_property("earpiece") == st["ear0"] + 1, P.describe())
         check("voice: the order's line and the receiver's answer", "vox/ord_move" in played and played[-2] == "vox/ack_order", " > ".join(played[-6:]))
+        sl2 = list(unreal.HrotDpsSubsystem.get_sound_log_lines())   # U-19f
+        check("voice: the sound log shows the order on the RADIO earpiece line", any("RADIO" in l and "earpiece" in l and "Order Move out" in l for l in sl2), str(sl2[-8:]))
         check("voice: no clip missing after the order", SND.get_editor_property("library_missing") == st["missing0"], f"LibraryMissing {SND.get_editor_property('library_missing')}")
         S.update(phase="burst", t=time.time() + 0.5)
 

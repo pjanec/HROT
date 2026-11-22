@@ -1,6 +1,8 @@
 // CE-4651 (U-19b) — see HrotVoicePlayer.h
 #include "HrotVoicePlayer.h"
 #include "HrotSoundscape.h"
+#include "HrotShotRenderer.h"
+#include "HrotSoundLog.h"
 #include "Engine/World.h"
 #include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
@@ -144,6 +146,15 @@ void UHrotVoicePlayer::PlayClip(const FTx& T, const FString& Set, double& OutSec
 	if (T.bEarpiece) UGameplayStatics::PlaySound2D(GetWorld(), S);
 	else UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, T.At, 1.f, 1.f, 0.f, Snd->Falloff(5.f, 40.f));
 	OutSeconds = S->GetDuration();
+	{   // U-19f: the sound log - the line (and the answer) carry the HROT meaning, the framing clips (beep, sgt, over, squelch) their set
+		const bool bAnswer = !T.Cue.AnswerSet.IsEmpty() && Set == T.Cue.AnswerSet && Set != T.Cue.Set;
+		const bool bLine = Set == T.Cue.Set || bAnswer;
+		FString Detail = bLine ? (bAnswer ? TEXT("answer: ") + T.Cue.Why : T.Cue.Why) : Set;
+		float DistM = -1.f;
+		if (!T.bEarpiece) { const UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld()); if (R) DistM = FVector::Dist(T.At, R->ViewLocation()) / 100.f; }
+		if (DistM > 40.f) Detail += TEXT(" (inaudible, beyond 40 m)");   // the voice falloff ends at 40 m (Falloff(5, 40))
+		FHrotSoundLog::Get().Add(T.bEarpiece ? EHrotSndChannel::Radio : EHrotSndChannel::World, S->GetName(), Detail, DistM);
+	}
 	++Played;
 	PlayedLog.Add(Set);
 	if (PlayedLog.Num() > 64) PlayedLog.RemoveAt(0, PlayedLog.Num() - 64);

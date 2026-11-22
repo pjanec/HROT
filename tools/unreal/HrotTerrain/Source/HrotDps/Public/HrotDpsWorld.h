@@ -353,7 +353,8 @@ private:
 	void OnReport(const struct FHrotDpsSample& S);
 	void OnOrder(const struct FHrotDpsSample& S);
 	/** hand a cue to the player: heard from entity `FromId` (the net it speaks on), at his head / unit anchor */
-	void SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout);
+	/** Why: the HROT meaning shown in the sound log (U-19f); "{who}" in it becomes the speaker ("man 31" / "unit 9") */
+	void SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout, const FString& Why = FString());
 	FHrotCallsigns Callsigns;
 	// -- U-19c: bursts (DD-027): one held clip per burst, cut when the rounds stop --
 	FHrotBurstTracker Bursts;

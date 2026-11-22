@@ -282,3 +282,61 @@ into the image today, `HrotDpsRender.cpp:587`) and `Fade` (P-7 — ⛔ not appli
 | F-2 "director mode" | `AHrotDpsHud` / the debug-draw host (`HrotDpsHud::Draw`) paint it only when `AHrotDpsCamera::GetMode() == Director` (set by `-HrotIgDirector` or the V key) and a View exists | a followed or free camera ignores it |
 | F-3 | `UHrotDpsWorld::OnView` keeps `Fade`, `Subtitle`, `SubtitlePosition`, `SubtitleAlpha` of the last sample; `OverlayNow()`; probes `OverlaySubtitlesDrawn` / `OverlayFadesDrawn` | state, as the pose |
 | scene: a render job with `Fade` 1 writes a black frame | NOT run: the render-job harness (`hrot_dps_render7.py`: job states, lockstep, non-real-time audio) is heavy and `FakeStationFrame` has no Fade argument; `Hrot.Dps.Overlay` rails the painter's maths (y by position, alpha, fade 0 / 0.5 / 1 / clamps) and the render path calls the same `Paint`; the black-frame check is the next addition to that harness | proportion |
+
+## 8. Sound log and demo (U-19f) *(unreal-ig, 2026-11-22)*
+
+🔒 User, `2026-11-22`: *hear a sound and read on screen what it is.* One log, fed by every play path; one scripted demo that drives it.
+
+**INVENTORY** *(grep of `Source/` — the plugin is not in the codebase-memory graph)*: the play choke points are exactly three —
+`UHrotVoicePlayer::PlayClip` (earpiece 2-D vs world), `UHrotShotRenderer::PlayNow` (every weapon / hit / explosion sound, delayed by the speed of sound),
+`UHrotAmbiencePlayer::Start` (beds, alarms, events). The soundscape's own beds / footsteps / animals are NOT logged (too chatty).
+
+```mermaid
+graph TD
+  V["UHrotVoicePlayer::PlayClip"] -->|"RADIO earpiece / WORLD + the HROT meaning"| L["FHrotSoundLog (HrotTerrain)<br/>ring of 6 + transcript + caption"]
+  W["UHrotShotRenderer::PlayNow"] -->|WEAPON + distance| L
+  A["UHrotAmbiencePlayer::Start"] -->|"AMBIENCE / EVENT + kind, intensity"| L
+  L -->|"ring, when hrot.snd.Debug 1"| H["HrotDpsHud::Draw (every camera mode)"]
+  L -->|transcript| P["UHrotDpsSubsystem.GetSoundLogLines (scene checks, the demo)"]
+  C["hrot.snd.Caption / SetSoundCaption"] --> L
+  D["hrot_snd_demo.py"] -->|fake station| T["UHrotDpsWorld handlers"] --> V
+  T --> W
+  T --> A
+```
+*What the picture shows that prose hid: the HUD and the machine read ONE object; the only per-feed work is a one-line `Add` at a choke point.*
+
+| what | where | rule |
+|---|---|---|
+| the log | `HrotTerrain/Public/HrotSoundLog.h`, `Private/HrotSoundLog.cpp` | ring of the last **6**; an entry lives **6 s**, opaque for 4.5 s, then fades to 0; the screen line is formatted once on `Add`; a transcript (last 256 lines, numbered) for the machine; `hrot.snd.Debug 0/1` (default 0) |
+| the line | `FHrotSoundLog::Format` | `RADIO · earpiece · rep_contact_02 — Report Contact from unit 12` · `WORLD 18 m · cmd_move_03 — man 31 Utterance CmdMove` · `WEAPON 42 m · mg_b7_01` · `AMBIENCE · war_city_01 — battle.city 0.8` · `EVENT · …`; metres are integers, other numbers one decimal, never a comma |
+| radio / world | `PlayClip`: `FVoiceCue::Why` is set by `UHrotDpsWorld::SayCue` (`{who}` → `man 31` / `unit 9`) from the handlers: `Utterance <Kind>`, `Report <Kind> from <who> [to <id>]`, `Order <name> <who> -> <to>` | the line and the receiver's answer carry the meaning (`answer: …`); the framing clips (beep, sgt, over, squelch) show their set |
+| a voice beyond the falloff | the world line is still logged, with `(inaudible, beyond 40 m)` | the clip IS started (the engine silences it by attenuation) — the log says so instead of hiding it |
+| weapon | `PlayNow`, at the moment the delayed sound really starts | every sound through the shot renderer (weapons, hits, blasts) is channel Weapon; the enum's `Fx` is reserved |
+| ambience | `Start`: `Ambience` for beds and alarms, `Event` for `ev_*`; detail = the row's kind + intensity | |
+| HUD | `HrotDpsHud::Draw` → `DrawSoundLog`: lower-left, above the status lines, newest at the bottom, colour per channel (radio cyan, world yellow, weapon orange, ambience green, event magenta); the CAPTION is a larger line top-centre | draws only live entries: nothing playing and no caption ⇒ nothing drawn |
+| the caption | `hrot.snd.Caption <text>` / `UHrotDpsSubsystem::SetSoundCaption(text, seconds)` | what the listener should hear next |
+| readback | `UHrotDpsSubsystem::GetSoundLogLines()` / `ClearSoundLog()` | the machine reads the transcript, never a picture |
+| rail | `Hrot.Dps.SoundLog` (`Private/Tests/HrotSoundLogTests.cpp`) | ring keeps 6, expiry / alpha, every channel's format, caption, run under `cs-CZ` |
+
+**The demo** `scripts/unreal/hrot_snd_demo.py` (job env `HROT_SND_DEMO_JOB` = `{domain, partition, out, pace, shots?}`; full editor, PIE, the fake station;
+modelled on `hrot_dps_labels.py`): unit 9 'Alpha' at the origin, men 1..4 ~10 m around it, two hostiles far east. A caption precedes every step.
+
+| step | caption | what is checked in the result json |
+|---|---|---|
+| 1 order | a shout in the world, camera 4 m from man 1 | a `WORLD 4 m` line `man 1 Utterance CmdMove` |
+| 2 radio | follow man 1: his unit's net in the earpiece | ≥ 6 `RADIO` lines: the order, `Report Contact from unit 9`, beep / sgt / over / squelch |
+| 3 away | shouts from 5, 20, 35, 50 m | `WORLD 5/20/35 m` lines; at 50 m the line says `inaudible, beyond 40 m` *(chosen: logged as inaudible, not dropped)* |
+| 4 bursts | 3 (rifle), 5 (the east's AK), 7 (machine gun) rounds, 60 m away | one `WEAPON 60 m` line each, the clip's round count in its name (`_b3` / `_b5` / `_b7`) |
+| 5–7 | a city battle bed; an air-raid siren 70 m north; an airstrike | `AMBIENCE battle.city`, `AMBIENCE alarm.airraid`, `EVENT event.airstrike` |
+| 8 stop | rows disposed, `Demo done` | — |
+
+### 8a. As built (U-19f)
+
+| design said | built | why |
+|---|---|---|
+| burst of 3 rifle, 5 mg, 7 heavy mg | 3 rifle, 5 the east's AK (`rifle_east_`), 7 machine gun (`mg_`) | a heavy MG needs a vehicle gun kit (`bKitGun`); the fake station has none. `FakeStationBurstRoundAs(…, bMachineGun)` added beside `FakeStationBurstRound` |
+| a log fed from `HrotVoicePlayer.cpp:144` only for earpiece/world | the framing clips and the answer are logged too | the user hears them; the log must show what he hears |
+| siren positioned 300 m north | the camera stands 70 m south of it (radius 200: full level inside 100 m) | from the squad the row would be 300 m away — silent, nothing to show |
+| the HUD draws without allocation | no allocation of its own (formatted once on `Add`); the engine's canvas text item still makes its `FText` per drawn line | `FCanvasTextItem` takes an `FText`; the existing HUD text does the same. Only while entries are live |
+| entries expire 6 s | the **transcript** is kept apart from the ring | a scene check reads 8 s after the sound; the ring (display) has expired by then |
+| `Fx` channel | in the enum, unused | no non-weapon feed exists apart from `PlayNow`'s shared path |

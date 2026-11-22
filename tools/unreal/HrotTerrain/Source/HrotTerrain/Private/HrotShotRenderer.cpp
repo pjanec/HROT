@@ -22,6 +22,7 @@
 #include "Sound/SoundConcurrency.h"
 #include "HrotPersonAnimInstance.h"
 #include "HrotWeaponFx.h"
+#include "HrotSoundLog.h"
 #if WITH_EDITOR
 #include "Editor.h"
 #include "LevelEditorViewport.h"
@@ -183,6 +184,7 @@ void UHrotShotRenderer::PlayNow(const FPendingSound& S)
 	}
 	else UGameplayStatics::PlaySoundAtLocation(GetWorld(), S.Sound.Get(), S.At, FRotator::ZeroRotator, S.Volume, S.Pitch, 0.f, S.Att.Get(), S.Con.Get());
 	++SoundsPlayed;
+	FHrotSoundLog::Get().Add(EHrotSndChannel::Weapon, S.Sound->GetName(), FString(), FVector::Dist(S.At, ViewLocation()) / 100.f);   // U-19f: the sound log, at the moment it really starts
 	if (bLogSounds)
 	{
 		FAudioDeviceHandle H = GetWorld()->GetAudioDevice();

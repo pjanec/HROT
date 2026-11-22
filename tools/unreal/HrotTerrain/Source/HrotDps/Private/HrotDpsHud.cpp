@@ -11,6 +11,7 @@
 #include "Engine/Font.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformTime.h"
+#include "HrotSoundLog.h"
 
 namespace
 {
@@ -118,6 +119,51 @@ namespace
 		P.Lines(L, 16.f, H - 16.f);
 	}
 
+	FLinearColor SoundColour(EHrotSndChannel C)
+	{
+		switch (C)
+		{
+		case EHrotSndChannel::Radio: return FLinearColor(0.35f, 0.85f, 1.f, 1.f);      // the earpiece: cyan
+		case EHrotSndChannel::World: return FLinearColor(1.f, 0.85f, 0.2f, 1.f);        // a voice in the world: yellow
+		case EHrotSndChannel::Weapon: return FLinearColor(1.f, 0.5f, 0.25f, 1.f);       // fire: orange
+		case EHrotSndChannel::Ambience: return FLinearColor(0.55f, 0.9f, 0.5f, 1.f);    // beds and alarms: green
+		case EHrotSndChannel::Event: return FLinearColor(0.95f, 0.45f, 0.8f, 1.f);      // events: magenta
+		default: return FLinearColor(0.8f, 0.8f, 0.8f, 1.f);
+		}
+	}
+
+	/** U-19f: the sound log (hrot.snd.Debug 1), lower-left above the status lines, newest at the bottom; the caption top-centre. Draws only what is live:
+	 *  with nothing playing and no caption it costs two reads (the lines are formatted once, when a sound starts) */
+	void DrawSoundLog(FPainter& P, float BottomY)
+	{
+		if (!FHrotSoundLog::IsOn()) return;
+		const FHrotSoundLog& Log = FHrotSoundLog::Get();
+		const double Now = FPlatformTime::Seconds();
+		float CapAlpha = 0.f;
+		const FString& Cap = Log.Caption(Now, CapAlpha);
+		if (!Cap.IsEmpty())
+		{
+			UFont* Keep = P.Font; P.Font = GEngine->GetLargeFont();
+			const float W = P.Width(Cap);
+			P.Rect(P.C->ClipX * 0.5f - W * 0.5f - 12.f, 24.f, W + 24.f, 34.f, FLinearColor(0.f, 0.f, 0.f, 0.55f * CapAlpha));
+			P.Text(Cap, P.C->ClipX * 0.5f - W * 0.5f, 28.f, FLinearColor(1.f, 1.f, 1.f, CapAlpha));
+			P.Font = Keep;
+		}
+		int32 Live = 0;
+		for (int32 I = 0; I < Log.Num(); ++I) if (Log.Alpha(I, Now) > 0.f) ++Live;
+		const float H = 20.f;
+		float Y = BottomY - H * Live;
+		for (int32 I = 0; I < Log.Num(); ++I)
+		{
+			const float A = Log.Alpha(I, Now);
+			if (A <= 0.f) continue;
+			const FHrotSoundLogEntry& E = Log.At(I);
+			FLinearColor Col = SoundColour(E.Channel); Col.A = A;
+			P.Text(E.Text, 16.f, Y, Col);
+			Y += H;
+		}
+	}
+
 	void DrawMenu(FPainter& P, AHrotDpsCamera* Cam, APlayerController* PC)
 	{
 		const TArray<FHrotMenuRow> Rows = Cam->MenuRows();
@@ -145,7 +191,7 @@ static void DrawBody(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC
 	if (!Canvas || !Cam || !GEngine) return;
 	FPainter P{ Canvas };
 	UHrotDpsStation* St = UHrotDpsStation::Get(Cam);
-	if (Cam->GetMode() == EHrotCameraMode::Player && St) { DrawPlayer(P, Cam, St); return; }
+	if (Cam->GetMode() == EHrotCameraMode::Player && St) { DrawPlayer(P, Cam, St); DrawSoundLog(P, Canvas->ClipY - 16.f - 20.f * 9); return; }
 	if (Cam->IsMenuOpen()) DrawMenu(P, Cam, PC);
 	// the status line: what is selected, how to reach the menu, a possession in progress
 	FLines L;
@@ -158,6 +204,7 @@ static void DrawBody(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC
 	if (Cam->SelectedId()) L.Add({ FString::Printf(TEXT("Selected unit %d   right-click: menu   F follow   P possess"), Cam->SelectedId()), White });
 	else L.Add({ TEXT("Click a unit to select it, right-click it for its menu"), Grey });
 	P.Lines(L, 16.f, Canvas->ClipY - 16.f);
+	DrawSoundLog(P, Canvas->ClipY - 16.f - 20.f * L.Num() - 6.f);
 }
 
 void HrotDpsHud::Draw(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC)

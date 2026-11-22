@@ -36,6 +36,8 @@ struct HROTTERRAIN_API FHrotAmbienceMix
 	void Remove(int32 Id);
 	TArray<int32> TakeDisposed() { TArray<int32> D = MoveTemp(Disposed); Disposed.Reset(); return D; }
 	int32 Num() const { return Rows.Num(); }
+	/** U-19f: the row by id (the sound log names its kind), null = none */
+	const FRow* RowOf(int32 Id) const { return Rows.Find(Id); }
 	/** A-3: the two loudest battle / naval beds, up to three alarms, and the next event (once per row) */
 	FPlan Plan(const FVector& ListenerCm) const;
 	/** an event row was started (an event plays once per row) */

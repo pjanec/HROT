@@ -573,7 +573,7 @@ int32 UHrotDpsWorld::ListenerNet() const
 	return Best;
 }
 
-void UHrotDpsWorld::SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout)
+void UHrotDpsWorld::SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout, const FString& Why)
 {
 	if (Cue.IsEmpty()) return;
 	UHrotVoicePlayer* P = UHrotVoicePlayer::Get(this);
@@ -584,6 +584,7 @@ void UHrotDpsWorld::SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout)
 	else if (E->bHasState) At = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 160);   // a body-less unit: its anchor
 	else { Count(TEXT("voice: speaker not placed")); return; }
 	Cue.ToId = ToId;
+	Cue.Why = Why.Replace(TEXT("{who}"), *FString::Printf(TEXT("%s %d"), E->bHasPerson || E->Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson ? TEXT("man") : TEXT("unit"), FromId));   // U-19f: the sound log's words
 	if (Cue.bRadio) Cue.Callsign = Callsigns.For(FromId);
 	const bool bEar = FHrotVoiceSched::IsEarpiece(Cue, FromId, ListenerNet());
 	Count(FString::Printf(TEXT("voice %s%s"), *Cue.Set, bEar ? TEXT(" (earpiece)") : TEXT("")));
@@ -597,7 +598,7 @@ void UHrotDpsWorld::OnUtterance(const FHrotDpsSample& S)
 	Clock.OnSample(D.SimTime, RealNow());
 	const FVoiceCue Cue = HrotVoiceLines::ForUtterance(UTF8_TO_TCHAR(D.Kind));
 	if (Cue.IsEmpty()) { Count(TEXT("voice: no line (utterance)")); return; }
-	SayCue(Cue, D.SpeakerId, 0, true);
+	SayCue(Cue, D.SpeakerId, 0, true, FString::Printf(TEXT("{who} Utterance %s"), *FString(UTF8_TO_TCHAR(D.Kind))));
 }
 
 void UHrotDpsWorld::OnReport(const FHrotDpsSample& S)
@@ -610,7 +611,9 @@ void UHrotDpsWorld::OnReport(const FHrotDpsSample& S)
 	R.Kind = int32(D.Kind); R.Sub = D.Sub; R.Count = D.Count; R.Activity = int32(D.Activity); R.Strength = int32(D.Strength); R.Wia = D.Wia; R.Kia = D.Kia;
 	const FVoiceCue Cue = HrotVoiceLines::ForReport(R);
 	if (Cue.IsEmpty()) { Count(TEXT("voice: no line (report)")); return; }
-	SayCue(Cue, D.FromId, D.ToId, false);
+	static const TCHAR* const KindNames[] = { TEXT("None"), TEXT("Contact"), TEXT("Spot"), TEXT("Sitrep"), TEXT("Lace"), TEXT("Progress"), TEXT("Request") };
+	const int32 K = int32(D.Kind);
+	SayCue(Cue, D.FromId, D.ToId, false, FString::Printf(TEXT("Report %s from {who}%s"), K >= 0 && K < 7 ? KindNames[K] : TEXT("?"), D.ToId ? *FString::Printf(TEXT(" to %d"), D.ToId) : TEXT("")));
 }
 
 void UHrotDpsWorld::OnOrder(const FHrotDpsSample& S)
@@ -618,7 +621,7 @@ void UHrotDpsWorld::OnOrder(const FHrotDpsSample& S)
 	if (!S.bValid) return;
 	const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Order*>(S.Data);
 	Clock.OnSample(D.SimTime, RealNow());
-	SayCue(HrotVoiceLines::ForOrder(UTF8_TO_TCHAR(D.Name)), D.FromId, D.ToId, false);
+	SayCue(HrotVoiceLines::ForOrder(UTF8_TO_TCHAR(D.Name)), D.FromId, D.ToId, false, FString::Printf(TEXT("Order %s {who} -> %d"), *FString(UTF8_TO_TCHAR(D.Name)), D.ToId));
 }
 
 // -- U-19d: ambience and weather --------------------------------------------------------------------------------------------------------

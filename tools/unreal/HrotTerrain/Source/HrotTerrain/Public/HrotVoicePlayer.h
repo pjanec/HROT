@@ -24,6 +24,7 @@ struct FVoiceCue
 	FString AnswerSet;    // an order's receiver answers with this, 1.5 s after
 	FString Callsign;     // "Cooper" (radio: the "this is Sergeant X" clip); empty = none
 	int32 ToId = 0;       // the addressee (a unit / net); 0 = HQ / nobody
+	FString Why;          // U-19f: the HROT meaning, for the sound log ("Report Contact from unit 12", "man 31 Utterance CmdMove")
 	bool IsEmpty() const { return Set.IsEmpty(); }
 };
 

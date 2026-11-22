@@ -165,11 +165,16 @@ bool UHrotDpsSubsystem::FakeStationFire(double SimTime, FVector OriginM, FVector
 
 bool UHrotDpsSubsystem::FakeStationBurstRound(double SimTime, int32 ShooterId, FVector OriginM, FVector VelocityMs, int32 BurstId, int32 Rounds, int32 Index)
 {
+	return FakeStationBurstRoundAs(SimTime, ShooterId, OriginM, VelocityMs, BurstId, Rounds, Index, false);
+}
+
+bool UHrotDpsSubsystem::FakeStationBurstRoundAs(double SimTime, int32 ShooterId, FVector OriginM, FVector VelocityMs, int32 BurstId, int32 Rounds, int32 Index, bool bMachineGun)
+{
 	SimNetGateway_Protocol_DdsPlayer_Fire F{};
 	F.SimTime = SimTime; F.ShooterId = ShooterId; F.TargetId = 0;
 	F.Origin = { OriginM.X, OriginM.Y, OriginM.Z };
 	F.Velocity = { float(VelocityMs.X), float(VelocityMs.Y), float(VelocityMs.Z) };
-	F.WeaponCategory = SimNetGateway_Protocol_DdsPlayer_WeaponCategorySmallArms;
+	F.WeaponCategory = bMachineGun ? SimNetGateway_Protocol_DdsPlayer_WeaponCategoryMachineGun : SimNetGateway_Protocol_DdsPlayer_WeaponCategorySmallArms;
 	F.BurstId = uint32(BurstId); F.BurstRounds = uint8(Rounds); F.BurstIndex = uint8(Index);
 	return Dps.Write(TEXT("DPS_Fire"), &F);
 }

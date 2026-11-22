@@ -2,6 +2,7 @@
 #include "HrotAmbience.h"
 #include "HrotSoundscape.h"
 #include "HrotShotRenderer.h"
+#include "HrotSoundLog.h"
 #include "Components/AudioComponent.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -182,6 +183,13 @@ bool UHrotAmbiencePlayer::Start(const FHrotAmbienceMix::FLoop& L, UHrotSoundscap
 	else C = UGameplayStatics::SpawnSound2D(GetWorld(), S, 0.f, 1.f, 0.f, nullptr, false, false);
 	if (C) Owned.Add(C);
 	OutC = C;
+	{   // U-19f: the sound log - beds and alarms loop (AMBIENCE), a named event plays once (EVENT)
+		UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+		const float DistM = L.bPositioned && R ? FVector::Dist(L.PositionCm, R->ViewLocation()) / 100.f : -1.f;
+		const FHrotAmbienceMix::FRow* Row = Mix.RowOf(L.Id);
+		FHrotSoundLog::Get().Add(L.Cat == FHrotAmbienceMix::ECategory::Event ? EHrotSndChannel::Event : EHrotSndChannel::Ambience, S->GetName(),
+			FString::Printf(TEXT("%s %.1f"), Row ? *Row->Kind : *L.Set, L.Intensity), DistM);
+	}
 	return true;
 }
 
