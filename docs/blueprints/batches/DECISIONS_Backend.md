@@ -5,6 +5,20 @@ related-designs:
 -->
 # DECISIONS — backend (newest at the top)
 
+## CE-3494 — the unit intent and the held plan · `2026-11-22` · ✅ **DECIDED by the user** (R-3114…R-3117)
+
+🔒 User, verbatim: *"switch ruling 50 from discarding to pausing the plan and resume only by the user"* · *"agreed with restarting the paused task"* ·
+*"making the mission plan and the intent mutually exclusive in the editor is a great idea"* · *"If this turns out not to be practical, then let's edit the memory directly."*
+
+| | |
+|---|---|
+| the model | NOW (what runs) vs NEXT (the intent, one value per slot); a paused-frame request folds into NEXT, applied on the next advancing frame — [DESIGN_Unit_Intent.md](../../DESIGN_Unit_Intent.md) §1 |
+| the plan | an operator order HOLDS it (`Halted = 2`); only the user resumes; Resume restarts the held task (R-3115, supersedes Entity Commanding ruling 50) |
+| edits | no general queue: the AI request and a breakpoint edit are queued; everything else writes directly, as today (R-3116) |
+| priority | intent first, then the plan's tick; edit mode: intent task XOR plan, warned both ways (R-3117) |
+| supersedes | the CE-3445 entry below: its "the step-reader window" mechanism — the fold into a component replaces it (design §7, first rejected line) |
+| open | §8 O1–O3 (where the section sits, the editor's live origin, R-4137's other rows) — leans given, waiting for the user |
+
 ## CE-3445 — nothing takes effect on a paused frame (B) · `2026-11-22` · ✅ **DECIDED by the user**
 
 🔒 User, verbatim: *"i cant imagine how an order could take effect on paused world where no simulation should be running. at most it could be placed to some queue
