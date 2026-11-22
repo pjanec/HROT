@@ -77,8 +77,11 @@ def one_run(a, threads, k):
 
         step(a.chunk)
         s.post(f"/entities/{men[3]}/order", {"kind": "move", "x": 150, "y": 150})   # the same edit at the same step
+        _settle()   # ⭐ CE-3445 (2026-11-22) — the order must LAND (a paused frame) before the next /sim/step: measured, 1 vs 4 threads parted only in
+                    #   the 8 behaviour clears this order makes (net 1004–1011) — on the paused frame at 1 thread, on the next step's frame at 4
         step(a.chunk * 2)
         s.post(f"/entities/{men[5]}/order", {"kind": "hold"})
+        _settle()
         step(a.chunk * 3)
         q = "/world/hash?byType=1&rows=" + a.rows + ("&bytes=1" if a.bytes else "")
         _settle()
