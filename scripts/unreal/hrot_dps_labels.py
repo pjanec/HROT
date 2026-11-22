@@ -52,7 +52,12 @@ def finish(ok, why=""):
 
 
 def level():
-    if not LES().new_level("/Game/Maps/DpsCards"): raise RuntimeError("new_level failed")   # (a retry after a failed save crashes the editor)
+    # a fresh name per run: new_level refuses an existing path and neither os.remove nor delete_asset clears it reliably (as hrot_snd_demo.py,
+    # 2026-11-22: "An asset already exists at this location" - and the editor then crashed on its way out); earlier runs' files go from disk
+    for f in glob.glob(os.path.join(unreal.Paths.project_content_dir(), "Maps", "DpsCards*.umap")):
+        try: os.remove(f)
+        except OSError: pass
+    if not LES().new_level("/Game/Maps/DpsCards_%d" % int(time.time())): raise RuntimeError("new_level failed")   # (a retry after a failed save crashes the editor)
     floor = EAS().spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, 0))
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane")); floor.set_actor_scale3d(unreal.Vector(8000, 8000, 1))
     wall = EAS().spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(5200, 1150, 600))   # ENU (52, -11.5) -> Unreal y = +1150
