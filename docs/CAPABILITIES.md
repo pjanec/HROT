@@ -185,6 +185,7 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
   network become an HROT terrain — every house enterable (open floors and a stair ramp), garages and sheds solid, pitched roofs. A 5.5 km
   square imports in ≈ 6 s and loads in ≈ 2 s. ([Terrain Import UTM §10–§12](DESIGN_Terrain_Import_UTM.md); CE-4368) ✅ run on real data
   `2026-11-10` ([report](blueprints/REPORT_Terrain_Import_Real_Runs.md))
+- **A terrain whose import input is committed imports itself on first use:** a node that is asked for a terrain it does not have (e.g. `Stechovice`) imports it from `assets/terrain-input/<name>/` — heights, buildings, trees, roads AND the navmesh — once, under a lock, and caches the folder; a changed input re-imports (the old version is kept). 4-core VM: 289 s once, then 0 s. ([Terrain Import UTM §13](DESIGN_Terrain_Import_UTM.md); CE-11037; rails `SourceImportTests`) ✅
 - **A terrain from any place on OpenStreetMap:** File ▸ New ▸ Terrain from OpenStreetMap… — search a place, draw the area on the map,
   preview what will be built (buildings by height, woods, water, walls, roads, the counts and a load verdict), import with 30 m Copernicus
   heights and a SUMO road network, open it in a new scenario. Also a command-line tool. ([Terrain from OSM](DESIGN_Terrain_From_OSM.md);

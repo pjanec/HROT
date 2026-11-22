@@ -62,6 +62,9 @@ class Program
         Console.WriteLine(Fdp.Core.Threading.WindowsScheduling.Describe(optedOut, quickEditOff, OperatingSystem.IsWindows()));   // ⭐ F-5 — what it did, once
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
+        // ⭐ CE-11037 (Terrain Import UTM §13 F-1) — every node of this process (editor, player, orchestrator, replay browser) resolves terrains through
+        //   TerrainCatalog, which imports a terrain from its committed input set on first use; registered ONCE here so no host can forget it
+        Fdp.Toolkit.Terrain.TerrainSources.Import = new Hrot.Terrain.Import.SourceImport();
         // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects
         FdpConfig.SlowModulesByWallClock = EnvVars.Read(EnvVars.FdpSlowWallclock) != "0";
 

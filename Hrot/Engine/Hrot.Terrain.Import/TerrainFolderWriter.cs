@@ -89,7 +89,7 @@ internal static class TerrainFolderWriter
         w.WriteEndObject();
     }
 
-    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null)
+    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null, string? inputManifestSha256 = null)
     {
         var (lat, lon) = Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY, frame.Zone, frame.South);
         using var ms = new MemoryStream();
@@ -107,6 +107,8 @@ internal static class TerrainFolderWriter
             w.WriteEndObject();
             w.WriteString("name", name);
             w.WriteString("world", worldFile);
+            // ⭐ CE-11037 (UTM §13 F-4) — the sha256 of the input set's manifest.json this folder was imported from: a changed input is told by it (the manifest hashes every file)
+            if (inputManifestSha256 != null) w.WriteString("inputManifestSha256", inputManifestSha256);
             if (roadsFile != null) { w.WriteStartArray("roadNetworks"); w.WriteStringValue(roadsFile); w.WriteEndArray(); }   // ⭐ CE-6001 — the vehicles' road graph, from the same net
             if (netFile != null)
             {
