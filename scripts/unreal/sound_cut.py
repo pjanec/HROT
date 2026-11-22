@@ -228,15 +228,17 @@ _AMB_SETS = [
     ("amb/war_sniper", [_A + "Intense mid range battlefield"]),   # heard 2026-11-22: individual mid-distance shots over a far rumble - not a heavy battle
     ("amb/war_ambush", [_A + "Jungle patrol ambush ambience"]),
     ("amb/war_aftermath", [_A + "Burning house war zone ambience", _A + "Burning house war zone ambience 2", _A + "Burning house war zone ambience 3"]),
-    ("amb/ev_airstrike", [_A + "Tactical airstrike"]),
+    ("amb/ev_airstrike", [_A + "Atomic bomb drop and explosion"]),   # heard 2026-11-22: a siren, a falling-bomb whistle, a distant blast = an air attack from the ground
+    ("amb/pov_aircraft", [_A + "Tactical airstrike"]),               # heard: INSIDE a bomber with cockpit radio - a listener view (note category D), no kind yet
     ("amb/ev_drone", [_A + "Drone attack and explosion"]),
-    ("amb/ev_rocket", [_A + "Nighttime rocket launch and explosion"]),
+    ("amb/ev_rocket", [_A + "Nighttime rocket launch and explosion"]),   # the first launch + its explosion only (_SPANS): the take repeats it 3 times
+    ("wpn/missile_launch", [_A + "Nighttime rocket launch and explosion"]),   # the launch alone (heard: "might be a SAM launch, which we need")
     ("amb/ev_convoy", [_A + "Armored convoy approaching"]),
     ("amb/ev_evacuation", [_A + "Military trucks evacuation ambience"]),
     ("amb/ev_evacuation_city", [_A + "Citywide evacuation"]),
     ("amb/ev_nuclear", [_A + "Atomic bomb drop and explosion"]),
     ("amb/al_airraid", [_A + "War air raid siren", _A + "War air raid siren 2", _A + "War air raid siren 3"]),
-    ("amb/al_airraid_pre", [_A + "War air raid siren preliminary alert", _A + "War air raid siren preliminary alert 2"]),
+    ("amb/al_airraid_pre", [_A + "War air raid siren preliminary alert"]),   # not "... alert 2": heard as a car alarm
     ("amb/al_bell", [_A + "Emergency alarm bell ring", _A + "Emergency alarm bell ring 2", _A + "Emergency alarm bell ring 3", _A + "Emergency alarm bell ring 4"]),
     ("amb/al_intruder", [_A + "Enemy base intruder alarm", _A + "Enemy base intruder alarm 2", _A + "Enemy base intruder alarm 3"]),
     ("amb/al_emergency", [_A + "City emergency sirens and explosions"]),
@@ -244,6 +246,8 @@ _AMB_SETS = [
     ("amb/nv_warship", [_B + "Warship rumbling ambience", _B + "Warship rumbling ambience 2"]),
     ("amb/nv_underwater", [_A + "Underwater battlefield with explosions"]),
 ]
+# a part of the take, (start s, end s, fade-out s), placed by ear 2026-11-22 (launch 0-6.3 s, its explosion 6.3-9.5 s)
+_SPANS = {"amb/ev_rocket": (0.0, 11.0, 1.5), "wpn/missile_launch": (0.0, 6.3, 0.8)}
 R_AMB = [(n, s, "bed", 0, 2, i + 1, -24) for n, ss in _AMB_SETS for i, s in enumerate(ss)]
 
 # ---- U-19c: bursts of an exact round count. `--set burst`. (name stem, sources joined by |, "burst", tail seconds, 1, variants per N, level)
@@ -568,7 +572,12 @@ def main():
         try:
             if mode == "bed":
                 w = Wav(hits[0])
-                x, rate = resample(to_channels(w.read(0, w.frames), hits[0], want), w.rate)
+                if name in _SPANS:
+                    a, b, fo = _SPANS[name]
+                    x = to_channels(w.read(int(a * w.rate), int((b - a) * w.rate)), hits[0], want)
+                    f = min(len(x), int(fo * w.rate)); x[-f:] *= np.linspace(1, 0, f, dtype=np.float32)[:, None]
+                else: x = to_channels(w.read(0, w.frames), hits[0], want)
+                x, rate = resample(x, w.rate)
                 gain = 10 ** ((target - db(float(np.sqrt(np.mean(x ** 2))))) / 20)
                 gain = min(gain, 0.955 / float(np.max(np.abs(x)) + 1e-9))   # never clipped: a loud recording is held at its peak
                 outs, why = [x * gain], "%.0f s whole, rms %.1f dBFS" % (len(x) / rate, db(float(np.sqrt(np.mean((x * gain) ** 2)))))
