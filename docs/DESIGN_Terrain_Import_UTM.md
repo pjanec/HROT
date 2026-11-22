@@ -2,7 +2,7 @@
 state: LIVE
 build-state: §11 THE IMPORTER BUILT 2026-11-10 (CE-4368, as-built table §11.4) · DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-10 (§8.2 the destruction build design, S-0 of CE-4391 — B-1…B-11; B-10 supersedes §8.1's NavRebuildRequester / P3-c / P3-d by the P-7a obstacle bake — coordinator) · 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §12 the importer's navmesh (CE-4393) and UtmTransform (CE-4394) — BUILT, as built §12.3 (backend) · ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+current-answer: ⭐ §13 IMPORT ON FIRST USE (CE-11037, R-11017, READY-TO-BUILD — ui) · ⭐ §12 the importer's navmesh (CE-4393) and UtmTransform (CE-4394) — BUILT, as built §12.3 (backend) · ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
@@ -1266,3 +1266,76 @@ per-machine cache (`HROT_NAVTILE_CACHE`) is not on this picture: it stays loose.
 
 Rails: `NavmeshPrefillTests.APrefilledTerrains_FirstLoad_*` (now also: no loose tile, packs ≪ tiles, the report counts the packs; 🔴 no `Seal()` ⇒ loose files) and
 `NavmeshPrefillTests.CE3428_ATerrainPrefilledLoose_*` (🔴 no loose fallback ⇒ every tile bakes).
+## 13. ⭐ IMPORT ON FIRST USE — git keeps the INPUT, a machine imports it once *(ui, `2026-11-22`; CE-11037, R-11017; build-state: READY-TO-BUILD)*
+
+🔒 User: *"automatically run the terrain import from the source data if the converted and finer height mesh is missing … the terrain loader
+would do the actual import on the first load and cache the resulting files."* The first input set in git: `assets/terrain-input/Stechovice/`
+(`unreal-ig` `db50572aa`, on `ui` as `59c97eccc`; ~3 MB as git stores it, heights at 30 m). Measured there (16 cores, Release): the import
+**27 s without the navmesh, 514 s with it** (navmesh 488 s); 4 099 buildings, heights vs the old 1 m import mean 0.52 m, max 10.8 m (an edge).
+
+**Measured seams (`ui`, `a36176252`+):** every load resolves a terrain by NAME through `TerrainCatalog.ResolveDefinition`
+(`FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainCatalog.cs:57`) — built at **12** production sites (orchestrator ×4, editor ×3, `TerrainResidency`,
+Replay Browser, tools). `TerrainImporter.ImportAsync` writes a temp folder and MOVES it into place (`TerrainImporter.cs:152-209`): a half import is
+never resolvable. The import stage runs no external tool and downloads nothing (`netconvert` / Overpass / DEM are the OSM fetch, `OsmCli`).
+`HeightStage.Resample` takes the input's own `cellSize` (`HeightStage.cs:19-33`).
+
+```mermaid
+graph TD
+  subgraph every host
+    H[orchestrator · editor · TerrainResidency · Replay Browser] -->|ResolveDefinition name| C[TerrainCatalog]
+  end
+  C -->|found in a root| D[terrain.json]
+  C -->|missing| S{TerrainSources.Resolve name}
+  S -->|no input set| N[null: as today]
+  S -->|input set found| L[lock file in the target root]
+  L --> I[TerrainImporter.ImportAsync, no navmesh prefill]
+  I -->|temp folder moved into place| T[content root assets/terrain/name]
+  T --> D
+  D --> R[the load as today: navtiles baked lazily into its cache]
+```
+*Caption: the one hook is INSIDE the catalog, so the 12 construction sites cannot differ — no host has to remember to pass it.*
+
+```mermaid
+classDiagram
+  class TerrainCatalog { <<existing, Fdp.Toolkits>> +ResolveDefinition(name) +ResolveFolder(name) }
+  class ITerrainSourceImport { <<new, Fdp.Toolkits>> +TryImport(name, targetRoot, progress, ct) string? }
+  class TerrainSources { <<new, Fdp.Toolkits>> +static Import ITerrainSourceImport? +InputRoots list }
+  class SourceImport { <<new, Hrot.Terrain.Import>> input roots: repo assets/terrain-input, content root terrain-input }
+  class TerrainImporter { <<existing>> +ImportAsync(set, name, replace, progress, ct) }
+  TerrainCatalog ..> TerrainSources : on a miss
+  TerrainSources o-- ITerrainSourceImport
+  ITerrainSourceImport <|.. SourceImport
+  SourceImport ..> TerrainImporter
+```
+
+```mermaid
+sequenceDiagram
+  participant H as a host
+  participant C as TerrainCatalog
+  participant S as SourceImport
+  participant I as TerrainImporter
+  H->>C: ResolveDefinition("Stechovice")
+  C->>C: no root holds it
+  C->>S: TryImport("Stechovice", first writable root)
+  S->>S: input set found, take the lock (another process waits, then finds the folder)
+  S->>I: ImportAsync(set, "Stechovice", NavmeshPrefill none)
+  I-->>S: folder moved into place, terrain.json records the manifest sha256
+  S-->>C: the definition path
+  C-->>H: terrain.json (the load continues as today)
+  Note over H,C: next time: found in the root, no import. A changed input (manifest sha256 differs) re-imports into a new version (AQ112 versions/)
+```
+
+| # | decision | rejected (one line) |
+|---|---|---|
+| F-1 | the hook is in `TerrainCatalog` itself (a process-wide `TerrainSources.Import`, set ONCE where every executable starts) | passing it to 12 constructors — the silent-default pattern (a site that forgets imports nothing) |
+| F-2 | the result goes to the catalog's first root that is writable (the content root's `assets/terrain/`; in a dev checkout the repo's, which `.gitignore` CE-4425 already ignores) | a new cache folder — a second place a terrain lives |
+| F-3 | NO navmesh prefill at first use: the load's lazy `NavTileCache` bakes and keeps tiles as today | prefill (488 s on 16 cores) on every first load — the load would wait for tiles it may never need |
+| F-4 | `terrain.json` records the input's `manifest.json` sha256; a differing input re-imports (the existing `versions/` swap) | comparing every file — the manifest already hashes them |
+| F-5 | one machine-wide lock file beside the target; a second process waits for it and then resolves the folder | no lock — two processes write two temp folders and race the move |
+| F-6 | an input set is found by NAME in `assets/terrain-input/<name>/` of the repo and of the content root | a registry file listing sources — a second list to keep in step |
+
+**Rails (CE-11037):** a missing terrain with an input set is imported once and then resolved without import · no input set ⇒ `null` as today ·
+a changed manifest re-imports · a crash mid-import (cancel) leaves nothing resolvable and the next call imports · two concurrent resolves import
+once · two imports of the same input are byte-identical (the cluster's nodes import alone and must agree) · every one of the 12 sites resolves
+through the hook (a rail per host kind on the constructed catalog). **Scenario:** a Stechovice scenario loads in a clean content root.
+⚠ **Risk, unmeasured:** the lazy navmesh on a 4-core VM for 4 × 4.3 km — measure on the first Stechovice scenario run.
