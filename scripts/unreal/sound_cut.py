@@ -253,7 +253,7 @@ R_BURST = [
                    "M16 assault rifle short burst|M16 assault rifle full auto|FN SCAR assault rifle short burst|FN SCAR assault rifle full auto|"
                    "Tactical assault rifle short burst|Tactical assault rifle full auto|Spec ops assault rifle short burst|Spec ops assault rifle full auto",
      "burst", 0.6, 1, 4, -1),
-    ("wpn/rifle_east_", "AK 47 assault rifle full auto fire|AK 47 firing multiple bursts", "burst", 0.6, 1, 4, -1),
+    ("wpn/rifle_east_", "AK 47 assault rifle full auto fire", "burst", 0.6, 1, 4, -1),   # not "AK 47 firing multiple bursts": heard 2026-11-22 as one soft round, not an AK
     ("wpn/mg_", "M240B machine gun automatic fire|AR10 machine gun firing|Modern machine gun fire", "burst", 0.6, 1, 4, -1),
     ("wpn/mg_heavy_", "Heavy machine gun automatic fire", "burst", 0.6, 1, 4, -1),
 ]
@@ -440,28 +440,46 @@ def cut_whole(w, path, want, target):
 BB = 400   # envelope blocks per second for bursts (2.5 ms): rounds 70 ms apart must not merge
 
 
-def burst_onsets(ldb):
-    """the rounds of an automatic-fire take: a 5 dB rise within 5 ms above the floor (the sharpest rise inside each 55 ms window)"""
+def burst_period(ldb):
+    """the take's cyclic rate, in envelope blocks: the strongest autocorrelation lag of the loud envelope in 55 .. 300 ms.
+    A shot's own echo / action (~45-70 ms after it, 10-20 dB down) repeats at the same period, so it adds to the true lag, not a
+    half one (measured 2026-11-22 against the user's count: M240B 145 ms, heavy MG 185 ms)"""
+    e = 10 ** (np.maximum(ldb, np.max(ldb) - 40) / 20)
+    e = e - np.mean(e)
+    lags = np.arange(22, 121)
+    ac = np.array([float(np.dot(e[:-l], e[l:])) / (len(e) - l) for l in lags])
+    return int(lags[int(np.argmax(ac))])
+
+
+def burst_onsets(ldb, period=None):
+    """the rounds of an automatic-fire take: a 5 dB rise within 5 ms above the floor; two rises closer than 0.7 of the take's
+    period are ONE round (the louder kept). (heard by the user 2026-11-22: cuts named 7 rounds held 3-4 - each shot's echo and
+    ringing had been counted as rounds)"""
     floor = np.percentile(ldb, 20)
     rise = np.zeros_like(ldb)
     rise[2:] = ldb[2:] - ldb[:-2]
     cand = np.where((rise > 5) & (ldb > floor + 20))[0]
-    onsets = []
+    gap = int(0.7 * (period or burst_period(ldb)))
+    on, pk = [], []
     for c in cand:
-        if onsets and c - onsets[-1][0] < 22:
-            if rise[c] > onsets[-1][1]: onsets[-1] = (int(c), rise[c])    # the same round: keep the sharper rise
+        v = float(np.max(ldb[c:c + 12]))
+        if on and c - on[-1] < gap:
+            if v > pk[-1] + 3: on[-1], pk[-1] = int(c), v          # the louder attack is the round
             continue
-        onsets.append((int(c), rise[c]))
-    return [o for o, _ in onsets]
+        on.append(int(c)); pk.append(v)
+    return on
 
 
-def cut_bursts(w, path, tail_s, want, target, nmin=2, nmax=8):
+def cut_bursts(w, path, tail_s, want, target, nmin=2, nmax=8, family_period=None):
     """for each N: the best run of N rounds of this file -> (N, x, rate, score, spacing ms list)"""
     block = max(1, w.rate // BB)
     env = envelope(w, block)
     if len(env) == 0: return []
     ldb = 20 * np.log10(env + 1e-9)
-    on = burst_onsets(ldb)
+    period = burst_period(ldb)
+    if family_period and not 0.75 * family_period <= period <= 1.35 * family_period: return []   # the take's rate is unreadable (heard 2026-11-22: such cuts held 1 round)
+    on = burst_onsets(ldb, period)
+    pks = [float(np.max(ldb[o:o + 12])) for o in on]
     ms = 1000.0 / BB
     out = []
     for n in range(nmin, nmax + 1):
@@ -469,10 +487,11 @@ def cut_bursts(w, path, tail_s, want, target, nmin=2, nmax=8):
         for i in range(0, len(on) - n + 1):
             sp = np.diff(on[i:i + n]).astype(float)
             if np.min(sp) < 22 or np.max(sp) > 120: continue          # 55 .. 300 ms between rounds
+            if min(pks[i:i + n]) < max(pks[i:i + n]) - 8: continue      # every round is loud: a bump in the echo is not one (heard 2026-11-22)
             ratio = float(np.max(sp) / np.min(sp))
             lead = (on[i] - on[i - 1]) * ms if i > 0 else 1000         # ms of quiet before the first round
             nxt = (on[i + n] - on[i + n - 1]) * ms if i + n < len(on) else 1000   # ms to the next round after the last
-            score = ratio + (0.8 if lead < 300 else 0.0) + (0.8 if nxt < 300 else 0.0) + (0.0 if 60 <= float(np.mean(sp)) * ms <= 125 else 1.5)   # a plausible cadence
+            score = ratio + (0.8 if lead < 300 else 0.0) + (3.0 if nxt < 300 else 0.0)   # a run cut before the next round has no tail (heard 2026-11-22: 'cut way too early') - a natural burst end wins + (0.0 if 55 <= float(np.mean(sp)) * ms <= 200 else 1.5)   # a plausible cadence
             if best is None or score < best[0]: best = (score, i, sp * ms)
         if best is None: continue
         score, i, sp = best
@@ -484,6 +503,19 @@ def cut_bursts(w, path, tail_s, want, target, nmin=2, nmax=8):
         while end < stop and not ldb[end] < pk - 50: end += 1
         s0 = max(0, (o0 - 4) * block)
         x = to_channels(w.read(s0, (end - o0 + 4) * block), path, want)
+        # cut before the next round (continuous fire) => no tail of its own: borrow the take's NATURAL ending - the decay after a round
+        # where the gunner stopped - from the same offset after its round, crossfaded in (heard 2026-11-22: "no tail ... cut way too early")
+        ends = [j for j in range(len(on)) if (on[j + 1] if j + 1 < len(on) else len(ldb)) - on[j] >= int(0.3 * BB)]   # its last round may be quieter: the tail is level-matched below
+        if i + n < len(on) and on[i + n] - oN < int(0.3 * BB) and ends:
+            j = max(ends, key=lambda j: (on[j + 1] if j + 1 < len(on) else len(ldb)) - on[j])
+            t0 = (on[j] + (end - oN)) * block
+            lim = (on[j + 1] - 4) if j + 1 < len(on) else len(ldb)
+            t1 = min(lim, on[j] + int(tail_s * BB))
+            if t1 * block > t0:
+                xf = min(len(x), int(0.025 * w.rate))
+                tail = to_channels(w.read(t0 - xf, t1 * block - t0 + xf), path, want) * (10 ** (float(np.clip(pks[i + n - 1] - pks[j], -12, 12)) / 20))
+                ramp = np.linspace(0, 1, xf, dtype=np.float32)[:, None]
+                x = np.concatenate([x[:-xf], x[-xf:] * (1 - ramp) + tail[:xf] * ramp, tail[xf:]])
         f = min(len(x), int(0.03 * w.rate))
         x[-f:] *= np.linspace(1, 0, f, dtype=np.float32)[:, None]
         x, rate = resample(x, w.rate)
@@ -510,8 +542,13 @@ def main():
             hits = sorted(p for p in files if any(a in os.path.basename(p).lower() for a in alts) and "weapons" in p.lower())
             if not hits: print("MISSING", name, "<-", src); continue
             cands = {}
+            periods = []
+            for p in hits:          # the gun family's rate: the median of its takes' own (a weapon fires at one rate; heard 2026-11-22)
+                w = Wav(p); periods.append(burst_period(20 * np.log10(envelope(w, max(1, w.rate // BB)) + 1e-9)))
+            fam = int(np.median(periods))
+            print("%s family period %.0f ms over %d take(s)" % (name, fam * 1000.0 / BB, len(periods)))
             for p in hits:
-                try: found = cut_bursts(Wav(p), p, seconds, want, target)
+                try: found = cut_bursts(Wav(p), p, seconds, want, target, family_period=fam)
                 except Exception as e: print("FAILED", p, e); continue
                 for n, x, rate, score, sp in found: cands.setdefault(n, []).append((score, p, x, rate, sp))
             for n in sorted(cands):
