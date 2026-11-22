@@ -318,7 +318,11 @@ int32 AHrotDpsCamera::PickAt(const FVector2D& ScreenPx) const
 		if (!PC->ProjectWorldLocationToScreen(C, S, false)) continue;
 		Cands.Add({ Id, S, FVector::Dist(C, Eye) });
 	}
-	return HrotDpsPick::Choose(Cands, ScreenPx, HitId, HitDepth);
+	const int32 Picked = HrotDpsPick::Choose(Cands, ScreenPx, HitId, HitDepth);
+	FVector PC3; const bool bHas = Picked && W->CentreOf(Picked, PC3);
+	UE_LOG(LogTemp, Display, TEXT("HROT pick at (%.0f, %.0f): %d candidates, trace hit %d, picked %d%s"), ScreenPx.X, ScreenPx.Y, Cands.Num(), HitId, Picked,
+		Picked ? (bHas ? TEXT("") : TEXT(" (no centre)")) : TEXT(" (nothing within reach)"));   // a user action, not per frame
+	return Picked;
 }
 
 FVector2D AHrotDpsCamera::ScreenOf(int32 EntityId) const

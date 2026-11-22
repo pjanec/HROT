@@ -1294,7 +1294,9 @@ bool UHrotDpsWorld::CentreOf(int32 EntityId, FVector& Out) const
 		FVector Ext; A->GetActorBounds(false, Out, Ext);
 		return true;
 	}
-	if (E->bHasState) { Out = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 160); return true; }   // a body-less unit: its anchor
+	// a body-less UNIT (its card is drawn there) only: the ~500 undrawn entities (doors, groups, the terrain's buildings - Domain Other, measured live
+	// U-18g) also have a state, and offered to the pick they took every click near a soldier (live 2026-11-22: "clicking on the soldier did nothing")
+	if (E->bIsUnit && E->bHasState) { Out = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 160); return true; }
 	return false;
 }
 
