@@ -188,9 +188,9 @@ public:
 	// ── U-18z: HROT's gizmos (GizmoView / GizmoFrame; HrotDpsGizmos.cpp) ──
 	/** the layers asked of the station (HROT DebugTraceLayers names: Paths, Contacts, FireTraces, ...); empty = no view, no work */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TArray<FString> GizmoLayers;
-	/** the gizmo lines' look (compared in the scene): the material variant ("" = M_HrotGizmoLine, "NoRaa", "Post" = after TSR) and the thinnest line in px */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") FString GizmoLineMaterial;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float GizmoLinePxFloor = 1.5f;
+	/** the gizmo lines' look (compared in the scene): the material variant ("Post" = after TSR, the default; "" = M_HrotGizmoLine after DOF; "NoRaa") and the thinnest line in px */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") FString GizmoLineMaterial = TEXT("Post");
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float GizmoLinePxFloor = 2.5f;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void SetGizmoLayers(const TArray<FString>& Layers);
 	/** "gizmos asked [..], <n> layers shown, <p> primitives, <f> frames" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString DescribeGizmos() const;
