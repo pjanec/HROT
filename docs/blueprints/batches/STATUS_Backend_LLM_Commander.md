@@ -5,7 +5,7 @@ related-designs:
   - ../../designs/llm-commander/DESIGN_LLM_Commander.md — the design (§5 diagrams, §9 gaps, §11 L-1)
   - PROTOCOL_Autonomous_Lanes.md — how this lane works
 -->
-# STATUS — backend, the LLM commander (L-1, CE-4676)
+# STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
 DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
@@ -57,3 +57,20 @@ None new — CE-4676 is the dispatched row; component id 217 (`GlobalComponentId
 K1 the history head never kept ⇒ the feed rail · K2 an unknown place resolves ⇒ the illegal-action rail · K3 the farthest squad attacks ⇒ the
 scripted-mind rail · K4b a heartbeat item every frame ⇒ the 0 B rail (⚠ K4 "the seat query built every frame" SURVIVED — the repository caches the
 query, so it allocates nothing: not a defect, the wrong mutation) · K5 the report cue ignores the addressee ⇒ `ScenarioChecksTests.CE4676_*`.
+
+---
+
+# L-2 (CE-4679) — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L2.md`, taken `2026-11-22`
+
+Started at `9481914b6` (merged `coordinator`). ⚠ **CE-3445 T2 is PARKED behind L-2** at a clean point (shape ④ ruled out and pushed, `f533596fd`;
+its next step — the instrumented 1- vs 4-thread scale-rig pair — is hours of Release runs and is written in its tracker row). It resumes after L-2.
+
+| # | item | state | sha | rail |
+|---|---|---|---|---|
+| ① | think-pause pauses the SIM CLOCK (one pause path, a hold that never un-pauses the user's pause, bounded) | TODO | | |
+| ② | the HTTP surface `/commanders/…` (+ `/tools`) | TODO | | |
+| ③ | `ExternalMind` | TODO | | |
+| ④ | the model log beside the recording | TODO | | |
+| ⑤ | `llm-platoon-attack` gives the commander a fight (≥ 60 s in contact) | TODO | | |
+| ⑥ | CE-4677 `/sitrep` stops reading a contact's `alive` from the world | TODO | | |
+| ★ | the proof run: a Haiku subagent plays Blue's commander through the routes only | TODO | | |
