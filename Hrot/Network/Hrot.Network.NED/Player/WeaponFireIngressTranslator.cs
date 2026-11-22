@@ -103,6 +103,7 @@ namespace Hrot.Network.NED.Player
                 FiredAt     = (SimInstant)msg.FiredAt,
                 RequestId   = msg.RequestId,                                       // ⭐ Q94 A-1 (R-3018)
                 Refusal     = (Fdp.Toolkit.Combat.FireRefusal)msg.Refusal,
+                BurstId = msg.BurstId, BurstRounds = msg.BurstRounds, BurstIndex = msg.BurstIndex,   // ⭐ CE-11033
             });
         }
 

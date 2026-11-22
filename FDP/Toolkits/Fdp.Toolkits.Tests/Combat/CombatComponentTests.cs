@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62, ⭐ CE-3236 + BurnSeconds (float) = 66,
             // ⭐ Q94 A-1 (R-3018) + RequestId (uint) = 70, ⭐ CE-2326 (R-3030) + BodyStance (byte) = 71.
             // A LOCAL event — the wire (WeaponFireRequest) is mapped field by field.
-            Assert.Equal(79, Marshal.SizeOf<WeaponFireIntent>());   // ⭐ CE-4155 — + OriginalShooter (Entity, 8)
+            Assert.Equal(85, Marshal.SizeOf<WeaponFireIntent>());   // ⭐ CE-4155 — + OriginalShooter (Entity, 8) · ⭐ CE-11033 (R-11013) + BurstId (uint) + BurstRounds, BurstIndex (bytes) = 6
         }
 
         /// <summary>
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // 2×Entity(8) + int(4) + bool (marshalled as a 4-byte BOOL) = 24, then ⭐ CE-1111 (BS-1 §5.4b F1, appended): AmmoGuid(8) +
             //   Round(8) + Origin(12) + Velocity(12) + Quantity(4) + FiredAt(8) = 52 ⇒ 76, then ⭐ Q94 A-1 (R-3018, appended):
             //   RequestId(4) + Refusal(1) ⇒ 81.
-            Assert.Equal(81, Marshal.SizeOf<WeaponFireNotification>());
+            Assert.Equal(87, Marshal.SizeOf<WeaponFireNotification>());   // ⭐ CE-11033 (R-11013, appended): BurstId (uint) + BurstRounds, BurstIndex (bytes) ⇒ 87
         }
 
         /// <summary>

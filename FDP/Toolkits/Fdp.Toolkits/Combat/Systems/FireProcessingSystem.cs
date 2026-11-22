@@ -482,6 +482,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     Tick = currentTick, Shooter = shooter, Target = target, Bullet = bullet, WeaponIndex = evt.WeaponIndex,
                     Muzzle = muzzlePos, Aim = targetPos, Ordinal = ordinal, Sigma = sigma, Deflection = theta,
+                    BurstId = evt.BurstId, BurstRounds = evt.BurstRounds, BurstIndex = evt.BurstIndex,   // ⭐ CE-11033
                     Penetration = penetration, PenetrationSource = penetrationSource, Damage = damage,
                     RaisedAt = evt.RaisedAt, FiredAt = (SimInstant)now, CaughtUpSeconds = late * BombBallistics.DefaultDt, CaughtUpFrames = late, OwedFrames = owed, FrameDt = deltaTime,   // ⭐ CE-2180
                 });
@@ -522,6 +523,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Quantity    = 1,
                     FiredAt     = (SimInstant)now,
                     RequestId   = evt.RequestId,   // ⭐ Q94 A-1 (R-3018) — the answer names its request
+                    BurstId     = evt.BurstId, BurstRounds = evt.BurstRounds, BurstIndex = evt.BurstIndex,   // ⭐ CE-11033 (§5l) — the brain's burst, per round
                 });
             }
         }
@@ -549,6 +551,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 FiredAt     = (SimInstant)now,
                 RequestId   = evt.RequestId,
                 Refusal     = why,
+                BurstId     = evt.BurstId, BurstRounds = evt.BurstRounds, BurstIndex = evt.BurstIndex,   // ⭐ CE-11033
             });
 
         /// <summary>⭐ LR-2 (§8.5, R-271) — tags a round whose munition type has a <c>Munition.Visual</c>: <see cref="TkbIdentity"/>

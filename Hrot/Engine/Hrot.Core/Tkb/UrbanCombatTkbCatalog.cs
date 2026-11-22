@@ -510,6 +510,7 @@ namespace Hrot.Core.Tkb
             InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity,
             Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer,
             TracerEvery = 5, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils, Category = WeaponCategory.SmallArms,
+            RateOfFire = 700f,   // ⭐ CE-11033 (§5l) — the M4 class's cyclic rate (as NedTkbCatalog.M4Carbine): the gap inside an AI burst; it had none, so an asked 0 meant 'every frame'
         };
 
         /// <summary>⭐ <c>CE-3231</c> (civilians B-9, AW-4; docs/DESIGN_Civilians_And_Crowd_Control.md §7.12) — the soldier's PISTOL, a built-in
