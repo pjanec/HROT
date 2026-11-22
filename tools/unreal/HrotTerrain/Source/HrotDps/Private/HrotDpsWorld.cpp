@@ -85,6 +85,7 @@ namespace
 	using FSession = SimNetGateway_Protocol_DdsPlayer_Session;
 	using FEntity = SimNetGateway_Protocol_DdsPlayer_Entity;
 	using FState = SimNetGateway_Protocol_DdsPlayer_EntityState;
+	using FEntityStatusSample = SimNetGateway_Protocol_DdsPlayer_EntityStatus;
 	using FArt = SimNetGateway_Protocol_DdsPlayer_Articulation;
 	using FFire = SimNetGateway_Protocol_DdsPlayer_Fire;
 	using FDet = SimNetGateway_Protocol_DdsPlayer_Detonation;
@@ -169,6 +170,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_Session"), &UHrotDpsWorld::OnSession);
 	Sub(TEXT("DPS_Entity"), &UHrotDpsWorld::OnEntity);
 	Sub(TEXT("DPS_EntityState"), &UHrotDpsWorld::OnState);
+	Sub(TEXT("DPS_EntityStatus"), &UHrotDpsWorld::OnStatus);   // U-18y (DD-025): the cards' bars and info
 	Sub(TEXT("DPS_Articulation"), &UHrotDpsWorld::OnArticulation);
 	Sub(TEXT("DPS_Fire"), &UHrotDpsWorld::OnFire);
 	Sub(TEXT("DPS_Detonation"), &UHrotDpsWorld::OnDetonation);
@@ -276,6 +278,25 @@ void UHrotDpsWorld::OnEntity(const FHrotDpsSample& S)
 		D.Dis.Specific, D.Dis.Extra);
 	if (bChanged && E.Actor.IsValid()) { E.Actor->Destroy(); E.Actor.Reset(); ++Removed; }   // another type: another model
 	SpawnIfReady(D.EntityId, E);
+}
+
+void UHrotDpsWorld::OnStatus(const FHrotDpsSample& S)
+{
+	const FEntityStatusSample& D = *static_cast<const FEntityStatusSample*>(S.Data);
+	if (!S.bAlive)   // disposed with its entity: the card falls back to the coarse damage
+	{
+		if (FEnt* Gone = Ents.Find(D.EntityId)) { Gone->Status = HrotCards::FStatusFacts(); Gone->StatusKey = 0; }
+		return;
+	}
+	if (!S.bValid) return;
+	FEnt& E = Ents.FindOrAdd(D.EntityId);
+	HrotCards::FStatusFacts& F = E.Status;
+	F.bHas = true;
+	F.Symbol = UTF8_TO_TCHAR(D.Symbol); F.Behaviour = UTF8_TO_TCHAR(D.Behaviour); F.Task = UTF8_TO_TCHAR(D.Task);
+	F.HealthCurrent = D.HealthCurrent; F.HealthMax = D.HealthMax; F.AmmoShare = D.AmmoShare; F.MindFill = D.MindFill; F.MindBreak = D.MindBreak;
+	F.StrengthPresent = D.StrengthPresent; F.StrengthAuthorized = D.StrengthAuthorized;
+	F.MindBand = HrotCards::EMindBand(uint8(D.MindBand));
+	E.StatusKey = F.Hash();
 }
 
 void UHrotDpsWorld::OnState(const FHrotDpsSample& S)

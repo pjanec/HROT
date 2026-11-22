@@ -103,23 +103,14 @@ void UHrotDpsWorld::TickCards()
 		else if (E.bIsUnit && E.bHasState) Anchor = HrotDpsMotion::ToUnreal(E.Shown, OriginCm).GetLocation() + FVector(0, 0, 200);
 		else continue;
 		const uint8 Damage = E.Damage;
-		const uint32 Key = HashCombineFast(HashCombineFast(GetTypeHash(E.Name), uint32(LabelMode) | (uint32(E.Side) << 4) | (uint32(Damage) << 12) | (bAir ? 1u << 20 : 0u)),
-			GetTypeHash(E.Domain == Person));
+		const uint32 Key = HashCombineFast(HashCombineFast(GetTypeHash(E.Name), uint32(LabelMode) | (uint32(E.Side) << 4) | (uint32(Damage) << 12) | (bAir ? 1u << 20 : 0u) | (E.bIsUnit ? 1u << 21 : 0u)),
+			E.StatusKey);   // (every status field is in StatusKey: DD-025)
 		const int32 Id = It.Key;
 		const int32 Mode = LabelMode;   // the lambda runs only on a key change; it reads E in place (no copy per frame, R-2084)
 		Cards->Show(Id, Key, Anchor, [&](HrotCards::FCard& C)
 		{
 			const FString Text = E.Name.TrimStartAndEnd().IsEmpty() ? FString::Printf(TEXT("#%d"), Id) : FString::Printf(TEXT("%s #%d"), *E.Name.TrimStartAndEnd(), Id);
-			const float Cut = bAir ? 0.f : 1.f;   // R-144 rule A: an aircraft's card is never cut
-			if (Mode >= 3)
-			{
-				C.Frame(HrotCards::SideColour(E.Side), 150, Cut);
-				// HROT HealthBarGizmo: green >= 0.66, yellow >= 0.33, red; a destroyed one keeps the empty bar
-				const float Health = Damage >= 2 ? 0.f : Damage == 1 ? 0.5f : 1.f;
-				const uint32 Fill = Health >= 0.66f ? 0x00FF00FFu : Health >= 0.33f ? 0xFFFF00FFu : 0xFF0000FFu;
-				C.Bar(10, Health, Fill, 0x282828DCu, 4.f, Cut);
-			}
-			C.Text(20, Text, 0xF0F0F0FFu, HrotCards::DefaultTextPx, 0, bAir ? 0.f : 2.f);
+			HrotCards::BuildStatusCard(C, E.Status, Mode, bAir, E.bIsUnit, Text, E.Side, Damage);
 		});
 	}
 	Cards->End();

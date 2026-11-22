@@ -56,17 +56,19 @@ namespace HrotCards
 	// ── cards ──
 	constexpr float MinWidth = 72.f, Padding = 4.f, RowGap = 2.f, Leader = 20.f, DefaultTextPx = 13.f, DefaultSymbolPx = 20.f;
 
-	enum class EItem : uint8 { Box, Text, Line, Symbol };
+	enum class EItem : uint8 { Box, Text, Line, Symbol, Tick };
 	/** one card primitive (HROT DebugPrimitive in CoordinateSpace.EntityCard) */
 	struct HROTDPS_API FItem
 	{
 		uint8 Row = 0;                 // ZIndex: 0 = card-wide
 		EItem Kind = EItem::Box;
 		// Box: centre A, half extent B (row 0 or bFraction: fractions; else pixels in the row). Text: A = (x, y) in the row. Line: A -> B. Symbol: -
+		// Tick: a 1 px vertical mark, A.X a fraction of the row's inner width, A.Y its top in the row, Px its height, Colour its colour
 		FVector2f A = FVector2f::ZeroVector, B = FVector2f::ZeroVector;
 		uint32 Colour = 0xFFFFFFFF, Fill = 0;
 		float Thickness = 0;           // outline / line px (0 = none)
 		bool bFraction = false;        // a row's Box: x a fraction of the row's inner width, y pixels
+		bool bAfterPrev = false;       // a Text: starts where the previous Text of its row ends (+ a small gap): a row of runs in several colours
 		FString Text;                  // Text: the string; Symbol: the code
 		float Px = DefaultTextPx;      // Text: the size; Symbol: the frame height
 		float MaxMetresPerPixel = 0;   // shown only while the camera is finer than this (0 = at any distance)
@@ -77,8 +79,11 @@ namespace HrotCards
 		int64 EntityId = 0;
 		TArray<FItem> Items;
 		void Frame(uint32 SideColour, uint8 BackgroundAlpha = 150, float MaxMpp = 0);
-		void Text(uint8 Row, const FString& S, uint32 Colour, float SizePx = DefaultTextPx, float X = 0, float MaxMpp = 0);
-		void Bar(uint8 Row, float Fraction, uint32 Fill, uint32 Back, float HeightPx = 4, float MaxMpp = 0);
+		void Text(uint8 Row, const FString& S, uint32 Colour, float SizePx = DefaultTextPx, float X = 0, float MaxMpp = 0, bool bAfterPrev = false);
+		/** a bar: a back box and a fill of Fraction; YOffset = its top in the row (to centre it beside a taller tick) */
+		void Bar(uint8 Row, float Fraction, uint32 Fill, uint32 Back, float HeightPx = 4, float MaxMpp = 0, float YOffset = 0);
+		/** a thin vertical mark at Fraction of the row's width (HROT's strength / mind-break ticks) */
+		void Tick(uint8 Row, float Fraction, uint32 Colour, float HeightPx, float MaxMpp = 0, float YOffset = 0);
 		void Symbol(const FSymbol& S, float HeightPx = 22, float MaxMpp = 0);
 	};
 
@@ -89,6 +94,7 @@ namespace HrotCards
 		FVector2f Origin = FVector2f::ZeroVector;
 		float RowHeight = 0;
 		bool bCardWide = false;
+		float ExtraX = 0;      // a Text that follows another: where the previous one ended
 	};
 	struct HROTDPS_API FLayout
 	{
@@ -133,6 +139,27 @@ namespace HrotCards
 	struct FCutoffs { float FrameMpp = 1.f, TextMpp = 2.f; };
 	/** adds one card-space primitive to its card (HROT EntityCards.cs helpers, inverted); false for a shape a card does not use */
 	HROTDPS_API bool AddGizmo(FCard& Card, const FGizmoCardPrim& P, bool bAirAnchor, const FCutoffs& Cut = FCutoffs());
+
+	// ── DD-025: the gateway's EntityStatus, as facts, and HROT's card content built from them (UnitCardGizmo / MindStateGizmo / HealthBarGizmo) ──
+	enum class EMindBand : uint8 { None = 0, Calm, Nervous, Broken, Fear };
+	/** one EntityStatus (none-values: HealthMax 0 = no health bar, StrengthAuthorized 0 = no strength, AmmoShare < 0 = no ammo bar, MindBand None =
+	 *  no mind bar, MindBreak < 0 = no tick, "" = none). bHas false = no status has arrived: the coarse-damage fallback */
+	struct HROTDPS_API FStatusFacts
+	{
+		bool bHas = false;
+		FString Symbol, Behaviour, Task;
+		float HealthCurrent = 0, HealthMax = 0, AmmoShare = -1, MindFill = 0, MindBreak = -1;
+		int32 StrengthPresent = 0, StrengthAuthorized = 0;
+		EMindBand MindBand = EMindBand::None;
+		/** a hash of every field (for the card's change key, computed once when the status arrives) */
+		uint32 Hash() const;
+	};
+	/** HROT's colour of a strength / ammo fraction: green >= Good, amber >= Fair, else red */
+	HROTDPS_API uint32 LevelColour(float Fraction, float Good, float Fair);
+	/** fills Card with an entity's card: the frame, the symbol of a unit, the bars (strength + ammo for a unit, health + mind for others), the name
+	 *  and the info row. Mode: 2 units + aircraft, 3 every entity (both draw the full card; 1 = nothing). CoarseDamage (0..2) draws the health bar
+	 *  when no status has arrived */
+	HROTDPS_API void BuildStatusCard(FCard& Card, const FStatusFacts& F, int32 Mode, bool bAir, bool bUnit, const FString& NameText, uint8 Side, uint8 CoarseDamage);
 
 	/** HROT's side colours (ResolvedStyleConstants tints): Side 1 friend blue, 2 hostile red, else neutral green */
 	HROTDPS_API uint32 SideColour(uint8 Side);

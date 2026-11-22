@@ -228,6 +228,8 @@ private:
 		float StepPhase = 0;   // U-18n: the stride, a footstep at each whole number
 		uint8 Side = 0;
 		int32 ParentId = 0;   // Entity.ParentId: mounted on / part of another entity
+		HrotCards::FStatusFacts Status;   // U-18y (DD-025): the gateway's EntityStatus (Status.bHas = one arrived); StatusKey = its hash
+		uint32 StatusKey = 0;
 		bool bIsUnit = false;   // U-18y: Entity.IsUnit — a body-less commander (DD-024): no stand-in body, its card at its position + 2 m
 		// a person (U-18d)
 		bool bHasPerson = false;
@@ -370,6 +372,7 @@ private:
 	void OnSession(const struct FHrotDpsSample& S);
 	void OnEntity(const struct FHrotDpsSample& S);
 	void OnState(const struct FHrotDpsSample& S);
+	void OnStatus(const struct FHrotDpsSample& S);   // DD-025 EntityStatus
 	void OnArticulation(const struct FHrotDpsSample& S);
 	void OnFire(const struct FHrotDpsSample& S);
 	void OnDetonation(const struct FHrotDpsSample& S);

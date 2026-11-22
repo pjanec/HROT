@@ -328,6 +328,31 @@ bool UHrotDpsSubsystem::FakeStationEntityAs(int32 EntityId, int32 Domain, int32 
 	return Dps.Write(TEXT("DPS_Entity"), &E) && Dps.Write(TEXT("DPS_EntityState"), &St);
 }
 
+bool UHrotDpsSubsystem::FakeStationUnit(int32 EntityId, int32 InSide, const FString& Name, double SimTime, FVector PositionM)
+{
+	SimNetGateway_Protocol_DdsPlayer_Entity E{};
+	E.EntityId = EntityId; E.TypeId = 0; E.Domain = SimNetGateway_Protocol_DdsPlayer_DomainGround; E.Side = uint8(InSide); E.IsUnit = true;
+	FCStringAnsi::Strncpy(E.Name, TCHAR_TO_UTF8(*Name), sizeof(E.Name));
+	SimNetGateway_Protocol_DdsPlayer_EntityState St{};
+	St.EntityId = EntityId; St.SimTime = SimTime;
+	St.Position = { PositionM.X, PositionM.Y, PositionM.Z };
+	St.Orientation = { 0.f, 0.f, 0.f, 1.f };
+	return Dps.Write(TEXT("DPS_Entity"), &E) && Dps.Write(TEXT("DPS_EntityState"), &St);
+}
+
+bool UHrotDpsSubsystem::FakeStationStatus(int32 EntityId, const FString& Symbol, float HealthCurrent, float HealthMax, int32 StrengthPresent, int32 StrengthAuthorized,
+	float AmmoShare, float MindFill, float MindBreak, int32 MindBand, const FString& Behaviour, const FString& Task)
+{
+	SimNetGateway_Protocol_DdsPlayer_EntityStatus S{};
+	S.EntityId = EntityId;
+	FCStringAnsi::Strncpy(S.Symbol, TCHAR_TO_UTF8(*Symbol), sizeof(S.Symbol));
+	FCStringAnsi::Strncpy(S.Behaviour, TCHAR_TO_UTF8(*Behaviour), sizeof(S.Behaviour));
+	FCStringAnsi::Strncpy(S.Task, TCHAR_TO_UTF8(*Task), sizeof(S.Task));
+	S.HealthCurrent = HealthCurrent; S.HealthMax = HealthMax; S.StrengthPresent = StrengthPresent; S.StrengthAuthorized = StrengthAuthorized;
+	S.AmmoShare = AmmoShare; S.MindFill = MindFill; S.MindBreak = MindBreak; S.MindBand = SimNetGateway_Protocol_DdsPlayer_MindBand(MindBand);
+	return Dps.Write(TEXT("DPS_EntityStatus"), &S);
+}
+
 bool UHrotDpsSubsystem::FakeStationView(double SimTime, int32 Mode, int32 TargetId, float Distance, FVector PositionM, FVector VelocityM, float YawDeg,
 	float YawRateDeg, float PitchDeg, float FovDeg, int32 CutSeq)
 {

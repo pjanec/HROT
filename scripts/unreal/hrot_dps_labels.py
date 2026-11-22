@@ -9,8 +9,9 @@ A flat level, a wall; the camera at the ENU origin 2 m up looking east (90 deg).
   1-2 m/px (name only)   5 ground friend 'Far truck' (900,30)
   > 2 m/px (nothing)     6 ground friend 'Very far' (2600,-40)
   an aircraft, far       7 air friend 'Eagle 1' (2600,60, 300 up) - its name at any distance (R-143 rule A)
-Pictures (HighResShot 1 = the viewport's own size): mode 3 (every unit), mode 2 (commanders: the aircraft only, nothing on the wire says
-commander yet), mode 1 (none); then the symbol sheet (UHrotCardLayer.export_symbol_sheet). Checks read UHrotDpsWorld.describe_labels.
+  DD-025 EntityStatus    9 a body-less UNIT (Entity.IsUnit) 'Alpha' (12,4): symbol, strength 7/9 (amber), ammo 0.3, task Assault
+                         10 person friend 'Broken man' (12,-4): health 30/100, Broken mind (fill 0.8, break tick 0.6), behaviour Flee
+Pictures (HighResShot 1 = the viewport's own size): mode 3 (every unit), mode 2 (the units + every aircraft), mode 1 (none); then the symbol sheet (UHrotCardLayer.export_symbol_sheet). Checks read UHrotDpsWorld.describe_labels.
 """
 import glob, json, os, time, traceback
 import unreal
@@ -74,6 +75,11 @@ def join():
     sub.fake_station_session(1, SIM0)
     for (i, dom, side, name, p) in ENTS:
         sub.fake_station_entity_as(i, dom, side, name, SIM0, unreal.Vector(*p), unreal.Vector(0, 0, 0), 90.0)
+    # DD-025: a body-less unit and a man with a Broken mind, each with its EntityStatus
+    sub.fake_station_unit(9, 1, "Alpha", SIM0, unreal.Vector(12, 4, 0))
+    sub.fake_station_status(9, "SFGPUCI----D---", 0, 0, 7, 9, 0.3, 0, -1, 0, "Advance", "Assault")
+    sub.fake_station_entity_as(10, PERSON, 1, "Broken man", SIM0, unreal.Vector(12, -4, 0), unreal.Vector(0, 0, 0), 90.0)
+    sub.fake_station_status(10, "", 30, 100, 0, 0, -1, 0.8, 0.6, 3, "Flee", "")
     sub.fake_station_clock(True, SIM0, 1.0, 1, 0)
     S.update(w=w, sub=sub, gw=gw, phase="camera", t=time.time() + 3.0)
     log("joined, entities sent")
@@ -94,8 +100,9 @@ def shoot():
     desc = w.describe_labels(); R.setdefault("labels", {})[str(m)] = desc
     log(f"mode {m}: {desc}")
     n = int(desc.split(":")[1].split()[0]) if ":" in desc and desc.split(":")[1].split()[0].isdigit() else -1
-    # mode 3: 1,2,3,8 full + 4 (shown - the wall hides it by depth, which the count cannot see) + 5 name only + 7 aircraft (never cut) = 7; 6 none
-    want = {3: 7, 2: 1, 1: 0}[m]
+    # mode 3: 1,2,3,8,10 full + 9 the unit + 4 (shown - the wall hides it by depth, which the count cannot see) + 5 name only + 7 aircraft (never cut) = 9; 6 none
+    # mode 2: the unit 9 + the aircraft 7
+    want = {3: 9, 2: 2, 1: 0}[m]
     check(f"mode {m}: cards shown", n == want, f"{n} (want {want}) - {desc}")
     path = os.path.join(JOB["shots"], f"labels-mode{m}.png").replace("\\", "/")
     if os.path.exists(path): os.remove(path)

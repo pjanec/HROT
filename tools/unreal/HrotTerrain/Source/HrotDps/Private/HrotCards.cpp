@@ -159,14 +159,15 @@ namespace HrotCards
 			case EItem::Text: return I.Px > 0 ? I.Px : DefaultTextPx;
 			case EItem::Box: return I.A.Y + I.B.Y;
 			case EItem::Line: return FMath::Max(I.A.Y, I.B.Y) + 1.f;
+				case EItem::Tick: return I.A.Y + I.Px;
 			default: return 10.f;
 			}
 		}
-		float RowWidthOf(const FItem& I, FMeasure Measure)
+		float RowWidthOf(const FItem& I, FMeasure Measure, float ExtraX)
 		{
 			switch (I.Kind)
 			{
-			case EItem::Text: return I.A.X + Measure(I.Text, RowHeightOf(I));
+			case EItem::Text: return I.A.X + ExtraX + Measure(I.Text, RowHeightOf(I));
 			case EItem::Box: return I.bFraction ? 0.f : I.A.X + I.B.X;
 			case EItem::Line: return FMath::Max(I.A.X, I.B.X);
 			default: return 0.f;
@@ -278,23 +279,28 @@ namespace HrotCards
 		FItem Outline = Back; Outline.Colour = Side; Outline.Fill = 0; Outline.Thickness = 1.f;
 		Items.Add(Outline);
 	}
-	void FCard::Text(uint8 Row, const FString& S, uint32 Colour, float SizePx, float X, float MaxMpp)
+	void FCard::Text(uint8 Row, const FString& S, uint32 Colour, float SizePx, float X, float MaxMpp, bool bAfter)
 	{
 		FItem I; I.Row = Row; I.Kind = EItem::Text; I.A = FVector2f(X, 0); I.Colour = Colour; I.Text = S.Left(31);
-		I.Px = FMath::Clamp(SizePx, 6.f, 64.f); I.MaxMetresPerPixel = MaxMpp;
+		I.Px = FMath::Clamp(SizePx, 6.f, 64.f); I.MaxMetresPerPixel = MaxMpp; I.bAfterPrev = bAfter;
 		Items.Add(I);
 	}
-	void FCard::Bar(uint8 Row, float Fraction, uint32 FillC, uint32 Back, float HeightPx, float MaxMpp)
+	void FCard::Bar(uint8 Row, float Fraction, uint32 FillC, uint32 Back, float HeightPx, float MaxMpp, float YOffset)
 	{
 		Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
 		auto Box = [&](float Centre, float Half, uint32 C)
 		{
 			FItem I; I.Row = Row; I.Kind = EItem::Box; I.bFraction = true; I.Colour = I.Fill = C;
-			I.A = FVector2f(Centre, HeightPx / 2); I.B = FVector2f(Half, HeightPx / 2); I.MaxMetresPerPixel = MaxMpp;
+			I.A = FVector2f(Centre, YOffset + HeightPx / 2); I.B = FVector2f(Half, HeightPx / 2); I.MaxMetresPerPixel = MaxMpp;
 			Items.Add(I);
 		};
 		Box(0.5f, 0.5f, Back);
 		if (Fraction > 0) Box(Fraction / 2, Fraction / 2, FillC);
+	}
+	void FCard::Tick(uint8 Row, float Fraction, uint32 Colour, float HeightPx, float MaxMpp, float YOffset)
+	{
+		FItem I; I.Row = Row; I.Kind = EItem::Tick; I.A = FVector2f(FMath::Clamp(Fraction, 0.f, 1.f), YOffset); I.Px = HeightPx; I.Colour = I.Fill = Colour; I.MaxMetresPerPixel = MaxMpp;
+		Items.Add(I);
 	}
 	void FCard::Symbol(const FSymbol& S, float HeightPx, float MaxMpp)
 	{
@@ -316,6 +322,14 @@ namespace HrotCards
 		}
 		if (Order.Num() == 0) return false;
 		Algo::StableSortBy(Order, [&](int32 I) { return Card.Items[I].Row; });
+		TArray<float, TInlineAllocator<32>> Extra;   // per Order slot: where a following Text starts (the previous Text's end)
+		Extra.Init(0.f, Order.Num());
+		for (int32 K = 1; K < Order.Num(); K++)
+		{
+			const FItem& Prev = Card.Items[Order[K - 1]]; const FItem& It = Card.Items[Order[K]];
+			if (It.bAfterPrev && It.Kind == EItem::Text && Prev.Kind == EItem::Text && Prev.Row == It.Row)
+				Extra[K] = Prev.A.X + Extra[K - 1] + Measure(Prev.Text, RowHeightOf(Prev)) + 3.f;
+		}
 		int32 RowsStart = 0;
 		while (RowsStart < Order.Num() && Card.Items[Order[RowsStart]].Row == 0) RowsStart++;
 		float CellW = 0, CellH = 0;
@@ -338,7 +352,7 @@ namespace HrotCards
 			for (; K < Order.Num() && Card.Items[Order[K]].Row == Z; K++)
 			{
 				H = FMath::Max(H, RowHeightOf(Card.Items[Order[K]]));
-				Width = FMath::Max(Width, RowWidthOf(Card.Items[Order[K]], Measure));
+				Width = FMath::Max(Width, RowWidthOf(Card.Items[Order[K]], Measure, Extra[K]));
 			}
 			RowH.Add(H);
 			Height += H;
@@ -347,13 +361,13 @@ namespace HrotCards
 		Out.W = Width + CellW + 2.f * Padding;
 		Out.H = FMath::Max(FMath::Max(Height, CellH) + 2.f * Padding, 2.f * Padding + 4.f);
 		Out.CellW = CellW;
-		for (int32 K = 0; K < RowsStart; K++) Out.Placed.Add({ Order[K], FVector2f::ZeroVector, Out.H, true });
+		for (int32 K = 0; K < RowsStart; K++) Out.Placed.Add({ Order[K], FVector2f::ZeroVector, Out.H, true, 0.f });
 		float Y = Padding + FMath::Max(0.f, (Out.H - 2.f * Padding - Height) * 0.5f);   // rows centred beside a taller symbol
 		int32 Ri = 0;
 		for (int32 K = RowsStart; K < Order.Num();)
 		{
 			const uint8 Z = Card.Items[Order[K]].Row;
-			for (; K < Order.Num() && Card.Items[Order[K]].Row == Z; K++) Out.Placed.Add({ Order[K], FVector2f(Padding + CellW, Y), RowH[Ri], false });
+			for (; K < Order.Num() && Card.Items[Order[K]].Row == Z; K++) Out.Placed.Add({ Order[K], FVector2f(Padding + CellW, Y), RowH[Ri], false, Extra[K] });
 			Y += RowH[Ri] + RowGap;
 			Ri++;
 		}
@@ -367,7 +381,7 @@ namespace HrotCards
 
 	void Paint(const FCard& Card, const FLayout& L, FVector2f TL, FVector2f Anchor, ICardCanvas& C)
 	{
-		auto IsFill = [](const FItem& I) { return I.Kind == EItem::Box && (I.Fill & 0xFF); };
+		auto IsFill = [](const FItem& I) { return I.Kind == EItem::Box && (I.Fill & 0xFF); };   // (a Tick is a row item, drawn with its row)
 		auto Draw = [&](const FPlaced& P)
 		{
 			const FItem& I = Card.Items[P.Item];
@@ -375,7 +389,8 @@ namespace HrotCards
 			const float InnerW = L.W - 2.f * Padding - (P.bCardWide ? 0.f : L.CellW);   // a row's bars stop at the symbol cell
 			switch (I.Kind)
 			{
-			case EItem::Text: C.TextAt(O + I.A, I.Text, I.Px, I.Colour); break;
+			case EItem::Text: C.TextAt(O + I.A + FVector2f(P.ExtraX, 0.f), I.Text, I.Px, I.Colour); break;
+				case EItem::Tick: C.Rect(O + FVector2f(I.A.X * InnerW - 0.5f, I.A.Y), FVector2f(1.f, I.Px), I.Fill, 0, 0.f); break;
 			case EItem::Box:
 			{
 				FVector2f Min, Size;
@@ -433,6 +448,70 @@ namespace HrotCards
 		return true;
 	}
 
+	uint32 FStatusFacts::Hash() const
+	{
+		uint32 H = bHas ? 1u : 0u;
+		H = HashCombineFast(H, GetTypeHash(Symbol)); H = HashCombineFast(H, GetTypeHash(Behaviour)); H = HashCombineFast(H, GetTypeHash(Task));
+		for (float V : { HealthCurrent, HealthMax, AmmoShare, MindFill, MindBreak }) H = HashCombineFast(H, ::GetTypeHash(V));
+		H = HashCombineFast(H, uint32(StrengthPresent)); H = HashCombineFast(H, uint32(StrengthAuthorized));
+		return HashCombineFast(H, uint32(MindBand));
+	}
+
+	uint32 LevelColour(float F, float Good, float Fair) { return F >= Good ? 0x5BD06AFFu : F >= Fair ? 0xF2C033FFu : 0xE65555FFu; }
+
+	void BuildStatusCard(FCard& C, const FStatusFacts& F, int32 Mode, bool bAir, bool bUnit, const FString& Name, uint8 Side, uint8 CoarseDamage)
+	{
+		constexpr uint32 BarBack = 0x3A3A3ADCu, TickCol = 0xDCDCE1FFu, Teal = 0x3EC6B0FFu, MindBack = 0x282828DCu, NameCol = 0xF0F0F0FFu;
+		const float Cut = bAir ? 0.f : 1.f, TextCut = bAir ? 0.f : 2.f;   // R-144 rule A: an aircraft's card is never cut
+		if (Mode < 2) return;
+		C.Frame(SideColour(Side), 150, Cut);
+		if (bUnit)
+		{
+			FSymbol Sym;
+			if (FSymbol::Parse(F.Symbol, Sym)) C.Symbol(Sym, 22, Cut);
+			uint32 StrengthCol = 0;
+			const bool bStrength = F.bHas && F.StrengthAuthorized > 0;
+			if (bStrength)
+			{
+				const float Fr = FMath::Clamp(float(F.StrengthPresent) / float(F.StrengthAuthorized), 0.f, 1.f);
+				StrengthCol = LevelColour(Fr, 0.9f, 0.7f);
+				C.Bar(10, Fr, StrengthCol, BarBack, 5.f, Cut, 1.f);   // centred beside the 7 px ticks
+				C.Tick(10, 0.7f, TickCol, 7.f, Cut); C.Tick(10, 0.9f, TickCol, 7.f, Cut);
+			}
+			if (F.bHas && F.AmmoShare >= 0.f) C.Bar(13, F.AmmoShare, LevelColour(F.AmmoShare, 0.5f, 0.25f), BarBack, 3.f, Cut);
+			C.Text(20, Name, NameCol, DefaultTextPx, 0, TextCut);
+			if (F.bHas)
+			{
+				const FString& What = F.Task.IsEmpty() ? F.Behaviour : F.Task;
+				if (bStrength) C.Text(40, FString::Printf(TEXT("%d/%d"), F.StrengthPresent, F.StrengthAuthorized), StrengthCol, 12.f, 0, TextCut);
+				if (!What.IsEmpty()) C.Text(40, TEXT("\u00B7 ") + What.Left(18), Teal, 12.f, 0, TextCut, bStrength);
+			}
+			return;
+		}
+		if (F.bHas)
+		{
+			if (F.HealthMax > 0.f)
+			{
+				const float Fr = FMath::Clamp(F.HealthCurrent / F.HealthMax, 0.f, 1.f);   // HROT HealthBarGizmo: green >= 0.66, yellow >= 0.33, red
+				C.Bar(10, Fr, Fr >= 0.66f ? 0x00FF00FFu : Fr >= 0.33f ? 0xFFFF00FFu : 0xFF0000FFu, MindBack, 4.f, Cut);
+			}
+			if (F.MindBand != EMindBand::None)
+			{
+				const uint32 Col = F.MindBand == EMindBand::Calm ? 0x6E96C8FFu : F.MindBand == EMindBand::Nervous ? 0xF0AA28FFu : F.MindBand == EMindBand::Broken ? 0xE1322DFFu : 0xFA821EFFu;
+				C.Bar(11, F.MindFill, Col, MindBack, 4.f, Cut, 1.f);
+				if (F.MindBreak >= 0.f) C.Tick(11, F.MindBreak, 0xFFFFFFFFu, 6.f, Cut);
+				if (F.MindBand == EMindBand::Broken) C.Text(12, TEXT("BROKEN"), Col, 12.f, 0, TextCut);
+			}
+		}
+		else
+		{
+			const float Health = CoarseDamage >= 2 ? 0.f : CoarseDamage == 1 ? 0.5f : 1.f;   // no status yet: the coarse damage as a health bar
+			C.Bar(10, Health, Health >= 0.66f ? 0x00FF00FFu : Health >= 0.33f ? 0xFFFF00FFu : 0xFF0000FFu, MindBack, 4.f, Cut);
+		}
+		C.Text(20, Name, NameCol, DefaultTextPx, 0, TextCut);
+		if (F.bHas && !F.Behaviour.IsEmpty()) C.Text(40, TEXT("\u00B7 ") + F.Behaviour.Left(18), Teal, 12.f, 0, TextCut);
+	}
+
 	uint32 SideColour(uint8 Side) { return Side == 1 ? 0x0064FFFFu : Side == 2 ? 0xFF0000FFu : 0x00FF00FFu; }
 
 	uint32 HashOf(const FCard& Card)
@@ -445,7 +524,7 @@ namespace HrotCards
 			H = HashCombineFast(H, ::GetTypeHash(I.B.X)); H = HashCombineFast(H, ::GetTypeHash(I.B.Y));
 			H = HashCombineFast(H, I.Colour); H = HashCombineFast(H, I.Fill);
 			H = HashCombineFast(H, ::GetTypeHash(I.Thickness)); H = HashCombineFast(H, ::GetTypeHash(I.Px));
-			H = HashCombineFast(H, GetTypeHash(I.Text));
+			H = HashCombineFast(H, GetTypeHash(I.Text)); H = HashCombineFast(H, I.bAfterPrev ? 1u : 0u);
 		}
 		return H;
 	}

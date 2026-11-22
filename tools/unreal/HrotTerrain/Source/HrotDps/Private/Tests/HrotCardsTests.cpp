@@ -122,4 +122,107 @@ bool FHrotCardsGizmoTest::RunTest(const FString&)
 	return true;
 }
 
+// DD-025: the card content HROT's gizmos give, built from the gateway's EntityStatus (UnitCardGizmo / MindStateGizmo / HealthBarGizmo)
+namespace
+{
+	/** the items of a row, in card order */
+	TArray<const FItem*> RowItems(const FCard& C, uint8 Row) { TArray<const FItem*> R; for (const FItem& I : C.Items) if (I.Row == Row) R.Add(&I); return R; }
+	FString InfoRow(const FCard& C) { FString S; for (const FItem* I : RowItems(C, 40)) { if (!S.IsEmpty()) S += TEXT(" "); S += I->Text; } return S; }
+	const FItem* FillOf(const FCard& C, uint8 Row) { const TArray<const FItem*> R = RowItems(C, Row); return R.Num() >= 2 && R[1]->Kind == EItem::Box ? R[1] : nullptr; }   // a bar: back, then the fill
+	int32 TicksOf(const FCard& C, uint8 Row) { int32 N = 0; for (const FItem* I : RowItems(C, Row)) if (I->Kind == EItem::Tick) N++; return N; }
+	FStatusFacts Unit(int32 Present, int32 Auth, float Ammo, const TCHAR* Task = TEXT(""), const TCHAR* Behaviour = TEXT(""))
+	{
+		FStatusFacts F; F.bHas = true; F.Symbol = TEXT("SFGPUCI----B---"); F.StrengthPresent = Present; F.StrengthAuthorized = Auth; F.AmmoShare = Ammo; F.Task = Task; F.Behaviour = Behaviour;
+		return F;
+	}
+	FStatusFacts Man(float Cur, float Max, EMindBand Band, float Fill, float Break, const TCHAR* Behaviour = TEXT(""))
+	{
+		FStatusFacts F; F.bHas = true; F.HealthCurrent = Cur; F.HealthMax = Max; F.MindBand = Band; F.MindFill = Fill; F.MindBreak = Break; F.Behaviour = Behaviour;
+		return F;
+	}
+	FCard Build(const FStatusFacts& F, bool bUnit, int32 Mode = 3, bool bAir = false)
+	{
+		FCard C; BuildStatusCard(C, F, Mode, bAir, bUnit, TEXT("1st #7"), 1, 0); return C;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotCardsStatusTest, "Hrot.Dps.Cards.Status",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotCardsStatusTest::RunTest(const FString&)
+{
+	// a unit: the strength bar green >= 0.9, amber >= 0.7, else red; ticks at 0.7 and 0.9; "P/A" in the bar's colour
+	const FItem* F95 = FillOf(Build(Unit(19, 20, -1), true), 10);
+	TestTrue(TEXT("strength 0.95: green"), F95 && F95->Fill == 0x5BD06AFFu);
+	const FItem* F80 = FillOf(Build(Unit(16, 20, -1), true), 10);
+	TestTrue(TEXT("strength 0.8: amber"), F80 && F80->Fill == 0xF2C033FFu);
+	const FItem* F50 = FillOf(Build(Unit(10, 20, -1), true), 10);
+	TestTrue(TEXT("strength 0.5: red"), F50 && F50->Fill == 0xE65555FFu);
+	const FCard U = Build(Unit(7, 9, 0.6f, TEXT("Assault"), TEXT("Patrol")), true);
+	TestTrue(TEXT("strength bar fills 7/9"), FillOf(U, 10) && FMath::IsNearlyEqual(FillOf(U, 10)->B.X * 2.f, 7.f / 9.f));
+	TestEqual(TEXT("two strength ticks"), TicksOf(U, 10), 2);
+	TestEqual(TEXT("info row: strength, then the task"), InfoRow(U), FString(TEXT("7/9 · Assault")));
+	TestTrue(TEXT("  the strength text takes the bar's colour, the task is teal"),
+		RowItems(U, 40).Num() == 2 && RowItems(U, 40)[0]->Colour == 0xF2C033FFu && RowItems(U, 40)[1]->Colour == 0x3EC6B0FFu && RowItems(U, 40)[1]->bAfterPrev);
+	TestEqual(TEXT("info row: the behaviour when the task is empty"), InfoRow(Build(Unit(7, 9, -1, TEXT(""), TEXT("Patrol")), true)), FString(TEXT("7/9 · Patrol")));
+	TestTrue(TEXT("the symbol cell"), Build(Unit(7, 9, -1), true).Items.ContainsByPredicate([](const FItem& I) { return I.Kind == EItem::Symbol; }));
+	TestEqual(TEXT("ammo 0.6: the bar is green"), FillOf(U, 13) ? FillOf(U, 13)->Fill : 0u, 0x5BD06AFFu);
+	TestEqual(TEXT("ammo 0.3: amber"), FillOf(Build(Unit(7, 9, 0.3f), true), 13) ? FillOf(Build(Unit(7, 9, 0.3f), true), 13)->Fill : 0u, 0xF2C033FFu);
+	TestEqual(TEXT("ammo 0.1: red"), FillOf(Build(Unit(7, 9, 0.1f), true), 13) ? FillOf(Build(Unit(7, 9, 0.1f), true), 13)->Fill : 0u, 0xE65555FFu);
+	TestEqual(TEXT("ammo -1: no ammo bar"), RowItems(Build(Unit(7, 9, -1), true), 13).Num(), 0);
+	const FCard NoStr = Build(Unit(0, 0, -1, TEXT("Hold")), true);
+	TestEqual(TEXT("StrengthAuthorized 0: no strength bar"), RowItems(NoStr, 10).Num(), 0);
+	TestEqual(TEXT("  nor its ticks"), TicksOf(NoStr, 10), 0);
+	TestEqual(TEXT("  the info row is the task alone"), InfoRow(NoStr), FString(TEXT("· Hold")));
+
+	// a man / vehicle: health, mind, BROKEN, the behaviour
+	const FCard M = Build(Man(30, 100, EMindBand::Broken, 0.8f, 0.6f, TEXT("Flee")), false);
+	const FItem* H = FillOf(M, 10);
+	TestTrue(TEXT("health 0.3: red, 30 % wide"), H && H->Fill == 0xFF0000FFu && FMath::IsNearlyEqual(H->B.X * 2.f, 0.3f));
+	TestTrue(TEXT("mind bar in the Broken colour"), FillOf(M, 11) && FillOf(M, 11)->Fill == 0xE1322DFFu);
+	TestEqual(TEXT("the mind-break tick"), TicksOf(M, 11), 1);
+	const TArray<const FItem*> Br = RowItems(M, 12);
+	TestTrue(TEXT("BROKEN row"), Br.Num() == 1 && Br[0]->Text == TEXT("BROKEN") && Br[0]->Colour == 0xE1322DFFu);
+	TestEqual(TEXT("the behaviour"), InfoRow(M), FString(TEXT("· Flee")));
+	TestEqual(TEXT("HealthMax 0: no health bar"), RowItems(Build(Man(0, 0, EMindBand::None, 0, -1), false), 10).Num(), 0);
+	const FCard Calm = Build(Man(100, 100, EMindBand::Calm, 0.2f, -1), false);
+	TestEqual(TEXT("mind None: no mind bar"), RowItems(Build(Man(100, 100, EMindBand::None, 0, -1), false), 11).Num(), 0);
+	TestTrue(TEXT("a calm mind: a bar, no tick (MindBreak -1), no BROKEN"), FillOf(Calm, 11) && FillOf(Calm, 11)->Fill == 0x6E96C8FFu && TicksOf(Calm, 11) == 0 && RowItems(Calm, 12).Num() == 0);
+	TestTrue(TEXT("nervous / fear colours"), FillOf(Build(Man(1, 1, EMindBand::Nervous, 0.5f, -1), false), 11)->Fill == 0xF0AA28FFu && FillOf(Build(Man(1, 1, EMindBand::Fear, 0.5f, -1), false), 11)->Fill == 0xFA821EFFu);
+	TestEqual(TEXT("no behaviour, no info row"), RowItems(Calm, 40).Num(), 0);
+
+	// no status yet: the coarse damage bar, as before
+	FCard Old; BuildStatusCard(Old, FStatusFacts(), 3, false, false, TEXT("x"), 1, 1);
+	TestTrue(TEXT("no status: the damage-1 bar is half, yellow"), FillOf(Old, 10) && FillOf(Old, 10)->Fill == 0xFFFF00FFu);
+	// the cutoffs: bars, ticks and the frame go at 1 m/px, texts at 2; an aircraft's card never
+	auto Measure = [](const FString& T, float) { return 6.f * T.Len(); };
+	FLayout L;
+	TestTrue(TEXT("1.5 m/px: only the texts remain (a unit)"), Layout(U, 1.5f, Measure, L));
+	for (const FPlaced& P : L.Placed) TestTrue(TEXT("  a text"), U.Items[P.Item].Kind == EItem::Text);
+	TestTrue(TEXT("an aircraft is never cut"), Layout(Build(Man(1, 1, EMindBand::None, 0, -1), false, 3, true), 50.f, Measure, L));
+	TestTrue(TEXT("mode 1 builds nothing"), Build(Unit(7, 9, -1), true, 1).Items.Num() == 0);
+
+	// the hash moves with every status field
+	const uint32 Base = HashOf(Build(Unit(7, 9, 0.6f, TEXT("Assault")), true));
+	TestTrue(TEXT("hash: present"), HashOf(Build(Unit(6, 9, 0.6f, TEXT("Assault")), true)) != Base);
+	TestTrue(TEXT("hash: ammo"), HashOf(Build(Unit(7, 9, 0.2f, TEXT("Assault")), true)) != Base);
+	TestTrue(TEXT("hash: task"), HashOf(Build(Unit(7, 9, 0.6f, TEXT("Defend")), true)) != Base);
+	const FStatusFacts B0 = Man(60, 100, EMindBand::Nervous, 0.4f, 0.7f, TEXT("Flee"));
+	const uint32 FactsHash = B0.Hash(), CardHash = HashOf(Build(B0, false));
+	auto Changed = [&](auto Mutate)
+	{
+		FStatusFacts X = B0; Mutate(X);
+		return X.Hash() != FactsHash && HashOf(Build(X, false)) != CardHash;
+	};
+	TestTrue(TEXT("hash: health"), Changed([](FStatusFacts& X) { X.HealthCurrent = 20; }));
+	TestTrue(TEXT("hash: mind fill"), Changed([](FStatusFacts& X) { X.MindFill = 0.9f; }));
+	TestTrue(TEXT("hash: mind break"), Changed([](FStatusFacts& X) { X.MindBreak = 0.3f; }));
+	TestTrue(TEXT("hash: mind band"), Changed([](FStatusFacts& X) { X.MindBand = EMindBand::Fear; }));
+	TestTrue(TEXT("hash: behaviour"), Changed([](FStatusFacts& X) { X.Behaviour = TEXT("Hide"); }));
+	FStatusFacts Sy = B0; Sy.Symbol = TEXT("SFGPUCI----B---");
+	TestTrue(TEXT("facts hash: symbol, strength"), Sy.Hash() != FactsHash);
+	FStatusFacts St = B0; St.StrengthPresent = 3; FStatusFacts Au = B0; Au.StrengthAuthorized = 3; FStatusFacts Am = B0; Am.AmmoShare = 0.5f;
+	TestTrue(TEXT("facts hash: present / authorized / ammo"), St.Hash() != FactsHash && Au.Hash() != FactsHash && Am.Hash() != FactsHash);
+	return true;
+}
+
 #endif

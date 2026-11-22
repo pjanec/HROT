@@ -98,6 +98,10 @@ public:
 		FVector PositionM, FVector VelocityM, float HeadingDeg);
 	/** View: Source director; Mode (ViewMode number: 1 free, 2 orbit …), bound to TargetId at Distance, or the pose: position (m), velocity
 	 *  (m/s), yaw (deg, ENU) turning YawRateDeg/s (body frame z), pitch (deg), vertical fov */
+	/** U-18y (DD-025) — a body-less unit (Entity.IsUnit) at PositionM, and its EntityStatus facts (one call per topic's sample) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationUnit(int32 EntityId, int32 InSide, const FString& Name, double SimTime, FVector PositionM);
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationStatus(int32 EntityId, const FString& Symbol, float HealthCurrent, float HealthMax, int32 StrengthPresent,
+		int32 StrengthAuthorized, float AmmoShare, float MindFill, float MindBreak, int32 MindBand, const FString& Behaviour, const FString& Task);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationView(double SimTime, int32 Mode, int32 TargetId, float Distance, FVector PositionM,
 		FVector VelocityM, float YawDeg, float YawRateDeg, float PitchDeg, float FovDeg, int32 CutSeq);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationEchoes() const { return FakeEchoes; }
