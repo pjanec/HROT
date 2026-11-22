@@ -2,13 +2,12 @@
   "$doc": "CE-2476 perception suite (Sensing \u00a78.6e) - pe-one-shot-four-ears",
   "runFor": 40,
   "golden": false,
-  "anchors": [
-    {
-      "name": "first shot",
+  "anchors": {
+    "first shot": {
       "on": "shot",
       "by": "Red Shooter"
     }
-  ],
+  },
   "expect": [
     {
       "name": "the shooter fires",
