@@ -3,6 +3,8 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogHrotSound, Log, All);
+
 namespace
 {
 	int32 CDebug = 0;
@@ -61,6 +63,7 @@ void FHrotSoundLog::Add(EHrotSndChannel Channel, const FString& Label, const FSt
 	E.Time = Now; E.Channel = Channel; E.Label = Label; E.Detail = Detail; E.DistM = DistM;
 	E.Text = Format(Channel, Label, Detail, DistM);
 	Lines.Add(FString::Printf(TEXT("%d %s"), ++Counter, *E.Text));
+	UE_LOG(LogHrotSound, Display, TEXT("%s"), *E.Text);   // U-19g: a live run is checkable after the fact
 	if (Lines.Num() > TranscriptMax) Lines.RemoveAt(0, Lines.Num() - TranscriptMax);
 	Ring.Add(MoveTemp(E));
 	if (Ring.Num() > Capacity) Ring.RemoveAt(0, Ring.Num() - Capacity);

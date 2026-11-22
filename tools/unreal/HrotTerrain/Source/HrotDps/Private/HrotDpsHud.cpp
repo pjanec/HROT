@@ -164,6 +164,21 @@ namespace
 		}
 	}
 
+	/** U-19g: the selected entity is marked: four yellow corner brackets around its screen position (a click used to select with no visible sign) */
+	void DrawSelection(FPainter& P, AHrotDpsCamera* Cam)
+	{
+		if (!Cam->SelectedId()) return;
+		const FVector2D S = Cam->ScreenOf(Cam->SelectedId());
+		if (S.X < 0.f) return;
+		++Cam->SelectionMarksDrawn;
+		const float R = 24.f, L = 9.f, T = 2.f;
+		for (int32 Sx = -1; Sx <= 1; Sx += 2) for (int32 Sy = -1; Sy <= 1; Sy += 2)
+		{
+			const float X = S.X + Sx * R, Y = S.Y + Sy * R;
+			P.Line(X, Y, X - Sx * L, Y, Yellow, T); P.Line(X, Y, X, Y - Sy * L, Yellow, T);
+		}
+	}
+
 	void DrawMenu(FPainter& P, AHrotDpsCamera* Cam, APlayerController* PC)
 	{
 		const TArray<FHrotMenuRow> Rows = Cam->MenuRows();
@@ -192,6 +207,7 @@ static void DrawBody(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC
 	FPainter P{ Canvas };
 	UHrotDpsStation* St = UHrotDpsStation::Get(Cam);
 	if (Cam->GetMode() == EHrotCameraMode::Player && St) { DrawPlayer(P, Cam, St); DrawSoundLog(P, Canvas->ClipY - 16.f - 20.f * 9); return; }
+	DrawSelection(P, Cam);
 	if (Cam->IsMenuOpen()) DrawMenu(P, Cam, PC);
 	// the status line: what is selected, how to reach the menu, a possession in progress
 	FLines L;

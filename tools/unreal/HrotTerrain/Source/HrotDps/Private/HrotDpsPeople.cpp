@@ -28,7 +28,9 @@ namespace HrotDpsPeople
 		if (In.Injury == InjuryDead || In.Injury == InjuryIncapacitated)
 		{
 			L.bLoops = false;
-			L.Base = In.Injury == InjuryIncapacitated ? FName(TEXT("Dying"))
+			// U-19g: a man shot while prone / crouched lies down in HIS stance (the standing "Dying" would jump him up to fall); standing keeps "Dying"
+			// (no clip of its own: Fallback -> Death.Stand); dead from the same stance is the same base, so no fall replays
+			L.Base = (In.Injury == InjuryIncapacitated && L.Stance == Standing) ? FName(TEXT("Dying"))
 			       : FName(*FString::Printf(TEXT("Death.%s"), StanceName(L.Stance)));
 			return L;
 		}

@@ -125,6 +125,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") double PlacedAt() const { return Placed; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> EntityIds() const;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") AActor* ActorOf(int32 EntityId) const;
+	/** U-19g: where an entity IS for a screen pick / mark (Unreal cm): a man's body centre (~1 m up), a vehicle's bounds centre, a body-less unit's anchor; false = not drawn / hidden */
+	bool CentreOf(int32 EntityId, FVector& OutUnreal) const;
 	/** the entity's shown position in the CONTRACT's frame (metres, ENU) — what a test compares with the publisher's track */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FVector ShownPosition(int32 EntityId) const;
 	/** one line: name, domain, type, what drew it, damage */
@@ -458,6 +460,10 @@ private:
 	void ClearLife();
 	UHrotPersonKit* KitOfPerson(int32 Id, const FEnt& E) const;
 	void UpdateRiding(FEnt& E);
+	/** U-19g: the ONE owner of "is somebody aboard": a person entity whose seat (PersonState.SeatVehicleId) or ParentId is a vehicle crews it; written to
+	 *  AHrotVehicle::bCrewed each frame (the soundscape reads it - it never scans riders itself) */
+	void UpdateCrews();
+	TSet<int32> CrewScratch;   // reused: no allocation in the steady state
 	void ApplyDamage(FEnt& E);
 	bool HoldsTube(const FEnt& E, double Real) const;
 	AActor* SpawnPerson(FEnt& E, const FTransform& At);

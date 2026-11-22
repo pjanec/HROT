@@ -322,11 +322,20 @@ void UHrotSoundscape::UpdateEngines(const FVector& At, float Dt, double Now)
 	if (Now >= NextPick)
 	{
 		NextPick = Now + 0.5;
+		for (auto S = Stills.CreateIterator(); S; ++S) if (!S.Key().IsValid()) S.RemoveCurrent();
 		TArray<TPair<double, AHrotVehicle*>> Near;
 		for (TActorIterator<AHrotVehicle> It(W); It; ++It)
 		{
 			const EEngine E = EngineOf(*It);
 			if (E == EEngine::None || It->Damage == EHrotVehicleDamage::Destroyed) continue;
+			{   // U-19g: stood still for 2 s with nobody aboard = parked: no engine (aircraft and crewed vehicles unchanged)
+				FStill& St = Stills.FindOrAdd(*It);
+				const float Speed = St.bHave ? float(FVector::Dist(It->GetActorLocation(), St.Last) / 100.0 / 0.5) : 0.f;   // m/s over this pick interval
+				St.For = !St.bHave ? 99.f : Speed < StillSpeed ? FMath::Min(St.For + 0.5f, 99.f) : 0.f;   // a new one is assumed still until seen moving
+				St.Last = It->GetActorLocation(); St.bHave = true;
+				const bool bGround = E != EEngine::Helicopter && E != EEngine::Propeller && E != EEngine::Jet && E != EEngine::Dragon;
+				if (!EngineWanted(bGround, It->bCrewed, St.For)) continue;
+			}
 			const double Reach = EngineReach * 100.0 * (E == EEngine::Jet ? 10.0 : (E == EEngine::Helicopter || E == EEngine::Propeller) ? 4.0 : 1.0);
 			const double D2 = FVector::DistSquared(It->GetActorLocation(), At);
 			if (D2 < Reach * Reach) Near.Add({ D2 / (Reach * Reach), *It });

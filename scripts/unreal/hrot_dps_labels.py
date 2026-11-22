@@ -308,6 +308,36 @@ def overlay():
     if st["step"] == 4:
         n = (w.get_editor_property("overlay_subtitles_drawn"), w.get_editor_property("overlay_fades_drawn"))
         check("overlay: fade 0 and no subtitle draw nothing more", n == st["n3"], f"{st['n3']} -> {n}")
+        S.update(phase="pick", t=time.time() + 0.5)
+
+
+def pick():
+    """U-19g: click-to-select on a SOLDIER (a skeletal body is invisible to the visibility trace): man 1 stands 30 m ahead; a left click at his projected
+    screen position selects him and the HUD draws the selection brackets; a right click selects him and opens the unit menu"""
+    gw, w = S["gw"], S["w"]
+    pawn = unreal.GameplayStatics.get_player_pawn(gw, 0)
+    st = S.setdefault("p", {"step": 0})
+    if st["step"] == 0:
+        pawn.place_at_rotator(w.enu_m_to_unreal(unreal.Vector(0, 0, 2)), unreal.Rotator(pitch=-1.5, yaw=0, roll=0), 90.0)
+        pawn.select(0)
+        st["step"] = 1; S["t"] = time.time() + 1.5; return
+    if st["step"] == 1:
+        sp = pawn.screen_of(1)
+        check("pick: man 1, 30 m ahead, projects onto the screen", sp.x >= 0 and sp.y >= 0, f"({sp.x:.0f}, {sp.y:.0f})")
+        got = pawn.test_click(unreal.Vector2D(sp.x + 5, sp.y - 4), False)
+        check("pick: a left click 6 px from him selects him", got == 1 and pawn.selected_id() == 1, f"picked {got}, selected {pawn.selected_id()}")
+        st["m0"] = pawn.get_editor_property("selection_marks_drawn"); st["sp"] = sp
+        pawn.test_click(unreal.Vector2D(5, 5), False)
+        check("pick: a click on nothing deselects", pawn.selected_id() == 0, f"selected {pawn.selected_id()}")
+        pawn.test_click(unreal.Vector2D(sp.x, sp.y), False)
+        st["step"] = 2; S["t"] = time.time() + 1.0; return
+    if st["step"] == 2:
+        n = pawn.get_editor_property("selection_marks_drawn") - st["m0"]
+        check("pick: the selected man is VISIBLY marked (the HUD drew the brackets)", n > 0, f"{n} frames")
+        sp = st["sp"]
+        pawn.select(0)
+        got = pawn.test_click(unreal.Vector2D(sp.x, sp.y), True)
+        check("pick: a right click on him selects him and opens the unit menu", got == 1 and pawn.selected_id() == 1 and pawn.is_menu_open(), f"picked {got}, menu {pawn.is_menu_open()}")
         S.update(phase="end", t=time.time() + 0.5)
 
 
@@ -337,6 +367,7 @@ def tick_once():
         elif ph == "burst": burst()
         elif ph == "ambience": ambience()
         elif ph == "overlay": overlay()
+        elif ph == "pick": pick()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
         if time.time() - T0 > 300: finish(False, "timeout")
     except Exception:

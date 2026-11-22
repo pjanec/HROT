@@ -77,6 +77,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") int32 FollowedId() const { return FollowId; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") int32 SelectedId() const { return Selected; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Select(int32 EntityId) { Selected = EntityId; }
+	/** U-19g - the entity a click at this screen point (px) means: the visibility trace (vehicles, buildings) AND every drawn entity projected to the screen
+	 *  (a skeletal soldier is invisible to the trace); the nearest within HrotDpsPick::MaxPx wins unless the trace hit is nearer the camera */
+	int32 PickAt(const FVector2D& ScreenPx) const;
+	/** where an entity is on the screen (px, as the mouse position), (-1, -1) = unknown / behind the camera / off the viewport */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") FVector2D ScreenOf(int32 EntityId) const;
+	/** U-19g probe: how many frames the HUD drew the selection brackets */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Camera|Test") int32 SelectionMarksDrawn = 0;
+	/** U-19g test hook: a left (select) or right (select + the unit menu) CLICK at ScreenPx, as TickInput does for the mouse; returns the entity picked */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera|Test") int32 TestClick(FVector2D ScreenPx, bool bRight);
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") float GetFollowDistance() const { return FollowDistance; }
 	/** the arm this frame (m) — shorter than the distance when a wall pulled it in */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") float GetArm() const { return Arm; }

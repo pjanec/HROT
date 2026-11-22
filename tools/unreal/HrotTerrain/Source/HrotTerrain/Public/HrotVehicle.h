@@ -106,6 +106,9 @@ public:
 	/** the kit's flamethrower streams (HROT's state; a destroyed vehicle never fires) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlaming = false;
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlaming(bool bNewFlaming);
+	/** U-19g: somebody is aboard (a host that knows its crews - the DPS world - writes it every frame; true = as always for a host that does not).
+	 *  The soundscape gives an EMPTY, parked ground vehicle no engine voice */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bCrewed = true;
 	/** flying: the kit's wings beat (the actor ticks only then) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlying = false;
 	/** U-18i — the body's paint (HROT's: a traffic car's street colour); bPainted false = the kit's own */

@@ -65,6 +65,12 @@ public:
 	 *  great for ambient but later)"); hrot.snd.Ambience 1 turns them on */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float AmbienceVolume = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float EngineVolume = 1.f;
+	static constexpr float StillSpeed = 0.5f;
+	static constexpr float StillSeconds = 2.f;
+	/** U-19g (PURE): does a vehicle get an engine voice? A ground vehicle with nobody aboard that has stood still (< StillSpeed m/s) for StillSeconds does not
+	 *  (an empty parked HMMWV must not idle); crewed, moving or flying: yes */
+	static bool EngineWanted(bool bGround, bool bCrewed, float StillForSeconds) { return !bGround || bCrewed || StillForSeconds < StillSeconds; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float AnimalVolume = 1.f;
 	/** 0..1 — no weather on the wire yet: set by hand / the console */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") float RainAmount = 0.f;
@@ -105,6 +111,8 @@ private:
 		TWeakObjectPtr<UAudioComponent> Run, Idle; FVector Last = FVector::ZeroVector; float Speed = 0; bool bSeen = false; double NextFlap = 0;
 	};
 	TArray<FVoice> Voices;
+	struct FStill { FVector Last = FVector::ZeroVector; float For = 99.f; bool bHave = false; };   // U-19g: how long a vehicle has stood still (new: assumed still until seen moving)
+	TMap<TWeakObjectPtr<AHrotVehicle>, FStill> Stills;
 	struct FCaller { double NextAt = 0; FVector Last = FVector::ZeroVector; TWeakObjectPtr<UAudioComponent> Trot; };
 	TMap<TWeakObjectPtr<AActor>, FCaller> Callers;
 	UPROPERTY(Transient) TMap<FString, TObjectPtr<USoundBase>> Cache;

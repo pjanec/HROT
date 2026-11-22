@@ -42,7 +42,10 @@ bool FHrotDpsPeopleLookTest::RunTest(const FString&)
 	// down
 	In.Injury = InjuryDead; In.Stance = In.TargetStance = Crouched; L = Look(In);
 	TestEqual(TEXT("dead from a crouch"), L.Base, FName(TEXT("Death.Crouch"))); TestFalse(TEXT("once, held"), L.bLoops); TestFalse(TEXT("dead: no twist"), L.bCanAim);
-	In.Injury = InjuryIncapacitated; TestEqual(TEXT("dying"), Look(In).Base, FName(TEXT("Dying")));
+	In.Injury = InjuryIncapacitated; TestEqual(TEXT("U-19g: incapacitated from a crouch lies down crouched"), Look(In).Base, FName(TEXT("Death.Crouch")));
+	In.Stance = In.TargetStance = Prone; TestEqual(TEXT("U-19g: incapacitated prone: the prone death, not the standing fall"), Look(In).Base, FName(TEXT("Death.Prone")));
+	In.Injury = InjuryDead; TestEqual(TEXT("U-19g: dead after incapacitated, prone: the same base (no replay)"), Look(In).Base, FName(TEXT("Death.Prone")));
+	In.Stance = In.TargetStance = Standing; In.Injury = InjuryIncapacitated; TestEqual(TEXT("incapacitated standing: dying"), Look(In).Base, FName(TEXT("Dying")));
 	In.Injury = InjuryOk; In.Stance = In.TargetStance = Standing;
 
 	// unarmed business; inside a vehicle

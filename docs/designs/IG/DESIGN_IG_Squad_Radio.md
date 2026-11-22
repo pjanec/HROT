@@ -340,3 +340,4 @@ modelled on `hrot_dps_labels.py`): unit 9 'Alpha' at the origin, men 1..4 ~10 m 
 | the HUD draws without allocation | no allocation of its own (formatted once on `Add`); the engine's canvas text item still makes its `FText` per drawn line | `FCanvasTextItem` takes an `FText`; the existing HUD text does the same. Only while entries are live |
 | entries expire 6 s | the **transcript** is kept apart from the ring | a scene check reads 8 s after the sound; the ring (display) has expired by then |
 | `Fx` channel | in the enum, unused | no non-weapon feed exists apart from `PlayNow`'s shared path |
+| the log in the UE log (U-19g) | every `FHrotSoundLog::Add` also writes the formatted line to `LogHrotSound` (Display) | a live run is checkable afterwards (bursts included); the scene check read 17 such lines |

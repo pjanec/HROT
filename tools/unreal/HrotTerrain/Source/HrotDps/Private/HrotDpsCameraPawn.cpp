@@ -1,5 +1,6 @@
 // CE-4651 (U-18l) — see HrotDpsCameraPawn.h
 #include "HrotDpsCameraPawn.h"
+#include "HrotDpsPick.h"
 #include "HrotDpsWorld.h"
 #include "HrotDpsNative.h"   // U-18p: the View enums
 #include "HrotDpsStation.h"
@@ -280,20 +281,61 @@ void AHrotDpsCamera::FreeLook(float DYaw, float DPitch)
 int32 AHrotDpsCamera::PickUnderCursor() const
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return 0;
+	float Mx = 0, My = 0;
+	if (!PC->GetMousePosition(Mx, My)) return 0;
+	return PickAt(FVector2D(Mx, My));
+}
+
+int32 AHrotDpsCamera::PickAt(const FVector2D& ScreenPx) const
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
 	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
 	if (!PC || !W) return 0;
+	// (1) what the trace hits: vehicles, buildings
+	int32 HitId = 0; double HitDepth = 0;
 	FVector From, Dir;
-	if (!PC->DeprojectMousePositionToWorld(From, Dir)) return 0;
-	FCollisionQueryParams Q(SCENE_QUERY_STAT(HrotCamPick), true, this);
-	TArray<FHitResult> Hits;
-	GetWorld()->LineTraceMultiByChannel(Hits, From, From + Dir * 5e5, ECC_Visibility, Q);
-	for (const FHitResult& H : Hits)
+	if (PC->DeprojectScreenPositionToWorld(ScreenPx.X, ScreenPx.Y, From, Dir))
 	{
-		AActor* A = H.GetActor();
-		for (AActor* X = A; X; X = X->GetAttachParentActor())   // a rider, a part: its own entity first, else what it rides
-			if (const int32 Id = W->EntityOfActor(X)) return Id;
+		FCollisionQueryParams Q(SCENE_QUERY_STAT(HrotCamPick), true, this);
+		TArray<FHitResult> Hits;
+		GetWorld()->LineTraceMultiByChannel(Hits, From, From + Dir * 5e5, ECC_Visibility, Q);
+		for (const FHitResult& H : Hits)
+		{
+			for (AActor* X = H.GetActor(); X && !HitId; X = X->GetAttachParentActor())   // a rider, a part: its own entity first, else what it rides
+				HitId = W->EntityOfActor(X);
+			if (HitId) { HitDepth = H.Distance; break; }
+		}
 	}
-	return 0;
+	// (2) every drawn entity on the screen (U-19g: a skeletal soldier does not block the trace)
+	const FVector Eye = Cam->GetComponentLocation();
+	TArray<HrotDpsPick::FCand> Cands;
+	for (const int32 Id : W->EntityIds())
+	{
+		FVector C;
+		if (!W->CentreOf(Id, C)) continue;
+		FVector2D S;
+		if (!PC->ProjectWorldLocationToScreen(C, S, false)) continue;
+		Cands.Add({ Id, S, FVector::Dist(C, Eye) });
+	}
+	return HrotDpsPick::Choose(Cands, ScreenPx, HitId, HitDepth);
+}
+
+FVector2D AHrotDpsCamera::ScreenOf(int32 EntityId) const
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+	FVector C; FVector2D S;
+	if (!PC || !W || !W->CentreOf(EntityId, C) || !PC->ProjectWorldLocationToScreen(C, S, false)) return FVector2D(-1, -1);
+	return S;
+}
+
+int32 AHrotDpsCamera::TestClick(FVector2D ScreenPx, bool bRight)
+{
+	const int32 Id = PickAt(ScreenPx);
+	if (bRight) { if (Id) { Selected = Id; OpenMenu(Id, ScreenPx); } }
+	else Selected = Id;
+	return Id;
 }
 
 void AHrotDpsCamera::TickInput(float Dt)

@@ -1260,6 +1260,7 @@ void UHrotDpsWorld::Tick(float)
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
 	const double Dt = FMath::Clamp(Placed - Prev, 0.0, 0.5);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) UpdateRiding(It.Value);
+	UpdateCrews();
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt);   // after every pose: an aim reads its target's
 	for (TPair<int32, FEnt>& It : Ents)
 	{
@@ -1281,6 +1282,21 @@ void UHrotDpsWorld::Tick(float)
 double UHrotDpsWorld::SimNow() const { return Clock.Now(RealNow()); }
 
 TArray<int32> UHrotDpsWorld::EntityIds() const { TArray<int32> Ids; Ents.GetKeys(Ids); Ids.Sort(); return Ids; }
+
+bool UHrotDpsWorld::CentreOf(int32 EntityId, FVector& Out) const
+{
+	const FEnt* E = Ents.Find(EntityId);
+	if (!E) return false;
+	if (const AActor* A = E->Actor.Get())
+	{
+		if (A->IsHidden()) return false;
+		if (E->bHasPerson || E->Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) { Out = A->GetActorLocation() + FVector(0, 0, 100); return true; }
+		FVector Ext; A->GetActorBounds(false, Out, Ext);
+		return true;
+	}
+	if (E->bHasState) { Out = HrotDpsMotion::ToUnreal(E->Shown, OriginCm).GetLocation() + FVector(0, 0, 160); return true; }   // a body-less unit: its anchor
+	return false;
+}
 
 AActor* UHrotDpsWorld::ActorOf(int32 EntityId) const { const FEnt* E = Ents.Find(EntityId); return E ? E->Actor.Get() : nullptr; }
 
@@ -1777,6 +1793,20 @@ void UHrotDpsWorld::UpdateRiding(FEnt& E)
 		E.bNoSeatCounted = true;
 		Count(TEXT("not drawn: rider, the mount's kind has no such seat"));
 	}
+}
+
+void UHrotDpsWorld::UpdateCrews()
+{
+	CrewScratch.Reset();
+	for (const TPair<int32, FEnt>& It : Ents)
+	{
+		const FEnt& E = It.Value;
+		if (!(E.bHasPerson || E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson)) continue;
+		if (E.SeatVehicleId != 0) CrewScratch.Add(E.SeatVehicleId);
+		if (E.ParentId != 0) CrewScratch.Add(E.ParentId);
+	}
+	for (const TPair<int32, FEnt>& It : Ents)
+		if (AHrotVehicle* V = Cast<AHrotVehicle>(It.Value.Actor.Get())) V->bCrewed = CrewScratch.Contains(It.Key);
 }
 
 int32 UHrotDpsWorld::RidersNow() const
