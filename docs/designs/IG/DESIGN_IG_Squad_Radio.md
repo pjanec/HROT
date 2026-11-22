@@ -180,3 +180,17 @@ alive — and a cut must travel through the same delay as the sound, or a distan
 | B-3 | `BurstId` 0 (an aimed single, a player's round) ⇒ per round, unchanged | |
 | B-4 | the recording's own cadence is kept (it differs a little from the sim's round spacing; tracers stay per round) | time-stretching — artefacts, and nobody counts |
 | B-5 | the state is a pure `FHrotBurstTracker` (per `BurstId`; forgotten 2 s after its last round), railed without audio | |
+
+### 5a. As built (U-19c)
+
+| design said | built | why |
+|---|---|---|
+| `PlaySoundHeld(...) ⇒ handle`, a cut through the same delay | `UHrotShotRenderer::PlaySoundHeld` / `FadeHeld(handle, 0.06)`; the fade is scheduled `Dist / SpeedOfSound` after the cut (the same delay the start had), applied to the spawned `UAudioComponent` | as §5 |
+| clips by "the onset finder of `cut_shots`" | a second onset finder (`burst_onsets`): 2.5 ms envelope, a 5 dB rise within 5 ms, the sharpest rise per 55 ms window | `cut_shots` merges onsets under 350 ms and 5 ms blocks hid every second round of a 600+ rpm take (measured: a steady 157 ms where the real cadence is ~70 ms) |
+| 4 variants per (set, N) | the 4 steadiest runs over all source files; score = spacing max/min + 0.8 per side with a round < 300 ms away + 1.5 for a mean cadence outside 60–125 ms | a run cut mid-burst ends on a truncated tail, a double-detected shot is a 40 ms "round" |
+| autocannon | per round (no `autocannon_b<N>` clips) | §5 lists rifle, rifle_east, mg, mg_heavy only |
+| the stem of an MG burst | `wpn/mg_heavy_` for a vehicle gun (`bKitGun`), else `wpn/mg_` | as today's per-round choice |
+| `UHrotSoundscape` | + `Has(set)` (quiet: no `LibraryMissing`) | the tracker's "is there a clip of N" predicate must not count misses |
+| scene: "no per-round rifle sound" | `sounds played` of the renderer rose by exactly 1 (and `HeldStarted` by 1) for a 3-round burst | the `rifle shot` event counts every ROUND (the tracer / visual path), not a sound |
+
+Clips: 112 (7 counts × 4 sets × 4 variants) in `/Game/Hrot/AudioPro/wpn/<stem>b<N>_NN` (private, outside git).

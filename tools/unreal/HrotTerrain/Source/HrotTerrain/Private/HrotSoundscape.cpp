@@ -78,6 +78,12 @@ USoundBase* UHrotSoundscape::Load(const FString& Name, bool bCount)
 	return S;
 }
 
+bool UHrotSoundscape::Has(const FString& Set)
+{
+	const TCHAR* Lib = LibraryOf(Set);
+	return LoadAt(Lib, Set + TEXT("_01")) || LoadAt(Lib, Set);
+}
+
 USoundBase* UHrotSoundscape::Pick(const FString& Set)
 {
 	// the variants _01 .. _NN of ONE library (never a mix of the two), one at random; the single <Set> when there are none

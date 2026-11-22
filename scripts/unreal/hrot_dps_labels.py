@@ -13,6 +13,7 @@ A flat level, a wall; the camera at the ENU origin 2 m up looking east (90 deg).
                          10 person friend 'Broken man' (12,-4): health 30/100, Broken mind (fill 0.8, break tick 0.6), behaviour Flee
 U-19b (the squad's radio): a fake Report (Lace, Kia 2) from unit 9 and an Utterance CmdMove from man 1; the player must log beep > sgt > rep_losses > squelch and the soundscape's
 LibraryMissing must not grow; then the camera follows man 1 (his net = unit 9: the nearest same-side unit) and an Order from unit 9 is heard in the earpiece, with the receiver's answer.
+U-19c (bursts): a fake 3-round burst (BurstId 77) from man 1 plays ONE clip wpn/rifle_b3, indices 1 and 2 are covered (no per-round rifle sound); a 4-round burst that stops after 2 is cut.
 Pictures (HighResShot 1 = the viewport's own size): mode 3 (every unit), mode 2 (the units + every aircraft), mode 1 (none); then the symbol sheet (UHrotCardLayer.export_symbol_sheet). Checks read UHrotDpsWorld.describe_labels.
 """
 import glob, json, os, time, traceback
@@ -197,6 +198,45 @@ def voice():
         check("voice: the order is heard in the earpiece", P.get_editor_property("earpiece") == st["ear0"] + 1, P.describe())
         check("voice: the order's line and the receiver's answer", "vox/ord_move" in played and played[-2] == "vox/ack_order", " > ".join(played[-6:]))
         check("voice: no clip missing after the order", SND.get_editor_property("library_missing") == st["missing0"], f"LibraryMissing {SND.get_editor_property('library_missing')}")
+        S.update(phase="burst", t=time.time() + 0.5)
+
+
+def burst():
+    """U-19c (DD-027): a fake 3-round burst plays ONE clip (wpn/rifle_b3) - no per-round rifle sound for indices 1 and 2; a burst that stops
+    after 2 of 4 rounds is faded out"""
+    sub, w, gw = S["sub"], S["w"], S["gw"]
+    st = S.setdefault("b", {"step": 0})
+    at, vel = unreal.Vector(30, -3, 1.5), unreal.Vector(300, 0, 0)
+    if st["step"] == 0:
+        st["e0"] = dict(w.event_counts())
+        SR = unreal.HrotShotRenderer.for_world(gw)
+        st["sp0"], st["h0"] = SR.get_editor_property("sounds_played"), SR.get_editor_property("held_started")
+        sub.fake_station_burst_round(SIM0, 1, at, vel, 77, 3, 0)
+        st["step"] = 1; S["t"] = time.time() + 0.1; return
+    if st["step"] == 1:
+        sub.fake_station_burst_round(SIM0, 1, at, vel, 77, 3, 1)
+        sub.fake_station_burst_round(SIM0, 1, at, vel, 77, 3, 2)
+        st["step"] = 2; S["t"] = time.time() + 1.0; return
+    if st["step"] == 2:
+        e, e0 = dict(w.event_counts()), st["e0"]
+        d = lambda k: e.get(k, 0) - e0.get(k, 0)
+        R["burst"] = {k: d(k) for k in e if d(k)}
+        check("burst: exactly ONE clip started, the 3-round rifle clip", d("burst clip wpn/rifle_b3") == 1, str(R["burst"]))
+        SR = unreal.HrotShotRenderer.for_world(gw)
+        sp, hs = SR.get_editor_property("sounds_played") - st["sp0"], SR.get_editor_property("held_started") - st["h0"]
+        check("burst: indices 1 and 2 covered, ONE sound played in all (no per-round rifle sound)", d("burst covered") == 2 and sp == 1 and hs == 1, f"{R['burst']}; sounds played {sp}, held {hs}")
+        check("burst: the whole burst needed no cut", d("burst cut") == 0, str(R["burst"]))
+        SND = unreal.HrotSoundscape.for_world(gw)
+        check("burst: no clip missing from the library", SND.get_editor_property("library_missing") == S["v"]["missing0"], f"LibraryMissing {SND.get_editor_property('library_missing')}")
+        # a burst of 4 that stops after 2 rounds: its clip is cut
+        sub.fake_station_burst_round(SIM0, 1, at, vel, 78, 4, 0)
+        sub.fake_station_burst_round(SIM0, 1, at, vel, 78, 4, 1)
+        st["step"] = 3; S["t"] = time.time() + 1.2; return
+    if st["step"] == 3:
+        e, e0 = dict(w.event_counts()), st["e0"]
+        d = lambda k: e.get(k, 0) - e0.get(k, 0)
+        R["burst2"] = {k: d(k) for k in e if d(k)}
+        check("burst: a burst that stops is faded out (one cut)", d("burst clip wpn/rifle_b4") == 1 and d("burst cut") == 1, str(R["burst2"]))
         S.update(phase="end", t=time.time() + 0.5)
 
 
@@ -223,6 +263,7 @@ def tick_once():
         elif ph == "gizmofar": gizmofar()
         elif ph == "gizmotop": gizmotop()
         elif ph == "voice": voice()
+        elif ph == "burst": burst()
         elif ph == "end": LES().editor_request_end_play(); finish(True)
         if time.time() - T0 > 300: finish(False, "timeout")
     except Exception:

@@ -398,6 +398,20 @@ static void CrackNear(UObject* Ctx, const FVector& From, const FFire& D)
 	R->PlaySound(Snd->Pick(Speed > 850.0 ? TEXT("crack/sniper") : TEXT("crack/bullet")), PassAt, Snd->Falloff(3.f, 40.f));
 }
 
+bool UHrotDpsWorld::BurstSound(uint32 Id, int32 Rounds, int32 Index, const TCHAR* Stem, const FVector& At, USoundAttenuation* Att, USoundConcurrency* Con)
+{
+	UHrotSoundscape* Snd = UHrotSoundscape::Get(this);
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+	if (!Snd || !R || Id == 0) return false;
+	const FHrotBurstTracker::FResult Res = Bursts.OnRound(Id, Rounds, Index, RealNow(), [&](int32 N) { return Snd->Has(FString::Printf(TEXT("%sb%d"), Stem, N)); });
+	if (Res.Act == FHrotBurstTracker::EAct::Covered) { Count(TEXT("burst covered")); return true; }
+	if (Res.Act != FHrotBurstTracker::EAct::Start) return false;
+	const FString Set = FString::Printf(TEXT("%sb%d"), Stem, Res.ClipRounds);
+	Bursts.SetHandle(Id, R->PlaySoundHeld(Snd->Pick(Set), At, Att, Con));
+	Count(FString::Printf(TEXT("burst clip %s"), *Set));
+	return true;
+}
+
 void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
@@ -445,7 +459,10 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 			UHrotSoundscape* Snd = UHrotSoundscape::Get(this);   // U-18n: the round of its gun, a crack where it passes the view
 			USoundBase* Round = Snd ? Snd->Pick(D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAutocannon ? TEXT("wpn/autocannon_round") :
 			                                    bKitGun ? TEXT("wpn/mg_heavy_round") : TEXT("wpn/mg_round")) : nullptr;
-			if (Round) R->PlaySound(Round, From, Snd->Falloff(12.f, 2500.f), MgFx.SoundConcurrency);
+			const bool bBurst = Snd && D.WeaponCategory != SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAutocannon &&
+				BurstSound(D.BurstId, D.BurstRounds, D.BurstIndex, bKitGun ? TEXT("wpn/mg_heavy_") : TEXT("wpn/mg_"), From, Snd->Falloff(12.f, 2500.f), MgFx.SoundConcurrency);
+			if (bBurst) {}   // U-19c: the burst's one clip stands for this round's sound
+			else if (Round) R->PlaySound(Round, From, Snd->Falloff(12.f, 2500.f), MgFx.SoundConcurrency);
 			else R->PlaySound(MgFx.Sound, From, MgFx.SoundAttenuation, MgFx.SoundConcurrency, MgFx.SoundVolume, MgFx.SoundPitch);
 			CrackNear(this, From, D);
 		}
@@ -457,7 +474,10 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 		{
 			UHrotSoundscape* Snd = UHrotSoundscape::Get(this);   // U-18n: the pack's rifle shots (the east's side an AK), a crack where it passes
 			USoundBase* Shot = Snd ? Snd->Pick(Shooter && Shooter->Side == 2 ? TEXT("wpn/rifle_east") : TEXT("wpn/rifle")) : nullptr;
-			if (Shot) R->PlaySound(Shot, From, Snd->Falloff(10.f, 1500.f), RifleFx.SoundConcurrency);
+			const bool bBurst = Snd && BurstSound(D.BurstId, D.BurstRounds, D.BurstIndex, Shooter && Shooter->Side == 2 ? TEXT("wpn/rifle_east_") : TEXT("wpn/rifle_"),
+				From, Snd->Falloff(10.f, 1500.f), RifleFx.SoundConcurrency);   // U-19c
+			if (bBurst) {}
+			else if (Shot) R->PlaySound(Shot, From, Snd->Falloff(10.f, 1500.f), RifleFx.SoundConcurrency);
 			else R->PlaySound(RifleFx.Sound, From, RifleFx.SoundAttenuation, RifleFx.SoundConcurrency, RifleFx.SoundVolume, RifleFx.SoundPitch);
 			CrackNear(this, From, D);
 		}
@@ -1165,6 +1185,10 @@ void UHrotDpsWorld::Tick(float)
 		PendingLevel.Reset();
 	}
 	TickClock(R);   // U-18p: the probe's echoes, ClientWorld
+	{   // U-19c: a burst whose rounds stopped is faded out (after the same delay as its start)
+		TArray<int32> Cuts; Bursts.PollCuts(R, Cuts);
+		if (Cuts.Num()) if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld())) for (int32 H : Cuts) { SR->FadeHeld(H, 0.06f); Count(TEXT("burst cut")); }
+	}
 	const double Prev = Placed;
 	Placed = Clock.Now(R);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);

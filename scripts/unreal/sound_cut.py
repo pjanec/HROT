@@ -10,7 +10,13 @@ Reads WAVs (PCM 16/24/32, float 32; mono, stereo, ambisonic AmbiX or surround), 
   whole   - a whole spoken line / short cue (one file, matched by its EXACT name): leading and trailing audio below -50 dB of its peak
             trimmed (30 ms margin), mono, peak-normalised; the output index is the recipe's count field (vox/<set>_NN)
 
-Usage: python sound_cut.py <raw root> <out root> [--set gdc|gdc23|pro|vox] [--only <name substring>]
+  burst   - runs of N consecutive rounds (N = 2..8) of an automatic-fire take (U-19c): the onsets are found as for shots (55 ms apart at the
+            least), every run of N is scored (steady spacing, a quiet lead-in, an ending that is the burst's own) and the best run per
+            source file and N is cut: from 10 ms before onset 1 to where the decay after onset N falls 50 dB (or 0.6 s past it, or the next
+            round), faded out over 30 ms, peak-levelled like the shots. The recipe's `src` is several substrings joined by `|`, its count the
+            variants kept per N (the steadiest), its name the stem: <stem>b<N>_NN
+
+Usage: python sound_cut.py <raw root> <out root> [--set gdc|gdc23|pro|vox|burst] [--only <name substring>]
 The recipes are below; a recipe's `src` is a substring of the file's path under the raw root. Nothing here reads the network.
 """
 import math, os, struct, sys
@@ -207,6 +213,18 @@ R_VOX += [("vox/sgt_" + n.lower(), _VOX_PREFIX + "this is Sergeant " + n, "whole
 R_VOX += [("vox/over", _VOX_PREFIX + "over", "whole", 0, 1, 1, -3), ("vox/over", _VOX_PREFIX + "over 2", "whole", 0, 1, 2, -3)]
 R_VOX += [("radio/beep", "COMTran_Military walkie talkie button beep" + ("" if i == 1 else " %d" % i), "whole", 0, 1, i, -3) for i in range(1, 8)]
 R_VOX += [("radio/squelch", "COMTran_Military walkie talkie static squelch" + ("" if i == 1 else " %d" % i), "whole", 0, 1, i, -3) for i in range(1, 6)]
+# ---- U-19c: bursts of an exact round count. `--set burst`. (name stem, sources joined by |, "burst", tail seconds, 1, variants per N, level)
+_W = "Military Warfare SFX Pack"
+R_BURST = [
+    ("wpn/rifle_", "HK416 assault rifle short burst|HK416 assault rifle full auto|HK416 firing multiple|M4 assault rifle short burst|M4 assault rifle full auto|"
+                   "M16 assault rifle short burst|M16 assault rifle full auto|FN SCAR assault rifle short burst|FN SCAR assault rifle full auto|"
+                   "Tactical assault rifle short burst|Tactical assault rifle full auto|Spec ops assault rifle short burst|Spec ops assault rifle full auto",
+     "burst", 0.6, 1, 4, -1),
+    ("wpn/rifle_east_", "AK 47 assault rifle full auto fire|AK 47 firing multiple bursts", "burst", 0.6, 1, 4, -1),
+    ("wpn/mg_", "M240B machine gun automatic fire|AR10 machine gun firing|Modern machine gun fire", "burst", 0.6, 1, 4, -1),
+    ("wpn/mg_heavy_", "Heavy machine gun automatic fire", "burst", 0.6, 1, 4, -1),
+]
+
 # ---- GDC 2023 additions (free): the animals the 2024 bundle lacks
 R_GDC23 = [
     ("animal/goose_flock", "Excited gaggle vocals", "shots", 4, 1, 6, -3),
@@ -386,6 +404,61 @@ def cut_whole(w, path, want, target):
     x, rate = resample(x, w.rate)
     return [x * (10 ** ((target - db(float(np.max(np.abs(x)) + 1e-9))) / 20))], rate, "trimmed to %.2f s" % (len(x) / rate)
 
+BB = 400   # envelope blocks per second for bursts (2.5 ms): rounds 70 ms apart must not merge
+
+
+def burst_onsets(ldb):
+    """the rounds of an automatic-fire take: a 5 dB rise within 5 ms above the floor (the sharpest rise inside each 55 ms window)"""
+    floor = np.percentile(ldb, 20)
+    rise = np.zeros_like(ldb)
+    rise[2:] = ldb[2:] - ldb[:-2]
+    cand = np.where((rise > 5) & (ldb > floor + 20))[0]
+    onsets = []
+    for c in cand:
+        if onsets and c - onsets[-1][0] < 22:
+            if rise[c] > onsets[-1][1]: onsets[-1] = (int(c), rise[c])    # the same round: keep the sharper rise
+            continue
+        onsets.append((int(c), rise[c]))
+    return [o for o, _ in onsets]
+
+
+def cut_bursts(w, path, tail_s, want, target, nmin=2, nmax=8):
+    """for each N: the best run of N rounds of this file -> (N, x, rate, score, spacing ms list)"""
+    block = max(1, w.rate // BB)
+    env = envelope(w, block)
+    if len(env) == 0: return []
+    ldb = 20 * np.log10(env + 1e-9)
+    on = burst_onsets(ldb)
+    ms = 1000.0 / BB
+    out = []
+    for n in range(nmin, nmax + 1):
+        best = None
+        for i in range(0, len(on) - n + 1):
+            sp = np.diff(on[i:i + n]).astype(float)
+            if np.min(sp) < 22 or np.max(sp) > 120: continue          # 55 .. 300 ms between rounds
+            ratio = float(np.max(sp) / np.min(sp))
+            lead = (on[i] - on[i - 1]) * ms if i > 0 else 1000         # ms of quiet before the first round
+            nxt = (on[i + n] - on[i + n - 1]) * ms if i + n < len(on) else 1000   # ms to the next round after the last
+            score = ratio + (0.8 if lead < 300 else 0.0) + (0.8 if nxt < 300 else 0.0) + (0.0 if 60 <= float(np.mean(sp)) * ms <= 125 else 1.5)   # a plausible cadence
+            if best is None or score < best[0]: best = (score, i, sp * ms)
+        if best is None: continue
+        score, i, sp = best
+        o0, oN = on[i], on[i + n - 1]
+        pk = float(np.max(ldb[oN:oN + 80]))
+        end = oN + 16
+        stop = min(len(ldb), oN + int(tail_s * BB))
+        if i + n < len(on): stop = min(stop, on[i + n] - 4)
+        while end < stop and not ldb[end] < pk - 50: end += 1
+        s0 = max(0, (o0 - 4) * block)
+        x = to_channels(w.read(s0, (end - o0 + 4) * block), path, want)
+        f = min(len(x), int(0.03 * w.rate))
+        x[-f:] *= np.linspace(1, 0, f, dtype=np.float32)[:, None]
+        x, rate = resample(x, w.rate)
+        x = x * (10 ** ((target - db(float(np.max(np.abs(x)) + 1e-9))) / 20))
+        out.append((n, x, rate, score, sp))
+    return out
+
+
 def main():
     raw, out = sys.argv[1], sys.argv[2]
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
@@ -394,11 +467,29 @@ def main():
         for f in fs:
             if f.lower().endswith(".wav"): files.append(os.path.join(d, f))
     total = 0
-    recipes = {"gdc": R, "pro": R_PRO, "gdc23": R_GDC23, "vox": R_VOX}[sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "gdc"]
+    recipes = {"gdc": R, "pro": R_PRO, "gdc23": R_GDC23, "vox": R_VOX, "burst": R_BURST}[sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "gdc"]
     for rec in recipes:
         name, src, mode, seconds, want, count, target = rec[:7]
         min_s = rec[7] if len(rec) > 7 else 0.0
         if only and only not in name: continue
+        if mode == "burst":
+            alts = [a.lower() for a in src.split("|")]
+            hits = sorted(p for p in files if any(a in os.path.basename(p).lower() for a in alts) and "weapons" in p.lower())
+            if not hits: print("MISSING", name, "<-", src); continue
+            cands = {}
+            for p in hits:
+                try: found = cut_bursts(Wav(p), p, seconds, want, target)
+                except Exception as e: print("FAILED", p, e); continue
+                for n, x, rate, score, sp in found: cands.setdefault(n, []).append((score, p, x, rate, sp))
+            for n in sorted(cands):
+                keep = sorted(cands[n], key=lambda c: c[0])[:count]
+                for k, (score, p, x, rate, sp) in enumerate(keep):
+                    fn = os.path.join(out, *("%sb%d_%02d.wav" % (name, n, k + 1)).split("/"))
+                    write(fn, x, rate); total += os.path.getsize(fn)
+                    print("%sb%d_%02d  %5.2f s  spacing %s ms  score %.2f  <- %s" % (name, n, k + 1, len(x) / rate, " ".join("%d" % s for s in sp), score,
+                          os.path.basename(p)[:46]), flush=True)
+                if len(keep) < count: print("FEW %sb%d: %d variant(s) of %d sources" % (name, n, len(keep), len(hits)))
+            continue
         if mode == "whole":   # exact: the file stem (without the pack's tail) IS the recipe's src
             hits = sorted(p for p in files if os.path.basename(p)[:-4].replace("_GfxSounds_MilitaryWarfare", "").lower() == src.lower())
         else: hits = sorted(p for p in files if src.lower() in p.lower())

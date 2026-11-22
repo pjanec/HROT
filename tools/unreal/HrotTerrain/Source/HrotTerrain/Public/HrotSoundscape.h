@@ -43,6 +43,8 @@ public:
 
 	/** a one-shot of the set (<Set>_01 .. _NN, one at random), or the loop <Set> itself; null when the library lacks it */
 	USoundBase* Pick(const FString& Set);
+	/** the library has the set (a variant _01 or the single sound) — quietly: no LibraryMissing */
+	bool Has(const FString& Set);
 	/** the loop / single sound <Name> */
 	USoundBase* One(const FString& Name) { return Load(Name, true); }
 	/** the hit of a surface by HROT's material word (metal, armour, stone / concrete / brick, wood, glass, flesh); null = the default */

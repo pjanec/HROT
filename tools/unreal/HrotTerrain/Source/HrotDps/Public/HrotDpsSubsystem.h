@@ -121,6 +121,8 @@ public:
 	/** a rifle shot (Fire, small arms) from OriginM at SimTime */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationFire(double SimTime, FVector OriginM, FVector VelocityMs);
 	/** "<n> done, last: <index> <Written|Failed> '<file>' <ms> ms audio <n> '<why>'" */
+	/** U-19c - one round of a burst (DD-027): a rifle shot (SmallArms) with BurstId / Rounds / Index; the side comes from ShooterId's Entity */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationBurstRound(double SimTime, int32 ShooterId, FVector OriginM, FVector VelocityMs, int32 BurstId, int32 Rounds, int32 Index);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString FakeStationFrameDone() const { return FakeDone; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationFramesDone() const { return FakeDoneCount; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationStepAcks() const { return FakeAcks; }

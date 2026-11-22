@@ -38,6 +38,7 @@
 #include "HrotWeaponFx.h"
 #include "HrotDpsLife.h"
 #include "HrotVoiceLines.h"
+#include "HrotBurstTracker.h"
 #include "HrotDpsWorld.generated.h"
 
 class UHrotVehicleKit;
@@ -345,6 +346,10 @@ private:
 	/** hand a cue to the player: heard from entity `FromId` (the net it speaks on), at his head / unit anchor */
 	void SayCue(FVoiceCue Cue, int32 FromId, int32 ToId, bool bShout);
 	FHrotCallsigns Callsigns;
+	// -- U-19c: bursts (DD-027): one held clip per burst, cut when the rounds stop --
+	FHrotBurstTracker Bursts;
+	/** true = this round's own sound is handled by the burst logic (started the burst's clip, or covered by it); false = play it per round */
+	bool BurstSound(uint32 BurstId, int32 Rounds, int32 Index, const TCHAR* Stem, const FVector& At, class USoundAttenuation* Att, class USoundConcurrency* Con);
 	void SendGizmoView(double Real);
 	void DrawGizmos();
 	/** U-18z: the gizmo lines live in OUR line batcher, rebuilt when a frame arrives (a one-frame DrawDebug from a subsystem's tick was

@@ -12,6 +12,7 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/AudioComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "AudioDevice.h"
 #include "AudioDeviceManager.h"
@@ -134,6 +135,25 @@ void UHrotShotRenderer::PlaySound(USoundBase* Sound, const FVector& At, USoundAt
 	if (S.When <= Now() + 0.01f) PlayNow(S); else PendingSounds.Add(S);
 }
 
+int32 UHrotShotRenderer::PlaySoundHeld(USoundBase* Sound, const FVector& At, USoundAttenuation* Attenuation, USoundConcurrency* Concurrency, float Volume, float Pitch)
+{
+	if (!Sound || !GetWorld()) return 0;
+	const float Dist = FVector::Dist(At, ViewLocation());
+	if (Dist > SoundRange) return 0;
+	const float Delay = SpeedOfSound > 0.f ? Dist / SpeedOfSound : 0.f;
+	const int32 Handle = NextHeld++;
+	FHeld& H = Held.Add(Handle);
+	H.Delay = Delay; H.Born = Now();
+	FPendingSound S{ Sound, Attenuation, Concurrency, At, Now() + Delay, Volume, Pitch, Now(), Handle };
+	if (S.When <= Now() + 0.01f) PlayNow(S); else PendingSounds.Add(S);
+	return Handle;
+}
+
+void UHrotShotRenderer::FadeHeld(int32 Handle, float Seconds)
+{
+	if (FHeld* H = Held.Find(Handle)) { H->FadeAt = Now() + H->Delay; H->FadeSeconds = Seconds; }
+}
+
 bool UHrotShotRenderer::ActivateWorldAudio()
 {
 	UWorld* W = GetWorld();
@@ -155,7 +175,13 @@ bool UHrotShotRenderer::ActivateWorldAudio()
 void UHrotShotRenderer::PlayNow(const FPendingSound& S)
 {
 	if (!S.Sound.IsValid() || !GetWorld()) return;
-	UGameplayStatics::PlaySoundAtLocation(GetWorld(), S.Sound.Get(), S.At, FRotator::ZeroRotator, S.Volume, S.Pitch, 0.f, S.Att.Get(), S.Con.Get());
+	if (S.Handle)   // a held sound keeps its component, to be faded later
+	{
+		UAudioComponent* C = UGameplayStatics::SpawnSoundAtLocation(GetWorld(), S.Sound.Get(), S.At, FRotator::ZeroRotator, S.Volume, S.Pitch, 0.f, S.Att.Get(), S.Con.Get(), true);
+		if (FHeld* H = Held.Find(S.Handle)) H->C = C;
+		++HeldStarted;
+	}
+	else UGameplayStatics::PlaySoundAtLocation(GetWorld(), S.Sound.Get(), S.At, FRotator::ZeroRotator, S.Volume, S.Pitch, 0.f, S.Att.Get(), S.Con.Get());
 	++SoundsPlayed;
 	if (bLogSounds)
 	{
@@ -251,6 +277,12 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 	Puffs.RemoveAll([&](const FPuff& P) { return T - P.Born > P.Life; });
 	for (int32 I = PendingSounds.Num() - 1; I >= 0; --I)   // the bangs whose sound has now reached the view
 		if (PendingSounds[I].When <= T) { PlayNow(PendingSounds[I]); PendingSounds.RemoveAtSwap(I); }
+	for (auto It = Held.CreateIterator(); It; ++It)   // U-19c: the cuts of held sounds whose delay has passed; the finished ones are forgotten
+	{
+		FHeld& H = It.Value();
+		if (H.FadeAt >= 0.f && H.FadeAt <= T && H.C.IsValid()) { H.C->FadeOut(FMath::Max(H.FadeSeconds, 0.01f), 0.f); H.FadeAt = -1.f; ++HeldFaded; }
+		if (T - H.Born > 30.f || (H.Born + H.Delay + 0.1f < T && !H.C.IsValid())) It.RemoveCurrent();
+	}
 	LiveFlashes = Flashes.Num(); LiveTracers = Tracers.Num(); LivePuffs = Puffs.Num(); LiveDashes = Dashes.Num();
 	if (!FlashIsm && Flashes.Num() == 0 && Tracers.Num() == 0 && Puffs.Num() == 0 && Dashes.Num() == 0) return;
 	if (!EnsureComponents()) return;

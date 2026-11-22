@@ -37,6 +37,13 @@ public:
 	 *  sound takes from `At` to the view (SpeedOfSound) — the flash first, the bang later. Null sound = nothing. */
 	void PlaySound(USoundBase* Sound, const FVector& At, USoundAttenuation* Attenuation = nullptr, USoundConcurrency* Concurrency = nullptr,
 	               float Volume = 1.f, float Pitch = 1.f);
+	/** U-19c — a HELD sound (a burst's one clip): PlaySound's delay and falloff, plus a handle to cut it later; 0 = nothing (null / out of range) */
+	int32 PlaySoundHeld(USoundBase* Sound, const FVector& At, USoundAttenuation* Attenuation = nullptr, USoundConcurrency* Concurrency = nullptr,
+	                    float Volume = 1.f, float Pitch = 1.f);
+	/** fade a held sound out over `Seconds`, scheduled after the SAME speed-of-sound delay as its start (a distant burst is cut when the cut is heard) */
+	void FadeHeld(int32 Handle, float Seconds);
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 HeldStarted = 0;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 HeldFaded = 0;
 	/** Makes this world's audio device the ACTIVE one (unmuted). ⚠ measured (U-17k): the engine mutes every device but the active one,
 	 *  and a play world's own device becomes active only when a game window takes focus — never in the lab's hidden Simulate (exact
 	 *  digital silence, even a 2D sound). A standalone IG has one device; this is for the lab. */
@@ -130,7 +137,10 @@ private:
 	TArray<FDash> Dashes;
 	struct FPuff { FVector At; float Born, Life, Size0, Size1, Seed, Bright; };
 	TArray<FPuff> Puffs;
-	struct FPendingSound { TWeakObjectPtr<USoundBase> Sound; TWeakObjectPtr<USoundAttenuation> Att; TWeakObjectPtr<USoundConcurrency> Con; FVector At; float When, Volume, Pitch, Asked; };
+	struct FPendingSound { TWeakObjectPtr<USoundBase> Sound; TWeakObjectPtr<USoundAttenuation> Att; TWeakObjectPtr<USoundConcurrency> Con; FVector At; float When, Volume, Pitch, Asked; int32 Handle = 0; };
+	struct FHeld { TWeakObjectPtr<class UAudioComponent> C; float Delay = 0.f; float FadeAt = -1.f, FadeSeconds = 0.f; float Born = 0.f; };
+	TMap<int32, FHeld> Held;
+	int32 NextHeld = 1;
 	TArray<FPendingSound> PendingSounds;
 	void PlayNow(const FPendingSound& S);
 	TMap<TWeakObjectPtr<const USceneComponent>, int32> Rounds;
