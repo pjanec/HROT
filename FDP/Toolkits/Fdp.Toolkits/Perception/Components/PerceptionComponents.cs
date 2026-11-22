@@ -364,7 +364,9 @@ namespace Fdp.Toolkit.Perception.Components
             radius = radius > 0f ? radius : 1f;
             bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
             int best = -1; float bestD2 = float.MaxValue;
-            float knownReach = radius + KnownMoveSlackMetres;   // ⭐ CE-2486 — he may have moved a few steps since he was last seen
+            // ⭐ CE-2486 — he may have moved a few steps since he was last seen. ⭐ CE-2489 — a STRAIGHT hearing only: a point heard round an opening is the WAY
+            //   to him (D-8), and folding it into his stale spot loses the route (📐 ia-house-hunt: the stairwell, 3.9 m from where the defender was seen upstairs)
+            float knownReach = via == 0 ? radius + KnownMoveSlackMetres : radius;
             for (int i = 0; !burst && i < mem.Count; i++)
             {
                 if (mem.Anonymous[i] != 0) continue;

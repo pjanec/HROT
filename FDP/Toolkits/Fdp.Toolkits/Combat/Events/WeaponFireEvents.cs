@@ -80,6 +80,15 @@ namespace Fdp.Toolkit.Combat.Events
         /// <see cref="Entity.Null"/> = a first throw. Rides to the projectile's <c>OriginalShooter</c>; on the wire as
         /// <c>WeaponFireRequest.OriginalShooterEntityId</c>.</summary>
         public Entity OriginalShooter;
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013; docs/DESIGN_Weapon_Layers.md §5l; APPENDED) — the PLANNED burst this round belongs to, stamped by the AI brain
+        /// (<c>AimAndFireExecutor</c>); the muscle copies it to <see cref="WeaponFireNotification.BurstId"/>. <b>0 = no planned burst</b> (the operator / player
+        /// path, a single aimed shot, a machine gun cut by barrel heat). Unique per shooter.</summary>
+        public uint BurstId;
+        /// <summary>⭐ CE-11033 — rounds the planned burst fires (≥ 2 when <see cref="BurstId"/> ≠ 0).</summary>
+        public byte BurstRounds;
+        /// <summary>⭐ CE-11033 — this round's place in its burst, 1-based.</summary>
+        public byte BurstIndex;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────
@@ -138,6 +147,14 @@ namespace Fdp.Toolkit.Combat.Events
         /// <summary>⭐ Q94 A-1 (R-3018) — why the muscle REFUSED the request (no round flew, <see cref="Quantity"/> 0); <see cref="FireRefusal.None"/>
         /// = fired (APPENDED: an older sender reads as fired).</summary>
         public FireRefusal Refusal;
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013; §5l; APPENDED) — the planned burst this round belongs to, copied from <see cref="WeaponFireIntent.BurstId"/>;
+        /// 0 = none (a player's round, a single aimed shot). Muzzle flash, tracer and hits stay per round.</summary>
+        public uint BurstId;
+        /// <summary>⭐ CE-11033 — rounds the planned burst fires.</summary>
+        public byte BurstRounds;
+        /// <summary>⭐ CE-11033 — this round's place in its burst, 1-based.</summary>
+        public byte BurstIndex;
 
         /// <summary>⭐ Q94 A-2 — did a round fly? Every reader that draws, hears or fears a shot asks this first.</summary>
         public readonly bool Fired => Refusal == FireRefusal.None;
