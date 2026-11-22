@@ -3194,7 +3194,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_entity_memory",
             Group:   "K — AI behavior traces",
             Summary: "A unit's raw target memory, every slot — heard (anonymous) contacts included (CE-3144).",
-            Returns: "{ networkId, hasMemory, count, changeEpoch, anonymousSerial, slots:[{id, anonymous, position:[x,y,z], freshness, radius, lastSeenTick, modalities, sourceClass, alive?, networkId?}] }",
+            Returns: "{ networkId, hasMemory, count, changeEpoch, anonymousSerial, slots:[{id, anonymous, position:[x,y,z], freshness, radius, lastSeenTick, modalities, sourceClass, sound, heardThrough, alive?, networkId?}] }",
             Hint:    "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — memory is written there. Example: get_entity_memory({networkId:1000})",
             Params: new RouteParam[]
             {
