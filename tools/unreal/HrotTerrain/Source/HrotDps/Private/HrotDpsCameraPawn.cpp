@@ -331,8 +331,9 @@ int32 AHrotDpsCamera::PickAt(const FVector2D& ScreenPx) const
 	const HrotDpsPick::FCand* Nearest = nullptr; float NearD = 1e9f;
 	for (const HrotDpsPick::FCand& C : Cands) { const float D = C.bSeg ? HrotDpsPick::DistToSegment(ScreenPx, C.Screen, C.B) : float(FVector2D::Distance(C.Screen, ScreenPx)); if (D < NearD) { NearD = D; Nearest = &C; } }
 	int32 VX = 0, VY = 0; PC->GetViewportSize(VX, VY);
-	UE_LOG(LogTemp, Display, TEXT("HROT pick at (%.0f, %.0f) viewport %dx%d: %d candidates, nearest %d at (%.0f, %.0f) %.0f px, trace hit %d, picked %d"),
-		ScreenPx.X, ScreenPx.Y, VX, VY, Cands.Num(), Nearest ? Nearest->Id : 0, Nearest ? Nearest->Screen.X : -1.0, Nearest ? Nearest->Screen.Y : -1.0, Nearest ? NearD : -1.f, HitId, Picked);
+	int32 Men = 0; for (const HrotDpsPick::FCand& C : Cands) Men += C.bSeg ? 1 : 0;
+	UE_LOG(LogTemp, Display, TEXT("HROT pick at (%.0f, %.0f) viewport %dx%d: %d candidates (%d men), nearest %d at (%.0f, %.0f) %.0f px, trace hit %d, picked %d"),
+		ScreenPx.X, ScreenPx.Y, VX, VY, Cands.Num(), Men, Nearest ? Nearest->Id : 0, Nearest ? Nearest->Screen.X : -1.0, Nearest ? Nearest->Screen.Y : -1.0, Nearest ? NearD : -1.f, HitId, Picked);
 	return Picked;
 }
 

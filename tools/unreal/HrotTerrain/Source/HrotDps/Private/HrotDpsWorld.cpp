@@ -1297,6 +1297,15 @@ bool UHrotDpsWorld::BodyBox(int32 EntityId, FBox& Out, bool& bOutMan) const
 		FBox Box(ForceInit);
 		if (bOutMan) { TArray<USkeletalMeshComponent*> Sk; A->GetComponents(Sk); for (const USkeletalMeshComponent* M : Sk) if (M->IsVisible() && M->IsRegistered()) Box += M->Bounds.GetBox(); }
 		else { TArray<UMeshComponent*> Ms; A->GetComponents(Ms); for (const UMeshComponent* M : Ms) if (M->IsVisible() && M->IsRegistered()) Box += M->Bounds.GetBox(); }
+		// a man's skeletal bounds are those of its LAST RENDER and, live, were stale / elsewhere (2026-11-22: no soldier was a pick candidate, the
+		// nearest candidate 200-370 px from clicks on soldiers); trust them only near where the man IS, else a standing man's box at his feet
+		if (bOutMan)
+		{
+			FVector Feet = A->GetActorLocation();
+			if (const USkeletalMeshComponent* Sk0 = A->FindComponentByClass<USkeletalMeshComponent>()) Feet = Sk0->GetComponentLocation();
+			if (!Box.IsValid || FVector::Dist2D(Box.GetCenter(), Feet) > 300.0 || Box.GetSize().Z > 400.0)
+				Box = FBox(Feet + FVector(-40, -40, 0), Feet + FVector(40, 40, 180));
+		}
 		if (!Box.IsValid) { FVector C, Ext; A->GetActorBounds(true, C, Ext); Box = FBox(C - Ext, C + Ext); }
 		Out = Box;
 		return true;
@@ -1707,7 +1716,7 @@ void UHrotDpsWorld::TickMovers(double Real)
 				W.Kit = CivilianKits.Num() ? CivilianKits[M.Seed % uint32(CivilianKits.Num())].LoadSynchronous() : PersonKit.Get();
 				W.Name = FString::Printf(TEXT("pedestrian %d"), It.Key);
 				W.bHasPerson = true; W.bHasState = true;
-				A = W.Kit.IsValid() ? SpawnPerson(W, FTransform(Rot, At)) : nullptr;
+				A = W.Kit.IsValid() ? SpawnPerson(W, FTransform(FRotator(0.f, Rot.Yaw, 0.f), At)) : nullptr;   // upright, as below
 				if (!A) { M.bSkipped = true; Count(TEXT("not drawn: pedestrian, no person kit")); continue; }
 #if WITH_EDITOR
 				A->Tags.Add(TEXT("DPS_Walker"));   // a tag, not a label: renaming a Blueprint person rebuilds it (U-16d)
@@ -1745,7 +1754,9 @@ void UHrotDpsWorld::TickMovers(double Real)
 			// a walker: its pose as a person's (the kit's facing and origin), its gait from the track's speed
 			W->Shown.P = P.P; W->Shown.Q = FQuat4d(FVector3d::UnitZ(), P.Heading);
 			W->Track.V = FVector3d(FMath::Cos(P.Heading), FMath::Sin(P.Heading), 0) * P.Speed;
-			FTransform Tw(Rot, At);
+			// a walker stays UPRIGHT: the track's pitch is a car's (live 2026-11-22: a SUMO pedestrian entering a house - the floor's height jump over
+			// a short step gave ~90 deg - lay on his back and walked on, "like Spider-Man")
+			FTransform Tw(FRotator(0.f, Rot.Yaw, 0.f), At);
 			Tw.SetRotation(Tw.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(W->MeshYaw)));
 			Tw.AddToTranslation(FVector(0, 0, W->MeshZ));
 			Tw.SetScale3D(A->GetActorScale3D());
