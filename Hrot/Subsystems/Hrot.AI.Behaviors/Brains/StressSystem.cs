@@ -23,7 +23,16 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class StressModel
     {
-        public const float NearMiss = 0.08f, Hit = 0.25f, FriendDown = 0.2f;
+        public const float Hit = 0.25f, FriendDown = 0.2f;
+        /// <summary>⭐⭐ <c>CE-2470</c> (Temperament §7.8, user 2026-11-21: <i>"if every single bullet counts then machine gun burst could break the guy too early"</i> ·
+        /// <i>"soldier are usually trained so they shoudl not break so easily"</i>) — incoming fire raises him at this rate (before his nerve) while it goes on — a
+        /// round passed him within <see cref="FireHoldsSeconds"/> — half in cover; the calming runs as before. ⇒ fire alone PINS (the aim spoil, UnderFire) but breaks
+        /// only the unsteady or a man alone in the open for long: a regular in the open, alone, ~80 s; in cover or with his leader near, never by fire alone;
+        /// militia in the open ~26 s. What breaks a trained man is fire PLUS a hit, a friend down, being alone or outnumbered. ⛔ SUPERSEDED: a near miss
+        /// 0.08 per round (TS-4) — ~14 rounds broke a regular, one burst.</summary>
+        public const float FirePerSecond = 0.06f;
+        /// <summary>The fire "goes on" while a round passed him this recently (s) — longer than a slow automatic rifle's gap (1.3 s, ts-fire-discipline).</summary>
+        public const double FireHoldsSeconds = 2.0;
         /// <summary>A friend down this close stresses him.</summary>
         public const float FriendDownMetres = 15f;
         /// <summary>Outnumbered: the enemy's share of the strength in play (<c>EnemyStrengthRatio</c>, 0–1) above this — 0.6 is the
@@ -41,7 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// a second × (1 − effective Nerve) — "walking around behind a wall".</summary>
         public const float HeardCloseMetres = 10f, HeardClosePerSecond = 0.03f;
         public const double HeardFreshSeconds = 3.0;
-        /// <summary>⭐ <c>CE-2376</c> (DF-2, measured re-tune) — a near miss on a man IN COVER counts this share.</summary>
+        /// <summary>⭐ <c>CE-2376</c> (DF-2, measured re-tune) — fire on a man IN COVER counts this share (CE-2470: of the rate).</summary>
         public const float NearMissInCover = 0.5f;
         /// <summary>In cover: a cover point this close that faces his nearest remembered threat.</summary>
         public const float CoverMetres = 1.5f;
@@ -102,8 +111,10 @@ namespace Hrot.AI.Behaviors.Brains
             float up = 0f;
             if (EnemyShare(world, e) > OutnumberedShare) up += OutnumberedPerSecond;
             if (!UnderFire.FriendNear(world, e, at, AloneMetres)) up += AlonePerSecond;
+            bool inCover = InCover(world, e, at);
+            if (UnderFireNow(in s, now)) up += inCover ? FirePerSecond * NearMissInCover : FirePerSecond;   // ⭐ CE-2470 — fire is a rate, not a count
             float calm = CalmPerSecond;
-            if (InCover(world, e, at)) calm *= 2f;
+            if (inCover) calm *= 2f;
             if (LeaderNear(world, e, at)) calm *= 2f;
             if (now - s.LastStimulusAt > QuietSeconds) calm *= 2f;   // ⭐ CE-7008 — the fire has stopped: it wears off
             // ⭐ CE-2376 (AQ104 F, DF-1) — an enemy heard close and unseen: no calming while he is there, and the approved rise on top
@@ -374,10 +385,18 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
-        /// <summary>⭐ <c>CE-2376</c> (DF-2) — the near miss's stimulus for him: half in cover (the live measurement: a regular behind a wall
-        /// under two rifles broke in ~10 s and never recovered).</summary>
-        public static float NearMissIn(EntityRepository world, Entity e)
-            => world.HasComponent<SimTransform>(e) && InCover(world, e, world.GetComponentRO<SimTransform>(e).Position) ? NearMiss * NearMissInCover : NearMiss;
+        /// <summary>⭐ <c>CE-2470</c> — a round passed him at <paramref name="now"/>: he is under fire (the rate runs in <see cref="Step"/>), and it is a stimulus
+        /// (the calm's quiet clock restarts). ⛔ No jump in his level — a burst is the same as one round.</summary>
+        public static void FireAt(EntityRepository world, Entity e, double now)
+        {
+            if (!Ensure(world, e, now)) return;
+            ref var s = ref world.GetComponentRW<Stress>(e);
+            s.LastFireAt = (SimInstant)now;
+            s.LastStimulusAt = (SimInstant)now;
+        }
+
+        /// <summary>⭐ <c>CE-2470</c> — a round passed him within <see cref="FireHoldsSeconds"/>.</summary>
+        public static bool UnderFireNow(in Stress s, double now) => (double)s.LastFireAt > 0.0 && now - s.LastFireAt <= FireHoldsSeconds;
 
         /// <summary>⭐ <c>CE-2376</c> (AQ104 F, DF-1) — someone heard within <see cref="HeardCloseMetres"/> in the last
         /// <see cref="HeardFreshSeconds"/>, whom he does not see now (an unknown sound, or a known enemy out of sight), not a neutral.</summary>
@@ -462,7 +481,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 switch (evt.What)
                 {
-                    case SensorChange.NearMiss when Owned(repo, evt.Unit): StressModel.Add(repo, evt.Unit, StressModel.NearMissIn(repo, evt.Unit), now); break;   // ⭐ CE-2376 DF-2
+                    case SensorChange.NearMiss when Owned(repo, evt.Unit): StressModel.FireAt(repo, evt.Unit, now); break;   // ⭐ CE-2470 — a rate while the fire goes on
                     case SensorChange.Hit when Owned(repo, evt.Unit): StressModel.Add(repo, evt.Unit, StressModel.Hit, now); break;   // a man down bleeds Hit edges: Feels refuses him
                     case SensorChange.SquadMemberDown: StressModel.FriendFell(repo, evt.Unit, evt.Target, now, _gateOnAuthority); break;
                 }

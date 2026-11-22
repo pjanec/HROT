@@ -1026,6 +1026,7 @@ sequenceDiagram
 | ⭐ a bound whose movers all STOPPED short *(`CE-2461`, `2026-11-20`, Urban Fight Suite U2)* | over now (`BoundComplete`, not Timeout): `SquadGates.MoversStopped` — every live mover's `NavigationStatus.Result` is no longer `InProgress` (arrived short, blocked, unreachable), ≥ `MoverSettleSeconds` 3 s after the order; the CE-2284 stall test still counts it | 📐 `uf-corner-fight` live: a bound waited its whole 40 s for a man whose move had ended 6 m short — the element advanced ~10 m per 40 s. The hill attack's baseline wait (CE-2439) reads the same status the same way; it is a declared brain-phase read (`AiBrainReads`) |
 | ⭐ the same for BREAK CONTACT *(`CE-2461`)* | `BreakContactPlay.PhaseComplete` ends a bound on `MoversStopped` too (S2-F) | 📐 deterministic U2: the element stood 60 s with no task |
 | ⭐ BREAK CONTACT ENDS WHEN THE CONTACT IS BROKEN *(`CE-2465`, `2026-11-21`, Urban Fight Suite U2-4)* | `BreakContactPlay.Outcome` succeeds once each element has ended a bound (`BoundsDone`) and the squad is in a lull (`SquadSopConditions.InALull`: no fire at it, no new contact for `LullSeconds` 10 s), as well as when both elements reach the point; ⛔ an ordered `To` with no threat still goes all the way. ⛔ SUPERSEDED: "until both are there" was the only end | 📐 deterministic U2 held to 420 s: a mover whose cover picks (≥ 3 m nearer on paper) never moved him kept his element 30 m from the answer, the squad standing upright and still for 280 s |
+| ⭐⭐ …AND NOBODY IS LEFT IN THE ENEMY'S SIGHT *(`CE-2472`, `2026-11-21`, found by CE-2470's regression)* | the lull end also needs every live man out of an identified enemy's sight — by HIS OWN perception (`AfterContact.InAnEnemysSight` → `LookAt.InSightNow`: he saw the enemy with his eyes within 0.5 s; sight goes both ways); and a man in sight whose cover pick is within `CreepMetres` 1.5 m of him (the creep — the pick that does not move him) gets ONE rush toward the EQS retreat answer instead. ⛔ Never the terrain or the UnderFire sight grid from the brain (R-2037 *the brain never reads world geometry*; 🔒 user, restated: *"brain needs to ask about the environment using sensors and EQS and never directly - those might run on different nodes"*) | 📐 U2 probed: Rifleman 1 sat 30 m in front of Red's corner from 105 s to 164 s, through the whole break; before CE-2470 he likely broke and ran on his own, which hid it |
 | ⭐ a cover point on another storey or a ledge *(`CE-2461`)* | never picked: `SquadCover.Pick` skips a point more than `MaxClimbMetres` 1.5 m above or below the mover (fire and movement and break contact share it) | 📐 live: picks at Z = 3 beside a house left the movers standing under them |
 | a pooled contact that is DEAD | skipped (`TopContact(…, liveOnly: true)`); when the threat goes, the watchers go back to `Hold` | the pool remembers the dead until they age out — 📌 measured: the resumed bound suppressed a body (`CE2123` red) |
 
@@ -1643,7 +1644,7 @@ fired; the reaction's assault ran `FireAndMovement`. The D6 hand-over stays a ra
 O-a (with the first demo) → `ua-casualty-care` after R-d → `ua-fire-and-movement` after F-b → `ua-bounding-overwatch` after F-c →
 `ua-squad-danger-crossing` after X-c. Each demo's checker is added to `SCENARIOS` in the same commit as its scenario.
 
-### 7.9 After a broken contact — rally, report, remember, do not walk back in *(behaviors, `2026-11-21`, `CE-2466` + `CE-2467`; build-state: BUILT `2026-11-21` except R3-for-a-bound (CE-2469) — as built §7.9.8)*
+### 7.9 After a broken contact — rally, report, remember, do not walk back in *(behaviors, `2026-11-21`, `CE-2466` + `CE-2467`; build-state: BUILT `2026-11-21` (R3 for a bound on backend's CE-2469) — as built §7.9.8)*
 
 🔒 User, `2026-11-21`: *"The four rules approved. Remembering the place which is covered by fire is also a good idea. Just it resembles the place where explosions are
 happening … I hope that knowledge is of the same kind, or that we unify these two somehow using the same storage mechanism to avoid duplication."* ·
@@ -1818,17 +1819,65 @@ each red-proved; the parallel checks (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`) o
 | rule | as built | where |
 |---|---|---|
 | R1 | ✅ learned at the decision to break contact or hold, and again when the reaction ends with an identified enemy still in the fight (`SquadContacts.IsEnemy` — a neutral is none); one `LearnDirect` per pooled enemy; strength = the max over the reaction (`PeakEnemy`) | `AfterContact.Learn`, `ReactToContactBehavior.Run` |
-| R2 | ✅ `StageRally` — ONLY after a BROKEN contact (a defender's or holder's reaction goes straight back to its task): the move to the hidden point (≤ `RallyMoveSeconds` 30 s), then `SquadHold` 30 s; LACE + a SPOT per enemy on entry. ⭐ A LONE man (one live member) reports and goes on with no rally (`LoneRallySeconds` 0 — nobody to account for). 📐 Measured `2026-11-21`: the full rally after a lone attacker's break contact reddened `ia-area-defend` (his second approach slid into the next attacker's window — a knock-out of the rally alone turned it green; 5 s still red, 0 s green). ⛔ SUPERSEDED: "rally whenever the reaction ends with an enemy alive" (built first; not the design) | `ReactToContactBehavior.Run`, `.Rally`, `AfterContact.ReportRally` |
-| R3 | 🟡 march: priced automatically (backend UF-5). ⛔ bound: NOT built — the brain has no path to read (a bound is a straight line, a cluster's brain no navmesh) ⇒ `CE-2469` asks backend for the route's steer point in the danger answer; meanwhile a bound facing covered ground takes R6 | `HANDOFF_Behaviors_To_Backend_RouteSteerPoint.md` |
+| R2 | ✅ `StageRally` — ONLY after a BROKEN contact (a defender's or holder's reaction goes straight back to its task): `SquadHold` `RallySeconds` 30 s; LACE + a SPOT per enemy on entry. ⭐ **The squad rallies WHERE IT STANDS** — the break contact's last bound already ended in cover out of sight; ⛔ SUPERSEDED the move to the hidden point (§7.9.2 R2 / S9): 📐 `ua-squad-danger-crossing-hold` — the move walked the Leader across the enemy-held road (knock-out of the move alone turned it green). ⭐ A LONE man (one live member) reports and goes on with no rally (`LoneRallySeconds` 0 — nobody to account for). 📐 Measured `2026-11-21`: the full rally after a lone attacker's break contact reddened `ia-area-defend` (his second approach slid into the next attacker's window — a knock-out of the rally alone turned it green; 5 s still red, 0 s green). ⛔ SUPERSEDED: "rally whenever the reaction ends with an enemy alive" (built first; not the design) | `ReactToContactBehavior.Run`, `.Rally`, `AfterContact.ReportRally` |
+| R3 | ✅ march: priced automatically (backend UF-5). ✅ bound: `BeginIssue` and both elements' cover picks aim along `Aim` — from the element's centre toward the route's steer point (`DangerRouteSteer.Of`, backend CE-2469: 20 m along the priced route, fresh within 4 s), `BoundMetres` long; no fresh steer ⇒ the straight line at the objective as before | `BoundingOverwatchPlay.Aim`, `DangerRouteSteer` |
 | R4 | ✅ in `Firm()`: Assault → BreakContact (→ Hold when `HoldsFirm`) when an enemy stands within `RecordNearMetres` 25 m of a fresh Direct record and the squad lacks 3 : 1 against the record's strength; skipped for a lone man pressing on (`PressesOn`); `UnderFireKnowledge` declared for the brain phase (`AiBrainReads`; found by the read check) | `AfterContact.FacesRemembered`, `.Superior`; the share is `SquadInputs.EnemyShare` (one formula, extracted) |
 | R5 | ✅ after the rally, a health share < 0.5 ⇒ a Reinforce request + TaskFailed and `StageUnfit` (holds until re-tasked) | `ReactToContactBehavior.Rally` |
-| R6 | ✅ `CoveredByFireAhead` SOP row ABOVE "Under a platoon"; the reaction holds every man; a way round before it reports ends it; after 120 s a FireSupport request + TaskFailed, then held until a new order (never back in when the record cools); `DangerAreaAhead` excludes the kind; `DangerRouteWatch` asks for it | `CoveredByFireAheadBehavior`, `SquadSopConditions.CoveredByFireAhead` |
+| R6 | ✅ `CoveredByFireAhead` SOP row ABOVE "Under a platoon"; the reaction holds every man; a way round before it reports ends it; after 120 s a FireSupport request + TaskFailed, then held until a new order (never back in when the record cools); ⭐ the area must lie ≥ `CoveredMinAheadMetres` 5 m AHEAD (📐 U2: inside it, the hold froze two men at the corner and they died — a squad already in the field of fire is the contact drill's, not this row's); `DangerAreaAhead` excludes the kind; `DangerRouteWatch` asks for it | `CoveredByFireAheadBehavior`, `SquadSopConditions.CoveredByFireAhead` |
 
 📐 **Scenarios `2026-11-21`:** `ia-area-defend`, `ia-area-clear`, `ia-house-hunt`, `agg-break-contact`, `pc-defend-house`, `uf-car-shootout` PASS; `uf-corner-fight` (U2, 780 s): ⭐ both never-back-in rows PASS (no Blue man within 15 m of Red's corners) — but L1 knot (309 s) and L3 exposure (377 s) FAIL: the resumed bound walks the same street again because R6 never fires — the Direct record exists (`/entities?component=UnderFireKnowledge`: Friend, Direct, (639, 383), 150 m) yet the route danger answer carries no `CoveredByFire` area (📄 `NOTE_Behaviors_To_Backend_UnderFire_Not_Reported.md`, backend UF-6), and a bound has no priced path (CE-2469).
 
-⚠ **Deviations from §7.9.2, argued:** ① R3 for a bound is not built (above — a premise failed, R-106: the item stopped, the rest built). ② R2's casualty rule (a wounded man inside a fresh record is fully exposed) is not built — ⏭ with `CasualtyExposure`, filed in CE-2466. ③ The platoon learning R1 itself (S3) is not built — ⏭ CE-2466. ④ U2's LACE row is not expressible: the checks grammar reads component fields, and a report is a queued item ⇒ the rails assert it (`CE2466_R1_R2_…`).
+⚠ **Deviations from §7.9.2, argued:** ① R3 for a bound waited on CE-2469 (a premise failed, R-106) — ✅ built once backend delivered. ⓪ R2 rallies in place (above). ② R2's casualty rule (a wounded man inside a fresh record is fully exposed) is not built — ⏭ with `CasualtyExposure`, filed in CE-2466. ③ The platoon learning R1 itself (S3) is not built — ⏭ CE-2466. ④ U2's LACE row is not expressible: the checks grammar reads component fields, and a report is a queued item ⇒ the rails assert it (`CE2466_R1_R2_…`).
 
 **Rails** (`SquadManeuverTests.AfterContact.cs`, all under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`, each red-proved by a compiling mutation): `CE2466_R1_R2_…` (per-position learn, rally, LACE + SPOTs) · `CE2466_R4_…` (assault → break contact at a remembered force; control without the record) · `CE2466_R6_CoveredGround…` (not a crossing, its own condition) · `CE2466_R6_TheSop…` (held short, FireSupport + TaskFailed at 120 s, still held after the record cools). Updated for the rally: `CE2123_ReactToContact_…BreaksContact…`, `CE2465_BreakContact_EndsInALull…`; `CE2161_…` for the new kind. Squad gates 442/442.
+
+### 7.10 An ordered attack presses on while it is superior *(behaviors, `2026-11-21`, `CE-2467`; build-state: BUILT)*
+
+🔒 User, `2026-11-21`: *"ok follow your lean"* — on: *"recast CE-2467 as 'the ordered attack is abandoned under fire'"*.
+
+📐 **Measured** (`uf-corner-assault`, U2b: a 6-man squad on an ATTACK order v 2 men at a corner, live probes to 300 s): the assault's ROUTE went round the houses
+(B4 west round the house (628,343)→(625,377); B2/B5 behind the east row (676,353)→(679,375)) — ⛔ CE-2467's first premise, "it walks up the street", was
+WRONG. ⭐ What failed: at the first hit the squad's contact reaction paused the attack — break contact, casualty care, break contact, hold — four times;
+6 v 2 broke contact, three men bled out, and from 146 s three healthy men sat in `SquadHold` 40 m from one standing enemy.
+
+**The proven solution** (doctrine): an attack, once launched, is carried through while the attacker keeps superiority; casualties are treated on the objective
+(buddy aid only where it does not stop the assault); the attack is broken off only when superiority is lost.
+
+```mermaid
+graph TD
+  SOP[BasicSquadSop rows: under fire / leader down / member down / contact] -->|guard| ND[SquadDefendBehavior.NotDefending]
+  ND --> D[not defending]
+  ND --> SBF[not supporting by fire - CE-2436]
+  ND --> CP[not manning a checkpoint - CE-4622]
+  ND --> PA[NOT PressesTheAttack - CE-2467]
+  CARE[care-in-a-lull row] -->|guard| NPA[NotPressingTheAttack - CE-2467]
+  PA --> CO[CurrentOrders.Of: Attack, running]
+  PA --> SUP[AfterContact.Superior - R4's 3 : 1]
+```
+*What the picture shows that the prose hid:* the guard is ONE more clause of the existing composite "the squad's own task fights its contact" — no fourth
+copy per row; and superiority is the SAME test R4 uses, so "press on" and "never assault a force you broke from" can never disagree.
+
+| | as built | where |
+|---|---|---|
+| the guard | `ReactToContactBehavior.PressesTheAttack`: the order is `OrderKind.Attack` and RUNNING (not paused), ≥ 2 men in the fight, `AfterContact.Superior` (enemy share ≤ ⭐ `PressShare` 0.4 — 1.5 : 1, CE-2481; ⛔ SUPERSEDED: ≤ 0.25, the 3 : 1 that starts an assault) | `SquadContactBehaviors.cs` |
+| ⭐ hysteresis (CE-2481, `2026-11-22`) | a RUNNING ordered attack is broken off only at the culminating point (1.5 : 1), while R4 still needs 3 : 1 to START an assault. 📐 uf-corner-assault: 6 v 2 is exactly 0.25 — one man grazed (100 → 87.5) at 16.1 s made it 0.254 and the whole squad stopped to react; the pool's count was right (2 contacts, CE-2474). Rail `CE2481_ARunningAttack_PressesUntilOneAndAHalfToOne_NotStoppedByOneGraze` | `AfterContact.PressShare` |
+| the contact rows | `NotDefending` gains `!PressesTheAttack` — the four contact rows already carry it | `SquadDefendBehavior.NotDefending` |
+| the care row | a new guard `NotPressingTheAttack` | `BasicSquadSop` (id c2467…a3) |
+| superiority lost | the guard opens: the reaction decides again (break contact / hold — R4, R5, §7.9) | — |
+| the lone man | unchanged — `PressesOn` (CE-2454) | — |
+
+⭐⭐ **The route half** *(user `2026-11-21`: "Yes.")* — 📐 the deterministic U2 run (`ddfbd8c65`) REVERSES the "routes went round" finding above for U2:
+the reaction's assault took the flank point (651, 392) — the junction mouth — straight up the enemy's street, a man stood there in Red's sight 98–108 s.
+⚠ **The U2b probe that said "routes go round" was one live run in a different layout — too broad a conclusion.** ⭐ Built: `SuppressAndManeuverPlay.Start`
+LEARNS the ground the enemy covers (`AfterContact.Learn` — the SAME `Direct` record a break contact writes, R1) and asks its flank only once the side
+`Remembers` it (`FlankWaitSeconds` 2 s at most) ⇒ the flank query's EQS path cost and every mover's route are priced round that ground ON THE NAVMESH NODE
+(Minefields §9b UF-5) — the brain asks; it never reads terrain (R-2037). The last leg, through the enemy's position, crosses it as it must. ⚠ To measure:
+a priced detour beyond the flank search's reach (farthest × 1.5 + 25 m) reads as no path ⇒ no flank ⇒ the assault goes straight through.
+Rail: `CE2467_TheAssault_LearnsTheGroundTheEnemyCovers_AndAsksItsFlankOnceThatIsKnown`.
+
+Rejected: **the order-conduct table** (CE-4621) — static per order kind, but pressing on depends on superiority NOW · **a separate guard on each row** — four
+copies of one rule (ruling 9) · ~~price the flank route with UnderFire — the routes already went round~~ ⛔ SUPERSEDED the same day: U2 showed they do not (above).
+Rail: `SquadManeuverTests.CE2467_AnAttackOrder_WithSuperiority_IsNotPausedByTheContactReaction_OutnumberedItReacts`. Scenario: `uf-corner-assault` (U2b).
 
 #### 7.9.7 The independent review — `2026-11-21` *(two read-only reviewers, one per half; findings verified where marked ✅; resolutions folded above and in Minefields §9b)*
 

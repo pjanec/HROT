@@ -2033,6 +2033,8 @@ namespace Hrot.NED.Descriptors
         public long  Signature;
         /// <summary>⭐ CE-4666 (D-8) — 1 when heard FROM an opening or a corner (the point is the way in, not the source).</summary>
         public byte  Via;
+        /// <summary>⭐ <c>CE-2474</c> (Sensing §8.6d) — the bang's token on the hearing node (0 = a continuous sound); never its source.</summary>
+        public long  Sound;
     }
 
 }

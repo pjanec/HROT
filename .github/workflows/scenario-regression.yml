@@ -52,6 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       scenarios: ${{ steps.list.outputs.scenarios }}
+      shards: ${{ steps.list.outputs.shards }}
     steps:
       - uses: actions/checkout@v4
       - id: list
@@ -64,17 +65,21 @@ jobs:
             names=$(echo "$want" | tr ',' '\n')
           fi
           echo "scenarios=$(echo "$names" | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+          # ⭐ R-2141 — a matrix holds at most 256 jobs and the set is 260+ (📐 run #1, 2026-11-21, failed before any scenario ran):
+          # each tier is SHARDS jobs, shard k runs every SHARDS-th scenario from k (fewer shards when fewer scenarios)
+          n=$(echo "$names" | grep -c . || true); k=$(( n < 20 ? n : 20 ))
+          echo "shards=$(seq 0 $(( k - 1 )) | jq -cs .)" >> "$GITHUB_OUTPUT"
 
   editor-tier:
     needs: [build, list]
     if: ${{ github.event.inputs.tiers != 'cluster' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 75           # above the runner's --verify-timeout default (60 min)
+    timeout-minutes: 240          # a shard is ~13 scenarios (uc-urban-battle alone ~30 min); GitHub's job cap is 360
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
-        scenario: ${{ fromJson(needs.list.outputs.scenarios) }}
+        shard: ${{ fromJson(needs.list.outputs.shards) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -84,27 +89,33 @@ jobs:
         with:
           name: runner-bin
           path: ${{ env.RUNNER_BIN }}
-      - name: verify ${{ matrix.scenario }} (editor tier)
-        run: NO_BUILD=1 OUT=out scripts/scenario-regression.sh "${{ matrix.scenario }}"
+      - name: verify shard ${{ matrix.shard }} (editor tier, two at a time)
+        env:
+          SCENARIOS: ${{ needs.list.outputs.scenarios }}
+          SHARDS: ${{ needs.list.outputs.shards }}
+        run: |
+          mine=$(jq -r --argjson k ${{ matrix.shard }} --argjson n "$(echo "$SHARDS" | jq length)" 'to_entries | map(select(.key % $n == $k) | .value) | join(",")' <<< "$SCENARIOS")
+          echo "shard ${{ matrix.shard }}: $mine"
+          JOBS=2 NO_BUILD=1 OUT=out scripts/scenario-regression.sh "$mine"
       - if: always()
         name: junit to the summary
-        run: python3 scripts/junit-summary.py out/junit.xml >> "$GITHUB_STEP_SUMMARY"
+        run: for j in $(find out -name junit.xml); do python3 scripts/junit-summary.py "$j" >> "$GITHUB_STEP_SUMMARY"; done
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: editor-${{ matrix.scenario }}
+          name: editor-shard-${{ matrix.shard }}
           path: out/
 
   cluster-tier:
     needs: [build, list]
     if: ${{ github.event.inputs.tiers != 'editor' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 300
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
-        scenario: ${{ fromJson(needs.list.outputs.scenarios) }}
+        shard: ${{ fromJson(needs.list.outputs.shards) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -121,16 +132,47 @@ jobs:
         with:
           name: runner-bin
           path: ${{ env.RUNNER_BIN }}
-      - name: verify ${{ matrix.scenario }} (cluster tier)
+      - name: verify shard ${{ matrix.shard }} (cluster tier, one at a time — each boots a whole cluster)
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           GALLIUM_DRIVER: llvmpipe
-        run: TIER=cluster NO_BUILD=1 OUT=out scripts/scenario-regression.sh "${{ matrix.scenario }}"
+          SCENARIOS: ${{ needs.list.outputs.scenarios }}
+          SHARDS: ${{ needs.list.outputs.shards }}
+        run: |
+          mine=$(jq -r --argjson k ${{ matrix.shard }} --argjson n "$(echo "$SHARDS" | jq length)" 'to_entries | map(select(.key % $n == $k) | .value) | join(",")' <<< "$SCENARIOS")
+          echo "shard ${{ matrix.shard }}: $mine"
+          TIER=cluster NO_BUILD=1 OUT=out scripts/scenario-regression.sh "$mine"
       - if: always()
         name: junit to the summary
-        run: python3 scripts/junit-summary.py out/junit.xml >> "$GITHUB_STEP_SUMMARY"
+        run: for j in $(find out -name junit.xml); do python3 scripts/junit-summary.py "$j" >> "$GITHUB_STEP_SUMMARY"; done
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cluster-${{ matrix.scenario }}
+          name: cluster-shard-${{ matrix.shard }}
           path: out/
+
+  # ⭐ R-2141 — ONE table for the whole run: every shard's results downloaded, every failing scenario listed per tier on the run's summary page
+  summary:
+    needs: [editor-tier, cluster-tier]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: all
+          pattern: "*-shard-*"
+      - name: the run's verdict, per tier
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, glob, os
+          for tier in ("editor", "cluster"):
+              total, failed = 0, []
+              for f in sorted(glob.glob(f"all/{tier}-shard-*/**/summary.json", recursive=True)):
+                  try: d = json.load(open(f))
+                  except Exception: continue
+                  if "failed" not in d: continue          # the JOBS merge's own file — the runner's per-shard files carry the counts
+                  total += d.get("count", 0); failed += d.get("failed", [])
+              if total == 0: print(f"### {tier} tier: no results"); continue
+              print(f"### {tier} tier: {total - len(failed)} of {total} pass")
+              for name in sorted(set(failed)): print(f"- ❌ `{name}`")
+          PY

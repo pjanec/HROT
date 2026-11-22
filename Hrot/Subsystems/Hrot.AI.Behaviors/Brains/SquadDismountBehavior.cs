@@ -374,7 +374,12 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool CoveredByFireAhead(ref SopAreaParams p, Entity self, EntityRepository world)
             => DangerCrossingPlay.NextArea(world, self, out var area)
                && area.Kind == Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire
+               && area.DistanceAlongRoute >= CoveredMinAheadMetres   // ⭐ already INSIDE it: no hold in the open under its fire — the task (or the reaction) goes on
                && area.DistanceAlongRoute <= (p.WithinMetres > 0f ? p.WithinMetres : 30f);
+
+        /// <summary>⭐ <c>CE-2466</c> R6 — covered ground must start at least this far ahead (m) to hold short of it. 📐 U2: the row fired with the assault
+        /// already AT Red's corner (the area at 0 m) and two men died holding in the open there.</summary>
+        public const float CoveredMinAheadMetres = 5f;
 
         [Fbt.Kernel.SharedAiCondition]
         public static bool DangerAreaAhead(ref SopAreaParams p, Entity self, EntityRepository world)

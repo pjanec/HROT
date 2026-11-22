@@ -130,6 +130,9 @@ namespace Hrot.AI.Behaviors.Brains
                 for (int i = 0; i < ctx.Roster.Count; i++)
                     if (Fdp.Toolkit.Squad.SquadRoles.CarriesSupportWeapon(Fdp.Toolkit.Squad.SquadRoles.Of(ctx.World, in ctx.Roster, i)))
                         partition[i] = new MemberPartitionInput(1f, 0.1f);
+            // ⭐⭐ CE-2467 (Squad Tactics §7.10) — the ground the enemy covers becomes the side's knowledge (the SAME learn as a break contact, R1), so the
+            //   flank query's path cost and every mover's route are priced round it on the navmesh node — the brain asks, never reads the terrain (R-2037)
+            AfterContact.Learn(ctx.World, ctx.Commander, Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(ctx.World, ctx.Commander));
             return PlayStart.Go;
         }
 
@@ -139,7 +142,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
 
             ushort phase = ctx.Squad.PhaseId;
-            if (phase == SuppressAndManeuverManeuver.PhaseSuppressing && ws.HasAnswer == 0) AskForFlank(ref p, ref ws, in ctx);
+            if (phase == SuppressAndManeuverManeuver.PhaseSuppressing && ws.HasAnswer == 0 && FlankKnowledgeReady(in ws, in ctx)) AskForFlank(ref p, ref ws, in ctx);
             if (phase == SuppressAndManeuverManeuver.PhaseAssaulting
                 && Vector3.Distance(ws.ThreatPoint, ws.IssuedThreatPoint) > ThreatMovedMetres) ws.Reissue = 1;
         }
@@ -197,6 +200,15 @@ namespace Hrot.AI.Behaviors.Brains
         private static void AskForFlank(ref SuppressAndManeuverParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
             => SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindFlankingPosition.BlueprintId, FlankSite, p.FlankSearchRadius,
                 SquadManeuverRunner.FirstLive(in ctx, SuppressAndManeuverManeuver.ElementBaseOfFire), new Entity((ulong)ws.ThreatId));
+
+        /// <summary>⭐ <c>CE-2467</c> — the flank is asked once the enemy's covered ground is the side's knowledge (the learn lands next tick, the cost map in the
+        /// next serial pre-pass), or after this long (s) — a world with no such knowledge, or a learn that never lands, still flanks.</summary>
+        public const double FlankWaitSeconds = 2.0;
+
+        private static bool FlankKnowledgeReady(in SquadPlayState ws, in SquadPlayContext ctx)
+            => !ctx.World.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.UnderFireKnowledge>()
+               || ctx.Now - ws.StartedAt >= FlankWaitSeconds
+               || AfterContact.Remembers(ctx.World, ctx.Commander, ws.ThreatPoint);
 
         /// <summary>⭐ <c>CE-2141</c> (D2-G) — what the drill attacks: the named target (pooled, or where it stands — the order's
         /// designation), else the squad's top identified contact. False = nothing yet (wait).</summary>

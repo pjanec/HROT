@@ -25,6 +25,9 @@ namespace Fdp.Toolkit.Behavior.Components
         public byte Broken;
         /// <summary>⭐ TS-6 — sim time his level fell under the recovery mark (0 = not under it).</summary>
         public SimInstant CalmSince;
+        /// <summary>⭐ <c>CE-2470</c> (Temperament §7.8) — sim time a round last passed him (0 = never): fire stresses him as a RATE while it goes on
+        /// (<c>StressModel.FirePerSecond</c>), never per round — a burst is no more than one round in the same second.</summary>
+        public SimInstant LastFireAt;
     }
 
     /// <summary>

@@ -249,7 +249,9 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ CE-2465 (U2-4) — the contact IS broken: each element has bounded once and the squad is in a lull (no fire at it, no new contact
             //   for LullSeconds) ⇒ done, even with an element short of the point. 📐 uf-corner-fight: a mover whose cover picks never moved him
             //   kept his element's centre 30 m from the answer and the squad stood 280 s. ⛔ Not for an ordered To with no threat (go there).
-            if (ws.ThreatId != 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander)) return NodeStatus.Success;
+            //   ⭐⭐ CE-2472 — and nobody is left in an enemy's sight (his own perception): 📐 U2, a man whose pick did not move him sat 30 m in front of
+            //   the corner through the whole break and the drill called the contact broken.
+            if (ws.ThreatId != 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander) && !AnyInSight(in ctx)) return NodeStatus.Success;
             for (byte e = 0; e < 2; e++)
             {
                 var c = ctx.Centre(e, out bool any);
@@ -295,6 +297,10 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2460 — cover to cover; with no cover ahead ONE rush (BoundMetres) toward the answer, never the whole way at once (📐 U1, live:
             //   the first element found no pick and ran ~55 m across the street). No threat (an ordered To) ⇒ straight to the answer (S2-F)
             bool cover = SquadCover.Has(in p.Cover, member, out var pick);
+            // ⭐⭐ CE-2472 — a pick that would not move him (the creep, CE-2465's ⚠) while he is in an enemy's sight is no cover: ONE rush toward the
+            //   hidden point (the EQS retreat answer) takes him out of it
+            if (cover && ws.ThreatId != 0 && Flat(pick - at) < CreepMetres && ctx.Live(member, out var mover) && AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, mover))
+                cover = false;
             var point = cover ? pick : ws.ThreatId != 0 ? SquadCover.OneRush(at, ws.Answer, BoundMetres) : ws.Answer;
             return new MemberOrder
             {
@@ -306,6 +312,17 @@ namespace Hrot.AI.Behaviors.Brains
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
 
         private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
+
+        /// <summary>⭐ <c>CE-2472</c> — a cover pick closer than this to the man (m) does not move him.</summary>
+        public const float CreepMetres = 1.5f;
+
+        /// <summary>⭐ <c>CE-2472</c> — a live man of the squad is in an enemy's sight (his own perception).</summary>
+        private static bool AnyInSight(in SquadPlayContext ctx)
+        {
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                if (ctx.Live(i, out var man) && AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, man)) return true;
+            return false;
+        }
 
         /// <summary>⭐ CE-2278 — seconds a thrown smoke order is given before the squad's orders are re-sent (the throw takes ≈ 1–2 s).</summary>
         public const float SmokeSeconds = 3f;
@@ -350,8 +367,6 @@ namespace Hrot.AI.Behaviors.Brains
         public CasualtyCareParams Care;
         /// <summary>⭐ <c>CE-2466</c> R2 (Squad Tactics §7.9) — the rally hold after a contact with an enemy still there.</summary>
         public SquadHoldParams Rally;
-        /// <summary>⭐ <c>CE-2466</c> R2 (S9) — the move to the break contact's hidden point before the rally (an ordered break contact to it).</summary>
-        public BreakContactParams RallyMove;
         /// <summary>⭐ <c>CE-2466</c> R5 — the hold of a squad no longer fit to fight (no end: its superior re-tasks it).</summary>
         public SquadHoldParams Unfit;
     }
@@ -376,11 +391,6 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Learned;
         /// <summary>⭐ <c>CE-2466</c> — 1 when the reaction ended by pressing on (CE-2454): no rally.</summary>
         public byte NoRally;
-        /// <summary>⭐ <c>CE-2466</c> R2 — 0 moving to the rally point · 1 holding there.</summary>
-        public byte RallyStep;
-        /// <summary>⭐ <c>CE-2466</c> R2 (S9) — the break contact's hidden point, captured before its play state is cleared; <see cref="HasRallyAt"/> 0 = rally in place.</summary>
-        public System.Numerics.Vector3 RallyAt;
-        public byte HasRallyAt;
     }
 
     /// <summary>
@@ -425,7 +435,6 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.Order.Care.EvacuateMetres = Math.Max(0f, authored.EvacuateMetres);   // ⭐ CE-7009
             block.Order.Rally = new SquadHoldParams { Speed = speed, DurationSeconds = AfterContact.RallySeconds };   // ⭐ CE-2466 R2
-            block.Order.RallyMove = BreakContactBehavior.Defaults(authored.RetreatSearchRadius, speed, arrival, RallyMoveSeconds);
             block.Order.Unfit = new SquadHoldParams { Speed = speed };                                                 // ⭐ CE-2466 R5
             block.State = default;
         }
@@ -439,8 +448,7 @@ namespace Hrot.AI.Behaviors.Brains
         public const byte StageReturnFire = 0, StageDrill = 1, StageHoldOn = 2;
         /// <summary>⭐ <c>CE-2466</c> R2 — the rally after a contact with an enemy still there · R5 — the hold of a squad no longer fit to fight.</summary>
         public const byte StageRally = 3, StageUnfit = 4;
-        /// <summary>⭐ <c>CE-2466</c> R2 — the move to the rally point is given this long (s), then the squad rallies where it stands.</summary>
-        public const float RallyMoveSeconds = 30f;
+
 
         /// <summary>⭐ <c>CE-2158</c> §7.6.3 — the assault distance: the squad closes by fire and movement until its halves are this near
         /// the contact (m); a contact already within this + one rush is flanked at once.</summary>
@@ -493,6 +501,24 @@ namespace Hrot.AI.Behaviors.Brains
             return fighting == 1;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2467</c> (Squad Tactics §7.10) — the squad is RUNNING an ordered attack (<see cref="Hrot.AI.Behaviors.Orders.OrderKind.Attack"/>, not paused)
+        /// with two or more men in the fight and still clearly stronger than its contacts — ⭐ CE-2481: up to 1.5 : 1 (<see cref="AfterContact.PressShare"/>; the 3 : 1 of R4
+        /// starts an assault, it does not end a running one): its attack drill IS the answer
+        /// to the contact, so the contact reaction does not pause it, and a casualty waits until the assault is through (doctrine: the attack continues; the
+        /// wounded are treated on the objective). Superiority lost ⇒ false ⇒ the reaction decides again (break contact, hold — R4, R5). 📐 uf-corner-assault:
+        /// 6 v 2 broke contact four times and cycled care while three men bled out. No allocation.
+        /// </summary>
+        public static bool PressesTheAttack(EntityRepository world, Entity self)
+        {
+            var order = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self);
+            return order.Kind == Hrot.AI.Behaviors.Orders.OrderKind.Attack && !order.Paused
+                && AfterContact.LiveMembers(world, self) >= 2 && AfterContact.Superior(world, self, 0f, AfterContact.PressShare);   // ⭐ CE-2481 — hysteresis: pressed until 1.5 : 1
+        }
+
+        /// <summary>The care row's guard: <see cref="PressesTheAttack"/> false.</summary>
+        public static bool NotPressingTheAttack(Entity self, EntityRepository world) => !PressesTheAttack(world, self);
+
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
 
@@ -524,34 +550,22 @@ namespace Hrot.AI.Behaviors.Brains
             //   met the second one late.
             bool broke = (SquadContactResponse)ws.Choice.Winner == SquadContactResponse.BreakContact && ws.Play.HasAnswer == 1;
             if (!broke) return fight;
-            var rallyAt = ws.Play.Answer;
             // ⭐ CE-2466 R2 — a LONE man has nobody to account for and nothing to redistribute: he reports and goes on after a short pause
             //   (📐 ia-area-defend: a lone attacker's full rally pushed his second approach into the window of the next attacker's)
             bool lone = AfterContact.LiveMembers(world, self) <= 1;
             AfterContact.ReportRally(world, self);
             if (lone && AfterContact.LoneRallySeconds <= 0f) return fight;
             Next(ref ws, StageRally, world);
-            ws.RallyStep = lone ? (byte)1 : (byte)0;
-            ws.RallyAt = rallyAt; ws.HasRallyAt = 1;
             p.Rally.DurationSeconds = lone ? AfterContact.LoneRallySeconds : AfterContact.RallySeconds;
             return NodeStatus.Running;
         }
 
-        /// <summary>⭐ <c>CE-2466</c> R2 + R5 — to the hidden point (≤ <see cref="RallyMoveSeconds"/>), hold <see cref="AfterContact.RallySeconds"/>, then fit ⇒ the
-        /// reaction ends (the task resumes, its route priced by what was learned) · unfit ⇒ a Reinforce request, TaskFailed, and it stays out.</summary>
+        /// <summary>⭐ <c>CE-2466</c> R2 + R5 — hold <see cref="AfterContact.RallySeconds"/> where the squad stands (the break contact ended out of contact, CE-2465),
+        /// then fit ⇒ the reaction ends (the task resumes, its route priced by what was learned) · unfit ⇒ a Reinforce request, TaskFailed, and it stays out.
+        /// ⛔ SUPERSEDED (S9's "both elements to the hidden point"): an ordered move there walks straight with no threat to hide from — 📐
+        /// ua-squad-danger-crossing-hold: it took the Leader across the road the enemy held (a knock-out of the move alone turned it green).</summary>
         private static NodeStatus Rally(ref ReactToContactParams p, ref ReactToContactState ws, Entity self, EntityRepository world)
         {
-            double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
-            if (ws.RallyStep == 0)
-            {
-                p.RallyMove.To = ws.RallyAt; p.RallyMove.HasTo = 1;
-                var move = SquadManeuverRunner.Tick<BreakContactPlay, BreakContactParams>(ref p.RallyMove, ref ws.Play, self, world);
-                if (move == NodeStatus.Running && now - (double)ws.StageSince < RallyMoveSeconds) return NodeStatus.Running;
-                SquadManeuverRunner.DropSensor(ref ws.Play, world);
-                ws.Play = default;
-                ws.RallyStep = 1;
-                ws.StageSince = (SimInstant)now;
-            }
             var hold = SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.Rally, ref ws.Play, self, world);
             if (hold == NodeStatus.Running) return NodeStatus.Running;
             if (hold == NodeStatus.Failure) return NodeStatus.Failure;

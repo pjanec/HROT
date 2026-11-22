@@ -24,7 +24,7 @@ namespace Hrot.Editor.DebugApi
             ref readonly var m = ref _world.GetComponentRO<TargetMemory>(unit);
             var slots = new JsonArray();
             int count = System.Math.Min(m.Count, PerceptionConstants.MaxTrackedTargets);
-            fixed (long* ids = m.EntityIds)
+            fixed (long* ids = m.EntityIds, snd = m.SoundIds)
             fixed (float* x = m.PositionsX, y = m.PositionsY, z = m.PositionsZ, fresh = m.Freshness, radius = m.Radius)
             fixed (uint* seen = m.LastSeenTick)
             fixed (byte* modal = m.Modalities, anon = m.Anonymous, cls = m.SourceClass)
@@ -41,6 +41,8 @@ namespace Hrot.Editor.DebugApi
                         ["lastSeenTick"] = seen[i],
                         ["modalities"]   = modal[i],
                         ["sourceClass"]  = cls[i],
+                        ["sound"]        = snd[i],   // ⭐ CE-2474 — the token of the last bang heard into the slot (0 = none)
+                        ["heardThrough"] = anon[i] == Fdp.Toolkit.Perception.Components.TargetMemory.HeardThroughAnOpening,
                     };
                     if (anon[i] == 0)
                     {

@@ -80,6 +80,20 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2472</c> — <paramref name="man"/> is in an enemy's sight: by HIS OWN perception, he saw an identified enemy of the squad's pool with his eyes
+        /// within <see cref="LookAt.InSightTicks"/> (<see cref="LookAt.InSightNow"/>) — sight goes both ways. ⛔ Never the terrain: the brain asks the world
+        /// only through its sensors (user, 2026-11-21: "brain needs to ask about the environment using sensors and EQS and never directly - those might run on
+        /// different nodes"). No allocation.
+        /// </summary>
+        public static bool InAnEnemysSight(EntityRepository world, Entity commander, Entity man)
+        {
+            var pool = Pool(world, commander, out int n);
+            for (int i = 0; i < n; i++)
+                if (Identified(world, in pool[i], out var enemy) && LookAt.InSightNow(world, man, enemy)) return true;
+            return false;
+        }
+
         /// <summary>⭐ R1 — one <c>Direct</c> record per identified, live enemy of the pool (two corners = two records); a learn lands next tick.
         /// <paramref name="enemyStrength"/> = the most the reaction saw (S6). Returns how many were learned.</summary>
         public static int Learn(EntityRepository world, Entity commander, float enemyStrength)
@@ -118,9 +132,23 @@ namespace Hrot.AI.Behaviors.Brains
             return any;
         }
 
+        /// <summary>⭐ <c>CE-2467</c> — the side holds a fresh <c>Direct</c> record at <paramref name="point"/> (within <see cref="RecordNearMetres"/>): the ground that
+        /// enemy covers is known, so routes and EQS path costs on the navmesh node are priced round it (Minefields §9b UF-5).</summary>
+        public static bool Remembers(EntityRepository world, Entity commander, Vector3 point)
+        {
+            int side = SideOf(world, commander);
+            if (side < 0 || !world.IsComponentTypeRegistered<UnderFireKnowledge>()) return false;
+            return UnderFireTable.Of(world).NearestFresh(side, point, RecordNearMetres, out var r) && r.Cause == UnderFireCause.Direct;
+        }
+
         /// <summary>⭐ R4 — the squad now has superiority over <paramref name="enemy"/> (its share ≤ <see cref="AssaultShare"/>).</summary>
-        public static bool Superior(EntityRepository world, Entity commander, float enemy)
-            => SquadInputs.EnemyShare(MathF.Max(enemy, SquadInputs.EnemyDangerOf(world, commander)), SquadInputs.OwnStrengthOf(world, commander)) <= AssaultShare;
+        public static bool Superior(EntityRepository world, Entity commander, float enemy, float share = AssaultShare)
+            => SquadInputs.EnemyShare(MathF.Max(enemy, SquadInputs.EnemyDangerOf(world, commander)), SquadInputs.OwnStrengthOf(world, commander)) <= share;
+
+        /// <summary>⭐ <c>CE-2481</c> (Squad Tactics §7.10) — the enemy share up to which a RUNNING ordered attack keeps pressing (1.5 : 1): the
+        /// culminating point, not the 3 : 1 that starts an assault (<see cref="AssaultShare"/>). One rule for both had no margin — 📐 uf-corner-assault,
+        /// 6 v 2 is exactly 0.25: one man grazed (100 → 87.5 health) at 16.1 s made it 0.254 and the whole squad stopped to react.</summary>
+        public const float PressShare = 0.4f;
 
         /// <summary>⭐ R5 — still fit to fight: the squad's health share ≥ <see cref="FitShare"/>.</summary>
         public static bool Fit(EntityRepository world, Entity commander)

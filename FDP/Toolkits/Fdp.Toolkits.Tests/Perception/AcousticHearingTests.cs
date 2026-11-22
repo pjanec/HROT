@@ -110,17 +110,19 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(100f * factor, ears.Range, 2);
         }
 
-        /// <summary>⭐ AQ104 E ② — footsteps inside the house, 13 m from a man outside its west wall: a 20 m carry is heard in the open,
-        /// not through the wall (halved to 10 m); a 30 m one still is (15 m — a halving, not a wall of silence). ✅ Red-proof: the wall
-        /// line removed from <c>AcousticSensorGenerator.Hear</c> ⇒ the 20 m steps heard through the wall ⇒ red.</summary>
+        /// <summary>⭐ AQ104 E ② / ⭐ <c>CE-2479</c> (R-2143 — a wall costs its material's REAL loss, no one-halving cap) — inside a closed concrete box,
+        /// 13 m from a man outside its west wall: footsteps carrying 30 m are heard in the open and NOT through the wall (40 dB, High band: 0.3 m);
+        /// a rifle shot (Mid, ×0.6: 24 dB) carrying 400 m still is (25 m), one carrying 150 m is not (9.5 m). ✅ Red-proofs: the wall line removed ⇒
+        /// the steps heard through the wall ⇒ red; the cap back (6 dB) ⇒ the 30 m steps heard (15 m) ⇒ red.</summary>
         [Fact]
-        public void AQ104E_AWallBetween_HalvesHowFarFootstepsCarry()
+        public void AQ104E_CE2479_AWallBetween_StopsFootsteps_ARifleShotPasses()
         {
             var inside = new Vector3(5f, 5f, 0f);
             var outside = new Vector3(-8f, 5f, 0f);
-            Assert.True(Heard(false, inside, outside, 20f, SoundSourceClass.Footsteps));
-            Assert.False(Heard(true, inside, outside, 20f, SoundSourceClass.Footsteps));
-            Assert.True(Heard(true, inside, outside, 30f, SoundSourceClass.Footsteps));
+            Assert.True(Heard(false, inside, outside, 30f, SoundSourceClass.Footsteps));
+            Assert.False(Heard(true, inside, outside, 30f, SoundSourceClass.Footsteps));
+            Assert.True(Heard(true, inside, outside, 400f, SoundSourceClass.SmallArms));
+            Assert.False(Heard(true, inside, outside, 150f, SoundSourceClass.SmallArms));
         }
 
         /// <summary>⭐ <c>CE-4666</c> (D-8) — a sound heard STRAIGHT (open ground, nothing between) carries no via bit: its point is the source
@@ -149,23 +151,24 @@ namespace Fdp.Toolkit.Tests.Perception
             finally { grid.Dispose(); }
         }
 
-        /// <summary>⭐ AQ104 E ② — the slab: steps upstairs, 3 m over a man downstairs, carrying 5 m — halved to 2.5 m, not heard; 8 m —
-        /// heard.</summary>
+        /// <summary>⭐ AQ104 E ② / ⭐ <c>CE-2479</c> — the slab: steps upstairs, 3 m over a man downstairs, are not heard through a concrete slab (the
+        /// airborne loss — ⚠ impact sound through a floor is not modelled, Sensing §8.6f); a rifle shot up there carrying 100 m is (6.3 m).</summary>
         [Fact]
-        public void AQ104E_ASlabBetween_HalvesHowFarStepsUpstairsCarry()
+        public void AQ104E_CE2479_ASlabBetween_StopsSteps_NotAShot()
         {
             var below = new Vector3(5f, 5f, 0f);
             var above = new Vector3(5f, 5f, 3f);
-            Assert.False(Heard(true, above, below, 5f, SoundSourceClass.Footsteps));
-            Assert.True(Heard(true, above, below, 8f, SoundSourceClass.Footsteps));
+            Assert.False(Heard(true, above, below, 8f, SoundSourceClass.Footsteps));
+            Assert.True(Heard(true, above, below, 100f, SoundSourceClass.SmallArms));
         }
 
-        /// <summary>⭐ AQ104 E ② (Q95 B3) — the band: an explosion (Low, × 0.2 of the wall's dB) carrying 15 m through the same wall as the
-        /// 20 m steps keeps ~87 % of its carry (13 m away) — heard.</summary>
+        /// <summary>⭐ AQ104 E ② (Q95 B3) / ⭐ <c>CE-2479</c> — the band: an explosion (Low, × 0.2 of the wall's 40 dB = 8 dB) keeps ~40 % of its carry
+        /// through the wall that stops the steps: carrying 40 m it is heard 13 m away (16 m), carrying 15 m it is not (6 m).</summary>
         [Fact]
         public void AQ104E_ALowSound_PassesTheWall()
         {
-            Assert.True(Heard(true, new Vector3(5f, 5f, 0f), new Vector3(-8f, 5f, 0f), 15f, SoundSourceClass.Explosion));
+            Assert.True(Heard(true, new Vector3(5f, 5f, 0f), new Vector3(-8f, 5f, 0f), 40f, SoundSourceClass.Explosion));
+            Assert.False(Heard(true, new Vector3(5f, 5f, 0f), new Vector3(-8f, 5f, 0f), 15f, SoundSourceClass.Explosion));
             Assert.Equal(1f, AcousticPerception.WallFactor(null, Vector3.Zero, Vector3.One, (byte)SoundSourceClass.Footsteps));
         }
 

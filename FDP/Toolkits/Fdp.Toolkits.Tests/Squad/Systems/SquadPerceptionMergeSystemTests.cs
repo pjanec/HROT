@@ -413,5 +413,87 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             for (int i = 0; i < 4; i++) if ((GetContact(commander, i).Flags & SquadContact.AnonymousFlag) != 0) heard++;
             Assert.Equal(2, heard);
         }
+
+        /// <summary>⭐⭐ <c>CE-2474</c> (Sensing §8.6d ①; 🔒 user: "Can't we consider the same sound heard by multiple people as one single enemy?") —
+        /// 📐 the measured <c>uf-corner-assault</c> case: ONE shot heard by four men, every estimate off by more than its circle and one heard round a
+        /// corner beside the listener himself (D-8), was FOUR pooled contacts. With the shot's token they are ONE, placed where the straight hearings
+        /// put it (the corner one does not drag it); a DIFFERENT shot there stays its own contact.
+        /// 🔴 Red-proof: drop the same-sound fusion in <c>MergeHeard</c> ⇒ 4 (then 5) contacts.</summary>
+        [Fact]
+        public void CE2474_OneShotHeardByFourMen_IsOnePooledContact_WhateverTheirEstimates()
+        {
+            var (repo, commander, members) = CreateSquadWorld(5);
+            const byte smallArms = 4;
+            const long shot = 7, another = 8;
+            TargetMemory.HearContact(ref repo.GetComponentRW<TargetMemory>(members[0]), 631f, 379f, 0f, 5f, smallArms, 50f, 1, sound: shot);
+            TargetMemory.HearContact(ref repo.GetComponentRW<TargetMemory>(members[1]), 642f, 379f, 0f, 5f, smallArms, 50f, 1, sound: shot);
+            TargetMemory.HearContact(ref repo.GetComponentRW<TargetMemory>(members[2]), 659f, 334f, 0f, 9.4f, smallArms, 60f, 1, via: 1, sound: shot);
+            TargetMemory.HearContact(ref repo.GetComponentRW<TargetMemory>(members[3]), 642f, 378f, 0f, 5f, smallArms, 50f, 1, sound: shot);
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            ref var c = ref GetContact(commander, 0);
+            Assert.Equal((ushort)0b1111, c.SourceMembersMask);
+            Assert.True((c.Flags & SquadContact.AnonymousFlag) != 0);
+            Assert.True((c.Flags & SquadContact.HeardThroughFlag) == 0, "a straight hearing makes it a source estimate");
+            Assert.InRange(c.PositionY, 375f, 381f);   // ⛔ not dragged toward the corner (334)
+
+            TargetMemory.HearContact(ref repo.GetComponentRW<TargetMemory>(members[4]), 700f, 300f, 0f, 5f, smallArms, 40f, 2, sound: another);
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 20, mergeIntervalTicks: 1);
+            Assert.Equal(2, GetState(commander).Contacts.Count);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2474</c> (§8.6d ① + ②) — one man SEES the rifleman and his ear gives him the shot (<c>AttributeToSeen</c>: the bearing
+        /// matches); another man hears the same shot round a corner, 50 m off. The pool holds ONE contact, the identified rifleman, at the seen
+        /// position — not the sighting plus a heard phantom the circle rule cannot reach.
+        /// 🔴 Red-proof: drop <c>AbsorbHeardBySound</c> ⇒ 2 contacts.</summary>
+        [Fact]
+        public unsafe void CE2474_AShotAttributedToTheManSeen_TakesEveryOtherHearingOfIt()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            const byte smallArms = 4;
+            const long shot = 11;
+            var enemy = repo.CreateEntity();
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)enemy.PackedValue, 628f, 387f, 50f, tick: 1);
+            System.Span<long> seen = stackalloc long[] { (long)enemy.PackedValue };
+            Assert.True(TargetMemory.AttributeToSeen(ref mem0, 650f, 330f, 632f, 377f, TargetMemory.ShotKind, smallArms, 0, seen, 10f, 2, shot));
+            Assert.Equal(1, mem0.Count);
+            Assert.Equal(shot, mem0.SoundIds[0]);
+
+            TargetMemory.HearContact(ref repo.GetComponentRW<TargetMemory>(members[1]), 659f, 334f, 0f, 9.4f, smallArms, 60f, 2, via: 1, sound: shot);
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            ref var c = ref GetContact(commander, 0);
+            Assert.Equal((long)enemy.PackedValue, c.EntityId);
+            Assert.Equal(628f, c.PositionX);
+            Assert.Equal((ushort)0b0011, c.SourceMembersMask);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2477</c> (Sensing §8.6e) — 📐 <c>pe-seen-shooter</c>: a man who HEARS one shooter 150 times must not end up surer than a lone
+        /// ear can be — the fused circle stops at a third of one hearing's (26 m ⇒ ≥ 8.7 m), so when he then SEES the shooter 2.8 m from the heard point
+        /// the sighting absorbs it: ONE contact, not the seen man plus a heard ghost. 🔴 Red-proof: <c>FusedRadius</c> without the floor ⇒ the circle
+        /// shrinks to ~2 m ⇒ 2 contacts.</summary>
+        [Fact]
+        public unsafe void CE2477_ManyHearings_NeverSharperThanALoneEar_SoASightingStillAbsorbsThem()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            const byte smallArms = 4;
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            for (int k = 0; k < 150; k++)
+            {
+                float a = k * 2.399f, r = 26f * ((k * 7919) % 100) / 100f;   // spread within the 26 m circle around (100, 250)
+                TargetMemory.HearContact(ref mem, 99f + r * System.MathF.Cos(a) * 0.1f, 252f + r * System.MathF.Sin(a) * 0.1f, 0f, 26f, smallArms, 1f, (uint)k + 1);
+            }
+            Assert.Equal(1, mem.Count);
+            Assert.True(mem.Radius[0] >= 26f / 3f - 1e-3f, $"fused radius {mem.Radius[0]}");
+
+            var enemy = repo.CreateEntity();
+            Assert.True(TargetMemory.AbsorbBySighting(ref mem, (long)enemy.PackedValue, 100.86f, 249.87f, System.ReadOnlySpan<byte>.Empty));
+            Assert.Equal(1, mem.Count);
+            Assert.False(TargetMemory.IsAnonymous(in mem, 0));
+        }
     }
 }

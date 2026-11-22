@@ -1,0 +1,44 @@
+{
+  "$doc": "CE-2476 perception suite (Sensing \u00a78.6e) - pe-shelled",
+  "runFor": 120,
+  "golden": false,
+  "anchors": {
+    "first burst": {
+      "on": "blast",
+      "by": "*Red Gun"
+    }
+  },
+  "expect": [
+    {
+      "name": "rounds land",
+      "on": "blast",
+      "by": "*Red Gun",
+      "n": 3
+    },
+    {
+      "name": "no ear ever believes an enemy where none is",
+      "never": {
+        "on": "perceives",
+        "who": "*Blue Squad Ear",
+        "truth": "*Red",
+        "metric": "phantom",
+        "op": ">",
+        "value": 0
+      },
+      "after": "first burst"
+    },
+    {
+      "name": "the squad never holds a phantom",
+      "never": {
+        "on": "perceives",
+        "who": "Blue Squad",
+        "squad": true,
+        "truth": "*Red",
+        "metric": "phantom",
+        "op": ">",
+        "value": 0
+      },
+      "after": "first burst"
+    }
+  ]
+}
