@@ -1,0 +1,58 @@
+{
+  "$doc": "CE-2476 perception suite (Sensing \u00a78.6e) - pe-wall-and-door",
+  "runFor": 30,
+  "golden": false,
+  "anchors": {
+    "first shot": {
+      "on": "shot",
+      "by": "Red Shooter"
+    }
+  },
+  "expect": [
+    {
+      "name": "the shooter fires",
+      "on": "shot",
+      "by": "Red Shooter",
+      "n": 3
+    },
+    {
+      "name": "both listeners place him where he is (matched within 2 m, 5 s)",
+      "on": "perceives",
+      "who": "*Blue Squad Ear",
+      "truth": "*Red",
+      "metric": "matched",
+      "op": "==",
+      "value": 1,
+      "quantifier": "all",
+      "m": 2,
+      "for": 5,
+      "after": "first shot"
+    },
+    {
+      "name": "no listener ever places him at the door or a window (a phantom more than 2 m from him)",
+      "never": {
+        "on": "perceives",
+        "who": "*Blue Squad Ear",
+        "truth": "*Red",
+        "metric": "phantom",
+        "op": ">",
+        "value": 0,
+        "m": 2
+      },
+      "after": "first shot"
+    },
+    {
+      "name": "the squad never counts him twice",
+      "never": {
+        "on": "perceives",
+        "who": "Blue Squad",
+        "squad": true,
+        "truth": "*Red",
+        "metric": "duplicate",
+        "op": ">",
+        "value": 0
+      },
+      "after": "first shot+2"
+    }
+  ]
+}

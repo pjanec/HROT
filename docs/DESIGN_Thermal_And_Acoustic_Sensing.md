@@ -988,12 +988,16 @@ classDiagram
 | P4 | ⭐ `pe-two-shooters` | two riflemen 8 m apart firing in turn | the squad `matched == 2` — ⛔ never one (over-merging is the opposite error to U2b's) |
 | P5 | `pe-shelled` | rounds landing among the listeners, no enemy near | every man and the squad `contacts == 0` (R-2071) |
 | P2 | `pe-house-shot` | a shooter in a room; listeners in the corridor, another room, outside a window | squad `matched == 1`, `duplicate == 0`; after CE-2475 `phantom == 0` |
-| P2b | `pe-wall-and-door` | a shooter behind ONE wall, a door off to the listener's side | his contact within m of the SHOOTER, not the door (CE-2475) |
+| P2b | `pe-wall-and-door` | a shooter just inside the north wall of a TIMBER HOUSE (`timber-house`, placed on basic-desert at (300,300)); two listeners 7 m north; the ways round (the open south door, the east / west windows) 4.5–5 m from him | both listeners `matched == 1` within `m` 2 (5 s); never a `phantom` beyond 2 m (no estimate at the door or a window); the squad never `duplicate` (CE-2475, CE-2492) |
 | P6 | `pe-steps-round-corner` | a man JOGGING (2.5 m/s) along House A's north wall, stopping short of its NE corner; two listeners just east of the house, 8–12 m round that corner — the house always between (📐 a walker's steps carry ~6 m at 1.2 m/s) | an ear hears him (`contacts ≥ 1`, any); `through: false` ⇒ `contacts == 0` always (no straight hearing, no sighting) |
 | P7 | `pe-seen-then-hidden` | a man crosses open ground 20 m in front of two listeners, then stops behind House A | both identify him while crossing (`matched == 1`, 2 s, before `hidden`); never `matched == 0` in the 20 s after `hidden`; `contacts == 0` at the end (130 s: the ~70 s fade, `ThreatScoreDecayPerSecond` 0.1 to `ForgetThreatScore` 0.5) |
 | P8 | P1, listeners on two nodes (cluster, nightly) | ⚠ the per-node token (§8.6d): 1 or 2 — needs the dump to carry heard contacts |
 
 ##### What the suite found first (`2026-11-22`)
+
+| ⭐ **`CE-2492` — found by P2b (`2026-11-22`)** | |
+|---|---|
+| a SMEARED hearing's circle did not cover its own pull | in the 10–20 dB band `FirstWavefront` moves the heard point part-way from the source toward the opening, but the answer's circle only grew ×(1 + smear): 📐 Ear 2 held the shooter twice — one point on him, one pulled 2.3 m toward the door with a 0.7 m circle; the circles never met, so the shots never fused. ⭐ `SoundRoute.SmearMetres` (the pull) is added to the radius: the ear is unsure over the whole spread, so the man stands inside the circle. Rail `SoundPathsTests.CE2475_TheFirstWavefront_*` (red with the pull dropped) |
 
 | ⚠ **suite setup, found writing P6 / P7 (`2026-11-22`)** | |
 |---|---|
