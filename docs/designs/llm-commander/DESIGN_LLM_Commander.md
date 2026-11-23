@@ -377,6 +377,37 @@ sequenceDiagram
 | ⭐ measured (the Haiku relay run) | 48 wakes · 65 tool calls · 0 malformed · answers 6 s mean / 10 s max · ONE system message for all 48 calls · the request 4 014 → 29 398 chars (≈ 7 350 tokens), ⭐ **18 KB of it the notes** ⇒ CE-3501 (bound the notes before L-3b) |
 | ⛔ not run | ⑦ a small model on the VM — the hosts answered; starting the downloaded server was refused by the session's permission check |
 
+### 5a-4. L-3a — the briefing a small model can live with *(CE-4683, backend, `2026-11-23`; build-state: BUILDING — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L3a.md`)*
+
+The three findings of the L-3 Haiku relay run, fixed before the laptop (L-3b), plus a budget.
+
+```mermaid
+classDiagram
+  class MindRunner { <<existing>> ⭐ Estimate (one, replaced, ≤ 800 chars) ⛔ was: every note kept }
+  class Briefing { <<existing>> ⭐ Changing(): SNAPSHOT · ORDERS IN FORCE · RADIO LOG · YOUR ESTIMATE }
+  class SeatRuntime { <<existing>> ⭐ InForce: squad → GivenOrder ⛔ was: Given (text) }
+  class GivenOrder { <<NEW record>> Kind · Where · Point · Since · By (you or play X) }
+  class CommanderActionSystem { <<existing>> ⭐ an order identical to the one in force ⇒ "already in force since mm:ss", nothing sent }
+  class CommanderFeedSystem { <<existing>> ⭐ the snapshot's ORDERS IN FORCE block and the play in force; the prefix: prefer run_play }
+  class CommanderTools { <<existing>> ⭐ run_play FIRST; note = "your running estimate — replaces the last" }
+  class BriefingBudget { <<NEW>> Chars · EstimatedTokens (chars / 4) · Limit 4000 }
+  SeatRuntime *-- GivenOrder
+  CommanderActionSystem ..> SeatRuntime : reads / writes InForce
+  CommanderFeedSystem ..> SeatRuntime : the block from InForce
+  MindRunner ..> Briefing
+  MindRunner ..> BriefingBudget : logs each call's size
+```
+*What the picture shows that prose hid:* the in-force record is ONE table on the seat — the snapshot shows it, the action system checks against it;
+no second copy of "what each squad is doing".
+
+| # | decision (why) |
+|---|---|
+| ① | ⭐ a note is the commander's **running estimate**: the last answer's notes (joined) REPLACE it, capped at 800 chars (`…[cut]`). ⛔ The note is no longer echoed into the feed — it was in the briefing twice (the radio log AND the notes). The runner's own failures and an outside mind's timeout are NO LONGER notes (they would overwrite his estimate) — the model log and the node log say them |
+| ② | ⭐ `SeatRuntime.InForce` — per squad: the order kind, where (as he said it), the resolved point, since, by (you / play X). Written when a direct order is accepted; a play's squad orders are read from `SubordinateOrders` (the play's run) and their *since* is when the seat first saw them (snapshot granularity — the entries carry no time). The snapshot ends with *"ORDERS IN FORCE: ALPHA SQUAD SupportByFire → house since 00:02:08 (you), Set; … PLAY IN FORCE: PlatoonAttack → house since 00:01:18"* |
+| ② | ⭐ an order IDENTICAL to the one in force (same kind, a point within 2 m — so *"house"* and *"House"* match) is a no-op: an `order-state` item *"already in force since mm:ss"*, NOT a wake, nothing sent, and a play is NOT ended by it. ⚠ *In force* = the seat's record; a squad that has finished its Move is still "in force" for a repeat of the same Move — harmless (it is there) |
+| ③ | the prefix: *"PREFER run_play — the play coordinates both squads (support set, then the assault); a direct order to a squad ENDS the play."*; `run_play` first in `/tools`, its description says the same; the snapshot names the play in force |
+| ④ | the budget: each `call` line logs `chars` and `tokens` (≈ chars / 4) of the request; a rail runs a long scripted seat (many reports, a 700-char note every call) and holds the briefing + tools under 4 000 tokens. The parts that can still grow: the radio log between snapshots (bounded by the snapshot period) — the budget says it |
+
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
 | | ⭐ lean |
