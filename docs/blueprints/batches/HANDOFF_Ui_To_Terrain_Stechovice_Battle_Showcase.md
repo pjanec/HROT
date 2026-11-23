@@ -59,3 +59,11 @@ corner (`terrain.json` `frame.corner`). The generator keeps input-local metres a
 4. **Preview and docs**: `preview.jpg` if the thumbnail script makes one; the scenario's row in `docs/CAPABILITIES.md` / `docs/USAGES.md`
    the way `city-battle` is listed.
 5. **Optional, the user's wish list**: more aircraft / helicopters over both battles, the air defence visibly engaging — "kind of a show".
+
+## 4. Added `2026-11-23` — the performance items (tracked, yours if you take them)
+
+- **CE-11043** — a door is an entity only while its state differs from the house's default (Stechovice loads 4,431 door entities today;
+  every reader already falls back to the authored state). Suggestions ①–⑥ and the one design decision (who creates the entity on the first
+  change) are in the tracker row.
+- **CE-11044** — the ~20 systems that walk all ~4,500 entities every tick narrow their queries to what they read (the measured 114 ms per tick).
+
