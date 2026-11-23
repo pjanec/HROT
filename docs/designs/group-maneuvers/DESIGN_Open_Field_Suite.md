@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — the field + OF1 BUILT and run (§8.1); OF2–OF5 DESIGN
+build-state: BUILDING — the field, OF1, OF2, OF4 BUILT and run (§8.1, §8.2); OF3, OF5 DESIGN
 updated: 2026-11-23 (first version — behaviors, on the user's request)
 current-answer: §1 the request · §2 doctrine · §5 the field · §6 the suite · §7 the diagrams · §8 claims
 stale-below: nothing
@@ -132,6 +132,19 @@ classDiagram
 | C-2 | a platoon's bounding squad stops at contact | ✅ `PressesTheAttack` keys on `OrderKind.Attack`; `BoundingOverwatch` fulfils `Bound` | ⚠ Assault Under Fire A-7: in contact the assault moves by fire and movement | OF2 |
 | C-3 | a reported enemy holds the whole platoon | ✅ `BasicPlatoonSop` — one contact row, `PlatoonHold` | ⚠ doctrine: the platoon leader manoeuvres another squad | OF4 |
 | C-4 | the city battle's stalls are C-1…C-3 | ⛔ not measured (the showcase is too large to attribute) | — | the city battle, AFTER the suite is green |
+
+### 8.2 OF2 and OF4 — the first runs, `2026-11-23`
+
+| scenario | verdict | measured |
+|---|---|---|
+| OF2 `of-platoon-attack` (15 v 6, ~185 m) | ✅ ALL rows | a squad `SupportByFire` from 0.25 s, a squad `BoundingOverwatch` from 53.5 s; the line beaten at 116 s (102 s after Red's first round), a Blue man on it at 292 s; nobody upright in the open 10 s |
+| OF4 `of-platoon-flank-contact` (15 v 3, ~80–150 m from the north) | ❌ 2 rows | ✅ no freeze (never all still 60 s), the fire team beaten at 88.5 s · ❌ Blue's first round 8.4 s after Red's (window 5 s) · ❌ Blue Squad 3 Rifleman 1 upright in the open in Red's sight 10 s (CE-2494 again) |
+
+⇒ ⭐⭐ **None of C-1, C-2, C-3 reproduces at these sizes and ranges** (6 v 3, 15 v 6, 15 v 3 at 80–190 m): squads and the platoon FIGHT FORWARD and decide
+the fight in 1–2 minutes. ⇒ the city battle's ditch war needs conditions this field does not have yet — ⚠ to measure, not assume: **range** (at 300 m+
+hits are rare and a firefight may never be decided), **an equal or stronger defender** (6 v 6, an MG behind sandbags), **the scale** (companies, the
+platoon SOP's hold — C-3 — only fires when the platoon is NOT already attacking). ⏭ the next probe: the city battle itself (what its stalled squads
+are doing, at what range, against what) — then an OF variant that reproduces it.
 
 ### 8.1 OF1 — the first run, `2026-11-23` (`b780b594a` + the backend merge)
 

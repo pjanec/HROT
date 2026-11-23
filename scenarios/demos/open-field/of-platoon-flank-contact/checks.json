@@ -1,0 +1,82 @@
+{
+  "$doc": "CE-2493 open-field suite (docs/designs/group-maneuvers/DESIGN_Open_Field_Suite.md \u00a76) - of-platoon-flank-contact",
+  "runFor": 360,
+  "golden": false,
+  "anchors": {
+    "Red fires": {
+      "on": "shot",
+      "by": "*Red Squad "
+    },
+    "Red beaten": {
+      "on": "field",
+      "who": "*Red Squad ",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 25,
+      "quantifier": "all"
+    }
+  },
+  "expect": [
+    {
+      "name": "Red fires",
+      "on": "shot",
+      "by": "*Red Squad "
+    },
+    {
+      "name": "Blue fires",
+      "on": "shot",
+      "by": "*Blue Squad "
+    },
+    {
+      "name": "L2 Blue returns fire within 5 s of Red's first round",
+      "on": "shot",
+      "by": "*Blue Squad ",
+      "after": "Red fires",
+      "before": "Red fires+5"
+    },
+    {
+      "name": "L1 the DITCH WAR: every Blue man in the fight still (within 2 m) for 60 s while Red still fights",
+      "never": {
+        "on": "still",
+        "who": "*Blue Squad ",
+        "m": 2,
+        "for": 60,
+        "quantifier": "all",
+        "fighting": true
+      },
+      "after": "Red fires",
+      "before": "Red beaten"
+    },
+    {
+      "name": "L1 nobody of Blue in the fight stands upright in the OPEN in a Red man's sight 10 s once the shooting starts (CE-2494)",
+      "never": {
+        "on": "exposed",
+        "who": "*Blue Squad ",
+        "by": "*Red Squad ",
+        "upright": true,
+        "fighting": true,
+        "for": 10
+      },
+      "after": "Red fires"
+    },
+    {
+      "name": "L1 no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue Squad ",
+        "hit": "*Blue Squad "
+      }
+    },
+    {
+      "name": "L3 the fire team is beaten within 300 s of its first round",
+      "on": "field",
+      "who": "*Red Squad ",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 25,
+      "quantifier": "all",
+      "after": "Red fires",
+      "before": "Red fires+300"
+    }
+  ]
+}

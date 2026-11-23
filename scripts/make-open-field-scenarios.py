@@ -148,4 +148,94 @@ write("of-squad-meets-fire-team",
             "on": "field", "who": RED, "path": "Health.Current", "op": "<=", "value": 25, "quantifier": "all", "after": "Red fires", "before": "Red fires+300"},
        ]})
 
-print("wrote of-squad-meets-fire-team")
+# ── platoons ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+def blue_platoon(series, behaviour, x0=82, ys=(470, 510, 550)):
+    """'Blue Platoon' (305) over 'Blue Squad 1-3' (302), 5 men each (leader, 2 riflemen, 2 grenadiers), side by side north of y 470."""
+    pl = guid(series, 50)
+    ents = {pl: {"SimTransform": {"Position": [x0, ys[1], 0], "Rotation": EAST}, "TkbIdentity": {"TkbType": 305},
+                 "EntityInfo": {"Name": "Blue Platoon", "ForceId": "Friend"}, "Behavior": {**behaviour, "Origin": "Superior"}}}
+    for k, y in enumerate(ys):
+        men = [("Leader", x0, y, RIFLE), ("Rifleman 1", x0 - 4, y + 4, RIFLE), ("Grenadier 2", x0 - 8, y + 8, GRENADIER),
+               ("Rifleman 3", x0 - 4, y - 4, RIFLE), ("Grenadier 4", x0 - 8, y - 8, GRENADIER)]
+        sq, sg = squad(series, 100 + 20 * k, f"Blue Squad {k + 1}", "Friend", men)
+        sq[sg]["UnitSubordinate"] = {"CommanderGuid": pl, "Designation": "Wingman"}
+        ents.update(sq)
+    return ents
+
+
+def red_defending_squad(series):
+    men = [("Leader", 266, 512, RIFLE), ("Rifleman 1", 262, 500, RIFLE), ("Rifleman 2", 262, 524, RIFLE),
+           ("Rifleman 3", 270, 494, RIFLE), ("Grenadier 4", 270, 530, GRENADIER), ("Rifleman 5", 274, 512, RIFLE)]
+    return squad(series, 200, "Red Squad", "Hostile", men,
+                 {"Name": "SquadDefend", "Params": {"Position": [266, 512, 0], "SearchRadius": 25, "Speed": 2}}, rot=WEST)
+
+
+PLATOON_ANCHORS = {"Red fires": {"on": "shot", "by": RED},
+                   "Red beaten": {"on": "field", "who": RED, "path": "Health.Current", "op": "<=", "value": 25, "quantifier": "all"}}
+
+
+def platoon_never_rows():
+    return [
+        never("L1 the DITCH WAR: every Blue man in the fight still (within 2 m) for 60 s while Red still fights",
+              {"on": "still", "who": BLUE, "m": 2, "for": 60, "quantifier": "all", "fighting": True}, after="Red fires", before="Red beaten"),
+        never("L1 nobody of Blue in the fight stands upright in the OPEN in a Red man's sight 10 s once the shooting starts (CE-2494)",
+              {"on": "exposed", "who": BLUE, "by": RED, "upright": True, "fighting": True, "for": 10}, after="Red fires"),
+        never("L1 no Blue round hits a Blue man", {"on": "shot", "by": BLUE, "hit": BLUE}),
+    ]
+
+
+# ── OF2 — a platoon attacks a squad holding the line ────────────────────────────────────────────────────────────────────────────────
+ents = field(2)
+for i, (x, y) in enumerate([(270, 494), (270, 530), (274, 512)]):   # three more foxholes for the 6-man line
+    ents.update(feature(2, 960 + i, f"Foxhole {4 + i}", GROUND, (x, y), template="foxhole", seed=24930020 + i, points=[(0, 0)]))
+ents.update(blue_platoon(2, {"Name": "PlatoonAttack", "Params": {"Position": [266, 512, 0], "SearchRadius": 20, "Preset": "AttackPosition", "Speed": 2}}))
+r, _ = red_defending_squad(2)
+ents.update(r)
+write("of-platoon-attack",
+      "CE-2493 open-field suite OF2 - on basic-desert's open field (scattered walls, cars, sandbags, tree clumps, a south ditch), 'Blue Platoon' "
+      "(3 squads of 5) at x ~80 attacks (PlatoonAttack, AttackPosition round (266,512)) a 6-man 'Red Squad' defending the line at x 260-275 "
+      "(foxholes + sandbags, SquadDefend) ~185 m east.",
+      "the platoon attack (ATP 3-21.8): a squad SUPPORTS by fire from cover while another MANOEUVRES (bounds / fire and movement, the south ditch "
+      "is the covered flank), the assault goes through, the line is taken (Red beaten, a Blue man on it) within 420 s. Fail: every Blue man "
+      "still a minute while Red still fights (the ditch war), no squad supporting or none manoeuvring, or the line not taken.",
+      ents,
+      {"runFor": 480, "golden": False, "anchors": PLATOON_ANCHORS,
+       "expect": [
+           {"name": "Red fires", "on": "shot", "by": RED},
+           {"name": "Blue fires", "on": "shot", "by": BLUE},
+           {"name": "L2 a squad SUPPORTS by fire (SupportByFire)", "on": "task", "who": "*Blue Squad", "is": "SupportByFire"},
+           {"name": "L2 a squad MANOEUVRES (BoundingOverwatch)", "on": "task", "who": "*Blue Squad", "is": "BoundingOverwatch"},
+           *platoon_never_rows(),
+           {"name": "L3 the line is taken: every Red man out of the fight within 420 s of Red's first round",
+            "on": "field", "who": RED, "path": "Health.Current", "op": "<=", "value": 25, "quantifier": "all", "after": "Red fires", "before": "Red fires+420"},
+           {"name": "L3 ...and a Blue man stands on it (within 15 m of (266,512))", "on": "near", "who": BLUE, "point": [266, 512], "within": 15},
+       ]})
+
+# ── OF4 — a platoon bounding across the field is fired on from its north flank ───────────────────────────────────────────────────────
+ents = field(4, enemy_line=False)
+ents.update(feature(4, 970, "Ambush clump", TREE_GROUP, (230, 600), pad=6, seed=24930030, points=[(-9, -6), (9, -6), (9, 6), (-9, 6)]))
+for i, x in enumerate((224, 236)):
+    ents.update(feature(4, 971 + i, f"Ambush sandbags {i + 1}", CLUTTER, (x, 592), template="sandbag-wall", heading=0))
+ents.update(blue_platoon(4, {"Name": "PlatoonBound", "Params": {"SupportPoint": [150, 510, 0], "Objective": [400, 510, 0], "ArrivalRadius": 10, "SitrepEverySeconds": 15}}))
+men = [("Leader", 230, 596, RIFLE), ("Rifleman 1", 224, 595, RIFLE), ("Rifleman 2", 236, 595, RIFLE)]
+r, _ = squad(4, 200, "Red Squad", "Hostile", men, {"Name": "SquadHold", "Params": {}}, rot=[0, 0, -0.7071068, 0.7071068])
+ents.update(r)
+write("of-platoon-flank-contact",
+      "CE-2493 open-field suite OF4 - on basic-desert's open field, 'Blue Platoon' (3 squads of 5) bounds east across it (PlatoonBound: support "
+      "point (150,510), objective (400,510)); a 3-man 'Red Squad' fire team in a tree clump north of the field (230,600; sandbags, SquadHold) opens "
+      "fire on the nearest squad from ~80 m.",
+      "react to contact at PLATOON level (ATP 3-21.8): the squad in contact returns fire and gets into cover; the platoon does NOT freeze - another "
+      "squad moves to support or to the flank, and the fire team is beaten within 300 s. Fail: every Blue man still a minute while Red still fights "
+      "(the whole platoon holding), or the fire team never beaten.",
+      ents,
+      {"runFor": 360, "golden": False, "anchors": PLATOON_ANCHORS,
+       "expect": [
+           {"name": "Red fires", "on": "shot", "by": RED},
+           {"name": "Blue fires", "on": "shot", "by": BLUE},
+           {"name": "L2 Blue returns fire within 5 s of Red's first round", "on": "shot", "by": BLUE, "after": "Red fires", "before": "Red fires+5"},
+           *platoon_never_rows(),
+           {"name": "L3 the fire team is beaten within 300 s of its first round",
+            "on": "field", "who": RED, "path": "Health.Current", "op": "<=", "value": 25, "quantifier": "all", "after": "Red fires", "before": "Red fires+300"},
+       ]})
+
+print("wrote of-squad-meets-fire-team, of-platoon-attack, of-platoon-flank-contact")
