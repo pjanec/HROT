@@ -84,6 +84,20 @@ namespace Fdp.Toolkit.Navigation
             bool forceNavmesh = q.Force == NavigationBackend.Navmesh;
             float factor = RoadFactor(q.RoadUse);
 
+            // ⭐ R-11018 — NavmeshFirst: the navmesh's own path when it has one; the roads are priced only when it has none (then as Neutral)
+            if (q.RoadUse == RoadUse.NavmeshFirst && navmesh != null && !forceRoad)
+            {
+                if (Vector2.Distance(Xy(q.Start), Xy(q.End)) < ShortMoveMeters && Fdp.Toolkit.World.Levels.Same(World, q.Start, q.End))
+                {
+                    _points.Add(q.Start);
+                    _points.Add(q.End);
+                    return Finish(out distance, NavigationBackend.Navmesh);
+                }
+                if (navmesh.PathCost(q.Start, q.End, q.LayerMask, doors) < float.MaxValue && AppendNavmesh(navmesh, q.Start, q.End, q.LayerMask, doors))
+                    return Finish(out distance, NavigationBackend.Navmesh);
+                _points.Clear();
+            }
+
             // ── The road candidate, if the actor would consider one ─────────────────────────────────────────
             bool roadOk = false;
             RoadAccess entry = RoadAccess.None, exit = RoadAccess.None;

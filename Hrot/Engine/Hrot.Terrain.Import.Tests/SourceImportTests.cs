@@ -23,7 +23,7 @@ public sealed class SourceImportTests : IDisposable
     private readonly List<string> _log = new();
 
     public SourceImportTests() { }
-    public void Dispose() { TerrainSources.Import = null; _env.Dispose(); }
+    public void Dispose() { TerrainSources.Import = null; TerrainSources.SharedImportRoot = null; _env.Dispose(); }
 
     private SourceImport Hook(Action<string>? onLog = null)
         => new(root => { Interlocked.Increment(ref _imports); return SourceImport.DefaultImporter(root); },
@@ -209,13 +209,67 @@ public sealed class SourceImportTests : IDisposable
 
     // ---- every host kind builds its catalog its own way; the hook is inside, so each imports
     [Fact]
-    public void ANodeCatalog_WithAStagingRoot_ImportsIntoIt_AndFindsTheInputBesideTheNas()
+    public void ANodeCatalog_WithAStagingRoot_ImportsIntoTheSharedRoot_AndFindsTheInputBesideTheNas()
     {
         Input("mini");                                                  // beside the NAS's assets/terrain, not beside the staging root
         string staging = Path.Combine(_env.Root, "node-staging");
         TerrainSources.Import = Hook();
         var def = TerrainCatalog.ForNode(staging, Content).ResolveDefinition("mini");
-        Assert.Equal(Path.Combine(staging, "Terrain", "mini", "terrain.json"), def);   // F-2: the first writable root
+        Assert.Equal(Path.Combine(TerrainRoot, "mini", "terrain.json"), def);   // ⭐ CE-11039 F-2 (revised): the SHARED root, not the node's private staging
+        Assert.False(Directory.Exists(Path.Combine(staging, "Terrain", "mini")));
+        Assert.Equal(1, _imports);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-11039 — a terrain imports ONCE PER MACHINE: two catalogs with DIFFERENT staging roots (two nodes; two verify children) and one NAS import once, the second resolving what the
+    /// first left in the NAS. 🔴 Mutation: the import target back to the first writable root (the staging root) ⇒ two imports, and the first's folder is in its staging root.
+    /// </summary>
+    [Fact]
+    public void TwoStagingRoots_AndOneNas_ImportOnce()
+    {
+        Input("mini");
+        TerrainSources.Import = Hook();
+        var first = TerrainCatalog.ForNode(Path.Combine(_env.Root, "stage-1"), Content).ResolveDefinition("mini");
+        var second = TerrainCatalog.ForNode(Path.Combine(_env.Root, "stage-2"), Content).ResolveDefinition("mini");
+        Assert.Equal(1, _imports);
+        Assert.Equal(Path.Combine(TerrainRoot, "mini", "terrain.json"), first);
+        Assert.Equal(first, second);
+        Assert.False(Directory.Exists(Path.Combine(_env.Root, "stage-1", "Terrain", "mini")));
+        Assert.False(Directory.Exists(Path.Combine(_env.Root, "stage-2", "Terrain", "mini")));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-11039 — the scenario-regression case: every verify child has its OWN staging root AND its own private NAS, so only a machine-wide root can make the import happen once. Two catalogs, two
+    /// staging roots, two NASes, one <see cref="TerrainSources.SharedImportRoot"/> (a dev checkout's <c>assets/terrain</c>) import once; the second finds the first's folder with no import.
+    /// 🔴 Mutation: the target ignoring the machine root ⇒ two imports, each in its own NAS.
+    /// </summary>
+    [Fact]
+    public void TwoPrivateNases_AndOneMachineRoot_ImportOnce()
+    {
+        string machine = Path.Combine(_env.Root, "repo-assets-terrain");
+        string repo = Path.Combine(_env.Root, "repo");
+        new MiniSet().Write(Path.Combine(repo, "assets", "terrain-input", "mini"));
+        TerrainSources.SharedImportRoot = machine;
+        TerrainSources.Import = new SourceImport(root => { Interlocked.Increment(ref _imports); return SourceImport.DefaultImporter(root); }, null, repo);
+        var first = TerrainCatalog.ForNode(Path.Combine(_env.Root, "run1", "node"), Path.Combine(_env.Root, "run1", "shared")).ResolveDefinition("mini");
+        var second = TerrainCatalog.ForNode(Path.Combine(_env.Root, "run2", "node"), Path.Combine(_env.Root, "run2", "shared")).ResolveDefinition("mini");
+        Assert.Equal(1, _imports);
+        Assert.Equal(Path.Combine(machine, "mini", "terrain.json"), first);
+        Assert.Equal(first, second);
+        Assert.False(Directory.Exists(Path.Combine(_env.Root, "run1", "shared", "assets", "terrain", "mini")));
+    }
+
+    /// <summary>⭐ CE-11039 — a NAS that cannot be written (here: its <c>assets/terrain</c> is a FILE, so no folder can be created; root ignores chmod) falls back to the node's staging root: the terrain still imports.</summary>
+    [Fact]
+    public void AnUnwritableNas_FallsBackToTheStagingRoot()
+    {
+        Input("mini");
+        Directory.CreateDirectory(Path.GetDirectoryName(TerrainRoot)!);
+        File.WriteAllText(TerrainRoot, "not a folder");
+        string staging = Path.Combine(_env.Root, "node-staging");
+        TerrainSources.Import = Hook();
+        var def = TerrainCatalog.ForNode(staging, Content).ResolveDefinition("mini");
+        Assert.Equal(Path.Combine(staging, "Terrain", "mini", "terrain.json"), def);
         Assert.Equal(1, _imports);
     }
 

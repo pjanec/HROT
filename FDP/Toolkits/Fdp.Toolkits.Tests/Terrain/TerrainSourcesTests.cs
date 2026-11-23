@@ -24,6 +24,7 @@ namespace Fdp.Toolkits.Tests.Terrain
         public void Dispose()
         {
             TerrainSources.Import = null;
+            TerrainSources.SharedImportRoot = null;
             foreach (var d in new[] { _a, _b }) try { Directory.Delete(d, true); } catch (IOException) { }
         }
 
@@ -64,6 +65,52 @@ namespace Fdp.Toolkits.Tests.Terrain
             Assert.Equal(Path.Combine(_a, "town", "terrain.json"), path);
             var call = Assert.Single(fake.Calls);
             Assert.Equal(("town", (string?)null, _a), call);
+        }
+
+        /// <summary>
+        /// ⭐ CE-11039 (F-2 revised) — a node catalog (staging root + NAS) asks the hook to import into the NAS's <c>assets/terrain</c> (the shared root), never the node's private staging root;
+        /// with no shared root named the first writable root is still the target; an unwritable shared root falls back to the staging root (here its path is a file).
+        /// 🔴 Mutation: <c>ImportTarget</c> returning the first writable root ⇒ the first cell reds (staging); ignoring the writable probe ⇒ the third.
+        /// </summary>
+        [Fact]
+        public void TheImportTarget_IsTheSharedRoot_WhenWritable_ElseTheFirstWritableRoot()
+        {
+            var fake = new Fake();
+            TerrainSources.Import = fake;
+            string nas = Path.Combine(_b, "nas");
+            Assert.Null(TerrainCatalog.ForNode(_a, nas).ResolveDefinition("town"));
+            Assert.Equal(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), Assert.Single(fake.Calls).Target);
+
+            fake.Calls.Clear();
+            Assert.Null(new TerrainCatalog(new[] { _a, _b }).ResolveDefinition("town"));   // no shared root named: the old rule
+            Assert.Equal(_a, Assert.Single(fake.Calls).Target);
+
+            fake.Calls.Clear();
+            string nas2 = Path.Combine(_b, "nas2");
+            Directory.CreateDirectory(Path.Combine(nas2, "assets"));
+            File.WriteAllText(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas2), "a file, so no folder can be made there");
+            Assert.Null(TerrainCatalog.ForNode(_a, nas2).ResolveDefinition("town"));
+            Assert.Equal(Path.Combine(_a, TerrainCatalog.StagingDirectoryName), Assert.Single(fake.Calls).Target);
+        }
+
+        /// <summary>
+        /// ⭐ CE-11039 — the process-wide machine root (a dev checkout's <c>assets/terrain</c>) is the import target ahead of the NAS, and a terrain it holds is FOUND by a catalog whose own roots lack it
+        /// (the hit path: offered to the hook with that root as the target). 🔴 Mutation: the target or the lookup ignoring it ⇒ the first or the second cell reds.
+        /// </summary>
+        [Fact]
+        public void TheMachineRoot_IsTheTargetAheadOfTheNas_AndIsLookedIn()
+        {
+            string machine = Path.Combine(_b, "machine");
+            TerrainSources.SharedImportRoot = machine;
+            var fake = new Fake();
+            TerrainSources.Import = fake;
+            Assert.Null(TerrainCatalog.ForNode(_a, Path.Combine(_b, "nas")).ResolveDefinition("town"));
+            Assert.Equal(machine, Assert.Single(fake.Calls).Target);
+
+            string held = Make(machine, "town");
+            fake.Calls.Clear();
+            Assert.Equal(held, TerrainCatalog.ForNode(_a, Path.Combine(_b, "nas")).ResolveDefinition("town"));   // another staging root, its own NAS: found in the machine root
+            Assert.Equal(("town", (string?)held, machine), Assert.Single(fake.Calls));
         }
 
         [Fact]

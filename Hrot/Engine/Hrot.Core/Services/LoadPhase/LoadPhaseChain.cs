@@ -72,8 +72,27 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         _hostLabel = hostLabel;
     }
 
-    /// <summary>⭐ <c>CE-3345</c> — the name of the load step in flight (a <see cref="LoadPart"/>), or <see langword="null"/> when no load is. While the Operating prepare is held it names the first step not yet resolved.</summary>
-    public string? CurrentLoadStep => _currentStep;
+    /// <summary>⭐ <c>CE-3345</c> — the name of the load step in flight (a <see cref="LoadPart"/>), or <see langword="null"/> when no load is. While the Operating prepare is held it names the first step not yet resolved.
+    /// <para>⭐ <c>CE-11038</c> — while a stage of the step reports how far it has got (<see cref="LoadProgress.ReportDetail"/>: the navmesh bake's tiles), the text says so —
+    /// <i>"Terrain: navmesh 12000/59834"</i> — so the ONE progress report (the heartbeat's step, the director's stall clock) moves during a long stage. ⭐ Built only when the detail
+    /// changed (once a second at most): the per-frame read allocates nothing.</para></summary>
+    public string? CurrentLoadStep
+    {
+        get
+        {
+            var step = _currentStep;
+            var detail = step == null ? null : _loadProgress?.Detail;
+            if (detail == null) return step;
+            var cached = _composed;
+            if (cached.Step == step && ReferenceEquals(cached.Detail, detail)) return cached.Text;
+            var text = step + ": " + detail;
+            _composed = (step, detail, text);
+            return text;
+        }
+    }
+
+    private volatile LoadProgress? _loadProgress;                                   // the node's progress the load in flight reports into (set at the prepare)
+    private (string? Step, string? Detail, string? Text) _composed;                 // the last composed text — a reference compare per read
 
     /// <summary>⭐ The ordered parts this chain actually runs — for rails and diagnostics.</summary>
     public IReadOnlyList<LoadPart> Parts => _steps.Select(s => s.Part).ToArray();
@@ -246,6 +265,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         //   a faster node's entities replicate in meanwhile (CE-2242), and that must not pass for a hung loader's progress.
         //   📄 docs/DESIGN_Cluster_Load_Phase.md §12.
         var progress = LoadProgress.Current;
+        _loadProgress = progress;
         progress?.Watch(null);
         progress?.ResetLongestSilence();
 

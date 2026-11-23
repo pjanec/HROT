@@ -474,6 +474,60 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(NavigationBackend.Navmesh, never.PrimaryBackend);
         }
 
+        /// <summary>
+        /// ⭐ R-11018 — NavmeshFirst (a soldier's default): the SAME request as above walks the navmesh even though Prefer would take Main
+        /// Street — and the roads are not priced at all while the navmesh has a path. ✅ Red-proof: NavmeshFirst treated as Neutral/Prefer.
+        /// </summary>
+        [Fact]
+        public void R11018_NavmeshFirst_WalksTheNavmesh_WhenItHasAPath()
+        {
+            using var roads = Fdp.Toolkit.Tests.Squad.TestTownRoads.Build();
+            var navmesh = new RiverNavmesh(riverX: float.NaN);
+            var solver = new PathfindingSolverSystem(roads, _pool, navmesh: navmesh);
+            var r = Solve(solver, new Vector3(100, 150, 0), new Vector3(380, 250, 0), RoadUse.NavmeshFirst);
+            Assert.Equal(NavigationBackend.Navmesh, r.PrimaryBackend);
+            Assert.InRange(r.TotalDistanceMeters, 296f, 299f);
+            Assert.Equal(1, navmesh.CostCalls);   // only the direct leg was priced: no road access / egress legs
+        }
+
+        /// <summary>⭐ R-11018 — NavmeshFirst falls back to the roads when the navmesh has NO path (a river only Main Street bridges).
+        /// ✅ Red-proof: NavmeshFirst as Never ⇒ unreachable.</summary>
+        [Fact]
+        public void R11018_NavmeshFirst_TakesTheRoad_WhenTheNavmeshHasNoPath()
+        {
+            using var roads = Fdp.Toolkit.Tests.Squad.TestTownRoads.Build();
+            var solver = new PathfindingSolverSystem(roads, _pool, navmesh: new RiverNavmesh(riverX: 240f));
+            var r = Solve(solver, new Vector3(100, 150, 0), new Vector3(380, 250, 0), RoadUse.NavmeshFirst);
+            Assert.True(r.IsReachable, "the road bridges the river");
+            Assert.Equal(NavigationBackend.Hybrid, r.PrimaryBackend);
+        }
+
+        /// <summary>Open ground with an impassable river at x = <c>riverX</c> (NaN = none): a path crossing it has no navmesh route.</summary>
+        private sealed class RiverNavmesh : INavmeshProvider
+        {
+            private readonly float _riverX;
+            public int CostCalls;
+            public RiverNavmesh(float riverX) => _riverX = riverX;
+            private bool Crosses(Vector3 a, Vector3 b) => !float.IsNaN(_riverX) && (a.X - _riverX) * (b.X - _riverX) < 0f;
+            public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => true;
+            public bool ProjectToNavmesh(Vector3 position, out Vector3 snapped, uint layerMask = 0xFFFFFFFF) { snapped = position; return true; }
+            public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => !Crosses(from, to);
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
+            {
+                CostCalls++;
+                return Crosses(from, to) ? float.MaxValue : Vector2.Distance(new Vector2(from.X, from.Y), new Vector2(to.X, to.Y));
+            }
+            public uint QueryVersion() => 1;
+            public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF)
+            {
+                if (waypoints.Length < 2 || Crosses(from, to)) return 0;
+                waypoints[0] = new NavWaypoint { Position = from };
+                waypoints[1] = new NavWaypoint { Position = to };
+                return 2;
+            }
+        }
+
         /// <summary>⭐ CE-3128 D5 — a segment authored one way (0 → 1) is driven both ways.</summary>
         [Fact]
         public void CE3128_SegmentsAreTwoWay()
@@ -571,7 +625,8 @@ namespace Fdp.Toolkit.Navigation.Tests
             repo.AddComponent(soldier, default(global::CarKinem.Core.VehicleState));
             repo.AddComponent(soldier, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });
             Assert.Equal(RoadUse.Prefer, PathRequests.ResolveRoadUse(repo, tank, RoadUse.Unspecified));
-            Assert.Equal(RoadUse.Neutral, PathRequests.ResolveRoadUse(repo, soldier, RoadUse.Unspecified));
+            Assert.Equal(RoadUse.NavmeshFirst, PathRequests.ResolveRoadUse(repo, soldier, RoadUse.Unspecified));   // ⭐ R-11018 — a soldier: the navmesh first unless asked
+            Assert.Equal(RoadUse.Prefer, PathRequests.ResolveRoadUse(repo, soldier, RoadUse.Prefer));   // an order may still put him on the roads
             Assert.Equal(RoadUse.Never, PathRequests.ResolveRoadUse(repo, tank, RoadUse.Never));
 
             var p = new MoveToParams { Flags = (byte)((1 << NavigationConstants.FlagBitAllowReplan) | (1 << NavigationConstants.FlagBitStreamCorridorPreview)) };
