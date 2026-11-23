@@ -26,6 +26,18 @@ struct FHrotDpsAmmoLine
 	UPROPERTY(BlueprintReadOnly, Category = "HROT|Player") int32 HeatPercent = 0;
 };
 
+/** one row of HROT's offered-verb list for the crosshair's target (OwnUnit.Actions, gateway DD-029), in HROT's order - the first is the primary */
+USTRUCT(BlueprintType)
+struct FHrotDpsUseAction
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Player") uint8 Verb = 0;        // the contract's UseVerb
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Player") FString Label;         // HROT's words
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Player") bool bAvailable = false;
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Player") uint8 Reason = 0;      // UseReason when refused
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Player") bool bHoldOnly = false;
+};
+
 /** what the camera pawn sends this frame (HROT's OperatorControlFrame, the contract's ControlFrame) — positions in the contract's frame */
 USTRUCT(BlueprintType)
 struct FHrotDpsControl
@@ -95,6 +107,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Player") float MaxHealth() const { return OwnMaxHealth; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Player") int32 ActiveSlot() const { return OwnActiveSlot; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Player") TArray<FHrotDpsAmmoLine> Ammo() const { return OwnAmmo; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|Player") TArray<FHrotDpsUseAction> Actions() const { return UseActions; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Player") FString FireMode() const { return OwnFireMode == 1 ? TEXT("LOCK") : TEXT("SIGHT"); }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Player") float SpreadRad() const { return OwnSpread; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Player") FString UsePrompt() const { return bCanUse ? UseLabel : FString(); }
@@ -128,6 +141,7 @@ private:
 	bool bCanUse = false;
 	FString UseLabel;
 	TArray<FHrotDpsAmmoLine> OwnAmmo;
+	TArray<FHrotDpsUseAction> UseActions;
 	TArray<FHit> Hits;
 	double MarkerAt = -1;
 	bool bMarkerKill = false;
