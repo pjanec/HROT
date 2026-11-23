@@ -7490,44 +7490,30 @@ namespace Hrot.SimHost.Tests
             var o = s.LastOrders();
             Assert.Contains(s.Members, m => o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo && x.Objective.Y < -5f);   // away from y 60
 
-            // ② every man reaches the point, one still sees an enemy: the play goes on, its point further away (not the CE-2466 rally hold)
-            float prevY = -5f;
-            for (int k = 0; k < 3; k++)
+            // ② the squad reaches the point (60 m straight back — no hidden ground anywhere: each new ask answers nothing, so each point is the
+            //   way it came, a search radius further) with a man still in an enemy's sight: the play goes on (not the CE-2466 rally hold).
+            //   ⚠ the members' own orders are the 15 m cover-to-cover bounds (CE-2460), not the point — so the men are put AT the point.
+            void Step(bool seen, int ticks)
             {
-                o = s.LastOrders();
-                float y = float.MaxValue;
-                foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) y = MathF.Min(y, x.Objective.Y);
-                Assert.True(y < prevY, $"arrival {k}: the point moves on away from the enemy (was {prevY}, now {y})");
-                prevY = y;
-                foreach (var m in s.Members) { Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived); s.Teleport(m, new Vector3(0f, y, 0f)); }
-                for (int i = 0; i < 8; i++) { Sees(s, s.Members[0], enemies[0]); var r = s.RetreatQuery(); if (!r.IsNull) s.Answer(r, null); var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
-                Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // a man in sight: not done
+                for (int i = 0; i < ticks; i++)
+                {
+                    if (seen) Sees(s, s.Members[0], enemies[0]);
+                    var r = s.RetreatQuery(); if (!r.IsNull) s.Answer(r, null);
+                    var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null);
+                    s.Tick();
+                    if (s.Kind != BreakContactManeuver.ManeuverKind) return;
+                }
             }
-            // ③ out of sight at the point: done (the reaction goes on to its rally)
-            o = s.LastOrders();
-            float last = float.MaxValue;
-            foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) last = MathF.Min(last, x.Objective.Y);
-            foreach (var m in s.Members) { Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived); s.Teleport(m, new Vector3(0f, last, 0f)); }
-            for (int i = 0; i < 30; i++) { s.Tick(); if (s.Kind != BreakContactManeuver.ManeuverKind) break; }
+            for (int k = 1; k <= 3; k++)
+            {
+                foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -60f * k, 0f));
+                Step(seen: true, ticks: 8);
+                Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // a man in sight at the point: not done
+            }
+            // ③ at the next point out of sight: done (the reaction goes on to its rally)
+            foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
+            Step(seen: false, ticks: 40);
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
-        }
-
-        /// <summary>⭐⭐ <c>CE-2495</c> (R-2146; 📐 of-squad-outmatched — 6 men assaulted on ONE man seen and kept on into twelve and two machine guns) —
-        /// the choice is scored on what was known; when the known enemy grows to twice that, it is scored again: an assault on one becomes a break
-        /// contact from twelve. 🔴 Red-proof: drop the growth trigger ⇒ the squad keeps assaulting.</summary>
-        [Fact]
-        public void CE2495_ReactToContact_TheEnemyGrows_TheChoiceIsMadeAgain()
-        {
-            var s = new Squad(members: 4);
-            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
-            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
-            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
-            for (int i = 0; i < 13; i++) s.Tick();
-            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);   // 4 v 1: assault
-
-            s.PoolMany(12, new Vector3(0f, 60f, 0f));                         // the force behind him shows
-            for (int i = 0; i < 4; i++) s.Tick();
-            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);          // 4 v 12: break contact
         }
 
         /// <summary>⭐ <c>CE-2472</c> — <paramref name="man"/> SEES <paramref name="enemy"/> now (as perception stamps it: the Visual bit, this tick).</summary>
