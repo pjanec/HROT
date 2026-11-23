@@ -38,8 +38,16 @@ namespace Fdp.Toolkit.Spatial.Eqs
             // ⭐ CE-2496 — a squad COMMANDER has no eyes of his own: his squad's merged pool is what he knows (identified enemies only — a heard,
             //   anonymous contact has no body to see from). 📐 of-squad-outmatched: the squad's retreat query hid from the top threat alone and
             //   rallied in the second machine gun's sight; the exposure test saw no threats at all (flags never meaningful).
+            //   ⭐ and a squad MEMBER knows what his squad knows: a squad play asks the terrain from its first live man (SquadManeuverRunner.AskTerrain),
+            //   whose own sensor lists were empty there.
             if (view.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(self))
                 AddPool(view, in view.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(self).Contacts, factionFilter, ids, ref threats);
+            else if (view.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(self))
+            {
+                var commander = view.GetComponentRO<Fdp.Core.CommandHierarchy.UnitSubordinate>(self).Commander;
+                if (!commander.IsNull && view.IsAlive(commander) && view.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(commander))
+                    AddPool(view, in view.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(commander).Contacts, factionFilter, ids, ref threats);
+            }
             return threats;
         }
 
