@@ -446,6 +446,8 @@ first and last. Per seat (as L-2 built it) the two seats each took the other's p
 | D-4 | ⛔ **a repeated play restarted the play** — Blue re-ran `PlatoonAttack → house` at 01:05 and Bravo, 50 m past the objective, was sent back to the start. ⭐ The same play on the same place (2 m) while it runs is a NO-OP (*"PLAY … already in force since"*), as an order is since CE-4683 | `Duel_ARepeatedPlayInForce_IsANoOp_AndTheSnapshotSaysItsAge` (red-proved: the no-op dropped ⇒ two intents) |
 | D-5 | why Blue re-ran it: the snapshot (every 120 s) still said *"ORDERS IN FORCE: none"* — taken before his own play — and the model read it as now, over the radio line *"ORDER PlatoonAttack → house: given"*. ⭐ The snapshot now says its age (*"SNAPSHOT (65 s ago — the radio log below is newer)"*) and the prefix says the radio log carries what was given since | the same rail |
 | D-6 | the heartbeat said *"(no news — your squads await orders)"* while orders were in force — an invitation to give new ones. ⭐ *"(heartbeat — nothing new; the orders in force stand unless you change them)"* | `Duel_ARepeatedPlayInForce_…` (the heartbeat line) |
+| ⭐ measured (the duel's run, before the fixes) | Blue 48 calls / Red 63, 0 malformed, max 1 685 / 2 018 tokens, 6–7 s per answer; Red held the sheds with its Reserve, Blue's squads stalled near `start` (CE-4682) and were beaten. ⚠ The checks' cross-side `never` rows were wrong, not the seats: a LIST in `by` reads as anyone (CE-3502) |
+
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 

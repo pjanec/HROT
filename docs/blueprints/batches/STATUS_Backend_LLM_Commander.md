@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⏸ `2026-11-23 14:29` — **idle — waiting for a handoff** (self-wake-up: queue empty after L-3a; no new HANDOFF/STEER/NOTE for backend; the next slice is L-3b on the user's laptop).
+⭐ `2026-11-23 16:10` **THE DUEL (user: "can we let 2 haiku workers play against each other?" · "yes please") — DONE**: `llm-platoon-duel`, two Haiku commanders one per side through the per-commander relay; six seat defects found and fixed (D-1…D-6, `4fddd69eb`), one grammar defect filed (CE-3502). Report: §Duel; design §5a-5. ⏸ then idle — waiting for a handoff.
 ⭐ `2026-11-23` **L-3a (CE-4683, the briefing a small model can live with) — DONE**: ① ② ③ ④ built, railed and red-proved; the Haiku relay run side by side with L-3 below; CE-3501 CLOSED. Report: §L-3a; design §5a-4.
 ⭐ `2026-11-23` **L-3 (CE-4681, the chat-model mind on the cloud VM) — DONE**: ① ② ③ ④ ⑤ ⑥ built and proved; ⑦ blocked (permission — see §L-3). Report: §L-3 below; design §5a-3 / §6a.
 ⛔ ~~`2026-11-23 09:28` — idle~~ (L-3 taken 10:30) (self-wake-up: queue empty, no new HANDOFF/STEER/NOTE for backend; CE-3494 §10 (R-3119) built and gated, `STATUS_Backend_Queue.md`).
@@ -276,3 +276,49 @@ snapshot period (120 s); a busier fight would want a shorter snapshot period, no
 
 ### L-3a ids allocated
 None new. `CE-3501` CLOSED into this row.
+
+## Duel — two Haiku commanders, one per side (`2026-11-23`, user: "can we let 2 haiku workers play against each other? could it bring some new info about what might be wrong and needs fixing?" · "yes please")
+
+`llm-platoon-duel` (§5a-5): Blue's Platoon (Alpha, Bravo) vs Red Platoon (Defenders at the sheds, Reserve west of them), both seats `ChatModel`,
+ThinkPause, one relay (`chat_standin.py --mode relay --per-commander`, port 11502), one Haiku worker per side seeing only its own queue. ⚠ The run
+used the build from BEFORE the fixes (it found them).
+
+| | Blue (Platoon) | Red (Red Platoon) |
+|---|---|---|
+| calls · accepted · refused · no-ops · malformed | 48 · 4 · 0 · 0 · 0 | 63 · 10 · 0 · 0 · 0 |
+| request, max tokens | 1 685 | 2 018 |
+| answer time, mean (the relay round trip) | 6.1 s | 7.0 s |
+| what it did | `run_play PlatoonAttack → house` at 0:00; the same again at 1:05 (D-4/D-5); at 3:07 dropped the play for direct Attack + SupportByFire — the squads stayed near `start` (CE-4682) | `run_play PlatoonDefend → house`; sitreps; at 4:33 Reserve `SupportByFire` at **`support` — Blue's place (D-2)**, BreakContact to `rear`, Defend at `rear`, Hold at the house |
+| end (7:00) | Alpha combat-ineffective, Bravo out of the fight at 6:27; house not taken | Defenders out at 6:12; **Reserve holds the sheds** (Amber) |
+
+| check (`--verify`, 1 118 s wall) | |
+|---|---|
+| each side's squads report to their own commander (4 rows) | ✅ PASS (3.07 s) |
+| Red fires · the fight lasts (Blue fires 60 s after Red's first shot) | ✅ PASS — ⚠ the second is weaker than written: CE-3502 |
+| the two cross-side `never` rows | ❌ FAIL — **not a leak**: a list in `by` reads as "anyone" (CE-3502), so they matched Blue's own reports to Blue. Every Red request named only DEFENDERS / RESERVE and every Blue request only ALPHA / BRAVO. Rewritten one name per row |
+
+| found | fixed | rail |
+|---|---|---|
+| D-1 two seats thinking at once froze a free-running clock for good | ✅ `CommanderSeats` owns ONE pause / resume | `TwoSeats_TheClockRunsAgain_*` (red before the fix) · `TwoSeats_AUserPause*` |
+| D-2 Red told Blue's start / objective / support — and USED `support` | ✅ a place drawn for a side is only that side's (the duel's places now carry their side) | `TwoSeats_EachSeatIsToldOnlyItsOwnSidesPlaces` (red-proved: filter off ⇒ line 106) |
+| D-3 the play advice spoke only to an attacker | ✅ PlatoonAttack / PlatoonDefend both said | the same |
+| D-4 a repeated `run_play` restarted the play (Bravo sent back to the start) | ✅ a no-op, like a repeated order | `Duel_ARepeatedPlayInForce_*` (red-proved: no-op off ⇒ two intents, line 125) |
+| D-5 a 65 s old snapshot's "ORDERS IN FORCE: none" read as now | ✅ the snapshot says its age | the same |
+| D-6 the heartbeat said "your squads await orders" with orders in force | ✅ "the orders in force stand unless you change them" | the same |
+| CE-3502 a list in a check's `by` / `who` / `target` reads as anyone, silently | 📋 filed (lean: a list = any of; until then refuse it) | — |
+| ⚠ squads asked for CASEVAC (Red, 4:33, 5:32); the commander has no tool for it | not filed — a vocabulary question for L-4 (the squads' own casualty care runs) | — |
+| ⚠ the attack still stalls near `start` under the play and under direct orders | CE-4682 (behaviors) — unchanged | — |
+
+### Duel gates
+
+| gate | result |
+|---|---|
+| `dotnet build Hrot.SimHost.Tests --no-restore` | 0 errors |
+| `dotnet test … --filter TwoSeats\|Duel_\|CE4676\|CE4679\|CE4680\|CE4681\|CE4683 --no-build` | ✅ 25 / 25 |
+| red-proofs | D-1 red before the fix · D-2 filter off ⇒ red (line 106) · D-4 no-op off ⇒ red (line 125) |
+| `DebugApiCommandersTests` (prefix text) | only asserts "SNAPSHOT" — still true; not run |
+| `tracker-counts.py --check` | ✅ |
+
+### Duel ids allocated
+`CE-3502` (backend next free `CE-3503`).
+
