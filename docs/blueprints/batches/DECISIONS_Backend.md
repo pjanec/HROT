@@ -35,6 +35,51 @@ settings at editing time … My desire is simplicity and consistency."*
 | why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
 | next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
 
+## CE-4684 — the LLM commander L-3c (the decision contract): lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | the chat-model mind answers with decisions by DEFAULT; `HROT_COMMANDER_FORMAT=tools` keeps L-3a's tool calls | the contract is what L-3b measures; the tools format stays for the side-by-side baseline |
+| 2 | ⚠ the design's `Via` / `Orient` are NOT in the schema | no order on this path takes them — a field the executor ignores teaches the model nothing true |
+| 3 | `support_at` is a PLACE (a play's support position), not a unit | `PlatoonBound` / `PlatoonAttack` take a support point; the order path has no "supported unit" |
+| 4 | validation is all or nothing: any problem ⇒ the whole decision goes back once, then CONTINUE | a partly applied decision is a plan nobody made; the model repairs one coherent answer |
+| 5 | a play AND a squad order in the same decision is a validation error | a squad order ENDS the play (§5b) — the model is told, not silently overridden |
+| 6 | ⭐ a stale decision's refusal is NOT a wake | 📌 measured: as a wake it staled the next answer too — 15 refusals in a row, the clock held at 00:00:36. The newer news it was stale against re-asks the model anyway |
+| 7 | the model's next decision is held to ≥ 10 s and ≤ 300 s after the last wake | a floor keeps a fallback (CONTINUE, no new deadline) from asking every frame; the ceiling = the schema's maximum |
+| 8 | terrain facts: a soldier's eye 1.7 m sees a man's chest 1.0 m; a standable place is judged at its own spot, a building at the standable points around its walls; cover ≥ 4 points covered, 1–3 partial; a vehicle reaches within 15 m; foot pace 1.4 m/s | 📌 a 6 m ring (the first build) read the objective behind the Low Wall as seen from the house — the place is where a man stands |
+| 9 | terrain facts go in EVERY seat's static block, not only a decision seat's | static, measured once, useful to any mind; the tools baseline's prefix grows by them too |
+| 10 | enemy confidence: reports within 30 m are one enemy, a report ≤ 60 s old is fresh | the picture keeps one reporter per element — grouping is the only way to count squads |
+| 11 | STRENGTH_BELOW reads the reported colour as Green 100 · Amber 75 · Red 50 · Black 25 | the commander knows colours, never percentages |
+| 12 | the watcher's orders are given on the NEXT frame's action pass (injected into the seat's queue) | one order path — the action system's validation, no-op and refusal apply to them like to the model's |
+
+## CE-4683 — the LLM commander L-3a: lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ the handoff's lean as built: ONE running estimate, an answer's notes JOINED then capped at 800 chars (`…[cut]`), replacing the last | several notes in one answer are one estimate; a cap with a visible marker tells the model it was cut |
+| 2 | ⭐ a note is NO LONGER echoed into the feed as `NOTE:` | 📐 it was in the briefing twice (the radio log AND the notes); the node log (INFO) and the model log keep it |
+| 3 | ⭐ the runner's own failure and an outside mind's timeout are NO LONGER notes | they would REPLACE his estimate with a system message; the model log (`failure` / `raw`) and the node log say them — the same rule as CE-4681 #4 for the chat mind |
+| 4 | ⭐ the in-force table is ONE dictionary on the seat (`InForce`, `GivenOrder`), replacing B-4's text-only `Given` | "shared, never duplicated": the snapshot shows it, the action system checks a repeat against it |
+| 5 | "identical" = the same kind and a point within 2 m — not the same text | *"house"* / *"House"* / *"the house"* resolve to one point; text would miss them |
+| 6 | a play's squad orders enter the table from `SubordinateOrders` (the play's run), *since* = when the seat first saw them | the entries carry no time; snapshot granularity is honest and said |
+| 7 | a repeat of a PLAY's order is a no-op too — it does not end the play | a direct order ends the play (B-1): re-sending what the play already did would end it for nothing |
+| 8 | ⚠ "in force" is the seat's record: a squad that FINISHED a Move is still "in force" for a repeat of the same Move | harmless (it is there); a different order or a play replaces it. A finished-order detector would need a per-order completion signal the squads do not report uniformly |
+| 9 | the snapshot's squad line no longer repeats the task — the ORDERS IN FORCE block says it once | the budget |
+| 10 | the token estimate is chars / 4 | a rule of thumb for English + JSON, said as such; no tokenizer in the process |
+
+## CE-4681 — the LLM commander L-3 (cloud VM): lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ the mind is `CommanderMind.ChatModel` — the reserved `Ollama` value RENAMED (Roslyn), not a new value | the handoff names the scenario value `"ChatModel"`; nothing referenced `Ollama`; any server speaking Ollama's chat API answers it (Ollama, the stand-ins) |
+| 2 | ⭐ one conversation per WAKE: `system` = the seat's prefix + a fixed instruction (byte-stable), `user` = `Briefing.Changing()` + the time — NO history of earlier calls | §3: the briefing IS the memory (snapshot, radio log, notes); a growing chat history would blow an 8 B model's context (§6) |
+| 3 | the retry keeps the first answer's GOOD calls and adds the second answer's good ones; the tool message names what was taken | ⛔ otherwise a model that resends everything doubles the orders; ⛔ never a second retry (the handoff) |
+| 4 | no answer (timeout, refused connection, HTTP error, not JSON) ⇒ NO actions — not ExternalMind's *"no answer"* note | a note lands in the briefing's notes for the rest of the run: a flaky server would fill the context with noise; the model log says why |
+| 5 | settings and the run's mind by ENVIRONMENT (`HROT_COMMANDER_*`), not a scenario field | an endpoint is a machine fact, not scenario content; the laptop script runs ONE scenario per model. `HROT_COMMANDER_MIND` writes the seat so the checks see the mind that ran |
+| 6 | ⭐ TWO stand-in servers (a C# rail fixture, a Python process) | a NECESSARY difference (CLAUDE.md "shared, never duplicated"): the rails need one in process they control (a hang, a dead port); the run needs a process the editor reaches that can relay to an agent |
+| 7 | checks per mind with NO grammar change: an anchor on `CommanderSeat.Mind` + `"if"` | the grammar already had both; a `"mind"` key would be a second way to say the same thing |
+| 8 | the model log falls back to `HROT_COMMANDER_LOG_DIR` when nothing records | a verify run records nothing, so L-2's log was absent for the unrecorded Haiku run (status §L-2 ★ run 3); the proof needs every exchange |
+
 ## CE-4680 — the LLM commander L-2b: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |

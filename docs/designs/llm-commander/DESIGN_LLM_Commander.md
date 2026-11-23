@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
-updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 (CE-4679, backend): built, as built in §5a-2; L-2b DISPATCHED (CE-4680, backend, after L-2 — §5b); L-3…L-4 DESIGN · L-3 DISPATCHED (CE-4681, backend, on the cloud VM with the Haiku relay); L-3b (the laptop) next
+updated: 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
+build-state: BUILDING — L-1 (CE-4676) §5a · L-2 (CE-4679) §5a-2 · L-2b (CE-4680) §5b · L-3 on the cloud VM (CE-4681) §5a-3 · L-3a the briefing budget (CE-4683) §5a-4 · the duel §5a-5 — all BUILT by backend; the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); NEXT L-3c the decision contract (CE-4684, §5c), then L-3b (the real model on the user's laptop); L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
@@ -306,6 +306,236 @@ play's choreography; the direct order lands and is still held 10 frames later).
 ⭐ The briefing stays SHORT (a small model's context): the prefix grows by the brief and the place notes; the snapshot by one line per squad and
 one per objective. ⛔ Still no ground truth: every new line comes from what was reported to him or what his scenario told him.
 
+### 5a-3. L-3 — the chat-model mind on the cloud VM *(CE-4681, backend, `2026-11-23`; build-state: BUILT `2026-11-23` — as-built rows at the end of this section; the run in `STATUS_Backend_LLM_Commander.md` §L-3)*
+
+🔒 User, `2026-11-23`: *"running on cloud VM (not my physical machine) - the run on my machine would be a next phase once we test whatever we
+could without it, using Haiku"*.
+
+```mermaid
+classDiagram
+  class IMind { <<existing>> ThinkAsync(Briefing) Actions }
+  class IMindTranscript { <<NEW>> LastRequest · LastRaw }
+  class ExternalMind { <<existing, + IMindTranscript>> }
+  class ChatModelMind { <<NEW — the design's OllamaMind>> Settings · one POST /api/chat per wake · one retry }
+  class ChatModelSettings { <<NEW>> Endpoint · Model · NumCtx · KeepAlive · Timeout · FromEnvironment() }
+  class ChatConversation { <<NEW>> Messages(briefing) · stable system message · Tools() }
+  class CommanderTools { <<existing>> Schema() · Parse() }
+  class MindRunner { <<existing>> LogCall writes request + raw for any IMindTranscript }
+  class StandInChatServer { <<NEW, rails>> in-process: scripted answers, slow, down }
+  class chat_standin_py { <<NEW, scripts/llm>> process: script · relay (file queue → Haiku worker) }
+  IMind <|.. ChatModelMind
+  IMind <|.. ExternalMind
+  IMindTranscript <|.. ChatModelMind
+  IMindTranscript <|.. ExternalMind
+  ChatModelMind --> ChatModelSettings
+  ChatModelMind --> ChatConversation
+  ChatConversation ..> CommanderTools : the same tool list, wrapped as Ollama functions
+  ChatModelMind ..> CommanderTools : Parse — the one reading of a tool call
+  MindRunner --> IMind
+```
+*What the picture shows that prose hid:* the model's answer is read by the SAME `CommanderTools.Parse` as `POST /act`, and the tools are the SAME
+`Schema()` list — wrapped, not re-declared — so an order from a model and an order from the Haiku worker reach `CommanderActionSystem` identically.
+
+```mermaid
+sequenceDiagram
+  participant R as MindRunner (background)
+  participant M as ChatModelMind
+  participant S as chat server (Ollama · stand-in · relay)
+  participant H as Haiku worker (relay only)
+  R->>M: ThinkAsync(briefing)
+  M->>S: POST /api/chat {model, messages:[system=prefix (byte-stable), user=snapshot+log+notes+new], tools, stream:false, options.num_ctx, keep_alive}
+  opt relay mode
+    S->>H: req-N.json (the request exactly as sent)
+    H-->>S: resp-N.json (Ollama's response shape)
+  end
+  S-->>M: message {content, tool_calls[]}
+  M->>M: CommanderTools.Parse(tool_calls)
+  opt a malformed / unknown call
+    M->>S: the same messages + the assistant turn + a tool message per error — ONCE
+    S-->>M: corrected calls (the rest dropped)
+  end
+  M-->>R: actions (or none: plain text, timeout, server down)
+  R->>R: model log — the request and every raw answer
+```
+*What it shows:* at most two HTTP calls per wake, both inside the think-pause hold; a refused ORDER is not retried here — it comes back as an
+`order-state` wake, as for every mind.
+
+| piece | decision (why) |
+|---|---|
+| the name | ⭐ `CommanderMind.ChatModel` — the design's *OllamaMind* renamed (Roslyn): it speaks Ollama's chat API, but any server that does (the stand-in, the relay) answers it |
+| the conversation | `system` = the seat's prefix + a fixed instruction line — built ONCE per seat, so it is byte-identical on every call (a server reuses its cache); `user` = the snapshot, the radio log, the notes, the new items, the sim time. ⛔ No history of earlier calls: the briefing IS the memory (§3) |
+| the tools | `CommanderTools.Schema()` wrapped as `{type: function, function: {…}}` — one list for every mind |
+| the answer | `message.tool_calls[].function {name, arguments}` (arguments an object or a JSON string) → `CommanderTools.Parse`. `message.content` with no call ⇒ no orders (logged) |
+| the retry | a malformed / unknown call ⇒ ONE more request: the first answer as the assistant turn + one `tool` message per error, saying which calls were taken; the second answer's well-formed calls are added, its bad ones dropped. ⛔ Never a second retry |
+| no answer | a timeout (`Timeout`, default 120 s — the think-pause hold waits for it) or a refused connection ⇒ no orders, the run goes on; the model log says why |
+| the settings | `HROT_COMMANDER_ENDPOINT` (default `http://localhost:11434`), `HROT_COMMANDER_MODEL` (`qwen2.5:7b-instruct`), `HROT_COMMANDER_NUM_CTX` (8192), `HROT_COMMANDER_KEEP_ALIVE` (`30m`), `HROT_COMMANDER_TIMEOUT_S` (120) — read when the seat opens. ⭐ `HROT_COMMANDER_MIND` overrides the scenario's mind for a run (the laptop script runs one scenario per model) and writes the seat so the checks see it |
+| the model log | every call writes the full request and each raw answer (`IMindTranscript`, shared with `ExternalMind`); with no recording the log goes to `HROT_COMMANDER_LOG_DIR` (a verify run has no recording) |
+| checks per mind | no grammar change: an anchor `scriptedMind` (a `field` cue on `CommanderSeat.Mind`) and `"if": "scriptedMind"` on the two scripted-only rows — a model run SKIPS them |
+| two stand-ins | ⚠ a NECESSARY difference: the rails need an in-process server they control (a hang, a refused port) with no process; the VM run and the laptop recipe need a PROCESS the editor reaches and that can relay to an agent. Both answer the same Ollama shape |
+| ⭐ as built — the anchor | ⚠ deviation: `scriptedMind` holds `"for": 1` — 📌 the first form sampled the SCENARIO's mind at t = 0, before the run's `HROT_COMMANDER_MIND` override rewrote the seat, so a model run was judged on the scripted rows (found by the laptop dry run) |
+| ⭐ as built — the answer time | the model log's `call` line carries `ms` (the mind's wall time), for every mind |
+| ⭐ measured (the Haiku relay run) | 48 wakes · 65 tool calls · 0 malformed · answers 6 s mean / 10 s max · ONE system message for all 48 calls · the request 4 014 → 29 398 chars (≈ 7 350 tokens), ⭐ **18 KB of it the notes** ⇒ CE-3501 (bound the notes before L-3b) |
+| ⛔ not run | ⑦ a small model on the VM — the hosts answered; starting the downloaded server was refused by the session's permission check |
+
+### 5a-4. L-3a — the briefing a small model can live with *(CE-4683, backend, `2026-11-23`; build-state: BUILT `2026-11-23` — as-built rows at the end of this section; the run in `STATUS_Backend_LLM_Commander.md` §L-3a)*
+
+The three findings of the L-3 Haiku relay run, fixed before the laptop (L-3b), plus a budget.
+
+```mermaid
+classDiagram
+  class MindRunner { <<existing>> ⭐ Estimate (one, replaced, ≤ 800 chars) ⛔ was: every note kept }
+  class Briefing { <<existing>> ⭐ Changing(): SNAPSHOT · ORDERS IN FORCE · RADIO LOG · YOUR ESTIMATE }
+  class SeatRuntime { <<existing>> ⭐ InForce: squad → GivenOrder ⛔ was: Given (text) }
+  class GivenOrder { <<NEW record>> Kind · Where · Point · Since · By (you or play X) }
+  class CommanderActionSystem { <<existing>> ⭐ an order identical to the one in force ⇒ "already in force since mm:ss", nothing sent }
+  class CommanderFeedSystem { <<existing>> ⭐ the snapshot's ORDERS IN FORCE block and the play in force; the prefix: prefer run_play }
+  class CommanderTools { <<existing>> ⭐ run_play FIRST; note = "your running estimate — replaces the last" }
+  class BriefingBudget { <<NEW>> Chars · EstimatedTokens (chars / 4) · Limit 4000 }
+  SeatRuntime *-- GivenOrder
+  CommanderActionSystem ..> SeatRuntime : reads / writes InForce
+  CommanderFeedSystem ..> SeatRuntime : the block from InForce
+  MindRunner ..> Briefing
+  MindRunner ..> BriefingBudget : logs each call's size
+```
+*What the picture shows that prose hid:* the in-force record is ONE table on the seat — the snapshot shows it, the action system checks against it;
+no second copy of "what each squad is doing".
+
+| # | decision (why) |
+|---|---|
+| ① | ⭐ a note is the commander's **running estimate**: the last answer's notes (joined) REPLACE it, capped at 800 chars (`…[cut]`). ⛔ The note is no longer echoed into the feed — it was in the briefing twice (the radio log AND the notes). The runner's own failures and an outside mind's timeout are NO LONGER notes (they would overwrite his estimate) — the model log and the node log say them |
+| ② | ⭐ `SeatRuntime.InForce` — per squad: the order kind, where (as he said it), the resolved point, since, by (you / play X). Written when a direct order is accepted; a play's squad orders are read from `SubordinateOrders` (the play's run) and their *since* is when the seat first saw them (snapshot granularity — the entries carry no time). The snapshot ends with *"ORDERS IN FORCE: ALPHA SQUAD SupportByFire → house since 00:02:08 (you), Set; … PLAY IN FORCE: PlatoonAttack → house since 00:01:18"* |
+| ② | ⭐ an order IDENTICAL to the one in force (same kind, a point within 2 m — so *"house"* and *"House"* match) is a no-op: an `order-state` item *"already in force since mm:ss"*, NOT a wake, nothing sent, and a play is NOT ended by it. ⚠ *In force* = the seat's record; a squad that has finished its Move is still "in force" for a repeat of the same Move — harmless (it is there) |
+| ③ | the prefix: *"PREFER run_play — the play coordinates both squads (support set, then the assault); a direct order to a squad ENDS the play."*; `run_play` first in `/tools`, its description says the same; the snapshot names the play in force |
+| ④ | the budget: each `call` line logs `chars` and `tokens` (≈ chars / 4) of the request; a rail runs a long scripted seat (many reports, a 700-char note every call) and holds the briefing + tools under 4 000 tokens. The parts that can still grow: the radio log between snapshots (bounded by the snapshot period) — the budget says it |
+| ⭐ as built — ask_sitrep | ⚠ deviation found by the run: asking a squad for a SITREP no longer goes through the direct-order path, so it never ends a play (it did since B-1: the L-3a run's `ask_sitrep` ended PlatoonAttack at 0:59) |
+| ⭐ measured (the L-3a Haiku relay run vs L-3) | the request **1 110 → 1 438 tokens** (L-3: 1 003 → 5 929, max 7 349); the estimate **366 chars** (L-3: 17 958 of notes); **0** identical orders re-sent (L-3: 4); `run_play` twice, the SPOT row PASSES; the house still not taken — the squad-attack stall CE-4682 |
+
+### 5a-5. The duel — two seats, one per side *(backend, `2026-11-23`, user: "can we let 2 haiku workers play against each other?" · "yes please"; build-state: BUILT — the run in `STATUS_Backend_LLM_Commander.md` §Duel)*
+
+⭐ `llm-platoon-duel` = `llm-platoon-attack` with Red under a seat too: **Red Platoon** (TKB 305, Hostile) over the **Defenders** (at the sheds) and a
+**Reserve** (4 men just west of them), a `rear` place. Two seats on ONE chat endpoint; the relay (`chat_standin.py --mode relay --per-commander`) files
+each request under the commander it names (*"You are &lt;name&gt;, …"*), so one Haiku worker answers each side and never sees the other's requests. The
+checks judge the PLUMBING of two seats (each side's squads report to their own commander, never the other's; both fight; the fight lasts) — not who wins.
+
+```mermaid
+sequenceDiagram
+    participant A as CommanderActionSystem (frame)
+    participant B as Blue seat
+    participant R as Red seat
+    participant S as CommanderSeats (one clock hold)
+    participant C as the clock (node bus)
+    B->>A: thinking (wake)
+    R->>A: thinking (wake)
+    A->>S: HoldClock — any seat holds?
+    S->>C: ONE PauseTimeIntent (first holder)
+    R-->>A: answered — Red lets go
+    A->>S: HoldClock — Blue still holds: nothing
+    B-->>A: answered — Blue lets go
+    A->>S: HoldClock — none holds
+    S->>C: ONE ResumeTimeIntent (unless a user paused meanwhile)
+```
+
+*What the picture shows that the prose hid:* the clock belongs to the SEATS, not to a seat — the pause and the resume are each said once, by whoever is
+first and last. Per seat (as L-2 built it) the two seats each took the other's pause for a user's, and nobody resumed.
+
+| # | what the duel found (each fixed, railed, red-proved) | rail |
+|---|---|---|
+| D-1 | ⛔ **two seats thinking at once froze the clock for good** — each seat paused and resumed on its own and read the other's pause as a USER's (which a seat must never resume). ⭐ Now `CommanderSeats` holds the clock: one pause when the first seat holds, one resume when none does; a user's pause still outlives it. A gone seat lets go. ⚠ Free-running clock only — a stepped run (verify) waits on `AnyHoldsClock` and was never affected | `TwoSeats_TheClockRunsAgain_OnlyWhenBothMindsHaveAnswered` (red before the fix: "both answered: the clock runs again") · `TwoSeats_AUserPauseDuringBothHolds_OutlivesThem` |
+| D-2 | ⛔ **Red was told Blue's plan** — the gazetteer listed every named place, so Red read Blue's `start` / `objective` / `support` with Blue's notes. ⭐ A place drawn for a side (its `EntityInfo.ForceId`) is only that side's; `Neutral` (the default — every existing scenario) is everybody's | `TwoSeats_EachSeatIsToldOnlyItsOwnSidesPlaces` |
+| D-3 | the play advice spoke only to an attacker (*"support set, then the assault"*) — a defending seat read it too. ⭐ *"PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together"* | the same rail |
+| D-4 | ⛔ **a repeated play restarted the play** — Blue re-ran `PlatoonAttack → house` at 01:05 and Bravo, 50 m past the objective, was sent back to the start. ⭐ The same play on the same place (2 m) while it runs is a NO-OP (*"PLAY … already in force since"*), as an order is since CE-4683 | `Duel_ARepeatedPlayInForce_IsANoOp_AndTheSnapshotSaysItsAge` (red-proved: the no-op dropped ⇒ two intents) |
+| D-5 | why Blue re-ran it: the snapshot (every 120 s) still said *"ORDERS IN FORCE: none"* — taken before his own play — and the model read it as now, over the radio line *"ORDER PlatoonAttack → house: given"*. ⭐ The snapshot now says its age (*"SNAPSHOT (65 s ago — the radio log below is newer)"*) and the prefix says the radio log carries what was given since | the same rail |
+| D-6 | the heartbeat said *"(no news — your squads await orders)"* while orders were in force — an invitation to give new ones. ⭐ *"(heartbeat — nothing new; the orders in force stand unless you change them)"* | `Duel_ARepeatedPlayInForce_…` (the heartbeat line) |
+| ⭐ measured (the duel's run, before the fixes) | Blue 48 calls / Red 63, 0 malformed, max 1 685 / 2 018 tokens, 6–7 s per answer; Red held the sheds with its Reserve, Blue's squads stalled near `start` (CE-4682) and were beaten. ⚠ The checks' cross-side `never` rows were wrong, not the seats: a LIST in `by` reads as anyone (CE-3502) |
+
+
+### 5c. L-3c — the decision contract *(BUILT `2026-11-23` — as built §5c.1; CE-4684; user `2026-11-23`: "yes. and pls use haiku at lowest effort so it is closest to local LLMs")*
+
+🔒 The user brought an outside proposal (a SITREP, an order schema and an example decision for a company attack) and asked to compare. The
+comparison (chat, `2026-11-23`): HROT already does half of it the same way — ids instead of coordinates, a perceived enemy, executor feedback,
+the previous estimate, a static-then-dynamic prompt, compact text, CONTINUE by default, tasks = behaviours, validate / repair once / fall back /
+log. ⭐ The other half is an OUTPUT CONTRACT that a small model needs most; L-3c adopts it BEFORE the laptop run (L-3b), so the 8 B models are
+measured on the contract we keep.
+
+```mermaid
+classDiagram
+  class Decision { <<NEW, one per wake>> Cycle · Assessment · Intent · Orders[≤ 6] · Contingencies[≤ 3] · NextDecision }
+  class Assessment { Situation · EnemyLikelyCoa · MainRisk }
+  class Intent { MainEffort · Scheme · EndState }
+  class UnitOrder { Unit · Task (enum = order kinds + plays + CONTINUE) · Objective · Via · Orient · Supports · Start · CompleteWhen · AbortWhen[≤ 2] · Purpose }
+  class Condition { <<one flat shape>> On (IMMEDIATE · AT_TIME · UNIT_AT · UNIT_TASK_COMPLETE · CONTACT · STRENGTH_BELOW · ENEMY_SEEN_AT) · Unit · At · Time · Percent }
+  class Contingency { Trigger Condition · Orders[≤ 3] }
+  class ConditionWatcher { <<NEW, serial>> starts / completes / aborts orders, fires contingencies — no model call }
+  class CommanderActionSystem { <<existing>> validates, CommandOrders.Order / run_play }
+  class TerrainFacts { <<NEW>> per named place: seen from · cover · vehicles can reach · travel minutes }
+  Decision *-- Assessment
+  Decision *-- Intent
+  Decision *-- UnitOrder
+  Decision *-- Contingency
+  UnitOrder --> Condition
+  Contingency --> Condition
+  ConditionWatcher ..> UnitOrder : holds pending / running
+  ConditionWatcher --> CommanderActionSystem : issues
+```
+
+*What the picture shows that prose hid: the model's answer becomes DATA that HROT keeps acting on between wakes (the watcher) — the orders'
+timing and the contingencies run without a model call, which is what covers the thinking gap in continuous mode.*
+
+| # | L-3c adds | why |
+|---|---|---|
+| C-1 | ⭐ **one decision object per wake**, decoded against a JSON schema (Ollama `format`; the relay returns the same object); fields in the order assessment → intent → orders → contingencies → next decision; replaces the free tool calls for the chat-model mind | reasoning before committing; the "why" for review is in the record; grammar-forced output is never malformed |
+| C-2 | **orders that carry their own timing** — `start`, `complete_when`, `abort_when` — and **≤ 3 contingencies**, run by a serial `ConditionWatcher` with no model call | sequences between decisions; covers the thinking gap |
+| C-3 | **`next_decision`** (not later than + ≤ 3 wake conditions) replacing the fixed heartbeat for this mind; the **cycle echo** — a decision made on an old cycle is refused | the model sets its own pace; stale decisions never land |
+| C-4 | **precomputed terrain facts** per named place in the static block: which places see it, cover (covered / partial / open), whether vehicles can reach it, travel minutes between neighbours | the model chooses between options instead of doing geometry — HROT already has sight and navigation |
+| C-5 | **enemy confidence** per contact (HIGH / MED / LOW from how many squads reported it and its age; "heard" when behaviors adds the bit) | something real to reason about, never truth |
+| C-6 | ⛔ positions only as ids: the "N m dir of" and grid forms leave the CHAT mind's vocabulary (kept for the scripted mind and the routes) | the proposal's strongest rule; geometry is HROT's job |
+
+⚠ Fire requests and mission-constraint checks (no-go areas, phase lines) are LATER — no fire support at platoon level yet.
+
+#### 5c.1 ✅ As built — L-3c (CE-4684, backend, `2026-11-23`; the run in `STATUS_Backend_LLM_Commander.md` §L-3c)
+
+```mermaid
+sequenceDiagram
+    participant R as MindRunner (mind thread)
+    participant M as ChatModelMind
+    participant S as chat server (Ollama / relay)
+    participant A as CommanderActionSystem (frame)
+    participant W as ConditionWatcher (CommanderWatchSystem, frame)
+    R->>M: briefing (CYCLE n, ids)
+    M->>S: messages + format = the seat's schema (no tools)
+    S-->>M: ONE decision object
+    M->>M: DecisionContract.Read — ids · task fits unit · counts · cycle echo
+    alt problems
+        M->>S: the decision + every problem, ONCE
+        S-->>M: the whole decision again
+    end
+    M-->>A: estimate (note) + Decision (or nothing = CONTINUE)
+    A->>A: newer wake than n? refuse (NOT a wake)
+    A->>A: each order starting now: the tool-call path (validate · no-op · refusal)
+    A->>W: Take: waiting orders, completions, aborts, contingencies, wake_on, next decision
+    loop every frame, no model call
+        W->>A: inject a started / contingency / abort order (next frame's pass)
+        W-->>R: order-state item (a wake for complete / abort / contingency / wake_on)
+    end
+```
+
+*What the picture shows that the prose hid: two loops — the model's (a decision per wake) and HROT's (every frame) — meet only at the seat's queue;
+the watcher gives its orders through the SAME action path as the model, so a contingency's order is validated, a repeat is a no-op, a refusal a wake.*
+
+| | as built |
+|---|---|
+| classes | `Decision` · `UnitOrder` · `Condition` (one flat shape) · `Contingency` · `SeatVocabulary` · `DecisionContract` (schema · read · validate) · `IDecisionMind` / `IDecisionTranscript` · `ConditionWatcher` + `CommanderWatchSystem` (Simulation, WhenTimeAdvances, after the action system) · `TerrainFacts` |
+| C-1 | the seat's schema (its units / places as enums) is Ollama's `format`; no tools. All or nothing: any problem sends the WHOLE decision back once with every problem named, a second failure is CONTINUE. A play AND a squad order now is a problem (a squad order ends the play). The model log keeps per call: request · raw · `validation` · `repaired` · `fallback` · the `decision`. `HROT_COMMANDER_FORMAT=tools` keeps L-3a's tool calls |
+| C-2 | `start` / `complete_when` / `abort_when[≤2]` per order, `contingencies[≤3]` with ≤ 3 orders; conditions read the squad's position, the commander's PICTURE (progress, strength colour, reported elements) and the clock — never the enemy's truth. An abort holds the squad (a play: stop_play); each fired / completed / aborted / woken one is an order-state WAKE |
+| C-3 | `next_decision.not_later_than_s` (10–300) + `wake_on[≤3]` replace the fixed heartbeat for a decision seat, held ≥ 10 s and ≤ 300 s after the last wake. ⭐ The cycle = the briefing's newest seq; a decision on an older cycle than the newest wake is refused — ⛔ NOT as a wake (📌 measured: as a wake it staled the next answer, 15 refusals in a row) |
+| C-4 | in EVERY seat's static block: seen from (eye 1.7 m → chest 1.0 m, `EqsTerrainSight` — perception's occluder) · cover (a building / ≥ 4 cover points covered / 1–3 partial / 0 open) · vehicles (the vehicle navmesh within 15 m) · minutes on foot to the 3 nearest places (`PathCost` ÷ 1.4 m/s). A standable place is judged at its spot, a building at the standable points around its walls (📌 a 6 m ring read the objective behind the Low Wall as "seen from the house") |
+| C-5 | per reported element: the squads that reported an enemy within 30 m of it and the newest report's age — ≥ 2 squads fresh (≤ 60 s) HIGH · one fresh or two stale MED · one stale LOW |
+| C-6 | a decision seat's prefix lists places as ids only; the schema enumerates them; "N m dir of" / grid stay for the other minds and the routes |
+| ⚠ deviations | the design's `Via` / `Orient` are not in the schema (no order on this path takes them); `Supports` became `support_at` (a place — the play's support position); the C-4 hand check left one pair open: the `house` point reads "seen from: none" while its note says `support` sees the sheds' south side — the point sits among the sheds, the note speaks of the wall (a building place aimed at its walls is the follow-up if it matters) |
+| ⭐ measured — `llm-platoon-attack`, Haiku at the LOWEST effort | baseline (L-3a tools): 26 calls · 9 orders · 0 malformed · tokens 1 159 / 1 468 / 1 465 (first / median / last) · 6/6 judged PASS (Red beaten). Contract: 58 calls · 47 decisions · 11 stale refused · 1 repaired · 0 CONTINUE fallbacks · 11 contingencies armed, 1 fired · 10 own wakes · tokens 1 776 / 2 539 / 2 150, max 3 429 · 6/6 judged PASS. ⚠ The contract costs more calls (the model chose 15–20 s deadlines) and ~600 tokens per request (the schema) |
+| ⭐ measured — `llm-platoon-duel`, the contract on both sides, lowest effort | ✅ 10/10 checks (the cross-side rows included). Blue 63 calls / 56 decisions / 7 stale / 29 no-ops; Red 66 / 57 / 9; 0 CONTINUE fallbacks; tokens max 3 448 / 3 690. Red held the sheds. 📌 A contingency re-armed with every decision fires again once its trigger already holds (Blue's fired 3 times; the repeat was a no-op) — the lean is an edge trigger (fires on BECOMING true after it is armed), not built in L-3c |
+
+
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
 | | ⭐ lean |
@@ -315,6 +545,25 @@ one per objective. ⛔ Still no ground truth: every new line comes from what was
 | **HROT on the same GPU** | run the editor headless or on the 2-D map during a test; the 3-D map competes for video memory |
 | **small-model care** | few tools, strict schemas, gazetteer names instead of coordinates, one retry with the error; expect some bad calls — the action system refuses them, the run goes on |
 | **speed** | a reply in seconds at this size — fast enough for a platoon commander in continuous mode |
+
+### 6a. The laptop recipe (L-3b) — ⭐ READY, NOT RUN *(CE-4681, `2026-11-23`)*
+
+```bash
+# once: Ollama (Windows: winget install Ollama.Ollama · Linux: curl -fsSL https://ollama.com/install.sh | sh), then `ollama serve`
+dotnet build Hrot/Runner/Hrot.ClusterRunner                          # the editor the runs use (headless: no 3-D map on the GPU)
+python scripts/llm/laptop_run.py                                     # pulls qwen2.5:7b-instruct, llama3.1:8b, qwen3:8b; one run each
+python scripts/llm/laptop_run.py --models qwen3:8b --num-ctx 16384   # one model, a bigger context
+```
+
+| step | what the script does |
+|---|---|
+| ① the server | checks `GET /api/tags` at `--endpoint` (default `http://localhost:11434`); none ⇒ it says how to install / start Ollama |
+| ② the models | `ollama pull <model>` for each (4-bit is Ollama's default for these tags); `--no-pull` skips |
+| ③ one run per model | `HROT_COMMANDER_MIND=ChatModel` + `_ENDPOINT` / `_MODEL` / `_NUM_CTX` (12 288) / `_KEEP_ALIVE` (30m) / `_TIMEOUT_S` (120) / `_LOG_DIR`, then `Hrot.ClusterRunner --mode editor --headless --verify llm-platoon-attack` — think-pause, so a slow answer only slows the run |
+| ④ the summary | per model: wakes, tool calls, accepted / refused, malformed, retried, answer time (mean / max), the request's size, checks passed (the scripted-only rows SKIPPED) → `summary.json` + a table |
+
+⭐ Proven on the VM end to end against `scripts/llm/chat_standin.py --mode script` (`--endpoint http://localhost:11500 --models stand-in
+--no-pull`) — the result is in the status report. ⛔ Not run on the laptop: that is L-3b.
 
 ## 7. Rules this respects
 
@@ -359,8 +608,11 @@ all their pictures, so it is really their superior: build it as that seat, hones
 | **L-2** | the HTTP surface (`/feed` long-poll, `/stream`, `/briefing`, `/act`), ExternalMind, think-pause mode | a Haiku worker plays the scenario to the end; no illegal action is accepted; the run is repeatable from its recording |
 | **L-2b** | §5b: `run_play` / `stop_play`, the mission brief, the objectives line, each squad's task and progress, the enemy's activity / equipment / age, terrain notes on named places | the scripted mind runs `PlatoonAttack` on the house and the play's choreography happens (support SET before the assault); the briefing carries every §5b line; the Haiku worker plays the scenario again — its orders cite the mission |
 | **L-3** | ⭐ on the CLOUD VM (CE-4681, user `2026-11-23`): `ChatModelMind` (Ollama's `/api/chat`, tools, one retry), a byte-stable prefix, checks per mind, a stand-in server, the **Haiku relay** answering HROT's exact chat requests; the laptop recipe ready, not run | the relay run plays `llm-platoon-attack` to the end; every exchange in the model log; counts of accepted / refused / malformed calls and the briefing's tokens per call |
+| **L-3a** | the briefing a small model can live with (CE-4683, user `2026-11-23`: "backend fix"): `note` one running estimate (CE-3501) · an ORDERS IN FORCE block, an identical order a no-op · prefer `run_play` said plainly · a per-call budget ≤ ≈ 4 000 tokens | the Haiku relay run again, side by side with L-3's: bounded notes, no re-sent orders, the budget held |
+| **L-3c** | §5c the decision contract (CE-4684): one schema-decoded decision per wake, conditions and contingencies run by HROT, next decision + cycle echo, terrain facts per place, enemy confidence, ids only | the Haiku relay at the LOWEST effort plays `llm-platoon-attack` AND `llm-platoon-duel` with the contract, side by side with L-3a's format at the same effort |
 | **L-3b** | the real model on the user's laptop (RTX 3070, 8 GB): the three 7–8 B models through the L-3 recipe | an 8 B model plays it in think-pause, then continuous; a per-model summary |
-| **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat | two platoon seats on one model; a company seat above them |
+| ⭐ **duel** | §5a-5 (backend, `2026-11-23`): a seat on each side, one Haiku worker each through the per-commander relay — the L-4 "second seat" pre-tested | the clock held for both and released once; each side told only its own places; a repeated play a no-op |
+| **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat (⭐ the clock for many seats BUILT in §5a-5) | two platoon seats on one model; a company seat above them |
 
 ## 12. Decisions — ✅ APPROVED `2026-11-22` (R-4298: *"leans approved"*)
 

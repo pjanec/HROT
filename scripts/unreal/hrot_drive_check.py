@@ -5,7 +5,8 @@
                        "stopAtM" (default 5), "aim" ("body": the vehicle's centre, "roof": 1.5 m above it) }
 
 The editor plays (PIE, AHrotDpsGameMode) the live station's map; the client joins; once "go" exists it possesses the soldier, turns and
-walks him to the vehicle, aims at it and taps use - then waits and records. Facts come from the client's log lines (own unit use / seat /
+walks him to the vehicle, aims at it and taps use, holds W (does the VEHICLE move once the slot hands it over), then taps use again
+(get out) - and records. Facts come from the client's log lines (own unit use / seat /
 player use press) and from this script's own samples: the slot's played unit, the soldier's distance, the aim target.
 No verdict is computed here - the run is a measurement for a note (the user, 2026-11-23: "can you somehow script it yourself?").
 """
@@ -82,7 +83,9 @@ def look_at(target_cm):
     dy = (want_yaw - rot.yaw + 540.0) % 360.0 - 180.0
     dp = want_pitch - rot.pitch
     sgn = S.get("yaw_sign", 1.0)
-    c.player_look(sgn * max(-20.0, min(20.0, dy)), S.get("pitch_sign", 1.0) * max(-10.0, min(10.0, dp)))
+    # a fraction of the error per tick: the view answers a tick late, so the full error each tick swings past the target and back
+    # (live 2026-11-23: the crosshair flickered on / off the vehicle and the press went out with no target)
+    c.player_look(sgn * max(-20.0, min(20.0, dy * 0.3)), S.get("pitch_sign", 1.0) * max(-10.0, min(10.0, dp * 0.3)))
     return dy, dp
 
 
@@ -137,7 +140,12 @@ def run():
         b = loc(int(JOB["vehicle"]))
         tgt = b + unreal.Vector(0, 0, 150.0 if JOB.get("aim") == "roof" else 60.0)
         look_at(tgt)
-        if time.time() > S["until"]:
+        # press only once the crosshair has rested on the vehicle for 10 ticks in a row (or give up after 15 s)
+        # ... AND HROT offers its action now (OwnUnit.CanUse - live 2026-11-23: at 4.4 m the reach flickered and the press was refused OutOfReach)
+        st = station()
+        offered = bool(st and st.use_prompt())
+        S["on"] = S.get("on", 0) + 1 if cam().player_aim_target() == int(JOB["vehicle"]) and offered else 0
+        if time.time() > S["until"] and (S["on"] >= 10 or time.time() > S["until"] + 15):
             s = sample("aimed")
             log(f"crosshair rests on {s['aim']} (vehicle {JOB['vehicle']})")
             cam().player_use()
@@ -146,10 +154,24 @@ def run():
         if time.time() > S["next_s"]: sample("after use"); S["next_s"] = time.time() + 2
         if time.time() > S["until"]:
             # the keys a driver would press: W for 3 s, then whatever moved is in the samples / the HROT log
-            cam().player_move(1.0, 0.0); S.update(phase="press_w", until=time.time() + 4, next_s=0)
+            S["veh0"] = loc(int(JOB["vehicle"]))
+            cam().player_move(1.0, 0.0); S.update(phase="press_w", until=time.time() + 6, next_s=0)
     elif ph == "press_w":
         if time.time() > S["next_s"]: sample("W held"); S["next_s"] = time.time() + 1
-        if time.time() > S["until"]: cam().player_move(0.0, 0.0); finish("done")
+        if time.time() > S["until"]:
+            cam().player_move(0.0, 0.0)
+            b, b0 = loc(int(JOB["vehicle"])), S.get("veh0")
+            R["vehicleMovedM"] = round((b - b0).length() / 100.0, 1) if b and b0 else None
+            log(f"vehicle moved {R['vehicleMovedM']} m under W")
+            # get out (gateway DD-029: any new press while the slot drives a vehicle with our soldier aboard)
+            S.update(phase="settle", until=time.time() + 3)
+    elif ph == "settle":
+        if time.time() > S["until"]:
+            sample("before get-out"); cam().player_use()
+            S.update(phase="get_out", until=time.time() + 10, next_s=time.time() + 1)
+    elif ph == "get_out":
+        if time.time() > S["next_s"]: sample("after get-out"); S["next_s"] = time.time() + 2
+        if time.time() > S["until"]: finish("done")
 
 
 def tick(dt):

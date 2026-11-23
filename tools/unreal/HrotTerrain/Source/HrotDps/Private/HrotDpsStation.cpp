@@ -98,7 +98,7 @@ void UHrotDpsStation::Send(const FHrotDpsControl& F)
 	C.Mount = F.Mount;
 	C.AimPoint = { F.AimPoint.X, F.AimPoint.Y, F.AimPoint.Z };
 	C.ShotSeq = F.ShotSeq; C.ShotTarget = F.ShotTarget; C.CancelSeq = F.CancelSeq; C.AmmoSeq = F.AmmoSeq;
-	C.UseSeq = F.UseSeq; C.UseVerb = 0; C.UseTarget = F.UseTarget; C.Verb = SimNetGateway_Protocol_DdsPlayer_UseVerbNone;
+	C.UseSeq = F.UseSeq; C.UseVerb = 0; C.UseTarget = F.UseTarget; C.Verb = SimNetGateway_Protocol_DdsPlayer_UseVerb(F.Verb);
 	C.Lean = F.Lean; C.Binoculars = F.bBinoculars ? 1 : 0; C.FirePref = F.FirePref;
 	C.LookFrom = { F.LookFrom.X, F.LookFrom.Y, F.LookFrom.Z };
 	C.LookDir = { float(F.LookDir.X), float(F.LookDir.Y), float(F.LookDir.Z) };
@@ -141,8 +141,19 @@ void UHrotDpsStation::OnOwnUnit(const FHrotDpsSample& S)
 	LastHealth = D.Health;
 	OwnHealth = D.Health; OwnMaxHealth = D.MaxHealth; OwnActiveSlot = D.ActiveSlot; OwnFireMode = uint8(D.FireMode); OwnSpread = D.SpreadRad;
 	{   // what HROT offers on the crosshair's target and how a use went - logged on change (the drive check, 2026-11-23)
-		const FString Now = FString::Printf(TEXT("can %d target %d verb %d/%d '%s' seq %d outcome %d reason %d"), D.CanUse ? 1 : 0, D.UseTargetId, int32(D.Verb), int32(D.UseVerb),
+		const FString Use = FString::Printf(TEXT("can %d target %d verb %d/%d '%s' seq %d outcome %d reason %d"), D.CanUse ? 1 : 0, D.UseTargetId, int32(D.Verb), int32(D.UseVerb),
 			UTF8_TO_TCHAR(D.UseLabel), int32(D.UseSeq), int32(D.UseOutcome), int32(D.UseReason));
+		// HROT's whole offered list for the target, in its order (gateway DD-029: OwnUnit.Actions) - the hold-F list's rows
+		UseActions.Reset();
+		FString List;
+		for (uint32 I = 0; I < D.Actions._length; ++I)
+		{
+			const auto& A = D.Actions._buffer[I];
+			UseActions.Add({ uint8(A.Verb), UTF8_TO_TCHAR(A.Label), A.Available, uint8(A.Reason), A.HoldOnly });
+			List += FString::Printf(TEXT(" [%d '%s'%s%s]"), int32(A.Verb), UTF8_TO_TCHAR(A.Label), A.Available ? TEXT("") : *FString::Printf(TEXT(" refused %d"), int32(A.Reason)),
+				A.HoldOnly ? TEXT(" hold") : TEXT(""));
+		}
+		const FString Now = Use + (List.IsEmpty() ? FString() : TEXT(" list") + List);
 		if (Now != LastUseLine) { LastUseLine = Now; UE_LOG(LogHrotDpsStation, Display, TEXT("own unit %d use: %s"), D.UnitId, *Now); }
 	}
 	bCanUse = D.CanUse; UseLabel = UTF8_TO_TCHAR(D.UseLabel);

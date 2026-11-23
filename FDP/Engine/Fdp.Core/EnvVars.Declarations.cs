@@ -173,6 +173,15 @@ namespace Fdp.Core
         // ── Tools and non-variables ──
         public static readonly EnvVar HrotReachPerSystem = new("HROT_REACH_PER_SYSTEM", EnvCategory.Tool, "string", "", "reach analysis tool: per-system report specification", "N3_Shared_State_Per_System.md");
         public static readonly EnvVar HrotEditorGenerated = new("HROT_EDITOR_GENERATED", EnvCategory.Tool, "marker", "", "NOT an environment variable: marker comment in generated editor code", "Hrot.Utility.Editor.md");
+        // ⭐ CE-4681 / CE-4684 — the LLM commander's chat-model mind (§5a-3, §5c) and its model log
+        public static readonly EnvVar HrotCommanderMind = new("HROT_COMMANDER_MIND", EnvCategory.Switch, "Scripted|External|ChatModel", "", "the commander seats' mind for this run, over the scenario's", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
+        public static readonly EnvVar HrotCommanderEndpoint = new("HROT_COMMANDER_ENDPOINT", EnvCategory.Switch, "url", "http://localhost:11434", "the chat server the chat-model mind calls (Ollama's /api/chat)", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
+        public static readonly EnvVar HrotCommanderModel = new("HROT_COMMANDER_MODEL", EnvCategory.Switch, "string", "qwen2.5:7b-instruct", "the model the chat-model mind asks for", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
+        public static readonly EnvVar HrotCommanderNumCtx = new("HROT_COMMANDER_NUM_CTX", EnvCategory.Switch, "int", "8192", "the context (tokens) the chat server keeps", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
+        public static readonly EnvVar HrotCommanderKeepAlive = new("HROT_COMMANDER_KEEP_ALIVE", EnvCategory.Switch, "duration", "30m", "how long the chat server keeps the model loaded between calls", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
+        public static readonly EnvVar HrotCommanderTimeoutS = new("HROT_COMMANDER_TIMEOUT_S", EnvCategory.Switch, "seconds", "120", "how long one chat call may take (wall)", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
+        public static readonly EnvVar HrotCommanderFormat = new("HROT_COMMANDER_FORMAT", EnvCategory.Switch, "decisions|tools", "decisions", "the answer's shape: one decision object (L-3c) or L-3a's tool calls", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
+        public static readonly EnvVar HrotCommanderLogDir = new("HROT_COMMANDER_LOG_DIR", EnvCategory.Diagnostic, "path", "", "where the model log goes when the host records nothing (a verify run)", "docs/designs/llm-commander/DESIGN_LLM_Commander.md");
         public static readonly EnvVar Fdp001 = new("FDP_001", EnvCategory.Tool, "diagnostic id", "", "NOT an environment variable: the behaviour parameter size analyzer's diagnostic id", "AI_DEV_GUIDE.md");
     }
 }

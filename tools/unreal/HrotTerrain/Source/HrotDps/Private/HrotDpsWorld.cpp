@@ -1,6 +1,7 @@
 // CE-4651 (U-18b) — see HrotDpsWorld.h
 #include "HrotDpsWorld.h"
 #include "HrotDpsStation.h"
+#include "HrotDpsTrafficKit.h"
 #include "HrotDpsNative.h"
 #include "HrotDpsSubsystem.h"
 #include "HrotVehicle.h"
@@ -21,6 +22,15 @@
 #include "Engine/DecalActor.h"
 #include "Components/DecalComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
+#include "Components/SkinnedMeshComponent.h"
+#include "GameFramework/Character.h"
+#include "Animation/AnimSequence.h"
+#if WITH_EDITOR
+#include "SkinnedAssetCompiler.h"
+#endif
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -136,6 +146,71 @@ UHrotDpsWorld* UHrotDpsWorld::Get(const UObject* WorldContext)
 	return W ? W->GetSubsystem<UHrotDpsWorld>() : nullptr;
 }
 
+// U-19h: ONE-SHOT at join - everything SpawnPerson / the soundscape would load on first use (measured live: 19.8 s "Waiting for skinned assets" when the people first
+// appear; 1-3 s FlushAsyncLoading hitches at the first rifle / body / dirt sound), so the wait happens here, not mid-play.
+void UHrotDpsWorld::PreloadPeopleAndSounds()
+{
+	const double T0 = FPlatformTime::Seconds();
+	int32 Kits = 0;
+	TArray<USkinnedAsset*> Skinned;
+	TArray<UClass*> Classes;
+	auto Add = [this](UObject* O) { if (O) Preloaded.Add(O); };
+	auto Kit = [&](const TSoftObjectPtr<UHrotPersonKit>& Soft)
+	{
+		UHrotPersonKit* K = Soft.LoadSynchronous();
+		if (!K) return;
+		++Kits; Add(K);   // its hard references (body mesh, rifle, launcher, materials, every clip) load with it
+		if (K->BodyMesh) Skinned.AddUnique(K->BodyMesh);
+		for (const TPair<FName, TObjectPtr<UAnimSequence>>& C : K->Clips) Add(C.Value);
+		if (UClass* Cls = K->BodyClass.LoadSynchronous())
+		{
+			Add(Cls); Classes.AddUnique(Cls);
+			// the body Blueprint's own skinned meshes: the native ones (a Character's mesh) and every Blueprint component template up its class chain
+			if (const ACharacter* Ch = Cast<ACharacter>(Cls->GetDefaultObject())) if (Ch->GetMesh() && Ch->GetMesh()->GetSkinnedAsset()) Skinned.AddUnique(Ch->GetMesh()->GetSkinnedAsset());
+			for (UClass* C = Cls; C; C = C->GetSuperClass())
+				if (const UBlueprintGeneratedClass* BP = Cast<UBlueprintGeneratedClass>(C))
+					if (BP->SimpleConstructionScript)
+						for (const USCS_Node* N : BP->SimpleConstructionScript->GetAllNodes())
+							if (const USkinnedMeshComponent* SM = Cast<USkinnedMeshComponent>(N ? N->ComponentTemplate.Get() : nullptr))
+								if (SM->GetSkinnedAsset()) Skinned.AddUnique(SM->GetSkinnedAsset());
+		}
+	};
+	Kit(PersonKit);
+	for (const TSoftObjectPtr<UHrotPersonKit>& K : CivilianKits) Kit(K);
+	// ⭐ the crowd Blueprints pick their OUTFIT parts at construction (random per construction: GEN_VARIABLE components), parts the class's templates do not name: build each
+	// body a few times, hidden and far below the map, collect every skinned mesh the construction made, then destroy it (measured live: 14.7 s still waited for the parts)
+	const int32 BeforeBuilt = Skinned.Num();
+	int32 Built = 0, LastRoundNew = 0;
+	if (UWorld* W = GetWorld())
+		for (UClass* Cls : Classes)
+			for (int32 Round = 0; Round < PreloadRounds; ++Round)
+			{
+				const int32 Was = Skinned.Num();
+				const FTransform Below(FRotator::ZeroRotator, FVector(0, 0, -5000000.0));
+				AActor* A = W->SpawnActorDeferred<AActor>(Cls, Below, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+				if (!A) continue;
+				if (APawn* Pawn = Cast<APawn>(A)) { Pawn->AutoPossessAI = EAutoPossessAI::Disabled; Pawn->AutoPossessPlayer = EAutoReceiveInput::Disabled; }
+				A->SetActorHiddenInGame(true);
+				A->FinishSpawning(Below);
+				TArray<USkinnedMeshComponent*> Comps; A->GetComponents(Comps);
+				for (USkinnedMeshComponent* C : Comps) if (C->GetSkinnedAsset()) Skinned.AddUnique(C->GetSkinnedAsset());
+				A->Destroy();
+				++Built;
+				if (Round == PreloadRounds - 1) LastRoundNew += Skinned.Num() - Was;
+			}
+	for (USkinnedAsset* S : Skinned) Add(S);
+#if WITH_EDITOR
+	// the editor builds each character mesh on its first draw (a 20 s wait with the people on screen): finish them now
+	if (Skinned.Num()) FSkinnedAssetCompilingManager::Get().FinishCompilation(Skinned);
+#endif
+	const double T1 = FPlatformTime::Seconds();
+	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d bodies built (%d rounds per class), %d outfit / face meshes found beyond the kits' own (the last round added %d: 0 = the parts are covered)"), Built, PreloadRounds, Skinned.Num() - BeforeBuilt, LastRoundNew);
+	int32 Sounds = 0;
+	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this)) Sounds = Snd->PreloadAll();
+	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d person kits, %d skinned assets (%d assets held) in %.2f s; %d sounds in %.2f s"),
+		Kits, Skinned.Num(), Preloaded.Num(), T1 - T0, Sounds, FPlatformTime::Seconds() - T1);
+}
+
 bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 {
 	Stop();
@@ -155,6 +230,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	if (UObject* O = PersonKit.LoadSynchronous()) Preloaded.Add(O);
 	if (UObject* O = DefaultMissileKind.LoadSynchronous()) Preloaded.Add(O);
 	for (const auto& K : MissileKindsByType) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
+	PreloadPeopleAndSounds();
 	MgFx = UHrotWeaponFx::HeavyMgFx(); RifleFx = UHrotWeaponFx::LyraRifleFx();
 	Events.Reset();
 	// U-18r: on the same station, KEEP the participant (a restart deletes our ClientWorld writer: the station would read us as gone and stop
@@ -329,6 +405,18 @@ void UHrotDpsWorld::OnState(const FHrotDpsSample& S)
 	else { E.BlendStart = -1; E.Shown = HrotDpsMotion::Extrapolate(K, Clock.Now(R)); }
 	E.SampleReal = R;
 	E.Track = K;
+	// DIAGNOSTIC ONLY (never corrects the orientation: the client shows HROT's data as sent): a PERSON that ARRIVES tilted - from the wire's quaternion, before any client transform
+	if ((E.bHasPerson || E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) && R - E.TiltLoggedAt >= 10.0)
+	{
+		const FVector3d Fwd = K.Q.RotateVector(FVector3d(1, 0, 0)), Left = K.Q.RotateVector(FVector3d(0, 1, 0));
+		const double Pitch = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Fwd.Z, -1.0, 1.0))), Roll = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Left.Z, -1.0, 1.0)));
+		if (FMath::Abs(Pitch) > 20.0 || FMath::Abs(Roll) > 20.0)
+		{
+			E.TiltLoggedAt = R;
+			UE_LOG(LogTemp, Display, TEXT("HROT person %d arrives tilted: pitch %.0f roll %.0f yaw %.0f, z %.2f m, speed %.2f, stance %d, role %s"), D.EntityId, Pitch, Roll,
+				FMath::RadiansToDegrees(FMath::Atan2(Fwd.Y, Fwd.X)), K.P.Z, K.V.Size(), int32(E.Person.Stance), *E.Look);
+		}
+	}
 	E.Bank = D.Bank;
 	E.bHasState = true;
 	E.StateDamage = uint8(D.Damage);
@@ -491,10 +579,16 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 		return;
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket:
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm:
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategorySam:
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAirToAir:
 		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n: the launch (the round itself is an entity, drawn as such)
 			if (R)
 			{
-				USoundBase* L = Snd->Pick(TEXT("wpn/rocket_launch"));
+				// a guided missile (ATGM: Javelin, Kornet; SAM: Igla, Stinger; air-to-air) has its own launch - the motor's long whoosh
+				// (wpn/missile_launch, DESIGN_IG_Squad_Radio §6); an unguided rocket (RPG) keeps the rocket's
+				const bool bMissile = D.WeaponCategory != SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket;
+				USoundBase* L = Snd->Pick(bMissile ? TEXT("wpn/missile_launch") : TEXT("wpn/rocket_launch"));
+				if (!L && bMissile) L = Snd->Pick(TEXT("wpn/rocket_launch"));
 				R->PlaySound(L ? L : Snd->Pick(TEXT("wpn/rpg")), From, Snd->Falloff(10.f, 2000.f));
 			}
 		Count(TEXT("rocket launch"));
@@ -1056,7 +1150,10 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	// the body clip: the role, or its fallback chain when the kit has none
 	FName Role = L.Base;
 	UAnimSequence* Base = K->Clip(Role);
-	for (int32 I = 0; !Base && !Role.IsNone() && I < 6; ++I) { Role = HrotDpsPeople::Fallback(Role); Base = K->Clip(Role); }
+	{   // U-19h: never a loop (Death.Stand <-> Dying), the chain ends at the first clip the kit has
+		TArray<FName, TInlineAllocator<8>> Tried;
+		while (!Base && !Role.IsNone() && !Tried.Contains(Role)) { Tried.Add(Role); Role = HrotDpsPeople::Fallback(Role); if (!Role.IsNone()) Base = K->Clip(Role); }
+	}
 	// U-18i — a RIDER: his body sits (the seat's clip, U-17j), his upper body still readies and aims (firing from the saddle)
 	if (E.bRiding && E.SeatPose.IsValid()) { Base = E.SeatPose.Get(); Role = TEXT("Seat.Riding"); }
 	// a hit on him (U-18e): the flinch plays once over the body, unless he is going down (his Injury wins) or prone
@@ -1131,7 +1228,7 @@ FString UHrotDpsWorld::PersonLook(int32 EntityId) const { const FEnt* E = Ents.F
 
 // ── actors ──
 
-UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
+UHrotVehicleKit* UHrotDpsWorld::KitFor(int32 Id, const FEnt& E) const
 {
 	if (const TSoftObjectPtr<UHrotVehicleKit>* K = KitsByType.Find(E.TypeId)) return K->LoadSynchronous();
 	const TSoftObjectPtr<UHrotVehicleKit>* Best = nullptr;
@@ -1139,6 +1236,14 @@ UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
 	for (const TPair<FString, TSoftObjectPtr<UHrotVehicleKit>>& P : KitsByDis)   // the longest dotted prefix
 		if ((E.Dis == P.Key || E.Dis.StartsWith(P.Key + TEXT("."))) && P.Key.Len() > BestLen) { Best = &P.Value; BestLen = P.Key.Len(); }
 	if (Best) return Best->LoadSynchronous();
+	// U-19h: a SUMO car HROT took over (DIS 1.1.0.81, the mover's own id): the mover's model family, the mover's own pick - it keeps its look
+	switch (HrotDpsTrafficKit::FamilyOf(E.Dis, int32(E.TypeId)))
+	{
+	case HrotDpsTrafficKit::EFamily::Bus: if (!BusKit.IsNull()) return BusKit.LoadSynchronous(); break;
+	case HrotDpsTrafficKit::EFamily::Van: { const int32 I = HrotDpsTrafficKit::Pick(Id, VanKits.Num()); if (I >= 0) return VanKits[I].LoadSynchronous(); break; }
+	case HrotDpsTrafficKit::EFamily::Car: { const int32 I = HrotDpsTrafficKit::Pick(Id, CarKits.Num()); if (I >= 0) return CarKits[I].LoadSynchronous(); break; }
+	default: break;
+	}
 	if (const TSoftObjectPtr<UHrotVehicleKit>* K = KitsByDomain.Find(DomainName(E.Domain))) return K->LoadSynchronous();
 	return nullptr;
 }
@@ -1184,7 +1289,7 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		E.DrawnAs = TEXT("person stand-in");
 		A = M;
 	}
-	else if (UHrotVehicleKit* Kit = (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) ? nullptr : KitFor(E))
+	else if (UHrotVehicleKit* Kit = (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) ? nullptr : KitFor(Id, E))
 	{
 		AHrotVehicle* V = W->SpawnActorDeferred<AHrotVehicle>(AHrotVehicle::StaticClass(), At, nullptr, nullptr,
 			ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
@@ -1209,9 +1314,28 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		// a pintle / tripod gun) are their own entities, the M2 standing at the HMMWV: a vehicle-sized box hid the HMMWV ⇒ a gun-sized one
 		TArray<FString> DisParts; E.Dis.ParseIntoArray(DisParts, TEXT("."));
 		const bool bWeaponSystem = DisParts.Num() > 3 && DisParts[3] == TEXT("50");
-		B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : bWeaponSystem ? FVector(1.6, 0.25, 0.35) : FVector(5, 2.5, 2));
+		B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : bWeaponSystem ? FVector(0.35, 0.16, 0.22) : FVector(5, 2.5, 2));
 		B->GetStaticMeshComponent()->SetRelativeLocation(FVector(0, 0, bPerson ? 90 : bWeaponSystem ? 120 : 100));
-		if (bWeaponSystem) E.DrawnAs = TEXT("weapon-system box");
+		if (bWeaponSystem)
+		{
+			// U-19h: no HMG model exists (measured: /Game/Fab/RTS_Modern_Combat_Vehicle_Pack_Free has only the HMG20_M0 MATERIALS - no mesh; DA_FR_VBL_Green draws a body and
+			// wheels, no roof gun) - so a gun built from engine shapes, +X forward, ~1.65 m long: a receiver, a barrel and a pintle post, instead of a 1.6 m slab
+			const FVector Par(0.35, 0.16, 0.22);   // the receiver cube's world size (m); the parts are cubes too (no rotation, so no shear under the non-uniform parent)
+			auto Part = [&](FVector OffsetM, FVector SizeM)
+			{
+				UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(B, NAME_None, RF_Transient);
+				C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
+				C->SetMobility(EComponentMobility::Movable);
+				C->AttachToComponent(B->GetStaticMeshComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+				C->SetRelativeLocation(OffsetM / Par);   // parent space: 1 unit = 1 m x the parent's scale
+				C->SetRelativeScale3D(SizeM / Par);
+				C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				C->RegisterComponent();
+			};
+			Part(FVector(0.8, 0, 0.03), FVector(1.3, 0.05, 0.05));      // the barrel: from just ahead of the receiver to 1.45 m (the gun is 1.62 m long)
+			Part(FVector(0, 0, -0.45), FVector(0.06, 0.06, 0.9));       // the pintle post down to the ground
+			E.DrawnAs = TEXT("weapon-system gun (engine shapes)");
+		}
 		if (E.DrawnAs.IsEmpty() || E.DrawnAs.StartsWith(TEXT("("))) E.DrawnAs = TEXT("box");
 		A = B;
 	}

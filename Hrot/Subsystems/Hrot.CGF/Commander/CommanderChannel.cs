@@ -15,7 +15,7 @@ public enum FeedKind : byte { Snapshot = 1, Report = 2, OrderState = 3, Event = 
 public sealed record FeedItem(long Seq, double SimTime, FeedKind Kind, bool Wake, string Radio, string Json);
 
 /// <summary>What a mind asks for (DESIGN_LLM_Commander §4 — the tools).</summary>
-public enum CommanderActionKind : byte { Order = 1, Hold = 2, AskSitrep = 3, Note = 4, RunPlay = 5, StopPlay = 6 }   // ⭐ CE-4680 B-1 — the platoon plays
+public enum CommanderActionKind : byte { Order = 1, Hold = 2, AskSitrep = 3, Note = 4, RunPlay = 5, StopPlay = 6, Decision = 7 }   // ⭐ CE-4680 B-1 — the platoon plays · ⭐ CE-4684 — one decision (§5c)
 
 /// <summary>
 /// ⭐ <c>CE-4676</c> — one action a mind took, made on the feed item <see cref="MadeOnSeq"/>. Plain text fields, exactly as a model's tool call gives them:
@@ -25,6 +25,11 @@ public sealed record CommanderAction(CommanderActionKind Kind, string? Squad = n
                                      string? Text = null)
 {
     public long MadeOnSeq { get; init; }
+    /// <summary>⭐ CE-4684 (§5c) — a <see cref="CommanderActionKind.Decision"/>'s content; the seat's ids it was validated against ride with it.</summary>
+    public Decision? Plan { get; init; }
+    public SeatVocabulary? Vocabulary { get; init; }
+    /// <summary>⭐ CE-4684 C-2 — an action the condition watcher gave (a started order, a contingency, an abort): never a cycle check.</summary>
+    public bool FromWatcher { get; init; }
 }
 
 /// <summary>
@@ -107,6 +112,9 @@ public sealed class CommanderChannel
         lock (_gate)
             if (throughSeq > _answered) _answered = throughSeq;
     }
+
+    /// <summary>⭐ CE-4684 C-2 — frame thread: an action the seat's condition watcher gives (no model call); the action system takes it like any.</summary>
+    public void Inject(CommanderAction action) => _actions.Enqueue(action with { FromWatcher = true });
 
     /// <summary>Frame thread: the next action, if any.</summary>
     public bool TryTake(out CommanderAction action) => _actions.TryDequeue(out action!);

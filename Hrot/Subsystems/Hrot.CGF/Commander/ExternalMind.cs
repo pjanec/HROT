@@ -11,8 +11,12 @@ namespace Hrot.CGF.Commander;
 /// which it answers "no orders". The posted actions take the SAME road as any mind's: the runner answers the channel with them and
 /// <see cref="CommanderActionSystem"/> validates every one. ⛔ It never sees the world: only the briefing it was given.
 /// </summary>
-public sealed class ExternalMind : IMind
+public sealed class ExternalMind : IMind, IMindTranscript
 {
+    string? IMindTranscript.LastRequest => null;   // an outside mind fetches its briefing itself
+    int IMindTranscript.LastMalformed => 0;
+    bool IMindTranscript.LastRetried => false;
+
     /// <summary>How long a wake waits for an answer before the seat goes on with no orders (wall time).</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
 
@@ -47,7 +51,8 @@ public sealed class ExternalMind : IMind
             var done = await Task.WhenAny(answer.Task, Task.Delay(Timeout, ct)).ConfigureAwait(false);
             if (done == answer.Task) return await answer.Task.ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
-            return new[] { new CommanderAction(CommanderActionKind.Note, Text: $"no answer in {Timeout.TotalSeconds:0} s — no orders") };
+            _lastRaw = $"no answer in {Timeout.TotalSeconds:0} s — no orders";   // ⭐ CE-4683: the model log says it; ⛔ a note would replace his estimate
+            return Array.Empty<CommanderAction>();
         }
         finally
         {

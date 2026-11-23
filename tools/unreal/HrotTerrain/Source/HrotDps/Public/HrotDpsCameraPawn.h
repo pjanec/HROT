@@ -27,6 +27,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "HrotDpsCamera.h"
+#include "HrotDpsUseList.h"
 #include "HrotDpsCameraPawn.generated.h"
 
 class UCameraComponent;
@@ -127,7 +128,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerFire(bool bHeld) { if (bHeld && !TestTrigger) TestFirePress = true; TestTrigger = bHeld; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerZoom(bool bOn) { TestZoom = bOn; }
 	/** a tap of the use key (F) on what the crosshair rests on - for scripts (the drive check, 2026-11-23) */
-	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerUse() { TestUsePress = true; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerUse() { TestUsePress = true; TestUseVerb = 0; }
+	/** a press of the use key naming one of HROT's offered verbs (the contract's UseVerb), for scripts (U-19h) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerUseVerb(uint8 Verb) { TestUsePress = true; TestUseVerb = Verb; }
 	/** what the crosshair rests on now (the UseTarget sent) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") int32 PlayerAimTarget() const { return AimTarget; }
 	/** the player's view distance (m; 0 = his eyes, < 0 ahead of them) */
@@ -146,6 +149,9 @@ public:
 	float PlayerViewDistance() const { return PlayerDistance; }
 	HrotCamera::EScheme PlayerScheme() const { return PScheme; }
 	int32 SelectedMount() const { return Mount; }
+	/** the hold-F list (U-19h): open, and which row is highlighted (index into the station's Actions) */
+	bool UseListOpen() const { return UseList.bOpen; }
+	int32 UseListHighlight() const { return UseList.Highlight; }
 
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Camera") TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Camera") TObjectPtr<UCameraComponent> Cam;
@@ -200,6 +206,8 @@ private:
 	// test input (no player controller)
 	float TestLookYaw = 0, TestLookPitch = 0, TestForward = 0, TestSide = 0;
 	bool TestFirePress = false, TestTrigger = false, TestZoom = false, TestUsePress = false;
+	uint8 TestUseVerb = 0, UseVerb = 0;
+	HrotDpsUseList::FState UseList;
 	void PlaceFollow(float Dt);
 	void PlaceDirector(float Dt);
 	int32 FollowSide = 1;          // the shoulder (+1 right); the director's binding sets it

@@ -17,6 +17,13 @@ using Hrot.AI.Behaviors.Brains;
 
 namespace Hrot.CGF.Commander;
 
+/// <summary>⭐ <c>CE-4683</c> ② — an order in force on a squad: its kind (the seat's order vocabulary), where as said, the resolved point, since when, and
+/// who gave it (<c>"you"</c> or <c>"play PlatoonAttack"</c>).</summary>
+public sealed record GivenOrder(string Kind, string? Where, System.Numerics.Vector2? Point, double Since, string By)
+{
+    public string Text => Where is { Length: > 0 } w ? $"{Kind} → {w}" : Kind;
+}
+
 /// <summary>⭐ <c>CE-4676</c> — one seat's runtime on the frame thread: its channel, its mind's runner, its places, and what the feed has already said.
 /// ⭐ CE-4679 — its identity, mind and mode are also readable from any thread (the HTTP routes).</summary>
 public sealed class SeatRuntime : IDisposable
@@ -33,6 +40,13 @@ public sealed class SeatRuntime : IDisposable
     public ModelLog? Log { get; set; }
     public CommanderMind Mind { get; internal set; }
     public CommanderMode Mode { get; internal set; }
+    /// <summary>⭐ CE-4684 (§5c) — the seat's mind answers with decision objects (C-1): its prefix speaks ids only (C-6) and its pace is the model's own
+    /// next decision (C-3).</summary>
+    public bool Contract { get; internal set; }
+    /// <summary>⭐ CE-4684 C-6 — the ids the seat's decisions may use.</summary>
+    public SeatVocabulary? Vocabulary { get; internal set; }
+    /// <summary>⭐ CE-4684 C-2 — what the last decision left HROT to do without a model call.</summary>
+    public ConditionWatcher Watch { get; } = new();
 
     // what the feed already said (frame thread)
     internal double LastItemAt, LastSnapshotAt, LastFightCheckAt;
@@ -44,13 +58,16 @@ public sealed class SeatRuntime : IDisposable
 
     // ⭐ CE-4679 — the think-pause hold (frame thread, CommanderActionSystem)
     internal volatile bool Holding;   // read from any thread (a stepping run's hold, GET /commanders)
-    internal bool PausedByUs, UserPaused, OwnPauseSeen;
 
     // ⭐ CE-4680 B-1 — the play the seat gave its commander as his task (frame thread), and the direct orders waiting for it to end
     internal string? Play;
     internal uint PlayRun;
-    /// <summary>⭐ CE-4680 B-4 — the last direct order the seat gave each squad ("Attack → house"): a commander with no running task records no <c>SubordinateOrders</c> (run 0).</summary>
-    internal readonly System.Collections.Generic.Dictionary<Entity, string> Given = new();
+    /// <summary>⭐ CE-4683 ② (§5a-4) — the order IN FORCE on each squad: his own last direct order, or the play's (read from <c>SubordinateOrders</c>) —
+    /// ONE table the snapshot shows and the action system checks a repeat against. ⛔ Was CE-4680 B-4's <c>Given</c> (text only, own orders only).</summary>
+    internal readonly System.Collections.Generic.Dictionary<Entity, GivenOrder> InForce = new();
+    /// <summary>⭐ CE-4683 — where the running play aims and since when (the snapshot names it).</summary>
+    internal string? PlayWhere;
+    internal double PlaySince;
     internal readonly System.Collections.Generic.List<CommanderAction> AfterPlay = new();
     internal long HoldSince;
 
@@ -87,11 +104,20 @@ public sealed class CommanderSeats : IDisposable
     {
         CommanderMind.Scripted => new ScriptedMind { UsePlays = true },   // ⭐ CE-4680 — the scripted commander runs the platoon's plays
         CommanderMind.External => new ExternalMind(),
+        CommanderMind.ChatModel => new ChatModelMind(ChatModelSettings.FromEnvironment()),   // ⭐ CE-4681 (L-3) — HROT_COMMANDER_ENDPOINT / _MODEL …
         _ => null,
     };
 
     /// <summary>⭐ CE-4679 — the host's recording now (the model log is written beside it); null = no log.</summary>
     public Func<string?>? RecordingPath { get; set; }
+
+    /// <summary>⭐ CE-4681 (§5a-3) — where the model log goes when the host records nothing (a verify run): <c>HROT_COMMANDER_LOG_DIR</c>; null = no log.</summary>
+    public string? LogDirectory { get; set; } = EnvVars.Read(EnvVars.HrotCommanderLogDir) is { Length: > 0 } d ? d : null;
+
+    /// <summary>⭐ CE-4681 (§5a-3) — a run's choice of mind over the scenario's (<c>HROT_COMMANDER_MIND</c>: the laptop script runs ONE scenario per
+    /// model); written to the seat when it opens, so the checks see the mind that ran. Null = the scenario's.</summary>
+    public CommanderMind? MindOverride { get; set; } =
+        Enum.TryParse<CommanderMind>(EnvVars.Read(EnvVars.HrotCommanderMind), ignoreCase: true, out var m) && Enum.IsDefined(m) ? m : null;
 
     /// <summary>
     /// ⭐ CE-4679 — does the node's clock run FREE (continuous), so a hold may pause and resume it? null = yes. ⛔ A STEPPED clock (a verify run, run-to,
@@ -99,6 +125,11 @@ public sealed class CommanderSeats : IDisposable
     /// only marks its hold (<see cref="AnyHoldsClock"/>) and the one stepping the clock withholds its next step.
     /// </summary>
     public Func<bool>? ClockRunsFree { get; set; }
+
+    // ⭐ The duel (DESIGN_LLM_Commander §8, L-4 pre-test) — the clock is the SEATS' to pause, not each seat's: ONE pause when the first seat holds, ONE
+    // resume when the last lets go. ⛔ Was per seat: two seats thinking at once each took the other's pause for a USER's and neither resumed — the clock
+    // stayed paused for good (rail TwoSeats_TheClockRunsAgain_OnlyWhenBothMindsHaveAnswered). Frame thread only (CommanderActionSystem).
+    internal bool ClockPausedBySeats, ClockUserPaused, OwnPauseUnseen;
 
     /// <summary>⭐ CE-4679 — some seat is holding the clock for its mind now (any thread): a run that steps the clock waits for it.</summary>
     public bool AnyHoldsClock
@@ -178,6 +209,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     public const string InertSop = "InertSop";
     public const float RoutineSitrepSeconds = 30f;
     private const double FightCheckSeconds = 1.0;
+    /// <summary>⭐ CE-4684 C-3 — the model's own next decision is held to at least this after the last wake, and at most this (sim s).</summary>
+    public const double NextDecisionFloor = 10.0, NextDecisionCeiling = 300.0;
 
     private CommanderSeats? _seats;
     private readonly bool _gateOnAuthority;
@@ -219,16 +252,24 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     private SeatRuntime Open(EntityRepository world, CommanderSeats seats, Entity commander, double now)
     {
         var config = world.GetComponentRO<CommanderSeat>(commander);
+        if (seats.MindOverride is { } chosen && chosen != config.Mind)   // ⭐ CE-4681 — the run's mind, written so the seat says what ran
+        {
+            config.Mind = chosen;
+            world.SetComponent(commander, config);
+        }
         int netId = CommandPictureOps.NetIdOf(world, commander);
         var seat = new SeatRuntime
         {
-            Commander = commander, Name = NameOf(world, commander), Places = Gazetteer.Of(world), NetworkId = netId,
+            Commander = commander, Name = NameOf(world, commander), Places = Gazetteer.Of(world, world.HasComponent<EntityInfo>(commander) ? world.GetComponentRO<EntityInfo>(commander).ForceId : null), NetworkId = netId,
             Side = world.HasComponent<EntityInfo>(commander) ? world.GetComponentRO<EntityInfo>(commander).ForceId.ToString() : "",
             Mind = config.Mind, Mode = config.Mode,
         };
         // ⭐ CE-4679 (R-4298) — the model log beside the host's recording: <recording>.commander-<id>.jsonl
         if (seats.RecordingPath is { } recording)
-            seat.Log = new ModelLog(() => recording() is { Length: > 0 } r ? $"{r}.commander-{netId}.jsonl" : null);
+            seat.Log = new ModelLog(() => recording() is { Length: > 0 } r ? $"{r}.commander-{netId}.jsonl"
+                                          : seats.LogDirectory is { } dir ? System.IO.Path.Combine(dir, $"commander-{netId}.jsonl") : null);
+        else if (seats.LogDirectory is { } dir)   // ⭐ CE-4681 — no recording (a verify run): the run's log directory
+            seat.Log = new ModelLog(() => System.IO.Path.Combine(dir, $"commander-{netId}.jsonl"));
         seats.Add(seat);
         TakeAwayOwnPlay(world, commander);
 
@@ -237,9 +278,17 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         for (int i = 0; i < roster.Count; i++)
             CommandOrders.AskSitrep(world, roster.SubordinateEntities[i], RoutineSitrepSeconds);
 
+        // ⭐ CE-4684 — the mind first: whether it answers with decisions decides the prefix's vocabulary (C-6)
+        var mind = seats.MindFor(config);
+        seat.Contract = mind is IDecisionMind { AnswersWithDecisions: true };
+        var units = new List<string>();
+        for (int i = 0; i < roster.Count; i++)
+            if (world.IsAlive(roster.SubordinateEntities[i])) units.Add(NameOf(world, roster.SubordinateEntities[i]));
+        var placeIds = new List<string>();
+        foreach (var (n, _) in seat.Places.Places) placeIds.Add(n);
+        seat.Vocabulary = new SeatVocabulary(seat.Name, units, placeIds);
         seat.Prefix = Prefix(world, seat, roster);
         Fdp.Core.Logging.FdpLog<CommanderFeedSystem>.Info("[Commander] seat {0} open — prefix {1} chars", seat.Name, seat.Prefix.Length);   // ⭐ CE-4680 — the briefing's size (an 8 B model's context, L-3)
-        var mind = seats.MindFor(config);
         if (mind == null)
         {
             seat.Channel.Publish(FeedKind.OrderState, now, false, $"{Clock(now)} SEAT: no {config.Mind} mind in this build — the seat gives no orders",
@@ -247,7 +296,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         }
         else
         {
-            seat.Runner = new MindRunner(seat.Channel, mind, seat.Name, seat.Prefix) { Log = seat.Log };
+            seat.Runner = new MindRunner(seat.Channel, mind, seat.Name, seat.Prefix) { Log = seat.Log, Vocabulary = seat.Contract ? seat.Vocabulary : null };
             seat.Runner.Start();
         }
         Snapshot(world, seat, now, wake: true);   // ⭐ the board at the start: the mind's first call
@@ -281,8 +330,18 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         // ⭐ CE-4679 (§3 "else on the heartbeat") — the mind is asked at least every Heartbeat s: counted from the last WAKE, not the last item.
         //   📌 Found by the Haiku run: routine SITREPs every 30 s kept "no item for 30 s" from ever holding, so before contact the mind was never asked
         //   again after its first answer — the squads stood at the start.
-        if (now - seat.LastWakeAt >= config.Heartbeat)
-            Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (no news — your squads await orders)",
+        // ⭐ CE-4684 C-3 — a seat on the decision contract is asked again when ITS decision said (not_later_than), held between a floor and a ceiling;
+        //   before its first decision, and for every other mind, the fixed heartbeat
+        if (seat.Contract && seat.Watch.NextDecisionAt > 0)
+        {
+            double due = Math.Max(seat.LastWakeAt + NextDecisionFloor, Math.Min(seat.Watch.NextDecisionAt, seat.LastWakeAt + NextDecisionCeiling));
+            if (now >= due)
+                Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (your decision time — nothing woke you sooner; the orders in force stand unless you change them)",
+                        new JsonObject { ["kind"] = "heartbeat", ["t"] = Round(now), ["nextDecision"] = true }.ToJsonString());
+        }
+        else if (now - seat.LastWakeAt >= config.Heartbeat)
+            //   ⭐ the duel (§8 D-6): ⛔ was "(no news — your squads await orders)" — said with orders in force, it invited a model to give new ones
+            Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (heartbeat — nothing new; the orders in force stand unless you change them)",
                     new JsonObject { ["kind"] = "heartbeat", ["t"] = Round(now) }.ToJsonString());
     }
 
@@ -417,12 +476,12 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                     if (sub.LastReportAt.Seconds > 0) row["reportAge"] = Round(now - sub.LastReportAt.Seconds);
                 }
             }
+            CommanderActionSystem.SyncPlayOrders(world, seat, now);   // ⭐ CE-4683 — the play's squad orders into the in-force table
             string? task = TaskOf(world, seat, squad);   // ⭐ CE-4680 B-4 — the order he is on (his commander's record)
             if (task != null) row["task"] = task;
             squads.Add(row);
             radio.Append(' ').Append(name.ToUpperInvariant()).Append(" at ").Append(row["place"]).Append(inFight ? "" : " (out of the fight)");
-            var detail = new StringBuilder();
-            if (task != null) detail.Append(task);
+            var detail = new StringBuilder();   // ⭐ CE-4683 — the order itself is in the ORDERS IN FORCE block below (said once)
             if (row["progress"] is { } prog) detail.Append(detail.Length > 0 ? ", " : "").Append((string)prog!);
             if (row["strength"] is { } st) detail.Append(detail.Length > 0 ? ", " : "").Append("strength ").Append((string)st!).Append(" ammo ").Append((string)row["ammo"]!);
             if (row["reportAge"] is { } age) detail.Append(detail.Length > 0 ? ", " : "").Append("last report ").Append(((double)age!).ToString("0", CultureInfo.InvariantCulture)).Append(" s ago");
@@ -441,18 +500,67 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                 {
                     ["at"] = new JsonArray(Round(p.X), Round(p.Y)), ["place"] = seat.Places.Describe(p), ["count"] = el.Count,
                     ["size"] = el.Size.ToString(), ["activity"] = el.Activity.ToString(), ["equipment"] = el.Equipment.ToString(),
-                    ["age"] = Round(now - el.ObservedAt.Seconds),
+                    ["age"] = Round(now - el.ObservedAt.Seconds), ["confidence"] = Confidence(in pic, i, now),
                 });
                 radio.Append(" enemy ").Append(el.Count).Append(" (").Append(el.Size).Append(')');
                 AppendDetail(radio, el.Activity, el.Equipment, now - el.ObservedAt.Seconds);   // ⭐ CE-4680 B-5
+                radio.Append(", ").Append(Confidence(in pic, i, now));                         // ⭐ CE-4684 C-5
                 radio.Append(" at ").Append(seat.Places.Describe(p)).Append(';');
             }
         }
         var objectives = Objectives(world, seat, radio);   // ⭐ CE-4680 B-3
+        InForceBlock(world, seat, roster, radio);           // ⭐ CE-4683 ② — survives the snapshot: every snapshot carries it
         var places = new JsonArray();
         foreach (var (n, _) in seat.Places.Places) places.Add(n);
         Publish(seat, FeedKind.Snapshot, now, wake, radio.ToString(),
                 new JsonObject { ["kind"] = "snapshot", ["t"] = Round(now), ["commander"] = seat.Name, ["squads"] = squads, ["elements"] = elements, ["objectives"] = objectives, ["places"] = places }.ToJsonString());
+    }
+
+    /// <summary>
+    /// ⭐ CE-4683 ② (§5a-4) — <c>ORDERS IN FORCE: ALPHA SQUAD SupportByFire → house since 00:02:08 (you), Set; …</c> and the play in force: what he has
+    /// already ordered, so a snapshot (which clears the radio log) never makes him lose it.
+    /// </summary>
+    private static void InForceBlock(EntityRepository world, SeatRuntime seat, in UnitRoster roster, StringBuilder radio)
+    {
+        if (seat.Play != null)
+            radio.Append(" PLAY IN FORCE: ").Append(seat.Play).Append(seat.PlayWhere is { } pw ? " → " + pw : "").Append(" since ").Append(Clock(seat.PlaySince)).Append(';');
+        bool first = true;
+        for (int i = 0; i < roster.Count; i++)
+        {
+            var squad = roster.SubordinateEntities[i];
+            if (!world.IsAlive(squad) || !seat.InForce.TryGetValue(squad, out var o)) continue;
+            radio.Append(first ? " ORDERS IN FORCE:" : ",").Append(' ').Append(NameOf(world, squad).ToUpperInvariant()).Append(' ').Append(o.Text)
+                 .Append(" since ").Append(Clock(o.Since)).Append(" (").Append(o.By).Append(')');
+            first = false;
+        }
+        radio.Append(first ? " ORDERS IN FORCE: none;" : ";");
+    }
+
+    /// <summary>⭐ CE-4684 C-5 — two reports this close are the same enemy (m); a report this old is no longer fresh (sim s).</summary>
+    public const float SameEnemyMetres = 30f;
+    public const double FreshSeconds = 60.0;
+
+    /// <summary>
+    /// ⭐ CE-4684 (§5c C-5) — how sure the commander can be of element <paramref name="index"/>, from what was REPORTED only: the different squads that
+    /// reported an enemy within <see cref="SameEnemyMetres"/> of it, and the age of the newest of those reports. ≥ 2 squads, fresh ⇒ HIGH · one squad
+    /// fresh, or ≥ 2 squads stale ⇒ MED · one squad, stale ⇒ LOW. ("heard" joins when behaviors adds the bit — CE-4682's NOTE.)
+    /// </summary>
+    public static string Confidence(in CommandPicture pic, int index, double now)
+    {
+        var el = pic.Elements.Items[index];
+        var at = new Vector2(el.At.X, el.At.Y);
+        int first = el.FromNetId, second = int.MinValue;
+        double newest = el.ObservedAt.Seconds;
+        for (int k = 0; k < pic.Elements.Count; k++)
+        {
+            if (k == index) continue;
+            var other = pic.Elements.Items[k];
+            if (Vector2.Distance(at, new Vector2(other.At.X, other.At.Y)) > SameEnemyMetres) continue;
+            if (other.ObservedAt.Seconds > newest) newest = other.ObservedAt.Seconds;
+            if (other.FromNetId != first && second == int.MinValue) second = other.FromNetId;
+        }
+        bool fresh = now - newest <= FreshSeconds, two = second != int.MinValue;
+        return two && fresh ? "HIGH" : two || fresh ? "MED" : "LOW";
     }
 
     /// <summary>⭐ CE-4680 B-5 — what an element is doing and has, and how old the word is (only what was reported).</summary>
@@ -466,7 +574,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     /// <summary>⭐ CE-4680 B-4 — the order the commander holds for <paramref name="squad"/> (his <c>SubordinateOrders</c>): its kind and where.</summary>
     private static string? TaskOf(EntityRepository world, SeatRuntime seat, Entity squad)
     {
-        if (SubordinateOrders.Of(world, seat.Commander) is not { } held) return seat.Given.TryGetValue(squad, out var mine) ? mine : null;
+        if (seat.InForce.TryGetValue(squad, out var inForce)) return inForce.Text;   // ⭐ CE-4683 — the one table
+        if (SubordinateOrders.Of(world, seat.Commander) is not { } held) return null;
         for (int i = 0; i < held.Orders.Count; i++)
         {
             var e = held.Orders[i];
@@ -482,7 +591,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             catch (System.Text.Json.JsonException) { }
             return where == null ? kind : kind + " → " + where;
         }
-        return seat.Given.TryGetValue(squad, out var given) ? given : null;
+        return null;
     }
 
     /// <summary>⭐ CE-4680 B-3 — the objectives the seat's side may see (<c>VisibleSides</c>; 0 / 0xFF = everybody): name, state, owner, progress.</summary>
@@ -521,13 +630,37 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         if (world.IsComponentTypeRegistered<CommanderBrief>() && world.HasComponent<CommanderBrief>(seat.Commander)
             && world.GetComponentRO<CommanderBrief>(seat.Commander).Line() is { Length: > 0 } mission)
             sb.Append('\n').Append(mission);
-        sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
-        // ⭐ CE-4680 B-6 — the places' terrain notes, one line each
+        // ⭐ CE-4684 C-6 — a decision names places by id ONLY (its schema enumerates them); the "N m <dir>" and grid forms stay for the other minds
+        if (seat.Contract) sb.Append("\nPlaces (ids — use exactly these): ").Append(seat.Places.KnownNames()).Append('\n');
+        else sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
+        // ⭐ CE-4680 B-6 — the places' terrain notes, one line each · ⭐ CE-4684 C-4 — and the FACTS HROT measured once (sight, cover, vehicles, minutes)
+        var facts = TerrainFacts.Of(world, seat.Places);
         foreach (var (n, _) in seat.Places.Places)
-            if (seat.Places.NoteOf(n) is { } note) sb.Append("  ").Append(n).Append(": ").Append(note).Append('\n');
-        sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold — the play orders your squads for you · stop_play() · ")
-          .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact (a direct order ends a running play first) · ")
-          .Append("hold(squad) · ask_sitrep(squad) · note(text).");   // ⭐ CE-4680 B-1
+        {
+            string? note = seat.Places.NoteOf(n);
+            facts.TryGetValue(n, out string? fact);
+            if (note == null && fact == null) continue;
+            sb.Append("  ").Append(n).Append(':');
+            if (note != null) sb.Append(' ').Append(note);
+            if (fact != null) sb.Append(note != null ? " — " : " ").Append(fact);
+            sb.Append('\n');
+        }
+        if (seat.Contract)
+        {
+            // ⭐ CE-4684 (§5c) — the decision's tasks: a squad's orders, the plays (his own, unit = himself), CONTINUE
+            sb.Append("Tasks: for a squad ").Append(string.Join(" | ", CommanderActionSystem.Orders)).Append(" · for yourself (unit \"").Append(seat.Name)
+              .Append("\") a play ").Append(string.Join(" | ", CommanderActionSystem.Plays)).Append(" · CONTINUE keeps a unit's orders.\n")
+              .Append("PREFER a play: it coordinates both squads for you (PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together) — with a play running, give the squads CONTINUE; a squad order ENDS the play.\n")
+              .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order or a play in force changes nothing.");
+            return sb.ToString();
+        }
+        // ⭐ CE-4683 ③ (§5a-4) — said plainly: with the actions as functions a model reached for direct orders (L-3: one play, then only orders)
+        //   ⭐ the duel (§8): said for both sides — the old line described only the attack, and a defending (Red) seat read it too
+        sb.Append("PREFER run_play: a play coordinates both squads for you (PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together) — a direct order to a squad ENDS the play.\n");
+        sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold · stop_play() · ")
+          .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact — only when no play fits · ")
+          .Append("hold(squad) · ask_sitrep(squad) · note(text) — your running estimate: a new note REPLACES the last (keep it short). ")
+          .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order or a play in force changes nothing.");   // ⭐ CE-4680 B-1, CE-4683 ①②
         return sb.ToString();
     }
 
