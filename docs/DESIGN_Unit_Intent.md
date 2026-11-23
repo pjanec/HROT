@@ -375,7 +375,7 @@ intent rows share one control x; the status slot is fixed); glyphs and colours a
 | S4 — rules on the intent | ✅ `RuleSentence.ParamsOf` (the ONE reader) reads the pending intent first; `RulesModel` lists intent-only rules; `ClockPins` uses the reader; the Rules window watches `UnitIntent`; a new rule is created as a `UnitIntent` (Rules View §8.3) | rail `CE3494_AnAuthoredRuleThatIsOnlyAnIntent_HasARow…`; Presentation Rules 186/186 |
 | §6 — feature scenarios `intent-order-while-paused`, `plan-held-by-order` | ✅ F3: the checks grammar's `do` takes `order` (a `POST /orders` item) and `resume` (Scenario Regression §3); the verifier applies an action BETWEEN steps, which is the paused frame. `scenarios/tests/intent-order-while-paused` (sampled every 0.02 s: the order's task runs within 0.1 s (2.05 s measured), never before) and `scenarios/tests/plan-held-by-order` (`Halted == 2` from the order until Resume, north while held, `Halted == 0` after Resume, the plan's point reached) both PASS | `scripts/scenario-regression.sh intent-order-while-paused,plan-held-by-order`; rail `ScenarioChecksTests.CE3494_ADoGivesAnOrderAndResumesAPlan_ThroughTheWorldsServices` |
 
-## 10. A person's request is the unit's intent — in every mode, on every node *(R-3119, user `2026-11-23`; build-state: BUILDING)*
+## 10. A person's request is the unit's intent — in every mode, on every node *(R-3119, user `2026-11-23`; build-state: BUILT — §10.4)*
 
 > 🔒 **User, `2026-11-23`:** *"I am pushing just for consistency because it makes everything simple and predictable. So I need a good reasons for
 > not using the same mechanism for every case where suitable."* · *"yes, go ahead and build it autonomously."*
@@ -452,6 +452,21 @@ graph TD
 ```
 *What it shows:* the hand-over between the two systems is a flag the pack that registers the tactical system sets — a host without it keeps the
 ingress applying the task, so no host can lose a person's task silently (the silent-default rule: a forwarding rail asserts the pack sets it).
+
+### 10.4 As built *(`2026-11-23`)*
+
+| design said | built | evidence |
+|---|---|---|
+| P1 the one writer | ✅ `UnitIntents` (`RequestTask` · `RequestClear` · `RequestSop` · `RequestRoe` · `Replace` · `Pending`); the editor's `Author` / undo store through `Replace` | — |
+| P3 replace + answer | ✅ `Replace` answers a replaced task slot that carried a request id *superseded*; ROE merges field by field (the rule `RoeSystem.Apply` keeps) | `CE3494_TheLaterRequestReplacesTheSlot_AReleaseReplacesAnOrder_RoeMerges` |
+| P4 the request id | ✅ `IntentSlot.RequestId`, `IntentSlot.Clear` — both omitted from JSON when default; the save strips the id | `CE3494_APendingPersonsOrderIsSavedWithoutItsRequestId_APendingReleaseSavesNoTask` |
+| P5 same-step take | ✅ `TacticalIntentResolutionSystem.TakePersonsTasks` (cached query, scratch lists — no steady allocation) before the step's events; `BehaviorIngressSystem.TasksTakenByOrders` (set by `CgfLogicPack`, forwarding rail extended) leaves a person's task to it, else publishes the order itself | `CE3494_APersonsTask_IsTakenFromTheIntent_SameStep_AndHoldsThePlan` · `…WithoutTheTacticalSystem_TheIngressSendsAPersonsTaskAsTheOrder` · `CgfLogicPackTests.CE3494_TheIngress_HoldsThePacksRegistry` |
+| P6 forwarding | ✅ `EntityOrders` writes the intent when this node owns the brain (`HasAuthority<BehaviorState>` — the tactical system's own test), else the event as before; `TacticalIntentIngressTranslator` writes a person's assign / release / ROE as the intent on the brain's node, the simulation's own stay events | `CE3494_APersonsForwardedOrder_IsTheIntentOnTheBrainNode_TheSimulationsStaysAnEvent` · `MenuOrdersTests.CE3494_Live_APersonsOrderIsTheIntentOnTheBrainsNode_AnEventElsewhere` |
+| P7 checkpoint | ✅ a pending person's order survives a keyframe capture / apply and the restored run takes it; a keyframe with no intent clears a pending one | `CE3494_APausedFramesOrder_SurvivesACheckpoint_AndRunsAfterTheRestore` · `CE3494_ACheckpointWithNoIntent_ClearsAPendingOneOnRestore` |
+| the editor | ✅ live edits are the intent at Operator, undoable; a live clear is a release; *Next* names a pending release | `EntityAiSectionTests.CE3494_Live_AnEditIsTheIntentAtOperator_AReleaseIsAClear` |
+| ⚠ correction | the F2 Brain-tab rail committed earlier (`36d6c7a8b`) never compiled — its reported pass was a stale binary; fixed in `a7fd8db31` and now runs (AiShared 33/33) | — |
+| ⚠ correction | my earlier claim *"behaviour orders are not forwarded"* was wrong: `EntityOrders.Behavior` goes through the same tactical event and IS forwarded; only the editor's old live SOP / behaviour events did not cross (and the editor runs the brain) | `TacticalIntentEgressTranslator.cs`, `EntityOrders.cs` |
+| ⚠ not covered | a pending person's order on a unit whose brain then MOVES to another node is dropped by the hand-over (it removes a stale intent, R11) — the station is not answered | a row if it matters |
 
 ## 9. Independent review — findings and what changed *(`2026-11-22`, a fresh reviewer reading the code, not this design's reasoning)*
 
