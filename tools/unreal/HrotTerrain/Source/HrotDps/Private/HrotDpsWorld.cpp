@@ -1339,6 +1339,7 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		AHrotVehicle* V = W->SpawnActorDeferred<AHrotVehicle>(AHrotVehicle::StaticClass(), At, nullptr, nullptr,
 			ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 		V->Kit = Kit;
+		V->Dis = E.Dis;   // U-19h 21: the soundscape picks the engine voice by the entity's DIS
 		V->Damage = EHrotVehicleDamage(FMath::Min<uint8>(E.Damage, 2));
 		V->TurretYaw = E.TurretYaw; V->GunPitch = E.GunPitch;
 		V->FinishSpawning(At);
@@ -1359,27 +1360,25 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		// a pintle / tripod gun) are their own entities, the M2 standing at the HMMWV: a vehicle-sized box hid the HMMWV ⇒ a gun-sized one
 		TArray<FString> DisParts; E.Dis.ParseIntoArray(DisParts, TEXT("."));
 		const bool bWeaponSystem = DisParts.Num() > 3 && DisParts[3] == TEXT("50");
-		B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : bWeaponSystem ? FVector(0.35, 0.16, 0.22) : FVector(5, 2.5, 2));
-		B->GetStaticMeshComponent()->SetRelativeLocation(FVector(0, 0, bPerson ? 90 : bWeaponSystem ? 120 : 100));
-		if (bWeaponSystem)
+		// U-19h 21: a weapon system is drawn with the machine gun CUT out of the French VBL's roof (scripts/unreal/hrot_mesh_cut.py: SM_FR_vbl_Body, the roof MG on its
+		// mount; our asset /Game/Hrot/Weapons/SM_HrotRoofMg, the pack's mesh untouched): barrel along the mesh's +Y, so yaw -90 turns it onto +X; x1.5 makes its 1.08 m a 1.6 m gun.
+		UStaticMesh* Gun = bWeaponSystem ? LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Hrot/Weapons/SM_HrotRoofMg.SM_HrotRoofMg"), nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr;
+		if (Gun)
 		{
-			// U-19h: no HMG model exists (measured: /Game/Fab/RTS_Modern_Combat_Vehicle_Pack_Free has only the HMG20_M0 MATERIALS - no mesh; DA_FR_VBL_Green draws a body and
-			// wheels, no roof gun) - so a gun built from engine shapes, +X forward, ~1.65 m long: a receiver, a barrel and a pintle post, instead of a 1.6 m slab
-			const FVector Par(0.35, 0.16, 0.22);   // the receiver cube's world size (m); the parts are cubes too (no rotation, so no shear under the non-uniform parent)
-			auto Part = [&](FVector OffsetM, FVector SizeM)
-			{
-				UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(B, NAME_None, RF_Transient);
-				C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
-				C->SetMobility(EComponentMobility::Movable);
-				C->AttachToComponent(B->GetStaticMeshComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-				C->SetRelativeLocation(OffsetM / Par);   // parent space: 1 unit = 1 m x the parent's scale
-				C->SetRelativeScale3D(SizeM / Par);
-				C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-				C->RegisterComponent();
-			};
-			Part(FVector(0.8, 0, 0.03), FVector(1.3, 0.05, 0.05));      // the barrel: from just ahead of the receiver to 1.45 m (the gun is 1.62 m long)
-			Part(FVector(0, 0, -0.45), FVector(0.06, 0.06, 0.9));       // the pintle post down to the ground
-			E.DrawnAs = TEXT("weapon-system gun (engine shapes)");
+			constexpr double GunScale = 1.5, LiftCm = 120.0;
+			UStaticMeshComponent* C = B->GetStaticMeshComponent();
+			C->SetStaticMesh(Gun);
+			C->SetRelativeScale3D(FVector(GunScale));
+			C->SetRelativeRotation(FRotator(0, -90, 0));
+			const FVector O = Gun->GetBounds().Origin;   // the mesh keeps its place on the VBL's roof: bring its centre to the entity's point (yaw -90: (x, y) -> (y, -x))
+			C->SetRelativeLocation(FVector(-O.Y * GunScale, O.X * GunScale, LiftCm - O.Z * GunScale));
+			E.DrawnAs = TEXT("weapon-system gun (the VBL's roof MG, cut)");
+		}
+		else
+		{
+			B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : bWeaponSystem ? FVector(1.6, 0.25, 0.35) : FVector(5, 2.5, 2));
+			B->GetStaticMeshComponent()->SetRelativeLocation(FVector(0, 0, bPerson ? 90 : bWeaponSystem ? 120 : 100));
+			if (bWeaponSystem) E.DrawnAs = TEXT("weapon-system box");
 		}
 		if (E.DrawnAs.IsEmpty() || E.DrawnAs.StartsWith(TEXT("("))) E.DrawnAs = TEXT("box");
 		A = B;
@@ -1590,6 +1589,9 @@ void UHrotDpsWorld::DefaultLife()
 	AddDis(TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon"));        // MiG-29: the twin-tail stand-in
 	AddDis(TEXT("1.2.225.4"), TEXT("DA_Air_AC130"));          // C-130
 	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_OH1"));           // UH-60: no Black Hawk, a helicopter stand-in
+	// U-19h 21: HROT's TECHNICALS and pickup (TKB 104 HMG, 105 ATGM, 106 bare pickup, 108 DShK, 109 minigun, 110 ZU-23-2; NedTkbCatalog Pickup(): 5.3 x 1.9 m, drives like a car) were
+	// a grey box. The city pack's truck (DA_City_vehicle04_Truck, 5.6 m, a cab and a bed) is the closest open-bed vehicle we have; their weapon is its own entity on the roof / bed.
+	for (const int64 Type : { 104, 105, 106, 108, 109, 110 }) if (!KitsByType.Contains(Type)) KitsByType.Add(Type, Kit(TEXT("DA_City_vehicle04_Truck")));
 	if (!KitsByDomain.Contains(TEXT("Air"))) KitsByDomain.Add(TEXT("Air"), Kit(TEXT("DA_Air_F16")));   // any other aircraft
 	if (CarKits.Num() == 0)
 		for (const TCHAR* N : { TEXT("DA_City_vehicle02_Car"), TEXT("DA_City_vehicle03_Car"), TEXT("DA_City_vehicle05_Car"), TEXT("DA_City_vehicle06_Car") })

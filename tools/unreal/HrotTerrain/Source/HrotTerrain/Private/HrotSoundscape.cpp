@@ -347,12 +347,12 @@ void UHrotSoundscape::MixBeds(float Dt)
 
 UHrotSoundscape::EEngine UHrotSoundscape::EngineOf(const AHrotVehicle* V)
 {
-	return EngineOfKit(V && V->Kit ? V->Kit->GetName() : FString());
+	return EngineOfKit(V && V->Kit ? V->Kit->GetName() : FString(), V ? V->Dis : FString());
 }
 
-const TCHAR* UHrotSoundscape::EngineName(const FString& KitName)
+const TCHAR* UHrotSoundscape::EngineName(const FString& KitName, const FString& Dis)
 {
-	switch (EngineOfKit(KitName))
+	switch (EngineOfKit(KitName, Dis))
 	{
 	case EEngine::Tracked: return TEXT("Tracked"); case EEngine::Heavy: return TEXT("Heavy"); case EEngine::Jeep: return TEXT("Jeep"); case EEngine::Light: return TEXT("Light");
 	case EEngine::Motorcycle: return TEXT("Motorcycle"); case EEngine::Helicopter: return TEXT("Helicopter"); case EEngine::Propeller: return TEXT("Propeller");
@@ -360,8 +360,21 @@ const TCHAR* UHrotSoundscape::EngineName(const FString& KitName)
 	}
 }
 
-UHrotSoundscape::EEngine UHrotSoundscape::EngineOfKit(const FString& K)
+UHrotSoundscape::EEngine UHrotSoundscape::EngineOfKit(const FString& K, const FString& Dis)
 {
+	// U-19h 21: the entity's own DIS decides first (a kit NAME is a guess: the F-16 kit stands in for the A-10 AND the F-16, a city car kit may be a van ...)
+	//   1.2.*.4 C-130 -> prop; 1.2.*.20 / 1.2.*.21 helicopters (AH-64, UH-60) -> rotor; any other aircraft (1.2.*) -> jet;
+	//   1.1.*.81..83 civilian road vehicles -> car; 1.1.*.6 HMMWV / the technicals' pickup -> jeep. Anything else: by the kit's name below.
+	{
+		TArray<FString> P; Dis.ParseIntoArray(P, TEXT("."));
+		if (P.Num() >= 4 && P[0] == TEXT("1"))
+		{
+			const int32 Cat = FCString::Atoi(*P[3]);
+			if (P[1] == TEXT("2")) return Cat == 4 ? EEngine::Propeller : (Cat == 20 || Cat == 21) ? EEngine::Helicopter : EEngine::Jet;
+			if (P[1] == TEXT("1") && Cat >= 81 && Cat <= 83) return EEngine::Light;
+			if (P[1] == TEXT("1") && Cat == 6) return EEngine::Jeep;
+		}
+	}
 	if (K.Contains(TEXT("Dragon"))) return EEngine::Dragon;
 	if (HasAny(K, { TEXT("Apache"), TEXT("OH1"), TEXT("Heli"), TEXT("Hind"), TEXT("Tiger"), TEXT("Puma") })) return EEngine::Helicopter;
 	if (HasAny(K, { TEXT("AC130"), TEXT("Prop"), TEXT("Cessna") })) return EEngine::Propeller;

@@ -120,6 +120,11 @@ bool FHrotLiveFixAircraftTest::RunTest(const FString&)
 		if (FPaths::FileExists(FPaths::ProjectContentDir() / TEXT("Hrot/Vehicles") / (P.Value + TEXT(".uasset"))))
 			TestNotNull(*FString::Printf(TEXT("%s loads as a vehicle kit"), *P.Value), K->LoadSynchronous());
 	}
+	for (const int64 Technical : { 104, 105, 106, 108, 109, 110 })   // U-19h 21: the technicals / pickup are not grey boxes
+	{
+		const TSoftObjectPtr<UHrotVehicleKit>* K = W->KitsByType.Find(Technical);
+		TestTrue(*FString::Printf(TEXT("TKB %lld (technical / pickup) has the truck kit"), Technical), K && K->ToSoftObjectPath().GetAssetName() == TEXT("DA_City_vehicle04_Truck"));
+	}
 	const TSoftObjectPtr<UHrotVehicleKit>* Air = W->KitsByDomain.Find(TEXT("Air"));
 	TestTrue(TEXT("any other aircraft: the F-16 kit"), Air && Air->ToSoftObjectPath().GetAssetName() == TEXT("DA_Air_F16"));
 	// the engine voice by kit: rotors, a prop, jets
@@ -129,6 +134,40 @@ bool FHrotLiveFixAircraftTest::RunTest(const FString&)
 	TestEqual(TEXT("F16: jet"), FString(UHrotSoundscape::EngineName(TEXT("DA_Air_F16"))), FString(TEXT("Jet")));
 	TestEqual(TEXT("Typhoon: jet"), FString(UHrotSoundscape::EngineName(TEXT("DA_Air_Typhoon"))), FString(TEXT("Jet")));
 	TestEqual(TEXT("a Leclerc is still a tracked vehicle"), FString(UHrotSoundscape::EngineName(TEXT("DA_FR_Leclerc"))), FString(TEXT("Tracked")));
+	// U-19h 21: the entity's DIS decides before the kit's name - the F-16 kit stands in for the A-10 AND the F-16 (jets), only the C-130 is a prop
+	auto Eng = [](const TCHAR* Kit, const TCHAR* Dis) { return FString(UHrotSoundscape::EngineName(Kit, Dis)); };
+	TestEqual(TEXT("A-10 on the F-16 kit: jet"), Eng(TEXT("DA_Air_F16"), TEXT("1.2.225.2.0.0.0")), FString(TEXT("Jet")));
+	TestEqual(TEXT("F-16: jet"), Eng(TEXT("DA_Air_F16"), TEXT("1.2.225.1.0.0.0")), FString(TEXT("Jet")));
+	TestEqual(TEXT("MiG-29 on the Typhoon kit: jet"), Eng(TEXT("DA_Air_Typhoon"), TEXT("1.2.222.1.0.0.0")), FString(TEXT("Jet")));
+	TestEqual(TEXT("C-130: prop"), Eng(TEXT("DA_Air_AC130"), TEXT("1.2.225.4.0.0.0")), FString(TEXT("Propeller")));
+	TestEqual(TEXT("AH-64: rotor"), Eng(TEXT("DA_Air_Apache"), TEXT("1.2.225.20.0.0.0")), FString(TEXT("Helicopter")));
+	TestEqual(TEXT("UH-60 on the OH-1 kit: rotor"), Eng(TEXT("DA_Air_OH1"), TEXT("1.2.225.21.0.0.0")), FString(TEXT("Helicopter")));
+	TestEqual(TEXT("an unknown aircraft on any kit: jet, not prop"), Eng(TEXT("DA_Air_AC130"), TEXT("1.2.225.99.0.0.0")), FString(TEXT("Jet")));
+	for (const TCHAR* CarDis : { TEXT("1.1.0.81.0.0.0"), TEXT("1.1.0.82.0.0.0"), TEXT("1.1.0.83.0.0.0") })
+		TestEqual(*FString::Printf(TEXT("civilian road vehicle %s: car (never a truck / tank), whatever the kit"), CarDis), Eng(TEXT("DA_City_vehicle04_Truck"), CarDis), FString(TEXT("Light")));
+	TestEqual(TEXT("HMMWV / technical pickup: jeep"), Eng(TEXT("DA_City_vehicle04_Truck"), TEXT("1.1.225.6.0.0.0")), FString(TEXT("Jeep")));
+	TestEqual(TEXT("a T-72 stays tracked (by kit)"), Eng(TEXT("DA_FR_Leclerc"), TEXT("1.1.222.1.0.0.0")), FString(TEXT("Tracked")));
+	TestEqual(TEXT("a mover (no DIS): its city car kit is a car"), Eng(TEXT("DA_City_vehicle02_Car"), TEXT("")), FString(TEXT("Light")));
+	TestEqual(TEXT("a mover's truck kit is a truck"), Eng(TEXT("DA_City_vehicle04_Truck"), TEXT("")), FString(TEXT("Heavy")));
+	TestEqual(TEXT("a mover's bus kit is a truck-class engine"), Eng(TEXT("DA_City_vehicle10_Bus"), TEXT("")), FString(TEXT("Heavy")));
+	return true;
+}
+
+// U-19h 21: every air kit's NOSE points +X (the way HROT flies). The nose of each hull mesh was measured by its silhouette (scripts/unreal/hrot_air_nose.py: tail fin / canopy /
+// tail rotor end); the rail pins the part yaw that puts it on +X, so a kit reset or a re-import is caught.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotLiveFixAirNoseTest, "Hrot.Dps.LiveFix.AirNose", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotLiveFixAirNoseTest::RunTest(const FString&)
+{
+	const TMap<FString, float> Yaw = { { TEXT("DA_Air_Apache"), 180.f }, { TEXT("DA_Air_F16"), 180.f }, { TEXT("DA_Air_AC130"), 0.f }, { TEXT("DA_Air_OH1"), 90.f },
+		{ TEXT("DA_Air_F22"), 180.f }, { TEXT("DA_Air_Typhoon"), 0.f } };
+	for (const TPair<FString, float>& K : Yaw)
+	{
+		if (!FPaths::FileExists(FPaths::ProjectContentDir() / TEXT("Hrot/Vehicles") / (K.Key + TEXT(".uasset")))) continue;
+		const UHrotVehicleKit* Kit = LoadObject<UHrotVehicleKit>(nullptr, *FString::Printf(TEXT("/Game/Hrot/Vehicles/%s.%s"), *K.Key, *K.Key), nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!TestNotNull(*K.Key, Kit) || Kit->Parts.Num() == 0) continue;
+		const float Got = FRotator::NormalizeAxis(Kit->Parts[0].Transform.Rotator().Yaw);
+		TestEqual(*FString::Printf(TEXT("%s: hull part yaw puts the nose on +X"), *K.Key), FMath::Abs(FRotator::NormalizeAxis(Got - K.Value)), 0.0, 0.5);
+	}
 	return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotLiveFixFalloffTest, "Hrot.Dps.LiveFix.Falloff", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
