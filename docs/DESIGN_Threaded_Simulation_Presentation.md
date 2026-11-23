@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT on exp/threaded-build (not merged) — §0a the architecture as it stands; ⏳ the review source (R-4220), the serial-system conversions (CE-4484/4485), the Windows numbers (CE-4489…4494)
 updated: 2026-11-13 (§0a the architecture as it stands + both pictures redrawn to the as-built, coordinator) · 2026-11-12 (§12 the experiment · §13 the shared-state analysis · §13.8 the instruments' answer)
-current-answer: ⭐⭐ §0a THE ARCHITECTURE AS IT STANDS (both pictures, every decision with its ruling and where it is built) · ⭐ §14.8 AS BUILT (the overnight build, exp/threaded-build) · §14 THE TARGET SHAPE (14.4 POC 3: the node COMPOSED over S works — threaded editor green twice, 0 faults; the cost to finish listed · 14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+current-answer: ⭐ §16 HEADLESS: NO UNSEEN DRAWING (CE-11045…11048, READY-TO-BUILD — ui) · ⭐⭐ §0a THE ARCHITECTURE AS IT STANDS (both pictures, every decision with its ruling and where it is built) · ⭐ §14.8 AS BUILT (the overnight build, exp/threaded-build) · §14 THE TARGET SHAPE (14.4 POC 3: the node COMPOSED over S works — threaded editor green twice, 0 faults; the cost to finish listed · 14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: §1–§13 and §14.1–§14.7 are the path that led here (POCs, reviews, the target shape) — quote §0a / §14.8 for what is built
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -1006,3 +1006,59 @@ forget the presentation, because the bootstrap builds it from the one parameter.
 | ⭐ found by reading: the deploy screen looks the flow up by world (a side table on S) ⇒ `IDeployFlow` / `DeployFlows.Of`, the view staged by the capability that composes the flow | `DeployFlowView.cs`, `GameplayClientPack` |
 | `NodeRunControls.For(node)` is the UI's (the mirror when staged), `ForSimSide(node)` the node's | `NodeRunControls.cs` |
 | rails | `SharedApplicationBootstrapperTests.CE3446_*` (3), `GameplayDeployFlowTests.CE3446_*`, `PerformanceStartupTests` (the player resolves the threaded node) |
+
+## 16. ⭐ HEADLESS: NO UNSEEN DRAWING — gizmos only while someone reads them; the road overlay cached *(ui, `2026-11-23`; CE-11045 … CE-11048; build-state: READY-TO-BUILD)*
+
+🔒 User (via `unreal-ig`, [NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md](blueprints/batches/NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md),
+`e8d1a1d5f`): *"headless performance is important (for running with Unreal as presentation layer later)"* · *"it should be way more than 37FPS
+for such small amount of thinking entities."* — then to `ui`: *"follow new NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md"*.
+
+**Measured (`unreal-ig`, Stechovice, Ryzen 6800H, `ui` `96722b016`, 30 s sampled profile, headless editor):** ≈ 23 sim ticks/s; the main
+thread spends **52 %** in `StagedPresentation.Pull → MapPresentationStep.RunPerPulledTick → StatelessGizmoSystem` (gizmos 46 %:
+`RoadNetworkGizmo.Draw` **28.9 %**, of which `TerrainWorld.GroundHeightOf` 19.3 % — a height per curve sample of the whole net every pass;
+`DoorStates.Of` 7.2 % + `DoorLeafGizmo.Draw` 3.7 %; `IsEntityVisible` 3.2 %) and 39.8 % in the simulation (its leaf systems 18.5 ms per tick ⇒
+≈ 50 Hz possible). Garbage: ≈ 2 MB per update + ≈ 1 MB per UI frame (inspector 412 KB, event browser 385 KB, message log 165 KB); a PAUSED
+headless node burns a whole core.
+
+**Measured here (`ui`):** `MapPresentationStep.RunPerPulledTick` (`MapPresentationStep.cs:77`) is not only drawing — it publishes the gizmo
+feed, swaps the interaction bus, runs the context-action ingress, the pack's UI systems (selection, tools, the gizmo group), the host's UI
+systems (gizmo network ingress / egress), then `PublishFrame`. **Headless readers of the drawn buffer:** the debug API's `GET /panels/_gizmo`
+(`DebugApiService._gizmoFeed`) — used by rails and agents. **Not a reader:** the gateway — its `IGizmoSource` runs the product's projectors on its
+own, only while a client asks (DD-017 §3.7), never the host's buffer.
+
+```mermaid
+graph TD
+  P[StagedPresentation.Pull, every pulled tick] --> M[MapPresentationStep.RunPerPulledTick]
+  M --> I[interaction: bus swap, context ingress, selection, tools, host UI systems]
+  M --> G{gizmo DRAWING wanted?}
+  G -->|a visible view, or a reader in the last 5 s| D[StatelessGizmoSystem: every gizmo Draw]
+  G -->|headless, nobody reading| X[skipped: the buffer publishes an empty frame]
+  R[GET /panels/_gizmo] -.->|arms the 5 s keep-alive| G
+  D --> RN[RoadNetworkGizmo: the cached polyline, culled to the view]
+```
+*Caption: what keeps running headless (interaction) and what stops (drawing) — and the ONE reader that switches drawing back on. The red path
+today is the whole of D every tick, with nobody reading it.*
+
+```mermaid
+classDiagram
+  class MapPresentationStep { <<existing>> +RunPerPulledTick(dt) +DrawingWanted Func~bool~ }
+  class GizmoDrawGate { <<new, Hrot.Presentation>> +Wanted bool +Touch() keep-alive 5 s +HasView bool }
+  class RoadNetworkGizmo { <<existing>> +Draw() }
+  class RoadPolylineCache { <<new>> +For(roads, terrain) samples with heights, rebuilt on a road or terrain change }
+  class DebugApiService { <<existing>> GET /panels/_gizmo }
+  MapPresentationStep --> GizmoDrawGate
+  DebugApiService ..> GizmoDrawGate : Touch()
+  RoadNetworkGizmo --> RoadPolylineCache
+```
+
+| # | decision | rejected (one line) |
+|---|---|---|
+| HL-1 (CE-11045) | gizmo DRAWING runs only when the host has a visible view, or `GET /panels/_gizmo` read it in the last 5 s (the first read after a pause answers the next frame; the route says so). Interaction keeps running | skipping the whole map step headless (`unreal-ig`'s lean) — it also runs the interaction systems a headless node with seats needs; a new env switch — a silent default nobody sets |
+| HL-2 (CE-11046) | `RoadNetworkGizmo` draws from a polyline cached per road-net generation + terrain version (curve samples WITH their ground heights), culled to the view; 0 B and no `GroundHeightOf` on a steady frame | heights at a coarser step — still a per-frame cost and a visible change |
+| HL-3 (CE-11047) | the per-frame garbage (R-2084): find the ≈ 2 MB per update and the three panels' (inspector, event browser, message log) and remove it, each with a 0-B rail | — |
+| HL-4 (CE-11048) | a PAUSED headless node sleeps between passes (a default cap while paused; `HROT_HEADLESS_MAX_HZ` still wins) | leaving it to an env var — the default burns a core |
+
+**Rails:** headless with no reader ⇒ no gizmo `Draw` runs (a counting gizmo) and the tick rate rises (Stechovice before / after, reported);
+`GET /panels/_gizmo` still returns primitives (keep-alive); a windowed host draws every frame as before (the existing frame rails under
+`xvfb-run`); `RoadNetworkGizmo` steady frame 0 B and 0 `GroundHeightOf` calls, and its primitives equal the uncached version's (seeded nets);
+each fixed panel 0 B per steady frame; a paused headless loop under ~0.1 core.
