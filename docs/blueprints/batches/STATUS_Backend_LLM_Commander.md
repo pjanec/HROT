@@ -8,6 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
+⭐ `2026-11-23` **L-3c (CE-4684, the decision contract) — BUILT**: C-1 … C-6 railed and red-proved (11 rails); the low-effort baseline and the contract run on `llm-platoon-attack` side by side below; the contract duel ⏳. Report: §L-3c; design §5c.1.
 ⭐ `2026-11-23 16:10` **THE DUEL (user: "can we let 2 haiku workers play against each other?" · "yes please") — DONE**: `llm-platoon-duel`, two Haiku commanders one per side through the per-commander relay; six seat defects found and fixed (D-1…D-6, `4fddd69eb`), one grammar defect filed (CE-3502). Report: §Duel; design §5a-5. ⏸ then idle — waiting for a handoff.
 ⭐ `2026-11-23` **L-3a (CE-4683, the briefing a small model can live with) — DONE**: ① ② ③ ④ built, railed and red-proved; the Haiku relay run side by side with L-3 below; CE-3501 CLOSED. Report: §L-3a; design §5a-4.
 ⭐ `2026-11-23` **L-3 (CE-4681, the chat-model mind on the cloud VM) — DONE**: ① ② ③ ④ ⑤ ⑥ built and proved; ⑦ blocked (permission — see §L-3). Report: §L-3 below; design §5a-3 / §6a.
@@ -321,4 +322,67 @@ used the build from BEFORE the fixes (it found them).
 
 ### Duel ids allocated
 `CE-3502` (backend next free `CE-3503`).
+
+## L-3c — the decision contract (CE-4684, `2026-11-23`; handoff `HANDOFF_Coordinator_To_Backend_LLM_Commander_L3c.md`, merged `coordinator` at `998bea849`)
+
+| # | item | state | commit | rail (red-proved by a compiling mutation) |
+|---|---|---|---|---|
+| C-1 | one decision per wake; the seat's schema as `format`; validate · repair once · CONTINUE | DONE | `276df8598` | `CE4684_ADecision_IsSentWithTheSeatsSchema_AndItsOrderLands` · `_AnUnknownIdAndAWrongCycle_AreRepairedOnce` (no repair ⇒ red) · `_ATaskTheSquadCannotDo_ThenAMalformedAnswer_FallsBackToContinue` (task check off ⇒ red) |
+| C-2 | start / complete_when / abort_when, ≤ 3 contingencies, `ConditionWatcher` | DONE | `276df8598` | `_AnOrderWaitsForItsStart_ThenGoes` (start ignored ⇒ red) · `_AContingencyFires_AndAnAbortHolds_AndTheNextBriefingSaysSo` (trigger never holds ⇒ red) |
+| C-3 | next_decision (floor 10 s / ceiling 300 s) + the cycle echo | DONE | `276df8598` · `de229e2e3` | `_AStaleCycle_IsRefused_AndTheDecisionOnTheNewerCycleLands_NoLoop` (cycle check off ⇒ red; refusal a wake ⇒ red) · `_TheModelsOwnDeadline_AndItsWakeCondition_WakeIt` (deadline ignored ⇒ red) |
+| C-4 | terrain facts per place, once at seat open | DONE | `276df8598` · `de229e2e3` | `_TerrainFacts_SayWhoSeesEachPlace_ItsCover_VehiclesAndMinutes` (building check off ⇒ red) · `_TerrainFacts_JudgeAPlaceWhereAManStands_NotARingAroundIt` (ring back ⇒ red) |
+| C-5 | enemy confidence HIGH / MED / LOW | DONE | `276df8598` | `_EnemyConfidence_FromHowManySquadsReportedItAndHowLongAgo` (second squad never counted ⇒ red) |
+| C-6 | ids only for a decision seat | DONE | `276df8598` | `_IdsOnly_ABearingIsNotAPlace` (place check off ⇒ red) |
+
+**Found by the runs and fixed** (each with its rail):
+- ⛔ **a refusal loop** — the first contract run refused 15 decisions in a row at 00:00:36: a stale decision's refusal was a WAKE, arrived while the model answered the newer news and staled that answer too. A refusal is no longer a wake (the newer news re-asks the model). Run stopped, fixed, re-run.
+- ⛔ **wrong terrain facts** — the C-4 hand check: a 6 m ring read the objective (behind the Low Wall, "cover from the house") as seen from the house. A place is now judged where a man stands.
+
+**C-4 hand check** (`llm-platoon-attack`, the facts as the model gets them vs the scenario's own notes):
+
+| place | the note | the facts | |
+|---|---|---|---|
+| `start` | "behind the L-Block, out of sight of the house" | seen from: none — the house sees neither it nor is seen from it | ✅ |
+| `objective` | "cover from the house" | seen from: support (only — the same wall, 10 m apart) | ✅ (❌ before the fix: "house, support") |
+| `house` | `support` "sees the sheds' south side over the wall" | seen from: none | ⚠ open — the point sits among the sheds; the note speaks of the building's wall |
+
+**The proof — Haiku at the LOWEST effort** (`model: haiku`, `effort: low`; each worker sees only the request JSON):
+
+| `llm-platoon-attack` | ① baseline — L-3a tool calls | ② the contract |
+|---|---|---|
+| calls | 26 | 58 |
+| orders given / refused / no-ops | 9 / 0 / 0 | 6 / 1 / 1 (orders now come once, then CONTINUE) |
+| decisions applied · stale refused · repaired · fell back to CONTINUE | — | 47 · 11 · 1 · 0 |
+| contingencies armed → fired · aborts · own wakes fired | — | 11 → 1 · 0 · 10 |
+| `next_decision` deadlines it set | — | 60, 60, then mostly 15–30 s (min 15) |
+| request tokens first / median / last (max) | 1 159 / 1 468 / 1 465 (1 764) | 1 776 / 2 539 / 2 150 (3 429) — under ≈ 4 000 |
+| answer time (relay round trip) | 5.1 s | 6.3 s |
+| checks (2 scripted-only rows SKIPPED) | ✅ 6/6 — **Red beaten** (first relay run to pass it) | ✅ 6/6 — Red beaten |
+
+⚠ What it costs: the schema adds ~600 tokens to every request, and the model chose short deadlines — 2.2× the calls. CE-4682's stall still shows (Alpha
+held near `start` for a minute under the play); both runs got there anyway.
+
+Three decisions as the model wrote them (contract run):
+- **00:00:08, cycle 6** — *assessment:* "Both squads still at start; Alpha is setting the support position behind the Low Wall. PlatoonAttack is running and no contact yet." · *enemy likely:* "Red holds the south side of the house and will engage as soon as our squads show at the wall or cross the open ground east of the house." · *main risk:* "The assault crossing the open ground east of the house before support is set and firing on the south side." · *intent:* main effort Platoon — "Keep the PlatoonAttack running: support sets behind the Low Wall, then the assault goes in on the house once fire covers the south side. No change to orders." · *orders:* none · *contingencies:* none · *next:* 60 s, wake on CONTACT Alpha Squad / CONTACT Bravo Squad.
+- **00:03:11, cycle 58** — *assessment:* "Alpha has spotted an enemy at the house and is still on its move … Bravo is Amber, at support, keeping fire on the house; a team of two Red is 20 m west of the house." · *main risk:* "Alpha does not reach support in time to assault before 00:07." · *intent:* main effort Alpha Squad — "Alpha reaches support; the contingency sends it into the assault on the house once it is there, with Bravo's fire from support on the south side." · *orders:* none · *contingency:* UNIT_AT Alpha Squad support → Alpha Squad Attack house ("Assault the house from support while Bravo keeps fire on it.") — ⭐ it FIRED at 00:03:24 with no model call · *next:* 20 s, wake on UNIT_AT Alpha Squad support / STRENGTH_BELOW Bravo Squad 50 %.
+- **00:04:28, cycle 104** — *assessment:* "Bravo is set at support at Red strength … Alpha is Amber … it has not reported progress toward the house since." · *main risk:* "Alpha has not moved for about 25 s; the house is not taken before 00:07 unless Alpha crosses now." · *intent:* main effort Alpha Squad — "Alpha's attack on the house continues … No change to the orders in force; I am checking Alpha's position at the next decision." · *orders:* none · *next:* 20 s, wake on CONTACT Alpha Squad / STRENGTH_BELOW Alpha Squad 50 %.
+
+📌 The worker noted twice that a squad asking for CASEVAC has no order to answer it (as the duel did) — an L-4 vocabulary question, not filed.
+
+### L-3c gates
+
+| gate | result |
+|---|---|
+| `dotnet build Hrot.SimHost.Tests --no-restore` | 0 errors |
+| the commander rails (L-1 … L-3a, the duel, L-3c) `--filter CE4684\|TwoSeats\|Duel_\|CE4676\|CE4679\|CE4680\|CE4681\|CE4683` | ✅ 36 / 36 |
+| the same under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` (the watcher is a serial system) | ✅ 36 / 36 |
+| red-proofs | 11 rails, each red under its mutation (one build, all mutations), green restored |
+| `DebugApiCommandersTests` | ✅ 3 / 3 |
+| `ScenarioChecksTests` | ✅ 29 / 29 |
+| the scripted mind on `llm-platoon-attack` | ✅ 8 / 8 (PlatoonAttack at 78.25 s — unchanged) |
+| the laptop recipe's dry run (`chat_standin.py --mode script` now answers decisions) | ✅ end to end, 12 calls |
+| the relay runs | ① baseline ✅ · ② contract ✅ · ③ the contract duel ⏳ |
+
+### L-3c ids allocated
+none (the slice's own id is the coordinator's CE-4684).
 
