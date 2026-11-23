@@ -388,6 +388,19 @@ public static class RunningBehaviourLocator
 public sealed class EntityBrainView : IDetailsViewInstance
 {
     private readonly Func<EntityRepository?> _world;
+    private Fdp.Toolkit.Behavior.Components.UnitIntent? _nextFor;
+    private string? _nextText;
+
+    /// <summary>⭐ CE-3494 — the pending intent's task as a row text ("⏳ Attack — when time next advances"), cached per intent record; null = none.</summary>
+    private string? NextOf(EntityRepository world, Entity unit)
+    {
+        if (!world.IsAlive(unit) || !world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.UnitIntent), out _)
+            || !world.HasManagedComponent<Fdp.Toolkit.Behavior.Components.UnitIntent>(unit)) return null;
+        var intent = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.UnitIntent>(unit);
+        if (intent?.Behavior is null) return null;
+        if (!ReferenceEquals(intent, _nextFor)) { _nextFor = intent; _nextText = "\u23F3 " + intent.Behavior.Name + " — when time next advances"; }
+        return _nextText;
+    }
     private readonly Func<int, string?> _behaviorName;
     private readonly Func<int, BehaviorDefinition?>? _definition;
     private readonly Func<BehaviorRegistry?>? _registry;
@@ -490,6 +503,9 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (Section("Doing", "doing") && BeginGrid("doing", ("", 0.25f), ("", 0.75f)))
         {
             GridRow("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
+            // ⭐ CE-3494 (DESIGN_Unit_Intent.md §5 C) — what the unit does NEXT: its pending intent, applied when time advances (the intent
+            //   section above edits it; this section only monitors). The text is built once per intent record, never per frame (R-2084).
+            if (world is not null && NextOf(world, unit) is { } next) GridRow("Next", next);
             if (b.Origin is { } o) GridRow("Ordered by", o + (b.Urgency is { } u ? $"  · {u}" : ""));
             if (b.Paused is { } p) GridRow("Paused", p);
             if (b.Sop is { } sop)
