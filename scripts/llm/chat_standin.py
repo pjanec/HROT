@@ -8,6 +8,8 @@ HROT's chat-model mind (ChatModelMind) sends POST /api/chat exactly as it would 
           dry run uses it (scripts/llm/laptop_run.py --endpoint http://localhost:<port>).
   relay   ⭐ the proof without a GPU: each request body is written AS SENT to <queue>/req-<n>.json; the answer is read from <queue>/resp-<n>.json,
           written by an agent (the Haiku worker) that sees ONLY that request. The answer may be a full Ollama response or just its `message`.
+          --per-commander: each request goes to <queue>/<commander>/ instead (the name from "You are <name>, …" in the system message), so
+          several commanders on one endpoint — the duel, two sides — are answered by one worker each, never one worker for both.
 
 Every request and answer is also appended to <log> (JSON lines). Usage:
     python3 scripts/llm/chat_standin.py --port 11500 --mode script [--answers answers.json]
@@ -35,9 +37,19 @@ def scripted_message(args, request, n):
     return {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "note", "arguments": {"text": f"stand-in turn {n}"}}}]}
 
 
-def relayed_message(args, body, n):
-    req = os.path.join(args.queue, f"req-{n:04d}.json")
-    resp = os.path.join(args.queue, f"resp-{n:04d}.json")
+def commander_of(request):
+    system = next((m.get("content", "") for m in request.get("messages", []) if m.get("role") == "system"), "")
+    m = re.match(r"You are ([^,\n]+),", system)
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", m.group(1)).strip("-") if m else "unknown"
+
+
+def relayed_message(args, body, n, request):
+    queue = args.queue
+    if args.per_commander:
+        queue = os.path.join(args.queue, commander_of(request))
+        os.makedirs(queue, exist_ok=True)
+    req = os.path.join(queue, f"req-{n:04d}.json")
+    resp = os.path.join(queue, f"resp-{n:04d}.json")
     tmp = req + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(body)
@@ -85,7 +97,7 @@ class Handler(BaseHTTPRequestHandler):
             n = STATE["n"]
             STATE["n"] += 1
         t0 = time.time()
-        message = relayed_message(ARGS, body, n) if ARGS.mode == "relay" else scripted_message(ARGS, request, n)
+        message = relayed_message(ARGS, body, n, request) if ARGS.mode == "relay" else scripted_message(ARGS, request, n)
         if message is None:
             return self.reply(504, {"error": f"no answer in {ARGS.wait} s"})
         message.setdefault("role", "assistant")
@@ -105,6 +117,7 @@ def main():
     p.add_argument("--mode", choices=["script", "relay"], default="script")
     p.add_argument("--answers", help="script mode: a JSON list of Ollama message objects")
     p.add_argument("--queue", help="relay mode: the directory the requests and answers go through")
+    p.add_argument("--per-commander", action="store_true", help="relay mode: one sub-queue per commander (<queue>/<name>/)")
     p.add_argument("--wait", type=float, default=600, help="relay mode: seconds to wait for an answer")
     p.add_argument("--log", help="append every request and answer here (JSON lines)")
     ARGS = p.parse_args()
