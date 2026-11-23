@@ -121,5 +121,29 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(s.Items(), i => i.Kind == FeedKind.Snapshot && i.Radio.Contains("PLAY IN FORCE: PlatoonAttack → house since"));
             s.Seats.Dispose();
         }
+
+        /// <summary>
+        /// ⭐ CE-4683 — asking a squad for a SITREP during a play does NOT end the play (it is not an order). 📌 Found by the L-3a Haiku relay run.
+        /// 🔴 Red-proof: ask_sitrep back behind the play check ⇒ "PLAY PlatoonAttack ENDED".
+        /// </summary>
+        [Fact]
+        public void CE4683_AskingForASitrep_DuringAPlay_DoesNotEndThePlay()
+        {
+            var mind = new RailMind();
+            int call = 0;
+            mind.Answer = _ => (call++) switch
+            {
+                0 => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: "house") },
+                1 => new[] { new CommanderAction(CommanderActionKind.AskSitrep, "Alpha") },
+                _ => Array.Empty<CommanderAction>(),
+            };
+            var s = new Seated(mind);
+            Fast(s, heartbeat: 0.5f, snapshot: 60f);
+            Run(s, 120);
+            Assert.True(call >= 3, $"{call} calls");
+            Assert.DoesNotContain(s.Items(), i => i.Radio.Contains("ENDED"));
+            Assert.Contains(s.Items(), i => i.Kind == FeedKind.OrderState && i.Radio.Contains("AskSitrep Alpha") && i.Radio.Contains("given"));
+            s.Seats.Dispose();
+        }
     }
 }

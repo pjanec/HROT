@@ -209,14 +209,18 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         if (squad.IsNull) return why;
         if (!CombatEffective.IsInTheFight(world, squad)) return $"{a.Squad} is out of the fight";
 
+        // ⭐ CE-4683 — asking for a report is not an order: it never ends a running play. 📌 Found by the L-3a Haiku relay run: an ask_sitrep at
+        //   0:59 ENDED PlatoonAttack (it went through the direct-order path below), and the model had to start the play again at 1:29.
+        if (a.Kind == CommanderActionKind.AskSitrep)
+        {
+            CommandOrders.AskSitrep(world, squad);
+            return null;
+        }
         if (PlayRuns(world, seat) || !PlayReleased(world, seat)) return Deferred;   // ⭐ CE-4680 B-1 — a direct squad order ends the play first
         switch (a.Kind)
         {
             case CommanderActionKind.Hold:
                 CommandOrders.Order(world, seat.Commander, squad, "Hold", "{}", newOrder: true);
-                return null;
-            case CommanderActionKind.AskSitrep:
-                CommandOrders.AskSitrep(world, squad);
                 return null;
             case CommanderActionKind.Order:
                 break;
