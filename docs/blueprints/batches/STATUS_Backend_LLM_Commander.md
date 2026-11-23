@@ -8,6 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
+⏸ `2026-11-23 13:32` — **idle — waiting for a handoff** (self-wake-up: queue empty after L-3a; no new HANDOFF/STEER/NOTE for backend; the next slice is L-3b on the user's laptop).
 ⭐ `2026-11-23` **L-3a (CE-4683, the briefing a small model can live with) — DONE**: ① ② ③ ④ built, railed and red-proved; the Haiku relay run side by side with L-3 below; CE-3501 CLOSED. Report: §L-3a; design §5a-4.
 ⭐ `2026-11-23` **L-3 (CE-4681, the chat-model mind on the cloud VM) — DONE**: ① ② ③ ④ ⑤ ⑥ built and proved; ⑦ blocked (permission — see §L-3). Report: §L-3 below; design §5a-3 / §6a.
 ⛔ ~~`2026-11-23 09:28` — idle~~ (L-3 taken 10:30) (self-wake-up: queue empty, no new HANDOFF/STEER/NOTE for backend; CE-3494 §10 (R-3119) built and gated, `STATUS_Backend_Queue.md`).
