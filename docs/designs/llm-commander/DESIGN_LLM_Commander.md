@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
 updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 (CE-4679, backend): built, as built in §5a-2; L-2b DISPATCHED (CE-4680, backend, after L-2 — §5b); L-3…L-4 DESIGN
+build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 (CE-4679, backend): built, as built in §5a-2; L-2b DISPATCHED (CE-4680, backend, after L-2 — §5b); L-3…L-4 DESIGN · L-3 DISPATCHED (CE-4681, backend, on the cloud VM with the Haiku relay); L-3b (the laptop) next
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
@@ -358,7 +358,8 @@ all their pictures, so it is really their superior: build it as that seat, hones
 | **L-1** | the seat, the feed system, the channel, the action system, the gazetteer, ScriptedMind; the scenario `llm-platoon-attack` (Blue platoon vs a Red squad in a house, test-town) | scripted mind: the right orders land within 1 s of the SPOT; every order goes out at origin Superior; Red is beaten or the platoon breaks contact |
 | **L-2** | the HTTP surface (`/feed` long-poll, `/stream`, `/briefing`, `/act`), ExternalMind, think-pause mode | a Haiku worker plays the scenario to the end; no illegal action is accepted; the run is repeatable from its recording |
 | **L-2b** | §5b: `run_play` / `stop_play`, the mission brief, the objectives line, each squad's task and progress, the enemy's activity / equipment / age, terrain notes on named places | the scripted mind runs `PlatoonAttack` on the house and the play's choreography happens (support SET before the assault); the briefing carries every §5b line; the Haiku worker plays the scenario again — its orders cite the mission |
-| **L-3** | OllamaMind (tools, retry), the context keeper's prefix / snapshot / log | an 8 B model on the laptop plays it in think-pause, then continuous; the model log beside the recording |
+| **L-3** | ⭐ on the CLOUD VM (CE-4681, user `2026-11-23`): `ChatModelMind` (Ollama's `/api/chat`, tools, one retry), a byte-stable prefix, checks per mind, a stand-in server, the **Haiku relay** answering HROT's exact chat requests; the laptop recipe ready, not run | the relay run plays `llm-platoon-attack` to the end; every exchange in the model log; counts of accepted / refused / malformed calls and the briefing's tokens per call |
+| **L-3b** | the real model on the user's laptop (RTX 3070, 8 GB): the three 7–8 B models through the L-3 recipe | an 8 B model plays it in think-pause, then continuous; a per-model summary |
 | **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat | two platoon seats on one model; a company seat above them |
 
 ## 12. Decisions — ✅ APPROVED `2026-11-22` (R-4298: *"leans approved"*)
