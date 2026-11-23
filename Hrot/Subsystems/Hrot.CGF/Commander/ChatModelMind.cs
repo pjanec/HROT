@@ -31,7 +31,7 @@ public sealed record ChatModelSettings
     /// <summary><c>HROT_COMMANDER_ENDPOINT</c> · <c>_MODEL</c> · <c>_NUM_CTX</c> · <c>_KEEP_ALIVE</c> · <c>_TIMEOUT_S</c>; an unset or unreadable one keeps its default.</summary>
     public static ChatModelSettings FromEnvironment(Func<string, string?>? env = null)
     {
-        env ??= Environment.GetEnvironmentVariable;
+        env ??= name => Fdp.Core.EnvVars.Find(name) is { } declared ? Fdp.Core.EnvVars.Read(declared) : null;   // ⭐ CE-4586 — every read through the one table
         var s = new ChatModelSettings();
         if (env("HROT_COMMANDER_ENDPOINT") is { Length: > 0 } endpoint) s = s with { Endpoint = endpoint.TrimEnd('/') };
         if (env("HROT_COMMANDER_MODEL") is { Length: > 0 } model) s = s with { Model = model };

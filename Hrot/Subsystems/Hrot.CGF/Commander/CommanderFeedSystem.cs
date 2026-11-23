@@ -112,12 +112,12 @@ public sealed class CommanderSeats : IDisposable
     public Func<string?>? RecordingPath { get; set; }
 
     /// <summary>⭐ CE-4681 (§5a-3) — where the model log goes when the host records nothing (a verify run): <c>HROT_COMMANDER_LOG_DIR</c>; null = no log.</summary>
-    public string? LogDirectory { get; set; } = Environment.GetEnvironmentVariable("HROT_COMMANDER_LOG_DIR") is { Length: > 0 } d ? d : null;
+    public string? LogDirectory { get; set; } = EnvVars.Read(EnvVars.HrotCommanderLogDir) is { Length: > 0 } d ? d : null;
 
     /// <summary>⭐ CE-4681 (§5a-3) — a run's choice of mind over the scenario's (<c>HROT_COMMANDER_MIND</c>: the laptop script runs ONE scenario per
     /// model); written to the seat when it opens, so the checks see the mind that ran. Null = the scenario's.</summary>
     public CommanderMind? MindOverride { get; set; } =
-        Enum.TryParse<CommanderMind>(Environment.GetEnvironmentVariable("HROT_COMMANDER_MIND"), ignoreCase: true, out var m) && Enum.IsDefined(m) ? m : null;
+        Enum.TryParse<CommanderMind>(EnvVars.Read(EnvVars.HrotCommanderMind), ignoreCase: true, out var m) && Enum.IsDefined(m) ? m : null;
 
     /// <summary>
     /// ⭐ CE-4679 — does the node's clock run FREE (continuous), so a hold may pause and resume it? null = yes. ⛔ A STEPPED clock (a verify run, run-to,
