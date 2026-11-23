@@ -198,6 +198,10 @@ namespace Fdp.Toolkit.Navigation
         /// escort. SUMO drives it as a priority vehicle (blue light: cars ahead give way; red ignored once at the front; approaching junction foes ignored — upstream H17, purely additive); until H17 is synced it is
         /// handed over as an ordinary car.</summary>
         InTrafficPriority = 6,
+        /// <summary>⭐ R-11018 — THE NAVMESH FIRST: walk the navmesh; the roads are priced only when the navmesh has no path (or the map has
+        /// none), then as <see cref="Neutral"/>. A soldier's default when the order does not say (<c>PathRequests.ResolveRoadUse</c>) — so an
+        /// ordinary move never pays a road route. ⚠ APPENDED, and the last value the 3-bit flag field (<c>FlagMaskRoadUse</c>) can carry.</summary>
+        NavmeshFirst = 7,
     }
 
     /// <summary>

@@ -68,15 +68,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
             return true;
         }
 
+        // ⭐ CE-5044 — through the world's spatial index (TerrainWorld.InsideFootprint — the same box, height band and polygon rule): this was a scan of
+        //   every prism per hull sample, 333 k on Stechovice, the EQS solver's top cost there (handoff ui → terrain; the CE-4366 fix of the
+        //   cover build, this caller missed). A deck above the hull (TopZ ≤ z or BaseZ ≥ z + height) is not in the way.
         private static bool Solid(TerrainWorld world, Vector2 p, float z, float height)
-        {
-            foreach (var prism in world.Prisms)
-            {
-                if (p.X < prism.Min.X || p.Y < prism.Min.Y || p.X > prism.Max.X || p.Y > prism.Max.Y) continue;
-                if (height > 0f && (prism.TopZ <= z || prism.BaseZ >= z + height)) continue;   // a deck above the hull is not in the way
-                if (PolygonMath.Contains(prism.Footprint, p)) return true;
-            }
-            return false;
-        }
+            => height > 0f ? world.InsideFootprint(p.X, p.Y, z, z + height) : world.InsideFootprint(p.X, p.Y);
     }
 }

@@ -37,6 +37,32 @@ namespace Fdp.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-11038</c> — a loader's long stretch says how far it has got: <see cref="LoadProgress.ReportDetail"/> stores <i>"navmesh 12000/59834"</i> (from a worker too), a
+        /// call within the same second is dropped (the text is built only when stored), the LAST one (<c>done == total</c>) always lands, a new step clears it, and with no load running
+        /// the call goes nowhere. 🔴 Red-proof: <c>ReportDetail</c> not storing ⇒ the first cell reds; the throttle removed ⇒ the second reds; the clear in <c>Active</c> removed ⇒ the fourth.
+        /// </summary>
+        [Fact]
+        public async Task CE11038_ADetail_IsStoredThrottled_TheLastAlwaysLands_AndAStepClearsIt()
+        {
+            var progress = new LoadProgress();
+            LoadProgress.Current = progress;
+            using (progress.Active("Terrain"))
+            {
+                await Task.Run(() => LoadProgress.ReportDetail("navmesh", 12000, 59834));
+                Assert.Equal("navmesh 12000/59834", progress.Detail);
+                LoadProgress.ReportDetail("navmesh", 12001, 59834);          // inside the same second
+                Assert.Equal("navmesh 12000/59834", progress.Detail);
+                LoadProgress.ReportDetail("navmesh", 59834, 59834);          // the last one
+                Assert.Equal("navmesh 59834/59834", progress.Detail);
+            }
+            using (progress.Active("ScenarioEntities")) Assert.Null(progress.Detail);
+
+            LoadProgress.Current = null;
+            LoadProgress.ReportDetail("navmesh", 1, 2);   // no load: nothing, no throw
+            Assert.Null(progress.Detail);
+        }
+
+        /// <summary>
         /// ⭐⭐ One per node BY CONSTRUCTION: keyed on the node's bus, so the slave and its translator's pump read the same instance; another node's
         /// bus gets another. 🔴 Red-proof: <see cref="LoadProgress.For"/> returning a new instance per call ⇒ not same.
         /// </summary>

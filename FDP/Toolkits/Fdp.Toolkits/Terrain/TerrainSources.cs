@@ -29,5 +29,15 @@ namespace Fdp.Toolkit.Terrain
         private static volatile ITerrainSourceImport? _import;
 
         public static ITerrainSourceImport? Import { get => _import; set => _import = value; }
+
+        private static volatile string? _sharedImportRoot;
+
+        /// <summary>
+        /// ⭐ <c>CE-11039</c> (§13 F-2, revised) — the machine-wide terrain folder a first-use import lands in, set ONCE where an executable starts (a dev checkout: the source tree's
+        /// <c>assets/terrain</c>, the folder <c>ContentSeed</c> seeds every NAS from; a production install has no source tree and leaves it null, so the NAS is the target). It outlives
+        /// a private staging root (every scenario-regression verify child has its own, NAS included) — which is what makes the import happen ONCE PER MACHINE. The catalog also LOOKS
+        /// here after its own roots, so a terrain imported by one process is found by the next without a seed in between. Null (the default: a tool, a test) ⇒ the catalog's own roots only.
+        /// </summary>
+        public static string? SharedImportRoot { get => _sharedImportRoot; set => _sharedImportRoot = string.IsNullOrWhiteSpace(value) ? null : value; }
     }
 }

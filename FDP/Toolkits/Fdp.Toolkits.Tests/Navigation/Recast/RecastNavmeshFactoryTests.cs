@@ -39,6 +39,22 @@ public sealed class RecastNavmeshFactoryTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-11038</c> — the bake tells the running load how far it has got: the tiles done, as the step's detail (<i>"navmesh 12/12"</i>), so a bake that is long on a large terrain
+    /// keeps the load's one progress report moving. 🔴 Mutation: the <c>ReportDetail</c> call in <c>RecastNavmeshBaker</c> removed ⇒ the detail stays null.
+    /// </summary>
+    [Fact]
+    public void CE11038_TheBake_ReportsItsTiles_IntoTheLoadsProgress()
+    {
+        var progress = new Fdp.Core.LoadProgress();
+        Fdp.Core.LoadProgress.Current = progress;
+        try { Bake(BlockWorld); }
+        finally { Fdp.Core.LoadProgress.Current = null; }
+        var detail = progress.Detail;
+        Assert.NotNull(detail);
+        Assert.Matches(@"^navmesh (\d+)/\1$", detail!);   // the last call (done == total) always lands
+    }
+
     [Fact]
     public void Bake_TheBuildingIsNotWalkable_AndThePathGoesAroundIt()
     {
