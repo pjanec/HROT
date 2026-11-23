@@ -330,28 +330,30 @@ namespace Hrot.AI.Behaviors.Brains
             return Entity.Null;
         }
 
-        private static readonly int[] FireMissionHashes =
+        private static readonly int[] MoveHashes =
         {
-            BehaviorHash.FromName(BehaviorNames.AirPlatformStrike), BehaviorHash.FromName(BehaviorNames.AirPlatformAttack),
-            BehaviorHash.FromName(BehaviorNames.AirArmedSearch), BehaviorHash.FromName(BehaviorNames.ArtilleryUnitStrike),
-            BehaviorHash.FromName(BehaviorNames.SelfPropelledArtilleryStrike),
+            BehaviorHash.FromName(BehaviorNames.MoveToLocation), BehaviorHash.FromName(BehaviorNames.FollowRoute),
+            BehaviorHash.FromName(BehaviorNames.AdvanceTo), BehaviorHash.FromName(BehaviorNames.SquadMarch),
+            BehaviorHash.FromName(BehaviorNames.InfantrySquadMove), BehaviorHash.FromName(BehaviorNames.PersonMove),
+            BehaviorHash.FromName(BehaviorNames.PlatformMove), BehaviorHash.FromName(BehaviorNames.AirPlatformMove),
+            BehaviorHash.FromName(BehaviorNames.PlatoonConvoy), BehaviorHash.FromName(BehaviorNames.PlatformConvoy),
         };
 
         /// <summary>
-        /// ⭐ <c>CE-5047</c> (Command Chain §8d, the <c>Free</c>/<c>Busy</c> gap; user-approved lean 2026-11-23, narrowed by measurement) — the asset
-        /// is already running a FIRE MISSION from a superior — a strike, an attack, an armed search: the tasks this HQ's own orders resolve to —
-        /// whoever gave it (a scenario's author, another commander): the HQ does not take it off that mission. ⭐ A patrol or a transit is NOT a
-        /// fire mission and stays the HQ's to re-task: 📐 <c>uc-a10-zu23-dry</c> and <c>uc-urban-battle</c> author their A-10 on a
-        /// <c>FollowRoute</c> and the HQ's SEAD strike pulls it off that route (a blanket "any authored order is busy" would stop that beat).
-        /// 📐 Found on the Stechovice showcase: the HQ took the Apache off its authored attack on the village technical.
+        /// ⭐ <c>CE-5047</c> (Command Chain §8d, the <c>Free</c>/<c>Busy</c> gap; user-approved lean 2026-11-23: "busy = any running Superior order") — the
+        /// asset runs a task from a superior — whoever gave it (a scenario's author, another commander) — that is more than a MOVE: an attack, a
+        /// strike, a defence, a search. The HQ does not take it off that. ⭐ A move (a patrol, a transit, a march, a convoy) stays the HQ's to
+        /// re-task: 📐 <c>uc-a10-zu23-dry</c> and <c>uc-urban-battle</c> author their A-10 on a <c>FollowRoute</c> and the HQ's SEAD strike pulls it
+        /// off that route. An idle asset is free as before. 📐 Found on the Stechovice showcase: the HQ took the Apache off its authored attack,
+        /// and (96 s) ordered the village platoon off its authored <c>PlatoonAttack</c> to reinforce the riverbank.
         /// </summary>
         private static bool OnFireMission(EntityRepository world, Entity asset)
         {
             if (!world.HasComponent<BehaviorState>(asset)) return false;
             ref readonly var bs = ref world.GetComponentRO<BehaviorState>(asset);
-            if (bs.Origin != BehaviorOrigin.Superior) return false;
-            for (int i = 0; i < FireMissionHashes.Length; i++) if (bs.ActiveBehaviorHash == FireMissionHashes[i]) return true;
-            return false;
+            if (bs.Origin != BehaviorOrigin.Superior || bs.ActiveBehaviorHash == BehaviorIds.None) return false;
+            for (int i = 0; i < MoveHashes.Length; i++) if (bs.ActiveBehaviorHash == MoveHashes[i]) return false;
+            return true;
         }
 
         /// <summary>An order given this recently has not reached the asset's brain yet (it runs from the next frame): still busy (s).</summary>

@@ -40,6 +40,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             Generator      = new DonutGenerator { AnchorSlot = 0, Rings = 2, PointsPerRing = 16, InnerFraction = 0.3f },
             FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { ContextSlotIndex = 1, Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
             ScoreCheap     = new IEqsTest[] { new DotProductTest { PivotSlot = 0, ReferenceSlot = 1, PreferredDot = 1f } },
+            FilterExpensive = new IEqsTest[] { new HullFitsTest { FromSlot = 0 } },   // ⭐ CE-5048 (c) — a firing point the hull can drive out to without meeting a wall
             ScoreExpensive = new IEqsTest[] { new BeyondThreatRangeTest(), new ThreatExposureTest(), new PathCostScoreTest() },
             MaxCandidates  = 32,
         };

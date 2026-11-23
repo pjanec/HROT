@@ -642,6 +642,32 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-5048</c> (a) (user: "remember failed hides but failed is NOT those where tank bounces the wall and recovers") — a place this
+        /// HULL failed at is matched by the hull's length: 📐 live, the M1's next hide stood 4.1 m from the one that had just failed (the 3 m
+        /// match missed it: "the same way back"). With the hull's rules a hide burned at A also covers a point 4.1 m off; the plain rules do not;
+        /// a hull with no stated size keeps the 3 m. 🔴 Red-proof: <c>Rules(p, world, self)</c> returning the plain rules ⇒ the 4.1 m point is free.
+        /// </summary>
+        [Fact]
+        public void CE5048_AFailedHide_IsMatchedByTheHullsLength()
+        {
+            var d = new Duel(Tank());
+            Assert.Equal(3f, VehicleFightFromCoverNodes.Rules(d.P, d.Repo, d.Self).MatchRadius);   // no size stated: as before
+            d.Repo.SetComponent(d.Self, new CarKinemVehicleParams { Class = CarKinemVehicleClass.Tank, Length = 7.93f, Width = 3.66f });
+            var hull = VehicleFightFromCoverNodes.Rules(d.P, d.Repo, d.Self);
+            Assert.Equal(7.93f, hull.MatchRadius, 2);
+            var failed = new Vector3(2273f, 2113f, 0f);
+            var next = new Vector3(2272f, 2109f, 0f);   // the live pair, 4.1 m apart
+            var mem = default(FiringPositionMemory);
+            PositionHeat.Add(ref mem, failed, VehicleFightFromCoverNodes.FailedHideHeat(in hull), 10.0, hull, exposure: false);
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, next, 10.5, hull), "the next hide 4.1 m off is the same spot for this hull");
+            // 📐 live: burned at the plain BurnHeat it cooled back to usable in one 60 s half-life and the M1 was sent back to it
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, failed, 10.0 + 61.0, hull), "a failed hide is still burned a minute later");
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, failed, 10.0 + 300.0, hull), "and five minutes later");
+            Assert.False(PositionHeat.IsBurnedAt(ref mem, next, 10.5, VehicleFightFromCoverNodes.Rules(d.P)), "the plain 3 m rules missed it");
+            Assert.False(PositionHeat.IsBurnedAt(ref mem, failed + new Vector3(0f, -12f, 0f), 10.5, hull), "a hide 12 m along the building stays free");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>V4_R2</c> — a tank fights <c>ExposuresPerPosition</c> (0 ⇒ 2 for Reverse) times from one hide, then moves to another at
         /// least <c>MinRelocateMetres</c> away — and its firing point there is the new hide's.
         /// </summary>
