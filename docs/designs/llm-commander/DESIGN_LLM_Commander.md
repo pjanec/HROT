@@ -306,6 +306,73 @@ play's choreography; the direct order lands and is still held 10 frames later).
 ⭐ The briefing stays SHORT (a small model's context): the prefix grows by the brief and the place notes; the snapshot by one line per squad and
 one per objective. ⛔ Still no ground truth: every new line comes from what was reported to him or what his scenario told him.
 
+### 5a-3. L-3 — the chat-model mind on the cloud VM *(CE-4681, backend, `2026-11-23`; build-state: BUILDING — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L3.md`)*
+
+🔒 User, `2026-11-23`: *"running on cloud VM (not my physical machine) - the run on my machine would be a next phase once we test whatever we
+could without it, using Haiku"*.
+
+```mermaid
+classDiagram
+  class IMind { <<existing>> ThinkAsync(Briefing) Actions }
+  class IMindTranscript { <<NEW>> LastRequest · LastRaw }
+  class ExternalMind { <<existing, + IMindTranscript>> }
+  class ChatModelMind { <<NEW — the design's OllamaMind>> Settings · one POST /api/chat per wake · one retry }
+  class ChatModelSettings { <<NEW>> Endpoint · Model · NumCtx · KeepAlive · Timeout · FromEnvironment() }
+  class ChatConversation { <<NEW>> Messages(briefing) · stable system message · Tools() }
+  class CommanderTools { <<existing>> Schema() · Parse() }
+  class MindRunner { <<existing>> LogCall writes request + raw for any IMindTranscript }
+  class StandInChatServer { <<NEW, rails>> in-process: scripted answers, slow, down }
+  class chat_standin_py { <<NEW, scripts/llm>> process: script · relay (file queue → Haiku worker) }
+  IMind <|.. ChatModelMind
+  IMind <|.. ExternalMind
+  IMindTranscript <|.. ChatModelMind
+  IMindTranscript <|.. ExternalMind
+  ChatModelMind --> ChatModelSettings
+  ChatModelMind --> ChatConversation
+  ChatConversation ..> CommanderTools : the same tool list, wrapped as Ollama functions
+  ChatModelMind ..> CommanderTools : Parse — the one reading of a tool call
+  MindRunner --> IMind
+```
+*What the picture shows that prose hid:* the model's answer is read by the SAME `CommanderTools.Parse` as `POST /act`, and the tools are the SAME
+`Schema()` list — wrapped, not re-declared — so an order from a model and an order from the Haiku worker reach `CommanderActionSystem` identically.
+
+```mermaid
+sequenceDiagram
+  participant R as MindRunner (background)
+  participant M as ChatModelMind
+  participant S as chat server (Ollama · stand-in · relay)
+  participant H as Haiku worker (relay only)
+  R->>M: ThinkAsync(briefing)
+  M->>S: POST /api/chat {model, messages:[system=prefix (byte-stable), user=snapshot+log+notes+new], tools, stream:false, options.num_ctx, keep_alive}
+  opt relay mode
+    S->>H: req-N.json (the request exactly as sent)
+    H-->>S: resp-N.json (Ollama's response shape)
+  end
+  S-->>M: message {content, tool_calls[]}
+  M->>M: CommanderTools.Parse(tool_calls)
+  opt a malformed / unknown call
+    M->>S: the same messages + the assistant turn + a tool message per error — ONCE
+    S-->>M: corrected calls (the rest dropped)
+  end
+  M-->>R: actions (or none: plain text, timeout, server down)
+  R->>R: model log — the request and every raw answer
+```
+*What it shows:* at most two HTTP calls per wake, both inside the think-pause hold; a refused ORDER is not retried here — it comes back as an
+`order-state` wake, as for every mind.
+
+| piece | decision (why) |
+|---|---|
+| the name | ⭐ `CommanderMind.ChatModel` — the design's *OllamaMind* renamed (Roslyn): it speaks Ollama's chat API, but any server that does (the stand-in, the relay) answers it |
+| the conversation | `system` = the seat's prefix + a fixed instruction line — built ONCE per seat, so it is byte-identical on every call (a server reuses its cache); `user` = the snapshot, the radio log, the notes, the new items, the sim time. ⛔ No history of earlier calls: the briefing IS the memory (§3) |
+| the tools | `CommanderTools.Schema()` wrapped as `{type: function, function: {…}}` — one list for every mind |
+| the answer | `message.tool_calls[].function {name, arguments}` (arguments an object or a JSON string) → `CommanderTools.Parse`. `message.content` with no call ⇒ no orders (logged) |
+| the retry | a malformed / unknown call ⇒ ONE more request: the first answer as the assistant turn + one `tool` message per error, saying which calls were taken; the second answer's well-formed calls are added, its bad ones dropped. ⛔ Never a second retry |
+| no answer | a timeout (`Timeout`, default 120 s — the think-pause hold waits for it) or a refused connection ⇒ no orders, the run goes on; the model log says why |
+| the settings | `HROT_COMMANDER_ENDPOINT` (default `http://localhost:11434`), `HROT_COMMANDER_MODEL` (`qwen2.5:7b-instruct`), `HROT_COMMANDER_NUM_CTX` (8192), `HROT_COMMANDER_KEEP_ALIVE` (`30m`), `HROT_COMMANDER_TIMEOUT_S` (120) — read when the seat opens. ⭐ `HROT_COMMANDER_MIND` overrides the scenario's mind for a run (the laptop script runs one scenario per model) and writes the seat so the checks see it |
+| the model log | every call writes the full request and each raw answer (`IMindTranscript`, shared with `ExternalMind`); with no recording the log goes to `HROT_COMMANDER_LOG_DIR` (a verify run has no recording) |
+| checks per mind | no grammar change: an anchor `scriptedMind` (a `field` cue on `CommanderSeat.Mind`) and `"if": "scriptedMind"` on the two scripted-only rows — a model run SKIPS them |
+| two stand-ins | ⚠ a NECESSARY difference: the rails need an in-process server they control (a hang, a refused port) with no process; the VM run and the laptop recipe need a PROCESS the editor reaches and that can relay to an agent. Both answer the same Ollama shape |
+
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
 | | ⭐ lean |
