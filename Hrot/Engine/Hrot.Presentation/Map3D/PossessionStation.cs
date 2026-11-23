@@ -48,6 +48,7 @@ namespace Hrot.UI.Common.Map3D
             _view = view ?? throw new ArgumentNullException(nameof(view));
             _world = world ?? throw new ArgumentNullException(nameof(world));
             Bodies = bodies;
+            _handOver = new DriveHandOver(_world, Orders);
         }
 
         /// <summary>⭐ CE-4148 — the node's feature gate provider (null = ungated).</summary>
@@ -189,43 +190,28 @@ namespace Hrot.UI.Common.Map3D
         /// default). The station's, not the driver's, so it stays across possessions and Tab.</summary>
         public bool PersonLookFree { get; internal set; }
 
-        /// <summary>⭐ CE-1158 — where the Drive hand-over stands (§8h driving sequence).</summary>
-        public enum HandOverStep : byte
-        {
-            None = 0,
-            /// <summary>Drive was pressed: waiting for the replicated passenger list to show the soldier in the driver seat.</summary>
-            AwaitBoard,
-            /// <summary>The soldier was asked to ride: waiting for his <see cref="PossessedBy"/> to say Riding.</summary>
-            AwaitRiding,
-            /// <summary>The vehicle was possessed: waiting for it to be held here.</summary>
-            AwaitVehicle,
-        }
+        /// <summary>⭐ CE-11041 (§8h.10 HO-1) — the Drive hand-over, the class every station owns (local screen and remote seat alike).</summary>
+        private readonly DriveHandOver _handOver;
 
-        /// <summary>A hand-over step that has not moved on in this long is dropped (the press was refused, the seat went to someone else).</summary>
-        public const float HandOverTimeout = 15f;
+        /// <summary>A hand-over step that has not moved on in this long is dropped.</summary>
+        public const float HandOverTimeout = DriveHandOver.HandOverTimeout;
 
-        private HandOverStep _step;
-        private Entity _hoSoldier, _hoVehicle;
-        private float _hoSince;
-        private Entity _getOutRider;
-        private float _getOutSince;
-        private float _orphanCheckAt;
         private bool _softLeft;
 
         /// <summary>⭐ CE-1158 — the Drive hand-over's step now (rails).</summary>
-        public HandOverStep Step => _step;
+        public DriveHandOver.HandOverStep Step => _handOver.Current;
 
         public void Update(float dt)
         {
             Clock += dt;
             var w = _world();
-            if (w is not null) { StepHandOver(w); ReleaseOrphanRiders(w); }
+            _handOver.Step(dt);
             // ⭐ CE-1216 (§8k S-2) — a round passing his ear (the audio's own rule, RoundPasses) shocks the view; it fades in ShockSeconds
             Shock = MathF.Max(0f, Shock - dt / ShockSeconds);
             if (_driver != null && w is not null && HudOn(Hrot.Common.Infrastructure.HudFeatures.NearMiss))   // ⭐ CE-4148 hud.near-miss
                 Shock = MathF.Min(1f, Shock + ShockPerPass * _passes.Scan(w, _driver.Unit, _view.Camera3D.Eye));
             var held = w is null ? Entity.Null : HeldHere(w, out _);
-            bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
+            bool handing = _handOver.Handing;
             if (MapPeek && _view.Is3D && !_view.IsSwitching) MapPeek = false;   // ⭐ CE-1218 — something else brought the 3-D view back
             // ⭐ CE-1218 — M on the map ends the peek. ⭐ CE-1295 — but NOT on the frame that opened it: the canvas runs the camera driver's input
             //   (which opens the peek on that M) BEFORE its layers' Update (this), and IsKeyPressed still reads true — so the same press used to
@@ -249,149 +235,20 @@ namespace Hrot.UI.Common.Map3D
             if (Fall != null && w is not null) Fall.Step(w, dt);
         }
 
-        /// <summary>
-        /// The unit this station DRIVES in <paramref name="w"/> (its <see cref="PossessedBy"/> names this node), or null. ⭐ CE-1158 — a unit
-        /// held as <see cref="PossessionMode.Riding"/> is skipped (the soldier sitting in the vehicle the station drives), and of two Fps
-        /// units (a moment during a take-over) the newest possession wins (<see cref="PossessedBy.Epoch"/>).
-        /// </summary>
-        public static Entity HeldHere(EntityRepository w, out int networkId)
-        {
-            networkId = 0;
-            if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
-            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
-            var orders = new EntityOrders(w, map, geo: null);
-            Entity best = Entity.Null;
-            uint bestEpoch = 0;
-            foreach (var unit in w.Query().With<PossessedBy>().Build())
-            {
-                if (!w.IsAlive(unit)) continue;
-                var held = w.GetComponentRO<PossessedBy>(unit);
-                if (held.StationNodeId != orders.StationFor(unit) || held.Mode == PossessionMode.Riding) continue;
-                if (!map.TryGetNetworkId(unit, out int id)) continue;
-                if (best.IsNull || held.Epoch > bestEpoch) { best = unit; bestEpoch = held.Epoch; networkId = id; }
-            }
-            return best;
-        }
+        /// <summary>The unit this station DRIVES in <paramref name="w"/> — forwards to <see cref="DriveHandOver.HeldHere(EntityRepository, out int, EntityOrders?)"/>.</summary>
+        public static Entity HeldHere(EntityRepository w, out int networkId) => DriveHandOver.HeldHere(w, out networkId);
 
-        /// <summary>⭐ CE-1158 — the soldier this station holds as <see cref="PossessionMode.Riding"/> aboard <paramref name="vehicle"/>, or null.</summary>
-        public static Entity RiderOf(EntityRepository w, Entity vehicle)
-        {
-            if (vehicle.IsNull || !w.IsComponentTypeRegistered<PossessedBy>() || !w.IsComponentTypeRegistered<IsEmbarkedTag>()
-                || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
-            var orders = new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null);
-            foreach (var unit in w.Query().With<PossessedBy>().With<IsEmbarkedTag>().Build())
-            {
-                var held = w.GetComponentRO<PossessedBy>(unit);
-                if (w.IsAlive(unit) && held.Mode == PossessionMode.Riding && held.StationNodeId == orders.StationFor(unit)
-                    && w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity == vehicle) return unit;
-            }
-            return Entity.Null;
-        }
+        /// <summary>⭐ CE-1158 — the soldier this station holds as Riding aboard <paramref name="vehicle"/> — forwards to <see cref="DriveHandOver"/>.</summary>
+        public static Entity RiderOf(EntityRepository w, Entity vehicle) => DriveHandOver.RiderOf(w, vehicle);
 
-        /// <summary>⭐ CE-1158 — is <paramref name="soldier"/> in <paramref name="vehicle"/>'s DRIVER seat, by the replicated passenger list?</summary>
-        public static bool InDriverSeat(EntityRepository w, Entity soldier, Entity vehicle)
-        {
-            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>() || !w.HasComponent<IsEmbarkedTag>(soldier)) return false;
-            var tag = w.GetComponentRO<IsEmbarkedTag>(soldier);
-            if (tag.VehicleEntity != vehicle) return false;
-            return !w.IsComponentTypeRegistered<CarrierSeats>() || !w.HasComponent<CarrierSeats>(vehicle)
-                || w.GetComponentRO<CarrierSeats>(vehicle).Roles[tag.Seat] == SeatRole.Driver;
-        }
+        /// <summary>⭐ CE-1158 — is <paramref name="soldier"/> in <paramref name="vehicle"/>'s DRIVER seat — forwards to <see cref="DriveHandOver"/>.</summary>
+        public static bool InDriverSeat(EntityRepository w, Entity soldier, Entity vehicle) => DriveHandOver.InDriverSeat(w, soldier, vehicle);
 
-        /// <summary>
-        /// ⭐ CE-1158 (§8h U-4) — the driver sent a Drive / Pilot press: once the soldier shows in the driver seat, ride him and drive the
-        /// vehicle. The STATION orchestrates it, from replicated state, because the soldier and the vehicle may be brained on different nodes.
-        /// </summary>
-        internal void ArmDrive(Entity soldier, Entity vehicle)
-        {
-            _step = HandOverStep.AwaitBoard;
-            _hoSoldier = soldier;
-            _hoVehicle = vehicle;
-            _hoSince = Clock;
-        }
+        /// <summary>⭐ CE-1158 (§8h U-4) — a Drive / Pilot press: see <see cref="DriveHandOver.Arm"/>.</summary>
+        internal void ArmDrive(Entity soldier, Entity vehicle) => _handOver.Arm(soldier, vehicle);
 
-        /// <summary>
-        /// ⭐ CE-1158 (§8h U-4) — <c>E</c> (or Esc) in a vehicle with a rider: possess the rider as Fps — which releases the vehicle (one Fps
-        /// unit per station) — and, once the view is back in him, send his Get-out press. False when <paramref name="vehicle"/> has no rider.
-        /// </summary>
-        internal bool TryGetOut(Entity vehicle)
-        {
-            if (_world() is not { } w || Orders() is not { } orders) return false;
-            var rider = RiderOf(w, vehicle);
-            if (rider.IsNull || !w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(rider, out int id)) return false;
-            orders.Possess(id, PossessionMode.Fps);
-            _getOutRider = rider;
-            _getOutSince = Clock;
-            return true;
-        }
-
-        private void StepHandOver(EntityRepository w)
-        {
-            if (!_getOutRider.IsNull && Clock - _getOutSince > HandOverTimeout) _getOutRider = Entity.Null;
-            if (_step == HandOverStep.None) return;
-            if (Clock - _hoSince > HandOverTimeout || !w.IsAlive(_hoSoldier) || !w.IsAlive(_hoVehicle) || Orders() is not { } orders)
-            {
-                _step = HandOverStep.None;
-                return;
-            }
-            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
-            switch (_step)
-            {
-                case HandOverStep.AwaitBoard:
-                    if (!HeldByThis(w, _hoSoldier, out _)) { _step = HandOverStep.None; break; }   // released meanwhile (Esc)
-                    if (InDriverSeat(w, _hoSoldier, _hoVehicle) && map.TryGetNetworkId(_hoSoldier, out int soldierId))
-                    {
-                        orders.Possess(soldierId, PossessionMode.Riding);   // O-2 — his task stays paused
-                        _step = HandOverStep.AwaitRiding;
-                    }
-                    break;
-                case HandOverStep.AwaitRiding:
-                    if (!HeldByThis(w, _hoSoldier, out var mode)) { _step = HandOverStep.None; break; }
-                    // ⚠ only once he RIDES: possessing the vehicle as Fps releases this station's other Fps unit — which he still was
-                    if (mode == PossessionMode.Riding && map.TryGetNetworkId(_hoVehicle, out int vehicleId))
-                    {
-                        orders.Possess(vehicleId, PossessionMode.Fps);
-                        _step = HandOverStep.AwaitVehicle;
-                    }
-                    break;
-                case HandOverStep.AwaitVehicle:
-                    if (HeldHere(w, out _) == _hoVehicle) _step = HandOverStep.None;
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// ⭐ CE-1158 — a rider whose vehicle this station no longer drives (the operator possessed someone else from the menu, the vehicle
-        /// was released or destroyed, he was thrown out) is let go, so his own task resumes. Checked once a second (a release takes a
-        /// round trip to show).
-        /// </summary>
-        private void ReleaseOrphanRiders(EntityRepository w)
-        {
-            if (_step != HandOverStep.None || Clock < _orphanCheckAt || !w.IsComponentTypeRegistered<PossessedBy>()) return;
-            _orphanCheckAt = Clock + 1f;
-            if (Orders() is not { } orders) return;
-            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
-            foreach (var unit in w.Query().With<PossessedBy>().Build())
-            {
-                if (unit == _getOutRider || !HeldByThis(w, unit, out var mode) || mode != PossessionMode.Riding) continue;
-                var vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit)
-                    ? w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity : Entity.Null;
-                if (!vehicle.IsNull && HeldByThis(w, vehicle, out var vehicleMode) && vehicleMode != PossessionMode.Riding) continue;
-                // ⭐ CE-1210 (§8n MS-7) — the station plays a GUN of his vehicle (seat switching): he stays held for the way back
-                if (!vehicle.IsNull && HeldHere(w, out _) is var fps && !fps.IsNull && SeatSwitch.VehicleOf(w, fps) == vehicle) continue;
-                if (map.TryGetNetworkId(unit, out int id)) orders.Unpossess(id);
-            }
-        }
-
-        private static bool HeldByThis(EntityRepository w, Entity unit, out PossessionMode mode)
-        {
-            mode = PossessionMode.None;
-            if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.IsAlive(unit) || !w.HasComponent<PossessedBy>(unit)
-                || !w.HasSingletonManaged<NetworkEntityMap>()) return false;
-            var held = w.GetComponentRO<PossessedBy>(unit);
-            mode = held.Mode;
-            return held.StationNodeId == new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null).StationFor(unit);
-        }
+        /// <summary>⭐ CE-1158 (§8h U-4) — Get out with a rider aboard: see <see cref="DriveHandOver.TryGetOut"/>.</summary>
+        internal bool TryGetOut(Entity vehicle) => _handOver.TryGetOut(vehicle);
 
         private void Enter(EntityRepository w, Entity unit)
         {
@@ -410,12 +267,12 @@ namespace Hrot.UI.Common.Map3D
             if (Hrot.ScenarioEditor.Map.HatArbiter.Of(w) is { } hats) hats.Embodied = true;   // ⭐ Seats H3 — the station wears the Embodied hat
             if (Bodies != null) Bodies.FirstPerson = unit;   // ⭐ CE-1073 — the camera is inside this head
             // ⭐ CE-1158 (§8h U-4) — back in the rider after Get out: his first frame carries the Get-out press (his only action aboard)
-            if (unit == _getOutRider)
+            if (unit == _handOver.GetOutRider)
             {
                 int vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit) && w.GetSingletonManaged<NetworkEntityMap>()!
                     .TryGetNetworkId(w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity, out int v) ? v : 0;
                 _driver.QueueUse(0, vehicle);
-                _getOutRider = Entity.Null;
+                _handOver.GetOutSent();
             }
         }
 
