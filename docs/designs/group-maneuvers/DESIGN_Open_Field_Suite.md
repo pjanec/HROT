@@ -194,6 +194,22 @@ OF2, OF4) — ⛔ C-1 stays a claim about strength ratios other than 2 : 1 (OF5 
 
 ⭐ After ① shows in OF5, the city battle itself is checked for the stall.
 
+#### 9.1a As built, `2026-11-23` — ① and ② (each red-proved by its rail)
+
+| piece | what it does | 📐 why — measured on OF5 / OF1 |
+|---|---|---|
+| `BreakContactPlay.AwayFrom` | no hidden point ⇒ a search radius (60 m) straight away from the threat | the play used to fail into a hold where it stood |
+| arrival re-asks the terrain | a man seen **or shot at** (`ShotAt`), or the point is the way it came (`Fallback`) ⇒ ask again from here, ≤ `MaxExtensions` 4 | a man withdrawing with his back to the MG does not see it |
+| `SeenByAThreat` | a retreat point a known threat still sees (ThreatExposureTest bit 5) is no hidden point | the query keeps the least-exposed point on open ground (CE-2164): 7 m back, in the second MG's sight |
+| `EqsKnownThreats` + the squad pool | a squad member's (and commander's) known threats include the squad's merged pool | ⭐ instrumented: the squad query measured NO exposure — it asks from a member whose own sensor lists were empty |
+| no lull exit on the way it came | CE-2465's lull only ends a play that reached hidden ground | Red stopped firing at men it still saw; the play ended after one bound each |
+| `AfterContact.CoveredMetres` | an enemy covers as far as it engaged (≥ 150 m, ≤ 800 m) | two MGs engaged from ~200 m; a fixed 150 m let the resumed move walk back |
+| ② `GrowthRedecide` + `PressShare` | 2× the danger the choice was scored on, and no longer 1.5 : 1 ⇒ scored again | OF5 charged on 1 of 12 · without the press line OF1/OF3 broke off a won fight (6 v 1 → 6 v 3) |
+
+⛔ **Still red — OF5 L3:** the squad withdraws the way it came, by 15 m bounds with overwatch, and 60 s after the first round it is still in Red's
+sight on open ground. ⚠ Open question for the user: is the row's 60 s achievable by bounding at all — doctrine breaks contact under SMOKE and
+moves by rushes; the check may need *"out of sight OR out of effective range"*.
+
 ```mermaid
 sequenceDiagram
   participant R as ReactToContact
