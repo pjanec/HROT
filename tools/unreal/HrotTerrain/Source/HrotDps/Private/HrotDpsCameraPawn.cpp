@@ -191,6 +191,14 @@ void AHrotDpsCamera::Tick(float Dt)
 	if (UHrotDpsStation* St = UHrotDpsStation::Get(this))
 	{
 		if (PossessWanted && St->IsPlaying() && St->PlayedUnit() == PossessWanted) EnterPlayer();
+		else if (Mode == EHrotCameraMode::Player && St->IsPlaying() && St->PlayedUnit() != 0 && St->PlayedUnit() != PlayerUnit)
+		{
+			// U-19g: HROT moved our seat to another unit (its drive hand-over: the soldier rides, the vehicle is ours; get out: back to him) -
+			// the client only follows what the slot reports (CE-11041 / gateway DD-029)
+			UE_LOG(LogTemp, Display, TEXT("HROT camera: the slot moved us from unit %d to %d"), PlayerUnit, St->PlayedUnit());
+			PossessWanted = St->PlayedUnit();
+			EnterPlayer();
+		}
 		else if (Mode == EHrotCameraMode::Player && (!St->IsPlaying() || St->PlayedUnit() != PlayerUnit))
 		{
 			UE_LOG(LogTemp, Display, TEXT("HROT camera: the slot let unit %d go (%s) - free flight"), PlayerUnit, *St->SlotState());
