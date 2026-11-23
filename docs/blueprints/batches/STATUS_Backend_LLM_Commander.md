@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⭐ `2026-11-23` **L-3c (CE-4684, the decision contract) — BUILT**: C-1 … C-6 railed and red-proved (11 rails); the low-effort baseline and the contract run on `llm-platoon-attack` side by side below; the contract duel ⏳. Report: §L-3c; design §5c.1.
+⭐ `2026-11-23` **L-3c (CE-4684, the decision contract) — BUILT**: C-1 … C-6 railed and red-proved (11 rails); the low-effort baseline and the contract run on `llm-platoon-attack` side by side below; the contract duel ✅ 10/10. Report: §L-3c; design §5c.1.
 ⭐ `2026-11-23 16:10` **THE DUEL (user: "can we let 2 haiku workers play against each other?" · "yes please") — DONE**: `llm-platoon-duel`, two Haiku commanders one per side through the per-commander relay; six seat defects found and fixed (D-1…D-6, `4fddd69eb`), one grammar defect filed (CE-3502). Report: §Duel; design §5a-5. ⏸ then idle — waiting for a handoff.
 ⭐ `2026-11-23` **L-3a (CE-4683, the briefing a small model can live with) — DONE**: ① ② ③ ④ built, railed and red-proved; the Haiku relay run side by side with L-3 below; CE-3501 CLOSED. Report: §L-3a; design §5a-4.
 ⭐ `2026-11-23` **L-3 (CE-4681, the chat-model mind on the cloud VM) — DONE**: ① ② ③ ④ ⑤ ⑥ built and proved; ⑦ blocked (permission — see §L-3). Report: §L-3 below; design §5a-3 / §6a.
@@ -367,6 +367,27 @@ Three decisions as the model wrote them (contract run):
 - **00:03:11, cycle 58** — *assessment:* "Alpha has spotted an enemy at the house and is still on its move … Bravo is Amber, at support, keeping fire on the house; a team of two Red is 20 m west of the house." · *main risk:* "Alpha does not reach support in time to assault before 00:07." · *intent:* main effort Alpha Squad — "Alpha reaches support; the contingency sends it into the assault on the house once it is there, with Bravo's fire from support on the south side." · *orders:* none · *contingency:* UNIT_AT Alpha Squad support → Alpha Squad Attack house ("Assault the house from support while Bravo keeps fire on it.") — ⭐ it FIRED at 00:03:24 with no model call · *next:* 20 s, wake on UNIT_AT Alpha Squad support / STRENGTH_BELOW Bravo Squad 50 %.
 - **00:04:28, cycle 104** — *assessment:* "Bravo is set at support at Red strength … Alpha is Amber … it has not reported progress toward the house since." · *main risk:* "Alpha has not moved for about 25 s; the house is not taken before 00:07 unless Alpha crosses now." · *intent:* main effort Alpha Squad — "Alpha's attack on the house continues … No change to the orders in force; I am checking Alpha's position at the next decision." · *orders:* none · *next:* 20 s, wake on CONTACT Alpha Squad / STRENGTH_BELOW Alpha Squad 50 %.
 
+**③ The duel with the contract on both sides** (`llm-platoon-duel`, two low-effort workers through the per-commander relay; the runner copied aside so
+the gate builds could not touch it):
+
+| | Blue (Platoon) | Red (Red Platoon) | first duel (tools, default effort, pre-fix build) |
+|---|---|---|---|
+| calls · decisions · stale refused · repaired · CONTINUE fallbacks | 63 · 56 · 7 · 1 · 0 | 66 · 57 · 9 · 1 · 0 | Blue 48 / Red 63 calls |
+| orders given · refused · no-ops | 13 · 0 · 29 | 4 · 2 (BreakContact for a squad out of the fight) · 1 | Blue 4 / Red 10 accepted, 0 no-ops |
+| contingencies armed → fired · own wakes fired | 63 → 3 · 8 | 66 → 0 · 5 | — |
+| deadlines (min / median / max s) | 30 / 40 / 60 | 30 / 30 / 60 | — |
+| tokens first / median / last (max) | 1 766 / 2 607 / 2 613 (3 448) | 1 593 / 2 533 / 1 975 (3 690) | max 1 685 / 2 018 |
+| answer time (the relay round trip, two workers at once) | 15.3 s | 14.5 s | 6–7 s |
+| checks | ✅ **10 / 10** — each side's squads report only to their own commander (the four cross-side rows, one name per row since CE-3502), the fight happens and lasts | | 6 / 8 (the two list-`by` rows — CE-3502) |
+
+The game: Blue ran PlatoonAttack, switched to fire and movement, Alpha went Black at ~5:03; Red ran PlatoonDefend, ended it to put the Reserve in, the
+Reserve held the sheds to the end — Red held, as in the first duel.
+
+📌 **A contingency re-armed every decision fires again once its trigger already holds** — Blue re-sent the same `UNIT_AT Alpha Squad support → Alpha
+SupportByFire house` contingency with each decision and it fired three times (3:16, 3:36, 4:06); the repeat order was a no-op each time, so no harm
+here. ⭐ Lean for later: a contingency fires on its trigger BECOMING true after it is armed (an edge), so re-arming one that already holds does not
+re-fire it — not changed in L-3c (scope), worth one line in the prefix or the watcher when L-3b shows it costs.
+
 📌 The worker noted twice that a squad asking for CASEVAC has no order to answer it (as the duel did) — an L-4 vocabulary question, not filed.
 
 ### L-3c gates
@@ -381,7 +402,7 @@ Three decisions as the model wrote them (contract run):
 | `ScenarioChecksTests` | ✅ 29 / 29 |
 | the scripted mind on `llm-platoon-attack` | ✅ 8 / 8 (PlatoonAttack at 78.25 s — unchanged) |
 | the laptop recipe's dry run (`chat_standin.py --mode script` now answers decisions) | ✅ end to end, 12 calls |
-| the relay runs | ① baseline ✅ · ② contract ✅ · ③ the contract duel ⏳ |
+| the relay runs | ① baseline ✅ 6/6 · ② contract ✅ 6/6 · ③ the contract duel ✅ 10/10 |
 
 ### L-3c ids allocated
 none (the slice's own id is the coordinator's CE-4684).
