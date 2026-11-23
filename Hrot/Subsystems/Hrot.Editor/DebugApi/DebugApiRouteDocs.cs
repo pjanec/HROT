@@ -2038,6 +2038,7 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "truncated tells you the frame was clipped by max — without it a cap would read as the end of the frame.",
+                "⭐ CE-11045 — a HEADLESS editor draws no gizmos until somebody reads them: this route takes a 5 s reference on the gizmo gate. The FIRST read after an idle spell answers the frame published while nothing drew (count 0, drawingStarted:true); the next pulled tick draws, so read again (a poll) for the primitives. A windowed editor draws every frame.",
                 "A shape with no field projection yet is reported by name with a note, never as aliased bytes.",
                 "MOST OF A FRAME IS THE GRID. Measured on --mode all with an EMPTY world: 603 primitives, all "
               + "of them Line. So a non-zero count is NOT evidence that anything is on the map.",

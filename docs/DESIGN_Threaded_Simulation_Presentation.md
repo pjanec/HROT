@@ -1073,3 +1073,18 @@ decisions below were re-scoped on these numbers (the user: *"shouldnt you first 
 `GET /panels/_gizmo` still returns primitives (keep-alive); a windowed host draws every frame as before (the existing frame rails under
 `xvfb-run`); `RoadNetworkGizmo` steady frame 0 B and 0 `GroundHeightOf` calls, and its primitives equal the uncached version's (seeded nets);
 each fixed panel 0 B per steady frame.
+
+### 16.1 As-built `2026-11-23` *(ui; CE-11045 reduced, CE-11046 built, CE-11047 → backend, CE-11048 withdrawn by the user)*
+
+⛔ **SUPERSEDED while building:** the new `GizmoDrawGate` class and `StatelessGizmoSystem.DrawingWanted` of the first cut of HL-1 were dropped (one gate, not two): the existing GZH-003 gate is used.
+
+| piece | as built |
+|---|---|
+| HL-1a gate | `EditorSubsystem`: `StartEnabled = !_headless` (headless: the gizmo group starts shut like SimHost / CGF). `Hrot.Presentation/DebugApi/GizmoReadLease.cs`: a TIMED reference on `MapInteraction.Gate` — `GET /panels/_gizmo` (and `GET /panels/<host>/_gizmo`) calls `Touch()` (first read after idle `AddListener()`s), the editor's `Update` calls `Tick()` (releases after 5 s without a read). Built only when headless (a windowed editor starts open with count 0: a release would shut it). The Player is untouched. `MapSelfCheckSystem` needed no change (a disabled group is silent). |
+| HL-1a route | first read after idle answers the frame published while shut (`count 0`, `drawingStarted:true`); the next pulled tick draws, a second read returns the primitives (measured live) |
+| HL-1b feed | `MapPresentationStep.PublishGizmoFeed` (+ the editor's three direct publishes, `GizmoFeedWanted`) publish the JSON feed only while the group is enabled ⇒ no `Describe`, 0 B headless without a reader; readers of the panel address: the debug route `GET /panels/{id}` (touches the lease) and `PanelSnapshot` dumps (windowed hosts: group always enabled, unchanged) |
+| HL-2 | `RoadPolylineCache` (+ `NativeArray.Address`): samples with heights per segment, key = blob block addresses + lengths + `TerrainWorld` reference + its `Height` grid reference. Ground changes at runtime (crater bake, ground patch, breach, obstacle bake) all go through `TerrainResidency.CommitObstacles` → a NEW `TerrainWorld` over a NEW immutable `TerrainHeightGrid` (`Patched` is copy-on-write) ⇒ the key moves. Culled with `GizmoViews` (`Overlaps`), as `TrafficRoadGizmo`. |
+| rails | `GizmoReadLeaseTests` (headless draws nothing until read, 5 s keep-alive, windowed every frame, feed 0 B / not published without a reader, editor source rail), `RoadNetworkGizmoTests` (byte-equal to uncached on seeded nets, 0 B steady frame, rebuild on road / terrain / patched grid, culling) |
+| deviations | the lease is a provider on `DebugApiService` (`GizmoLeaseProvider`), not a constructor argument (the map pack is built after the service); the per-host rail is a source rail (booting the editor needs the DDS harness) |
+
+**Measured** (headless editor, Stechovice, 4 cores, Release, 30 s after play; before = `0328ce417`, after = this tree): BrainTickSystem **12.5 → 37.8 executions/s**; allocation 93 → 104 MB/s wall (3x the ticks ⇒ ≈ 7.5 → 2.75 MB per tick). Not measured here: HL-3 (CE-11047, backend).
