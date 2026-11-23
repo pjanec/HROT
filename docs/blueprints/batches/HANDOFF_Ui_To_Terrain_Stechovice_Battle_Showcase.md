@@ -36,7 +36,7 @@ corner (`terrain.json` `frame.corner`). The generator keeps input-local metres a
 | 1 | the load failed after 30 s: the navmesh stage (34 s here) reported no progress (`DirectorRunner.LoadStallSeconds`) | ⏳ `ui` worker: the navmesh stage now reports progress — lands on `ui` shortly |
 | 2 | every scenario-regression run re-imported the terrain into its private staging root | ⏳ same `ui` batch: the first-use import targets the shared content root |
 | 3 | stepping ~0.3 sim s per 30 wall s — `RoadGraphRouter.Route` and `VehicleFootprint.Solid` scan the whole world | ⏳ **yours** (the router / cover handoff) |
-| 3a | every soldier's move also priced a road route | ⏳ `ui`: R-11018 — soldiers go `NavmeshFirst` by default (lands shortly) |
+| 3a | every soldier's move also priced a road route | ✅ `ui` `09504a447`: R-11018 — soldiers go `NavmeshFirst` by default |
 
 ## 3. What is left — yours
 
