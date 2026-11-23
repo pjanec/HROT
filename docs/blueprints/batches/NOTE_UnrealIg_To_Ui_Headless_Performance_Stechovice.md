@@ -58,3 +58,9 @@ Per-system times over 60 s (`GET /diagnostics/architecture`, `ExecutionCount` de
 ## 4. For the record — Unreal on top
 
 The Unreal client was run as a game (editor binary, `-game`, 1920 × 1080) on the same battle, over DPS from the headless node. It loaded `Stechovice_look` in 25 s, drew the 89 bodies, and ran at **38–40 fps** (from its log's frame counter; the CSV capture was lost). The headless node used 2.4 cores meanwhile. Unreal's own bottleneck is ours to measure next.
+
+## Addendum (2026-11-23, after dispatch) — how the user wants this worked
+
+🔒 User, verbatim: *"with report and push after each step"* — i.e. take the asks one at a time (① ② ③), and after EACH: measure it on the same
+set-up (§1: the headless ticks per second and cores, the profile's shares; the UI frame for ②), report the before / after in a note to
+`unreal-ig`, and push — before starting the next.
