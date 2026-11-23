@@ -35,6 +35,23 @@ settings at editing time … My desire is simplicity and consistency."*
 | why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
 | next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
 
+## CE-4684 — the LLM commander L-3c (the decision contract): lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | the chat-model mind answers with decisions by DEFAULT; `HROT_COMMANDER_FORMAT=tools` keeps L-3a's tool calls | the contract is what L-3b measures; the tools format stays for the side-by-side baseline |
+| 2 | ⚠ the design's `Via` / `Orient` are NOT in the schema | no order on this path takes them — a field the executor ignores teaches the model nothing true |
+| 3 | `support_at` is a PLACE (a play's support position), not a unit | `PlatoonBound` / `PlatoonAttack` take a support point; the order path has no "supported unit" |
+| 4 | validation is all or nothing: any problem ⇒ the whole decision goes back once, then CONTINUE | a partly applied decision is a plan nobody made; the model repairs one coherent answer |
+| 5 | a play AND a squad order in the same decision is a validation error | a squad order ENDS the play (§5b) — the model is told, not silently overridden |
+| 6 | ⭐ a stale decision's refusal is NOT a wake | 📌 measured: as a wake it staled the next answer too — 15 refusals in a row, the clock held at 00:00:36. The newer news it was stale against re-asks the model anyway |
+| 7 | the model's next decision is held to ≥ 10 s and ≤ 300 s after the last wake | a floor keeps a fallback (CONTINUE, no new deadline) from asking every frame; the ceiling = the schema's maximum |
+| 8 | terrain facts: a soldier's eye 1.7 m sees a man's chest 1.0 m; a standable place is judged at its own spot, a building at the standable points around its walls; cover ≥ 4 points covered, 1–3 partial; a vehicle reaches within 15 m; foot pace 1.4 m/s | 📌 a 6 m ring (the first build) read the objective behind the Low Wall as seen from the house — the place is where a man stands |
+| 9 | terrain facts go in EVERY seat's static block, not only a decision seat's | static, measured once, useful to any mind; the tools baseline's prefix grows by them too |
+| 10 | enemy confidence: reports within 30 m are one enemy, a report ≤ 60 s old is fresh | the picture keeps one reporter per element — grouping is the only way to count squads |
+| 11 | STRENGTH_BELOW reads the reported colour as Green 100 · Amber 75 · Red 50 · Black 25 | the commander knows colours, never percentages |
+| 12 | the watcher's orders are given on the NEXT frame's action pass (injected into the seat's queue) | one order path — the action system's validation, no-op and refusal apply to them like to the model's |
+
 ## CE-4683 — the LLM commander L-3a: lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |
