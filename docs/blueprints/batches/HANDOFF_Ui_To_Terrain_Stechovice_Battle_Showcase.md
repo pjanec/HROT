@@ -66,4 +66,7 @@ corner (`terrain.json` `frame.corner`). The generator keeps input-local metres a
   every reader already falls back to the authored state). Suggestions ①–⑥ and the one design decision (who creates the entity on the first
   change) are in the tracker row.
 - **CE-11044** — the ~20 systems that walk all ~4,500 entities every tick narrow their queries to what they read (the measured 114 ms per tick).
+- **CE-11049** — measured by `ui` on headless Stechovice with the battle running: each ground change re-bakes the obstacles and rebuilds the
+  WHOLE terrain collision index (`TerrainResidency.Indexed → BepuTerrainIndex..ctor`, ≈ 15 % of all samples, on worker threads). Lean:
+  rebuild it incrementally, as the navmesh already reuses unchanged tiles. Details in the tracker row.
 
