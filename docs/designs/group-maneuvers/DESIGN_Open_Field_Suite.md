@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — the field, OF1, OF2, OF4 BUILT and run (§8.1, §8.2); OF3, OF5 DESIGN
+build-state: BUILDING — OF1–OF5 BUILT and run (§8.1–§8.3); the decisions (§9) pending
 updated: 2026-11-23 (first version — behaviors, on the user's request)
 current-answer: §1 the request · §2 doctrine · §5 the field · §6 the suite · §7 the diagrams · §8 claims
 stale-below: nothing
@@ -133,6 +133,17 @@ classDiagram
 | C-3 | a reported enemy holds the whole platoon | ✅ `BasicPlatoonSop` — one contact row, `PlatoonHold` | ⚠ doctrine: the platoon leader manoeuvres another squad | OF4 |
 | C-4 | the city battle's stalls are C-1…C-3 | ⛔ not measured (the showcase is too large to attribute) | — | the city battle, AFTER the suite is green |
 
+### 8.3 OF3 and OF5 — the first runs, `2026-11-23`: ⭐ OF5 REPRODUCES THE DITCH WAR
+
+| scenario | verdict | measured |
+|---|---|---|
+| OF3 `of-squad-bounds-to-contact` (6 v 3) | ❌ 2 rows | ✅ return fire 0.9 s, no freeze, the fire team beaten at 112.5 s · ❌ CE-2494 (crouched in the open) · ❌ the bound-ends-at-cover row broke at its FIRST sample — ⚠ a TEST error: the start line is open by design (§5) and the first 30 m bound cannot reach the cover band ⇒ the row now starts at the anchor "in the cover band" — re-run: ✅ every bound in the cover band ends at cover; only CE-2494 left |
+| ⭐ OF5 `of-squad-outmatched` (6 v 12, two MGs) | ❌ 3 rows | 19 s contact with ONE pooled enemy ⇒ `FireAndMovement` FORWARD; 3 men killed by 34 s (5 contacts pooled by 29 s) ⇒ **CE-2495**; `BreakContact` 30.7 s, ONE ~5 m bound, then from 45.6 s `SquadHold` on the open start line in the MGs' sight to the end ⇒ **CE-2496 — the ditch war** |
+
+⇒ ⭐⭐ **The ditch war appears when the squad is OUTMATCHED on open ground**: break contact finds no hidden ground behind it, falls back to a hold
+(`SquadContactBehaviors.cs:400`), and the hold is in the enemy's sight. ⚠ In the city battle the attacking squads cross the west fields toward a
+defended ring road — the same shape; ⛔ not yet measured there (C-4).
+
 ### 8.2 OF2 and OF4 — the first runs, `2026-11-23`
 
 | scenario | verdict | measured |
@@ -156,8 +167,10 @@ are doing, at what range, against what) — then an OF variant that reproduces i
 | ⛔ every man in cover within 20 s | ❌ | the men stay where contact found them (x 100–110), the field's nearest cover 10–20 m ahead |
 | ⛔ nobody upright in the open in Red's sight 10 s | ❌ 60 s, Grenadier 2 | he stood at (107.6, 513.8) in `CombatPosture` 20 s+, upright; ⚠ not himself under fire |
 
-⇒ ⭐ **OF1's finding is the FIRST SECOND of react to contact**, not a stall: a man not himself fired on stays upright where he stands, in the enemy's
-sight. ⚠ Doctrine: on contact EVERY man gets down or into the nearest cover. ⇒ the city battle's stall is to be looked for at PLATOON scale (C-2, C-3:
+⇒ ⛔ **First reading RETRACTED** ("a man not fired on stays upright where he stands"). ⭐ **Measured, sampled every second** (Grenadier 2): 47 s prone
+suppressing behind the sandbags → 48–54 s a crouched RUSH 15 m into the open (`FireAndMovementPlay` found no cover within 17 m — the next is 20–32 m on —
+so `SquadCover.OneRush` straight ahead) → 55–60 s `Suppress` CROUCHED there (CE-8311 D-15: the lowest stance whose line clears the enemy's sandbags).
+⚠ Doctrine: a rush ends DOWN — at cover or prone. ⇒ CE-2494; the fixes touch CE-8311 D-15 and CE-3090 — decisions for the user. ⇒ the city battle's stall is to be looked for at PLATOON scale (C-2, C-3:
 OF2, OF4) — ⛔ C-1 stays a claim about strength ratios other than 2 : 1 (OF5 and a 6 v 6 variant would probe it).
 
 ## 9. Decisions — for the user, AFTER the suite shows red *(leans, not rulings)*
