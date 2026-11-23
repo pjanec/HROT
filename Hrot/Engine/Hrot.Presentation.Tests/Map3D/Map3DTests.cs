@@ -41,7 +41,7 @@ public sealed class Map3DTests
         var d = t.DisType;
         if (d.Kind == 3) return "_person";
         if (d.Kind == 1 && d.Domain == 1)
-            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 28 or 81 => "_wheeled", 80 => "_motorcycle", _ => null };   // ⭐ CE-4618: 28 (the radar SAM truck) is a wheeled body on the picker too   // ⭐ IF-1: 4 (SP artillery) moved on purpose
+            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 28 or 81 or 82 or 83 => "_wheeled", 80 => "_motorcycle", _ => null };   // ⭐ CE-11042: 82 (bus) and 83 (cargo truck) are wheeled bodies too, on purpose   // ⭐ CE-4618: 28 (the radar SAM truck) is a wheeled body on the picker too   // ⭐ IF-1: 4 (SP artillery) moved on purpose
         return null;
     }
 
@@ -525,7 +525,8 @@ public sealed class Map3DTests
         if (d.Kind == 1 && d.Domain == 1)
             return d.Category switch
             {
-                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
+                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 or 82 or 83 => VisualFamily.WheeledCar,   // ⭐ CE-11042 — the bus and the cargo truck draw as wheeled cars, on purpose
+               
                 3 or 6 or 7 => VisualFamily.WheeledUtility,
                 4 => VisualFamily.SpArtillery, 5 or 10 or 50 => VisualFamily.WeaponSystem,   // ⭐ CE-1087 / CE-1089 — deliberately moved off Unknown
                 28 => VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck's class (1.1.*.28), deliberately new
@@ -5540,5 +5541,31 @@ public sealed class Map3DTests
         var plainLook = EntityBodyLayer3D.Resolve(plain);
         Assert.Null(plainLook.Style);
         Assert.Same(ShapeKits.WheeledCar, EntityBodyLayer3D.KitOf(plainLook));
+    }
+
+    /// <summary>⭐ CE-11042 (R-11020; Unreal note NOTE_UnrealIg_To_Ui_Models_And_Freezes §1) — every traffic kind carries its own SISO-REF-010 DIS type
+    /// (a DIS-only image generator tells a bus from a sedan), and each lands in a NAMED picker group. ✅ Red-proof: all kinds back on 1.1.0.81.0.</summary>
+    [Fact]
+    public void CE11042_EveryTrafficKind_HasItsOwnDisType_AndANamedGroup()
+    {
+        var tkb = BuiltIn();
+        var expected = new (long Type, byte Category, byte Sub, string Group)[]
+        {
+            (UrbanCombatTkbCatalog.TkbCivilianCar, 81, 10, "Car"),
+            (UrbanCombatTkbCatalog.TkbTrafficSedan, 81, 43, "Car"), (UrbanCombatTkbCatalog.TkbTrafficEstate, 81, 63, "Car"),
+            (UrbanCombatTkbCatalog.TkbTrafficHatchback, 81, 52, "Car"), (UrbanCombatTkbCatalog.TkbTrafficSuv, 81, 113, "Car"),
+            (UrbanCombatTkbCatalog.TkbTrafficVan, 83, 74, "Cargo Truck"), (UrbanCombatTkbCatalog.TkbTrafficTruck, 83, 101, "Cargo Truck"),
+            (UrbanCombatTkbCatalog.TkbTrafficBus, 82, 1, "Bus"),
+        };
+        var seen = new System.Collections.Generic.HashSet<(byte, byte)>();
+        foreach (var (type, category, sub, group) in expected)
+        {
+            Assert.True(tkb.TryGetByType(type, out var t));
+            var dis = t.DisType;
+            Assert.Equal((byte)1, dis.Kind); Assert.Equal((byte)1, dis.Domain);
+            Assert.Equal(category, dis.Category); Assert.Equal(sub, dis.Subcategory);
+            Assert.True(seen.Add((category, sub)), $"type {type} shares its DIS type with another kind");
+            Assert.Equal(group, Hrot.Core.Tkb.DisNameTable.Default.CategoryName(dis.Kind, dis.Domain, dis.Category));
+        }
     }
 }

@@ -646,7 +646,7 @@ public sealed class EntityTypeCatalogTests
         408 Bomber drone | dis 1.2.0.50.3.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
         409 MiG-29 Fulcrum | dis 1.2.222.1.200.0.0 | family TwinEngineJet | folder Platform/Air/Russia/Fighter/Air Defense | icon -
         410 A-10C (napalm) | dis 1.2.225.2.0.1.0 | family AttackJet | folder Platform/Air/United States/Attack/Strike | icon -
-        411 Dragon | dis 1.2.0.20.99.0.0 | family AttackHelicopter | folder Platform/Air/Attack Helicopter | icon -
+        411 Dragon | dis 1.2.0.20.99.0.0 | family Dragon | folder Platform/Air/Attack Helicopter | icon -
         412 AH-64 (flame) | dis 1.2.225.20.0.1.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
         600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
@@ -667,14 +667,14 @@ public sealed class EntityTypeCatalogTests
         616 Rifle (pick-up) | dis 1.1.0.50.8.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         617 Pistol (pick-up) | dis 1.1.0.50.9.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         618 Explosive charge | dis 1.1.0.50.10.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
-        1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
-        1050 Hatchback | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
-        1051 DeliveryVan | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
-        1052 CityBus | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
-        1053 BoxTruck | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
-        1054 Sedan | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
-        1055 Estate | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
-        1056 Suv | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1002 CivilianCar | dis 1.1.0.81.10.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1050 Hatchback | dis 1.1.0.81.52.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1051 DeliveryVan | dis 1.1.0.83.74.0.0 | family WheeledCar | folder Platform/Land/Cargo Truck | icon _wheeled
+        1052 CityBus | dis 1.1.0.82.1.0.0 | family WheeledCar | folder Platform/Land/Bus | icon _wheeled
+        1053 BoxTruck | dis 1.1.0.83.101.0.0 | family WheeledCar | folder Platform/Land/Cargo Truck | icon _wheeled
+        1054 Sedan | dis 1.1.0.81.43.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1055 Estate | dis 1.1.0.81.63.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1056 Suv | dis 1.1.0.81.113.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1101 CivilianAdultMale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1102 CivilianAdultFemale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1103 CivilianMinor | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
@@ -739,6 +739,7 @@ public sealed class EntityTypeCatalogTests
         8824 Barrel, sand-filled | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8830 Minefield | dis 5.0.0.91.0.0.0 | family Unknown | folder Cultural Feature/Minefield (HROT) | icon -
         8840 Air Arena | dis - | family Unknown | folder Other | icon -
+        8841 Ambience Layer | dis - | family Unknown | folder Other | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -
@@ -765,6 +766,8 @@ public sealed class EntityTypeCatalogTests
         1.1.*.50 Weapon System (HROT)
         1.1.*.80 Motorcycle
         1.1.*.81 Car
+        1.1.*.82 Bus
+        1.1.*.83 Cargo Truck
         1.2 Air
         1.2.*.1 Fighter/Air Defense
         1.2.*.2 Attack/Strike
