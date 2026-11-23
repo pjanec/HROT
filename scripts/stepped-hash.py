@@ -64,7 +64,14 @@ def one_run(a, threads, k):
             #   unit stands at its members' centroid, refreshed on paused frames too, R-3036 §1b) leaves a unit where the LAST frame put it:
             #   a hash read right after /sim/step returns caught the units' centres from BEFORE that step's movement, or after it, by the wall
             #   clock — measured: a 4-thread run parted from the 1-thread one in the units' SimTransform (+ CullingState) only, every man equal.
-            _t.sleep(0.25)
+            # ⭐ CE-3445 (2026-11-23) — a FRAME count, not a wall-clock wait: under the 4-thread load a frame can outlast 0.25 s, so a timed
+            #   settle sometimes read the hash before any paused frame ran — measured: the entity-creation "parts" (a BuildingDamage entity a
+            #   step's breach REQUESTED, built by CreateEntityRequestSystem on the NEXT frame) present in one run and not yet in the other at the
+            #   same step, healed one step later. Wait until the frame counter (the view's Tick — it counts paused frames too) moves by 2.
+            t0 = data(s.get("/world/hash", timeout=600)).get("tick", 0)
+            for _ in range(200):
+                _t.sleep(0.05)
+                if data(s.get("/world/hash", timeout=600)).get("tick", 0) >= t0 + 2: break
 
         def step(n):   # --probe K: the same steps in pieces of K, the world hashed by type after each (where a run first parts)
             if not a.probe:
