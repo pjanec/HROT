@@ -35,8 +35,11 @@ The singleton OBJECTS are not copied (a managed singleton slot holds a reference
 3. Next tick, step 2 sees the slot no longer referencing the source's table ⇒ borrows again ⇒ step 4 builds a new table again.
 
 ⇒ ten singleton tables rebuilt EVERY tick. It matches the allocation profile type for type (`IGeographicTransform[]`, `INavmeshProvider[]`,
-`TerrainWorld[]` … ≈ 7.4 % each; `NativeChunkTable<SpatialGridData>..ctor` 11.6 %, `RaycastBatchData` / `EqsResultPool` ctors). The fix is yours
-to choose — the presentation sync either keeps a borrowed slot borrowed in step 4, or does not borrow in step 2 (the borrow exists for the SoD
-background readers, so check who reads these on the presentation world). Rail: two consecutive presentation syncs of an unchanged world ⇒ the
+`TerrainWorld[]` … ≈ 7.4 % each; `NativeChunkTable<SpatialGridData>..ctor` 11.6 %, `RaycastBatchData` / `EqsResultPool` ctors). ⭐ **The design decides the direction** (the user: *"Does presentation need the singletons copied? … Why wouldn't it read them?"*): §13.1 / D-4 of
+`DESIGN_Threaded_Simulation_Presentation.md` give these the treatment **SHARE** (`TerrainWorld`, `IGeographicTransform`, `INavmeshProvider`,
+`ICoverProvider`, `IEqsTemplateRegistry`, `SpatialGridData` — *"immutable services shared"*); only per-tick values (`GlobalTime`, the traces)
+are COPIED. Step 2's borrow IS that share; ⇒ **step 4 (`CopySingletonsFrom`) must not replace a borrowed slot** — skip it. Check the two not in
+§13.1's share rows (`EqsResultPool`, `RaycastBatchData`, `EqsSolverGlobalState`, `SoundEmissionRing`: sim-written every tick) against §13.1 /
+§13.2 and say in the as-built which treatment each has. Rail: two consecutive presentation syncs of an unchanged world ⇒ the
 same singleton table instances and 0 B.
 
