@@ -7522,7 +7522,10 @@ namespace Hrot.SimHost.Tests
                 Step(seen: false, ticks: 1);
             }
             Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
-            // ③b the shots pushed the point on (-240); there, the firing stopped (past UnderFireSeconds) and nobody seen: done — before the cap (3 of 4)
+            // ③b the shots pushed the point on (-240); the firing stops — past UnderFireSeconds (the men are short of the point meanwhile, so the play
+            //   only waits) — and at the point nobody is seen or shot at: done, before the cap (3 of 4)
+            Step(seen: false, ticks: 300);
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
             foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
             Step(seen: false, ticks: 400);
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
