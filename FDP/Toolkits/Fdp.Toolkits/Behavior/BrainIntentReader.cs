@@ -107,6 +107,8 @@ namespace Fdp.Toolkit.Behavior
         {
             if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)) return false;
             ref readonly var queue = ref repo.GetComponentRO<MissionPlanQueue>(entity);
+            // ⚠ CE-3494 — a HELD plan still drives the slot for the SAVE: a save is a STARTING state (progress is not saved, §7.5), so a held
+            //   plan reloads from task 0 and the operator's order is not saved. A checkpoint / recording keeps the hold (MissionPlanQueue is recorded).
             return queue.TaskCount > 0 && queue.CurrentTask < queue.TaskCount;
         }
 

@@ -136,6 +136,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause, (byte)evt.Cause);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
+                if (evt.HoldsPlan) Holds?.ClearFor(evt.Entity, repo);   // ⭐⭐ CE-3494 (R-3115) — the order STARTED: now its plan is held, same call
                 InteractionOutcomes.Applied(repo, ReplyTo(evt), evt.Entity);   // ⭐ CE-4306 (F5): the order was accepted
             }
 
@@ -259,6 +260,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 IntentsApplied++;
             }
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3494</c> (R-3115) — what an order with <see cref="AssignBehaviorEvent.HoldsPlan"/> holds once it has STARTED (the mission
+        /// plan, ruling 52's provider seam). ⚠ Null = nothing held (a host without planners). ⛔ A host that HAS the registry must set it (the
+        /// silent-default rule) — <c>CgfLogicPack</c> does, with a forwarding rail.
+        /// </summary>
+        public Fdp.Toolkit.Behavior.TacticalOrderMapper.IntentClearRegistry? Holds { get; set; }
 
         /// <summary>⭐ <c>CE-3494</c> — units whose authored intent was applied since this system was built (a test / diagnostics probe).</summary>
         public int IntentsApplied { get; private set; }

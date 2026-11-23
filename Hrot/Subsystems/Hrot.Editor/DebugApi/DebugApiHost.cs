@@ -979,6 +979,18 @@ namespace Hrot.Editor.DebugApi
                 return await AwaitMissionCommitAsync(commit, meta, restart ? "restart" : "run").ConfigureAwait(false);
             }));
 
+            _routes.Add(new("POST", "/missions/{networkId}/resume", async ctx =>   // ⭐ CE-3494 (R-3115)
+            {
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginResumeMission(id))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission could not be resumed.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, "resume").ConfigureAwait(false);
+            }));
+
             // Group M — TKB catalog
             _routes.Add(new("GET", "/tkb/types", ctx =>
             {

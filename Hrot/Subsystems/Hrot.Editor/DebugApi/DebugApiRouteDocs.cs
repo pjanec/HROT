@@ -1903,6 +1903,24 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "start entity 1000 executing its mission from the first task"),
 
+        [("POST", "/missions/{networkId}/resume")] = new RouteDoc(
+            Tool:    "resume_mission",
+            Group:   "P — Mission editing",
+            Summary: "Resume an entity's HELD mission plan (an operator's order holds it — CE-3494) or retry a FAULTED one: restarts the plan's current task. For a held plan the order that holds it is ended.",
+            Returns: "{ networkId, task, held, committed:true, version }",
+            Hint:    "Advance the sim (play_simulation or step_simulation): the restarted task starts when time advances.",
+            Params: new RouteParam[]
+            {
+                new("networkId", "integer", true, "Network id of the entity whose plan to resume"),
+            },
+            Notes: new[]
+            {
+                "An operator's order no longer discards the plan (R-3115): it holds it, progress kept; nothing resumes it but this route or the Orders tab's Resume plan.",
+                "Refused when the plan is neither held nor halted — use /run to restart it from the first task.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "resume entity 1000's mission after an operator's order"),
+
         [("GET", "/entities/{networkId}/variables")] = new RouteDoc(
             Tool:    "list_entity_variables",
             Group:   "O — Variables (the watch, over HTTP)",

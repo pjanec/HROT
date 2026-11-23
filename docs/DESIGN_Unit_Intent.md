@@ -336,6 +336,16 @@ intent rows share one control x; the status slot is fixed); glyphs and colours a
 | **O2** | the intent section's live edit — origin **Superior** (R-193) or **Operator** (holds the plan)? | **Operator live, Superior in edit mode** — live it is the operator's direct order of R5 | if the editor should never outrank a commander |
 | **O3** | R-4137's other initial-state rows — also at the first step? | **case by case (CE-3496)**; posture is drawn on the paused world, so probably stays | — |
 
+## 8b. As built — S1 *(`2026-11-23`, CE-3494; deviations from §3 named, the rest as drawn)*
+
+| design said | built | why |
+|---|---|---|
+| the hand-over writes the gaining node's `UnitIntent` (§3.3) | `BrainHandOverSystem` is **`WhenTimeAdvances`** and keeps its direct replace; it **removes** any stale loaded `UnitIntent` it supersedes | the replace (end, then start at the published origin, bypassing rank) is the hand-over's own contract; running it only when time advances already satisfies R1 — the intent would have had to grow a "replace" mode |
+| a non-brain node drops a loaded intent (R11) | it **keeps** it (never applied — no ingress there) until a hand-over removes it | the load translator cannot tell a brain node from a staging repository; the cost is one small recorded record per unit on IG-class nodes |
+| the TKB default SOP writes the intent (§3.5) | it stays an event (`BehaviorTkbTranslator`), applied from the step window at the first advancing frame | an event already waits correctly; only AUTHORED values need a component (R2) |
+| `GlobalComponentIds.UnitIntent` | the id constant keeps its catalogue name `InitialBrainIntent` (316) | the Roslyn rename of the constant applied nothing; one attribute reads it — left, commented |
+| `EntityAiEditModel` through `UnitIntentWriter` | the model writes the record itself (`Author` / `SetIntent`); no separate writer class yet | the editor is the only authored writer besides the load; a shared writer comes with S3/S4 if a second appears |
+
 ## 9. Independent review — findings and what changed *(`2026-11-22`, a fresh reviewer reading the code, not this design's reasoning)*
 
 | # | finding (verified against code) | sev | ⇒ change |

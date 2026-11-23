@@ -93,20 +93,18 @@ namespace Hrot.Common.Systems
         public string Name => "MissionPlan";
 
         /// <summary>
-        /// ⭐ <c>CE-3167</c> (Entity Commanding §2.5d, ruling 52) — an immediate order clears the unit's mission plan before it
-        /// starts, so the plan cannot resume at its next phase (ruling 50: discarded, not paused). The same clear as
-        /// <c>CMD_ABORT_ALL</c> WITHOUT the behaviour clear — the order's assign replaces the behaviour. A unit with no plan is
-        /// left untouched (no version bump).
+        /// ⭐⭐ <c>CE-3494</c> (R-3115, <c>docs/DESIGN_Unit_Intent.md</c> §4) — an operator's order that has STARTED HOLDS the unit's mission plan:
+        /// <see cref="MissionPlanQueue.HaltedHeldByOrder"/>, its progress kept; the adapter issues nothing and the director runs no timer until the
+        /// user resumes it (<c>CMD_JUMP_TO_TASK</c> to the current task). A unit with no task left is untouched (no version bump).
+        /// <para>⛔ SUPERSEDED: ruling 50's DISCARD (<c>CE-3167</c>) — the plan was emptied here and could never resume.</para>
         /// </summary>
         public void ClearFor(Entity entity, EntityRepository repo)
         {
-            bool hasQueue = repo.IsComponentTypeRegistered<MissionPlanQueue>() && repo.HasComponent<MissionPlanQueue>(entity)
-                && repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount > 0;
-            bool hasPlan = repo.HasManagedComponent<ActiveMissionPlan>(entity);
-            if (!hasQueue && !hasPlan) return;
-            if (!_entityMap.TryGetNetworkId(entity, out int networkId)) networkId = 0;
-
-            EmptyPlan(repo, entity, networkId);
+            if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)) return;
+            ref readonly var peek = ref repo.GetComponentRO<MissionPlanQueue>(entity);
+            if (peek.TaskCount == 0 || peek.CurrentTask >= peek.TaskCount || peek.Halted == MissionPlanQueue.HaltedHeldByOrder) return;
+            repo.GetComponentRW<MissionPlanQueue>(entity).Halted = MissionPlanQueue.HaltedHeldByOrder;
+            SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
             BumpVersion(repo, entity);
         }
 
@@ -269,10 +267,15 @@ namespace Hrot.Common.Systems
                         repo.AddComponent(entity, new MissionPlanQueue());
 
                     ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
+                    bool wasHeldByOrder = queue.Halted == MissionPlanQueue.HaltedHeldByOrder;
                     queue.CurrentTask = (byte)targetIndex;
                     queue.TaskElapsedSeconds = 0f;
                     // ⭐ CE-483 — the operator's answer to a halted (faulted) plan: run from the target phase again.
+                    // ⭐⭐ CE-3494 (R-3115) — and to a HELD plan: RESUME. The order that holds it is ended (Operator) so the plan's restarted task
+                    //   (Superior) is not refused by rank; the two land one advancing frame apart (the SOP holds the unit for it).
                     queue.Halted = 0;
+                    if (wasHeldByOrder)
+                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator });
                     if (targetIndex < MissionPlanQueue.MaxTasks)
                     {
                         Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
@@ -379,6 +382,10 @@ namespace Hrot.Common.Systems
             }
             else
                 queue.CurrentTask = (byte)Math.Min(lastEnded + 1, queue.TaskCount);
+            // ⭐ CE-3494 (R-3115) — a HELD plan stays held through a live edit while any task remains (the held task removed ⇒ it holds on the next):
+            //   only the user resumes it. ⛔ Clearing it here resumed the plan behind the user's back, its Superior task refused under the order.
+            if (was.Halted == MissionPlanQueue.HaltedHeldByOrder && queue.CurrentTask < queue.TaskCount)
+                queue.Halted = MissionPlanQueue.HaltedHeldByOrder;
         }
 
         private static int IndexOf(List<DomainMissionTask> tasks, Guid id, int count)

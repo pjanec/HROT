@@ -660,5 +660,16 @@ namespace Hrot.SimHost.Tests
             Assert.Same(pack.IntentClears, resolution.ClearRegistry);
             Assert.Contains(pack.IntentClears.Providers, p => p is MissionControlExecutionSystem);
         }
+
+        /// <summary>⭐ CE-3494 (R-3115) forwarding rail — the pack's INGRESS holds the same registry: it holds the plan after an order starts.
+        /// 🔴 Red-proof: drop the pack's <c>Ingress.Holds = IntentClears</c> line ⇒ null.</summary>
+        [Fact]
+        public void CE3494_TheIngress_HoldsThePacksRegistry()
+        {
+            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+            var ingress = pack.InputSystems.OfType<Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem>().Single();
+            Assert.Same(pack.IntentClears, ingress.Holds);
+        }
     }
 }

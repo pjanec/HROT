@@ -119,7 +119,10 @@ namespace Hrot.CGF.Systems
                 // ⭐ CE-3167 (Entity Commanding §2.5b-d) — the order cancels the unit's prior plans FIRST, synchronously, in
                 //   this one call: an abort and an assign arriving as two events would run the clear LAST in the ingress and
                 //   leave the unit brain-dead with the order discarded. Providers run on the owner only (after the gate).
-                if (evt.ClearsPriorIntent) _clearRegistry?.ClearFor(evt.Entity, repo);
+                // ⭐⭐ CE-3494 (R-3115, DESIGN_Unit_Intent.md §4) — the order HOLDS the plan, and only once it has STARTED: an assign carries the
+                //   flag to the ingress, which runs the providers after a successful start in the same call. ⛔ SUPERSEDED: clearing here, before
+                //   the order was even tried (a refused order left the unit with no plan). A CLEAR order has nothing to start — it holds here.
+                if (evt.ClearsPriorIntent && evt.Kind == TacticalIntentKind.Clear) _clearRegistry?.ClearFor(evt.Entity, repo);
 
                 // ⭐ CE-3167 — a Clear ends the running behaviour at the intent's origin (the gate still applies: a lower origin
                 //   cannot end a higher one); the SOP picks next. The one wire path for assign AND clear (Sensors §7.7).
@@ -190,6 +193,7 @@ namespace Hrot.CGF.Systems
                 // ⭐ CE-3034 — the behaviour carries the intent's origin, whichever path built the assignment.
                 behaviorEvent.Origin = evt.Origin;
                 behaviorEvent.RequestId = evt.RequestId;   // ⭐ CE-4306 (F5): the gate answers under the order's id
+                behaviorEvent.HoldsPlan = evt.ClearsPriorIntent;   // ⭐ CE-3494 — the ingress holds the plan once this starts
                 repo.Bus.PublishManaged(behaviorEvent);
             }
         }

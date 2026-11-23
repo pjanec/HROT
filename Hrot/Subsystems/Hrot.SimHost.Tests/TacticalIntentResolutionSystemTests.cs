@@ -284,10 +284,11 @@ namespace Hrot.SimHost.Tests
             return (repo, unit, provider, new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), behaviors ?? new BehaviorRegistry(), clears));
         }
 
-        /// <summary>⭐ CE-3167 (Entity Commanding §2.5b-d) — an order with ClearsPriorIntent runs every provider for the unit in the
-        /// same call that publishes the assign; an order without the flag runs none.</summary>
+        /// <summary>⭐⭐ CE-3494 (R-3115) — an order with ClearsPriorIntent no longer runs the providers here, before it was even tried: the assign
+        /// it publishes carries <c>HoldsPlan</c>, and the INGRESS holds the plan once the order has started. An order without the flag carries none.
+        /// 🔴 Red-proof: the old ClearFor call in TIR ⇒ the "no provider ran" assertion.</summary>
         [Fact]
-        public void CE3167_ClearsPriorIntent_RunsTheProviders_AndStillAssigns_WithoutTheFlagNoneRun()
+        public void CE3494_ClearsPriorIntent_CarriesHoldsPlanToTheIngress_AndRunsNoProviderHere()
         {
             var (repo, unit, provider, system) = ClearRig();
             using var _ = repo;
@@ -302,10 +303,37 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0.016f);
             repo.Bus.SwapBuffers();
 
-            Assert.Equal(new[] { unit }, provider.Cleared);
+            Assert.Empty(provider.Cleared);                                   // ⭐ CE-3494 — not here
             var assigns = repo.Bus.ReadManaged<AssignBehaviorEvent>();
             Assert.Single(assigns);
             Assert.Equal(BehaviorOrigin.Operator, assigns[0].Origin);
+            Assert.True(assigns[0].HoldsPlan);
+        }
+
+        /// <summary>⭐⭐ CE-3494 (R-3115) — the INGRESS holds the plan only once the order STARTED: a started assign with HoldsPlan runs the
+        /// providers in the same call; a refused one (no such behaviour) holds nothing. 🔴 Red-proof: run the providers before Start ⇒ the
+        /// refused order's count.</summary>
+        [Fact]
+        public void CE3494_TheIngress_HoldsThePlan_OnlyWhenTheOrderStarts()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var (repo, unit, provider, _) = ClearRig(behaviors: registry);
+            using var _ = repo;
+            var holds = new IntentClearRegistry();
+            holds.Register(provider);
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry) { Holds = holds };
+
+            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = unit, BehaviorName = "NoSuchBehaviour", Origin = BehaviorOrigin.Operator, HoldsPlan = true });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+            Assert.Empty(provider.Cleared);                                  // refused ⇒ nothing held
+
+            repo.Bus.SwapBuffers();
+            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = unit, BehaviorName = "Idle", JsonParams = "{}", Origin = BehaviorOrigin.Operator, HoldsPlan = true });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+            Assert.Equal(new[] { unit }, provider.Cleared);                  // started ⇒ held, once
         }
 
         /// <summary>⭐ CE-3167 — the providers run on the brain OWNER only: a node without authority clears nothing.</summary>
