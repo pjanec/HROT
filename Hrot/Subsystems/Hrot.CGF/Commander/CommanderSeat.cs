@@ -10,8 +10,8 @@ public enum CommanderMind : byte
     Scripted = 1,
     /// <summary>An outside agent over HTTP (L-2 — not built in L-1).</summary>
     External = 2,
-    /// <summary>A local model (L-3 — not built in L-1).</summary>
-    Ollama = 3,
+    /// <summary>⭐ CE-4681 (L-3) — a language model behind an Ollama-style chat server (<see cref="ChatModelMind"/>; the design's OllamaMind).</summary>
+    ChatModel = 3,
 }
 
 /// <summary>How the simulation waits for the mind (DESIGN_LLM_Commander §3, "two run modes").</summary>

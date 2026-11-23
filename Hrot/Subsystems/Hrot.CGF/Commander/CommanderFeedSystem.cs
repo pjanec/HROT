@@ -87,11 +87,20 @@ public sealed class CommanderSeats : IDisposable
     {
         CommanderMind.Scripted => new ScriptedMind { UsePlays = true },   // ⭐ CE-4680 — the scripted commander runs the platoon's plays
         CommanderMind.External => new ExternalMind(),
+        CommanderMind.ChatModel => new ChatModelMind(ChatModelSettings.FromEnvironment()),   // ⭐ CE-4681 (L-3) — HROT_COMMANDER_ENDPOINT / _MODEL …
         _ => null,
     };
 
     /// <summary>⭐ CE-4679 — the host's recording now (the model log is written beside it); null = no log.</summary>
     public Func<string?>? RecordingPath { get; set; }
+
+    /// <summary>⭐ CE-4681 (§5a-3) — where the model log goes when the host records nothing (a verify run): <c>HROT_COMMANDER_LOG_DIR</c>; null = no log.</summary>
+    public string? LogDirectory { get; set; } = Environment.GetEnvironmentVariable("HROT_COMMANDER_LOG_DIR") is { Length: > 0 } d ? d : null;
+
+    /// <summary>⭐ CE-4681 (§5a-3) — a run's choice of mind over the scenario's (<c>HROT_COMMANDER_MIND</c>: the laptop script runs ONE scenario per
+    /// model); written to the seat when it opens, so the checks see the mind that ran. Null = the scenario's.</summary>
+    public CommanderMind? MindOverride { get; set; } =
+        Enum.TryParse<CommanderMind>(Environment.GetEnvironmentVariable("HROT_COMMANDER_MIND"), ignoreCase: true, out var m) && Enum.IsDefined(m) ? m : null;
 
     /// <summary>
     /// ⭐ CE-4679 — does the node's clock run FREE (continuous), so a hold may pause and resume it? null = yes. ⛔ A STEPPED clock (a verify run, run-to,
@@ -219,6 +228,11 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     private SeatRuntime Open(EntityRepository world, CommanderSeats seats, Entity commander, double now)
     {
         var config = world.GetComponentRO<CommanderSeat>(commander);
+        if (seats.MindOverride is { } chosen && chosen != config.Mind)   // ⭐ CE-4681 — the run's mind, written so the seat says what ran
+        {
+            config.Mind = chosen;
+            world.SetComponent(commander, config);
+        }
         int netId = CommandPictureOps.NetIdOf(world, commander);
         var seat = new SeatRuntime
         {
@@ -228,7 +242,10 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         };
         // ⭐ CE-4679 (R-4298) — the model log beside the host's recording: <recording>.commander-<id>.jsonl
         if (seats.RecordingPath is { } recording)
-            seat.Log = new ModelLog(() => recording() is { Length: > 0 } r ? $"{r}.commander-{netId}.jsonl" : null);
+            seat.Log = new ModelLog(() => recording() is { Length: > 0 } r ? $"{r}.commander-{netId}.jsonl"
+                                          : seats.LogDirectory is { } dir ? System.IO.Path.Combine(dir, $"commander-{netId}.jsonl") : null);
+        else if (seats.LogDirectory is { } dir)   // ⭐ CE-4681 — no recording (a verify run): the run's log directory
+            seat.Log = new ModelLog(() => System.IO.Path.Combine(dir, $"commander-{netId}.jsonl"));
         seats.Add(seat);
         TakeAwayOwnPlay(world, commander);
 

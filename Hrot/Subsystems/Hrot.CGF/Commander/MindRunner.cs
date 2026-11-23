@@ -14,16 +14,29 @@ public sealed record Briefing(string Commander, double SimTime, string Prefix, F
                               IReadOnlyList<string> Notes, IReadOnlyList<FeedItem> New, long ThroughSeq)
 {
     /// <summary>The briefing as one text, as a language model would get it (L-2's <c>GET /commanders/{id}/briefing</c>).</summary>
-    public string Text()
+    public string Text() => Prefix + Environment.NewLine + Changing();
+
+    /// <summary>⭐ <c>CE-4681</c> (L-3, §5a-3) — the part after the stable prefix: the snapshot, the radio log, the notes. A chat model gets the prefix as
+    /// its system message (byte-identical every call, so a server reuses its cache) and this as the user message — the same text, split.</summary>
+    public string Changing()
     {
         var sb = new StringBuilder();
-        sb.AppendLine(Prefix);
         if (Snapshot != null) sb.AppendLine("SNAPSHOT").AppendLine(Snapshot.Radio);
         sb.AppendLine("RADIO LOG");
         foreach (var item in Log) sb.AppendLine(item.Radio);
         if (Notes.Count > 0) { sb.AppendLine("YOUR NOTES"); foreach (var n in Notes) sb.AppendLine(n); }
         return sb.ToString();
     }
+}
+
+/// <summary>⭐ <c>CE-4681</c> — a mind whose exchange the model log keeps: the request it made (null when it made none — an outside mind) and the raw
+/// answer(s), plus how many tool calls were malformed and whether it retried. Shared by <see cref="ExternalMind"/> and <see cref="ChatModelMind"/>.</summary>
+public interface IMindTranscript
+{
+    string? LastRequest { get; }
+    string? LastRaw { get; }
+    int LastMalformed { get; }
+    bool LastRetried { get; }
 }
 
 /// <summary>⭐ <c>CE-4676</c> (DESIGN_LLM_Commander §4) — a commander's mind: one call at a time, on the runner's thread; ⛔ it never sees the world.</summary>
@@ -111,8 +124,9 @@ public sealed class MindRunner : IDisposable
                 Interlocked.Increment(ref _calls);
                 var briefing = new Briefing(_commander, fresh[^1].SimTime, _prefix, _snapshot, _log.ToArray(), _notes.ToArray(), fresh.ToArray(), _seen);
                 Volatile.Write(ref _lastBriefing, briefing);
+                long started = System.Diagnostics.Stopwatch.GetTimestamp();
                 actions = _mind.ThinkAsync(briefing, ct).GetAwaiter().GetResult();
-                LogCall(briefing, actions);
+                LogCall(briefing, actions, System.Diagnostics.Stopwatch.GetElapsedTime(started));
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex)
@@ -126,7 +140,7 @@ public sealed class MindRunner : IDisposable
         }
     }
 
-    private void LogCall(Briefing briefing, IReadOnlyList<CommanderAction> actions)
+    private void LogCall(Briefing briefing, IReadOnlyList<CommanderAction> actions, TimeSpan took)
     {
         if (Log == null) return;
         var lines = new System.Text.Json.Nodes.JsonArray();
@@ -136,8 +150,15 @@ public sealed class MindRunner : IDisposable
         var line = new System.Text.Json.Nodes.JsonObject
         {
             ["kind"] = "call", ["seq"] = briefing.ThroughSeq, ["t"] = Math.Round(briefing.SimTime, 2), ["new"] = lines, ["actions"] = answer,
+            ["ms"] = (long)took.TotalMilliseconds,   // ⭐ CE-4681 — how long the mind took (wall): the answer time a laptop run reports
         };
-        if (_mind is ExternalMind external && external.LastRaw is { } raw) line["raw"] = raw;
+        if (_mind is IMindTranscript transcript)   // ⭐ CE-4681 — every mind that talks to something keeps its exchange in the log
+        {
+            if (transcript.LastRequest is { } request) line["request"] = request;
+            if (transcript.LastRaw is { } raw) line["raw"] = raw;
+            if (transcript.LastMalformed > 0) line["malformed"] = transcript.LastMalformed;
+            if (transcript.LastRetried) line["retried"] = true;
+        }
         Log.Write(line);
     }
 
