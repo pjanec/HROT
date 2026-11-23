@@ -61,6 +61,13 @@ namespace HrotDpsPeople
 	HROTDPS_API FLook Look(const FIn& In);
 	/** `Role` with a fallback when the kit has no clip for it: Rifle.* → Unarmed.*, *.Run → *.Walk, a death → Death.Stand */
 	HROTDPS_API FName Fallback(FName Role);
+	/** the first role of Role's fallback chain (Role itself first) for which Has(role) is true, or NAME_None; never loops (a role already tried ends the chain) */
+	template <typename THas> FName ResolveRole(FName Role, THas Has)
+	{
+		TArray<FName, TInlineAllocator<8>> Tried;
+		for (; !Role.IsNone() && !Tried.Contains(Role); Role = Fallback(Role)) { if (Has(Role)) return Role; Tried.Add(Role); }
+		return NAME_None;
+	}
 
 	/** the twist (deg, + = to the body's LEFT, the contract's sense) and pitch (deg, + = up) from `Feet` (m, ENU) with orientation `Body`
 	 *  to `AimPoint`; false = no aim (under 0.1 m horizontally). Clamped to the limits. */

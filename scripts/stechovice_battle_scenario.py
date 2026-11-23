@@ -198,8 +198,10 @@ RIVER_Y = -560.0                                  # the riverbank battle's centr
 PLACES = {
     'river-blue': (-1054.0, RIVER_Y),             # Blue platoon, the east bank terrace (~204 m, slope < 8 deg)
     'river-blue-ifv': (-1038.0, RIVER_Y - 38),    # Blue IFV in support
-    'river-red': (-1256.0, RIVER_Y),              # Red platoon, the west terrace
-    'river-red-technical': (-1243.0, RIVER_Y - 14),
+    # ⭐ 44 m south of the first pick: measured with the live engine's sight (/terrain/query — buildings included, which the DEM + woods search
+    #   below cannot see): its ±20 m spread sees 8 of 9 lines to the Blue spread; the first pick sat behind house walls (2 of 3 posts blind)
+    'river-red': (-1256.0, RIVER_Y - 44),         # Red platoon, the west terrace
+    'river-red-technical': (-1243.0, RIVER_Y - 58),
     'zu23': (-260.0, 290.0),                      # Red ZU-23 on the hill north of the village (~330 m, open ground)
     'village-red': (-335.0, 140.0),               # Red platoon holding the houses of the village centre
     'village-at': (-225.0, 150.0),                # the anti-tank team (east edge of the village, covering the attack road)

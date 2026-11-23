@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
 updated: 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 (CE-4679, backend): built, as built in §5a-2; L-2b DISPATCHED (CE-4680, backend, after L-2 — §5b); L-3…L-4 DESIGN · L-3 DISPATCHED (CE-4681, backend, on the cloud VM with the Haiku relay); L-3b (the laptop) next
+build-state: BUILDING — L-1 (CE-4676) §5a · L-2 (CE-4679) §5a-2 · L-2b (CE-4680) §5b · L-3 on the cloud VM (CE-4681) §5a-3 · L-3a the briefing budget (CE-4683) §5a-4 · the duel §5a-5 — all BUILT by backend; the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); NEXT L-3c the decision contract (CE-4684, §5c), then L-3b (the real model on the user's laptop); L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
@@ -449,6 +449,49 @@ first and last. Per seat (as L-2 built it) the two seats each took the other's p
 | ⭐ measured (the duel's run, before the fixes) | Blue 48 calls / Red 63, 0 malformed, max 1 685 / 2 018 tokens, 6–7 s per answer; Red held the sheds with its Reserve, Blue's squads stalled near `start` (CE-4682) and were beaten. ⚠ The checks' cross-side `never` rows were wrong, not the seats: a LIST in `by` reads as anyone (CE-3502) |
 
 
+### 5c. L-3c — the decision contract *(DESIGN, CE-4684; user `2026-11-23`: "yes. and pls use haiku at lowest effort so it is closest to local LLMs")*
+
+🔒 The user brought an outside proposal (a SITREP, an order schema and an example decision for a company attack) and asked to compare. The
+comparison (chat, `2026-11-23`): HROT already does half of it the same way — ids instead of coordinates, a perceived enemy, executor feedback,
+the previous estimate, a static-then-dynamic prompt, compact text, CONTINUE by default, tasks = behaviours, validate / repair once / fall back /
+log. ⭐ The other half is an OUTPUT CONTRACT that a small model needs most; L-3c adopts it BEFORE the laptop run (L-3b), so the 8 B models are
+measured on the contract we keep.
+
+```mermaid
+classDiagram
+  class Decision { <<NEW, one per wake>> Cycle · Assessment · Intent · Orders[≤ 6] · Contingencies[≤ 3] · NextDecision }
+  class Assessment { Situation · EnemyLikelyCoa · MainRisk }
+  class Intent { MainEffort · Scheme · EndState }
+  class UnitOrder { Unit · Task (enum = order kinds + plays + CONTINUE) · Objective · Via · Orient · Supports · Start · CompleteWhen · AbortWhen[≤ 2] · Purpose }
+  class Condition { <<one flat shape>> On (IMMEDIATE · AT_TIME · UNIT_AT · UNIT_TASK_COMPLETE · CONTACT · STRENGTH_BELOW · ENEMY_SEEN_AT) · Unit · At · Time · Percent }
+  class Contingency { Trigger Condition · Orders[≤ 3] }
+  class ConditionWatcher { <<NEW, serial>> starts / completes / aborts orders, fires contingencies — no model call }
+  class CommanderActionSystem { <<existing>> validates, CommandOrders.Order / run_play }
+  class TerrainFacts { <<NEW>> per named place: seen from · cover · vehicles can reach · travel minutes }
+  Decision *-- Assessment
+  Decision *-- Intent
+  Decision *-- UnitOrder
+  Decision *-- Contingency
+  UnitOrder --> Condition
+  Contingency --> Condition
+  ConditionWatcher ..> UnitOrder : holds pending / running
+  ConditionWatcher --> CommanderActionSystem : issues
+```
+
+*What the picture shows that prose hid: the model's answer becomes DATA that HROT keeps acting on between wakes (the watcher) — the orders'
+timing and the contingencies run without a model call, which is what covers the thinking gap in continuous mode.*
+
+| # | L-3c adds | why |
+|---|---|---|
+| C-1 | ⭐ **one decision object per wake**, decoded against a JSON schema (Ollama `format`; the relay returns the same object); fields in the order assessment → intent → orders → contingencies → next decision; replaces the free tool calls for the chat-model mind | reasoning before committing; the "why" for review is in the record; grammar-forced output is never malformed |
+| C-2 | **orders that carry their own timing** — `start`, `complete_when`, `abort_when` — and **≤ 3 contingencies**, run by a serial `ConditionWatcher` with no model call | sequences between decisions; covers the thinking gap |
+| C-3 | **`next_decision`** (not later than + ≤ 3 wake conditions) replacing the fixed heartbeat for this mind; the **cycle echo** — a decision made on an old cycle is refused | the model sets its own pace; stale decisions never land |
+| C-4 | **precomputed terrain facts** per named place in the static block: which places see it, cover (covered / partial / open), whether vehicles can reach it, travel minutes between neighbours | the model chooses between options instead of doing geometry — HROT already has sight and navigation |
+| C-5 | **enemy confidence** per contact (HIGH / MED / LOW from how many squads reported it and its age; "heard" when behaviors adds the bit) | something real to reason about, never truth |
+| C-6 | ⛔ positions only as ids: the "N m dir of" and grid forms leave the CHAT mind's vocabulary (kept for the scripted mind and the routes) | the proposal's strongest rule; geometry is HROT's job |
+
+⚠ Fire requests and mission-constraint checks (no-go areas, phase lines) are LATER — no fire support at platoon level yet.
+
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
 | | ⭐ lean |
@@ -522,6 +565,7 @@ all their pictures, so it is really their superior: build it as that seat, hones
 | **L-2b** | §5b: `run_play` / `stop_play`, the mission brief, the objectives line, each squad's task and progress, the enemy's activity / equipment / age, terrain notes on named places | the scripted mind runs `PlatoonAttack` on the house and the play's choreography happens (support SET before the assault); the briefing carries every §5b line; the Haiku worker plays the scenario again — its orders cite the mission |
 | **L-3** | ⭐ on the CLOUD VM (CE-4681, user `2026-11-23`): `ChatModelMind` (Ollama's `/api/chat`, tools, one retry), a byte-stable prefix, checks per mind, a stand-in server, the **Haiku relay** answering HROT's exact chat requests; the laptop recipe ready, not run | the relay run plays `llm-platoon-attack` to the end; every exchange in the model log; counts of accepted / refused / malformed calls and the briefing's tokens per call |
 | **L-3a** | the briefing a small model can live with (CE-4683, user `2026-11-23`: "backend fix"): `note` one running estimate (CE-3501) · an ORDERS IN FORCE block, an identical order a no-op · prefer `run_play` said plainly · a per-call budget ≤ ≈ 4 000 tokens | the Haiku relay run again, side by side with L-3's: bounded notes, no re-sent orders, the budget held |
+| **L-3c** | §5c the decision contract (CE-4684): one schema-decoded decision per wake, conditions and contingencies run by HROT, next decision + cycle echo, terrain facts per place, enemy confidence, ids only | the Haiku relay at the LOWEST effort plays `llm-platoon-attack` AND `llm-platoon-duel` with the contract, side by side with L-3a's format at the same effort |
 | **L-3b** | the real model on the user's laptop (RTX 3070, 8 GB): the three 7–8 B models through the L-3 recipe | an 8 B model plays it in think-pause, then continuous; a per-model summary |
 | ⭐ **duel** | §5a-5 (backend, `2026-11-23`): a seat on each side, one Haiku worker each through the per-commander relay — the L-4 "second seat" pre-tested | the clock held for both and released once; each side told only its own places; a repeated play a no-op |
 | **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat (⭐ the clock for many seats BUILT in §5a-5) | two platoon seats on one model; a company seat above them |

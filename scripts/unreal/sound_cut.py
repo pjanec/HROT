@@ -248,7 +248,10 @@ _AMB_SETS = [
 ]
 # a part of the take, (start s, end s, fade-out s), placed by ear 2026-11-22 (launch 0-6.3 s, its explosion 6.3-9.5 s)
 _SPANS = {"amb/ev_rocket": (0.0, 11.0, 1.5), "wpn/missile_launch": (0.0, 6.3, 0.8)}
-R_AMB = [(n, s, "bed", 0, 2, i + 1, -24) for n, ss in _AMB_SETS for i, s in enumerate(ss)]
+# a bed played as a positioned one-shot is MONO (a stereo source is not placed in the world) and levelled like a weapon, not a bed:
+# the missile's launch (wired 2026-11-23 to ATGM / SAM / air-to-air Fire) - RMS -12 dBFS, held at the -0.4 dBFS peak when louder
+_ONE_SHOT = {"wpn/missile_launch": (1, -12)}
+R_AMB = [(n, s, "bed", 0, _ONE_SHOT.get(n, (2, -24))[0], i + 1, _ONE_SHOT.get(n, (2, -24))[1]) for n, ss in _AMB_SETS for i, s in enumerate(ss)]
 
 # ---- U-19c: bursts of an exact round count. `--set burst`. (name stem, sources joined by |, "burst", tail seconds, 1, variants per N, level)
 _W = "Military Warfare SFX Pack"

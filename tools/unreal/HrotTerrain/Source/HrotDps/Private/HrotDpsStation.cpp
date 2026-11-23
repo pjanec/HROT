@@ -98,7 +98,7 @@ void UHrotDpsStation::Send(const FHrotDpsControl& F)
 	C.Mount = F.Mount;
 	C.AimPoint = { F.AimPoint.X, F.AimPoint.Y, F.AimPoint.Z };
 	C.ShotSeq = F.ShotSeq; C.ShotTarget = F.ShotTarget; C.CancelSeq = F.CancelSeq; C.AmmoSeq = F.AmmoSeq;
-	C.UseSeq = F.UseSeq; C.UseVerb = 0; C.UseTarget = F.UseTarget; C.Verb = SimNetGateway_Protocol_DdsPlayer_UseVerbNone;
+	C.UseSeq = F.UseSeq; C.UseVerb = 0; C.UseTarget = F.UseTarget; C.Verb = SimNetGateway_Protocol_DdsPlayer_UseVerb(F.Verb);
 	C.Lean = F.Lean; C.Binoculars = F.bBinoculars ? 1 : 0; C.FirePref = F.FirePref;
 	C.LookFrom = { F.LookFrom.X, F.LookFrom.Y, F.LookFrom.Z };
 	C.LookDir = { float(F.LookDir.X), float(F.LookDir.Y), float(F.LookDir.Z) };

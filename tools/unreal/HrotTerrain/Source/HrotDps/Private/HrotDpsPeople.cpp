@@ -68,7 +68,10 @@ namespace HrotDpsPeople
 	FName Fallback(FName Role)
 	{
 		FString S = Role.ToString();
+		// U-19h: a death falls back Death.Crouch / Death.Prone -> Death.Stand -> Dying (the civilian kits have only Dying: no clip = the bare reference pose, arms out);
+		// Dying -> Death.Stand (the soldier kit has no Dying). The two point at each other: the caller stops on a role it has already tried (FallbackChain)
 		if (S.StartsWith(TEXT("Death.")) && S != TEXT("Death.Stand")) return TEXT("Death.Stand");
+		if (S == TEXT("Death.Stand")) return TEXT("Dying");
 		if (S == TEXT("Dying")) return TEXT("Death.Stand");
 		if (S.EndsWith(TEXT(".Run"))) return FName(*(S.LeftChop(4) + TEXT(".Walk")));
 		if (S.StartsWith(TEXT("Rifle."))) return FName(*(TEXT("Unarmed.") + S.RightChop(6)));

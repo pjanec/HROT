@@ -178,6 +178,9 @@ namespace Hrot.Core.Tkb
             yield return C("AirDefenceVehicle", "Air Defence Vehicle", "1.1.*.28");
             yield return C("Mortar", "Mortar", "1.1.*.10");
             yield return C("Car", "Car", "1.1.*.81");
+            // ⭐ CE-11042 (R-11020) — the civilian bus and the single-unit cargo truck (delivery van, box truck): SISO-REF-010 categories 82 / 83
+            yield return C("Bus", "Bus", "1.1.*.82");
+            yield return C("CargoTruck", "Cargo Truck", "1.1.*.83");
             // ⭐ CE-4621 (MC-1, DESIGN_Motorcycle §2a) — the motorcycle: SISO category 80 "Motorcycle"; ui maps the class to its 3-D family
             //   (VisualFamily.Motorcycle) — the ONE key both lanes share
             yield return C("Motorcycle", "Motorcycle", "1.1.*.80");
