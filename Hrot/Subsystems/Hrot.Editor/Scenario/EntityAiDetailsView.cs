@@ -71,6 +71,12 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         bool running = context.Mode is VariableRunState.Running or VariableRunState.Paused;
 
         ImGui.PushID(idScope + "/ai");
+        // ⭐⭐ CE-3494 (R-3114, R10; DESIGN_Unit_Intent.md §5 A–C) — this section EDITS what the unit does NEXT (its intent); the Brain tab's other
+        //   sections MONITOR what runs now. A pending edit shows amber until time advances and the ingress applies it.
+        ImGui.TextUnformatted("Intent — what the unit does next");
+        bool pending = _model.PendingIntent(entity) != null;
+        if (pending) ImGui.TextColored(PendingColour, running ? "Pending — applies when time next advances." : "Starts when time first advances.");
+        bool planDrives = !running && _model.DrivenByPlan(entity);
         // ── SOP ─────────────────────────────────────────────────────────────────────────
         ImGui.Separator();
         ImGui.TextUnformatted("SOP — standard operating procedure");
@@ -85,10 +91,14 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         ImGui.TextUnformatted("Current behaviour (task)");
         ImGui.TextUnformatted($"Runs: {now.Task ?? "(none)"}{(now.Task != null ? $"  ({now.TaskOrigin})" : "")}");
         if (now.PausedTask != null) ImGui.TextUnformatted($"Paused by a reaction: {now.PausedTask}");
-        Row("task", _model.TaskChoices(), ref _taskPick, ref _taskForm, ref _taskType, now.Task, now.TaskParams,
-            apply: (name, json) => _model.ApplyTask(entity, name, json, running),
-            clear: () => _model.ClearTask(entity, running),
-            note: null);
+        if (planDrives)
+            // ⭐ CE-3494 (R8, R-3117) — edit mode: a unit with a mission plan takes its task from the plan; one source for the task
+            ImGui.TextColored(InfoColour, "Driven by the mission plan — edit its first task on the Orders tab.");
+        else
+            Row("task", _model.TaskChoices(), ref _taskPick, ref _taskForm, ref _taskType, now.Task, now.TaskParams,
+                apply: (name, json) => _model.ApplyTask(entity, name, json, running),
+                clear: () => _model.ClearTask(entity, running),
+                note: running && _model.DrivenByPlan(entity) ? "An order here HOLDS the unit's mission plan — resume it on the Orders tab." : null);
 
         // ── ROE ─────────────────────────────────────────────────────────────────────────
         ImGui.Separator();
@@ -123,6 +133,8 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     }
 
     private static readonly string[] RoeLabels = { "Fire", "Reactions" };
+    private static readonly System.Numerics.Vector4 PendingColour = new(0.95f, 0.75f, 0.2f, 1f);   // ⭐ CE-3494 — C.PEND
+    private static readonly System.Numerics.Vector4 InfoColour = new(0.42f, 0.69f, 1f, 1f);        // ⭐ CE-3494 — C.INFO
 
     private void Row(string id, IReadOnlyList<string> choices, ref string pick, ref IEditSession? form, ref Type? formType,
                      string? current, string currentParams, Func<string, string, bool> apply, Func<bool> clear, string? note)

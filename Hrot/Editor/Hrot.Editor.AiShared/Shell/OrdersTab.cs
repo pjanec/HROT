@@ -180,6 +180,19 @@ public sealed class OrdersTab : IDetailsViewInstance
         var rows = LastRows;
         var svc = _missions();
         if (rows.Count == 0) ImGui.TextDisabled("No plan — this unit runs its standing behaviour.");
+        // ⭐ CE-3494 (R-3117, DESIGN_Unit_Intent.md §5 D) — a plan AND an authored intent task: the plan owns the task slot, so the intent's task never
+        //   starts (the ingress drops it). Say so, and offer to remove it — the one fix (R8: one source for the task).
+        if (rows.Count > 0 && w.TryGetTable(typeof(UnitIntent), out _) && w.HasManagedComponent<UnitIntent>(entity)
+            && ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<UnitIntent>(entity) is { Behavior: { } intentTask } intent)
+        {
+            ImGui.TextColored(ColourOf(OrdersTaskState.Held), $"This unit's intent also sets a task ({intentTask.Name}) — the plan's first task replaces it; the intent's task never starts.");
+            if (ImGui.SmallButton("Remove the intent task"))
+            {
+                var next = intent with { Behavior = null };
+                if (next.Sop is null && next.Roe is null) w.RemoveComponent<UnitIntent>(entity);
+                else w.SetManagedComponent(entity, next);
+            }
+        }
         // ⭐ CE-3395 — the plan\'s tasks are the kit\'s LIST block: one summary row per task (⋮⋮ drag · number · state glyph · the sentence · ⋮ menu), the task\'s fields / then / give-up open under the row; Add at the end opens the add menu.
         // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu\'s NewWait / NewOrder / NewBehaviour).
         int hash = _summariesHash;
@@ -195,6 +208,27 @@ public sealed class OrdersTab : IDetailsViewInstance
             if (!_dirty && r.State is OrdersTaskState.Planned && svc != null && queue != null)
             {
                 if (ImGui.SmallButton("Jump")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_JUMP_TO_TASK, r.TaskId);
+            }
+            // ⭐⭐ CE-3494 (R-3115, DESIGN_Unit_Intent.md §5 D) — a HELD plan waits for the user: Resume plan restarts the held task (and ends the order
+            //   that holds it); a FAULTED task offers Retry — the same jump to the current task.
+            if (r.State is OrdersTaskState.Held)
+            {
+                ImGui.TextColored(ColourOf(OrdersTaskState.Held), "Held by an operator's order");
+                if (!_dirty && svc != null && queue != null)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("Resume plan")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_JUMP_TO_TASK, r.TaskId);
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Restart this task and end the order that holds the plan.");
+                }
+            }
+            else if (r.State is OrdersTaskState.Halted)
+            {
+                ImGui.TextColored(ColourOf(OrdersTaskState.Failed), "Failed — the behaviour faulted");
+                if (!_dirty && svc != null && queue != null)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("Retry")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_JUMP_TO_TASK, r.TaskId);
+                }
             }
             if (open)
             {
@@ -524,6 +558,7 @@ public sealed class OrdersTab : IDetailsViewInstance
         OrdersTaskState.Done    => new(0.4f, 0.85f, 0.4f, 1f),
         OrdersTaskState.Failed  => new(0.95f, 0.35f, 0.35f, 1f),
         OrdersTaskState.Halted  => new(1f, 0.7f, 0.2f, 1f),
+        OrdersTaskState.Held    => new(0.95f, 0.75f, 0.2f, 1f),   // ⭐ CE-3494 — pending amber (C.PEND)
         _                       => new(0.7f, 0.7f, 0.7f, 1f),
     };
 

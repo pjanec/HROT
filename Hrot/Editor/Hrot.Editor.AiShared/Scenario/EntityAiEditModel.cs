@@ -238,6 +238,10 @@ public sealed class EntityAiEditModel
             ? Publish(new SetRoeEvent { Entity = entity, Fire = fire, Reactions = reactions, Origin = LiveOrigin })
             : Author(entity, "Set ROE", i => i with { Roe = (i.Roe ?? new SavedRoe()) with { Fire = fire, Reactions = reactions, SetBy = EditorOrigin } });
 
+    /// <summary>⭐ CE-3494 (R-3117) — a live mission plan drives the unit's task slot (the intent's task would never start).</summary>
+    public bool DrivenByPlan(Entity entity)
+        => _world() is { } w && w.IsAlive(entity) && BrainIntentReader.DrivenByMissionPlan(w, entity);
+
     /// <summary>⭐ CE-3494 — the unit's pending authored intent (null = none).</summary>
     public UnitIntent? PendingIntent(Entity entity)
         => _world() is { } w && w.IsAlive(entity) && w.TryGetTable(typeof(UnitIntent), out _) && w.HasManagedComponent<UnitIntent>(entity)
