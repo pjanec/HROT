@@ -1,6 +1,6 @@
 """hrot_freeze_check.py - CE-4651 (U-19g): reproduce the client's freeze on the first shots LIVE and record where the frames went.
 
-    HROT_FREEZE_JOB = { "domain", "partition", "map", "out" (result json), "ready", "go", "soldier" (id) }
+    HROT_FREEZE_JOB = { "domain", "partition", "map", "out" (result json), "ready", "go", "soldier" (id), "watch" (s after the shots, default 60), "every" (pose sampling, s) }
 
 The user (2026-11-22): "when I aim at a target and I fire first shot, the Unreal client freezes for a few seconds" - also on hits.
 The editor plays (PIE, AHrotDpsGameMode) the live station's map; the client joins; once "go" exists it possesses the soldier, idles 12 s
@@ -61,7 +61,8 @@ def body_mesh(actor):
     for c in actor.get_components_by_class(unreal.SkeletalMeshComponent):
         # a hidden window draws nothing, and an undrawn body does not update its bones (VisibilityBasedAnimTickOption) - force it for the check
         c.set_editor_property("visibility_based_anim_tick_option", unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
-        if c.does_socket_exist("head") and c.does_socket_exist("pelvis") and (best is None or c.is_visible()): best = c
+        c.set_forced_lod(1)
+        if c.does_socket_exist("head") and c.does_socket_exist("foot_l") and c.does_socket_exist("pelvis") and (best is None or c.is_visible()): best = c
     return best
 
 
@@ -82,7 +83,8 @@ def poses(tag):
         rows.append({"id": eid, "actor": [round(ar.pitch, 1), round(ar.roll, 1)], "mesh": [round(mr.pitch, 1), round(mr.roll, 1)], "lean": round(lean, 1),
                      "headAboveFeet": round(head.z - low, 1), "feetAboveActor": round(low - a.get_actor_location().z, 1), "look": look[:90]})
     R.setdefault("poses", []).append({"t": round(time.time() - T0, 1), "tag": tag, "people": rows})
-    odd = [r for r in rows if r["lean"] > 45 and "Prone" not in r["look"] and "Death" not in r["look"] and "Dying" not in r["look"]]
+    odd = [r for r in rows if (r["lean"] > 45 and "Prone" not in r["look"] and "Death" not in r["look"] and "Dying" not in r["look"])
+           or abs(r["actor"][0]) > 20 or abs(r["actor"][1]) > 20 or abs(r["mesh"][0]) > 20 or abs(r["mesh"][1]) > 20]
     log(f"poses ({tag}): {len(rows)} people; lying in a non-lying role: " + ("; ".join(f"{r['id']} lean {r['lean']} actor {r['actor']} mesh {r['mesh']} [{r['look'][:60]}]" for r in odd) or "none"))
 
 
@@ -90,7 +92,9 @@ def nearest_person():
     w, me = S["w"], cam().get_actor_location()
     best, bd = None, 1e18
     for eid in w.entity_ids():
-        if eid == int(JOB["soldier"]) or not w.person_look(eid): continue
+        look = w.person_look(eid)
+        if eid == int(JOB["soldier"]) or not look: continue
+        if JOB.get("targetCivilians") and "Unarmed" not in look: continue   # shoot toward the civilians (the user's session: he fought near them)
         a = w.actor_of(eid)
         if not a: continue
         d = (a.get_actor_location() - me).length()
@@ -129,11 +133,11 @@ def run():
     elif ph == "wait1":
         if now > S["until"]: S.update(phase="more", n=0, until=now)
     elif ph == "after":
-        if now >= S["next_p"]: poses("after the shots"); S["next_p"] = now + 5
+        if now >= S["next_p"]: poses("after the shots"); S["next_p"] = now + float(JOB.get("every", 5))
         if now > S["until"]: finish("done")
     elif ph == "more":
         if now > S["until"]:
-            if S["n"] >= 5: S.update(phase="after", until=now + 60, next_p=0); return
+            if S["n"] >= 5: S.update(phase="after", until=now + float(JOB.get("watch", 60)), next_p=0); return
             S["n"] += 1; mark(f"shot {S['n'] + 1}"); cam().player_fire(True); S.update(phase="release", until=now + 0.15, after="more")
 
 
