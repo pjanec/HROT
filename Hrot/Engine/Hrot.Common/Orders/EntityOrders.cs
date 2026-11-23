@@ -333,7 +333,7 @@ namespace Hrot.Common.Orders
 
         /// <summary>⭐ CE-3494 §10 — this node runs the unit's brain (the same test the tactical system applies before resolving an order).</summary>
         private bool OwnsBrain(Entity entity)
-            => _world.HasComponent<BehaviorState>(entity) && _world.HasAuthority<BehaviorState>(entity);
+            => _world.IsComponentTypeRegistered<BehaviorState>() && _world.HasComponent<BehaviorState>(entity) && _world.HasAuthority<BehaviorState>(entity);   // a station that runs no brains has no BehaviorState table
 
         /// <summary>⭐ CE-3494 — the station is in EDIT mode (the one mode source, <see cref="Hrot.Common.Editing.StationMode"/>); false where none is installed.</summary>
         private bool IsEditMode()
