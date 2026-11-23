@@ -140,7 +140,7 @@ public sealed class DebugApiCommandersTests
         (status, body) = await rig.Get($"/commanders/{CommanderId}/tools");
         Assert.Equal(HttpStatusCode.OK, status);
         var tools = Rig.D(body)["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()).ToArray();
-        Assert.Equal(new[] { "order", "hold", "ask_sitrep", "run_play", "stop_play", "note" }, tools);   // ⭐ CE-4680 B-1 — the plays
+        Assert.Equal(new[] { "run_play", "order", "hold", "ask_sitrep", "stop_play", "note" }, tools);   // ⭐ CE-4680 B-1 — the plays; ⭐ CE-4683 ③ — run_play FIRST
 
         (status, body) = await rig.Get($"/commanders/{CommanderId}/briefing");
         Assert.Equal(HttpStatusCode.OK, status);
@@ -180,7 +180,11 @@ public sealed class DebugApiCommandersTests
         Assert.Contains("no question is waiting", body!.ToJsonString());
 
         // a long-poll with nothing new waits its time, then answers empty
-        await rig.Until(() => rig.Seat.Channel.ReadAfter(latest, new System.Collections.Generic.List<FeedItem>()) >= 2, "the note was said");
+        // ⭐ CE-4683 ① — the note is his running estimate (in the briefing), no longer echoed into the feed: only the refusal is an item here
+        await rig.Until(() => rig.Seat.Channel.ReadAfter(latest, new System.Collections.Generic.List<FeedItem>()) >= 1, "the refusal was said");
+        var since = new System.Collections.Generic.List<FeedItem>();
+        rig.Seat.Channel.ReadAfter(latest, since);
+        Assert.DoesNotContain(since, i => i.Radio.Contains("NOTE:"));
         latest = rig.Seat.Channel.LatestSeq;
         var sw = Stopwatch.StartNew();
         (status, body) = await rig.Get($"/commanders/{CommanderId}/feed?after={latest}&wait=1.5");
