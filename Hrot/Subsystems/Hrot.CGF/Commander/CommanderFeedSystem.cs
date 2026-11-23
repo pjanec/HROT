@@ -17,6 +17,13 @@ using Hrot.AI.Behaviors.Brains;
 
 namespace Hrot.CGF.Commander;
 
+/// <summary>⭐ <c>CE-4683</c> ② — an order in force on a squad: its kind (the seat's order vocabulary), where as said, the resolved point, since when, and
+/// who gave it (<c>"you"</c> or <c>"play PlatoonAttack"</c>).</summary>
+public sealed record GivenOrder(string Kind, string? Where, System.Numerics.Vector2? Point, double Since, string By)
+{
+    public string Text => Where is { Length: > 0 } w ? $"{Kind} → {w}" : Kind;
+}
+
 /// <summary>⭐ <c>CE-4676</c> — one seat's runtime on the frame thread: its channel, its mind's runner, its places, and what the feed has already said.
 /// ⭐ CE-4679 — its identity, mind and mode are also readable from any thread (the HTTP routes).</summary>
 public sealed class SeatRuntime : IDisposable
@@ -49,8 +56,12 @@ public sealed class SeatRuntime : IDisposable
     // ⭐ CE-4680 B-1 — the play the seat gave its commander as his task (frame thread), and the direct orders waiting for it to end
     internal string? Play;
     internal uint PlayRun;
-    /// <summary>⭐ CE-4680 B-4 — the last direct order the seat gave each squad ("Attack → house"): a commander with no running task records no <c>SubordinateOrders</c> (run 0).</summary>
-    internal readonly System.Collections.Generic.Dictionary<Entity, string> Given = new();
+    /// <summary>⭐ CE-4683 ② (§5a-4) — the order IN FORCE on each squad: his own last direct order, or the play's (read from <c>SubordinateOrders</c>) —
+    /// ONE table the snapshot shows and the action system checks a repeat against. ⛔ Was CE-4680 B-4's <c>Given</c> (text only, own orders only).</summary>
+    internal readonly System.Collections.Generic.Dictionary<Entity, GivenOrder> InForce = new();
+    /// <summary>⭐ CE-4683 — where the running play aims and since when (the snapshot names it).</summary>
+    internal string? PlayWhere;
+    internal double PlaySince;
     internal readonly System.Collections.Generic.List<CommanderAction> AfterPlay = new();
     internal long HoldSince;
 
@@ -434,12 +445,12 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                     if (sub.LastReportAt.Seconds > 0) row["reportAge"] = Round(now - sub.LastReportAt.Seconds);
                 }
             }
+            CommanderActionSystem.SyncPlayOrders(world, seat, now);   // ⭐ CE-4683 — the play's squad orders into the in-force table
             string? task = TaskOf(world, seat, squad);   // ⭐ CE-4680 B-4 — the order he is on (his commander's record)
             if (task != null) row["task"] = task;
             squads.Add(row);
             radio.Append(' ').Append(name.ToUpperInvariant()).Append(" at ").Append(row["place"]).Append(inFight ? "" : " (out of the fight)");
-            var detail = new StringBuilder();
-            if (task != null) detail.Append(task);
+            var detail = new StringBuilder();   // ⭐ CE-4683 — the order itself is in the ORDERS IN FORCE block below (said once)
             if (row["progress"] is { } prog) detail.Append(detail.Length > 0 ? ", " : "").Append((string)prog!);
             if (row["strength"] is { } st) detail.Append(detail.Length > 0 ? ", " : "").Append("strength ").Append((string)st!).Append(" ammo ").Append((string)row["ammo"]!);
             if (row["reportAge"] is { } age) detail.Append(detail.Length > 0 ? ", " : "").Append("last report ").Append(((double)age!).ToString("0", CultureInfo.InvariantCulture)).Append(" s ago");
@@ -466,10 +477,31 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             }
         }
         var objectives = Objectives(world, seat, radio);   // ⭐ CE-4680 B-3
+        InForceBlock(world, seat, roster, radio);           // ⭐ CE-4683 ② — survives the snapshot: every snapshot carries it
         var places = new JsonArray();
         foreach (var (n, _) in seat.Places.Places) places.Add(n);
         Publish(seat, FeedKind.Snapshot, now, wake, radio.ToString(),
                 new JsonObject { ["kind"] = "snapshot", ["t"] = Round(now), ["commander"] = seat.Name, ["squads"] = squads, ["elements"] = elements, ["objectives"] = objectives, ["places"] = places }.ToJsonString());
+    }
+
+    /// <summary>
+    /// ⭐ CE-4683 ② (§5a-4) — <c>ORDERS IN FORCE: ALPHA SQUAD SupportByFire → house since 00:02:08 (you), Set; …</c> and the play in force: what he has
+    /// already ordered, so a snapshot (which clears the radio log) never makes him lose it.
+    /// </summary>
+    private static void InForceBlock(EntityRepository world, SeatRuntime seat, in UnitRoster roster, StringBuilder radio)
+    {
+        if (seat.Play != null)
+            radio.Append(" PLAY IN FORCE: ").Append(seat.Play).Append(seat.PlayWhere is { } pw ? " → " + pw : "").Append(" since ").Append(Clock(seat.PlaySince)).Append(';');
+        bool first = true;
+        for (int i = 0; i < roster.Count; i++)
+        {
+            var squad = roster.SubordinateEntities[i];
+            if (!world.IsAlive(squad) || !seat.InForce.TryGetValue(squad, out var o)) continue;
+            radio.Append(first ? " ORDERS IN FORCE:" : ",").Append(' ').Append(NameOf(world, squad).ToUpperInvariant()).Append(' ').Append(o.Text)
+                 .Append(" since ").Append(Clock(o.Since)).Append(" (").Append(o.By).Append(')');
+            first = false;
+        }
+        radio.Append(first ? " ORDERS IN FORCE: none;" : ";");
     }
 
     /// <summary>⭐ CE-4680 B-5 — what an element is doing and has, and how old the word is (only what was reported).</summary>
@@ -483,7 +515,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     /// <summary>⭐ CE-4680 B-4 — the order the commander holds for <paramref name="squad"/> (his <c>SubordinateOrders</c>): its kind and where.</summary>
     private static string? TaskOf(EntityRepository world, SeatRuntime seat, Entity squad)
     {
-        if (SubordinateOrders.Of(world, seat.Commander) is not { } held) return seat.Given.TryGetValue(squad, out var mine) ? mine : null;
+        if (seat.InForce.TryGetValue(squad, out var inForce)) return inForce.Text;   // ⭐ CE-4683 — the one table
+        if (SubordinateOrders.Of(world, seat.Commander) is not { } held) return null;
         for (int i = 0; i < held.Orders.Count; i++)
         {
             var e = held.Orders[i];
@@ -499,7 +532,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             catch (System.Text.Json.JsonException) { }
             return where == null ? kind : kind + " → " + where;
         }
-        return seat.Given.TryGetValue(squad, out var given) ? given : null;
+        return null;
     }
 
     /// <summary>⭐ CE-4680 B-3 — the objectives the seat's side may see (<c>VisibleSides</c>; 0 / 0xFF = everybody): name, state, owner, progress.</summary>
@@ -542,9 +575,12 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         // ⭐ CE-4680 B-6 — the places' terrain notes, one line each
         foreach (var (n, _) in seat.Places.Places)
             if (seat.Places.NoteOf(n) is { } note) sb.Append("  ").Append(n).Append(": ").Append(note).Append('\n');
-        sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold — the play orders your squads for you · stop_play() · ")
-          .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact (a direct order ends a running play first) · ")
-          .Append("hold(squad) · ask_sitrep(squad) · note(text).");   // ⭐ CE-4680 B-1
+        // ⭐ CE-4683 ③ (§5a-4) — said plainly: with the actions as functions a model reached for direct orders (L-3: one play, then only orders)
+        sb.Append("PREFER run_play: the play coordinates both squads for you (support set, then the assault) — a direct order to a squad ENDS the play.\n");
+        sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold · stop_play() · ")
+          .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact — only when no play fits · ")
+          .Append("hold(squad) · ask_sitrep(squad) · note(text) — your running estimate: a new note REPLACES the last (keep it short). ")
+          .Append("The snapshot lists the ORDERS IN FORCE: repeating one changes nothing.");   // ⭐ CE-4680 B-1, CE-4683 ①②
         return sb.ToString();
     }
 

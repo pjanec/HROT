@@ -24,9 +24,27 @@ public sealed record Briefing(string Commander, double SimTime, string Prefix, F
         if (Snapshot != null) sb.AppendLine("SNAPSHOT").AppendLine(Snapshot.Radio);
         sb.AppendLine("RADIO LOG");
         foreach (var item in Log) sb.AppendLine(item.Radio);
-        if (Notes.Count > 0) { sb.AppendLine("YOUR NOTES"); foreach (var n in Notes) sb.AppendLine(n); }
+        // ⭐ CE-4683 ① — ONE running estimate (his last note, replaced each time he writes one); ⛔ was every note of the run (CE-3501)
+        if (Notes.Count > 0) { sb.AppendLine("YOUR ESTIMATE (your last note — a new note replaces it)"); foreach (var n in Notes) sb.AppendLine(n); }
         return sb.ToString();
     }
+}
+
+/// <summary>
+/// ⭐ <c>CE-4683</c> ④ (§5a-4) — what one call costs a small model: characters and an estimate of tokens (≈ chars / 4 for English text and JSON — a
+/// RULE OF THUMB, not a tokenizer). ⭐ <see cref="Limit"/> is the budget a whole run of <c>llm-platoon-attack</c> must stay under: an 8 B model at
+/// <c>num_ctx</c> 8 k must hold the request AND its answer.
+/// </summary>
+public static class BriefingBudget
+{
+    public const int Limit = 4000;
+    public static int Tokens(int chars) => (chars + 3) / 4;
+
+    /// <summary>The request a transcript sent, else the briefing's text + the tool list (what a chat model would be sent).</summary>
+    public static int CharsOf(Briefing briefing, IMindTranscript? transcript)
+        => transcript?.LastRequest is { Length: > 0 } request ? request.Length : briefing.Text().Length + ToolsChars;
+
+    private static readonly int ToolsChars = ChatModelMind.Tools().ToJsonString().Length;
 }
 
 /// <summary>⭐ <c>CE-4681</c> — a mind whose exchange the model log keeps: the request it made (null when it made none — an outside mind) and the raw
@@ -62,7 +80,22 @@ public sealed class MindRunner : IDisposable
     // the context keeper — this thread only
     private FeedItem? _snapshot;
     private readonly List<FeedItem> _log = new();
-    private readonly List<string> _notes = new();
+    private string? _estimate;   // ⭐ CE-4683 ① — the commander's running estimate: his last answer's notes, replacing the one before
+
+    /// <summary>⭐ CE-4683 ① — how long the estimate may be (characters); longer is cut with <see cref="Cut"/>.</summary>
+    public const int EstimateLimit = 800;
+    public const string Cut = " …[cut]";
+
+    /// <summary>⭐ CE-4683 ① — the estimate an answer leaves: its notes joined, capped; null = the answer wrote none (the old one stays).</summary>
+    public static string? EstimateFrom(IReadOnlyList<CommanderAction> actions)
+    {
+        StringBuilder? sb = null;
+        foreach (var a in actions)
+            if (a.Kind == CommanderActionKind.Note && a.Text is { Length: > 0 } text)
+                (sb ??= new StringBuilder()).Append(sb.Length > 0 ? " " : "").Append(text.Trim());
+        if (sb == null) return null;
+        return sb.Length <= EstimateLimit ? sb.ToString() : sb.ToString(0, EstimateLimit - Cut.Length) + Cut;
+    }
     private long _seen;
 
     /// <summary>⭐ CE-4679 — the mind this runner calls (the HTTP routes reach an <see cref="ExternalMind"/> through it).</summary>
@@ -122,7 +155,8 @@ public sealed class MindRunner : IDisposable
             try
             {
                 Interlocked.Increment(ref _calls);
-                var briefing = new Briefing(_commander, fresh[^1].SimTime, _prefix, _snapshot, _log.ToArray(), _notes.ToArray(), fresh.ToArray(), _seen);
+                var briefing = new Briefing(_commander, fresh[^1].SimTime, _prefix, _snapshot, _log.ToArray(),
+                                            _estimate is { } est ? new[] { est } : Array.Empty<string>(), fresh.ToArray(), _seen);
                 Volatile.Write(ref _lastBriefing, briefing);
                 long started = System.Diagnostics.Stopwatch.GetTimestamp();
                 actions = _mind.ThinkAsync(briefing, ct).GetAwaiter().GetResult();
@@ -131,11 +165,12 @@ public sealed class MindRunner : IDisposable
             catch (OperationCanceledException) { return; }
             catch (Exception ex)
             {
-                // the mind failing is news for the commander's log, never a crash of the simulation
-                actions = new[] { new CommanderAction(CommanderActionKind.Note, Text: $"the mind failed: {ex.GetType().Name}: {ex.Message}") };
+                // the mind failing is news for the logs, never a crash of the simulation — ⭐ CE-4683: and never a note (it would replace his estimate)
+                Fdp.Core.Logging.FdpLog<MindRunner>.Warn("[Commander] {0}: the mind failed: {1}: {2}", _commander, ex.GetType().Name, ex.Message);
+                Log?.Write(new System.Text.Json.Nodes.JsonObject { ["kind"] = "failure", ["seq"] = _seen, ["error"] = $"{ex.GetType().Name}: {ex.Message}" });
+                actions = Array.Empty<CommanderAction>();
             }
-            foreach (var a in actions)
-                if (a.Kind == CommanderActionKind.Note && a.Text is { Length: > 0 } note) _notes.Add(note);
+            if (EstimateFrom(actions) is { } estimate) _estimate = estimate;
             _channel.Answer(_seen, actions);
         }
     }
@@ -151,6 +186,9 @@ public sealed class MindRunner : IDisposable
         {
             ["kind"] = "call", ["seq"] = briefing.ThroughSeq, ["t"] = Math.Round(briefing.SimTime, 2), ["new"] = lines, ["actions"] = answer,
             ["ms"] = (long)took.TotalMilliseconds,   // ⭐ CE-4681 — how long the mind took (wall): the answer time a laptop run reports
+            // ⭐ CE-4683 ④ — the size the call cost: the request as sent (a chat model), else the briefing + the tools a model would get
+            ["chars"] = BriefingBudget.CharsOf(briefing, _mind as IMindTranscript),
+            ["tokens"] = BriefingBudget.Tokens(BriefingBudget.CharsOf(briefing, _mind as IMindTranscript)),
         };
         if (_mind is IMindTranscript transcript)   // ⭐ CE-4681 — every mind that talks to something keeps its exchange in the log
         {

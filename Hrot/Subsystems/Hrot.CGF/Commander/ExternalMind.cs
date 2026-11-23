@@ -51,7 +51,8 @@ public sealed class ExternalMind : IMind, IMindTranscript
             var done = await Task.WhenAny(answer.Task, Task.Delay(Timeout, ct)).ConfigureAwait(false);
             if (done == answer.Task) return await answer.Task.ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
-            return new[] { new CommanderAction(CommanderActionKind.Note, Text: $"no answer in {Timeout.TotalSeconds:0} s — no orders") };
+            _lastRaw = $"no answer in {Timeout.TotalSeconds:0} s — no orders";   // ⭐ CE-4683: the model log says it; ⛔ a note would replace his estimate
+            return Array.Empty<CommanderAction>();
         }
         finally
         {

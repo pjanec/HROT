@@ -60,6 +60,8 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
 
     /// <summary>Actions given / refused since construction (a rail / diagnostics probe).</summary>
     public int Given { get; private set; }
+    /// <summary>⭐ CE-4683 ② — repeats of the order in force answered as no-ops (a rail / diagnostics probe).</summary>
+    public int NoOps { get; private set; }
     public int Refused { get; private set; }
 
     public void Execute(ISimulationView view, float deltaTime)
@@ -133,6 +135,25 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
 
     private void Apply(EntityRepository world, SeatRuntime seat, CommanderAction a, double now)
     {
+        // ⭐⭐ CE-4683 ② (§5a-4) — the same order as the one in force is a NO-OP: answered, nothing sent, a running play not ended
+        if (a.Kind is CommanderActionKind.Order or CommanderActionKind.Hold
+            && SquadNamed(world, seat.Commander, a.Squad, out _) is { IsNull: false } target)
+        {
+            SyncPlayOrders(world, seat, now);
+            if (seat.InForce.TryGetValue(target, out var held) && Wanted(seat, a, now) is { } wanted && Same(held, wanted))
+            {
+                NoOps++;
+                seat.Log?.Write(new JsonObject
+                {
+                    ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["action"] = CommanderTools.ToJson(a),
+                    ["state"] = "in-force", ["since"] = CommanderFeedSystem.Round(held.Since),
+                });
+                seat.Channel.Publish(FeedKind.OrderState, now, false,
+                    $"{CommanderFeedSystem.Clock(now)} ORDER {held.Text} {a.Squad}: already in force since {CommanderFeedSystem.Clock(held.Since)} ({held.By}) — nothing sent",
+                    new JsonObject { ["kind"] = "order-state", ["state"] = "in-force", ["squad"] = a.Squad, ["order"] = held.Kind, ["since"] = CommanderFeedSystem.Round(held.Since), ["by"] = held.By, ["seq"] = a.MadeOnSeq }.ToJsonString());
+                return;
+            }
+        }
         string? why = Act(world, seat, a);
         string what = a.Kind is CommanderActionKind.Order or CommanderActionKind.RunPlay ? $"{a.Order} {a.Squad}".TrimEnd() : $"{a.Kind} {a.Squad}".TrimEnd();
         if (ReferenceEquals(why, Deferred) && seat.Play == null) { seat.AfterPlay.Add(a); return; }   // the play ended, its release not yet in
@@ -148,8 +169,8 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         }
         if (a.Kind == CommanderActionKind.Note)
         {
-            seat.Channel.Publish(FeedKind.OrderState, now, false, $"{CommanderFeedSystem.Clock(now)} NOTE: {a.Text}",
-                                 new JsonObject { ["kind"] = "order-state", ["state"] = "noted", ["text"] = a.Text, ["seq"] = a.MadeOnSeq }.ToJsonString());
+            // ⭐ CE-4683 ① — his estimate lives in the briefing (replaced, capped); ⛔ no longer echoed into the feed (it was there twice). The node log keeps it
+            Fdp.Core.Logging.FdpLog<CommanderActionSystem>.Info("[Commander] {0} {1} NOTE: {2}", seat.Name, CommanderFeedSystem.Clock(now), a.Text ?? "");
             return;
         }
         var json = new JsonObject
@@ -160,8 +181,8 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         if (why != null) json["reason"] = why;
         if (why == null) Given++; else Refused++;
         if (why == null && a.Kind is CommanderActionKind.Order or CommanderActionKind.Hold
-            && SquadNamed(world, seat.Commander, a.Squad, out _) is { IsNull: false } ordered)   // ⭐ CE-4680 B-4 — the squad's task, as he gave it
-            seat.Given[ordered] = a.Kind == CommanderActionKind.Hold || a.Order is "Hold" ? "Hold" : $"{a.Order} → {a.Where ?? a.Target}";
+            && SquadNamed(world, seat.Commander, a.Squad, out _) is { IsNull: false } ordered)   // ⭐ CE-4683 ② — the order now in force, as he gave it
+            seat.InForce[ordered] = Wanted(seat, a, now) ?? new GivenOrder(a.Order ?? a.Kind.ToString(), a.Where ?? a.Target, null, now, "you");
         seat.Log?.Write(new JsonObject
         {
             ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["action"] = CommanderTools.ToJson(a),
@@ -261,6 +282,9 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         if (!world.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) world.Bus.RegisterManaged<AssignTacticalIntentEvent>();
         world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = seat.Commander, IntentId = play, JsonParams = json, Origin = BehaviorOrigin.Superior });
         seat.Play = play;
+        seat.PlayWhere = a.Where;
+        seat.PlaySince = CommanderFeedSystem.Now(world);
+        seat.InForce.Clear();   // ⭐ CE-4683 — the play orders the squads now; its orders come into the table as it gives them (SyncPlayOrders)
         return null;
     }
 
@@ -294,6 +318,10 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         if (world.Bus.IsRegistered<ClearBehaviorEvent>())
             world.Bus.Publish(new ClearBehaviorEvent { Entity = seat.Commander, Origin = BehaviorOrigin.Superior });
         seat.Play = null;
+        seat.PlayWhere = null;
+        // ⭐ CE-4683 — the play's orders are released with it: they are no longer known to be in force
+        foreach (var (squad, o) in new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<Entity, GivenOrder>>(seat.InForce))
+            if (o.By.StartsWith("play", StringComparison.Ordinal)) seat.InForce.Remove(squad);
     }
 
     /// <summary>The commander's own squad of that name, alive; ⛔ never another commander's unit (that is how another side's unit is refused).</summary>
@@ -312,6 +340,66 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         }
         why = string.IsNullOrWhiteSpace(name) ? "no squad named" : $"no squad named '{name}' under {CommanderFeedSystem.NameOf(world, commander)} (his: {(mine.Length == 0 ? "none" : mine)})";
         return Entity.Null;
+    }
+
+    /// <summary>⭐ CE-4683 ② — a direct order as an in-force entry (its kind in the seat's vocabulary, the point it resolves to); null = not an order the
+    /// seat gives (an unknown kind or place — Act refuses it).</summary>
+    private static GivenOrder? Wanted(SeatRuntime seat, CommanderAction a, double now)
+    {
+        string? kind = a.Kind == CommanderActionKind.Hold ? "Hold" : Array.Find(Orders, o => o.Equals(a.Order, StringComparison.OrdinalIgnoreCase));
+        if (kind == null) return null;
+        if (kind == "Hold") return new GivenOrder("Hold", null, null, now, "you");
+        if (seat.Places.Resolve(a.Where ?? a.Target, out _) is not { } at) return null;
+        return new GivenOrder(kind, a.Where ?? a.Target, at, now, "you");
+    }
+
+    /// <summary>⭐ CE-4683 ② — the same order: the same kind and a point within 2 m (so <c>"house"</c> and <c>"House"</c> are one place).</summary>
+    private static bool Same(GivenOrder held, GivenOrder wanted)
+        => held.Kind.Equals(wanted.Kind, StringComparison.OrdinalIgnoreCase)
+           && (held.Point is not { } p ? wanted.Point is null : wanted.Point is { } q && Vector2.Distance(p, q) <= 2f);
+
+    /// <summary>
+    /// ⭐ CE-4683 ② — the running play's squad orders into the in-force table (its <c>SubordinateOrders</c> under the play's run): a new or changed one
+    /// is recorded with <c>since</c> = now (the entries carry no time). Orders the seat cannot name (a behaviour the play chose itself) are shown by
+    /// that name and never match a repeat.
+    /// </summary>
+    internal static void SyncPlayOrders(EntityRepository world, SeatRuntime seat, double now)
+    {
+        if (seat.Play == null || !PlayRuns(world, seat) || SubordinateOrders.Of(world, seat.Commander) is not { } held) return;
+        for (int i = 0; i < held.Orders.Count; i++)
+        {
+            var e = held.Orders[i];
+            if (e.Run != seat.PlayRun || !world.IsAlive(e.Member)) continue;
+            var o = Decode(seat, e.Behavior, e.Json, now, "play " + seat.Play);
+            if (o == null) continue;
+            if (seat.InForce.TryGetValue(e.Member, out var had) && Same(had, o) && had.By == o.By) continue;
+            seat.InForce[e.Member] = o;
+        }
+    }
+
+    private static GivenOrder? Decode(SeatRuntime seat, string behavior, string? json, double now, string by)
+    {
+        if (string.IsNullOrEmpty(behavior)) return null;
+        string name = behavior.StartsWith("Order.", StringComparison.Ordinal) ? behavior.Substring(6) : behavior;
+        Vector2? at = null;
+        bool holdBack = false;
+        try
+        {
+            if (JsonNode.Parse(json ?? "") is JsonObject j)
+            {
+                if ((j["Location"] ?? j["Position"] ?? j["To"] ?? j["Objective"]) is JsonArray pt && pt.Count >= 2)
+                    at = new Vector2((float)pt[0]!.GetValue<double>(), (float)pt[1]!.GetValue<double>());
+                holdBack = j["HoldBack"] is JsonValue hb && hb.TryGetValue(out bool b) && b;
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        string kind = name switch
+        {
+            "Attack" when holdBack => "SupportByFire",
+            _ when name == BehaviorNames.SquadDefend => "Defend",
+            _ => name,
+        };
+        return new GivenOrder(kind, at is { } p ? seat.Places.Describe(p) : null, at, now, by);
     }
 
     private static string Point(Vector2 at)

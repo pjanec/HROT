@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("user", (string?)messages[1]!["role"]);
             Assert.Contains("SNAPSHOT", (string)messages[1]!["content"]!);
             var tools = ((JsonArray)request["tools"]!).Select(t => (string?)t!["function"]!["name"]).ToArray();
-            Assert.Equal(new[] { "order", "hold", "ask_sitrep", "run_play", "stop_play", "note" }, tools);
+            Assert.Equal(new[] { "run_play", "order", "hold", "ask_sitrep", "stop_play", "note" }, tools);   // ⭐ CE-4683 ③ — the play first
             s.Seats.Dispose();
         }
 

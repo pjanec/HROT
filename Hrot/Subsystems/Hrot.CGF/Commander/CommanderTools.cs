@@ -26,22 +26,22 @@ public static class CommanderTools
         foreach (var p in CommanderActionSystem.Plays) plays.Add(p);
         return new JsonArray
         {
-            Tool("order", "Give one of your squads an order.",
-                 new JsonObject { ["squad"] = Str("your squad's name"), ["kind"] = Str("the order", kinds),
-                                  ["where"] = Str("a place: a name from the briefing, \"N m <dir> of <name>\", or \"grid E<i> N<j>\" (not needed for Hold)") },
-                 "squad", "kind"),
-            Tool("hold", "Tell a squad to hold where it is.", new JsonObject { ["squad"] = Str("your squad's name") }, "squad"),
-            Tool("ask_sitrep", "Ask a squad for a situation report.", new JsonObject { ["squad"] = Str("your squad's name") }, "squad"),
             // ⭐ CE-4680 B-1 (§5b) — the platoon plays: the play gives the squad orders (support set, then the assault …); a direct squad order ends it
-            Tool("run_play", "Run one of the platoon's plays as your task: it orders both squads for you (PlatoonAttack: support by fire, then assault; "
+            Tool("run_play", "PREFER THIS: run one of the platoon's plays as your task: it orders both squads for you (PlatoonAttack: support by fire, then assault; "
                              + "PlatoonDefend: hold an area; PlatoonBound: one squad covers, the other bounds; PlatoonHold: stay and hold). A direct squad order "
                              + "ends the running play first.",
                  new JsonObject { ["play"] = Str("the play", plays),
                                   ["where"] = Str("the objective / area: a place from the briefing (not needed for PlatoonHold)"),
                                   ["support"] = Str("PlatoonBound only: where the covering squad sets (default: the objective)") },
                  "play"),
+            Tool("order", "Give ONE squad a direct order — only when no play fits; it ENDS a running play. Repeating the order in force changes nothing.",
+                 new JsonObject { ["squad"] = Str("your squad's name"), ["kind"] = Str("the order", kinds),
+                                  ["where"] = Str("a place: a name from the briefing, \"N m <dir> of <name>\", or \"grid E<i> N<j>\" (not needed for Hold)") },
+                 "squad", "kind"),
+            Tool("hold", "Tell a squad to hold where it is.", new JsonObject { ["squad"] = Str("your squad's name") }, "squad"),
+            Tool("ask_sitrep", "Ask a squad for a situation report.", new JsonObject { ["squad"] = Str("your squad's name") }, "squad"),
             Tool("stop_play", "End the play you are running; your squads keep their last orders until you give new ones.", new JsonObject()),
-            Tool("note", "Write a note to yourself; it stays in your briefing.", new JsonObject { ["text"] = Str("the note") }, "text"),
+            Tool("note", "Your running estimate: it REPLACES your last note in the briefing (kept to 800 characters) — keep it short.", new JsonObject { ["text"] = Str("the estimate") }, "text"),   // ⭐ CE-4683 ①
         };
     }
 
