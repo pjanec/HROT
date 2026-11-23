@@ -449,7 +449,7 @@ first and last. Per seat (as L-2 built it) the two seats each took the other's p
 | ⭐ measured (the duel's run, before the fixes) | Blue 48 calls / Red 63, 0 malformed, max 1 685 / 2 018 tokens, 6–7 s per answer; Red held the sheds with its Reserve, Blue's squads stalled near `start` (CE-4682) and were beaten. ⚠ The checks' cross-side `never` rows were wrong, not the seats: a LIST in `by` reads as anyone (CE-3502) |
 
 
-### 5c. L-3c — the decision contract *(DESIGN, CE-4684; user `2026-11-23`: "yes. and pls use haiku at lowest effort so it is closest to local LLMs")*
+### 5c. L-3c — the decision contract *(BUILT `2026-11-23` — as built §5c.1; CE-4684; user `2026-11-23`: "yes. and pls use haiku at lowest effort so it is closest to local LLMs")*
 
 🔒 The user brought an outside proposal (a SITREP, an order schema and an example decision for a company attack) and asked to compare. The
 comparison (chat, `2026-11-23`): HROT already does half of it the same way — ids instead of coordinates, a perceived enemy, executor feedback,
@@ -491,6 +491,49 @@ timing and the contingencies run without a model call, which is what covers the 
 | C-6 | ⛔ positions only as ids: the "N m dir of" and grid forms leave the CHAT mind's vocabulary (kept for the scripted mind and the routes) | the proposal's strongest rule; geometry is HROT's job |
 
 ⚠ Fire requests and mission-constraint checks (no-go areas, phase lines) are LATER — no fire support at platoon level yet.
+
+#### 5c.1 ✅ As built — L-3c (CE-4684, backend, `2026-11-23`; the run in `STATUS_Backend_LLM_Commander.md` §L-3c)
+
+```mermaid
+sequenceDiagram
+    participant R as MindRunner (mind thread)
+    participant M as ChatModelMind
+    participant S as chat server (Ollama / relay)
+    participant A as CommanderActionSystem (frame)
+    participant W as ConditionWatcher (CommanderWatchSystem, frame)
+    R->>M: briefing (CYCLE n, ids)
+    M->>S: messages + format = the seat's schema (no tools)
+    S-->>M: ONE decision object
+    M->>M: DecisionContract.Read — ids · task fits unit · counts · cycle echo
+    alt problems
+        M->>S: the decision + every problem, ONCE
+        S-->>M: the whole decision again
+    end
+    M-->>A: estimate (note) + Decision (or nothing = CONTINUE)
+    A->>A: newer wake than n? refuse (NOT a wake)
+    A->>A: each order starting now: the tool-call path (validate · no-op · refusal)
+    A->>W: Take: waiting orders, completions, aborts, contingencies, wake_on, next decision
+    loop every frame, no model call
+        W->>A: inject a started / contingency / abort order (next frame's pass)
+        W-->>R: order-state item (a wake for complete / abort / contingency / wake_on)
+    end
+```
+
+*What the picture shows that the prose hid: two loops — the model's (a decision per wake) and HROT's (every frame) — meet only at the seat's queue;
+the watcher gives its orders through the SAME action path as the model, so a contingency's order is validated, a repeat is a no-op, a refusal a wake.*
+
+| | as built |
+|---|---|
+| classes | `Decision` · `UnitOrder` · `Condition` (one flat shape) · `Contingency` · `SeatVocabulary` · `DecisionContract` (schema · read · validate) · `IDecisionMind` / `IDecisionTranscript` · `ConditionWatcher` + `CommanderWatchSystem` (Simulation, WhenTimeAdvances, after the action system) · `TerrainFacts` |
+| C-1 | the seat's schema (its units / places as enums) is Ollama's `format`; no tools. All or nothing: any problem sends the WHOLE decision back once with every problem named, a second failure is CONTINUE. A play AND a squad order now is a problem (a squad order ends the play). The model log keeps per call: request · raw · `validation` · `repaired` · `fallback` · the `decision`. `HROT_COMMANDER_FORMAT=tools` keeps L-3a's tool calls |
+| C-2 | `start` / `complete_when` / `abort_when[≤2]` per order, `contingencies[≤3]` with ≤ 3 orders; conditions read the squad's position, the commander's PICTURE (progress, strength colour, reported elements) and the clock — never the enemy's truth. An abort holds the squad (a play: stop_play); each fired / completed / aborted / woken one is an order-state WAKE |
+| C-3 | `next_decision.not_later_than_s` (10–300) + `wake_on[≤3]` replace the fixed heartbeat for a decision seat, held ≥ 10 s and ≤ 300 s after the last wake. ⭐ The cycle = the briefing's newest seq; a decision on an older cycle than the newest wake is refused — ⛔ NOT as a wake (📌 measured: as a wake it staled the next answer, 15 refusals in a row) |
+| C-4 | in EVERY seat's static block: seen from (eye 1.7 m → chest 1.0 m, `EqsTerrainSight` — perception's occluder) · cover (a building / ≥ 4 cover points covered / 1–3 partial / 0 open) · vehicles (the vehicle navmesh within 15 m) · minutes on foot to the 3 nearest places (`PathCost` ÷ 1.4 m/s). A standable place is judged at its spot, a building at the standable points around its walls (📌 a 6 m ring read the objective behind the Low Wall as "seen from the house") |
+| C-5 | per reported element: the squads that reported an enemy within 30 m of it and the newest report's age — ≥ 2 squads fresh (≤ 60 s) HIGH · one fresh or two stale MED · one stale LOW |
+| C-6 | a decision seat's prefix lists places as ids only; the schema enumerates them; "N m dir of" / grid stay for the other minds and the routes |
+| ⚠ deviations | the design's `Via` / `Orient` are not in the schema (no order on this path takes them); `Supports` became `support_at` (a place — the play's support position); the C-4 hand check left one pair open: the `house` point reads "seen from: none" while its note says `support` sees the sheds' south side — the point sits among the sheds, the note speaks of the wall (a building place aimed at its walls is the follow-up if it matters) |
+| ⭐ measured — `llm-platoon-attack`, Haiku at the LOWEST effort | baseline (L-3a tools): 26 calls · 9 orders · 0 malformed · tokens 1 159 / 1 468 / 1 465 (first / median / last) · 6/6 judged PASS (Red beaten). Contract: 58 calls · 47 decisions · 11 stale refused · 1 repaired · 0 CONTINUE fallbacks · 11 contingencies armed, 1 fired · 10 own wakes · tokens 1 776 / 2 539 / 2 150, max 3 429 · 6/6 judged PASS. ⚠ The contract costs more calls (the model chose 15–20 s deadlines) and ~600 tokens per request (the schema) |
+
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
