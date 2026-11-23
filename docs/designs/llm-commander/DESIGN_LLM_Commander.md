@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
 updated: 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
-build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 (CE-4679, backend): built, as built in §5a-2; L-2b DISPATCHED (CE-4680, backend, after L-2 — §5b); L-3…L-4 DESIGN · L-3 DISPATCHED (CE-4681, backend, on the cloud VM with the Haiku relay); L-3b (the laptop) next
+build-state: BUILDING — L-1 (CE-4676) §5a · L-2 (CE-4679) §5a-2 · L-2b (CE-4680) §5b · L-3 on the cloud VM (CE-4681) §5a-3 · L-3a the briefing budget (CE-4683) §5a-4 · the duel §5a-5 — all BUILT by backend; the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); NEXT L-3b (the real model on the user's laptop); L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
 known-rot: none
