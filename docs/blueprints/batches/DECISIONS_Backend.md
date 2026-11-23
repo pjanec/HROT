@@ -35,6 +35,21 @@ settings at editing time … My desire is simplicity and consistency."*
 | why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
 | next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
 
+## CE-4683 — the LLM commander L-3a: lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ the handoff's lean as built: ONE running estimate, an answer's notes JOINED then capped at 800 chars (`…[cut]`), replacing the last | several notes in one answer are one estimate; a cap with a visible marker tells the model it was cut |
+| 2 | ⭐ a note is NO LONGER echoed into the feed as `NOTE:` | 📐 it was in the briefing twice (the radio log AND the notes); the node log (INFO) and the model log keep it |
+| 3 | ⭐ the runner's own failure and an outside mind's timeout are NO LONGER notes | they would REPLACE his estimate with a system message; the model log (`failure` / `raw`) and the node log say them — the same rule as CE-4681 #4 for the chat mind |
+| 4 | ⭐ the in-force table is ONE dictionary on the seat (`InForce`, `GivenOrder`), replacing B-4's text-only `Given` | "shared, never duplicated": the snapshot shows it, the action system checks a repeat against it |
+| 5 | "identical" = the same kind and a point within 2 m — not the same text | *"house"* / *"House"* / *"the house"* resolve to one point; text would miss them |
+| 6 | a play's squad orders enter the table from `SubordinateOrders` (the play's run), *since* = when the seat first saw them | the entries carry no time; snapshot granularity is honest and said |
+| 7 | a repeat of a PLAY's order is a no-op too — it does not end the play | a direct order ends the play (B-1): re-sending what the play already did would end it for nothing |
+| 8 | ⚠ "in force" is the seat's record: a squad that FINISHED a Move is still "in force" for a repeat of the same Move | harmless (it is there); a different order or a play replaces it. A finished-order detector would need a per-order completion signal the squads do not report uniformly |
+| 9 | the snapshot's squad line no longer repeats the task — the ORDERS IN FORCE block says it once | the budget |
+| 10 | the token estimate is chars / 4 | a rule of thumb for English + JSON, said as such; no tokenizer in the process |
+
 ## CE-4681 — the LLM commander L-3 (cloud VM): lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |
