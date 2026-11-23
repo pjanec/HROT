@@ -375,8 +375,18 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool AnyInSight(in SquadPlayContext ctx)
         {
             for (int i = 0; i < ctx.Roster.Count; i++)
-                if (ctx.Live(i, out var man) && AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, man)) return true;
+                if (ctx.Live(i, out var man) && (AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, man) || ShotAt(ctx.World, man))) return true;
             return false;
+        }
+
+        /// <summary>⭐ <c>CE-2496</c> — <paramref name="man"/> was hit or near-missed within <see cref="Fdp.Toolkit.Utility.Inputs.StandardInputs.UnderFireSeconds"/>:
+        /// someone sees him, whether or not he sees them. 📐 of-squad-outmatched: a man withdrawing with his back to the machine gun did not see it,
+        /// the gunner saw him, and the break contact ended with him in the open in its sight. A sense (his own), never a terrain query (CE-2472).</summary>
+        private static bool ShotAt(EntityRepository world, Entity man)
+        {
+            const double seconds = Fdp.Toolkit.Utility.Inputs.StandardInputs.UnderFireSeconds;
+            return Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, man, Fdp.Toolkit.Perception.Events.SensorChange.Hit, seconds)
+                || Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, man, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, seconds);
         }
 
         /// <summary>⭐ CE-2278 — seconds a thrown smoke order is given before the squad's orders are re-sent (the throw takes ≈ 1–2 s).</summary>

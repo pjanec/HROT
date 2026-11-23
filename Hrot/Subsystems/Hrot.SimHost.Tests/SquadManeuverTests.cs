@@ -7513,7 +7513,17 @@ namespace Hrot.SimHost.Tests
             // ③ at the next point out of sight: done (the reaction goes on to its rally)
             foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
             s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(s.Members[0]).Count = 0;   // he lost sight of him (no perception clock runs here)
-            Step(seen: false, ticks: 40);
+            // ③a nobody sees an enemy — but a man is SHOT AT (near misses): someone sees him ⇒ not done (📐 OF5: a man withdrawing with his back to the MG)
+            var shot = s.Members[1];
+            if (!s.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(shot)) s.Repo.AddComponent(shot, new Fdp.Toolkit.Behavior.Components.RecentSenses());
+            for (int i = 0; i < 20; i++)
+            {
+                s.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.RecentSenses>(shot).Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, s.Repo.GetSingleton<GlobalTime>().TotalTime);
+                Step(seen: false, ticks: 1);
+            }
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            // ③b the firing stops (past UnderFireSeconds): done
+            Step(seen: false, ticks: 400);
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
         }
 
