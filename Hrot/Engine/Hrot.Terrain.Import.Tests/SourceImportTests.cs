@@ -73,6 +73,25 @@ public sealed class SourceImportTests : IDisposable
         Assert.True(factory.LastStats.FromCache > 0);
     }
 
+    /// <summary>
+    /// ⭐ CE-11040 (handoff ui → terrain, Stechovice showcase §2 row 4) — a first use imports INSIDE the node's load (6 min for Stechovice on 4 cores), and the
+    /// import's stages reach the load's one progress report (<see cref="Fdp.Core.LoadProgress.Detail"/>), so the 30 s stall check sees it advancing.
+    /// 🔴 Mutation: <c>null</c> progress at <c>SourceImport.TryImport</c> again ⇒ the detail never says "import …" ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11040_AFirstUseImport_ReportsItsStages_IntoTheLoadsProgress()
+    {
+        Input("mini");
+        var progress = new Fdp.Core.LoadProgress();
+        Fdp.Core.LoadProgress.Current = progress;
+        string? def;
+        try { def = Install().ResolveDefinition("mini"); }
+        finally { Fdp.Core.LoadProgress.Current = null; }
+        Assert.NotNull(def);
+        Assert.Equal(1, _imports);
+        Assert.Matches(@"^import \w+ 1000/1000$", progress.Detail!);   // the last stage's last call (done == total) always lands
+    }
+
     [Fact]
     public void NoInputSet_IsNullAsToday_AndTheImporterIsNeverBuilt()
     {

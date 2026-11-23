@@ -104,6 +104,50 @@ namespace CarKinem.Controllers
                 float along = i == 0 ? a : -a;
                 if (Enters(world, Corner(from, fromFwd, along, 0f), fromZ, Corner(to, toFwd, along, 0f), toZ, out hit)) return true;
             }
+            // ⭐ CE-5052 — and the hull's four EDGES at the new pose: a convex building corner between two traced points (a long side is 7.9 m on an M1)
+            //   is met by no point's line when the hull TURNS — 📐 measured live (Stechovice): a recovery reversing while turning swung the tail onto a
+            //   house's corner, ~1 m inside the left-rear quarter, and the hull was held both ways for good. An edge that crosses a wall or a door at `to`
+            //   and did not at `from` refuses the step; one already crossing may move (as a corner already inside may move out). Walls and doors only:
+            //   a ramp's or a slab's rise stays the corner traces' (CE-4041) — a 7.9 m chord over a ramp's crest would dip into it.
+            if (Vector2.DistanceSquared(from, to) < 1e-10f && Vector2.DistanceSquared(fromFwd, toFwd) < 1e-10f) return false;
+            for (int i = 0; i < 4; i++)
+            {
+                // 0 left side, 1 right side (front → rear) · 2 nose, 3 tail (left → right)
+                float a0 = i < 2 ? a : (i == 2 ? a : -a), s0 = i < 2 ? (i == 0 ? b : -b) : b;
+                float a1 = i < 2 ? -a : a0, s1 = i < 2 ? s0 : -b;
+                if (EdgeCrossesWall(world, Corner(to, toFwd, a0, s0), Corner(to, toFwd, a1, s1), toZ, out hit)
+                    && !EdgeCrossesWall(world, Corner(from, fromFwd, a0, s0), Corner(from, fromFwd, a1, s1), fromZ, out _))
+                {
+                    if (hit.Normal.LengthSquared() < 1e-6f && Vector2.DistanceSquared(to, hit.At) > 1e-8f)
+                        hit = hit with { Normal = Vector2.Normalize(to - hit.At) };
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-5052</c> — does the hull's edge <paramref name="p"/> → <paramref name="q"/> (at a pose) cross a building's or a free wall's panel or a closed
+        /// door, or a solid block taller than a step, at its ends' own ground + the probe (the corner traces' height)? Ramps and slabs are left out (see <see cref="StepBarrier"/>). Allocation-free.
+        /// </summary>
+        private static bool EdgeCrossesWall(IWorldQuery world, Vector2 p, Vector2 q, float z, out BarrierHit hit)
+        {
+            hit = default;
+            var crossings = t_crossings ??= new List<TraceCrossing>();
+            float probe = CarKinem.Systems.CarKinematicsSystem.HullProbeM;
+            float gp = world.HullSurfaceZ(p.X, p.Y, z), gq = world.HullSurfaceZ(q.X, q.Y, z);
+            world.Trace(new Vector3(p, gp + probe), new Vector3(q, gq + probe), TracePurpose.Hull, crossings);
+            float step = MathF.Max(gp, gq) + CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM;
+            for (int i = 0; i < crossings.Count; i++)
+            {
+                var c = crossings[i];
+                // a wall panel or a closed door; or a SOLID block taller than a step (a stand-in building — the corner traces meet it by its rise)
+                bool wall = c.ClosedBarrier ? c.Kind is "panel" or "door" : c.Kind == "prism" && c.TopZ > step;
+                if (!wall) continue;
+                var n = new Vector2(c.EntryNormal.X, c.EntryNormal.Y);
+                hit = new BarrierHit(false, c.Piece, p + (q - p) * c.T, n.LengthSquared() > 1e-6f ? Vector2.Normalize(n) : Vector2.Zero);
+                return true;
+            }
             return false;
         }
 

@@ -63,7 +63,6 @@ namespace Hrot.SimHost.Tests
             CgfBehaviorSetup.LoadFromAiAssembly(registry);
             var ingress = new BehaviorIngressSystem(registry);
             var brain = new BrainTickSystem(registry);
-            var materialize = new InitialBrainMaterializationSystem();
 
             // the creation step: the entity of the type, its template's translators, then the record's "Behavior"
             var objective = repo.CreateEntity();
@@ -73,12 +72,11 @@ namespace Hrot.SimHost.Tests
             new BrainSnapshotTranslator(registry).Inject(repo, objective,
                 new Dictionary<string, object> { [BrainSnapshotTranslator.BehaviorKey] = JsonNode.Parse("{\"Name\":\"HoldStance\",\"Params\":\"{\\\"stance\\\":\\\"Prone\\\"}\"}")! },
                 guidResolver: null!);
-            Assert.True(repo.HasManagedComponent<InitialBrainIntent>(objective));
+            Assert.True(repo.HasManagedComponent<UnitIntent>(objective));
 
             for (int i = 0; i < 5; i++)
             {
                 repo.Bus.SwapBuffers();
-                materialize.Execute(repo, 0.016f);
                 ingress.Execute(repo, 0.016f);
                 brain.Execute(repo, 0.016f);
                 repo.FlushCommandBuffers();

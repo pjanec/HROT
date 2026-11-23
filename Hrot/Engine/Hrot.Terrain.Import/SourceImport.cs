@@ -73,9 +73,26 @@ public sealed class SourceImport : ITerrainSourceImport
             var sw = Stopwatch.StartNew();
             _log?.Invoke($"[TerrainImport] importing '{terrainName}' from {set} into {targetRoot} (first use{(exists ? ", the input changed" : "")})");
             var importer = _importerFor(targetRoot);
-            string folder = importer.ImportAsync(set, terrainName, Directory.Exists(Path.Combine(targetRoot, terrainName)), null, cancellation).GetAwaiter().GetResult();
+            string folder = importer.ImportAsync(set, terrainName, Directory.Exists(Path.Combine(targetRoot, terrainName)), new LoadDetailProgress(), cancellation).GetAwaiter().GetResult();
             _log?.Invoke($"[TerrainImport] '{terrainName}' imported in {sw.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture)} s");
             return Path.Combine(folder, TerrainCatalog.DefinitionFileName);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-11040</c> (handoff ui → terrain, Stechovice showcase §2 row 4) — a first use runs the whole import INSIDE the node's load (minutes on a large
+    /// terrain); each stage's fraction goes to <see cref="Fdp.Core.LoadProgress.ReportDetail"/> (<i>"import navmesh 412/1000"</i>), so the load step's text
+    /// moves and the 30 s stall check (CE-11023) sees it advancing — as CE-11038 does for the navmesh bake of a load. Synchronous (no posting to a
+    /// context); free when no load runs (no ambient progress, e.g. the CLI or the wizard).
+    /// </summary>
+    internal sealed class LoadDetailProgress : IProgress<ImportProgress>
+    {
+        private string? _stage, _what;
+
+        public void Report(ImportProgress p)
+        {
+            if (!ReferenceEquals(p.Stage, _stage)) { _stage = p.Stage; _what = "import " + p.Stage; }   // once per stage
+            Fdp.Core.LoadProgress.ReportDetail(_what!, (long)(Math.Clamp(p.Fraction, 0d, 1d) * 1000d), 1000);
         }
     }
 

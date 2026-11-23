@@ -23,6 +23,39 @@ namespace Hrot.SimHost.Tests
 
         public void Dispose() => _world.Dispose();
 
+        /// <summary>⭐⭐ CE-3494 §10 P6 (R-3119) — a PERSON's order (origin Operator) forwarded to the node that runs the unit's brain is written as the
+        /// unit's INTENT there, request id kept — no event; a release is the slot's Clear; the simulation's own order (Superior) stays an event.
+        /// 🔴 Red-proof: IsPersons always false ⇒ an event, no intent.</summary>
+        [Fact]
+        public void CE3494_APersonsForwardedOrder_IsTheIntentOnTheBrainNode_TheSimulationsStaysAnEvent()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            _world.RegisterComponent<BehaviorState>();
+            _world.RegisterManagedComponent<UnitIntent>();
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new BehaviorState());
+            _world.SetAuthority<BehaviorState>(entity, true);                                   // the brain runs here
+            _entityMap.Register(42, entity);
+            var id = Guid.NewGuid();
+
+            var person = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Order.Hold", JsonParams = "{}", Origin = (byte)BehaviorOrigin.Operator, RequestId = id };
+            translator.ProcessSample(in person, _world);
+            _world.Bus.SwapBuffers();
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            var slot = Fdp.Toolkit.Behavior.UnitIntents.Pending(_world, entity)!.Behavior!;
+            Assert.Equal("Order.Hold", slot.Name);
+            Assert.Equal(id, slot.RequestId);
+
+            var release = new TacticalIntentRequest { TargetEntityId = 42, Origin = (byte)BehaviorOrigin.Operator, Kind = TacticalIntentWireKind.Clear };
+            translator.ProcessSample(in release, _world);
+            Assert.True(Fdp.Toolkit.Behavior.UnitIntents.Pending(_world, entity)!.Behavior!.Clear);
+
+            var commander = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Order.Move", JsonParams = "{}", Origin = (byte)BehaviorOrigin.Superior };
+            translator.ProcessSample(in commander, _world);
+            _world.Bus.SwapBuffers();
+            Assert.Equal("Order.Move", Assert.Single(_world.Bus.ReadManaged<AssignTacticalIntentEvent>()).IntentId);
+        }
+
         // SC-1: Entity in map -> AssignTacticalIntentEvent published
         [Fact]
         public void ProcessSample_EntityInMap_PublishesAssignTacticalIntentEvent()

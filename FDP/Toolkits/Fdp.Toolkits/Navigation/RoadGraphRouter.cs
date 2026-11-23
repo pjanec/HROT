@@ -46,10 +46,19 @@ namespace Fdp.Toolkit.Navigation
         private bool[] _done = Array.Empty<bool>();
         private float[] _segFactor = Array.Empty<float>();   // K12 — per segment, this request's under-fire factor
 
+        // ⭐ CE-5043 — the large-terrain router (handoff ui → terrain, Stechovice: 19 257 nodes, 19 691 segments): the node → incident segments
+        // come from the graph's ONE derived index (RoadGraphIndex, CE-5045 — built once per graph, shared with the danger classifier), each node's in
+        // ascending segment order as the former scan of every segment met them; and the open list is the engine's heap instead of a scan of every node.
+        // ⇒ O((N + S) log N) per route instead of O(N · (N + S)); the same costs, the same settle order, so the same routes.
+        private readonly CostHeap _open = new(256);
+
         // The last route found (Route → EmitLeg).
         private readonly List<int> _segments = new();      // segment per hop, in travel order
         private readonly List<bool> _forward = new();      // walked start→end?
         private RoadAccess _entry, _exit;
+        /// <summary>For rails: the last route's segments and directions (what <see cref="EmitLeg"/> walks).</summary>
+        internal List<int> LastSegments => _segments;
+        internal List<bool> LastForward => _forward;
         private bool _sameSegment;
         private bool _exitViaStartNode;
 
@@ -59,40 +68,75 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>
         /// The point of the network nearest <paramref name="p"/>, within <paramref name="maxDistance"/> m, or
-        /// <see cref="RoadAccess.None"/>. Every segment is tested (road graphs are hundreds of segments); the projection samples
+        /// <see cref="RoadAccess.None"/>. Every segment is considered (pruned exactly by its curve's box, CE-5043); the projection samples
         /// the curve by arc length (<see cref="RoadGraphNavigator.SampleRoadSegment"/>), so <see cref="RoadAccess.Along"/> means
         /// the same thing <see cref="EmitLeg"/> walks.
         /// </summary>
         public static RoadAccess NearestAccess(in RoadNetworkBlob roads, Vector2 p, float maxDistance)
         {
             if (!HasRoads(roads)) return RoadAccess.None;
+            // ⭐ CE-5043 — exact pruning (19 691 segments on Stechovice: 156 ms per call over every segment × 41 samples, two calls a plan).
+            // ① An upper bound: the projection onto the segment whose start point is nearest — the final answer is at most that.
+            // ② Every segment in ascending order as before, skipping one whose curve cannot come within the bound: a cubic Hermite is the Bézier
+            //    P0, P0 + T0/3, P1 − T1/3, P1, so the curve lies inside those four points' box. A skipped segment's every sample is farther than
+            //    the bound ⇒ it could never have won (nor tied) ⇒ the same answer, the same tie (lowest segment), with ~all projections skipped.
+            int first = -1; float firstD2 = float.MaxValue;
+            for (int s = 0; s < roads.Segments.Length; s++)
+            {
+                ref readonly var seg = ref roads.Segments[s];
+                if (seg.Length <= 0f) continue;
+                float d2 = Vector2.DistanceSquared(p, seg.P0);
+                if (d2 < firstD2) { firstD2 = d2; first = s; }
+            }
+            if (first < 0) return RoadAccess.None;
+            float bound = MathF.Min(maxDistance, Project(roads.Segments[first], p, out _, out _));
+
             var best = RoadAccess.None;
             for (int s = 0; s < roads.Segments.Length; s++)
             {
                 var seg = roads.Segments[s];
                 if (seg.Length <= 0f) continue;
-                float step = seg.Length / ProjectionSamples;
-                float bestAlong = 0f, bestD2 = float.MaxValue;
-                Vector2 bestPt = default;
-                for (int k = 0; k <= ProjectionSamples; k++)
-                {
-                    var pt = RoadGraphNavigator.SampleRoadSegment(seg, k * step).pos;
-                    float d2 = Vector2.DistanceSquared(p, pt);
-                    if (d2 < bestD2) { bestD2 = d2; bestAlong = k * step; bestPt = pt; }
-                }
-                // refine around the best coarse sample
-                float lo = MathF.Max(0f, bestAlong - step), hi = MathF.Min(seg.Length, bestAlong + step);
-                for (int k = 0; k <= 8; k++)
-                {
-                    float a = lo + (hi - lo) * k / 8f;
-                    var pt = RoadGraphNavigator.SampleRoadSegment(seg, a).pos;
-                    float d2 = Vector2.DistanceSquared(p, pt);
-                    if (d2 < bestD2) { bestD2 = d2; bestAlong = a; bestPt = pt; }
-                }
-                float d = MathF.Sqrt(bestD2);
-                if (d <= maxDistance && d < best.Distance) best = new RoadAccess(s, bestAlong, bestPt, d);
+                float limit = MathF.Min(bound, best.Distance);
+                if (BoxDistanceSquared(seg, p) > limit * limit * 1.0001f + 1e-3f) continue;   // a margin for rounding: only ever skips less
+                float d = Project(seg, p, out float along, out Vector2 at);
+                if (d <= maxDistance && d < best.Distance) best = new RoadAccess(s, along, at, d);
             }
             return best;
+        }
+
+        /// <summary>The arc-length projection of <paramref name="p"/> onto <paramref name="seg"/> (coarse samples, then a refine): its distance.</summary>
+        private static float Project(in RoadSegment seg, Vector2 p, out float bestAlong, out Vector2 bestPt)
+        {
+            float step = seg.Length / ProjectionSamples;
+            float bestD2 = float.MaxValue;
+            bestAlong = 0f; bestPt = default;
+            for (int k = 0; k <= ProjectionSamples; k++)
+            {
+                var pt = RoadGraphNavigator.SampleRoadSegment(seg, k * step).pos;
+                float d2 = Vector2.DistanceSquared(p, pt);
+                if (d2 < bestD2) { bestD2 = d2; bestAlong = k * step; bestPt = pt; }
+            }
+            // refine around the best coarse sample
+            float lo = MathF.Max(0f, bestAlong - step), hi = MathF.Min(seg.Length, bestAlong + step);
+            for (int k = 0; k <= 8; k++)
+            {
+                float a = lo + (hi - lo) * k / 8f;
+                var pt = RoadGraphNavigator.SampleRoadSegment(seg, a).pos;
+                float d2 = Vector2.DistanceSquared(p, pt);
+                if (d2 < bestD2) { bestD2 = d2; bestAlong = a; bestPt = pt; }
+            }
+            return MathF.Sqrt(bestD2);
+        }
+
+        /// <summary>The squared distance from <paramref name="p"/> to the box of the segment's Bézier control points (≤ to any point of the curve).</summary>
+        private static float BoxDistanceSquared(in RoadSegment seg, Vector2 p)
+        {
+            Vector2 b1 = seg.P0 + seg.T0 / 3f, b2 = seg.P1 - seg.T1 / 3f;
+            var min = Vector2.Min(Vector2.Min(seg.P0, seg.P1), Vector2.Min(b1, b2));
+            var max = Vector2.Max(Vector2.Max(seg.P0, seg.P1), Vector2.Max(b1, b2));
+            float dx = MathF.Max(0f, MathF.Max(min.X - p.X, p.X - max.X));
+            float dy = MathF.Max(0f, MathF.Max(min.Y - p.Y, p.Y - max.Y));
+            return dx * dx + dy * dy;
         }
 
         /// <summary>
@@ -123,7 +167,10 @@ namespace Fdp.Toolkit.Navigation
 
             int n = roads.Nodes.Length;
             Ensure(n);
+            var index = RoadGraphIndex.For(roads);
+            int[] adjStart = index.AdjStart, adjSeg = index.AdjSeg;
             for (int i = 0; i < n; i++) { _dist[i] = float.MaxValue; _prevNode[i] = -1; _prevSeg[i] = -1; _done[i] = false; }
+            _open.Clear();
             PriceSegments(roads, underFire, sidePlus1);
             float fe = _segFactor[entry.Segment], fx = _segFactor[exit.Segment];
             if (entry.Segment == exit.Segment) direct *= fe;
@@ -131,15 +178,15 @@ namespace Fdp.Toolkit.Navigation
             Relax(se.StartNodeIndex, fe * entry.Along, -1, entry.Segment);
             Relax(se.EndNodeIndex, fe * (se.Length - entry.Along), -1, entry.Segment);
 
-            while (true)
+            while (_open.Count > 0)
             {
-                int u = -1;
-                for (int i = 0; i < n; i++)
-                    if (!_done[i] && _dist[i] < float.MaxValue && (u < 0 || _dist[i] < _dist[u])) u = i;
-                if (u < 0) break;
+                // The cheapest unsettled node, ties to the lowest index — what the former scan of every node picked (CostHeap's order).
+                var (c, u) = _open.Pop();
+                if (_done[u] || c != _dist[u]) continue;   // a stale entry (lazy decrease-key)
                 _done[u] = true;
-                for (int s = 0; s < roads.Segments.Length; s++)
+                for (int k = adjStart[u], end = adjStart[u + 1]; k < end; k++)
                 {
+                    int s = adjSeg[k];
                     var seg = roads.Segments[s];
                     int v = seg.StartNodeIndex == u ? seg.EndNodeIndex : seg.EndNodeIndex == u ? seg.StartNodeIndex : -1;
                     if (v < 0 || v >= n || _done[v]) continue;
@@ -162,14 +209,13 @@ namespace Fdp.Toolkit.Navigation
 
             _exitViaStartNode = viaStart <= viaEnd;
             int last = _exitViaStartNode ? sx.StartNodeIndex : sx.EndNodeIndex;
-            // Node chain back to the virtual source.
-            var hops = new Stack<(int seg, bool fwd)>();
+            // Node chain back to the virtual source, collected backwards and reversed in place (0 B — was a new Stack per route).
             for (int v = last; _prevSeg[v] >= 0 && _prevNode[v] >= 0; v = _prevNode[v])
             {
                 var seg = roads.Segments[_prevSeg[v]];
-                hops.Push((_prevSeg[v], seg.EndNodeIndex == v));
+                _segments.Add(_prevSeg[v]); _forward.Add(seg.EndNodeIndex == v);
             }
-            while (hops.Count > 0) { var h = hops.Pop(); _segments.Add(h.seg); _forward.Add(h.fwd); }
+            _segments.Reverse(); _forward.Reverse();
             roadMetres = graph;
             return true;
 
@@ -258,6 +304,7 @@ namespace Fdp.Toolkit.Navigation
         {
             if (node < 0 || node >= _dist.Length || d >= _dist[node]) return;
             _dist[node] = d; _prevNode[node] = fromNode; _prevSeg[node] = fromNode < 0 ? -1 : viaSeg;
+            _open.Push(d, node);
         }
 
         /// <summary>K12 — each segment's factor for this request: 1, or the covered factor where its midpoint is covered (reused array, 0 B steady).</summary>

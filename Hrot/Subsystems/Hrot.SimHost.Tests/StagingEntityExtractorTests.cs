@@ -923,7 +923,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0.25f, entry.Score);
         }
 
-        /// <summary>Writes an <see cref="InitialBrainIntent"/> (the saved AI, CE-3042) whose task AND SOP slots name one target by
+        /// <summary>Writes an <see cref="UnitIntent"/> (the saved AI, CE-3042) whose task AND SOP slots name one target by
         /// network id in their params JSON.</summary>
         private sealed class StubRouteTranslator : IEntityScenarioTranslator
         {
@@ -1030,10 +1030,10 @@ namespace Hrot.SimHost.Tests
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var id = ((JsonObject)raw)["TargetId"]!.GetValue<int>();
                 string Params() => $"{{\"targetNetworkId\":\"{GuidFor(id)}\",\"maxRounds\":3,\"cooldownSeconds\":1}}";
-                repo.SetManagedComponent(entity, new InitialBrainIntent
+                repo.SetManagedComponent(entity, new UnitIntent
                 {
-                    Behavior = new SavedBrainSlot { Name = BehaviorNames.FireAtTarget, Params = Params() },
-                    Sop      = new SavedBrainSlot { Name = BehaviorNames.FireAtTarget, Params = Params(), Origin = BehaviorOrigin.Sop },
+                    Behavior = new IntentSlot { Name = BehaviorNames.FireAtTarget, Params = Params() },
+                    Sop      = new IntentSlot { Name = BehaviorNames.FireAtTarget, Params = Params(), Origin = BehaviorOrigin.Sop },
                 });
             }
         }
@@ -1048,7 +1048,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE1057_ASavedBrainIntentsTarget_IsRemapped_InTheTaskAndTheSop()
         {
-            _goldRepo.RegisterManagedComponent<InitialBrainIntent>();
+            _goldRepo.RegisterManagedComponent<UnitIntent>();
             var shooter = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(shooter, new SimTransform());
             _goldRepo.SetComponent(shooter, new NetworkIdentity { Value = 1001 });
@@ -1061,7 +1061,7 @@ namespace Hrot.SimHost.Tests
                     behaviorRemapper: Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper());
 
             var brain = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
-                .OfType<InitialBrainIntent>().Single();
+                .OfType<UnitIntent>().Single();
             Assert.Contains("3002", brain.Behavior!.Params);   // S8: the GUID resolved to the new id
             Assert.Contains("3002", brain.Sop!.Params);
             Assert.Contains("\"maxRounds\":3", brain.Behavior.Params);

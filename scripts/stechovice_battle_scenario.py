@@ -97,8 +97,10 @@ GROUND = Ground()
 # -- scenario building blocks ------------------------------------------------------------------------------------------------------
 
 def quat(bearing):
-    """Facing a compass bearing (0 = north, clockwise): a rotation about z by -bearing."""
-    a = -math.radians(bearing) / 2
+    """Facing a compass bearing (0 = north, clockwise): a rotation about z by 90 - bearing — the engine's yaw 0 is +X (east), counter-clockwise
+    (thumbnails.py heading_deg, measured on the Rifleman). ⛔ Was -bearing: every unit faced 90° off (the village tank, told "west", spawned
+    facing NORTH, spent 4 s turning round and the watchdog's no-progress rule failed its move — CE-5048)."""
+    a = math.radians(90 - bearing) / 2
     return [0, 0, round(math.sin(a), 7), round(math.cos(a), 7)]
 
 
@@ -196,8 +198,10 @@ RIVER_Y = -560.0                                  # the riverbank battle's centr
 PLACES = {
     'river-blue': (-1054.0, RIVER_Y),             # Blue platoon, the east bank terrace (~204 m, slope < 8 deg)
     'river-blue-ifv': (-1038.0, RIVER_Y - 38),    # Blue IFV in support
-    'river-red': (-1256.0, RIVER_Y),              # Red platoon, the west terrace
-    'river-red-technical': (-1243.0, RIVER_Y - 14),
+    # ⭐ 44 m south of the first pick: measured with the live engine's sight (/terrain/query — buildings included, which the DEM + woods search
+    #   below cannot see): its ±20 m spread sees 8 of 9 lines to the Blue spread; the first pick sat behind house walls (2 of 3 posts blind)
+    'river-red': (-1256.0, RIVER_Y - 44),         # Red platoon, the west terrace
+    'river-red-technical': (-1243.0, RIVER_Y - 58),
     'zu23': (-260.0, 290.0),                      # Red ZU-23 on the hill north of the village (~330 m, open ground)
     'village-red': (-335.0, 140.0),               # Red platoon holding the houses of the village centre
     'village-at': (-225.0, 150.0),                # the anti-tank team (east edge of the village, covering the attack road)
@@ -227,17 +231,17 @@ def build():
     # ---- RIVERBANK: Blue (east bank) vs Red (west bank), across the Vltava ----------------------------------------------------------
     bx, by = P('river-blue')
     platoon(s, 'rifle-platoon', '57ec0b01', F, 'Riverbank Blue Platoon', bx, by, 270,
-            behaviour('PlatoonDefend', {'Position': [*W(bx, by), 0], 'Left': 225, 'Right': 315, 'MaxRange': 420, 'Speed': 2}), hq)
+            behaviour('PlatoonDefend', {'Position': [*W(bx, by), 0], 'Left': 225, 'Right': 315, 'MaxRange': 420, 'SearchRadius': 60, 'Speed': 2}), hq)
     s.add(unit(101, 'Riverbank Blue IFV', F, *P('river-blue-ifv'), bearing=270, hp=500, extra={'Sop': sop('BasicVehicleSop')}))
     rx_, ry_ = P('river-red')
     platoon(s, 'militia-platoon', '57ec0a01', H, 'Riverbank Red Platoon', rx_, ry_, 90,
-            behaviour('PlatoonDefend', {'Position': [*W(rx_, ry_), 0], 'Left': 45, 'Right': 135, 'MaxRange': 420, 'Speed': 2}))
+            behaviour('PlatoonDefend', {'Position': [*W(rx_, ry_), 0], 'Left': 45, 'Right': 135, 'MaxRange': 420, 'SearchRadius': 60, 'Speed': 2}))
     s.add(unit(104, 'Riverbank Red Technical', H, *P('river-red-technical'), bearing=90, hp=500, extra={'Sop': sop('BasicVehicleSop')}))
 
     # ---- VILLAGE: Blue attacks from the east, Red defends the houses ---------------------------------------------------------------
     vx, vy = P('village-red')
     platoon(s, 'militia-platoon', '57ec0a02', H, 'Village Red Platoon', vx, vy, 90,
-            behaviour('PlatoonDefend', {'Position': [*W(vx, vy), 0], 'Left': 45, 'Right': 135, 'MaxRange': 300, 'Speed': 2}),
+            behaviour('PlatoonDefend', {'Position': [*W(vx, vy), 0], 'Left': 45, 'Right': 135, 'MaxRange': 300, 'SearchRadius': 60, 'Speed': 2}),
             squad_at=[(-336, 138), (-318, 162), (-354, 162)])
     for j in range(2):
         ax, ay = P('village-at', 3 * j, 0)
@@ -266,9 +270,9 @@ def build():
         'subsystemType': 'Hrot.Scenario', 'schemaVersion': '1.0', 'terrainName': 'Stechovice',
         'description': (
             'What: a SHOW on the real OSM terrain Stechovice (Vltava valley + village, imported on first use) - two ground battles and an air war. '
-            'RIVERBANK (y about -750): a Blue platoon (leader + 3 squads, PlatoonDefend) dug in on the flat east bank with an IFV fires across the river at a Red platoon '
-            '(leader + 3 squads) with a technical on the low west terrace, ~200 m across the water (the plateau behind it is a wooded cliff nobody sees out of). '
-            'VILLAGE (centre x -330, y 120): a Blue platoon (leader + 3 squads, PlatoonAttack) with a tank and an IFV advances from the east (x +260..+330) into the village; '
+            'Scenario coordinates (the terrain south-west corner is 0,0). RIVERBANK (y about 1570): a Blue platoon (x about 970) (leader + 3 squads, PlatoonDefend) dug in on the flat east bank with an IFV fires across the river at a Red platoon '
+            '(leader + 3 squads, x about 765) with a technical on the low west terrace, ~200 m across the water (the plateau behind it is a wooded cliff nobody sees out of). '
+            'VILLAGE (centre x about 1690, y about 2265): a Blue platoon (leader + 3 squads, PlatoonAttack) with a tank and an IFV advances from the east (x about 2250-2370) into the village; '
             'a Red platoon (leader + 3 squads, PlatoonDefend) holds the houses with an AT team (2 gunners) and a technical, and a Red radar SAM and a ZU-23 sit on the hill to the north (~330 m). '
             'AIR: Blue HQ (SupportCommand) owns both platoons, a Blue Apache that attacks the village technical inside the SAM cover and a Blue A-10 that strikes the hill ZU-23 '
             'flying in from the west over the river. Chain of command Blue: HQ > platoon > squad > man; Red: platoon > squad > man. Behaviours as authored, nothing scripted. '

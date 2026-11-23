@@ -76,7 +76,7 @@ namespace Hrot.Editor.Director
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed", "perceives" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed", "perceives", "report" }).ToArray();
         /// <summary>⭐ <c>CE-4672</c> <c>cover</c>: <c>in</c> — a cover point (the terrain's cover database) within <see cref="M"/> of the unit; <c>open</c> — none.</summary>
         public static readonly IReadOnlyList<string> CoverStates = new[] { "in", "open" };
 
@@ -116,6 +116,12 @@ namespace Hrot.Editor.Director
         public string Who { get; init; } = "";
         public string Component { get; init; } = "";
         public JsonObject Patch { get; init; } = new();
+        /// <summary>⭐ CE-3494 F3 — an OPERATOR ORDER instead of a component patch: a <c>POST /orders</c> item (<c>kind</c>, <c>behavior</c>, <c>params</c> …)
+        /// given to every unit <see cref="Who"/> names, through the same service the route uses. The verifier applies actions between steps, so the
+        /// order is given while the world is paused — it takes effect at the next step (DESIGN_Unit_Intent.md R1).</summary>
+        public JsonObject? Order { get; init; }
+        /// <summary>⭐ CE-3494 F3 — resume the unit's held (or halted) mission plan — the <c>POST /missions/{id}/resume</c> service.</summary>
+        public bool Resume { get; init; }
     }
 
     /// <summary>⭐ <c>CE-4042</c> — <c>scenarios/&lt;s&gt;/checks.json</c>: what a scenario must do, as data (§3).</summary>
@@ -186,11 +192,29 @@ namespace Hrot.Editor.Director
                     var where = $"do[{i}]";
                     if (da[i] is not JsonObject a) { problems.Add($"{where} is not an object"); continue; }
                     foreach (var (k, _) in a)
-                        if (k is not ("name" or "at" or "set")) problems.Add($"{where}: unknown key '{k}'");
-                    if (a["set"] is not JsonObject set || set["who"] is null || set["component"] is null || set["patch"] is not JsonObject patch)
-                    { problems.Add($"{where}: set is {{who, component, patch}}"); continue; }
+                        if (k is not ("name" or "at" or "set" or "order" or "resume")) problems.Add($"{where}: unknown key '{k}'");
+                    int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1);
+                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume"); continue; }
                     var at = Time(a["at"], where + " at", problems);
                     if (at is null) { problems.Add($"{where}: at is required"); continue; }
+                    if (a["order"] is not null)
+                    {
+                        if (a["order"] is not JsonObject ord || ord["who"] is null || ord["kind"] is null)
+                        { problems.Add($"{where}: order is {{who, kind, …}} — a POST /orders item"); continue; }
+                        var item = (JsonObject)ord.DeepClone();
+                        item.Remove("who");
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = ord["who"]!.ToString(), Order = item });
+                        continue;
+                    }
+                    if (a["resume"] is not null)
+                    {
+                        if (a["resume"] is not JsonValue rv || !rv.TryGetValue<string>(out var rwho) || rwho.Length == 0)
+                        { problems.Add($"{where}: resume is the unit's name"); continue; }
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = rwho, Resume = true });
+                        continue;
+                    }
+                    if (a["set"] is not JsonObject set || set["who"] is null || set["component"] is null || set["patch"] is not JsonObject patch)
+                    { problems.Add($"{where}: set is {{who, component, patch}}"); continue; }
                     actions.Add(new CheckAction
                     {
                         Name = a["name"]?.ToString(), At = at.Value, Who = set["who"]!.ToString(), Component = set["component"]!.ToString(),
@@ -328,7 +352,7 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed" or "perceives") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed" or "perceives" or "report") || !p.Contains("is not one of", StringComparison.Ordinal)));
             if (on == "window")
             {
                 if (string.IsNullOrWhiteSpace(building)) problems.Add($"{where}: a window cue needs building (its terrain key or label)");
@@ -371,7 +395,13 @@ namespace Hrot.Editor.Director
             }
             else if (truth != null || metric != null || squad || !through) problems.Add($"{where}: truth, metric, squad and through belong to a perceives cue");
             if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
-            if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
+            if (forSeconds > 0d && on is "shot" or "blast" or "hit" or "report") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
+            if (on == "report")   // ⭐ CE-4676 — a report the inbox saw: by (the sender), target (the addressee), is (its kind or kinds)
+            {
+                foreach (var k in parsed.Is is JsonArray ks ? ks.Select(x => x?.ToString()) : parsed.Is is JsonValue kv ? new[] { kv.ToString() } : Array.Empty<string?>())
+                    if (!Enum.TryParse<Fdp.Toolkit.Squad.Command.ReportKind>(k, ignoreCase: true, out var rk) || rk == Fdp.Toolkit.Squad.Command.ReportKind.NoReport)
+                        problems.Add($"{where}: a report cue's is is a report kind (Contact, Spot, Sitrep, Lace, Progress, Request), not '{k}'");
+            }
             if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed" or "close" or "far")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched, exposed, close or far cue");
             if (men != 2 && on != "bunched") problems.Add($"{where}: men belongs to a bunched cue");
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");

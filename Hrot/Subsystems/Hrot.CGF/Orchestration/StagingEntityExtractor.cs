@@ -456,8 +456,9 @@ namespace Hrot.CGF.Orchestration
             // component (intentional mutation — staging repo is transient).
             if (behaviorRemapper != null)
             {
-                foreach (var comp in comps)
+                for (int ci = 0; ci < comps.Count; ci++)
                 {
+                    var comp = comps[ci];
                     if (comp is ActiveMissionPlan plan)
                     {
                         foreach (var task in plan.Plan.Tasks)
@@ -473,11 +474,8 @@ namespace Hrot.CGF.Orchestration
                     // ⭐ CE-1057 — a unit's saved AI (CE-3042) carries each slot's params as a JSON string too, so the type
                     //   plan below cannot see the EntityRefs inside it; the same by-name JSON pass rewrites them.
                     //   🔴 Without it a scenario's `FireAtTarget {targetNetworkId}` kept the saved id and named nothing.
-                    else if (comp is InitialBrainIntent brain)
-                    {
-                        RemapSlot(brain.Behavior);
-                        RemapSlot(brain.Sop);
-                    }
+                    else if (comp is UnitIntent brain)   // ⭐ CE-3494 — an immutable record: the remapped intent is a NEW value
+                        comps[ci] = brain with { Behavior = RemapSlot(brain.Behavior), Sop = RemapSlot(brain.Sop) };
                 }
             }
 
@@ -506,11 +504,9 @@ namespace Hrot.CGF.Orchestration
                 });
             }
 
-            void RemapSlot(SavedBrainSlot? slot)
-            {
-                if (slot == null) return;
-                slot.Params = behaviorRemapper!.ResolveJson(slot.Name, slot.Params, refScope) ?? slot.Params;   // ⭐ S0 — "@Key" / GUID → the answer
-            }
+            IntentSlot? RemapSlot(IntentSlot? slot)
+                => slot == null ? null
+                 : slot with { Params = behaviorRemapper!.ResolveJson(slot.Name, slot.Params, refScope) ?? slot.Params };   // ⭐ S0 — "@Key" / GUID → the answer
 
             // ⭐ CE-2226 — a route's Pickup waypoint names the unit it waits for (RouteWaypoint.HoldUnit, a network id). The type plan
             //   below cannot reach it (RoutePlan.Waypoints is a immutable record), so it is rewritten here, like the

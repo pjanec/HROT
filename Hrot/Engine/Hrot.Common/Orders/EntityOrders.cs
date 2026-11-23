@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Behavior.Events;
@@ -34,6 +35,9 @@ namespace Hrot.Common.Orders
         NotFulfilled,
         /// <summary>⭐ <c>CE-1205</c> (Entity Control §8m PK-7) — the entity cannot be possessed (a weapon system is manned).</summary>
         NotPossessable,
+        /// <summary>⭐ <c>CE-3494</c> (R8, R-3117) — EDIT mode, and a mission plan drives the unit's task: one source for the task, so the order is
+        /// refused with the reason (edit the plan's first task instead). ⚠ Live, an order on a planned unit HOLDS the plan instead (R-3115).</summary>
+        DrivenByPlan,
     }
 
     /// <summary>The outcome of one <see cref="EntityOrders"/> call: the refusal, or what was published.</summary>
@@ -172,7 +176,21 @@ namespace Hrot.Common.Orders
         public OrderResult Release(int unit)
         {
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
-            _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+            // ⭐ CE-3494 — EDIT mode: releasing is un-authoring the starting task (the intent's task slot); nothing runs to clear
+            if (IsEditMode() && OwnsBrain(entity))
+            {
+                if (_world.TryGetTable(typeof(UnitIntent), out _) && _world.HasManagedComponent<UnitIntent>(entity)
+                    && ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetManagedComponentRO<UnitIntent>(entity) is { } intent)
+                {
+                    var next = intent with { Behavior = null };
+                    if (next.Sop is null && next.Roe is null) _world.RemoveComponent<UnitIntent>(entity);
+                    else _world.SetManagedComponent(entity, next);
+                }
+                return new OrderResult(OrderRefusal.None, "released — no starting task", string.Empty, string.Empty);
+            }
+            // ⭐ CE-3494 §10 — a live release is the intent's Clear on the brain's node; elsewhere the event, as before
+            if (OwnsBrain(entity)) UnitIntents.RequestClear(_world, entity, BehaviorOrigin.Operator, Guid.Empty);
+            else _world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity = entity, Kind = TacticalIntentKind.Clear, Origin = BehaviorOrigin.Operator,
             });
@@ -292,15 +310,50 @@ namespace Hrot.Common.Orders
 
         private OrderResult Publish(Entity entity, string intentId, string json)
         {
+            // ⭐⭐ CE-3494 (R2, R8; DESIGN_Unit_Intent.md §3.2) — EDIT mode (the scenario has not run): an order AUTHORS the unit's starting task — its
+            //   UnitIntent, saved with the scenario and started when time first advances — never a live order (that waited unseen for a run the
+            //   save never knew about). A unit whose task a mission plan drives is refused: one source for the task.
+            // ⭐ §10 P6 — only where the brain runs: a station without it (a SimHost whose own view of the cluster still reads Edit) forwards, and
+            //   the brain's node stores it (📌 EntityOrdersAcrossNodesTests: the order was authored on SimHost, where nothing ever reads it)
+            if (IsEditMode() && OwnsBrain(entity)) return Author(entity, intentId, json);
             // ⭐ edit framework F5 (CE-4306) — journalled: the brain's owner answers ACCEPTED, or refused with why (a higher-ranked order is running, no class fulfils it …)
             string label = "Order " + (intentId.StartsWith(OrderAttribute.IntentPrefix, StringComparison.Ordinal) ? intentId.Substring(OrderAttribute.IntentPrefix.Length) : intentId);
+            // ⭐⭐ CE-3494 §10 (R-3119) — a person's live order is the unit's INTENT on the node that runs its brain (shown as Next, kept by a
+            //   checkpoint, replaced by a later order); another node sends it there as before and that node's ingress writes the intent.
             Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Command(entity,
-                id => _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+                id =>
                 {
-                    Entity = entity, IntentId = intentId, JsonParams = json,
-                    Origin = BehaviorOrigin.Operator, ClearsPriorIntent = true, RequestId = id,
-                }), label));
+                    if (OwnsBrain(entity)) { UnitIntents.RequestTask(_world, entity, intentId, json, BehaviorOrigin.Operator, id); return; }
+                    _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+                    {
+                        Entity = entity, IntentId = intentId, JsonParams = json,
+                        Origin = BehaviorOrigin.Operator, ClearsPriorIntent = true, RequestId = id,
+                    });
+                }, label));
             return new OrderResult(OrderRefusal.None, "ordered", intentId, json);
+        }
+
+        /// <summary>⭐ CE-3494 §10 — this node runs the unit's brain (the same test the tactical system applies before resolving an order).</summary>
+        private bool OwnsBrain(Entity entity)
+            => _world.IsComponentTypeRegistered<BehaviorState>() && _world.HasComponent<BehaviorState>(entity) && _world.HasAuthority<BehaviorState>(entity);   // a station that runs no brains has no BehaviorState table
+
+        /// <summary>⭐ CE-3494 — the station is in EDIT mode (the one mode source, <see cref="Hrot.Common.Editing.StationMode"/>); false where none is installed.</summary>
+        private bool IsEditMode()
+            => _world.HasSingletonManaged<Hrot.Common.Editing.StationMode>()
+               && _world.GetSingletonManaged<Hrot.Common.Editing.StationMode>()!.Current == Hrot.Common.Editing.EditingMode.Edit;
+
+        /// <summary>⭐ CE-3494 — the edit-mode order: the unit's <see cref="UnitIntent"/> task slot (origin Superior, R-193 — authoring), or the refusal.</summary>
+        private OrderResult Author(Entity entity, string intentId, string json)
+        {
+            if (Fdp.Toolkit.Behavior.BrainIntentReader.DrivenByMissionPlan(_world, entity))
+                return OrderResult.Refused(OrderRefusal.DrivenByPlan, "This unit follows a mission plan — edit its first task on the Orders tab.");
+            if (!_world.TryGetTable(typeof(UnitIntent), out _)) _world.RegisterManagedComponent<UnitIntent>();
+            var before = _world.HasManagedComponent<UnitIntent>(entity) ? ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetManagedComponentRO<UnitIntent>(entity) : null;
+            _world.SetManagedComponent(entity, (before ?? new UnitIntent()) with
+            {
+                Behavior = new IntentSlot { Name = intentId, Params = string.IsNullOrWhiteSpace(json) ? "{}" : json, Origin = BehaviorOrigin.Superior },
+            });
+            return new OrderResult(OrderRefusal.None, "authored — the unit starts it when time first advances", intentId, json);
         }
 
         /// <summary>The checks every order shares: the unit exists here, is not killed, and is on the locked side.</summary>

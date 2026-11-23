@@ -1,4 +1,5 @@
-// CE-4651 — the HROT terrain import for the Unreal image generator.
+// CE-4651 — the HROT terrain import for the Unreal image generator. U-18s: the EDITOR module (HrotTerrainEditor) — a packaged client has none of it;
+// PoseNow / AddPersonState forward to the runtime UHrotRuntimeLibrary (kept here so the scripts keep calling unreal.HrotTerrainLibrary).
 #pragma once
 
 #include "CoreMinimal.h"
@@ -16,7 +17,7 @@ class UMaterialInterface;
  * frame is checkable outside Unreal and nothing is resampled here.
  */
 UCLASS()
-class HROTTERRAIN_API UHrotTerrainLibrary : public UBlueprintFunctionLibrary
+class HROTTERRAINEDITOR_API UHrotTerrainLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
@@ -56,6 +57,23 @@ public:
 	 * @param AssetPath  e.g. /Game/Hrot/Buildings/SM_Stechovice_3_7 (created or replaced)
 	 * @param Materials  one per slot (e.g. 0 = wall, 1 = roof)
 	 */
+	/**
+	 * Makes a Blueprint (an actor prefab) of a placed actor, with every component it carries (a crowd person: body + outfit parts on
+	 * a leader pose) — so it can be spawned any number of times in another level. The actor stays as it is (not replaced).
+	 * @return the Blueprint's generated class, or null
+	 */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static UClass* BlueprintFromActor(AActor* Actor, const FString& AssetPath);
+
+	/** Advances a skeletal mesh's animation by Seconds (in Steps) and poses it NOW — an editor world does not reliably tick animation
+	 *  (an unattended editor's viewport is not realtime), so a shot taken after this shows the evaluated pose. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static void PoseNow(class USkeletalMeshComponent* Mesh, float Seconds = 0.5f, int32 Steps = 10);
+
+	/** Adds (or returns) the HROT person state component on an actor — an instance component, saved with the level. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static class UHrotPersonState* AddPersonState(AActor* Actor);
+
 	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
 	static AActor* BuildMesh(const FString& BinPath, const FString& AssetPath, const TArray<UMaterialInterface*>& Materials,
 		FVector LocationCm, const FString& Label);

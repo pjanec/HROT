@@ -38,5 +38,9 @@ namespace Fdp.Toolkit.Behavior.Events
         public System.Guid RequestId;
         /// <summary>⭐ <c>CE-4612</c> — a paused task RESTARTED after its reaction: the same order, already answered (no second outcome reply).</summary>
         public bool IsResume;
+        /// <summary>⭐⭐ <c>CE-3494</c> (R-3115, <c>docs/DESIGN_Unit_Intent.md</c> §4) — an operator's order HOLDS the unit's mission plan: the ingress
+        /// runs the hold providers (<see cref="BehaviorIngressSystem.Holds"/>) only AFTER this order actually started, in the same call — a refused
+        /// order holds nothing. Set by <c>TacticalIntentResolutionSystem</c> from the tactical order's <c>ClearsPriorIntent</c>.</summary>
+        public bool HoldsPlan;
     }
 }

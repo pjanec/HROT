@@ -15,11 +15,16 @@
 #include "StaticMeshAttributes.h"
 #include "UObject/Package.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Kismet2/KismetEditorUtilities.h"
+#include "Engine/Blueprint.h"
+#include "HrotPersonAnimInstance.h"
+#include "HrotRuntimeLibrary.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Modules/ModuleManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotTerrain, Log, All);
 
-IMPLEMENT_MODULE(FDefaultModuleImpl, HrotTerrain)
+IMPLEMENT_MODULE(FDefaultModuleImpl, HrotTerrainEditor)
 
 ALandscape* UHrotTerrainLibrary::ImportHeights(const FString& R16Path, int32 SizeX, int32 SizeY, int32 QuadsPerSection,
 	int32 SectionsPerComponent, FVector LocationCm, FVector ScaleCm, const FString& Label)
@@ -195,3 +200,23 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 	UE_LOG(LogHrotTerrain, Log, TEXT("built %s: %d vertices, %d triangles"), *Label, NV, NT);
 	return Actor;
 }
+
+UClass* UHrotTerrainLibrary::BlueprintFromActor(AActor* Actor, const FString& AssetPath)
+{
+	if (!Actor) return nullptr;
+	FKismetEditorUtilities::FCreateBlueprintFromActorParams Params;
+	Params.bReplaceActor = false;
+	Params.bKeepMobility = true;
+	Params.bOpenBlueprint = false;
+	UBlueprint* Bp = FKismetEditorUtilities::CreateBlueprintFromActor(AssetPath, Actor, Params);
+	if (!Bp)
+	{
+		UE_LOG(LogHrotTerrain, Error, TEXT("BlueprintFromActor: could not make %s from %s"), *AssetPath, *Actor->GetName());
+		return nullptr;
+	}
+	return Bp->GeneratedClass;
+}
+
+UHrotPersonState* UHrotTerrainLibrary::AddPersonState(AActor* Actor) { return UHrotRuntimeLibrary::AddPersonState(Actor); }
+
+void UHrotTerrainLibrary::PoseNow(USkeletalMeshComponent* Mesh, float Seconds, int32 Steps) { UHrotRuntimeLibrary::PoseNow(Mesh, Seconds, Steps); }

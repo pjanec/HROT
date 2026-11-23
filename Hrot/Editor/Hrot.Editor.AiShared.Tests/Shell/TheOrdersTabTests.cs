@@ -22,6 +22,19 @@ public sealed class TheOrdersTabTests
 
     private static MissionTrigger Then(SearchPredicateDto c) => new() { Type = MissionTriggerHelper.ThenType, Params = ConditionCache.ToJson(c) };
 
+    /// <summary>⭐ CE-3494 (R-3115) — the current task of a HELD plan (an operator's order holds it) is <c>Held</c>; of a FAULTED one <c>Halted</c>.
+    /// 🔴 Red-proof: StateOf mapping every halt to Halted ⇒ the first assertion.</summary>
+    [Fact]
+    public void CE3494_AHeldPlansCurrentTask_IsHeld_AFaultedOne_IsHalted()
+    {
+        var q = new MissionPlanQueue { TaskCount = 3, CurrentTask = 1, Halted = MissionPlanQueue.HaltedHeldByOrder };
+        Assert.Equal(OrdersTaskState.Held, OrdersPlanModel.StateOf(1, q));
+        Assert.Equal(OrdersTaskState.Done, OrdersPlanModel.StateOf(0, q));
+        Assert.Equal(OrdersTaskState.Planned, OrdersPlanModel.StateOf(2, q));
+        q.Halted = MissionPlanQueue.HaltedFaulted;
+        Assert.Equal(OrdersTaskState.Halted, OrdersPlanModel.StateOf(1, q));
+    }
+
     [Fact]
     public void P7a_EachTaskIsOneSentence_AnOrderByItsKind_AWaitUntil_NoConditionIsWhenDone()
     {
@@ -530,5 +543,42 @@ public sealed class TheOrdersTabEditsTests
         Assert.Equal(3, tab.LastRows.Count);
         Assert.True(NodeEditor.Core.Widgets.KitProbe.TryGet(NodeEditor.Core.Widgets.KitProbe.ListMenuButton, out _, out _), "the tasks are the kit list (a menu button per row)");
         Assert.True(bytes == 0, $"a steady Orders tab allocates nothing ({bytes} bytes)");
+    }
+
+    /// <summary>⭐ CE-3494 (DESIGN_Unit_Intent.md §5 D, §5b) — a HELD plan in a real frame: the current row reads Held with its Resume plan button.
+    /// Renders <c>orders-held.png</c> under <c>HROT_RAIL_SHOTS</c> (the fidelity check against the mockup's panel D).</summary>
+    [SkippableFact]
+    public void CE3494_AHeldPlan_ShowsTheHeldRow_WithResumePlan()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        using var world = new Fdp.Core.EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        world.RegisterComponent<MissionPlanQueue>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+        var unit = world.CreateEntity(); world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5));
+        world.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator });
+        world.AddComponent(unit, new MissionPlanQueue { TaskCount = 3, CurrentTask = 1, Halted = MissionPlanQueue.HaltedHeldByOrder });
+        var svc = new FakeMissions { Plan = new MissionPlan { Tasks =
+        {
+            new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Move" },
+            new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Hold" },
+            new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Move" },
+        } } };
+        var tab = new OrdersTab(() => svc, () => world);
+        var ctx = new DetailsContext(Hrot.Editor.AiShared.Selection.SelectionOrigin.Unknown, Array.Empty<Hrot.Editor.AiShared.Selection.IAssetSubSelection>(), new[] { unit }, null, "Scenario", Hrot.Editor.AiShared.Variables.VariableRunState.Paused);
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(700, 420);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        void Draw()
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(680, 400));
+            ImGuiNET.ImGui.Begin("##orders", ImGuiNET.ImGuiWindowFlags.NoDecoration | ImGuiNET.ImGuiWindowFlags.NoMove | ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
+            tab.Draw(ctx, "o");
+            ImGuiNET.ImGui.End();
+        }
+        for (int k = 0; k < 3; k++) { frame.StepN(15, Draw); System.Threading.Thread.Sleep(220); }
+        frame.StepN(5, Draw);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "orders-held.png"));
+        Assert.Equal(OrdersTaskState.Held, tab.LastRows[1].State);
+        Assert.Equal(OrdersTaskState.Done, tab.LastRows[0].State);
     }
 }

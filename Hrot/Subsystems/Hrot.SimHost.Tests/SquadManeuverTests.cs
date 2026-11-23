@@ -4640,6 +4640,52 @@ namespace Hrot.SimHost.Tests
             Assert.Single(Requests(PictureOf(p, p.S.Commander)));                       // nothing free: it waits
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-5047</c> (Command Chain §8d, the Free/Busy gap; found on the Stechovice showcase) — an asset already on a FIRE MISSION it did
+        /// not get from this HQ (the scenario's author gave the helicopter an attack) is not taken off it: the request goes to the battery. An asset
+        /// on an authored PATROL (the plane's FollowRoute — uc-a10-zu23-dry, uc-urban-battle) is still the HQ's: the air-defence strike takes it.
+        /// A ground unit on an authored ATTACK is not sent to reinforce (the request waits); on an authored CONVOY (a move) it is.
+        /// ✅ Red-proof: <c>OnFireMission</c> always false ⇒ the helicopter is sent ⇒ red; true for any Superior task ⇒ the plane never strikes ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5047_AnAuthoredMission_KeepsItsAsset_AnAuthoredMove_DoesNot()
+        {
+            var p = Headquarters();
+            Entity heli = p.S.Members[1], battery = p.S.Members[2], plane = p.S.Members[4];
+            Running(p, heli, BehaviorNames.AirPlatformAttack);   // the author's attack, never ordered by this HQ
+            Running(p, plane, BehaviorNames.FollowRoute);        // the author's patrol
+            var mortar = new Vector3(0f, 1200f, 0f);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, mortar);
+            p.Ticks(4);
+            Assert.Equal(0, p.OrdersTo(heli, BehaviorNames.AirArmedSearch));
+            Assert.Equal(1, p.OrdersTo(battery, StrikeIntent));
+
+            var sam = new Vector3(800f, 2000f, 0f);
+            p.Report(p.S.Members[0], new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = sam, Count = 1, Size = Fdp.Toolkit.Squad.Command.ElementSize.Team,
+                Equipment = Fdp.Toolkit.Squad.Command.ElementEquipment.AirDefence | Fdp.Toolkit.Squad.Command.ElementEquipment.Vehicle,
+            });
+            p.S.Pause(Hrot.AI.Behaviors.Brains.SupportCommandBehavior.SeadIntervalSeconds + 1.0);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(plane, StrikeIntent));
+            Assert.True(Vector3.Distance(StrikePointOf(p, plane), sam) < 1f);
+
+            // the ground unit (member 3): on an authored attack it is not taken to reinforce; on an authored convoy (a move) it is
+            Entity ground = p.S.Members[3];
+            Running(p, ground, BehaviorNames.PlatoonAttack);
+            var at = new Vector3(50f, 400f, 0f);
+            p.S.Pause(3.0);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, at);
+            p.Ticks(4);
+            Assert.Equal(0, p.OrdersTo(ground, BehaviorNames.SquadDefend));
+            Running(p, ground, BehaviorNames.PlatoonConvoy);
+            p.S.Pause(3.0);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, at);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(ground, BehaviorNames.SquadDefend));
+        }
+
         /// <summary>⭐⭐ <c>CE-2312</c> (HQ-7) — Urban Battle beat 6: a ZU-23 reported 600 m from the mortar ⇒ the strike PLANE strikes the ZU-23
         /// first and the request WAITS (no helicopter into the air defence); once the ZU-23's report is old, the helicopter goes. ✅ Red-proofs:
         /// the air-defence test dropped ⇒ the helicopter at once · the wait dropped ⇒ the helicopter with the plane.</summary>
