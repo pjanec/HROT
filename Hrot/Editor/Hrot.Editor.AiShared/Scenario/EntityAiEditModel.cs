@@ -38,8 +38,6 @@ public sealed class EntityAiEditModel
     private readonly Func<BehaviorRegistry?> _registry;
     private readonly Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?> _blueprints;
     private readonly Hrot.Presentation.Edits.EditHistory? _history;
-    private BehaviorRegistry? _ingressFor;
-    private BehaviorIngressSystem? _ingress;
 
     /// <param name="blueprints">⭐ <c>CE-2086</c> — the instance blueprints' registry, for the params rows. ⚠ Optional for
     /// headless fixtures (no rows); ⛔ a host that has one must pass it (the silent-default rule).</param>
@@ -150,9 +148,23 @@ public sealed class EntityAiEditModel
         }
 
         var roe = world.IsComponentTypeRegistered<Roe>() && world.HasComponent<Roe>(entity) ? world.GetComponentRO<Roe>(entity) : default;
-        return new Snapshot(task, Json(taskJson), state.Origin, BehaviorIngressSystem.PausedTaskOf(world, entity)?.BehaviorName,
+        var taskOrigin = state.Origin;
+        var fire = RoeOf.Fire(world, entity); var reactions = RoeOf.Reactions(world, entity); var roeSetBy = roe.SetBy;
+        // ⭐ CE-3494 (R3) — what the section shows is the PENDING intent where there is one (applied when time next advances), else what runs
+        if (PendingIntent(entity) is { } pending)
+        {
+            if (pending.Behavior is { } pt) { task = pt.Name; taskJson = pt.Params; taskOrigin = pt.Origin; }
+            if (pending.Sop is { } ps) { sop = ps.Name; sopJson = ps.Params; sopOrigin = ps.Origin; }
+            if (pending.Roe is { } pr)
+            {
+                if (pr.Fire != RoeFire.FireUnset) fire = pr.Fire;
+                if (pr.Reactions != RoeReactions.ReactionsUnset) reactions = pr.Reactions;
+                roeSetBy = pr.SetBy;
+            }
+        }
+        return new Snapshot(task, Json(taskJson), taskOrigin, BehaviorIngressSystem.PausedTaskOf(world, entity)?.BehaviorName,
                             sop, Json(sopJson), sopOrigin, faulted,
-                            RoeOf.Fire(world, entity), RoeOf.Reactions(world, entity), roe.SetBy);
+                            fire, reactions, roeSetBy);
     }
 
     /// <summary>Every registered behaviour that is not an SOP, by name (⭐ <c>CE-1019</c>: an SOP is not a task).</summary>
@@ -189,73 +201,77 @@ public sealed class EntityAiEditModel
     /// <summary>⭐ CE-1023 — the one lookup (<see cref="BehaviorParamsForm.ParamsTypeOf"/>), the mission panel's too.</summary>
     public Type? ParamsTypeOf(string behaviour) => BehaviorParamsForm.ParamsTypeOf(behaviour, _registry());
 
-    public bool ApplyTask(Entity entity, string behaviour, string json, bool running)
-    {
-        // ⭐ CE-4219 ① — edit mode: ONE undo entry, undo re-applies the previous task (or clears it when there was none); captured BEFORE the write
-        var before = running || _history is null ? null : Read(entity);
-        bool ok = ApplyTaskRaw(entity, behaviour, json, running);
-        if (ok && !running && _history is not null)
-            _history.Push("Set task", () => ApplyTaskRaw(entity, behaviour, json, false),
-                () => { if (before?.Task is { } t) ApplyTaskRaw(entity, t, before.TaskParams, false); else ClearTask(entity, false); });
-        return ok;
-    }
+    // ⭐⭐ CE-3494 (R-3114, R-3118; docs/DESIGN_Unit_Intent.md §3.2) — `running` means a LIVE run (running OR paused mid-run):
+    //   LIVE ⇒ the edit is the operator's order, sent as an event at origin Operator; it waits in the step window and takes effect only when
+    //   time advances (the order systems are step-only). EDIT MODE (not yet run) ⇒ the edit is AUTHORED into the unit's UnitIntent at origin
+    //   Superior (R-193); nothing runs before the first step, so the intent IS the unit's starting AI and the save writes it. ⛔ SUPERSEDED: the
+    //   paused direct apply (AssignNow / RoeSystem.Apply) — it changed the AI on a paused frame, and at a breakpoint it wrote the rewound copy (CE-3495).
 
-    private bool ApplyTaskRaw(Entity entity, string behaviour, string json, bool running)
+    /// <summary>⭐ CE-3494 (R-3118) — the rank of a LIVE edit: a human's direct order.</summary>
+    public const BehaviorOrigin LiveOrigin = BehaviorOrigin.Operator;
+
+    public bool ApplyTask(Entity entity, string behaviour, string json, bool running)
         => running
-            ? PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = EditorOrigin })
-            : Ingress() is { } i && _world() is { } w && i.AssignNow(w, entity, behaviour, Json(json), EditorOrigin);
+            ? PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = LiveOrigin })
+            : Author(entity, "Set task", i => i with { Behavior = new IntentSlot { Name = behaviour, Params = Json(json), Origin = EditorOrigin } });
 
     public bool ClearTask(Entity entity, bool running)
         => running
-            ? Publish(new ClearBehaviorEvent { Entity = entity, Origin = EditorOrigin })
-            : Ingress() is { } i && _world() is { } w && i.ClearNow(w, entity, EditorOrigin);
+            ? Publish(new ClearBehaviorEvent { Entity = entity, Origin = LiveOrigin })
+            : Author(entity, "Clear task", i => i with { Behavior = null });
 
     public bool ApplySop(Entity entity, string behaviour, string json, bool running)
     {
-        // ⭐ CE-4219 ① — edit mode: ONE undo entry, undo re-applies the previous SOP (or clears it)
-        var before = running || _history is null ? null : Read(entity);
-        bool ok = ApplySopRaw(entity, behaviour, json, running);
-        if (ok && !running && _history is not null)
-            _history.Push("Set SOP", () => ApplySopRaw(entity, behaviour, json, false),
-                () => { if (before?.Sop is { } s) ApplySopRaw(entity, s, before.SopParams, false); else ClearSop(entity, false); });
-        return ok;
+        if (!SopAllowed(behaviour)) return false;   // ⭐ CE-2084 — the SOP slot refuses a behaviour known to drive a channel, in both modes
+        return running
+            ? PublishManaged(new AssignSopEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = LiveOrigin })
+            : Author(entity, "Set SOP", i => i with { Sop = new IntentSlot { Name = behaviour, Params = Json(json), Origin = EditorOrigin } });
     }
-
-    private bool ApplySopRaw(Entity entity, string behaviour, string json, bool running)
-        => running
-            ? PublishManaged(new AssignSopEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = EditorOrigin })
-            : Ingress() is { } i && _world() is { } w && i.AssignSopNow(w, entity, behaviour, Json(json), EditorOrigin);
 
     public bool ClearSop(Entity entity, bool running)
         => running
-            ? Publish(new ClearSopEvent { Entity = entity, Origin = EditorOrigin })
-            : Ingress() is { } i && _world() is { } w && i.ClearSopNow(w, entity, EditorOrigin);
+            ? Publish(new ClearSopEvent { Entity = entity, Origin = LiveOrigin })
+            : Author(entity, "Clear SOP", i => i with { Sop = null });
 
     public bool ApplyRoe(Entity entity, RoeFire fire, RoeReactions reactions, bool running)
+        => running
+            ? Publish(new SetRoeEvent { Entity = entity, Fire = fire, Reactions = reactions, Origin = LiveOrigin })
+            : Author(entity, "Set ROE", i => i with { Roe = (i.Roe ?? new SavedRoe()) with { Fire = fire, Reactions = reactions, SetBy = EditorOrigin } });
+
+    /// <summary>⭐ CE-3494 — the unit's pending authored intent (null = none).</summary>
+    public UnitIntent? PendingIntent(Entity entity)
+        => _world() is { } w && w.IsAlive(entity) && w.TryGetTable(typeof(UnitIntent), out _) && w.HasManagedComponent<UnitIntent>(entity)
+            ? ((ISimulationView)w).GetManagedComponentRO<UnitIntent>(entity) : null;
+
+    /// <summary>⭐ CE-3494 — writes the edited intent (a new record, replaced whole) and pushes ONE undo entry that restores the record as it
+    /// was (⛔ not the running AI: in edit mode nothing runs). An intent with nothing left in it is removed.</summary>
+    private bool Author(Entity entity, string label, Func<UnitIntent, UnitIntent> edit)
     {
-        // ⭐ CE-4219 ① — edit mode: ONE undo entry, undo re-applies the previous ROE; captured BEFORE the write
-        var before = running || _history is null ? null : Read(entity);
-        bool ok = ApplyRoeRaw(entity, fire, reactions, running);
-        if (ok && !running && _history is not null && before is not null)
-            _history.Push("Set ROE", () => ApplyRoeRaw(entity, fire, reactions, false), () => ApplyRoeRaw(entity, before.Fire, before.Reactions, false));
-        return ok;
+        if (_world() is not { } w || !w.IsAlive(entity) || !w.HasComponent<BehaviorState>(entity) || !w.TryGetTable(typeof(UnitIntent), out _)) return false;
+        var before = PendingIntent(entity);
+        var after = edit(before ?? new UnitIntent());
+        SetIntent(w, entity, after);
+        _history?.Push(label, () => SetIntent(w, entity, after), () => SetIntent(w, entity, before));
+        return true;
     }
 
-    private bool ApplyRoeRaw(Entity entity, RoeFire fire, RoeReactions reactions, bool running)
+    private static void SetIntent(EntityRepository w, Entity entity, UnitIntent? intent)
     {
-        var evt = new SetRoeEvent { Entity = entity, Fire = fire, Reactions = reactions, Origin = EditorOrigin };
-        return running ? Publish(evt) : _world() is { } w && RoeSystem.Apply(w, evt);
+        if (!w.IsAlive(entity)) return;
+        if (intent is null || (intent.Behavior is null && intent.Sop is null && intent.Roe is null))
+        {
+            if (w.HasManagedComponent<UnitIntent>(entity)) w.RemoveComponent<UnitIntent>(entity);
+            return;
+        }
+        w.SetManagedComponent(entity, intent);
     }
+
+    /// <summary>⭐ CE-2084 — a behaviour KNOWN to drive a channel is never an SOP (the ingress refuses it at apply; edit mode refuses it here).</summary>
+    private bool SopAllowed(string behaviour)
+        => _registry() is not { } r || !r.TryGetId(behaviour, out int id) || !r.TryGetDefinition(id, out var d)
+           || d!.WritesChannels is not { Count: > 0 };
 
     private static string Json(string? json) => string.IsNullOrWhiteSpace(json) ? "{}" : json!;
-
-    private BehaviorIngressSystem? Ingress()
-    {
-        var reg = _registry();
-        if (reg == null) return null;
-        if (!ReferenceEquals(reg, _ingressFor)) { _ingress = new BehaviorIngressSystem(reg); _ingressFor = reg; }
-        return _ingress;
-    }
 
     private bool Publish<T>(T evt) where T : unmanaged
     {

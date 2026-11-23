@@ -275,9 +275,9 @@ public class PartialOwnerReclaimTests
         // Node 77 is handed the Brain (anchor + intent, as a grant hands the group) and publishes what it runs.
         const string order = "Idle";
         Assert.True(registry.TryGetId(order, out int orderId), "the corpus behaviour the rail orders must exist");
-        string published = JsonSerializer.Serialize(new InitialBrainIntent
+        string published = JsonSerializer.Serialize(new UnitIntent
         {
-            Behavior = new SavedBrainSlot { Name = order, Params = "{}", Origin = BehaviorOrigin.Operator },
+            Behavior = new IntentSlot { Name = order, Params = "{}", Origin = BehaviorOrigin.Operator },
         }, FdpJsonOptionsRegistry.DefaultRelaxed);
         Assert.True(PumpAlive(harness, hb, () => Recorded(cgf, tank, anchor) == FakeNode && Recorded(cgf, tank, brainIntent) == FakeNode
                                               && cgf.HasManagedComponent<ReplicatedBrainIntent>(tank), timeoutFrames: 3000,

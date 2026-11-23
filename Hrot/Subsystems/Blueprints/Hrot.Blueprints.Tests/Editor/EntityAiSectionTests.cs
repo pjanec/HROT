@@ -47,13 +47,19 @@ public sealed class EntityAiSectionTests
         }
     }
 
+    /// <summary>⭐⭐ <c>CE-3494</c> (R-3114) — an EDIT-MODE edit is AUTHORED into the unit's <see cref="UnitIntent"/> at Superior: the section
+    /// shows it at once, but NOTHING runs until time advances; then the ingress applies it through the one gate and removes the intent.
+    /// 🔴 Red-proof: the old direct apply (AssignNow) ⇒ the "nothing runs yet" assertion.</summary>
     [Fact]
-    public void CE3043_Paused_AnEditAppliesAtOnce_ThroughTheGate_AtSuperior()
+    public void CE3494_EditMode_AnEditIsAuthoredIntoTheIntent_AndRunsOnlyWhenTimeAdvances()
     {
         var f = new Fixture();
         Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: false));
         Assert.True(f.Model.ApplySop(f.Unit, "BasicInfantrySop", "{}", running: false));
         Assert.True(f.Model.ApplyRoe(f.Unit, RoeFire.HoldFire, RoeReactions.StayOnTask, running: false));
+
+        Assert.Equal(0, f.World.GetComponentRO<BehaviorState>(f.Unit).ActiveBehaviorHash);   // nothing runs yet
+        Assert.True(f.World.HasManagedComponent<UnitIntent>(f.Unit));
 
         var now = f.Model.Read(f.Unit)!;
         Assert.Equal("Idle", now.Task);
@@ -64,11 +70,17 @@ public sealed class EntityAiSectionTests
         Assert.Equal(RoeReactions.StayOnTask, now.Reactions);
         Assert.Equal(BehaviorOrigin.Superior, now.RoeSetBy);
 
-        Assert.True(f.Model.ClearSop(f.Unit, running: false));
+        // time advances: the ingress applies the intent through the gate and removes it
+        new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(f.Registry).Execute(f.World, 0.016f);
+        Assert.False(f.World.HasManagedComponent<UnitIntent>(f.Unit));
+        Assert.True(f.Registry.TryGetId("Idle", out int idle));
+        Assert.Equal(idle, f.World.GetComponentRO<BehaviorState>(f.Unit).ActiveBehaviorHash);
+        Assert.Equal(RoeFire.HoldFire, f.Model.Read(f.Unit)!.Fire);
+
+        // a cleared slot in edit mode is simply not authored
+        Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: false));
         Assert.True(f.Model.ClearTask(f.Unit, running: false));
-        var cleared = f.Model.Read(f.Unit)!;
-        Assert.Null(cleared.Task);
-        Assert.Null(cleared.Sop);
+        Assert.Null(f.Model.PendingIntent(f.Unit));
     }
 
     /// <summary>
@@ -116,18 +128,25 @@ public sealed class EntityAiSectionTests
         Assert.Equal(count, history.Count);
     }
 
+    /// <summary>⭐ <c>CE-3494</c> — the authored intent still goes through the ONE gate when it is applied: a Superior intent does not replace
+    /// an Operator's running order.</summary>
     [Fact]
-    public void CE3043_Paused_TheGateStillDecides_AnOperatorsOrderIsNotReplaced()
+    public void CE3494_TheGateStillDecides_AnAuthoredIntentDoesNotReplaceAnOperatorsOrder()
     {
         var f = new Fixture();
+        var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(f.Registry);
         f.World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = f.Unit, BehaviorName = "Idle", JsonParams = "{}", Origin = BehaviorOrigin.Operator });
         f.World.Bus.SwapBuffers();
-        new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(f.Registry).Execute(f.World, 0.016f);
+        ingress.Execute(f.World, 0.016f);
 
-        Assert.False(f.Model.ApplyTask(f.Unit, "Demo_TakeCover", "{}", running: false));
-        Assert.Equal("Idle", f.Model.Read(f.Unit)!.Task);
+        Assert.True(f.Model.ApplyTask(f.Unit, "Demo_TakeCover", "{}", running: false));   // authored
+        f.World.Bus.SwapBuffers();
+        ingress.Execute(f.World, 0.016f);                                                  // applied — and refused by rank
+        Assert.True(f.Registry.TryGetId("Idle", out int idle));
+        Assert.Equal(idle, f.World.GetComponentRO<BehaviorState>(f.Unit).ActiveBehaviorHash);
     }
 
+    /// <summary>⭐ <c>CE-3494</c> (R-3118) — a LIVE edit (running or paused mid-run) is the operator's order: an event at origin Operator.</summary>
     [Fact]
     public void CE3043_Running_AnEditIsAnEvent_NotADirectWrite()
     {
@@ -137,7 +156,7 @@ public sealed class EntityAiSectionTests
         f.World.Bus.SwapBuffers();
         var sent = Assert.Single(f.World.Bus.ReadManaged<AssignBehaviorEvent>());
         Assert.Equal("Idle", sent.BehaviorName);
-        Assert.Equal(BehaviorOrigin.Superior, sent.Origin);
+        Assert.Equal(BehaviorOrigin.Operator, sent.Origin);
     }
 
     [Fact]

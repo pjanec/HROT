@@ -67,7 +67,8 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         var entity = context.Entities[0];
         if (entity != _entity) { _entity = entity; _taskPick = _sopPick = ""; _taskForm = _sopForm = null; _instanceForms.Clear(); _status = ""; }
         if (_model.Read(entity) is not { } now) { ImGui.TextDisabled("This entity has no brain."); return; }
-        bool running = context.Mode == VariableRunState.Running;
+        // ⭐ CE-3494 (R-3114) — LIVE (running or paused mid-run): the edit is an order that waits for time to advance; edit mode: the authored intent
+        bool running = context.Mode is VariableRunState.Running or VariableRunState.Paused;
 
         ImGui.PushID(idScope + "/ai");
         // ── SOP ─────────────────────────────────────────────────────────────────────────
@@ -103,7 +104,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
             FormGrid.End();
         }
         if (changed)
-            _status = _model.ApplyRoe(entity, (RoeFire)fire, (RoeReactions)reactions, running) ? "ROE applied." : "ROE refused (a higher rank set it).";
+            _status = _model.ApplyRoe(entity, (RoeFire)fire, (RoeReactions)reactions, running) ? "ROE set — applies when time advances." : "ROE not set.";
         ImGui.TextDisabled($"Set by: {now.RoeSetBy}");
 
         // ── instance blueprints (CE-2086, §7.6a) ────────────────────────────────────────
@@ -117,7 +118,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         }
 
         if (_status.Length > 0) ImGui.TextWrapped(_status);
-        ImGui.TextDisabled(running ? "Running: changes apply next frame." : "Paused: changes apply now.");
+        ImGui.TextDisabled(running ? "Live: an edit is your order — it applies when time next advances." : "Edit mode: the unit starts with this when time first advances.");
         ImGui.PopID();
     }
 

@@ -37,7 +37,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    [TickMode(TickPolicy.EveryFrame)]
+    // ⭐⭐ CE-3494 (R-3114, DESIGN_Unit_Intent.md §1 R1) — nothing the AI does takes effect on a paused frame: this runs only when time
+    //   advances, applies the unit's authored intent FIRST, then every request since its last run IN ORDER (the step window).
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     [Fdp.Core.NotState("a system/module, classified on its own")]
     public class BehaviorIngressSystem : IEcsModuleSystem
     {
@@ -109,6 +111,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             _runTokens.Step(repo, deltaTime);
 
             _startedByNameThisFrame.Clear();
+            ApplyIntents(repo);   // ⭐⭐ CE-3494 (R-3114) — the unit's AUTHORED intent first, then this window's requests in order
             var events = repo.ReadManagedEvents<AssignBehaviorEvent>();
 
             foreach (var evt in events)
@@ -221,6 +224,47 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ── ⭐ CE-3035 — the SOP slot's assign / clear ─────────────────────────────────────────────────────────────────
             ApplySopEvents(repo);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3494</c> (R-3114, R-3117; <c>docs/DESIGN_Unit_Intent.md</c> §1 R1–R4, §3.1) — applies every unit's
+        /// <see cref="UnitIntent"/> (what was AUTHORED: the scenario load, the editor in edit mode, the type's defaults) through
+        /// the one gate, then removes it (pending-only, R3). ROE first, then the SOP, then the task — and the task is DROPPED when
+        /// a live mission plan drives the unit (the plan owns the task slot, R4: its first task arrives through the request chain).
+        /// ⛔ Never during a replay (the recording owns the world, R11). Runs only on an advancing frame (this system is step-only).
+        /// </summary>
+        private void ApplyIntents(EntityRepository repo)
+        {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(repo)) return;
+            if (!repo.TryGetTable(typeof(UnitIntent), out _)) return;
+            _intentDone.Clear();
+            foreach (var entity in repo.Query().WithManaged<UnitIntent>().Build())
+                _intentDone.Add(entity);
+            for (int i = 0; i < _intentDone.Count; i++)
+            {
+                var entity = _intentDone[i];
+                var intent = ((ISimulationView)repo).GetManagedComponentRO<UnitIntent>(entity);
+                if (intent != null)
+                {
+                    if (intent.Roe is { } roe)
+                        RoeSystem.Apply(repo, new SetRoeEvent { Entity = entity, Fire = roe.Fire, Reactions = roe.Reactions, Origin = roe.SetBy,
+                                                                 ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds, ForceLevel = roe.ForceLevel,
+                                                                 Incendiary = roe.Incendiary });
+                    if (intent.Sop is { } sop && repo.HasComponent<BehaviorState>(entity))
+                        AssignSopNow(repo, entity, sop.Name, sop.Params, sop.Origin);
+                    if (intent.Behavior is { } task && repo.HasComponent<BehaviorState>(entity)
+                        && !BrainIntentReader.DrivenByMissionPlan(repo, entity))
+                        AssignNow(repo, entity, task.Name, task.Params, task.Origin);
+                }
+                repo.RemoveComponent<UnitIntent>(entity);
+                IntentsApplied++;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-3494</c> — units whose authored intent was applied since this system was built (a test / diagnostics probe).</summary>
+        public int IntentsApplied { get; private set; }
+
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each apply and filled from this frame's world")]
+        private readonly List<Entity> _intentDone = new();
 
         /// <summary>⭐ <c>CE-3034</c> — refusals by the gate since this system was built (a test / diagnostics probe).</summary>
         public int RefusedCount { get; private set; }
