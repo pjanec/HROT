@@ -236,10 +236,13 @@ namespace Hrot.SimHost.Tests
                 return FlankQuery();
             }
 
-            public void Answer(Entity sensor, Vector3? best)
+            public void Answer(Entity sensor, Vector3? best) => Answer(sensor, best, 0, 0);
+
+            /// <summary>⭐ CE-2496 — an answer whose point carries result flags (e.g. ThreatExposureTest's exposed bit).</summary>
+            public void Answer(Entity sensor, Vector3? best, short flags, short meaningful)
             {
                 var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = best.HasValue ? 1 : 0, LastUpdateTick = 7 };
-                if (best.HasValue) buf.GetSpanRW()[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = best.Value.X, PositionY = best.Value.Y, Score = 1f };
+                if (best.HasValue) buf.GetSpanRW()[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = best.Value.X, PositionY = best.Value.Y, Score = 1f, Flags = flags, FlagsMeaningful = meaningful };
                 Repo.SetComponent(sensor, buf);
             }
 
@@ -7529,6 +7532,30 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
             Step(seen: false, ticks: 400);
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐ <c>CE-2496</c> (📐 of-squad-outmatched) — the retreat query's top point is only the LEAST exposed one (CE-2164) and a known threat still sees
+        /// it (ThreatExposureTest's exposed bit): no hidden ground ⇒ the way it came, not a rally in sight 7 m back. Control: the same point unseen is taken.
+        /// 🔴 Red-proof: the exposed check removed ⇒ the squad goes to the seen point.</summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CE2496_BreakContact_ARetreatPointAThreatSees_IsNoHiddenPoint(bool seen)
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            const short exposed = BreakContactPlay.ExposedBit;
+            s.Answer(s.RetreatQuery(), new Vector3(0f, -8f, 0f), seen ? exposed : (short)0, exposed);
+            for (int i = 0; i < 8; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            var o = s.LastOrders();
+            float y = 0f;
+            foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) y = MathF.Min(y, x.Objective.Y);
+            if (seen) Assert.True(y < -12f, $"a seen point is no hidden point: the bound goes on back the way it came (got {y})");
+            else Assert.True(y > -12f && y < 0f, $"an unseen point is the answer (got {y})");
         }
 
         /// <summary>⭐⭐ <c>CE-2495</c> (R-2146; 📐 of-squad-outmatched — 6 men assaulted on ONE man seen and kept on into twelve and two machine guns) —

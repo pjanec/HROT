@@ -216,8 +216,23 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2278 — the thrower's FireAtPoint ends after the throw: once it has had time, every order is sent again (his is a hold now)
             if (p.Smoked == 1 && ctx.Now - p.SmokedAt >= SmokeSeconds) { p.Smoked = 2; ws.Reissue = 1; }
             if (ws.HasAnswer == 0)
-                SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
-                    SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId));
+            {
+                // ⭐ CE-2496 — the retreat query keeps the LEAST exposed point when nothing is hidden (CE-2164, open ground): a top point a known
+                //   threat still sees is no hidden point — the way it came instead. 📐 of-squad-outmatched: a point 7 m back in the cover band,
+                //   seen by the second machine gun; the squad rallied there in its sight.
+                if (SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
+                        SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId), out var found))
+                {
+                    if (found.Count == 0 || SeenByAThreat(in found.GetTop())) ws.HasAnswer = SquadManeuverRunner.NoAnswer;
+                    else
+                    {
+                        ref readonly var top = ref found.GetTop();
+                        ws.Answer = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
+                        ws.HasAnswer = 1;
+                        ws.Reissue = 1;
+                    }
+                }
+            }
             else if (AwayWhenNoAnswer(ref p, ref ws, in ctx)) { }   // ⭐ CE-2496 — no hidden point: the way it came
             // ⭐⭐ CE-2460 (U1) — the answer known and a threat to hide from: the moving element's NEXT bound is cover to cover toward the answer,
             //   ≤ BoundMetres, by fire and movement's own picker (one query, the sensor dropped after it answers). The movers hold until the picks
@@ -368,6 +383,14 @@ namespace Hrot.AI.Behaviors.Brains
         public const float CreepMetres = 1.5f;
 
         /// <summary>⭐ <c>CE-2472</c> — a live man of the squad is in an enemy's sight (his own perception).</summary>
+        /// <summary>⭐ <c>CE-2496</c> — the retreat answer is seen by at least one known threat (<see cref="Fdp.Toolkit.Spatial.Eqs.ThreatExposureTest"/>'s
+        /// flag bit 5, read only when the test computed it).</summary>
+        internal static bool SeenByAThreat(in Fdp.Toolkit.Spatial.Eqs.EqsResult r)
+            => (r.FlagsMeaningful & ExposedBit) != 0 && (r.Flags & ExposedBit) != 0;
+
+        /// <summary><see cref="Fdp.Toolkit.Spatial.Eqs.ThreatExposureTest"/>'s <c>IsExposedFromKnownThreat</c>.</summary>
+        public const short ExposedBit = 1 << 5;
+
         private static bool AnyEnemyKnown(in SquadPlayContext ctx)
             => ctx.World.HasComponent<SquadCognitiveState>(ctx.Commander)
                && SquadContacts.AnyEnemy(ctx.World, in ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander).Contacts);
