@@ -156,8 +156,10 @@ are doing, at what range, against what) — then an OF variant that reproduces i
 | ⛔ every man in cover within 20 s | ❌ | the men stay where contact found them (x 100–110), the field's nearest cover 10–20 m ahead |
 | ⛔ nobody upright in the open in Red's sight 10 s | ❌ 60 s, Grenadier 2 | he stood at (107.6, 513.8) in `CombatPosture` 20 s+, upright; ⚠ not himself under fire |
 
-⇒ ⭐ **OF1's finding is the FIRST SECOND of react to contact**, not a stall: a man not himself fired on stays upright where he stands, in the enemy's
-sight. ⚠ Doctrine: on contact EVERY man gets down or into the nearest cover. ⇒ the city battle's stall is to be looked for at PLATOON scale (C-2, C-3:
+⇒ ⛔ **First reading RETRACTED** ("a man not fired on stays upright where he stands"). ⭐ **Measured, sampled every second** (Grenadier 2): 47 s prone
+suppressing behind the sandbags → 48–54 s a crouched RUSH 15 m into the open (`FireAndMovementPlay` found no cover within 17 m — the next is 20–32 m on —
+so `SquadCover.OneRush` straight ahead) → 55–60 s `Suppress` CROUCHED there (CE-8311 D-15: the lowest stance whose line clears the enemy's sandbags).
+⚠ Doctrine: a rush ends DOWN — at cover or prone. ⇒ CE-2494; the fixes touch CE-8311 D-15 and CE-3090 — decisions for the user. ⇒ the city battle's stall is to be looked for at PLATOON scale (C-2, C-3:
 OF2, OF4) — ⛔ C-1 stays a claim about strength ratios other than 2 : 1 (OF5 and a 6 v 6 variant would probe it).
 
 ## 9. Decisions — for the user, AFTER the suite shows red *(leans, not rulings)*
