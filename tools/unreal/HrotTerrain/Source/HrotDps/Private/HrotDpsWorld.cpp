@@ -153,6 +153,7 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 	const double T0 = FPlatformTime::Seconds();
 	int32 Kits = 0;
 	TArray<USkinnedAsset*> Skinned;
+	TArray<UClass*> Classes;
 	auto Add = [this](UObject* O) { if (O) Preloaded.Add(O); };
 	auto Kit = [&](const TSoftObjectPtr<UHrotPersonKit>& Soft)
 	{
@@ -163,7 +164,7 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 		for (const TPair<FName, TObjectPtr<UAnimSequence>>& C : K->Clips) Add(C.Value);
 		if (UClass* Cls = K->BodyClass.LoadSynchronous())
 		{
-			Add(Cls);
+			Add(Cls); Classes.AddUnique(Cls);
 			// the body Blueprint's own skinned meshes: the native ones (a Character's mesh) and every Blueprint component template up its class chain
 			if (const ACharacter* Ch = Cast<ACharacter>(Cls->GetDefaultObject())) if (Ch->GetMesh() && Ch->GetMesh()->GetSkinnedAsset()) Skinned.AddUnique(Ch->GetMesh()->GetSkinnedAsset());
 			for (UClass* C = Cls; C; C = C->GetSuperClass())
@@ -176,12 +177,34 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 	};
 	Kit(PersonKit);
 	for (const TSoftObjectPtr<UHrotPersonKit>& K : CivilianKits) Kit(K);
+	// ⭐ the crowd Blueprints pick their OUTFIT parts at construction (random per construction: GEN_VARIABLE components), parts the class's templates do not name: build each
+	// body a few times, hidden and far below the map, collect every skinned mesh the construction made, then destroy it (measured live: 14.7 s still waited for the parts)
+	const int32 BeforeBuilt = Skinned.Num();
+	int32 Built = 0, LastRoundNew = 0;
+	if (UWorld* W = GetWorld())
+		for (UClass* Cls : Classes)
+			for (int32 Round = 0; Round < PreloadRounds; ++Round)
+			{
+				const int32 Was = Skinned.Num();
+				const FTransform Below(FRotator::ZeroRotator, FVector(0, 0, -5000000.0));
+				AActor* A = W->SpawnActorDeferred<AActor>(Cls, Below, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+				if (!A) continue;
+				if (APawn* Pawn = Cast<APawn>(A)) { Pawn->AutoPossessAI = EAutoPossessAI::Disabled; Pawn->AutoPossessPlayer = EAutoReceiveInput::Disabled; }
+				A->SetActorHiddenInGame(true);
+				A->FinishSpawning(Below);
+				TArray<USkinnedMeshComponent*> Comps; A->GetComponents(Comps);
+				for (USkinnedMeshComponent* C : Comps) if (C->GetSkinnedAsset()) Skinned.AddUnique(C->GetSkinnedAsset());
+				A->Destroy();
+				++Built;
+				if (Round == PreloadRounds - 1) LastRoundNew += Skinned.Num() - Was;
+			}
 	for (USkinnedAsset* S : Skinned) Add(S);
 #if WITH_EDITOR
 	// the editor builds each character mesh on its first draw (a 20 s wait with the people on screen): finish them now
 	if (Skinned.Num()) FSkinnedAssetCompilingManager::Get().FinishCompilation(Skinned);
 #endif
 	const double T1 = FPlatformTime::Seconds();
+	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d bodies built (%d rounds per class), %d outfit / face meshes found beyond the kits' own (the last round added %d: 0 = the parts are covered)"), Built, PreloadRounds, Skinned.Num() - BeforeBuilt, LastRoundNew);
 	int32 Sounds = 0;
 	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this)) Sounds = Snd->PreloadAll();
 	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d person kits, %d skinned assets (%d assets held) in %.2f s; %d sounds in %.2f s"),
@@ -382,6 +405,18 @@ void UHrotDpsWorld::OnState(const FHrotDpsSample& S)
 	else { E.BlendStart = -1; E.Shown = HrotDpsMotion::Extrapolate(K, Clock.Now(R)); }
 	E.SampleReal = R;
 	E.Track = K;
+	// DIAGNOSTIC ONLY (never corrects the orientation: the client shows HROT's data as sent): a PERSON that ARRIVES tilted - from the wire's quaternion, before any client transform
+	if ((E.bHasPerson || E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) && R - E.TiltLoggedAt >= 10.0)
+	{
+		const FVector3d Fwd = K.Q.RotateVector(FVector3d(1, 0, 0)), Left = K.Q.RotateVector(FVector3d(0, 1, 0));
+		const double Pitch = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Fwd.Z, -1.0, 1.0))), Roll = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Left.Z, -1.0, 1.0)));
+		if (FMath::Abs(Pitch) > 20.0 || FMath::Abs(Roll) > 20.0)
+		{
+			E.TiltLoggedAt = R;
+			UE_LOG(LogTemp, Display, TEXT("HROT person %d arrives tilted: pitch %.0f roll %.0f yaw %.0f, z %.2f m, speed %.2f, stance %d, role %s"), D.EntityId, Pitch, Roll,
+				FMath::RadiansToDegrees(FMath::Atan2(Fwd.Y, Fwd.X)), K.P.Z, K.V.Size(), int32(E.Person.Stance), *E.Look);
+		}
+	}
 	E.Bank = D.Bank;
 	E.bHasState = true;
 	E.StateDamage = uint8(D.Damage);

@@ -261,6 +261,7 @@ private:
 		bool bIsUnit = false;   // U-18y: Entity.IsUnit — a body-less commander (DD-024): no stand-in body, its card at its position + 2 m
 		// a person (U-18d)
 		bool bHasPerson = false;
+		double TiltLoggedAt = -1e9;   // the "arrives tilted" diagnostic: last log (real s)
 		HrotDpsPeople::FIn Person;
 		HrotDpsPeople::EGait LastGait = HrotDpsPeople::EGait::Idle;
 		int32 AimTargetId = 0;
@@ -460,6 +461,8 @@ private:
 	void OnMoverTracks(const struct FHrotDpsSample& S);
 	void DefaultLife();
 	void PreloadPeopleAndSounds();
+	/** how many times each body Blueprint is built at join to collect its random outfit parts (U-19h 15) */
+	static constexpr int32 PreloadRounds = 6;
 	AActor* SpawnAnimal(FEnt& E, const FTransform& At);
 	void ApplyAnimal(FEnt& E, double SimNow);
 	void ApplyFlame(FEnt& E);
