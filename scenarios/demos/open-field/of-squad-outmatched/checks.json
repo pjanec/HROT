@@ -1,0 +1,74 @@
+{
+  "$doc": "CE-2493 open-field suite (docs/designs/group-maneuvers/DESIGN_Open_Field_Suite.md \u00a76) - of-squad-outmatched",
+  "runFor": 240,
+  "golden": false,
+  "anchors": {
+    "Red fires": {
+      "on": "shot",
+      "by": "*Red Squad "
+    }
+  },
+  "expect": [
+    {
+      "name": "Red fires",
+      "on": "shot",
+      "by": "*Red Squad "
+    },
+    {
+      "name": "Blue fires",
+      "on": "shot",
+      "by": "*Blue Squad "
+    },
+    {
+      "name": "L2 Blue BREAKS CONTACT within 30 s of Red's first round",
+      "on": "task",
+      "who": "Blue Squad",
+      "is": "BreakContact",
+      "after": "Red fires",
+      "before": "Red fires+30"
+    },
+    {
+      "name": "L1 Blue never ASSAULTS the line (SuppressAndManeuver)",
+      "never": {
+        "on": "task",
+        "who": "Blue Squad",
+        "is": "SuppressAndManeuver"
+      }
+    },
+    {
+      "name": "L1 no Blue man closes within 80 m of the line",
+      "never": {
+        "on": "near",
+        "who": "*Blue Squad ",
+        "point": [
+          266,
+          512
+        ],
+        "within": 80
+      }
+    },
+    {
+      "name": "L1 nobody of Blue in the fight stands upright in the OPEN in a Red man's sight 10 s once the shooting starts (CE-2494)",
+      "never": {
+        "on": "exposed",
+        "who": "*Blue Squad ",
+        "by": "*Red Squad ",
+        "upright": true,
+        "fighting": true,
+        "for": 10
+      },
+      "after": "Red fires"
+    },
+    {
+      "name": "L3 Blue gets out of Red's sight: from 60 s after Red's first round no Blue man stays in a Red man's sight 10 s",
+      "never": {
+        "on": "exposed",
+        "who": "*Blue Squad ",
+        "by": "*Red Squad ",
+        "fighting": true,
+        "for": 10
+      },
+      "after": "Red fires+60"
+    }
+  ]
+}

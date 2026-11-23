@@ -238,4 +238,65 @@ write("of-platoon-flank-contact",
             "on": "field", "who": RED, "path": "Health.Current", "op": "<=", "value": 25, "quantifier": "all", "after": "Red fires", "before": "Red fires+300"},
        ]})
 
-print("wrote of-squad-meets-fire-team, of-platoon-attack, of-platoon-flank-contact")
+# ── OF3 — a squad BOUNDS across the field, then meets the fire team ──────────────────────────────────────────────────────────────────
+ents = field(3)
+b, _ = blue_squad(3, behaviour={"Name": "BoundingOverwatch", "Params": {"Objective": [420, 510, 0], "BoundMetres": 30, "Speed": 2.5, "ArrivalRadius": 10}})
+r, _ = red_fire_team(3)
+ents.update(b); ents.update(r)
+write("of-squad-bounds-to-contact",
+      "CE-2493 open-field suite OF3 - on basic-desert's open field, a 6-man 'Blue Squad' BOUNDS east across it (BoundingOverwatch to (420,510), "
+      "30 m bounds) and meets the 3-man 'Red Squad' fire team dug in at x ~260 (foxholes + sandbags, SquadHold).",
+      "bounding overwatch, then react to contact (ATP 3-21.8): before contact each bound ENDS at cover (the overwatching half watches from cover, "
+      "never from the open); in contact, return fire at once and fight forward by fire and movement until the fire team is beaten within 300 s. "
+      "Fail: a man left in the open 15 s before contact (a bound that ended in the open), a man upright in the open in Red's sight 10 s, the "
+      "ditch war, or the fight undecided.",
+      ents,
+      {"runFor": 360, "golden": False,
+       "anchors": {**PLATOON_ANCHORS,   # ⚠ the start line is open by design (§5): the bound-ends-at-cover row starts once the squad is in the cover band
+                   "in the cover band": {"on": "near", "who": "Blue Squad Leader", "point": [125, 510], "within": 8}},
+       "expect": [
+           {"name": "Red fires", "on": "shot", "by": RED},
+           {"name": "Blue fires", "on": "shot", "by": BLUE},
+           {"name": "L2 Blue returns fire within 5 s of Red's first round", "on": "shot", "by": BLUE, "after": "Red fires", "before": "Red fires+5"},
+           never("L1 in the scattered cover, before contact, no Blue man stays OUT of cover (no cover point within 2.5 m) for 15 s - each bound ends at cover",
+                 {"on": "cover", "who": BLUE, "is": "open", "m": 2.5, "fighting": True, "for": 15}, after="in the cover band", before="Red fires"),
+           *platoon_never_rows(),
+           {"name": "L3 the fire team is beaten within 300 s of its first round",
+            "on": "field", "who": RED, "path": "Health.Current", "op": "<=", "value": 25, "quantifier": "all", "after": "Red fires", "before": "Red fires+300"},
+       ]})
+
+# ── OF5 — a squad meets a much stronger force: it must BREAK CONTACT, cover to cover ──────────────────────────────────────────────────
+ents = field(5)
+for i, (x, y) in enumerate([(270, 494), (270, 530), (274, 512), (262, 482), (262, 542)]):
+    ents.update(feature(5, 960 + i, f"Foxhole {4 + i}", GROUND, (x, y), template="foxhole", seed=24930040 + i, points=[(0, 0)]))
+b, _ = blue_squad(5, behaviour={"Name": "InfantrySquadMove", "Params": {"Location": [420, 510, 0], "Speed": 2}})
+ents.update(b)
+MG = 2012
+for k, (yc, mg_y) in enumerate([(497, 494), (527, 530)]):
+    men = [("Leader", 266, yc, RIFLE), ("Machine gunner", 270, mg_y, MG), ("Rifleman 1", 262, yc - 9, RIFLE), ("Rifleman 2", 262, yc + 9, RIFLE),
+           ("Rifleman 3", 274, yc - 4, RIFLE), ("Rifleman 4", 274, yc + 4, RIFLE)]
+    r, _ = squad(5, 200 + 20 * k, f"Red Squad {k + 1}", "Hostile", men,
+                 {"Name": "SquadDefend", "Params": {"Position": [266, yc, 0], "SearchRadius": 20, "Speed": 2}}, rot=WEST)
+    ents.update(r)
+write("of-squad-outmatched",
+      "CE-2493 open-field suite OF5 - on basic-desert's open field, a 6-man 'Blue Squad' moves east across it (InfantrySquadMove, a movement to "
+      "contact) and meets 'Red Squad 1' and 'Red Squad 2' (12 men, two machine guns) defending the line at x 260-275 behind foxholes and sandbags.",
+      "the COUNTERWEIGHT (ATP 3-21.8 break contact): outmatched 2 : 1 by men and by machine guns, the squad returns fire, then BREAKS CONTACT - "
+      "suppressing and withdrawing cover to cover out of Red's sight - and never assaults or closes on the line. Fail: an assault on the line, "
+      "a man upright in the open in Red's sight 10 s, or Blue still in Red's sight a minute after contact.",
+      ents,
+      {"runFor": 240, "golden": False, "anchors": {"Red fires": {"on": "shot", "by": RED}},
+       "expect": [
+           {"name": "Red fires", "on": "shot", "by": RED},
+           {"name": "Blue fires", "on": "shot", "by": BLUE},
+           {"name": "L2 Blue BREAKS CONTACT within 30 s of Red's first round", "on": "task", "who": "Blue Squad", "is": "BreakContact",
+            "after": "Red fires", "before": "Red fires+30"},
+           never("L1 Blue never ASSAULTS the line (SuppressAndManeuver)", {"on": "task", "who": "Blue Squad", "is": "SuppressAndManeuver"}),
+           never("L1 no Blue man closes within 80 m of the line", {"on": "near", "who": BLUE, "point": [266, 512], "within": 80}),
+           never("L1 nobody of Blue in the fight stands upright in the OPEN in a Red man's sight 10 s once the shooting starts (CE-2494)",
+                 {"on": "exposed", "who": BLUE, "by": RED, "upright": True, "fighting": True, "for": 10}, after="Red fires"),
+           never("L3 Blue gets out of Red's sight: from 60 s after Red's first round no Blue man stays in a Red man's sight 10 s",
+                 {"on": "exposed", "who": BLUE, "by": RED, "fighting": True, "for": 10}, after="Red fires+60"),
+       ]})
+
+print("wrote of-squad-meets-fire-team, of-platoon-attack, of-platoon-flank-contact, of-squad-bounds-to-contact, of-squad-outmatched")
