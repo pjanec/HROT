@@ -306,13 +306,12 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
         Directory.CreateDirectory(shots);
         var (w, e, reg, bps) = RunningWorld();
-        using var _ = w;
-        if (!w.TryGetTable(typeof(UnitIntent), out _)) w.RegisterManagedComponent<UnitIntent>();
-        w.SetManagedComponent(e, new UnitIntent { Behavior = new IntentSlot { Name = "Attack", Params = "{}", Origin = BehaviorOrigin.Operator } });
+        using var owned = w;
+        Fdp.Toolkit.Behavior.UnitIntents.RequestTask(w, e, "Attack", "{}", BehaviorOrigin.Operator, Guid.Empty);
         bool staged = false;
         var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps, stagedPending: () => staged);
         var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
-        void Frame(UiFrameHarness.Frame f) => f.StepN(3, () =>
+        void Frame(UiFrameSession f) => f.StepN(3, () =>
         {
             ImGui.SetNextWindowPos(new Vector2(8, 8)); ImGui.SetNextWindowSize(new Vector2(740, 600));
             ImGui.Begin("Brain##ce3494"); view.Draw(ctx, "details_ce3494"); ImGui.End();

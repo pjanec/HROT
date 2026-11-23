@@ -488,16 +488,17 @@ public sealed class MenuOrdersTests : IDisposable
 
         if (!_w.IsComponentTypeRegistered<BehaviorState>()) _w.RegisterComponent<BehaviorState>();
         _w.AddComponent(_unit, new BehaviorState());                                                    // the brain runs here
+        _w.SetAuthority<BehaviorState>(_unit, true);
         _w.Bus.SwapBuffers();
         Assert.True(orders.Hold(UnitId).Accepted);
         _w.Bus.SwapBuffers();
         Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
-        var slot = _w.GetManagedComponent<UnitIntent>(_unit)!.Behavior!;
+        var slot = Fdp.Toolkit.Behavior.UnitIntents.Pending(_w, _unit)!.Behavior!;
         Assert.Equal("Order.Hold", slot.Name);
         Assert.Equal(BehaviorOrigin.Operator, slot.Origin);
         Assert.NotEqual(System.Guid.Empty, slot.RequestId);
         Assert.True(orders.Release(UnitId).Accepted);
-        Assert.True(_w.GetManagedComponent<UnitIntent>(_unit)!.Behavior!.Clear);
+        Assert.True(Fdp.Toolkit.Behavior.UnitIntents.Pending(_w, _unit)!.Behavior!.Clear);
     }
 
     /// <summary>⭐ CE-4575 (X-9) — the HTTP / MCP move (<c>EntityOrders.Move</c>) sends its point as local metres <c>[x, y, 0]</c>, the form

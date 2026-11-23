@@ -376,7 +376,7 @@ namespace Hrot.SimHost.Tests
             UnitIntents.RequestTask(repo, unit, "Idle", "{}", BehaviorOrigin.Operator, id);
 
             ingress.Execute(repo, 0.016f);                                                    // Input phase: leaves the person's task
-            Assert.Equal("Idle", repo.GetManagedComponent<UnitIntent>(unit)!.Behavior!.Name);
+            Assert.Equal("Idle", Fdp.Toolkit.Behavior.UnitIntents.Pending(repo, unit)!.Behavior!.Name);
             tactical.Execute(repo, 0.016f);                                                   // Simulation phase: takes it
             Assert.False(repo.HasManagedComponent<UnitIntent>(unit));
             repo.Bus.SwapBuffers();
@@ -423,10 +423,10 @@ namespace Hrot.SimHost.Tests
             Assert.True(UnitIntents.Pending(repo, unit)!.Behavior!.Clear);
 
             UnitIntents.RequestRoe(repo, new SetRoeEvent { Entity = unit, Fire = RoeFire.HoldFire, Origin = BehaviorOrigin.Operator });
-            UnitIntents.RequestRoe(repo, new SetRoeEvent { Entity = unit, Reactions = RoeReactions.ReturnFire, Origin = BehaviorOrigin.Operator });
+            UnitIntents.RequestRoe(repo, new SetRoeEvent { Entity = unit, Reactions = RoeReactions.StayOnTask, Origin = BehaviorOrigin.Operator });
             var roe = UnitIntents.Pending(repo, unit)!.Roe!;
             Assert.Equal(RoeFire.HoldFire, roe.Fire);                                         // kept: the second change left it unset
-            Assert.Equal(RoeReactions.ReturnFire, roe.Reactions);
+            Assert.Equal(RoeReactions.StayOnTask, roe.Reactions);
             Assert.Equal(BehaviorOrigin.Operator, roe.SetBy);
         }
 

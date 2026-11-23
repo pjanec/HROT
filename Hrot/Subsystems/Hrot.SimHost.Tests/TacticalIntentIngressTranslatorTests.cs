@@ -34,6 +34,7 @@ namespace Hrot.SimHost.Tests
             _world.RegisterManagedComponent<UnitIntent>();
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new BehaviorState());
+            _world.SetAuthority<BehaviorState>(entity, true);                                   // the brain runs here
             _entityMap.Register(42, entity);
             var id = Guid.NewGuid();
 
@@ -41,13 +42,13 @@ namespace Hrot.SimHost.Tests
             translator.ProcessSample(in person, _world);
             _world.Bus.SwapBuffers();
             Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
-            var slot = _world.GetManagedComponent<UnitIntent>(entity)!.Behavior!;
+            var slot = Fdp.Toolkit.Behavior.UnitIntents.Pending(_world, entity)!.Behavior!;
             Assert.Equal("Order.Hold", slot.Name);
             Assert.Equal(id, slot.RequestId);
 
             var release = new TacticalIntentRequest { TargetEntityId = 42, Origin = (byte)BehaviorOrigin.Operator, Kind = TacticalIntentWireKind.Clear };
             translator.ProcessSample(in release, _world);
-            Assert.True(_world.GetManagedComponent<UnitIntent>(entity)!.Behavior!.Clear);
+            Assert.True(Fdp.Toolkit.Behavior.UnitIntents.Pending(_world, entity)!.Behavior!.Clear);
 
             var commander = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Order.Move", JsonParams = "{}", Origin = (byte)BehaviorOrigin.Superior };
             translator.ProcessSample(in commander, _world);
