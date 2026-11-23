@@ -141,7 +141,10 @@ def run():
         tgt = b + unreal.Vector(0, 0, 150.0 if JOB.get("aim") == "roof" else 60.0)
         look_at(tgt)
         # press only once the crosshair has rested on the vehicle for 10 ticks in a row (or give up after 15 s)
-        S["on"] = S.get("on", 0) + 1 if cam().player_aim_target() == int(JOB["vehicle"]) else 0
+        # ... AND HROT offers its action now (OwnUnit.CanUse - live 2026-11-23: at 4.4 m the reach flickered and the press was refused OutOfReach)
+        st = station()
+        offered = bool(st and st.use_prompt())
+        S["on"] = S.get("on", 0) + 1 if cam().player_aim_target() == int(JOB["vehicle"]) and offered else 0
         if time.time() > S["until"] and (S["on"] >= 10 or time.time() > S["until"] + 15):
             s = sample("aimed")
             log(f"crosshair rests on {s['aim']} (vehicle {JOB['vehicle']})")
