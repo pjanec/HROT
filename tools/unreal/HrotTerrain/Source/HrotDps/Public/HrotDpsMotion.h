@@ -66,6 +66,15 @@ namespace HrotDpsMotion
 	HROTDPS_API FQuat ToUnreal(const FQuat4d& Q);
 	/** both, as an actor transform */
 	HROTDPS_API FTransform ToUnreal(const FHrotDpsPose& Pose, const FVector& OriginCm = FVector::ZeroVector);
+	/** U-19h ⑱ step B: does a drawn body need its transform set? Only when it moved more than PosCm or turned more than AngDeg, or its scale
+	 *  differs - measured on Stechovice: re-placing all 89 drawn bodies every frame cost 3.1 ms (each crowd body is several skinned meshes)
+	 *  and fed Unreal's end-of-frame updates; a body standing still costs nothing now. 0.1 cm / 0.05 deg are below anything visible. */
+	inline bool NeedsPlace(const FTransform& Now, const FTransform& Want, double PosCm = 0.1, double AngDeg = 0.05)
+	{
+		if (FVector::DistSquared(Now.GetLocation(), Want.GetLocation()) > PosCm * PosCm) return true;
+		if (!Now.GetScale3D().Equals(Want.GetScale3D(), 1e-4)) return true;
+		return Now.GetRotation().AngularDistance(Want.GetRotation()) > FMath::DegreesToRadians(AngDeg);
+	}
 }
 
 /** the SIM CLOCK: the producer's simulation time, estimated on this machine. Everything moves by it (the guide: "everything in the map
