@@ -1409,6 +1409,19 @@ namespace Fdp.Core
         /// sees it. 158 measured free on every branch and in every test (the catalogue rail's FREE list + a grep of ComponentId(158)), 2026-11-21.</summary>
         public const int UnderFireSightHolder = 158;
 
+        /// <summary>⭐ CE-4676 (docs/designs/llm-commander/DESIGN_LLM_Commander.md §5, L-1) — <c>CommanderSeat</c> (Hrot.CGF): a commander whose orders come from a MIND
+        /// (scripted, an outside agent, a local model), not from his own play. Saved with the scenario. ⚠ 217: on the catalogue rail's FREE list (2026-11-22); the only other
+        /// user is a Fdp.Core.Tests fixture (EntityQueryEnumeratorTests), whose world never loads the CGF registry.</summary>
+        public const int CommanderSeat = 217;
+
+        /// <summary>⭐ <c>CE-4680</c> B-2 (Hrot.CGF) — <c>CommanderBrief</c>: a seated commander's mission (Task · Purpose · Constraints · Time), authoring-only
+        /// (unmanaged, NoReplay — auto-serialized with the scenario). ⚠ 320: on the catalogue rail's FREE list (2026-11-22; 318 / 319 are the minefields'); no branch declares it; the only other user is a Fdp.Core.Tests fixture (ParallelSyncTests), whose world never loads the CGF registry.</summary>
+        public const int CommanderBrief = 320;
+
+        /// <summary>⭐ <c>CE-4680</c> B-6 (Hrot.CGF) — <c>PlaceNote</c>: a one-line terrain note on a named place, authoring-only (unmanaged, NoReplay).
+        /// ⚠ 321: on the FREE list, as 320.</summary>
+        public const int PlaceNote = 321;
+
         /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
         /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
         /// bulldozer's <c>BladeCut</c> pattern). ⚠ 324 / 325 measured free on every lane 2026-11-16.</summary>

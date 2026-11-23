@@ -29,6 +29,25 @@ public sealed class OrderFormEntry : IDisposable
         Session = BehaviorParamsForm.Open(editService ?? throw new ArgumentNullException(nameof(editService)), type, seed);
         _opened = Parse(BehaviorParamsForm.ToJson(BehaviorParamsForm.Hydrate(type, seed), type));
         CanRemember = draft.Order.Fields.Any(f => OrderDesignations.KindOf(f) != null);
+        PlanNotice = PlanNoticeFor(world, draft.Units);
+    }
+
+    /// <summary>⭐⭐ CE-3494 (R-3115; DESIGN_Unit_Intent.md §5 E) — a LIVE order HOLDS the mission plan of each unit a plan drives: the form says so
+    /// (null = no unit has one). Built once when the form opens, never per frame (R-2084). Edit mode never gets here for such a unit — the menu
+    /// greys the order and EntityOrders refuses it (R8).</summary>
+    public string? PlanNotice { get; }
+
+    private static string? PlanNoticeFor(EntityRepository world, IReadOnlyList<int> units)
+    {
+        int held = 0;
+        foreach (int net in units)
+        {
+            var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, net);
+            if (!e.IsNull && world.IsAlive(e) && Fdp.Toolkit.Behavior.BrainIntentReader.DrivenByMissionPlan(world, e)) held++;
+        }
+        return held == 0 ? null
+             : units.Count == 1 ? "\u23F3 Holds this unit's mission plan — resume it on the Orders tab."
+             : $"\u23F3 Holds the mission plan of {held} of these units — resume each on its Orders tab.";
     }
 
     /// <summary>A form id, unique on this station (window id and pick scope).</summary>

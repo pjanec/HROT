@@ -180,6 +180,19 @@ public sealed class OrdersTab : IDetailsViewInstance
         var rows = LastRows;
         var svc = _missions();
         if (rows.Count == 0) ImGui.TextDisabled("No plan — this unit runs its standing behaviour.");
+        // ⭐ CE-3494 (R-3117, DESIGN_Unit_Intent.md §5 D) — a plan AND an authored intent task: the plan owns the task slot, so the intent's task never
+        //   starts (the ingress drops it). Say so, and offer to remove it — the one fix (R8: one source for the task).
+        if (rows.Count > 0 && w.TryGetTable(typeof(UnitIntent), out _) && w.HasManagedComponent<UnitIntent>(entity)
+            && ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<UnitIntent>(entity) is { Behavior: { } intentTask } intent)
+        {
+            ImGui.TextColored(ColourOf(OrdersTaskState.Held), $"This unit's intent also sets a task ({intentTask.Name}) — the plan's first task replaces it; the intent's task never starts.");
+            if (ImGui.SmallButton("Remove the intent task"))
+            {
+                var next = intent with { Behavior = null };
+                if (next.Sop is null && next.Roe is null) w.RemoveComponent<UnitIntent>(entity);
+                else w.SetManagedComponent(entity, next);
+            }
+        }
         // ⭐ CE-3395 — the plan\'s tasks are the kit\'s LIST block: one summary row per task (⋮⋮ drag · number · state glyph · the sentence · ⋮ menu), the task\'s fields / then / give-up open under the row; Add at the end opens the add menu.
         // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu\'s NewWait / NewOrder / NewBehaviour).
         int hash = _summariesHash;
@@ -190,11 +203,35 @@ public sealed class OrdersTab : IDetailsViewInstance
             if (i >= rows.Count) break;
             var r = rows[i];
             var task = draft.Tasks[i];
-            bool open = ListBlock.ItemBegin(i, new IconGlyph("\uf111", ColourOf(r.State)));   // a dot in the task's state colour
+            bool open = ListBlock.ItemBegin(i, new IconGlyph(GlyphOf(r.State), ColourOf(r.State)));   // a dot in the task's state colour (⭐ CE-3494: an hourglass when held, a cross when faulted)
             if (r.Problem is { } why) { ImGui.TextColored(new System.Numerics.Vector4(1f, 0.55f, 0.2f, 1f), "⚠ " + why); }
             if (!_dirty && r.State is OrdersTaskState.Planned && svc != null && queue != null)
             {
                 if (ImGui.SmallButton("Jump")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_JUMP_TO_TASK, r.TaskId);
+            }
+            // ⭐⭐ CE-3494 (R-3115, DESIGN_Unit_Intent.md §5 D) — a HELD plan waits for the user: Resume plan restarts the held task (and ends the order
+            //   that holds it); a FAULTED task offers Retry — the same jump to the current task.
+            if (r.State is OrdersTaskState.Held)
+            {
+                // ⭐ CE-3494 (review F-20) — the order may have ENDED (it finished, or a clear): the plan stays held and the unit runs its SOP; say so
+                bool orderRuns = w.IsComponentTypeRegistered<BehaviorState>() && w.HasComponent<BehaviorState>(entity)
+                    && w.GetComponentRO<BehaviorState>(entity).Origin == BehaviorOrigin.Operator;
+                ImGui.TextColored(ColourOf(OrdersTaskState.Held), orderRuns ? "Held by an operator's order" : "Held — the operator's order has ended; the unit runs its SOP");
+                if (!_dirty && svc != null && queue != null)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("Resume plan")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_JUMP_TO_TASK, r.TaskId);
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Restart this task and end the order that holds the plan.");
+                }
+            }
+            else if (r.State is OrdersTaskState.Halted)
+            {
+                ImGui.TextColored(ColourOf(OrdersTaskState.Failed), "Failed — the behaviour faulted");
+                if (!_dirty && svc != null && queue != null)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("Retry")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_JUMP_TO_TASK, r.TaskId);
+                }
             }
             if (open)
             {
@@ -518,12 +555,21 @@ public sealed class OrdersTab : IDetailsViewInstance
         return changed;
     }
 
+    /// <summary>⭐ CE-3494 (DESIGN_Unit_Intent.md §5 D) — the row's state glyph: a dot, an hourglass while HELD (waiting for the user), a cross when FAULTED.</summary>
+    internal static string GlyphOf(OrdersTaskState s) => s switch
+    {
+        OrdersTaskState.Held   => "\uf252",   // hourglass
+        OrdersTaskState.Halted => "\uf057",   // circle-xmark
+        _                      => "\uf111",   // circle
+    };
+
     internal static System.Numerics.Vector4 ColourOf(OrdersTaskState s) => s switch
     {
         OrdersTaskState.Running => new(0.35f, 0.75f, 1f, 1f),
         OrdersTaskState.Done    => new(0.4f, 0.85f, 0.4f, 1f),
         OrdersTaskState.Failed  => new(0.95f, 0.35f, 0.35f, 1f),
-        OrdersTaskState.Halted  => new(1f, 0.7f, 0.2f, 1f),
+        OrdersTaskState.Halted  => new(1f, 0.7f, 0.2f, 1f),   // ⚠ U3 pins a faulted task amber (its red is the 'Failed' line under it)
+        OrdersTaskState.Held    => new(0.95f, 0.75f, 0.2f, 1f),   // ⭐ CE-3494 — pending amber (C.PEND)
         _                       => new(0.7f, 0.7f, 0.7f, 1f),
     };
 

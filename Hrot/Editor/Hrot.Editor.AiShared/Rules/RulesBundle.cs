@@ -41,7 +41,7 @@ public sealed class RulesBundle : IUiBundle
     {
         if (_host.Recording || _host.EntityCreation?.Invoke() is not { } creation) return false;
         creation.RequestEntityCreation(Hrot.UI.Common.Rules.RuleAdd.TkbOf(Hrot.UI.Common.Rules.RuleAdd.TriggerKind), isTransient: true,
-            initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.InitialBrainIntent { Behavior = new Fdp.Toolkit.Behavior.Components.SavedBrainSlot { Name = Hrot.UI.Common.Rules.RuleAdd.TriggerKind, Params = json } } });
+            initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.UnitIntent { Behavior = new Fdp.Toolkit.Behavior.Components.IntentSlot { Name = Hrot.UI.Common.Rules.RuleAdd.TriggerKind, Params = json } } });
         return true;
     }
 

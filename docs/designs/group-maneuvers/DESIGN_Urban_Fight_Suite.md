@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Open_Field_Suite.md — the OPEN-ground twin (OF1–OF5): squads and platoons across a field with scattered cover, the same rubric
   - ../../DESIGN_Scenario_Regression.md — OWNS the check grammar (§3) these scenarios are judged by; CE-2455 added still / for / fighting for this suite
   - DESIGN_Squad_Tactics.md — OWNS the squad plays the suite exercises (contact reaction §7.6.3, fire and movement, bounding, danger crossing)
   - DESIGN_Building_Clearing.md — OWNS the room drill and ClearBuilding U3 judges

@@ -346,7 +346,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             var verdict = Judge(in ears, where, carries, sourceClass);
             if (verdict.Reason != HearingReason.Heard) return;
             Answer(candidates, ref n, verdict.Distance, verdict.Route.HeardFrom, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed, sound,
-                   verdict.Route.Smear, verdict.Route.SmearMetres);   // ⭐ CE-2475 — a smeared direction is a less sure one · CE-2492 — over the whole pull
+                   verdict.Route.Smear);   // ⭐ CE-2475 — a smeared direction is a less sure one
             // ⭐ CE-4666 (D-8) — heard through an opening or round a corner: the point is the way in, not the source
             if (verdict.Route.Via != SoundVia.Straight)
                 candidates[n - 1].Flags |= AcousticPerception.ViaMask;
@@ -362,10 +362,9 @@ namespace Fdp.Toolkit.Perception.Sensors
 
         // One heard sound, answered as an anonymous estimate placed where it seems to come from (⭐ AQ106 F: the last opening or corner).
         private static void Answer(Span<EqsResult> candidates, ref int n, float d, Vector3 from, float perMeter, SoundKind kind,
-                                   byte sourceClass, ulong source, ulong listener, uint tick, long sound = 0, float smear = 0f, float smearMetres = 0f)
+                                   byte sourceClass, ulong source, ulong listener, uint tick, long sound = 0, float smear = 0f)
         {
-            // ⭐ CE-2492 — and the circle reaches back to the source's own direction: the ear is unsure over the whole pull, so the man stands inside it
-            float radius = AcousticPerception.RadiusAt(d, perMeter) * (1f + smear) + smearMetres;
+            float radius = AcousticPerception.RadiusAt(d, perMeter) * (1f + smear);
             var err = AcousticPerception.Error(source, listener, tick, radius);
             candidates[n++] = new EqsResult
             {

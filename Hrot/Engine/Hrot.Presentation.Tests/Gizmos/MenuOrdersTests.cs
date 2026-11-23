@@ -444,6 +444,66 @@ public sealed class MenuOrdersTests : IDisposable
         _ = mi;
     }
 
+    /// <summary>⭐⭐ CE-3494 (R2, R8; DESIGN_Unit_Intent.md §3.2) — in EDIT mode an order AUTHORS the unit's starting task (its <c>UnitIntent</c>,
+    /// saved, started when time first advances) and publishes nothing; Release un-authors it; a unit whose task a live mission plan drives is
+    /// refused (one source for the task) — the map MENU offers no orders in edit mode at all (D15). 🔴 Red-proof: drop the edit-mode branch in
+    /// <c>EntityOrders.Publish</c> ⇒ no intent and an AssignTacticalIntentEvent on the bus.</summary>
+    [Fact]
+    public void CE3494_EditMode_AnOrderAuthorsTheIntent_ReleaseUnauthorsIt_APlannedUnitIsRefused()
+    {
+        Hrot.Common.Editing.StationMode.Install(_w, () => Hrot.Common.Editing.EditingMode.Edit);
+        var orders = new EntityOrders(_w, _map, geo: null);
+        if (!_w.IsComponentTypeRegistered<BehaviorState>()) _w.RegisterComponent<BehaviorState>();
+        _w.AddComponent(_unit, new BehaviorState());                                                    // ⭐ §10 — authoring happens where the brain runs
+        _w.SetAuthority<BehaviorState>(_unit, true);
+
+        var sent = orders.Hold(UnitId);
+        Assert.True(sent.Accepted, sent.Detail);
+        var intent = Assert.IsType<UnitIntent>(((Fdp.ModuleHost.Abstractions.ISimulationView)_w).GetManagedComponentRO<UnitIntent>(_unit));
+        Assert.Equal("Order.Hold", intent.Behavior!.Name);
+        Assert.Equal(BehaviorOrigin.Superior, intent.Behavior.Origin);                                  // authoring (R-193)
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());                                   // no live order
+
+        Assert.True(orders.Release(UnitId).Accepted);
+        Assert.False(_w.HasManagedComponent<UnitIntent>(_unit));                                         // un-authored
+
+        _w.RegisterComponent<MissionPlanQueue>();
+        _w.AddComponent(_unit, new MissionPlanQueue { TaskCount = 2, CurrentTask = 0 });
+        var refused = orders.Hold(UnitId);
+        Assert.Equal(OrderRefusal.DrivenByPlan, refused.Refusal);
+        Assert.False(_w.HasManagedComponent<UnitIntent>(_unit));
+        Assert.Contains("mission plan", refused.Detail);
+    }
+
+    /// <summary>⭐⭐ CE-3494 §10 (R-3119) — LIVE, a person's order is the unit's INTENT where its brain runs (origin Operator, the request id in the
+    /// slot, no event; a release is the slot's Clear); a station WITHOUT the brain sends the event as before (the egress forwards it).
+    /// 🔴 Red-proof: OwnsBrain always false ⇒ an event and no intent for the brain-owning world.</summary>
+    [Fact]
+    public void CE3494_Live_APersonsOrderIsTheIntentOnTheBrainsNode_AnEventElsewhere()
+    {
+        Hrot.Common.Editing.StationMode.Install(_w, () => Hrot.Common.Editing.EditingMode.Live);
+        var orders = new EntityOrders(_w, _map, geo: null);
+        Assert.True(orders.Hold(UnitId).Accepted);                                                       // no brain here: forwarded
+        Assert.False(_w.TryGetTable(typeof(UnitIntent), out _) && _w.HasManagedComponent<UnitIntent>(_unit));
+        _w.Bus.SwapBuffers();
+        Assert.Single(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+
+        if (!_w.IsComponentTypeRegistered<BehaviorState>()) _w.RegisterComponent<BehaviorState>();
+        _w.AddComponent(_unit, new BehaviorState());                                                    // the brain runs here
+        _w.SetAuthority<BehaviorState>(_unit, true);
+        _w.Bus.SwapBuffers();
+        Assert.True(orders.Hold(UnitId).Accepted);
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+        var slot = Fdp.Toolkit.Behavior.UnitIntents.Pending(_w, _unit)!.Behavior!;
+        Assert.Equal("Order.Hold", slot.Name);
+        Assert.Equal(BehaviorOrigin.Operator, slot.Origin);
+        Assert.NotEqual(System.Guid.Empty, slot.RequestId);
+        Assert.True(orders.Release(UnitId).Accepted);
+        Assert.True(Fdp.Toolkit.Behavior.UnitIntents.Pending(_w, _unit)!.Behavior!.Clear);
+    }
+
     /// <summary>⭐ CE-4575 (X-9) — the HTTP / MCP move (<c>EntityOrders.Move</c>) sends its point as local metres <c>[x, y, 0]</c>, the form
     /// the brain reads (S0 item 5); lat/lon on a node with no geographic frame is refused, never guessed. 🔴 Red-proof: the old
     /// <c>[y, x]</c> fallback back ⇒ the published Location is <c>[-40,30]</c>.</summary>
@@ -682,6 +742,28 @@ public sealed class MenuOrdersTests : IDisposable
         imgui.NewFrame();
         form.Draw();
         imgui.Render();
+    }
+
+    /// <summary>⭐ CE-3494 (R-3115; DESIGN_Unit_Intent.md §5 E) — the order form says when the order HOLDS a unit's mission plan: built once when
+    /// the form opens, only for a unit a live plan drives (none ⇒ no notice). 🔴 Red-proof: PlanNoticeFor returning null ⇒ the first assertion.</summary>
+    [Fact]
+    public void CE3494_TheOrderForm_SaysTheOrderHoldsThePlan_OnlyForAPlannedUnit()
+    {
+        var pick = new FakePick();
+        var form = new Hrot.Presentation.Orders.OrderForm(_w, () => pick);
+        var info = new OrderInfo("TwoPicks", typeof(TwoPicks), 0, Hrot.Map.Definitions.Behavior.Orders.OrderGesture.None,
+            OrderMenu.PickOf(typeof(TwoPicks)).Pick, null, OrderMenu.FieldsOf(typeof(TwoPicks)));
+        int[] units = { UnitId };
+        OrderDraft Draft() => OrderMenu.Draft(info, units, new OrderContext(EnemyId, null), json => Array.Empty<OrderResult>());
+
+        form.Open(Draft());
+        Assert.Null(form.Entries[0].PlanNotice);                                       // no plan: no notice
+
+        _w.RegisterComponent<MissionPlanQueue>();
+        _w.AddComponent(_unit, new MissionPlanQueue { TaskCount = 2, CurrentTask = 0 });
+        form.Open(Draft());
+        Assert.Contains("mission plan", form.Entries[1].PlanNotice);
+        DrawFrame(form);                                                               // drawn, nothing thrown
     }
 
     /// <summary>⭐ Acceptance 1 — an order with two required picks opens the form PREFILLED with the gesture's pick; a form left

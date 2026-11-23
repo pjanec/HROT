@@ -296,6 +296,40 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(4, clamped.Count);
     }
 
+    /// <summary>⭐⭐ CE-3494 (DESIGN_Unit_Intent.md §5 C) — the Doing section shows what the unit does NEXT (its pending intent) and, while a memory
+    /// edit is staged, warns that the new task's start loses it; with nothing staged, no warning. Photographed (HROT_RAIL_SHOTS).
+    /// 🔴 Red-proof: the warning row removed ⇒ LastStagedWarning stays null.</summary>
+    [SkippableFact]
+    public void CE3494_APendingTask_ShowsNext_AndWarnsAStagedEditWillBeLost()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
+        Directory.CreateDirectory(shots);
+        var (w, e, reg, bps) = RunningWorld();
+        using var owned = w;
+        Fdp.Toolkit.Behavior.UnitIntents.RequestTask(w, e, "Attack", "{}", BehaviorOrigin.Operator, Guid.Empty);
+        bool staged = false;
+        var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps, stagedPending: () => staged);
+        var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
+        void Frame(UiFrameSession f) => f.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new Vector2(8, 8)); ImGui.SetNextWindowSize(new Vector2(740, 600));
+            ImGui.Begin("Brain##ce3494"); view.Draw(ctx, "details_ce3494"); ImGui.End();
+        });
+        EntityBrainView.ExpandForRail = true;
+        try
+        {
+            using var frame = UiFrameHarness.Begin(760, 620);
+            Frame(frame);
+            Assert.Null(view.LastStagedWarning);                                               // nothing staged: no warning
+            staged = true;
+            Frame(frame);
+            frame.Screenshot(Path.Combine(shots, "brain-next-staged.png"));
+            Assert.Contains("Attack starts", view.LastStagedWarning);
+        }
+        finally { EntityBrainView.ExpandForRail = false; }
+    }
+
     /// <summary>⭐ CE-1315 — the REAL draw of the Running behaviours section, photographed (HROT_RAIL_SHOTS).</summary>
     [SkippableFact]
     public void CE1315_TheRunningBehavioursSection_Draws()

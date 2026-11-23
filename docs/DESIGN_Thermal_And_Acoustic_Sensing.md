@@ -997,7 +997,8 @@ classDiagram
 
 | ⭐ **`CE-2492` — found by P2b (`2026-11-22`)** | |
 |---|---|
-| a SMEARED hearing's circle did not cover its own pull | in the 10–20 dB band `FirstWavefront` moves the heard point part-way from the source toward the opening, but the answer's circle only grew ×(1 + smear): 📐 Ear 2 held the shooter twice — one point on him, one pulled 2.3 m toward the door with a 0.7 m circle; the circles never met, so the shots never fused. ⭐ `SoundRoute.SmearMetres` (the pull) is added to the radius: the ear is unsure over the whole spread, so the man stands inside the circle. Rail `SoundPathsTests.CE2475_TheFirstWavefront_*` (red with the pull dropped) |
+| ⛔ first reading — WRONG, reverted (`1bb02ce0a`) | "a smeared hearing's circle does not cover its pull" ⇒ the pull added to the radius: P2b still failed at 8.25 s and `ia-house-hunt` broke (the attacker never hit). 📐 the route probe then showed EVERY shot heard straight (lead 10 dB — no smear at all) |
+| ⭐ the measured cause | the SHOOTER WALKS while firing (to his target): heard 1.6 m apart a second apart, two 0.7 m circles never meet ⇒ two slots. CE-2486's 3 m slack is for a man once SEEN; a man only HEARD had none. ⭐ `HearContact` fuses two STRAIGHT hearings within their circles + how far he could have walked since last heard (`WalkMetresPerSecond` 1.5 × the elapsed time, capped at 3 m); never a burst, never a point round an opening (CE-2489). Rail `SquadPerceptionMergeSystemTests.CE2492_*` |
 
 | ⚠ **suite setup, found writing P6 / P7 (`2026-11-22`)** | |
 |---|---|

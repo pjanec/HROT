@@ -226,7 +226,7 @@ namespace Hrot.Editor.DebugApi
             int status = r.Refusal switch
             {
                 OrderRefusal.UnknownEntity => 404,
-                OrderRefusal.Dead or OrderRefusal.WrongSide or OrderRefusal.Possessed or OrderRefusal.NotFulfilled or OrderRefusal.NotPossessable => 409,   // ⭐ CE-2143
+                OrderRefusal.Dead or OrderRefusal.WrongSide or OrderRefusal.Possessed or OrderRefusal.NotFulfilled or OrderRefusal.NotPossessable or OrderRefusal.DrivenByPlan => 409,   // ⭐ CE-2143
                 _ => 400,
             };
             string? hint = r.Refusal switch
@@ -437,12 +437,17 @@ namespace Hrot.Editor.DebugApi
                             continue;
                         }
                         var target = new Entity((ulong)ids[i]);
-                        if (target.IsNull || !_entityMap.TryGetNetworkId(target, out int tid)) continue;
-                        if (known.TryGetValue(tid, out var prev) && prev["freshness"]!.GetValue<double>() >= Round(fresh[i])) continue;
-                        known[tid] = new JsonObject
+                        if (target.IsNull) continue;
+                        // ⭐⭐ CE-4677 (Entity Control C-9, the AI player's fog of war) — a contact is what the SIDE remembers, keyed by the memory's own
+                        //   entry: ⛔ no "alive" read from the world (the side does not know), and ⛔ a contact whose entity is gone does NOT vanish
+                        //   (its network id no longer resolves: it stays, as last known, without one). Was: `alive` from IsAlive, and a dead
+                        //   target dropped by the map lookup — two truths through one row.
+                        long key = ids[i];
+                        int? tid = _entityMap.TryGetNetworkId(target, out int resolved) ? resolved : null;
+                        if (known.TryGetValue(key, out var prev) && prev["freshness"]!.GetValue<double>() >= Round(fresh[i])) continue;
+                        known[key] = new JsonObject
                         {
                             ["networkId"] = tid, ["position"] = pos, ["freshness"] = Round(fresh[i]), ["by"] = netId,
-                            ["alive"] = _world.IsAlive(target),
                         };
                     }
                 }
@@ -454,7 +459,7 @@ namespace Hrot.Editor.DebugApi
             {
                 contacts = new JsonArray();
                 foreach (var kv in known)
-                    if (!ownIds.Contains(kv.Key)) contacts.Add(kv.Value);
+                    if (kv.Value["networkId"] is not JsonValue own || !ownIds.Contains(own.GetValue<int>())) contacts.Add(kv.Value);
                 foreach (var h in heard) contacts.Add(h!.DeepClone());
             }
 

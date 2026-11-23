@@ -43,7 +43,26 @@ namespace Hrot.Editor.Director
 
         public JsonArray Blasts() => Service.GetDetonations(int.MaxValue)["detonations"] as JsonArray ?? new JsonArray();
 
+        /// <summary>⭐ CE-4676 — the brain node's report log, as <c>GET /squad/reports</c> serves it.</summary>
+        public bool CommanderHoldsClock() => Service.AnyCommanderHoldsClock();
+
+        public JsonArray Reports() => Service.GetSquadReports(Fdp.Toolkit.Squad.Command.SquadReportLog.Capacity, null)["reports"] as JsonArray ?? new JsonArray();
+
         public string? SetComponent(int networkId, string component, JsonObject patch)
             => Service.EditEntityComponent(networkId, component, patch.DeepClone()).error;
+
+        /// <summary>⭐ CE-3494 F3 — the <c>POST /orders</c> service, one item.</summary>
+        public string? Order(int networkId, JsonObject order)
+        {
+            var item = (JsonObject)order.DeepClone();
+            item["networkId"] = networkId;
+            var (result, error) = Service.PostOrders(new JsonObject { ["orders"] = new JsonArray(item) });
+            if (error != null) return error;
+            var r = (result?["results"] as JsonArray)?[0];
+            return r?["accepted"]?.GetValue<bool>() == true ? null : (r?["detail"] ?? r?["refusal"])?.ToString() ?? "refused";
+        }
+
+        /// <summary>⭐ CE-3494 F3 — the <c>POST /missions/{id}/resume</c> service (the command lands on the next step).</summary>
+        public string? ResumePlan(int networkId) => Service.BeginResumeMission(networkId).error;
     }
 }

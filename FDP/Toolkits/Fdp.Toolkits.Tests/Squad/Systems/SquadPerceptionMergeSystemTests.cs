@@ -539,6 +539,34 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(3, mem.Count);
         }
 
+        /// <summary>⭐⭐ <c>CE-2492</c> (📐 pe-wall-and-door) — a man only HEARD who walks between shots: heard at (304.1, 304.0), then 1.6 m off a second later,
+        /// each 0.7 m — one contact (he could have walked 1.5 m/s); so are two bangs of ONE solve (the same step); 3.2 m apart in one solve is another, and a point heard
+        /// round an opening gets no walking slack (CE-2489). 🔴 Red-proof: no walking slack ⇒ 2 slots after a second ⇒ red.</summary>
+        [Fact]
+        public void CE2492_AManHeardWalkingBetweenShots_IsOneContact()
+        {
+            var (repo, commander, members) = CreateSquadWorld(1);
+            ref var mem = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem, 304.1f, 304.0f, 0f, 0.7f, 4, 30f, 10);
+            TargetMemory.HearContact(ref mem, 305.1f, 302.7f, 0f, 0.7f, 4, 30f, 70);   // a second later at 60 Hz
+            Assert.Equal(1, mem.Count);
+
+            mem = default;
+            TargetMemory.HearContact(ref mem, 304.1f, 304.0f, 0f, 0.7f, 4, 30f, 10);
+            TargetMemory.HearContact(ref mem, 305.1f, 302.7f, 0f, 0.7f, 4, 30f, 10);   // the SAME step: two bangs of one solve (📐 P2b, bangs 86 and 88)
+            Assert.Equal(1, mem.Count);
+
+            mem = default;
+            TargetMemory.HearContact(ref mem, 304.1f, 304.0f, 0f, 0.7f, 4, 30f, 10);
+            TargetMemory.HearContact(ref mem, 306.6f, 302.0f, 0f, 0.7f, 4, 30f, 10);   // 3.2 m apart in one solve: nobody walks that in half a second
+            Assert.Equal(2, mem.Count);
+
+            mem = default;
+            TargetMemory.HearContact(ref mem, 304.1f, 304.0f, 0f, 0.7f, 4, 30f, 10, via: 1);
+            TargetMemory.HearContact(ref mem, 305.1f, 302.7f, 0f, 0.7f, 4, 30f, 70, via: 1);
+            Assert.Equal(2, mem.Count);
+        }
+
         /// <summary>⭐⭐ <c>CE-2487</c> (📐 pe-house-shot) — CE-2486 the other way round. ① A man HEARD at (106.2, 107.0), sure to 0.7 m, then SEEN 0.9 m from
         /// there is that man: one slot. A man seen 8 m off is another. ② The squad pool: one member sees him at (105.4, 107.0), another heard him round an
         /// opening at (107.9, 108.9), 3.1 m off a 0.7 m circle — one pooled contact. 🔴 Red-proof: no slack ⇒ 2 slots / 2 pooled contacts ⇒ red.</summary>

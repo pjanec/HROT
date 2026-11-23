@@ -7,8 +7,11 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core.Serialization;
+
+using Hrot.CGF.Commander;
 
 namespace Hrot.Editor.DebugApi
 {
@@ -204,7 +207,8 @@ namespace Hrot.Editor.DebugApi
         /// <see cref="Error"/> string.
         /// </param>
         private readonly record struct RouteResult(
-            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null, string? Text = null);
+            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null, string? Text = null,
+            Func<HttpListenerResponse, Task>? Stream = null);   // ⭐ CE-4679 — a route that writes its own response (server-sent events)
 
         private static RouteResult Ok(JsonNode? data) => new(200, data, null);
 
@@ -975,6 +979,18 @@ namespace Hrot.Editor.DebugApi
                 return await AwaitMissionCommitAsync(commit, meta, restart ? "restart" : "run").ConfigureAwait(false);
             }));
 
+            _routes.Add(new("POST", "/missions/{networkId}/resume", async ctx =>   // ⭐ CE-3494 (R-3115)
+            {
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginResumeMission(id))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission could not be resumed.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, "resume").ConfigureAwait(false);
+            }));
+
             // Group M — TKB catalog
             _routes.Add(new("GET", "/tkb/types", ctx =>
             {
@@ -1664,6 +1680,58 @@ namespace Hrot.Editor.DebugApi
                 int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 50;
                 int? unit = int.TryParse(ctx.Query("unit"), out var u) ? u : null;
                 return RunMain(s => s.GetSquadReports(last, unit));
+            }));
+
+            // ⭐⭐ CE-4679 (DESIGN_LLM_Commander §3, L-2) — the commander seats: what the model sees, and its answer. ⭐ Off the main thread except the
+            //   mind switch: the seat's channel is thread-safe, and a long-poll must never hold the frame.
+            _routes.Add(new("GET", "/commanders", _ => Task.FromResult(Ok(Service().GetCommanders()))));
+            _routes.Add(new("GET", "/commanders/{id}/briefing", ctx => Task.FromResult(WithSeat(ctx, seat => Ok(Service().CommanderBriefing(seat))))));
+            _routes.Add(new("GET", "/commanders/{id}/tools", ctx => Task.FromResult(WithSeat(ctx, _ => Ok(new JsonObject { ["tools"] = CommanderTools.Schema() })))));
+            _routes.Add(new("GET", "/commanders/{id}/feed", ctx =>
+            {
+                long after = long.TryParse(ctx.Query("after"), out var a) ? a : 0;
+                double wait = double.TryParse(ctx.Query("wait"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var w) ? w : 0;
+                return Task.Run(() => WithSeat(ctx, seat => Ok(Service().CommanderFeed(seat, after, wait, CancellationToken.None))));
+            }));
+            _routes.Add(new("GET", "/commanders/{id}/stream", ctx =>
+            {
+                long after = long.TryParse(ctx.Query("after"), out var a) ? a : 0;
+                return Task.FromResult(WithSeat(ctx, seat => new RouteResult(200, null, null, Stream: async response =>
+                {
+                    var items = new List<FeedItem>();
+                    while (true)
+                    {
+                        seat.Channel.WaitForItems(after, TimeSpan.FromSeconds(15), CancellationToken.None);
+                        items.Clear();
+                        seat.Channel.ReadAfter(after, items);
+                        var sb = new StringBuilder();
+                        if (items.Count == 0) sb.Append(": keep-alive\n\n");
+                        foreach (var item in items)
+                        {
+                            sb.Append("id: ").Append(item.Seq.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n')
+                              .Append("data: ").Append(DebugApiService.FeedItemJson(item).ToJsonString()).Append("\n\n");
+                            after = item.Seq;
+                        }
+                        var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+                        await response.OutputStream.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
+                        await response.OutputStream.FlushAsync().ConfigureAwait(false);
+                    }
+                })));
+            }));
+            _routes.Add(new("POST", "/commanders/{id}/act", ctx => Task.FromResult(WithSeat(ctx, seat =>
+            {
+                var (r, st, e) = Service().CommanderAct(seat, ctx.Body);
+                return e is null ? Ok(r) : Fail(st, e);
+            }))));
+            _routes.Add(new("POST", "/commanders/{id}/mind", ctx =>
+            {
+                string? kind = ctx.Body?["kind"] is JsonValue kv && kv.TryGetValue(out string? k) ? k : null;
+                string? mode = ctx.Body?["mode"] is JsonValue mv && mv.TryGetValue(out string? m) ? m : null;
+                return RunMainResult(s => WithSeat(ctx, seat =>
+                {
+                    var (r, st, e) = s.CommanderSwitchMind(seat, kind, mode);
+                    return e is null ? Ok(r) : Fail(st, e);
+                }));
             }));
 
             // ⭐ rules S1-g — the minimal mission summary: every objective status on this node (replicated ones on a non-Brain node), the tree by Parent
@@ -2742,6 +2810,14 @@ namespace Hrot.Editor.DebugApi
             }
         }
 
+        /// <summary>⭐ CE-4679 — the route's <c>{id}</c> seat, or a 404 that says how to find one.</summary>
+        private RouteResult WithSeat(RequestContext ctx, Func<SeatRuntime, RouteResult> fn)
+        {
+            if (!int.TryParse(ctx.RouteValue("id"), out int id)) return Fail(400, "the commander id is his network id (GET /commanders)");
+            var seat = Service().CommanderSeat(id, out var why);
+            return seat == null ? Fail(404, why!) : fn(seat);
+        }
+
         private Task<RouteResult> RunMain(Func<DebugApiService, JsonNode?> fn)
             => _jobQueue.RunOnMainThread(() => Ok(fn(Service())));
 
@@ -2985,6 +3061,18 @@ namespace Hrot.Editor.DebugApi
                 //    endpoint could not advise a caller that had been served but had asked the wrong
                 //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
                 //    `/logs?limit=400` could return the whole unfiltered ring in silence.
+                if (result.Stream is { } stream && result.Error is null)
+                {
+                    // ⭐ CE-4679 — GET /commanders/{id}/stream: server-sent events, written until the client goes
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "text/event-stream; charset=utf-8";
+                    ctx.Response.SendChunked = true;
+                    ctx.Response.Headers["Cache-Control"] = "no-cache";
+                    try { await stream(ctx.Response).ConfigureAwait(false); }
+                    catch (Exception ex) when (ex is HttpListenerException or IOException or ObjectDisposedException) { }   // the client went
+                    try { ctx.Response.Close(); } catch (Exception ex) when (ex is HttpListenerException or IOException or ObjectDisposedException) { }
+                    return;
+                }
                 if (result.Text is { } text && result.Error is null)
                 {
                     // ⭐ CE-4525 — a READ for people and agents (GET /help): plain UTF-8 markdown, not a JSON string in the envelope

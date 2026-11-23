@@ -26,10 +26,8 @@ namespace Fdp.Toolkit.Perception.Sensors
     /// </summary>
     /// ⭐ <c>CE-2475</c> (R-2142, Sensing §8.6e) — <see cref="Smear"/> 0…1: how far the direction was pulled between the straight way and the way round
     /// (the first wavefront vs the louder later one); the listener is that much less sure (the answer's radius grows with it).
-    /// ⭐ <c>CE-2492</c> — <see cref="SmearMetres"/>: how far the heard-from point was pulled off the source; the answer's circle covers it (📐 pe-wall-and-door:
-    /// a point pulled 2.3 m toward the door with a 0.7 m circle — the next shot's estimate missed it, one shooter held twice).
     public readonly record struct SoundRoute(float Factor, Vector3 HeardFrom, SoundVia Via, float StraightDb, float PathMetres, float PathDb,
-                                             int Openings, int Corners, int Crossings, float Smear = 0f, float SmearMetres = 0f);
+                                             int Openings, int Corners, int Crossings, float Smear = 0f);
 
     /// <summary>
     /// ⭐⭐ AQ106 (R-3050; docs/blueprints/Architect_Question_106_Sound_Paths.md, World Query Seam WQ-E v2) — <b>sound round corners and
@@ -136,7 +134,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             Vector3 dir = ds > 1e-3f && dO > 1e-3f ? Vector3.Lerp(toSource / ds, toOpening / dO, t) : toOpening;
             float len = dir.Length();
             var from = len > 1e-4f ? ear + dir / len * (ds + (dO - ds) * t) : round.HeardFrom;
-            return round with { HeardFrom = from, Via = t > 0.5f ? round.Via : SoundVia.Straight, Smear = t, SmearMetres = Vector3.Distance(from, source) };
+            return round with { HeardFrom = from, Via = t > 0.5f ? round.Via : SoundVia.Straight, Smear = t };
         }
 
         // the factor a path of length `metres` with `db` of loss gives, against the straight distance d: heard when metres ≤ carry × 10^(−db/20)

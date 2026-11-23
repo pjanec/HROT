@@ -5,6 +5,74 @@ related-designs:
 -->
 # DECISIONS — backend (newest at the top)
 
+## CE-3494 — the unit intent and the held plan · `2026-11-22` · ✅ **DECIDED by the user** (R-3114…R-3117)
+
+🔒 User, verbatim: *"switch ruling 50 from discarding to pausing the plan and resume only by the user"* · *"agreed with restarting the paused task"* ·
+*"making the mission plan and the intent mutually exclusive in the editor is a great idea"* · *"If this turns out not to be practical, then let's edit the memory directly."*
+
+| | |
+|---|---|
+| the model | NOW (what runs) vs NEXT (the authored intent, one value per slot); the request systems run only when time advances — intent first, then every request since the last step, in order (the independent review moved it off 'fold every request', design §9) — [DESIGN_Unit_Intent.md](../../DESIGN_Unit_Intent.md) §1 |
+| the plan | an operator order HOLDS it (`Halted = 2`); only the user resumes; Resume restarts the held task (R-3115, supersedes Entity Commanding ruling 50) |
+| edits | no general queue: the AI request and a breakpoint edit are queued; everything else writes directly, as today (R-3116) |
+| priority | intent first, then the plan's tick; edit mode: intent task XOR plan, warned both ways (R-3117) |
+| supersedes | the CE-3445 entry below: its "the step-reader window" mechanism — the fold into a component replaces it (design §7, first rejected line) |
+| §8 O1–O3 | ✅ DECIDED `2026-11-23` as leaned (user: *"i agree witho your leans"*, R-3118): Brain tab first expander · Superior in edit mode, Operator live · R-4137 rows case by case (CE-3496) |
+
+## CE-3445 — nothing takes effect on a paused frame (B) · `2026-11-22` · ✅ **DECIDED by the user**
+
+🔒 User, verbatim: *"i cant imagine how an order could take effect on paused world where no simulation should be running. at most it could be placed to some queue
+to be executed the first frame after the pause."* · *"isnt this the same flaw as fith order? does it need to? why not on the first unpaused frame, wouldnt that be one
+single way for anything?"* · *"'edit mode would then keep the AI as authored data' - i hoped this is what should have been happening. intents are the way to store AI
+settings at editing time … My desire is simplicity and consistency."*
+
+| | |
+|---|---|
+| the rule | ONE way for anything: a behaviour change (an order from HTTP / UI / the commander seat, a brain's order, a unit's type defaults) takes effect only on a frame where time ADVANCES; one that arrives while paused waits (the paused/stepped design's step-reader window) and lands on the next step, in order |
+| editing | the AI is the INTENT (`InitialBrainIntent`: task, SOP, ROE) — kept on the unit for the whole edit session (no longer Transient / consumed), shown and edited by the AI panels, and what the SAVE writes (same JSON keys, so no scenario file changes). A running behaviour exists only once time runs |
+| a run | on its first advancing frame each intent starts through the ingress, as a load does today |
+| supersedes | the paused/stepped design's "BehaviorIngressSystem — EVERY edit" row (Appendix A) and R-192's save-from-the-running-state (`BrainSnapshotTranslator`, Sensors_And_Doctrine §7.5) — kept as HISTORY |
+| why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
+| next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
+
+## CE-4680 — the LLM commander L-2b: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ `llm-platoon-attack`: the L-2 row *"Red still fires 60 s after its first shot"* is REPLACED by *"Blue still fires 60 s after Red's first shot"*, and L-1's check ④ is BACK as *"every Red man down by the time limit"* (reverses CE-4679 #8's withdrawal for this branch) | 📐 measured, two probe runs: with `run_play(PlatoonAttack)` the play beats Red — every Red down, one Bravo man lost — after about a minute of Red fire, so Red's last shot falls just before +60 s. The row was there to prove "a fight, not a rout"; the fight still lasts a minute (Blue's side), and the outcome is now the check-④ branch that IS expressible |
+| 2 | `ScriptedMind.UsePlays` — on in production, off for L-1's rail | the handoff's proof 1 wants the scripted mind on `run_play`; L-1's rail pins the direct-order rule, which stays a valid mind |
+| 3 | B-4's task falls back to the SEAT's own last direct order when the commander holds no `SubordinateOrders` | 📌 measured: `SubordinateOrders.Record` records nothing for a commander with no running task (run 0) — the seat's own record is the only source then |
+| 4 | B-5's "heard" is NOT shown; asked of behaviors | ⛔ `CommandReport` has no seen / heard bit; `Radius` means two different things (a seen group's spread, a sound's uncertainty) — guessing from it would be a ground-truth-free lie |
+| 6 | ⭐ `CommanderBrief` / `PlaceNote` are UNMANAGED (`FixedString128` fields), not the handoff's managed record | 📌 measured: a managed component needs a scenario translator, and in `Hrot.EcsNode`'s serializer list (which cannot see `Hrot.CGF`) — the unmanaged form is auto-serialized like `CommanderSeat`, and `NoReplay` keeps it out of recordings. Cost: 127 UTF-8 bytes per field |
+| 5 | component ids 320 / 321 (not the lane block) | backend's block 434–449 is full; 320 / 321 are on the catalogue rail's FREE list, no branch declares them (318 / 319 are the minefields') |
+
+## CE-4679 — the LLM commander L-2: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ **the think-pause is HYBRID**: the frame waits up to 50 ms for the answer (as L-1 did); only a mind slower than that gets the clock held (`PauseTimeIntent` on the node bus, the one pause path) | the scripted mind answers in microseconds, so its orders still land on the wake's own frame and its runs still repeat bit for bit; a model gets the real clock pause the handoff asks for |
+| 2 | the seat resumes the clock ONLY if it paused it AND no other `PauseTimeIntent` was seen during the hold (the bus is counted, minus the seat's own) | a user's ⏸ outlives the hold (the handoff's rule). ⚠ The other way round is NOT guarded: a user who presses ▶ during a hold runs the clock while the mind still thinks — the seat does not re-pause |
+| 3 | ⚠ the pause lands on the cluster barrier, so sim time stops a few frames AFTER the wake, not on its frame | the one pause path is the master's; a frame-exact stop would need a second path (⛔ ruling 9). The scripted mind is unaffected (decision 1) |
+| 4 | the hold's bound is `ExternalMind`'s own timeout (120 s) + 10 s; after it the seat says "no answer — the clock runs on with no orders" | the handoff's "bounded by wall time"; one number owns it |
+| 5 | several seats holding at once each pause / resume on their own | one seat is L-2's scope; multi-seat arbitration is L-4's (named there) |
+| 6 | the seats are kept WITH the world (`CommanderSeats.For(world)`, the `SquadReportLog` way), not on the pack | the HTTP surface reaches them from the brain world it already has; no host has to remember to wire it |
+| 7 | the model log is `<recording>.commander-<netId>.jsonl` — one line per call (`new` radio lines, `actions`, `raw`) and per verdict (`accepted` / `refused` + reason) | "beside the recording", and the verdict line is what names each order the recording holds |
+| 9 | ⭐ a STEPPED clock is held by its STEPPER, never paused / resumed by a seat (`CommanderSeats.ClockRunsFree` from the host; the verify run's `HoldsStep` reads `AnyHoldsClock`) | 📌 measured in the proof run: the verify run steps the clock, a pause does not stop explicit steps (sim time ran on while the mind waited), and the seat's `ResumeTimeIntent` would have switched the master to continuous mid-run. ⚠ A user's `/sim/step` during a hold still steps (an explicit act); only the verify stepper waits |
+| 8 | ⑤ — the L-1 row *"the fight ends before the time limit: … breaks contact with Bravo (measured outcome)"* is WITHDRAWN from `llm-platoon-attack`; the scenario's `$doc` names check ④ (Red beaten OR break contact) as not expressible until the `any` combinator lands (DESIGN_Scenario_Regression §9, R-4077, unbuilt) | ⚠ the handoff says *"the checks stay as they are"* — but that row pinned the one outcome ⑤ exists to remove (Alpha shot down at once). With the fight ⑤ asks for (contact 76 s → past 420 s, a stand-off) its break-contact branch never comes, and the either/or cannot be said; §9's own rule: encode the expressible part and name the rest, never a weaker condition. Reverse: build `any` (predicate model) and restore check ④ as `any: [Red down, BreakContact]` |
+
+## CE-4676 — the LLM commander L-1: lane decisions TAKEN (not waiting on an answer) · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+None of these needed the user (no design or ruling decides them, each is small and reversible). They are listed so the coordinator can overrule one.
+
+| # | decision | why — and what would change it |
+|---|---|---|
+| 1 | ⭐ **think-pause in L-1 = the FRAME holds** (`CommanderActionSystem` waits up to 2 s of wall time for the mind to answer every wake), not a pause of the sim clock | the scripted mind answers in microseconds, so the run is repeatable with no clock involvement. ⚠ L-2 (a Haiku worker, tens of seconds) needs the CLOCK paused instead — a held frame would freeze the editor's UI |
+| 2 | **the orders L-1 takes:** Move · Hold · Attack (by the squad's class, `CommandOrders.Order`) · SupportByFire (= Attack with `HoldBack`, R-8303) · Defend / BreakContact (the concrete `SquadDefend` / `BreakContact` through `CommandOrders.Route`, as `PlatoonDefendBehavior` sends them) | ⛔ **not** BoundingOverwatch / SuppressAndManeuver / ClearBuilding: no measured params path from a platoon to a squad for them. The handoff says "if they resolve for a squad"; they are a refusal with the list until measured |
+| 3 | `target` resolves as a PLACE (like `where`) | L-1's mind has no entity ids for the enemy, only reported places. An entity target is L-2's tool |
+| 4 | ⭐ **a `report` cue in the checks grammar** (`{"on":"report","by":…,"target":…,"is":"Spot"}` over the node's `SquadReportLog`, editor tier) | the scenario's done-when checks ①③ cannot be said without it (CLAUDE.md: a cue the grammar cannot say ⇒ extend the grammar) |
+| 5 | the seat's code lives in **`Hrot.CGF/Commander/`**, not in behaviors' assembly | it calls the command chain and never changes it; the CGF pack registers it on every brain node (editor + CGF) |
+| 6 | the seat ENFORCES its premise at open: `AssignSopEvent(InertSop, Superior)` if the SOP is not already `InertSop`, and a clear of any running task | the scenario also writes `"Sop": InertSop` — the enforcement makes a seat added at run time (L-2's `/mind`) safe too |
+
 ## CE-3473 — a ramming CAR never breaks the barrels (`cp-ram-barrier`, Checkpoint RM-5) · `2026-11-18` · ✅ **DECIDED `2026-11-18`**
 
 **DECIDED `2026-11-18` (the user):** *"follow your lean; also realistic bullet stopping power (if barrel is full of liquid, it might be a serious/resistive obstacle for both the ramming car as well as for bullets"* ⇒ option A, and a barrel's FILL (empty / liquid / …) decides BOTH its breach strength and its protection from fire — one property, read by both.

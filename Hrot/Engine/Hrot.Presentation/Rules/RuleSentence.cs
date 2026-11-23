@@ -85,9 +85,14 @@ public static class RuleSentence
                || s.StartsWith("All ", StringComparison.Ordinal) || s.StartsWith("At ", StringComparison.Ordinal) || s.StartsWith("None ", StringComparison.Ordinal))
             ? char.ToLowerInvariant(s[0]) + s.Substring(1) : s;
 
-    /// <summary>The rule entity's authored behaviour name and params JSON (its <c>BehaviorStartRecord</c>), or null — the ONE reader (the editor's and the list's).</summary>
+    /// <summary>The rule entity's authored behaviour name and params JSON, or null — the ONE reader (the editor's and the list's). ⭐⭐ CE-3494
+    /// (DESIGN_Unit_Intent.md §3.4, S4): its PENDING <c>UnitIntent</c> task first (edit mode: nothing runs before the first step, so a loaded or
+    /// edited rule has only its intent), else its <c>BehaviorStartRecord</c> (what runs).</summary>
     public static (string Name, string Json)? ParamsOf(Fdp.Core.EntityRepository? w, Fdp.Core.Entity e)
     {
+        if (w != null && w.IsAlive(e) && w.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.UnitIntent), out _) && w.HasManagedComponent<Fdp.Toolkit.Behavior.Components.UnitIntent>(e)
+            && ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.UnitIntent>(e)?.Behavior is { Clear: false } pending)   // a pending release (§10) names no rule
+            return (pending.Name, pending.Params);
         if (w == null || !w.IsAlive(e) || !w.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), out _) || !w.HasManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>(e)) return null;
         var rec = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>(e);
         return rec == null ? null : (rec.BehaviorName, rec.JsonParams);

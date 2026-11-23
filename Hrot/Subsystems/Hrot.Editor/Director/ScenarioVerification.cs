@@ -42,8 +42,22 @@ namespace Hrot.Editor.Director
         /// <summary>The detonation log's rows, newest first (the <c>/combat/detonations</c> rows).</summary>
         JsonArray Blasts();
 
+        /// <summary>⭐ CE-4676 — the reports the brain node's inbox saw, newest first (the <c>GET /squad/reports</c> rows: serial, seenAt, from, to — network
+        /// ids — and kind); empty where the host serves none.</summary>
+        JsonArray Reports() => new();
+
+        /// <summary>⭐ CE-4679 — a commander seat holds the clock for its mind (think-pause): the run steps no further until it answers. False where
+        /// the host has no seats.</summary>
+        bool CommanderHoldsClock() => false;
+
         /// <summary>Patches one component; null when written, else why not.</summary>
         string? SetComponent(int networkId, string component, JsonObject patch);
+
+        /// <summary>⭐ CE-3494 F3 — gives the unit an operator order (a <c>POST /orders</c> item, no <c>networkId</c>); null when accepted, else why not.</summary>
+        string? Order(int networkId, JsonObject order) => "this host gives no orders";
+
+        /// <summary>⭐ CE-3494 F3 — resumes the unit's held mission plan (<c>POST /missions/{id}/resume</c>); null when sent, else why not.</summary>
+        string? ResumePlan(int networkId) => "this host resumes no plans";
     }
 
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
@@ -75,6 +89,9 @@ namespace Hrot.Editor.Director
         private readonly Dictionary<string, double> _outside = new(StringComparer.Ordinal);
         private readonly SortedDictionary<long, JsonObject> _shots = new();
         private readonly List<JsonObject> _blasts = new();
+        // ⭐ CE-4676 — the reports this node's inbox saw (SquadReportLog), in arrival order: {serial, t (run-relative), from, to, kind}
+        private readonly List<JsonObject> _reports = new();
+        private long _reportSeen;
         private long _shotFloor = -1, _blastFloor = -1, _blastSeen = -1;
         private Dictionary<int, string> _nameOf = new();
         private double _rel;
@@ -172,6 +189,13 @@ namespace Hrot.Editor.Director
                     var rows = _shots.Values.Where(r => (a.By == null || Is(r["shooter"], a.By)) && (a.Target == null || Is(r["target"], a.Target))
                                                         && (c.Hit == null || Is(r["hit"], c.Hit)) && WhereOk(r, c.Where))
                         .Select(r => Rel(r["firedAt"])).Where(t => from is null || t >= from - 1e-9).ToList();
+                    return rows.Count >= a.N ? rows[a.N - 1] : null;
+                }
+                case "report":   // ⭐ CE-4676 — the n-th report BY a unit (its sender) TO a unit (target), of a kind (is: "Spot" or ["Spot", "Contact"])
+                {
+                    var rows = _reports.Where(r => (a.By == null || Is(r["from"], a.By)) && (a.Target == null || Is(r["to"], a.Target))
+                                                   && (a.Is == null || KindIs(r["kind"]?.ToString(), a.Is)))
+                        .Select(r => Num(r["t"])!.Value).Where(t => from is null || t >= from - 1e-9).ToList();
                     return rows.Count >= a.N ? rows[a.N - 1] : null;
                 }
                 case "blast":
@@ -675,8 +699,39 @@ namespace Hrot.Editor.Director
             return who.StartsWith('*') ? name.Contains(who[1..], StringComparison.Ordinal) : string.Equals(name, who, StringComparison.Ordinal);
         }
 
+        private static bool KindIs(string? kind, JsonNode want)
+            => kind != null && (want is JsonArray many ? many.Any(x => string.Equals(x?.ToString(), kind, StringComparison.OrdinalIgnoreCase))
+                                                       : string.Equals(want.ToString(), kind, StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>⭐ CE-4676 — the reports the inbox saw since the last sample, oldest first — through the verify world (the debug service's
+        /// <c>GET /squad/reports</c>, which reads the BRAIN world; ⛔ not <see cref="IVerifyWorld.World"/>, which in the threaded editor is the UI's
+        /// mirror and has no report log).</summary>
+        private void ReadReports()
+        {
+            var fresh = new List<JsonObject>();
+            foreach (var r in _w.Reports().OfType<JsonObject>())
+            {
+                long serial = (long)(Num(r["serial"]) ?? -1);
+                if (serial <= _reportSeen) continue;
+                var row = new JsonObject
+                {
+                    ["serial"] = serial, ["t"] = Math.Round((Num(r["seenAt"]) ?? 0d) - _t0, 4), ["kind"] = r["kind"]?.ToString(),
+                    ["from"] = r["from"]?.DeepClone(), ["to"] = r["to"]?.DeepClone(),
+                };
+                foreach (var k in new[] { "from", "to" })
+                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((int)id, out var n)) row[k] = n;
+                fresh.Add(row);
+            }
+            foreach (var row in fresh.OrderBy(r => Num(r["serial"])))
+            {
+                _reports.Add(row);
+                _reportSeen = Math.Max(_reportSeen, (long)(Num(row["serial"]) ?? -1));
+            }
+        }
+
         private void ReadRows()
         {
+            ReadReports();
             foreach (var r in _w.Shots().OfType<JsonObject>())
             {
                 long seq = (long)(Num(r["seq"]) ?? -1);
@@ -1281,7 +1336,13 @@ namespace Hrot.Editor.Director
                                     .Select(x => x.Id).Distinct().ToList();
                 if (ids.Count == 0) ActionProblems.Add($"do at {rel:0.###} s: no unit '{a.Who}'");
                 foreach (var id in ids)
-                    if (_w.SetComponent(id, a.Component, a.Patch) is { } why) ActionProblems.Add($"do at {rel:0.###} s: {a.Who}.{a.Component}: {why}");
+                {
+                    string? why = a.Order is { } order ? _w.Order(id, order)
+                                : a.Resume ? _w.ResumePlan(id)
+                                : _w.SetComponent(id, a.Component, a.Patch);
+                    string what = a.Order != null ? "order" : a.Resume ? "resume" : a.Component;
+                    if (why != null) ActionProblems.Add($"do at {rel:0.###} s: {a.Who}.{what}: {why}");
+                }
                 if (a.Name != null) _book.Record(a.Name, rel);
             }
         }

@@ -1,0 +1,181 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "terrainName": "berlin",
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "description": "What: CE-3494 (docs/DESIGN_Unit_Intent.md R5, R-3115) \u2014 an operator order HOLDS a unit's mission plan; only Resume restarts it, at the held task. One friendly M2 Bradley IFV with the mission MoveToLocation east to (489,296) at 5 m/s; at 4 s the checks order it MoveToLocation north to (380,340); at 30 s they resume the plan. Judge: (1) the plan is held (MissionPlanQueue.Halted == 2) after the order, (2) the Bradley drives north to (380,340) and goes no further east while held, (3) after Resume the plan is no longer held and the Bradley reaches (489,296). Fail: the order discards or ignores the plan, the plan resumes by itself, or Resume does not restart the task. Check: checks.json"
+  },
+  "entities": {
+    "3702ba5f-04ea-40e0-b1ee-893931426e75": {
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "57e4221b-65d0-46ce-861f-093fe49cb439",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 5,
+                "arrivalRadius": 5,
+                "target": [
+                  489,
+                  296,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "SimTransform": {
+        "Position": [
+          368,
+          296,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 6.55,
+        "Width": 3.6,
+        "WheelBase": 3.9300003,
+        "MaxSpeedFwd": 18,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 3,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.34906584,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 300,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 2500
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCI--------",
+        "ModelPath": "models/bradley.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "M2 Bradley IFV",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 2500,
+        "VisionRange": 5000,
+        "FieldOfViewCos": 0
+      }
+    }
+  }
+}

@@ -193,8 +193,8 @@ namespace Hrot.Network.Translators
                 (done ??= new List<long>()).Add(netId);
                 if (AuthorityExtensions.IsRecordedOwner(view, entity, key)) continue;   // our own sample came back
 
-                InitialBrainIntent? intent = null;
-                try { intent = JsonSerializer.Deserialize<InitialBrainIntent>(json, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                UnitIntent? intent = null;
+                try { intent = JsonSerializer.Deserialize<UnitIntent>(json, FdpJsonOptionsRegistry.DefaultRelaxed); }
                 catch (JsonException e)
                 {
                     Fdp.Core.Logging.FdpLog<BrainIntentIngressTranslator>.Warn(

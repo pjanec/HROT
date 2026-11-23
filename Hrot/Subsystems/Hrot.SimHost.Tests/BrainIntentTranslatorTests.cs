@@ -74,7 +74,7 @@ namespace Hrot.SimHost.Tests
             egress.ScanAndPublish(_world);
             egress.ScanAndPublish(_world);                                        // nothing moved
             Assert.Single(writer.Written);
-            var sent = JsonSerializer.Deserialize<InitialBrainIntent>(writer.Written[0].IntentJson, FdpJsonOptionsRegistry.DefaultRelaxed)!;
+            var sent = JsonSerializer.Deserialize<UnitIntent>(writer.Written[0].IntentJson, FdpJsonOptionsRegistry.DefaultRelaxed)!;
             Assert.Equal(1001, writer.Written[0].EntityId);
             Assert.Equal("BiT_Task", sent.Behavior!.Name);
             Assert.Equal(BehaviorOrigin.Superior, sent.Behavior.Origin);
@@ -82,7 +82,7 @@ namespace Hrot.SimHost.Tests
             _world.AddComponent(e, new Roe { Fire = RoeFire.HoldFire, SetBy = BehaviorOrigin.Operator });
             egress.ScanAndPublish(_world);
             Assert.Equal(2, writer.Written.Count);
-            var second = JsonSerializer.Deserialize<InitialBrainIntent>(writer.Written[1].IntentJson, FdpJsonOptionsRegistry.DefaultRelaxed)!;
+            var second = JsonSerializer.Deserialize<UnitIntent>(writer.Written[1].IntentJson, FdpJsonOptionsRegistry.DefaultRelaxed)!;
             Assert.Equal(RoeFire.HoldFire, second.Roe!.Fire);
 
             egress.Dispose(1001);
@@ -103,9 +103,9 @@ namespace Hrot.SimHost.Tests
         public void CE3048_EveryOtherNodeKeepsIt_EvenForAUnitThatArrivesLater_ButNotItsOwnSample()
         {
             var ingress = new BrainIntentIngressTranslator(null, _map);
-            string json = JsonSerializer.Serialize(new InitialBrainIntent
+            string json = JsonSerializer.Serialize(new UnitIntent
             {
-                Behavior = new SavedBrainSlot { Name = "BiT_Task", Params = "{}", Origin = BehaviorOrigin.Operator },
+                Behavior = new IntentSlot { Name = "BiT_Task", Params = "{}", Origin = BehaviorOrigin.Operator },
             }, FdpJsonOptionsRegistry.DefaultRelaxed);
 
             ingress.Receive(new EntityBrainIntent { EntityId = 1003, IntentJson = json });   // unit not known yet
@@ -130,7 +130,7 @@ namespace Hrot.SimHost.Tests
             var ingress = new BrainIntentIngressTranslator(null, _map);
             var e = Unit(1005, owner: Other);
             _world.AddComponent(e, new Roe { Fire = RoeFire.FireAtWill });
-            string json = JsonSerializer.Serialize(new InitialBrainIntent
+            string json = JsonSerializer.Serialize(new UnitIntent
             {
                 Roe = new SavedRoe { Fire = RoeFire.HoldFire, Reactions = RoeReactions.StayOnTask, SetBy = BehaviorOrigin.Operator,
                                      ForceLevel = RoeForceLevel.NonLethal },
