@@ -157,8 +157,59 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         bus.PublishManaged(intent);
     }
 
+    /// <summary>⭐ CE-4684 — decisions applied, and refused because a newer cycle had come (a rail / diagnostics probe).</summary>
+    public int Decisions { get; private set; }
+    public int StaleDecisions { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐ CE-4684 (§5c C-1, C-3) — ONE decision: ⛔ refused when a newer wake came after the cycle it answered (the model is asked again — a decision on
+    /// an old picture never lands); else each order that starts now goes through the SAME path a tool call does (validated, a repeat a no-op, a refusal
+    /// a wake), and the watcher takes the rest: orders waiting for their start, completions, aborts, contingencies, the next decision.
+    /// </summary>
+    private void ApplyDecision(EntityRepository world, SeatRuntime seat, CommanderAction a, double now)
+    {
+        var d = a.Plan!;
+        var vocab = a.Vocabulary ?? seat.Vocabulary;
+        long latest = seat.Channel.LatestWake;
+        if (latest > d.Cycle || vocab == null)
+        {
+            StaleDecisions++;
+            seat.Log?.Write(new JsonObject
+            {
+                ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["state"] = "stale", ["cycle"] = d.Cycle, ["newest"] = latest,
+            });
+            seat.Channel.Publish(FeedKind.OrderState, now, true,
+                $"{CommanderFeedSystem.Clock(now)} DECISION for cycle {d.Cycle} REFUSED — newer news came since (cycle {latest}): decide again on this briefing",
+                new JsonObject { ["kind"] = "order-state", ["state"] = "stale", ["cycle"] = d.Cycle, ["newest"] = latest }.ToJsonString());
+            return;
+        }
+        Decisions++;
+        int given = 0, waiting = 0;
+        for (int i = 0; i < d.Orders.Count; i++)
+        {
+            var o = d.Orders[i];
+            if (o.Task == DecisionContract.Continue) continue;
+            if (o.Start is { On: not ConditionOn.Immediate }) { waiting++; continue; }
+            if (DecisionContract.ToAction(o, vocab) is not { } act) continue;
+            given++;
+            var action = act with { MadeOnSeq = a.MadeOnSeq };
+            if (seat.AfterPlay.Count > 0 && action.Kind is CommanderActionKind.Order or CommanderActionKind.Hold) seat.AfterPlay.Add(action);
+            else Apply(world, seat, action, now);
+        }
+        seat.Watch.Take(world, seat, d, now);
+        seat.Log?.Write(new JsonObject
+        {
+            ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["state"] = "decision", ["cycle"] = d.Cycle,
+            ["given"] = given, ["waiting"] = waiting, ["contingencies"] = d.Contingencies.Count, ["nextDecisionS"] = d.NextDecisionS, ["wakeOn"] = d.WakeOn.Count,
+        });
+        seat.Channel.Publish(FeedKind.OrderState, now, false,
+            $"{CommanderFeedSystem.Clock(now)} DECISION cycle {d.Cycle}: {given} order(s) given, {waiting} waiting for their start, {d.Contingencies.Count} contingenc{(d.Contingencies.Count == 1 ? "y" : "ies")} armed; next decision by {CommanderFeedSystem.Clock(seat.Watch.NextDecisionAt)}",
+            new JsonObject { ["kind"] = "order-state", ["state"] = "decision", ["cycle"] = d.Cycle, ["given"] = given, ["waiting"] = waiting }.ToJsonString());
+    }
+
     private void Apply(EntityRepository world, SeatRuntime seat, CommanderAction a, double now)
     {
+        if (a.Kind == CommanderActionKind.Decision) { if (a.Plan != null) ApplyDecision(world, seat, a, now); return; }
         // ⭐⭐ CE-4683 ② (§5a-4) — the same order as the one in force is a NO-OP: answered, nothing sent, a running play not ended
         if (a.Kind is CommanderActionKind.Order or CommanderActionKind.Hold
             && SquadNamed(world, seat.Commander, a.Squad, out _) is { IsNull: false } target)

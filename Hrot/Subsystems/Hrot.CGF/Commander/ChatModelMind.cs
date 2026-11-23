@@ -24,6 +24,9 @@ public sealed record ChatModelSettings
     public string KeepAlive { get; init; } = "30m";
     /// <summary>How long one call may take (wall time) — the think-pause hold waits for it; past it the seat goes on with no orders.</summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(120);
+    /// <summary>⭐ CE-4684 (§5c C-1) — the answer's shape: ONE decision object decoded against the seat's schema (the default), or L-3a's free tool
+    /// calls (<c>HROT_COMMANDER_FORMAT=tools</c> — kept for the side-by-side baseline).</summary>
+    public bool Decisions { get; init; } = true;
 
     /// <summary><c>HROT_COMMANDER_ENDPOINT</c> · <c>_MODEL</c> · <c>_NUM_CTX</c> · <c>_KEEP_ALIVE</c> · <c>_TIMEOUT_S</c>; an unset or unreadable one keeps its default.</summary>
     public static ChatModelSettings FromEnvironment(Func<string, string?>? env = null)
@@ -35,6 +38,7 @@ public sealed record ChatModelSettings
         if (int.TryParse(env("HROT_COMMANDER_NUM_CTX"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int ctx) && ctx > 0) s = s with { NumCtx = ctx };
         if (env("HROT_COMMANDER_KEEP_ALIVE") is { Length: > 0 } keep) s = s with { KeepAlive = keep };
         if (double.TryParse(env("HROT_COMMANDER_TIMEOUT_S"), NumberStyles.Float, CultureInfo.InvariantCulture, out double t) && t > 0) s = s with { Timeout = TimeSpan.FromSeconds(t) };
+        if (env("HROT_COMMANDER_FORMAT") is { Length: > 0 } format) s = s with { Decisions = !format.Equals("tools", StringComparison.OrdinalIgnoreCase) };
         return s;
     }
 }
@@ -46,11 +50,21 @@ public sealed record ChatModelSettings
 /// A malformed or unknown call is sent back ONCE as a tool message; plain text, a timeout or a server that is down ⇒ no orders, the run goes on.
 /// ⛔ It never sees the world: only the briefing. Runs on the runner's thread.
 /// </summary>
-public sealed class ChatModelMind : IMind, IMindTranscript, IDisposable
+public sealed class ChatModelMind : IMind, IMindTranscript, IDecisionTranscript, IDecisionMind, IDisposable
 {
     /// <summary>The fixed line after the prefix in the system message: how to answer.</summary>
     public const string Instruction =
         "Answer ONLY with tool calls — one or more per turn. Name squads and places exactly as the briefing does. If nothing needs doing, call note() with your estimate.";
+
+    /// <summary>⭐ CE-4684 (§5c C-1) — the fixed line after the prefix when the answer is a decision object.</summary>
+    public const string DecisionInstruction =
+        "Answer with ONE JSON decision object, fields in this order: cycle (copy the CYCLE number of this briefing), assessment, intent, orders, "
+        + "contingencies, next_decision. Think in that order: what is happening, what you intend, then the orders. A unit you do not order keeps its "
+        + "orders in force (orders may be an empty list). Use ONLY the ids listed: units, places. Conditions: {on, unit, at, time_s, percent} with on = "
+        + "IMMEDIATE | AT_TIME (time_s) | UNIT_AT (unit, at) | UNIT_TASK_COMPLETE (unit) | CONTACT (unit) | STRENGTH_BELOW (unit, percent) | "
+        + "ENEMY_SEEN_AT (at). An order may wait (start), end (complete_when) or be called off (abort_when); contingencies (at most 3) fire their orders "
+        + "when their trigger happens, without asking you. next_decision.not_later_than_s: when you want to be asked again (10-300 s); wake_on: up to 3 "
+        + "conditions that should wake you sooner.";
 
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
@@ -73,12 +87,34 @@ public sealed class ChatModelMind : IMind, IMindTranscript, IDisposable
     public bool LastRetried { get; private set; }
 
     /// <summary>The system message: the seat's prefix and <see cref="Instruction"/>.</summary>
-    public string SystemMessage(Briefing briefing) => _system ??= briefing.Prefix + "\n" + Instruction;
+    public string SystemMessage(Briefing briefing) => _system ??= briefing.Prefix + "\n" + (Contract(briefing) ? DecisionInstruction : Instruction);
+
+    /// <summary>⭐ CE-4684 — the seat answers with decisions (the default format).</summary>
+    public bool AnswersWithDecisions => Settings.Decisions;
+
+    /// <summary>⭐ CE-4684 — this call answers with a decision object: the setting is on and the seat gave its ids.</summary>
+    private bool Contract(Briefing briefing) => Settings.Decisions && briefing.Vocabulary != null;
+
+    /// <summary>⭐ CE-4684 C-1/C-6 — the schema the answer is decoded against, built once per seat (its ids are enums).</summary>
+    private JsonObject? _schema;
+
+    // ── ⭐ CE-4684 — the decision transcript ──
+    public IReadOnlyList<string>? LastValidation { get; private set; }
+    public bool LastRepaired { get; private set; }
+    public bool LastFellBack { get; private set; }
+    public JsonNode? LastDecision { get; private set; }
 
     /// <summary>The user message: what changed since the prefix, and the time now.</summary>
     public static string UserMessage(Briefing briefing)
         => briefing.Changing() + "NOW " + TimeSpan.FromSeconds(Math.Max(0, briefing.SimTime)).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
            + " — your orders.";
+
+    /// <summary>⭐ CE-4684 C-3 — the user message of a decision call: the CYCLE it must echo first, and the clock in seconds too (AT_TIME takes seconds).</summary>
+    public static string DecisionMessage(Briefing briefing)
+        => "CYCLE " + briefing.Cycle.ToString(CultureInfo.InvariantCulture) + "\n" + briefing.Changing() + "NOW "
+           + TimeSpan.FromSeconds(Math.Max(0, briefing.SimTime)).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
+           + " (" + Math.Round(Math.Max(0, briefing.SimTime)).ToString(CultureInfo.InvariantCulture) + " s) — your decision for cycle "
+           + briefing.Cycle.ToString(CultureInfo.InvariantCulture) + ".";
 
     /// <summary>The commander's tools in the chat API's shape: each <see cref="CommanderTools.Schema"/> entry wrapped as a function.</summary>
     public static JsonArray Tools()
@@ -100,6 +136,10 @@ public sealed class ChatModelMind : IMind, IMindTranscript, IDisposable
         LastRequest = LastRaw = null;
         LastMalformed = 0;
         LastRetried = false;
+        LastValidation = null;
+        LastRepaired = LastFellBack = false;
+        LastDecision = null;
+        if (Contract(briefing)) return await DecideAsync(briefing, ct).ConfigureAwait(false);
         var raws = new JsonArray();
         var messages = new JsonArray
         {
@@ -144,6 +184,92 @@ public sealed class ChatModelMind : IMind, IMindTranscript, IDisposable
         {
             LastRaw = raws.ToJsonString();
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4684 (§5c C-1) — ONE decision: the request carries the seat's schema as Ollama's <c>format</c> (a server that decodes against it cannot
+    /// answer anything else), the answer is read and validated (<see cref="DecisionContract.Read"/>); a decision with problems goes back ONCE with every
+    /// problem listed, and a second failure is CONTINUE — nothing changes, the run goes on. Returns the estimate (a note) and the decision.
+    /// </summary>
+    private async Task<IReadOnlyList<CommanderAction>> DecideAsync(Briefing briefing, CancellationToken ct)
+    {
+        var vocab = briefing.Vocabulary!;
+        _schema ??= DecisionContract.Schema(vocab);
+        var raws = new JsonArray();
+        var messages = new JsonArray
+        {
+            new JsonObject { ["role"] = "system", ["content"] = SystemMessage(briefing) },
+            new JsonObject { ["role"] = "user", ["content"] = DecisionMessage(briefing) },
+        };
+        var problems = new List<string>();
+        try
+        {
+            LastRequest = DecisionRequest(messages).ToJsonString();
+            var first = await CallAsync(LastRequest, raws, ct).ConfigureAwait(false);
+            if (first is null) { LastFellBack = true; return Array.Empty<CommanderAction>(); }
+            string content = (string?)first["content"] ?? "";
+            var decision = DecisionContract.Read(content, vocab, briefing.Cycle, problems);
+            if (decision == null)
+            {
+                LastRetried = true;
+                LastMalformed = problems.Count;
+                messages.Add(new JsonObject { ["role"] = "assistant", ["content"] = content });
+                messages.Add(new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = "Your decision was REFUSED: " + string.Join("; ", problems) + ". Send the WHOLE decision again, corrected, for cycle "
+                                  + briefing.Cycle.ToString(CultureInfo.InvariantCulture) + ".",
+                });
+                var second = await CallAsync(DecisionRequest(messages).ToJsonString(), raws, ct).ConfigureAwait(false);
+                var again = new List<string>();
+                decision = second is null ? null : DecisionContract.Read((string?)second["content"] ?? "", vocab, briefing.Cycle, again);
+                problems.AddRange(again);
+                if (decision == null) { LastFellBack = true; LastValidation = problems; return Array.Empty<CommanderAction>(); }   // CONTINUE
+                LastRepaired = true;
+            }
+            LastValidation = problems;
+            LastDecision = DecisionJson(decision);
+            return new[]
+            {
+                new CommanderAction(CommanderActionKind.Note, Text: DecisionContract.Estimate(decision)),   // the running estimate (CE-4683 ①)
+                new CommanderAction(CommanderActionKind.Decision) { Plan = decision, Vocabulary = vocab },
+            };
+        }
+        finally { LastRaw = raws.ToJsonString(); }
+    }
+
+    /// <summary>The decision request: the messages, the schema as <c>format</c>, no tools.</summary>
+    public JsonObject DecisionRequest(JsonArray messages) => new()
+    {
+        ["model"] = Settings.Model, ["messages"] = messages.DeepClone(), ["format"] = _schema!.DeepClone(), ["stream"] = false,
+        ["options"] = new JsonObject { ["num_ctx"] = Settings.NumCtx }, ["keep_alive"] = Settings.KeepAlive,
+    };
+
+    /// <summary>The decision as the model log keeps it.</summary>
+    public static JsonObject DecisionJson(Decision d)
+    {
+        JsonObject Order(UnitOrder o)
+        {
+            var j = new JsonObject { ["unit"] = o.Unit, ["task"] = o.Task, ["purpose"] = o.Purpose };
+            if (o.Objective != null) j["objective"] = o.Objective;
+            if (o.SupportAt != null) j["support_at"] = o.SupportAt;
+            if (o.Start != null) j["start"] = o.Start.Text;
+            if (o.CompleteWhen != null) j["complete_when"] = o.CompleteWhen.Text;
+            if (o.AbortWhen.Count > 0) { var a = new JsonArray(); foreach (var c in o.AbortWhen) a.Add(c.Text); j["abort_when"] = a; }
+            return j;
+        }
+        var orders = new JsonArray(); foreach (var o in d.Orders) orders.Add(Order(o));
+        var cont = new JsonArray();
+        foreach (var c in d.Contingencies) { var os = new JsonArray(); foreach (var o in c.Orders) os.Add(Order(o)); cont.Add(new JsonObject { ["trigger"] = c.Trigger.Text, ["orders"] = os }); }
+        var wake = new JsonArray(); foreach (var w in d.WakeOn) wake.Add(w.Text);
+        return new JsonObject
+        {
+            ["cycle"] = d.Cycle,
+            ["assessment"] = new JsonObject { ["situation"] = d.Situation, ["enemy_likely_coa"] = d.EnemyLikelyCoa, ["main_risk"] = d.MainRisk },
+            ["intent"] = new JsonObject { ["main_effort"] = d.MainEffort, ["scheme"] = d.Scheme, ["end_state"] = d.EndState },
+            ["orders"] = orders, ["contingencies"] = cont,
+            ["next_decision"] = new JsonObject { ["not_later_than_s"] = d.NextDecisionS, ["wake_on"] = wake },
+        };
     }
 
     /// <summary>One HTTP call; the answer's <c>message</c>, or null (no answer — the reason is kept in the transcript).</summary>

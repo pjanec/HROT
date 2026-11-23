@@ -235,6 +235,7 @@ namespace Hrot.CGF
             // ⭐ CE-4676 (DESIGN_LLM_Commander §3) — a seated commander's orders, from his mind, validated and given through CommandOrders (origin
             //   Superior) — before the resolver, which takes them this frame as it takes a play's
             simList.Add(new Hrot.CGF.Commander.CommanderActionSystem(clockBus: nodeBus));   // ⭐ CE-4679 — a held clock is the node's ONE pause (nodeBus), the seats the world's own
+            simList.Add(new Hrot.CGF.Commander.CommanderWatchSystem());   // ⭐ CE-4684 C-2 — a decision's starts, completions, aborts and contingencies, no model call
             simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             // ⛔ CE-2144 (R-2008) — HealthApplicationSystem is NOT pack content: any live-simulation node may own Health, so it is the

@@ -13,6 +13,12 @@ namespace Hrot.CGF.Commander;
 public sealed record Briefing(string Commander, double SimTime, string Prefix, FeedItem? Snapshot, IReadOnlyList<FeedItem> Log,
                               IReadOnlyList<string> Notes, IReadOnlyList<FeedItem> New, long ThroughSeq)
 {
+    /// <summary>⭐ CE-4684 C-6 — the ids the seat may use (himself, his squads, his places); null = a mind that does not need them.</summary>
+    public SeatVocabulary? Vocabulary { get; init; }
+
+    /// <summary>⭐ CE-4684 C-3 — the cycle this briefing is: the seq of the newest item it carries. A decision echoes it.</summary>
+    public long Cycle => ThroughSeq;
+
     /// <summary>The briefing as one text, as a language model would get it (L-2's <c>GET /commanders/{id}/briefing</c>).</summary>
     public string Text() => Prefix + Environment.NewLine + Changing();
 
@@ -58,6 +64,16 @@ public interface IMindTranscript
     string? LastRaw { get; }
     int LastMalformed { get; }
     bool LastRetried { get; }
+}
+
+/// <summary>⭐ <c>CE-4684</c> C-1 — a mind that answers with ONE decision object: the last call's validation problems (the first answer's, then the
+/// repair's), whether it was repaired, whether it fell back to CONTINUE, and the decoded decision as JSON (the model log keeps all four per cycle).</summary>
+public interface IDecisionTranscript
+{
+    IReadOnlyList<string>? LastValidation { get; }
+    bool LastRepaired { get; }
+    bool LastFellBack { get; }
+    System.Text.Json.Nodes.JsonNode? LastDecision { get; }
 }
 
 /// <summary>⭐ <c>CE-4676</c> (DESIGN_LLM_Commander §4) — a commander's mind: one call at a time, on the runner's thread; ⛔ it never sees the world.</summary>
@@ -111,6 +127,9 @@ public sealed class MindRunner : IDisposable
     /// <summary>⭐ CE-4679 — the seat's model log (each call's new lines and the answer); null = none.</summary>
     public ModelLog? Log { get; init; }
 
+    /// <summary>⭐ CE-4684 C-6 — the seat's ids, handed to each briefing (a decision is validated against them).</summary>
+    public SeatVocabulary? Vocabulary { get; init; }
+
     public MindRunner(CommanderChannel channel, IMind mind, string commander, string prefix)
     {
         _channel = channel ?? throw new ArgumentNullException(nameof(channel));
@@ -159,7 +178,7 @@ public sealed class MindRunner : IDisposable
             {
                 Interlocked.Increment(ref _calls);
                 var briefing = new Briefing(_commander, fresh[^1].SimTime, _prefix, _snapshot, _log.ToArray(),
-                                            _estimate is { } est ? new[] { est } : Array.Empty<string>(), fresh.ToArray(), _seen);
+                                            _estimate is { } est ? new[] { est } : Array.Empty<string>(), fresh.ToArray(), _seen) { Vocabulary = Vocabulary };
                 Volatile.Write(ref _lastBriefing, briefing);
                 long started = System.Diagnostics.Stopwatch.GetTimestamp();
                 actions = _mind.ThinkAsync(briefing, ct).GetAwaiter().GetResult();
@@ -199,6 +218,18 @@ public sealed class MindRunner : IDisposable
             if (transcript.LastRaw is { } raw) line["raw"] = raw;
             if (transcript.LastMalformed > 0) line["malformed"] = transcript.LastMalformed;
             if (transcript.LastRetried) line["retried"] = true;
+        }
+        if (_mind is IDecisionTranscript dt)   // ⭐ CE-4684 C-1 — per cycle: the validation, repaired or fell back, the decision as decoded
+        {
+            if (dt.LastValidation is { Count: > 0 } v)
+            {
+                var problems = new System.Text.Json.Nodes.JsonArray();
+                for (int i = 0; i < v.Count; i++) problems.Add(v[i]);
+                line["validation"] = problems;
+            }
+            if (dt.LastRepaired) line["repaired"] = true;
+            if (dt.LastFellBack) line["fallback"] = "CONTINUE";
+            if (dt.LastDecision is { } d) line["decision"] = d.DeepClone();
         }
         Log.Write(line);
     }

@@ -42,6 +42,7 @@ namespace Hrot.SimHost.Tests
             public readonly CommanderSeats Seats = new();
             public readonly CommanderFeedSystem Feed;
             public readonly CommanderActionSystem Act;
+            public readonly CommanderWatchSystem Watch;   // ⭐ CE-4684 C-2
             public EntityRepository Repo => P.S.Repo;
 
             /// <summary>⭐ CE-4679 — the node bus the hold's pause / resume ride (null = the world's bus).</summary>
@@ -65,6 +66,7 @@ namespace Hrot.SimHost.Tests
                 Seats.MindFor = _ => mind;
                 Feed = new CommanderFeedSystem(Seats);
                 Act = new CommanderActionSystem(Seats, clockBus);
+                Watch = new CommanderWatchSystem(Seats);
             }
 
             public void Name(Entity e, string name)
@@ -86,6 +88,7 @@ namespace Hrot.SimHost.Tests
             {
                 Act.Execute(Repo, 0.016f);
                 P.Tick();
+                Watch.Execute(Repo, 0.016f);   // ⭐ CE-4684 C-2 — after the action pass, as the pack runs it
                 // ⭐ CE-4680 — the intent resolver's part for the commander's OWN task (the fixture has none): a play named as the intent becomes his
                 //   behaviour, as TacticalIntentResolutionSystem resolves a plain behaviour name in a node
                 for (int i = _resolved; i < P.S.Orders.Count; i++)

@@ -22,6 +22,8 @@ namespace Hrot.SimHost.Tests
 
         private readonly HttpListener _listener = new();
         private readonly List<Answer> _script;
+        /// <summary>⭐ CE-4684 — an answer made FROM the request (a decision must echo the briefing's cycle); null = the script.</summary>
+        private readonly Func<JsonObject, int, Answer>? _reply;
         private readonly CancellationTokenSource _stop = new();
         public readonly List<JsonObject> Requests = new();
 
@@ -35,6 +37,19 @@ namespace Hrot.SimHost.Tests
             _listener.Prefixes.Add(Endpoint + "/");
             _listener.Start();
             _ = Task.Run(Serve);
+        }
+
+        /// <summary>⭐ CE-4684 — answers from <paramref name="reply"/>(request, its index).</summary>
+        public StandInChatServer(Func<JsonObject, int, Answer> reply) : this(Array.Empty<Answer>()) => _reply = reply;
+
+        /// <summary>⭐ CE-4684 — the CYCLE number of a decision request (its user message's first line).</summary>
+        public static long CycleOf(JsonObject request)
+        {
+            var msgs = (JsonArray)request["messages"]!;
+            for (int i = msgs.Count - 1; i >= 0; i--)
+                if ((string?)msgs[i]!["role"] == "user" && ((string?)msgs[i]!["content"] ?? "").StartsWith("CYCLE ", StringComparison.Ordinal))
+                    return long.Parse(((string)msgs[i]!["content"]!).Substring(6).Split('\n')[0], System.Globalization.CultureInfo.InvariantCulture);
+            return -1;
         }
 
         /// <summary>A message with these tool calls (<c>(name, argumentsJson)</c>; an arguments text that is not JSON is sent as a string, as a model may).</summary>
@@ -73,8 +88,9 @@ namespace Hrot.SimHost.Tests
                 Answer answer;
                 lock (Requests)
                 {
-                    Requests.Add(JsonNode.Parse(body) as JsonObject ?? new JsonObject());
-                    answer = _script.Count == 0 ? Text("") : _script[Math.Min(n, _script.Count - 1)];
+                    var request = JsonNode.Parse(body) as JsonObject ?? new JsonObject();
+                    Requests.Add(request);
+                    answer = _reply != null ? _reply(request, n) : _script.Count == 0 ? Text("") : _script[Math.Min(n, _script.Count - 1)];
                     n++;
                 }
                 _ = Task.Run(async () =>

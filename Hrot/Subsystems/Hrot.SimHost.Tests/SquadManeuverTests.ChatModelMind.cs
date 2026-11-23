@@ -21,8 +21,9 @@ namespace Hrot.SimHost.Tests
                 new[] { new FeedItem(1, t, FeedKind.Report, true, newLine, "{}") }, Array.Empty<string>(),
                 new[] { new FeedItem(1, t, FeedKind.Report, true, newLine, "{}") }, 1);
 
-        private static ChatModelMind Chat(StandInChatServer server, double timeoutS = 10)
-            => new(new ChatModelSettings { Endpoint = server.Endpoint, Model = "stand-in", NumCtx = 12288, KeepAlive = "5m", Timeout = TimeSpan.FromSeconds(timeoutS) });
+        /// <param name="decisions">⭐ CE-4684 — the decision contract (the default since L-3c); the L-3 rails pin L-3a's tool calls (<c>false</c>).</param>
+        private static ChatModelMind Chat(StandInChatServer server, double timeoutS = 10, bool decisions = false)
+            => new(new ChatModelSettings { Endpoint = server.Endpoint, Model = "stand-in", NumCtx = 12288, KeepAlive = "5m", Timeout = TimeSpan.FromSeconds(timeoutS), Decisions = decisions });
 
         /// <summary>
         /// ⭐ ① — on the seat: the request carries the model, the briefing (system = the prefix, user = what changed), the commander's TOOLS and

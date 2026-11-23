@@ -40,6 +40,13 @@ public sealed class SeatRuntime : IDisposable
     public ModelLog? Log { get; set; }
     public CommanderMind Mind { get; internal set; }
     public CommanderMode Mode { get; internal set; }
+    /// <summary>⭐ CE-4684 (§5c) — the seat's mind answers with decision objects (C-1): its prefix speaks ids only (C-6) and its pace is the model's own
+    /// next decision (C-3).</summary>
+    public bool Contract { get; internal set; }
+    /// <summary>⭐ CE-4684 C-6 — the ids the seat's decisions may use.</summary>
+    public SeatVocabulary? Vocabulary { get; internal set; }
+    /// <summary>⭐ CE-4684 C-2 — what the last decision left HROT to do without a model call.</summary>
+    public ConditionWatcher Watch { get; } = new();
 
     // what the feed already said (frame thread)
     internal double LastItemAt, LastSnapshotAt, LastFightCheckAt;
@@ -202,6 +209,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     public const string InertSop = "InertSop";
     public const float RoutineSitrepSeconds = 30f;
     private const double FightCheckSeconds = 1.0;
+    /// <summary>⭐ CE-4684 C-3 — the model's own next decision is held to at least this after the last wake, and at most this (sim s).</summary>
+    public const double NextDecisionFloor = 10.0, NextDecisionCeiling = 300.0;
 
     private CommanderSeats? _seats;
     private readonly bool _gateOnAuthority;
@@ -269,9 +278,17 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         for (int i = 0; i < roster.Count; i++)
             CommandOrders.AskSitrep(world, roster.SubordinateEntities[i], RoutineSitrepSeconds);
 
+        // ⭐ CE-4684 — the mind first: whether it answers with decisions decides the prefix's vocabulary (C-6)
+        var mind = seats.MindFor(config);
+        seat.Contract = mind is IDecisionMind { AnswersWithDecisions: true };
+        var units = new List<string>();
+        for (int i = 0; i < roster.Count; i++)
+            if (world.IsAlive(roster.SubordinateEntities[i])) units.Add(NameOf(world, roster.SubordinateEntities[i]));
+        var placeIds = new List<string>();
+        foreach (var (n, _) in seat.Places.Places) placeIds.Add(n);
+        seat.Vocabulary = new SeatVocabulary(seat.Name, units, placeIds);
         seat.Prefix = Prefix(world, seat, roster);
         Fdp.Core.Logging.FdpLog<CommanderFeedSystem>.Info("[Commander] seat {0} open — prefix {1} chars", seat.Name, seat.Prefix.Length);   // ⭐ CE-4680 — the briefing's size (an 8 B model's context, L-3)
-        var mind = seats.MindFor(config);
         if (mind == null)
         {
             seat.Channel.Publish(FeedKind.OrderState, now, false, $"{Clock(now)} SEAT: no {config.Mind} mind in this build — the seat gives no orders",
@@ -279,7 +296,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         }
         else
         {
-            seat.Runner = new MindRunner(seat.Channel, mind, seat.Name, seat.Prefix) { Log = seat.Log };
+            seat.Runner = new MindRunner(seat.Channel, mind, seat.Name, seat.Prefix) { Log = seat.Log, Vocabulary = seat.Contract ? seat.Vocabulary : null };
             seat.Runner.Start();
         }
         Snapshot(world, seat, now, wake: true);   // ⭐ the board at the start: the mind's first call
@@ -313,7 +330,16 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         // ⭐ CE-4679 (§3 "else on the heartbeat") — the mind is asked at least every Heartbeat s: counted from the last WAKE, not the last item.
         //   📌 Found by the Haiku run: routine SITREPs every 30 s kept "no item for 30 s" from ever holding, so before contact the mind was never asked
         //   again after its first answer — the squads stood at the start.
-        if (now - seat.LastWakeAt >= config.Heartbeat)
+        // ⭐ CE-4684 C-3 — a seat on the decision contract is asked again when ITS decision said (not_later_than), held between a floor and a ceiling;
+        //   before its first decision, and for every other mind, the fixed heartbeat
+        if (seat.Contract && seat.Watch.NextDecisionAt > 0)
+        {
+            double due = Math.Max(seat.LastWakeAt + NextDecisionFloor, Math.Min(seat.Watch.NextDecisionAt, seat.LastWakeAt + NextDecisionCeiling));
+            if (now >= due)
+                Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (your decision time — nothing woke you sooner; the orders in force stand unless you change them)",
+                        new JsonObject { ["kind"] = "heartbeat", ["t"] = Round(now), ["nextDecision"] = true }.ToJsonString());
+        }
+        else if (now - seat.LastWakeAt >= config.Heartbeat)
             //   ⭐ the duel (§8 D-6): ⛔ was "(no news — your squads await orders)" — said with orders in force, it invited a model to give new ones
             Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (heartbeat — nothing new; the orders in force stand unless you change them)",
                     new JsonObject { ["kind"] = "heartbeat", ["t"] = Round(now) }.ToJsonString());
@@ -474,10 +500,11 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                 {
                     ["at"] = new JsonArray(Round(p.X), Round(p.Y)), ["place"] = seat.Places.Describe(p), ["count"] = el.Count,
                     ["size"] = el.Size.ToString(), ["activity"] = el.Activity.ToString(), ["equipment"] = el.Equipment.ToString(),
-                    ["age"] = Round(now - el.ObservedAt.Seconds),
+                    ["age"] = Round(now - el.ObservedAt.Seconds), ["confidence"] = Confidence(in pic, i, now),
                 });
                 radio.Append(" enemy ").Append(el.Count).Append(" (").Append(el.Size).Append(')');
                 AppendDetail(radio, el.Activity, el.Equipment, now - el.ObservedAt.Seconds);   // ⭐ CE-4680 B-5
+                radio.Append(", ").Append(Confidence(in pic, i, now));                         // ⭐ CE-4684 C-5
                 radio.Append(" at ").Append(seat.Places.Describe(p)).Append(';');
             }
         }
@@ -507,6 +534,33 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             first = false;
         }
         radio.Append(first ? " ORDERS IN FORCE: none;" : ";");
+    }
+
+    /// <summary>⭐ CE-4684 C-5 — two reports this close are the same enemy (m); a report this old is no longer fresh (sim s).</summary>
+    public const float SameEnemyMetres = 30f;
+    public const double FreshSeconds = 60.0;
+
+    /// <summary>
+    /// ⭐ CE-4684 (§5c C-5) — how sure the commander can be of element <paramref name="index"/>, from what was REPORTED only: the different squads that
+    /// reported an enemy within <see cref="SameEnemyMetres"/> of it, and the age of the newest of those reports. ≥ 2 squads, fresh ⇒ HIGH · one squad
+    /// fresh, or ≥ 2 squads stale ⇒ MED · one squad, stale ⇒ LOW. ("heard" joins when behaviors adds the bit — CE-4682's NOTE.)
+    /// </summary>
+    public static string Confidence(in CommandPicture pic, int index, double now)
+    {
+        var el = pic.Elements.Items[index];
+        var at = new Vector2(el.At.X, el.At.Y);
+        int first = el.FromNetId, second = int.MinValue;
+        double newest = el.ObservedAt.Seconds;
+        for (int k = 0; k < pic.Elements.Count; k++)
+        {
+            if (k == index) continue;
+            var other = pic.Elements.Items[k];
+            if (Vector2.Distance(at, new Vector2(other.At.X, other.At.Y)) > SameEnemyMetres) continue;
+            if (other.ObservedAt.Seconds > newest) newest = other.ObservedAt.Seconds;
+            if (other.FromNetId != first && second == int.MinValue) second = other.FromNetId;
+        }
+        bool fresh = now - newest <= FreshSeconds, two = second != int.MinValue;
+        return two && fresh ? "HIGH" : two || fresh ? "MED" : "LOW";
     }
 
     /// <summary>⭐ CE-4680 B-5 — what an element is doing and has, and how old the word is (only what was reported).</summary>
@@ -576,10 +630,30 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         if (world.IsComponentTypeRegistered<CommanderBrief>() && world.HasComponent<CommanderBrief>(seat.Commander)
             && world.GetComponentRO<CommanderBrief>(seat.Commander).Line() is { Length: > 0 } mission)
             sb.Append('\n').Append(mission);
-        sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
-        // ⭐ CE-4680 B-6 — the places' terrain notes, one line each
+        // ⭐ CE-4684 C-6 — a decision names places by id ONLY (its schema enumerates them); the "N m <dir>" and grid forms stay for the other minds
+        if (seat.Contract) sb.Append("\nPlaces (ids — use exactly these): ").Append(seat.Places.KnownNames()).Append('\n');
+        else sb.Append("\nPlaces: ").Append(seat.Places.KnownNames()).Append(" — say a place as a name, \"N m <dir> of <name>\", or \"grid E<i> N<j>\".\n");
+        // ⭐ CE-4680 B-6 — the places' terrain notes, one line each · ⭐ CE-4684 C-4 — and the FACTS HROT measured once (sight, cover, vehicles, minutes)
+        var facts = TerrainFacts.Of(world, seat.Places);
         foreach (var (n, _) in seat.Places.Places)
-            if (seat.Places.NoteOf(n) is { } note) sb.Append("  ").Append(n).Append(": ").Append(note).Append('\n');
+        {
+            string? note = seat.Places.NoteOf(n);
+            facts.TryGetValue(n, out string? fact);
+            if (note == null && fact == null) continue;
+            sb.Append("  ").Append(n).Append(':');
+            if (note != null) sb.Append(' ').Append(note);
+            if (fact != null) sb.Append(note != null ? " — " : " ").Append(fact);
+            sb.Append('\n');
+        }
+        if (seat.Contract)
+        {
+            // ⭐ CE-4684 (§5c) — the decision's tasks: a squad's orders, the plays (his own, unit = himself), CONTINUE
+            sb.Append("Tasks: for a squad ").Append(string.Join(" | ", CommanderActionSystem.Orders)).Append(" · for yourself (unit \"").Append(seat.Name)
+              .Append("\") a play ").Append(string.Join(" | ", CommanderActionSystem.Plays)).Append(" · CONTINUE keeps a unit's orders.\n")
+              .Append("PREFER a play: it coordinates both squads for you (PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together) — with a play running, give the squads CONTINUE; a squad order ENDS the play.\n")
+              .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order or a play in force changes nothing.");
+            return sb.ToString();
+        }
         // ⭐ CE-4683 ③ (§5a-4) — said plainly: with the actions as functions a model reached for direct orders (L-3: one play, then only orders)
         //   ⭐ the duel (§8): said for both sides — the old line described only the attack, and a defending (Red) seat read it too
         sb.Append("PREFER run_play: a play coordinates both squads for you (PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together) — a direct order to a squad ENDS the play.\n");

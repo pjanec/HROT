@@ -7,7 +7,8 @@ HROT's chat-model mind (ChatModelMind) sends POST /api/chat exactly as it would 
           No file: a fixed commander (run PlatoonAttack on the first named place it sees in the system message, then notes). The laptop recipe's
           dry run uses it (scripts/llm/laptop_run.py --endpoint http://localhost:<port>).
   relay   ⭐ the proof without a GPU: each request body is written AS SENT to <queue>/req-<n>.json; the answer is read from <queue>/resp-<n>.json,
-          written by an agent (the Haiku worker) that sees ONLY that request. The answer may be a full Ollama response or just its `message`.
+          written by an agent (the Haiku worker) that sees ONLY that request. The answer may be a full Ollama response or just its `message`
+          — or, for a decision request (it carries `format`, CE-4684), the decision object itself.
           --per-commander: each request goes to <queue>/<commander>/ instead (the name from "You are <name>, …" in the system message), so
           several commanders on one endpoint — the duel, two sides — are answered by one worker each, never one worker for both.
 
@@ -27,6 +28,8 @@ def scripted_message(args, request, n):
         answers = json.load(open(args.answers, encoding="utf-8"))
         return answers[min(n, len(answers) - 1)]
     system = next((m.get("content", "") for m in request.get("messages", []) if m.get("role") == "system"), "")
+    if "format" in request:   # ⭐ CE-4684 (§5c) — a decision request: answer ONE decision object, echoing the CYCLE
+        return {"role": "assistant", "content": json.dumps(scripted_decision(request, system, n))}
     place = "house"
     m = re.search(r"PLACES?:\s*([^\n,;]+)", system)
     if m:
@@ -41,6 +44,19 @@ def commander_of(request):
     system = next((m.get("content", "") for m in request.get("messages", []) if m.get("role") == "system"), "")
     m = re.match(r"You are ([^,\n]+),", system)
     return re.sub(r"[^A-Za-z0-9_-]+", "-", m.group(1)).strip("-") if m else "unknown"
+
+
+def scripted_decision(request, system, n):
+    """The fixed commander as a decision: on the first cycle, its own PlatoonAttack on the first place; then CONTINUE."""
+    user = next((m.get("content", "") for m in reversed(request.get("messages", [])) if m.get("role") == "user"), "")
+    m = re.match(r"CYCLE (\d+)", user)
+    cycle = int(m.group(1)) if m else 0
+    props = request["format"]["properties"]["orders"]["items"]["properties"]
+    me, places = props["unit"]["enum"][0], props["objective"]["enum"]
+    orders = [{"unit": me, "task": "PlatoonAttack", "objective": places[0], "purpose": "take it"}] if n == 0 else []
+    return {"cycle": cycle, "assessment": {"situation": f"stand-in turn {n}", "enemy_likely_coa": "defend", "main_risk": "open ground"},
+            "intent": {"main_effort": me, "scheme": "the play", "end_state": "objective taken"}, "orders": orders, "contingencies": [],
+            "next_decision": {"not_later_than_s": 60, "wake_on": []}}
 
 
 def relayed_message(args, body, n, request):
@@ -63,6 +79,9 @@ def relayed_message(args, body, n, request):
             except json.JSONDecodeError:
                 time.sleep(0.2)
                 continue
+            if isinstance(answer, dict) and "cycle" in answer and "message" not in answer:
+                # ⭐ CE-4684 (§5c) — the worker wrote the DECISION OBJECT itself: it is the model's content, as a decoder returns it
+                return {"role": "assistant", "content": json.dumps(answer)}
             return answer.get("message", answer) if isinstance(answer, dict) else {"role": "assistant", "content": str(answer)}
         time.sleep(0.2)
     return None

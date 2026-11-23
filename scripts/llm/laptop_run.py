@@ -63,7 +63,7 @@ def run_model(args, model, out):
 
 def summarize(model, out, code, wall):
     s = {"model": model, "exit": code, "wallSeconds": round(wall, 1), "calls": 0, "toolCalls": 0, "accepted": 0, "refused": 0,
-         "malformed": 0, "retried": 0, "answerSecondsMean": None, "answerSecondsMax": None, "checksPassed": None, "checksTotal": None,
+         "malformed": 0, "retried": 0, "decisions": 0, "stale": 0, "repaired": 0, "fallback": 0, "tokens": [], "answerSecondsMean": None, "answerSecondsMax": None, "checksPassed": None, "checksTotal": None,
          "checksSkipped": None, "promptChars": None}
     times = []
     for log in glob.glob(os.path.join(out, "commander-*.jsonl")):
@@ -74,12 +74,25 @@ def summarize(model, out, code, wall):
                 s["toolCalls"] += len(e.get("actions", []))
                 s["malformed"] += e.get("malformed", 0)
                 s["retried"] += 1 if e.get("retried") else 0
+                s["repaired"] += 1 if e.get("repaired") else 0      # CE-4684 — a decision repaired once
+                s["fallback"] += 1 if e.get("fallback") else 0      # CE-4684 — fell back to CONTINUE
+                if "tokens" in e:
+                    s["tokens"].append(e["tokens"])
                 if "ms" in e:
                     times.append(e["ms"] / 1000.0)
                 if s["promptChars"] is None and "request" in e:
                     s["promptChars"] = len(e["request"])
             elif e.get("kind") == "verdict":
-                s["accepted" if e.get("state") == "accepted" else "refused"] += 1
+                state = e.get("state")
+                if state == "decision":
+                    s["decisions"] += 1
+                elif state == "stale":
+                    s["stale"] += 1
+                elif state in ("accepted", "refused"):
+                    s[state] += 1
+    t = s.pop("tokens")
+    if t:
+        s["tokensFirstMedianLast"] = [t[0], sorted(t)[len(t) // 2], t[-1]]
     if times:
         s["answerSecondsMean"] = round(sum(times) / len(times), 2)
         s["answerSecondsMax"] = round(max(times), 2)
