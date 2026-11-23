@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD (2026-11-23 — §8 O1–O3 approved by the user as leaned, R-3118; §9 independent review folded in)
-updated: 2026-11-23 (§8 O1–O3 APPROVED — R-3118) · 2026-11-22 (§9 review: 7 red, 9 amber, 4 notes — all folded) · 2026-11-22 (created — backend; CE-3494, R-3114…R-3117)
-current-answer: §1 the rules · §2–§4 the diagrams · §5 the mockups · §6 the build order · §8 the open decisions · §9 the review and how it changed the design
+updated: 2026-11-23 (§10 every person's request is the intent — R-3119) · 2026-11-23 (§8 O1–O3 APPROVED — R-3118) · 2026-11-22 (§9 review: 7 red, 9 amber, 4 notes — all folded) · 2026-11-22 (created — backend; CE-3494, R-3114…R-3117)
+current-answer: ⭐ §10 — a PERSON'S request is the unit's intent in every mode (R-3119, supersedes R2's live split and §3.2's live row) · §1 the rules · §2–§4 the diagrams · §5 the mockups · §6 the build order · §8 the open decisions · §9 the review and how it changed the design
 stale-below: nothing — new document.
 known-rot: none.
 known-conflict:
@@ -59,7 +59,7 @@ ONE input (every event folded into the intent); the review proved that wrong (§
 | # | rule | 🔒 basis |
 |---|---|---|
 | **R1** | ⭐⭐⭐ **NOTHING the AI does takes effect on a paused frame.** The systems that turn requests into AI — `TacticalIntentResolutionSystem`, `BehaviorIngressSystem`, `RoeSystem`, `BrainHandOverSystem` — become **`WhenTimeAdvances`**: on each advancing frame they apply the intent, then **every request since their last run, in order** (the step window, `EventAccumulator`). ⇒ a stepped run and a continuous run apply the same requests in the same order — the property CE-3445 needs. | user; CE-3445 B; Paused & Stepped §1 (the window); **R-3114** |
-| **R2** | ⭐⭐ **The intent (`UnitIntent`) holds what is AUTHORED, never a copy of the request stream:** the scenario load, the editor's intent section, an order given in **edit mode**, the unit type's defaults at spawn, a Brain hand-over. One value per slot; the writer replaces its slot. ⛔ No rank folding — an authored value is not a competing order. | §9 F-2, F-3; R-3114 |
+| **R2** | ⚠ **Widened by §10 (R-3119): every request a PERSON gives is the intent too, in every mode; only the SIMULATION's own requests stay the stream.** ⭐⭐ **The intent (`UnitIntent`) holds what is AUTHORED, never a copy of the request stream:** the scenario load, the editor's intent section, an order given in **edit mode**, the unit type's defaults at spawn, a Brain hand-over. One value per slot; the writer replaces its slot. ⛔ No rank folding — an authored value is not a competing order. | §9 F-2, F-3; R-3114 |
 | **R3** | ⭐⭐ **The intent is pending-only**: applied at the next advancing frame, then removed. A slot is `{Assign(name, params, origin) | Clear}` — never both. | §9 F-19 |
 | **R4** | ⭐⭐ **The task slot has one owner: a unit with a live (not held) mission plan takes its task from the plan.** Applying the intent, the ingress **drops the intent's task** when `DrivenByMissionPlan` — the plan's first task arrives through the request chain. **SOP and ROE come only from the intent** and apply first. | user: *"the mission plan will override the intent of the behavior on the first simulation tick"*; §9 F-1; **R-3117** |
 | **R5** | ⭐⭐⭐ **An operator order HOLDS the mission plan, never discards it** — and only **if the order actually starts**: the hold runs inside the ingress's apply, **after** `Start` succeeded (ruling 50's atomicity kept; ruling 52's provider seam reused). Held progress is kept. | user; §9 F-8; **R-3115** |
@@ -218,7 +218,7 @@ mockups say *"when time next advances"*, not *"at the next step"*, because the c
 | **edits** | `EntityAiEditModel` → `UnitIntentWriter` only (no event, no direct start); on the threaded node as a node job (the world guard) |
 | **undo** | snapshots the `UnitIntent` record before the edit and restores it (⛔ not today's `Read()` of the running AI — in edit mode nothing runs) |
 | **feedback** | an edit shows *pending* (amber, R-130); a refusal by rank is shown **after** the step, from the gate's outcome — ⛔ the synchronous "ROE refused" text goes |
-| **edit-mode orders** | the map's order menu / form in edit mode writes the intent (authoring the start — origin Superior, R-193); live it sends the order as today |
+| **edit-mode orders** | the map's order menu / form in edit mode writes the intent (authoring the start — origin Superior, R-193); ⛔ ~~live it sends the order as today~~ — SUPERSEDED by §10: live it writes the intent too, at origin Operator |
 | **cluster** | S3 builds the intent section on the node that runs the brain (the editor's own node; R-1036's rule). A station on another node is CE-3498 — today only `AssignTacticalIntentEvent` / `SetRoeEvent` cross nodes (`TacticalIntentEgressTranslator.cs:64-168`) |
 
 ### 3.3 Save, record, hand-over, replay
@@ -374,6 +374,84 @@ intent rows share one control x; the status slot is fixed); glyphs and colours a
 | §5 E — the map order form's notice / edit-mode disable | ✅ F1 (`8c602982e`): the order form shows *"⏳ Holds this unit's mission plan — resume it on the Orders tab."* for a planned unit (built once per form, no per-frame allocation). In EDIT mode an order through `EntityOrders` authors the unit's intent (Superior) and Release un-authors it; a planned unit is refused `DrivenByPlan` (409). ⚠ The map menu's edit-mode grey-out was NOT built: orders are offered only while Running (D15), so it would be dead code | rails `MenuOrdersTests.CE3494_*` |
 | S4 — rules on the intent | ✅ `RuleSentence.ParamsOf` (the ONE reader) reads the pending intent first; `RulesModel` lists intent-only rules; `ClockPins` uses the reader; the Rules window watches `UnitIntent`; a new rule is created as a `UnitIntent` (Rules View §8.3) | rail `CE3494_AnAuthoredRuleThatIsOnlyAnIntent_HasARow…`; Presentation Rules 186/186 |
 | §6 — feature scenarios `intent-order-while-paused`, `plan-held-by-order` | ✅ F3: the checks grammar's `do` takes `order` (a `POST /orders` item) and `resume` (Scenario Regression §3); the verifier applies an action BETWEEN steps, which is the paused frame. `scenarios/tests/intent-order-while-paused` (sampled every 0.02 s: the order's task runs within 0.1 s (2.05 s measured), never before) and `scenarios/tests/plan-held-by-order` (`Halted == 2` from the order until Resume, north while held, `Halted == 0` after Resume, the plan's point reached) both PASS | `scripts/scenario-regression.sh intent-order-while-paused,plan-held-by-order`; rail `ScenarioChecksTests.CE3494_ADoGivesAnOrderAndResumesAPlan_ThroughTheWorldsServices` |
+
+## 10. A person's request is the unit's intent — in every mode, on every node *(R-3119, user `2026-11-23`; build-state: BUILDING)*
+
+> 🔒 **User, `2026-11-23`:** *"I am pushing just for consistency because it makes everything simple and predictable. So I need a good reasons for
+> not using the same mechanism for every case where suitable."* · *"yes, go ahead and build it autonomously."*
+
+📌 **Why this section exists.** S1 built the LIVE edit of the intent section as an order EVENT, against R2 and §3.2, and never recorded it. A live edit
+therefore showed no *Next*, did not trip the staged-edit warning, had no undo, and a checkpoint taken on the paused frame lost it — while the same
+edit in edit mode did all four. Map / HTTP orders had the same loss. ⇒ the line is moved from *edit mode vs live* to *who asks*.
+
+| rule | |
+|---|---|
+| **P1** | ⭐⭐⭐ **Every request a PERSON gives a unit's AI — task, release, SOP, ROE; from the Brain tab, the map's order menu, the order routes; in edit mode or live; on the brain's node or forwarded to it — becomes that unit's `UnitIntent` on the node that runs its brain.** Origin **Superior** in edit mode (authoring, R-193), **Operator** live (R-3118 ②). A person is origin Operator — measured: every `BehaviorOrigin.Operator` producer is a person's path (`EntityOrders`, the editor's live edit, the rules' live edit, the sector route, Resume) |
+| **P2** | ⭐⭐ **The simulation's own requests stay the stream** (commanders, the LLM commander seat, squad leaders, triggers, the mission plan) — §9 F-2: folding them makes a stepped run differ from a continuous one, and the AI reads each request's answer |
+| **P3** | ⭐⭐ **A slot is `Assign`, `Clear` (a live release) or empty; the newer request REPLACES the slot** and the replaced one is answered *refused — superseded by a later order* (its station is told). One pause, two orders ⇒ only the last runs |
+| **P4** | ⭐⭐ **The request id travels in the slot** (`IntentSlot.RequestId`), so the brain's owner answers the station exactly as the event path did (edit framework F5) |
+| **P5** | ⭐⭐ **A person's TASK keeps the order path's timing and rules**: the tactical system takes it from the intent at the start of its own step (same step as the event it replaces — §9 F-13's two-frame chain unchanged), resolves it per class, and HOLDS the plan once it starts (R5). ⛔ Not re-published by the ingress — that would add a step. A host with no tactical system: the ingress publishes it (as F1's edit-mode order) |
+| **P6** | ⭐ **Forwarding:** a node that does not own the brain sends the request as today (`TacticalIntentRequest`, origin + kind + request id + flags already on the wire); the brain owner's ingress writes it as the intent. SOP from a person is edited only on the brain's node (the editor) — no wire change |
+| **P7** | ⭐ **Save:** a pending person's slot is saved like an authored one, without its request id; a pending Clear saves no task. ⭐ **Checkpoint:** the intent is recorded, so a checkpoint on the paused frame keeps the request and the restored run applies it at its next advancing step |
+| ⛔ out of scope | the sector (`SetEngagementAreaEvent`) and reporting requirements a person sets: unit settings, not AI slots of the intent — stay events (a row if a person needs them kept by a checkpoint) |
+
+### 10.1 Classes *(existing = plain, changed = ⭐)*
+
+```mermaid
+classDiagram
+  class UnitIntent { +IntentSlot Behavior +IntentSlot Sop +SavedRoe Roe }
+  class IntentSlot { +string Name +string Params +BehaviorOrigin Origin +bool Clear ⭐ +Guid RequestId ⭐ }
+  class UnitIntents { <<static ⭐ the ONE writer>> +RequestTask(repo, e, name, params, origin, id) +RequestClear(repo, e, origin, id) +SetSop(...) +SetRoe(...) }
+  class EntityOrders { ⭐ live: UnitIntents on the brain node, else the event }
+  class EntityAiEditModel { ⭐ live: UnitIntents at Operator }
+  class TacticalIntentIngressTranslator { ⭐ Operator Assign/Clear/SetRoe → UnitIntents }
+  class TacticalIntentResolutionSystem { ⭐ takes Operator task slots first, same step }
+  class BehaviorIngressSystem { ApplyIntents: ROE, SOP, authored task ⭐ leaves an Operator task to the tactical system }
+  UnitIntent *-- IntentSlot
+  EntityOrders ..> UnitIntents
+  EntityAiEditModel ..> UnitIntents
+  TacticalIntentIngressTranslator ..> UnitIntents
+  TacticalIntentResolutionSystem ..> UnitIntent : reads, strips the task slot
+  BehaviorIngressSystem ..> UnitIntent : applies, removes
+```
+*What the picture shows that prose hid:* four writers, one writer class — the editor, the orders, and the network ingress no longer each decide how a
+person's request is stored.
+
+### 10.2 One order given on a paused frame, from a node without the brain
+
+```mermaid
+sequenceDiagram
+  participant S as station node (EntityOrders)
+  participant W as wire (TacticalIntentRequest)
+  participant B as brain node — ingress translator
+  participant I as UnitIntent
+  participant T as TacticalIntentResolution (Simulation phase)
+  participant G as BehaviorIngress (Input phase)
+  S->>W: paused frame — not the brain owner: the event, request id, origin Operator
+  W->>B: same paused frame (network runs every frame)
+  B->>I: UnitIntents.RequestTask — replaces the slot, answers a replaced request "superseded"
+  Note over I: shown as Next · kept by a checkpoint · undo on the editor's node
+  Note over G,T: first advancing step
+  G->>I: ROE, SOP applied — the Operator task left in place
+  T->>I: takes the task, strips the slot (removes the record when empty)
+  T->>G: AssignBehaviorEvent (HoldsPlan, request id)
+  Note over G: next step — starts it, holds the plan, answers Applied
+```
+*What it shows:* the forwarding and the timing are the ones the event had; only the paused-frame storage changed.
+
+### 10.3 Who runs what, every frame
+
+```mermaid
+graph TD
+  NET["network phase — every frame"] --> ING["TacticalIntentIngressTranslator ⭐ writes UnitIntent"]
+  INPUT["Input phase — advancing steps only"] --> BIS["BehaviorIngressSystem.ApplyIntents"]
+  SIM["Simulation phase — advancing steps only"] --> TIR["TacticalIntentResolutionSystem ⭐ takes the person's task"]
+  CGF["CgfLogicPack registers"] --> TIR
+  CGF --> FLAG["BehaviorIngressSystem.TasksTakenByOrders = true ⭐"]
+  NOCGF["a host without CGF"] -.->|flag false| BIS
+```
+*What it shows:* the hand-over between the two systems is a flag the pack that registers the tactical system sets — a host without it keeps the
+ingress applying the task, so no host can lose a person's task silently (the silent-default rule: a forwarding rail asserts the pack sets it).
 
 ## 9. Independent review — findings and what changed *(`2026-11-22`, a fresh reviewer reading the code, not this design's reasoning)*
 
