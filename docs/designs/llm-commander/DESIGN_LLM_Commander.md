@@ -383,6 +383,25 @@ sequenceDiagram
 | **small-model care** | few tools, strict schemas, gazetteer names instead of coordinates, one retry with the error; expect some bad calls — the action system refuses them, the run goes on |
 | **speed** | a reply in seconds at this size — fast enough for a platoon commander in continuous mode |
 
+### 6a. The laptop recipe (L-3b) — ⭐ READY, NOT RUN *(CE-4681, `2026-11-23`)*
+
+```bash
+# once: Ollama (Windows: winget install Ollama.Ollama · Linux: curl -fsSL https://ollama.com/install.sh | sh), then `ollama serve`
+dotnet build Hrot/Runner/Hrot.ClusterRunner                          # the editor the runs use (headless: no 3-D map on the GPU)
+python scripts/llm/laptop_run.py                                     # pulls qwen2.5:7b-instruct, llama3.1:8b, qwen3:8b; one run each
+python scripts/llm/laptop_run.py --models qwen3:8b --num-ctx 16384   # one model, a bigger context
+```
+
+| step | what the script does |
+|---|---|
+| ① the server | checks `GET /api/tags` at `--endpoint` (default `http://localhost:11434`); none ⇒ it says how to install / start Ollama |
+| ② the models | `ollama pull <model>` for each (4-bit is Ollama's default for these tags); `--no-pull` skips |
+| ③ one run per model | `HROT_COMMANDER_MIND=ChatModel` + `_ENDPOINT` / `_MODEL` / `_NUM_CTX` (12 288) / `_KEEP_ALIVE` (30m) / `_TIMEOUT_S` (120) / `_LOG_DIR`, then `Hrot.ClusterRunner --mode editor --headless --verify llm-platoon-attack` — think-pause, so a slow answer only slows the run |
+| ④ the summary | per model: wakes, tool calls, accepted / refused, malformed, retried, answer time (mean / max), the request's size, checks passed (the scripted-only rows SKIPPED) → `summary.json` + a table |
+
+⭐ Proven on the VM end to end against `scripts/llm/chat_standin.py --mode script` (`--endpoint http://localhost:11500 --models stand-in
+--no-pull`) — the result is in the status report. ⛔ Not run on the laptop: that is L-3b.
+
 ## 7. Rules this respects
 
 | rule | how |
