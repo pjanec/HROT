@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⏸ `2026-11-23 22:30` — **idle — waiting for a handoff** (self-wake-up: L-3c done; CE-11047 (ui's staged-presentation garbage) fixed `c77363b9a` — the Stechovice re-measure is ui's; no new HANDOFF/STEER/NOTE for backend; the next slice is L-3b on the user's laptop).
+⏸ `2026-11-23 23:28` — **idle — waiting for a handoff** (self-wake-up: L-3c done; CE-11047 (ui's staged-presentation garbage) fixed `c77363b9a` — the Stechovice re-measure is ui's; no new HANDOFF/STEER/NOTE for backend; the next slice is L-3b on the user's laptop).
 ⭐ `2026-11-23` **L-3c (CE-4684, the decision contract) — BUILT**: C-1 … C-6 railed and red-proved (11 rails); the low-effort baseline and the contract run on `llm-platoon-attack` side by side below; the contract duel ✅ 10/10. Report: §L-3c; design §5c.1.
 ⭐ `2026-11-23 16:10` **THE DUEL (user: "can we let 2 haiku workers play against each other?" · "yes please") — DONE**: `llm-platoon-duel`, two Haiku commanders one per side through the per-commander relay; six seat defects found and fixed (D-1…D-6, `4fddd69eb`), one grammar defect filed (CE-3502). Report: §Duel; design §5a-5. ⏸ then idle — waiting for a handoff.
 ⭐ `2026-11-23` **L-3a (CE-4683, the briefing a small model can live with) — DONE**: ① ② ③ ④ built, railed and red-proved; the Haiku relay run side by side with L-3 below; CE-3501 CLOSED. Report: §L-3a; design §5a-4.
