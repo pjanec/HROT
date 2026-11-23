@@ -154,6 +154,8 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(BehaviorNames.PersonHold, order["behavior"]!.GetValue<string>());
     }
 
+    /// <summary>⭐ CE-3494 (R-3115) — an order HOLDS the unit's mission plan (it is no longer discarded — ruling 50 superseded): the plan keeps its
+    /// tasks and is marked held by the order. ⛔ SUPERSEDED assertion: <c>TaskCount == 0</c> (the plan discarded).</summary>
     [Fact]
     public void CE3167_AnOrder_ClearsTheUnitsMissionPlan()
     {
@@ -165,7 +167,9 @@ public sealed class DebugApiOrdersTests
         svc.PostOrder(UnitId, new JsonObject { ["kind"] = "move", ["x"] = 30f, ["y"] = 0f });
         h.PumpFrames(4);
 
-        Assert.Equal(0, h.Repo.GetComponentRO<MissionPlanQueue>(unit).TaskCount);
+        var plan = h.Repo.GetComponentRO<MissionPlanQueue>(unit);
+        Assert.Equal(2, plan.TaskCount);                                              // kept
+        Assert.Equal(MissionPlanQueue.HaltedHeldByOrder, plan.Halted);                // held by the order
         // The move ran as the operator's order — still running, or already ended (this world drives no navigation), and then
         // its outcome is the recorded one (OperatorOrderOutcome).
         var order = svc.GetOrder(UnitId);
