@@ -59,6 +59,7 @@ struct FHrotDpsControl
 	UPROPERTY(BlueprintReadWrite, Category = "HROT|Player") uint8 FirePref = 0;
 	UPROPERTY(BlueprintReadWrite, Category = "HROT|Player") uint8 UseSeq = 0;
 	UPROPERTY(BlueprintReadWrite, Category = "HROT|Player") int32 UseTarget = 0;
+	UPROPERTY(BlueprintReadWrite, Category = "HROT|Player") uint8 Verb = 0;      // the contract's UseVerb this press names (0 = None = the primary)
 	UPROPERTY(BlueprintReadWrite, Category = "HROT|Player") uint8 Lean = 0;      // 0 none, 1 left, 2 right
 	UPROPERTY(BlueprintReadWrite, Category = "HROT|Player") bool bBinoculars = false;
 	UPROPERTY(BlueprintReadWrite, Category = "HROT|Player") FVector AimPoint = FVector::ZeroVector;   // m, ENU

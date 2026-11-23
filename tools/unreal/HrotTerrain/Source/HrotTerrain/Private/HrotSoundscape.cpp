@@ -3,6 +3,8 @@
 #include "HrotAnimal.h"
 #include "HrotFire.h"
 #include "HrotShotRenderer.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Modules/ModuleManager.h"
 #include "HrotVehicle.h"
 #include "Components/AudioComponent.h"
 #include "Components/DirectionalLightComponent.h"
@@ -82,6 +84,29 @@ bool UHrotSoundscape::Has(const FString& Set)
 {
 	const TCHAR* Lib = LibraryOf(Set);
 	return LoadAt(Lib, Set + TEXT("_01")) || LoadAt(Lib, Set);
+}
+
+int32 UHrotSoundscape::PreloadAll()
+{
+	const double T0 = FPlatformTime::Seconds();
+	FAssetRegistryModule& Mod = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	int32 N = 0;
+	for (const TCHAR* Root : { TEXT("/Game/Hrot/AudioPro/"), TEXT("/Game/Hrot/Audio/") })
+	{
+		TArray<FAssetData> Assets;
+		Mod.Get().GetAssetsByPath(FName(*FString(Root).LeftChop(1)), Assets, true);
+		for (const FAssetData& A : Assets)
+		{
+			const FString Pkg = A.PackageName.ToString();
+			if (!Pkg.StartsWith(Root)) continue;
+			const FString Name = Pkg.RightChop(FCString::Strlen(Root));   // "wpn/rifle_01": the key LoadAt builds (Root + Name)
+			const FString Key = FString(Root) + Name;
+			if (Cache.Contains(Key)) continue;
+			if (USoundBase* S = Cast<USoundBase>(A.GetAsset())) { Cache.Add(Key, S); Missing.Remove(Key); ++N; }
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("HROT sound preload: %d sounds in %.2f s"), N, FPlatformTime::Seconds() - T0);
+	return N;
 }
 
 USoundBase* UHrotSoundscape::Pick(const FString& Set)

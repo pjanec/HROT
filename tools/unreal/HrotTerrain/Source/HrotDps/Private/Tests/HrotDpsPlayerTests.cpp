@@ -2,6 +2,7 @@
 // Run: UnrealEditor-Cmd <project> -ExecCmds="Automation RunTests Hrot.Dps.Player; Quit" -nullrhi -unattended
 #include "Misc/AutomationTest.h"
 #include "HrotDpsCamera.h"
+#include "HrotDpsUseList.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 using namespace HrotPlayer;
@@ -56,6 +57,42 @@ bool FHrotDpsPlayerHudTest::RunTest(const FString&)
 	TestEqual(TEXT("arc without damage"), ArcThickness(0.f), 6.f);
 	TestEqual(TEXT("arc thickest 18"), ArcThickness(500.f), 18.f);
 	TestEqual(TEXT("spread at half the fov = half the screen"), SpreadRadiusPx(FMath::DegreesToRadians(22.5f), 45.f, 900.f), 450.f, 0.01f);
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotDpsUseListTest, "Hrot.Dps.Player.UseList",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotDpsUseListTest::RunTest(const FString&)
+{
+	namespace UL = HrotDpsUseList;
+	TArray<UL::FRow> Rows = { { 9, true }, { 11, false }, { 12, true }, { 13, true } };   // verb 11 is refused
+	UL::FState S; double T = 10.0;
+	// a tap: nothing on the press, one primary press (Verb None) on the release
+	TestFalse(TEXT("press: nothing yet"), UL::Step(S, true, T, Rows, 0, -1, false).bPress);
+	UL::FOut O = UL::Step(S, false, T + 0.1, Rows, 0, -1, false);
+	TestTrue(TEXT("tap releases one press"), O.bPress); TestEqual(TEXT("tap = the primary (None)"), int32(O.Verb), 0);
+	// a hold: opens on the first available row; the wheel skips the refused one; the release sends that verb
+	S = UL::FState(); UL::Step(S, true, T, Rows, 0, -1, false);
+	UL::Step(S, true, T + 0.3, Rows, 0, -1, false);
+	TestTrue(TEXT("held: open"), S.bOpen); TestEqual(TEXT("highlight starts on the first available row"), S.Highlight, 0);
+	UL::Step(S, true, T + 0.35, Rows, 1, -1, false);
+	TestEqual(TEXT("the wheel skips the refused row"), S.Highlight, 2);
+	UL::Step(S, true, T + 0.4, Rows, 1, -1, false); UL::Step(S, true, T + 0.45, Rows, 1, -1, false);
+	TestEqual(TEXT("no wrap at the end"), S.Highlight, 3);
+	UL::Step(S, true, T + 0.5, Rows, 0, 1, false);
+	TestEqual(TEXT("a refused row cannot be picked by number"), S.Highlight, 3);
+	UL::Step(S, true, T + 0.5, Rows, 0, 2, false);
+	TestEqual(TEXT("number key picks"), S.Highlight, 2);
+	O = UL::Step(S, false, T + 0.6, Rows, 0, -1, false);
+	TestTrue(TEXT("release sends"), O.bPress); TestEqual(TEXT("the highlighted row's verb"), int32(O.Verb), 12);
+	// cancel: no press at all, not even a tap on the release
+	S = UL::FState(); UL::Step(S, true, T, Rows, 0, -1, false); UL::Step(S, true, T + 0.3, Rows, 0, -1, false);
+	UL::Step(S, true, T + 0.4, Rows, 0, -1, true);
+	TestFalse(TEXT("cancelled: closed"), S.bOpen);
+	TestFalse(TEXT("cancelled: release sends nothing"), UL::Step(S, false, T + 0.5, Rows, 0, -1, false).bPress);
+	// an empty list on hold = nothing happens
+	TArray<UL::FRow> None; S = UL::FState(); UL::Step(S, true, T, None, 0, -1, false); UL::Step(S, true, T + 0.5, None, 0, -1, false);
+	TestFalse(TEXT("empty list: not open"), S.bOpen);
+	TestFalse(TEXT("empty list: release sends nothing"), UL::Step(S, false, T + 0.6, None, 0, -1, false).bPress);
 	return true;
 }
 #endif

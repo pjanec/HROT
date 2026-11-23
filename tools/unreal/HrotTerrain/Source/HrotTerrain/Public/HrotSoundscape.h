@@ -43,6 +43,9 @@ public:
 
 	/** a one-shot of the set (<Set>_01 .. _NN, one at random), or the loop <Set> itself; null when the library lacks it */
 	USoundBase* Pick(const FString& Set);
+	/** U-19h: ONE-SHOT, at join - loads EVERY sound of both libraries (/Game/Hrot/AudioPro, /Game/Hrot/Audio) into the (strong) cache, so no first-time sound loads
+	 *  mid-play (measured: 1-3 s FlushAsyncLoading hitches at the first rifle / body / dirt / beep). Returns the number loaded; logs it and the seconds. */
+	int32 PreloadAll();
 	/** the library has the set (a variant _01 or the single sound) — quietly: no LibraryMissing */
 	bool Has(const FString& Set);
 	/** the loop / single sound <Name> */
