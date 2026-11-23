@@ -194,6 +194,22 @@ OF2, OF4) — ⛔ C-1 stays a claim about strength ratios other than 2 : 1 (OF5 
 
 ⭐ After ① shows in OF5, the city battle itself is checked for the stall.
 
+#### 9.1a As built, `2026-11-23` — ① and ② (each red-proved by its rail)
+
+| piece | what it does | 📐 why — measured on OF5 / OF1 |
+|---|---|---|
+| `BreakContactPlay.AwayFrom` | no hidden point ⇒ a search radius (60 m) straight away from the threat | the play used to fail into a hold where it stood |
+| arrival re-asks the terrain | a man seen **or shot at** (`ShotAt`), or the point is the way it came (`Fallback`) ⇒ ask again from here, ≤ `MaxExtensions` 4 | a man withdrawing with his back to the MG does not see it |
+| `SeenByAThreat` | a retreat point a known threat still sees (ThreatExposureTest bit 5) is no hidden point | the query keeps the least-exposed point on open ground (CE-2164): 7 m back, in the second MG's sight |
+| `EqsKnownThreats` + the squad pool | a squad member's (and commander's) known threats include the squad's merged pool | ⭐ instrumented: the squad query measured NO exposure — it asks from a member whose own sensor lists were empty |
+| no lull exit on the way it came | CE-2465's lull only ends a play that reached hidden ground | Red stopped firing at men it still saw; the play ended after one bound each |
+| `AfterContact.CoveredMetres` | an enemy covers as far as it engaged (≥ 150 m, ≤ 800 m) | two MGs engaged from ~200 m; a fixed 150 m let the resumed move walk back |
+| ② `GrowthRedecide` + `PressShare` | 2× the danger the choice was scored on, and no longer 1.5 : 1 ⇒ scored again | OF5 charged on 1 of 12 · without the press line OF1/OF3 broke off a won fight (6 v 1 → 6 v 3) |
+
+⛔ **Still red — OF5 L3:** the squad withdraws the way it came, by 15 m bounds with overwatch, and 60 s after the first round it is still in Red's
+sight on open ground. ⚠ Open question for the user: is the row's 60 s achievable by bounding at all — doctrine breaks contact under SMOKE and
+moves by rushes; the check may need *"out of sight OR out of effective range"*.
+
 ```mermaid
 sequenceDiagram
   participant R as ReactToContact
@@ -215,6 +231,41 @@ sequenceDiagram
   end
 ```
 *Caption: the no-answer branch used to end the play as Failure — the squad then held where it stood, in the open (the ditch war OF5 reproduced).*
+
+### 9.2 Fix, report, call for fire — A → B → C *(approved `2026-11-23`, R-2149)*
+
+🔒 User: *"approved, let's try. scenarios are ours, we can always add platoon or higher HQ. we any way need to test exactly those situation
+(flanking machine guns etc.) whether to revert or not depends on what the real doctrine asks for - we aim for realism"*
+
+**Doctrine (ATP 3-21.8, react to contact):** a squad that cannot gain fire superiority REPORTS and, as its platoon leader directs, holds
+(fixes the enemy: a base of fire) or breaks contact. The platoon solves the machine gun — a base of fire, a squad round a flank under
+smoke, and the indirect fire or aircraft it calls. ⇒ break contact is the drill of a squad with nobody to fix for (a patrol), or one that
+can no longer fight, or one ordered to.
+
+#### 9.2a ⛔ The first placement of A was wrong — measured `2026-11-23`
+
+⛔ A squad under a live superior never runs `ReactToContact`: `BasicSquadSop`'s `UnderCommand` row wins and orders nothing — *"a squad
+under a live platoon gets its fight from its platoon's play"* (CE-2358, AQ97 A; `SopConditions.UnderCommand`). ⇒ a "fix instead of break
+contact when it has a superior" rule in the squad's reaction is unreachable (reverted before commit). ⭐ The fight of a squad in a platoon
+is the PLATOON's — and the platoon's answer to an enemy that is not in a building is `PlatoonHold`:
+
+```mermaid
+graph TD
+  SPOT["a squad SPOTs an enemy element"] --> PIC["the platoon's picture"]
+  PIC -->|"fire from a building, on the move"| RFB["ReactToFireFromBuilding (PlatoonAttack preset 2): the squad in contact supports, the next clears"]
+  PIC -->|"any other element (team+, ≤ 400 m, ≤ 30 s)"| PH["PlatoonHold: EVERY squad holds until it is gone"]
+  PH -.->|"the squads re-SPOT the held element ⇒ it is never gone"| PH
+  classDef dead fill:#fdd,stroke:#c00;
+  class PH dead;
+```
+*Caption: the red loop is the ditch war — a platoon facing a machine gun that stays where it is holds for ever: no fire called, no flank.
+It is the same SOP for every platoon, the city battle's included (`BasicPlatoonSop.cs` rows 63-82).*
+
+| | revised | built where |
+|---|---|---|
+| **A′** | the PLATOON's reaction to an element outside a building becomes the react-to-contact drill: the squad in contact is the base of fire (supports from where it stands), the platoon REQUESTS fire on the element (`AskFires`), and — superior enough — the next squad flanks and assaults through; outmatched ⇒ fix, fire, report up (break contact on order) | ⭐ ONE drill: generalise `PlatoonAttack`'s `ReactToFireFromBuilding` preset (already "support from where it stands + the next squad acts") instead of a second play; `PlatoonHold` stays for the cases that truly wait (a defended position, an order to hold) |
+| **B** | OF6: OF5's field and enemy, the squad inside 'Blue Platoon' under 'Blue HQ' with a mortar section | `make-open-field-scenarios.py` |
+| **C** | merged into A′ (the flank is the drill's manoeuvre) | — |
 
 ## 10. Design docs checked
 
