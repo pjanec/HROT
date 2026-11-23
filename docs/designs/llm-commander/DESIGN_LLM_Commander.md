@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
-updated: 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
+updated: 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
 build-state: BUILDING — L-1 (CE-4676, backend): built, as built in §5a; — the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); L-2 (CE-4679, backend): built, as built in §5a-2; L-2b DISPATCHED (CE-4680, backend, after L-2 — §5b); L-3…L-4 DESIGN · L-3 DISPATCHED (CE-4681, backend, on the cloud VM with the Haiku relay); L-3b (the laptop) next
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
@@ -410,6 +410,43 @@ no second copy of "what each squad is doing".
 | ⭐ as built — ask_sitrep | ⚠ deviation found by the run: asking a squad for a SITREP no longer goes through the direct-order path, so it never ends a play (it did since B-1: the L-3a run's `ask_sitrep` ended PlatoonAttack at 0:59) |
 | ⭐ measured (the L-3a Haiku relay run vs L-3) | the request **1 110 → 1 438 tokens** (L-3: 1 003 → 5 929, max 7 349); the estimate **366 chars** (L-3: 17 958 of notes); **0** identical orders re-sent (L-3: 4); `run_play` twice, the SPOT row PASSES; the house still not taken — the squad-attack stall CE-4682 |
 
+### 5a-5. The duel — two seats, one per side *(backend, `2026-11-23`, user: "can we let 2 haiku workers play against each other?" · "yes please"; build-state: BUILT — the run in `STATUS_Backend_LLM_Commander.md` §Duel)*
+
+⭐ `llm-platoon-duel` = `llm-platoon-attack` with Red under a seat too: **Red Platoon** (TKB 305, Hostile) over the **Defenders** (at the sheds) and a
+**Reserve** (4 men just west of them), a `rear` place. Two seats on ONE chat endpoint; the relay (`chat_standin.py --mode relay --per-commander`) files
+each request under the commander it names (*"You are &lt;name&gt;, …"*), so one Haiku worker answers each side and never sees the other's requests. The
+checks judge the PLUMBING of two seats (each side's squads report to their own commander, never the other's; both fight; the fight lasts) — not who wins.
+
+```mermaid
+sequenceDiagram
+    participant A as CommanderActionSystem (frame)
+    participant B as Blue seat
+    participant R as Red seat
+    participant S as CommanderSeats (one clock hold)
+    participant C as the clock (node bus)
+    B->>A: thinking (wake)
+    R->>A: thinking (wake)
+    A->>S: HoldClock — any seat holds?
+    S->>C: ONE PauseTimeIntent (first holder)
+    R-->>A: answered — Red lets go
+    A->>S: HoldClock — Blue still holds: nothing
+    B-->>A: answered — Blue lets go
+    A->>S: HoldClock — none holds
+    S->>C: ONE ResumeTimeIntent (unless a user paused meanwhile)
+```
+
+*What the picture shows that the prose hid:* the clock belongs to the SEATS, not to a seat — the pause and the resume are each said once, by whoever is
+first and last. Per seat (as L-2 built it) the two seats each took the other's pause for a user's, and nobody resumed.
+
+| # | what the duel found (each fixed, railed, red-proved) | rail |
+|---|---|---|
+| D-1 | ⛔ **two seats thinking at once froze the clock for good** — each seat paused and resumed on its own and read the other's pause as a USER's (which a seat must never resume). ⭐ Now `CommanderSeats` holds the clock: one pause when the first seat holds, one resume when none does; a user's pause still outlives it. A gone seat lets go. ⚠ Free-running clock only — a stepped run (verify) waits on `AnyHoldsClock` and was never affected | `TwoSeats_TheClockRunsAgain_OnlyWhenBothMindsHaveAnswered` (red before the fix: "both answered: the clock runs again") · `TwoSeats_AUserPauseDuringBothHolds_OutlivesThem` |
+| D-2 | ⛔ **Red was told Blue's plan** — the gazetteer listed every named place, so Red read Blue's `start` / `objective` / `support` with Blue's notes. ⭐ A place drawn for a side (its `EntityInfo.ForceId`) is only that side's; `Neutral` (the default — every existing scenario) is everybody's | `TwoSeats_EachSeatIsToldOnlyItsOwnSidesPlaces` |
+| D-3 | the play advice spoke only to an attacker (*"support set, then the assault"*) — a defending seat read it too. ⭐ *"PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together"* | the same rail |
+| D-4 | ⛔ **a repeated play restarted the play** — Blue re-ran `PlatoonAttack → house` at 01:05 and Bravo, 50 m past the objective, was sent back to the start. ⭐ The same play on the same place (2 m) while it runs is a NO-OP (*"PLAY … already in force since"*), as an order is since CE-4683 | `Duel_ARepeatedPlayInForce_IsANoOp_AndTheSnapshotSaysItsAge` (red-proved: the no-op dropped ⇒ two intents) |
+| D-5 | why Blue re-ran it: the snapshot (every 120 s) still said *"ORDERS IN FORCE: none"* — taken before his own play — and the model read it as now, over the radio line *"ORDER PlatoonAttack → house: given"*. ⭐ The snapshot now says its age (*"SNAPSHOT (65 s ago — the radio log below is newer)"*) and the prefix says the radio log carries what was given since | the same rail |
+| D-6 | the heartbeat said *"(no news — your squads await orders)"* while orders were in force — an invitation to give new ones. ⭐ *"(heartbeat — nothing new; the orders in force stand unless you change them)"* | `Duel_ARepeatedPlayInForce_…` (the heartbeat line) |
+
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
 | | ⭐ lean |
@@ -484,7 +521,8 @@ all their pictures, so it is really their superior: build it as that seat, hones
 | **L-3** | ⭐ on the CLOUD VM (CE-4681, user `2026-11-23`): `ChatModelMind` (Ollama's `/api/chat`, tools, one retry), a byte-stable prefix, checks per mind, a stand-in server, the **Haiku relay** answering HROT's exact chat requests; the laptop recipe ready, not run | the relay run plays `llm-platoon-attack` to the end; every exchange in the model log; counts of accepted / refused / malformed calls and the briefing's tokens per call |
 | **L-3a** | the briefing a small model can live with (CE-4683, user `2026-11-23`: "backend fix"): `note` one running estimate (CE-3501) · an ORDERS IN FORCE block, an identical order a no-op · prefer `run_play` said plainly · a per-call budget ≤ ≈ 4 000 tokens | the Haiku relay run again, side by side with L-3's: bounded notes, no re-sent orders, the budget held |
 | **L-3b** | the real model on the user's laptop (RTX 3070, 8 GB): the three 7–8 B models through the L-3 recipe | an 8 B model plays it in think-pause, then continuous; a per-model summary |
-| **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat | two platoon seats on one model; a company seat above them |
+| ⭐ **duel** | §5a-5 (backend, `2026-11-23`): a seat on each side, one Haiku worker each through the per-commander relay — the L-4 "second seat" pre-tested | the clock held for both and released once; each side told only its own places; a repeated play a no-op |
+| **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat (⭐ the clock for many seats BUILT in §5a-5) | two platoon seats on one model; a company seat above them |
 
 ## 12. Decisions — ✅ APPROVED `2026-11-22` (R-4298: *"leans approved"*)
 

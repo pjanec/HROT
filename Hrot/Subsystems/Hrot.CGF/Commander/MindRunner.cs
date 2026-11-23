@@ -21,7 +21,10 @@ public sealed record Briefing(string Commander, double SimTime, string Prefix, F
     public string Changing()
     {
         var sb = new StringBuilder();
-        if (Snapshot != null) sb.AppendLine("SNAPSHOT").AppendLine(Snapshot.Radio);
+        // ⭐ the duel (§8) — the snapshot says how OLD it is: 📌 Blue read a 65 s old "ORDERS IN FORCE: none" as now and re-ran its play
+        if (Snapshot != null)
+            sb.Append("SNAPSHOT (").Append(Math.Max(0d, SimTime - Snapshot.SimTime).ToString("0", System.Globalization.CultureInfo.InvariantCulture))
+              .AppendLine(" s ago — the radio log below is newer)").AppendLine(Snapshot.Radio);
         sb.AppendLine("RADIO LOG");
         foreach (var item in Log) sb.AppendLine(item.Radio);
         // ⭐ CE-4683 ① — ONE running estimate (his last note, replaced each time he writes one); ⛔ was every note of the run (CE-3501)

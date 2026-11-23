@@ -51,7 +51,6 @@ public sealed class SeatRuntime : IDisposable
 
     // ⭐ CE-4679 — the think-pause hold (frame thread, CommanderActionSystem)
     internal volatile bool Holding;   // read from any thread (a stepping run's hold, GET /commanders)
-    internal bool PausedByUs, UserPaused, OwnPauseSeen;
 
     // ⭐ CE-4680 B-1 — the play the seat gave its commander as his task (frame thread), and the direct orders waiting for it to end
     internal string? Play;
@@ -119,6 +118,11 @@ public sealed class CommanderSeats : IDisposable
     /// only marks its hold (<see cref="AnyHoldsClock"/>) and the one stepping the clock withholds its next step.
     /// </summary>
     public Func<bool>? ClockRunsFree { get; set; }
+
+    // ⭐ The duel (DESIGN_LLM_Commander §8, L-4 pre-test) — the clock is the SEATS' to pause, not each seat's: ONE pause when the first seat holds, ONE
+    // resume when the last lets go. ⛔ Was per seat: two seats thinking at once each took the other's pause for a USER's and neither resumed — the clock
+    // stayed paused for good (rail TwoSeats_TheClockRunsAgain_OnlyWhenBothMindsHaveAnswered). Frame thread only (CommanderActionSystem).
+    internal bool ClockPausedBySeats, ClockUserPaused, OwnPauseUnseen;
 
     /// <summary>⭐ CE-4679 — some seat is holding the clock for its mind now (any thread): a run that steps the clock waits for it.</summary>
     public bool AnyHoldsClock
@@ -247,7 +251,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         int netId = CommandPictureOps.NetIdOf(world, commander);
         var seat = new SeatRuntime
         {
-            Commander = commander, Name = NameOf(world, commander), Places = Gazetteer.Of(world), NetworkId = netId,
+            Commander = commander, Name = NameOf(world, commander), Places = Gazetteer.Of(world, world.HasComponent<EntityInfo>(commander) ? world.GetComponentRO<EntityInfo>(commander).ForceId : null), NetworkId = netId,
             Side = world.HasComponent<EntityInfo>(commander) ? world.GetComponentRO<EntityInfo>(commander).ForceId.ToString() : "",
             Mind = config.Mind, Mode = config.Mode,
         };
@@ -310,7 +314,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         //   📌 Found by the Haiku run: routine SITREPs every 30 s kept "no item for 30 s" from ever holding, so before contact the mind was never asked
         //   again after its first answer — the squads stood at the start.
         if (now - seat.LastWakeAt >= config.Heartbeat)
-            Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (no news — your squads await orders)",
+            //   ⭐ the duel (§8 D-6): ⛔ was "(no news — your squads await orders)" — said with orders in force, it invited a model to give new ones
+            Publish(seat, FeedKind.Heartbeat, now, false, $"{Clock(now)} (heartbeat — nothing new; the orders in force stand unless you change them)",
                     new JsonObject { ["kind"] = "heartbeat", ["t"] = Round(now) }.ToJsonString());
     }
 
@@ -576,11 +581,12 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         foreach (var (n, _) in seat.Places.Places)
             if (seat.Places.NoteOf(n) is { } note) sb.Append("  ").Append(n).Append(": ").Append(note).Append('\n');
         // ⭐ CE-4683 ③ (§5a-4) — said plainly: with the actions as functions a model reached for direct orders (L-3: one play, then only orders)
-        sb.Append("PREFER run_play: the play coordinates both squads for you (support set, then the assault) — a direct order to a squad ENDS the play.\n");
+        //   ⭐ the duel (§8): said for both sides — the old line described only the attack, and a defending (Red) seat read it too
+        sb.Append("PREFER run_play: a play coordinates both squads for you (PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together) — a direct order to a squad ENDS the play.\n");
         sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold · stop_play() · ")
           .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact — only when no play fits · ")
           .Append("hold(squad) · ask_sitrep(squad) · note(text) — your running estimate: a new note REPLACES the last (keep it short). ")
-          .Append("The snapshot lists the ORDERS IN FORCE: repeating one changes nothing.");   // ⭐ CE-4680 B-1, CE-4683 ①②
+          .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order or a play in force changes nothing.");   // ⭐ CE-4680 B-1, CE-4683 ①②
         return sb.ToString();
     }
 

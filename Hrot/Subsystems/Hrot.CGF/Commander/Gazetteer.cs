@@ -30,15 +30,21 @@ public sealed class Gazetteer
     /// <summary>⭐ CE-4680 B-6 — the place's one-line terrain note (<see cref="PlaceNote"/>), or null.</summary>
     public string? NoteOf(string name) => _notes.TryGetValue(name, out var n) ? n : null;
 
-    /// <summary>Reads the named points and areas of <paramref name="world"/> (on a seat's start — they do not move).</summary>
-    public static Gazetteer Of(EntityRepository world)
+    /// <summary>
+    /// Reads the named points and areas of <paramref name="world"/> (on a seat's start — they do not move) that <paramref name="side"/> may know: a
+    /// <c>Neutral</c> place (the default) is everybody's; a place drawn for a side (its <see cref="EntityInfo.ForceId"/>) is only that side's.
+    /// ⭐ The duel (§8): a Red seat was told Blue's start, objective and support position with Blue's notes. Null = every place (a rail).
+    /// </summary>
+    public static Gazetteer Of(EntityRepository world, ForceId? side = null)
     {
         var g = new Gazetteer();
         foreach (var e in world.Query().With<TkbIdentity>().With<EntityInfo>().With<SimTransform>().Build())
         {
             long type = (long)world.GetComponentRO<TkbIdentity>(e).TkbType;
             if (type != PointType && type != AreaType) continue;
-            string name = world.GetComponentRO<EntityInfo>(e).Name.ToString().Trim();
+            var info = world.GetComponentRO<EntityInfo>(e);
+            if (side is { } own && info.ForceId != ForceId.Neutral && info.ForceId != own) continue;   // the other side's control measure
+            string name = info.Name.ToString().Trim();
             if (name.Length == 0) continue;
             var at = world.GetComponentRO<SimTransform>(e).Position;
             var p = new Vector2(at.X, at.Y);

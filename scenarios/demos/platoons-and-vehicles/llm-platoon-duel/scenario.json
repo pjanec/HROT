@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: LLM commander DUEL (DESIGN_LLM_Commander §8, §11 L-4 pre-test, backend 2026-11-23) - llm-platoon-attack with Red under a commander too: Blue's body-less Platoon (seat) over Alpha Squad and Bravo Squad (4 men each) from behind the L-Block; Red Platoon (TKB 305, Hostile, seat) over the Defenders (5 men, SquadDefend at the sheds 'house') and Reserve (4 men, just west of them), with a 'rear' place at (30,110). Two seats on one chat endpoint: the relay (scripts/llm/chat_standin.py --mode relay --per-commander) routes each side's requests to its own worker. Place notes are neutral (both sides read them). Judge: both commanders open and order their squads; each side's squads report to their own commander; the fight happens and lasts; the run reaches its time limit (two seats never stop the clock). Fail: a seat that never orders, a report to the wrong commander, the run frozen. Check: HROT_COMMANDER_MIND=ChatModel + the per-commander relay (STATUS_Backend_LLM_Commander.md §Duel); the scripted mind also runs it (Red's scripted commander then advances to 'objective' - a meeting engagement, judged by the same rows)."
+    "description": "What: LLM commander DUEL (DESIGN_LLM_Commander §8, §11 L-4 pre-test, backend 2026-11-23) - llm-platoon-attack with Red under a commander too: Blue's body-less Platoon (seat) over Alpha Squad and Bravo Squad (4 men each) from behind the L-Block; Red Platoon (TKB 305, Hostile, seat) over the Defenders (5 men, SquadDefend at the sheds 'house') and Reserve (4 men, just west of them), with a 'rear' place at (30,110). Two seats on one chat endpoint: the relay (scripts/llm/chat_standin.py --mode relay --per-commander) routes each side's requests to its own worker. Places by side (DESIGN_LLM_Commander §5a-5 D-2): 'house' is Neutral (both sides know it); 'objective', 'support', 'start' are Blue's (Friend); 'rear' is Red's (Hostile) - each seat is told only its own side's and the Neutral ones. Judge: both commanders open and order their squads; each side's squads report to their own commander; the fight happens and lasts; the run reaches its time limit (two seats never stop the clock). Fail: a seat that never orders, a report to the wrong commander, the run frozen. Check: HROT_COMMANDER_MIND=ChatModel + the per-commander relay (STATUS_Backend_LLM_Commander.md §Duel); the scripted mind also runs it (Red's scripted commander then advances to 'objective' - a meeting engagement, judged by the same rows)."
   },
   "entities": {
     "b4676000-0000-4000-8000-000000000001": {
@@ -618,7 +618,7 @@
       },
       "EntityInfo": {
         "Name": "objective",
-        "ForceId": "Neutral"
+        "ForceId": "Friend"
       },
       "PlaceNote": {
         "Text": "behind the Low Wall's east end; cover from the house, about 110 m from it"
@@ -643,7 +643,7 @@
       },
       "EntityInfo": {
         "Name": "support",
-        "ForceId": "Neutral"
+        "ForceId": "Friend"
       },
       "PlaceNote": {
         "Text": "behind the Low Wall; sees the sheds' south side over the wall"
@@ -668,7 +668,7 @@
       },
       "EntityInfo": {
         "Name": "start",
-        "ForceId": "Neutral"
+        "ForceId": "Friend"
       },
       "PlaceNote": {
         "Text": "behind the L-Block, out of sight of the house"
@@ -1051,7 +1051,7 @@
       },
       "EntityInfo": {
         "Name": "rear",
-        "ForceId": "Neutral"
+        "ForceId": "Hostile"
       },
       "PlaceNote": {
         "Text": "west of the sheds, out of sight from the east"

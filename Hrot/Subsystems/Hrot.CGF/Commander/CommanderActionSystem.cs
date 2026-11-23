@@ -72,7 +72,7 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         double now = CommanderFeedSystem.Now(world);
         foreach (var seat in seats.All)
         {
-            if (!world.IsAlive(seat.Commander) || !world.HasComponent<CommanderSeat>(seat.Commander)) continue;
+            if (!world.IsAlive(seat.Commander) || !world.HasComponent<CommanderSeat>(seat.Commander)) { seat.Holding = false; continue; }   // a gone seat holds nothing
             if (seat.Runner != null && world.GetComponentRO<CommanderSeat>(seat.Commander).Mode == CommanderMode.ThinkPause)
                 Hold(world, seats, seat, now);
             // ⭐ CE-4680 B-1 — the direct orders that ended a play land once its run is gone (its release would take an order given in its run)
@@ -87,41 +87,65 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
                 Apply(world, seat, action, now);
             }
         }
+        HoldClock(world, seats);   // ⭐ the duel (§8) — after every seat's hold is known: ONE pause / resume for all of them
     }
 
     // ── ⭐ CE-4679 — the think-pause hold ─────────────────────────────────────────────────────────
 
+    /// <summary>One seat's hold: marks it while its mind thinks (past an in-frame answer), lets go on the answer or past <see cref="MaxHold"/>.</summary>
     private void Hold(EntityRepository world, CommanderSeats seats, SeatRuntime seat, double now)
     {
-        var bus = _clockBus ?? world.Bus;
         if (!seat.Holding)
         {
             if (!seat.Channel.Thinking || seat.Channel.WaitAnswered(FastAnswer)) return;   // answered in the frame (a fast mind): no hold
             seat.Holding = true;
             seat.HoldSince = System.Diagnostics.Stopwatch.GetTimestamp();
-            seat.UserPaused = seat.OwnPauseSeen = false;
-            // ⛔ only a FREE-running clock is paused (and later resumed) — a stepped one is held by its stepper, which reads AnyHoldsClock
-            seat.PausedByUs = Advancing(world) && (seats.ClockRunsFree?.Invoke() ?? true);
-            if (seat.PausedByUs) Publish(bus, new Fdp.Toolkit.Time.Domain.PauseTimeIntent());
             return;
         }
-
-        // a pause someone else asked for during the hold is theirs: it outlives the hold (our own is the first one seen)
-        if (bus.IsRegisteredManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>())
-        {
-            int pauses = bus.ReadManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
-            if (pauses > 0 && seat.PausedByUs && !seat.OwnPauseSeen) { seat.OwnPauseSeen = true; pauses--; }
-            if (pauses > 0) seat.UserPaused = true;
-        }
-
         bool timedOut = System.Diagnostics.Stopwatch.GetElapsedTime(seat.HoldSince) > MaxHold;
         if (seat.Channel.Thinking && !timedOut) return;
         seat.Holding = false;
-        if (seat.PausedByUs && !seat.UserPaused) Publish(bus, new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
         if (timedOut)
             seat.Channel.Publish(FeedKind.OrderState, now, false,
                 $"{CommanderFeedSystem.Clock(now)} SEAT: the mind gave no answer in {MaxHold.TotalSeconds:0} s — the clock runs on with no orders",
                 new JsonObject { ["kind"] = "order-state", ["state"] = "no-answer", ["seconds"] = MaxHold.TotalSeconds }.ToJsonString());
+    }
+
+    /// <summary>
+    /// ⭐ The seats' ONE clock hold (the duel, §8): a FREE-running clock is paused once when the first seat holds and resumed once when none does; a pause
+    /// someone else asked for while the seats held is theirs and outlives the hold. ⛔ A stepped clock is never paused or resumed — its stepper reads
+    /// <see cref="CommanderSeats.AnyHoldsClock"/>.
+    /// </summary>
+    private void HoldClock(EntityRepository world, CommanderSeats seats)
+    {
+        var bus = _clockBus ?? world.Bus;
+        if (seats.ClockPausedBySeats && bus.IsRegisteredManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>())
+        {
+            int pauses = bus.ReadManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
+            if (pauses > 0 && seats.OwnPauseUnseen) { seats.OwnPauseUnseen = false; pauses--; }   // the seats' own is the first one seen
+            if (pauses > 0) seats.ClockUserPaused = true;
+        }
+        bool any = false;
+        foreach (var seat in seats.All) if (seat.Holding) { any = true; break; }
+        if (any && !seats.ClockPausedBySeats)
+        {
+            if (!Advancing(world) || !(seats.ClockRunsFree?.Invoke() ?? true)) return;   // already paused (a user's), or stepped
+            seats.ClockPausedBySeats = seats.OwnPauseUnseen = true;
+            seats.ClockUserPaused = false;
+            Publish(bus, new Fdp.Toolkit.Time.Domain.PauseTimeIntent());
+        }
+        else if (!any && seats.ClockPausedBySeats)
+        {
+            seats.ClockPausedBySeats = seats.OwnPauseUnseen = false;
+            if (!seats.ClockUserPaused) Publish(bus, new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
+        }
+    }
+
+    /// <summary>Two place words name the same place: both resolve, within 2 m (the order no-op's tolerance), or both are empty (PlatoonHold).</summary>
+    private static bool SamePlace(SeatRuntime seat, string? a, string? b)
+    {
+        if (string.IsNullOrWhiteSpace(a) && string.IsNullOrWhiteSpace(b)) return true;
+        return seat.Places.Resolve(a, out _) is { } pa && seat.Places.Resolve(b, out _) is { } pb && System.Numerics.Vector2.Distance(pa, pb) <= 2f;
     }
 
     private static bool Advancing(EntityRepository world)
@@ -153,6 +177,22 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
                     new JsonObject { ["kind"] = "order-state", ["state"] = "in-force", ["squad"] = a.Squad, ["order"] = held.Kind, ["since"] = CommanderFeedSystem.Round(held.Since), ["by"] = held.By, ["seq"] = a.MadeOnSeq }.ToJsonString());
                 return;
             }
+        }
+        // ⭐ the duel (§8) — the same PLAY on the same place while it runs is a NO-OP too: re-sent, it started the play over from its first phase
+        //   (📌 the duel's Blue re-ran PlatoonAttack at 01:05, trusting a 65 s old snapshot's "none")
+        if (a.Kind == CommanderActionKind.RunPlay && seat.Play is { } running && running.Equals(a.Order, StringComparison.OrdinalIgnoreCase)
+            && PlayRuns(world, seat) && SamePlace(seat, seat.PlayWhere, a.Where))
+        {
+            NoOps++;
+            seat.Log?.Write(new JsonObject
+            {
+                ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["action"] = CommanderTools.ToJson(a),
+                ["state"] = "in-force", ["since"] = CommanderFeedSystem.Round(seat.PlaySince),
+            });
+            seat.Channel.Publish(FeedKind.OrderState, now, false,
+                $"{CommanderFeedSystem.Clock(now)} PLAY {running} → {seat.PlayWhere}: already in force since {CommanderFeedSystem.Clock(seat.PlaySince)} — nothing sent",
+                new JsonObject { ["kind"] = "order-state", ["state"] = "in-force", ["play"] = running, ["since"] = CommanderFeedSystem.Round(seat.PlaySince), ["seq"] = a.MadeOnSeq }.ToJsonString());
+            return;
         }
         string? why = Act(world, seat, a);
         string what = a.Kind is CommanderActionKind.Order or CommanderActionKind.RunPlay ? $"{a.Order} {a.Squad}".TrimEnd() : $"{a.Kind} {a.Squad}".TrimEnd();
