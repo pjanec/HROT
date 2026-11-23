@@ -1854,6 +1854,15 @@ sequenceDiagram
   so the answers keep CE-3279's bounds (its rail still holds); what changed is WHERE the nodes live (reused arrays) and WHEN it stops (the
   goals, not the reach). The module picture is unchanged: `EqsModule` (SimHost, SlowBackground) → `PathCostScoreTest` → the provider.*
   Rails: `CE3427_PathCosts_AllocateNothingWhenWarm_AndStopAtTheirGoals` (0 B warm; red-proved by removing the early stop) and CE-3279's.
+- ⭐ **The road graph's Dijkstra on a large terrain (`CE-5043`, terrain `2026-11-23`; build-state: BUILT).** 📐 On the imported Stechovice graph
+  (19 257 nodes, 19 691 segments) `RoadGraphRouter.Route` cost seconds per route: it picked the next node by scanning EVERY node and, per settled
+  node, walked EVERY segment — O(N·(N+S)). Now the router keeps a node → incident-segments index (CSR, each node's segments in ascending order,
+  rebuilt only when handed a different blob — its arrays' addresses and lengths) and pops from **`CostHeap`**, the engine's one open list, which
+  `CircleSearch` uses too (its private heap moved there — one implementation). `CostHeap` orders by cost, then node index: the road search settles
+  nodes in exactly the order the scan did, so routes, metres and legs are unchanged (rail `RoadGraphRouterLargeGraphTests`: the former scan as the
+  oracle on random graphs and an equal-cost lattice; a 19 600-node graph within 50 ms; 0 B once warm — the former `new Stack` per route is gone).
+  ⚠ `CircleSearch`'s ties used to follow push order; they now follow the node index (a node's index is its discovery order). ⏳ `NearestAccess`
+  still projects onto every segment (two calls per plan) — measured in the same rail, a grid search is the next lever if it shows in a profile.
 - **`MoveToExecutor` per-tick cost (Brain):** O(1) per active mover — read `NavigationStatus.Result`, branch on it, return BTree state. No window sliding required.
 
 ## 16. Hot reload
