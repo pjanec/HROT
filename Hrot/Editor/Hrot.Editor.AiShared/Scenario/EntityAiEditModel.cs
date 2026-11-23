@@ -153,8 +153,8 @@ public sealed class EntityAiEditModel
         // ⭐ CE-3494 (R3) — what the section shows is the PENDING intent where there is one (applied when time next advances), else what runs
         if (PendingIntent(entity) is { } pending)
         {
-            if (pending.Behavior is { } pt) { task = pt.Name; taskJson = pt.Params; taskOrigin = pt.Origin; }
-            if (pending.Sop is { } ps) { sop = ps.Name; sopJson = ps.Params; sopOrigin = ps.Origin; }
+            if (pending.Behavior is { } pt) { task = pt.Clear ? null : pt.Name; taskJson = pt.Params; taskOrigin = pt.Origin; }   // a pending release: no task next
+            if (pending.Sop is { } ps) { sop = ps.Clear ? null : ps.Name; sopJson = ps.Params; sopOrigin = ps.Origin; }
             if (pending.Roe is { } pr)
             {
                 if (pr.Fire != RoeFire.FireUnset) fire = pr.Fire;
@@ -202,41 +202,34 @@ public sealed class EntityAiEditModel
     public Type? ParamsTypeOf(string behaviour) => BehaviorParamsForm.ParamsTypeOf(behaviour, _registry());
 
     // ⭐⭐ CE-3494 (R-3114, R-3118; docs/DESIGN_Unit_Intent.md §3.2) — `running` means a LIVE run (running OR paused mid-run):
-    //   LIVE ⇒ the edit is the operator's order, sent as an event at origin Operator; it waits in the step window and takes effect only when
-    //   time advances (the order systems are step-only). EDIT MODE (not yet run) ⇒ the edit is AUTHORED into the unit's UnitIntent at origin
-    //   Superior (R-193); nothing runs before the first step, so the intent IS the unit's starting AI and the save writes it. ⛔ SUPERSEDED: the
-    //   paused direct apply (AssignNow / RoeSystem.Apply) — it changed the AI on a paused frame, and at a breakpoint it wrote the rewound copy (CE-3495).
+    //   ⭐⭐ R-3119 (§10) — EVERY edit is the unit's UnitIntent: origin Operator LIVE (a person's direct order — it holds a plan), Superior in EDIT
+    //   MODE (R-193 authoring). Applied when time next advances; shown as Next, undoable, kept by a checkpoint. A live clear is the slot's Clear
+    //   (a release); an edit-mode clear un-authors the slot. ⛔ SUPERSEDED (S1, undocumented until §10): live edits sent as order events — they were
+    //   invisible until the step and a checkpoint on the paused frame lost them. ⛔ SUPERSEDED earlier: the paused direct apply (CE-3495).
 
     /// <summary>⭐ CE-3494 (R-3118) — the rank of a LIVE edit: a human's direct order.</summary>
     public const BehaviorOrigin LiveOrigin = BehaviorOrigin.Operator;
 
     public bool ApplyTask(Entity entity, string behaviour, string json, bool running)
-        => running
-            ? PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = LiveOrigin })
-            : Author(entity, "Set task", i => i with { Behavior = new IntentSlot { Name = behaviour, Params = Json(json), Origin = EditorOrigin } });
+        => Author(entity, "Set task", i => i with { Behavior = new IntentSlot { Name = behaviour, Params = Json(json), Origin = OriginOf(running) } });
 
+    /// <summary>Live: a RELEASE (the slot's Clear — the running task ends when time advances). Edit mode: the starting task is un-authored.</summary>
     public bool ClearTask(Entity entity, bool running)
-        => running
-            ? Publish(new ClearBehaviorEvent { Entity = entity, Origin = LiveOrigin })
-            : Author(entity, "Clear task", i => i with { Behavior = null });
+        => Author(entity, "Clear task", i => i with { Behavior = running ? new IntentSlot { Clear = true, Origin = LiveOrigin } : null });
 
     public bool ApplySop(Entity entity, string behaviour, string json, bool running)
     {
         if (!SopAllowed(behaviour)) return false;   // ⭐ CE-2084 — the SOP slot refuses a behaviour known to drive a channel, in both modes
-        return running
-            ? PublishManaged(new AssignSopEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = LiveOrigin })
-            : Author(entity, "Set SOP", i => i with { Sop = new IntentSlot { Name = behaviour, Params = Json(json), Origin = EditorOrigin } });
+        return Author(entity, "Set SOP", i => i with { Sop = new IntentSlot { Name = behaviour, Params = Json(json), Origin = OriginOf(running) } });
     }
 
     public bool ClearSop(Entity entity, bool running)
-        => running
-            ? Publish(new ClearSopEvent { Entity = entity, Origin = LiveOrigin })
-            : Author(entity, "Clear SOP", i => i with { Sop = null });
+        => Author(entity, "Clear SOP", i => i with { Sop = running ? new IntentSlot { Clear = true, Origin = LiveOrigin } : null });
 
     public bool ApplyRoe(Entity entity, RoeFire fire, RoeReactions reactions, bool running)
-        => running
-            ? Publish(new SetRoeEvent { Entity = entity, Fire = fire, Reactions = reactions, Origin = LiveOrigin })
-            : Author(entity, "Set ROE", i => i with { Roe = (i.Roe ?? new SavedRoe()) with { Fire = fire, Reactions = reactions, SetBy = EditorOrigin } });
+        => Author(entity, "Set ROE", i => i with { Roe = (i.Roe ?? new SavedRoe()) with { Fire = fire, Reactions = reactions, SetBy = OriginOf(running) } });
+
+    private static BehaviorOrigin OriginOf(bool running) => running ? LiveOrigin : EditorOrigin;
 
     /// <summary>⭐ CE-3494 (R-3117) — a live mission plan drives the unit's task slot (the intent's task would never start).</summary>
     public bool DrivenByPlan(Entity entity)
@@ -259,16 +252,7 @@ public sealed class EntityAiEditModel
         return true;
     }
 
-    private static void SetIntent(EntityRepository w, Entity entity, UnitIntent? intent)
-    {
-        if (!w.IsAlive(entity)) return;
-        if (intent is null || (intent.Behavior is null && intent.Sop is null && intent.Roe is null))
-        {
-            if (w.HasManagedComponent<UnitIntent>(entity)) w.RemoveComponent<UnitIntent>(entity);
-            return;
-        }
-        w.SetManagedComponent(entity, intent);
-    }
+    private static void SetIntent(EntityRepository w, Entity entity, UnitIntent? intent) => UnitIntents.Replace(w, entity, intent);   // the one store (R-3119)
 
     /// <summary>⭐ CE-2084 — a behaviour KNOWN to drive a channel is never an SOP (the ingress refuses it at apply; edit mode refuses it here).</summary>
     private bool SopAllowed(string behaviour)

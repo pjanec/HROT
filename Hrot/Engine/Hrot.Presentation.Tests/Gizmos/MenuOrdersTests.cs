@@ -473,14 +473,31 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Contains("mission plan", refused.Detail);
     }
 
-    /// <summary>⭐ CE-3494 (R-3115) — LIVE, an order is still an order (an event at Operator, HoldsPlan) — the hold happens where it starts.</summary>
+    /// <summary>⭐⭐ CE-3494 §10 (R-3119) — LIVE, a person's order is the unit's INTENT where its brain runs (origin Operator, the request id in the
+    /// slot, no event; a release is the slot's Clear); a station WITHOUT the brain sends the event as before (the egress forwards it).
+    /// 🔴 Red-proof: OwnsBrain always false ⇒ an event and no intent for the brain-owning world.</summary>
     [Fact]
-    public void CE3494_Live_AnOrderIsStillAnOrder()
+    public void CE3494_Live_APersonsOrderIsTheIntentOnTheBrainsNode_AnEventElsewhere()
     {
         Hrot.Common.Editing.StationMode.Install(_w, () => Hrot.Common.Editing.EditingMode.Live);
         var orders = new EntityOrders(_w, _map, geo: null);
-        Assert.True(orders.Hold(UnitId).Accepted);
+        Assert.True(orders.Hold(UnitId).Accepted);                                                       // no brain here: forwarded
         Assert.False(_w.TryGetTable(typeof(UnitIntent), out _) && _w.HasManagedComponent<UnitIntent>(_unit));
+        _w.Bus.SwapBuffers();
+        Assert.Single(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+
+        if (!_w.IsComponentTypeRegistered<BehaviorState>()) _w.RegisterComponent<BehaviorState>();
+        _w.AddComponent(_unit, new BehaviorState());                                                    // the brain runs here
+        _w.Bus.SwapBuffers();
+        Assert.True(orders.Hold(UnitId).Accepted);
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+        var slot = _w.GetManagedComponent<UnitIntent>(_unit)!.Behavior!;
+        Assert.Equal("Order.Hold", slot.Name);
+        Assert.Equal(BehaviorOrigin.Operator, slot.Origin);
+        Assert.NotEqual(System.Guid.Empty, slot.RequestId);
+        Assert.True(orders.Release(UnitId).Accepted);
+        Assert.True(_w.GetManagedComponent<UnitIntent>(_unit)!.Behavior!.Clear);
     }
 
     /// <summary>⭐ CE-4575 (X-9) — the HTTP / MCP move (<c>EntityOrders.Move</c>) sends its point as local metres <c>[x, y, 0]</c>, the form

@@ -120,12 +120,12 @@ public sealed class EntityAiSectionTests
         Assert.True(history.Redo());
         Assert.Equal(RoeFire.HoldFire, f.Model.Read(f.Unit)!.Fire);
 
-        // a LIVE edit is not an undo step
+        // ⭐ CE-3494 §10 (R-3119) — a LIVE edit is the intent too, so it is an undo step like an authored one ⛔ SUPERSEDED: "not an undo step" (an event)
         int count = history.Count;
         Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: true));
         Assert.True(f.Model.ApplySop(f.Unit, "BasicInfantrySop", "{}", running: true));
         Assert.True(f.Model.ApplyRoe(f.Unit, RoeFire.HoldFire, RoeReactions.StayOnTask, running: true));
-        Assert.Equal(count, history.Count);
+        Assert.Equal(count + 3, history.Count);
     }
 
     /// <summary>⭐ <c>CE-3494</c> — the authored intent still goes through the ONE gate when it is applied: a Superior intent does not replace
@@ -146,17 +146,25 @@ public sealed class EntityAiSectionTests
         Assert.Equal(idle, f.World.GetComponentRO<BehaviorState>(f.Unit).ActiveBehaviorHash);
     }
 
-    /// <summary>⭐ <c>CE-3494</c> (R-3118) — a LIVE edit (running or paused mid-run) is the operator's order: an event at origin Operator.</summary>
+    /// <summary>⭐⭐ <c>CE-3494</c> §10 (R-3119) — a LIVE edit (running or paused mid-run) is the unit's INTENT at origin Operator: pending (Read shows it),
+    /// no event, undoable; a live clear is a RELEASE (the slot's Clear). ⛔ SUPERSEDED: "a live edit is an event" (S1, CE3043_Running_AnEditIsAnEvent).
+    /// 🔴 Red-proof: the live branch publishing again ⇒ no pending task, an event.</summary>
     [Fact]
-    public void CE3043_Running_AnEditIsAnEvent_NotADirectWrite()
+    public void CE3494_Live_AnEditIsTheIntentAtOperator_AReleaseIsAClear()
     {
-        var f = new Fixture();
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        var f = new Fixture(history);
         Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: true));
-        Assert.Null(f.Model.Read(f.Unit)!.Task);                               // nothing changed yet
+        Assert.Equal("Idle", f.Model.Read(f.Unit)!.Task);                          // pending — what the unit does next
+        var slot = f.Model.PendingIntent(f.Unit)!.Behavior!;
+        Assert.Equal(BehaviorOrigin.Operator, slot.Origin);
         f.World.Bus.SwapBuffers();
-        var sent = Assert.Single(f.World.Bus.ReadManaged<AssignBehaviorEvent>());
-        Assert.Equal("Idle", sent.BehaviorName);
-        Assert.Equal(BehaviorOrigin.Operator, sent.Origin);
+        Assert.Empty(f.World.Bus.ReadManaged<AssignBehaviorEvent>());                // no event
+        Assert.True(f.Model.ClearTask(f.Unit, running: true));
+        Assert.True(f.Model.PendingIntent(f.Unit)!.Behavior!.Clear);
+        Assert.Null(f.Model.Read(f.Unit)!.Task);
+        Assert.True(history.Undo());                                                 // undo: the order is back
+        Assert.Equal("Idle", f.Model.PendingIntent(f.Unit)!.Behavior!.Name);
     }
 
     [Fact]

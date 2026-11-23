@@ -152,6 +152,26 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("HoldFire", withRoe);
         }
 
+        /// <summary>⭐ CE-3494 §10 P7 — a pending person's order is saved like an authored task, WITHOUT its request id; a pending release saves no
+        /// task. 🔴 Red-proof: the strip removed ⇒ "RequestId" in the file.</summary>
+        [Fact]
+        public void CE3494_APendingPersonsOrderIsSavedWithoutItsRequestId_APendingReleaseSavesNoTask()
+        {
+            var registry = Production();
+            var a = new Node(registry);
+            var unit = a.Unit();
+            if (!a.Repo.TryGetTable(typeof(UnitIntent), out _)) a.Repo.RegisterManagedComponent<UnitIntent>();
+            UnitIntents.RequestTask(a.Repo, unit, "Idle", "{}", BehaviorOrigin.Operator, System.Guid.NewGuid());
+            var saved = new BrainSnapshotTranslator(registry).Extract(a.Repo, unit, new StubGuidResolver());
+            string json = ((System.Text.Json.Nodes.JsonNode)saved[BrainSnapshotTranslator.BehaviorKey]).ToJsonString();
+            Assert.Contains("Idle", json);
+            Assert.DoesNotContain("RequestId", json);
+            Assert.DoesNotContain("Clear", json);
+
+            UnitIntents.RequestClear(a.Repo, unit, BehaviorOrigin.Operator, System.Guid.Empty);
+            Assert.False(new BrainSnapshotTranslator(registry).Extract(a.Repo, unit, new StubGuidResolver()).ContainsKey(BrainSnapshotTranslator.BehaviorKey));
+        }
+
         [Fact]
         public void CE3042_WhatTheTemplateOrTheSopChose_IsNotSaved()
         {

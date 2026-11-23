@@ -163,6 +163,7 @@ namespace Hrot.CGF
             IntentClears.Register(_missionExecutionSystem);
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry, IntentClears);
             _missionControlModule.Ingress.Holds  = IntentClears;   // ⭐ CE-3494 (R-3115) — the ingress holds the plan after an order STARTS (silent-default rule)
+            _missionControlModule.Ingress.TasksTakenByOrders = true;   // ⭐ CE-3494 §10 (R-3119) — the tactical system above takes a person's task from the intent (silent-default rule)
             // ⭐ agg-behaviors ST-2 (R-8311, the silent-default rule) — the ingress starts a stochastic unit's template-default SOP through the SAME routing table that
             //   resolves its orders; Fdp.Toolkits cannot see that table, so the host that holds it hands the ingress the resolver. Every brain host builds this pack.
             Fdp.Toolkit.Behavior.StochasticSopRouting.Resolver = TacticalIntentResolutionSystem.SopFor;

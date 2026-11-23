@@ -12,6 +12,14 @@ namespace Fdp.Toolkit.Behavior.Components
         [JsonText] public string Params { get; init; } = "{}";
         /// <summary>Who ordered it — the reload carries the same rank.</summary>
         public BehaviorOrigin Origin { get; init; } = BehaviorOrigin.Superior;
+        /// <summary>⭐ <c>CE-3494</c> §10 P3 (R-3119) — a person's RELEASE: the slot ends what runs instead of starting something (live only; a
+        /// pending Clear saves no task). Not written when false, so a file saved after loading is unchanged.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public bool Clear { get; init; }
+        /// <summary>⭐ <c>CE-3494</c> §10 P4 — the station's request id (edit framework F5), so the brain's owner answers the station that asked.
+        /// ⛔ Never saved (the save strips it); not written when empty.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public System.Guid RequestId { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3042</c> — the saved ROE (R-200), only when an order changed it from the template default.</summary>

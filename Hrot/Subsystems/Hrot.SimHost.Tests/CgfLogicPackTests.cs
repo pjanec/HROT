@@ -670,6 +670,7 @@ namespace Hrot.SimHost.Tests
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             var ingress = pack.InputSystems.OfType<Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem>().Single();
             Assert.Same(pack.IntentClears, ingress.Holds);
+            Assert.True(ingress.TasksTakenByOrders);   // ⭐ CE-3494 §10 (R-3119) — the pack registers the tactical system, so the ingress leaves a person's task to it
         }
     }
 }

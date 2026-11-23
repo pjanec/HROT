@@ -103,7 +103,16 @@ namespace Hrot.CGF.Systems
                     $"EntityRepository access and cannot run on a read-only snapshot " +
                     $"({view.GetType().Name}).");
 
-            var events = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
+            // ⭐⭐ CE-3494 §10 P5 (R-3119) — a PERSON's task waits in the unit's intent (a paused frame keeps it, a checkpoint keeps it): take it
+            //   here, FIRST (intent before the step's requests, R-3117), as the order event it replaces — same step, same rules (per-class
+            //   resolution, plan hold, the station's answer) — and strip the slot. The step's own requests follow in order.
+            var window = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
+            System.Collections.Generic.IReadOnlyList<AssignTacticalIntentEvent> events = window;
+            if (TakePersonsTasks(repo) > 0)
+            {
+                for (int k = 0; k < window.Count; k++) _taken.Add(window[k]);
+                events = _taken;
+            }
 
             for (int i = 0; i < events.Count; i++)
             {
@@ -240,6 +249,42 @@ namespace Hrot.CGF.Systems
                 Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
                 At = at, ObservedAt = now,
             }, now + Fdp.Toolkit.Squad.Command.StaffComposerSystem.ReportDelaySeconds);
+        }
+
+        [Fdp.Core.FrameScratch("a person's tasks taken from the intent this step, then the step's events — cleared at the top of each take")]
+        private readonly System.Collections.Generic.List<AssignTacticalIntentEvent> _taken = new();
+        [Fdp.Core.FrameScratch("the units whose intent holds a person's task this step")]
+        private readonly System.Collections.Generic.List<Entity> _takeUnits = new();
+        private EntityQuery? _intentQuery;
+        private EntityRepository? _intentQueryOf;
+
+        /// <summary>
+        /// ⭐ CE-3494 §10 — moves every pending PERSON's task (origin Operator) out of the units' <see cref="UnitIntent"/> into <see cref="_taken"/> as
+        /// the order event it stands for; the slot is removed (the record too when nothing else is pending). Returns how many. No allocation when none
+        /// (the query is built once per world). ⛔ Not during a replay (R11).
+        /// </summary>
+        private int TakePersonsTasks(EntityRepository repo)
+        {
+            _taken.Clear();
+            if (!repo.TryGetTable(typeof(UnitIntent), out _) || Fdp.Toolkit.Replay.ReplayState.IsActive(repo)) return 0;
+            if (!ReferenceEquals(_intentQueryOf, repo)) { _intentQuery = repo.Query().WithManaged<UnitIntent>().Build(); _intentQueryOf = repo; }
+            _takeUnits.Clear();
+            foreach (var e in _intentQuery!) _takeUnits.Add(e);
+            for (int i = 0; i < _takeUnits.Count; i++)
+            {
+                var entity = _takeUnits[i];
+                var intent = ((ISimulationView)repo).GetManagedComponentRO<UnitIntent>(entity);
+                if (intent?.Behavior is not { Origin: BehaviorOrigin.Operator } task || !repo.HasAuthority<BehaviorState>(entity)) continue;
+                _taken.Add(new AssignTacticalIntentEvent
+                {
+                    Entity = entity, IntentId = task.Clear ? string.Empty : task.Name, JsonParams = task.Params, Origin = task.Origin,
+                    Kind = task.Clear ? TacticalIntentKind.Clear : TacticalIntentKind.Assign, ClearsPriorIntent = true, RequestId = task.RequestId,
+                });
+                var rest = intent with { Behavior = null };
+                if (rest.Sop is null && rest.Roe is null) repo.RemoveComponent<UnitIntent>(entity);
+                else repo.SetManagedComponent(entity, rest);
+            }
+            return _taken.Count;
         }
 
         /// <summary>⭐ <c>CE-2141</c> — an ASSIGN to <paramref name="entity"/> follows event <paramref name="index"/> in this frame.</summary>

@@ -406,8 +406,12 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (!ReferenceEquals(intent, _nextFor))
         {
             _nextFor = intent;
-            _nextText = "\u23F3 " + intent.Behavior.Name + " — when time next advances";
-            _lostText = "\u26A0 When time advances, " + intent.Behavior.Name + " starts — staged memory edits to the running behaviour will be lost";
+            // ⭐ CE-3494 §10 — a person's release is a pending Clear: the running task ends, the SOP picks next
+            string what = intent.Behavior.Clear ? "Release" : intent.Behavior.Name;
+            _nextText = "\u23F3 " + what + (intent.Behavior.Clear ? " — the running task ends when time next advances" : " — when time next advances");
+            _lostText = intent.Behavior.Clear
+                ? "\u26A0 When time advances, the running task ends — staged memory edits to it will be lost"
+                : "\u26A0 When time advances, " + what + " starts — staged memory edits to the running behaviour will be lost";
         }
         return _nextText;
     }

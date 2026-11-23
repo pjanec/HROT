@@ -91,7 +91,7 @@ public static class RuleSentence
     public static (string Name, string Json)? ParamsOf(Fdp.Core.EntityRepository? w, Fdp.Core.Entity e)
     {
         if (w != null && w.IsAlive(e) && w.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.UnitIntent), out _) && w.HasManagedComponent<Fdp.Toolkit.Behavior.Components.UnitIntent>(e)
-            && ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.UnitIntent>(e)?.Behavior is { } pending)
+            && ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.UnitIntent>(e)?.Behavior is { Clear: false } pending)   // a pending release (§10) names no rule
             return (pending.Name, pending.Params);
         if (w == null || !w.IsAlive(e) || !w.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), out _) || !w.HasManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>(e)) return null;
         var rec = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>(e);

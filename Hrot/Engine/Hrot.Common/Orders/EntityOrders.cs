@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Behavior.Events;
@@ -187,7 +188,9 @@ namespace Hrot.Common.Orders
                 }
                 return new OrderResult(OrderRefusal.None, "released — no starting task", string.Empty, string.Empty);
             }
-            _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+            // ⭐ CE-3494 §10 — a live release is the intent's Clear on the brain's node; elsewhere the event, as before
+            if (OwnsBrain(entity)) UnitIntents.RequestClear(_world, entity, BehaviorOrigin.Operator, Guid.Empty);
+            else _world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity = entity, Kind = TacticalIntentKind.Clear, Origin = BehaviorOrigin.Operator,
             });
@@ -313,14 +316,24 @@ namespace Hrot.Common.Orders
             if (IsEditMode()) return Author(entity, intentId, json);
             // ⭐ edit framework F5 (CE-4306) — journalled: the brain's owner answers ACCEPTED, or refused with why (a higher-ranked order is running, no class fulfils it …)
             string label = "Order " + (intentId.StartsWith(OrderAttribute.IntentPrefix, StringComparison.Ordinal) ? intentId.Substring(OrderAttribute.IntentPrefix.Length) : intentId);
+            // ⭐⭐ CE-3494 §10 (R-3119) — a person's live order is the unit's INTENT on the node that runs its brain (shown as Next, kept by a
+            //   checkpoint, replaced by a later order); another node sends it there as before and that node's ingress writes the intent.
             Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Command(entity,
-                id => _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+                id =>
                 {
-                    Entity = entity, IntentId = intentId, JsonParams = json,
-                    Origin = BehaviorOrigin.Operator, ClearsPriorIntent = true, RequestId = id,
-                }), label));
+                    if (OwnsBrain(entity)) { UnitIntents.RequestTask(_world, entity, intentId, json, BehaviorOrigin.Operator, id); return; }
+                    _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+                    {
+                        Entity = entity, IntentId = intentId, JsonParams = json,
+                        Origin = BehaviorOrigin.Operator, ClearsPriorIntent = true, RequestId = id,
+                    });
+                }, label));
             return new OrderResult(OrderRefusal.None, "ordered", intentId, json);
         }
+
+        /// <summary>⭐ CE-3494 §10 — this node runs the unit's brain (the same test the tactical system applies before resolving an order).</summary>
+        private bool OwnsBrain(Entity entity)
+            => _world.HasComponent<BehaviorState>(entity) && _world.HasAuthority<BehaviorState>(entity);
 
         /// <summary>⭐ CE-3494 — the station is in EDIT mode (the one mode source, <see cref="Hrot.Common.Editing.StationMode"/>); false where none is installed.</summary>
         private bool IsEditMode()

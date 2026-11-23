@@ -251,21 +251,58 @@ namespace Fdp.Toolkit.Behavior.Systems
                                                                  ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds, ForceLevel = roe.ForceLevel,
                                                                  Incendiary = roe.Incendiary });
                     if (intent.Sop is { } sop && repo.HasComponent<BehaviorState>(entity))
-                        AssignSopNow(repo, entity, sop.Name, sop.Params, sop.Origin);
-                    if (intent.Behavior is { } task && repo.HasComponent<BehaviorState>(entity)
-                        && !BrainIntentReader.DrivenByMissionPlan(repo, entity))
                     {
-                        // ⭐ CE-3494 — a task that is not a behaviour name is an ORDER (`Order.Move` — an edit-mode map order, or a hand-written file):
-                        //   the one order path resolves it per class (TacticalIntentResolution), as a live order would — a step later, at the same rank
-                        if (_registry.TryGetId(task.Name, out _)) AssignNow(repo, entity, task.Name, task.Params, task.Origin);
-                        else if (repo.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>())
-                            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = entity, IntentId = task.Name, JsonParams = task.Params, Origin = task.Origin });
+                        if (sop.Clear) ClearSopNow(repo, entity, sop.Origin);   // ⭐ §10 — a person's SOP clear
+                        else AssignSopNow(repo, entity, sop.Name, sop.Params, sop.Origin);
+                    }
+                    if (intent.Behavior is { } task && repo.HasComponent<BehaviorState>(entity))
+                    {
+                        // ⭐⭐ CE-3494 §10 P5 (R-3119) — a PERSON's live task (origin Operator) keeps the order path's timing and rules: the tactical
+                        //   system takes it from the intent in its own step (Simulation phase, after this one) — leave it there. Only the task slot
+                        //   stays; ROE and SOP are applied above.
+                        if (person(task) && TasksTakenByOrders)
+                        {
+                            repo.SetManagedComponent(entity, new UnitIntent { Behavior = task });
+                            IntentsApplied++;
+                            continue;
+                        }
+                        if (person(task)) PublishOrder(repo, entity, task);   // a host with no tactical system: the event the order path reads
+                        // R4 — an AUTHORED task (edit mode, a load) is dropped while a live plan drives the unit: the plan owns the slot
+                        else if (!BrainIntentReader.DrivenByMissionPlan(repo, entity))
+                        {
+                            // ⭐ CE-3494 — a task that is not a behaviour name is an ORDER (`Order.Move` — an edit-mode map order, or a hand-written
+                            //   file): the one order path resolves it per class (TacticalIntentResolution), a step later, at the same rank
+                            if (task.Clear) repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = task.Origin });
+                            else if (_registry.TryGetId(task.Name, out _)) AssignNow(repo, entity, task.Name, task.Params, task.Origin);
+                            else PublishOrder(repo, entity, task);
+                        }
                     }
                 }
                 repo.RemoveComponent<UnitIntent>(entity);
                 IntentsApplied++;
             }
         }
+
+        private static bool person(IntentSlot task) => task.Origin == BehaviorOrigin.Operator;
+
+        /// <summary>⭐ CE-3494 — a task slot as the order event the tactical system reads (a person's: it clears the prior intent and holds the plan).</summary>
+        private static void PublishOrder(EntityRepository repo, Entity entity, IntentSlot task)
+        {
+            if (!repo.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) return;
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent
+            {
+                Entity = entity, IntentId = task.Clear ? string.Empty : task.Name, JsonParams = task.Params, Origin = task.Origin,
+                Kind = task.Clear ? TacticalIntentKind.Clear : TacticalIntentKind.Assign,
+                ClearsPriorIntent = task.Origin == BehaviorOrigin.Operator, RequestId = task.RequestId,
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3494</c> §10 P5 (R-3119) — the tactical system takes a person's task from the intent in its own step (the order path's timing).
+        /// ⚠ False = this host has none: the ingress publishes the order itself. ⛔ A host that registers the tactical system must set it — <c>CgfLogicPack</c>
+        /// does, with a forwarding rail (the silent-default rule).
+        /// </summary>
+        public bool TasksTakenByOrders { get; set; }
 
         /// <summary>
         /// ⭐⭐ <c>CE-3494</c> (R-3115) — what an order with <see cref="AssignBehaviorEvent.HoldsPlan"/> holds once it has STARTED (the mission

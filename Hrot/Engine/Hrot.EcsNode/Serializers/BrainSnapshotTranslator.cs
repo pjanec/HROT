@@ -60,8 +60,9 @@ namespace Hrot.SimHost.Serializers
             //   saved either way (R-192): a reload re-derives it. ⇒ a load followed by a save writes the SAME keys (no file change).
             var pending = repo.TryGetTable(typeof(UnitIntent), out _) && repo.HasManagedComponent<UnitIntent>(entity)
                 ? ((ISimulationView)repo).GetManagedComponentRO<UnitIntent>(entity) : null;
-            if ((Authored(pending?.Behavior) ?? TaskOf(repo, entity)) is { } task) result[BehaviorKey] = Node(task);
-            if ((Authored(pending?.Sop) ?? SopOf(repo, entity)) is { } sop) result[SopKey]      = Node(sop);
+            // ⭐ CE-3494 §10 P7 (R9) — a pending CLEAR (a person's release) saves no slot; a pending person's request is saved without its request id
+            if (pending?.Behavior is not { Clear: true } && (Authored(pending?.Behavior) ?? TaskOf(repo, entity)) is { } task) result[BehaviorKey] = Node(task with { RequestId = System.Guid.Empty });
+            if (pending?.Sop is not { Clear: true } && (Authored(pending?.Sop) ?? SopOf(repo, entity)) is { } sop) result[SopKey] = Node(sop with { RequestId = System.Guid.Empty });
             if ((pending?.Roe is { } r && r.SetBy != BehaviorOrigin.Unmarked ? r : RoeOf(repo, entity)) is { } roe) result[RoeKey] = Node(roe);
             return result;
         }
