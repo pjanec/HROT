@@ -699,6 +699,36 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0f, c[1].Score, 3);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2496</c> — a squad COMMANDER (no eyes, no sensor children) knows his squad's merged pool: the north and east threats in the pool give
+        /// the same 0.5 as the unit-level test; an anonymous (heard) pool entry adds nothing. 📐 of-squad-outmatched: the squad's retreat query never measured
+        /// exposure (flags never meaningful) and rallied in the second machine gun's sight. 🔴 Red-proof: the pool not read ⇒ no threats ⇒ 0.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2496_ThreatExposure_ASquadCommander_KnowsHisSquadsPool()
+        {
+            _repo.SetSingletonManaged(WallWorld());
+            var self = At(10, 0);
+            var north = At(10, 30);
+            var east = At(40, 5);
+            var state = new Fdp.Toolkit.Squad.SquadCognitiveState();
+            var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<Fdp.Toolkit.Squad.SquadContactPoolSlots, Fdp.Toolkit.Squad.SquadContact>(ref state.Contacts.Contacts), 16);
+            span[0] = new Fdp.Toolkit.Squad.SquadContact { EntityId = (long)north.PackedValue, PositionX = 10, PositionY = 30, ThreatScore = 1f };
+            span[1] = new Fdp.Toolkit.Squad.SquadContact { EntityId = (long)east.PackedValue, PositionX = 40, PositionY = 5, ThreatScore = 1f };
+            span[2] = new Fdp.Toolkit.Squad.SquadContact { EntityId = 0, Flags = Fdp.Toolkit.Squad.SquadContact.AnonymousFlag, PositionX = 10, PositionY = 40 };
+            state.Contacts.Count = 3;
+            _repo.AddComponent(self, state);
+            var sensor = new EqsSensor { ContextSlot0 = self };
+            var c = new[] { Point(10, 8), Point(10, 40) };
+
+            new ThreatExposureTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+
+            Assert.Equal(0.5f, c[0].Score, 3);
+            Assert.NotEqual(0, c[0].Flags & (1 << 5));
+            Assert.Equal(0f, c[1].Score, 3);
+        }
+
         [Fact]
         public void ThreatExposure_WithNoKnownThreats_ScoresNothing()
         {
