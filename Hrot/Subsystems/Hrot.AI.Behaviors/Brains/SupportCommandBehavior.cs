@@ -282,7 +282,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var a = roster.SubordinateEntities[i];
                 if (a.IsNull || !world.IsAlive(a) || !CombatLife.IsAlive(world, a)) continue;
                 if (KindOf(world, a) != SupportAsset.AttackHelicopter || !RadarSamNodes.Unmanned(world, a)) continue;
-                if (CommandOrders.Busy(world, self, a) || JustOrdered(world, self, a)) continue;
+                if (CommandOrders.Busy(world, self, a) || OnFireMission(world, a) || JustOrdered(world, self, a)) continue;
                 return a;
             }
             return Entity.Null;
@@ -324,10 +324,34 @@ namespace Hrot.AI.Behaviors.Brains
                 if (slots != 0 && (i >= 32 || (slots & (1 << i)) == 0)) continue;
                 var a = roster.SubordinateEntities[i];
                 if (a.IsNull || a.Equals(not) || !world.IsAlive(a) || !CombatLife.IsAlive(world, a)) continue;
-                if (KindOf(world, a) != kind || CommandOrders.Busy(world, self, a) || JustOrdered(world, self, a)) continue;
+                if (KindOf(world, a) != kind || CommandOrders.Busy(world, self, a) || OnFireMission(world, a) || JustOrdered(world, self, a)) continue;
                 return a;
             }
             return Entity.Null;
+        }
+
+        private static readonly int[] FireMissionHashes =
+        {
+            BehaviorHash.FromName(BehaviorNames.AirPlatformStrike), BehaviorHash.FromName(BehaviorNames.AirPlatformAttack),
+            BehaviorHash.FromName(BehaviorNames.AirArmedSearch), BehaviorHash.FromName(BehaviorNames.ArtilleryUnitStrike),
+            BehaviorHash.FromName(BehaviorNames.SelfPropelledArtilleryStrike),
+        };
+
+        /// <summary>
+        /// ⭐ <c>CE-5047</c> (Command Chain §8d, the <c>Free</c>/<c>Busy</c> gap; user-approved lean 2026-11-23, narrowed by measurement) — the asset
+        /// is already running a FIRE MISSION from a superior — a strike, an attack, an armed search: the tasks this HQ's own orders resolve to —
+        /// whoever gave it (a scenario's author, another commander): the HQ does not take it off that mission. ⭐ A patrol or a transit is NOT a
+        /// fire mission and stays the HQ's to re-task: 📐 <c>uc-a10-zu23-dry</c> and <c>uc-urban-battle</c> author their A-10 on a
+        /// <c>FollowRoute</c> and the HQ's SEAD strike pulls it off that route (a blanket "any authored order is busy" would stop that beat).
+        /// 📐 Found on the Stechovice showcase: the HQ took the Apache off its authored attack on the village technical.
+        /// </summary>
+        private static bool OnFireMission(EntityRepository world, Entity asset)
+        {
+            if (!world.HasComponent<BehaviorState>(asset)) return false;
+            ref readonly var bs = ref world.GetComponentRO<BehaviorState>(asset);
+            if (bs.Origin != BehaviorOrigin.Superior) return false;
+            for (int i = 0; i < FireMissionHashes.Length; i++) if (bs.ActiveBehaviorHash == FireMissionHashes[i]) return true;
+            return false;
         }
 
         /// <summary>An order given this recently has not reached the asset's brain yet (it runs from the next frame): still busy (s).</summary>
