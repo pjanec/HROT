@@ -1,6 +1,7 @@
 // CE-4651 (U-18b) — see HrotDpsWorld.h
 #include "HrotDpsWorld.h"
 #include "HrotDpsStation.h"
+#include "HrotDpsTrafficKit.h"
 #include "HrotDpsNative.h"
 #include "HrotDpsSubsystem.h"
 #include "HrotVehicle.h"
@@ -491,10 +492,16 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 		return;
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket:
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm:
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategorySam:
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAirToAir:
 		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n: the launch (the round itself is an entity, drawn as such)
 			if (R)
 			{
-				USoundBase* L = Snd->Pick(TEXT("wpn/rocket_launch"));
+				// a guided missile (ATGM: Javelin, Kornet; SAM: Igla, Stinger; air-to-air) has its own launch - the motor's long whoosh
+				// (wpn/missile_launch, DESIGN_IG_Squad_Radio §6); an unguided rocket (RPG) keeps the rocket's
+				const bool bMissile = D.WeaponCategory != SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket;
+				USoundBase* L = Snd->Pick(bMissile ? TEXT("wpn/missile_launch") : TEXT("wpn/rocket_launch"));
+				if (!L && bMissile) L = Snd->Pick(TEXT("wpn/rocket_launch"));
 				R->PlaySound(L ? L : Snd->Pick(TEXT("wpn/rpg")), From, Snd->Falloff(10.f, 2000.f));
 			}
 		Count(TEXT("rocket launch"));
@@ -1056,7 +1063,10 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	// the body clip: the role, or its fallback chain when the kit has none
 	FName Role = L.Base;
 	UAnimSequence* Base = K->Clip(Role);
-	for (int32 I = 0; !Base && !Role.IsNone() && I < 6; ++I) { Role = HrotDpsPeople::Fallback(Role); Base = K->Clip(Role); }
+	{   // U-19h: never a loop (Death.Stand <-> Dying), the chain ends at the first clip the kit has
+		TArray<FName, TInlineAllocator<8>> Tried;
+		while (!Base && !Role.IsNone() && !Tried.Contains(Role)) { Tried.Add(Role); Role = HrotDpsPeople::Fallback(Role); if (!Role.IsNone()) Base = K->Clip(Role); }
+	}
 	// U-18i — a RIDER: his body sits (the seat's clip, U-17j), his upper body still readies and aims (firing from the saddle)
 	if (E.bRiding && E.SeatPose.IsValid()) { Base = E.SeatPose.Get(); Role = TEXT("Seat.Riding"); }
 	// a hit on him (U-18e): the flinch plays once over the body, unless he is going down (his Injury wins) or prone
@@ -1131,7 +1141,7 @@ FString UHrotDpsWorld::PersonLook(int32 EntityId) const { const FEnt* E = Ents.F
 
 // ── actors ──
 
-UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
+UHrotVehicleKit* UHrotDpsWorld::KitFor(int32 Id, const FEnt& E) const
 {
 	if (const TSoftObjectPtr<UHrotVehicleKit>* K = KitsByType.Find(E.TypeId)) return K->LoadSynchronous();
 	const TSoftObjectPtr<UHrotVehicleKit>* Best = nullptr;
@@ -1139,6 +1149,14 @@ UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
 	for (const TPair<FString, TSoftObjectPtr<UHrotVehicleKit>>& P : KitsByDis)   // the longest dotted prefix
 		if ((E.Dis == P.Key || E.Dis.StartsWith(P.Key + TEXT("."))) && P.Key.Len() > BestLen) { Best = &P.Value; BestLen = P.Key.Len(); }
 	if (Best) return Best->LoadSynchronous();
+	// U-19h: a SUMO car HROT took over (DIS 1.1.0.81, the mover's own id): the mover's model family, the mover's own pick - it keeps its look
+	switch (HrotDpsTrafficKit::FamilyOf(E.Dis, int32(E.TypeId)))
+	{
+	case HrotDpsTrafficKit::EFamily::Bus: if (!BusKit.IsNull()) return BusKit.LoadSynchronous(); break;
+	case HrotDpsTrafficKit::EFamily::Van: { const int32 I = HrotDpsTrafficKit::Pick(Id, VanKits.Num()); if (I >= 0) return VanKits[I].LoadSynchronous(); break; }
+	case HrotDpsTrafficKit::EFamily::Car: { const int32 I = HrotDpsTrafficKit::Pick(Id, CarKits.Num()); if (I >= 0) return CarKits[I].LoadSynchronous(); break; }
+	default: break;
+	}
 	if (const TSoftObjectPtr<UHrotVehicleKit>* K = KitsByDomain.Find(DomainName(E.Domain))) return K->LoadSynchronous();
 	return nullptr;
 }
@@ -1184,7 +1202,7 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		E.DrawnAs = TEXT("person stand-in");
 		A = M;
 	}
-	else if (UHrotVehicleKit* Kit = (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) ? nullptr : KitFor(E))
+	else if (UHrotVehicleKit* Kit = (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson) ? nullptr : KitFor(Id, E))
 	{
 		AHrotVehicle* V = W->SpawnActorDeferred<AHrotVehicle>(AHrotVehicle::StaticClass(), At, nullptr, nullptr,
 			ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
@@ -1209,9 +1227,28 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		// a pintle / tripod gun) are their own entities, the M2 standing at the HMMWV: a vehicle-sized box hid the HMMWV ⇒ a gun-sized one
 		TArray<FString> DisParts; E.Dis.ParseIntoArray(DisParts, TEXT("."));
 		const bool bWeaponSystem = DisParts.Num() > 3 && DisParts[3] == TEXT("50");
-		B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : bWeaponSystem ? FVector(1.6, 0.25, 0.35) : FVector(5, 2.5, 2));
+		B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : bWeaponSystem ? FVector(0.35, 0.16, 0.22) : FVector(5, 2.5, 2));
 		B->GetStaticMeshComponent()->SetRelativeLocation(FVector(0, 0, bPerson ? 90 : bWeaponSystem ? 120 : 100));
-		if (bWeaponSystem) E.DrawnAs = TEXT("weapon-system box");
+		if (bWeaponSystem)
+		{
+			// U-19h: no HMG model exists (measured: /Game/Fab/RTS_Modern_Combat_Vehicle_Pack_Free has only the HMG20_M0 MATERIALS - no mesh; DA_FR_VBL_Green draws a body and
+			// wheels, no roof gun) - so a gun built from engine shapes, +X forward, ~1.65 m long: a receiver, a barrel and a pintle post, instead of a 1.6 m slab
+			const FVector Par(0.35, 0.16, 0.22);   // the receiver cube's world size (m); the parts are cubes too (no rotation, so no shear under the non-uniform parent)
+			auto Part = [&](FVector OffsetM, FVector SizeM)
+			{
+				UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(B, NAME_None, RF_Transient);
+				C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
+				C->SetMobility(EComponentMobility::Movable);
+				C->AttachToComponent(B->GetStaticMeshComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+				C->SetRelativeLocation(OffsetM / Par);   // parent space: 1 unit = 1 m x the parent's scale
+				C->SetRelativeScale3D(SizeM / Par);
+				C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				C->RegisterComponent();
+			};
+			Part(FVector(0.8, 0, 0.03), FVector(1.3, 0.05, 0.05));      // the barrel: from just ahead of the receiver to 1.45 m (the gun is 1.62 m long)
+			Part(FVector(0, 0, -0.45), FVector(0.06, 0.06, 0.9));       // the pintle post down to the ground
+			E.DrawnAs = TEXT("weapon-system gun (engine shapes)");
+		}
 		if (E.DrawnAs.IsEmpty() || E.DrawnAs.StartsWith(TEXT("("))) E.DrawnAs = TEXT("box");
 		A = B;
 	}

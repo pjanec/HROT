@@ -18,6 +18,12 @@ namespace
 	const FLinearColor White(1, 1, 1, 1), Grey(0.6f, 0.6f, 0.6f, 1), Yellow(1, 0.85f, 0.2f, 1), Red(220 / 255.f, 30 / 255.f, 30 / 255.f, 1);
 	const TCHAR* StanceName(uint8 S) { return S == 2 ? TEXT("CROUCHED") : S == 3 ? TEXT("PRONE") : TEXT("STANDING"); }
 	using FLines = TArray<TPair<FString, FLinearColor>>;
+	/** the UseReason word of a refused row (the contract's UseReason order) */
+	FString UseReasonWord(uint8 R)
+	{
+		static const TCHAR* W[] = { TEXT("unknown"), TEXT("ok"), TEXT("out of reach"), TEXT("locked"), TEXT("door refuses"), TEXT("not down"), TEXT("seat taken"), TEXT("unfit"), TEXT("carrying"), TEXT("nothing to do"), TEXT("failed") };
+		return R < UE_ARRAY_COUNT(W) ? FString(W[R]) : FString(TEXT("refused"));
+	}
 
 	struct FPainter
 	{
@@ -91,6 +97,21 @@ namespace
 			const float Fade = FMath::Clamp(1.f - float(Now - Hit.At) / ArcSeconds, 0.f, 1.f);
 			P.Arc(Cx, Cy, Radius, Deg, ArcHalfWidthDeg, ArcThickness(Hit.Damage), FLinearColor(Red.R, Red.G, Red.B, 0.78f * Fade));
 		}
+		// U-19h: the hold-F list - HROT's offered verbs for the target, in its order; the highlighted row marked, refused rows grey with HROT's reason
+		if (Cam->UseListOpen())
+		{
+			const TArray<FHrotDpsUseAction> Rows = St->Actions();
+			float Y = Cy + 28;
+			for (int32 I = 0; I < Rows.Num() && I < 8; ++I)
+			{
+				const FHrotDpsUseAction& A = Rows[I];
+				FString Row = FString::Printf(TEXT("%s %d  %s"), I == Cam->UseListHighlight() ? TEXT(">") : TEXT(" "), I + 1, *A.Label);
+				if (!A.bAvailable) Row += TEXT("  (") + UseReasonWord(A.Reason) + TEXT(")");
+				P.Text(Row, Cx - 90.f, Y, !A.bAvailable ? Grey : I == Cam->UseListHighlight() ? Yellow : White);
+				Y += 20.f;
+			}
+		}
+		else
 		// the use prompt under the crosshair
 		if (!St->UsePrompt().IsEmpty())
 		{

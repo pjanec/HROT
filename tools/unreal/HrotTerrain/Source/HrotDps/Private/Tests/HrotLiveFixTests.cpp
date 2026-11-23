@@ -4,6 +4,7 @@
 #include "HrotDpsPick.h"
 #include "HrotSoundscape.h"
 #include "HrotDpsCamera.h"
+#include "HrotDpsTrafficKit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -63,6 +64,20 @@ bool FHrotLiveFixEyesTest::RunTest(const FString&)
 			TestEqual(TEXT("the gaze yaw = the orbit's (mod 2 pi)"), FMath::UnwindRadians(GY - Yaw), 0.0, 1e-9);
 			TestTrue(TEXT("the held yaw offset is the short way round"), FMath::Abs(OY) <= UE_DOUBLE_PI + 1e-9);
 		}
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotLiveFixTrafficKitTest, "Hrot.Dps.LiveFix.TrafficKit", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotLiveFixTrafficKitTest::RunTest(const FString&)
+{
+	namespace TK = HrotDpsTrafficKit;
+	const FString Dis = TEXT("1.1.0.81.0.0.0");
+	for (const int32 Car : { 1002, 1050, 1054, 1055, 1056, 7777 }) TestTrue(FString::Printf(TEXT("TKB %d -> a car"), Car), TK::FamilyOf(Dis, Car) == TK::EFamily::Car);
+	for (const int32 Van : { 1051, 1053 }) TestTrue(FString::Printf(TEXT("TKB %d -> a van"), Van), TK::FamilyOf(Dis, Van) == TK::EFamily::Van);
+	TestTrue(TEXT("1052 CityBus -> the bus"), TK::FamilyOf(Dis, 1052) == TK::EFamily::Bus);
+	TestTrue(TEXT("a HMMWV is not traffic"), TK::FamilyOf(TEXT("1.1.225.6"), 1052) == TK::EFamily::None);
+	TestTrue(TEXT("a look-alike prefix is not traffic"), TK::FamilyOf(TEXT("1.1.0.810"), 1050) == TK::EFamily::None);
+	// the mover's own pick: id % count, the same car on every channel
+	TestEqual(TEXT("pick = id % 4"), TK::Pick(4102, 4), 2); TestEqual(TEXT("no kits"), TK::Pick(5, 0), -1);
 	return true;
 }
 #endif

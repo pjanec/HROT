@@ -479,7 +479,7 @@ private:
 	void Forget(int32 Id);
 	void Clear();
 	void SpawnIfReady(int32 Id, FEnt& E);
-	UHrotVehicleKit* KitFor(const FEnt& E) const;
+	UHrotVehicleKit* KitFor(int32 Id, const FEnt& E) const;
 	void Place(FEnt& E, double Real);
 	FHrotDpsPose PoseAt(const FEnt& E, double Real) const;
 };

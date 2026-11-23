@@ -58,6 +58,16 @@ bool FHrotDpsPeopleLookTest::RunTest(const FString&)
 	TestEqual(TEXT("run -> walk"), Fallback(TEXT("Rifle.Prone.Run")), FName(TEXT("Rifle.Prone.Walk")));
 	TestEqual(TEXT("rifle -> unarmed"), Fallback(TEXT("Rifle.Prone.Walk")), FName(TEXT("Unarmed.Prone.Walk")));
 	TestEqual(TEXT("a death -> the standing death"), Fallback(TEXT("Death.Prone")), FName(TEXT("Death.Stand")));
+	TestEqual(TEXT("U-19h: no standing death -> dying"), Fallback(TEXT("Death.Stand")), FName(TEXT("Dying")));
+	// U-19h: a civilian kit has ONLY "Dying": every death (and dying itself) resolves to a clip that exists, and a kit with nothing ends without looping
+	{
+		auto OnlyDying = [](FName R) { return R == FName(TEXT("Dying")); };
+		for (const TCHAR* Role : { TEXT("Death.Stand"), TEXT("Death.Crouch"), TEXT("Death.Prone"), TEXT("Dying") })
+			TestEqual(FString::Printf(TEXT("civilian kit: %s -> Dying"), Role), ResolveRole(FName(Role), OnlyDying), FName(TEXT("Dying")));
+		auto OnlyStand = [](FName R) { return R == FName(TEXT("Death.Stand")); };   // the soldier kit has Death.* but no Dying
+		TestEqual(TEXT("soldier kit: incapacitated standing -> Death.Stand"), ResolveRole(TEXT("Dying"), OnlyStand), FName(TEXT("Death.Stand")));
+		TestEqual(TEXT("a kit with no death at all ends"), ResolveRole(TEXT("Death.Prone"), [](FName) { return false; }), NAME_None);
+	}
 	return true;
 }
 

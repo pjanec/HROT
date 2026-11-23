@@ -609,7 +609,11 @@ void AHrotDpsCamera::TickPlayer(float Dt, APlayerController* PC)
 	if (!W || !St) return;
 	auto Down = [PC](const FKey& K) { return PC && PC->IsInputKeyDown(K); };
 	auto Pressed = [PC](const FKey& K) { return PC && PC->WasInputKeyJustPressed(K); };
-	if (Pressed(EKeys::Escape)) { LetGo(); return; }   // Esc: let him go, fly free
+	// U-19h: the hold-F list; while it is open Esc / right mouse cancel it (not let go) and the wheel / 1-8 belong to it
+	TArray<HrotDpsUseList::FRow> UseRows;
+	for (const FHrotDpsUseAction& A : St->Actions()) UseRows.Add({ A.Verb, A.bAvailable });
+	const bool bListWasOpen = UseList.bOpen;
+	if (!bListWasOpen && Pressed(EKeys::Escape)) { LetGo(); return; }   // Esc: let him go, fly free
 
 	// ── the look: the mouse turns the view (pixels × the zoomed sensitivity, FpsZoom.SensitivityFor) ──
 	bZooming = Down(EKeys::RightMouseButton) || TestZoom;
@@ -650,12 +654,12 @@ void AHrotDpsCamera::TickPlayer(float Dt, APlayerController* PC)
 
 	// the wheel: the distance continuum (ahead / eyes / shoulder); O: the eyes <-> over the shoulder
 	const float WheelIn = Pressed(EKeys::MouseScrollUp) ? 1.f : Pressed(EKeys::MouseScrollDown) ? -1.f : 0.f;
-	if (WheelIn != 0.f) PlayerDistance = WheelDistance(PlayerDistance, WheelIn, PScheme);
+	if (WheelIn != 0.f && !bListWasOpen) PlayerDistance = WheelDistance(PlayerDistance, WheelIn, PScheme);
 	if (Pressed(EKeys::O)) PlayerDistance = PlayerDistance > 0.f ? 0.f : HrotCamera::DefaultDistance(PScheme);
 	// 1-4 a weapon from the unit's slots (OwnUnit.Ammo), R its next round, L sight / lock, X drops a locked shot
 	const TArray<FHrotDpsAmmoLine> Slots = St->Ammo();
 	const FKey Num[4] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four };
-	for (int32 K = 0; K < 4; ++K) if (Pressed(Num[K]) && K < Slots.Num()) Mount = uint8(Slots[K].Slot);
+	for (int32 K = 0; K < 4; ++K) if (!bListWasOpen && Pressed(Num[K]) && K < Slots.Num()) Mount = uint8(Slots[K].Slot);
 	if (Pressed(EKeys::R)) ++AmmoSeq;
 	if (Pressed(EKeys::L)) FirePref = St->FireMode() == TEXT("LOCK") ? 1 : 2;
 	if (Pressed(EKeys::X)) ++CancelSeq;
@@ -691,8 +695,16 @@ void AHrotDpsCamera::TickPlayer(float Dt, APlayerController* PC)
 	const bool bFirePress = Pressed(EKeys::LeftMouseButton) || TestFirePress;
 	TestFirePress = false;
 	if (bFirePress && !bBinoculars) { ++ShotSeq; ShotTarget = AimTarget; }
-	if (Pressed(EKeys::F) || TestUsePress) { ++UseSeq; UE_LOG(LogTemp, Display, TEXT("HROT player: use press %d on %d"), UseSeq, AimTarget); }
-	TestUsePress = false;
+	{
+		static const FKey Keys8[HrotDpsUseList::MaxRows] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight };
+		int32 Pick = -1; for (int32 K = 0; K < HrotDpsUseList::MaxRows; ++K) if (Pressed(Keys8[K])) Pick = K;
+		const int32 Wheel = Pressed(EKeys::MouseScrollDown) ? 1 : Pressed(EKeys::MouseScrollUp) ? -1 : 0;
+		const HrotDpsUseList::FOut Use = HrotDpsUseList::Step(UseList, Down(EKeys::F), FPlatformTime::Seconds(), UseRows, Wheel, Pick, Pressed(EKeys::Escape) || Pressed(EKeys::RightMouseButton));
+		if (Use.bPress) { ++UseSeq; UseVerb = Use.Verb; }
+		else if (TestUsePress) { ++UseSeq; UseVerb = TestUseVerb; }
+		if (Use.bPress || TestUsePress) UE_LOG(LogTemp, Display, TEXT("HROT player: use press %d verb %d on %d"), UseSeq, int32(UseVerb), AimTarget);
+		TestUsePress = false; TestUseVerb = 0;
+	}
 
 	FHrotDpsControl C;
 	C.Forward = Forward;
@@ -705,7 +717,7 @@ void AHrotDpsCamera::TickPlayer(float Dt, APlayerController* PC)
 	C.bTrigger = !bBinoculars && (Down(EKeys::LeftMouseButton) || TestTrigger);
 	C.Mount = Mount;
 	C.ShotSeq = ShotSeq; C.ShotTarget = ShotTarget; C.CancelSeq = CancelSeq; C.AmmoSeq = AmmoSeq; C.FirePref = FirePref;
-	C.UseSeq = UseSeq; C.UseTarget = AimTarget;
+	C.UseSeq = UseSeq; C.UseTarget = AimTarget; C.Verb = UseVerb;
 	C.Lean = Lean; C.bBinoculars = bBinoculars;
 	C.AimPoint = FVector(AimPoint);
 	C.LookFrom = W->UnrealToEnuM(From);
