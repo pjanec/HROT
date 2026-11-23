@@ -7504,14 +7504,14 @@ namespace Hrot.SimHost.Tests
                     if (s.Kind != BreakContactManeuver.ManeuverKind) return;
                 }
             }
-            for (int k = 1; k <= 3; k++)
+            for (int k = 1; k <= 2; k++)
             {
                 foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -60f * k, 0f));
                 Step(seen: true, ticks: 8);
                 Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // a man in sight at the point: not done
             }
             // ③ at the next point out of sight: done (the reaction goes on to its rally)
-            foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
+            foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -180f, 0f));
             s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(s.Members[0]).Count = 0;   // he lost sight of him (no perception clock runs here)
             // ③a nobody sees an enemy — but a man is SHOT AT (near misses): someone sees him ⇒ not done (📐 OF5: a man withdrawing with his back to the MG)
             var shot = s.Members[1];
@@ -7522,9 +7522,44 @@ namespace Hrot.SimHost.Tests
                 Step(seen: false, ticks: 1);
             }
             Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
-            // ③b the firing stops (past UnderFireSeconds): done
+            // ③b the shots pushed the point on (-240); there, the firing stopped (past UnderFireSeconds) and nobody seen: done — before the cap (3 of 4)
+            foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
             Step(seen: false, ticks: 400);
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2495</c> (R-2146; 📐 of-squad-outmatched — 6 men assaulted on ONE man seen and kept on into twelve and two machine guns) —
+        /// the choice is scored on what was known; when the known enemy grows to twice that, it is scored again: an assault on one becomes a break
+        /// contact from twelve. 🔴 Red-proof: drop the growth trigger ⇒ the squad keeps assaulting.</summary>
+        [Fact]
+        public void CE2495_ReactToContact_TheEnemyGrows_TheChoiceIsMadeAgain()
+        {
+            var s = new Squad(members: 4);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 13; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);   // 4 v 1: assault
+
+            s.PoolMany(12, new Vector3(0f, 60f, 0f));                         // the force behind him shows
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);          // 4 v 12: break contact
+        }
+
+        /// <summary>⭐ <c>CE-2495</c> — the enemy grows but the squad is still past 1.5 : 1 (<see cref="AfterContact.PressShare"/>): the assault goes on.
+        /// 📐 OF1 (6 v 1 seen, then the 3-man fire team): re-deciding there broke off a fight the squad was winning. 🔴 Red-proof: drop the line ⇒ re-decided.</summary>
+        [Fact]
+        public void CE2495_ReactToContact_TheEnemyGrowsButStaysWeaker_TheAssaultGoesOn()
+        {
+            var s = new Squad(members: 6);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 13; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);   // 6 v 1: assault
+            s.PoolMany(3, new Vector3(0f, 60f, 0f));                          // the fire team shows: 6 v 3
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);   // still the assault
         }
 
         /// <summary>⭐ <c>CE-2472</c> — <paramref name="man"/> SEES <paramref name="enemy"/> now (as perception stamps it: the Visual bit, this tick).</summary>

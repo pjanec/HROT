@@ -679,9 +679,11 @@ namespace Hrot.AI.Behaviors.Brains
                 Next(ref ws, StageDrill, world);
             }
             // ⭐⭐ CE-2495 (R-2146) — RE-DECIDE when the enemy GROWS: a choice scored on one man seen is not the answer to the force behind him.
-            //   The same utility scores it again (the 3 : 1 / break-contact line is its own), Firm applies; a changed winner starts its drill.
+            //   Only past the line (no longer 1.5 : 1, AfterContact.PressShare); the same utility scores it again, Firm applies; a changed winner starts its drill.
             if (ws.Stage == StageDrill && ws.Choice.Winner != 0 && (SquadContactResponse)ws.Choice.Winner != SquadContactResponse.Rescue
-                && ws.DangerAtDecision > 0f && Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(world, self) >= ws.DangerAtDecision * GrowthRedecide)
+                && ws.DangerAtDecision > 0f && Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(world, self) >= ws.DangerAtDecision * GrowthRedecide
+                && !AfterContact.Superior(world, self, 0f, AfterContact.PressShare))   // ⭐ past the line: 1.5 : 1 is where an assault stops pressing (CE-2481) —
+                                                                                       //   📐 OF1, 6 v 1 seen then 6 v 3: re-deciding there turned a won fight into a break
             {
                 byte was = ws.Choice.Winner;
                 var fresh = new UtilityChoice();
