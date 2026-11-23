@@ -147,6 +147,19 @@ UHrotDpsWorld* UHrotDpsWorld::Get(const UObject* WorldContext)
 	return W ? W->GetSubsystem<UHrotDpsWorld>() : nullptr;
 }
 
+void UHrotDpsWorld::HideKitComponents(AActor* A, const UHrotPersonKit* K)
+{
+	if (!A || !K) return;
+	for (UActorComponent* C : A->GetComponents())
+		if (USceneComponent* SC = Cast<USceneComponent>(C); SC && K->HideComponents.Contains(SC->GetFName())) { SC->SetVisibility(false, true); SC->SetHiddenInGame(true, true); }
+}
+
+bool UHrotDpsWorld::IsCrowdKit(const UHrotPersonKit* K) const
+{
+	for (const TSoftObjectPtr<UHrotPersonKit>& C : CivilianKits) if (C.Get() == K) return true;
+	return false;
+}
+
 // U-19h: ONE-SHOT at join - everything SpawnPerson / the soundscape would load on first use (measured live: 19.8 s "Waiting for skinned assets" when the people first
 // appear; 1-3 s FlushAsyncLoading hitches at the first rifle / body / dirt sound), so the wait happens here, not mid-play.
 void UHrotDpsWorld::PreloadPeopleAndSounds()
@@ -199,6 +212,34 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 				++Built;
 				if (Round == PreloadRounds - 1) LastRoundNew += Skinned.Num() - Was;
 			}
+	// ⭐ the soldier body: merge its parts ONCE here (the cache keys on the combination of parts), so no spawn pays for it
+	{
+		const double M0 = FPlatformTime::Seconds();
+		int32 Merged = 0, Mats = 0;
+		FString Slots;
+		UWorld* W = GetWorld();
+		for (UClass* Cls : Classes)
+		{
+			UHrotPersonKit* Owner = nullptr;
+			if (PersonKit.Get() && PersonKit->BodyClass.Get() == Cls) Owner = PersonKit.Get();
+			if (!Owner || !W) continue;   // the crowd's bodies are not merged
+			const FTransform Below(FRotator::ZeroRotator, FVector(0, 0, -5000000.0));
+			AActor* A = W->SpawnActorDeferred<AActor>(Cls, Below, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			if (!A) continue;
+			if (APawn* Pawn = Cast<APawn>(A)) { Pawn->AutoPossessAI = EAutoPossessAI::Disabled; Pawn->AutoPossessPlayer = EAutoReceiveInput::Disabled; }
+			A->FinishSpawning(Below);
+			HideKitComponents(A, Owner);
+			UHrotPersonState* St = UHrotRuntimeLibrary::AddPersonState(A);
+			Merged += St->MergeBodyParts();
+			if (USkeletalMeshComponent* L = St->FindLeader())
+			{
+				if (USkinnedAsset* MS = L->GetSkinnedAsset()) { Add(MS); Skinned.AddUnique(MS); Mats = MS->GetMaterials().Num(); }
+				for (const FName& N : L->GetMaterialSlotNames()) Slots += N.ToString() + TEXT(" ");
+			}
+			A->Destroy();
+		}
+		UE_LOG(LogTemp, Display, TEXT("HROT preload: soldier body merged: %d parts into one mesh with %d material slots in %.2f s (slots: %s)"), Merged, Mats, FPlatformTime::Seconds() - M0, *Slots);
+	}
 	for (USkinnedAsset* S : Skinned) Add(S);
 #if WITH_EDITOR
 	// the editor builds each character mesh on its first draw (a 20 s wait with the people on screen): finish them now
@@ -1085,8 +1126,8 @@ AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 	for (UActorComponent* C : A->GetComponents())
 	{
 		if (UCharacterMovementComponent* CM = Cast<UCharacterMovementComponent>(C)) { CM->GravityScale = 0.f; CM->SetComponentTickEnabled(false); CM->Deactivate(); }
-		if (USceneComponent* SC = Cast<USceneComponent>(C); SC && K->HideComponents.Contains(SC->GetFName())) { SC->SetVisibility(false, true); SC->SetHiddenInGame(true, true); }
 	}
+	HideKitComponents(A, K);
 	UHrotPersonState* St = UHrotRuntimeLibrary::AddPersonState(A);
 	St->AimTurnRate = 0.f;   // the aim is eased here, on SIM time (HROT's 0.12 s), not by the anim instance's own rate
 	St->WeaponSocket = K->WeaponSocket;
@@ -1096,6 +1137,9 @@ AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 		for (const FName& Slot : K->SideSlots) St->MaterialOverrides.Add(Slot, *Mat);
 		St->ApplyMaterials();
 	}
+	// U-19h: a soldier's body (16 skinned parts) is ONE merged mesh (made once at the preload, cached): one skinned proxy, one transform update a frame.
+	// A crowd body picks its outfit per spawn (its parts differ), so it is not merged.
+	if (!IsCrowdKit(K)) St->MergeBodyParts();
 	E.DrawnAs = FString::Printf(TEXT("person %s"), *K->GetName());
 	E.Actor = A;   // ApplyPerson reads it
 	ApplyPerson(E, Clock.Now(RealNow()), 0.0);

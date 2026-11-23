@@ -117,6 +117,8 @@ public:
 	// ── run ──
 	/** joins the station (restarts the DDS client, so this world gets the late-join history) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") bool Start(int32 Domain, const FString& Partition);
+	/** U-19h: hides the components a kit names (its body's own gun) */
+	static void HideKitComponents(AActor* A, const UHrotPersonKit* K);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void Stop();
 
 	// ── read back (tests, a HUD) ──
@@ -462,6 +464,7 @@ private:
 	void OnMoverTracks(const struct FHrotDpsSample& S);
 	void DefaultLife();
 	void PreloadPeopleAndSounds();
+	bool IsCrowdKit(const UHrotPersonKit* K) const;
 	/** how many times each body Blueprint is built at join to collect its random outfit parts (U-19h 15) */
 	static constexpr int32 PreloadRounds = 6;
 	AActor* SpawnAnimal(FEnt& E, const FTransform& At);
