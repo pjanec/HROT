@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — the field + OF1 being built (CE-2493); OF2–OF5 DESIGN
+build-state: BUILDING — the field + OF1 BUILT and run (§8.1); OF2–OF5 DESIGN
 updated: 2026-11-23 (first version — behaviors, on the user's request)
 current-answer: §1 the request · §2 doctrine · §5 the field · §6 the suite · §7 the diagrams · §8 claims
 stale-below: nothing
@@ -132,6 +132,20 @@ classDiagram
 | C-2 | a platoon's bounding squad stops at contact | ✅ `PressesTheAttack` keys on `OrderKind.Attack`; `BoundingOverwatch` fulfils `Bound` | ⚠ Assault Under Fire A-7: in contact the assault moves by fire and movement | OF2 |
 | C-3 | a reported enemy holds the whole platoon | ✅ `BasicPlatoonSop` — one contact row, `PlatoonHold` | ⚠ doctrine: the platoon leader manoeuvres another squad | OF4 |
 | C-4 | the city battle's stalls are C-1…C-3 | ⛔ not measured (the showcase is too large to attribute) | — | the city battle, AFTER the suite is green |
+
+### 8.1 OF1 — the first run, `2026-11-23` (`b780b594a` + the backend merge)
+
+| row | verdict | measured (probe, every 4 s) |
+|---|---|---|
+| Blue returns fire within 5 s | ✅ 19.45 s (Red 18.5 s) | contact at ~150 m, Blue at x ≈ 110 |
+| ⭐ the DITCH WAR (all still 60 s) | ✅ never | ⭐ **C-1 does NOT bite at 6 v 3 here**: ReactToContact, the leader killed at ~26 s, then from 36 s pairs ADVANCE 6–12 m while the others `Suppress` — fire and movement — until Red is beaten |
+| the fire team beaten within 300 s | ✅ 64.5 s | — |
+| ⛔ every man in cover within 20 s | ❌ | the men stay where contact found them (x 100–110), the field's nearest cover 10–20 m ahead |
+| ⛔ nobody upright in the open in Red's sight 10 s | ❌ 60 s, Grenadier 2 | he stood at (107.6, 513.8) in `CombatPosture` 20 s+, upright; ⚠ not himself under fire |
+
+⇒ ⭐ **OF1's finding is the FIRST SECOND of react to contact**, not a stall: a man not himself fired on stays upright where he stands, in the enemy's
+sight. ⚠ Doctrine: on contact EVERY man gets down or into the nearest cover. ⇒ the city battle's stall is to be looked for at PLATOON scale (C-2, C-3:
+OF2, OF4) — ⛔ C-1 stays a claim about strength ratios other than 2 : 1 (OF5 and a 6 v 6 variant would probe it).
 
 ## 9. Decisions — for the user, AFTER the suite shows red *(leans, not rulings)*
 
