@@ -8,7 +8,8 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⏸ `2026-11-23 09:28` — **idle — waiting for a handoff** (self-wake-up: queue empty, no new HANDOFF/STEER/NOTE for backend; CE-3494 §10 (R-3119) built and gated, `STATUS_Backend_Queue.md`).
+⭐ `2026-11-23` **L-3 (CE-4681, the chat-model mind on the cloud VM) — DONE**: ① ② ③ ④ ⑤ ⑥ built and proved; ⑦ blocked (permission — see §L-3). Report: §L-3 below; design §5a-3 / §6a.
+⛔ ~~`2026-11-23 09:28` — idle~~ (L-3 taken 10:30) (self-wake-up: queue empty, no new HANDOFF/STEER/NOTE for backend; CE-3494 §10 (R-3119) built and gated, `STATUS_Backend_Queue.md`).
 ⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). ✅ L-2b (CE-4680) DONE: B-1 … B-6, proof 1 (scripted run_play, 8/8), proof 2 (Haiku). NOW: CE-3445 T2 resumed (STATUS_Backend_Queue.md) — the instrumented pair runs.
 L-1 (below): DONE: CE-4676 L-1 — every item ① … ⑧ built; the scenario `llm-platoon-attack` passes 7/7 (the confirming run, 331 s). ⭐ NEXT (protocol §7): no new handoff for backend (loop run `2026-11-22`); the remaining second-tier row is
 `STATUS_Backend_Queue.md` → **CE-3445 T2** (rare mode-3 stepped divergence) — a resume continues there. ⚠ `backend-wip-llm-commander` is stale
@@ -156,3 +157,70 @@ Quotes (verbatim):
 - `00:02:17 PLAY PlatoonBound ENDED — a direct order to Bravo Squad; it lands once the play's orders are released`
 - `00:04:15 NOTE: 255s: Alpha Set at support … Now the assault: Bravo confirms SupportByFire from the objective, Alpha attacks the house …`
 - `00:06:34 NOTE: 394s: 26 s left to the 00:07 limit. Alpha has held at support throughout; the house is not taken.`
+
+## L-3 — the chat-model mind on the cloud VM (CE-4681, `2026-11-23`)
+
+Taken at `6ec10c16d` (merge of `origin/coordinator`, the handoff `HANDOFF_Coordinator_To_Backend_LLM_Commander_L3.md`).
+
+| # | item | state | sha | rail / proof |
+|---|---|---|---|---|
+| ① | `ChatModelMind` — one `POST /api/chat` per wake (model, messages, tools, `stream:false`, `options.num_ctx`, `keep_alive`), the tool calls through `CommanderTools.Parse`; `CommanderMind.Ollama` → `ChatModel` (Roslyn) | DONE | `9b0ac9d6d` | `CE4681_TheChatMind_SendsTheBriefingAndTheTools_AndAToolCallBecomesAnOrder` |
+| ② | the stand-in chat server (rails, in process) — a good call · malformed · unknown · refused · plain text · timeout · down | DONE | `9b0ac9d6d` | `CE4681_AMalformedOrUnknownCall_IsRetriedOnce_ThenDropped` · `_PlainText_IsNoOrders` · `_ATimeoutOrAServerDown_IsNoOrders_AndNothingHangs` · `_ARefusedOrder_ComesBackAsARefusalWake` |
+| ③ | the conversation: system = prefix (byte-stable), user = what changed | DONE | `9b0ac9d6d` | `CE4681_TwoCalls_ShareTheSystemMessageByteForByte` — and in the relay run: ONE system message across all 48 calls |
+| ④ | checks per mind — anchor `scriptedMind` (held 1 s) + `"if"` on the two scripted-only rows | DONE | `9b0ac9d6d`, `d819ad979` | scripted run PASS 8/8 (both rows judged); relay run: both SKIPPED. 📌 first form failed: the anchor sampled the scenario's mind at t=0, before the run's override — found by the laptop dry run |
+| ⑤ | the Haiku relay (`scripts/llm/chat_standin.py --mode relay`) | DONE | `9b0ac9d6d` | §L-3 ⑤ below |
+| ⑥ | the laptop recipe (`scripts/llm/laptop_run.py`, design §6a) — READY, NOT RUN on a laptop | DONE | `9b0ac9d6d`, `d819ad979` | end to end on the VM against `chat_standin.py --mode script`: 18 calls, the summary 5/8 checks (the stand-in plays badly by design), request 4012 chars |
+| ⑦ | a small model on the VM | ⛔ BLOCKED — not by the network (ollama.com, the GitHub release and the registry all answered; the binary and CPU libraries were extracted, 1.5 GB streamed): **starting the downloaded `ollama serve` and pulling a model was refused by the session's permission check** (auto mode). Skipped as the handoff says; the files removed | — | — |
+
+### L-3 ⑤ — the Haiku relay run (`llm-platoon-attack`, `HROT_COMMANDER_MIND=ChatModel`, ThinkPause, endpoint = the relay)
+
+A Haiku subagent saw ONLY each request file (`req-NNNN.json`, the JSON exactly as HROT sent it) and wrote Ollama's response shape back.
+
+| measure | value |
+|---|---|
+| wakes (calls) | **48** (each answered; 0 timeouts) |
+| tool calls | **65** — `note` 48 (one EVERY call), `order` 12 (`SupportByFire` 7, `Move` 5), `ask_sitrep` 3, `run_play` 1 (`PlatoonBound → house`, at 0:00), `hold` 1 |
+| verdicts | **17 accepted, 0 refused** (notes take no verdict) |
+| malformed / retried | **0 / 0** — Haiku always produced valid tool calls in Ollama's shape |
+| answer time (wall, the relay round trip) | mean **6.0 s**, max **9.9 s** — the clock held each time (think-pause) |
+| request size | system **1 317 chars** (stable across all 48) + tools **2 315 chars** + user **119 → 25 307 chars** ⇒ request **4 014 → 29 398 chars ≈ 1 000 → 7 350 tokens** |
+| ⭐ what grows | at the last call the user message is **19 687 chars, 17 953 of them his NOTES** (48 notes kept for the run — §3), the radio log 1 448, the snapshot 257 ⇒ **CE-3501** |
+| checks | PASS: both squads report · Red fires · the fight lasts a minute. SKIPPED (scripted-only): both squads to the objective · the own play never runs. FAIL: *"PlatoonAttack within 1 s of the first SPOT"* (it answered the SPOT with `SupportByFire`, not the play) · *"every Red down"* (Alpha lost on the open ground, the house held — and the squad-attack stall CE-4682 limits every mind) |
+
+Exchanges (radio lines in → tool calls out, verbatim, truncated):
+- `00:00:00 SNAPSHOT — Platoon: ALPHA SQUAD at start; BRAVO SQUAD at start;` → `run_play {PlatoonBound, house, support: support}` + `note "Bound on the house: one squad covers from support behind the Low Wall … Keep fire on the 100 m open ground east of the house before either squad crosses it."`
+- `00:01:30 (no news — your squads await orders)` → `ask_sitrep Bravo Squad` + `note "Bravo is 40 m SW of start, which is not the direction of the house …"`
+- `00:02:00 (no news)` → `order Alpha Move → support` · `order Bravo Move → objective` + `note "Bravo reports 70 m E of the objective … exposed and off route. Ended the bound with direct orders"`
+- `00:02:08 BRAVO SQUAD: spot, 1 enemy (Individual), house` → `order Bravo SupportByFire → house`
+- `00:02:23 BRAVO SQUAD: spot, 1 enemy (Individual), house` → `order Bravo SupportByFire → house` (again) · `ask_sitrep Alpha` + `note "The radio log shows no record of my SupportByFire order to Bravo … so I am re-issuing it"`
+- `00:02:35 ALPHA SQUAD: spot, 1 enemy (Individual), 20 m SE of house` → `order Alpha SupportByFire → house`
+- `00:02:59 BRAVO SQUAD: spot, 2 enemy (Team), house` → `order Alpha SupportByFire → house` + `note "… the defence is at least 2 Team plus Individuals"`
+- `00:03:14 BRAVO SQUAD: spot, 2 enemy (Team), house` → `order Alpha Move → support` + `note "Alpha reports 60 m E of the objective … on the edge of the open ground … Ordered Alpha to move back"`
+- the worker's own summary: a decision point at 00:04 — *"no assault, because fire superiority was not established and the defence grew from 1 Individual to 3 Team"*; Alpha caught in the open during the pull-back (Black), Bravo held at support (Amber).
+
+⭐ **Compared with the L-2b Haiku run (routes, ExternalMind) — the difference is the finding:**
+
+| | L-2b (routes) | L-3 (chat format, tools) |
+|---|---|---|
+| asked | 32 | 48 (the same heartbeat rule; more wakes this run) |
+| the plays | `run_play` THREE times (PlatoonAttack at 0:00 and 5:51, PlatoonBound at 1:43) | ONCE (PlatoonBound at 0:00), then direct orders only — ⭐ with the tools listed as functions it reached for `order` far more than for the play |
+| the SPOT | `run_play PlatoonAttack` within 1 s (the row PASSED) | `order SupportByFire` (the row FAILED) |
+| re-issued orders | — | ⭐ 7 `SupportByFire` for 2 squads: it re-sent orders it could not find in the radio log — the `ORDER … given` line had moved out of the log at the next snapshot (snapshots clear the log, §3) |
+| notes | in most answers | in EVERY answer — 18 KB by the end (CE-3501) |
+| bad calls | 2 acts refused (sent with no question waiting) | 0 malformed — the chat shape removed that failure entirely |
+
+⇒ **for L-3b (a 7–8 B model):** ① the notes must be bounded (CE-3501) or the context fills by ~5 min; ② the snapshot should carry each squad's CURRENT order, so a model does not re-issue it (B-4 shows the task — it was there as text, Haiku still re-issued: worth a sharper line); ③ the play/order balance moved toward direct orders once the tools are functions — a small model will need the prefix to say *"prefer run_play; a direct order ends the play"* more plainly.
+
+### L-3 gates
+| gate | command | result |
+|---|---|---|
+| the commander rails (L-1 · L-2 · L-2b · L-3) | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build --filter "FullyQualifiedName~CE4681|FullyQualifiedName~CE4676|FullyQualifiedName~CE4679|FullyQualifiedName~CE4680"` | **17 / 17** |
+| red-proofs (L-3) | compiling mutations, one per rail: calls not read · the time in the system message · no retry · plain text as malformed · no per-call limit | **5 / 5 red** (two first-try mutations did not compile — redone) |
+| the routes | `… Hrot.ClusterRunner.Integration.Tests … --filter DebugApiCommandersTests` | **3 / 3** |
+| the checks grammar | `… Hrot.Editor.Tests … --filter ScenarioChecksTests` | **29 / 29** |
+| ⭐ the scenario, scripted mind | `scripts/scenario-regression.sh llm-platoon-attack` | **PASS 8/8** (333 s) |
+| ⭐ the scenario, the Haiku relay | §L-3 ⑤ | 4/6 judged PASS, 2 SKIPPED, 2 FAIL explained |
+| the laptop recipe, VM dry run | `laptop_run.py --endpoint http://localhost:11500 --models stand-in --no-pull` | end to end, summary written |
+
+### L-3 ids allocated
+`CE-3501` (the commander's notes grow without bound — 18 KB of a 20 KB user message after 48 wakes). Component ids: none. Rulings: none.

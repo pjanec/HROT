@@ -306,7 +306,7 @@ play's choreography; the direct order lands and is still held 10 frames later).
 ⭐ The briefing stays SHORT (a small model's context): the prefix grows by the brief and the place notes; the snapshot by one line per squad and
 one per objective. ⛔ Still no ground truth: every new line comes from what was reported to him or what his scenario told him.
 
-### 5a-3. L-3 — the chat-model mind on the cloud VM *(CE-4681, backend, `2026-11-23`; build-state: BUILDING — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L3.md`)*
+### 5a-3. L-3 — the chat-model mind on the cloud VM *(CE-4681, backend, `2026-11-23`; build-state: BUILT `2026-11-23` — as-built rows at the end of this section; the run in `STATUS_Backend_LLM_Commander.md` §L-3)*
 
 🔒 User, `2026-11-23`: *"running on cloud VM (not my physical machine) - the run on my machine would be a next phase once we test whatever we
 could without it, using Haiku"*.
@@ -372,6 +372,10 @@ sequenceDiagram
 | the model log | every call writes the full request and each raw answer (`IMindTranscript`, shared with `ExternalMind`); with no recording the log goes to `HROT_COMMANDER_LOG_DIR` (a verify run has no recording) |
 | checks per mind | no grammar change: an anchor `scriptedMind` (a `field` cue on `CommanderSeat.Mind`) and `"if": "scriptedMind"` on the two scripted-only rows — a model run SKIPS them |
 | two stand-ins | ⚠ a NECESSARY difference: the rails need an in-process server they control (a hang, a refused port) with no process; the VM run and the laptop recipe need a PROCESS the editor reaches and that can relay to an agent. Both answer the same Ollama shape |
+| ⭐ as built — the anchor | ⚠ deviation: `scriptedMind` holds `"for": 1` — 📌 the first form sampled the SCENARIO's mind at t = 0, before the run's `HROT_COMMANDER_MIND` override rewrote the seat, so a model run was judged on the scripted rows (found by the laptop dry run) |
+| ⭐ as built — the answer time | the model log's `call` line carries `ms` (the mind's wall time), for every mind |
+| ⭐ measured (the Haiku relay run) | 48 wakes · 65 tool calls · 0 malformed · answers 6 s mean / 10 s max · ONE system message for all 48 calls · the request 4 014 → 29 398 chars (≈ 7 350 tokens), ⭐ **18 KB of it the notes** ⇒ CE-3501 (bound the notes before L-3b) |
+| ⛔ not run | ⑦ a small model on the VM — the hosts answered; starting the downloaded server was refused by the session's permission check |
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
