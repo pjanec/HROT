@@ -126,6 +126,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerMove(float Forward, float Side) { TestForward = Forward; TestSide = Side; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerFire(bool bHeld) { if (bHeld && !TestTrigger) TestFirePress = true; TestTrigger = bHeld; }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerZoom(bool bOn) { TestZoom = bOn; }
+	/** a tap of the use key (F) on what the crosshair rests on - for scripts (the drive check, 2026-11-23) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerUse() { TestUsePress = true; }
+	/** what the crosshair rests on now (the UseTarget sent) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") int32 PlayerAimTarget() const { return AimTarget; }
 	/** the player's view distance (m; 0 = his eyes, < 0 ahead of them) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void SetPlayerDistance(float Distance) { PlayerDistance = Distance; }
 
@@ -195,7 +199,7 @@ private:
 	FVector3d AimPoint = FVector3d::ZeroVector;
 	// test input (no player controller)
 	float TestLookYaw = 0, TestLookPitch = 0, TestForward = 0, TestSide = 0;
-	bool TestFirePress = false, TestTrigger = false, TestZoom = false;
+	bool TestFirePress = false, TestTrigger = false, TestZoom = false, TestUsePress = false;
 	void PlaceFollow(float Dt);
 	void PlaceDirector(float Dt);
 	int32 FollowSide = 1;          // the shoulder (+1 right); the director's binding sets it

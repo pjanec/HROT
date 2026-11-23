@@ -140,6 +140,11 @@ void UHrotDpsStation::OnOwnUnit(const FHrotDpsSample& S)
 	if (LastHealth >= 0 && D.Health < LastHealth) PendingDamage += LastHealth - D.Health;   // the arc's thickness: what the hit took
 	LastHealth = D.Health;
 	OwnHealth = D.Health; OwnMaxHealth = D.MaxHealth; OwnActiveSlot = D.ActiveSlot; OwnFireMode = uint8(D.FireMode); OwnSpread = D.SpreadRad;
+	{   // what HROT offers on the crosshair's target and how a use went - logged on change (the drive check, 2026-11-23)
+		const FString Now = FString::Printf(TEXT("can %d target %d verb %d/%d '%s' seq %d outcome %d reason %d"), D.CanUse ? 1 : 0, D.UseTargetId, int32(D.Verb), int32(D.UseVerb),
+			UTF8_TO_TCHAR(D.UseLabel), int32(D.UseSeq), int32(D.UseOutcome), int32(D.UseReason));
+		if (Now != LastUseLine) { LastUseLine = Now; UE_LOG(LogHrotDpsStation, Display, TEXT("own unit %d use: %s"), D.UnitId, *Now); }
+	}
 	bCanUse = D.CanUse; UseLabel = UTF8_TO_TCHAR(D.UseLabel);
 	OwnAmmo.Reset();
 	for (uint32 I = 0; I < D.Ammo._length; ++I)

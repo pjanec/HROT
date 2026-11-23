@@ -683,7 +683,8 @@ void AHrotDpsCamera::TickPlayer(float Dt, APlayerController* PC)
 	const bool bFirePress = Pressed(EKeys::LeftMouseButton) || TestFirePress;
 	TestFirePress = false;
 	if (bFirePress && !bBinoculars) { ++ShotSeq; ShotTarget = AimTarget; }
-	if (Pressed(EKeys::F)) ++UseSeq;
+	if (Pressed(EKeys::F) || TestUsePress) { ++UseSeq; UE_LOG(LogTemp, Display, TEXT("HROT player: use press %d on %d"), UseSeq, AimTarget); }
+	TestUsePress = false;
 
 	FHrotDpsControl C;
 	C.Forward = Forward;

@@ -137,4 +137,5 @@ private:
 	void OnOwnUnit(const struct FHrotDpsSample& S);
 	void OnDetonation(const struct FHrotDpsSample& S);
 	void OnManDowned(const struct FHrotDpsSample& S);
+	FString LastUseLine;
 };

@@ -944,6 +944,8 @@ void UHrotDpsWorld::OnPersonState(const FHrotDpsSample& S)
 	P.bInSeat = D.SeatVehicleId != 0; P.bSeatExposed = D.SeatExposed;
 	E.ActiveSlot = D.ActiveSlot;
 	E.bPersonBurning = D.Burning;
+	if (E.SeatVehicleId != D.SeatVehicleId || E.SeatIndex != D.SeatIndex)   // the drive check (2026-11-23): who sits where, on change only
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("seat: person %d -> vehicle %d seat %d role %d exposed %d"), D.EntityId, D.SeatVehicleId, int32(D.SeatIndex), int32(D.SeatRole), D.SeatExposed ? 1 : 0);
 	E.SeatVehicleId = D.SeatVehicleId; E.SeatIndex = D.SeatIndex;
 	E.bHasPerson = true;
 }
