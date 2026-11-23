@@ -336,6 +336,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new[] { unit }, provider.Cleared);                  // started ⇒ held, once
         }
 
+        /// <summary>⭐ CE-3494 — an intent whose task is not a behaviour name is an ORDER (an edit-mode map order, <c>Order.Hold</c>): the ingress hands it
+        /// to the one order path (an AssignTacticalIntentEvent at the intent's origin) instead of starting it; TIR then resolves it per class.
+        /// 🔴 Red-proof: AssignNow for every task ⇒ "no behaviour named Order.Hold", no event.</summary>
+        [Fact]
+        public void CE3494_AnIntentWhoseTaskIsAnOrder_GoesThroughTheOrderPath()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var (repo, unit, _, _) = ClearRig(behaviors: registry);
+            using var owned = repo;
+            if (!repo.TryGetTable(typeof(UnitIntent), out _)) repo.RegisterManagedComponent<UnitIntent>();
+            if (!repo.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) repo.Bus.RegisterManaged<AssignTacticalIntentEvent>();   // a brain node has the order path
+            repo.SetManagedComponent(unit, new UnitIntent { Behavior = new IntentSlot { Name = "Order.Hold", Params = "{}", Origin = BehaviorOrigin.Superior } });
+            new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry).Execute(repo, 0.016f);
+            Assert.False(repo.HasManagedComponent<UnitIntent>(unit));                        // applied (pending-only)
+            repo.Bus.SwapBuffers();
+            var order = Assert.Single(repo.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            Assert.Equal("Order.Hold", order.IntentId);
+            Assert.Equal(BehaviorOrigin.Superior, order.Origin);
+        }
+
         /// <summary>⭐ CE-3167 — the providers run on the brain OWNER only: a node without authority clears nothing.</summary>
         [Fact]
         public void CE3167_ANonOwner_RunsNoProvider()

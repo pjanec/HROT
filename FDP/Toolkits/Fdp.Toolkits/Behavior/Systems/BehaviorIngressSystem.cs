@@ -254,7 +254,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                         AssignSopNow(repo, entity, sop.Name, sop.Params, sop.Origin);
                     if (intent.Behavior is { } task && repo.HasComponent<BehaviorState>(entity)
                         && !BrainIntentReader.DrivenByMissionPlan(repo, entity))
-                        AssignNow(repo, entity, task.Name, task.Params, task.Origin);
+                    {
+                        // ⭐ CE-3494 — a task that is not a behaviour name is an ORDER (`Order.Move` — an edit-mode map order, or a hand-written file):
+                        //   the one order path resolves it per class (TacticalIntentResolution), as a live order would — a step later, at the same rank
+                        if (_registry.TryGetId(task.Name, out _)) AssignNow(repo, entity, task.Name, task.Params, task.Origin);
+                        else if (repo.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>())
+                            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = entity, IntentId = task.Name, JsonParams = task.Params, Origin = task.Origin });
+                    }
                 }
                 repo.RemoveComponent<UnitIntent>(entity);
                 IntentsApplied++;
