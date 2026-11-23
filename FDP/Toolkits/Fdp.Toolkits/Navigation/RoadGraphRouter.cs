@@ -46,14 +46,10 @@ namespace Fdp.Toolkit.Navigation
         private bool[] _done = Array.Empty<bool>();
         private float[] _segFactor = Array.Empty<float>();   // K12 — per segment, this request's under-fire factor
 
-        // ⭐ CE-5043 — the large-terrain router (handoff ui → terrain, Stechovice: 19 257 nodes, 19 691 segments) — the graph's node → incident segments
-        // (CSR: node u's segments are _adjSeg[_adjStart[u] .. _adjStart[u + 1]), each in ascending segment order, as the former scan of every
-        // segment met them), built ONCE per graph and reused; and the open list is the engine's heap instead of a scan of every node.
+        // ⭐ CE-5043 — the large-terrain router (handoff ui → terrain, Stechovice: 19 257 nodes, 19 691 segments): the node → incident segments
+        // come from the graph's ONE derived index (RoadGraphIndex, CE-5045 — built once per graph, shared with the danger classifier), each node's in
+        // ascending segment order as the former scan of every segment met them; and the open list is the engine's heap instead of a scan of every node.
         // ⇒ O((N + S) log N) per route instead of O(N · (N + S)); the same costs, the same settle order, so the same routes.
-        private int[] _adjStart = Array.Empty<int>();
-        private int[] _adjSeg = Array.Empty<int>();
-        private IntPtr _adjNodes, _adjSegments;   // the graph the adjacency was built for: its arrays' addresses and lengths
-        private int _adjN = -1, _adjM = -1;
         private readonly CostHeap _open = new(256);
 
         // The last route found (Route → EmitLeg).
@@ -171,7 +167,8 @@ namespace Fdp.Toolkit.Navigation
 
             int n = roads.Nodes.Length;
             Ensure(n);
-            EnsureAdjacency(roads);
+            var index = RoadGraphIndex.For(roads);
+            int[] adjStart = index.AdjStart, adjSeg = index.AdjSeg;
             for (int i = 0; i < n; i++) { _dist[i] = float.MaxValue; _prevNode[i] = -1; _prevSeg[i] = -1; _done[i] = false; }
             _open.Clear();
             PriceSegments(roads, underFire, sidePlus1);
@@ -187,9 +184,9 @@ namespace Fdp.Toolkit.Navigation
                 var (c, u) = _open.Pop();
                 if (_done[u] || c != _dist[u]) continue;   // a stale entry (lazy decrease-key)
                 _done[u] = true;
-                for (int k = _adjStart[u], end = _adjStart[u + 1]; k < end; k++)
+                for (int k = adjStart[u], end = adjStart[u + 1]; k < end; k++)
                 {
-                    int s = _adjSeg[k];
+                    int s = adjSeg[k];
                     var seg = roads.Segments[s];
                     int v = seg.StartNodeIndex == u ? seg.EndNodeIndex : seg.EndNodeIndex == u ? seg.StartNodeIndex : -1;
                     if (v < 0 || v >= n || _done[v]) continue;
@@ -308,42 +305,6 @@ namespace Fdp.Toolkit.Navigation
             if (node < 0 || node >= _dist.Length || d >= _dist[node]) return;
             _dist[node] = d; _prevNode[node] = fromNode; _prevSeg[node] = fromNode < 0 ? -1 : viaSeg;
             _open.Push(d, node);
-        }
-
-        /// <summary>
-        /// The node → incident segments index of <paramref name="roads"/>, rebuilt only when the graph is not the one it was built for (another
-        /// blob: its arrays live elsewhere or are sized differently — a terrain load publishes a new blob, <c>TerrainResidency</c>). Every segment
-        /// is listed under both its end nodes once (two-way, D5), in ascending segment order. 0 B once built for a graph.
-        /// </summary>
-        private unsafe void EnsureAdjacency(in RoadNetworkBlob roads)
-        {
-            int n = roads.Nodes.Length, m = roads.Segments.Length;
-            var nodesAt = (IntPtr)System.Runtime.CompilerServices.Unsafe.AsPointer(ref roads.Nodes[0]);
-            var segsAt = (IntPtr)System.Runtime.CompilerServices.Unsafe.AsPointer(ref roads.Segments[0]);
-            if (n == _adjN && m == _adjM && nodesAt == _adjNodes && segsAt == _adjSegments) return;
-
-            if (_adjStart.Length < n + 1) _adjStart = new int[n + 1];
-            if (_adjSeg.Length < 2 * m) _adjSeg = new int[2 * m];
-            Array.Clear(_adjStart, 0, n + 1);
-            for (int s = 0; s < m; s++)
-            {
-                var seg = roads.Segments[s];
-                int a = seg.StartNodeIndex, b = seg.EndNodeIndex;
-                if (a >= 0 && a < n) _adjStart[a + 1]++;
-                if (b >= 0 && b < n && b != a) _adjStart[b + 1]++;
-            }
-            for (int i = 0; i < n; i++) _adjStart[i + 1] += _adjStart[i];
-            // Fill: a running cursor per node, kept in _dist's sibling (_prevNode is reset by every Route anyway).
-            var cursor = _prevNode;
-            for (int i = 0; i < n; i++) cursor[i] = _adjStart[i];
-            for (int s = 0; s < m; s++)
-            {
-                var seg = roads.Segments[s];
-                int a = seg.StartNodeIndex, b = seg.EndNodeIndex;
-                if (a >= 0 && a < n) _adjSeg[cursor[a]++] = s;
-                if (b >= 0 && b < n && b != a) _adjSeg[cursor[b]++] = s;
-            }
-            _adjN = n; _adjM = m; _adjNodes = nodesAt; _adjSegments = segsAt;
         }
 
         /// <summary>K12 — each segment's factor for this request: 1, or the covered factor where its midpoint is covered (reused array, 0 B steady).</summary>
