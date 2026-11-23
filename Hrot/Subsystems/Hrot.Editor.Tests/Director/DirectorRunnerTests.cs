@@ -803,6 +803,45 @@ public sealed class DirectorRunnerTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-11035 (R-11015) — a live play hands the subtitle to <c>FilmStudio.Caption</c> (what the suggested camera's caption reads): the line, its position, an alpha that
+    /// fades in and out, none outside it — and the studio's serial grew exactly once for the one line. 🔴 Mutation: the runner not setting <c>FilmStudio.Caption</c> ⇒ no frame carries it.
+    /// </summary>
+    [Fact]
+    public void CE11035_ALivePlay_HandsTheSubtitleToTheStudio_ForTheSuggestedCamera()
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), new Sink());
+        var take = new Take
+        {
+            Scenario = "s-a", Name = "cap", TickHz = 60, EndAt = new AtExpr(2.5),
+            Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { LookAt = Vector3.Zero, Distance = 10 } } },
+            Subtitles = new[] { new Subtitle { At = new AtExpr(0.5), Until = new AtExpr(1.5), Text = "Contact", Position = SubtitlePosition.Top, Fade = 0.5 } },
+        };
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "cap" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Inline: new Dictionary<string, Take> { ["s-a/cap"] = take })));
+
+        int shown = 0, withText = 0, topFrames = 0; float maxAlpha = 0f, minWhileShown = 1f, lastAlpha = 0f; int serial = 0;
+        for (int f = 0; f < 20000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing)
+            {
+                FilmStudio.ReadCaption(out serial, out var text, out var pos, out var alpha);
+                if (alpha > 0f) { shown++; maxAlpha = Math.Max(maxAlpha, alpha); minWhileShown = Math.Min(minWhileShown, alpha); if (text == "Contact") withText++; if (pos == (byte)SubtitlePosition.Top) topFrames++; }
+                lastAlpha = alpha;
+            }
+            host.EndFrame();
+        }
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.True(shown >= 25, $"frames with a subtitle: {shown}");
+        Assert.Equal((shown, shown), (withText, topFrames));
+        Assert.True(maxAlpha >= 0.999f && minWhileShown < 0.8f, $"alpha {minWhileShown} .. {maxAlpha}");
+        Assert.Equal(1, serial);          // one line = one serial
+        Assert.Equal(0f, lastAlpha);      // none after its end
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-1370</c> — a captured frame is handed the subtitle WITH its position and fade, as the cinema overlay gets it (not just its text): a take's
     /// top subtitle fading over 0.5 s reaches the sink at <c>Top</c>, its alpha rising from ~0 to 1 and falling again, and no frame past its end carries one.
     /// 🔴 Mutation: the runner handing the sink <c>new SubtitleFrame(_subNow.Text, SubtitlePosition.Bottom, 1f)</c> (the text only, as before) ⇒ no <c>Top</c>

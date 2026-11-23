@@ -1559,6 +1559,32 @@ namespace Hrot.NED.Descriptors
         public string ArgsJson;
     }
 
+    // ⭐ CE-11034 (R-11014; docs/designs/audio/DESIGN_Ambience.md §1, §2) — one AMBIENCE LAYER: a kind (a dotted NAME, never a sample), an intensity, a radius, the sim time it ends.
+    //   Published by the node that owns the layer (its creator — no group) on change, and DISPOSED when the layer ends (the expiry system's network destroy); applied on every other node.
+    //   Positionless = heard everywhere; a positioned layer's position rides the ordinary entity transform. Reliable + TransientLocal + KeepLast(1) keyed by entity: a late joiner
+    //   hears what is sounding. SI on the wire: seconds of sim time, metres.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityAmbience
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The kind: a dotted name from the one list (<c>alarm.airraid</c>); a reader plays its nearest known ancestor.</summary>
+        public string Kind;
+
+        /// <summary>How strong, 0…1.</summary>
+        public float Intensity;
+
+        /// <summary>Metres within which a positioned layer is heard (ignored without a position).</summary>
+        public float Radius;
+
+        /// <summary>The sim time it ends (<c>ISimClock.TotalTime</c>, seconds); 0 = until removed.</summary>
+        public double Until;
+    }
+
     // ⭐ macros S3a ③ (SR-175) — the expander's verdict on an instance: <c>MacroExpansionState</c> (0 None · 1 Expanding · 2 Done · 3 Failed) and why it failed.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]

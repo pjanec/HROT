@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-22
-build-state: READY-TO-BUILD (CE-11034; R-11014 approved by the user, 2026-11-22: "approved, write the design and reply to Unreal")
-current-answer: the whole file — §1 the model, §2 the diagrams, §3 the kinds, §4 decisions, §5 slices
-stale-below: nothing
+build-state: BUILT — slice 1 (CE-11034, ui, 2026-11-22; as built §6) · slices 2 and 3 READY-TO-BUILD (R-11014 approved by the user, 2026-11-22: "approved, write the design and reply to Unreal")
+current-answer: the whole file — §1 the model, §2 the diagrams, §3 the kinds, §4 decisions, §5 slices, §6 AS BUILT (slice 1: where it deviates from §1–§2)
+stale-below: nothing (§2's module diagram said the expiry system's pack was "chosen at build" — §6 names it)
 known-rot: none
 known-conflict: none
 related-designs:
@@ -124,9 +124,44 @@ compose a war (their F) are the client's way to play `battle.distant`.
 
 ## 5. Slices and acceptance (R-4277)
 
-1. **Slice 1 (CE-11034):** `Ambience`, `AmbienceKinds`, `SetAmbience`, `AmbienceExpirySystem`, `EntityAmbience` + its translators; rails:
+1. ✅ **Slice 1 (CE-11034) — BUILT `2026-11-22`, §6:** `Ambience`, `AmbienceKinds`, `SetAmbience`, `AmbienceExpirySystem`, `EntityAmbience` + its translators; rails:
    create / replace / remove / expire, positionless vs positioned, the descriptor round trip, a late joiner gets the layer, 0 B per steady frame
    for the expiry system, `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`; a scenario `ambience-air-raid` (a positionless `battle.distant` from the
    start; a trigger at 30 s raises `alarm.airraid` at the town for 60 s) with `checks.json` expect rows on the layers present at each time.
 2. **Slice 2 (ui):** the editor's picker entry and the Details form (kind dropdown from `AmbienceKinds`, intensity, radius, until).
 3. **Slice 3 (later):** HROT's FPS audio plays the kinds it has a clip for (`battle.*` lifts the rumble bed).
+
+## 6. AS BUILT — slice 1 (`CE-11034`, ui, `2026-11-22`)
+
+⭐ The build matches §1–§2 except where this table says it does not; each deviation is a finding, not a silent choice.
+
+| § | the design said | as built | why |
+|---|---|---|---|
+| §1 | `Ambience { FixedString32 Kind; float Intensity; float Radius; double Until }` | `Until` is a **`SimInstant`** (the same 8 bytes; JSON and the dump read it as a number; the wire carries a plain `double`) | CE-4201 / SV-1: an instant is a `SimInstant`, never a `double` (`AreaEffectCloud.BornAtSimSeconds` is one) |
+| §2 | `AmbienceKinds` and the component in `Hrot.Core` | the component, `AmbienceExpirySystem` in **`Fdp.Toolkits`** (`Fdp.Toolkit.Ambient` — not `…Ambience`: a namespace named like its type); `AmbienceKinds` in **`Hrot.Core`** (`Hrot.Core.Ambience`) as drawn | the toolkit owns what runs on every node (the cloud's shape); the kinds list stays with the products that read it |
+| §2 | component id | **266** | the ui block (460–475) and the new-lane block (476–495) are full; of the production-free ids only 266 and 328 are held by no test struct and named by no comment — 328 sits in the retired agg-ui range; 266 was NavFakeIds' note *"formerly FakePathPoolEntry — not an ECS component"* |
+| §2 | TKB type, descriptor | TKB type **8841** `AmbienceLayer` (a bare template, like the World Environment's; no palette row until slice 2); descriptor **`dtAmbience` 246**, topic `EntityAmbience` (`[DdsManaged]`: `Kind` is a string), **no ownership group** — the layer's creator keeps it (the `dtAreaEffectCloud` shape), mapped in `NedOwnershipGroupBinding` so it is ingressible | all three measured free on every origin branch, 2026-11-22 |
+| §2 | the forwarded creation request | the request carries the layer as a **`dtAmbience` descriptor** (a union case + `DescriptorMapper` + `CreateEntityRequestDescriptorBuilder`) | `owner 0` ⇒ the default processor, which may be another node: without it the creator builds a bare 8841 entity that sounds nothing (the cloud's CE-3228 finding) |
+| §2 module diagram | "its registering pack is chosen at build" | `AmbienceExpirySystem` is in the **`Interactions` capability** beside `AreaEffectCloudSystem` — scheduled on every node, gated on `HasAuthority` — so whoever owns a layer ends it | the owner-side systems of replicated things live there (its remark) |
+| §2 sequence | create ⇒ Success | `SetAmbience` returns **Running until the new layer appears on this node** (derived `EntityGuid`; fails after 30 s sim: *"the ambience layer never appeared"*), an update or a removal is Success the same tick | so a following step finds the layer, and two steps one tick apart cannot both create it |
+| AM-3 | same `Kind` at the same `Place` replaces it | **updates in place** when this node owns it; a replica (another node's layer) is **ended through the network and asked for again** — only its owner writes it; the layer is named `"Ambience <kind>"` (`EntityInfo`) so a check, the map's list and the editor can call it | the one-writer rule; a name is how `checks.json` reaches a layer |
+| AM-3 | `Place` | no place = positionless; ⚠ coordinates written exactly **(0,0,0)** read as "no place" (key it `"@Key"` if it must be the origin) | a `PointLink` has no "absent" state |
+| AM-4 | an unknown kind is logged once | logged **once per run of the step** (a rule's edge, never every frame) — a process-wide log-once set would be static mutable state in behaviour code | CLAUDE.md "BEHAVIOUR CODE RUNS IN PARALLEL" |
+| §5 | — | the ingress **holds** a sample whose entity is not known yet (the weather's shape: the topic and the creation are not ordered) | a late joiner's TransientLocal sample can arrive first |
+| — | — | `AiBrainReads` declares `Ambience` a stable read (`SetAmbience` asks whether a layer sounds; nothing writes it inside the brains' phase) | `HROT_READ_CHECK` |
+
+### 6a. The rails (red-proofs on each)
+
+| suite | what |
+|---|---|
+| `Fdp.Toolkits.Tests` `AmbienceExpirySystemTests` | unmanaged, id 266, saved + recorded · ends AT `Until`, never before, `Until` 0 never · sim clock only · positioned too · a replica is not ended · a replicated layer ends through ONE `DestroyEntityCommand` + `TearDown` · **0 B** in a steady frame (`GC.GetAllocatedBytesForCurrentThread`) |
+| `Hrot.Core.Tests` `AmbienceKindsTests` | the list is §3's table · every kind resolves to itself and has a chain ending at a family · `alarm.airraid.preliminary.v2` → `alarm.airraid.preliminary` → … → `alarm` · a totally unknown kind resolves to nothing and `Check` flags it · empty / over-long |
+| `Hrot.SimHost.Tests` `EntityAmbienceTranslatorTests` | every field both ways, each a new sample · on-change only, a non-owner sends nothing, an ended layer is disposed on the wire · positionless and positioned both publish · a sample before its entity is held, the owner never takes its own back · ordinal 246 / id 266 |
+| `Hrot.SimHost.Tests` `ScenarioRulesTests.Ambience` | (the `SetAmbience` action) a transient positioned layer with its final value, waits for it · positionless with no end · a second call updates, never duplicates · intensity 0 removes, nothing asked for · a replica is replaced · unknown kind runs, empty / long refused · a layer that never appears fails the step |
+| `Hrot.Map.Common.Tests` `CE11034_AnAmbienceLayer_SurvivesTheWireRoundTrip` | the forwarded request carries the layer |
+| scenario `ambience-air-raid` | see §6b |
+
+### 6b. The scenario
+
+`scenarios/demos/sensing-and-weather/ambience-air-raid` (generated by `scripts/gen-ambience-air-raid-scenario.py`): the authored positionless `Distant War` (`battle.distant`) sounds from the start; the trigger `Air raid at 30 s` raises `alarm.airraid` at (300, 300) for 60 s; `checks.json` states the same list as the `description`'s Judge (the layers present at each time, the siren's place and radius, its end, its absence after 95 s). ✅ `scripts/scenario-regression.sh ambience-air-raid`: 11/11 rows pass (the siren appears at 30.25 s, still sounds at 79 s, is gone by 95 s), golden captured and re-run `GOLDEN same`. ⚠ Judged in the deterministic editor tier only (one node: the creation request is served where it is asked); the cluster tier (replication with the gateway reading `dtAmbience`) is the DD-028 half and is not built.
+

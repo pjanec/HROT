@@ -1,0 +1,243 @@
+using System.Text.Json;
+using Fdp.Toolkit.Terrain;
+using Hrot.Terrain.InputSet;
+using Xunit;
+
+namespace Hrot.Terrain.Import.Tests;
+
+[CollectionDefinition("TerrainSources", DisableParallelization = true)]
+public sealed class TerrainSourcesCollection { }
+
+/// <summary>
+/// ⭐ CE-11037 (docs/DESIGN_Terrain_Import_UTM.md §13) — a terrain imports on first use from its committed input, through the catalog's hook.
+/// Small synthetic input sets (MiniSet / hrot-terrain-synth), never Stechovice. The hook is process-wide, so the class runs alone.
+/// </summary>
+[Collection("TerrainSources")]
+public sealed class SourceImportTests : IDisposable
+{
+    private readonly Env _env = new();
+    private string Content => Path.Combine(_env.Root, "content");
+    private string TerrainRoot => Path.Combine(Content, "assets", "terrain");
+    private string InputRoot => Path.Combine(Content, "assets", "terrain-input");
+    private int _imports;
+    private readonly List<string> _log = new();
+
+    public SourceImportTests() { }
+    public void Dispose() { TerrainSources.Import = null; _env.Dispose(); }
+
+    private SourceImport Hook(Action<string>? onLog = null)
+        => new(root => { Interlocked.Increment(ref _imports); return SourceImport.DefaultImporter(root); },
+               m => { lock (_log) _log.Add(m); onLog?.Invoke(m); }, repoRoot: Path.Combine(_env.Root, "no-repo"));
+
+    private TerrainCatalog Install(SourceImport? hook = null)
+    {
+        TerrainSources.Import = hook ?? Hook();
+        return TerrainCatalog.ForNode(null, Content);
+    }
+
+    private static void ImportNow(TerrainImporter imp, string set, string name, bool replace, IProgress<ImportProgress>? p, CancellationToken ct) => imp.ImportAsync(set, name, replace, p, ct).GetAwaiter().GetResult();
+    private static bool Done(Task t, int ms) => t.Wait(ms);
+    private static string? Resultof(Task<string?> t) => t.Result;
+
+    private string Input(string name, MiniSet? mini = null) => (mini ?? new MiniSet()).Write(Path.Combine(InputRoot, name));
+    private static string Sha(string set) => Manifest.Sha256(Path.Combine(set, "manifest.json"));
+    private static string Recorded(string def) => SourceImport.RecordedSha(def)!;
+
+    [Fact]
+    public void AMissingTerrain_WithAnInputSet_ImportsOnce_ThenResolvesWithNoImport()
+    {
+        string set = Input("mini");
+        var catalog = Install();
+        var def = catalog.ResolveDefinition("mini");
+        Assert.Equal(Path.Combine(TerrainRoot, "mini", "terrain.json"), def);
+        Assert.Equal(1, _imports);
+        for (int i = 0; i < 5; i++) Assert.Equal(def, catalog.ResolveDefinition("mini"));
+        Assert.Equal(1, _imports);
+        Assert.Equal(Sha(set), Recorded(def!));                       // terrain.json records the input's manifest sha256
+        Assert.NotNull(Env.Load(Path.GetDirectoryName(def)!, "mini").Height);   // and it LOADS through the real parsers
+        Assert.Empty(Directory.GetDirectories(TerrainRoot, "*.import-*"));
+    }
+
+    [Fact]
+    public void AFirstUseImport_PrefillsTheNavmesh_AndTheFollowingLoadBakesNothing()
+    {
+        Input("mini", new MiniSet { Buildings = { MiniSet.Rect("a", -40, -30, -20, -14, storeys: 2) } });
+        var def = Install().ResolveDefinition("mini")!;
+        string folder = Path.GetDirectoryName(def)!, navtiles = Path.Combine(folder, Fdp.Toolkit.Navigation.Recast.NavTileCache.TerrainFolderName);
+        Assert.True(Directory.Exists(navtiles));
+        Assert.NotEmpty(Directory.EnumerateFiles(navtiles, "*" + Fdp.Toolkit.Navigation.Recast.NavTilePack.Extension, SearchOption.AllDirectories));   // packs
+        var world = TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), "mini")!;
+        var factory = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { TileCache = new Fdp.Toolkit.Navigation.Recast.NavTileCache(Path.Combine(_env.Root, "own-cache")) };
+        Assert.NotNull(factory.Build(world));
+        Assert.Equal(0, factory.LastStats.Baked);                    // the first load bakes nothing
+        Assert.True(factory.LastStats.FromCache > 0);
+    }
+
+    [Fact]
+    public void NoInputSet_IsNullAsToday_AndTheImporterIsNeverBuilt()
+    {
+        var catalog = Install();
+        Assert.Null(catalog.ResolveDefinition("ghost"));
+        Assert.Null(catalog.ResolveDefinition("europe/ghost"));        // a sub-folder name has no input set by construction
+        Assert.Equal(0, _imports);
+        Assert.False(Directory.Exists(TerrainRoot) && Directory.GetFileSystemEntries(TerrainRoot).Length > 0);
+    }
+
+    [Fact]
+    public void AnExistingTerrain_WithNoRecordedSha_IsNeverTouched_EvenWhenAnInputSetHasItsName()
+    {
+        Input("hand");
+        Directory.CreateDirectory(Path.Combine(TerrainRoot, "hand"));
+        string def = Path.Combine(TerrainRoot, "hand", "terrain.json");
+        File.WriteAllText(def, "{ \"schemaVersion\": 2, \"name\": \"hand\" }");
+        Assert.Equal(def, Install().ResolveDefinition("hand"));
+        Assert.Equal(0, _imports);
+        Assert.Equal("{ \"schemaVersion\": 2, \"name\": \"hand\" }", File.ReadAllText(def));
+    }
+
+    [Fact]
+    public void AnExistingCurrentTerrain_ResolvesWithoutTouchingTheImporter()
+    {
+        string set = Input("mini");
+        var seed = new TerrainImporter(TerrainRoot, _env.Scenarios);
+        ImportNow(seed, set, "mini", false, null, default);   // already there (the importer is NOT the hook's)
+        var catalog = Install();
+        for (int i = 0; i < 3; i++) Assert.NotNull(catalog.ResolveDefinition("mini"));
+        Assert.Equal(0, _imports);
+    }
+
+    [Fact]
+    public void AChangedManifest_ReImports_AndKeepsTheOldVersion()
+    {
+        string set = Input("mini");
+        var catalog = Install();
+        var def = catalog.ResolveDefinition("mini")!;
+        string oldSha = Recorded(def), oldHash = TerrainContentHash.OfTerrain(def);
+        var changed = new MiniSet { Ground = (x, y) => (float)(20 + 0.02 * y) };
+        changed.Write(set);
+        Assert.NotEqual(oldSha, Sha(set));
+        var def2 = catalog.ResolveDefinition("mini");
+        Assert.Equal(def, def2);
+        Assert.Equal(2, _imports);
+        Assert.Equal(Sha(set), Recorded(def2!));
+        Assert.True(File.Exists(Path.Combine(TerrainRoot, "mini", "versions", oldHash, "terrain.json")));   // AQ112: the old one is kept by its hash
+        Assert.Equal(def, catalog.ResolveDefinition("mini"));
+        Assert.Equal(2, _imports);                                                                          // current again: no third import
+    }
+
+    [Fact]
+    public void ACancelledImport_LeavesNothingResolvable_AndTheNextCallImports()
+    {
+        Input("mini");
+        using var cts = new CancellationTokenSource();
+        var hook = Hook(m => { if (m.Contains("importing")) cts.Cancel(); });
+        var roots = new[] { TerrainRoot };
+        Assert.ThrowsAny<OperationCanceledException>(() => hook.TryImport("mini", null, TerrainRoot, roots, cts.Token));
+        Assert.Equal(1, _imports);
+        Assert.False(Directory.Exists(Path.Combine(TerrainRoot, "mini")));
+        Assert.Empty(Directory.GetDirectories(TerrainRoot));           // no temp folder either
+        Assert.Null(new TerrainCatalog(roots).ResolveDefinition("mini"));   // nothing resolvable (no hook on this catalog)
+        TerrainSources.Import = Hook();
+        Assert.NotNull(new TerrainCatalog(roots).ResolveDefinition("mini"));
+        Assert.Equal(2, _imports);
+    }
+
+    [Fact]
+    public void AFailedImport_IsLoud_LeavesNothing_AndTheNextCallImports()
+    {
+        string set = Input("mini");
+        string trees = Path.Combine(set, InputSetLayout.Trees);
+        string kept = File.ReadAllText(trees);
+        File.Delete(trees);                                             // the set is now invalid: the importer throws
+        var catalog = Install();
+        Assert.ThrowsAny<Exception>(() => catalog.ResolveDefinition("mini"));
+        Assert.Equal(1, _imports);
+        Assert.False(File.Exists(Path.Combine(TerrainRoot, "mini", "terrain.json")));
+        Assert.Empty(Directory.GetDirectories(TerrainRoot));
+        File.WriteAllText(trees, kept);
+        Assert.NotNull(catalog.ResolveDefinition("mini"));
+        Assert.Equal(2, _imports);
+    }
+
+    [Fact]
+    public void ConcurrentResolves_InOneProcess_ImportOnce()
+    {
+        Input("mini");
+        var catalog = Install(Hook(m => { if (m.Contains("importing")) Thread.Sleep(300); }));   // widens the window a missing lock would lose
+        const int n = 6;
+        using var gate = new Barrier(n);
+        var results = new string?[n];
+        var threads = Enumerable.Range(0, n).Select(i => new Thread(() => { gate.SignalAndWait(); results[i] = catalog.ResolveDefinition("mini"); })).ToList();
+        threads.ForEach(t => t.Start()); threads.ForEach(t => t.Join());
+        Assert.Equal(1, _imports);
+        Assert.All(results, r => Assert.Equal(Path.Combine(TerrainRoot, "mini", "terrain.json"), r));
+    }
+
+    [Fact]
+    public void AnotherProcessHoldingTheLock_IsWaitedFor_ThenItsFolderIsResolved_WithNoImportHere()
+    {
+        string set = Input("mini");
+        Directory.CreateDirectory(TerrainRoot);
+        string lockFile = Path.Combine(TerrainRoot, ".mini.import.lock");
+        var held = new FileStream(lockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);   // what a second PROCESS's hook holds while it imports
+        var catalog = Install();
+        var task = Task.Run(() => catalog.ResolveDefinition("mini"));
+        Assert.False(Done(task, 500));                                  // waits: it neither imported nor gave up
+        Assert.Equal(0, _imports);
+        ImportNow(new TerrainImporter(TerrainRoot, _env.Scenarios), set, "mini", false, null, default);   // the other process finishes
+        held.Dispose();
+        Assert.True(Done(task, 20000));
+        Assert.Equal(Path.Combine(TerrainRoot, "mini", "terrain.json"), Resultof(task));
+        Assert.Equal(0, _imports);
+    }
+
+    [Fact]
+    public void TwoImportsOfTheSameInput_AreByteIdentical()
+    {
+        string set = _env.Synth();
+        string a = Path.Combine(_env.Root, "A"), b = Path.Combine(_env.Root, "B");
+        ImportNow(new TerrainImporter(a, _env.Scenarios), set, "synth", false, null, default);
+        ImportNow(new TerrainImporter(b, _env.Scenarios), set, "synth", false, null, default);
+        static List<string> Files(string root) => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .Select(f => Path.GetRelativePath(root, f).Replace('\\', '/')).Where(f => f != TerrainContentHash.CacheFileName && !f.EndsWith("/" + TerrainContentHash.CacheFileName)).OrderBy(f => f, StringComparer.Ordinal).ToList();
+        var fa = Files(Path.Combine(a, "synth")); var fb = Files(Path.Combine(b, "synth"));
+        Assert.Equal(fa, fb);
+        Assert.True(fa.Count > 3);
+        foreach (var rel in fa) Assert.True(File.ReadAllBytes(Path.Combine(a, "synth", rel)).AsSpan().SequenceEqual(File.ReadAllBytes(Path.Combine(b, "synth", rel))), rel);
+        Assert.Equal(TerrainContentHash.OfTerrain(Path.Combine(a, "synth", "terrain.json")), TerrainContentHash.OfTerrain(Path.Combine(b, "synth", "terrain.json")));
+    }
+
+    // ---- every host kind builds its catalog its own way; the hook is inside, so each imports
+    [Fact]
+    public void ANodeCatalog_WithAStagingRoot_ImportsIntoIt_AndFindsTheInputBesideTheNas()
+    {
+        Input("mini");                                                  // beside the NAS's assets/terrain, not beside the staging root
+        string staging = Path.Combine(_env.Root, "node-staging");
+        TerrainSources.Import = Hook();
+        var def = TerrainCatalog.ForNode(staging, Content).ResolveDefinition("mini");
+        Assert.Equal(Path.Combine(staging, "Terrain", "mini", "terrain.json"), def);   // F-2: the first writable root
+        Assert.Equal(1, _imports);
+    }
+
+    [Fact]
+    public void ADirectCatalog_AndTheTwoPublicResolvers_AllImport()
+    {
+        Input("mini");
+        TerrainSources.Import = Hook();
+        var catalog = new TerrainCatalog(new[] { TerrainRoot });
+        Assert.NotNull(catalog.ReadDefinition("mini"));
+        Assert.NotNull(catalog.ResolveFolder("mini"));
+        Assert.Equal(1, _imports);
+        Assert.Contains("mini", catalog.List());
+    }
+
+    [Fact]
+    public void TheRepositorysInputSet_IsFoundWhenTheContentRootHasNone()
+    {
+        string repo = Path.Combine(_env.Root, "repo");
+        new MiniSet().Write(Path.Combine(repo, "assets", "terrain-input", "mini"));
+        TerrainSources.Import = new SourceImport(root => { _imports++; return SourceImport.DefaultImporter(root); }, null, repo);
+        Assert.NotNull(TerrainCatalog.ForNode(null, Content).ResolveDefinition("mini"));
+        Assert.Equal(1, _imports);
+    }
+}

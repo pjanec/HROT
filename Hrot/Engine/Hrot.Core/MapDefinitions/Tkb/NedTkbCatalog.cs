@@ -1629,6 +1629,9 @@ namespace Hrot.Map.Definitions.Tkb
             var airArena = new TkbTemplate("Air Arena", TkbEntityTypes.AirArena);
             airArena.AddDescriptor(new MapGraphicDef());
             tkbDb.Register(airArena);
+            // ⭐ CE-11034 (R-11014, AM-2) — an Ambience Layer: a bare template like the World Environment's — its Ambience arrives with the creation request on the creator and through
+            //   dtAmbience everywhere else; a positioned layer also gets a SimTransform with the request. Positionless = heard everywhere. Never in the palette until slice 2's picker row.
+            tkbDb.Register(new TkbTemplate("Ambience Layer", TkbEntityTypes.AmbienceLayer));
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);

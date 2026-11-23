@@ -152,6 +152,7 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.WeaponDeploySystem            _deploy        = new();   // ⭐ Weapon systems WS-1 (W-C)
         private readonly Hrot.Common.EntityCreation.EjectionSystem        _ejection      = new();   // ⭐ Airborne insertion B-8 (§7d D-14)
         private readonly Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem _clouds    = new();   // ⭐ CE-3219 part 3 — the owner drifts, irritates, ends it
+        private readonly Fdp.Toolkit.Ambient.AmbienceExpirySystem         _ambience  = new();   // ⭐ CE-11034 (R-11014) — the layer's owner ends it at its sim time
         private readonly Fdp.Toolkit.Combat.Systems.RoundPickUpSystem     _pickUp    = new();   // ⭐ CE-3235 — the round's flier grants, the brain owner receives
         private readonly Fdp.Toolkit.Combat.Systems.HandsFuzeSystem       _handsFuze = new();   // ⭐ CE-3235 — a live round burns in the hand
         private readonly Fdp.Toolkit.Behavior.CarryStationSystem          _stations  = new();   // ⭐ CE-3233 — draw / stow / conceal on the list owner
@@ -166,7 +167,7 @@ public static class CoreInfrastructureCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations, _charges, _custody, _seed, _openings, _lights };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _ambience, _pickUp, _handsFuze, _stations, _charges, _custody, _seed, _openings, _lights };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -182,6 +183,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_deploy);
             simulation.Add(_ejection);
             simulation.Add(_clouds);
+            simulation.Add(_ambience);
             simulation.Add(_pickUp);
             simulation.Add(_handsFuze);
             simulation.Add(_stations);

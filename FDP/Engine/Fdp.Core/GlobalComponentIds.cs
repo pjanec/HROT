@@ -383,6 +383,10 @@ namespace Fdp.Core
         /// replicated or saved). Id measured 2026-11-20: production-free on every lane, its only other use a test struct in Fdp.ModuleHost.Tests (never registers Hrot types).</summary>
         public const int CameraSuggestion        = 86;
 
+        /// <summary><c>FilmCaption</c> — ⭐ CE-11035 (R-11015): the director's subtitle text on this node (a managed singleton, node-local, never recorded or saved; set only when the
+        /// suggested camera's caption serial changes). Id measured 2026-11-22: production-free, its only other use a test struct in Fdp.ModuleHost.Tests (never registers Hrot types).</summary>
+        public const int FilmCaption             = 87;
+
         /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
         /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
         /// ⚠ 126 fixed by the coordinator (127 taken by CheckpointWatch; 128 RELEASED to the air lane — MissileDefenceState, R-4285).</summary>
@@ -1357,6 +1361,12 @@ namespace Fdp.Core
         /// (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md): free in PRODUCTION on every lane; Fdp.Core.Tests (<c>Tiny2</c> / <c>Tiny3</c>) and Fdp.ModuleHost.Tests
         /// (<c>RPos</c> / <c>RVel</c>) keep private test structs on them — those suites never register these types (the 489–491 precedent).</summary>
         public const int HeatSource = 487, FireState = 488;
+
+        /// <summary><c>Ambience</c> — ⭐ CE-11034 (R-11014; docs/designs/audio/DESIGN_Ambience.md §1): one AMBIENCE LAYER — a kind (a dotted name, never a sample), an intensity, a radius
+        /// and the sim time it ends; positionless = heard everywhere. Recorded, saved (an authored layer is a scenario entity), replicated (<c>dtAmbience</c> 246; no group — its creator keeps it).
+        /// ⚠ 266, the one production-free id no test holds and no comment reserves (measured 2026-11-22: every <c>[ComponentId]</c> literal in tests, every constant, the free list the
+        /// catalogue rail prints); 266 was only NavFakeIds' note "formerly FakePathPoolEntry — not an ECS component". The ui block (460–475) and the new-lane block (476–495) are full.</summary>
+        public const int Ambience = 266;
 
         /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
         /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>

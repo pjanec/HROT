@@ -61,12 +61,39 @@ namespace Fdp.Toolkit.Terrain
             if (relative.Split('/').Any(part => part == ".."))
                 throw new ArgumentException($"Terrain name '{terrainName}' may not climb out of its root.", nameof(terrainName));
 
+            string? found = null, foundRoot = null;
             foreach (var root in _roots)
             {
                 var path = Path.Combine(root, relative, DefinitionFileName);
-                if (File.Exists(path)) return path;
+                if (File.Exists(path)) { found = path; foundRoot = root; break; }
             }
-            return ResolveKeptGround(relative);
+            // ⭐ CE-11037 (UTM §13 F-1/F-4) — a terrain whose INPUT is committed imports on first use (a miss) and re-imports when the input changed (a hit):
+            //   the hook is consulted HERE, so no host can forget it; it answers null when there is no input set for the name (or the terrain is current)
+            var hook = TerrainSources.Import;
+            if (found != null)
+                return hook?.TryImport(relative, found, foundRoot!, _roots, default) ?? found;
+            var kept = ResolveKeptGround(relative);
+            if (kept != null || hook == null) return kept;
+            string? target = FirstWritableRoot();
+            return target == null ? null : hook.TryImport(relative, null, target, _roots, default);
+        }
+
+        // ⭐ CE-11037 F-2 — the first root a folder can be created and written in (only asked on a miss with a hook set)
+        private string? FirstWritableRoot()
+        {
+            foreach (var root in _roots)
+            {
+                try
+                {
+                    Directory.CreateDirectory(root);
+                    var probe = Path.Combine(root, ".write-probe-" + Guid.NewGuid().ToString("N"));
+                    File.WriteAllBytes(probe, Array.Empty<byte>());
+                    File.Delete(probe);
+                    return root;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            }
+            return null;
         }
 
         /// <summary>⭐ AQ112 A — the sub-folder of a terrain folder holding its OLD versions: <c>&lt;terrain&gt;/versions/&lt;contentHash&gt;/</c>, each the whole folder as it was before a re-import. Excluded from the terrain's content hash.</summary>

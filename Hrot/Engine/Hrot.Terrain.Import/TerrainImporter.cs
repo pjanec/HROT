@@ -127,7 +127,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
             string worldFile = name + ".world.geojson";
             TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees);
-            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile);
+            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)));
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");
             ct.ThrowIfCancellationRequested();

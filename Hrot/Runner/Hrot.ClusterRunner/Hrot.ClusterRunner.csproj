@@ -50,6 +50,8 @@
     <ProjectReference Include="..\..\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
     <!-- AQ93 N1: mode "traffic", the dedicated SUMO traffic node -->
     <ProjectReference Include="..\..\Subsystems\Hrot.TrafficNode\Hrot.TrafficNode.csproj" />
+    <!-- ⭐ CE-11037 — the terrain catalog's import-on-first-use hook (SourceImport), registered once in Program.Main -->
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <!-- IScenario + ScenarioSubsystem for mode ci -->
     <ProjectReference Include=".\..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />

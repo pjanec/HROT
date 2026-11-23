@@ -176,6 +176,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtUnderFire, GlobalComponentIds.UnderFire);                   // ⭐ CE-1223 — when a man was last under fire
         // ⭐ CE-3219 part 3 — no group: the cloud's creator keeps it (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtAreaEffectCloud, GlobalComponentIds.AreaEffectCloud);
+        map.RegisterMapping((long)EDescriptorType.dtAmbience, GlobalComponentIds.Ambience);   // ⭐ CE-11034 — no group: the layer's creator keeps it; the mapping makes it INGRESSIBLE
         map.RegisterMapping((long)EDescriptorType.dtEffectState, GlobalComponentIds.EffectState);               // ⭐ CE-3219 — non-lethal effects
         map.RegisterMapping((long)EDescriptorType.dtPartDamage, GlobalComponentIds.PartDamage);   // ⭐ CE-3210 — wounds, beside Health
         map.RegisterMapping((long)EDescriptorType.dtLookState, GlobalComponentIds.LookState);     // ⭐ CE-3252 — where a person looks
