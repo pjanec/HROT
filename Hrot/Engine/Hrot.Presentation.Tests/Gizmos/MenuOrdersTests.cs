@@ -453,6 +453,9 @@ public sealed class MenuOrdersTests : IDisposable
     {
         Hrot.Common.Editing.StationMode.Install(_w, () => Hrot.Common.Editing.EditingMode.Edit);
         var orders = new EntityOrders(_w, _map, geo: null);
+        if (!_w.IsComponentTypeRegistered<BehaviorState>()) _w.RegisterComponent<BehaviorState>();
+        _w.AddComponent(_unit, new BehaviorState());                                                    // ⭐ §10 — authoring happens where the brain runs
+        _w.SetAuthority<BehaviorState>(_unit, true);
 
         var sent = orders.Hold(UnitId);
         Assert.True(sent.Accepted, sent.Detail);

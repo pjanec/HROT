@@ -167,9 +167,10 @@ public sealed class DebugApiOrdersTests
         svc.PostOrder(UnitId, new JsonObject { ["kind"] = "move", ["x"] = 30f, ["y"] = 0f });
         h.PumpFrames(4);
 
-        var plan = h.Repo.GetComponentRO<MissionPlanQueue>(unit);
-        Assert.Equal(2, plan.TaskCount);                                              // kept
-        Assert.Equal(MissionPlanQueue.HaltedHeldByOrder, plan.Halted);                // held by the order
+        // kept, not discarded. ⚠ This fixture's plan has no real tasks, so it has already run to its end when the order starts (CurrentTask ==
+        // TaskCount) — and an ended plan has nothing to hold (ClearFor leaves it; the hold itself is pinned by MissionControlExecutionSystemTests
+        // .CE3494_ClearFor_HoldsThePlan… and the plan-held-by-order scenario).
+        Assert.Equal(2, h.Repo.GetComponentRO<MissionPlanQueue>(unit).TaskCount);
         // The move ran as the operator's order — still running, or already ended (this world drives no navigation), and then
         // its outcome is the recorded one (OperatorOrderOutcome).
         var order = svc.GetOrder(UnitId);

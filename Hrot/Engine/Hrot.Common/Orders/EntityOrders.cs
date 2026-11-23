@@ -177,7 +177,7 @@ namespace Hrot.Common.Orders
         {
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
             // ⭐ CE-3494 — EDIT mode: releasing is un-authoring the starting task (the intent's task slot); nothing runs to clear
-            if (IsEditMode())
+            if (IsEditMode() && OwnsBrain(entity))
             {
                 if (_world.TryGetTable(typeof(UnitIntent), out _) && _world.HasManagedComponent<UnitIntent>(entity)
                     && ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetManagedComponentRO<UnitIntent>(entity) is { } intent)
@@ -313,7 +313,9 @@ namespace Hrot.Common.Orders
             // ⭐⭐ CE-3494 (R2, R8; DESIGN_Unit_Intent.md §3.2) — EDIT mode (the scenario has not run): an order AUTHORS the unit's starting task — its
             //   UnitIntent, saved with the scenario and started when time first advances — never a live order (that waited unseen for a run the
             //   save never knew about). A unit whose task a mission plan drives is refused: one source for the task.
-            if (IsEditMode()) return Author(entity, intentId, json);
+            // ⭐ §10 P6 — only where the brain runs: a station without it (a SimHost whose own view of the cluster still reads Edit) forwards, and
+            //   the brain's node stores it (📌 EntityOrdersAcrossNodesTests: the order was authored on SimHost, where nothing ever reads it)
+            if (IsEditMode() && OwnsBrain(entity)) return Author(entity, intentId, json);
             // ⭐ edit framework F5 (CE-4306) — journalled: the brain's owner answers ACCEPTED, or refused with why (a higher-ranked order is running, no class fulfils it …)
             string label = "Order " + (intentId.StartsWith(OrderAttribute.IntentPrefix, StringComparison.Ordinal) ? intentId.Substring(OrderAttribute.IntentPrefix.Length) : intentId);
             // ⭐⭐ CE-3494 §10 (R-3119) — a person's live order is the unit's INTENT on the node that runs its brain (shown as Next, kept by a
