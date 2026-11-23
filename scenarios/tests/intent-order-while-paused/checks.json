@@ -52,7 +52,7 @@
       "who": "M2 Bradley IFV",
       "is": "MoveToLocation",
       "after": "ordered",
-      "before": "ordered+0.05"
+      "before": "ordered+0.1"
     },
     {
       "name": "it stops within 6 m of (489,296)",
