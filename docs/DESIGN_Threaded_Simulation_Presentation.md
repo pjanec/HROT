@@ -1007,7 +1007,7 @@ forget the presentation, because the bootstrap builds it from the one parameter.
 | `NodeRunControls.For(node)` is the UI's (the mirror when staged), `ForSimSide(node)` the node's | `NodeRunControls.cs` |
 | rails | `SharedApplicationBootstrapperTests.CE3446_*` (3), `GameplayDeployFlowTests.CE3446_*`, `PerformanceStartupTests` (the player resolves the threaded node) |
 
-## 16. ⭐ HEADLESS: NO UNSEEN DRAWING — gizmos only while someone reads them; the road overlay cached *(ui, `2026-11-23`; CE-11045 … CE-11048; build-state: READY-TO-BUILD)*
+## 16. ⭐ HEADLESS: NO UNSEEN DRAWING — gizmos only while someone reads them; the road overlay cached *(ui, `2026-11-23`; CE-11045 … CE-11047, CE-11048 withdrawn; build-state: READY-TO-BUILD)*
 
 🔒 User (via `unreal-ig`, [NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md](blueprints/batches/NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md),
 `e8d1a1d5f`): *"headless performance is important (for running with Unreal as presentation layer later)"* · *"it should be way more than 37FPS
@@ -1056,9 +1056,9 @@ classDiagram
 | HL-1 (CE-11045) | gizmo DRAWING runs only when the host has a visible view, or `GET /panels/_gizmo` read it in the last 5 s (the first read after a pause answers the next frame; the route says so). Interaction keeps running | skipping the whole map step headless (`unreal-ig`'s lean) — it also runs the interaction systems a headless node with seats needs; a new env switch — a silent default nobody sets |
 | HL-2 (CE-11046) | `RoadNetworkGizmo` draws from a polyline cached per road-net generation + terrain version (curve samples WITH their ground heights), culled to the view; 0 B and no `GroundHeightOf` on a steady frame | heights at a coarser step — still a per-frame cost and a visible change |
 | HL-3 (CE-11047) | the per-frame garbage (R-2084): find the ≈ 2 MB per update and the three panels' (inspector, event browser, message log) and remove it, each with a 0-B rail | — |
-| HL-4 (CE-11048) | a PAUSED headless node sleeps between passes (a default cap while paused; `HROT_HEADLESS_MAX_HZ` still wins) | leaving it to an env var — the default burns a core |
+| ~~HL-4 (CE-11048)~~ | ⛔ **WITHDRAWN `2026-11-23`** — 🔒 user: *"nothing sleeps, by design many systems run at pause"*. The paused loop stays as it is (`HROT_HEADLESS_MAX_HZ` remains the opt-in cap). ⛔ HISTORY: a PAUSED headless node sleeps between passes | — |
 
 **Rails:** headless with no reader ⇒ no gizmo `Draw` runs (a counting gizmo) and the tick rate rises (Stechovice before / after, reported);
 `GET /panels/_gizmo` still returns primitives (keep-alive); a windowed host draws every frame as before (the existing frame rails under
 `xvfb-run`); `RoadNetworkGizmo` steady frame 0 B and 0 `GroundHeightOf` calls, and its primitives equal the uncached version's (seeded nets);
-each fixed panel 0 B per steady frame; a paused headless loop under ~0.1 core.
+each fixed panel 0 B per steady frame.
