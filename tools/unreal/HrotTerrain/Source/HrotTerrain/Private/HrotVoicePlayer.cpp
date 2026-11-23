@@ -150,7 +150,7 @@ void UHrotVoicePlayer::PlayClip(const FTx& T, const FString& Set, double& OutSec
 	if (!T.bEarpiece) { const UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld()); if (R) DistM = FVector::Dist(T.At, R->ViewLocation()) / 100.f; }
 	const bool bCut = DistM > VoiceCutM;
 	if (T.bEarpiece) UGameplayStatics::PlaySound2D(GetWorld(), S);
-	else if (!bCut) UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, T.At, 1.f, 1.f, 0.f, Snd->Falloff(5.f, 40.f, -30.f));
+	else if (!bCut) UGameplayStatics::PlaySoundAtLocation(GetWorld(), S, T.At, 1.f, 1.f, 0.f, Snd->Falloff(5.f, 40.f, -30.f, true));
 	OutSeconds = S->GetDuration();
 	{   // U-19f: the sound log - the line (and the answer) carry the HROT meaning, the framing clips (beep, sgt, over, squelch) their set
 		const bool bAnswer = !T.Cue.AnswerSet.IsEmpty() && Set == T.Cue.AnswerSet && Set != T.Cue.Set;

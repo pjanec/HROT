@@ -147,11 +147,12 @@ USoundBase* UHrotSoundscape::ImpactFor(const FString& Material)
 	return nullptr;   // water and the rest: the default (Lyra's) hit
 }
 
-USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach, float AtMaxDb)
+USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach, float AtMaxDb, bool bNatural)
 {
+	const EAttenuationDistanceModel Model = bNatural ? EAttenuationDistanceModel::NaturalSound : EAttenuationDistanceModel::Custom;
 	for (USoundAttenuation* A : Falloffs)
 		if (FMath::IsNearlyEqual(A->Attenuation.AttenuationShapeExtents.X, Inner * 100.f) && FMath::IsNearlyEqual(A->Attenuation.FalloffDistance, (Reach - Inner) * 100.f)
-			&& FMath::IsNearlyEqual(A->Attenuation.dBAttenuationAtMax, AtMaxDb))
+			&& FMath::IsNearlyEqual(A->Attenuation.dBAttenuationAtMax, AtMaxDb) && A->Attenuation.DistanceAlgorithm == Model)
 			return A;
 	USoundAttenuation* A = NewObject<USoundAttenuation>(this);
 	FSoundAttenuationSettings& S = A->Attenuation;
@@ -160,8 +161,22 @@ USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach, float AtMa
 	S.AttenuationShape = EAttenuationShape::Sphere;
 	S.AttenuationShapeExtents = FVector(Inner * 100.f, 0, 0);
 	S.FalloffDistance = (Reach - Inner) * 100.f;
-	S.DistanceAlgorithm = EAttenuationDistanceModel::NaturalSound;
+	S.DistanceAlgorithm = Model;
 	S.dBAttenuationAtMax = AtMaxDb;
+	if (!bNatural)
+	{
+		// the custom curve's input is the distance past the inner sphere over FalloffDistance (0..1); keys log-spaced in distance so the
+		// steep near part is sampled densely (the curve is linear between keys)
+		FRichCurve& C = S.CustomAttenuationCurve.EditorCurveData;
+		C.Reset();
+		const int32 N = 24;
+		for (int32 I = 0; I <= N; ++I)
+		{
+			const float D = Inner * FMath::Pow(Reach / Inner, float(I) / N);   // Inner .. Reach, geometric
+			const float X = (D - Inner) / FMath::Max(1e-3f, Reach - Inner);
+			C.AddKey(X, InverseDistanceGain(I == N ? Reach : D, Inner, Reach));
+		}
+	}
 	S.bAttenuateWithLPF = true;
 	S.LPFRadiusMin = Inner * 300.f;
 	S.LPFRadiusMax = Reach * 100.f;

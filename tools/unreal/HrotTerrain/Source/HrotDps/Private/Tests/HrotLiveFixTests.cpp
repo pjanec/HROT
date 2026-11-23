@@ -131,4 +131,22 @@ bool FHrotLiveFixAircraftTest::RunTest(const FString&)
 	TestEqual(TEXT("a Leclerc is still a tracked vehicle"), FString(UHrotSoundscape::EngineName(TEXT("DA_FR_Leclerc"))), FString(TEXT("Tracked")));
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotLiveFixFalloffTest, "Hrot.Dps.LiveFix.Falloff", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotLiveFixFalloffTest::RunTest(const FString&)
+{
+	// U-19h (live: a shot across the river sounded as loud as a close one): weapons fall off by inverse distance, -6 dB per doubling
+	TestEqual(TEXT("full within the inner radius"), UHrotSoundscape::InverseDistanceGain(5.f, 10.f, 1500.f), 1.f);
+	TestEqual(TEXT("half at twice the inner radius"), UHrotSoundscape::InverseDistanceGain(20.f, 10.f, 1500.f), 0.5f);
+	TestEqual(TEXT("1/20 at 200 m (-26 dB)"), UHrotSoundscape::InverseDistanceGain(200.f, 10.f, 1500.f), 0.05f);
+	TestEqual(TEXT("silent at the reach"), UHrotSoundscape::InverseDistanceGain(1500.f, 10.f, 1500.f), 0.f);
+	UHrotSoundscape* Snd = NewObject<UHrotSoundscape>(GetTransientPackage());
+	USoundAttenuation* A = Snd->Falloff(10.f, 1500.f);
+	TestEqual(TEXT("a custom curve"), A->Attenuation.DistanceAlgorithm, EAttenuationDistanceModel::Custom);
+	const float X200 = (200.f - 10.f) / (1500.f - 10.f);
+	const float G = A->Attenuation.CustomAttenuationCurve.GetRichCurveConst()->Eval(X200);
+	TestTrue(FString::Printf(TEXT("the built curve gives ~0.05 at 200 m (got %.3f)"), G), FMath::Abs(G - 0.05f) < 0.01f);
+	USoundAttenuation* Speech = Snd->Falloff(5.f, 40.f, -30.f, true);
+	TestEqual(TEXT("speech keeps the natural curve"), Speech->Attenuation.DistanceAlgorithm, EAttenuationDistanceModel::NaturalSound);
+	return true;
+}
 #endif
