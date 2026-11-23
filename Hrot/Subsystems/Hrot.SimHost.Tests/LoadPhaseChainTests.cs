@@ -607,6 +607,35 @@ public sealed class LoadPhaseChainTests
         await prepare;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-11038</c> — a long stage that reports how far it has got (the navmesh bake's tiles) puts it in the step text the node's heartbeat, its progress ack and the director's
+    /// stall clock all read: <i>"Terrain: navmesh 12000/59834"</i>; a step that reports nothing reads as its plain name; the text is the same reference while the detail is.
+    /// 🔴 Mutations: <c>CurrentLoadStep</c> returning <c>_currentStep</c> alone ⇒ the detail cell reds; <c>_loadProgress</c> not set at the prepare ⇒ the same; the baker not reporting ⇒ <c>RecastNavmeshBakerTests</c>.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public async Task CE11038_AStageThatReportsHowFarItIs_IsInTheStepText()
+    {
+        var progress = new LoadProgress();
+        LoadProgress.Current = progress;   // as the node's ClusterSlave sets it
+        LoadPhaseChain? chain = null;
+        var seen = new List<string?>();
+        var terrain = new FakeStep(LoadPart.Terrain)
+        {
+            OnPrepare = () =>
+            {
+                LoadProgress.ReportDetail("navmesh", 12000, 59834);
+                seen.Add(chain!.CurrentLoadStep);
+                seen.Add(chain.CurrentLoadStep);
+            },
+        };
+        chain = LoadPhaseChain.FromRoles(NodeRole.MuscleGround,
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase) { OnPrepare = () => seen.Add(chain!.CurrentLoadStep) }, terrain }, world: null);
+        await chain.PrepareAsync(LoadIntent(), CancellationToken.None);
+        Assert.Equal("KnowledgeBase", seen[0]);                    // nothing reported: the plain name
+        Assert.Equal("Terrain: navmesh 12000/59834", seen[1]);
+        Assert.Same(seen[1], seen[2]);                             // not rebuilt per read
+    }
+
     /// <summary>⭐ A pure step that waits on a gate, recording the thread it ran on.</summary>
     private sealed class BlockingStep : ILoadPartProvider
     {

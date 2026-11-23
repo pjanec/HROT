@@ -41,6 +41,29 @@ namespace Fdp.Core
             [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)   // ⭐ the call site, for the longest-silence diagnostic (compile-time constants: no allocation)
             => Ambient.Value?.AdvanceAt(amount, file, line);
 
+        /// <summary>
+        /// ⭐ <c>CE-11038</c> — a loader's long stretch says HOW FAR it has got (<i>"navmesh 12000/59834"</i>): the running node's step text carries it
+        /// (<see cref="Detail"/>), so the one progress report every watcher reads (the cluster's load step; the director's stall clock) CHANGES while a
+        /// stage that has no step of its own works for long. Throttled to once a second (the last call, <c>done == total</c>, always lands); the text is
+        /// built only when it is stored — a call in between is free (0 B). Free when no load runs.
+        /// </summary>
+        public static void ReportDetail(string what, long done, long total) => Ambient.Value?.SetDetail(what, done, total);
+
+        /// <summary>⭐ The detail the last <see cref="ReportDetail"/> stored for the step in flight (<c>null</c> when none; cleared when a step is entered).</summary>
+        public string? Detail => _detail;
+
+        private volatile string? _detail;
+        private long _detailAt;   // Stopwatch ticks of the last stored detail
+
+        private void SetDetail(string what, long done, long total)
+        {
+            long now = Stopwatch.GetTimestamp();
+            long last = Volatile.Read(ref _detailAt);
+            if (done < total && last != 0 && now - last < Stopwatch.Frequency) return;
+            Volatile.Write(ref _detailAt, now);
+            _detail = $"{what} {done}/{total}";
+        }
+
         private long _count;
         private int _active;
         private EntityRepository? _world;
@@ -99,6 +122,7 @@ namespace Fdp.Core
                     _movedFile = ""; _movedLine = 0;   // ⇒ "(the step's start)"
                 }
                 if (step != null) _step = step;
+                _detail = null;   // ⭐ CE-11038 — a detail belongs to the step that reported it
                 Interlocked.Increment(ref _active);
             }
             Advance();
