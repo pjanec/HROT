@@ -75,7 +75,15 @@ bool FHrotLiveFixTrafficKitTest::RunTest(const FString&)
 	for (const int32 Car : { 1002, 1050, 1054, 1055, 1056, 7777 }) TestTrue(FString::Printf(TEXT("TKB %d -> a car"), Car), TK::FamilyOf(Dis, Car) == TK::EFamily::Car);
 	for (const int32 Van : { 1051, 1053 }) TestTrue(FString::Printf(TEXT("TKB %d -> a van"), Van), TK::FamilyOf(Dis, Van) == TK::EFamily::Van);
 	TestTrue(TEXT("1052 CityBus -> the bus"), TK::FamilyOf(Dis, 1052) == TK::EFamily::Bus);
+	// HROT CE-11042: each kind its own SISO-REF-010 DIS - the category decides, whatever the TypeId
+	TestTrue(TEXT("1.1.0.81.43 Sedan -> a car"), TK::FamilyOf(TEXT("1.1.0.81.43.0.0"), 1054) == TK::EFamily::Car);
+	TestTrue(TEXT("1.1.0.81.113 Suv -> a car"), TK::FamilyOf(TEXT("1.1.0.81.113.0.0"), 1056) == TK::EFamily::Car);
+	TestTrue(TEXT("1.1.0.83.74 DeliveryVan -> a van"), TK::FamilyOf(TEXT("1.1.0.83.74.0.0"), 1051) == TK::EFamily::Van);
+	TestTrue(TEXT("1.1.0.83.101 BoxTruck -> a van"), TK::FamilyOf(TEXT("1.1.0.83.101.0.0"), 1053) == TK::EFamily::Van);
+	TestTrue(TEXT("1.1.0.82.1 CityBus -> the bus"), TK::FamilyOf(TEXT("1.1.0.82.1.0.0"), 1052) == TK::EFamily::Bus);
+	TestTrue(TEXT("a new-form car with a van's TypeId stays a car (the DIS decides)"), TK::FamilyOf(TEXT("1.1.0.81.10.0.0"), 1051) == TK::EFamily::Car);
 	TestTrue(TEXT("a HMMWV is not traffic"), TK::FamilyOf(TEXT("1.1.225.6"), 1052) == TK::EFamily::None);
+	TestTrue(TEXT("a motorcycle (cat 80) is not a car"), TK::FamilyOf(TEXT("1.1.0.80.1.0.0"), 115) == TK::EFamily::None);
 	TestTrue(TEXT("a look-alike prefix is not traffic"), TK::FamilyOf(TEXT("1.1.0.810"), 1050) == TK::EFamily::None);
 	// the mover's own pick: id % count, the same car on every channel
 	TestEqual(TEXT("pick = id % 4"), TK::Pick(4102, 4), 2); TestEqual(TEXT("no kits"), TK::Pick(5, 0), -1);
