@@ -236,10 +236,13 @@ namespace Hrot.SimHost.Tests
                 return FlankQuery();
             }
 
-            public void Answer(Entity sensor, Vector3? best)
+            public void Answer(Entity sensor, Vector3? best) => Answer(sensor, best, 0, 0);
+
+            /// <summary>⭐ CE-2496 — an answer whose point carries result flags (e.g. ThreatExposureTest's exposed bit).</summary>
+            public void Answer(Entity sensor, Vector3? best, short flags, short meaningful)
             {
                 var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = best.HasValue ? 1 : 0, LastUpdateTick = 7 };
-                if (best.HasValue) buf.GetSpanRW()[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = best.Value.X, PositionY = best.Value.Y, Score = 1f };
+                if (best.HasValue) buf.GetSpanRW()[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = best.Value.X, PositionY = best.Value.Y, Score = 1f, Flags = flags, FlagsMeaningful = meaningful };
                 Repo.SetComponent(sensor, buf);
             }
 
@@ -7521,26 +7524,78 @@ namespace Hrot.SimHost.Tests
             var o = s.LastOrders();
             Assert.Contains(s.Members, m => o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo && x.Objective.Y < -5f);   // away from y 60
 
-            // ② every man reaches the point, one still sees an enemy: the play goes on, its point further away (not the CE-2466 rally hold)
-            float prevY = -5f;
-            for (int k = 0; k < 3; k++)
+            // ② the squad reaches the point (60 m straight back — no hidden ground anywhere: each new ask answers nothing, so each point is the
+            //   way it came, a search radius further) with a man still in an enemy's sight: the play goes on (not the CE-2466 rally hold).
+            //   ⚠ the members' own orders are the 15 m cover-to-cover bounds (CE-2460), not the point — so the men are put AT the point.
+            void Step(bool seen, int ticks)
             {
-                o = s.LastOrders();
-                float y = float.MaxValue;
-                foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) y = MathF.Min(y, x.Objective.Y);
-                Assert.True(y < prevY, $"arrival {k}: the point moves on away from the enemy (was {prevY}, now {y})");
-                prevY = y;
-                foreach (var m in s.Members) { Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived); s.Teleport(m, new Vector3(0f, y, 0f)); }
-                for (int i = 0; i < 8; i++) { Sees(s, s.Members[0], enemies[0]); var r = s.RetreatQuery(); if (!r.IsNull) s.Answer(r, null); var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
-                Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // a man in sight: not done
+                for (int i = 0; i < ticks; i++)
+                {
+                    if (seen) Sees(s, s.Members[0], enemies[0]);
+                    var r = s.RetreatQuery(); if (!r.IsNull) s.Answer(r, null);
+                    var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null);
+                    s.Tick();
+                    if (s.Kind != BreakContactManeuver.ManeuverKind) return;
+                }
             }
-            // ③ out of sight at the point: done (the reaction goes on to its rally)
-            o = s.LastOrders();
-            float last = float.MaxValue;
-            foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) last = MathF.Min(last, x.Objective.Y);
-            foreach (var m in s.Members) { Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived); s.Teleport(m, new Vector3(0f, last, 0f)); }
-            for (int i = 0; i < 30; i++) { s.Tick(); if (s.Kind != BreakContactManeuver.ManeuverKind) break; }
+            for (int k = 1; k <= 2; k++)
+            {
+                foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -60f * k, 0f));
+                Step(seen: true, ticks: 8);
+                Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // a man in sight at the point: not done
+            }
+            // ③ at the next point out of sight: done (the reaction goes on to its rally)
+            foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -180f, 0f));
+            s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(s.Members[0]).Count = 0;   // he lost sight of him (no perception clock runs here)
+            // ③a nobody sees an enemy — but a man is SHOT AT (near misses): someone sees him ⇒ not done (📐 OF5: a man withdrawing with his back to the MG)
+            var shot = s.Members[1];
+            if (!s.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(shot)) s.Repo.AddComponent(shot, new Fdp.Toolkit.Behavior.Components.RecentSenses());
+            for (int i = 0; i < 20; i++)
+            {
+                s.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.RecentSenses>(shot).Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, s.Repo.GetSingleton<GlobalTime>().TotalTime);
+                Step(seen: false, ticks: 1);
+            }
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            // ③b the shots pushed the point on (-240); the firing stops — past UnderFireSeconds (the men are short of the point meanwhile, so the play
+            //   only waits) — and at the point nobody is seen or shot at: done, before the cap (3 of 4)
+            Step(seen: false, ticks: 300);
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
+            // ④ nobody seen or shot at — but the point is still the way it came (no hidden ground): the play asks again (📐 OF5: a lull in the open is
+            //   no broken contact) and the terrain now finds a hidden point; the squad reaches it ⇒ done
+            var hiddenAt = new Vector3(0f, -255f, 0f);
+            for (int i = 0; i < 20 && s.RetreatQuery().IsNull; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+            Assert.False(s.RetreatQuery().IsNull, "at the way-it-came point the play asks the terrain again");
+            s.Answer(s.RetreatQuery(), hiddenAt);
+            for (int i = 0; i < 6; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            foreach (var m in s.Members) s.Teleport(m, hiddenAt);
+            for (int i = 0; i < 40 && s.Kind == BreakContactManeuver.ManeuverKind; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐ <c>CE-2496</c> (📐 of-squad-outmatched) — the retreat query's top point is only the LEAST exposed one (CE-2164) and a known threat still sees
+        /// it (ThreatExposureTest's exposed bit): no hidden ground ⇒ the way it came, not a rally in sight 7 m back. Control: the same point unseen is taken.
+        /// 🔴 Red-proof: the exposed check removed ⇒ the squad goes to the seen point.</summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CE2496_BreakContact_ARetreatPointAThreatSees_IsNoHiddenPoint(bool seen)
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            const short exposed = BreakContactPlay.ExposedBit;
+            s.Answer(s.RetreatQuery(), new Vector3(0f, -8f, 0f), seen ? exposed : (short)0, exposed);
+            for (int i = 0; i < 8; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            var o = s.LastOrders();
+            float y = 0f;
+            foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) y = MathF.Min(y, x.Objective.Y);
+            if (seen) Assert.True(y < -12f, $"a seen point is no hidden point: the bound goes on back the way it came (got {y})");
+            else Assert.True(y > -12f && y < 0f, $"an unseen point is the answer (got {y})");
         }
 
         /// <summary>⭐⭐ <c>CE-2495</c> (R-2146; 📐 of-squad-outmatched — 6 men assaulted on ONE man seen and kept on into twelve and two machine guns) —
@@ -7559,6 +7614,22 @@ namespace Hrot.SimHost.Tests
             s.PoolMany(12, new Vector3(0f, 60f, 0f));                         // the force behind him shows
             for (int i = 0; i < 4; i++) s.Tick();
             Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);          // 4 v 12: break contact
+        }
+
+        /// <summary>⭐ <c>CE-2495</c> — the enemy grows but the squad is still past 1.5 : 1 (<see cref="AfterContact.PressShare"/>): the assault goes on.
+        /// 📐 OF1 (6 v 1 seen, then the 3-man fire team): re-deciding there broke off a fight the squad was winning. 🔴 Red-proof: drop the line ⇒ re-decided.</summary>
+        [Fact]
+        public void CE2495_ReactToContact_TheEnemyGrowsButStaysWeaker_TheAssaultGoesOn()
+        {
+            var s = new Squad(members: 6);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 13; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);   // 6 v 1: assault
+            s.PoolMany(3, new Vector3(0f, 60f, 0f));                          // the fire team shows: 6 v 3
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);   // still the assault
         }
 
         /// <summary>⭐ <c>CE-2472</c> — <paramref name="man"/> SEES <paramref name="enemy"/> now (as perception stamps it: the Visual bit, this tick).</summary>

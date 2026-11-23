@@ -127,6 +127,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte BoundsDone;
         /// <summary>⭐ <c>CE-2496</c> (R-2145) — runtime: how many times the retreat point was pushed further away because a man was still in an enemy's sight there.</summary>
         public byte Extended;
+        /// <summary>⭐ <c>CE-2496</c> — 1 while the point is the way it came (no hidden ground found): no lull ends the play, and an arrival asks again.</summary>
+        public byte Fallback;
     }
 
     /// <summary>
@@ -197,6 +199,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Cover = default;   // ⭐ CE-2460 — no picks from an earlier run
             p.BoundsDone = 0;    // ⭐ CE-2465
             p.Extended = 0;      // ⭐ CE-2496
+            p.Fallback = 0;
             if (p.HasTo != 0)   // ⭐ E-3a (DA-68) — told where to go: that is the answer, no terrain and no contact needed
             {
                 ws.Answer = p.To;
@@ -216,8 +219,24 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2278 — the thrower's FireAtPoint ends after the throw: once it has had time, every order is sent again (his is a hold now)
             if (p.Smoked == 1 && ctx.Now - p.SmokedAt >= SmokeSeconds) { p.Smoked = 2; ws.Reissue = 1; }
             if (ws.HasAnswer == 0)
-                SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
-                    SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId));
+            {
+                // ⭐ CE-2496 — the retreat query keeps the LEAST exposed point when nothing is hidden (CE-2164, open ground): a top point a known
+                //   threat still sees is no hidden point — the way it came instead. 📐 of-squad-outmatched: a point 7 m back in the cover band,
+                //   seen by the second machine gun; the squad rallied there in its sight.
+                if (SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
+                        SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId), out var found))
+                {
+                    if (found.Count == 0 || SeenByAThreat(in found.GetTop())) ws.HasAnswer = SquadManeuverRunner.NoAnswer;
+                    else
+                    {
+                        ref readonly var top = ref found.GetTop();
+                        ws.Answer = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
+                        ws.HasAnswer = 1;
+                        ws.Reissue = 1;
+                        p.Fallback = 0;
+                    }
+                }
+            }
             else if (AwayWhenNoAnswer(ref p, ref ws, in ctx)) { }   // ⭐ CE-2496 — no hidden point: the way it came
             // ⭐⭐ CE-2460 (U1) — the answer known and a threat to hide from: the moving element's NEXT bound is cover to cover toward the answer,
             //   ≤ BoundMetres, by fire and movement's own picker (one query, the sensor dropped after it answers). The movers hold until the picks
@@ -259,7 +278,7 @@ namespace Hrot.AI.Behaviors.Brains
             //   kept his element's centre 30 m from the answer and the squad stood 280 s. ⛔ Not for an ordered To with no threat (go there).
             //   ⭐⭐ CE-2472 — and nobody is left in an enemy's sight (his own perception): 📐 U2, a man whose pick did not move him sat 30 m in front of
             //   the corner through the whole break and the drill called the contact broken.
-            if (ws.ThreatId != 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander) && !AnyInSight(in ctx)) return NodeStatus.Success;
+            if (ws.ThreatId != 0 && p.Fallback == 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander) && !AnyInSight(in ctx)) return NodeStatus.Success;
             for (byte e = 0; e < 2; e++)
             {
                 var c = ctx.Centre(e, out bool any);
@@ -268,7 +287,9 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ CE-2496 (R-2145; 📐 of-squad-outmatched: one ~5 m bound to the retreat answer on open ground, then a hold in the machine guns' sight —
             //   the ditch war) — at the point with a man STILL in an enemy's sight the contact is not broken: the point moves on, a search radius
             //   further away from the enemy, and the bounds go on (at most MaxExtensions times — then the squad is far out of his reach)
-            if (ws.ThreatId != 0 && p.Extended < MaxExtensions && AnyInSight(in ctx))
+            // ⭐ CE-2496 — and on the way it came (no hidden ground yet) a lull is not a broken contact: the enemy may simply have stopped firing at men
+            //   it still sees (📐 of-squad-outmatched, 49 s: one bound each, a lull, the squad still in the open) ⇒ ask again from here
+            if (ws.ThreatId != 0 && p.Extended < MaxExtensions && (p.Fallback != 0 || AnyInSight(in ctx)))
             {
                 // the NEXT hidden point, from here (the terrain is asked again); none ⇒ AwayWhenNoAnswer: the way it came. 📐 uf-corner-fight:
                 //   straight away from the corner led the squad on down the street, in the corner's sight — the cover is around the next corner
@@ -296,6 +317,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             ws.Answer = AwayFrom(in ctx, ws.ThreatPoint, p.RetreatSearchRadius);
             ws.HasAnswer = 1;
+            p.Fallback = 1;
             p.Cover = default;   // the bounds pick their cover toward the new point
             ws.Reissue = 1;
         }
@@ -368,6 +390,14 @@ namespace Hrot.AI.Behaviors.Brains
         public const float CreepMetres = 1.5f;
 
         /// <summary>⭐ <c>CE-2472</c> — a live man of the squad is in an enemy's sight (his own perception).</summary>
+        /// <summary>⭐ <c>CE-2496</c> — the retreat answer is seen by at least one known threat (<see cref="Fdp.Toolkit.Spatial.Eqs.ThreatExposureTest"/>'s
+        /// flag bit 5, read only when the test computed it).</summary>
+        internal static bool SeenByAThreat(in Fdp.Toolkit.Spatial.Eqs.EqsResult r)
+            => (r.FlagsMeaningful & ExposedBit) != 0 && (r.Flags & ExposedBit) != 0;
+
+        /// <summary><see cref="Fdp.Toolkit.Spatial.Eqs.ThreatExposureTest"/>'s <c>IsExposedFromKnownThreat</c>.</summary>
+        public const short ExposedBit = 1 << 5;
+
         private static bool AnyEnemyKnown(in SquadPlayContext ctx)
             => ctx.World.HasComponent<SquadCognitiveState>(ctx.Commander)
                && SquadContacts.AnyEnemy(ctx.World, in ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander).Contacts);
@@ -375,8 +405,18 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool AnyInSight(in SquadPlayContext ctx)
         {
             for (int i = 0; i < ctx.Roster.Count; i++)
-                if (ctx.Live(i, out var man) && AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, man)) return true;
+                if (ctx.Live(i, out var man) && (AfterContact.InAnEnemysSight(ctx.World, ctx.Commander, man) || ShotAt(ctx.World, man))) return true;
             return false;
+        }
+
+        /// <summary>⭐ <c>CE-2496</c> — <paramref name="man"/> was hit or near-missed within <see cref="Fdp.Toolkit.Utility.StandardInputs.UnderFireSeconds"/>:
+        /// someone sees him, whether or not he sees them. 📐 of-squad-outmatched: a man withdrawing with his back to the machine gun did not see it,
+        /// the gunner saw him, and the break contact ended with him in the open in its sight. A sense (his own), never a terrain query (CE-2472).</summary>
+        private static bool ShotAt(EntityRepository world, Entity man)
+        {
+            const double seconds = Fdp.Toolkit.Utility.StandardInputs.UnderFireSeconds;
+            return Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, man, Fdp.Toolkit.Perception.Events.SensorChange.Hit, seconds)
+                || Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, man, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, seconds);
         }
 
         /// <summary>⭐ CE-2278 — seconds a thrown smoke order is given before the squad's orders are re-sent (the throw takes ≈ 1–2 s).</summary>
@@ -669,9 +709,11 @@ namespace Hrot.AI.Behaviors.Brains
                 Next(ref ws, StageDrill, world);
             }
             // ⭐⭐ CE-2495 (R-2146) — RE-DECIDE when the enemy GROWS: a choice scored on one man seen is not the answer to the force behind him.
-            //   The same utility scores it again (the 3 : 1 / break-contact line is its own), Firm applies; a changed winner starts its drill.
+            //   Only past the line (no longer 1.5 : 1, AfterContact.PressShare); the same utility scores it again, Firm applies; a changed winner starts its drill.
             if (ws.Stage == StageDrill && ws.Choice.Winner != 0 && (SquadContactResponse)ws.Choice.Winner != SquadContactResponse.Rescue
-                && ws.DangerAtDecision > 0f && Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(world, self) >= ws.DangerAtDecision * GrowthRedecide)
+                && ws.DangerAtDecision > 0f && Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(world, self) >= ws.DangerAtDecision * GrowthRedecide
+                && !AfterContact.Superior(world, self, 0f, AfterContact.PressShare))   // ⭐ past the line: 1.5 : 1 is where an assault stops pressing (CE-2481) —
+                                                                                       //   📐 OF1, 6 v 1 seen then 6 v 3: re-deciding there turned a won fight into a break
             {
                 byte was = ws.Choice.Winner;
                 var fresh = new UtilityChoice();
