@@ -246,7 +246,7 @@ public sealed class ScenarioChecksTests
     [Fact]
     public void CE3494_ADoGivesAnOrderAndResumesAPlan_ThroughTheWorldsServices()
     {
-        var c = Parse("""{"runFor":10,"do":[{"name":"ordered","at":2,"order":{"who":"Tank","kind":"behavior","behavior":"MoveToLocation","params":{"speed":5}}},{"name":"resumed","at":5,"resume":"Tank"}],"expect":[]}""", out var problems);
+        var c = Parse("""{"runFor":10,"do":[{"name":"ordered","at":2,"order":{"who":"Tank","kind":"behavior","behavior":"MoveToLocation","params":{"speed":5}}},{"name":"resumed","at":5,"resume":"Tank"}],"expect":[{"name":"alive","on":"health","who":"Tank","atEnd":true}]}""", out var problems);
         Assert.Empty(problems);
         Assert.Null(c.Do[0].Order!["who"]);                                    // the item the route takes: no "who"
         var w = new FakeWorld().Unit("Tank", 7, 100, 0);
