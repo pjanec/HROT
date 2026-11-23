@@ -4644,10 +4644,11 @@ namespace Hrot.SimHost.Tests
         /// ⭐⭐ <c>CE-5047</c> (Command Chain §8d, the Free/Busy gap; found on the Stechovice showcase) — an asset already on a FIRE MISSION it did
         /// not get from this HQ (the scenario's author gave the helicopter an attack) is not taken off it: the request goes to the battery. An asset
         /// on an authored PATROL (the plane's FollowRoute — uc-a10-zu23-dry, uc-urban-battle) is still the HQ's: the air-defence strike takes it.
+        /// A ground unit on an authored ATTACK is not sent to reinforce (the request waits); on an authored CONVOY (a move) it is.
         /// ✅ Red-proof: <c>OnFireMission</c> always false ⇒ the helicopter is sent ⇒ red; true for any Superior task ⇒ the plane never strikes ⇒ red.
         /// </summary>
         [Fact]
-        public void CE5047_AnAuthoredAttack_KeepsItsAsset_AnAuthoredPatrol_DoesNot()
+        public void CE5047_AnAuthoredMission_KeepsItsAsset_AnAuthoredMove_DoesNot()
         {
             var p = Headquarters();
             Entity heli = p.S.Members[1], battery = p.S.Members[2], plane = p.S.Members[4];
@@ -4669,6 +4670,20 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             Assert.Equal(1, p.OrdersTo(plane, StrikeIntent));
             Assert.True(Vector3.Distance(StrikePointOf(p, plane), sam) < 1f);
+
+            // the ground unit (member 3): on an authored attack it is not taken to reinforce; on an authored convoy (a move) it is
+            Entity ground = p.S.Members[3];
+            Running(p, ground, BehaviorNames.PlatoonAttack);
+            var at = new Vector3(50f, 400f, 0f);
+            p.S.Pause(3.0);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, at);
+            p.Ticks(4);
+            Assert.Equal(0, p.OrdersTo(ground, BehaviorNames.SquadDefend));
+            Running(p, ground, BehaviorNames.PlatoonConvoy);
+            p.S.Pause(3.0);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, at);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(ground, BehaviorNames.SquadDefend));
         }
 
         /// <summary>⭐⭐ <c>CE-2312</c> (HQ-7) — Urban Battle beat 6: a ZU-23 reported 600 m from the mortar ⇒ the strike PLANE strikes the ZU-23
