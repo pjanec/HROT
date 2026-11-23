@@ -364,6 +364,17 @@ intent rows share one control x; the status slot is fixed); glyphs and colours a
 | **no file change** — load (edit) + save of `bw-crossbow`, `ua-posture`, `agg-platoon-duel`, `llm-platoon-attack` | every unit's `Behavior` / `Sop` / `Roe` identical to the original for three; `bw-crossbow`'s two differences (the ROE's default fields, the target's `{NetworkId, Ref}` form) are written **identically by the pre-S1 build** (`5f7e6e485`, same load + save). ⭐ The pre-S1 save ALSO wrote five empty `BlueprintAssignments` the post-S1 save does not: the AI used to start on a paused frame in edit mode and leave state in the saved file |
 | **the scenario sample** — `scripts/scenario-regression.sh` (stepped, judged by checks) on `bw-crossbow`, `an-rabbit-bolts`, `ua-posture`, `ac-attack-evades`, `agg-platoon-duel`, `bt-doors`, `llm-platoon-attack` | **6 / 7 pass**; `ac-attack-evades` fails its *"the truck is destroyed after the defence"* check **identically on the ui lane without S1** (`c8c66cd5d`) — pre-existing (the air lane's CE-10002, *"scenarios partly green"*) |
 
+### 8e. As built — S3, S4 *(`2026-11-23`)*
+
+| design said | built | why / evidence |
+|---|---|---|
+| §5 D — held row: hourglass, *"Held by your order …"*, **Resume plan**; faulted: **Retry** | ✅ `OrdersTab` — the row's glyph follows the state (hourglass held, cross faulted); *"Held by an operator's order"* or *"Held — the operator's order has ended; the unit runs its SOP"* (F-20); a red *"Failed — the behaviour faulted"* line with **Retry** | ⚠ the faulted row's DOT stays amber — `U3_EachTaskStateHasItsColour…` pins it (an earlier ruling), so the red is the line under it. Frame rail `CE3494_AHeldPlan_ShowsTheHeldRow_WithResumePlan` (xvfb, `orders-held.png`) compared with the mockup: the hourglass deviation was found and fixed |
+| §5 D — both-set warning + *Remove the intent task* | ✅ edit mode, a plan and an intent task | — |
+| §5 A–C — the intent section | ✅ heads *"Intent — what the unit does next"*, amber *pending* line, the task row locked under a plan in edit mode (*"Driven by the mission plan …"*), a live note *"An order here HOLDS the unit's mission plan"* | ⚠ not yet: the *next: X* chip on the Brain tab's **Doing** row and the staged-edit warning beside the blackboard (Brain-tab sections owned by ui) — a follow-up |
+| §5 E — the map order form's notice / edit-mode disable | ⚠ not built | the order form (`OrderForm`) is ui's; the route doc and the AI section say it; a follow-up |
+| S4 — rules on the intent | ✅ `RuleSentence.ParamsOf` (the ONE reader) reads the pending intent first; `RulesModel` lists intent-only rules; `ClockPins` uses the reader; the Rules window watches `UnitIntent`; a new rule is created as a `UnitIntent` (Rules View §8.3) | rail `CE3494_AnAuthoredRuleThatIsOnlyAnIntent_HasARow…`; Presentation Rules 186/186 |
+| §6 — feature scenarios `intent-order-while-paused`, `plan-held-by-order` | ⛔ not built | the checks grammar (Scenario Regression §3) has no *"an operator orders at t, while paused"* step — the scenario cannot act. The same claims are proven by the rails and by the live HTTP runs (§8d); a grammar step is the follow-up |
+
 ## 9. Independent review — findings and what changed *(`2026-11-22`, a fresh reviewer reading the code, not this design's reasoning)*
 
 | # | finding (verified against code) | sev | ⇒ change |
