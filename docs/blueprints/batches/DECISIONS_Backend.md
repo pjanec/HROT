@@ -35,6 +35,19 @@ settings at editing time … My desire is simplicity and consistency."*
 | why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
 | next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
 
+## CE-4681 — the LLM commander L-3 (cloud VM): lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ⭐ the mind is `CommanderMind.ChatModel` — the reserved `Ollama` value RENAMED (Roslyn), not a new value | the handoff names the scenario value `"ChatModel"`; nothing referenced `Ollama`; any server speaking Ollama's chat API answers it (Ollama, the stand-ins) |
+| 2 | ⭐ one conversation per WAKE: `system` = the seat's prefix + a fixed instruction (byte-stable), `user` = `Briefing.Changing()` + the time — NO history of earlier calls | §3: the briefing IS the memory (snapshot, radio log, notes); a growing chat history would blow an 8 B model's context (§6) |
+| 3 | the retry keeps the first answer's GOOD calls and adds the second answer's good ones; the tool message names what was taken | ⛔ otherwise a model that resends everything doubles the orders; ⛔ never a second retry (the handoff) |
+| 4 | no answer (timeout, refused connection, HTTP error, not JSON) ⇒ NO actions — not ExternalMind's *"no answer"* note | a note lands in the briefing's notes for the rest of the run: a flaky server would fill the context with noise; the model log says why |
+| 5 | settings and the run's mind by ENVIRONMENT (`HROT_COMMANDER_*`), not a scenario field | an endpoint is a machine fact, not scenario content; the laptop script runs ONE scenario per model. `HROT_COMMANDER_MIND` writes the seat so the checks see the mind that ran |
+| 6 | ⭐ TWO stand-in servers (a C# rail fixture, a Python process) | a NECESSARY difference (CLAUDE.md "shared, never duplicated"): the rails need one in process they control (a hang, a dead port); the run needs a process the editor reaches that can relay to an agent |
+| 7 | checks per mind with NO grammar change: an anchor on `CommanderSeat.Mind` + `"if"` | the grammar already had both; a `"mind"` key would be a second way to say the same thing |
+| 8 | the model log falls back to `HROT_COMMANDER_LOG_DIR` when nothing records | a verify run records nothing, so L-2's log was absent for the unrecorded Haiku run (status §L-2 ★ run 3); the proof needs every exchange |
+
 ## CE-4680 — the LLM commander L-2b: lane decisions TAKEN · `2026-11-22` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |
