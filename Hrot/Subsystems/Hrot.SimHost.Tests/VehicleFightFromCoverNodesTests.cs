@@ -658,8 +658,11 @@ namespace Hrot.SimHost.Tests
             var failed = new Vector3(2273f, 2113f, 0f);
             var next = new Vector3(2272f, 2109f, 0f);   // the live pair, 4.1 m apart
             var mem = default(FiringPositionMemory);
-            PositionHeat.Add(ref mem, failed, hull.BurnHeat, 10.0, hull, exposure: false);
+            PositionHeat.Add(ref mem, failed, VehicleFightFromCoverNodes.FailedHideHeat(in hull), 10.0, hull, exposure: false);
             Assert.True(PositionHeat.IsBurnedAt(ref mem, next, 10.5, hull), "the next hide 4.1 m off is the same spot for this hull");
+            // 📐 live: burned at the plain BurnHeat it cooled back to usable in one 60 s half-life and the M1 was sent back to it
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, failed, 10.0 + 61.0, hull), "a failed hide is still burned a minute later");
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, failed, 10.0 + 300.0, hull), "and five minutes later");
             Assert.False(PositionHeat.IsBurnedAt(ref mem, next, 10.5, VehicleFightFromCoverNodes.Rules(d.P)), "the plain 3 m rules missed it");
             Assert.False(PositionHeat.IsBurnedAt(ref mem, failed + new Vector3(0f, -12f, 0f), 10.5, hull), "a hide 12 m along the building stays free");
         }

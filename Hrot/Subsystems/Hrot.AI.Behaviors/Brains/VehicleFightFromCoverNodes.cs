@@ -226,6 +226,17 @@ namespace Hrot.AI.Behaviors.Brains
             HeatPenalty = 0.3f, MatchRadius = 3f,
         };
 
+        /// <summary>How many cooling half-lives a FAILED hide stays burned (<see cref="FailedHideHeat"/>): ten — 10 min at the 60 s half-life.</summary>
+        public const int FailedHideHalfLives = 10;
+
+        /// <summary>
+        /// ⭐ <c>CE-5048</c> (a) — the heat a FAILED hide is burned with: it stays burned while its heat is at least <c>ReuseHeat</c> (half the burn),
+        /// so <c>BurnHeat · 2^(n−1)</c> keeps it burned for n half-lives. 📐 Measured live: burned at the plain <c>BurnHeat</c> it cooled under
+        /// <c>ReuseHeat</c> in exactly one half-life — the M1 was sent back to the SAME failed hide 60 s later. A place the hull cannot reach does
+        /// not get reachable by cooling (an exposure's heat does: that is what the half-life is for).
+        /// </summary>
+        public static float FailedHideHeat(in HeatRules r) => r.BurnHeat * (1 << (FailedHideHalfLives - 1));
+
         /// <summary>
         /// ⭐ <c>CE-5048</c> (a) — the same rules, a place matched by THIS hull: two points closer than its length are one parking spot for it.
         /// 📐 Measured on the Stechovice M1: a hide failed and the next hide the search answered stood 4.1 m from it (the 3 m match missed it)
@@ -398,7 +409,7 @@ namespace Hrot.AI.Behaviors.Brains
             //   FAILED (the motion gave up after its recoveries — a bounce it recovered from never reaches here): never this spot again, matched
             //   by the hull's length. ⛔ Was PeekAndFire's G2 heat (a second failure burns), matched at 3 m — the next hide 4 m off was a new place
             var hullRules = Rules(in p, world, self);
-            PositionHeat.Add(ref mem, ws.HidePoint, hullRules.BurnHeat, now, hullRules, exposure: false);
+            PositionHeat.Add(ref mem, ws.HidePoint, FailedHideHeat(in hullRules), now, hullRules, exposure: false);
             ws.Phase = VehiclePhase.Choose;
         }
 
