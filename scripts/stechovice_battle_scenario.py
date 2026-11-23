@@ -97,7 +97,7 @@ GROUND = Ground()
 class Roads:
     """The SUMO net's drivable lanes (roads/roads.net.xml, the same input-set local metres): where a vehicle starts ON a road, facing along it."""
     DRIVABLE = ('highway.motorway', 'highway.trunk', 'highway.primary', 'highway.secondary', 'highway.tertiary', 'highway.unclassified',
-                'highway.residential', 'highway.service', 'highway.living_street', 'highway.track')
+                'highway.residential', 'highway.service', 'highway.living_street')   # ⛔ no track: SUMO closes it to cars and the road router cannot route from it (live: FailedUnreachable)
 
     def __init__(self):
         import xml.etree.ElementTree as ET
@@ -312,11 +312,13 @@ def build():
     def move_to(x, y):
         return behaviour('MoveToLocation', {'speed': 6, 'arrivalRadius': 5, 'target': [*W(x, y), 0]})
     # village, Blue: two more M1s, a second Bradley and a HMMWV behind the lead pair (the column's order = its arrival order)
-    for name, tkb, hp, at, stop in (('Village Blue Tank 2', 100, 3000, (380, 70), (-95, 100)),
-                                    ('Village Blue Tank 3', 100, 3000, (400, 80), (-125, 118)),
-                                    ('Village Blue IFV 2', 101, 500, (430, 82), (-80, 95)),
-                                    ('Village Blue HMMWV', 102, 300, (460, 81), (-60, 88))):
-        vehicle(tkb, name, F, *at, 250, hp, move_to(*stop))
+    #   ⭐ on the residential road the lead tank takes into the village (the track it starts on is closed to cars in SUMO; a start snapped onto it
+    #   was FailedUnreachable live), ~15 m apart, facing north-west along it
+    for name, tkb, hp, at, stop in (('Village Blue Tank 2', 100, 3000, (300, 45), (-95, 100)),
+                                    ('Village Blue Tank 3', 100, 3000, (285, 58), (-125, 118)),
+                                    ('Village Blue IFV 2', 101, 500, (270, 70), (-80, 95)),
+                                    ('Village Blue HMMWV', 102, 300, (255, 80), (-60, 88))):
+        vehicle(tkb, name, F, *at, 300, hp, move_to(*stop))
     # village, Red: two T-72s on the village's E-W road facing the attack, an ATGM technical on the south road, a DShK technical south-east
     vehicle(103, 'Village Red T-72 1', H, -250, 146, 90, 2500)
     vehicle(103, 'Village Red T-72 2', H, -300, 160, 90, 2500)
