@@ -525,7 +525,13 @@ namespace Hrot.AI.Behaviors.Brains
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>()
                 .Unmanaged<StanceIntent>()
-                .Unmanaged<Fdp.Toolkit.Creatures.Demeanour>();   // a man's surrender / hands-up gesture (written by his brain, not here)
+                .Unmanaged<Fdp.Toolkit.Creatures.Demeanour>()    // a man's surrender / hands-up gesture (written by his brain, not here)
+                // ⭐ CE-2471 — "a friend near" (UnderFire.FriendNear, the frame grid's late check): his side, his health, where he stands — none
+                //   written while stress steps (stress writes only each man's own Stress). 📐 StressSystemTests threw under HROT_READ_CHECK=1
+                .Unmanaged<SimTransform>()
+                .Unmanaged<EntityInfo>()
+                .Unmanaged<Health>()
+                .Unmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
             public EntityRepository Repo;
             public double Now;
             public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)

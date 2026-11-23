@@ -1,0 +1,188 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: CE-2476 perception suite P6 (Sensing \u00a78.6e) - on bt-range a 'Red Walker' jogs west to east along the north wall of House A and stops short of its north-east corner; two passive Blue listeners stand just east of the house, 8-12 m round that corner; the house is always between them. Judge: his steps are heard, but only ROUND the house's corners: a place to look (D-8), never a place he is - no listener ever holds a straight hearing or a sighting of him. Fail: nobody hears him, or a listener believes a spot for him through the house. Check: scripts/scenario-regression.sh pe-steps-round-corner"
+  },
+  "entities": {
+    "c2470006-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          112,
+          103,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad",
+        "ForceId": "Friend"
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c2470006-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          112,
+          103,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad Ear 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2470006-0000-4000-8000-000000000100",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2470006-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          112,
+          104.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad Ear 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2470006-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c2470006-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          96,
+          110.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Walker",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "AdvanceTo",
+        "Params": {
+          "Objective": [
+            106,
+            110.5,
+            0
+          ],
+          "Speed": 2.5,
+          "ArrivalRadius": 1.5
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

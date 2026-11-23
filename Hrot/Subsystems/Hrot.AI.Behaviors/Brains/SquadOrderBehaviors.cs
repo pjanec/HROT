@@ -1,3 +1,5 @@
+using System.Numerics;
+using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
 using Fbt.Kernel;
@@ -63,21 +65,53 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>⭐ <c>CE-2141</c> — ATTACK: suppress and manoeuvre on <see cref="AttackOrder.Target"/> — seen by the squad or not
-    /// (D2-G); no target ⇒ the squad's top identified contact. Ends when the target is down or the assault is through.</summary>
+    /// (D2-G); no target ⇒ the squad's top identified contact. Ends when the target is down or the assault is through.
+    /// ⭐⭐ <c>CE-2473</c> (R-8316) — an attack on a PLACE (<see cref="AttackOrder.Position"/>, no target): the squad first BOUNDS to it
+    /// (<see cref="BoundingOverwatchBehavior"/> — what a platoon's assault squad is given for its objective, <c>PlatoonAttackBehavior.Bound</c>),
+    /// fighting what it meets through its own contact reactions, then the drill runs on the top enemy still there; with nobody left it holds the place.</summary>
     public static class InfantrySquadAttackBehavior
     {
+        /// <summary>⭐ <c>CE-2473</c> — the bound to the place, then the drill. <see cref="Bound"/>'s <c>BoundMetres</c> 0 = no place: the bound is skipped.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SquadAttackBlackboard
+        {
+            public BoundingOverwatchParams Bound;
+            public SquadPlayState BoundState;
+            public SuppressAndManeuverParams Order;
+            public SquadPlayState State;
+        }
+
         [BehaviorResolver(BehaviorNames.InfantrySquadAttack)]
-        public static void Resolve(in AttackOrder order, ref SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard block, EntityRepository world, Entity self)
+        public static void Resolve(in AttackOrder order, ref SquadAttackBlackboard block, EntityRepository world, Entity self)
         {
             block.Order = SuppressAndManeuverBehavior.Defaults(0f, 0f, 0f, 0f);
             block.Order.TargetId = order.Target.Ref.TryResolve(world, out var target) ? (long)target.PackedValue : 0;
             block.State = default;
+            block.Bound = default;
+            block.BoundState = default;
+            var place = (Vector3)order.Position;
+            if (block.Order.TargetId == 0 && place != Vector3.Zero)
+                block.Bound = new BoundingOverwatchParams
+                {
+                    Objective = place, BoundMetres = 30f, Speed = order.Speed > 0f ? order.Speed : 3f,
+                    ArrivalRadius = order.SearchRadius > 0f ? order.SearchRadius : 10f, BoundTimeoutSeconds = 60f,
+                };
         }
 
+        /// <summary>⭐ <c>CE-2473</c> — the bound to the place, or Success at once when the order named no place.</summary>
+        public static NodeStatus BoundToPlace(ref BoundingOverwatchParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => p.BoundMetres <= 0f ? NodeStatus.Success : BoundingOverwatchBehavior.Run(ref p, ref ws, self, world);
+
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.InfantrySquadAttackBehavior.BoundToPlace")]
+        public static void Deactivate_BoundToPlace(ref BoundingOverwatchParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.DropSensor(ref ws, world);
+
         [Behavior(BehaviorNames.InfantrySquadAttack, Params = typeof(AttackOrder), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the contract on the behaviour
-        [BTreeDefinition(BehaviorNames.InfantrySquadAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard))]
-        public static BTreeBuilder<SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard, BTreeContext> BuildTree()
-            => new BTreeBuilder<SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard, BTreeContext>()
-                .StatefulAction(bb => bb.Order, bb => bb.State, SuppressAndManeuverBehavior.Run);
+        [BTreeDefinition(BehaviorNames.InfantrySquadAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(SquadAttackBlackboard))]
+        public static BTreeBuilder<SquadAttackBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<SquadAttackBlackboard, BTreeContext>()
+                .Sequence(s => s
+                    .StatefulAction(bb => bb.Bound, bb => bb.BoundState, BoundToPlace)
+                    .StatefulAction(bb => bb.Order, bb => bb.State, SuppressAndManeuverBehavior.Run));
     }
 }

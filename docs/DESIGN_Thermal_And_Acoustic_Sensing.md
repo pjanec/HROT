@@ -988,12 +988,23 @@ classDiagram
 | P4 | ⭐ `pe-two-shooters` | two riflemen 8 m apart firing in turn | the squad `matched == 2` — ⛔ never one (over-merging is the opposite error to U2b's) |
 | P5 | `pe-shelled` | rounds landing among the listeners, no enemy near | every man and the squad `contacts == 0` (R-2071) |
 | P2 | `pe-house-shot` | a shooter in a room; listeners in the corridor, another room, outside a window | squad `matched == 1`, `duplicate == 0`; after CE-2475 `phantom == 0` |
-| P2b | `pe-wall-and-door` | a shooter behind ONE wall, a door off to the listener's side | his contact within m of the SHOOTER, not the door (CE-2475) |
-| P6 | `pe-steps-round-corner` | a man walking behind a building | heard; `through: false` ⇒ no SPOT position |
-| P7 | `pe-seen-then-hidden` | a man crosses open ground, then hides | identified within the dwell; forgotten after the fade, not before |
+| P2b | `pe-wall-and-door` | a shooter just inside the north wall of a TIMBER HOUSE (`timber-house`, placed on basic-desert at (300,300)); two listeners 7 m north; the ways round (the open south door, the east / west windows) 4.5–5 m from him | both listeners `matched == 1` within `m` 2 (5 s); never a `phantom` beyond 2 m (no estimate at the door or a window); the squad never `duplicate` (CE-2475, CE-2492) |
+| P6 | `pe-steps-round-corner` | a man JOGGING (2.5 m/s) along House A's north wall, stopping short of its NE corner; two listeners just east of the house, 8–12 m round that corner — the house always between (📐 a walker's steps carry ~6 m at 1.2 m/s) | an ear hears him (`contacts ≥ 1`, any); `through: false` ⇒ `contacts == 0` always (no straight hearing, no sighting) |
+| P7 | `pe-seen-then-hidden` | a man crosses open ground 20 m in front of two listeners, then stops behind House A | both identify him while crossing (`matched == 1`, 2 s, before `hidden`); never `matched == 0` in the 20 s after `hidden`; `contacts == 0` at the end (130 s: the ~70 s fade, `ThreatScoreDecayPerSecond` 0.1 to `ForgetThreatScore` 0.5) |
 | P8 | P1, listeners on two nodes (cluster, nightly) | ⚠ the per-node token (§8.6d): 1 or 2 — needs the dump to carry heard contacts |
 
 ##### What the suite found first (`2026-11-22`)
+
+| ⭐ **`CE-2492` — found by P2b (`2026-11-22`)** | |
+|---|---|
+| ⛔ first reading — WRONG, reverted (`1bb02ce0a`) | "a smeared hearing's circle does not cover its pull" ⇒ the pull added to the radius: P2b still failed at 8.25 s and `ia-house-hunt` broke (the attacker never hit). 📐 the route probe then showed EVERY shot heard straight (lead 10 dB — no smear at all) |
+| ⭐ the measured cause | the SHOOTER WALKS while firing (to his target): heard 1.6 m apart a second apart, two 0.7 m circles never meet ⇒ two slots. CE-2486's 3 m slack is for a man once SEEN; a man only HEARD had none. ⭐ `HearContact` fuses two STRAIGHT hearings within their circles + how far he could have walked since last heard (`WalkMetresPerSecond` 1.5 × the elapsed time, capped at 3 m); never a burst, never a point round an opening (CE-2489). Rail `SquadPerceptionMergeSystemTests.CE2492_*` |
+
+| ⚠ **suite setup, found writing P6 / P7 (`2026-11-22`)** | |
+|---|---|
+| the LISTENERS were not passive | each man had `InertSop` + `HoldFire`, but the squad entity did not — its standing behaviour MOVED them (📐 P7: an ear walked 25 m to the corner and kept SEEING the hidden man; `pe-house-shot`'s ears wandered the corridor). ⭐ the squad gets the same passive settings |
+| `pe-house-shot`'s shooter never fired at his target | seeing the listeners he went to `FightFromCover`; his shots were at an ear that had wandered into his room. ⭐ the shooter's reactions `StayOnTask` — he fires from 1.1 s. ✅ all seven `pe-*` pass with both fixed |
+
 
 | run | found | outcome |
 |---|---|---|
@@ -1034,7 +1045,7 @@ sequenceDiagram
 
 INVENTORY (`2026-11-22`): `search_graph name_pattern ".*(Perception|Hearing|Acoustic|Visual|Thermal|Sensor|TargetMemory|SquadPerception|Detection|Sound).*Tests?" label Class` → total 53, has_more false (⚠ it MISSED `AcousticHearingTests`, `SoundPathsTests`, `ThreatEvaluationSystemTests` — found by `ls FDP/Toolkits/Fdp.Toolkits.Tests/Perception`, 30 files); check-grammar cues: `ScenarioChecks.Kinds` (`field`, `knowledge`, `far`, `close`, `between`, `window`, `cover`, `bunched`, `still`, `exposed` + the anchor kinds) — none reads a belief; scenarios: `find scenarios -name checks.json` (261) filtered by sensing words → 20, none judges a heard contact or a count. ⛔ Coverage could not be checked (`check_index_coverage` is not in the CLI).
 
-#### 8.6f `CE-2479` / `CE-2480` — walls at their real loss, and a gunshot is LOUD *(behaviors, `2026-11-22`; R-2143; 🔒 user: "Yes, use realistic attenuation through walls, and of course 200 meters for a rifle shot is very small, we need extension"; build-state: BUILDING)*
+#### 8.6f `CE-2479` / `CE-2480` — walls at their real loss, and a gunshot is LOUD *(behaviors, `2026-11-22`; R-2143; 🔒 user: "Yes, use realistic attenuation through walls, and of course 200 meters for a rifle shot is very small, we need extension"; build-state: BUILT)*
 
 ```mermaid
 graph TD
@@ -1058,6 +1069,58 @@ graph TD
 | footsteps through a brick wall now stop at ~0.4 m (25 m × 10^(−35/20)) | ⇒ indoor scenarios that relied on hearing steps through walls change |
 | every soldier hears every rifle shot within ~1.5 km × weather | ⇒ more heard contacts (CE-2474's fusion carries them) and a longer LOUD list each tick (§8.2) |
 | ⛔ found re-running `ia-house-hunt` (✅ before, ❌ after): steps upstairs now come down the STAIRWELL, placed at the opening the attacker stood on — a heard enemy at his feet | ⭐ CE-2483: an opening or corner within 1.5 m of the ear (`StandingInOpeningM`) is skipped — the sound came from beyond it |
+
+#### 8.6g `CE-2490` — the MUZZLE FLASH binds the bang: a shot from a man you SEE is his, whatever way its sound came *(behaviors, `2026-11-22`; R-2144; 🔒 user: "Yes, go with A, seeing the muzzle flash" · "its the timing that binds the visual muzzle flash with the sound from side doors, so it should be perceived as single guys"; build-state: BUILT)*
+
+```mermaid
+sequenceDiagram
+    participant G as AcousticPerception (solve)
+    participant S as SensorMemoryStage
+    participant T as ThreatEvaluationSystem (per listener)
+    participant R as SoundEmissionRing
+    participant M as TargetMemory
+    G->>S: heard answer · token = the bang's PLACE
+    S->>T: SoundContactEvent { Sound = place, Via }
+    T->>T: seenNow = his VISUAL tracks this tick
+    T->>R: TryGetAtPlace(place) → Source, Time
+    alt Source ∈ seenNow and now − Time ≤ FlashBindSeconds
+        T->>M: AttributeBySeenFlash → credit HIS slot (no new contact)
+    else
+        T->>M: AttributeToSeen (bearing, CE-2474/2484) → else HearContact
+    end
+```
+*What the picture shows that prose hid:* the binding needs no geometry — it is the bang's identity (its place in the ring) joined to WHO HE SEES at that instant; the bearing rules stay for a shooter not in sight.
+
+```mermaid
+classDiagram
+    class SoundEmissionRing { +TryGetAtPlace(place, out SoundEmission) bool }
+    class SoundEmission { +long Serial; +ulong Source; +SimInstant Time; +byte Kind }
+    class TargetMemory { +AttributeBySeenFlash(ref mem, shooter, kind, cls, seenNow, boost, tick, sound) bool$ ; +AttributeToSeen(...) bool$ ; +FlashBindSeconds = 1.0$ }
+    class ThreatEvaluationSystem { -SoundEmissionRing _ring }
+    ThreatEvaluationSystem --> SoundEmissionRing : reads once per tick (serial)
+    ThreatEvaluationSystem --> TargetMemory : per listener (parallel phase)
+    SoundEmissionRing o-- SoundEmission
+```
+*Existing:* the ring, its `Source`/`Time` (CE-3299), `seenNow` (CE-2474) and the token = the bang's place (CE-2474). *New:* only `TryGetAtPlace`, `AttributeBySeenFlash` and the ring reference.
+
+| why | |
+|---|---|
+| 📐 `pe-house-shot` at 26.4 s | Ear 3 sees the shooter 2.9 m away (a window) and hears his shot ONLY round two doors (45 dB straight, 4 dB via the doors), arriving from a door 1 m to his EAST — the shooter is WEST. No bearing rule can join them without undoing CE-2489 (the stairwell is the way TO a man, not him) |
+| ⭐ the rule | the flash and the bang are ONE instant: a heard shot whose bang was fired by a man he sees now (within `FlashBindSeconds` 1 s — the engine's solve and sighting lag) is that man's |
+| ⛔ anonymity (§6 D) holds | the source is reached only THROUGH SIGHT; a shooter he does not see stays an anonymous estimate. Not for a burst (where a round LANDED, R-2071) |
+| ⚠ rejected | (B) let the squad's "counts him twice" check skip through-opening points — it hides the doubled contact instead of removing it |
+
+Rail `ThreatEvaluationSystemTests.CE2490_*` (red without the binding).
+
+##### `CE-2491` — the SQUAD binds it too: a bang a squadmate saw fired
+
+| | |
+|---|---|
+| 📐 measured after CE-2490, `pe-house-shot` 26.1 s | the two ears that held the door point did NOT see the shooter then (last seen ticks 1370 / 1556, the bang heard at 1574) — CE-2490 rightly did not fire; for them the door is where to LOOK (D-8). Ears 1 and 2 DID see him fire — but the pool's same-bang fusion (CE-2474 ①) missed it: each pool slot keeps ONE token, and the members' last tokens differed by a shot (149 / 150) |
+| ⭐ the rule | `AbsorbHeardBySound`: a pooled heard contact whose bang (the ring, on its token) was fired by an IDENTIFIED pooled enemy that a member SAW at the bang (Visual in its modalities, last seen no earlier than `FlashBindSeconds` before the bang) is that enemy — the squadmate saw the flash. ⭐ The pool is rebuilt each merge, so the test is TIME-INVARIANT: 📐 a first build tested "bang within 1 s of now" and the door point came back into the pool 1 s after the last shot (27.3 s) |
+| ⛔ what stays | a member's own memory keeps the door point (he saw nothing); only the squad's pool — what every member shares — joins them |
+
+Rail `SquadPerceptionMergeSystemTests.CE2491_*` (red without the ring lookup).
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
