@@ -156,6 +156,54 @@ namespace Fdp.Toolkit.Navigation.Tests
             return new RoadAccess(s, along, RoadGraphNavigator.SampleRoadSegment(seg, along).pos, 0f);
         }
 
+        // The former NearestAccess, verbatim: every segment, 33 coarse samples + 9 refining.
+        private static RoadAccess ScanNearest(in RoadNetworkBlob roads, Vector2 p, float maxDistance)
+        {
+            var best = RoadAccess.None;
+            for (int s = 0; s < roads.Segments.Length; s++)
+            {
+                var seg = roads.Segments[s];
+                if (seg.Length <= 0f) continue;
+                float step = seg.Length / 32;
+                float bestAlong = 0f, bestD2 = float.MaxValue;
+                Vector2 bestPt = default;
+                for (int k = 0; k <= 32; k++)
+                {
+                    var pt = RoadGraphNavigator.SampleRoadSegment(seg, k * step).pos;
+                    float d2 = Vector2.DistanceSquared(p, pt);
+                    if (d2 < bestD2) { bestD2 = d2; bestAlong = k * step; bestPt = pt; }
+                }
+                float lo = MathF.Max(0f, bestAlong - step), hi = MathF.Min(seg.Length, bestAlong + step);
+                for (int k = 0; k <= 8; k++)
+                {
+                    float a = lo + (hi - lo) * k / 8f;
+                    var pt = RoadGraphNavigator.SampleRoadSegment(seg, a).pos;
+                    float d2 = Vector2.DistanceSquared(p, pt);
+                    if (d2 < bestD2) { bestD2 = d2; bestAlong = a; bestPt = pt; }
+                }
+                float d = MathF.Sqrt(bestD2);
+                if (d <= maxDistance && d < best.Distance) best = new RoadAccess(s, bestAlong, bestPt, d);
+            }
+            return best;
+        }
+
+        /// <summary>Curved roads: random tangents, so the curve bulges well outside the chord.</summary>
+        private static RoadNetworkBlob CurvedGraph(int seed, int nodes)
+        {
+            var rng = new Random(seed);
+            var b = new RoadNetworkBuilder();
+            var at = new List<Vector2>();
+            for (int i = 0; i < nodes; i++) { var q = new Vector2(rng.Next(-500, 500), rng.Next(-500, 500)); at.Add(q); b.AddNode(q); }
+            for (int i = 0; i < nodes; i++)
+            {
+                int j = rng.Next(nodes);
+                var d = at[j] - at[i];
+                Vector2 Bend() => d + new Vector2((float)(rng.NextDouble() - 0.5), (float)(rng.NextDouble() - 0.5)) * d.Length() * 2f;
+                b.AddSegment(at[i], Bend(), at[j], Bend(), 13.9f, 3.5f, 1, i, j);
+            }
+            return b.Build(100f, 4, 4);
+        }
+
         // ── the rails ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
         [Fact]
@@ -177,6 +225,31 @@ namespace Fdp.Toolkit.Navigation.Tests
             var g = Lattice(25, 25);
             try { AssertSameRoutes(g, router, 77, 200); }
             finally { g.Dispose(); }
+        }
+
+        [Fact]
+        public void NearestAccess_IsTheFormerScansAnswer_OnCurvedAndStraightRoads()
+        {
+            var rng = new Random(99);
+            foreach (var g0 in new[] { CurvedGraph(5, 400), RandomGraph(6, 300), Lattice(30, 30, 20f, jitter: 5f) })
+            {
+                var g = g0;
+                try
+                {
+                    for (int k = 0; k < 400; k++)
+                    {
+                        var q = new Vector2(rng.Next(-700, 1300), rng.Next(-700, 1300));
+                        float reach = k % 3 == 0 ? float.MaxValue : k % 3 == 1 ? 500f : 15f;
+                        var expect = ScanNearest(g, q, reach);
+                        var got = RoadGraphRouter.NearestAccess(g, q, reach);
+                        Assert.Equal(expect.Segment, got.Segment);
+                        Assert.Equal(expect.Along, got.Along);
+                        Assert.Equal(expect.Point, got.Point);
+                        Assert.Equal(expect.Distance, got.Distance);
+                    }
+                }
+                finally { g.Dispose(); }
+            }
         }
 
         [Fact]
@@ -203,10 +276,12 @@ namespace Fdp.Toolkit.Navigation.Tests
                 double ms = sw.Elapsed.TotalMilliseconds / Runs;
                 _out.WriteLine($"route across {g.Nodes.Length} nodes / {g.Segments.Length} segments: {ms:0.00} ms, {allocated} B over {Runs} routes");
 
+                RoadGraphRouter.NearestAccess(g, new Vector2(10f, 10f), float.MaxValue);   // JIT warm
                 var near = Stopwatch.StartNew();
                 var acc = RoadGraphRouter.NearestAccess(g, new Vector2(1700f, 1700f), float.MaxValue);
                 near.Stop();
-                _out.WriteLine($"NearestAccess over every segment: {near.Elapsed.TotalMilliseconds:0.00} ms (segment {acc.Segment})");
+                _out.WriteLine($"NearestAccess (pruned): {near.Elapsed.TotalMilliseconds:0.00} ms (segment {acc.Segment})");
+                Assert.True(near.Elapsed.TotalMilliseconds < 20.0, $"NearestAccess took {near.Elapsed.TotalMilliseconds:0.0} ms (budget 20 ms; the full scan took ~156 ms)");
 
                 Assert.Equal(Runs, routed);
                 Assert.Equal(0, allocated);

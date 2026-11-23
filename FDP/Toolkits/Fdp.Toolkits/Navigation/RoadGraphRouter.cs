@@ -72,40 +72,75 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>
         /// The point of the network nearest <paramref name="p"/>, within <paramref name="maxDistance"/> m, or
-        /// <see cref="RoadAccess.None"/>. Every segment is tested (road graphs are hundreds of segments); the projection samples
+        /// <see cref="RoadAccess.None"/>. Every segment is considered (pruned exactly by its curve's box, CE-5043); the projection samples
         /// the curve by arc length (<see cref="RoadGraphNavigator.SampleRoadSegment"/>), so <see cref="RoadAccess.Along"/> means
         /// the same thing <see cref="EmitLeg"/> walks.
         /// </summary>
         public static RoadAccess NearestAccess(in RoadNetworkBlob roads, Vector2 p, float maxDistance)
         {
             if (!HasRoads(roads)) return RoadAccess.None;
+            // ⭐ CE-5043 — exact pruning (19 691 segments on Stechovice: 156 ms per call over every segment × 41 samples, two calls a plan).
+            // ① An upper bound: the projection onto the segment whose start point is nearest — the final answer is at most that.
+            // ② Every segment in ascending order as before, skipping one whose curve cannot come within the bound: a cubic Hermite is the Bézier
+            //    P0, P0 + T0/3, P1 − T1/3, P1, so the curve lies inside those four points' box. A skipped segment's every sample is farther than
+            //    the bound ⇒ it could never have won (nor tied) ⇒ the same answer, the same tie (lowest segment), with ~all projections skipped.
+            int first = -1; float firstD2 = float.MaxValue;
+            for (int s = 0; s < roads.Segments.Length; s++)
+            {
+                ref readonly var seg = ref roads.Segments[s];
+                if (seg.Length <= 0f) continue;
+                float d2 = Vector2.DistanceSquared(p, seg.P0);
+                if (d2 < firstD2) { firstD2 = d2; first = s; }
+            }
+            if (first < 0) return RoadAccess.None;
+            float bound = MathF.Min(maxDistance, Project(roads.Segments[first], p, out _, out _));
+
             var best = RoadAccess.None;
             for (int s = 0; s < roads.Segments.Length; s++)
             {
                 var seg = roads.Segments[s];
                 if (seg.Length <= 0f) continue;
-                float step = seg.Length / ProjectionSamples;
-                float bestAlong = 0f, bestD2 = float.MaxValue;
-                Vector2 bestPt = default;
-                for (int k = 0; k <= ProjectionSamples; k++)
-                {
-                    var pt = RoadGraphNavigator.SampleRoadSegment(seg, k * step).pos;
-                    float d2 = Vector2.DistanceSquared(p, pt);
-                    if (d2 < bestD2) { bestD2 = d2; bestAlong = k * step; bestPt = pt; }
-                }
-                // refine around the best coarse sample
-                float lo = MathF.Max(0f, bestAlong - step), hi = MathF.Min(seg.Length, bestAlong + step);
-                for (int k = 0; k <= 8; k++)
-                {
-                    float a = lo + (hi - lo) * k / 8f;
-                    var pt = RoadGraphNavigator.SampleRoadSegment(seg, a).pos;
-                    float d2 = Vector2.DistanceSquared(p, pt);
-                    if (d2 < bestD2) { bestD2 = d2; bestAlong = a; bestPt = pt; }
-                }
-                float d = MathF.Sqrt(bestD2);
-                if (d <= maxDistance && d < best.Distance) best = new RoadAccess(s, bestAlong, bestPt, d);
+                float limit = MathF.Min(bound, best.Distance);
+                if (BoxDistanceSquared(seg, p) > limit * limit * 1.0001f + 1e-3f) continue;   // a margin for rounding: only ever skips less
+                float d = Project(seg, p, out float along, out Vector2 at);
+                if (d <= maxDistance && d < best.Distance) best = new RoadAccess(s, along, at, d);
             }
             return best;
+        }
+
+        /// <summary>The arc-length projection of <paramref name="p"/> onto <paramref name="seg"/> (coarse samples, then a refine): its distance.</summary>
+        private static float Project(in RoadSegment seg, Vector2 p, out float bestAlong, out Vector2 bestPt)
+        {
+            float step = seg.Length / ProjectionSamples;
+            float bestD2 = float.MaxValue;
+            bestAlong = 0f; bestPt = default;
+            for (int k = 0; k <= ProjectionSamples; k++)
+            {
+                var pt = RoadGraphNavigator.SampleRoadSegment(seg, k * step).pos;
+                float d2 = Vector2.DistanceSquared(p, pt);
+                if (d2 < bestD2) { bestD2 = d2; bestAlong = k * step; bestPt = pt; }
+            }
+            // refine around the best coarse sample
+            float lo = MathF.Max(0f, bestAlong - step), hi = MathF.Min(seg.Length, bestAlong + step);
+            for (int k = 0; k <= 8; k++)
+            {
+                float a = lo + (hi - lo) * k / 8f;
+                var pt = RoadGraphNavigator.SampleRoadSegment(seg, a).pos;
+                float d2 = Vector2.DistanceSquared(p, pt);
+                if (d2 < bestD2) { bestD2 = d2; bestAlong = a; bestPt = pt; }
+            }
+            return MathF.Sqrt(bestD2);
+        }
+
+        /// <summary>The squared distance from <paramref name="p"/> to the box of the segment's Bézier control points (≤ to any point of the curve).</summary>
+        private static float BoxDistanceSquared(in RoadSegment seg, Vector2 p)
+        {
+            Vector2 b1 = seg.P0 + seg.T0 / 3f, b2 = seg.P1 - seg.T1 / 3f;
+            var min = Vector2.Min(Vector2.Min(seg.P0, seg.P1), Vector2.Min(b1, b2));
+            var max = Vector2.Max(Vector2.Max(seg.P0, seg.P1), Vector2.Max(b1, b2));
+            float dx = MathF.Max(0f, MathF.Max(min.X - p.X, p.X - max.X));
+            float dy = MathF.Max(0f, MathF.Max(min.Y - p.Y, p.Y - max.Y));
+            return dx * dx + dy * dy;
         }
 
         /// <summary>

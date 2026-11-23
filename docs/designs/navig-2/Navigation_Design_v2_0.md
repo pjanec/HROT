@@ -1861,8 +1861,13 @@ sequenceDiagram
   `CircleSearch` uses too (its private heap moved there — one implementation). `CostHeap` orders by cost, then node index: the road search settles
   nodes in exactly the order the scan did, so routes, metres and legs are unchanged (rail `RoadGraphRouterLargeGraphTests`: the former scan as the
   oracle on random graphs and an equal-cost lattice; a 19 600-node graph within 50 ms; 0 B once warm — the former `new Stack` per route is gone).
-  ⚠ `CircleSearch`'s ties used to follow push order; they now follow the node index (a node's index is its discovery order). ⏳ `NearestAccess`
-  still projects onto every segment (two calls per plan) — measured in the same rail, a grid search is the next lever if it shows in a profile.
+  ⚠ `CircleSearch`'s ties used to follow push order; they now follow the node index (a node's index is its discovery order).
+  ⭐ `NearestAccess` (two calls per plan) projected onto EVERY segment, 41 curve samples each: 📐 156 ms a call on a 38 920-segment graph —
+  30× the route itself once the route was fixed. Now pruned EXACTLY: an upper bound from the segment whose start point is nearest, then each
+  segment in the same ascending order, skipped when its curve's box (a cubic Hermite = the Bézier P0, P0+T0/3, P1−T1/3, P1, inside those
+  points' box) is farther than the bound — the same answer and the same tie, bit for bit (rail: the former scan as the oracle on curved,
+  random and lattice graphs). ⛔ Not the blob's own `GridHead` grid: it rasterises each segment at 17 points (a long one skips cells), has no
+  origin (negative coordinates fall out) and is sized from metadata (default 100 × 5 m) — it cannot give the same answer.
 - **`MoveToExecutor` per-tick cost (Brain):** O(1) per active mover — read `NavigationStatus.Result`, branch on it, return BTree state. No window sliding required.
 
 ## 16. Hot reload
