@@ -1,5 +1,6 @@
 // CE-4651 (U-19d) — see HrotAmbience.h
 #include "HrotAmbience.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HrotSoundscape.h"
 #include "HrotShotRenderer.h"
 #include "HrotSoundLog.h"
@@ -240,8 +241,11 @@ void UHrotAmbiencePlayer::Apply(double Now)
 	}
 }
 
+CSV_DEFINE_CATEGORY(HrotTerrain, true);
+
 void UHrotAmbiencePlayer::Tick(float Dt)
 {
+	CSV_SCOPED_TIMING_STAT(HrotTerrain, Ambience);
 	UWorld* W = GetWorld();
 	if (!W || W->IsNetMode(NM_DedicatedServer)) return;
 	if (!(W->WorldType == EWorldType::PIE || W->WorldType == EWorldType::Game)) return;

@@ -242,6 +242,7 @@ public:
 	virtual void Deinitialize() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UHrotDpsWorld, STATGROUP_Tickables); }
+	int32 PlacedActors = 0;   // U-19h ⑱: actors whose transform Place set this frame (the CSV profiler's HrotDps/PlacedActors)
 
 private:
 	struct FEnt

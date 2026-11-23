@@ -1,5 +1,6 @@
 // CE-4651 (U-18b) — see HrotDpsWorld.h
 #include "HrotDpsWorld.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HrotDpsStation.h"
 #include "HrotDpsTrafficKit.h"
 #include "HrotDpsNative.h"
@@ -1368,15 +1369,19 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 		if (E.MeshYaw != 0) T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(E.MeshYaw)));   // the model's own facing
 		if (E.MeshZ != 0) T.AddToTranslation(FVector(0, 0, E.MeshZ));                                                          // and its origin
 		T.SetScale3D(A->GetActorScale3D());   // ⚠ measured (U-18e): the full transform reset a sized body (a grenade, the unknown-type box) to scale 1
-		A->SetActorTransform(T);
+		A->SetActorTransform(T); ++PlacedActors;
 		// a rocket's motor burns BurnSeconds from its launch (Hrot.Look RoundLook.BurnOf; 0 = no motor data: burning while it flies)
 		if (AHrotMissile* M = Cast<AHrotMissile>(A))
 			M->bMotor = !E.bLying && (E.BurnSeconds <= 0 || Clock.Now(Real) - E.LaunchedAt < E.BurnSeconds);
 	}
 }
 
+// U-19h ⑱: the client's frame by part in Unreal's CSV profiler (-csvCaptureFrames / csvprofile start): HrotDps/<part> ms, HrotDps/PlacedActors
+CSV_DEFINE_CATEGORY(HrotDps, true);
+
 void UHrotDpsWorld::Tick(float)
 {
+	CSV_SCOPED_TIMING_STAT(HrotDps, WorldTick);
 	const double R = RealNow();
 	if (!PendingLevel.IsEmpty())   // U-18r: the level of the station's terrain (opened here, never inside a DDS handler)
 	{
@@ -1384,7 +1389,7 @@ void UHrotDpsWorld::Tick(float)
 		UGameplayStatics::OpenLevel(this, FName(*PendingLevel), true, TEXT("game=/Script/HrotDps.HrotDpsGameMode"));
 		PendingLevel.Reset();
 	}
-	TickClock(R);   // U-18p: the probe's echoes, ClientWorld
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Clock); TickClock(R); }   // U-18p: the probe's echoes, ClientWorld
 	if (Weather.Num() && R >= NextWeatherAt) { NextWeatherAt = R + 1.0; ApplyWeather(); }   // U-19d: the camera moves between regions
 	{   // U-19c: a burst whose rounds stopped is faded out (after the same delay as its start)
 		TArray<int32> Cuts; Bursts.PollCuts(R, Cuts);
@@ -1392,11 +1397,14 @@ void UHrotDpsWorld::Tick(float)
 	}
 	const double Prev = Placed;
 	Placed = Clock.Now(R);
-	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
+	PlacedActors = 0;
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Place); for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R); }
+	CSV_CUSTOM_STAT(HrotDps, PlacedActors, PlacedActors, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(HrotDps, Entities, Ents.Num(), ECsvCustomStatOp::Set);
 	const double Dt = FMath::Clamp(Placed - Prev, 0.0, 0.5);
-	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) UpdateRiding(It.Value);
-	UpdateCrews();
-	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt);   // after every pose: an aim reads its target's
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, RidingCrews); for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) UpdateRiding(It.Value);
+	UpdateCrews(); }
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, ApplyPerson); for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt); }   // after every pose: an aim reads its target's
 	for (TPair<int32, FEnt>& It : Ents)
 	{
 		FEnt& E = It.Value;
@@ -1404,12 +1412,11 @@ void UHrotDpsWorld::Tick(float)
 		if (E.bAnimal) ApplyAnimal(E, Placed);
 		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning) ApplyFlame(E);
 	}
-	DrawStreams(Placed);
-	TickSpots(Placed);
-	TickMovers(R);
-	SendGizmoView(R);   // U-18z
-	DrawGizmos();       // (its texts are drawn by TickCards, so first)
-	TickCards();   // U-18y: after every pose (a card hangs above the drawn body)
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); }
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Movers); TickMovers(R); }
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Gizmos); SendGizmoView(R);   // U-18z
+	DrawGizmos(); }     // (its texts are drawn by TickCards, so first)
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Cards); TickCards(); }   // U-18y: after every pose (a card hangs above the drawn body)
 }
 
 // ── read back ──

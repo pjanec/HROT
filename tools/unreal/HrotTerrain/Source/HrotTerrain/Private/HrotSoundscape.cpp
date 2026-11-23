@@ -1,5 +1,6 @@
 // CE-4651 (U-18n) — see HrotSoundscape.h
 #include "HrotSoundscape.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HrotAnimal.h"
 #include "HrotFire.h"
 #include "HrotShotRenderer.h"
@@ -190,8 +191,11 @@ void UHrotSoundscape::Deinitialize()
 	Super::Deinitialize();
 }
 
+CSV_DECLARE_CATEGORY_EXTERN(HrotTerrain);
+
 void UHrotSoundscape::Tick(float DeltaTime)
 {
+	CSV_SCOPED_TIMING_STAT(HrotTerrain, Soundscape);
 	UWorld* W = GetWorld();
 	if (!W || W->IsNetMode(NM_DedicatedServer)) return;
 	// the soundscape plays in a running world only (the editor's own viewport world stays quiet)

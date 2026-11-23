@@ -1,5 +1,6 @@
 // CE-4651 (U-18m) — see HrotDpsStation.h
 #include "HrotDpsStation.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HrotDpsNative.h"
 #include "HrotDpsSubsystem.h"
 #include "HrotDpsWorld.h"
@@ -196,8 +197,11 @@ void UHrotDpsStation::OnManDowned(const FHrotDpsSample& S)
 	if (D.VictimId == MarkerTarget && MarkerAt >= 0 && Now() - MarkerAt < 1.0) bMarkerKill = true;   // the one we just hit went down: red
 }
 
+CSV_DECLARE_CATEGORY_EXTERN(HrotDps);
+
 void UHrotDpsStation::Tick(float)
 {
+	CSV_SCOPED_TIMING_STAT(HrotDps, Station);
 	const double T = Now();
 	Hits.RemoveAll([T](const FHit& H) { return T - H.At > 2.0; });   // HitFeedback.ArcSeconds
 }

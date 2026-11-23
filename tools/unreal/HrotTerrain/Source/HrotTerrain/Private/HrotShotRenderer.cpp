@@ -1,5 +1,6 @@
 // CE-4651 (U-16) — see the header.
 #include "HrotShotRenderer.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "Misc/App.h"
 #if WITH_EDITOR
 #include "Settings/LevelEditorMiscSettings.h"
@@ -243,8 +244,11 @@ void UHrotShotRenderer::StartTestFire(const TArray<UHrotPersonState*>& Shooters,
 
 void UHrotShotRenderer::StopTestFire() { TestShooters.Reset(); TestCarry.Reset(); TestRate = 0.f; }
 
+CSV_DECLARE_CATEGORY_EXTERN(HrotTerrain);
+
 void UHrotShotRenderer::Tick(float DeltaTime)
 {
+	CSV_SCOPED_TIMING_STAT(HrotTerrain, ShotRenderer);
 	const double FireStart = FPlatformTime::Seconds();
 	if (TestRate > 0.f && TestShooters.Num() > 0)
 	{
