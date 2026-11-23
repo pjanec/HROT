@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "HrotDpsPick.h"
 #include "HrotSoundscape.h"
+#include "Misc/Paths.h"
 #include "HrotDpsCamera.h"
 #include "HrotDpsTrafficKit.h"
 
@@ -78,6 +79,19 @@ bool FHrotLiveFixTrafficKitTest::RunTest(const FString&)
 	TestTrue(TEXT("a look-alike prefix is not traffic"), TK::FamilyOf(TEXT("1.1.0.810"), 1050) == TK::EFamily::None);
 	// the mover's own pick: id % count, the same car on every channel
 	TestEqual(TEXT("pick = id % 4"), TK::Pick(4102, 4), 2); TestEqual(TEXT("no kits"), TK::Pick(5, 0), -1);
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotLiveFixPreloadTest, "Hrot.Dps.LiveFix.SoundPreload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotLiveFixPreloadTest::RunTest(const FString&)
+{
+	// U-19h: PreloadAll loads every sound of both libraries once, at join (no world needed)
+	if (!FPaths::DirectoryExists(FPaths::ProjectContentDir() / TEXT("Hrot/Audio")) && !FPaths::DirectoryExists(FPaths::ProjectContentDir() / TEXT("Hrot/AudioPro")))
+	{ AddInfo(TEXT("no sound content here: skipped")); return true; }
+	UHrotSoundscape* Snd = NewObject<UHrotSoundscape>(GetTransientPackage());
+	const int32 N = Snd->PreloadAll();
+	TestTrue(TEXT("loads sounds"), N > 0);
+	TestEqual(TEXT("one-shot: a second call finds everything cached"), Snd->PreloadAll(), 0);
+	if (N > 0) TestNotNull(TEXT("a set picks from the cache"), Snd->Pick(TEXT("wpn/rifle")));
 	return true;
 }
 #endif

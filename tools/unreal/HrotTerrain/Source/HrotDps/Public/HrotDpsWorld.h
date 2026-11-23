@@ -459,6 +459,7 @@ private:
 	void OnMover(const struct FHrotDpsSample& S);
 	void OnMoverTracks(const struct FHrotDpsSample& S);
 	void DefaultLife();
+	void PreloadPeopleAndSounds();
 	AActor* SpawnAnimal(FEnt& E, const FTransform& At);
 	void ApplyAnimal(FEnt& E, double SimNow);
 	void ApplyFlame(FEnt& E);

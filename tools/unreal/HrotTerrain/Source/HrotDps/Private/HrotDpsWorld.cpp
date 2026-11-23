@@ -22,6 +22,15 @@
 #include "Engine/DecalActor.h"
 #include "Components/DecalComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
+#include "Components/SkinnedMeshComponent.h"
+#include "GameFramework/Character.h"
+#include "Animation/AnimSequence.h"
+#if WITH_EDITOR
+#include "SkinnedAssetCompiler.h"
+#endif
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -137,6 +146,48 @@ UHrotDpsWorld* UHrotDpsWorld::Get(const UObject* WorldContext)
 	return W ? W->GetSubsystem<UHrotDpsWorld>() : nullptr;
 }
 
+// U-19h: ONE-SHOT at join - everything SpawnPerson / the soundscape would load on first use (measured live: 19.8 s "Waiting for skinned assets" when the people first
+// appear; 1-3 s FlushAsyncLoading hitches at the first rifle / body / dirt sound), so the wait happens here, not mid-play.
+void UHrotDpsWorld::PreloadPeopleAndSounds()
+{
+	const double T0 = FPlatformTime::Seconds();
+	int32 Kits = 0;
+	TArray<USkinnedAsset*> Skinned;
+	auto Add = [this](UObject* O) { if (O) Preloaded.Add(O); };
+	auto Kit = [&](const TSoftObjectPtr<UHrotPersonKit>& Soft)
+	{
+		UHrotPersonKit* K = Soft.LoadSynchronous();
+		if (!K) return;
+		++Kits; Add(K);   // its hard references (body mesh, rifle, launcher, materials, every clip) load with it
+		if (K->BodyMesh) Skinned.AddUnique(K->BodyMesh);
+		for (const TPair<FName, TObjectPtr<UAnimSequence>>& C : K->Clips) Add(C.Value);
+		if (UClass* Cls = K->BodyClass.LoadSynchronous())
+		{
+			Add(Cls);
+			// the body Blueprint's own skinned meshes: the native ones (a Character's mesh) and every Blueprint component template up its class chain
+			if (const ACharacter* Ch = Cast<ACharacter>(Cls->GetDefaultObject())) if (Ch->GetMesh() && Ch->GetMesh()->GetSkinnedAsset()) Skinned.AddUnique(Ch->GetMesh()->GetSkinnedAsset());
+			for (UClass* C = Cls; C; C = C->GetSuperClass())
+				if (const UBlueprintGeneratedClass* BP = Cast<UBlueprintGeneratedClass>(C))
+					if (BP->SimpleConstructionScript)
+						for (const USCS_Node* N : BP->SimpleConstructionScript->GetAllNodes())
+							if (const USkinnedMeshComponent* SM = Cast<USkinnedMeshComponent>(N ? N->ComponentTemplate.Get() : nullptr))
+								if (SM->GetSkinnedAsset()) Skinned.AddUnique(SM->GetSkinnedAsset());
+		}
+	};
+	Kit(PersonKit);
+	for (const TSoftObjectPtr<UHrotPersonKit>& K : CivilianKits) Kit(K);
+	for (USkinnedAsset* S : Skinned) Add(S);
+#if WITH_EDITOR
+	// the editor builds each character mesh on its first draw (a 20 s wait with the people on screen): finish them now
+	if (Skinned.Num()) FSkinnedAssetCompilingManager::Get().FinishCompilation(Skinned);
+#endif
+	const double T1 = FPlatformTime::Seconds();
+	int32 Sounds = 0;
+	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this)) Sounds = Snd->PreloadAll();
+	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d person kits, %d skinned assets (%d assets held) in %.2f s; %d sounds in %.2f s"),
+		Kits, Skinned.Num(), Preloaded.Num(), T1 - T0, Sounds, FPlatformTime::Seconds() - T1);
+}
+
 bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 {
 	Stop();
@@ -156,6 +207,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	if (UObject* O = PersonKit.LoadSynchronous()) Preloaded.Add(O);
 	if (UObject* O = DefaultMissileKind.LoadSynchronous()) Preloaded.Add(O);
 	for (const auto& K : MissileKindsByType) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
+	PreloadPeopleAndSounds();
 	MgFx = UHrotWeaponFx::HeavyMgFx(); RifleFx = UHrotWeaponFx::LyraRifleFx();
 	Events.Reset();
 	// U-18r: on the same station, KEEP the participant (a restart deletes our ClientWorld writer: the station would read us as gone and stop
