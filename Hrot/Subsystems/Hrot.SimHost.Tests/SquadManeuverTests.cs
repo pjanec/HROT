@@ -7512,6 +7512,7 @@ namespace Hrot.SimHost.Tests
             }
             // ③ at the next point out of sight: done (the reaction goes on to its rally)
             foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
+            s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(s.Members[0]).Count = 0;   // he lost sight of him (no perception clock runs here)
             Step(seen: false, ticks: 40);
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
         }
