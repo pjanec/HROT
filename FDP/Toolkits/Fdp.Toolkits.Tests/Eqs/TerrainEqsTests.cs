@@ -948,7 +948,43 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             int n = gen.Generate(Entity.Null, ref asTank, _repo, t);
             Assert.Equal(1, n);
             Assert.Equal(10f, t[0].PositionX, 3);
-            Assert.Equal(7.7f, t[0].PositionY, 3);
+            // ⭐ CE-5048 (b) — and in the pose it ARRIVES in: from (10, 0) it drives NORTH, nose-first at the wall, so the side-on y 7.7 put its
+            //   nose 1.2 m into the wall (the live Stechovice M1, held and backed out again and again); it is pushed out until the nose + 0.5 m
+            //   margin clears the wall (y 10): 5.7. ⛔ Was 7.7.
+            Assert.Equal(5.7f, t[0].PositionY, 3);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-5048</c> (c) (user: "i saw many time the tank driving to wall also when trying to peek out of the cover") — the firing-point
+        /// query keeps only points the hull can drive out to from its hide (slot 0) without meeting a wall (<see cref="HullFitsTest"/>, the one
+        /// hull check the hide generator uses): from a hide at (10, 0), a point at the wall straight ahead (10, 7.7 — nose into the wall) is
+        /// dropped, a point east in the open (16, 0) is kept; a soldier's points are not judged. 🔴 Red-proof: the test's filter skipped ⇒ both kept.
+        /// </summary>
+        [Fact]
+        public void CE5048_AFiringPointTheHullMeetsAWallAt_IsDropped_OneInTheOpenIsKept()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                _repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            _repo.SetSingletonManaged(HideWorld());
+            var tank = At(10, 0);
+            _repo.AddComponent(tank, new VehicleParams { Class = VehicleClass.Tank, Length = 7f, Width = 3.6f });
+            _repo.AddComponent(tank, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f, Height = 2.4f });
+            var sensor = new EqsSensor { SearchRadius = 30f, ContextSlot0 = tank };
+            var c = new[]
+            {
+                new EqsResult { PositionX = 10f, PositionY = 7.7f, Score = 1f },
+                new EqsResult { PositionX = 16f, PositionY = 0f, Score = 1f },
+            };
+            new HullFitsTest { FromSlot = 0 }.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(-1L, c[0].EntityId);
+            Assert.NotEqual(-1L, c[1].EntityId);
+
+            var soldier = new EqsSensor { SearchRadius = 30f, ContextSlot0 = At(10, 0) };
+            var d = new[] { new EqsResult { PositionX = 10f, PositionY = 7.7f, Score = 1f } };
+            new HullFitsTest { FromSlot = 0 }.ExecuteBatch(Entity.Null, ref soldier, _repo, d);
+            Assert.NotEqual(-1L, d[0].EntityId);
+            Assert.Contains(FindVehicleFiringPoint.Build(null!).FilterExpensive!, x => x is HullFitsTest);
         }
 
         /// <summary>

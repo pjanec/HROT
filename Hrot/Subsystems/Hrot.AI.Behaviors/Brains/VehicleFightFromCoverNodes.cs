@@ -226,6 +226,18 @@ namespace Hrot.AI.Behaviors.Brains
             HeatPenalty = 0.3f, MatchRadius = 3f,
         };
 
+        /// <summary>
+        /// ⭐ <c>CE-5048</c> (a) — the same rules, a place matched by THIS hull: two points closer than its length are one parking spot for it.
+        /// 📐 Measured on the Stechovice M1: a hide failed and the next hide the search answered stood 4.1 m from it (the 3 m match missed it)
+        /// — the same house, the same approach, "going almost exactly the same way back".
+        /// </summary>
+        public static HeatRules Rules(in VehicleFightFromCoverParams p, EntityRepository world, Entity self)
+        {
+            var r = Rules(in p);
+            if (Fdp.Toolkit.Spatial.Eqs.VehicleFootprint.Hull(world, self, out float length, out _, out _)) r.MatchRadius = MathF.Max(r.MatchRadius, length);
+            return r;
+        }
+
         /// <summary>D-J — the resolved withdraw mode: as authored, else from the hull (front ≥ 2 × side ⇒ reverse).</summary>
         public static bool Scoots(in VehicleFightFromCoverParams p, EntityRepository world, Entity self)
         {
@@ -382,8 +394,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
             if (status == NodeStatus.Success) { EnterHidden(ref ws, in p, self, world, now); return; }
-            // an unreachable hide: heat it so a second failure burns it (PeekAndFire's G2 rule)
-            PositionHeat.Add(ref mem, ws.HidePoint, PeekAndFireNodes.UnreachableHeat * Rules(in p).BurnHeat, now, Rules(in p), exposure: false);
+            // ⭐ CE-5048 (a) (user, 2026-11-23: "remember failed hides but failed is NOT those where tank bounces the wall and recovers") — the move
+            //   FAILED (the motion gave up after its recoveries — a bounce it recovered from never reaches here): never this spot again, matched
+            //   by the hull's length. ⛔ Was PeekAndFire's G2 heat (a second failure burns), matched at 3 m — the next hide 4 m off was a new place
+            var hullRules = Rules(in p, world, self);
+            PositionHeat.Add(ref mem, ws.HidePoint, hullRules.BurnHeat, now, hullRules, exposure: false);
             ws.Phase = VehiclePhase.Choose;
         }
 
@@ -883,7 +898,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!sensor.IsValid || !world.IsAlive(sensor.ChildId) || !world.HasComponent<EqsCognitiveBuffer>(sensor.ChildId)) return false;
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(sensor.ChildId);
             if (!buffer.IsReady || buffer.Count == 0) return false;
-            var rules = Rules(in p);
+            var rules = Rules(in p, world, self);   // ⭐ CE-5048 (a) — a burned place is matched by the hull's length
             var span = buffer.GetSpanRO()[..buffer.Count];
             float best = float.NegativeInfinity;
             for (int i = 0; i < span.Length; i++)
