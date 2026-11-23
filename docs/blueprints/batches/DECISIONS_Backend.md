@@ -17,7 +17,7 @@ related-designs:
 | edits | no general queue: the AI request and a breakpoint edit are queued; everything else writes directly, as today (R-3116) |
 | priority | intent first, then the plan's tick; edit mode: intent task XOR plan, warned both ways (R-3117) |
 | supersedes | the CE-3445 entry below: its "the step-reader window" mechanism — the fold into a component replaces it (design §7, first rejected line) |
-| open | §8 O1–O3 (where the section sits, the editor's live origin, R-4137's other rows) — leans given, waiting for the user |
+| §8 O1–O3 | ✅ DECIDED `2026-11-23` as leaned (user: *"i agree witho your leans"*, R-3118): Brain tab first expander · Superior in edit mode, Operator live · R-4137 rows case by case (CE-3496) |
 
 ## CE-3445 — nothing takes effect on a paused frame (B) · `2026-11-22` · ✅ **DECIDED by the user**
 

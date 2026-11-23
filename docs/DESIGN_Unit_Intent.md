@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (2026-11-22 — §9 independent review folded in: the model changed from 'fold every request' to 'authored intent + the step window'; §8 O1–O3 wait for the user)
-updated: 2026-11-22 (§9 review: 7 red, 9 amber, 4 notes — all folded) · 2026-11-22 (created — backend; CE-3494, R-3114…R-3117)
+build-state: READY-TO-BUILD (2026-11-23 — §8 O1–O3 approved by the user as leaned, R-3118; §9 independent review folded in)
+updated: 2026-11-23 (§8 O1–O3 APPROVED — R-3118) · 2026-11-22 (§9 review: 7 red, 9 amber, 4 notes — all folded) · 2026-11-22 (created — backend; CE-3494, R-3114…R-3117)
 current-answer: §1 the rules · §2–§4 the diagrams · §5 the mockups · §6 the build order · §8 the open decisions · §9 the review and how it changed the design
 stale-below: nothing — new document.
 known-rot: none.
@@ -328,9 +328,9 @@ intent rows share one control x; the status slot is fixed); glyphs and colours a
 - **A yes/no dialog on an order to a planned unit** — the hold destroys nothing (R8).
 - **Queue every edit** — rework of the editor for edits whose direct write on a frozen world gives the same result (R7).
 
-## 8. Open — the user decides *(each with a lean)*
+## 8. Decided — ✅ O1–O3 APPROVED as leaned *(user, `2026-11-23`: "i agree with your leans" — R-3118)*
 
-| # | question | ⭐ lean | what would change it |
+| # | question | ✅ decided (the lean) | what would change it |
 |---|---|---|---|
 | **O1** | the intent section: first expander of the **Brain tab** (R-1036), or its own **Intent** tab? | **Brain tab, first expander, split from the monitoring part** — R-1036, and the *next* chip needs both on one page | wanting it on a node that does not run the brain (CE-3498) |
 | **O2** | the intent section's live edit — origin **Superior** (R-193) or **Operator** (holds the plan)? | **Operator live, Superior in edit mode** — live it is the operator's direct order of R5 | if the editor should never outrank a commander |
