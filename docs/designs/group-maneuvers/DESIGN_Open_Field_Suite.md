@@ -232,6 +232,41 @@ sequenceDiagram
 ```
 *Caption: the no-answer branch used to end the play as Failure — the squad then held where it stood, in the open (the ditch war OF5 reproduced).*
 
+### 9.2 Fix, report, call for fire — A → B → C *(approved `2026-11-23`, R-2149)*
+
+🔒 User: *"approved, let's try. scenarios are ours, we can always add platoon or higher HQ. we any way need to test exactly those situation
+(flanking machine guns etc.) whether to revert or not depends on what the real doctrine asks for - we aim for realism"*
+
+**Doctrine (ATP 3-21.8, react to contact):** a squad that cannot gain fire superiority REPORTS and, as its platoon leader directs, holds
+(fixes the enemy: a base of fire) or breaks contact. The platoon solves the machine gun — a base of fire, a squad round a flank under
+smoke, and the indirect fire or aircraft it calls. ⇒ break contact is the drill of a squad with nobody to fix for (a patrol), or one that
+can no longer fight, or one ordered to.
+
+#### 9.2a ⛔ The first placement of A was wrong — measured `2026-11-23`
+
+⛔ A squad under a live superior never runs `ReactToContact`: `BasicSquadSop`'s `UnderCommand` row wins and orders nothing — *"a squad
+under a live platoon gets its fight from its platoon's play"* (CE-2358, AQ97 A; `SopConditions.UnderCommand`). ⇒ a "fix instead of break
+contact when it has a superior" rule in the squad's reaction is unreachable (reverted before commit). ⭐ The fight of a squad in a platoon
+is the PLATOON's — and the platoon's answer to an enemy that is not in a building is `PlatoonHold`:
+
+```mermaid
+graph TD
+  SPOT["a squad SPOTs an enemy element"] --> PIC["the platoon's picture"]
+  PIC -->|"fire from a building, on the move"| RFB["ReactToFireFromBuilding (PlatoonAttack preset 2): the squad in contact supports, the next clears"]
+  PIC -->|"any other element (team+, ≤ 400 m, ≤ 30 s)"| PH["PlatoonHold: EVERY squad holds until it is gone"]
+  PH -.->|"the squads re-SPOT the held element ⇒ it is never gone"| PH
+  classDef dead fill:#fdd,stroke:#c00;
+  class PH dead;
+```
+*Caption: the red loop is the ditch war — a platoon facing a machine gun that stays where it is holds for ever: no fire called, no flank.
+It is the same SOP for every platoon, the city battle's included (`BasicPlatoonSop.cs` rows 63-82).*
+
+| | revised | built where |
+|---|---|---|
+| **A′** | the PLATOON's reaction to an element outside a building becomes the react-to-contact drill: the squad in contact is the base of fire (supports from where it stands), the platoon REQUESTS fire on the element (`AskFires`), and — superior enough — the next squad flanks and assaults through; outmatched ⇒ fix, fire, report up (break contact on order) | ⭐ ONE drill: generalise `PlatoonAttack`'s `ReactToFireFromBuilding` preset (already "support from where it stands + the next squad acts") instead of a second play; `PlatoonHold` stays for the cases that truly wait (a defended position, an order to hold) |
+| **B** | OF6: OF5's field and enemy, the squad inside 'Blue Platoon' under 'Blue HQ' with a mortar section | `make-open-field-scenarios.py` |
+| **C** | merged into A′ (the flank is the drill's manoeuvre) | — |
+
 ## 10. Design docs checked
 
 - `DESIGN_Urban_Fight_Suite.md` — applies: the rubric and the check rows are reused as they are.
