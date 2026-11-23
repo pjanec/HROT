@@ -125,6 +125,8 @@ namespace Hrot.AI.Behaviors.Brains
         public SquadCoverPicks Cover;
         /// <summary>⭐ <c>CE-2465</c> — bit e: element e has ended a bound since the play started (the contact-broken end needs both).</summary>
         public byte BoundsDone;
+        /// <summary>⭐ <c>CE-2496</c> (R-2145) — runtime: how many times the retreat point was pushed further away because a man was still in an enemy's sight there.</summary>
+        public byte Extended;
     }
 
     /// <summary>
@@ -194,6 +196,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!SquadManeuverRunner.AnyLive(in ctx)) return PlayStart.Fail;
             p.Cover = default;   // ⭐ CE-2460 — no picks from an earlier run
             p.BoundsDone = 0;    // ⭐ CE-2465
+            p.Extended = 0;      // ⭐ CE-2496
             if (p.HasTo != 0)   // ⭐ E-3a (DA-68) — told where to go: that is the answer, no terrain and no contact needed
             {
                 ws.Answer = p.To;
@@ -215,6 +218,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.HasAnswer == 0)
                 SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
                     SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId));
+            else if (AwayWhenNoAnswer(ref p, ref ws, in ctx)) { }   // ⭐ CE-2496 — no hidden point: the way it came
             // ⭐⭐ CE-2460 (U1) — the answer known and a threat to hide from: the moving element's NEXT bound is cover to cover toward the answer,
             //   ≤ BoundMetres, by fire and movement's own picker (one query, the sensor dropped after it answers). The movers hold until the picks
             //   are made (≤ SquadCover.PickTimeoutSeconds); a mover with no cover ahead keeps the straight move to the answer (walkable — S2-F)
@@ -244,6 +248,10 @@ namespace Hrot.AI.Behaviors.Brains
 
         public NodeStatus Outcome(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            // ⭐ CE-2496 — no enemy known any more (gone, or only neutrals — CE-2353): there is no contact left to break. (Before CE-2496 an open-ground
+            //   break contact failed into the hold, which ended on this; now it withdraws, so it must end on it itself.)
+            if (ws.ThreatId != 0 && !AnyEnemyKnown(in ctx)) return NodeStatus.Success;
+            if (AwayWhenNoAnswer(ref p, ref ws, in ctx)) return NodeStatus.Running;   // ⭐ CE-2496 — no hidden point is no reason to stay
             if (!SquadManeuverRunner.AnyLive(in ctx) || ws.HasAnswer == SquadManeuverRunner.NoAnswer) return NodeStatus.Failure;
             if (ws.HasAnswer != 1) return NodeStatus.Running;
             // ⭐⭐ CE-2465 (U2-4) — the contact IS broken: each element has bounded once and the squad is in a lull (no fire at it, no new contact
@@ -257,7 +265,50 @@ namespace Hrot.AI.Behaviors.Brains
                 var c = ctx.Centre(e, out bool any);
                 if (any && Flat(c - ws.Answer) > p.ArrivalRadius) return NodeStatus.Running;
             }
+            // ⭐⭐ CE-2496 (R-2145; 📐 of-squad-outmatched: one ~5 m bound to the retreat answer on open ground, then a hold in the machine guns' sight —
+            //   the ditch war) — at the point with a man STILL in an enemy's sight the contact is not broken: the point moves on, a search radius
+            //   further away from the enemy, and the bounds go on (at most MaxExtensions times — then the squad is far out of his reach)
+            if (ws.ThreatId != 0 && p.Extended < MaxExtensions && AnyInSight(in ctx))
+            {
+                // the NEXT hidden point, from here (the terrain is asked again); none ⇒ AwayWhenNoAnswer: the way it came. 📐 uf-corner-fight:
+                //   straight away from the corner led the squad on down the street, in the corner's sight — the cover is around the next corner
+                p.Extended++;
+                ws.HasAnswer = 0;
+                p.Cover = default;
+                return NodeStatus.Running;
+            }
             return NodeStatus.Success;
+        }
+
+        /// <summary>⭐ <c>CE-2496</c> — how many times a break contact pushes its point further away while a man is still in an enemy's sight there.</summary>
+        public const byte MaxExtensions = 4;
+
+        /// <summary>⭐ <c>CE-2496</c> (R-2145) — the terrain found NO hidden point (open ground behind the squad): instead of failing — and falling back to a
+        /// hold where it stands, in the enemy's sight — the point is a search radius straight AWAY from the enemy (the way it came). True when it set it.</summary>
+        private static bool AwayWhenNoAnswer(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (ws.HasAnswer != SquadManeuverRunner.NoAnswer || ws.ThreatId == 0 || !SquadManeuverRunner.AnyLive(in ctx)) return false;
+            Retarget(ref p, ref ws, in ctx);
+            return true;
+        }
+
+        private static void Retarget(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            ws.Answer = AwayFrom(in ctx, ws.ThreatPoint, p.RetreatSearchRadius);
+            ws.HasAnswer = 1;
+            p.Cover = default;   // the bounds pick their cover toward the new point
+            ws.Reissue = 1;
+        }
+
+        /// <summary>The squad's centre moved <paramref name="metres"/> straight away from <paramref name="threat"/> (flat).</summary>
+        internal static Vector3 AwayFrom(in SquadPlayContext ctx, Vector3 threat, float metres)
+        {
+            var a = ctx.Centre(0, out bool any0); var b = ctx.Centre(1, out bool any1);
+            var c = any0 && any1 ? (a + b) * 0.5f : any0 ? a : b;
+            var d = c - threat; d.Z = 0f;
+            float len = d.Length();
+            var dir = len > 1f ? d / len : new Vector3(-1f, 0f, 0f);
+            return c + dir * metres;
         }
 
         public bool PhaseComplete(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
@@ -317,6 +368,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float CreepMetres = 1.5f;
 
         /// <summary>⭐ <c>CE-2472</c> — a live man of the squad is in an enemy's sight (his own perception).</summary>
+        private static bool AnyEnemyKnown(in SquadPlayContext ctx)
+            => ctx.World.HasComponent<SquadCognitiveState>(ctx.Commander)
+               && SquadContacts.AnyEnemy(ctx.World, in ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander).Contacts);
+
         private static bool AnyInSight(in SquadPlayContext ctx)
         {
             for (int i = 0; i < ctx.Roster.Count; i++)
@@ -387,6 +442,9 @@ namespace Hrot.AI.Behaviors.Brains
         public byte AssaultStage;
         /// <summary>⭐ <c>CE-2466</c> R1 (S6) — the most enemy danger the pool showed during the reaction (what is remembered).</summary>
         public float PeakEnemy;
+        /// <summary>⭐ <c>CE-2495</c> (R-2146) — the pooled enemy danger when the choice was last scored: grown to <see cref="ReactToContactBehavior.GrowthRedecide"/>×
+        /// it, the choice is scored again.</summary>
+        public float DangerAtDecision;
         /// <summary>⭐ <c>CE-2466</c> R1 — 1 once the positions were learned at the decision to break contact (or hold).</summary>
         public byte Learned;
         /// <summary>⭐ <c>CE-2466</c> — 1 when the reaction ended by pressing on (CE-2454): no rally.</summary>
@@ -519,6 +577,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The care row's guard: <see cref="PressesTheAttack"/> false.</summary>
         public static bool NotPressingTheAttack(Entity self, EntityRepository world) => !PressesTheAttack(world, self);
 
+        /// <summary>⭐ <c>CE-2495</c> (R-2146; 📐 of-squad-outmatched: 6 men decided to assault on ONE man seen, then met twelve and two machine guns
+        /// and kept on) — the known enemy grown to this many times what the choice was scored on ⇒ it is scored again.</summary>
+        public const float GrowthRedecide = 2f;
+
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
 
@@ -575,6 +637,13 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        /// <summary>The choice was scored now: its time (CE-2152) and the enemy it was scored on (CE-2495).</summary>
+        private static void Decided(ref ReactToContactState ws, double now, Entity self, EntityRepository world)
+        {
+            ws.DecidedAt = (SimInstant)now;
+            ws.DangerAtDecision = Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(world, self);
+        }
+
         private static NodeStatus RunFight(ref ReactToContactParams p, ref ReactToContactState ws, Entity self, EntityRepository world)
         {
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
@@ -583,7 +652,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Next(ref ws, StageDrill, world);
                 ws.Choice = new UtilityChoice { Winner = (byte)SquadContactResponse.Rescue };
-                ws.DecidedAt = (SimInstant)now;
+                Decided(ref ws, now, self, world);
                 FreshCare(ref p);
             }
             // ⭐ CE-2125 (§7.2 L3) — the leader fell during the drill or the hold: the weaker squad holds and decides again.
@@ -599,6 +668,23 @@ namespace Hrot.AI.Behaviors.Brains
                 if (first != NodeStatus.Success) return first;            // Running, or nobody left to fight
                 Next(ref ws, StageDrill, world);
             }
+            // ⭐⭐ CE-2495 (R-2146) — RE-DECIDE when the enemy GROWS: a choice scored on one man seen is not the answer to the force behind him.
+            //   The same utility scores it again (the 3 : 1 / break-contact line is its own), Firm applies; a changed winner starts its drill.
+            if (ws.Stage == StageDrill && ws.Choice.Winner != 0 && (SquadContactResponse)ws.Choice.Winner != SquadContactResponse.Rescue
+                && ws.DangerAtDecision > 0f && Fdp.Toolkit.Utility.SquadInputs.EnemyDangerOf(world, self) >= ws.DangerAtDecision * GrowthRedecide)
+            {
+                byte was = ws.Choice.Winner;
+                var fresh = new UtilityChoice();
+                UtilityNodes.ChooseOptionOnce(ref p.Choose, ref fresh, self, world);
+                Firm(ref fresh, self, world);
+                Decided(ref ws, now, self, world);
+                if (fresh.Winner != 0 && fresh.Winner != was)
+                {
+                    Next(ref ws, StageDrill, world);
+                    ws.Choice = fresh;
+                    ws.AssaultStage = AssaultUndecided;
+                }
+            }
             // ⭐ CE-2152 C-c (R-2013) — RE-DECIDE while a man is down and not yet cared for: every RedecideSeconds and on each new
             //   SquadMemberDown. A changed winner starts its drill; the same winner keeps running (a drill is never restarted for nothing).
             if (ws.Stage != StageReturnFire && (SquadContactResponse)ws.Choice.Winner != SquadContactResponse.Rescue
@@ -613,7 +699,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (NothingToFight(world, self) || SquadSopConditions.InALull(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight, or a lull: bring him in
                 else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref fresh, self, world);
                 Firm(ref fresh, self, world);
-                ws.DecidedAt = (SimInstant)now;
+                Decided(ref ws, now, self, world);
                 if (fresh.Winner != 0 && fresh.Winner != was)
                 {
                     Next(ref ws, StageDrill, world);
@@ -628,7 +714,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (NothingToFight(world, self) && SquadCasualties.Count(world, self) > 0) ws.Choice.Winner = (byte)SquadContactResponse.Rescue;
                     else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref ws.Choice, self, world);
                     Firm(ref ws.Choice, self, world);
-                    ws.DecidedAt = (SimInstant)now;
+                    Decided(ref ws, now, self, world);
                     if ((SquadContactResponse)ws.Choice.Winner == SquadContactResponse.Rescue) FreshCare(ref p);
                 }
                 var drill = (SquadContactResponse)ws.Choice.Winner switch
@@ -652,7 +738,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (SquadCasualties.Count(world, self) == 0) return NodeStatus.Success;
                     Next(ref ws, StageDrill, world);
                     ws.Choice = new UtilityChoice { Winner = (byte)SquadContactResponse.Rescue };
-                    ws.DecidedAt = (SimInstant)now;
+                    Decided(ref ws, now, self, world);
                     FreshCare(ref p);
                     return NodeStatus.Running;
                 }
