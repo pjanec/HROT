@@ -306,7 +306,8 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
     // The tables the model reads (RulesModel.Build and the sentence texts): a write bumps the table's chunk version to the world's GlobalVersion, so "changed since the last build" is HasChanges(that GlobalVersion).
     private static readonly Type[] KeyTables =
     {
-        typeof(ObjectiveStatus), typeof(ObjectiveLinks), typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity),
+        typeof(ObjectiveStatus), typeof(ObjectiveLinks), typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), typeof(Fdp.Toolkit.Behavior.Components.UnitIntent),   // ⭐ CE-3494 — an authored rule is its intent
+        typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity),
         typeof(Fdp.Core.EntityInfo), typeof(Fdp.Toolkit.Scenario.MacroOrigin), typeof(Fdp.Toolkit.Scenario.MacroInstance),
     };
     private bool _keyValid;

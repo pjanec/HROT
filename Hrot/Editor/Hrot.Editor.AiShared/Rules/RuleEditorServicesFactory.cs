@@ -118,7 +118,12 @@ public static class RuleEditorServicesFactory
             CreateRule: (tkb, kind, json) =>
             {
                 if (host.EntityCreation?.Invoke() is not { } creation) return false;
-                creation.RequestEntityCreation(tkb, initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 } });
+                // ⭐⭐ CE-3494 (S4, Rules View §8.3) — a new rule is AUTHORED: its UnitIntent (saved, shown pending, started when time advances).
+                //   ⛔ SUPERSEDED: a bare BehaviorStartRecord — it looked authored but nothing ever started it.
+                creation.RequestEntityCreation(tkb, initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.UnitIntent
+                {
+                    Behavior = new Fdp.Toolkit.Behavior.Components.IntentSlot { Name = kind, Params = json, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior },
+                } });
                 return true;
             },
             SeatRefusal: () => SeatRefusal(host.Seat()));
