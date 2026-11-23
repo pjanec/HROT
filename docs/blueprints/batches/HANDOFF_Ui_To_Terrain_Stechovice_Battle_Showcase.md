@@ -33,14 +33,16 @@ corner (`terrain.json` `frame.corner`). The generator keeps input-local metres a
 
 | # | blocker | state |
 |---|---|---|
-| 1 | the load failed after 30 s: the navmesh stage (34 s here) reported no progress (`DirectorRunner.LoadStallSeconds`) | ⏳ `ui` worker: the navmesh stage now reports progress — lands on `ui` shortly |
-| 2 | every scenario-regression run re-imported the terrain into its private staging root | ⏳ same `ui` batch: the first-use import targets the shared content root |
-| 3 | stepping ~0.3 sim s per 30 wall s — `RoadGraphRouter.Route` and `VehicleFootprint.Solid` scan the whole world | ⏳ **yours** (the router / cover handoff) |
+| 1 | the load failed after 30 s: the navmesh stage (34 s here) reported no progress (`DirectorRunner.LoadStallSeconds`) | ✅ `ui` `743de9e49` (CE-11038): the navmesh stage reports progress; a real Stechovice load passes it |
+| 2 | every scenario-regression run re-imported the terrain into its private staging root | ✅ `ui` `743de9e49` (CE-11039): the import goes to the dev checkout's `assets/terrain` (else the NAS), once per machine |
+| 3 | stepping ~0.3 sim s per 30 wall s — `RoadGraphRouter.Route` and `VehicleFootprint.Solid` scan the whole world | ✅ yours, `terrain` `e9a48cd67` / `074f8d763` (CE-5043 / CE-5044) |
+| 4 | **the first-use import itself reports no progress** (~6 min on 4 cores, on the frame thread): a load that TRIGGERS the import fails the 30 s stall check though the import completes; the next run is fine | ⏳ **CE-11040, yours if you take it**: forward the importer's `IProgress<ImportProgress>` into `LoadProgress.ReportDetail`, as CE-11038 does for the navmesh. Until then pre-import once (`Hrot.Tools.TerrainImport`, or one run that is allowed to fail) |
 | 3a | every soldier's move also priced a road route | ✅ `ui` `09504a447`: R-11018 — soldiers go `NavmeshFirst` by default |
 
 ## 3. What is left — yours
 
-1. **Run it** (after 1–3): Preview → `POST /sim/run-to`, or `scripts/scenario-regression.sh` once `checks.json` exists. Measure the wall
+0. **Merge `ui`** (at or after `743de9e49`) — it carries CE-11038/11039, R-11018 and this scenario.
+1. **Run it**: Preview → `POST /sim/run-to`, or `scripts/scenario-regression.sh` once `checks.json` exists. Measure the wall
    time of a full run; keep the sim length to a few minutes.
 2. **Behaviour findings from the partial realtime runs** (~14 sim min, before the fixes) — check each again, fix or adjust the scenario:
    - the riverbank platoons were never seen to fire at each other (they see each other in the LOS model) — confirm they engage;
