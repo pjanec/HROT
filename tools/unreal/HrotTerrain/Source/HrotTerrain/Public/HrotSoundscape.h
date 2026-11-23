@@ -149,4 +149,9 @@ private:
 	struct FLoop { TWeakObjectPtr<UAudioComponent> C; bool bSeen = false; };
 	TMap<TWeakObjectPtr<UObject>, FLoop> Loops;
 	static EEngine EngineOf(const AHrotVehicle* V);
+	static EEngine EngineOfKit(const FString& KitName);
+public:
+	/** U-19h 20: the engine class a kit name gets (Helicopter / Propeller / Jet / Tracked ...), for a rail */
+	static const TCHAR* EngineName(const FString& KitName);
+private:
 };

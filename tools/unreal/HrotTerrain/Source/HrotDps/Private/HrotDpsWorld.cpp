@@ -1232,7 +1232,7 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	{
 		const float Native = L.Stance == HrotDpsPeople::Prone ? K->CrawlSpeed : L.Stance == HrotDpsPeople::Crouched ? K->CrouchSpeed
 		                   : L.Gait == HrotDpsPeople::EGait::Run ? K->RunSpeed : K->WalkSpeed;
-		Rate = FMath::Clamp(In.Speed / FMath::Max(Native, 0.1f), 0.6f, 1.8f);
+		Rate = HrotDpsPeople::GaitRate(In.Speed, Native);
 	}
 	St->PlayRate = Rate * float(Clock.GetScale());
 	St->UpperAnim = L.Upper.IsNone() ? nullptr : K->Clip(L.Upper);
@@ -1583,6 +1583,14 @@ void UHrotDpsWorld::DefaultLife()
 	AddDis(TEXT("1.1.225.6"), TEXT("DA_FR_VBL_Green"));       // HMMWV (was the armoured truck)
 	AddDis(TEXT("1.1.225.6.9"), TEXT("DA_FR_Serval_Green"));  // HMMWV drone jammer
 	AddDis(TEXT("1.1.222"), TEXT("DA_BTR60"));                // any other Russian ground vehicle
+	// U-19h 20: HROT's AIRCRAFT (NedTkbCatalog) on the pack's air kits - the pack has no exact model for most, so a stand-in each:
+	AddDis(TEXT("1.2.225.20"), TEXT("DA_Air_Apache"));        // AH-64 Apache
+	AddDis(TEXT("1.2.225.2"), TEXT("DA_Air_F16"));            // A-10: no A-10 in the pack, the closest US jet
+	AddDis(TEXT("1.2.225.1"), TEXT("DA_Air_F16"));            // F-16
+	AddDis(TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon"));        // MiG-29: the twin-tail stand-in
+	AddDis(TEXT("1.2.225.4"), TEXT("DA_Air_AC130"));          // C-130
+	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_OH1"));           // UH-60: no Black Hawk, a helicopter stand-in
+	if (!KitsByDomain.Contains(TEXT("Air"))) KitsByDomain.Add(TEXT("Air"), Kit(TEXT("DA_Air_F16")));   // any other aircraft
 	if (CarKits.Num() == 0)
 		for (const TCHAR* N : { TEXT("DA_City_vehicle02_Car"), TEXT("DA_City_vehicle03_Car"), TEXT("DA_City_vehicle05_Car"), TEXT("DA_City_vehicle06_Car") })
 			CarKits.Add(Kit(N));

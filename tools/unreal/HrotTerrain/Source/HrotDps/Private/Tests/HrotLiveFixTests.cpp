@@ -6,6 +6,8 @@
 #include "Misc/Paths.h"
 #include "HrotDpsCamera.h"
 #include "HrotDpsTrafficKit.h"
+#include "HrotDpsWorld.h"
+#include "HrotVehicle.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -100,6 +102,33 @@ bool FHrotLiveFixPreloadTest::RunTest(const FString&)
 	TestTrue(TEXT("loads sounds"), N > 0);
 	TestEqual(TEXT("one-shot: a second call finds everything cached"), Snd->PreloadAll(), 0);
 	if (N > 0) TestNotNull(TEXT("a set picks from the cache"), Snd->Pick(TEXT("wpn/rifle")));
+	return true;
+}
+// U-19h 20: aircraft are drawn (a kit per HROT aircraft DIS + an Air fallback) and sound (the engine class of each kit)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotLiveFixAircraftTest, "Hrot.Dps.LiveFix.Aircraft", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotLiveFixAircraftTest::RunTest(const FString&)
+{
+	UHrotDpsWorld* W = NewObject<UHrotDpsWorld>(GetTransientPackage());
+	W->DefaultLife();
+	const TMap<FString, FString> Want = { { TEXT("1.2.225.20"), TEXT("DA_Air_Apache") }, { TEXT("1.2.225.2"), TEXT("DA_Air_F16") }, { TEXT("1.2.225.1"), TEXT("DA_Air_F16") },
+		{ TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon") }, { TEXT("1.2.225.4"), TEXT("DA_Air_AC130") }, { TEXT("1.2.225.21"), TEXT("DA_Air_OH1") } };
+	for (const TPair<FString, FString>& P : Want)
+	{
+		const TSoftObjectPtr<UHrotVehicleKit>* K = W->KitsByDis.Find(P.Key);
+		if (!TestNotNull(*FString::Printf(TEXT("DIS %s has a kit"), *P.Key), K)) continue;
+		TestTrue(*FString::Printf(TEXT("DIS %s -> %s"), *P.Key, *P.Value), K->ToSoftObjectPath().GetAssetName() == P.Value);
+		if (FPaths::FileExists(FPaths::ProjectContentDir() / TEXT("Hrot/Vehicles") / (P.Value + TEXT(".uasset"))))
+			TestNotNull(*FString::Printf(TEXT("%s loads as a vehicle kit"), *P.Value), K->LoadSynchronous());
+	}
+	const TSoftObjectPtr<UHrotVehicleKit>* Air = W->KitsByDomain.Find(TEXT("Air"));
+	TestTrue(TEXT("any other aircraft: the F-16 kit"), Air && Air->ToSoftObjectPath().GetAssetName() == TEXT("DA_Air_F16"));
+	// the engine voice by kit: rotors, a prop, jets
+	TestEqual(TEXT("Apache: rotor"), FString(UHrotSoundscape::EngineName(TEXT("DA_Air_Apache"))), FString(TEXT("Helicopter")));
+	TestEqual(TEXT("OH1: rotor"), FString(UHrotSoundscape::EngineName(TEXT("DA_Air_OH1"))), FString(TEXT("Helicopter")));
+	TestEqual(TEXT("AC130: prop"), FString(UHrotSoundscape::EngineName(TEXT("DA_Air_AC130"))), FString(TEXT("Propeller")));
+	TestEqual(TEXT("F16: jet"), FString(UHrotSoundscape::EngineName(TEXT("DA_Air_F16"))), FString(TEXT("Jet")));
+	TestEqual(TEXT("Typhoon: jet"), FString(UHrotSoundscape::EngineName(TEXT("DA_Air_Typhoon"))), FString(TEXT("Jet")));
+	TestEqual(TEXT("a Leclerc is still a tracked vehicle"), FString(UHrotSoundscape::EngineName(TEXT("DA_FR_Leclerc"))), FString(TEXT("Tracked")));
 	return true;
 }
 #endif

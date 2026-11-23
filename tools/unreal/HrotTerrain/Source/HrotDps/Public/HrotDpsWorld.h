@@ -119,6 +119,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") bool Start(int32 Domain, const FString& Partition);
 	/** U-19h: hides the components a kit names (its body's own gun) */
 	static void HideKitComponents(AActor* A, const UHrotPersonKit* K);
+	/** the default kit tables (animals, ground and AIR DIS kits, the domain fallbacks) where the job gave none; idempotent (a rail reads them) */
+	void DefaultLife();
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void Stop();
 
 	// ── read back (tests, a HUD) ──
@@ -462,7 +464,6 @@ private:
 	void OnGroundMarks(const struct FHrotDpsSample& S);
 	void OnMover(const struct FHrotDpsSample& S);
 	void OnMoverTracks(const struct FHrotDpsSample& S);
-	void DefaultLife();
 	void PreloadPeopleAndSounds();
 	bool IsCrowdKit(const UHrotPersonKit* K) const;
 	/** how many times each body Blueprint is built at join to collect its random outfit parts (U-19h 15) */
