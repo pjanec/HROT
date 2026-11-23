@@ -346,6 +346,24 @@ intent rows share one control x; the status slot is fixed); glyphs and colours a
 | `GlobalComponentIds.UnitIntent` | the id constant keeps its catalogue name `InitialBrainIntent` (316) | the Roslyn rename of the constant applied nothing; one attribute reads it — left, commented |
 | `EntityAiEditModel` through `UnitIntentWriter` | the model writes the record itself (`Author` / `SetIntent`); no separate writer class yet | the editor is the only authored writer besides the load; a shared writer comes with S3/S4 if a second appears |
 
+### 8c. As built — S2 and S3 (part) *(`2026-11-23`)*
+
+| design said | built | why |
+|---|---|---|
+| `IIntentClearProvider` renamed `IIntentHoldProvider` | the name is KEPT; `ClearFor` now holds (documented on the method) | a rename is cosmetic; the wire flag `ClearsPriorIntent` keeps its name too (a wire rename regenerates IDL for every node) |
+| a save keeps the hold (§4 save / load row) | ⛔ **a save is a STARTING state**: a held plan saves as the plan (it reloads from task 0); the operator's order is not saved | progress is not saved either (Sensors §7.5) — saving only the hold would be inconsistent. A checkpoint / recording keeps the hold (`MissionPlanQueue` is recorded) |
+| the journal line when the order ends while held | not built yet | S3 rest |
+| the notice computed by the knowing node (rulings 55 / 56) | the Orders tab reads the plan's own `Halted` on the brain node (the editor is the brain node); a station elsewhere is CE-3498 | — |
+
+### 8d. Evidence *(`2026-11-23`, the real product over HTTP — `--mode editor --headless`)*
+
+| check | result |
+|---|---|
+| **an order while paused** — `ua-posture` loaded LIVE (paused, t = 0); `POST /entities/1000/order {kind:hold}` | the unit ran NOTHING while paused (read 3×; the loaded intent too); **step 1** ⇒ the scenario's intent (`CombatPosture`, Superior); **step 2** ⇒ the order (`PersonHold`, Operator) — R1, R4, §3.1's two hops |
+| **the hold** — `ua-attack-approach`, the Hidden Hostile on its plan (`MoveToLocation`); ordered Hold | `MissionPlanQueue.Halted = 2`, the task's timer frozen at 0.067 s over 230 steps, the order running; `POST /missions/1001/resume` ⇒ `Halted 0` at once, the order ended the next step, `MoveToLocation` (Superior) the step after — R5, R6 |
+| **no file change** — load (edit) + save of `bw-crossbow`, `ua-posture`, `agg-platoon-duel`, `llm-platoon-attack` | every unit's `Behavior` / `Sop` / `Roe` identical to the original for three; `bw-crossbow`'s two differences (the ROE's default fields, the target's `{NetworkId, Ref}` form) are written **identically by the pre-S1 build** (`5f7e6e485`, same load + save). ⭐ The pre-S1 save ALSO wrote five empty `BlueprintAssignments` the post-S1 save does not: the AI used to start on a paused frame in edit mode and leave state in the saved file |
+| **the scenario sample** — `scripts/scenario-regression.sh` (stepped, judged by checks) on `bw-crossbow`, `an-rabbit-bolts`, `ua-posture`, `ac-attack-evades`, `agg-platoon-duel`, `bt-doors`, `llm-platoon-attack` | **6 / 7 pass**; `ac-attack-evades` fails its *"the truck is destroyed after the defence"* check **identically on the ui lane without S1** (`c8c66cd5d`) — pre-existing (the air lane's CE-10002, *"scenarios partly green"*) |
+
 ## 9. Independent review — findings and what changed *(`2026-11-22`, a fresh reviewer reading the code, not this design's reasoning)*
 
 | # | finding (verified against code) | sev | ⇒ change |

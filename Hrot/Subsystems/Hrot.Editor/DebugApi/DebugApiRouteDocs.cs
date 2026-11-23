@@ -3369,7 +3369,7 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/order")] = new RouteDoc(
             Tool:    "order_entity",
             Group:   "Z — Entity control (orders)",
-            Summary: "Order a unit, as an operator: move to a point, attack an enemy, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner).",
+            Summary: "Order a unit, as an operator: move to a point, attack an enemy, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and HOLDS its mission plan (progress kept — POST /missions/{id}/resume restarts the held task, CE-3494); it takes effect only when time advances (an order given while paused waits); works from any node (forwarded to the unit's brain owner).",
             Returns: "{ networkId, accepted:true, detail, behavior?, params?, note } — 404 unknown unit, 409 killed / other side (side lock), 400 malformed.",
             Hint:    "Req: networkId, kind. Move: {kind:'move', x,y} local metres, or lat,lon on a node with a geographic frame (+ speed, arrivalRadius, roadUse). A move whose params would not parse is refused (400), never answered ok. Attack: {kind:'attack', targetId}. Any behaviour: {kind:'behavior', behavior, params} — discover with list_behaviors({entityId}). Then poll get_entity_order. Example: order_entity({networkId:1000, kind:'move', x:120, y:-40})",
             Params: new RouteParam[]
