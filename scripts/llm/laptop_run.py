@@ -88,7 +88,8 @@ def summarize(model, out, code, wall):
             r = json.load(open(report, encoding="utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
             continue
-        verdicts = r.get("verdicts") if isinstance(r, dict) else None
+        scenarios = r.get("scenarios") if isinstance(r, dict) else None
+        verdicts = scenarios[0].get("verdicts") if isinstance(scenarios, list) and scenarios else None
         if isinstance(verdicts, list):
             s["checksTotal"] = len(verdicts)
             s["checksSkipped"] = sum(1 for v in verdicts if v.get("kind") == "skipped")

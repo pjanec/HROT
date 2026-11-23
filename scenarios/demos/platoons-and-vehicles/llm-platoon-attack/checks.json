@@ -20,7 +20,8 @@
       "who": "Platoon",
       "path": "CommanderSeat.Mind",
       "op": "==",
-      "value": "Scripted"
+      "value": "Scripted",
+      "for": 1
     }
   },
   "expect": [
