@@ -116,6 +116,12 @@ namespace Hrot.Editor.Director
         public string Who { get; init; } = "";
         public string Component { get; init; } = "";
         public JsonObject Patch { get; init; } = new();
+        /// <summary>⭐ CE-3494 F3 — an OPERATOR ORDER instead of a component patch: a <c>POST /orders</c> item (<c>kind</c>, <c>behavior</c>, <c>params</c> …)
+        /// given to every unit <see cref="Who"/> names, through the same service the route uses. The verifier applies actions between steps, so the
+        /// order is given while the world is paused — it takes effect at the next step (DESIGN_Unit_Intent.md R1).</summary>
+        public JsonObject? Order { get; init; }
+        /// <summary>⭐ CE-3494 F3 — resume the unit's held (or halted) mission plan — the <c>POST /missions/{id}/resume</c> service.</summary>
+        public bool Resume { get; init; }
     }
 
     /// <summary>⭐ <c>CE-4042</c> — <c>scenarios/&lt;s&gt;/checks.json</c>: what a scenario must do, as data (§3).</summary>
@@ -186,11 +192,29 @@ namespace Hrot.Editor.Director
                     var where = $"do[{i}]";
                     if (da[i] is not JsonObject a) { problems.Add($"{where} is not an object"); continue; }
                     foreach (var (k, _) in a)
-                        if (k is not ("name" or "at" or "set")) problems.Add($"{where}: unknown key '{k}'");
-                    if (a["set"] is not JsonObject set || set["who"] is null || set["component"] is null || set["patch"] is not JsonObject patch)
-                    { problems.Add($"{where}: set is {{who, component, patch}}"); continue; }
+                        if (k is not ("name" or "at" or "set" or "order" or "resume")) problems.Add($"{where}: unknown key '{k}'");
+                    int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1);
+                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume"); continue; }
                     var at = Time(a["at"], where + " at", problems);
                     if (at is null) { problems.Add($"{where}: at is required"); continue; }
+                    if (a["order"] is not null)
+                    {
+                        if (a["order"] is not JsonObject ord || ord["who"] is null || ord["kind"] is null)
+                        { problems.Add($"{where}: order is {{who, kind, …}} — a POST /orders item"); continue; }
+                        var item = (JsonObject)ord.DeepClone();
+                        item.Remove("who");
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = ord["who"]!.ToString(), Order = item });
+                        continue;
+                    }
+                    if (a["resume"] is not null)
+                    {
+                        if (a["resume"] is not JsonValue rv || !rv.TryGetValue<string>(out var rwho) || rwho.Length == 0)
+                        { problems.Add($"{where}: resume is the unit's name"); continue; }
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = rwho, Resume = true });
+                        continue;
+                    }
+                    if (a["set"] is not JsonObject set || set["who"] is null || set["component"] is null || set["patch"] is not JsonObject patch)
+                    { problems.Add($"{where}: set is {{who, component, patch}}"); continue; }
                     actions.Add(new CheckAction
                     {
                         Name = a["name"]?.ToString(), At = at.Value, Who = set["who"]!.ToString(), Component = set["component"]!.ToString(),

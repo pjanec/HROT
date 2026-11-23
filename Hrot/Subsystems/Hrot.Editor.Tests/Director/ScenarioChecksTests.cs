@@ -240,6 +240,32 @@ public sealed class ScenarioChecksTests
         Assert.Contains(bad, p => p.Contains("men is an integer >= 2", StringComparison.Ordinal));
     }
 
+    /// <summary>⭐ CE-3494 F3 (DESIGN_Unit_Intent.md R1, R5) — <c>do</c> carries an operator order (a <c>POST /orders</c> item) and a plan
+    /// resume; each lands through the world's own order / resume service at its time, by name, with its time recorded. 🔴 Red-proof: the
+    /// order branch removed from <c>ApplyDue</c> ⇒ no order call.</summary>
+    [Fact]
+    public void CE3494_ADoGivesAnOrderAndResumesAPlan_ThroughTheWorldsServices()
+    {
+        var c = Parse("""{"runFor":10,"do":[
+            {"name":"ordered","at":2,"order":{"who":"Tank","kind":"behavior","behavior":"MoveToLocation","params":{"speed":5}}},
+            {"name":"resumed","at":5,"resume":"Tank"}],"expect":[]}""", out var problems);
+        Assert.Empty(problems);
+        Assert.Null(c.Do[0].Order!["who"]);                                    // the item the route takes: no "who"
+        var w = new FakeWorld().Unit("Tank", 7, 100, 0);
+        var v = new ScenarioVerification(c, null, false, w, 0);
+        v.ApplyDue(1);
+        Assert.Empty(w.Calls);
+        v.ApplyDue(2);
+        Assert.Equal(new[] { "order 7 {\"kind\":\"behavior\",\"behavior\":\"MoveToLocation\",\"params\":{\"speed\":5}}" }, w.Calls);
+        v.ApplyDue(5);
+        Assert.Equal("resume 7", w.Calls[^1]);
+        Assert.Empty(v.ActionProblems);
+        Assert.Equal(2, v.Book.TimeOf(new AtExpr(0, "ordered")));
+        Parse("""{"runFor":1,"do":[{"at":1,"order":{"who":"Tank","kind":"x"},"resume":"Tank"},{"at":1,"order":{"kind":"x"}}]}""", out var bad);
+        Assert.Contains(bad, p => p.Contains("exactly one of set, order, resume", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("order is {who, kind", StringComparison.Ordinal));
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);
@@ -267,6 +293,9 @@ public sealed class ScenarioChecksTests
         public readonly JsonArray ReportRows = new();
         public JsonArray Reports() => (JsonArray)ReportRows.DeepClone();
         public string? SetComponent(int networkId, string component, JsonObject patch) => null;
+        public readonly List<string> Calls = new();
+        public string? Order(int networkId, JsonObject order) { Calls.Add($"order {networkId} {order.ToJsonString()}"); return null; }
+        public string? ResumePlan(int networkId) { Calls.Add($"resume {networkId}"); return null; }
 
         public FakeWorld Unit(string name, int id, double health, double x)
         {

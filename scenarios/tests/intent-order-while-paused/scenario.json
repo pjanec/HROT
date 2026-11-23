@@ -1,0 +1,154 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "terrainName": "berlin",
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "description": "What: CE-3494 (docs/DESIGN_Unit_Intent.md R1) \u2014 an operator order given between steps takes effect at the NEXT step, never on the frame it was given. One friendly M2 Bradley IFV with no mission stands at (368,296) on flat Berlin; at 2 s the checks give it the order MoveToLocation to (489,296) at 5 m/s. The verifier applies an action between steps, i.e. on a paused frame. Judge: (1) nothing moves and no task runs before the order, (2) MoveToLocation is running within 0.1 s (a step or two) of the order, (3) the Bradley stops within 6 m of (489,296). Fail: the order runs on the frame it was given, is lost, or never arrives. Check: checks.json"
+  },
+  "entities": {
+    "3702ba5f-04ea-40e0-b1ee-893931426e75": {
+      "TargetMemory": {
+        "Entries": []
+      },
+      "SimTransform": {
+        "Position": [
+          368,
+          296,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 6.55,
+        "Width": 3.6,
+        "WheelBase": 3.9300003,
+        "MaxSpeedFwd": 18,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 3,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.34906584,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 300,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 2500
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCI--------",
+        "ModelPath": "models/bradley.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "M2 Bradley IFV",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 2500,
+        "VisionRange": 5000,
+        "FieldOfViewCos": 0
+      }
+    }
+  }
+}

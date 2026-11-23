@@ -672,7 +672,7 @@ namespace Hrot.Editor.DebugApi
                 new("runFor", "number", false, "Sim seconds the run lasts (default 60)"),
                 new("golden", null, false, "{every: seconds} — compare with a golden; false — conditions only (a demo)"),
                 new("anchors", "object", false, "Named cues other times refer to"),
-                new("do", "array", false, "Changes made during the run: [{name?, at, set:{who, component, patch}}]"),
+                new("do", "array", false, "Changes made during the run: [{name?, at, set:{who, component, patch}}] · an operator order [{at, order:{who, kind, …a POST /orders item}}] · resume a held plan [{at, resume: who}]"),
                 new("sampleEvery", "number", false, "Sim seconds between reads of the world (default 0.25)"),
             },
             ExampleArgsJson: "{\"scenario\":\"ua-tank-ammo\",\"runFor\":60,\"expect\":[{\"name\":\"fires\",\"on\":\"shot\",\"by\":\"Tank\"}]}",

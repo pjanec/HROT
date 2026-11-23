@@ -52,6 +52,12 @@ namespace Hrot.Editor.Director
 
         /// <summary>Patches one component; null when written, else why not.</summary>
         string? SetComponent(int networkId, string component, JsonObject patch);
+
+        /// <summary>⭐ CE-3494 F3 — gives the unit an operator order (a <c>POST /orders</c> item, no <c>networkId</c>); null when accepted, else why not.</summary>
+        string? Order(int networkId, JsonObject order) => "this host gives no orders";
+
+        /// <summary>⭐ CE-3494 F3 — resumes the unit's held mission plan (<c>POST /missions/{id}/resume</c>); null when sent, else why not.</summary>
+        string? ResumePlan(int networkId) => "this host resumes no plans";
     }
 
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
@@ -1330,7 +1336,13 @@ namespace Hrot.Editor.Director
                                     .Select(x => x.Id).Distinct().ToList();
                 if (ids.Count == 0) ActionProblems.Add($"do at {rel:0.###} s: no unit '{a.Who}'");
                 foreach (var id in ids)
-                    if (_w.SetComponent(id, a.Component, a.Patch) is { } why) ActionProblems.Add($"do at {rel:0.###} s: {a.Who}.{a.Component}: {why}");
+                {
+                    string? why = a.Order is { } order ? _w.Order(id, order)
+                                : a.Resume ? _w.ResumePlan(id)
+                                : _w.SetComponent(id, a.Component, a.Patch);
+                    string what = a.Order != null ? "order" : a.Resume ? "resume" : a.Component;
+                    if (why != null) ActionProblems.Add($"do at {rel:0.###} s: {a.Who}.{what}: {why}");
+                }
                 if (a.Name != null) _book.Record(a.Name, rel);
             }
         }
