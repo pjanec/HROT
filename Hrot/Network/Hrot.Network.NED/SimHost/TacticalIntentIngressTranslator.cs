@@ -68,7 +68,7 @@ namespace Hrot.Network.NED.SimHost
                 if (!sample.IsValid) continue;
                 ReceivedSampleCount++;
                 var data = sample.Data;
-                ProcessSample(in data, repo);
+                ProcessSample(in data, repo, cmd);
             }
         }
 
@@ -76,7 +76,7 @@ namespace Hrot.Network.NED.SimHost
         /// Processes a single <see cref="TacticalIntentRequest"/> sample.
         /// Exposed as <c>internal</c> so unit tests can inject samples without a live DDS stack.
         /// </summary>
-        internal void ProcessSample(in TacticalIntentRequest request, EntityRepository repo)
+        internal void ProcessSample(in TacticalIntentRequest request, EntityRepository repo, IEntityCommandBuffer? cmd = null)
         {
             if (!_entityMap.TryGetEntity(request.TargetEntityId, out var entity)) return;
 
@@ -89,7 +89,7 @@ namespace Hrot.Network.NED.SimHost
                     && RoeDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var roe))
                 {
                     // ⭐ CE-3494 §10 (R-3119) — a PERSON's ROE is the unit's intent on this, its brain's node
-                    if (IsPersons(repo, entity, origin)) Fdp.Toolkit.Behavior.UnitIntents.RequestRoe(repo, in roe);
+                    if (IsPersons(repo, entity, origin)) Fdp.Toolkit.Behavior.UnitIntents.RequestRoe(repo, in roe, cmd);
                     else repo.Bus.Publish(roe);
                     return;
                 }
@@ -117,9 +117,9 @@ namespace Hrot.Network.NED.SimHost
             if (IsPersons(repo, entity, by))
             {
                 if ((TacticalIntentKind)request.Kind == TacticalIntentKind.Clear)
-                    Fdp.Toolkit.Behavior.UnitIntents.RequestClear(repo, entity, by, request.RequestId);
+                    Fdp.Toolkit.Behavior.UnitIntents.RequestClear(repo, entity, by, request.RequestId, cmd);
                 else
-                    Fdp.Toolkit.Behavior.UnitIntents.RequestTask(repo, entity, request.IntentId ?? string.Empty, request.JsonParams, by, request.RequestId);
+                    Fdp.Toolkit.Behavior.UnitIntents.RequestTask(repo, entity, request.IntentId ?? string.Empty, request.JsonParams, by, request.RequestId, cmd);   // ⭐ through the host's command buffer: an ingress may not write the world directly
                 return;
             }
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
