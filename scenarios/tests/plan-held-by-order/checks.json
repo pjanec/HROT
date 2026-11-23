@@ -38,7 +38,7 @@
       "op": "==",
       "value": 2,
       "after": "ordered",
-      "before": "ordered+0.2"
+      "before": "ordered+0.3"
     },
     {
       "name": "the plan stays held until Resume",
@@ -49,7 +49,7 @@
         "op": "!=",
         "value": 2
       },
-      "after": "ordered+0.2",
+      "after": "ordered+0.3",
       "before": "resumed"
     },
     {
@@ -84,7 +84,7 @@
       "op": "==",
       "value": 0,
       "after": "resumed",
-      "before": "resumed+0.2"
+      "before": "resumed+0.3"
     },
     {
       "name": "the plan's task takes it to (489,296)",

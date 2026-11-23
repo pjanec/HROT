@@ -1,6 +1,7 @@
 {
   "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u00b7 docs/DESIGN_Unit_Intent.md R1 (CE-3494 F3) \u2014 an order given between steps (a paused frame) takes effect at the next step.",
   "runFor": 32,
+  "sampleEvery": 0.02,
   "golden": {
     "every": 5
   },
@@ -51,7 +52,7 @@
       "who": "M2 Bradley IFV",
       "is": "MoveToLocation",
       "after": "ordered",
-      "before": "ordered+0.1"
+      "before": "ordered+0.05"
     },
     {
       "name": "it stops within 6 m of (489,296)",
