@@ -178,7 +178,10 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
             {
                 ["kind"] = "verdict", ["seq"] = a.MadeOnSeq, ["t"] = CommanderFeedSystem.Round(now), ["state"] = "stale", ["cycle"] = d.Cycle, ["newest"] = latest,
             });
-            seat.Channel.Publish(FeedKind.OrderState, now, true,
+            // ⛔ NOT a wake: the newer news it was stale against is already waiting and re-asks the model. 📌 Measured on the first L-3c relay run: as a
+            //   wake, each refusal arrived while the model answered the newer news, made THAT decision stale too, and the seat refused 15 in a row
+            //   with the clock held at 00:00:36
+            seat.Channel.Publish(FeedKind.OrderState, now, false,
                 $"{CommanderFeedSystem.Clock(now)} DECISION for cycle {d.Cycle} REFUSED — newer news came since (cycle {latest}): decide again on this briefing",
                 new JsonObject { ["kind"] = "order-state", ["state"] = "stale", ["cycle"] = d.Cycle, ["newest"] = latest }.ToJsonString());
             return;

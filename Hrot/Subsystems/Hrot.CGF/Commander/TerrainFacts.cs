@@ -20,8 +20,8 @@ public static class TerrainFacts
 {
     /// <summary>An eye (a soldier standing) and what he looks at (a man's chest) above the ground (m).</summary>
     public const float EyeHeight = 1.7f, AimHeight = 1.0f;
-    /// <summary>A place is looked at and looked from at its centre and four points this far around it — a place is an area (the sheds), not a pixel.</summary>
-    public const float RingMetres = 6f;
+    /// <summary>A building place (its centre inside a solid) is looked at from the first standable point out from it, stepping this far, up to this far (m).</summary>
+    public const float StepMetres = 2f, SearchMetres = 24f;
     /// <summary>Cover points within this of a place count for it (m): ≥ 4 covered, 1–3 partial, 0 open.</summary>
     public const float CoverRadius = 15f;
     /// <summary>A vehicle reaches a place when the vehicle navmesh lies within this of it (m).</summary>
@@ -54,17 +54,18 @@ public static class TerrainFacts
         var facts = new Dictionary<string, string>(StringComparer.Ordinal);
         if (places.Count == 0 || (sight == null && nav == null && cover == null)) return facts;
 
-        // the points of each place a man can stand on: its centre and a ring (the centre of a building is inside it)
+        // where a man stands AT each place: a spot he can stand on is the place itself (⛔ never a ring around it — 📌 the first build sampled a 6 m
+        //   ring and read the objective, behind the Low Wall, as "seen from the house" through a ring point in front of the wall); a building's
+        //   centre is inside it ⇒ the nearest standable points around its walls, in eight directions
         var samples = new List<Vector3>[places.Count];
         for (int i = 0; i < places.Count; i++)
         {
-            samples[i] = new List<Vector3>(5);
+            samples[i] = new List<Vector3>(8);
             var c = places[i].At;
-            foreach (var d in Ring)
-            {
-                var p = c + d * RingMetres;
-                if (ground(p) is { } z) samples[i].Add(new Vector3(p, z));
-            }
+            if (ground(c) is { } cz) { samples[i].Add(new Vector3(c, cz)); continue; }
+            foreach (var d in Around)
+                for (float r = StepMetres; r <= SearchMetres; r += StepMetres)
+                    if (ground(c + d * r) is { } z) { samples[i].Add(new Vector3(c + d * r, z)); break; }
         }
 
         var coverBuf = new CoverPoint[64];
@@ -109,7 +110,11 @@ public static class TerrainFacts
         return facts;
     }
 
-    private static readonly Vector2[] Ring = { Vector2.Zero, Vector2.UnitX, -Vector2.UnitX, Vector2.UnitY, -Vector2.UnitY };
+    private static readonly Vector2[] Around =
+    {
+        Vector2.UnitX, -Vector2.UnitX, Vector2.UnitY, -Vector2.UnitY,
+        Vector2.Normalize(new Vector2(1, 1)), Vector2.Normalize(new Vector2(1, -1)), Vector2.Normalize(new Vector2(-1, 1)), Vector2.Normalize(new Vector2(-1, -1)),
+    };
 
     private static StringBuilder Clause(StringBuilder sb) => sb.Length > 0 ? sb.Append(" · ") : sb;
 

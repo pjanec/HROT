@@ -219,21 +219,39 @@ namespace Hrot.SimHost.Tests
         // ── C-3 — the cycle echo and the model's own pace ────────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// ⭐ C-3 — a decision on an OLDER cycle than the newest wake is refused (nothing lands) and the model is asked again.
-        /// 🔴 Red-proof: the cycle check dropped ⇒ the stale Move lands.
+        /// ⭐ C-3 — news arrives while the model thinks: its decision (on the older cycle) is refused, nothing of it lands, and its decision on the
+        /// NEWER cycle lands — once: the refusal is not a wake, so it cannot make that one stale too. 📌 The first L-3c relay run refused 15 in a row
+        /// (each refusal a wake that staled the next answer). 🔴 Red-proofs: the cycle check dropped ⇒ Alpha's stale Move lands; the refusal a wake ⇒ the
+        /// newer decision is refused too (no Bravo Move).
         /// </summary>
         [Fact]
-        public void CE4684_AStaleCycle_IsRefused_AndTheModelAskedAgain()
+        public void CE4684_AStaleCycle_IsRefused_AndTheDecisionOnTheNewerCycleLands_NoLoop()
         {
             var mind = new DecisionRailMind();
+            var gate = new ManualResetEventSlim(false);
             int calls = 0;
-            mind.Answer = b => calls++ == 0 ? D(b.Cycle - 1, new[] { O("Alpha", "Move", "objective") }) : null;
+            mind.Answer = b =>
+            {
+                int n = Interlocked.Increment(ref calls);
+                if (n == 1) return D(b.Cycle, Array.Empty<UnitOrder>());                       // the opening snapshot
+                if (n == 2) { gate.Wait(TimeSpan.FromSeconds(10)); return D(b.Cycle, new[] { O("Alpha", "Move", "objective") }); }   // thinks while news comes
+                if (n == 3) return D(b.Cycle, new[] { O("Bravo", "Move", "objective") });     // on the newer cycle
+                return null;
+            };
             var s = new Seated(mind);
-            Until(s, () => mind.Briefings().Count >= 2, 300);
-            Assert.Equal(0, s.P.OrdersTo(s.P.Alpha, "Order.Move"));
-            Assert.Equal(1, s.Act.StaleDecisions);
-            Assert.Contains(s.Items(), i => i.Radio.Contains("REFUSED — newer news came since") && i.Wake);
-            Assert.True(mind.Briefings().Count >= 2, "asked again");
+            Until(s, () => s.Act.Decisions == 1, 300);
+            s.P.ReportSpot(s.P.Alpha, new Vector3(100f, 110f, 0f), 2);                       // a wake: call 2 begins and holds
+            Until(s, () => Volatile.Read(ref calls) >= 2, 300);
+            s.P.ReportSpot(s.P.Bravo, new Vector3(100f, 120f, 0f), 3);                       // NEWER news while it thinks
+            long before = s.Seat.Channel.LatestWake;
+            Until(s, () => s.Seat.Channel.LatestWake > before, 30);
+            gate.Set();
+            Until(s, () => s.P.OrdersTo(s.P.Bravo, "Order.Move") > 0, 600);
+            s.Ticks(60);
+            Assert.Equal(0, s.P.OrdersTo(s.P.Alpha, "Order.Move"));    // ⭐ the stale decision: nothing lands
+            Assert.Equal(1, s.P.OrdersTo(s.P.Bravo, "Order.Move"));    // ⭐ the newer one lands
+            Assert.Equal(1, s.Act.StaleDecisions);                      // ⭐ once — no loop
+            Assert.Contains(s.Items(), i => i.Radio.Contains("REFUSED — newer news came since") && !i.Wake);
             s.Seats.Dispose();
         }
 
@@ -308,6 +326,23 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("seen from: A, C · cover: partial · vehicles: no · on foot: A 1 min, C 1.5 min", facts["B"]);
             Assert.Equal("seen from: B · cover: covered (a building) · vehicles: yes · on foot: A 1 min, B 1.5 min", facts["C"]);
             Assert.Empty(TerrainFacts.Compute(places, _ => 0f, null, null, null, _ => false));   // no services ⇒ nothing guessed
+        }
+
+        /// <summary>
+        /// ⭐ C-4 — a place is judged where a man STANDS at it: a spot behind a wall (hidden at its centre, open 2 m in front) reads NOT seen; a building
+        /// (its centre not standable) is judged at the standable points around it. 📌 Found by the hand check on <c>llm-platoon-attack</c>: a 6 m ring read
+        /// the objective (behind the Low Wall, "cover from the house") as seen from the house. 🔴 Red-proof: the old ring ⇒ "seen from: A".
+        /// </summary>
+        [Fact]
+        public void CE4684_TerrainFacts_JudgeAPlaceWhereAManStands_NotARingAroundIt()
+        {
+            var places = new List<(string, Vector2)> { ("A", new Vector2(0, 0)), ("wall", new Vector2(100, 0)), ("shed", new Vector2(0, 100)) };
+            // A sees nothing within 1 m of the wall spot; anything else is in the open
+            var sight = new FakeSight { Clear = (e, a) => !(Vector2.Distance(new Vector2(e.X, e.Y), Vector2.Zero) < 5f && Vector2.Distance(new Vector2(a.X, a.Y), new Vector2(100, 0)) < 1f) };
+            // the shed's centre is inside it (not standable within 3 m)
+            var facts = TerrainFacts.Compute(places, p => Vector2.Distance(p, new Vector2(0, 100)) < 3f ? null : 0f, sight, null, null, p => p.Y > 99 && p.X < 3);
+            Assert.StartsWith("seen from: shed", facts["wall"]);     // ⛔ not A: the spot behind the wall is hidden from it
+            Assert.StartsWith("seen from: A, wall", facts["shed"]);  // the shed's walls are seen
         }
 
         // ── C-5 — enemy confidence ───────────────────────────────────────────────────────────────────────────────────────────────
