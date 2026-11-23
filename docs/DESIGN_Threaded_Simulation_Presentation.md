@@ -1042,19 +1042,19 @@ today is the whole of D every tick, with nobody reading it.*
 ```mermaid
 classDiagram
   class MapPresentationStep { <<existing>> +RunPerPulledTick(dt) +DrawingWanted Func~bool~ }
-  class GizmoDrawGate { <<new, Hrot.Presentation>> +Wanted bool +Touch() keep-alive 5 s +HasView bool }
+  class GizmoDrawGate { <<existing GZH-003: the TogglablePostSimulationGroup's ref-counted gate>> +Acquire() +Release() StartEnabled }
   class RoadNetworkGizmo { <<existing>> +Draw() }
   class RoadPolylineCache { <<new>> +For(roads, terrain) samples with heights, rebuilt on a road or terrain change }
   class DebugApiService { <<existing>> GET /panels/_gizmo }
   MapPresentationStep --> GizmoDrawGate
-  DebugApiService ..> GizmoDrawGate : Touch()
+  DebugApiService ..> GizmoDrawGate : timed Acquire on a read
   RoadNetworkGizmo --> RoadPolylineCache
 ```
 
 | # | decision | rejected (one line) |
 |---|---|---|
-| HL-1 (CE-11045) | gizmo DRAWING runs only when the host has a visible view, or `GET /panels/_gizmo` read it in the last 5 s (the first read after a pause answers the next frame; the route says so). Interaction keeps running | skipping the whole map step headless (`unreal-ig`'s lean) — it also runs the interaction systems a headless node with seats needs; a new env switch — a silent default nobody sets |
-| HL-2 (CE-11046) | `RoadNetworkGizmo` draws from a polyline cached per road-net generation + terrain version (curve samples WITH their ground heights), culled to the view; 0 B and no `GroundHeightOf` on a steady frame | heights at a coarser step — still a per-frame cost and a visible change |
+| HL-1 (CE-11045) | ⭐ **REVISED `2026-11-23` — reuse GZH-003's gate, no new class.** The gizmo systems already sit in a `TogglablePostSimulationGroup` with a ref-counted enable gate (`.dev/_DONE/gizmos-2-headless`; SimHost and CGF start it OFF, "headless-first"). The editor alone starts it ON (`EditorSubsystem.cs:2696`) on the premise "the editor … always has a window at startup" — false for `--mode editor --headless`. ⇒ the editor starts it `!headless`; `GET /panels/_gizmo` holds a TIMED reference (~5 s) so the route still answers; `MapSelfCheckSystem` already treats a disabled group as silent. The Player app (it runs the map step AND publishes its buffer over DDS, `PlayerApplication.cs:895`) is unchanged. ⛔ SUPERSEDED: a new `GizmoDrawGate` — a second gate beside GZH-003's | skipping the whole map step headless (`unreal-ig`'s lean) — it also runs the interaction systems; a new gate class — duplicates GZH-003 (found after the first version; the user asked whether every premise was checked) |
+| HL-2 (CE-11046) | `RoadNetworkGizmo` draws from a polyline cached per road-net generation + the GROUND's change signal (curve samples WITH their ground heights), culled to the view; 0 B and no `GroundHeightOf` on a steady frame. ⚠ the ground changes at runtime (craters / ground patches, dozer shaping, collapses) — the key must be the signal the height queries themselves use (to be found in the build, not assumed) | heights at a coarser step — still a per-frame cost and a visible change |
 | HL-3 (CE-11047) | the per-frame garbage (R-2084): find the ≈ 2 MB per update and the three panels' (inspector, event browser, message log) and remove it, each with a 0-B rail | — |
 | ~~HL-4 (CE-11048)~~ | ⛔ **WITHDRAWN `2026-11-23`** — 🔒 user: *"nothing sleeps, by design many systems run at pause"*. The paused loop stays as it is (`HROT_HEADLESS_MAX_HZ` remains the opt-in cap). ⛔ HISTORY: a PAUSED headless node sleeps between passes | — |
 
