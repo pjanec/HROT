@@ -1,6 +1,7 @@
 // CE-4651 (U-18y) — see HrotCardLayer.h.
 #include "HrotCardLayer.h"
 
+#include "HrotRuntimeLibrary.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "Components/MaterialBillboardComponent.h"
@@ -27,7 +28,7 @@ namespace
 	//   with none, which drew NO text (measured: names and the symbols' marks missing). The engine's Roboto is a runtime UFont.
 	FSlateFontInfo FontPx(float Px)
 	{
-		static UFont* Roboto = LoadObject<UFont>(nullptr, TEXT("/Engine/EngineFonts/Roboto.Roboto"));
+		static UFont* Roboto = HrotLoadRooted<UFont>(TEXT("/Engine/EngineFonts/Roboto.Roboto"));   // rooted (a plain static dangles)
 		const int32 Size = FMath::Max(1, FMath::RoundToInt(Px * 0.75f));
 		return Roboto ? FSlateFontInfo(Roboto, Size) : FCoreStyle::GetDefaultFontStyle("Regular", Size);
 	}

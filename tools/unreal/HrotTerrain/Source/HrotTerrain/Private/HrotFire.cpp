@@ -1,6 +1,7 @@
 // CE-4651 (U-17f) — see the header.
 #include "HrotFire.h"
 
+#include "HrotRuntimeLibrary.h"
 #include "Components/DecalComponent.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -163,7 +164,7 @@ void AHrotGroundFire::BeginPlay()
 
 void AHrotGroundFire::ApplyState()
 {
-	static UMaterialInterface* Mat = LoadObject<UMaterialInterface>(nullptr, FHrotFireLook::Scorch);
+	static UMaterialInterface* Mat = HrotLoadRooted<UMaterialInterface>(FHrotFireLook::Scorch);   // rooted (a plain static dangles)
 	if (Scorch->GetDecalMaterial() != Mat) Scorch->SetDecalMaterial(Mat);
 	Scorch->DecalSize = FVector(150.f, Radius * 1.15f, Radius * 1.15f);   // the burnt ground outlasts the flames (Intensity 0)
 	Scorch->MarkRenderStateDirty();

@@ -112,7 +112,7 @@ bool UHrotExplosionFx::ExplodeWith(UObject* WorldContext, FVector Location, FVec
 		UGameplayStatics::SpawnEmitterAtLocation(World, Cascade, Location, Up, FVector(EffectScale), true, EPSCPoolMethod::AutoRelease);
 	else if (UNiagaraSystem* Niagara = Cast<UNiagaraSystem>(Fx))
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Niagara, Location, Up, FVector(EffectScale), true, true, ENCPoolMethod::AutoRelease);
-	static UMaterialInterface* Scorch = LoadObject<UMaterialInterface>(nullptr, ScorchMaterial);
+	static UMaterialInterface* Scorch = HrotLoadRooted<UMaterialInterface>(ScorchMaterial);   // rooted (a plain static dangles)
 	if (Scorch)   // the scorch stays two minutes (a decal per blast: budgeted with it)
 		UGameplayStatics::SpawnDecalAtLocation(World, Scorch, FVector(60.f, L.ScorchSize, L.ScorchSize), Location, (-Normal).Rotation(), 120.f);
 	return true;

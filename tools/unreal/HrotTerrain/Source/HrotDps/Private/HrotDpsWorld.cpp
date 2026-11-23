@@ -1812,7 +1812,7 @@ void UHrotDpsWorld::OnGroundMarks(const FHrotDpsSample& S)
 	for (TWeakObjectPtr<ADecalActor>& X : L) if (ADecalActor* A = X.Get()) A->Destroy();
 	L.Reset();
 	if (!S.bValid || !S.bAlive) { Scorches.Remove(D.EntityId); return; }
-	static UMaterialInterface* Mat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch"));   // FHrotFireLook::Scorch (not exported)
+	static UMaterialInterface* Mat = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch"));   // rooted (a plain static dangles)   // FHrotFireLook::Scorch (not exported)
 	for (uint32 I = 0; I < D.Marks._length; ++I)
 	{
 		const auto& M = D.Marks._buffer[I];
