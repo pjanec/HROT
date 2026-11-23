@@ -4444,7 +4444,8 @@ namespace Hrot.Editor
                 hash => _behaviorRegistry is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null,
                 registry:   () => _behaviorRegistry,
                 blueprints: () => _blueprintRegistry,
-                embeds:     () => blueprintBrainSections));
+                embeds:     () => blueprintBrainSections,
+                stagedPending: () => _blueprintRegistrar?.StagedWrites?.HasPending == true));   // ⭐ CE-3494 — the ONE staged set (silent-default rule)
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────
