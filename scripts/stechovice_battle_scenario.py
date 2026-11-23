@@ -97,8 +97,10 @@ GROUND = Ground()
 # -- scenario building blocks ------------------------------------------------------------------------------------------------------
 
 def quat(bearing):
-    """Facing a compass bearing (0 = north, clockwise): a rotation about z by -bearing."""
-    a = -math.radians(bearing) / 2
+    """Facing a compass bearing (0 = north, clockwise): a rotation about z by 90 - bearing — the engine's yaw 0 is +X (east), counter-clockwise
+    (thumbnails.py heading_deg, measured on the Rifleman). ⛔ Was -bearing: every unit faced 90° off (the village tank, told "west", spawned
+    facing NORTH, spent 4 s turning round and the watchdog's no-progress rule failed its move — CE-5048)."""
+    a = math.radians(90 - bearing) / 2
     return [0, 0, round(math.sin(a), 7), round(math.cos(a), 7)]
 
 
