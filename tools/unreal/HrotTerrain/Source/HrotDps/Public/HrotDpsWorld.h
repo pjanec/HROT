@@ -117,6 +117,8 @@ public:
 	// ── run ──
 	/** joins the station (restarts the DDS client, so this world gets the late-join history) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") bool Start(int32 Domain, const FString& Partition);
+	/** U-19h: hides the components a kit names (its body's own gun) */
+	static void HideKitComponents(AActor* A, const UHrotPersonKit* K);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void Stop();
 
 	// ── read back (tests, a HUD) ──
@@ -242,6 +244,7 @@ public:
 	virtual void Deinitialize() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UHrotDpsWorld, STATGROUP_Tickables); }
+	int32 PlacedActors = 0;   // U-19h ⑱: actors whose transform Place set this frame (the CSV profiler's HrotDps/PlacedActors)
 
 private:
 	struct FEnt
@@ -461,6 +464,7 @@ private:
 	void OnMoverTracks(const struct FHrotDpsSample& S);
 	void DefaultLife();
 	void PreloadPeopleAndSounds();
+	bool IsCrowdKit(const UHrotPersonKit* K) const;
 	/** how many times each body Blueprint is built at join to collect its random outfit parts (U-19h 15) */
 	static constexpr int32 PreloadRounds = 6;
 	AActor* SpawnAnimal(FEnt& E, const FTransform& At);

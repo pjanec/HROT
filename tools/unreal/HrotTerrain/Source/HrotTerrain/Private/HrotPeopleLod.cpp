@@ -1,6 +1,7 @@
 // CE-4651 (U-16) — see the header.
 #include "HrotPeopleLod.h"
 
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "HrotPersonAnimInstance.h"
@@ -20,8 +21,11 @@ void UHrotPeopleLod::Add(UHrotPersonState* Person)
 	People = Persons.Num();
 }
 
+CSV_DECLARE_CATEGORY_EXTERN(HrotTerrain);
+
 void UHrotPeopleLod::Tick(float DeltaTime)
 {
+	CSV_SCOPED_TIMING_STAT(HrotTerrain, PeopleLod);
 	const UHrotShotRenderer* R = UHrotShotRenderer::Get(this);
 	if (Persons.Num() == 0 || !R) return;
 	const FVector View = R->ViewLocation();

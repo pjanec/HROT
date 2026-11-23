@@ -251,12 +251,23 @@ int32 UHrotPersonState::MergeBodyParts()
 	{
 		Merged = USkeletalMergingLibrary::MergeMeshes(Params);
 		if (!Merged) return 0;
+		Merged->AddToRoot();   // U-19h: the cache is not a UPROPERTY - held for the process, or a later person would merge again (320 s for 300 pedestrians)
 		Cache.Add(Key, Merged);
 	}
 	Leader->SetSkeletalMeshAsset(Merged);
 	ApplyAnimation();   // a new mesh re-initialises the anim instance
 	ApplyMaterials();   // … and its own materials: the uniform again
-	for (USkeletalMeshComponent* P : Parts) P->SetVisibility(false);
+	// U-19h: the merged-in parts are DESTROYED, not hidden: a hidden component still has a render proxy whose transform is re-sent every time the actor
+	// moves (measured: ~30 % of the client's game thread - 16 skinned meshes a soldier, SendAllEndOfFrameUpdates -> SkelComp UpdateTransform). A part something
+	// else is attached to is only hidden.
+	for (USkeletalMeshComponent* P : Parts)
+	{
+		if (P->GetAttachChildren().Num() == 0) P->DestroyComponent(); else P->SetVisibility(false);
+	}
+	// … and so is any other skinned part that is hidden for good (a kit's HideComponents: the body's own gun) - never the leader or the held weapon
+	const UMeshComponent* Held = GetWeaponComponent();
+	for (USkeletalMeshComponent* M : Meshes)
+		if (IsValid(M) && M != Leader && M != Held && !M->IsVisible() && M->GetAttachChildren().Num() == 0) M->DestroyComponent();
 	QuietOwner();
 	return Parts.Num();
 }

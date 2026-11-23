@@ -2,6 +2,13 @@
 // Run: UnrealEditor-Cmd <project> -ExecCmds="Automation RunTests Hrot.Dps.People; Quit" -nullrhi -unattended
 #include "Misc/AutomationTest.h"
 #include "HrotDpsPeople.h"
+#include "HrotDpsWorld.h"
+#include "HrotPersonKit.h"
+#include "HrotPersonAnimInstance.h"
+#include "HrotRuntimeLibrary.h"
+#include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 using namespace HrotDpsPeople;
@@ -68,6 +75,56 @@ bool FHrotDpsPeopleLookTest::RunTest(const FString&)
 		TestEqual(TEXT("soldier kit: incapacitated standing -> Death.Stand"), ResolveRole(TEXT("Dying"), OnlyStand), FName(TEXT("Death.Stand")));
 		TestEqual(TEXT("a kit with no death at all ends"), ResolveRole(TEXT("Death.Prone"), [](FName) { return false; }), NAME_None);
 	}
+	return true;
+}
+
+// U-19h: a soldier's body (the kit's Blueprint: a leader + 15 skinned parts) merged into ONE skinned mesh: one component renders, the weapon / head sockets and
+// the side-colour slot names are still there. Skipped where the content is missing.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotDpsPeopleMergeTest, "Hrot.Dps.People.Merge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotDpsPeopleMergeTest::RunTest(const FString&)
+{
+	UHrotPersonKit* K = LoadObject<UHrotPersonKit>(nullptr, TEXT("/Game/Hrot/People/DA_Person_USSoldier.DA_Person_USSoldier"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	UClass* Cls = K ? K->BodyClass.LoadSynchronous() : nullptr;
+	if (!Cls) { AddInfo(TEXT("the soldier kit is not in this project: skipped")); return true; }
+	UWorld* W = UWorld::CreateWorld(EWorldType::Game, false);
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(W);
+	W->InitializeActorsForPlay(FURL());
+	AActor* A = W->SpawnActor<AActor>(Cls, FTransform::Identity);
+	if (TestNotNull(TEXT("the body spawns"), A))
+	{
+		UHrotDpsWorld::HideKitComponents(A, K);
+		TArray<USkeletalMeshComponent*> Before; A->GetComponents(Before);
+		int32 Visible = 0; for (const USkeletalMeshComponent* M : Before) if (M->GetSkinnedAsset() && M->IsVisible()) ++Visible;
+		AddInfo(FString::Printf(TEXT("before: %d skinned components, %d visible"), Before.Num(), Visible));
+		UHrotPersonState* St = UHrotRuntimeLibrary::AddPersonState(A);
+		St->WeaponSocket = K->WeaponSocket;
+		for (const TPair<FString, TObjectPtr<UMaterialInterface>>& O : K->SideMaterials) { for (const FName& S : K->SideSlots) St->MaterialOverrides.Add(S, O.Value); break; }
+		const double T0 = FPlatformTime::Seconds();
+		const int32 Merged = St->MergeBodyParts();
+		AddInfo(FString::Printf(TEXT("merge took %.2f s (first, cold cache)"), FPlatformTime::Seconds() - T0));
+		TestTrue(TEXT("parts were merged"), Merged > 1);
+		TArray<USkeletalMeshComponent*> After; A->GetComponents(After);
+		int32 Rendering = 0; for (const USkeletalMeshComponent* M : After) if (M->GetSkinnedAsset() && M->IsVisible()) ++Rendering;
+		TestEqual(TEXT("exactly ONE skinned component renders"), Rendering, 1);
+		for (const USkeletalMeshComponent* M : After) AddInfo(FString::Printf(TEXT("left: %s asset %s visible %d children %d parent %s"), *M->GetName(), M->GetSkinnedAsset() ? *M->GetSkinnedAsset()->GetName() : TEXT("none"), M->IsVisible() ? 1 : 0, M->GetAttachChildren().Num(), M->GetAttachParent() ? *M->GetAttachParent()->GetName() : TEXT("-")));
+		int32 WithMesh = 0; for (const USkeletalMeshComponent* M : After) if (M->GetSkinnedAsset()) ++WithMesh;
+		TestEqual(TEXT("the merged-in parts are gone, not hidden (the Character's empty default mesh has no asset: no render state)"), WithMesh, 1);
+		if (USkeletalMeshComponent* L = St->FindLeader())
+		{
+			TestTrue(TEXT("the weapon socket is on the merged body"), L->DoesSocketExist(K->WeaponSocket));
+			TestTrue(TEXT("the head socket is on the merged body"), L->DoesSocketExist(TEXT("head")));
+			const TArray<FName> Slots = L->GetMaterialSlotNames();
+			FString All; for (const FName& N : Slots) All += N.ToString() + TEXT(" ");
+			AddInfo(FString::Printf(TEXT("merged: %d material slots: %s"), Slots.Num(), *All));
+			for (const FName& S : K->SideSlots) TestTrue(FString::Printf(TEXT("side slot %s survives"), *S.ToString()), Slots.Contains(S));
+		}
+		else AddError(TEXT("no leader after the merge"));
+		A->Destroy();
+	}
+	GEngine->DestroyWorldContext(W);
+	W->DestroyWorld(false);
 	return true;
 }
 

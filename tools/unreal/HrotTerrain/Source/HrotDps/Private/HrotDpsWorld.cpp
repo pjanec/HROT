@@ -1,5 +1,6 @@
 // CE-4651 (U-18b) — see HrotDpsWorld.h
 #include "HrotDpsWorld.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HrotDpsStation.h"
 #include "HrotDpsTrafficKit.h"
 #include "HrotDpsNative.h"
@@ -146,6 +147,19 @@ UHrotDpsWorld* UHrotDpsWorld::Get(const UObject* WorldContext)
 	return W ? W->GetSubsystem<UHrotDpsWorld>() : nullptr;
 }
 
+void UHrotDpsWorld::HideKitComponents(AActor* A, const UHrotPersonKit* K)
+{
+	if (!A || !K) return;
+	for (UActorComponent* C : A->GetComponents())
+		if (USceneComponent* SC = Cast<USceneComponent>(C); SC && K->HideComponents.Contains(SC->GetFName())) { SC->SetVisibility(false, true); SC->SetHiddenInGame(true, true); }
+}
+
+bool UHrotDpsWorld::IsCrowdKit(const UHrotPersonKit* K) const
+{
+	for (const TSoftObjectPtr<UHrotPersonKit>& C : CivilianKits) if (C.Get() == K) return true;
+	return false;
+}
+
 // U-19h: ONE-SHOT at join - everything SpawnPerson / the soundscape would load on first use (measured live: 19.8 s "Waiting for skinned assets" when the people first
 // appear; 1-3 s FlushAsyncLoading hitches at the first rifle / body / dirt sound), so the wait happens here, not mid-play.
 void UHrotDpsWorld::PreloadPeopleAndSounds()
@@ -198,6 +212,34 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 				++Built;
 				if (Round == PreloadRounds - 1) LastRoundNew += Skinned.Num() - Was;
 			}
+	// ⭐ the soldier body: merge its parts ONCE here (the cache keys on the combination of parts), so no spawn pays for it
+	{
+		const double M0 = FPlatformTime::Seconds();
+		int32 Merged = 0, Mats = 0;
+		FString Slots;
+		UWorld* W = GetWorld();
+		for (UClass* Cls : Classes)
+		{
+			UHrotPersonKit* Owner = nullptr;
+			if (PersonKit.Get() && PersonKit->BodyClass.Get() == Cls) Owner = PersonKit.Get();
+			if (!Owner || !W) continue;   // the crowd's bodies are not merged
+			const FTransform Below(FRotator::ZeroRotator, FVector(0, 0, -5000000.0));
+			AActor* A = W->SpawnActorDeferred<AActor>(Cls, Below, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			if (!A) continue;
+			if (APawn* Pawn = Cast<APawn>(A)) { Pawn->AutoPossessAI = EAutoPossessAI::Disabled; Pawn->AutoPossessPlayer = EAutoReceiveInput::Disabled; }
+			A->FinishSpawning(Below);
+			HideKitComponents(A, Owner);
+			UHrotPersonState* St = UHrotRuntimeLibrary::AddPersonState(A);
+			Merged += St->MergeBodyParts();
+			if (USkeletalMeshComponent* L = St->FindLeader())
+			{
+				if (USkinnedAsset* MS = L->GetSkinnedAsset()) { Add(MS); Skinned.AddUnique(MS); Mats = MS->GetMaterials().Num(); }
+				for (const FName& N : L->GetMaterialSlotNames()) Slots += N.ToString() + TEXT(" ");
+			}
+			A->Destroy();
+		}
+		UE_LOG(LogTemp, Display, TEXT("HROT preload: soldier body merged: %d parts into one mesh with %d material slots in %.2f s (slots: %s)"), Merged, Mats, FPlatformTime::Seconds() - M0, *Slots);
+	}
 	for (USkinnedAsset* S : Skinned) Add(S);
 #if WITH_EDITOR
 	// the editor builds each character mesh on its first draw (a 20 s wait with the people on screen): finish them now
@@ -1084,8 +1126,8 @@ AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 	for (UActorComponent* C : A->GetComponents())
 	{
 		if (UCharacterMovementComponent* CM = Cast<UCharacterMovementComponent>(C)) { CM->GravityScale = 0.f; CM->SetComponentTickEnabled(false); CM->Deactivate(); }
-		if (USceneComponent* SC = Cast<USceneComponent>(C); SC && K->HideComponents.Contains(SC->GetFName())) { SC->SetVisibility(false, true); SC->SetHiddenInGame(true, true); }
 	}
+	HideKitComponents(A, K);
 	UHrotPersonState* St = UHrotRuntimeLibrary::AddPersonState(A);
 	St->AimTurnRate = 0.f;   // the aim is eased here, on SIM time (HROT's 0.12 s), not by the anim instance's own rate
 	St->WeaponSocket = K->WeaponSocket;
@@ -1095,6 +1137,9 @@ AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 		for (const FName& Slot : K->SideSlots) St->MaterialOverrides.Add(Slot, *Mat);
 		St->ApplyMaterials();
 	}
+	// U-19h: a soldier's body (16 skinned parts) is ONE merged mesh (made once at the preload, cached): one skinned proxy, one transform update a frame.
+	// A crowd body picks its outfit per spawn (its parts differ), so it is not merged.
+	if (!IsCrowdKit(K)) St->MergeBodyParts();
 	E.DrawnAs = FString::Printf(TEXT("person %s"), *K->GetName());
 	E.Actor = A;   // ApplyPerson reads it
 	ApplyPerson(E, Clock.Now(RealNow()), 0.0);
@@ -1368,15 +1413,19 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 		if (E.MeshYaw != 0) T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(E.MeshYaw)));   // the model's own facing
 		if (E.MeshZ != 0) T.AddToTranslation(FVector(0, 0, E.MeshZ));                                                          // and its origin
 		T.SetScale3D(A->GetActorScale3D());   // ⚠ measured (U-18e): the full transform reset a sized body (a grenade, the unknown-type box) to scale 1
-		A->SetActorTransform(T);
+		if (HrotDpsMotion::NeedsPlace(A->GetActorTransform(), T)) { A->SetActorTransform(T); ++PlacedActors; }   // U-19h ⑱ B: a body standing still is not re-placed
 		// a rocket's motor burns BurnSeconds from its launch (Hrot.Look RoundLook.BurnOf; 0 = no motor data: burning while it flies)
 		if (AHrotMissile* M = Cast<AHrotMissile>(A))
 			M->bMotor = !E.bLying && (E.BurnSeconds <= 0 || Clock.Now(Real) - E.LaunchedAt < E.BurnSeconds);
 	}
 }
 
+// U-19h ⑱: the client's frame by part in Unreal's CSV profiler (-csvCaptureFrames / csvprofile start): HrotDps/<part> ms, HrotDps/PlacedActors
+CSV_DEFINE_CATEGORY(HrotDps, true);
+
 void UHrotDpsWorld::Tick(float)
 {
+	CSV_SCOPED_TIMING_STAT(HrotDps, WorldTick);
 	const double R = RealNow();
 	if (!PendingLevel.IsEmpty())   // U-18r: the level of the station's terrain (opened here, never inside a DDS handler)
 	{
@@ -1384,7 +1433,7 @@ void UHrotDpsWorld::Tick(float)
 		UGameplayStatics::OpenLevel(this, FName(*PendingLevel), true, TEXT("game=/Script/HrotDps.HrotDpsGameMode"));
 		PendingLevel.Reset();
 	}
-	TickClock(R);   // U-18p: the probe's echoes, ClientWorld
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Clock); TickClock(R); }   // U-18p: the probe's echoes, ClientWorld
 	if (Weather.Num() && R >= NextWeatherAt) { NextWeatherAt = R + 1.0; ApplyWeather(); }   // U-19d: the camera moves between regions
 	{   // U-19c: a burst whose rounds stopped is faded out (after the same delay as its start)
 		TArray<int32> Cuts; Bursts.PollCuts(R, Cuts);
@@ -1392,11 +1441,14 @@ void UHrotDpsWorld::Tick(float)
 	}
 	const double Prev = Placed;
 	Placed = Clock.Now(R);
-	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
+	PlacedActors = 0;
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Place); for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R); }
+	CSV_CUSTOM_STAT(HrotDps, PlacedActors, PlacedActors, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(HrotDps, Entities, Ents.Num(), ECsvCustomStatOp::Set);
 	const double Dt = FMath::Clamp(Placed - Prev, 0.0, 0.5);
-	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) UpdateRiding(It.Value);
-	UpdateCrews();
-	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt);   // after every pose: an aim reads its target's
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, RidingCrews); for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) UpdateRiding(It.Value);
+	UpdateCrews(); }
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, ApplyPerson); for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt); }   // after every pose: an aim reads its target's
 	for (TPair<int32, FEnt>& It : Ents)
 	{
 		FEnt& E = It.Value;
@@ -1404,12 +1456,11 @@ void UHrotDpsWorld::Tick(float)
 		if (E.bAnimal) ApplyAnimal(E, Placed);
 		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning) ApplyFlame(E);
 	}
-	DrawStreams(Placed);
-	TickSpots(Placed);
-	TickMovers(R);
-	SendGizmoView(R);   // U-18z
-	DrawGizmos();       // (its texts are drawn by TickCards, so first)
-	TickCards();   // U-18y: after every pose (a card hangs above the drawn body)
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); }
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Movers); TickMovers(R); }
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Gizmos); SendGizmoView(R);   // U-18z
+	DrawGizmos(); }     // (its texts are drawn by TickCards, so first)
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, Cards); TickCards(); }   // U-18y: after every pose (a card hangs above the drawn body)
 }
 
 // ── read back ──

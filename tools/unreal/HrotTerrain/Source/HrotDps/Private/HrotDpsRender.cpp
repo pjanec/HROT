@@ -1,5 +1,6 @@
 // CE-4651 (U-18q) — see HrotDpsRender.h
 #include "HrotDpsRender.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HrotDpsOverlay.h"
 #include "HrotDpsNative.h"
 #include "HrotDpsSubsystem.h"
@@ -155,8 +156,11 @@ void UHrotDpsRender::Announce(double Now)
 	Dps->Client().Write(TEXT("DPS_RenderClient"), &R);
 }
 
+CSV_DECLARE_CATEGORY_EXTERN(HrotDps);
+
 void UHrotDpsRender::Tick(float)
 {
+	CSV_SCOPED_TIMING_STAT(HrotDps, Render);
 	if (!bEnabled) return;
 	Connect();
 	if (!Subs.Num()) return;

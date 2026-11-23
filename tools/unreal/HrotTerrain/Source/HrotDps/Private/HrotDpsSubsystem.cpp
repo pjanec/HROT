@@ -1,5 +1,6 @@
 // CE-4651 (U-18a) — see HrotDpsSubsystem.h
 #include "HrotDpsSubsystem.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HrotDpsNative.h"
 #include "Engine/Engine.h"
 #include "HAL/IConsoleManager.h"
@@ -24,6 +25,7 @@ void UHrotDpsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	Tick = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float)
 	{
+		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(HrotDpsDdsPoll);
 		if (Dps.IsRunning()) Dps.Poll();
 		if (bTraveling) SayTraveling();
 		return true;

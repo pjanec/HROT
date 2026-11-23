@@ -183,4 +183,19 @@ bool FHrotDpsAnchorPropertyTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotDpsNeedsPlaceTest, "Hrot.Dps.Motion.NeedsPlace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotDpsNeedsPlaceTest::RunTest(const FString&)
+{
+	// U-19h ⑱ B: a body standing still is not re-placed; any visible move or turn is
+	const FTransform A(FQuat(FVector::UpVector, 0.5), FVector(1000, 2000, 30));
+	TestFalse(TEXT("the same transform"), HrotDpsMotion::NeedsPlace(A, A));
+	TestFalse(TEXT("0.05 cm off"), HrotDpsMotion::NeedsPlace(A, FTransform(A.GetRotation(), A.GetLocation() + FVector(0.05, 0, 0))));
+	TestTrue(TEXT("1 cm off"), HrotDpsMotion::NeedsPlace(A, FTransform(A.GetRotation(), A.GetLocation() + FVector(0, 1, 0))));
+	TestFalse(TEXT("turned 0.01 deg"), HrotDpsMotion::NeedsPlace(A, FTransform(FQuat(FVector::UpVector, 0.5 + FMath::DegreesToRadians(0.01)), A.GetLocation())));
+	TestTrue(TEXT("turned 1 deg"), HrotDpsMotion::NeedsPlace(A, FTransform(FQuat(FVector::UpVector, 0.5 + FMath::DegreesToRadians(1.0)), A.GetLocation())));
+	TestTrue(TEXT("a new scale"), HrotDpsMotion::NeedsPlace(A, FTransform(A.GetRotation(), A.GetLocation(), FVector(2))));
+	return true;
+}
+
 #endif
