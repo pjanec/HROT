@@ -127,6 +127,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte BoundsDone;
         /// <summary>⭐ <c>CE-2496</c> (R-2145) — runtime: how many times the retreat point was pushed further away because a man was still in an enemy's sight there.</summary>
         public byte Extended;
+        /// <summary>⭐ <c>CE-2496</c> — 1 while the point is the way it came (no hidden ground found): no lull ends the play, and an arrival asks again.</summary>
+        public byte Fallback;
     }
 
     /// <summary>
@@ -197,6 +199,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Cover = default;   // ⭐ CE-2460 — no picks from an earlier run
             p.BoundsDone = 0;    // ⭐ CE-2465
             p.Extended = 0;      // ⭐ CE-2496
+            p.Fallback = 0;
             if (p.HasTo != 0)   // ⭐ E-3a (DA-68) — told where to go: that is the answer, no terrain and no contact needed
             {
                 ws.Answer = p.To;
@@ -230,6 +233,7 @@ namespace Hrot.AI.Behaviors.Brains
                         ws.Answer = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
                         ws.HasAnswer = 1;
                         ws.Reissue = 1;
+                        p.Fallback = 0;
                     }
                 }
             }
@@ -274,7 +278,7 @@ namespace Hrot.AI.Behaviors.Brains
             //   kept his element's centre 30 m from the answer and the squad stood 280 s. ⛔ Not for an ordered To with no threat (go there).
             //   ⭐⭐ CE-2472 — and nobody is left in an enemy's sight (his own perception): 📐 U2, a man whose pick did not move him sat 30 m in front of
             //   the corner through the whole break and the drill called the contact broken.
-            if (ws.ThreatId != 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander) && !AnyInSight(in ctx)) return NodeStatus.Success;
+            if (ws.ThreatId != 0 && p.Fallback == 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander) && !AnyInSight(in ctx)) return NodeStatus.Success;
             for (byte e = 0; e < 2; e++)
             {
                 var c = ctx.Centre(e, out bool any);
@@ -283,7 +287,9 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ CE-2496 (R-2145; 📐 of-squad-outmatched: one ~5 m bound to the retreat answer on open ground, then a hold in the machine guns' sight —
             //   the ditch war) — at the point with a man STILL in an enemy's sight the contact is not broken: the point moves on, a search radius
             //   further away from the enemy, and the bounds go on (at most MaxExtensions times — then the squad is far out of his reach)
-            if (ws.ThreatId != 0 && p.Extended < MaxExtensions && AnyInSight(in ctx))
+            // ⭐ CE-2496 — and on the way it came (no hidden ground yet) a lull is not a broken contact: the enemy may simply have stopped firing at men
+            //   it still sees (📐 of-squad-outmatched, 49 s: one bound each, a lull, the squad still in the open) ⇒ ask again from here
+            if (ws.ThreatId != 0 && p.Extended < MaxExtensions && (p.Fallback != 0 || AnyInSight(in ctx)))
             {
                 // the NEXT hidden point, from here (the terrain is asked again); none ⇒ AwayWhenNoAnswer: the way it came. 📐 uf-corner-fight:
                 //   straight away from the corner led the squad on down the street, in the corner's sight — the cover is around the next corner
@@ -311,6 +317,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             ws.Answer = AwayFrom(in ctx, ws.ThreatPoint, p.RetreatSearchRadius);
             ws.HasAnswer = 1;
+            p.Fallback = 1;
             p.Cover = default;   // the bounds pick their cover toward the new point
             ws.Reissue = 1;
         }

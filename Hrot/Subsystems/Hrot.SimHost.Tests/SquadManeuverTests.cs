@@ -7530,7 +7530,16 @@ namespace Hrot.SimHost.Tests
             Step(seen: false, ticks: 300);
             Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
             foreach (var m in s.Members) s.Teleport(m, new Vector3(0f, -240f, 0f));
-            Step(seen: false, ticks: 400);
+            // ④ nobody seen or shot at — but the point is still the way it came (no hidden ground): the play asks again (📐 OF5: a lull in the open is
+            //   no broken contact) and the terrain now finds a hidden point; the squad reaches it ⇒ done
+            var hiddenAt = new Vector3(0f, -255f, 0f);
+            for (int i = 0; i < 20 && s.RetreatQuery().IsNull; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+            Assert.False(s.RetreatQuery().IsNull, "at the way-it-came point the play asks the terrain again");
+            s.Answer(s.RetreatQuery(), hiddenAt);
+            for (int i = 0; i < 6; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            foreach (var m in s.Members) s.Teleport(m, hiddenAt);
+            for (int i = 0; i < 40 && s.Kind == BreakContactManeuver.ManeuverKind; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
             Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
         }
 
