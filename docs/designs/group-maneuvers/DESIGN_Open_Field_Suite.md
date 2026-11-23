@@ -181,6 +181,41 @@ OF2, OF4) — ⛔ C-1 stays a claim about strength ratios other than 2 : 1 (OF5 
 | D-2 how long a hold may last | ~30 s, then the squad reports and the platoon must act |
 | D-3 what the platoon does on a contact | a platoon react-to-contact drill: the squad in contact is the base of fire, another squad flanks — instead of every squad holding |
 
+### 9.1 Approved, `2026-11-23` — the four fixes OF1–OF5 asked for
+
+🔒 User: *"Yes, go with your leans"* — on the four leans below, in this order.
+
+| # | ruling | tracker | state |
+|---|---|---|---|
+| ① | a break contact never ends with a man in enemy sight: on arrival in sight it bounds back again (up to `BreakContactPlay.MaxExtensions` = 4); with no hidden ground it withdraws the way it came (`AwayFrom` — flat away from the threat, `RetreatSearchRadius`) — ⛔ never a hold in the open in sight | CE-2496 · R-2145 | BUILT |
+| ② | the squad re-decides react-to-contact when the known enemy grows past the break-contact line, not only after losses | CE-2495 · R-2146 | next |
+| ③ | a rush with no cover ahead ends prone, and a man in the open suppresses from prone — changes CE-8311 D-15 (lowest stance that reaches) | CE-2494 · R-2147 | next |
+| ④ | in a squad in contact, a man with no cover nearby goes prone even if not himself under fire — widens CE-3090 | R-2148 | next |
+
+⭐ After ① shows in OF5, the city battle itself is checked for the stall.
+
+```mermaid
+sequenceDiagram
+  participant R as ReactToContact
+  participant B as BreakContactPlay
+  participant T as terrain (retreat query)
+  R->>B: Start (Extended = 0)
+  B->>T: ask for a hidden point
+  alt answer
+    T-->>B: point out of sight
+  else no answer (CE-2496)
+    B->>B: AwayFrom(threat) — the way it came
+  end
+  loop arrival
+    alt a man still in enemy sight and Extended < 4
+      B->>B: Retarget: AwayFrom again, Extended++
+    else out of sight
+      B-->>R: Success
+    end
+  end
+```
+*Caption: the no-answer branch used to end the play as Failure — the squad then held where it stood, in the open (the ditch war OF5 reproduced).*
+
 ## 10. Design docs checked
 
 - `DESIGN_Urban_Fight_Suite.md` — applies: the rubric and the check rows are reused as they are.

@@ -1296,9 +1296,10 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
-        /// <summary>⭐ S2-F — no hidden point anywhere ⇒ break contact fails and the reaction HOLDS until the squad knows no contact.</summary>
+        /// <summary>⭐ S2-F — no hidden point anywhere ⇒ ⛔ SUPERSEDED by <c>CE-2496</c> (R-2145): the squad no longer fails into a hold in the open; it
+        /// withdraws the way it came — and the reaction still ends when the squad knows no contact.</summary>
         [Fact]
-        public void CE2123_ReactToContact_NoRetreatPoint_HoldsUntilClear()
+        public void CE2123_ReactToContact_NoRetreatPoint_WithdrawsAndEndsWhenClear()
         {
             var s = new Squad(members: 2);
             s.PoolMany(6, new Vector3(0f, 60f, 0f));
@@ -1306,12 +1307,12 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 12; i++) s.Tick();
             s.Answer(s.RetreatQuery(), null);
             s.Tick(); s.Tick();
-            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // CE-2496: not SquadHold
             Assert.False(s.Finished(out _));
 
             s.ClearPool();
             bool done = false; Fbt.NodeStatus result = default;
-            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done, "no contact left ⇒ the reaction ends");
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
@@ -1328,12 +1329,12 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 12; i++) s.Tick();
             s.Answer(s.RetreatQuery(), null);
             s.Tick(); s.Tick();
-            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // CE-2496: the no-answer path withdraws, no hold
             Assert.False(s.Finished(out _));
 
             foreach (var e in seen) s.Repo.AddComponent(e, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });   // still pooled
             bool done = false; Fbt.NodeStatus result = default;
-            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done, "only neutrals in view ⇒ the reaction ends");
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
@@ -7469,6 +7470,64 @@ namespace Hrot.SimHost.Tests
                 else if (inSight) Assert.False(done, "a man still in an enemy's sight: the contact is not broken");
                 else { Assert.True(done, "in a lull the contact is broken: done"); Assert.Equal(Fbt.NodeStatus.Success, result); }
             }
+        }
+
+        /// <summary>⭐⭐ <c>CE-2496</c> (R-2145; 📐 of-squad-outmatched — the ditch war) — a break contact NEVER ends in an enemy's sight: ① the terrain finds no
+        /// hidden point (open ground) ⇒ the play does not fail into a hold; the movers bound AWAY from the enemy (the way the squad came); ② at the point with a
+        /// man still in an enemy's sight the drill goes on (the point moves further away); out of sight it ends. 🔴 Red-proof: drop the extension ⇒ ② done
+        /// in sight; drop the no-answer fallback ⇒ ① falls back to a hold.</summary>
+        [Fact]
+        public unsafe void CE2496_BreakContact_NeverEndsInAnEnemysSight_AndWithNoHiddenPointGoesTheWayItCame()
+        {
+            var s = new Squad(members: 2);
+            var enemies = s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            s.Answer(s.RetreatQuery(), null);   // ① nothing hidden behind the squad
+            for (int i = 0; i < 6; i++) { var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // not a hold
+            var o = s.LastOrders();
+            Assert.Contains(s.Members, m => o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo && x.Objective.Y < -5f);   // away from y 60
+
+            // ② every man reaches the point, one still sees an enemy: the play goes on, its point further away (not the CE-2466 rally hold)
+            float prevY = -5f;
+            for (int k = 0; k < 3; k++)
+            {
+                o = s.LastOrders();
+                float y = float.MaxValue;
+                foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) y = MathF.Min(y, x.Objective.Y);
+                Assert.True(y < prevY, $"arrival {k}: the point moves on away from the enemy (was {prevY}, now {y})");
+                prevY = y;
+                foreach (var m in s.Members) { Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived); s.Teleport(m, new Vector3(0f, y, 0f)); }
+                for (int i = 0; i < 8; i++) { Sees(s, s.Members[0], enemies[0]); var r = s.RetreatQuery(); if (!r.IsNull) s.Answer(r, null); var q = s.BreakCoverQuery(); if (!q.IsNull) s.Answer(q, null); s.Tick(); }
+                Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);   // a man in sight: not done
+            }
+            // ③ out of sight at the point: done (the reaction goes on to its rally)
+            o = s.LastOrders();
+            float last = float.MaxValue;
+            foreach (var m in s.Members) if (o.TryGetValue(m, out var x) && x.Intent == BehaviorNames.AdvanceTo) last = MathF.Min(last, x.Objective.Y);
+            foreach (var m in s.Members) { Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived); s.Teleport(m, new Vector3(0f, last, 0f)); }
+            for (int i = 0; i < 30; i++) { s.Tick(); if (s.Kind != BreakContactManeuver.ManeuverKind) break; }
+            Assert.NotEqual(BreakContactManeuver.ManeuverKind, s.Kind);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2495</c> (R-2146; 📐 of-squad-outmatched — 6 men assaulted on ONE man seen and kept on into twelve and two machine guns) —
+        /// the choice is scored on what was known; when the known enemy grows to twice that, it is scored again: an assault on one becomes a break
+        /// contact from twelve. 🔴 Red-proof: drop the growth trigger ⇒ the squad keeps assaulting.</summary>
+        [Fact]
+        public void CE2495_ReactToContact_TheEnemyGrows_TheChoiceIsMadeAgain()
+        {
+            var s = new Squad(members: 4);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 13; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);   // 4 v 1: assault
+
+            s.PoolMany(12, new Vector3(0f, 60f, 0f));                         // the force behind him shows
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);          // 4 v 12: break contact
         }
 
         /// <summary>⭐ <c>CE-2472</c> — <paramref name="man"/> SEES <paramref name="enemy"/> now (as perception stamps it: the Visual bit, this tick).</summary>
