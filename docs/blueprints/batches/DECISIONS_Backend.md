@@ -12,7 +12,7 @@ related-designs:
 
 | | |
 |---|---|
-| the model | NOW (what runs) vs NEXT (the intent, one value per slot); a paused-frame request folds into NEXT, applied on the next advancing frame — [DESIGN_Unit_Intent.md](../../DESIGN_Unit_Intent.md) §1 |
+| the model | NOW (what runs) vs NEXT (the authored intent, one value per slot); the request systems run only when time advances — intent first, then every request since the last step, in order (the independent review moved it off 'fold every request', design §9) — [DESIGN_Unit_Intent.md](../../DESIGN_Unit_Intent.md) §1 |
 | the plan | an operator order HOLDS it (`Halted = 2`); only the user resumes; Resume restarts the held task (R-3115, supersedes Entity Commanding ruling 50) |
 | edits | no general queue: the AI request and a breakpoint edit are queued; everything else writes directly, as today (R-3116) |
 | priority | intent first, then the plan's tick; edit mode: intent task XOR plan, warned both ways (R-3117) |

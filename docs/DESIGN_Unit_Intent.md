@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (2026-11-22 — written; §9 independent review folded in; the open decisions in §8 wait for the user)
-updated: 2026-11-22 (created — backend; CE-3494, R-3114…R-3117)
+build-state: DESIGN (2026-11-22 — §9 independent review folded in: the model changed from 'fold every request' to 'authored intent + the step window'; §8 O1–O3 wait for the user)
+updated: 2026-11-22 (§9 review: 7 red, 9 amber, 4 notes — all folded) · 2026-11-22 (created — backend; CE-3494, R-3114…R-3117)
 current-answer: §1 the rules · §2–§4 the diagrams · §5 the mockups · §6 the build order · §8 the open decisions · §9 the review and how it changed the design
 stale-below: nothing — new document.
 known-rot: none.
@@ -9,7 +9,8 @@ known-conflict:
   - UX/UX_RESUME_INTERACTION.md ruling 50 ("the plan is DISCARDED, not paused") — SUPERSEDED by R-3115 here once built; its "one operation, not two" atomicity is KEPT (§1 R5).
   - blueprints/RULINGS.md R-4137 ("applied at once while paused") — for a unit's AI (task, SOP, ROE) the start now lands at the first step (R-3114); every other initial-state row of R-4137 is unchanged and filed as CE-3496.
   - DESIGN_Sensors_And_Doctrine.md §7.5 (InitialBrainIntent is Transient, deleted after one frame) and §7.6 (paused edits apply at once) — both SUPERSEDED by §1 here once built.
-  - blueprints/DESIGN_Paused_And_Stepped_Execution.md §10 F2 / Appendix A (BehaviorIngressSystem and RoeSystem run every frame SO THAT a unit loaded while paused has its AI before the first step) — the systems stay EveryFrame, but on a paused frame they now only FOLD into the intent (§3.1).
+  - blueprints/DESIGN_Paused_And_Stepped_Execution.md §10 F2 / Appendix A (BehaviorIngressSystem and RoeSystem run every frame SO THAT a unit loaded while paused has its AI before the first step) — SUPERSEDED once built: they, TacticalIntentResolutionSystem and the hand-over's apply become WhenTimeAdvances (R1); the loaded AI waits in the intent.
+  - DESIGN_Entity_Brain_View.md §12g (R-1041, in-place params write, no restart) — KEPT for the running behaviour (monitoring part); the intent section's edit is a new task (R10).
 related-designs:
   - DESIGN_Sensors_And_Doctrine.md — §7.5 owns the scenario shape {Name, Params, Origin} per slot (R-192), §7.6 the editor's AI section, §7.6b the ONE params form, §7.7 the hand-over reader (BrainIntentReader)
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — owns EveryFrame vs WhenTimeAdvances and the step window; this design is its rule "nothing takes effect on a paused frame" applied to the AI
@@ -39,31 +40,35 @@ related-designs:
 ```mermaid
 stateDiagram-v2
     direction LR
-    state "NEXT — the intent (UnitIntent)" as N
+    state "NEXT — the authored intent (UnitIntent)" as N
+    state "REQUESTS — orders and events, in the step window" as Q
     state "NOW — what runs (BehaviorState, SopState, Roe, blackboard)" as R
-    [*] --> N : load · editor · order · TKB default
-    N --> N : paused frame — a request FOLDS in (last wins, by rank)
-    N --> R : first frame where time advances — the ingress APPLIES it
+    [*] --> N : load · editor intent section · edit-mode order · TKB default · hand-over
+    [*] --> Q : operator order (live) · network · commander · mission plan · the sim itself
+    N --> R : next advancing frame — applied FIRST
+    Q --> R : next advancing frame — in order, after the intent
     R --> R : advancing frames — the sim changes itself
 ```
 
-*What the picture shows that prose hid:* there is exactly **one** arrow into NOW, and it only fires on a frame where time advances. Every writer
-(load, editor, operator, network, commander, TKB default) enters at NEXT.
+*What the picture shows that prose hid:* NOW is reached only on a frame where time advances, by **two** inputs with **one** order: the authored intent
+first, then every request since the last step, in the order it was made. Nothing on the left is applied on a paused frame. ⚠ The first draft had
+ONE input (every event folded into the intent); the review proved that wrong (§9 F-2) — the sim's own events must keep their order.
 
 ## 1. The rules
 
 | # | rule | 🔒 basis |
 |---|---|---|
-| **R1** | ⭐⭐⭐ **NOTHING the AI does takes effect on a paused frame.** A request to change the task, the SOP or the ROE that arrives on a paused frame is stored in the unit's **intent** (`UnitIntent`) and applied on the **next frame where time advances** — the same rule on every such frame, no "first frame" case. | user, quoted above; `DECISIONS_Backend.md` CE-3445 B; **R-3114** |
-| **R2** | ⭐⭐ **One intent per unit, one value per slot** — task (behaviour or order + params), SOP, ROE. A newer request **replaces** the pending one in its slot if it ranks at least as high (`BehaviorOriginRank.Admits`), else it is dropped with the gate's own refusal. ⛔ No queue of tasks: sequencing is the mission plan's job. | user: *"it does not make sense to request multiple behaviors … For order sequencing there are mission plans"*; R-3114 |
-| **R3** | ⭐⭐ **The intent is PENDING-ONLY**: a slot holds a value only until it is applied; then the slot empties. ⇒ the intent page shows *pending ?? what runs* (§5). | §9 F-3; rejected alt in §7 |
-| **R4** | ⭐⭐ **Order of application on an advancing frame: intent first, then the plan's tick.** The ingress (Input phase) applies the intent; the mission adapter (Simulation phase) runs after it. ⇒ a plan's task replaces an intent's task at the first step; **SOP and ROE come only from the intent** (plans carry none). | user: *"SOP and ROE … should be applied before mission plan tick. Stay consistent with the priorities"*; **R-3117** |
-| **R5** | ⭐⭐⭐ **An operator order HOLDS the mission plan — it no longer discards it.** The hold happens **inside the same apply** that starts the order (ruling 50's atomicity kept, ruling 52's provider seam reused). The held task's progress is kept; nothing resumes on its own. | user: *"switch ruling 50 from discarding to pausing the plan and resume only by the user"*; **R-3115** |
-| **R6** | ⭐⭐ **Only the user resumes a held plan**, with **Resume plan** (Orders tab, debug API). Resume **restarts** the held task from where the unit stands. | user: *"agreed with restarting the paused task"*; R-3115 |
-| **R7** | ⭐⭐ **No general edit queue.** Only two kinds of edit are queued, because only for them is a direct write WRONG: ① **the AI's task / SOP / ROE** — a request the sim reacts to ⇒ the intent (R1); ② **any edit while a breakpoint has rewound the world** — the world is a copy that Continue overwrites (R-63) ⇒ the staged live write that already exists. Every other edit on a paused frame (a gizmo move, a Details form, the component inspector on an ordinary pause, placing a unit) **writes the world directly, as today** — on a frozen world that is the same result one step earlier. The blackboard / variable edit **keeps its built staged path** (Staged Live Write §1, user-ruled `2026-08-21`) — ⛔ not rebuilt. | user: *"Can it be generalized? Wouldn't it mean that we need to rewrite the whole editor?"* · *"If this turns out not to be practical, then let's edit the memory directly."*; R-63; **R-3116** |
-| **R8** | ⭐⭐ **Edit mode (scenario not yet run): a unit's task comes from its intent OR its mission plan, never both.** The editor refuses the second (with the reason) and warns on a file that has both (§5c). Live: an order on a planned unit HOLDS the plan (R5) — no dialog, the hold destroys nothing. | user: *"making the mission plan and the intent mutually exclusive in the editor is a great idea"*; R-3117 |
-| **R9** | ⭐⭐ **The intent is SAVED and RECORDED.** The save writes, per slot, *the pending value, else the running AI in the scenario's own rule* (`BrainIntentReader`, `Ordered`). The intent is an immutable `record`, replaced whole (CLAUDE.md "NEW COMPONENTS"); it changes only on a request, i.e. rarely. | user: *"Recording saves intents i hope the same way as other components"*; R-192 kept for the shape |
-| **R10** | ⭐ **The Brain tab MONITORS; the intent section EDITS.** The only edit left on the monitoring part is the low-level memory (blackboard) edit, marked as such. | user: *"that page should be just the monitoring"* · *"edit the blackboard … quite low level"* |
+| **R1** | ⭐⭐⭐ **NOTHING the AI does takes effect on a paused frame.** The systems that turn requests into AI — `TacticalIntentResolutionSystem`, `BehaviorIngressSystem`, `RoeSystem`, `BrainHandOverSystem` — become **`WhenTimeAdvances`**: on each advancing frame they apply the intent, then **every request since their last run, in order** (the step window, `EventAccumulator`). ⇒ a stepped run and a continuous run apply the same requests in the same order — the property CE-3445 needs. | user; CE-3445 B; Paused & Stepped §1 (the window); **R-3114** |
+| **R2** | ⭐⭐ **The intent (`UnitIntent`) holds what is AUTHORED, never a copy of the request stream:** the scenario load, the editor's intent section, an order given in **edit mode**, the unit type's defaults at spawn, a Brain hand-over. One value per slot; the writer replaces its slot. ⛔ No rank folding — an authored value is not a competing order. | §9 F-2, F-3; R-3114 |
+| **R3** | ⭐⭐ **The intent is pending-only**: applied at the next advancing frame, then removed. A slot is `{Assign(name, params, origin) | Clear}` — never both. | §9 F-19 |
+| **R4** | ⭐⭐ **The task slot has one owner: a unit with a live (not held) mission plan takes its task from the plan.** Applying the intent, the ingress **drops the intent's task** when `DrivenByMissionPlan` — the plan's first task arrives through the request chain. **SOP and ROE come only from the intent** and apply first. | user: *"the mission plan will override the intent of the behavior on the first simulation tick"*; §9 F-1; **R-3117** |
+| **R5** | ⭐⭐⭐ **An operator order HOLDS the mission plan, never discards it** — and only **if the order actually starts**: the hold runs inside the ingress's apply, **after** `Start` succeeded (ruling 50's atomicity kept; ruling 52's provider seam reused). Held progress is kept. | user; §9 F-8; **R-3115** |
+| **R6** | ⭐⭐ **Only the user resumes a held plan** (Resume plan / `POST /missions/{id}/resume`), and Resume **restarts** the held task. A hold survives a save, a reload and a live plan edit that keeps any task (§4). When the operator's order ends, the plan stays held and the journal says so. | user; §9 F-7, F-20; R-3115 |
+| **R7** | ⭐⭐ **No general edit queue.** Queued: the AI request (R1) and any edit while a breakpoint has rewound the world (R-63, the staged live write). Every other paused edit writes the world directly, as today; the blackboard / variable edit keeps its built staged path. Exempt with reason: the **plan's own edits** (authored data — its effect comes only through the step-only adapter), **hot reload** (a code swap, not a sim change). | user: *"let's edit the memory directly"*; **R-3116** |
+| **R8** | ⭐⭐ **Edit mode: a unit's task comes from its intent OR its plan, never both.** Ordering a planned unit is refused with the reason; adding a plan's first task to a unit whose intent sets a task removes that task (one undo step, a notice says so); a file with both warns in both editors and the load drops the intent's task (R4). Live: an order on a planned unit HOLDS the plan (R5) — no dialog. | user; R-3117 |
+| **R9** | ⭐⭐ **Save and record.** The intent is recorded (an immutable `record`, rare changes). The save writes per slot *the pending intent, else the running AI* (`BrainIntentReader`, `Ordered`); a pending **Clear** saves no slot. A held plan saves its hold and the running order (§4). | R-192 shape kept; §9 F-7, F-19 |
+| **R10** | ⭐ **The Brain tab MONITORS; the intent section EDITS** "what the unit does next" — an edit there is a NEW task (a restart). The in-place params write of the RUNNING behaviour (R-1041, no restart) stays where it is, in the monitoring part, as the low-level edit, staged. | user; §9 F-15 |
+| **R11** | ⭐ **Nothing applies or removes the intent while a replay is active** (CE-3329 P2: the recording owns the world), and a node that does not run the unit's brain drops a loaded intent, as the materializer does today. | §9 F-5, F-12 |
 
 ## 2. INVENTORY *(measured `2026-11-22`; graph via `scripts/cbm.sh` + grep; ⚠ `check_index_coverage` is not available through the CLI, so no
 negative claim below is proven complete)*
@@ -92,7 +97,11 @@ grep `BehaviorStartRecord|SopStartRecord` in Presentation / Editor · two read-o
 | the staged memory edit | `DataBreakpointManager.StageFieldMutation` → `PendingDebugMutation` (field writes, ruling 14) → drained by `ResumeAndDrainSystem` at the next advancing tick; yellow via `StagedWriteView` | ✅ variables stage in every run state already; kept as built |
 | other editor writes | the component inspector and its edit window stage **only while the breakpoint manager is paused** (`IMutationInterceptor.IsPaused` = `DataBreakpointManager.IsPaused`; `ComponentReflector.cs:73`, `ComponentEditWindow`); on an ordinary pause they — and gizmos, Details forms, placement — write directly | ✅ R7 keeps this split; ⚠ whether gizmos / Details forms stage at a **breakpoint** is **not measured** — S1 measures it (CE-3495) |
 | who reads the running AI BEFORE the first step | `RulesModel` / `RuleSentence` / `AuthoredRules` / `RuleDetails` (rules read `BehaviorStartRecord`), `ScenarioVerification`, `DebugApiService.Orders`, `OccurrenceSlotWriter` | ⚠ each must read the intent before the first step (§9 F-2) |
+| the step window | `EventAccumulator` (`FDP/Engine/Fdp.Core/EventAccumulator.cs:28`): a ring of 256 slots / 65 536 events; a long pause merges frames into one slot; `SnapAndPause` (load, Stop) **forgets it** | ⭐ R1 reuses it for requests; ⛔ it cannot hold authored values (R2) |
+| the hand-over | `BrainHandOverSystem` (**EveryFrame**) writes the ROE and starts task / SOP **directly** through a private ingress (`BrainHandOverSystem.cs:22, :37, :71, :83-95`) | ⭐ writes the intent instead (§3.3) |
+| the plan in a save | `DrivenByMissionPlan` = tasks left (`BrainIntentReader.cs:106-111`); `MissionPlanTranslator.Inject` resets progress (`:113-122`) | ⭐ held plans saved and restored (§4) |
 | warning helpers | `RowMarks.WarningLine/ErrorLine` (NodeEditor.Core `RowMarks.cs:35-45`), `IconPalette` tokens, `Icons` `form/warning|pending|error`, `task/*`; ⚠ `OrdersTab` and `EntityBrainView` hard-code amber (`OrdersTab.cs:194, :248`, `EntityBrainView.cs:484/949`) | ⭐ every new line uses `RowMarks` + `IconPalette`; the two hard-coded ambers fold over when touched |
+
 
 ## 3. Classes and the paths
 
@@ -101,130 +110,140 @@ grep `BehaviorStartRecord|SopStartRecord` in Presentation / Editor · two read-o
 ```mermaid
 classDiagram
     class UnitIntent {
-        <<new · record · replaces InitialBrainIntent, id 316>>
+        <<new · record · replaces InitialBrainIntent, id 316 · recorded, saved>>
         +IntentSlot? Task
         +IntentSlot? Sop
         +SavedRoe? Roe
-        +bool TaskClears
-        +bool SopClears
-        +bool HoldsPlan
-        +uint RequestId
     }
     class IntentSlot {
         <<new · record · was SavedBrainSlot>>
+        +bool Clear
         +string Name
         +string Params
         +BehaviorOrigin Origin
     }
+    class UnitIntentWriter {
+        <<new · static, the ONE writer>>
+        +SetTask / SetSop / SetRoe / Clear (repo, entity, …)
+        +Snapshot(repo, entity) UnitIntent
+    }
+    class TacticalIntentResolutionSystem {
+        <<existing · EveryFrame ⇒ WhenTimeAdvances>>
+    }
     class BehaviorIngressSystem {
-        <<existing · EveryFrame · Input — CHANGED>>
-        paused frame: Fold(task, SOP)
-        advancing frame: ApplyIntent() then events
+        <<existing · EveryFrame ⇒ WhenTimeAdvances>>
+        ApplyIntent() then the window's events, in order
+        replay guard
     }
     class RoeSystem {
-        <<existing · EveryFrame — CHANGED>>
-        paused: Fold(ROE) · advancing: apply ROE slot
+        <<existing · EveryFrame ⇒ WhenTimeAdvances>>
+        ROE slot field by field, then the window
     }
-    class IntentFold {
-        <<new · static, the ONE fold>>
-        +Fold(repo, entity, request) UnitIntent
+    class BrainHandOverSystem {
+        <<existing · EveryFrame — writes UnitIntent, no direct start>>
     }
     class BrainIntentReader {
-        <<existing — CHANGED>>
-        +Read(scope) pending ?? running
+        <<existing — save merges the pending intent>>
     }
     class BrainSnapshotTranslator {
         <<existing — Inject writes UnitIntent>>
     }
     class InitialBrainMaterializationSystem {
-        <<existing — DELETED>>
+        <<existing — DELETED (its non-brain-node drop moves to the translator)>>
     }
     class IIntentHoldProvider {
-        <<was IIntentClearProvider (ruling 52)>>
+        <<was IIntentClearProvider, ruling 52 — Roslyn rename>>
         +HoldFor(entity, repo)
     }
     class MissionControlExecutionSystem {
         <<existing>>
-        +HoldFor() · CMD_JUMP_TO_TASK = Resume
+        +HoldFor() · Resume = CMD_JUMP_TO_TASK(current)
     }
     class MissionPlanQueue {
         <<existing>>
         +byte Halted  0 · 1 Faulted · 2 HeldByOrder
     }
     class EntityAiEditModel {
-        <<existing — writes UnitIntent ONLY>>
-    }
-    class PendingDebugMutation {
-        <<existing · reused for every memory edit>>
+        <<existing — every edit through UnitIntentWriter (a node job when threaded)>>
     }
     UnitIntent "1" *-- "0..2" IntentSlot
-    BehaviorIngressSystem ..> IntentFold
-    RoeSystem ..> IntentFold
-    IntentFold ..> UnitIntent : replaces whole
-    BehaviorIngressSystem ..> IIntentHoldProvider : at apply, HoldsPlan
+    UnitIntentWriter ..> UnitIntent : replaces whole
+    EntityAiEditModel ..> UnitIntentWriter
+    BrainSnapshotTranslator ..> UnitIntentWriter : load
+    BrainHandOverSystem ..> UnitIntentWriter : the gaining node
+    BehaviorIngressSystem ..> UnitIntent : apply task, SOP, then remove
+    RoeSystem ..> UnitIntent : apply ROE
+    BehaviorIngressSystem ..> IIntentHoldProvider : after a successful Operator start with HoldsPlan
     IIntentHoldProvider <|.. MissionControlExecutionSystem
     MissionControlExecutionSystem ..> MissionPlanQueue
-    BrainSnapshotTranslator ..> UnitIntent : load
-    BrainIntentReader ..> UnitIntent : save, hand-over
-    EntityAiEditModel ..> UnitIntent : the editor's edits
+    BrainIntentReader ..> UnitIntent : save
 ```
 
-*What the picture shows that prose hid:* the fold is ONE static helper both readers call (so ROE and task cannot fold by different rules), and the
-plan hold hangs off the APPLY, never off the order's arrival — that is what keeps a paused frame clean.
+*What the picture shows that prose hid:* every AUTHORED write goes through one writer, and every APPLY sits in a step-only system — the two arrows
+into NOW are both in `WhenTimeAdvances` code, so no paused frame can reach it. The hold hangs off a successful start, not off the order's arrival.
 
-### 3.1 The ingress: fold on a paused frame, apply on an advancing one
+### 3.1 One advancing frame — the order of application
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant W as writer (editor / operator / network / TKB / load)
-    participant B as event bus
-    participant I as BehaviorIngressSystem (EveryFrame)
-    participant U as UnitIntent (component)
-    participant N as NOW (BehaviorState, SopState)
-    participant M as MissionAdapterSystem (WhenTimeAdvances)
-    Note over W,M: paused frame (time does not advance)
-    W->>B: AssignBehaviorEvent / AssignSopEvent / Clear…
-    I->>B: read this frame's events
-    I->>U: IntentFold.Fold — rank-checked, last wins, replaced whole
-    Note over I,N: NOW is not touched
-    Note over W,M: next frame where time advances
-    I->>U: read pending slots
-    I->>N: apply each slot through the one gate (rank, provisioning, start record)
-    I->>I: HoldsPlan ⇒ IIntentHoldProvider.HoldFor (same call)
-    I->>U: remove the component (pending-only, R3)
-    I->>N: then this frame's own events, as today
-    M->>N: later in the frame: the plan's task (Superior) — replaces an intent task (R4)
+    participant E as editor / load / TKB / hand-over
+    participant U as UnitIntent
+    participant O as operator · network · commander · plan · sim
+    participant W as step window (EventAccumulator)
+    participant T as TacticalIntentResolution (step-only)
+    participant I as BehaviorIngress + RoeSystem (step-only)
+    participant N as NOW
+    Note over E,N: paused frames — nothing below the line runs
+    E->>U: UnitIntentWriter.Set… (replaces the slot)
+    O->>W: AssignTacticalIntentEvent / Assign… / SetRoe… (kept in order)
+    Note over E,N: advancing frame k
+    T->>W: read every order since its last run
+    T->>W: publish AssignBehaviorEvent (read at k+1)
+    I->>U: apply ROE (field by field), SOP, task (task dropped if a live plan drives it)
+    I->>U: remove (pending-only)
+    I->>W: read every request since its last run — in order, the gate as today
+    I->>N: start / clear / assign, HoldsPlan + started ⇒ HoldFor
+    Note over E,N: advancing frame k+1 — the order mapped at k starts
 ```
 
-*What the picture shows:* the paused frame writes only `UnitIntent`; the advancing frame is the only place NOW changes, and the plan runs after the
-intent in the same frame — the priority R4 needs, by phase order, not by a check.
+*What the picture shows:* the same chain runs in a stepped and a continuous run — an operator order starts **two advancing frames** after it is
+given (map at k, apply at k+1), exactly as it does today while running; the editor's authored intent starts at the **first** advancing frame. The
+mockups say *"when time next advances"*, not *"at the next step"*, because the chain is two frames (§9 F-13).
 
-⚠ **The bus is double-buffered** (an event published in frame N is read in N+1). The intent is applied by the ingress **directly** (its internal
-apply functions, the materializer's events' own path), never re-published — re-publishing would cost a frame and reopen ruling 50's ordering hazard.
+### 3.2 The editor
 
-### 3.2 The editor writes the intent only
+| | |
+|---|---|
+| **edits** | `EntityAiEditModel` → `UnitIntentWriter` only (no event, no direct start); on the threaded node as a node job (the world guard) |
+| **undo** | snapshots the `UnitIntent` record before the edit and restores it (⛔ not today's `Read()` of the running AI — in edit mode nothing runs) |
+| **feedback** | an edit shows *pending* (amber, R-130); a refusal by rank is shown **after** the step, from the gate's outcome — ⛔ the synchronous "ROE refused" text goes |
+| **edit-mode orders** | the map's order menu / form in edit mode writes the intent (authoring the start — origin Superior, R-193); live it sends the order as today |
+| **cluster** | S3 builds the intent section on the node that runs the brain (the editor's own node; R-1036's rule). A station on another node is CE-3498 — today only `AssignTacticalIntentEvent` / `SetRoeEvent` cross nodes (`TacticalIntentEgressTranslator.cs:64-168`) |
 
-`EntityAiEditModel.ApplyTask / ApplySop / ApplyRoe / ClearTask / ClearSop` (`EntityAiEditModel.cs:192-247`) stop branching on `running`: **every edit
-publishes its event** (origin per §8 O2) and the ingress folds it. ⛔ The paused direct apply (`AssignNow`, `AssignSopNow`, `RoeSystem.Apply`) is
-deleted — it is the R1 violation and the CE-3495 breakpoint loss in one.
+### 3.3 Save, record, hand-over, replay
 
-### 3.3 Save, record, hand-over
+| | rule |
+|---|---|
+| scenario save | per slot: the pending intent (a template default — origin `Sop`/`Unmarked` — is not saved, R-192), else the running AI as today; a pending `Clear` ⇒ no slot |
+| recording / checkpoint | `UnitIntent` is recorded; a checkpoint at a paused frame keeps the authored edit. ⚠ Requests still in the step window are **not** kept by a checkpoint or a `SnapAndPause` — the same as every other in-flight event today (R-3041, accepted) |
+| hand-over | the gaining node writes the published intent (`Running` scope) into its `UnitIntent`; applied at its next advancing frame (⛔ no direct start on a paused frame — §9 F-6) |
+| replay | the ingress, `RoeSystem` and the hand-over neither apply nor remove the intent while `ReplayState.IsActive` |
+| non-brain nodes | the load translator does not write `UnitIntent` where the brain events are unregistered (today's materializer behaviour) |
 
-| | reads | rule |
-|---|---|---|
-| scenario save | `BrainIntentReader.Read(Ordered)` | per slot: **pending intent value** (unless its origin is `Sop`/`Unmarked` — a template default, R-192), else the running AI as today |
-| recording / checkpoint | `UnitIntent` as a component | recorded (managed, rare changes — R9); a checkpoint restore at a paused frame keeps the pending edit |
-| hand-over egress | `Read(Running)` | per slot: pending ?? running ⇒ a Brain move during a pause keeps the operator's pending order (§9 F-6) |
-| load | `BrainSnapshotTranslator.Inject` | writes `UnitIntent` (was `InitialBrainIntent`); the file shape is **unchanged** (`"Behavior"/"Sop"/"Roe"`) |
+### 3.4 What else reads the running AI before the first step *(each reads the intent first until the first step)*
 
-### 3.4 Who changes on the outside — consequences, not changes
+`EntityEditorLabelGizmo.cs:62-82` (the behaviour name on the map) · `RulesModel` / `RuleSentence` / `AuthoredRules` / `RuleDetails` (rules read
+`BehaviorStartRecord`, S4) · `ScenarioVerification` · `DebugApiService.Orders` · the Brain tab (shows *"Not started"*). ⚠ The list is from grep;
+coverage is not proven (CLI gap) — S1 re-greps `BehaviorState` / `SopState` / `Roe` readers in Presentation and Editor.
 
-- **The commander seat's think-pause** (LLM commander §5a-2): orders the seat gives while it holds the clock fold and start at the resume; an
-  order's verdict *given* arrives one step later than today. Its rails assert on the step, not the frame (S1 gate).
-- **The TKB default SOP at spawn** (`BehaviorTkbTranslator.cs:107-128`, origin Sop): folds like any request ⇒ a unit placed while paused shows
-  its type's SOP as *pending* until the first step (R-4137's "at once" no longer holds for the AI — CE-3496 for the other rows).
-- **Edit mode's Brain tab** is empty until the first step (nothing runs) — it says so (§5a), and the intent section shows what will start.
+### 3.5 Consequences outside (not changes)
+
+- **The commander seat's think-pause:** its orders are requests (Q); they start two advancing frames after the resume. Its rails assert on steps.
+- **The TKB default SOP at spawn** (`BehaviorTkbTranslator.cs:107-128`) writes the intent's SOP slot (origin Sop) — a unit placed while paused shows
+  its type's SOP as pending until the first step.
+- **`OccurrenceSlotWriter`** (the R-1041 live params write) rewrites `BehaviorStartRecord` directly on a paused frame and drops its `RequestId` —
+  lost at a breakpoint and an existing bug ⇒ CE-3497 (stage it; keep the id).
 
 ## 4. The mission plan: hold and resume
 
@@ -232,91 +251,112 @@ deleted — it is the R1 violation and the CE-3495 breakpoint loss in one.
 sequenceDiagram
     autonumber
     participant O as operator (map menu, RTS, HTTP)
+    participant T as TacticalIntentResolution
     participant I as BehaviorIngressSystem
     participant H as MissionControlExecutionSystem
     participant Q as MissionPlanQueue
     participant A as MissionAdapterSystem
-    participant D as MissionDirectorSystem
-    O->>I: order, Operator, HoldsPlan (paused ⇒ folded)
-    Note over I,D: next advancing frame
-    I->>H: HoldFor(unit) — in the same apply as the order's start
-    H->>Q: Halted = HeldByOrder · CurrentTask, Outcomes kept
-    I->>I: start the order (Operator) — replaces the plan's task by rank
-    A-->>Q: halted ⇒ issues nothing
-    D-->>Q: halted ⇒ no timer, no trigger
-    Note over O,D: later — the user presses Resume plan
-    O->>H: CMD_JUMP_TO_TASK(current task)
+    O->>T: AssignTacticalIntentEvent (Operator, HoldsPlan) — waits in the window
+    Note over O,A: advancing frame k
+    T->>I: AssignBehaviorEvent (Operator, HoldsPlan) — read at k+1
+    Note over O,A: advancing frame k+1
+    I->>I: Start the order — refused? then nothing is held
+    I->>H: started ⇒ HoldFor(unit), same call
+    H->>Q: Halted = HeldByOrder · progress kept
+    A-->>Q: held ⇒ issues nothing · director: no timer, no trigger
+    Note over O,A: the order ends ⇒ the unit runs its SOP, the plan stays held, a journal line
+    O->>H: Resume plan ⇒ CMD_JUMP_TO_TASK(current)
     H->>Q: Halted = 0 · task time = 0
-    H->>I: ClearBehaviorEvent (Operator) — ends the order
-    A->>I: next step: the held task again (Superior) — a restart
+    H->>I: ClearBehaviorEvent (Operator) — ends a still-running order
+    A->>T: next advancing frame: the held task again (Superior) — a restart
 ```
 
-*What the picture shows:* the hold is a property of the plan (`Halted`), not of the behaviour — which is why the order can run for an hour and the
-plan is still exactly where it was. Resume is the existing jump plus the order's end; ⚠ the order's clear and the restarted task land one step
-apart, so the unit's SOP holds it for one step.
+*What the picture shows:* the hold is a property of the PLAN — the order can run for an hour or finish and the plan is exactly where it was; and
+the hold exists only if the order really started.
 
 | piece | change |
 |---|---|
-| `MissionPlanQueue.Halted` | `1` = Faulted (as today), **`2` = HeldByOrder**; every reader that tests `!= 0` is unchanged |
-| `IIntentClearProvider` (ruling 52) | renamed **`IIntentHoldProvider.HoldFor`** (Roslyn rename); `MissionControlExecutionSystem.HoldFor` sets the halt instead of `EmptyPlan` |
-| the call | moves from `TacticalIntentResolutionSystem.cs:120` (the order's arrival) to the ingress's apply (the order's start) — carried as `HoldsPlan` on the folded task (`ClearsPriorIntent` renamed `HoldsPlan`) |
-| the wire | ⭐ `eTaskState.TASK_HELD` appended; `MissionProgressWire.StateOf/Decode` carry it ⇒ another node decodes a held plan as held, not complete |
-| Resume | Orders tab **Resume plan** (held) / **Retry** (faulted) on the current row; debug API **`POST /missions/{id}/resume`** — both send `CMD_JUMP_TO_TASK` to the CURRENT task; for `HeldByOrder` the handler also publishes the Operator clear |
-| `CMD_ABORT_ALL` | unchanged — *Stop the plan* still discards |
+| `MissionPlanQueue.Halted` | `1` Faulted · **`2` HeldByOrder**; `LatestOutcome` (`MissionComponents.cs:192`) reads the last *ended* task for a held plan; `OrdersPlanModel.StateOf` (`:85`) splits **Held** from **Halted** |
+| the flag | `ClearsPriorIntent` → **`HoldsPlan`** on `AssignTacticalIntentEvent`, **and new on `AssignBehaviorEvent`**; every tactical mapper forwards it |
+| the provider | `IIntentClearProvider` → **`IIntentHoldProvider.HoldFor`** (Roslyn rename), invoked by the ingress after a successful start; ⛔ the two private ingress instances (`BrainHandOverSystem.cs:37`, `EntityAiEditModel.cs:255-260`) go away with the direct starts — any that remains gets the registry passed (silent-default rule) |
+| the wire | `eTaskState.TASK_HELD` **appended** (IDL regenerates); `MissionProgressWire.StateOf` emits it, `Decode` sets `Halted = 2` |
+| save / load | `DrivenByMissionPlan` is **false for a held plan** (the order is saved); `MissionPlanTranslator` saves and restores `Halted` and the current task (⛔ today Inject resets progress, `:113-122`) |
+| a live plan edit | `CarryProgress` (`MissionControlExecutionSystem.cs:373-381`) keeps `Halted = 2` while any task remains — a removed held task holds on the next one |
+| Resume / Retry | Orders tab button on the current row; `POST /missions/{id}/resume`; both `CMD_JUMP_TO_TASK(current)`; for `HeldByOrder` the handler also publishes the Operator clear. ⚠ The clear and the restarted task land one advancing frame apart (the SOP holds the unit for that frame) |
+| the notices | *"This order holds the mission plan (task 3, Hold at bridge)"* is described by the node that knows (rulings 55 / 56): the hold provider's describer, same `AspectId`; ⛔ never computed by a station from the replicated plan |
+| unchanged | `CMD_ABORT_ALL` (*Stop the plan*) still discards; a Superior commander order to a held unit is a normal order (it does not hold again, the plan is already held) |
 
 ## 5. What the user sees — mockups
 
 📄 **[`docs/UX/unit-intent-mockup.svg`](UX/unit-intent-mockup.svg)** — generated by `scripts/gen-unit-intent-mockup.py` over `scripts/mockup_kit.py`.
-⛔ **Scope:** the intent section, the pending marks, the Brain tab's not-started line and pending chips, the staged-edit warning, the Orders tab's
-held / failed rows and both-set warning, the order menu's notice. Everything else drawn is **context, unchanged** (the Brain tab's other sections,
-the Orders tab's list, the map menu) — R-4151.
+⛔ **Scope:** the intent section, the pending marks, the Brain tab's not-started line and *next* chip, the staged-edit warning, the Orders tab's held /
+failed rows, Resume / Retry and the both-set warning, the order form's notice and the edit-mode menu. Everything else drawn is **context, unchanged**
+(the Brain tab's other sections, the Orders list, the map menu) — R-4151.
 
 | panel | state | what it specifies |
 |---|---|---|
-| **A** | edit mode, unit with no plan | the intent section first on the Brain tab: Task (picker + the one params form), SOP, ROE; *"Starts at the first step"*; the monitoring part reads *"Not started — nothing runs before the first step"* |
-| **B** | edit mode, unit WITH a plan | the Task row locked: *"Driven by the mission plan — edit its first task on the Orders tab"*; SOP / ROE editable |
-| **C** | paused mid-run | a pending task edit (amber hourglass, *"applies at the next step"*), the notice *"This order holds the mission plan (task 3, Hold at bridge)"*; the monitoring part with a *"next step: Attack"* chip on **Doing**; a staged blackboard value in yellow with *"the next step restarts the behaviour — this staged edit will be lost"* |
-| **D** | the Orders tab | live: the held row (pause glyph, amber, *"Held by your order Attack at 00:04:12"*, **Resume plan**); a faulted row (red, **Retry**); edit mode: the both-set warning *"This unit's intent also sets a task (Patrol) — the plan replaces it at the first step"* |
-| **E** | the map order menu | live: the order form's line *"Holds Alpha's mission plan — resume it on the Orders tab"*; edit mode on a planned unit: the order items disabled with that reason as tooltip |
+| **A** | edit mode, no plan | the intent section first on the Brain tab: Task (picker + the one params form), SOP, ROE; *"Starts when time first advances"*; the monitoring part reads *"Not started"* |
+| **B** | edit mode, WITH a plan | the Task row locked *"driven by the mission plan"* + *Open Orders*; SOP / ROE editable |
+| **C** | paused mid-run | a pending task edit (amber hourglass, *"applies when time next advances"*), the hold notice; the monitoring part with a *next: Attack* chip on **Doing**; a staged blackboard value (yellow) with *"the next step starts Attack — this staged edit will be lost"* |
+| **D** | the Orders tab | the held row (*"Held by your order Attack (00:04:12)"*, **Resume plan**), a faulted row (**Retry**); edit mode: *"This unit's intent also sets a task (Patrol) — the plan's first task replaces it; it never starts"* + *Remove the intent task* |
+| **E** | the map order form / menu | live: *"Holds Bravo's mission plan — resume it on the Orders tab"*; edit mode on a planned unit: order items disabled, the reason as tooltip |
 
-## 5b. The fidelity check (R-4138, R-4146)
+### 5b. The fidelity check (R-4138, R-4146)
 
 The builder renders each panel's state through a frame rail (`HROT_RAIL_SHOTS`) and matches the mockup; layout is asserted on item rectangles (the
-intent rows share one control x; the status slot is fixed); the glyphs and colours named above are asserted by token, never a stand-in.
+intent rows share one control x; the status slot is fixed); glyphs and colours are asserted by token.
 
 ## 6. Build order *(cross-lane: behaviors' ingress, ui's Brain / Orders tabs — each commit says so)*
 
 | slice | what | the gate *(T-1 suites first)* | scenario (R-4277) |
 |---|---|---|---|
-| **S1** | `UnitIntent` record (316, recorded + saved), `IntentFold`, ingress + `RoeSystem` fold/apply, the materializer deleted, `BrainIntentReader` merges pending, `EntityAiEditModel` events only, the rule entities' readers (§9 F-2) | `BehaviorIngressSystemTests`, `BrainSnapshotTranslatorTests`, `BrainIntentTranslatorTests`, `InitialBrain*`, the commander rails; ⭐ rails: *a paused-frame order changes nothing until the step*, *save writes the pending value*, *a checkpoint at a paused frame keeps it*; `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` | `intent-order-while-paused`: expect the ordered behaviour **absent before** the first step and **running at** step 1 |
-| **S2** | the hold: `Halted = 2`, `IIntentHoldProvider` (Roslyn rename), the call moved to the apply, `TASK_HELD` on the wire, Resume (`CMD_JUMP_TO_TASK` + clear), `POST /missions/{id}/resume` | `MissionControlExecutionSystemTests`, `MissionAdapterSystemTests`, `MissionProgressWireTests`, `SplitAuthority*` (the wire), `DebugApiMissions*` | `plan-held-by-order`: expect plan task 2 **held** while the order runs, **task 2 running** after resume, task 3 after its trigger |
-| **S3** | the editor: intent section, pending marks, not-started line, chips, staged-edit warning, Orders rows + Resume / Retry + both-set warning, order menu notice / disable | the Brain / Orders / order-form frame rails under `xvfb-run -a`; the fidelity check §5b | — (UI) |
-| **S4** | rules: rule entities start from the intent (`BehaviorStartRecord` before the run → the intent's task slot), `RulesModel` reads pending | `RulesModel*`, `RuleDetails*`, the rule scenarios | the existing rule scenarios stay green |
-| **S5** | CE-3445: the 1-vs-4-thread stepped pairs again | `scripts/stepped-hash.py --threads 1,4,8` × 5 pairs | — |
+| **S1** | `UnitIntent` + `UnitIntentWriter`; TIR, ingress, `RoeSystem` → `WhenTimeAdvances` (ingress applies the intent first, ROE field by field, task dropped under a live plan); replay guard; hand-over writes the intent; the materializer deleted; save merge; `EntityAiEditModel` through the writer (undo, feedback); the readers of §3.4 | `BehaviorIngressSystemTests`, `RoeSystemTests`, `TacticalIntentResolutionSystemTests`, `BrainSnapshotTranslatorTests`, `BrainIntentTranslatorTests`, `BrainHandOver*`, the commander rails; ⭐ rails: *a paused order changes nothing until time advances*, *stepped == continuous order of application*, *save writes the pending value*, *a replay never applies an intent*; `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` | `intent-order-while-paused`: the order **absent while paused**, **running within two advancing frames** |
+| **S2** | the hold: `Halted = 2`, `HoldsPlan` on both events + mappers, `IIntentHoldProvider` (Roslyn rename), hold after start, `TASK_HELD`, save/load of the hold, `CarryProgress`, Resume, `/missions/{id}/resume`, the journal line | `MissionControlExecutionSystemTests`, `MissionAdapterSystemTests`, `MissionProgressWireTests`, `SplitAuthority*`, `DebugApiMissions*` | `plan-held-by-order`: task 2 **held** while the order runs, **running** after Resume, task 3 after its trigger; a save mid-hold reloads **held** |
+| **S3** | the editor: intent section, pending marks, not-started line, chip, staged-edit warning, Orders rows + Resume / Retry + both-set warning, order form notice / edit-mode disable, R8's plan-add removal | the Brain / Orders / order-form frame rails under `xvfb-run -a`; §5b | — (UI) |
+| **S4** | rules: rule entities start from the intent; `RulesModel` reads pending | `RulesModel*`, `RuleDetails*`, the rule scenarios | the rule scenarios stay green |
+| **S5** | CE-3445: the 1-vs-4-thread stepped pairs | `scripts/stepped-hash.py --threads 1,4,8` × 5 | — |
 
 ## 7. Rejected
 
-- **The ingress as `WhenTimeAdvances` (the step window delivers paused events at the step)** — no component holds them, so the editor cannot show
-  them, the save cannot write them and a checkpoint loses them; two mechanisms for one rule.
-- **A persistent intent ("the last thing asked")** — it goes stale the moment the sim changes the AI itself (a behaviour ends, a plan moves on);
-  the page would show a lie during a run (R3).
-- **Reusing `PausedTask` to resume the plan exactly** — one deep by design, and an operator order already drops it; a held plan's task restarts (R6).
-- **Automatic resume when the order finishes** — many orders never finish (Hold, Defend), and it reopens ruling 50's *"the mission overrides the
-  operator 20 s later"*.
-- **A yes/no dialog on an order to a planned unit** — the hold destroys nothing, so there is nothing to confirm (R8).
-- **Queue EVERY edit to the next step** — it would route every editor write (gizmos, forms, the inspector, placement) through a new path, i.e.
-  rework the editor, for edits whose direct write on a frozen world already gives the same result; only the AI (the sim reacts) and the
-  breakpoint (the world is a copy) need it (R7).
-- **Re-publishing the intent as events at the step** — the double-buffered bus costs a frame and splits the clear from the assign (ruling 50).
+- **Fold every request into the intent (the first draft)** — the sim's own events would be folded last-wins on a stepped run and applied in order
+  on a continuous one; the fold also drops `Urgency`, `RequestId`, the gate's answers and the clear-then-assign order (§9 F-2–F-4, F-10).
+- **Only the step window, no component** — an edit-mode order would wait for a run that has not started, invisible, unsaved, and a `SnapAndPause`
+  (load, Stop) forgets the window — so authored values need a component.
+- **A persistent intent ("the last thing asked")** — stale the moment the sim changes the AI itself (R3).
+- **Reusing `PausedTask` to resume the plan exactly** — one deep by design; an operator order drops it (R6).
+- **Automatic resume when the order finishes** — Hold / Defend never finish; it reopens ruling 50's *"the mission overrides the operator"*.
+- **A yes/no dialog on an order to a planned unit** — the hold destroys nothing (R8).
+- **Queue every edit** — rework of the editor for edits whose direct write on a frozen world gives the same result (R7).
 
 ## 8. Open — the user decides *(each with a lean)*
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
-| **O1** | the intent section: first expander of the **Brain tab** (R-1036), or its own **Intent** tab? | **Brain tab, first expander, visually split from the monitoring part** — R-1036 put every AI surface there, and the pending chips need both on one page | if you want the intent editable without the Brain tab's cost on a non-brain node |
-| **O2** | a live intent edit in the editor — origin **Superior** (R-193: editor = superior) or **Operator** (it is a human's direct order, holds the plan)? | **Operator while a run is live, Superior in edit mode** — live it is exactly the operator's order of R5; in edit mode it is authoring | if the editor should never outrank a commander |
-| **O3** | R-4137's other initial-state rows (carry mode, weapon posture, held item…) — also "at the first step"? | **yes, same rule, separate item (CE-3496)** — the AI is what CE-3445 measured | if any of them must be visible on the paused editor world before the run (posture probably is: it is drawn) |
+| **O1** | the intent section: first expander of the **Brain tab** (R-1036), or its own **Intent** tab? | **Brain tab, first expander, split from the monitoring part** — R-1036, and the *next* chip needs both on one page | wanting it on a node that does not run the brain (CE-3498) |
+| **O2** | the intent section's live edit — origin **Superior** (R-193) or **Operator** (holds the plan)? | **Operator live, Superior in edit mode** — live it is the operator's direct order of R5 | if the editor should never outrank a commander |
+| **O3** | R-4137's other initial-state rows — also at the first step? | **case by case (CE-3496)**; posture is drawn on the paused world, so probably stays | — |
 
-## 9. Independent review — findings and what changed
+## 9. Independent review — findings and what changed *(`2026-11-22`, a fresh reviewer reading the code, not this design's reasoning)*
 
-*(filled in by the review pass, §9 table; each row: finding · verdict · how the design changed)*
+| # | finding (verified against code) | sev | ⇒ change |
+|---|---|---|---|
+| F-1 | the plan's task reaches the ingress two frames after the adapter (`MissionAdapterSystem.cs:31,131` → TIR → ingress; the bus swaps per frame) ⇒ the intent's task would start first and run | 🔴 | R4: the apply **drops** the intent's task under a live plan; D's text fixed |
+| F-2 | folding the sim's own events makes stepped ≠ continuous; the fold lacks `Urgency`, `Cause`, `IsResume`, `RequestId` (a Guid), the by-name / by-hash dedupe | 🔴 | **the model changed**: requests go through the step window in order (R1); the intent holds authored values only (R2) |
+| F-3 | rank folding drops a Superior assign after a pending Operator clear; a `Self` event would wipe a pending order | 🔴 | gone with F-2 — no folding |
+| F-4 | `SetRoeEvent` is a partial update; `Self` resolves at apply; a replica forwards | 🔴 | ROE applied field by field from the intent; events stay events |
+| F-5 | the ingress has no replay guard; the intent is recorded | 🔴 | R11 |
+| F-6 | `BrainHandOverSystem` (EveryFrame) starts directly; with pending-in-egress it would start an order on a paused frame | 🔴 | the hand-over writes the intent (§3.3) |
+| F-7 | a held plan is "driven" ⇒ the save drops the order; load resets progress; `CarryProgress` clears the hold | 🔴 | §4 save / load / live-edit rows |
+| F-8 | hold before a refused start; `HoldsPlan` missing on `AssignBehaviorEvent`; private ingress instances lack the registry | 🟠 | R5 hold after start; §4 flag + provider rows |
+| F-9 | edit model writes vs publishes; undo re-reads the running AI; synchronous refusal text | 🟠 | §3.2 |
+| F-10 | folded-away requests never answered | 🟠 | gone with F-2 (every request reaches the gate) |
+| F-11 | editor events never cross nodes; Brain tab full only on the brain's node | 🟠 | §3.2 cluster row; CE-3498 |
+| F-12 | the intent would linger on non-brain nodes | 🟠 | R11 |
+| F-13 | an order is two hops ⇒ "at the next step" is false | 🟠 | §3.1 states two advancing frames; mockups say "when time next advances" |
+| F-14 | the plan's own commands, hot reload, `OccurrenceSlotWriter`, edit-mode instance params also write on paused frames | 🟠 | R7 exemptions; CE-3497 for the slot writer |
+| F-15 | R-1041 (in-place params, no restart) not declared | 🟠 | R10 keeps it in the monitoring part |
+| F-16 | the hold notice must come from the knowing node (rulings 55 / 56) | 🟠 | §4 notices row |
+| F-17 | the edit-mode map label reads the running behaviour | 🟠 | §3.4 |
+| F-18 | `LatestOutcome`, `OrdersPlanModel`, `Decode` assume one halt meaning | note | §4 rows |
+| F-19 | slot semantics (clear + task), pending clear in save, adding a plan to an intent task | note | R3, R8, R9 |
+| F-20 | a held plan after its order ends says nothing | note | R6 journal line; D's row |

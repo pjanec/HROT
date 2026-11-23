@@ -73,7 +73,7 @@ y = intent_section(AX, y, AW, [
     ("  Speed", "combo", "Walk", None, None),
     ("SOP", "combo", "Infantry default (type)", None, None),
     ("ROE", "roe", ("Return fire", "Take cover"), None, None),
-], [("Starts at the first step.", C.SUB)])
+], [("Starts when time first advances.", C.SUB)])
 s.line(AX + 6, y, AX + AW - 6, y, C.SEP); y += 8
 s.text(AX + 14, y + 12, "Not started — nothing runs before the first step.", C.NOTE, sz=12); y += 22
 s.text(AX + 14, y + 12, "(Running behaviours, Knows, Why … appear once it runs)", C.DIS, sz=11)
@@ -104,12 +104,12 @@ y = intent_section(CX, y, CW, [
     ("  Position", "field", "House 7", "pend", C.PENDROW),
     ("SOP", "combo", "Cautious patrol", None, None),
     ("ROE", "roe", ("Return fire", "Take cover"), None, None),
-], [("Applies at the next step.", C.PEND)])
+], [("Applies when time next advances.", C.PEND)])
 y = warn_line(CX, y, CW, ["This order holds the mission plan (task 3,", "Hold at bridge) — resume it on the Orders tab."], col=C.PEND)
 s.line(CX + 6, y, CX + CW - 6, y, C.SEP); y += 8
 s.header(CX + 6, y, CW - 12, "Doing", glyph=FA.BRAIN, gc=C.PINK); y += 28
 s.text(CX + 14, y + 12, "Follow route — mission task 3", C.TXT, sz=12)
-s.chip(CX + 226, y - 2, "next step: Attack", glyph=FA.HOURGLASS, gc=C.PEND, border=C.PEND, arrow=False); y += 24
+s.chip(CX + 226, y - 2, "next: Attack", glyph=FA.HOURGLASS, gc=C.PEND, border=C.PEND, arrow=False); y += 24
 s.text(CX + 14, y + 12, "for 1 min 40 s · origin Superior (plan)", C.DIS, sz=11.5); y += 24
 s.header(CX + 6, y, CW - 12, "Running behaviours › Follow route › Blackboard", glyph=FA.LIST_CHECK, gc=C.TEAL); y += 28
 for k, v, staged in [("WaypointIndex", "4", False), ("Speed", "2.5", True), ("Arrived", "false", False)]:
@@ -117,7 +117,7 @@ for k, v, staged in [("WaypointIndex", "4", False), ("Speed", "2.5", True), ("Ar
     s.text(CX + 22, y + 14, k, C.TXT, sz=12)
     s.field(CX + 170, y, CW - 220, v + ("  (staged)" if staged else ""), c=C.PEND if staged else C.TXT, border=C.PEND if staged else None)
     y += ROWH
-y = warn_line(CX, y + 2, CW, ["The next step starts Attack — this staged", "edit to Follow route will be lost."], col=C.PEND)
+y = warn_line(CX, y + 2, CW, ["When time advances, Attack starts — this staged", "edit to Follow route will be lost."], col=C.PEND)
 s.text(CX + 14, y + 10, "Low level: edits the running memory, staged to the next step.", C.DIS, sz=11)
 s.note(CX, CY + CH + 16, ["C  PAUSED LIVE: the top EDITS the intent (amber = pending);",
                           "   below MONITORS what runs now; the chip joins the two.",
@@ -142,7 +142,7 @@ s.text(DX + 14, y + 8, "⚠ two rows halted at once is only for the picture: a p
 y += 20
 s.line(DX + 6, y, DX + DW - 6, y, C.SEP); y += 10
 s.text(DX + 14, y + 12, "Edit mode, a file with BOTH a plan and an intent task:", C.NOTE, sz=11.5); y += 20
-y = warn_line(DX, y, DW, "This unit's intent also sets a task (Patrol) — the plan replaces it at the first step.")
+y = warn_line(DX, y, DW, ["This unit's intent also sets a task (Patrol) — the plan's first task", "replaces it; the intent's task never starts."])
 s.button(DX + 34, y, 180, "Remove the intent task", glyph=FA.TRASH, gc=C.RED)
 s.note(DX, DY + DH + 16, ["D  ORDERS TAB: Resume plan restarts the held task (R6); Retry is the same command on a fault.",
                           "   The both-set warning also shows on the Brain tab's intent section."])
