@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior.Components;
 
 namespace Fdp.Toolkit.Behavior
