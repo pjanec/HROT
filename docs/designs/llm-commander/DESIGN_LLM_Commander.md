@@ -377,7 +377,7 @@ sequenceDiagram
 | ⭐ measured (the Haiku relay run) | 48 wakes · 65 tool calls · 0 malformed · answers 6 s mean / 10 s max · ONE system message for all 48 calls · the request 4 014 → 29 398 chars (≈ 7 350 tokens), ⭐ **18 KB of it the notes** ⇒ CE-3501 (bound the notes before L-3b) |
 | ⛔ not run | ⑦ a small model on the VM — the hosts answered; starting the downloaded server was refused by the session's permission check |
 
-### 5a-4. L-3a — the briefing a small model can live with *(CE-4683, backend, `2026-11-23`; build-state: BUILDING — `HANDOFF_Coordinator_To_Backend_LLM_Commander_L3a.md`)*
+### 5a-4. L-3a — the briefing a small model can live with *(CE-4683, backend, `2026-11-23`; build-state: BUILT `2026-11-23` — as-built rows at the end of this section; the run in `STATUS_Backend_LLM_Commander.md` §L-3a)*
 
 The three findings of the L-3 Haiku relay run, fixed before the laptop (L-3b), plus a budget.
 
@@ -407,6 +407,8 @@ no second copy of "what each squad is doing".
 | ② | ⭐ an order IDENTICAL to the one in force (same kind, a point within 2 m — so *"house"* and *"House"* match) is a no-op: an `order-state` item *"already in force since mm:ss"*, NOT a wake, nothing sent, and a play is NOT ended by it. ⚠ *In force* = the seat's record; a squad that has finished its Move is still "in force" for a repeat of the same Move — harmless (it is there) |
 | ③ | the prefix: *"PREFER run_play — the play coordinates both squads (support set, then the assault); a direct order to a squad ENDS the play."*; `run_play` first in `/tools`, its description says the same; the snapshot names the play in force |
 | ④ | the budget: each `call` line logs `chars` and `tokens` (≈ chars / 4) of the request; a rail runs a long scripted seat (many reports, a 700-char note every call) and holds the briefing + tools under 4 000 tokens. The parts that can still grow: the radio log between snapshots (bounded by the snapshot period) — the budget says it |
+| ⭐ as built — ask_sitrep | ⚠ deviation found by the run: asking a squad for a SITREP no longer goes through the direct-order path, so it never ends a play (it did since B-1: the L-3a run's `ask_sitrep` ended PlatoonAttack at 0:59) |
+| ⭐ measured (the L-3a Haiku relay run vs L-3) | the request **1 110 → 1 438 tokens** (L-3: 1 003 → 5 929, max 7 349); the estimate **366 chars** (L-3: 17 958 of notes); **0** identical orders re-sent (L-3: 4); `run_play` twice, the SPOT row PASSES; the house still not taken — the squad-attack stall CE-4682 |
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 

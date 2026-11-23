@@ -8,6 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
+⭐ `2026-11-23` **L-3a (CE-4683, the briefing a small model can live with) — DONE**: ① ② ③ ④ built, railed and red-proved; the Haiku relay run side by side with L-3 below; CE-3501 CLOSED. Report: §L-3a; design §5a-4.
 ⭐ `2026-11-23` **L-3 (CE-4681, the chat-model mind on the cloud VM) — DONE**: ① ② ③ ④ ⑤ ⑥ built and proved; ⑦ blocked (permission — see §L-3). Report: §L-3 below; design §5a-3 / §6a.
 ⛔ ~~`2026-11-23 09:28` — idle~~ (L-3 taken 10:30) (self-wake-up: queue empty, no new HANDOFF/STEER/NOTE for backend; CE-3494 §10 (R-3119) built and gated, `STATUS_Backend_Queue.md`).
 ⭐ L-2 (CE-4679): ① ② ③ ④ ⑥ built and railed (design §5a-2, decisions in DECISIONS_Backend CE-4679); ⑤ the scenario DONE (8/8, repeatable); ★ done (6/8, the tactical stall explained; the replay half blocked by CE-3493). ✅ L-2b (CE-4680) DONE: B-1 … B-6, proof 1 (scripted run_play, 8/8), proof 2 (Haiku). NOW: CE-3445 T2 resumed (STATUS_Backend_Queue.md) — the instrumented pair runs.
@@ -224,3 +225,53 @@ Exchanges (radio lines in → tool calls out, verbatim, truncated):
 
 ### L-3 ids allocated
 `CE-3501` (the commander's notes grow without bound — 18 KB of a 20 KB user message after 48 wakes). Component ids: none. Rulings: none.
+
+## L-3a — the briefing a small model can live with (CE-4683, `2026-11-23`)
+
+Taken at `1bc0aa466` (merge of `origin/coordinator`, `HANDOFF_Coordinator_To_Backend_LLM_Commander_L3a.md`).
+
+| # | item | state | sha | rail (red-proved) |
+|---|---|---|---|---|
+| ① | ONE running estimate: an answer's notes joined, capped at 800 chars, REPLACING the last; no longer echoed into the feed; failures / timeouts no longer notes | DONE | `fc41e0515` | `CE4683_TheEstimateIsOne_Replaced_Capped_AndALongRunStaysUnderTheBudget` (mutation: notes appended ⇒ red) |
+| ② | `SeatRuntime.InForce` — ORDERS IN FORCE and PLAY IN FORCE in every snapshot; an identical order (same kind, point within 2 m) is a no-op answered *"already in force since mm:ss"*, nothing sent, a play not ended | DONE | `fc41e0515` | `CE4683_ARepeatedIdenticalOrder_IsANoOp_AndTheOrdersInForceSurviveASnapshot` (mutation: `Same` never ⇒ red) |
+| ③ | the prefix: *"PREFER run_play … a direct order to a squad ENDS the play"*; `run_play` first in the tools | DONE | `fc41e0515` | `CE4683_ThePlaysArePreferred_InThePrefixAndTheTools_AndTheSnapshotNamesThePlayInForce` (mutation: the play line dropped ⇒ red) |
+| ④ | the per-call budget: every model-log call line carries `chars` / `tokens` (≈ chars / 4); a long run stays under 4 000 tokens | DONE | `fc41e0515` | in rail ① (the whole request < 4 000 tokens) |
+| + | ⭐ **found by the run:** `ask_sitrep` during a play ENDED the play (it went through the direct-order path — CE-4680 B-1's) | FIXED | `6a6629b56` | `CE4683_AskingForASitrep_DuringAPlay_DoesNotEndThePlay` (mutation: back behind the play check ⇒ red) |
+
+### L-3a — the Haiku relay run, side by side with L-3 (the same scenario, settings and worker prompt)
+
+| | L-3 (`l3-relay`) | ⭐ L-3a |
+|---|---|---|
+| calls | 48 | **29** |
+| tool calls | 65 (note 48 · order 12 · ask_sitrep 3 · run_play 1 · hold 1) | **33** (note 28 · run_play 2 · order 2 · ask_sitrep 1) |
+| orders accepted / refused / malformed | 17 / 0 / 0 | 5 / 0 / 0 |
+| ⭐ notes at the end | **17 958 chars** (48 notes) | **366 chars** (one estimate) |
+| ⭐ identical orders re-sent | 4 (e.g. `SupportByFire` to the same squad and place) | **0** — it never repeated an order; the ORDERS IN FORCE line told it (so no *"already in force"* answer was needed — the no-op is proven by its rail) |
+| ⭐ `run_play` | 1 (`PlatoonBound`), then direct orders only | **2** (`PlatoonAttack → house` at 0:00 and again at 1:29 — the second only because ask_sitrep had ENDED the first: the defect fixed above) |
+| ⭐ request size, first / median / last (≈ tokens) | 1 003 / 5 213 / 5 929 (max 7 349) | **1 110 / 1 438 / 1 438 (max 1 618)** — under the 4 000 budget all run |
+| answer time (mean) | 6.0 s | 4.8 s |
+| checks | 4 PASS · 2 SKIP · 2 FAIL | ⭐ **5 PASS** · 2 SKIP · 1 FAIL — *"PlatoonAttack within 1 s of the first SPOT"* now PASSES (37 s: the play ran from the start); *"every Red down"* FAILS — the play stalled 20 m SW of start for over a minute (Bravo never assaulted), the squad-attack stall CE-4682 (behaviors), not this slice |
+
+Exchanges (radio lines in → tool calls out, verbatim, truncated):
+- `00:00:00 SNAPSHOT — Platoon: ALPHA SQUAD at start; BRAVO SQUAD at start; ORDERS IN FORCE: none;` → `run_play {PlatoonAttack, house}`
+- `00:00:36 BRAVO SQUAD: spot, 1 enemy (Individual), house` → `note "PlatoonAttack on house running. Alpha moving to support … Play continues; Bravo assaults after support set. No open ground east of house without fire on it. Deadline 00:07."`
+- `00:03:26 (no news — your squads await orders)` → `note "PlatoonAttack on house in force since 00:01:30 but no progress for about a minute … Bravo … not yet moving to assault. Watching Bravo's move."` (⭐ it READ the PLAY IN FORCE line)
+- `00:03:56 (no news)` → `order Alpha SupportByFire → house` · `order Bravo Attack → house` + `note "PlatoonAttack stalled at 20 m SW of start for over a minute, so I took direct control."`
+- `00:06:53 ALPHA SQUAD: spot, 1 enemy (Individual), house` → `note "… Deadline 00:07, about 10 seconds left; house not yet taken. No change to orders."` (the snapshot it saw: `ORDERS IN FORCE: ALPHA SQUAD SupportByFire → house since 00:03:56 (you), BRAVO SQUAD Attack → house since 00:03:56 (you)`)
+
+⭐ **For L-3b:** the briefing is now ~1 400 tokens and does not grow — an 8 B model at `num_ctx` 8 k has room for it and its answer. ⚠ The part
+that can still grow is the radio log between snapshots: here 10 lines in a minute of contact (SITREPs every 15 s + SPOTs) — bounded by the
+snapshot period (120 s); a busier fight would want a shorter snapshot period, not a code change.
+
+### L-3a gates
+| gate | command | result |
+|---|---|---|
+| the commander rails (L-1 … L-3a) | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build --filter "FullyQualifiedName~CE4683|FullyQualifiedName~CE4681|FullyQualifiedName~CE4676|FullyQualifiedName~CE4679|FullyQualifiedName~CE4680"` | **21 / 21** |
+| red-proofs (L-3a) | compiling mutations, one per rail | **4 / 4 red** |
+| the routes | `… --filter DebugApiCommandersTests` | **3 / 3** — updated for L-3a: `run_play` first; a posted note is the estimate, not a feed item |
+| the checks grammar | `… --filter ScenarioChecksTests` | **29 / 29** |
+| ⭐ the scenario, scripted mind | `scripts/scenario-regression.sh llm-platoon-attack` | **PASS 8/8** (326 s; the same times as before — the scripted mind unchanged) |
+| ⭐ the Haiku relay run | above | 5/6 judged PASS, 2 SKIP, 1 FAIL (CE-4682) |
+
+### L-3a ids allocated
+None new. `CE-3501` CLOSED into this row.
