@@ -1,0 +1,13 @@
+{
+  "originX": 0,
+  "originY": 0,
+  "originIs": "south-west sample centre",
+  "cellSize": 1.0,
+  "cols": 801,
+  "rows": 501,
+  "rowOrder": "north first",
+  "nodata": -9999.0,
+  "units": "m",
+  "minZ": 170.89,
+  "maxZ": 193.86
+}
