@@ -72,6 +72,12 @@ def tick(dt):
                 k, p, f, to, bo, top = act["breach"]; ok = b.test_damage(k, p, f, to, bo, top, False, live)
             elif "window" in act:
                 k, p, o = act["window"]; ok = b.test_break_window(k, p, o, live)
+            elif "decals" in act:   # a probe: scorch decals placed straight from Python (location HROT m, rotation pitch/yaw/roll)
+                mat = unreal.load_asset("/Game/Hrot/Fx/M_HrotScorch")
+                for d in act["decals"]:
+                    c = unreal.GameplayStatics.spawn_decal_at_location(S["gw"], mat, unreal.Vector(*d["size"]), ue(d["at"]), unreal.Rotator(d["rot"][2], d["rot"][0], d["rot"][1]), 0.0)
+                    log(f"decal {d} -> {c is not None}")
+                ok = True
             else:
                 ok = b.test_damage(act["collapse"], -1, 0, 0, 0, 0, True, live)
             ms = (time.time() - t0) * 1000.0

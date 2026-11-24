@@ -189,6 +189,7 @@ UHrotBuildingDamage::FHouse* UHrotBuildingDamage::TakeOut(UWorld* World, const F
 	if (!ToDynamic(SM, [&](int32 X) { return X == H.Index; }, M, &Wall) || M.TriangleCount() == 0) return nullptr;
 	FHouse& House = Houses.Add(Key);
 	House.WallMaterial = Wall;
+	House.WallMat = SM->GetMaterial(Wall);
 	House.TileOrigin = S->GetActorLocation();
 	House.Actor = SpawnDynamic(World, S->GetActorTransform(), MoveTemp(M), SM, TEXT("HrotHouse"));
 	Tile->Out.Add(H.Index);
@@ -239,15 +240,25 @@ void UHrotBuildingDamage::Cut(FHouse& House, const FIndexed& H, const FHrotBreac
 	// the user: "scorched sides if the hole comes from explosion (and not from bulldozer)" - one decal through the wall (both faces), kept with the
 	// house. ⏳ HROT does not yet say what made a breach (a ram / blade reports the hull's centre as its Blast) - asked; until then every hole is scorched
 	static UMaterialInterface* Scorch = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch"));
-	if (Scorch && B.bExplosion)
+	if (Scorch && B.bExplosion)   // measured: one decal's dark centre falls INTO the hole and its rim is faint - three, shrinking, darken the hole's edge
 	{
-		const float R = FMath::Max(HalfW, HalfH) * 1.7f;
-		UDecalComponent* Dc = UGameplayStatics::SpawnDecalAtLocation(World, Scorch, FVector((W.Thickness * 100.f) * 0.5f + 25.f, R, R),
-			Centre + House.TileOrigin, (-Normal).Rotation(), 0.f);
-		UE_LOG(LogHrotBuildings, Display, TEXT("buildings: scorch decal %s at the hole (%.0f cm)"), Dc ? TEXT("spawned") : TEXT("NOT spawned"), R);
+		const float R = FMath::Max(HalfW, HalfH);
+		for (const float K : { 2.6f, 2.0f, 1.55f })
+			UGameplayStatics::SpawnDecalAtLocation(World, Scorch, FVector((W.Thickness * 100.f) * 0.5f + 25.f, R * K, R * K), Centre + House.TileOrigin,
+				FRotator((-Normal).Rotation().Pitch, (-Normal).Rotation().Yaw, Rand.FRandRange(0.f, 360.f)), 0.f);
 	}
-	if (bLive)   // U-20 ⑤ (first cut): dust at the hole
-		UHrotExplosionFx::Explode(World, Centre + House.TileOrigin, FVector::UpVector, EHrotBlast::Grenade);
+	if (bLive)
+	{
+		// away from the blast: the side of the wall the blast was on (Blast in HROT's frame; zero = unknown -> the wall's +normal)
+		FVector Away = Normal;
+		if (!B.Blast.IsNearlyZero())
+		{
+			const FVector BlastW = Ue(B.Blast.X, B.Blast.Y, B.Blast.Z);
+			if (FVector::DotProduct(BlastW - (Centre + House.TileOrigin), Normal) > 0) Away = -Normal;
+		}
+		const float Area = (HalfW * HalfH * 4.f) / 10000.f;
+		SpawnDebris(World, Centre + House.TileOrigin, Away, FMath::Clamp(int32(Area * 14.f), 10, 40), 6.f, 22.f, 900.f, House.WallMat.Get(), HalfW);
+	}
 }
 
 void UHrotBuildingDamage::BreakGlass(FHouse& House, int32 Panel, int32 Opening, bool bLive, UWorld* World)
@@ -355,8 +366,54 @@ void UHrotBuildingDamage::Collapse(UWorld* World, FHouse& House, const FIndexed&
 		UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormals(RC->GetDynamicMesh(), FGeometryScriptCalculateNormalsOptions());
 	}
 	House.Rubble = R;
-	if (bLive) UHrotExplosionFx::Explode(World, Ue(C2.X, C2.Y, H.Base + 1.0), FVector::UpVector, EHrotBlast::TankHE);
+	if (bLive)
+	{
+		UHrotExplosionFx::Explode(World, Ue(C2.X, C2.Y, H.Base + 1.0), FVector::UpVector, EHrotBlast::TankHE);   // the dust cloud
+		SpawnDebris(World, Ue(C2.X, C2.Y, H.Base + Height), FVector::UpVector, 50, 15.f, 55.f, 700.f, House.WallMat.Get(), 300.f);
+	}
 	UE_LOG(LogHrotBuildings, Display, TEXT("buildings: house %d collapsed to rubble%s"), H.Index, bLive ? TEXT(" (live)") : TEXT(""));
+}
+
+void UHrotBuildingDamage::SpawnDebris(UWorld* World, const FVector& At, const FVector& Away, int32 Count, float MinCm, float MaxCm, float Speed, UMaterialInterface* Mat, float Spread)
+{
+	static UStaticMesh* Cube = HrotLoadRooted<UStaticMesh>(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (!Cube || !World) return;
+	FRandomStream R(int32(At.X * 7 + At.Y * 13 + At.Z));
+	for (int32 I = 0; I < Count; ++I)
+	{
+		const FVector P = At + FVector(R.FRandRange(-Spread, Spread), R.FRandRange(-Spread, Spread), R.FRandRange(-Spread * 0.5f, Spread * 0.5f)) * 0.6f;
+		FActorSpawnParameters SP; SP.ObjectFlags |= RF_Transient; SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), FTransform(FRotator(R.FRandRange(0, 360), R.FRandRange(0, 360), R.FRandRange(0, 360)), P), SP);
+		if (!A) continue;
+		UStaticMeshComponent* C = A->GetStaticMeshComponent();
+		C->SetMobility(EComponentMobility::Movable);
+		C->SetStaticMesh(Cube);
+		if (Mat) C->SetMaterial(0, Mat);
+		const float S = R.FRandRange(MinCm, MaxCm) / 100.f;   // the cube is 1 m
+		const FVector Scale(S, S * R.FRandRange(0.5f, 1.3f), S * R.FRandRange(0.4f, 1.0f));
+		A->SetActorScale3D(Scale);
+		C->SetCollisionProfileName(TEXT("PhysicsActor"));
+		C->SetCastShadow(S > 0.25f);
+		C->SetSimulatePhysics(true);
+		const FVector V = (Away + FVector(R.FRandRange(-0.6f, 0.6f), R.FRandRange(-0.6f, 0.6f), R.FRandRange(0.1f, 0.9f))).GetSafeNormal() * Speed * R.FRandRange(0.4f, 1.0f);
+		C->SetPhysicsLinearVelocity(V);
+		C->SetPhysicsAngularVelocityInDegrees(FVector(R.FRandRange(-720, 720), R.FRandRange(-720, 720), R.FRandRange(-720, 720)));
+		Debris.Add({ A, World->GetTimeSeconds(), R.FRandRange(5.0, 8.0), Scale });
+	}
+}
+
+void UHrotBuildingDamage::TickDebris(UWorld* World)
+{
+	if (!World) return;
+	const double Now = World->GetTimeSeconds();
+	for (int32 I = Debris.Num() - 1; I >= 0; --I)
+	{
+		FDebris& D = Debris[I];
+		AActor* A = D.A.Get();
+		const double Age = Now - D.Born;
+		if (!A || Age > D.Life + 1.5) { if (A) A->Destroy(); Debris.RemoveAtSwap(I); continue; }
+		if (Age > D.Life) A->SetActorScale3D(D.Scale * float(1.0 - (Age - D.Life) / 1.5));   // shrink away, then gone
+	}
 }
 
 void UHrotBuildingDamage::Apply(UWorld* World, const FString& Terrain, const FHrotBuildingDamageIn& In, double SimNow)
@@ -388,6 +445,7 @@ void UHrotBuildingDamage::Apply(UWorld* World, const FString& Terrain, const FHr
 void UHrotBuildingDamage::Tick(UWorld* World, const FString& Terrain, double SimNow)
 {
 	if (World && !Terrain.IsEmpty()) { LastWorld = World; LastTerrain = Terrain; LastSimNow = SimNow; }   // no station yet: the Test* terrain stays
+	if (Debris.Num()) TickDebris(World ? World : LastWorld.Get());
 	if (Pending.Num() == 0 || !World || Terrain.IsEmpty()) return;
 	TArray<FHrotBuildingDamageIn> Now = MoveTemp(Pending); Pending.Reset();
 	for (const FHrotBuildingDamageIn& In : Now) Apply(World, Terrain, In, SimNow);
