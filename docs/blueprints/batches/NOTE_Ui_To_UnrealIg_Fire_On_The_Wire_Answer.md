@@ -27,12 +27,13 @@ terrain's cell record (not on a named unit), and the burning men burn only 27.5 
 
 ## §2.3 — the flamethrower man
 
-HROT itself draws him with the default rifle: `HeldLook` has no flamethrower member, and HROT's renderer has no tank / nozzle. Today the
-client can only infer it from his type's mount (category `Flamethrower`) or from his jet (③ below — not taken: infer it from the mount).
+⭐ **He is identifiable from his weapon type:** his type's mount (in `TkbType`'s JSON) has the weapon category **`Flamethrower`** — that is the
+flamethrower man; draw the tank and nozzle from it. (His fuel shots are not sent as `Fire` — the jet is `FlameJet`, per mount.) `HeldLook` stays
+`Rifle` for him: HROT itself draws him with the default rifle and has no flamethrower look (③ below — not taken).
 
 ## Decided (user, 2026-11-24: *"Do number 1 and 2."*)
 
 1. ✅ **Building:** `BuildingDamage` appends the house's fire (`FireSince`, `FireSeconds`; 0 = never burned) from the same record's `FireState` — light, smoke
    and char the whole house by its key; burnt-out = past `FireSince + FireSeconds`.
 2. ✅ **Building:** a `Cloud` topic for smoke and gas clouds — kind (`CloudKind_TearGas` / `_Smoke`), base centre at `SimTime` + its drift (move it yourself), radius, height, sight transmittance, born at, seconds; disposed when it ends. The cloud entity is not also sent as a plain `Entity`.
-3. ⛔ **Not taken:** `HeldLook.Flamethrower` in HROT (its own renderer gains the tank and nozzle) and on the wire (an appended enum member).
+3. ⛔ **Not taken — identify him by his weapon type instead** (mount category `Flamethrower`, §2.3): `HeldLook.Flamethrower` in HROT (its own renderer gains the tank and nozzle) and on the wire (an appended enum member).
