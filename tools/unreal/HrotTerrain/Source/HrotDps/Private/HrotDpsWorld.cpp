@@ -250,6 +250,7 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d bodies built (%d rounds per class), %d outfit / face meshes found beyond the kits' own (the last round added %d: 0 = the parts are covered)"), Built, PreloadRounds, Skinned.Num() - BeforeBuilt, LastRoundNew);
 	int32 Sounds = 0;
 	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this)) Sounds = Snd->PreloadAll();
+	Sounds += UHrotBuildingDamage::Preload();   // U-20: crack textures, damage materials, debris meshes, glass sounds
 	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d person kits, %d skinned assets (%d assets held) in %.2f s; %d sounds in %.2f s"),
 		Kits, Skinned.Num(), Preloaded.Num(), T1 - T0, Sounds, FPlatformTime::Seconds() - T1);
 }

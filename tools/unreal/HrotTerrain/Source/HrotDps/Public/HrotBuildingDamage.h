@@ -24,6 +24,8 @@ class HROTDPS_API UHrotBuildingDamage : public UObject
 {
 	GENERATED_BODY()
 public:
+	/** U-20: loads (and roots) every asset damage draws or plays - crack textures, materials, debris meshes, glass sounds - so nothing loads mid-play */
+	static int32 Preload();
 	/** a sample of DPS_BuildingDamage (queued; applied on Tick) */
 	void Queue(FHrotBuildingDamageIn&& In) { Pending.Add(MoveTemp(In)); }
 	/** applies what arrived; Terrain = the station's terrain (its index), SimNow = the sim time (live vs at join) */
@@ -63,7 +65,7 @@ private:
 	void Apply(UWorld* World, const FString& Terrain, const FHrotBuildingDamageIn& In, double SimNow);
 	void Cut(FHouse& House, const FIndexed& H, const FHrotBreachIn& B, bool bLive, UWorld* World);
 	void BreakGlass(FHouse& House, const FIndexed& H, int32 Panel, int32 Opening, bool bLive, UWorld* World);
-	void Crack(FHouse& House, const FIndexed& H, const FHrotWindowIn& Wd, int32 Which, UWorld* World);
+	void Crack(FHouse& House, const FIndexed& H, const FHrotWindowIn& Wd, int32 Which, UWorld* World, bool bLive);
 	bool Pane(const FIndexed& H, const FHouse& House, int32 Panel, int32 Opening, FVector& Corner, FVector& Along, FVector& Up, FVector& Normal, float& W, float& Ht) const;
 	void Collapse(UWorld* World, FHouse& House, const FIndexed& H, bool bLive);
 	void RebuildTile(UWorld* World, FTile& Tile);

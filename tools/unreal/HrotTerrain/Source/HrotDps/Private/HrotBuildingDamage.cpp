@@ -14,6 +14,8 @@
 #include "GeometryScript/MeshNormalsFunctions.h"
 #include "GeometryScript/MeshUVFunctions.h"
 #include "HrotExplosionFx.h"
+#include "HrotSoundscape.h"
+#include "Sound/SoundBase.h"
 #include "HrotRuntimeLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/DecalComponent.h"
@@ -110,6 +112,37 @@ namespace
 	}
 
 	UDynamicMeshComponent* DynOf(AActor* A) { return A ? Cast<UDynamicMeshComponent>(A->GetRootComponent()) : nullptr; }
+}
+
+namespace
+{
+	// U-20 glass sounds (the user: "the sound of glass shattering or the bullet coming through the glass ... and please preload them"):
+	// a round through a pane = HROT's own glass hit (hit/glass, preloaded with the library); a pane shattering = Lyra's falling-glass set
+	USoundBase* GlassShatter(int32 I)
+	{
+		static USoundBase* S[7] = {};
+		const int32 K = FMath::Abs(I) % 7;
+		if (!S[K]) S[K] = HrotLoadRooted<USoundBase>(*FString::Printf(TEXT("/Game/Audio/Sounds/Impacts/Lyra_ImpactGlassDebris_%02d.Lyra_ImpactGlassDebris_%02d"), K + 1, K + 1));
+		return S[K];
+	}
+	void PlayGlass(UWorld* World, USoundBase* S, const FVector& At, float Volume)
+	{
+		if (!S || !World) return;
+		UHrotSoundscape* Snd = UHrotSoundscape::Get(World);
+		UGameplayStatics::PlaySoundAtLocation(World, S, At, Volume, FMath::FRandRange(0.94f, 1.06f), 0.f, Snd ? Snd->Falloff(4.f, 160.f) : nullptr);
+	}
+}
+
+int32 UHrotBuildingDamage::Preload()
+{
+	int32 N = 0;
+	for (int32 I = 0; I < 7; ++I) N += GlassShatter(I) ? 1 : 0;
+	for (int32 I = 0; I < 4; ++I) N += HrotLoadRooted<UTexture>(*FString::Printf(TEXT("/Game/Hrot/Fx/Cracks/T_HrotGlassCrack_%d.T_HrotGlassCrack_%d"), I, I)) ? 1 : 0;
+	for (const TCHAR* P : { TEXT("/Game/Hrot/Fx/M_HrotGlassCrack.M_HrotGlassCrack"), TEXT("/Game/Hrot/Fx/M_HrotWallScorch.M_HrotWallScorch") })
+		N += HrotLoadRooted<UMaterialInterface>(P) ? 1 : 0;
+	for (const TCHAR* P : { TEXT("/Engine/BasicShapes/Plane.Plane"), TEXT("/Engine/BasicShapes/Cube.Cube") }) N += HrotLoadRooted<UStaticMesh>(P) ? 1 : 0;
+	UE_LOG(LogHrotBuildings, Display, TEXT("buildings: %d damage assets preloaded"), N);
+	return N;
 }
 
 void UHrotBuildingDamage::UseTerrain(UObject* WorldContext, const FString& Terrain)
@@ -285,7 +318,7 @@ bool UHrotBuildingDamage::Pane(const FIndexed& H, const FHouse& House, int32 Pan
 	return Wd > 1.f && Ht > 1.f;
 }
 
-void UHrotBuildingDamage::Crack(FHouse& House, const FIndexed& H, const FHrotWindowIn& Wd, int32 Which, UWorld* World)
+void UHrotBuildingDamage::Crack(FHouse& House, const FIndexed& H, const FHrotWindowIn& Wd, int32 Which, UWorld* World, bool bLive)
 {
 	static UMaterialInterface* CrackMat = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotGlassCrack.M_HrotGlassCrack"));
 	static UStaticMesh* Plane = HrotLoadRooted<UStaticMesh>(TEXT("/Engine/BasicShapes/Plane.Plane"));
@@ -301,6 +334,8 @@ void UHrotBuildingDamage::Crack(FHouse& House, const FIndexed& H, const FHrotWin
 	UMaterialInstanceDynamic* Mi = UMaterialInstanceDynamic::Create(CrackMat, this);
 	if (UTexture* T = Tex[Pick.RandRange(0, 3)]) Mi->SetTextureParameterValue(TEXT("Crack"), T);
 	const FVector Spin = Along.RotateAngleAxis(Pick.FRandRange(0.f, 360.f), Normal);
+	if (bLive)   // the round through the pane
+		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(World)) PlayGlass(World, Snd->Pick(TEXT("hit/glass")), Corner + Along * Pu + Up * Pv, 0.9f);
 	// measured: one quad on the inner face sat BEHIND the translucent pane and only its tips showed - one on each face, drawn after the glass
 	for (const float Side : { 1.f, -1.f })
 	{
@@ -368,6 +403,12 @@ void UHrotBuildingDamage::BreakGlass(FHouse& House, const FIndexed& H, int32 Pan
 			UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormals(Sc->GetDynamicMesh(), FGeometryScriptCalculateNormalsOptions());
 			Sc->SetMaterial(0, House.GlassMat.Get());
 		}
+	if (bLive)   // the pane shattering: its glass falling out
+	{
+		const FVector Mid = Corner + Along * (W * 0.5f) + Up * (Ht * 0.5f);
+		PlayGlass(World, GlassShatter(R.RandRange(0, 6)), Mid, 1.0f);
+		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(World)) PlayGlass(World, Snd->Pick(TEXT("hit/glass")), Mid, 0.8f);
+	}
 	if (bLive)   // the burst: glass flies out of the frame and fades like the wall debris
 		SpawnDebris(World, Corner + Along * (W * 0.5f) + Up * (Ht * 0.5f), Normal * (R.FRand() < 0.5f ? 1.f : -1.f), 18, 3.f, 9.f, 450.f, House.GlassMat.Get(),
 			FMath::Min(W, Ht) * 0.4f, true);
@@ -529,7 +570,7 @@ void UHrotBuildingDamage::Apply(UWorld* World, const FString& Terrain, const FHr
 		if (House->Broken.Contains(Id)) continue;
 		int32& Had = House->Hits.FindOrAdd(Id);
 		if (Wd.Hits >= 3) { House->Broken.Add(Id); BreakGlass(*House, *H, Wd.Panel, Wd.Opening, Live(Wd.HitAt), World); continue; }
-		for (int32 K = Had; K < FMath::Min<int32>(Wd.Hits, 2); ++K) Crack(*House, *H, Wd, K, World);   // the first hit cracks at (U0, V0), the second at (U1, V1)
+		for (int32 K = Had; K < FMath::Min<int32>(Wd.Hits, 2); ++K) Crack(*House, *H, Wd, K, World, Live(Wd.HitAt));   // the first hit cracks at (U0, V0), the second at (U1, V1)
 		Had = FMath::Max<int32>(Had, Wd.Hits);
 	}
 	if (In.bCollapsed) Collapse(World, *House, *H, Live(In.CollapsedAt));
