@@ -41,8 +41,15 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
     /// <summary>The orders L-1 takes (a squad fulfils each: Move / Hold / Attack by its class, Defend / BreakContact as the platoon plays send them).</summary>
     public static readonly string[] Orders = { "Move", "Hold", "Attack", "SupportByFire", "Defend", "BreakContact" };
 
-    /// <summary>⭐ CE-4680 B-1 (§5b) — the platoon plays a commander may run as his own task (behaviors' code: called, never changed).</summary>
-    public static readonly string[] Plays = { BehaviorNames.PlatoonAttack, BehaviorNames.PlatoonDefend, BehaviorNames.PlatoonBound, BehaviorNames.PlatoonHold };
+    /// <summary>
+    /// ⭐ CE-4685 (user `2026-11-24`: "We need to introduce the order kinds to higher level echelons. We cannot call directly a behavior name") — the
+    /// order KINDS a commander may give HIS OWN unit (the whole platoon / company): the routing table (<c>ResolutionRoutingTable</c>, through
+    /// <c>TacticalIntentResolutionSystem</c>) picks the behaviour for his class and resolution — a platoon's Attack runs <c>PlatoonAttack</c>, a
+    /// company's <c>CompanyAttack</c>, a stochastic unit's <c>StochasticUnitAttack</c>. ⛔ The seat never names a behaviour. The seat offers the kinds
+    /// his class resolves (<see cref="CommanderFeedSystem.OwnOrdersOf"/>); this is the set without a registry. ⛔ SUPERSEDED (CE-4680 B-1): the
+    /// platoon play NAMES (PlatoonAttack / PlatoonDefend / PlatoonBound / PlatoonHold).
+    /// </summary>
+    public static readonly string[] OwnOrders = { "Attack", "Defend", "Bound", "Hold" };
 
     /// <summary>A direct squad order that waits for the running play to end (not a verdict — it is given or refused once the play is gone).</summary>
     private const string Deferred = "\u0001after-play";
@@ -244,7 +251,7 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
                 ["state"] = "in-force", ["since"] = CommanderFeedSystem.Round(seat.PlaySince),
             });
             seat.Channel.Publish(FeedKind.OrderState, now, false,
-                $"{CommanderFeedSystem.Clock(now)} PLAY {running} → {seat.PlayWhere}: already in force since {CommanderFeedSystem.Clock(seat.PlaySince)} — nothing sent",
+                $"{CommanderFeedSystem.Clock(now)} {seat.Echelon.ToUpperInvariant()} ORDER {running} → {seat.PlayWhere}: already in force since {CommanderFeedSystem.Clock(seat.PlaySince)} — nothing sent",
                 new JsonObject { ["kind"] = "order-state", ["state"] = "in-force", ["play"] = running, ["since"] = CommanderFeedSystem.Round(seat.PlaySince), ["seq"] = a.MadeOnSeq }.ToJsonString());
             return;
         }
@@ -255,7 +262,7 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         {
             // ⭐ CE-4680 B-1 — no tug of war: the play ends first, said in the feed; the order lands once it has
             seat.Channel.Publish(FeedKind.OrderState, now, false,
-                                 $"{CommanderFeedSystem.Clock(now)} PLAY {seat.Play} ENDED — a direct order to {a.Squad}; it lands once the play's orders are released",
+                                 $"{CommanderFeedSystem.Clock(now)} {seat.Echelon.ToUpperInvariant()} ORDER {seat.Play} ENDED — a direct order to {a.Squad}; it lands once that order's own orders are released",
                                  new JsonObject { ["kind"] = "order-state", ["state"] = "play-ended", ["play"] = seat.Play, ["for"] = CommanderTools.ToJson(a), ["seq"] = a.MadeOnSeq }.ToJsonString());
             EndPlay(world, seat);
             seat.AfterPlay.Add(a);
@@ -358,40 +365,45 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
     /// </summary>
     private static string? RunPlay(EntityRepository world, SeatRuntime seat, CommanderAction a)
     {
-        // ⭐ CE-4685 A-2 — the plays HIS class runs (a company: CompanyAttack / CompanyDefend)
-        string? play = Array.Find(seat.Plays, p => p.Equals(a.Order, StringComparison.OrdinalIgnoreCase));
-        if (play == null) return $"'{a.Order}' is not a play of a {seat.Echelon} — {string.Join(", ", seat.Plays)}";
+        // ⭐ CE-4685 — an order KIND to his own unit (the kinds his class resolves); the routing table picks the behaviour
+        string? kind = Array.Find(seat.OwnOrders, k => k.Equals(a.Order, StringComparison.OrdinalIgnoreCase));
+        if (kind == null) return $"'{a.Order}' is not an order your {seat.Echelon} takes as a whole — {string.Join(", ", seat.OwnOrders)}";
         string json = "{}";
-        if (!play.EndsWith("Hold", StringComparison.Ordinal))
+        if (kind != "Hold")
         {
-            if (seat.Places.Resolve(a.Where, out string? why) is not { } at) return why ?? "the play needs a place (where)";
+            if (seat.Places.Resolve(a.Where, out string? why) is not { } at) return why ?? $"{kind} needs a place (where)";
             string p = Point(at);
-            if (play == BehaviorNames.PlatoonBound)
+            if (kind == "Bound")
             {
-                string support = p;   // the covering squad sets at the objective unless told where
+                string support = p;   // the covering element sets at the objective unless told where
                 if (a.Target is { Length: > 0 })
                 {
                     if (seat.Places.Resolve(a.Target, out why) is not { } sp) return why;
                     support = Point(sp);
                 }
-                json = $"{{\"SupportPoint\":{support},\"Objective\":{p}}}";
+                json = $"{{\"SupportPoint\":{support},\"Objective\":{p}}}";   // ⚠ Bound has no neutral DTO yet: the platoon play's own fields
             }
-            else json = $"{{\"Position\":{p},\"SearchRadius\":30}}";   // PlatoonAttack / PlatoonDefend: the area and its radius
+            else json = $"{{\"Position\":{p},\"SearchRadius\":30}}";   // the neutral Attack / Defend order (R-8300: every echelon's play reads it)
         }
         if (!world.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) world.Bus.RegisterManaged<AssignTacticalIntentEvent>();
-        world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = seat.Commander, IntentId = play, JsonParams = json, Origin = BehaviorOrigin.Superior });
-        seat.Play = play;
+        world.Bus.PublishManaged(new AssignTacticalIntentEvent
+        {
+            Entity = seat.Commander, IntentId = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor(kind), JsonParams = json, Origin = BehaviorOrigin.Superior,
+        });
+        seat.Play = kind;
         seat.PlayWhere = a.Where;
         seat.PlaySince = CommanderFeedSystem.Now(world);
-        seat.InForce.Clear();   // ⭐ CE-4683 — the play orders the squads now; its orders come into the table as it gives them (SyncPlayOrders)
+        seat.InForce.Clear();   // ⭐ CE-4683 — his order orders the units now; their orders come into the table as it gives them (SyncPlayOrders)
         return null;
     }
 
     /// <summary>The play the seat gave still runs as the commander's task (and its run is remembered, so its release can be waited for).</summary>
     private static bool PlayRuns(EntityRepository world, SeatRuntime seat)
     {
-        bool runs = seat.Play != null && world.IsAlive(seat.Commander) && world.HasComponent<BehaviorState>(seat.Commander)
-                    && world.GetComponentRO<BehaviorState>(seat.Commander).ActiveBehaviorHash == BehaviorHash.FromName(seat.Play);
+        // ⭐ CE-4685 — by its KIND (CurrentOrders: the order a unit runs, read by kind — never by the behaviour's name)
+        var current = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, seat.Commander);
+        bool runs = seat.Play != null && current.Exists && current.Origin == BehaviorOrigin.Superior
+                    && current.Kind.ToString().Equals(seat.Play, StringComparison.Ordinal);
         if (runs) seat.PlayRun = BehaviorOwnedParts.OwnerOf(world, seat.Commander);
         return runs;
     }
@@ -420,7 +432,7 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         seat.PlayWhere = null;
         // ⭐ CE-4683 — the play's orders are released with it: they are no longer known to be in force
         foreach (var (squad, o) in new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<Entity, GivenOrder>>(seat.InForce))
-            if (o.By.StartsWith("play", StringComparison.Ordinal)) seat.InForce.Remove(squad);
+            if (o.By != "you") seat.InForce.Remove(squad);   // given by his own order (CE-4685: "<echelon> order <kind>")
     }
 
     /// <summary>The commander's own squad of that name, alive; ⛔ never another commander's unit (that is how another side's unit is refused).</summary>
@@ -469,7 +481,7 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
         {
             var e = held.Orders[i];
             if (e.Run != seat.PlayRun || !world.IsAlive(e.Member)) continue;
-            var o = Decode(seat, e.Behavior, e.Json, now, "play " + seat.Play);
+            var o = Decode(seat, e.Behavior, e.Json, now, seat.Echelon + " order " + seat.Play);
             if (o == null) continue;
             if (seat.InForce.TryGetValue(e.Member, out var had) && Same(had, o) && had.By == o.By) continue;
             seat.InForce[e.Member] = o;

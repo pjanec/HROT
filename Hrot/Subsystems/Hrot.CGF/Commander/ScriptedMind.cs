@@ -20,7 +20,9 @@ public sealed class ScriptedMind : IMind
     private readonly List<string> _squads = new();
     private bool _started, _broken;
     private string? _attacking;
-    private string _attackPlay = "PlatoonAttack";   // ⭐ CE-4685 A-2 — read from the snapshot's plays (a company: CompanyAttack)
+    /// <summary>⭐ CE-4685 — his whole unit's attack is the order KIND Attack: the routing table runs his class's play (a platoon PlatoonAttack, a company
+    /// CompanyAttack). ⛔ Never a behaviour name.</summary>
+    private const string AttackOrder = "Attack";
     private Vector2 _attackAt;
 
     public ScriptedMind(string advanceTo = "objective", string supportAt = "support", string fallBackTo = "start")
@@ -48,9 +50,6 @@ public sealed class ScriptedMind : IMind
             {
                 case FeedKind.Snapshot:
                     ReadSquads(j);
-                    if (j["plays"] is JsonArray plays)
-                        foreach (var p in plays)
-                            if ((string?)p is { } name && name.EndsWith("Attack", StringComparison.Ordinal)) { _attackPlay = name; break; }
                     if (!_started)
                     {
                         _started = true;
@@ -70,7 +69,7 @@ public sealed class ScriptedMind : IMind
                     {
                         _attacking = "the unit";
                         _attackAt = new Vector2(float.NaN);   // a later SPOT is a new target
-                        actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: _attackPlay, Where: _advanceTo));
+                        actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: AttackOrder, Where: _advanceTo));
                     }
                     if ((string?)j["event"] == "combat-ineffective" && (string?)j["squad"] is { } down)
                     {
@@ -98,7 +97,7 @@ public sealed class ScriptedMind : IMind
         {
             _attacking = "the platoon";
             _attackAt = enemy;
-            actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: _attackPlay, Where: place));   // ⭐ CE-4685 — his class's attack play
+            actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: AttackOrder, Where: place));   // ⭐ CE-4685 — the KIND; his class's play runs it
             return;
         }
         string? nearest = null;

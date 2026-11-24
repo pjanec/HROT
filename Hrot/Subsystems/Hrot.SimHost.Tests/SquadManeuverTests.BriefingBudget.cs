@@ -109,22 +109,24 @@ namespace Hrot.SimHost.Tests
             var mind = new RailMind();
             int call = 0;
             mind.Answer = _ => call++ == 0
-                ? new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: "house") }
+                ? new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "Attack", Where: "house") }
                 : Array.Empty<CommanderAction>();
             var s = new Seated(mind);
             Fast(s, heartbeat: 0.5f, snapshot: 1f);
             Run(s, 150);
             Assert.Contains("PREFER run_play", s.Seat.Prefix);
-            Assert.Contains("a direct order to a squad ENDS the play", s.Seat.Prefix);
+            Assert.Contains("an order to your whole platoon coordinates your squads", s.Seat.Prefix);   // ⭐ CE-4685 — the whole unit's order, by kind
+            Assert.Contains("a direct order to one of them ENDS it", s.Seat.Prefix);
+            Assert.Contains("with play Attack | Defend | Bound | Hold (your whole platoon)", s.Seat.Prefix);
             Assert.Equal("run_play", (string?)CommanderTools.Schema()[0]!["name"]);
             Assert.Contains("PREFER", (string?)CommanderTools.Schema()[0]!["description"]);
-            Assert.Contains(s.Items(), i => i.Kind == FeedKind.Snapshot && i.Radio.Contains("PLAY IN FORCE: PlatoonAttack → house since"));
+            Assert.Contains(s.Items(), i => i.Kind == FeedKind.Snapshot && i.Radio.Contains("PLATOON ORDER IN FORCE: Attack → house since"));
             s.Seats.Dispose();
         }
 
         /// <summary>
         /// ⭐ CE-4683 — asking a squad for a SITREP during a play does NOT end the play (it is not an order). 📌 Found by the L-3a Haiku relay run.
-        /// 🔴 Red-proof: ask_sitrep back behind the play check ⇒ "PLAY PlatoonAttack ENDED".
+        /// 🔴 Red-proof: ask_sitrep back behind the play check ⇒ "PLATOON ORDER Attack ENDED".
         /// </summary>
         [Fact]
         public void CE4683_AskingForASitrep_DuringAPlay_DoesNotEndThePlay()
@@ -133,7 +135,7 @@ namespace Hrot.SimHost.Tests
             int call = 0;
             mind.Answer = _ => (call++) switch
             {
-                0 => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: "house") },
+                0 => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "Attack", Where: "house") },
                 1 => new[] { new CommanderAction(CommanderActionKind.AskSitrep, "Alpha") },
                 _ => Array.Empty<CommanderAction>(),
             };

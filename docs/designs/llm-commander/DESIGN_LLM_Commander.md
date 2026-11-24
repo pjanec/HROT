@@ -284,8 +284,8 @@ assault) that the game AI already does better.
 
 | piece | as built |
 |---|---|
-| the tools | `run_play {play, where, support?}` — play one of `PlatoonAttack` · `PlatoonDefend` · `PlatoonBound` · `PlatoonHold` (`CommanderActionSystem.Plays`); `stop_play {}`; both in `/tools` and the prefix |
-| giving the play | ⭐ an `AssignTacticalIntentEvent { Entity = the commander, IntentId = the play, Origin = Superior }` — what `CommandOrders.Assign` publishes for a superior, minus the giver's `SubordinateOrders` record (the seat has no giver entity). Params: Attack / Defend `{"Position", "SearchRadius": 30}`; Bound `{"SupportPoint", "Objective"}` (the support point defaults to the objective); Hold `{}` |
+| the tools | `run_play {play, where, support?}` — ⭐ **since CE-4685 (§5d) `play` is an order KIND to his whole unit** — `Attack` · `Defend` · `Bound` · `Hold` (`CommanderActionSystem.OwnOrders`); ⛔ ~~one of `PlatoonAttack` · `PlatoonDefend` · `PlatoonBound` · `PlatoonHold`~~ (SUPERSEDED `2026-11-24`, user: *"We cannot call directly a behavior name"*); `stop_play {}`; both in `/tools` and the prefix |
+| giving the play | ⭐ an `AssignTacticalIntentEvent { Entity = the commander, IntentId = ~~the play~~ ⭐ `Order.<kind>` (CE-4685 — the routing table picks the play for his class), Origin = Superior }` — what `CommandOrders.Assign` publishes for a superior, minus the giver's `SubordinateOrders` record (the seat has no giver entity). Params: Attack / Defend `{"Position", "SearchRadius": 30}`; Bound `{"SupportPoint", "Objective"}` (the support point defaults to the objective); Hold `{}` |
 | ending it | `stop_play` or a new play: a `ClearBehaviorEvent` at origin Superior — the run ends and `SubordinateOrders.Release` clears its squad orders (behaviors' code) |
 | ⭐ a direct order mid-play | ends the play first (an `order-state` `play-ended` item), and the order waits in `SeatRuntime.AfterPlay` until the play's run is gone AND its orders are released. 📌 measured on the rail: the behaviour hash changes BEFORE the release, and `CommandOrders.Order` records under the CURRENT run (`BehaviorOwnedParts.OwnerOf`) ⇒ an order given in between was cleared with the play's. Later direct orders queue behind it, in order |
 
@@ -543,28 +543,29 @@ classDiagram
     class SeatRuntime {
       +string Echelon
       +string Subordinate
-      +string[] Plays
+      +string[] OwnOrders
       ~ulong Aggregated
     }
     class CommanderFeedSystem {
       +EchelonName(world, unit)$ string
-      +PlaysOf(world, commander, isBehaviour)$ string[]
+      +OwnOrdersOf(world, commander, isBehaviour)$ string[]
       -Falls() split news
     }
-    class SeatVocabulary { +Plays +Tasks() }
+    class SeatVocabulary { +OwnOrders +Tasks() }
     class OrderReissue { +PlayFor(repo, unit, resolution, kind, isBehaviour)$ }
     class ResolutionRoutingTable { <<existing>> the ONE (class, resolution, kind) table }
     class AggregateUnits { <<existing>> IsStochastic · Slots }
     class UnitRelayBehaviors { <<existing, CE-8307>> Relay — CE-4685 start grace }
     CommanderFeedSystem --> SeatRuntime : fills at Open
-    CommanderFeedSystem ..> OrderReissue : plays of his class
+    CommanderFeedSystem ..> OrderReissue : kinds his class resolves
     OrderReissue ..> ResolutionRoutingTable
     CommanderFeedSystem ..> AggregateUnits : aggregated rows · split
-    SeatRuntime --> SeatVocabulary : Plays → the schema's task enum
+    SeatRuntime --> SeatVocabulary : OwnOrders → the schema's task enum
 ```
 
-*What the picture shows that the prose hid: nothing new decides what a company may do — the seat asks the SAME routing table its orders resolve
-through (`OrderReissue.PlayFor`), so a seat and a scripted brain can never disagree about a class's plays.*
+*What the picture shows that the prose hid: nothing new decides what a company may do — the seat gives a KIND and asks the SAME routing table its
+orders resolve through (`OrderReissue.PlayFor`) which kinds his class takes, so a seat and a scripted brain can never disagree about a class's plays — and
+the seat never names one.*
 
 ```mermaid
 sequenceDiagram
@@ -573,20 +574,20 @@ sequenceDiagram
     participant A as CommanderActionSystem
     participant P as stochastic platoon
     participant X as UnitResolutionFitSystem
-    F->>F: Open — Echelon/Subordinate from the header DIS type, Plays from the routing table, Aggregated bits
+    F->>F: Open — Echelon/Subordinate from the header DIS type, OwnOrders (kinds) from the routing table, Aggregated bits
     F-->>M: "You are Blue Company, a company commander. You command platoons" · rows "aggregated, N men"
     M->>A: Move 2nd Platoon → objective
     A->>P: Order.Move (by KIND) ⇒ StochasticUnitMove
     Note over P,X: inside 600 m (X-5) the platoon hands over: Physical
     X->>P: re-issues Move as UnitRelayMove (same entity, same request id)
     F-->>M: event (wake) "2ND PLATOON: near the enemy — it has split … your orders to it stand"
-    M->>A: CompanyAttack (his class's play) / an order to 2nd Platoon — lands on the same entity
+    M->>A: Attack (his whole company — the table runs CompanyAttack) / an order to 2nd Platoon — lands on the same entity
 ```
 
 | | as built |
 |---|---|
 | A-1 | `SeatRuntime.Echelon` / `Subordinate` from the CLASS — the entity header's DIS type (`UnitDis`, what the routing table reads), else the TKB type's, else `AggregateUnit.Echelon`; the prefix's first lines, the contract's `Tasks` / `PREFER` lines and the snapshot JSON (`echelon`) use them. A stochastic subordinate's row: `aggregated` + `N men` from its slot table — ⛔ only once the table holds slots (📌 the first run said "0 men" at t = 0: the table is filled from the TKB composite after the seat opens) |
-| A-2 | `SeatRuntime.Plays` = `OrderReissue.PlayFor(commander, Physical, Attack / Defend / Bound / Hold, isBehaviour)` — a company gets `CompanyAttack` / `CompanyDefend` (no company Bound / Hold play is registered, so those kinds drop out); no registry or nothing resolved ⇒ the four platoon plays. `SeatVocabulary.Plays` feeds the decision schema's task enum; `run_play` refuses another class's play (*"'PlatoonAttack' is not a play of a company"*). ⚠ The rail's `isBehaviour` is the product's behaviour names: with every name accepted the table answers its most specific row (`InfantryCompanyAttack`, not registered) |
+| A-2 | ⭐⭐ **ORDER KINDS, never behaviour names** (user `2026-11-24`: *"We need to introduce the order kinds to higher level echelons. We cannot call directly a behavior name"*). `SeatRuntime.OwnOrders` = the kinds of Attack / Defend / Bound / Hold that `OrderReissue.PlayFor` resolves for his class at his resolution — a platoon takes all four, a company Attack and Defend (no company Bound / Hold play is registered). The seat gives his whole unit `Order.<kind>` (`AssignTacticalIntentEvent`, origin Superior) and `TacticalIntentResolutionSystem` runs his class's play through THE routing table (`ResolutionRoutingTable`: InfantryPlatoon Attack ⇒ `PlatoonAttack`, InfantryCompany Attack ⇒ `CompanyAttack`, a stochastic unit ⇒ `StochasticUnitAttack`) — the same path a superior's `CommandOrders.Order` takes. "Is it still running" reads `CurrentOrders.Of(commander).Kind` (by kind, never the behaviour hash). The decision contract: the same kind for a subordinate or for himself (`unit` = himself) — `unit` decides, not a play name; a kind his unit does not take as a whole is refused (*"'Bound' is not an order your company takes as a whole"*). Params: Attack / Defend the neutral order (R-8300, every echelon's play reads it); ⚠ Bound has no neutral DTO yet — it carries `PlatoonBound`'s own `SupportPoint` / `Objective`. ⛔ SUPERSEDED same day: the seat named the play (`PlatoonAttack`, `CompanyAttack`) |
 | A-3 | `SeatRuntime.Aggregated` — a bit per roster slot that was stochastic at Open; `Falls` (each 1 s) clears it on the hand-over and publishes ONE waking event (`"event":"split"`). The platoon is the SAME entity, so the seat's orders keep landing; `UnitResolutionFitSystem` re-issues its standing order at the new resolution |
 | A-4 | `llm-company-aggregated` (berlin; ⚠ inside BOTH grids — collider ±750 m and perception [0..1000]: 📌 the first placements put Red outside the perception grid and nobody could see it) — a seated company over three stochastic platoons, Red's squad 650 m south |
 | ⭐ found by A-4, fixed (cross-lane, the AGG lane's CE-8307) | `UnitRelayBehaviors.Relay` ended `Success` two frames after ordering — a child GIVEN the order is not `Busy` until its `BehaviorState` picks it up — and ending the relay cleared the children's fresh moves (*"StochasticUnitMove cleared by Superior"*). ⇒ every split platoon stopped where it split. Now a child given the order but not yet seen running is busy for `StartGraceSeconds` (3 s sim); a child that never starts still lets the relay end. Rail: `CE8307_ASplitPlatoonsMove_IsRelayedToEverySquad_ByKind_SameParams` (extended, red-proved) |

@@ -69,30 +69,31 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ A-2 — the plays offered are his CLASS's (the routing table: a company runs <c>CompanyAttack</c> / <c>CompanyDefend</c>), the play he names
-        /// becomes his task, and a platoon's play is refused for him.
-        /// 🔴 Red-proof: <c>PlaysOf</c> returns the platoon four ⇒ CompanyAttack is "not a play".
+        /// ⭐ A-2 (+ user `2026-11-24`: "We need to introduce the order kinds to higher level echelons. We cannot call directly a behavior name") — the
+        /// seat offers his whole unit the order KINDS its class resolves (a company: Attack, Defend — no company Bound / Hold play), gives the KIND
+        /// (<c>Order.Attack</c>), and the routing table runs his class's play (<c>CompanyAttack</c>); a kind his class does not take is refused.
+        /// 🔴 Red-proof: <c>OwnOrdersOf</c> returns the four kinds ⇒ Bound is not refused.
         /// </summary>
         [Fact]
-        public void Aggregates_ACompanySeat_RunsItsOwnClassesPlay_AndIsRefusedAPlatoonPlay()
+        public void Aggregates_ACompanySeat_GivesItsWholeUnitAKind_TheTableRunsItsClassesPlay()
         {
             var mind = new RailMind();
             int call = 0;
             mind.Answer = _ => ++call switch
             {
-                1 => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: "house") },
-                2 => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "CompanyAttack", Where: "house") },
+                1 => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "Bound", Where: "house") },
+                2 => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "Attack", Where: "house") },
                 _ => Array.Empty<CommanderAction>(),
             };
             var s = SeatedCompany(mind);
             Fast(s, heartbeat: 0.5f, snapshot: 60f);
             Run(s, 200);
-            Assert.Contains("CompanyAttack", s.Seat.Plays);
-            Assert.Contains("CompanyDefend", s.Seat.Plays);
-            Assert.DoesNotContain("PlatoonAttack", s.Seat.Plays);
-            Assert.Contains(s.Items(), i => i.Kind == FeedKind.OrderState && i.Radio.Contains("'PlatoonAttack' is not a play of a company"));
-            Assert.Contains(s.P.S.Orders, o => o.Entity.Equals(s.P.S.Commander) && o.IntentId == "CompanyAttack");
-            Assert.DoesNotContain(s.P.S.Orders, o => o.IntentId == "PlatoonAttack");
+            Assert.Equal(new[] { "Attack", "Defend" }, s.Seat.OwnOrders);
+            Assert.Contains(s.Items(), i => i.Kind == FeedKind.OrderState && i.Radio.Contains("'Bound' is not an order your company takes as a whole"));
+            Assert.Contains(s.P.S.Orders, o => o.Entity.Equals(s.P.S.Commander) && o.IntentId == "Order.Attack");          // ⭐ the KIND is sent
+            Assert.DoesNotContain(s.P.S.Orders, o => o.Entity.Equals(s.P.S.Commander) && !o.IntentId.StartsWith("Order.", StringComparison.Ordinal));   // ⛔ never a name
+            Assert.Equal(Fdp.Toolkit.Behavior.BehaviorHash.FromName("CompanyAttack"),
+                         s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(s.P.S.Commander).ActiveBehaviorHash);   // the table ran his class's play
             s.Seats.Dispose();
         }
 
