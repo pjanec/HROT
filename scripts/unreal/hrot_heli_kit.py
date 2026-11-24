@@ -106,7 +106,7 @@ try:
     for side_x in (left_x, -left_x):
         out = W(side_x, 0, 0) - W(0, 0, 0); out = unreal.Vector(0, 1 if out.y > 0 else -1, 0)
         at = W(side_x, JOB["gunY"], JOB["sill"]) + out * float(JOB.get("gunOut", 0)) + unreal.Vector(0, 0, float(JOB.get("gunZ", 95)))
-        yaw = -90.0 + (90.0 if out.y > 0 else -90.0)   # the mesh's barrel is +Y; yaw -90 -> +X, then turned outward
+        yaw = -90.0 + (90.0 if out.y > 0 else -90.0)   # the barrel is the mesh +Y (measured: its thin end); yaw 0 keeps it on +Y, -180 turns it to -Y - checked from above
         rot = unreal.Rotator(0, 0, yaw)
         # bring the gun's own centre (it keeps its place on the VBL roof) to `at`
         import math
