@@ -34,6 +34,47 @@ related-designs:
 | **G1** | everyone | fire discipline: aimed fire at seen enemies, suppressive fire only at a known/likely position; **stop when the target is dead / out of ammo** (CE-4667) | firing at dead men, at nothing, with an empty weapon |
 | **G2** | everyone | casualties: the dead stop; the wounded are covered and pulled to cover (CE-4668) | dead men acting |
 
-## 2. The read — at `exp/agg-behaviors` HEAD
+## 2. The read — `exp/agg-behaviors@a85c62963` (coordinator merged), 300 s, every soldier every 5 s
 
-⏳ The run (300 s, every-5 s dump of every soldier) is in progress; this section is filled per squad against §1 when it lands.
+📐 Source: `scenario-regression.sh village-street-fight` + a full `HROT_VERIFY_REVIEW` dump (positions, stances, behaviours, every round). Street band =
+y 246–264.
+
+### 2a. Verdict per doctrine point
+
+| # | doctrine | what the run shows | verdict | cause | id |
+|---|---|---|---|---|---|
+| **A1** | avoid the street | Blue's squads are in the street band **0 of 4 men** almost the whole run — they move along the south gardens (Squads 1, 3) and sit north of it (Squad 2) | ✅ | — | |
+| **A2** | fire and movement, short bounds | Blue Squads 1 and 3 bound in pairs from 90 s (two `AdvanceTo`, two `Suppress`) ✅ — but a bounding man runs on ALONE: Squad 3's Rifleman 1 ends **100 m** ahead of his squad (240 s) and dies; Squad 1's Rifleman 3 the same (285 s) | ⚠ | the pair's bound has no length cap / no "wait for your buddy" | `CE-8321` |
+| **A3** | base of fire covered, with a line of fire | Blue Squad 2 (SupportByFire) sits north of the street at x 375–380 for the whole 300 s, prone/crouched — and **all 178 of its rounds strike terrain** (aimed at a reported POINT 170–260 m away it cannot see). It never displaces as the assault moves 150 m on | ❌ | `SuppressContact`'s point fire is plain-aimed (§11.6b's opening rule not applied there) and the base of fire never checks that its rounds arrive, nor moves | `CE-8319` |
+| **A4** | dispersion 5–10 m | no squad bunched (spread 4–10 m while together) | ✅ | | |
+| **A5** | react to contact | Blue fires first (1.6 s) and hits a Red man at 1.65 s. Squads 1 and 3 then HOLD 90 s in `SquadDefend` (Squad 3 **standing** 75 s) before the attack starts | ⚠ | the platoon attack's first phase holds the assault squads until the support is set; 90 s is long and a standing hold in contact is wrong | `CE-8322` |
+| **A6** | suppress + flank, enter from the side | Squad 3 swings SOUTH (y 145–210) — a flank ✅ — but nobody enters a building; the assault ends in gardens | ⚠ | the attack's assault point is the street objective; no building is the objective | (watch) |
+| **A7** | armour with infantry | the **M1 drives up the street ALONE** to x 510 by 60 s — 40 m from Red, 100 m ahead of its infantry — and stops there for 4 min **without firing a round**; the Bradley stops at x 410, silent; the Apache hovers at x 140, silent | ❌ | the vehicles have NO SOP (`Sop` absent; the catalog gives tank / IFV / helicopter types no `DefaultSop`, unlike squads — CE-2358), so their brain never fires or reacts; `FollowRoute` alone does not wait for infantry | `CE-8318` |
+| **D1** | defend FROM buildings | Red starts IN the street (the scenario's posts) and is shot there: Red Squad 2 loses 3 of 4 men in **15 s**. Red Squad 1 withdraws (`BreakContact`, 30 s) **up the street** and ends at x 635–650 in the street band; Red Reserve stands **in the street** (4 of 4) from 105 s to the end | ❌ | ① the authored posts are on the open street and the fight starts with Blue seeing them; ② `PlatoonDefend`'s posts are not pulled into the houses (SearchRadius 25); ③ the break-contact route and the hold after it pick the street | `CE-8320` |
+| **D2** | mutual support, reserve under cover | the reserve recovers casualties (good: `CarryCasualty` at 30–90 s) then stands in the street | ❌ | as D1 | `CE-8320` |
+| **D3** | vehicles hull-down, shoot and move | the T-72 (65 m from the M1, sees it) never fires; the ZU-23 and the SAM never act | ❌ | no SOP — as A7 | `CE-8318` |
+| **G1** | fire at what you can hurt | **riflemen fire rifles at tanks: Red 517 rounds at the M1 (Red Squad 1 305 of its 316), Blue Squad 1 158 at the T-72** — all harmless, while enemy infantry is in sight | ❌ | the fire step shoots the THREAT ranking's top (`ContactThreatLevel`: danger to ME — the tank), with no "can my weapon hurt it" term (`ThreatDanger.CanHurt` / the M8 effectiveness input exist but the fire target ignores them) | `CE-8317` |
+| **G2** | the dead stop; the wounded are pulled in | dead men run nothing ✅ (CE-4668 holds); the Red Reserve drags a casualty ✅; ⚠ incapacitated men (< 30 %) keep their `AdvanceTo` order for 100 s while bleeding out (they do not move) | ⚠ | the order is not cleared below the incapacitation line | (minor, with CE-4668) |
+
+### 2b. CE-4666…CE-4669 on real streets
+| row | on village-street |
+|---|---|
+| CE-4666 bunched in the open, never take cover | **Blue: holds** (off the street, dispersed, bounding). **Red: does not** — in the street from the start, withdrawing along it (CE-8320) |
+| CE-4667 suppression with no ammo / no live target | partly: no empty-magazine suppression seen; but the base of fire suppresses a POINT into terrain for 4 min (CE-8319) |
+| CE-4668 dead men run behaviours | **holds** (row green); incapacitated men keep their order (minor) |
+| CE-4669 squads idle with no behaviour | partly: Red Squad 2's squad level runs nothing 75–120 s (its last man left) — then `InfantrySquadHold` |
+
+### 2c. New, only real geometry (and a full force list) shows
+The ARMOUR is the biggest gap — inert vehicles (CE-8318) and riflemen emptying magazines at tanks (CE-8317) did not show on `wide-corridor` (no
+vehicles there). Real house lines and gardens are USED by Blue (A1 ✅); the slope and trees caused nothing measurable. The ground is fine for a fight —
+no terrain NOTE needed.
+
+## 3. Leans (the user decides the two with a wide blast radius)
+| id | lean | blast radius |
+|---|---|---|
+| `CE-8317` | ⭐ the FIRE target = the highest-ranked threat this man's weapons can HURT (`ThreatDanger.CanHurt`); he still HIDES from the top threat (the tank). A rifleman with only a rifle never fires at a tank while anything else is in reach | ⚠ every shooter in every scenario — **user** |
+| `CE-8318` | ⭐ every armed ground vehicle and helicopter type gets `BasicVehicleSop` as its catalog `DefaultSop` (as CE-2358 did for squads) — a vehicle with no authored SOP then fights | ⚠ every scenario with an unauthored vehicle (cross-lane: the TKB catalog) — **user** |
+| `CE-8319` | ⭐ route `SuppressContact`'s point fire through `AimPoint.BlindAt` (one blind aim), and have the base of fire move to a firing position on the point when its rounds keep striking terrain | this lane |
+| `CE-8320` | ⭐ `PlatoonDefend` pulls each squad's posts into the buildings within its SearchRadius (window posts, as SquadDefend's house defence does), and break contact withdraws along the building line, never the street centre | this lane |
+| `CE-8321` | ⭐ a bounding pair moves together and a bound stops at ≤ 30 m (doctrine 3–5 s rush) | this lane |
+| `CE-8322` | ⭐ in contact, the assault squads wait for the support in cover, prone/crouched (never standing), and no longer than the support needs | this lane |
