@@ -42,6 +42,10 @@ public:
 	bool TestHitWindow(const FString& Key, int32 Panel, int32 Opening, int32 Hits, int32 U0, int32 V0, int32 U1, int32 V1, bool bLive);
 	UFUNCTION(BlueprintCallable, Category = "HROT|Buildings") int32 HousesTakenOut() const { return Houses.Num(); }
 	UFUNCTION(BlueprintCallable, Category = "HROT|Buildings") int32 IndexedHouses() const { return Index.Num(); }
+	/** DD-033 (a burning house): its footprint (HROT local m), base and top - false when the house is not in the index */
+	bool HouseShape(const FString& Terrain, const FString& Key, TArray<FVector2D>& OutFootprint, float& OutBase, float& OutTop);
+	/** DD-033: a house burnt out - taken out of its tile (once) and drawn in the burnt material */
+	void Char(UWorld* World, const FString& Terrain, const FString& Key);
 
 	/** TEST / tools: the world and terrain the Test* calls work in (the DPS Tick sets them too) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Buildings") void UseTerrain(UObject* WorldContext, const FString& Terrain);

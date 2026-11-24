@@ -504,6 +504,16 @@ private:
 	int32 PersonSpawnsThisFrame = 0;
 	TSet<int32> DeferredSpawns;
 	TMap<int32, FEnt> TestRiders;
+	/** DD-033 (gateway T-078): a burning house (BuildingDamage.FireSince / FireSeconds) - its fire spots and, past the fire, its char */
+	struct FHouseFire { double Since = 0; float Seconds = 0; int32 SpotsKey = 0; bool bCharred = false; };
+	TMap<FString, FHouseFire> HouseFires;
+	void HouseFire(const FString& Key, double Since, float Seconds);
+	void TickHouseFires(double SimNow);
+	/** DD-033: a smoke / tear-gas cloud (DPS_Cloud): a cylinder that drifts, drawn as puffs */
+	struct FCloud { uint8 Kind = 0; double SimTime = 0, BornAt = 0; FVector3d Centre = FVector3d::ZeroVector; FVector3f Drift = FVector3f::ZeroVector; float Radius = 0, Height = 0, Sight = 1, Seconds = 0; double Carry = 0; };
+	TMap<int32, FCloud> Clouds;
+	void OnCloud(const FHrotDpsSample& S);
+	void TickClouds(double SimNow, float Dt);
 	bool NearestMountedGunTip(const FVector& Around, AActor* Prefer, FVector& OutTip, FVector& OutDir) const;
 	UPROPERTY(Transient) TObjectPtr<class UHrotBuildingDamage> BuildingDamage;
 	/** U-19h (live: rockets / missiles from the Apache, the aircraft, SAMs and ATGMs showed no rocket and no trail; 23 fired, 0 rounds drawn):
