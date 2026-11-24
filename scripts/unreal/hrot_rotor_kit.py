@@ -30,22 +30,32 @@ def load_dm(sm):
 
 def positions(dm):
     res = GS.GeometryScript_MeshQueries.get_all_vertex_positions(dm, True)
-    lst = res[0] if isinstance(res, tuple) else res
-    return [(p.x, p.y, p.z) for p in lst.list] if hasattr(lst, "list") else [(p.x, p.y, p.z) for p in lst]
+    items = res if isinstance(res, tuple) else (res,)
+    lst = next(x for x in items if type(x).__name__ == "GeometryScriptVectorList")
+    r2 = lst.convert_vector_list_to_array() if hasattr(lst, "convert_vector_list_to_array") else GS.GeometryScript_ListUtils.convert_vector_list_to_array(lst)
+    pts = r2[1] if isinstance(r2, tuple) else r2
+    return [(p.x, p.y, p.z) for p in pts]
+
+
+def pick(res, cls):
+    if isinstance(res, tuple):
+        for v in res:
+            if type(v).__name__ == cls: return v
+        return res[0]
+    return res
 
 
 def keep_material(dm, mat_id, keep):
-    sel = GS.GeometryScript_MeshSelection.select_mesh_elements_by_material_id(dm, mat_id) if hasattr(GS.GeometryScript_MeshSelection, "select_mesh_elements_by_material_id") \
-        else GS.GeometryScript_MeshSelectionFunctions.select_mesh_elements_by_material_id(dm, mat_id)
-    sel = sel[0] if isinstance(sel, tuple) else sel
-    if keep: sel = GS.GeometryScript_MeshSelectionFunctions.invert_mesh_selection(dm, sel)[0] if False else _invert(dm, sel)
-    GS.GeometryScript_MeshBasicEditFunctions.delete_selected_triangles_from_mesh(dm, sel)
+    """keep (True) or delete (False) the triangles of one material slot"""
+    sel = pick(GS.GeometryScript_MeshSelection.select_mesh_elements_by_material_id(dm, mat_id), "GeometryScriptMeshSelection")
+    if keep: sel = pick(GS.GeometryScript_MeshSelection.invert_mesh_selection(dm, sel), "GeometryScriptMeshSelection")
+    GS.GeometryScript_MeshEdits.delete_selected_triangles_from_mesh(dm, sel)
     return dm
 
 
-def _invert(dm, sel):
-    r = GS.GeometryScript_MeshSelectionFunctions.invert_mesh_selection(dm, sel)
-    return r[0] if isinstance(r, tuple) else r
+def select_box(dm, lo, hi):
+    return pick(GS.GeometryScript_MeshSelection.select_mesh_elements_in_box(dm, unreal.Box(lo, hi), unreal.GeometryScriptMeshSelectionType.TRIANGLES, False, 3),
+                "GeometryScriptMeshSelection")
 
 
 try:
@@ -58,6 +68,15 @@ try:
     mid = next((i for i, (s, n) in enumerate(names) if JOB["material"].lower() in (s + n).lower()), -1)
     log(f"kit {kit.get_name()}: hull part {hull_i} mesh {sm.get_path_name()} slots {names}; rotor slot {mid}; part transform {hull.get_editor_property('transform')}")
     if mid < 0: raise RuntimeError("no rotor material slot")
+    ALL = positions(load_dm(sm))
+    zt = max(q[2] for q in ALL); R["all"] = {"n": len(ALL), "min": [min(q[i] for q in ALL) for i in range(3)], "max": [max(q[i] for q in ALL) for i in range(3)]}
+    for band in (20, 40, 80, 150):
+        top = [q for q in ALL if q[2] > zt - band]
+        R[f"top{band}"] = {"n": len(top), "min": [round(min(q[i] for q in top), 1) for i in range(3)], "max": [round(max(q[i] for q in top), 1) for i in range(3)]}
+    rear = [q for q in ALL if q[0] < R["all"]["min"][0] + 120]   # the tail end (the mesh's -X)
+    front = [q for q in ALL if q[0] > R["all"]["max"][0] - 120]
+    for nm, s_ in (("minX120", rear), ("maxX120", front)):
+        R[nm] = {"n": len(s_), "min": [round(min(q[i] for q in s_), 1) for i in range(3)], "max": [round(max(q[i] for q in s_), 1) for i in range(3)]}
     rot = keep_material(load_dm(sm), mid, True)
     P = positions(rot)
     xs, ys, zs = [p[0] for p in P], [p[1] for p in P], [p[2] for p in P]
@@ -69,47 +88,36 @@ try:
     R["z"] = hist(zs); R["x"] = hist(xs); R["y"] = hist(ys)
     log(f"rotor vertices {len(P)} bounds {R['bounds']}")
     if not JOB.get("measure", True):
-        tb = float(JOB["tailBelowZ"])
-        folder = sm.get_path_name().rsplit("/", 1)[0].replace("/Game/Fab/", "/Game/Hrot/Vehicles/Parts/")
+        # the main rotor by its BOX (mesh space): measured on SM_Apache - the blades are a flat band 3.2-3.4 m up, 14.6 m across, the hub on
+        # top; the pack's "Rotor_Blade" slot holds only 64 small low vertices, so a material cut would miss the rotor. ⏳ the tail rotor (mixed
+        # with the fin at the tail end) is left on the body for now
+        (lx, ly, lz), (hx, hy, hz) = JOB["mainBox"]
+        lo, hi = unreal.Vector(lx, ly, lz), unreal.Vector(hx, hy, hz)
         base = sm.get_name()
         def save(dm, name):
             path = f"/Game/Hrot/Vehicles/Parts/{name}"
             if EAL.does_asset_exist(path): EAL.delete_asset(path)
             opts = unreal.GeometryScriptCreateNewStaticMeshAssetOptions(); opts.enable_nanite = False; opts.enable_collision = False
-            r = GS.GeometryScript_AssetUtils.create_new_static_mesh_asset_from_mesh(dm, path, opts)
-            new = r[0] if isinstance(r, tuple) else r
+            new = pick(GS.GeometryScript_NewAssetUtils.create_new_static_mesh_asset_from_mesh(dm, path, opts), "StaticMesh")
             new.set_editor_property("static_materials", mats)
             EAL.save_loaded_asset(new, False); return new
-        body = save(keep_material(load_dm(sm), mid, False), f"SM_{base}_Body")
-        main = keep_material(load_dm(sm), mid, True)
-        tail = keep_material(load_dm(sm), mid, True)
-        box_lo = unreal.Vector(R["bounds"][0][0] - 10, R["bounds"][0][1] - 10, R["bounds"][0][2] - 10)
-        sel_low = GS.GeometryScript_MeshSelectionFunctions.select_mesh_elements_in_box(main, unreal.Box(box_lo, unreal.Vector(R["bounds"][1][0] + 10, R["bounds"][1][1] + 10, tb)))
-        sel_low = sel_low[0] if isinstance(sel_low, tuple) else sel_low
-        GS.GeometryScript_MeshBasicEditFunctions.delete_selected_triangles_from_mesh(main, sel_low)
-        sel_high = GS.GeometryScript_MeshSelectionFunctions.select_mesh_elements_in_box(tail, unreal.Box(unreal.Vector(box_lo.x, box_lo.y, tb), unreal.Vector(R["bounds"][1][0] + 10, R["bounds"][1][1] + 10, R["bounds"][1][2] + 10)))
-        sel_high = sel_high[0] if isinstance(sel_high, tuple) else sel_high
-        GS.GeometryScript_MeshBasicEditFunctions.delete_selected_triangles_from_mesh(tail, sel_high)
-        def centre(dm):
-            Q = positions(dm)
-            return [(min(q[i] for q in Q) + max(q[i] for q in Q)) / 2 for i in range(3)], [(max(q[i] for q in Q) - min(q[i] for q in Q)) for i in range(3)]
-        mc, ms = centre(main); tc, ts = centre(tail)
-        log(f"main hub {mc} size {ms}; tail hub {tc} size {ts}")
-        smain = save(main, f"SM_{base}_RotorMain"); stail = save(tail, f"SM_{base}_RotorTail")
-        T = hull.get_editor_property("transform")   # the part's transform (mesh space -> hull frame)
-        def pivot(c, axis_tail):
-            p = T.transform_location(unreal.Vector(*c))
-            q = T.rotation if not axis_tail else (T.rotation * unreal.Rotator(0, 0, 90).quaternion())   # the tail rotor turns about the hull's Y
-            return unreal.Transform(p, q.rotator() if hasattr(q, "rotator") else unreal.Rotator(), unreal.Vector(1, 1, 1))
+        body_dm = load_dm(sm); GS.GeometryScript_MeshEdits.delete_selected_triangles_from_mesh(body_dm, select_box(body_dm, lo, hi))
+        main_dm = load_dm(sm); GS.GeometryScript_MeshEdits.delete_selected_triangles_from_mesh(main_dm, pick(GS.GeometryScript_MeshSelection.invert_mesh_selection(main_dm, select_box(main_dm, lo, hi)), "GeometryScriptMeshSelection"))
+        Q = positions(main_dm)
+        mc = [(min(q[i] for q in Q) + max(q[i] for q in Q)) / 2 for i in range(3)]; ms = [max(q[i] for q in Q) - min(q[i] for q in Q) for i in range(3)]
+        mc[2] = min(q[2] for q in Q)
+        log(f"main rotor: {len(Q)} vertices, hub {mc}, size {ms}; body vertices {len(positions(body_dm))}")
+        body = save(body_dm, f"SM_{base}_Body"); smain = save(main_dm, f"SM_{base}_RotorMain")
+        T = hull.get_editor_property("transform")
         hull.set_editor_property("mesh", body); parts[hull_i] = hull
-        for mesh, parent in ((smain, unreal.HrotVehicleParent.MAIN_ROTOR), (stail, unreal.HrotVehicleParent.TAIL_ROTOR)):
-            pt = unreal.HrotVehiclePart(); pt.set_editor_property("mesh", mesh); pt.set_editor_property("parent", parent); pt.set_editor_property("transform", T)
-            parts.append(pt)
+        pt = unreal.HrotVehiclePart(); pt.set_editor_property("mesh", smain); pt.set_editor_property("parent", unreal.HrotVehicleParent.MAIN_ROTOR); pt.set_editor_property("transform", T)
+        parts = [p_ for p_ in parts if p_.get_editor_property("parent") != unreal.HrotVehicleParent.MAIN_ROTOR] + [pt]
         kit.set_editor_property("parts", parts)
-        kit.set_editor_property("main_rotor_pivot", pivot(mc, False)); kit.set_editor_property("tail_rotor_pivot", pivot(tc, True))
-        kit.set_editor_property("main_rotor_rate", float(JOB.get("mainRate", 430))); kit.set_editor_property("tail_rotor_rate", float(JOB.get("tailRate", 1500)))
-        kit.set_editor_property("rotor_radius", max(ms[0], ms[1]) / 2.0 * max(T.scale3d.x, 1e-6))
-        log(f"kit saved {EAL.save_loaded_asset(kit, False)}")
+        hub = T.transform_location(unreal.Vector(*mc))
+        kit.set_editor_property("main_rotor_pivot", unreal.Transform(hub, unreal.Rotator(0, 0, 0), unreal.Vector(1, 1, 1)))
+        kit.set_editor_property("main_rotor_rate", float(JOB.get("mainRate", 430)))
+        kit.set_editor_property("rotor_radius", max(ms[0], ms[1]) / 2.0 * T.scale3d.x)
+        log(f"kit: pivot {hub}, radius {max(ms[0], ms[1]) / 2.0 * T.scale3d.x} cm; saved {EAL.save_loaded_asset(kit, False)}")
         # the blur disc material
         AT = unreal.AssetToolsHelpers.get_asset_tools(); MEL = unreal.MaterialEditingLibrary
         if EAL.does_asset_exist("/Game/Hrot/Fx/M_HrotRotorDisc"): EAL.delete_asset("/Game/Hrot/Fx/M_HrotRotorDisc")
