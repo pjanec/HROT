@@ -1,0 +1,130 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · REPORT_Behaviors_Village_Street_Fight.md — the platoon attack on a machine gun, judged by doctrine (ATP 3-21.8 / ATP 3-06.11): off the street, by the walls, suppress + flank, the gun silenced. Conditions only, no golden.",
+  "runFor": 240,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Blue attacks (PlatoonAttack)",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonAttack",
+      "before": 5
+    },
+    {
+      "name": "the machine gun opens fire",
+      "on": "shot",
+      "by": "Red MG Team Gunner"
+    },
+    {
+      "name": "Blue fires back",
+      "on": "shot",
+      "by": "*Blue Squad"
+    },
+    {
+      "name": "REALISM no Blue man in the middle of the street (y 250-260) after 20 s",
+      "never": {
+        "on": "field",
+        "who": "*Blue Squad",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 250,
+        "also": [
+          {
+            "path": "SimTransform.Position.1",
+            "op": "<",
+            "value": 260
+          }
+        ]
+      },
+      "after": 20
+    },
+    {
+      "name": "REALISM Blue Squad 1 never stands wholly in the open after 60 s",
+      "never": {
+        "on": "cover",
+        "who": "*Blue Squad 1 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "all",
+        "upright": true
+      },
+      "after": 60
+    },
+    {
+      "name": "REALISM Blue Squad 2 never stands wholly in the open after 60 s",
+      "never": {
+        "on": "cover",
+        "who": "*Blue Squad 2 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "all",
+        "upright": true
+      },
+      "after": 60
+    },
+    {
+      "name": "REALISM Blue Squad 3 never stands wholly in the open after 60 s",
+      "never": {
+        "on": "cover",
+        "who": "*Blue Squad 3 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "all",
+        "upright": true
+      },
+      "after": 60
+    },
+    {
+      "name": "REALISM no Blue squad bunches after 30 s",
+      "never": {
+        "on": "bunched",
+        "who": "*Blue Squad 1 ",
+        "m": 2
+      },
+      "after": 30
+    },
+    {
+      "name": "the base of fire puts rounds on the machine-gun team",
+      "on": "shot",
+      "by": "*Blue Squad",
+      "hit": "*Red MG Team"
+    },
+    {
+      "name": "the assault reaches the gun's FLANK (the back gardens south of the house)",
+      "on": "near",
+      "who": "*Blue Squad",
+      "point": [
+        530,
+        210
+      ],
+      "within": 10
+    },
+    {
+      "name": "the machine gun is silenced (the gunner down: under 30 %)",
+      "on": "field",
+      "who": "Red MG Team Gunner",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 30
+    },
+    {
+      "name": "REALISM a dead man runs no behaviour",
+      "never": {
+        "on": "field",
+        "who": "*",
+        "dead": true,
+        "path": "BehaviorState.ActiveBehaviorHash",
+        "op": "!=",
+        "value": 0
+      }
+    },
+    {
+      "name": "no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue Squad",
+        "hit": "*Blue"
+      }
+    }
+  ]
+}
