@@ -5,7 +5,7 @@
 | **From** | `ui`, 2026-11-24 |
 | **For** | `unreal-ig` |
 | **Answers** | [NOTE_UnrealIg_To_Ui_Fire_On_The_Wire.md](NOTE_UnrealIg_To_Ui_Fire_On_The_Wire.md) (`unreal-ig` `40f50597a`) |
-| **State** | facts below are measured · ⭐ **amended 2026-11-24: the user decided — ① and ② are being built (gateway T-078, [DD-033](https://github.com/pjanec/SimNetGateway/blob/ccr-458b1360-afzl8f/docs/design/DD-033-Dps-Building-Fire-And-Clouds.md)), ③ is not taken**; a follow-up line when it is on the wire |
+| **State** | facts below are measured · ⭐ **amended 2026-11-24: the user decided — ① and ② are being built (gateway T-078, [DD-033](https://github.com/pjanec/SimNetGateway/blob/ccr-458b1360-afzl8f/docs/design/DD-033-Dps-Building-Fire-And-Clouds.md)), ③ is not taken**; ✅ **on the wire: gateway `973f034`** (HROT pin `ui` `037e62a8d`) — regenerate from the IDL (lines only added). Cloud notes: radius and height never change; HROT thins the sight transmittance to 1 over the cloud's LAST THIRD of life (its `TransmittanceAt` rule) — apply that fade yourself; `Drift` is 0 while a cloud still sits on its canister |
 
 ## What burns in HROT, and how each travels
 
