@@ -4143,6 +4143,29 @@ namespace Hrot.SimHost.Tests
         /// support phase ⇒ Alpha moves before the base of fire · the lift dropped ⇒ the support keeps FireAtWill · the support's Set
         /// guard dropped ⇒ the approach at once · the consolidation dropped ⇒ the run ends at the last assault.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-8323</c> — a base of fire ALREADY within <see cref="PlatoonAttackBehavior.SupportFromHereMetres"/> of the objective supports
+        /// from WHERE IT STANDS (its own centre is the support point): it keeps the cover it holds instead of walking into the open to a point
+        /// 120 m off. Farther off (the 200 m case of CE-2277) it still moves to the point. 📐 live village-street-mg-flank: the point lay across the
+        /// street. 🔴 Red-proof: the distance rule dropped ⇒ the support point is the 120 m one ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8323_ABaseOfFireAlreadyInRange_SupportsFromWhereItStands()
+        {
+            var p = new Platoon(squads: 3);
+            var stands = Fdp.Toolkit.Squad.Command.StaffComposerSystem.CentreOf(p.S.Repo, p.Bravo);
+            var o = new Vector3(stands.X, stands.Y + PlatoonAttackBehavior.SupportStandOffMetres + 40f, 0f);   // 160 m off: inside the 170 m
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
+            var at = SupportOrderTo(p, p.Bravo).Position;
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(stands.X, stands.Y)) < 0.5f, $"support at {at}, the squad stands at {stands}");
+        }
+
         [Fact]
         public void CE2277_AnOpenObjective_BaseOfFire_ThenApproach_ThenAssaultThrough_ThenConsolidate()
         {
@@ -4335,8 +4358,10 @@ namespace Hrot.SimHost.Tests
             p.Ticks(3);
             AnswerArea(p, (7, new Vector2(house.X, house.Y)));
             p.Ticks(4);
-            var first = PointsFor(p, house);
-            Assert.True(Vector3.Distance(SupportOrderTo(p, p.Bravo).Position, first.Support) < 0.5f, "the base of fire on the house first");
+            // ⭐ CE-8323 — the house is 150 m off, inside SupportFromHereMetres: the base of fire supports from where it stands
+            var bravoStands = Fdp.Toolkit.Squad.Command.StaffComposerSystem.CentreOf(p.S.Repo, p.Bravo);
+            var firstAt = SupportOrderTo(p, p.Bravo).Position;
+            Assert.True(Vector2.Distance(new Vector2(firstAt.X, firstAt.Y), new Vector2(bravoStands.X, bravoStands.Y)) < 0.5f, "the base of fire on the house first, from where it stands");
             p.ReportSet(p.Bravo); p.Ticks(4);
             p.ReportSet(p.Alpha); p.Ticks(4);
             Assert.Equal<Vector3>(new Vector3(house.X, house.Y, 0f), OrderTo<ClearBuildingParamsJsonDto>(p, p.Alpha, BehaviorNames.ClearBuilding).Building);
