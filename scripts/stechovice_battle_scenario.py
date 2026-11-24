@@ -94,6 +94,48 @@ class Ground:
 GROUND = Ground()
 
 
+class Roads:
+    """The SUMO net's drivable lanes (roads/roads.net.xml, the same input-set local metres): where a vehicle starts ON a road, facing along it."""
+    DRIVABLE = ('highway.motorway', 'highway.trunk', 'highway.primary', 'highway.secondary', 'highway.tertiary', 'highway.unclassified',
+                'highway.residential', 'highway.service', 'highway.living_street')   # ⛔ no track: SUMO closes it to cars and the road router cannot route from it (live: FailedUnreachable)
+
+    def __init__(self):
+        import xml.etree.ElementTree as ET
+        self.lanes = []   # [(edge id, [(x, y)...])]
+        for e in ET.parse(os.path.join(INPUT, 'roads', 'roads.net.xml')).getroot().findall('edge'):
+            if e.get('function') == 'internal' or (e.get('type') or '').split('|')[0] not in self.DRIVABLE:
+                continue
+            lane = e.find('lane')
+            self.lanes.append((e.get('id'), [tuple(map(float, q.split(',')[:2])) for q in lane.get('shape').split()]))
+
+    def snap(self, x, y):
+        """The nearest point on a drivable lane to (x, y), and the lane's compass bearing there."""
+        best = None
+        for _, pts in self.lanes:
+            for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+                dx, dy = bx - ax, by - ay
+                L2 = dx * dx + dy * dy
+                if L2 < 1e-6:
+                    continue
+                t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / L2))
+                px, py = ax + t * dx, ay + t * dy
+                d = math.hypot(x - px, y - py)
+                if best is None or d < best[0]:
+                    best = (d, px, py, math.degrees(math.atan2(dx, dy)) % 360)
+        return best[1], best[2], best[3], best[0]
+
+
+ROADS = Roads()
+
+
+def on_road(x, y, toward=None):
+    """(x, y) snapped onto the nearest drivable road, and a bearing along it — the direction closer to `toward` (a bearing), if given."""
+    rx, ry, b, d = ROADS.snap(x, y)
+    if toward is not None and abs((b - toward + 180) % 360 - 180) > 90:
+        b = (b + 180) % 360
+    return rx, ry, b
+
+
 # -- scenario building blocks ------------------------------------------------------------------------------------------------------
 
 def quat(bearing):
@@ -208,7 +250,7 @@ PLACES = {
     'village-red-technical': (-120.0, 110.0),    # on the village's E-W road
     'sam': (-310.0, 300.0),                       # Red radar SAM on the same hill (~328 m)
     'village-blue': (230.0, 150.0),               # Blue platoon's start, east of the village
-    'village-blue-tank': (352.0, 57.0), 'village-blue-ifv': (340.0, 51.0),   # on the road (vehicles cannot leave roads: VehicleParams.OffRoad* = 0)
+    'village-blue-tank': (352.0, 57.0), 'village-blue-ifv': (340.0, 51.0),   # on the road (the column's head; the rest queue east of it)
     'village-objective': (-325.0, 135.0),         # where Blue's PlatoonAttack goes
     'village-stop': (-110.0, 113.0),              # where the tank / IFV stop (on the road) to support by fire
     'blue-hq': (420.0, 40.0),
@@ -258,6 +300,39 @@ def build():
     s.add(unit(101, 'Village Blue IFV', F, *P('village-blue-ifv'), bearing=270, hp=500, extra={
         'Sop': sop('BasicVehicleSop'), 'Behavior': behaviour('MoveToLocation', {'speed': 6, 'arrivalRadius': 5, 'target': [*W(sx + 12, sy - 7), 0]})}))
 
+    # ---- MORE ARMOUR (user, 2026-11-23: "almost no vehicles ... need more vehicles") — every vehicle starts ON a road (snapped to the SUMO
+    #      net), facing along it; Blue's village column queues east of its lead tank and drives to the support-by-fire line, Red's hold
+    def vehicle(tkb, name, side, x, y, toward, hp, behav=None):
+        rx2, ry2, b = on_road(x, y, toward)
+        extra = {'Sop': sop('BasicVehicleSop')}
+        if behav:
+            extra['Behavior'] = behav
+        return s.add(unit(tkb, name, side, rx2, ry2, bearing=b, hp=hp, extra=extra))
+
+    def move_to(x, y):
+        return behaviour('MoveToLocation', {'speed': 6, 'arrivalRadius': 5, 'target': [*W(x, y), 0]})
+    # village, Blue: two more M1s, a second Bradley and a HMMWV behind the lead pair (the column's order = its arrival order)
+    #   ⭐ on the residential road the lead tank takes into the village (the track it starts on is closed to cars in SUMO; a start snapped onto it
+    #   was FailedUnreachable live), ~15 m apart, facing north-west along it
+    for name, tkb, hp, at, stop in (('Village Blue Tank 2', 100, 3000, (300, 45), (-95, 100)),
+                                    ('Village Blue Tank 3', 100, 3000, (285, 58), (-125, 118)),
+                                    ('Village Blue IFV 2', 101, 500, (270, 70), (-80, 95)),
+                                    ('Village Blue HMMWV', 102, 300, (255, 80), (-60, 88))):
+        vehicle(tkb, name, F, *at, 300, hp, move_to(*stop))
+    # village, Red: two T-72s on the village's E-W road facing the attack, an ATGM technical on the south road, a DShK technical south-east
+    vehicle(103, 'Village Red T-72 1', H, -250, 146, 90, 2500)
+    vehicle(103, 'Village Red T-72 2', H, -300, 160, 90, 2500)
+    vehicle(105, 'Village Red ATGM Technical', H, -260, 75, 90, 500)
+    vehicle(108, 'Village Red DShK Technical', H, -190, 50, 90, 500)
+    # riverbank: a tank each side, on the bank roads
+    vehicle(100, 'Riverbank Blue Tank', F, -1063, -580, 270, 3000)
+    vehicle(103, 'Riverbank Red T-72', H, -1250, -560, 90, 2500)
+
+    # ---- TRAFFIC (user: "there are no sumo cars whatsoever") — SUMO background traffic on the terrain's road net (the same demand entity as
+    #      demo-city's convoys, cv-traffic-fire); a car near the fighting is abandoned by its driver (CE-1959)
+    s.add({'TkbIdentity': {'TkbType': 8850}, 'TrafficDemand': {'TargetCars': 250, 'Seed': 1, 'StepSeconds': 0.5, 'TargetPedestrians': 60,
+                                                               'CarSpawnPerStep': 25}}, check=False)
+
     # ---- AIR: a Blue Apache rocket-runs the village technical inside the SAM's cover, a Blue A-10 strikes the hill ZU-23 ----------
     ax_, ay_ = P('apache')
     s.add(unit(406, 'Blue Apache', F, ax_, ay_, bearing=270, hp=800, air_agl=AGL_APACHE,
@@ -270,12 +345,12 @@ def build():
         'subsystemType': 'Hrot.Scenario', 'schemaVersion': '1.0', 'terrainName': 'Stechovice',
         'description': (
             'What: a SHOW on the real OSM terrain Stechovice (Vltava valley + village, imported on first use) - two ground battles and an air war. '
-            'Scenario coordinates (the terrain south-west corner is 0,0). RIVERBANK (y about 1570): a Blue platoon (x about 970) (leader + 3 squads, PlatoonDefend) dug in on the flat east bank with an IFV fires across the river at a Red platoon '
-            '(leader + 3 squads, x about 765) with a technical on the low west terrace, ~200 m across the water (the plateau behind it is a wooded cliff nobody sees out of). '
-            'VILLAGE (centre x about 1690, y about 2265): a Blue platoon (leader + 3 squads, PlatoonAttack) with a tank and an IFV advances from the east (x about 2250-2370) into the village; '
-            'a Red platoon (leader + 3 squads, PlatoonDefend) holds the houses with an AT team (2 gunners) and a technical, and a Red radar SAM and a ZU-23 sit on the hill to the north (~330 m). '
+            'Scenario coordinates (the terrain south-west corner is 0,0). RIVERBANK (y about 1570): a Blue platoon (x about 970) (leader + 3 squads, PlatoonDefend) dug in on the flat east bank with an IFV and an M1 fires across the river at a Red platoon '
+            '(leader + 3 squads, x about 765) with a technical and a T-72 on the low west terrace, ~200 m across the water (the plateau behind it is a wooded cliff nobody sees out of). '
+            'VILLAGE (centre x about 1690, y about 2265): a Blue platoon (leader + 3 squads, PlatoonAttack) with three M1 tanks, two Bradleys and a HMMWV advances from the east (x about 2250-2370) into the village; '
+            'a Red platoon (leader + 3 squads, PlatoonDefend) holds the houses with an AT team (2 gunners), two T-72s and three technicals (HMG, ATGM, DShK), and a Red radar SAM and a ZU-23 sit on the hill to the north (~330 m). '
             'AIR: Blue HQ (SupportCommand) owns both platoons, a Blue Apache that attacks the village technical inside the SAM cover and a Blue A-10 that strikes the hill ZU-23 '
-            'flying in from the west over the river. Chain of command Blue: HQ > platoon > squad > man; Red: platoon > squad > man. Behaviours as authored, nothing scripted. '
+            'flying in from the west over the river. SUMO background traffic (250 cars, 60 pedestrians) runs on the terrain roads. Chain of command Blue: HQ > platoon > squad > man; Red: platoon > squad > man. Behaviours as authored, nothing scripted. '
             'Judge (checks.json): both battles trade fire and cost both sides casualties; the Blue attackers reach the village; the Apache flies over the village and the A-10 over the river; '
             'the Red air defence (ZU-23, SAM) fires at them. Generated by scripts/stechovice_battle_scenario.py; first run imports the terrain (minutes), then caches it.'),
         'world': {
