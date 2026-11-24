@@ -78,3 +78,25 @@ no terrain NOTE needed.
 | `CE-8320` | ⭐ `PlatoonDefend` pulls each squad's posts into the buildings within its SearchRadius (window posts, as SquadDefend's house defence does), and break contact withdraws along the building line, never the street centre | this lane |
 | `CE-8321` | ⭐ a bounding pair moves together and a bound stops at ≤ 30 m (doctrine 3–5 s rush) | this lane |
 | `CE-8322` | ⭐ in contact, the assault squads wait for the support in cover, prone/crouched (never standing), and no longer than the support needs | this lane |
+
+## 4. `village-street-mg-flank` — the platoon attack on a machine gun *(2026-11-24, user: "if there is an enemy with some machine gun … they should try to flank, which should be the goal of the platoon leaders")*
+
+📄 `scenarios/tests/village-street-mg-flank` — a PKM team holds the 3-storey house at (530,228) beside the main street; Blue Platoon (3 squads) attacks it
+from 150 m west. Its rows state doctrine (ATP 3-21.8 / ATP 3-06.11): off the street while the gun fights · by the walls (cover cue, upright) · no bunching
+until the clearing stack · the base of fire lands rounds on the gun · the assault reaches its flank (south of the house line, within ~40 m) · the gun
+silenced · the assault clears the house.
+
+| run | what the platoon did | fixed then |
+|---|---|---|
+| 1 | assault bounds south through the gardens and drops the gunner at 213 s ✅ — but the base of fire never left its start house, 150 m back across the street: **207 rounds, 0 hits**; the gun opened only at 131 s | — |
+| 2–3 | the base of fire is ordered to its point, but its men never walk there; its rounds "expire" | `CE-8319` ①–④ — posts planned AT the point, fire from the posts |
+| 4 | it moves up — and lies **in the street**; the gun, unsuppressed, cuts down the bounding squads | `CE-8319` ⑤ 2-D points on the GROUND (the ground is 176 m up: moves and aims were under it) |
+| 5 | **the doctrine sequence:** the gun engages at 10 s and the base of fire answers at once from an upstairs window; the assault flanks south and silences the gunner at **95 s**; the house is cleared by 240 s; **Blue loses nobody** | `CE-8319` ⑥ 40 m post search (the houses beside the axis) |
+| 6 | the same sequence; the gunner survives (he does not show at a window), two Blue men fall at the door of the house | `CE-8322` dispersal into DEFILADE (a waiting man no longer lies in the street) |
+
+**Open, by doctrine:**
+| item | measured | lean |
+|---|---|---|
+| the ENTRY | the assault stacks at the door (210 s) and loses men going in; rifle rounds at men in windows strike the walls (82 / 84) | ⭐ grenade before entry ("frag and clear") — read `ClearBuilding`'s entry and the riflemen's grenade load next |
+| the base of fire's rounds | from 155 m into the gun house: most "expire" or strike the wall, ~1 hit — it suppresses (the gun fires ~70 rounds in 240 s) but rarely wounds | ⭐ acceptable for suppression; measure the gun's near-misses before changing anything |
+| the first minute | a base-of-fire man crosses the street on his way to his post (20 s); Squad 1 is in the open as its first bound starts (60 s) | ⭐ the way to the support point should go by the building line — the move-in path, not the post |
