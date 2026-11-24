@@ -1661,7 +1661,7 @@ void UHrotDpsWorld::Tick(float)
 		FEnt& E = It.Value;
 		if (!E.Actor.IsValid()) continue;
 		if (E.bAnimal) ApplyAnimal(E, Placed);
-		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning) ApplyFlame(E);
+		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning || (!E.bFlamerLook && E.bHasPerson && !E.bFlamerChecked)) { ApplyFlame(E); E.bFlamerChecked = true; }
 	}
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); }
 	TickFlyOuts(R);
@@ -1947,7 +1947,13 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 		E.bShownBurning = E.bPersonBurning;
 		UHrotBurning::SetBurning(A, E.bPersonBurning ? 1.f : 0.f);
 		Count(E.bPersonBurning ? TEXT("man burning") : TEXT("man stopped burning"));
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("person %s %s"), *E.Name, E.bPersonBurning ? TEXT("burning") : TEXT("stopped burning"));
 	}
+	// HROT's answer (NOTE_Ui_To_UnrealIg_Fire_On_The_Wire_Answer §2.3): the flamethrower man is his type's mount category Flamethrower - his
+	// flamethrower is in his hands from the start, not only while his jet burns
+	if (!E.bFlamerLook)
+		if (const TArray<FString>* M = MountCategories.Find(E.TypeId); M && M->Contains(TEXT("flamethrower")))
+			if (UHrotPersonState* St = A->FindComponentByClass<UHrotPersonState>()) { St->bFlamethrower = true; E.bFlamerLook = true; Count(TEXT("flamethrower man")); }
 	// the jet: FlameLook — from the muzzle toward the aim (the target's chest when it is an entity we have), min(distance, RangeM) long
 	UHrotFlamethrower* F = E.JetComp.Get();
 	if (!E.bJet) { if (F && F->bFiring) F->SetFiring(false); return; }
@@ -1984,7 +1990,7 @@ void UHrotDpsWorld::OnFireSpots(const FHrotDpsSample& S)
 	for (uint32 I = 0; I < N; ++I)
 	{
 		const auto& X = D.Spots._buffer[I];
-		if (int32(I) >= L.Num()) { L.AddDefaulted(); Count(TEXT("fire spot")); }
+		if (int32(I) >= L.Num()) { L.AddDefaulted(); Count(TEXT("fire spot")); UE_LOG(LogHrotDpsWorld, Display, TEXT("fire spot %d of holder %d: r %.1f m, %.0f s"), I, D.EntityId, D.Spots._buffer[I].Radius, D.Spots._buffer[I].Seconds); }
 		FSpot& Sp = L[I];
 		Sp.P = V3(X.Position); Sp.Radius = X.Radius; Sp.Intensity = X.Intensity; Sp.Since = X.Since; Sp.Seconds = X.Seconds;
 		Sp.ShownStrength = -1;
