@@ -145,7 +145,17 @@ bool UHrotBuildingDamage::LoadIndex(const FString& Terrain)
 			for (const TSharedPtr<FJsonValue>& W : *Walls)
 			{
 				const TArray<TSharedPtr<FJsonValue>>& Q = W->AsArray();
-				H.Walls.Add({ FVector2D(Q[0]->AsNumber(), Q[1]->AsNumber()), FVector2D(Q[2]->AsNumber(), Q[3]->AsNumber()), float(Q[4]->AsNumber()) });
+				FWall Wl; Wl.A = FVector2D(Q[0]->AsNumber(), Q[1]->AsNumber()); Wl.B = FVector2D(Q[2]->AsNumber(), Q[3]->AsNumber()); Wl.Thickness = float(Q[4]->AsNumber());
+				if (Q.Num() >= 8)
+				{
+					Wl.Base = float(Q[5]->AsNumber()); Wl.Top = float(Q[6]->AsNumber());
+					for (const TSharedPtr<FJsonValue>& Ov : Q[7]->AsArray())
+					{
+						const TArray<TSharedPtr<FJsonValue>>& Oa = Ov->AsArray();
+						Wl.Openings.Add({ float(Oa[0]->AsNumber()), float(Oa[1]->AsNumber()), float(Oa[2]->AsNumber()), float(Oa[3]->AsNumber()), Oa[4]->AsNumber() > 0 });
+					}
+				}
+				H.Walls.Add(MoveTemp(Wl));
 			}
 		Index.Add(It.Key, MoveTemp(H));
 	}
@@ -190,6 +200,7 @@ UHrotBuildingDamage::FHouse* UHrotBuildingDamage::TakeOut(UWorld* World, const F
 	FHouse& House = Houses.Add(Key);
 	House.WallMaterial = Wall;
 	House.WallMat = SM->GetMaterial(Wall);
+	House.GlassMat = SM->GetMaterial(SlotGlass);
 	House.TileOrigin = S->GetActorLocation();
 	House.Actor = SpawnDynamic(World, S->GetActorTransform(), MoveTemp(M), SM, TEXT("HrotHouse"));
 	Tile->Out.Add(H.Index);
@@ -239,13 +250,12 @@ void UHrotBuildingDamage::Cut(FHouse& House, const FIndexed& H, const FHrotBreac
 	Tool->MarkAsGarbage();
 	// the user: "scorched sides if the hole comes from explosion (and not from bulldozer)" - one decal through the wall (both faces), kept with the
 	// house. ⏳ HROT does not yet say what made a breach (a ram / blade reports the hull's centre as its Blast) - asked; until then every hole is scorched
-	static UMaterialInterface* Scorch = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch"));
-	if (Scorch && B.bExplosion)   // measured: one decal's dark centre falls INTO the hole and its rim is faint - three, shrinking, darken the hole's edge
+	static UMaterialInterface* Scorch = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotWallScorch.M_HrotWallScorch"));
+	if (Scorch && B.bExplosion)   // M_HrotWallScorch is darkest inside ~0.45 of its radius: sized so that band lies on the hole's edge
 	{
-		const float R = FMath::Max(HalfW, HalfH);
-		for (const float K : { 2.6f, 2.0f, 1.55f })
-			UGameplayStatics::SpawnDecalAtLocation(World, Scorch, FVector((W.Thickness * 100.f) * 0.5f + 25.f, R * K, R * K), Centre + House.TileOrigin,
-				FRotator((-Normal).Rotation().Pitch, (-Normal).Rotation().Yaw, Rand.FRandRange(0.f, 360.f)), 0.f);
+		const float R = FMath::Max(HalfW, HalfH) * 2.2f;
+		UGameplayStatics::SpawnDecalAtLocation(World, Scorch, FVector((W.Thickness * 100.f) * 0.5f + 25.f, R, R), Centre + House.TileOrigin,
+			FRotator((-Normal).Rotation().Pitch, (-Normal).Rotation().Yaw, Rand.FRandRange(0.f, 360.f)), 0.f);
 	}
 	if (bLive)
 	{
@@ -261,7 +271,45 @@ void UHrotBuildingDamage::Cut(FHouse& House, const FIndexed& H, const FHrotBreac
 	}
 }
 
-void UHrotBuildingDamage::BreakGlass(FHouse& House, int32 Panel, int32 Opening, bool bLive, UWorld* World)
+bool UHrotBuildingDamage::Pane(const FIndexed& H, const FHouse& House, int32 Panel, int32 Opening, FVector& Corner, FVector& Along, FVector& Up, FVector& Normal, float& Wd, float& Ht) const
+{
+	if (!H.Walls.IsValidIndex(Panel) || !H.Walls[Panel].Openings.IsValidIndex(Opening)) return false;
+	const FWall& W = H.Walls[Panel]; const FOpening& O = W.Openings[Opening];
+	const FVector A = Ue(W.A.X, W.A.Y, 0), B = Ue(W.B.X, W.B.Y, 0);
+	Along = (B - A).GetSafeNormal2D(); Up = FVector::UpVector; Normal = FVector::CrossProduct(Along, Up).GetSafeNormal();
+	const float F = 6.f;   // the frame (terrain_look.py build_panels: 0.06 m)
+	Corner = A + Along * (O.At * 100.f + F) + FVector(0, 0, O.Sill * 100.f + F);
+	Wd = O.Width * 100.f - 2 * F; Ht = (O.Head - O.Sill) * 100.f - 2 * F;
+	return Wd > 1.f && Ht > 1.f;
+}
+
+void UHrotBuildingDamage::Crack(FHouse& House, const FIndexed& H, const FHrotWindowIn& Wd, int32 Which, UWorld* World)
+{
+	static UMaterialInterface* CrackMat = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotGlassCrack.M_HrotGlassCrack"));
+	static UStaticMesh* Plane = HrotLoadRooted<UStaticMesh>(TEXT("/Engine/BasicShapes/Plane.Plane"));
+	FVector Corner, Along, Up, Normal; float W, Ht;
+	if (!CrackMat || !Plane || !Pane(H, House, Wd.Panel, Wd.Opening, Corner, Along, Up, Normal, W, Ht)) return;
+	const float U = (Which == 0 ? Wd.U0 : Wd.U1) / 255.f, V = (Which == 0 ? Wd.V0 : Wd.V1) / 255.f;
+	const float Size = FMath::Min(W, Ht) * 0.7f / 100.f;
+	// measured: one quad on the inner face sat BEHIND the translucent pane and only its tips showed - one on each face, drawn after the glass
+	for (const float Side : { 1.f, -1.f })
+	{
+		const FVector At = Corner + Along * (U * W) + Up * (V * Ht) + Normal * (0.8f * Side);
+		FActorSpawnParameters SP; SP.ObjectFlags |= RF_Transient;
+		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), FTransform(FRotationMatrix::MakeFromZX(Normal * Side, Along).Rotator(), At, FVector(Size)), SP);
+		if (!A) continue;
+		UStaticMeshComponent* C = A->GetStaticMeshComponent();
+		C->SetMobility(EComponentMobility::Movable);
+		C->SetStaticMesh(Plane);
+		C->SetMaterial(0, CrackMat);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetCastShadow(false);
+		C->SetTranslucentSortPriority(10);
+		House.Cracks.Add(int64(Wd.Panel) * 100000 + Wd.Opening, A);
+	}
+}
+
+void UHrotBuildingDamage::BreakGlass(FHouse& House, const FIndexed& H, int32 Panel, int32 Opening, bool bLive, UWorld* World)
 {
 	UDynamicMeshComponent* C = DynOf(House.Actor.Get());
 	if (!C) return;
@@ -280,6 +328,39 @@ void UHrotBuildingDamage::BreakGlass(FHouse& House, int32 Panel, int32 Opening, 
 		for (int32 Tid : Doomed) if (M.RemoveTriangle(Tid) == EMeshResult::Ok) ++Removed;
 	});
 	UE_LOG(LogHrotBuildings, Display, TEXT("buildings: window %d/%d broken (%d glass triangles)"), Panel, Opening, Removed);
+	const int64 Id = int64(Panel) * 100000 + Opening;
+	TArray<TWeakObjectPtr<AActor>> Old; House.Cracks.MultiFind(Id, Old); for (const TWeakObjectPtr<AActor>& A : Old) if (A.IsValid()) A->Destroy();
+	House.Cracks.Remove(Id);
+	FVector Corner, Along, Up, Normal; float W, Ht;
+	if (!Pane(H, House, Panel, Opening, Corner, Along, Up, Normal, W, Ht)) return;
+	// shards left in the frame (HROT's own look: an open hole with shards left in the frame): jagged triangles from each edge inward
+	FDynamicMesh3 M; M.EnableAttributes(); M.Attributes()->EnableMaterialID();
+	FRandomStream R(int32(Id) * 31 + H.Index);
+	auto L = [&](float U, float V) { return FVector3d(Corner + Along * U + Up * V - House.TileOrigin); };
+	const FVector2f Edges[4][2] = { { {0, 0}, {1, 0} }, { {1, 0}, {1, 1} }, { {1, 1}, {0, 1} }, { {0, 1}, {0, 0} } };
+	for (const auto& E : Edges)
+	{
+		const int32 N = R.RandRange(1, 3);
+		for (int32 K = 0; K < N; ++K)
+		{
+			const float S0 = R.FRandRange(0.f, 0.7f), S1 = FMath::Min(S0 + R.FRandRange(0.15f, 0.35f), 1.f), Sm = (S0 + S1) * 0.5f;
+			const FVector2f P0 = FMath::Lerp(E[0], E[1], S0), P1 = FMath::Lerp(E[0], E[1], S1), Pm = FMath::Lerp(E[0], E[1], Sm);
+			const FVector2f In = FVector2f(0.5f, 0.5f) - Pm;
+			const FVector2f Tip = Pm + In * R.FRandRange(0.25f, 0.7f);
+			const int32 Va = M.AppendVertex(L(P0.X * W, P0.Y * Ht)), Vb = M.AppendVertex(L(P1.X * W, P1.Y * Ht)), Vc = M.AppendVertex(L(Tip.X * W, Tip.Y * Ht));
+			const int32 Tid = M.AppendTriangle(Va, Vb, Vc);
+			if (Tid >= 0) M.Attributes()->GetMaterialID()->SetValue(Tid, 0);
+		}
+	}
+	if (AActor* Sh = SpawnDynamic(World, FTransform(House.TileOrigin), MoveTemp(M), nullptr, TEXT("HrotShards")))
+		if (UDynamicMeshComponent* Sc = DynOf(Sh))
+		{
+			UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormals(Sc->GetDynamicMesh(), FGeometryScriptCalculateNormalsOptions());
+			Sc->SetMaterial(0, House.GlassMat.Get());
+		}
+	if (bLive)   // the burst: glass flies out of the frame and fades like the wall debris
+		SpawnDebris(World, Corner + Along * (W * 0.5f) + Up * (Ht * 0.5f), Normal * (R.FRand() < 0.5f ? 1.f : -1.f), 18, 3.f, 9.f, 450.f, House.GlassMat.Get(),
+			FMath::Min(W, Ht) * 0.4f, true);
 }
 
 void UHrotBuildingDamage::Collapse(UWorld* World, FHouse& House, const FIndexed& H, bool bLive)
@@ -374,7 +455,7 @@ void UHrotBuildingDamage::Collapse(UWorld* World, FHouse& House, const FIndexed&
 	UE_LOG(LogHrotBuildings, Display, TEXT("buildings: house %d collapsed to rubble%s"), H.Index, bLive ? TEXT(" (live)") : TEXT(""));
 }
 
-void UHrotBuildingDamage::SpawnDebris(UWorld* World, const FVector& At, const FVector& Away, int32 Count, float MinCm, float MaxCm, float Speed, UMaterialInterface* Mat, float Spread)
+void UHrotBuildingDamage::SpawnDebris(UWorld* World, const FVector& At, const FVector& Away, int32 Count, float MinCm, float MaxCm, float Speed, UMaterialInterface* Mat, float Spread, bool bFlat)
 {
 	static UStaticMesh* Cube = HrotLoadRooted<UStaticMesh>(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (!Cube || !World) return;
@@ -390,7 +471,7 @@ void UHrotBuildingDamage::SpawnDebris(UWorld* World, const FVector& At, const FV
 		C->SetStaticMesh(Cube);
 		if (Mat) C->SetMaterial(0, Mat);
 		const float S = R.FRandRange(MinCm, MaxCm) / 100.f;   // the cube is 1 m
-		const FVector Scale(S, S * R.FRandRange(0.5f, 1.3f), S * R.FRandRange(0.4f, 1.0f));
+		const FVector Scale(S, S * R.FRandRange(0.5f, 1.3f), bFlat ? 0.006f : S * R.FRandRange(0.4f, 1.0f));
 		A->SetActorScale3D(Scale);
 		C->SetCollisionProfileName(TEXT("PhysicsActor"));
 		C->SetCastShadow(S > 0.25f);
@@ -435,9 +516,11 @@ void UHrotBuildingDamage::Apply(UWorld* World, const FString& Terrain, const FHr
 	for (const FHrotWindowIn& Wd : In.Windows)
 	{
 		const int64 Id = int64(Wd.Panel) * 100000 + Wd.Opening;
-		if (Wd.Hits < 3 || House->Broken.Contains(Id)) continue;   // ⏳ 1-2 hits: cracks (later)
-		House->Broken.Add(Id);
-		BreakGlass(*House, Wd.Panel, Wd.Opening, Live(Wd.HitAt), World);
+		if (House->Broken.Contains(Id)) continue;
+		int32& Had = House->Hits.FindOrAdd(Id);
+		if (Wd.Hits >= 3) { House->Broken.Add(Id); BreakGlass(*House, *H, Wd.Panel, Wd.Opening, Live(Wd.HitAt), World); continue; }
+		for (int32 K = Had; K < FMath::Min<int32>(Wd.Hits, 2); ++K) Crack(*House, *H, Wd, K, World);   // the first hit cracks at (U0, V0), the second at (U1, V1)
+		Had = FMath::Max<int32>(Had, Wd.Hits);
 	}
 	if (In.bCollapsed) Collapse(World, *House, *H, Live(In.CollapsedAt));
 }
@@ -463,12 +546,24 @@ bool UHrotBuildingDamage::TestDamage(const FString& Key, int32 Panel, float From
 	return Houses.Contains(Key);
 }
 
+bool UHrotBuildingDamage::TestHitWindow(const FString& Key, int32 Panel, int32 Opening, int32 Hits, int32 U0, int32 V0, int32 U1, int32 V1, bool bLive)
+{
+	UWorld* W = LastWorld.Get();
+	if (!W || !LoadIndex(LastTerrain) || !Index.Contains(Key)) return false;
+	FHrotBuildingDamageIn In; In.Key = Key; In.bAlive = true;
+	FHrotWindowIn Wd; Wd.Panel = Panel; Wd.Opening = Opening; Wd.Hits = uint8(Hits); Wd.HitAt = bLive ? 1000.0 : 0.0;
+	Wd.U0 = uint8(U0); Wd.V0 = uint8(V0); Wd.U1 = uint8(U1); Wd.V1 = uint8(V1);
+	In.Windows.Add(Wd);
+	Apply(W, LastTerrain, In, 1000.0);
+	return Houses.Contains(Key);
+}
+
 bool UHrotBuildingDamage::TestBreakWindow(const FString& Key, int32 Panel, int32 Opening, bool bLive)
 {
 	UWorld* W = LastWorld.Get();
 	if (!W || !LoadIndex(LastTerrain) || !Index.Contains(Key)) return false;
 	FHrotBuildingDamageIn In; In.Key = Key; In.bAlive = true;
-	In.Windows.Add({ Panel, Opening, 3, bLive ? 1000.0 : 0.0 });
+	FHrotWindowIn Wd; Wd.Panel = Panel; Wd.Opening = Opening; Wd.Hits = 3; Wd.HitAt = bLive ? 1000.0 : 0.0; In.Windows.Add(Wd);
 	Apply(W, LastTerrain, In, 1000.0);
 	return Houses.Contains(Key);
 }

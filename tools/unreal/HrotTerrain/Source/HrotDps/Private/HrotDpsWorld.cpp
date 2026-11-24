@@ -1471,7 +1471,8 @@ void UHrotDpsWorld::OnBuildingDamage(const FHrotDpsSample& S)
 		for (uint32 I = 0; I < D.Windows._length; ++I)
 		{
 			const auto& Wd = D.Windows._buffer[I];
-			In.Windows.Add({ Wd.Panel, Wd.Opening, Wd.Hits, Wd.HitAt });
+			FHrotWindowIn W; W.Panel = Wd.Panel; W.Opening = Wd.Opening; W.Hits = Wd.Hits; W.HitAt = Wd.HitAt; W.U0 = Wd.U0; W.V0 = Wd.V0; W.U1 = Wd.U1; W.V1 = Wd.V1;
+			In.Windows.Add(W);
 		}
 	}
 	Count(TEXT("building damage"));
