@@ -110,7 +110,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>
     /// ⭐⭐ <c>CE-2436</c> AU-1 (A-1; 📄 docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md §5) — the BASE OF FIRE as a squad play: the
     /// squad moves to its support point and holds (every man the library <c>CombatPosture</c> hold — <see cref="SquadManeuverRunner.Hold"/>);
-    /// once it is there (its centre within <see cref="ArriveMetres"/>, or <see cref="ArriveTimeoutSeconds"/> on the way) every man keeps
+    /// once its men are ON THEIR POSTS — planned at the point (⭐ CE-8319) — or after <see cref="ArriveTimeoutSeconds"/> on the way, every man keeps
     /// SUSTAINED fire on a REPORTED post — man <c>i</c> on post <c>i mod n</c> — through the library <c>Suppress</c>
     /// (<see cref="SquadManeuverRunner.Suppress"/>: aimed when he sees someone there, blind at the point when not — 📌 the measured cause: a
     /// base of fire that only fought what it SAW rarely saw a man in a window at 120–250 m). Ammunition-paced by <c>Suppress</c>'s own cadence
@@ -120,7 +120,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class SupportByFireBehavior
     {
-        /// <summary>The squad is at its support point (m).</summary>
+        /// <summary>⭐ <c>CE-8319</c> — a squad this close to its support point when ordered is already THERE: it fires at once (m).</summary>
         public const float ArriveMetres = 12f;
         /// <summary>Firing starts after this long on the way even short of the point (s): a base of fire that cannot reach its point still fires.</summary>
         public const double ArriveTimeoutSeconds = 60.0;
@@ -200,12 +200,22 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐ D-11 B — nobody has a post yet (SquadDefendPlay.Start's own reset: a zeroed PostOf reads as "post 0", and the plan asks nothing)
                 for (int i = 0; i < DefencePosts.Capacity; i++) { ws.Plan.PostOf[i] = DefencePosts.None; ws.Plan.MovedAt[i] = double.NegativeInfinity; ws.Plan.DwellFrom[i] = double.NegativeInfinity; }
                 ws.Plan.Hunter = DefencePosts.None;
+                // ⭐ CE-8319 — ALREADY at the point when ordered (its own position, or a SHIFT — "the fire moves, not the men"): it fires at once from
+                //   where it stands, as before; only a squad that must move up plans its posts and occupies them first
+                var c0 = MenCentre(world, self, p.Position);
+                if ((c0.X - p.Position.X) * (c0.X - p.Position.X) + (c0.Y - p.Position.Y) * (c0.Y - p.Position.Y) <= ArriveMetres * ArriveMetres)
+                {
+                    ws.Phase = 1; ws.Planned = 1;
+                    ws.FiringSince = (SimInstant)now; ws.QuietSince = (SimInstant)now;
+                    ws.RoundsAtFiring = StaffComposerSystem.RoundsOf(world, self, out _);
+                }
             }
             if (ws.Phase == 0)
             {
-                var centre = StaffComposerSystem.CentreOf(world, self);
-                float dx = centre.X - p.Position.X, dy = centre.Y - p.Position.Y;
-                if (dx * dx + dy * dy <= ArriveMetres * ArriveMetres || now - ws.Since >= ArriveTimeoutSeconds)
+                // ⭐⭐ CE-8319 — it opens fire once its men are ON THEIR POSTS (planned at the point), not when the squad's centre is near the point:
+                //   phase 1 orders each man to Suppress where he STANDS, so firing began before the men reached their posts — 📐 live, the arrival
+                //   timeout started the fire from the house the squad was leaving. The timeout stays the fallback (a post he cannot reach).
+                if (OnTheirPosts(ref ws, self, world, n) || now - ws.Since >= ArriveTimeoutSeconds)
                 {
                     ws.Phase = 1;
                     ws.FiringSince = (SimInstant)now;
@@ -230,7 +240,13 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ D-11 B (CE-4666, user-approved 2026-11-19) — the men do not share ONE point: the squad's own post plan places them (a line across
             //   the line of fire at the support point, a cover search per post, facing the reported posts); until it answers they head for the point.
             //   📌 Live (pc-corridor-fight): phase 0 held every man at p.Position ⇒ bunched by construction, in the open.
-            if (ws.Planned == 0)
+            // ⭐⭐ CE-8319 — the posts are planned only ONCE THE SQUAD IS AT ITS SUPPORT POINT (its centre within PostSearchMetres, or phase 1 by
+            //   the arrival timeout): DefencePlan's window / roof / cover asks search round the crew's first live man (DefencePlan.Step's `from`),
+            //   so planned from where the squad STOOD they posted it in the house it was leaving. 📐 live village-street-mg-flank: support point
+            //   (411,245), every man posted where he stood at (372,272–278) — 150 m from the gun, across the street, 0 hits in 207 rounds.
+            var mid = MenCentre(world, self, p.Position);   // where its MEN are (CentreOf reads the squad entity's own transform first)
+            bool atPoint = (mid.X - p.Position.X) * (mid.X - p.Position.X) + (mid.Y - p.Position.Y) * (mid.Y - p.Position.Y) <= PostSearchMetres * PostSearchMetres;
+            if (ws.Planned == 0 && (atPoint || ws.Phase == 1))
             {
                 var crew = new SupportCrew(world, self, now, in p);
                 if (DefencePlan.Step(ref ws.Plan, ref ws.Ask, in crew, default, p.Position, PostSearchMetres)) { ws.Planned = 1; Redo(ref ws); }
@@ -246,7 +262,8 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Dirty[i] = 0;
                 var at = world.HasComponent<SimTransform>(member) ? (Vector3)world.GetComponentRO<SimTransform>(member).Position : p.Position;
                 bool posted = ws.Planned != 0 && i < DefencePosts.Capacity && ws.Plan.PostOf[i] != DefencePosts.None && ws.Plan.PostOf[i] < ws.Plan.Count;
-                var post = posted ? ws.Plan.Point(ws.Plan.PostOf[i]) : p.Position;
+                // ⭐ CE-8319 — on the way (no post yet) each man heads for his own spot on a line across the line of fire, never one shared point
+                var post = posted ? ws.Plan.Point(ws.Plan.PostOf[i]) : SpotOnTheLine(in p, i, n);
                 if (ws.Phase == 0)
                     SquadManeuverRunner.Hold(world, self, member, post, p.Speed,
                                              posted ? new MemberPost { Set = 1, Radius = SquadDefendPlay.PostRadius, Open = ws.Plan.Open[ws.Plan.PostOf[i]] } : default);   // ⭐ D-13 — prone on a dispersal spot   // ⭐ D-11 B — his post
@@ -262,6 +279,52 @@ namespace Hrot.AI.Behaviors.Brains
                 CommandNodes.ReportProgress(world, self, ProgressKind.Set, p.Position);
             }
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-8319</c> — the plan has answered and every live man stands within <see cref="SquadDefendPlay.PostRadius"/> of his post
+        /// (a man the plan gave no post counts as there).</summary>
+        private static unsafe bool OnTheirPosts(ref SupportByFireState ws, Entity squad, EntityRepository world, int n)
+        {
+            if (ws.Planned == 0) return false;
+            for (int i = 0; i < n && i < DefencePosts.Capacity; i++)
+            {
+                var m = CommandPictureOps.Subordinate(world, squad, i);
+                if (m.IsNull || !world.IsAlive(m) || !Injury.IsInTheFight(world, m) || !world.HasComponent<SimTransform>(m)) continue;
+                if (ws.Plan.PostOf[i] == DefencePosts.None || ws.Plan.PostOf[i] >= ws.Plan.Count) continue;
+                var post = ws.Plan.Point(ws.Plan.PostOf[i]);
+                var at = (Vector3)world.GetComponentRO<SimTransform>(m).Position;
+                if ((at.X - post.X) * (at.X - post.X) + (at.Y - post.Y) * (at.Y - post.Y) > SquadDefendPlay.PostRadius * SquadDefendPlay.PostRadius) return false;
+            }
+            return true;
+        }
+
+        /// <summary>⭐ <c>CE-8319</c> — the middle of the squad's live men (in the fight); <paramref name="none"/> when it has none.</summary>
+        private static Vector3 MenCentre(EntityRepository world, Entity squad, Vector3 none)
+        {
+            if (!world.HasComponent<UnitRoster>(squad)) return none;
+            int n = Math.Min(world.GetComponentRO<UnitRoster>(squad).Count, CommandPicture.MaxSubordinates);
+            var sum = Vector3.Zero; int live = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var m = CommandPictureOps.Subordinate(world, squad, i);
+                if (m.IsNull || !world.IsAlive(m) || !Injury.IsInTheFight(world, m) || !world.HasComponent<SimTransform>(m)) continue;
+                sum += (Vector3)world.GetComponentRO<SimTransform>(m).Position; live++;
+            }
+            return live > 0 ? sum / live : none;
+        }
+
+        /// <summary>⭐ <c>CE-8319</c> — member <paramref name="i"/> of <paramref name="n"/>'s spot on the way to the support point: on the line through
+        /// <see cref="SupportByFireParams.Position"/> across the line of fire (toward the reported posts' centre), <see cref="DefencePlan.DispersalMetres"/>
+        /// apart — doctrine's interval, the same one the plan's dispersal keeps.</summary>
+        internal static Vector3 SpotOnTheLine(in SupportByFireParams p, int i, int n)
+        {
+            var facing = Vector3.Zero;
+            for (int k = 0; k < p.Posts; k++) facing += p.Post(k);
+            facing = p.Posts > 0 ? facing / p.Posts : p.Position;
+            var f = new Vector2(facing.X - p.Position.X, facing.Y - p.Position.Y);
+            var across = f.LengthSquared() > 1e-4f ? Vector2.Normalize(new Vector2(-f.Y, f.X)) : Vector2.UnitX;
+            float off = (i - (Math.Max(n, 1) - 1) * 0.5f) * DefencePlan.DispersalMetres;
+            return p.Position + new Vector3(across * off, 0f);
         }
 
         private static unsafe void Redo(ref SupportByFireState ws)

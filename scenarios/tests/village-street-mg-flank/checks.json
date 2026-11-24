@@ -90,14 +90,29 @@
       "hit": "*Red MG Team"
     },
     {
-      "name": "the assault reaches the gun's FLANK (the back gardens south of the house)",
-      "on": "near",
+      "name": "the assault reaches the gun's FLANK: a Blue man south of the house line (y < 215), within ~40 m of the gun (x 495-565)",
+      "on": "field",
       "who": "*Blue Squad",
-      "point": [
-        530,
-        210
-      ],
-      "within": 10
+      "path": "SimTransform.Position.1",
+      "op": "<",
+      "value": 215,
+      "also": [
+        {
+          "path": "SimTransform.Position.0",
+          "op": ">",
+          "value": 495
+        },
+        {
+          "path": "SimTransform.Position.0",
+          "op": "<",
+          "value": 565
+        },
+        {
+          "path": "SimTransform.Position.1",
+          "op": ">",
+          "value": 185
+        }
+      ]
     },
     {
       "name": "the machine gun is silenced (the gunner down: under 30 %)",
