@@ -773,6 +773,38 @@ namespace Hrot.SimHost.Tests
             return new Entity((ulong)span[0].EntityId);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8321</c> — a bound never takes a man past the overwatch's support: Bravo's front man (his teammate left behind — 📐 live
+        /// village-street-mg-flank: a stalled move held the element's centre back, and each bound sent the front man 30 m beyond where he stood,
+        /// 75 m ahead of his overwatch) is ordered no farther than <see cref="BoundingOverwatchPlay.MaxLeadMetres"/> from Alpha's centre; one
+        /// already that far holds where he stands. 🔴 Red-proof: the clamp dropped ⇒ 30 m past where he stands ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8321_ABound_NeverTakesAManPastTheOverwatchsSupport()
+        {
+            foreach (float ahead in new[] { 40f, 70f })
+            {
+                var s = new Squad(members: 4);
+                s.Order("{\"Objective\":[0,300,0],\"BoundMetres\":30,\"ArrivalRadius\":15}");
+                s.Tick(); s.Tick(); s.Tick();
+                var first = s.LastObjectives();
+                var alpha = s.Members.Take(2).ToArray();
+                var bravo = s.Members.Skip(2).ToArray();
+                foreach (var m in alpha) s.Teleport(m, first[m]);                                  // Alpha arrives, 30 m north
+                var watch = (s.At(alpha[0]) + s.At(alpha[1])) * 0.5f;
+                s.Teleport(bravo[1], new Vector3(s.At(bravo[1]).X, watch.Y + ahead, 0f));          // Bravo's front man far ahead, his mate behind
+                s.Orders.Clear();
+                s.Tick(); s.Tick();
+                Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
+                var to = s.LastObjectives()[bravo[1]];
+                float lead = Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(watch.X, watch.Y));
+                if (ahead >= BoundingOverwatchPlay.MaxLeadMetres)
+                    Assert.True(Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(s.At(bravo[1]).X, s.At(bravo[1]).Y)) < 0.5f, "already that far: he holds, no farther");
+                else
+                    Assert.True(lead <= BoundingOverwatchPlay.MaxLeadMetres + 0.5f, $"{ahead} m ahead: ordered {lead:0.0} m from the overwatch");
+            }
+        }
+
         [Fact]
         public void CE507_BoundingOverwatch_ABoundThatNeverCompletes_TimesOut_AndTheOtherElementMoves()
         {
