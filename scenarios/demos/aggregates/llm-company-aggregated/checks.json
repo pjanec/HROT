@@ -112,10 +112,10 @@
       ]
     },
     {
-      "name": "⭐ CE-4686 ③ fire on the position: a man of a split platoon HITS a Red man",
+      "name": "⭐ CE-4686 ③ fire on the position: a man of a split platoon fires AT a Red man",
       "on": "shot",
       "by": "*Platoon/",
-      "hit": "*Red "
+      "at": "*Red "
     }
   ]
 }
