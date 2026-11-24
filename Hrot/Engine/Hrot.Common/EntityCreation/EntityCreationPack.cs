@@ -240,11 +240,15 @@ namespace Hrot.Common.EntityCreation
                     // ⭐ The SAME finalization instance the create side uses — a second one would give delete
                     //   its own ACK bookkeeping, the class of split this pack exists to prevent.
                     new DeleteEntityRequestSystem(adapters.DeleteSource, ackSink, ctx.EntityMap, finalization, ctx.NodeId),
-                    // ⭐ LR-2 (DESIGN_Visual_Effects.md §8.5, R-271) — a visible round (a shell, a grenade, a rocket, a tracer…) gets its
-                    //   network id and local ownership here, so the existing egress replicates it as EntityMaster (Lightweight) +
-                    //   WorldPos — no lifecycle, no acks. Only with a network: a standalone host's rounds stay local.
-                    new Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem(ctx.IdAllocator, ctx.EntityMap, ctx.NodeId),
                 };
+
+            // ⭐⭐ CE-11050 (user, 2026-11-24: "Isn't around already an entity which should be having a network ID already assigned? Why would we
+            //   invent something new?") — a round is an entity and gets its network id on EVERY host, built ONCE here, outside the network-only list.
+            //   ⛔ It used to sit in `networkSystems` ("only with a network: a standalone host's rounds stay local", LR-2 / R-271), so on the editor
+            //   (no adapters) no round ever had a NetworkIdentity and the SimNetGateway — which gathers only NetworkIdentity entities — never saw
+            //   one (Unreal measured 23 fires, 0 rounds). It needs only the id allocator (required above), the entity map and the node id — no adapters.
+            //   📄 docs/DESIGN_Visual_Effects.md §8.5.
+            var roundIdentity = new Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem(ctx.IdAllocator, ctx.EntityMap, ctx.NodeId);
 
             // ⭐ CE-1033 S5 (R-260) / ⭐⭐ CE-3228 — shared code that only holds the world (a map layer asking for the scenario's camera
             //   entity) REQUESTS an entity by publishing on that world's bus — no singleton: every host that creates entities composes THIS
@@ -252,7 +256,7 @@ namespace Hrot.Common.EntityCreation
 
             return new EntityCreation(
                 translators, ctx.Elm, requestSystem, finalization, spawnSystem,
-                promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake,
+                promotionSystem, ctx.NodeId, networkSystems, roundIdentity, ctx.World, obstacleBake,
                 new SeatPresetSystem(ctx.EntityMap),   // ⭐ WS-4 (W-I) — boards the presets CreateEntityRequestSystem spawns
                 new Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem(),
                 new Hrot.Common.Macros.MacroExpansionSystem(ctx.Macros, ctx.EntityMap, ctx.IdAllocator, ctx.NodeId, ctx.TkbDb),

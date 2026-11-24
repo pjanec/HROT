@@ -680,9 +680,9 @@ graph TD
     EM["EntityMaster egress<br/>Flags = Lightweight"]
     WP["WorldPos egress (exists)"]
     CL["CycloneNetworkCleanupSystem<br/>round gone ⇒ dispose"]
-    PK["EntityCreationPack.NetworkSystems<br/>ticked by IG, Stride, CGF, SimHost"]
+    PK["EntityCreationPack.RoundIdentitySystem<br/>ticked by EVERY host: IG, Stride, CGF, SimHost, editor (CE-11050)"]
   end
-  ED["standalone editor<br/>no network systems"]
+  ED["standalone editor<br/>no network adapters"]
   subgraph Viewer["any viewer: IG, CGF, editor, replay of the muscle"]
     IN["EntityMaster ingress<br/>Lightweight ⇒ create ACTIVE, no ghost, no ELM"]
     GI["WorldPos ingress (exists)<br/>SimTransform + SimVelocity"]
@@ -694,22 +694,25 @@ graph TD
   ID --> EM
   BS --> WP
   BS --> CL
-  ED -.-x ID
+  ED --> PK
   EM -- "EntityMaster (Lightweight)" --> IN
   WP -- "WorldPos every tick" --> GI
   GI --> DR
   IN --> PL
   DR --> PL
   CL -. "dispose EntityMaster + WorldPos" .-> IN
-  style ED stroke-dasharray: 5 5
 ```
 
 *What the picture shows that prose hid:* nothing on the viewer side reaches the ELM or the ghost promotion — the `Lightweight` flag
 is the only fork, at the one place an entity is born on a viewer; position and dead reckoning are the existing paths, unchanged.
-⭐ As-built: the identity is given by a NETWORK system (`LightweightRoundIdentitySystem`, registered by `EntityCreationPack` and ticked
-only by the four networked hosts' `NetworkSystems` loops) — so the combat code knows nothing of the network (R-134), and on the
-**standalone editor** (dashed — never reached) a round is tagged but never identified: it stays local, which is right, there is no
-viewer to send it to. The dispose is not the ELM's `DestructionOrder` (a round has none): the cleanup system notices the round is gone.
+⭐ As-built: the identity is given by a system the pack builds for every host (`LightweightRoundIdentitySystem`, `EntityCreationPack` → `EntityCreation.RoundIdentitySystem`, scheduled by the shared `RegisterOn` for IG, Stride, CGF, SimHost AND the editor), so the combat code knows nothing of
+the network (R-134). The dispose is not the ELM's `DestructionOrder` (a round has none): the cleanup system notices the round is gone.
+
+⛔ **SUPERSEDED `2026-11-24` (CE-11050, user: *"Isn't around already an entity which should be having a network ID already assigned? Why would we invent something new?"*):** the first
+as-built said the identity system was a NETWORK system registered only with network adapters, so on the **standalone editor** a round was *"tagged but never identified: it stays local, which is right, there is no
+viewer to send it to"* (the dashed, never-reached edge). 📐 Measured wrong the same day: the editor IS read by a viewer — the SimNetGateway beside `--mode editor` gathers only `NetworkIdentity` entities, so no round of any kind
+reached the Unreal client (23 fires, 0 rounds). The system needs only the id allocator, the entity map and the node id, so it left the network-only list: every host gives its rounds an id (one registration, `EntityCreationPack`).
+It also UNMAPS the rounds it identified once they are gone (a host with no replication module — the editor — has no `DisposalMonitoringSystem`, so the map would otherwise grow with every round fired and a reissued id after a preview rewind would throw).
 
 ```mermaid
 classDiagram
@@ -783,6 +786,7 @@ network lanes as the owner column leaned.
 | **LR-1** | seven new munition types `6003`–`6009` (5.56 ball, 5.56 tracer, 25 mm APDS-T, 120 / 125 mm APFSDS, TOW, RPG-7), DIS kind 2; a look on all but the ball. Every built-in mount loads one (`WeaponMount.AmmoTkb` in the BDC catalog, `AmmoGuid` in the urban one). ⭐ The rifles MIX tracers: `WeaponMountDto.TracerAmmoGuid` + `TracerEvery` (5), counted by a new `ShotOrdinal.Fired` — ⚠ kept apart from `ShotOrdinal.Count`, which drives the hit model's deflection sequence and so must not move | `MunitionTkbCatalog.cs`; `WeaponSuiteDto.cs`; `FireProcessingSystem.cs` |
 | **LR-1 neutrality** | ⭐ no combat number moved, by construction AND by rail: every mount states its penetration (it wins before the by-name library pair) and no new name matches an explosive reference entry — RPG / TOW deliberately do NOT carry the library names "PG-7V HEAT" / "TOW-2 HEAT" (a real HEAT warhead is the combat lane's call). Pinned by `EffectTests.LR1_EveryBuiltInMountLoadsAMunitionType_AndNoCombatNumberMoved` | — |
 | **LR-2 muscle** | `FireProcessingSystem.MarkIfVisible` tags a round whose munition has a `Munition.Visual` (`TkbIdentity` + `LightweightRound` + DIS type + `ScenarioIgnoreTag`); ⭐ DEVIATION: the network identity is NOT given by the fire path (the class diagram's first draft) but by a new network system, `LightweightRoundIdentitySystem`, in `EntityCreationPack`'s network systems — the combat code stays network-free (R-134). Egress sets `EntityMasterFlags.Lightweight` (`1 << 1`) | `LightweightRoundIdentitySystem.cs`; `EntityCreationPack.cs`; `EntityMasterEgressTranslator.cs` |
+| **LR-2 identity on every host** | ⭐ CE-11050 (`2026-11-24`): `LightweightRoundIdentitySystem` is `EntityCreation.RoundIdentitySystem`, no longer in `NetworkSystems` (which keeps the poll and the delete — both need adapters), so the editor identifies its rounds too (the gateway sees them); it unmaps its dead rounds from `NetworkEntityMap`. Rails: `EntityCreationPackRails.Build_OnAnEditorShapedHost_NoAdapters_ARoundGetsANetworkIdentity`, `LightweightRoundIdentitySystemTests.CE11050_ADeadRound_LeavesTheMap…` | `EntityCreationPack.cs`, `EntityCreation.cs`, `LightweightRoundIdentitySystem.cs` |
 | **LR-2 dispose** | ⭐ DEVIATION: a round has no ELM `DestructionOrder`, which is the only thing `CycloneNetworkCleanupSystem` disposed on — so it now also TRACKS `LightweightRound` entities and disposes the samples of one that is no longer alive | `CycloneNetworkCleanupSystem.cs` |
 | **LR-2 viewer** | the ingress makes a `Lightweight` master's entity `Active` at once, removes the `GhostStateTracker` (⭐ DEVIATION: no change in `GhostPromotionSystem` was needed — it queries lifecycle `Ghost` only, `GhostPromotionSystem.cs:296`, so an `Active` round is never seen), adds `LightweightRound` + `ScenarioIgnoreTag`; an early-`WorldPos` ghost is converted; its own round seen through loopback (local authority) is left alone. Its dispose DESTROYS the entity directly instead of publishing a teardown command | `EntityMasterIngressTranslator.cs` |
 | **LR-3** | `ProjectileLayer` resolves a `LightweightRound` without `BallisticProjectile` (look from `TkbIdentity`, nose from `SimVelocity`, at rest = lying, the trail / tracer run back along the flight); the 2-D drawing became `ProjectilePresentationGizmo.DrawRound`, shared with a new `LightweightRoundGizmo`; the body layer never draws a `LightweightRound` (query + pick box) nor a munition type — also a built-in one on a host whose TKB lacks it (`MunitionTkbCatalog.IsBuiltIn`; ⚠ found by the Xvfb frame rail `LR_AViewerDrawsReplicatedRounds…`: every replicated round drew as an unknown purple box) — and the unit marker skips a `LightweightRound` | `ProjectileLayer.cs`; `ProjectilePresentationGizmo.cs`; `EntityBodyLayer3D.cs`; `EntityPresentationGizmo.cs` |

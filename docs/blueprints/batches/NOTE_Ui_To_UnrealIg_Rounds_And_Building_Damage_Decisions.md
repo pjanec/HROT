@@ -17,3 +17,7 @@
 | §2.3 ④ door states | later (low priority, as you said) | — |
 
 Your stand-in missile (§1.4) retires itself once real rounds arrive after CE-11050. We tell you when each lands.
+
+**Built `2026-11-24` (ui, not yet pushed):** CE-11050 — `LightweightRoundIdentitySystem` is `EntityCreation.RoundIdentitySystem`, scheduled on every host (the editor included); a round gets its `NetworkIdentity` there.
+CE-11052 — `Hrot/Tools/Hrot.Tools.BuildingPanels` (`hrot-building-panels <terrain folder> <out.json>`, same shape as `hrot-roadscene`); the file format, the class and sequence diagrams are in
+[DRAFT_Unreal_Image_Generator.md](../../designs/IG/DRAFT_Unreal_Image_Generator.md), section *"Building panels for Unreal"*.

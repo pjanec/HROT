@@ -39,6 +39,7 @@ namespace Hrot.Common.EntityCreation
             Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
             int nodeId,
             IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
+            Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem roundIdentitySystem,
             Fdp.Core.EntityRepository world,
             Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem,
             SeatPresetSystem seatPresetSystem,
@@ -61,6 +62,7 @@ namespace Hrot.Common.EntityCreation
             PromotionSystem    = promotionSystem;
             NodeId             = (Fdp.Core.NodeId)(nodeId);
             NetworkSystems     = networkSystems;
+            RoundIdentitySystem = roundIdentitySystem ?? throw new ArgumentNullException(nameof(roundIdentitySystem));
             World              = world;
         }
 
@@ -301,6 +303,10 @@ namespace Hrot.Common.EntityCreation
         /// </summary>
         public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> NetworkSystems { get; }
 
+        /// <summary>⭐ CE-11050 — gives every visible round (<c>LightweightRound</c>) its network id and local ownership, on EVERY host: the editor (no adapters) included,
+        /// so the gateway gathers its rounds like any other entity. ⛔ Not a <see cref="NetworkSystems"/> member: those need a live network, this needs only the id allocator.</summary>
+        public Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem RoundIdentitySystem { get; }
+
         /// <summary>
         /// ⭐⭐ <b>The <c>S2b</c> diagnostic habit: report what the pack built and the host did NOT
         /// schedule.</b> 📌 Every one of the five entity-creation defects that produced this design was a
@@ -332,6 +338,7 @@ namespace Hrot.Common.EntityCreation
             if (kernel is null) throw new ArgumentNullException(nameof(kernel));
             foreach (var sys in NetworkSystems)
                 kernel.RegisterGlobalSystem(sys);
+            kernel.RegisterGlobalSystem(RoundIdentitySystem);  // CE-11050 — a round's id, on every host (after the network systems, as before)
             kernel.RegisterGlobalSystem(RequestSystem);        // Input
             kernel.RegisterGlobalSystem(FinalizationSystem);   // PostSimulation
             kernel.RegisterGlobalSystem(PromotionSystem);      // BeforeSync — [UpdateAfter(GhostCreationSystem)] orders it
@@ -345,7 +352,7 @@ namespace Hrot.Common.EntityCreation
             var missing = Unserviceable(new object[]
             {
                 SpawnSystem, RequestSystem, FinalizationSystem, PromotionSystem, ObstacleBakeSystem, SeatPresetSystem, SpawnLevelSystem,
-                MacroExpansionSystem, HeldChildParticipant,
+                MacroExpansionSystem, HeldChildParticipant, RoundIdentitySystem,
             }.Concat(NetworkSystems));
             if (missing.Length > 0)
                 Fdp.Core.Logging.FdpLog<EntityCreation>.Warn(missing);
@@ -387,6 +394,9 @@ namespace Hrot.Common.EntityCreation
                             "the entity keeps the sent height");
             if (!seen.Contains(MacroExpansionSystem))
                 missing.Add($"{nameof(MacroExpansionSystem)} (macros S3a) — a macro instance created here stays Expanding forever and the load never finishes");
+            if (!seen.Contains(RoundIdentitySystem))
+                missing.Add($"{nameof(RoundIdentitySystem)} (LightweightRoundIdentitySystem, CE-11050) — visible rounds (shells, grenades, rockets, tracers) never get a network id, " +
+                            "so no viewer and no gateway sees them (R-271)");
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");
@@ -396,8 +406,6 @@ namespace Hrot.Common.EntityCreation
                     missing.Add($"{nameof(NetworkSystems)} ({sys.GetType().Name}) — " +
                                 (sys is NetworkPollingSystem
                                     ? "the ownership strategy's cluster cache is never fed, so created entities grant nothing"
-                                    : sys is Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem
-                                    ? "visible rounds (shells, grenades, rockets, tracers) never get a network id, so no viewer sees them (R-271)"
                                     : "delete requests addressed to this node are never processed"));
 
             if (missing.Count == 0) return string.Empty;
