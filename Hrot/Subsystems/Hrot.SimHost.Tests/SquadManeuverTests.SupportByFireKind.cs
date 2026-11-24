@@ -72,6 +72,28 @@ namespace Hrot.SimHost.Tests
             s.Seats.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ CE-4686 ③ — an order its unit REPORTED failed is not "in force": the same order again goes out (once), instead of "already in force — nothing
+        /// sent". 📌 Haiku run: the cleared support by fire was re-issued and swallowed as a no-op. 🔴 Red-proof: the failed check dropped ⇒ one order only.
+        /// </summary>
+        [Fact]
+        public void CE4686_AnOrderItsUnitReportedFailed_IsGivenAgain_NotSwallowedAsInForce()
+        {
+            var mind = new RailMind();
+            mind.Answer = _ => new[] { new CommanderAction(CommanderActionKind.Order, "Alpha", "Move", Where: "house") };
+            var s = new Seated(mind);
+            Fast(s, heartbeat: 0.5f, snapshot: 60f);
+            Run(s, 120);
+            Assert.Equal(1, s.P.S.Orders.Count(o => o.Entity.Equals(s.P.Alpha) && o.IntentId == "Order.Move"));   // repeats are no-ops
+            s.P.Report(s.P.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
+            });
+            Run(s, 120);
+            Assert.Equal(2, s.P.S.Orders.Count(o => o.Entity.Equals(s.P.Alpha) && o.IntentId == "Order.Move"));   // given again, once
+            s.Seats.Dispose();
+        }
+
         private static readonly SeatVocabulary Vocab4686 = new("Blue Company", new[] { "1st Platoon", "2nd Platoon" }, new[] { "house", "objective", "support", "start" });
     }
 }

@@ -225,6 +225,10 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
             && SquadNamed(world, seat.Commander, a.Squad, out _) is { IsNull: false } target)
         {
             SyncPlayOrders(world, seat, now);
+            // ⭐ CE-4686 ③ — an order its unit REPORTED failed is no longer in force: the same order again is a new order, not a no-op. 📌 Measured
+            //   (Haiku, llm-company-aggregated): 2nd Platoon's support by fire was cleared at its split (TaskFailed) and the model's re-issue was
+            //   answered "already in force — nothing sent"
+            if (seat.InForce.ContainsKey(target) && ReportedFailed(world, seat, target)) seat.InForce.Remove(target);
             if (seat.InForce.TryGetValue(target, out var held) && Wanted(seat, a, now) is { } wanted && Same(held, wanted))
             {
                 NoOps++;
@@ -369,6 +373,15 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
                 break;
         }
         return null;
+    }
+
+    /// <summary>⭐ CE-4686 ③ — the commander's picture says <paramref name="unit"/> reported its current order FAILED (its latest progress since the order).</summary>
+    private static bool ReportedFailed(EntityRepository world, SeatRuntime seat, Entity unit)
+    {
+        if (!world.HasComponent<Fdp.Toolkit.Squad.Command.CommandPicture>(seat.Commander)) return false;
+        ref readonly var picture = ref world.GetComponentRO<Fdp.Toolkit.Squad.Command.CommandPicture>(seat.Commander);
+        int r = Fdp.Toolkit.Squad.Command.CommandPictureOps.RowOf(in picture, Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(world, unit));
+        return r >= 0 && picture.Subordinates.Items[r].Progress == Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed;
     }
 
     /// <summary>⭐ CE-4686 ③ — does <paramref name="unit"/> take the order KIND <paramref name="kind"/> as a play of its own (the routing table, at its resolution)?</summary>
