@@ -17,7 +17,7 @@ class UStaticMeshComponent;
 class UFXSystemComponent;
 
 UENUM(BlueprintType)
-enum class EHrotVehicleParent : uint8 { Hull, Turret, Gun, WingLeft, WingRight };
+enum class EHrotVehicleParent : uint8 { Hull, Turret, Gun, WingLeft, WingRight, MainRotor, TailRotor };   // U-19h: a helicopter's rotors spin
 
 UENUM(BlueprintType)
 enum class EHrotVehicleDamage : uint8
@@ -37,6 +37,13 @@ struct FHrotVehiclePart
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform Transform;
 	/** U-18k — material overrides by slot index (null = the mesh's own): one mesh, several liveries (the French pack's desert and green) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TArray<TObjectPtr<UMaterialInterface>> Materials;
+	/** CE-12010 (user: "rotate the gun to the direction of aiming"): a gun part aimed by the man in seat AimSeat (HROT's gunner seat; -1 = fixed).
+	 *  It turns about AimPivot (the part MESH's own coordinates: the mount pin) - its barrel is the mesh +Y - within the limits, degrees from
+	 *  its kit pose (yaw about the hull's Z, pitch up +) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") int32 AimSeat = -1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector AimPivot = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector2D AimYawLimits = FVector2D(-70.f, 70.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector2D AimPitchLimits = FVector2D(-45.f, 20.f);
 };
 
 UCLASS(BlueprintType)
@@ -72,6 +79,13 @@ public:
 	/** the body's rise and fall with the beat (cm, on top of HROT's steady altitude): highest when the wings are lowest (the
 	 *  downstroke lifts) — U-17i, user: "synchronized up/down motion on top of HROT steady altitude" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapBob = 0.f;
+	/** U-19h (user: "the helicopter rotor is not moving when the helicopter is hovering or flying"): parts parented MainRotor / TailRotor turn about
+	 *  their pivot's Z while flying (deg/s - well under the real rate, which would strobe at the frame rate); a faint disc of RotorRadius shows the blur */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform MainRotorPivot;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform TailRotorPivot;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float MainRotorRate = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float TailRotorRate = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float RotorRadius = 0.f;
 	/** ⭐ a SKINNED body (U-17l: the motorcycle — one skeletal mesh, its wheels and fork are bones), shown in its rest pose on Lift,
 	 *  beside or instead of the static parts; `SkinnedTransform` places it (hull space) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TObjectPtr<USkeletalMesh> SkinnedBody;
@@ -142,6 +156,13 @@ public:
 	 *  the actor (HROT's transform) never does */
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Lift;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Turret;
+	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> MainRotor;
+	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> TailRotor;
+	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> RotorDisc;
+	/** CE-12010: turn the gun part(s) aimed from seat `Seat` toward a world point (clamped to their limits); true if one exists */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") bool AimSeatGun(int32 Seat, FVector WorldTarget);
+	TArray<int32> PartOfComp;   // PartComps[i] is Kit->Parts[PartOfComp[i]]
+	float RotorAngle = 0.f;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Gun;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> WingLeft;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> WingRight;

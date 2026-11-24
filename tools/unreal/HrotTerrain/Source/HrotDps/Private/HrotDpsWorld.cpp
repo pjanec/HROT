@@ -250,6 +250,7 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d bodies built (%d rounds per class), %d outfit / face meshes found beyond the kits' own (the last round added %d: 0 = the parts are covered)"), Built, PreloadRounds, Skinned.Num() - BeforeBuilt, LastRoundNew);
 	int32 Sounds = 0;
 	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this)) Sounds = Snd->PreloadAll();
+	Sounds += UHrotBuildingDamage::Preload();   // U-20: crack textures, damage materials, debris meshes, glass sounds
 	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d person kits, %d skinned assets (%d assets held) in %.2f s; %d sounds in %.2f s"),
 		Kits, Skinned.Num(), Preloaded.Num(), T1 - T0, Sounds, FPlatformTime::Seconds() - T1);
 }
@@ -549,6 +550,37 @@ bool UHrotDpsWorld::BurstSound(uint32 Id, int32 Rounds, int32 Index, const TCHAR
 	return true;
 }
 
+// CE-12010 (user: "the stream should originate from the minigun on the side where the weapon mount is"): the roof MG cut from the VBL
+// (/Game/Hrot/Weapons/SM_HrotRoofMg) is every drawn mounted gun - a UH-60's door guns (kit parts), a technical's gun (a weapon-system actor).
+// A shot whose shooter has no gun of its own on screen (HROT's M134 station entity: its Origin is HROT's station, ~1 m from our model's gun)
+// starts at the TIP of the nearest such gun within 5 m. The tip: measured in the mesh (its thin +Y end, hrot gunbox measurement 2026-11-24)
+bool UHrotDpsWorld::NearestMountedGunTip(const FVector& Around, AActor* Prefer, FVector& OutTip, FVector& OutDir) const
+{
+	static const FVector TipLocal(-44.1, 66.6, 211.9);
+	static UStaticMesh* Mg = HrotLoadRooted<UStaticMesh>(TEXT("/Game/Hrot/Weapons/SM_HrotRoofMg.SM_HrotRoofMg"));
+	if (!Mg) return false;
+	double Best = 500.0 * 500.0; bool bFound = false;
+	auto Try = [&](AActor* A)
+	{
+		if (!A) return;
+		TArray<UStaticMeshComponent*> Cs; A->GetComponents(Cs);
+		for (const UStaticMeshComponent* C : Cs)
+			if (C && C->GetStaticMesh() == Mg)
+			{
+				const FTransform X = C->GetComponentTransform();
+				const FVector Tip = X.TransformPosition(TipLocal);
+				const double D2 = FVector::DistSquared(Tip, Around);
+				if (D2 < Best) { Best = D2; OutTip = Tip; OutDir = X.TransformVectorNoScale(FVector(0, 1, 0)).GetSafeNormal(); bFound = true; }
+			}
+	};
+	Try(Prefer);
+	if (!bFound)
+		for (const TPair<int32, FEnt>& It : Ents)
+			if (AHrotVehicle* V = Cast<AHrotVehicle>(It.Value.Actor.Get()))
+				if (FVector::DistSquared(V->GetActorLocation(), Around) < 1500.0 * 1500.0) Try(V);
+	return bFound;
+}
+
 void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
@@ -589,6 +621,11 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 			// HROT's FireStreams: every shot of a machine gun or autocannon shows tracer dashes running out from the muzzle toward the aim,
 			// up to 500 m - here the shot renderer's one streak per shot (its speed and look); the dash spacing is not ported yet
 			if (bKitGun) { From = ShooterVehicle->MuzzleTransform().GetLocation(); Count(TEXT("tracer from a vehicle gun")); }   // U-18f
+			else if (!bPerson)   // CE-12010: a door gun / a technical's gun - its drawn muzzle
+			{
+				FVector Tip, Along;
+				if (NearestMountedGunTip(From, Shooter ? Shooter->Actor.Get() : nullptr, Tip, Along)) { From = Tip; Count(TEXT("tracer from a mounted gun")); }
+			}
 			// HROT's FireStreams (U-18f): a STREAM of dashes toward the target (its chest when a person), else along the shot for 300 m
 			FStream St; St.Shooter = D.ShooterId; St.Origin = From; St.Along = Dir(D.Velocity); St.Born = D.SimTime; St.Toward = FVector::ZeroVector;
 			if (const FEnt* T = D.TargetId ? Ents.Find(D.TargetId) : nullptr)
@@ -858,6 +895,11 @@ void UHrotDpsWorld::OnEffect(const FHrotDpsSample& S)
 		if (Q.SizeSquared() < 0.5) Q = FQuat4d::Identity;
 		FTransform M(HrotDpsMotion::ToUnreal(Q.GetNormalized()), At);
 		if (V && V->Kit && !V->Kit->Muzzle.IsNearlyZero()) M = V->MuzzleTransform();   // a kit with no gun (the Apache): where the producer says
+		else if (!(Anchor && Anchor->bHasPerson))   // CE-12010: a door gun / a technical's gun - the flash at its drawn muzzle, facing along the barrel
+		{
+			FVector Tip, Along;
+			if (NearestMountedGunTip(At, Anchor ? Anchor->Actor.Get() : nullptr, Tip, Along)) M = FTransform(Along.Rotation(), Tip);
+		}
 		else if (Anchor && Anchor->bHasPerson && MuzzleOfPerson(Anchor->Actor.Get(), M)) Count(TEXT("flash at a rifle"));
 		R->AddFlash(M, FMath::Clamp(D.Size * FlashPerMetre, 0.5f, 12.f));
 		Count(TEXT("flash"));
@@ -1329,6 +1371,13 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 	// counted, never a box (the "never invisible" box is for a vehicle or a person with no model)
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainOther) { if (E.DrawnAs.IsEmpty()) Count(TEXT("not drawn: domain Other")); E.DrawnAs = TEXT("not drawn: domain Other"); return; }
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainMunition && !E.bRound) { E.DrawnAs = TEXT("(waiting for its Round)"); return; }
+	// CE-12006 (measured, Stechovice flight 2026-11-24): a person's construction script dresses him (SetCharacterDefinition + SetGroomBinding,
+	// 25-60 ms each) - eight in one frame froze it 368 ms. At most MaxPersonSpawnsPerFrame new people a frame; the rest wait their turn (Tick)
+	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson && MaxPersonSpawnsPerFrame > 0)
+	{
+		if (PersonSpawnsThisFrame >= MaxPersonSpawnsPerFrame) { DeferredSpawns.Add(Id); return; }
+		++PersonSpawnsThisFrame;
+	}
 	UWorld* W = GetWorld();
 	FTransform At = HrotDpsMotion::ToUnreal(E.Shown, OriginCm);
 	FActorSpawnParameters P;
@@ -1447,6 +1496,24 @@ void UHrotDpsWorld::TickFlyOuts(double Real)
 	}
 }
 
+int32 UHrotDpsWorld::TestSeatPeople(AActor* Vehicle, int32 Count)
+{
+	if (!Vehicle) return 0;
+	int32 N = 0;
+	for (int32 I = 0; I < Count; ++I)
+	{
+		FEnt& E = TestRiders.FindOrAdd(-1000 - I);
+		E.Kit = PersonKit.LoadSynchronous(); E.bHasPerson = true; E.Name = FString::Printf(TEXT("test rider %d"), I);
+		AActor* A = E.Actor.Get();
+		if (!A) { A = SpawnPerson(E, Vehicle->GetActorTransform()); E.Actor = A; }
+		const TArray<FHrotSeat> Seats = UHrotRiding::SeatsOf(Vehicle);
+		if (Seats.IsValidIndex(I) && Seats[I].Name.ToString().StartsWith(TEXT("station"))) { if (A) A->SetActorHiddenInGame(true); continue; }   // a gun's seat: no man
+		if (A && UHrotRiding::SitOn(A, Vehicle, I)) ++N;
+		else UE_LOG(LogHrotDpsWorld, Warning, TEXT("TestSeatPeople: seat %d of %d not taken (%s)"), I, Seats.Num(), A ? TEXT("SitOn failed") : TEXT("no body"));
+	}
+	return N;
+}
+
 UHrotBuildingDamage* UHrotDpsWorld::Buildings()
 {
 	if (!BuildingDamage) BuildingDamage = NewObject<UHrotBuildingDamage>(this);
@@ -1471,7 +1538,8 @@ void UHrotDpsWorld::OnBuildingDamage(const FHrotDpsSample& S)
 		for (uint32 I = 0; I < D.Windows._length; ++I)
 		{
 			const auto& Wd = D.Windows._buffer[I];
-			In.Windows.Add({ Wd.Panel, Wd.Opening, Wd.Hits, Wd.HitAt });
+			FHrotWindowIn W; W.Panel = Wd.Panel; W.Opening = Wd.Opening; W.Hits = Wd.Hits; W.HitAt = Wd.HitAt; W.U0 = Wd.U0; W.V0 = Wd.V0; W.U1 = Wd.U1; W.V1 = Wd.V1;
+			In.Windows.Add(W);
 		}
 	}
 	Count(TEXT("building damage"));
@@ -1550,6 +1618,12 @@ void UHrotDpsWorld::Tick(float)
 		PendingLevel.Reset();
 	}
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, Clock); TickClock(R); }   // U-18p: the probe's echoes, ClientWorld
+	PersonSpawnsThisFrame = 0;   // CE-12006: the people that waited for a frame's budget
+	if (DeferredSpawns.Num())
+	{
+		TArray<int32> Waiting = DeferredSpawns.Array(); DeferredSpawns.Reset();
+		for (int32 Id : Waiting) if (FEnt* E = Ents.Find(Id)) if (!E->Actor.IsValid()) SpawnIfReady(Id, *E);
+	}
 	if (BuildingDamage) { CSV_SCOPED_TIMING_STAT(HrotDps, Buildings); BuildingDamage->Tick(GetWorld(), ShownTerrain, SimNow()); }   // U-20
 	if (Weather.Num() && R >= NextWeatherAt) { NextWeatherAt = R + 1.0; ApplyWeather(); }   // U-19d: the camera moves between regions
 	{   // U-19c: a burst whose rounds stopped is faded out (after the same delay as its start)
@@ -1707,7 +1781,7 @@ void UHrotDpsWorld::DefaultLife()
 	AddDis(TEXT("1.2.225.1"), TEXT("DA_Air_F16"));            // F-16
 	AddDis(TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon"));        // MiG-29: the twin-tail stand-in
 	AddDis(TEXT("1.2.225.4"), TEXT("DA_Air_AC130"));          // C-130
-	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_OH1"));           // UH-60: no Black Hawk, a helicopter stand-in
+	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_UH60"));          // UH-60: no Black Hawk - the OH-1 with doors cut, seats, door guns (CE-12008, hrot_heli_kit.py)
 	// U-19h 21: HROT's TECHNICALS and pickup (TKB 104 HMG, 105 ATGM, 106 bare pickup, 108 DShK, 109 minigun, 110 ZU-23-2; NedTkbCatalog Pickup(): 5.3 x 1.9 m, drives like a car) were
 	// a grey box. The city pack's truck (DA_City_vehicle04_Truck, 5.6 m, a cab and a bed) is the closest open-bed vehicle we have; their weapon is its own entity on the roof / bed.
 	for (const int64 Type : { 104, 105, 106, 108, 109, 110 }) if (!KitsByType.Contains(Type)) KitsByType.Add(Type, Kit(TEXT("DA_City_vehicle04_Truck")));
@@ -2147,6 +2221,10 @@ void UHrotDpsWorld::UpdateRiding(FEnt& E)
 		E.bRiding = false; E.RidingOn = nullptr; E.SeatPose = nullptr;
 		Count(TEXT("rider got off"));
 	}
+	// CE-12010: a seated gunner turns the gun his seat aims (the UH-60's door gun) toward his aim point (PersonAim, HROT's)
+	if (E.bRiding && E.AimPoint.SquaredLength() > 1.0)
+		if (AHrotVehicle* GunOn = Cast<AHrotVehicle>(E.RidingOn.Get()))
+			GunOn->AimSeatGun(E.SeatIndex, HrotDpsMotion::ToUnreal(E.AimPoint, OriginCm));
 	if (!E.bRiding && bCan && UHrotRiding::SitOn(A, Mount, Seat))
 	{
 		E.bRiding = true; E.RidingOn = Mount; E.RidingSeat = E.SeatIndex; E.SeatPose = Seats[Seat].Pose.Get();

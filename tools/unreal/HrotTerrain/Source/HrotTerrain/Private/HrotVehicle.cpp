@@ -51,6 +51,10 @@ AHrotVehicle::AHrotVehicle()
 	WingLeft->SetupAttachment(Lift);
 	WingRight = CreateDefaultSubobject<USceneComponent>(TEXT("WingRight"));
 	WingRight->SetupAttachment(Lift);
+	MainRotor = CreateDefaultSubobject<USceneComponent>(TEXT("MainRotor"));
+	MainRotor->SetupAttachment(Lift);
+	TailRotor = CreateDefaultSubobject<USceneComponent>(TEXT("TailRotor"));
+	TailRotor->SetupAttachment(Lift);
 }
 
 void AHrotVehicle::OnConstruction(const FTransform& Transform)
@@ -70,12 +74,36 @@ void AHrotVehicle::BeginPlay()
 void AHrotVehicle::Build()
 {
 	for (UStaticMeshComponent* C : PartComps) if (C) C->DestroyComponent();
-	PartComps.Reset();
+	PartComps.Reset(); PartOfComp.Reset();
 	if (SkinnedComp) { SkinnedComp->DestroyComponent(); SkinnedComp = nullptr; }
 	ClearDamageFx();
 	if (Flame) { Flame->DestroyComponent(); Flame = nullptr; }
+	if (RotorDisc) { RotorDisc->DestroyComponent(); RotorDisc = nullptr; }
 	Shown = EHrotVehicleDamage::Intact;
 	if (!Kit) return;
+	MainRotor->SetRelativeTransform(Kit->MainRotorPivot);
+	TailRotor->SetRelativeTransform(Kit->TailRotorPivot);
+	if (Kit->RotorRadius > 0.f)   // the blur: a thin translucent disc in the main rotor's plane, shown while it turns
+	{
+		static UStaticMesh* Cyl = HrotLoadRooted<UStaticMesh>(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+		static UMaterialInterface* DiscMat = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotRotorDisc.M_HrotRotorDisc"));
+		if (Cyl && DiscMat)
+		{
+			RotorDisc = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transient);
+			RotorDisc->CreationMethod = EComponentCreationMethod::UserConstructionScript;
+			RotorDisc->SetMobility(EComponentMobility::Movable);
+			RotorDisc->SetStaticMesh(Cyl);
+			RotorDisc->SetMaterial(0, DiscMat);
+			RotorDisc->SetupAttachment(Lift);
+			FTransform D = Kit->MainRotorPivot;   // the cylinder is 100 cm wide and 100 cm tall, its centre at its middle
+			D.SetScale3D(FVector(Kit->RotorRadius * 2.f / 100.f, Kit->RotorRadius * 2.f / 100.f, 0.01f));
+			RotorDisc->SetRelativeTransform(D);
+			RotorDisc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			RotorDisc->SetCastShadow(false);
+			RotorDisc->SetVisibility(false);
+			RotorDisc->RegisterComponent();
+		}
+	}
 	if (Kit->bFlamethrower) Flame = UHrotFlamethrower::Attach(Lift, NAME_None, Kit->FlameMount, Kit->FlameSize);
 	if (Kit->SkinnedBody)   // the motorcycle: one skinned mesh in its rest pose
 	{
@@ -88,8 +116,9 @@ void AHrotVehicle::Build()
 		SkinnedComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 		SkinnedComp->RegisterComponent();
 	}
-	for (const FHrotVehiclePart& P : Kit->Parts)
+	for (int32 PartIndex = 0; PartIndex < Kit->Parts.Num(); ++PartIndex)
 	{
+		const FHrotVehiclePart& P = Kit->Parts[PartIndex];
 		if (!P.Mesh) continue;
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transient);
 		C->CreationMethod = EComponentCreationMethod::UserConstructionScript;   // rebuilt with the actor, never saved
@@ -103,13 +132,17 @@ void AHrotVehicle::Build()
 		case EHrotVehicleParent::Gun: On = Gun.Get(); break;
 		case EHrotVehicleParent::WingLeft: On = WingLeft.Get(); break;
 		case EHrotVehicleParent::WingRight: On = WingRight.Get(); break;
+		case EHrotVehicleParent::MainRotor: On = MainRotor.Get(); break;
+		case EHrotVehicleParent::TailRotor: On = TailRotor.Get(); break;
 		default: break;
 		}
 		C->SetupAttachment(On);
-		C->SetRelativeTransform(P.Transform);
+		// a rotor part keeps its place in the hull frame: its transform is the kit's (Lift-relative) one seen from the rotor's pivot
+		C->SetRelativeTransform(P.Parent == EHrotVehicleParent::MainRotor ? P.Transform.GetRelativeTransform(Kit->MainRotorPivot)
+			: P.Parent == EHrotVehicleParent::TailRotor ? P.Transform.GetRelativeTransform(Kit->TailRotorPivot) : P.Transform);
 		C->SetCollisionEnabled(ECollisionEnabled::QueryOnly);   // a hit test may need it; no physics
 		C->RegisterComponent();
-		PartComps.Add(C);
+		PartComps.Add(C); PartOfComp.Add(PartIndex);
 	}
 	if (bPainted) SetPaint(Paint);
 	ApplyState();
@@ -140,6 +173,37 @@ void AHrotVehicle::SetAim(float Yaw, float Pitch)
 	ApplyState();
 }
 
+bool AHrotVehicle::AimSeatGun(int32 Seat, FVector WorldTarget)
+{
+	if (!Kit || Seat < 0) return false;
+	bool bAny = false;
+	for (int32 I = 0; I < PartComps.Num() && I < PartOfComp.Num(); ++I)
+	{
+		const FHrotVehiclePart& P = Kit->Parts[PartOfComp[I]];
+		UStaticMeshComponent* C = PartComps[I];
+		if (P.AimSeat != Seat || !C || P.Parent != EHrotVehicleParent::Hull) continue;
+		// in the Lift's frame: the pivot and the barrel of the kit pose, the wanted direction, the yaw / pitch between them (clamped)
+		const FTransform Base = P.Transform;
+		const FVector Pivot = Base.TransformPosition(P.AimPivot);
+		const FVector Barrel = Base.TransformVectorNoScale(FVector(0, 1, 0)).GetSafeNormal();
+		const FVector Want = (Lift->GetComponentTransform().InverseTransformPosition(WorldTarget) - Pivot).GetSafeNormal();
+		if (Want.IsNearlyZero()) continue;
+		const float Yaw = FMath::Clamp(FMath::FindDeltaAngleDegrees(Barrel.Rotation().Yaw, Want.Rotation().Yaw), P.AimYawLimits.X, P.AimYawLimits.Y);
+		const float Pitch = FMath::Clamp(Want.Rotation().Pitch - Barrel.Rotation().Pitch, P.AimPitchLimits.X, P.AimPitchLimits.Y);
+		// yaw about the Lift's Z, then pitch about the barrel's own horizontal side axis, both through the pivot
+		const FQuat QYaw(FVector::UpVector, FMath::DegreesToRadians(Yaw));
+		const FVector Side = FVector::CrossProduct(QYaw.RotateVector(Barrel), FVector::UpVector).GetSafeNormal();
+		const FQuat QPitch(Side, FMath::DegreesToRadians(-Pitch));
+		const FQuat Q = QPitch * QYaw;
+		FTransform T = Base;
+		T.SetRotation(Q * Base.GetRotation());
+		T.SetTranslation(Pivot + Q.RotateVector(Base.GetTranslation() - Pivot));
+		C->SetRelativeTransform(T);
+		bAny = true;
+	}
+	return bAny;
+}
+
 void AHrotVehicle::SetFlying(bool bNewFlying)
 {
 	bFlying = bNewFlying;
@@ -162,6 +226,15 @@ void AHrotVehicle::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	if (!Kit) return;
 	FlapClock += DeltaTime;
+	if (bFlying && Damage != EHrotVehicleDamage::Destroyed && (Kit->MainRotorRate != 0.f || Kit->TailRotorRate != 0.f))
+	{
+		RotorAngle = FMath::Fmod(RotorAngle + DeltaTime, 3600.f);
+		FTransform M = Kit->MainRotorPivot; M.SetRotation(M.GetRotation() * FRotator(0.f, FMath::Fmod(RotorAngle * Kit->MainRotorRate, 360.f), 0.f).Quaternion());
+		MainRotor->SetRelativeTransform(M);
+		FTransform T = Kit->TailRotorPivot; T.SetRotation(T.GetRotation() * FRotator(0.f, FMath::Fmod(RotorAngle * Kit->TailRotorRate, 360.f), 0.f).Quaternion());
+		TailRotor->SetRelativeTransform(T);
+	}
+	if (Kit->FlapAmplitude <= 0.f) return;
 	const float S = FMath::Sin(2.f * PI * Kit->FlapRate * FlapClock);
 	ApplyWings(Kit->FlapAmplitude * S);
 	// wings down → body high (the downstroke lifts). ⚠ measured (five side pictures): a positive beat angle lowers the wings — with
@@ -195,7 +268,9 @@ void AHrotVehicle::ApplyState()
 	if (Flame) Flame->SetFiring(bFlaming && !bWreck);
 	const bool bFlap = bFlying && !bWreck && Kit->FlapAmplitude > 0.f;
 	if (!bFlap) { ApplyWings(0.f); Lift->SetRelativeLocation(FVector::ZeroVector); }   // at rest: the modelled pose, no bob
-	SetActorTickEnabled(bFlap);
+	const bool bRotors = bFlying && !bWreck && (Kit->MainRotorRate != 0.f || Kit->TailRotorRate != 0.f);
+	if (RotorDisc) RotorDisc->SetVisibility(bRotors);
+	SetActorTickEnabled(bFlap || bRotors);
 	if (Damage == Shown) return;
 
 	// ---- the damage look, only when it changes ----------------------------------------------------------------------------------
