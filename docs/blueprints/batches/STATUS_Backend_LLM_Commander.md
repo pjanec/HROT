@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-▶ `2026-11-24 09:20` — **CE-4685 (the LLM commander over AGGREGATED units, `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates.md`) — IN PROGRESS**: A-1 … A-3 built, 3 rails red-proved (`SquadManeuverTests.Aggregates.cs`); A-4 `llm-company-aggregated` written — scripted run 1: 6/9 (Red was placed outside berlin's perception grid — re-placed, re-running); then the low-effort Haiku run. Report: §Aggregates (to come).
+⭐ `2026-11-24` **CE-4685 (the LLM commander over AGGREGATED units, `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates.md`) — DONE**: A-1 … A-4 built, 3 rails red-proved + the relay rail extended (red-proved); ⭐ user mid-slice: *"We need to introduce the order kinds to higher level echelons. We cannot call directly a behavior name"* — the seat now gives its whole unit an order KIND (built, railed, red-proved); `llm-company-aggregated` scripted ✅ 9/9, Haiku low effort ✅ 5/5 judged (4 scripted-only SKIP); a split platoon's relayed move died at the split — fixed (cross-lane, CE-8307's relay). Report: §Aggregates; design §5d.
 ⛔ ~~`2026-11-24 07:29` — idle~~ (CE-4685 taken 08:20) **idle — waiting for a handoff** (self-wake-up: L-3c done; CE-11047 (ui's staged-presentation garbage) fixed `c77363b9a` — the Stechovice re-measure is ui's; no new HANDOFF/STEER/NOTE for backend; the next slice is L-3b on the user's laptop).
 ⭐ `2026-11-23` **L-3c (CE-4684, the decision contract) — BUILT**: C-1 … C-6 railed and red-proved (11 rails); the low-effort baseline and the contract run on `llm-platoon-attack` side by side below; the contract duel ✅ 10/10. Report: §L-3c; design §5c.1.
 ⭐ `2026-11-23 16:10` **THE DUEL (user: "can we let 2 haiku workers play against each other?" · "yes please") — DONE**: `llm-platoon-duel`, two Haiku commanders one per side through the per-commander relay; six seat defects found and fixed (D-1…D-6, `4fddd69eb`), one grammar defect filed (CE-3502). Report: §Duel; design §5a-5. ⏸ then idle — waiting for a handoff.
@@ -408,4 +408,56 @@ re-fire it — not changed in L-3c (scope), worth one line in the prefix or the 
 
 ### L-3c ids allocated
 none (the slice's own id is the coordinator's CE-4684).
+
+## Aggregates — the seat over aggregated units (CE-4685, `2026-11-24`; handoff `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates.md`)
+
+| # | built | rail (each red-proved) | commit |
+|---|---|---|---|
+| A-1 | the seat at any echelon: echelon / subordinates from the CLASS (header DIS type ⇒ TKB ⇒ `AggregateUnit.Echelon`); an aggregated row says `aggregated, N men` once its slot table holds slots | `Aggregates_ACompanySeat_IsBriefedAsACompany_OverItsAggregatedPlatoons` | `d38fef063` |
+| A-2 | ⭐ his whole unit gets an order **KIND** (`Order.<kind>`), the routing table runs his class's play; the kinds offered are those his class resolves (a company: Attack, Defend) | `Aggregates_ACompanySeat_GivesItsWholeUnitAKind_TheTableRunsItsClassesPlay` | `5a71fdd5e` |
+| A-3 | a stochastic subordinate's split is ONE waking radio line ("near the enemy — it has split …; your orders to it stand"); same entity, orders still land | `Aggregates_APlatoonThatSplits_IsNewsOnce_AndTheSeatsNextOrderStillLands` | `d38fef063` |
+| A-4 | `llm-company-aggregated` (berlin, inside both grids): a seated company over three stochastic platoons, Red's squad 650 m south | the scenario | `7d8722971` |
+| ⭐ found | `UnitRelayBehaviors.Relay` (CE-8307, AGG lane — cross-lane) ended Success before a child had started, and ending it cleared the children's moves ⇒ every split platoon stopped where it split. Fix: a child given the order but not yet running is busy for 3 s sim | `CE8307_ASplitPlatoonsMove_IsRelayedToEverySquad_ByKind_SameParams` (extended) | `5455dba72` |
+
+### Aggregates — the proof
+
+| `llm-company-aggregated` | ① scripted | ② Haiku, LOWEST effort, the contract (kinds) |
+|---|---|---|
+| checks | ✅ **9 / 9** — orders by kind reach the stochastic platoons (`StochasticUnitMove` 0.25 s); `Attack` → the table ran `CompanyAttack` at the first split (39.25 s); 2nd Platoon split (38.25 s) and still reported (48 s); its squads fired (110.8 s); Red fired | ✅ **5 / 5 judged**, 4 scripted-only SKIPPED — reports before the split (3 s); 2nd Platoon split at 370 s and reported after (373 s); a split platoon's man fired (116 s); Red fired |
+| calls | — | 19 (wall mean 7.1 s) |
+| decisions applied · stale refused · repaired · CONTINUE fallbacks | — | 17 · 2 · 0 · 0 |
+| orders: whole unit · subordinates · no-ops ("already in force") | — | 1 (`Attack` → position, support) · 3 (BreakContact, SupportByFire ×2) · 4 |
+| contingencies armed | — | 4 (none fired) |
+| request tokens first / median / last (max) | — | 1 826 / 2 455 / 2 973 (2 973) — under ≈ 4 000 |
+
+Three decisions as the model wrote them:
+- **00:00:00, cycle 1** — *situation:* "All three platoons are out of contact at the assembly area start, 700 m south of Red's defended position." · *risk:* "Crossing the open ground … without fire on it." · *intent* (main effort Blue Company): "Establish support by fire from the support position …; then assault the objective with the company, keeping a platoon in reserve." · *orders:* **Blue Company `Attack` → position, support_at support** (the KIND; the table ran `CompanyAttack`) · *contingency:* CONTACT 1st Platoon → 1st Platoon BreakContact → start.
+- **00:03:09, cycle 47** — *situation:* "3rd Platoon … now Red on strength (combat ineffective) on its old Defend order, which I did not intend …" · *risk:* "The attack cannot be re-sent as a company order …" · *orders:* 3rd Platoon BreakContact → start; 2nd Platoon SupportByFire → position (ENDS the company's Attack) · *contingency:* UNIT_AT 2nd Platoon support → 2nd Platoon Attack → position.
+- **00:06:33, cycle 110 — after the split (370 s)** — *situation:* "2nd Platoon is Green but stalled at 180 m NE of the support position, with its support-by-fire task in force …" · *risk:* "a 1st Platoon assault now would go in without fire on the position, which the mission forbids." · *orders:* none (CONTINUE) — the assault waits for fire on the position.
+
+### Aggregates — what did NOT work with aggregated units, and whose it is
+
+| finding | owner |
+|---|---|
+| ⛔ **a company hears no SPOT of infantry**: a commander's staff composes SPOT from its OWN contacts and relays only indirect fire / air defence its subordinates report (`StaffSystems.Relay`, CE-2310 HQ-3). A platoon command entity senses nothing ⇒ the company seat knows the enemy only from the briefing, strength colours and splits. The scripted mind attacks on a split instead | the command chain (`DESIGN_Command_Chain_Example.md` §6, behaviors) — a design question: should a commander relay his subordinates' SPOTs up? |
+| ⚠ the company's `Attack` (`CompanyAttack`) gives a platoon a **Defend** as part of its choreography; the model read it as *"an old Defend order I did not intend"* and broke the play to save that platoon | seat (backend) — the orders a whole-unit order gives are shown as `(<echelon> order Attack)` but not WHY; a role line per platoon (base of fire / assault / reserve) is the lean |
+| ⚠ 2nd Platoon's `SupportByFire` **stalled ~180 m NE of the support position** after the split | ⛔ not root-caused. The seat sends a subordinate's SupportByFire as `Attack` + `HoldBack` (R-8303, built for squads); for a PLATOON the table has a `SupportByFire` kind row (`PlatoonSupportByFire`), and a hold-back Attack has no physical platoon play (R-8392). ⇒ lean: send the KIND `SupportByFire` where the subordinate's class resolves it — the same rule as A-2. Seat (backend), to measure first |
+| ✅ fixed: the relay ended under its children (above) | AGG lane's code, fixed here (cross-lane, said) |
+| ⚠ Bound has no neutral order DTO — the whole unit's Bound carries `PlatoonBound`'s own fields | orders (`DESIGN_Orders_Params_Entity_Classes.md`) |
+
+### Aggregates gates
+
+| gate | result |
+|---|---|
+| the commander + relay rails `--filter CE4684\|TwoSeats\|Duel_\|CE4676\|CE4679\|CE4680\|CE4681\|CE4683\|Aggregates_\|CE8307\|X2` | ✅ 52 / 52 |
+| the same under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` | ✅ 52 / 52 |
+| red-proofs | A-1 (echelon dropped), A-2 (own kinds fixed to four), A-3 (split check dropped), the relay grace (0) — each red, green restored |
+| `ScenarioChecksTests` | ✅ 29 / 29 |
+| `DebugApiCommandersTests` | ✅ 3 / 3 |
+| `agg-platoon-under-company` · `agg-platoon-splits-into-squads` (run, not changed) | ✅ 5 / 5 · ✅ 28 / 28 — ⚠ both print "GOLDEN different" (a warning, RT-3); not checked against the base |
+| `llm-platoon-attack`, scripted (the kind path on a real platoon) | ✅ 8 / 8 — `PlatoonAttack` at 78.25 s, unchanged |
+| `llm-company-aggregated` | ✅ scripted 9 / 9 · ✅ Haiku 5 / 5 judged |
+
+### Aggregates ids allocated
+none (the slice's own id is the coordinator's CE-4685).
 
