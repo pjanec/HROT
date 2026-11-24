@@ -227,6 +227,9 @@ namespace Fdp.Toolkit.Squad.Command
         public SimInstant SupportAskedTime;
         /// <summary>⭐ CE-2310 (HQ-5) — when it last asked to be reinforced (0 = never).</summary>
         public SimInstant ReinforceAskedTime;
+        /// <summary>⭐ CE-4686 ① (HQ-3b) — the GROUND element groups a commander of units relayed up (where, when): one is re-sent only when it
+        /// moved or its refresh is due. <see cref="RelayedElement.Flag"/> is unused here.</summary>
+        public RelayedElementList RelayedGround;
     }
 
     /// <summary>⭐ CE-2310 (HQ-3) — one element a commander relayed up.</summary>
