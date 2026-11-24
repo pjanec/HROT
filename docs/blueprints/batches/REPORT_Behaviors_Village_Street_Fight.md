@@ -112,3 +112,21 @@ silenced · the assault clears the house.
   peek-and-fire's own target lock, and `ICanHurt` counting the empty hands mount as "unknown ⇒ hurts".
 - ✅ `CE-8318` — the M1 and the T-72 both open fire at ~6 s (both were silent for 300 s).
 - The bunching rows now count three or more men in the fight (CE-2466: a buddy pair is no knot); the two that failed were the last two survivors of a squad.
+
+## 6. village-street-mg-flank — the base of fire and the door (`2026-11-24`, at `4ec4079cd`)
+
+| run | street (20 s+) | Squad 1 open | Squad 3 open | flank reached | clearing starts | gun silenced |
+|---|---|---|---|---|---|---|
+| before `CE-8323` | ⛔ 20 s | ⛔ 60 s | ✅ | 140 s | 197 s | ⛔ never |
+| `CE-8323` (support from where it stands) | ✅ | ⛔ 160 s | ⛔ 208 s | 106 s | 154 s | ⛔ never |
+| `CE-8324` (no way in = blocked) | ✅ | ⛔ 160 s | ⛔ 205 s | 106 s | 154 s | ✅ 231 s |
+
+- `CE-8323` — the base of fire stood 160 m from the gun, in the house it started in; the platoon sent it to a point across the street and it walked
+  through the street and back. Within 170 m (the 120 m stand-off + 50) it now supports from where it stands.
+- `CE-8324` — the assault stacked at the gun house's south door and never got in: **the door has no navmesh path through it** — nor do 283 of the
+  village's 628 ground-floor doors (a probe on the real bake). Handed to terrain ([NOTE](NOTE_Behaviors_To_Terrain_Village_Doors_Impassable.md)).
+  The drill now gives such a room up after 15 s without progress and goes on; here nothing else was enterable, the squad fought from outside, and
+  rifle fire (Squad 3 from the south, then Squad 1's leader at the door) put the gunner down at 231 s. ⚠ Nobody entered the house — that waits
+  on the terrain fix.
+- Still red: Squad 1's Rifleman 3 (wounded, 52 %) walks west across the open gardens from ~150 s; Squad 3's Rifleman 3 stands alone in the open
+  south of the gun from ~200 s.

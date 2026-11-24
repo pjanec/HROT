@@ -176,6 +176,9 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public const float DefaultSearchRadius = 60f;
         public const float SupportStandOffMetres = 120f, AssaultStandOffMetres = 40f, ReserveStandOffMetres = 100f;
+        /// <summary>⭐ <c>CE-8323</c> — a base of fire this close to the objective when the attack starts supports from where it stands (m): within
+        /// 50 m of the stand-off, moving up gains little range and costs a walk in the open — the cover it already holds is worth more.</summary>
+        public const float SupportFromHereMetres = SupportStandOffMetres + 50f;
 
         /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2114) — an assault whose approach failed is ordered again while at least this many of its men stand
         /// (fire and movement needs two halves).</summary>
@@ -406,10 +409,18 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe NodeStatus EnterSupport(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
             Points(ref p, world, self);
-            if (p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding)   // UM-12 — the squad in contact supports from where it stands
+            int here = p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity);
+            if (here >= 0)
             {
-                int s = p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity);
-                if (s >= 0) p.SupportAt = StaffComposerSystem.CentreOf(world, CommandPictureOps.Subordinate(world, self, s));
+                var stands = StaffComposerSystem.CentreOf(world, CommandPictureOps.Subordinate(world, self, here));
+                var o = p.Objective(p.Current);
+                float dx = stands.X - o.X, dy = stands.Y - o.Y;
+                // UM-12 — the squad in contact supports from where it stands. ⭐⭐ CE-8323 — and so does a base of fire ALREADY within
+                //   SupportFromHereMetres of the objective: it fights from the cover it holds instead of walking into the open to a point on the
+                //   axis. 📐 live village-street-mg-flank: the support point (411,244) lay across the street from the squad (378,272, 160 m from the
+                //   gun); it walked through the street to it, then its post plan found the house it had left and walked back — a man crossed twice
+                if (p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding || dx * dx + dy * dy <= SupportFromHereMetres * SupportFromHereMetres)
+                    p.SupportAt = stands;
             }
             SetPhase(ref p, PlatoonAttackPlan.PhaseSupport);
             ObjectivePosts(ref p, world, self);   // ⭐ CE-2436 AU-1 (A-1) — the base of fire's targets: the objective's reported posts
