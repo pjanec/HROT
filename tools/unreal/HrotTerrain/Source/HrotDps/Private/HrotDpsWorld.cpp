@@ -1330,6 +1330,13 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 	// counted, never a box (the "never invisible" box is for a vehicle or a person with no model)
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainOther) { if (E.DrawnAs.IsEmpty()) Count(TEXT("not drawn: domain Other")); E.DrawnAs = TEXT("not drawn: domain Other"); return; }
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainMunition && !E.bRound) { E.DrawnAs = TEXT("(waiting for its Round)"); return; }
+	// CE-12006 (measured, Stechovice flight 2026-11-24): a person's construction script dresses him (SetCharacterDefinition + SetGroomBinding,
+	// 25-60 ms each) - eight in one frame froze it 368 ms. At most MaxPersonSpawnsPerFrame new people a frame; the rest wait their turn (Tick)
+	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson && MaxPersonSpawnsPerFrame > 0)
+	{
+		if (PersonSpawnsThisFrame >= MaxPersonSpawnsPerFrame) { DeferredSpawns.Add(Id); return; }
+		++PersonSpawnsThisFrame;
+	}
 	UWorld* W = GetWorld();
 	FTransform At = HrotDpsMotion::ToUnreal(E.Shown, OriginCm);
 	FActorSpawnParameters P;
@@ -1552,6 +1559,12 @@ void UHrotDpsWorld::Tick(float)
 		PendingLevel.Reset();
 	}
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, Clock); TickClock(R); }   // U-18p: the probe's echoes, ClientWorld
+	PersonSpawnsThisFrame = 0;   // CE-12006: the people that waited for a frame's budget
+	if (DeferredSpawns.Num())
+	{
+		TArray<int32> Waiting = DeferredSpawns.Array(); DeferredSpawns.Reset();
+		for (int32 Id : Waiting) if (FEnt* E = Ents.Find(Id)) if (!E->Actor.IsValid()) SpawnIfReady(Id, *E);
+	}
 	if (BuildingDamage) { CSV_SCOPED_TIMING_STAT(HrotDps, Buildings); BuildingDamage->Tick(GetWorld(), ShownTerrain, SimNow()); }   // U-20
 	if (Weather.Num() && R >= NextWeatherAt) { NextWeatherAt = R + 1.0; ApplyWeather(); }   // U-19d: the camera moves between regions
 	{   // U-19c: a burst whose rounds stopped is faded out (after the same delay as its start)
