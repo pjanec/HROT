@@ -2522,6 +2522,49 @@ namespace Hrot.SimHost.Tests
             Assert.False(open[Array.FindIndex(posts, p => Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(6f, 26f)) < 0.1f)], "the cover post is not open");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8322</c> — DEFILADE first: the dispersal spots the sector's point (the enemy's expected place, (0, 120)) cannot see are taken before
+        /// the ones it can. A 3 m wall at y 24 from x 8 to 30 hides the line's east spots (x 11, 16, 21) from it; the three men without cover take
+        /// exactly those, never the open ones west (x 6, 1, −4 …) that lie nearer. 📐 live village-street-mg-flank: the line ran over the open street
+        /// and a man waited prone IN it 75 s in the gun's field of fire. 🔴 Red-proof: defilade ignored ⇒ the nearest (open) spots ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8322_TheDispersalSpots_OutOfTheEnemysView_AreTakenFirst()
+        {
+            var s = new Squad(members: 4);
+            s.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+                { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [-100, -100, 300, 300], "groundZ": 0 },
+                  "features": [ { "type": "Feature", "properties": { "kind": "wall", "height": 3.0, "material": "concrete", "thickness": 0.3 },
+                                  "geometry": { "type": "LineString", "coordinates": [[8, 24], [30, 24]] } } ] }
+                """, "defilade"));
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":15}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + 1.5f * i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            for (int k = 0; k < 40; k++)
+            {
+                foreach (int site in new[] { SquadDefendPlay.WindowSite, SquadDefendPlay.RoofSite })
+                {
+                    var a = DefendQuery(s, site);
+                    if (!a.IsNull && !s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(a).IsReady) AnswerAll(s, a);
+                }
+                var c = DefendQuery(s, SquadDefendPlay.CoverSite);
+                if (!c.IsNull && !s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(c).IsReady) AnswerAll(s, c, new Vector3(6f, 26f, 0f));
+                s.Pause(0.25);
+                s.Tick();
+            }
+            var orders = s.Members.Select(m => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!).ToArray();
+            var open = orders.Where(o => o.Post.Open).Select(o => (Vector3)o.Advance.Objective).ToArray();
+            Assert.Equal(3, open.Length);
+            Assert.All(open, p => Assert.True(p.X >= 10f, $"an open spot at {p}: in the enemy's view, while hidden ones were free"));
+        }
+
         /// <summary>A squad of four at the position (6, 20) whose own sector looks north (an arc from (0, 20), 330°–30°, out to 200 m ⇒ its
         /// point is (0, 120)), ordered to defend it; the window ask answered with three posts (two storeys of one window, one more), the roof
         /// ask (D-2g) with none, the cover ask with the fourth.</summary>

@@ -108,6 +108,26 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, c.Repo.GetComponentRO<LocomotionChannel>(c.Self).ActiveAction);   // reach 0: he holds
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8319</c> — a round at the squad's REPORTED point (a man who never saw him) goes at that point ON THE GROUND: a reported post is 2-D
+        /// (Z 0), and on ground 50 m up the round flew at a point 50 m under it and "expired" (📐 village-street, ground ≈ 176 m: 220 of 262 rounds).
+        /// 🔴 Red-proof: aim the point as given ⇒ Z 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8319_ARoundAtTheReportedPoint_IsAimedOnTheGround_NotUnderIt()
+        {
+            using var c = new Coverer(remembers: false, sees: false);
+            c.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+                { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 50 }, "features": [] }
+                """, "raised"));
+            c.Repo.AddComponent(c.Self, new SimTransform { Position = new Vector3(100f, 100f, 50f), Rotation = Quaternion.Identity });
+            c.P.Point = new Vector3(130f, 100f, 0f);   // 2-D, as the squad reports it
+            Assert.Equal(NodeStatus.Running, c.Tick());
+            Assert.Equal(CombatConstants.ActionIdFireAtPoint, c.Channel.ActiveAction);
+            var fire = Unsafe.As<byte, FireAtPointParams>(ref c.Channel.Params[0]);
+            Assert.InRange(fire.Point.Z, 50f, 52f);   // on the ground + the blind aim height
+        }
+
         [Fact]
         public void CE2152_ASuppressorWhoSeesHim_FiresAimedAtHim()
         {
