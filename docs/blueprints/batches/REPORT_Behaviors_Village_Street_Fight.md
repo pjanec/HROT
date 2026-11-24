@@ -100,3 +100,15 @@ silenced · the assault clears the house.
 | the ENTRY | the assault stacks at the door (210 s) and loses men going in; rifle rounds at men in windows strike the walls (82 / 84) | ⭐ grenade before entry ("frag and clear") — read `ClearBuilding`'s entry and the riflemen's grenade load next |
 | the base of fire's rounds | from 155 m into the gun house: most "expire" or strike the wall, ~1 hit — it suppresses (the gun fires ~70 rounds in 240 s) but rarely wounds | ⭐ acceptable for suppression; measure the gun's near-misses before changing anything |
 | the first minute | a base-of-fire man crosses the street on his way to his post (20 s); Squad 1 is in the open as its first bound starts (60 s) | ⭐ the way to the support point should go by the building line — the move-in path, not the post |
+
+## 5. After CE-8317 / CE-8318 (`2026-11-24`, at `d2e6028a4`)
+
+| scenario | rows | still red |
+|---|---|---|
+| village-street-fight | 22 pass / 3 fail | `CE-8320` Red Squad 1 has two men in the open at 115 s · `CE-8322` Blue Squads 1 and 3 each have a man wholly in the open after 90 s |
+| village-street-mg-flank | 11 pass / 3 fail | a Blue Squad 2 man in mid-street at 20 s · a Blue Squad 1 man in the open at 60 s · the gunner survived (the flank and the house clearing both happen) |
+
+- ✅ `CE-8317` — no rifle round at either tank (was 517 at the M1, 158 at the T-72). Took three fixes, each found by a rerun: the posture fire step,
+  peek-and-fire's own target lock, and `ICanHurt` counting the empty hands mount as "unknown ⇒ hurts".
+- ✅ `CE-8318` — the M1 and the T-72 both open fire at ~6 s (both were silent for 300 s).
+- The bunching rows now count three or more men in the fight (CE-2466: a buddy pair is no knot); the two that failed were the last two survivors of a squad.
