@@ -376,7 +376,7 @@ UHrotSoundscape::EEngine UHrotSoundscape::EngineOfKit(const FString& K, const FS
 		}
 	}
 	if (K.Contains(TEXT("Dragon"))) return EEngine::Dragon;
-	if (HasAny(K, { TEXT("Apache"), TEXT("OH1"), TEXT("Heli"), TEXT("Hind"), TEXT("Tiger"), TEXT("Puma") })) return EEngine::Helicopter;
+	if (HasAny(K, { TEXT("Apache"), TEXT("OH1"), TEXT("UH60"), TEXT("Heli"), TEXT("Hind"), TEXT("Tiger"), TEXT("Puma") })) return EEngine::Helicopter;
 	if (HasAny(K, { TEXT("AC130"), TEXT("Prop"), TEXT("Cessna") })) return EEngine::Propeller;
 	if (HasAny(K, { TEXT("F16"), TEXT("F22"), TEXT("Typhoon"), TEXT("MiG") })) return EEngine::Jet;
 	if (HasAny(K, { TEXT("Leclerc"), TEXT("Sherman"), TEXT("Tank"), TEXT("T72"), TEXT("M1A"), TEXT("BMP"), TEXT("AMX") })) return EEngine::Tracked;

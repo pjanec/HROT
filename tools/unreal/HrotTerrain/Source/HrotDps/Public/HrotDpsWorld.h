@@ -122,6 +122,8 @@ public:
 	/** the default kit tables (animals, ground and AIR DIS kits, the domain fallbacks) where the job gave none; idempotent (a rail reads them) */
 	void DefaultLife();
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void Stop();
+	/** TEST / tools (CE-12009): `Count` soldiers of the person kit seated in a vehicle's kit seats (SitOn, the seat's clip) - no HROT needed */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 TestSeatPeople(AActor* Vehicle, int32 Count);
 
 	// ── read back (tests, a HUD) ──
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") double SimNow() const;
@@ -500,6 +502,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "HROT|DPS") int32 MaxPersonSpawnsPerFrame = 2;
 	int32 PersonSpawnsThisFrame = 0;
 	TSet<int32> DeferredSpawns;
+	TMap<int32, FEnt> TestRiders;
 	UPROPERTY(Transient) TObjectPtr<class UHrotBuildingDamage> BuildingDamage;
 	/** U-19h (live: rockets / missiles from the Apache, the aircraft, SAMs and ATGMs showed no rocket and no trail; 23 fired, 0 rounds drawn):
 	 *  a rocket / missile Fire with no Round entity from that shooter within FlyOutGrace s flies a stand-in missile (its kind's body, motor

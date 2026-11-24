@@ -38,13 +38,15 @@ def tick(dt):
             for c in ("t.IdleWhenNotForeground 0", "r.VSync 0"): unreal.SystemLibrary.execute_console_command(None, c)   # an unfocused editor ticks slowly
             unreal.EditorLevelLibrary.get_editor_world().get_world_settings().set_editor_property("default_game_mode", unreal.HrotDpsGameMode.static_class())
             # Python cannot spawn into the PIE world: the vehicle goes into the editor's level first (not saved) and play copies it
-            v0 = unreal.EditorLevelLibrary.spawn_actor_from_class(unreal.HrotVehicle, ue(JOB["at"]), unreal.Rotator(0, 30, 0))
+            v0 = unreal.EditorLevelLibrary.spawn_actor_from_class(unreal.HrotVehicle, ue(JOB["at"]), unreal.Rotator(0, 0, 30))   # (roll, pitch, yaw): a yaw only
             v0.set_editor_property("kit", unreal.load_asset(JOB["kit"])); v0.build()
             LES().editor_request_begin_play(); S.update(phase="spawn", t=now + 10)
         elif ph == "spawn":
             gw = UES().get_game_world(); S["gw"] = gw
             v = unreal.GameplayStatics.get_all_actors_of_class(gw, unreal.HrotVehicle)[0]
             v.set_flying(True); S["v"] = v
+            if JOB.get("riders"):   # CE-12009: soldiers in the kit's seats (the seat's clip), no HROT
+                log(f"seated {unreal.HrotDpsWorld.for_world(gw).test_seat_people(v, int(JOB['riders']))} riders")
             e, a = JOB["eye"], JOB["at"]
             dx, dy, dz = a[0] - e[0], a[1] - e[1], a[2] - e[2]
             cam = unreal.GameplayStatics.get_player_pawn(gw, 0)

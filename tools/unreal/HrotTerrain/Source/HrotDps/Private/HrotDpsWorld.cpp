@@ -1455,6 +1455,21 @@ void UHrotDpsWorld::TickFlyOuts(double Real)
 	}
 }
 
+int32 UHrotDpsWorld::TestSeatPeople(AActor* Vehicle, int32 Count)
+{
+	if (!Vehicle) return 0;
+	int32 N = 0;
+	for (int32 I = 0; I < Count; ++I)
+	{
+		FEnt& E = TestRiders.FindOrAdd(-1000 - I);
+		E.Kit = PersonKit.LoadSynchronous(); E.bHasPerson = true; E.Name = FString::Printf(TEXT("test rider %d"), I);
+		AActor* A = E.Actor.Get();
+		if (!A) { A = SpawnPerson(E, Vehicle->GetActorTransform()); E.Actor = A; }
+		if (A && UHrotRiding::SitOn(A, Vehicle, I)) ++N;
+	}
+	return N;
+}
+
 UHrotBuildingDamage* UHrotDpsWorld::Buildings()
 {
 	if (!BuildingDamage) BuildingDamage = NewObject<UHrotBuildingDamage>(this);
@@ -1722,7 +1737,7 @@ void UHrotDpsWorld::DefaultLife()
 	AddDis(TEXT("1.2.225.1"), TEXT("DA_Air_F16"));            // F-16
 	AddDis(TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon"));        // MiG-29: the twin-tail stand-in
 	AddDis(TEXT("1.2.225.4"), TEXT("DA_Air_AC130"));          // C-130
-	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_OH1"));           // UH-60: no Black Hawk, a helicopter stand-in
+	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_UH60"));          // UH-60: no Black Hawk - the OH-1 with doors cut, seats, door guns (CE-12008, hrot_heli_kit.py)
 	// U-19h 21: HROT's TECHNICALS and pickup (TKB 104 HMG, 105 ATGM, 106 bare pickup, 108 DShK, 109 minigun, 110 ZU-23-2; NedTkbCatalog Pickup(): 5.3 x 1.9 m, drives like a car) were
 	// a grey box. The city pack's truck (DA_City_vehicle04_Truck, 5.6 m, a cab and a bed) is the closest open-bed vehicle we have; their weapon is its own entity on the roof / bed.
 	for (const int64 Type : { 104, 105, 106, 108, 109, 110 }) if (!KitsByType.Contains(Type)) KitsByType.Add(Type, Kit(TEXT("DA_City_vehicle04_Truck")));
