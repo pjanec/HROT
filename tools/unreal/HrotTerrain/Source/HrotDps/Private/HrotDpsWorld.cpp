@@ -1785,6 +1785,9 @@ void UHrotDpsWorld::DefaultLife()
 	// U-19h 21: HROT's TECHNICALS and pickup (TKB 104 HMG, 105 ATGM, 106 bare pickup, 108 DShK, 109 minigun, 110 ZU-23-2; NedTkbCatalog Pickup(): 5.3 x 1.9 m, drives like a car) were
 	// a grey box. The city pack's truck (DA_City_vehicle04_Truck, 5.6 m, a cab and a bed) is the closest open-bed vehicle we have; their weapon is its own entity on the roof / bed.
 	for (const int64 Type : { 104, 105, 106, 108, 109, 110 }) if (!KitsByType.Contains(Type)) KitsByType.Add(Type, Kit(TEXT("DA_City_vehicle04_Truck")));
+	// HROT's MOTORCYCLE (TKB 115, NedTkbCatalog: seat 0 the driver, seat 1 the pillion - both astride and exposed - and a stowed cargo station):
+	// our motorcycle kit (U-17j), its seats in the same order (driver, passenger) with the riding clip
+	if (!KitsByType.Contains(115)) KitsByType.Add(115, Kit(TEXT("DA_Motorcycle")));
 	if (!KitsByDomain.Contains(TEXT("Air"))) KitsByDomain.Add(TEXT("Air"), Kit(TEXT("DA_Air_F16")));   // any other aircraft
 	if (CarKits.Num() == 0)
 		for (const TCHAR* N : { TEXT("DA_City_vehicle02_Car"), TEXT("DA_City_vehicle03_Car"), TEXT("DA_City_vehicle05_Car"), TEXT("DA_City_vehicle06_Car") })
