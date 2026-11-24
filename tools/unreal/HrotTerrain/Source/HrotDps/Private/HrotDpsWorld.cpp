@@ -623,6 +623,15 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm:
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategorySam:
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAirToAir:
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("rocket / missile fire by %d (%s): category %d, munition type %lld"), D.ShooterId, Shooter ? *Shooter->Name : TEXT("?"),
+			int32(D.WeaponCategory), (long long)D.MunitionTypeId);
+		{
+			FFlyOut F; F.Shooter = D.ShooterId; F.Target = D.TargetId; F.Munition = D.MunitionTypeId; F.Category = uint8(D.WeaponCategory);
+			F.From = From; F.Born = Real;
+			const FVector V = HrotDpsMotion::ToUnreal(FVector3d(D.Velocity.X, D.Velocity.Y, D.Velocity.Z), FVector::ZeroVector);
+			F.Dir = V.IsNearlyZero() ? (Shooter && Shooter->Actor.IsValid() ? Shooter->Actor->GetActorForwardVector() : FVector::ForwardVector) : V.GetSafeNormal();
+			FlyOuts.Add(F);
+		}
 		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this))   // U-18n: the launch (the round itself is an entity, drawn as such)
 			if (R)
 			{
@@ -915,6 +924,9 @@ void UHrotDpsWorld::OnRound(const FHrotDpsSample& S)
 	E.bRound = true;
 	E.MunitionType = D.MunitionTypeId;
 	E.LaunchedAt = D.LaunchedAt; E.BurnSeconds = D.BurnSeconds; E.bLying = D.Lying;
+	if (++RoundsSeen <= 20) UE_LOG(LogHrotDpsWorld, Display, TEXT("Round %d arrived: munition %lld shooter %d burn %.1f"), D.EntityId, (long long)D.MunitionTypeId, D.ShooterId, D.BurnSeconds);
+	for (int32 I = 0; I < FlyOuts.Num(); ++I)   // HROT's own round: no stand-in for that shot
+		if (FlyOuts[I].Shooter == D.ShooterId && FlyOuts[I].Munition == D.MunitionTypeId && !FlyOuts[I].M.IsValid() && FlyOuts[I].EndAt == 0) { FlyOuts.RemoveAt(I); break; }
 	SpawnIfReady(D.EntityId, E);
 }
 
@@ -930,6 +942,9 @@ AActor* UHrotDpsWorld::SpawnRound(FEnt& E, const FTransform& At)
 {
 	const FRoundLook* L = RoundLooks.Find(E.MunitionType);
 	const bool bMissile = E.BurnSeconds > 0 || (L && L->bSmokeTrail);
+	// U-19h (live: the Apache's rockets showed no rocket and no trail): what each round is drawn as, and why
+	UE_LOG(LogHrotDpsWorld, Display, TEXT("round %s: munition type %lld, burn %.1f s, look %s (smoke trail %d) -> %s"), *E.Name, (long long)E.MunitionType, E.BurnSeconds,
+		L ? TEXT("known") : TEXT("unknown"), L ? int32(L->bSmokeTrail) : -1, bMissile ? TEXT("missile") : TEXT("body"));
 	UHrotMissileKind* Kind = nullptr;
 	if (bMissile)
 	{
@@ -1373,6 +1388,7 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 			const FVector O = Gun->GetBounds().Origin;   // the mesh keeps its place on the VBL's roof: bring its centre to the entity's point (yaw -90: (x, y) -> (y, -x))
 			C->SetRelativeLocation(FVector(-O.Y * GunScale, O.X * GunScale, LiftCm - O.Z * GunScale));
 			E.DrawnAs = TEXT("weapon-system gun (the VBL's roof MG, cut)");
+			E.bGun = true;
 		}
 		else
 		{
@@ -1388,6 +1404,71 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 #endif
 	E.Actor = A;
 	++Spawned;
+}
+
+float UHrotDpsWorld::FlyOutSpeedMps(uint8 Category)
+{
+	switch (Category)
+	{
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm: return 250.f;      // a TOW / Kornet / Javelin
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategorySam: return 650.f;       // a Stinger / Igla / radar SAM
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAirToAir: return 800.f;
+	default: return 600.f;                                                        // a rocket (Hydra 70: ~700)
+	}
+}
+
+void UHrotDpsWorld::TickFlyOuts(double Real)
+{
+	constexpr double Grace = 0.25, MaxFlight = 6.0;
+	for (int32 I = FlyOuts.Num() - 1; I >= 0; --I)
+	{
+		FFlyOut& F = FlyOuts[I];
+		if (F.EndAt > 0)   // flying: gone a moment after it arrives (its trail is the shot renderer's and fades by itself)
+		{
+			if (Real > F.EndAt) { if (AActor* A = F.M.Get()) A->Destroy(); FlyOuts.RemoveAt(I); }
+			continue;
+		}
+		if (Real - F.Born < Grace) continue;
+		UHrotMissileKind* Kind = nullptr;
+		if (const TSoftObjectPtr<UHrotMissileKind>* K = MissileKindsByType.Find(F.Munition)) Kind = K->LoadSynchronous();
+		if (!Kind) Kind = DefaultMissileKind.LoadSynchronous();
+		if (!Kind) { FlyOuts.RemoveAt(I); continue; }
+		const float Speed = FlyOutSpeedMps(F.Category) * 100.f;
+		FVector To = F.From + F.Dir * Speed * MaxFlight;
+		if (const FEnt* T = F.Target ? Ents.Find(F.Target) : nullptr)
+			if (const AActor* TA = T->Actor.Get()) To = TA->GetActorLocation() + FVector(0, 0, 100.f);
+		AHrotMissile* M = AHrotMissile::SpawnMissile(GetWorld(), Kind, FTransform((To - F.From).Rotation(), F.From));
+		if (!M) { FlyOuts.RemoveAt(I); continue; }
+		M->FlyTest(To, Speed, 0.f, -1.f, 0.f, false);   // HROT's own detonation draws the blast
+		F.M = M; F.EndAt = Real + FVector::Dist(F.From, To) / Speed + 0.3;
+		Count(TEXT("round: missile stand-in (no Round)"));
+	}
+}
+
+void UHrotDpsWorld::GunOnCarrier(FEnt& E, FTransform& T)
+{
+	// HROT places a weapon system (DIS cat 50) at its carrier's position and sends no mount height: the drawn gun is raised onto the top
+	// of the nearest drawn vehicle within 4 m (found once), keeping HROT's x / y and heading. Presentation only - nothing HROT sends is changed.
+	const FVector P = T.GetLocation();
+	AActor* Carrier = nullptr;
+	if (FEnt* C = E.GunCarrier ? Ents.Find(E.GunCarrier) : nullptr) Carrier = C->Actor.Get();
+	if (!Carrier)
+	{
+		double Best = 400.0 * 400.0;
+		for (TPair<int32, FEnt>& It : Ents)
+			if (AHrotVehicle* V = Cast<AHrotVehicle>(It.Value.Actor.Get()))
+			{
+				const double D = FVector::DistSquared2D(V->GetActorLocation(), P);
+				if (D < Best) { Best = D; Carrier = V; E.GunCarrier = It.Key; }
+			}
+	}
+	if (!Carrier) return;
+	FBox Box(ForceInit);
+	TArray<UMeshComponent*> Ms; Carrier->GetComponents(Ms);
+	for (const UMeshComponent* M : Ms) if (M->IsVisible() && M->IsRegistered()) Box += M->Bounds.GetBox();
+	if (!Box.IsValid) return;
+	constexpr double LiftCm = 120.0, HalfGunCm = 25.0;   // the gun's centre sits LiftCm above the actor (SpawnIfReady): its foot on the roof line
+	T.SetLocation(FVector(P.X, P.Y, Box.Max.Z + HalfGunCm - LiftCm));
 }
 
 FHrotDpsPose UHrotDpsWorld::PoseAt(const FEnt& E, double Real) const
@@ -1412,6 +1493,7 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 		if (E.MeshYaw != 0) T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(E.MeshYaw)));   // the model's own facing
 		if (E.MeshZ != 0) T.AddToTranslation(FVector(0, 0, E.MeshZ));                                                          // and its origin
 		T.SetScale3D(A->GetActorScale3D());   // ⚠ measured (U-18e): the full transform reset a sized body (a grenade, the unknown-type box) to scale 1
+		if (E.bGun) GunOnCarrier(E, T);   // U-19h (live: the technical's gun was hidden inside the pickup): on its carrier's roof line
 		if (HrotDpsMotion::NeedsPlace(A->GetActorTransform(), T)) { A->SetActorTransform(T); ++PlacedActors; }   // U-19h ⑱ B: a body standing still is not re-placed
 		// a rocket's motor burns BurnSeconds from its launch (Hrot.Look RoundLook.BurnOf; 0 = no motor data: burning while it flies)
 		if (AHrotMissile* M = Cast<AHrotMissile>(A))
@@ -1456,6 +1538,7 @@ void UHrotDpsWorld::Tick(float)
 		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning) ApplyFlame(E);
 	}
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); }
+	TickFlyOuts(R);
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, Movers); TickMovers(R); }
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, Gizmos); SendGizmoView(R);   // U-18z
 	DrawGizmos(); }     // (its texts are drawn by TickCards, so first)
