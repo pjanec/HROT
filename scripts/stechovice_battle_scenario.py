@@ -193,6 +193,14 @@ def squad_no(name):
     return int(name.split()[1]) if name.startswith('Squad ') else 0
 
 
+def playable(name, side):
+    """⭐ Player Join D-9 (docs/DESIGN_Player_Join.md) — every soldier is a slot a Player may take (user, 2026-11-24: "make all the soldiers playable");
+    a free one runs as AI until taken. The slot name is the unit's name shortened to FixedString32 (31 UTF-8 bytes)."""
+    slot = name.replace('Riverbank ', 'River ').replace('Squad ', 'Sq')
+    assert len(slot.encode('utf-8')) <= 31, slot
+    return {'Side': side, 'SlotName': slot}
+
+
 def platoon(s, macro, prefix, side, tag, x, y, bearing, behav, commander=None, squad_at=None):
     """A city-battle platoon kit (3 of its 6 squads) with its centre at (x, y), the line facing `bearing`. Returns the platoon's guid.
     squad_at: optional [(x, y) x3] - where each squad stands instead of the line (houses: a squad per free spot between them)."""
@@ -221,6 +229,8 @@ def platoon(s, macro, prefix, side, tag, x, y, bearing, behav, commander=None, s
         wx, wy = W(px, py)
         e['SimTransform'] = {'Position': [round(wx, 2), round(wy, 2), round(GROUND.z(px, py), 1)], 'Rotation': quat(bearing)}
         e['EntityInfo'] = {'Name': tag if e0['TkbIdentity']['TkbType'] == 305 else tag.replace(' Platoon', '') + ' ' + name0, 'ForceId': side}
+        if e0['TkbIdentity']['TkbType'] not in (302, 305):      # a MAN (not the squad / platoon record): a Player may deploy into him
+            e['Playable'] = playable(e['EntityInfo']['Name'], side)
         if e0['TkbIdentity']['TkbType'] == 305:
             e['RefKey'] = {'Value': tag.replace(' ', '')}
             lead = g
@@ -287,7 +297,8 @@ def build():
             squad_at=[(-336, 138), (-318, 162), (-354, 162)])
     for j in range(2):
         ax, ay = P('village-at', 3 * j, 0)
-        s.add(unit(2006, 'Village Red AT Gunner %d' % (j + 1), H, ax, ay, bearing=90))
+        s.add(unit(2006, 'Village Red AT Gunner %d' % (j + 1), H, ax, ay, bearing=90,
+                   extra={'Playable': playable('Village Red AT Gunner %d' % (j + 1), H)}))
     technical = s.add(unit(104, 'Village Red Technical', H, *P('village-red-technical'), bearing=90, hp=500, extra={'Sop': sop('BasicVehicleSop')}))
     zu = s.add(unit(110, 'Red ZU-23', H, *P('zu23'), bearing=90, hp=500, extra={'Sop': sop('BasicVehicleSop')}))
     s.add(unit(114, 'Red Radar SAM', H, *P('sam'), hp=400, extra={'Sop': sop('BasicVehicleSop')}))
@@ -328,6 +339,27 @@ def build():
     vehicle(100, 'Riverbank Blue Tank', F, -1063, -580, 270, 3000)
     vehicle(103, 'Riverbank Red T-72', H, -1250, -560, 90, 2500)
 
+    # ---- STILL MORE (user, 2026-11-24: "more armored vehicles ... more technical vehicles with machine gun on both sides") ----------------------
+    # village, Blue: a 4th M1, a 3rd Bradley, a 2nd HMMWV (M2) and two HMG technicals, further back on the same road, all to the support line
+    for name, tkb, hp, at, stop in (('Village Blue Tank 4', 100, 3000, (240, 92), (-140, 125)),
+                                    ('Village Blue IFV 3', 101, 500, (225, 104), (-70, 110)),
+                                    ('Village Blue HMG Technical 1', 104, 500, (210, 116), (-50, 100)),
+                                    ('Village Blue HMG Technical 2', 104, 500, (196, 128), (-45, 80)),
+                                    ('Village Blue HMMWV 2', 102, 300, (318, 38), (-65, 75))):
+        vehicle(tkb, name, F, *at, 300, hp, move_to(*stop))
+    # village, Red: a 3rd T-72, two HMG technicals and a 2nd DShK, holding the village roads
+    vehicle(103, 'Village Red T-72 3', H, -220, 138, 90, 2500)
+    vehicle(104, 'Village Red HMG Technical 1', H, -320, 166, 90, 500)
+    vehicle(104, 'Village Red HMG Technical 2', H, -360, 60, 90, 500)
+    vehicle(108, 'Village Red DShK Technical 2', H, -150, 40, 90, 500)
+    # riverbank: a 2nd tank each side and MG technicals on both banks
+    vehicle(100, 'Riverbank Blue Tank 2', F, -1070, -510, 270, 3000)
+    vehicle(104, 'Riverbank Blue HMG Technical', F, -1050, -600, 270, 500)
+    vehicle(102, 'Riverbank Blue HMMWV', F, -1045, -630, 270, 300)
+    vehicle(103, 'Riverbank Red T-72 2', H, -1270, -520, 90, 2500)
+    vehicle(104, 'Riverbank Red HMG Technical', H, -1262, -590, 90, 500)
+    vehicle(108, 'Riverbank Red DShK Technical', H, -1275, -490, 90, 500)
+
     # ---- TRAFFIC (user: "there are no sumo cars whatsoever") — SUMO background traffic on the terrain's road net (the same demand entity as
     #      demo-city's convoys, cv-traffic-fire); a car near the fighting is abandoned by its driver (CE-1959)
     s.add({'TkbIdentity': {'TkbType': 8850}, 'TrafficDemand': {'TargetCars': 250, 'Seed': 1, 'StepSeconds': 0.5, 'TargetPedestrians': 60,
@@ -341,16 +373,36 @@ def build():
     s.add(unit(405, 'Blue A-10', F, *P('a10-start'), bearing=90, hp=1500, air_agl=AGL_A10,
                extra={**sub(), 'Behavior': behaviour('AirPlatformStrike', {'Location': [*W(zx, zy), 0], 'Target': zu})}), check=False)
 
+    # ---- AIR COMBAT (user, 2026-11-24: "I would like some air combat") — the proven 2v2 dogfight (scenarios/demos/air/ac-dogfight-2v2): two Blue
+    #      F-16s from the east, two Red MiG-29s from the west, in an arena above the valley; all four start inside it and merge. A close fight (MaxShotRangeM 2.5 km, as ac-dogfight-2v2) so it stays over the map, where it can be seen.
+    #      ⚠ RadiusM 4000 (the demos'): a jet belongs to the arena within 1.5 × the radius (AirArenaSystem.IndexContaining) and is pulled back only while it
+    #      does — 📐 with 2000 the merge ran the jets 3.8 km out (220 m/s), out of the arena, and nothing turned them back
+    cz = GROUND.z(0, 0)
+    s.add({'SimTransform': {'Position': [*W(0, 0), round(cz, 1)], 'Rotation': [0, 0, 0, 1]}, 'TkbIdentity': {'TkbType': 8840},
+           'EntityInfo': {'Name': 'Air Arena', 'ForceId': N},
+           'AirArena': {'Centre': [*W(0, 0), round(cz, 1)], 'RadiusM': 4000, 'FloorAglM': 300, 'CeilingAglM': 5000, 'MaxShotRangeM': 2500,
+                        'StalemateSeconds': 90, 'LapsesOff': 0}}, check=False)
+    # ⭐ each pilot on a NAMED bandit (the ac-dogfight-2v2 pattern: both pairs merge through the centre). ⛔ Not the CAP's AirArmedSearch —
+    #   📐 live, F-16 2's search ran it straight south-west from the start and its fight with MiG 2 went 4–6 km south of the map, up to 10 km high
+    gids = [s.gid() for _ in range(4)]   # F-16 1, F-16 2, MiG 1, MiG 2 — reserved first so each can name its bandit
+    for k, dy in ((1, 400), (2, -400)):
+        s.ents[gids[k - 1]] = unit(401, 'Blue F-16 %d' % k, F, 1800, dy, bearing=270, hp=400, air_agl=1500, extra={
+            'SimVelocity': {'Linear': [-220.0, 0.0, 0]}, 'AirCombatState': {'Skill': 'Veteran'},
+            'Behavior': behaviour('AirPlatformAttack', {'Target': gids[k + 1]})})
+        s.ents[gids[k + 1]] = unit(409, 'Red MiG-29 %d' % k, H, -1800, -dy, bearing=90, hp=450, air_agl=1500, extra={
+            'SimVelocity': {'Linear': [220.0, 0.0, 0]}, 'AirCombatState': {'Skill': 'Veteran'},
+            'Behavior': behaviour('AirPlatformAttack', {'Target': gids[k - 1]})})
+
     header = {
         'subsystemType': 'Hrot.Scenario', 'schemaVersion': '1.0', 'terrainName': 'Stechovice',
         'description': (
             'What: a SHOW on the real OSM terrain Stechovice (Vltava valley + village, imported on first use) - two ground battles and an air war. '
-            'Scenario coordinates (the terrain south-west corner is 0,0). RIVERBANK (y about 1570): a Blue platoon (x about 970) (leader + 3 squads, PlatoonDefend) dug in on the flat east bank with an IFV and an M1 fires across the river at a Red platoon '
-            '(leader + 3 squads, x about 765) with a technical and a T-72 on the low west terrace, ~200 m across the water (the plateau behind it is a wooded cliff nobody sees out of). '
-            'VILLAGE (centre x about 1690, y about 2265): a Blue platoon (leader + 3 squads, PlatoonAttack) with three M1 tanks, two Bradleys and a HMMWV advances from the east (x about 2250-2370) into the village; '
-            'a Red platoon (leader + 3 squads, PlatoonDefend) holds the houses with an AT team (2 gunners), two T-72s and three technicals (HMG, ATGM, DShK), and a Red radar SAM and a ZU-23 sit on the hill to the north (~330 m). '
+            'Scenario coordinates (the terrain south-west corner is 0,0). RIVERBANK (y about 1570): a Blue platoon (x about 970) (leader + 3 squads, PlatoonDefend) dug in on the flat east bank with an IFV, two M1s, an HMG technical and a HMMWV fires across the river at a Red platoon '
+            '(leader + 3 squads, x about 765) with three technicals (HMG, DShK) and two T-72s on the low west terrace, ~200 m across the water (the plateau behind it is a wooded cliff nobody sees out of). '
+            'VILLAGE (centre x about 1690, y about 2265): a Blue platoon (leader + 3 squads, PlatoonAttack) with four M1 tanks, three Bradleys, two HMMWVs and two HMG technicals advances from the east (x about 2250-2370) into the village; '
+            'a Red platoon (leader + 3 squads, PlatoonDefend) holds the houses with an AT team (2 gunners), three T-72s and six technicals (3 HMG, ATGM, 2 DShK), and a Red radar SAM and a ZU-23 sit on the hill to the north (~330 m). '
             'AIR: Blue HQ (SupportCommand) owns both platoons, a Blue Apache that attacks the village technical inside the SAM cover and a Blue A-10 that strikes the hill ZU-23 '
-            'flying in from the west over the river. SUMO background traffic (250 cars, 60 pedestrians) runs on the terrain roads. Chain of command Blue: HQ > platoon > squad > man; Red: platoon > squad > man. Behaviours as authored, nothing scripted. '
+            'flying in from the west over the river. AIR COMBAT: two Blue F-16s from the east and two Red MiG-29s from the west, each pilot on a named bandit, merge over the valley (an arena 4 km round the centre). Every soldier is Playable (a free one runs as AI until a Player takes him). SUMO background traffic (250 cars, 60 pedestrians) runs on the terrain roads. Chain of command Blue: HQ > platoon > squad > man; Red: platoon > squad > man. Behaviours as authored, nothing scripted. '
             'Judge (checks.json): both battles trade fire and cost both sides casualties; the Blue attackers reach the village; the Apache flies over the village and the A-10 over the river; '
             'the Red air defence (ZU-23, SAM) fires at them. Generated by scripts/stechovice_battle_scenario.py; first run imports the terrain (minutes), then caches it.'),
         'world': {

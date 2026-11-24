@@ -129,4 +129,49 @@ public sealed class BehaviorParamsValidationTests
         }
         Assert.Equal(13, n);   // the squad's Defend, BreakContact · ⭐ CE-8307: the platoon's 7 (Defend, Attack, Hold, Bound, SupportByFire, Move / BreakContact relays), the company's 4
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4686</c> ④ (the orders design, R-8300; a user-authorised cross-lane edit) — ONE neutral Bound order (<c>BoundOrder</c>) means the same
+    /// to every subordinate that can get it: a physical platoon (<c>PlatoonBound</c>: the assault ends at the place, the cover sets at the support
+    /// point), a squad (<c>BoundingOverwatch</c>: the place) and a stochastic unit (the table routes Bound to the generic attack: the place); and a
+    /// platoon's cover with NO support point sets at the objective, never at (0, 0).
+    /// 🔴 Red-proof: <c>PlatoonBound</c> not reading <c>Position</c> ⇒ its assault goes to (0, 0).
+    /// </summary>
+    [Fact]
+    public void CE4686_OneBoundOrder_MeansTheSameToAPhysicalAndAStochasticSubordinate()
+    {
+        var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+        var place = new System.Numerics.Vector3(300f, 200f, 0f);
+        var support = new System.Numerics.Vector3(220f, 200f, 0f);
+        const string json = "{\"Position\":[300,200,0],\"SupportPoint\":[220,200,0]}";
+        var bound = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.BoundOrder>(json, opts);
+        Assert.Equal(place, (System.Numerics.Vector3)bound.Position);
+
+        var repo = new Fdp.Core.EntityRepository();
+        var self = repo.CreateEntity();
+        var pb = System.Text.Json.JsonSerializer.Deserialize<PlatoonBoundParamsJsonDto>(json, opts);
+        var platoon = default(Hrot.AI.Behaviors.Brains.PlatoonBoundBehavior.PlatoonBoundBlackboard);
+        Hrot.AI.Behaviors.Brains.PlatoonBoundBehavior.Resolve(pb, ref platoon, repo, self);
+        Assert.Equal(place, platoon.Assault.Point);
+        Assert.Equal(support, platoon.Support.Point);
+
+        var bo = System.Text.Json.JsonSerializer.Deserialize<BoundingOverwatchParamsJsonDto>(json, opts);
+        var squad = default(Hrot.AI.Behaviors.Brains.BoundingOverwatchBehavior.BoundingOverwatchBlackboard);
+        Hrot.AI.Behaviors.Brains.BoundingOverwatchBehavior.Resolve(bo, ref squad, repo, self);
+        Assert.Equal(place, squad.Order.Objective);
+
+        Assert.Equal(Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Attack,
+                     Hrot.Core.Tkb.ResolutionRoutingTable.Default.Find("Unit", Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, "Bound"));
+        var projected = Hrot.AI.Behaviors.Orders.OrderReissue.Project(Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Attack, json);
+        var ao = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.AttackOrder>(projected, opts);
+        var stochastic = default(Hrot.AI.Behaviors.Brains.StochasticUnitAttackBehavior.Blackboard);
+        Hrot.AI.Behaviors.Brains.StochasticUnitAttackBehavior.Resolve(ao, ref stochastic, repo, self);
+        Assert.Equal(place, stochastic.Attack.Objective);
+
+        // no support point: the platoon's cover sets AT the objective (what the commanders sent before), never (0, 0)
+        var bare = System.Text.Json.JsonSerializer.Deserialize<PlatoonBoundParamsJsonDto>("{\"Position\":[300,200,0]}", opts);
+        var p2 = default(Hrot.AI.Behaviors.Brains.PlatoonBoundBehavior.PlatoonBoundBlackboard);
+        Hrot.AI.Behaviors.Brains.PlatoonBoundBehavior.Resolve(bare, ref p2, repo, self);
+        Assert.Equal(place, p2.Support.Point);
+    }
 }

@@ -288,13 +288,13 @@ namespace Hrot.SimHost.Tests
                 creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
                 creation.SpawnLevelSystem,                                                           // ⭐ SEVEN since CE-3271 — the birth level
                 creation.MacroExpansionSystem,                                                       // ⭐ EIGHT since macros S3a ④ — the expander's driver
-                creation.HeldChildParticipant,                                                       // ⭐ NINE since CE-8013 ② — a split's children held until the handover
+                creation.HeldChildParticipant, creation.RoundIdentitySystem,                                                       // ⭐ NINE since CE-8013 ② — a split's children held until the handover
             }));
 
             var missingRequest = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-                creation.SpawnLevelSystem, creation.MacroExpansionSystem, creation.HeldChildParticipant,
+                creation.SpawnLevelSystem, creation.MacroExpansionSystem, creation.HeldChildParticipant, creation.RoundIdentitySystem,
             });
             Assert.Contains("RequestSystem", missingRequest);
 
@@ -474,7 +474,7 @@ namespace Hrot.SimHost.Tests
                 creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
                 creation.SpawnLevelSystem,                                                           // ⭐ SEVEN since CE-3271 — the birth level
                 creation.MacroExpansionSystem,                                                       // ⭐ EIGHT since macros S3a ④ — the expander's driver
-                creation.HeldChildParticipant,                                                       // ⭐ NINE since CE-8013 ② — a split's children held until the handover
+                creation.HeldChildParticipant, creation.RoundIdentitySystem,   // CE-11050 — a round's id, every host                                                       // ⭐ NINE since CE-8013 ② — a split's children held until the handover
             }));
         }
 
@@ -529,15 +529,14 @@ namespace Hrot.SimHost.Tests
         /// while SimHost/Stride registered a system. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.
         /// </summary>
         [Fact]
-        public void Build_WithNetworkAdapters_YieldsThePollTheDeleteAndTheRoundIdentitySystem()
+        public void Build_WithNetworkAdapters_YieldsThePollAndTheDelete_AndTheRoundIdentityToo()
         {
             var adapters = new FakeAdapters();
             var creation = EntityCreationPack.Build(WithAdapters(MinimalContext(out var world), adapters));
 
-            Assert.Equal(3, creation.NetworkSystems.Count);
+            Assert.Equal(2, creation.NetworkSystems.Count);   // ⭐ CE-11050 — the round identity is no longer a network-only system (below)
             Assert.Contains(creation.NetworkSystems, s => s is Hrot.Common.Systems.DeleteEntityRequestSystem);
-            // ⭐ LR-2 (docs/DESIGN_Visual_Effects.md §8.5, R-271) — a visible round's network identity
-            Assert.Contains(creation.NetworkSystems, s => s is Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem);
+            Assert.NotNull(creation.RoundIdentitySystem);
             var poll = Assert.Single(creation.NetworkSystems.OfType<Hrot.Common.Systems.NetworkPollingSystem>());
 
             poll.Execute(world, 0f);
@@ -570,6 +569,41 @@ namespace Hrot.SimHost.Tests
         {
             var creation = EntityCreationPack.Build(MinimalContext(out _));
             Assert.Empty(creation.NetworkSystems);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>CE-11050 — every host gives its rounds a network id</b> (user, <c>2026-11-24</c>: <i>"Isn't around already an entity which should be having a network ID already assigned? Why would we invent something new?"</i>).
+        /// An EDITOR-SHAPED host — no network adapters, exactly what <c>OfflineNetworkFactory.CreateCgfEntityLifecycleAdapters()</c> returns (<c>null</c>) — still gets <c>LightweightRoundIdentitySystem</c> from the pack, the shared
+        /// <c>RegisterOn</c> schedules it, and a spawned <c>LightweightRound</c> gets a <c>NetworkIdentity</c>, local ownership and a map entry: the SimNetGateway gathers NetworkIdentity entities, so its rounds now reach it.
+        /// 🔴 Red-proof: put the system back in the adapters-only list of <c>EntityCreationPack</c> ⇒ <c>RoundIdentitySystem</c> is not scheduled / the round stays without an id.
+        /// </summary>
+        [Fact]
+        public void Build_OnAnEditorShapedHost_NoAdapters_ARoundGetsANetworkIdentity()
+        {
+            var ctx      = MinimalContext(out var world);
+            var creation = EntityCreationPack.Build(ctx);
+            Assert.Null(ctx.NetworkAdapters);
+            Assert.Empty(creation.NetworkSystems);
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.LightweightRound>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+
+            var kernel = new Fdp.ModuleHost.ModuleHostKernel(world, new Fdp.Core.EventAccumulator());
+            creation.RegisterOn(kernel);
+            var globals = ((System.Collections.IEnumerable)typeof(Fdp.ModuleHost.ModuleHostKernel)
+                .GetField("_registeredGlobalSystems", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(kernel)!).Cast<object>().ToList();
+            Assert.Contains(creation.RoundIdentitySystem, globals);                       // scheduled by the one shared registration
+            Assert.Equal(string.Empty, creation.Unserviceable(globals.Append(creation.SpawnSystem)));
+
+            var round = world.CreateEntity();
+            world.AddComponent(round, default(Fdp.Toolkit.Replication.Components.LightweightRound));
+            creation.RoundIdentitySystem.Execute(world, 0.016f);
+            Assert.Equal(1, creation.RoundIdentitySystem.Assigned);
+            int id = world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(round).Value;
+            Assert.True(id > 0);
+            Assert.True(world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(round).HasAuthority);
+            Assert.True(ctx.EntityMap.TryGetEntity(id, out var mapped) && mapped == round);
         }
 
         /// <summary>⭐ The adapters' egress is the one the pack wires: a request for another node leaves.</summary>

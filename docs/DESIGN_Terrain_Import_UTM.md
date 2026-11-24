@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: §11 THE IMPORTER BUILT 2026-11-10 (CE-4368, as-built table §11.4) · DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
-updated: 2026-11-10 (§8.2 the destruction build design, S-0 of CE-4391 — B-1…B-11; B-10 supersedes §8.1's NavRebuildRequester / P3-c / P3-d by the P-7a obstacle bake — coordinator) · 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
+updated: 2026-11-24 (§8.3a the damage records carry WHEN and WHERE FROM — CE-11051, terrain) · 2026-11-10 (§8.2 the destruction build design, S-0 of CE-4391 — B-1…B-11; B-10 supersedes §8.1's NavRebuildRequester / P3-c / P3-d by the P-7a obstacle bake — coordinator) · 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
 current-answer: ⭐ §13 IMPORT ON FIRST USE (CE-11037, R-11017, BUILT — as built §13.1, ui) · ⭐ §12 the importer's navmesh (CE-4393) and UtmTransform (CE-4394) — BUILT, as built §12.3 (backend) · ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
@@ -520,6 +520,49 @@ sequenceDiagram
     V->>E: unions every BuildingDamage entity of the view
 ```
 *What it shows that the prose cannot: the only thing that waits on the creation system is the FIRST breach of a building on a node; everything after is a component write, and every reader sees it through the table the frame after.*
+
+### 8.3a ✅ AS BUILT `2026-11-24` — the records carry WHEN and WHERE FROM *(CE-11051, terrain; handoff ui → terrain `HANDOFF_Ui_To_Terrain_Damage_Records_Time_And_Blast.md`)*
+
+🔒 User (via ui): *"Can't we stamp the damage records with time in HROT as well, so that we do not invent another timestamping just in the gateway? We can change the record."*
+Why: a client drawing the damage from the replicated record (the Unreal IG, through DPS) must tell a LIVE change (dust, debris, a glass burst) from the state at JOIN
+(a TransientLocal sample), and throw debris away from the blast.
+
+```mermaid
+classDiagram
+    direction LR
+    class BuildingDamage { <<existing, grows>> Building, Collapsed, Count, 16 x WallBreach ; + CollapsedAt double ; + MadeAt[16] double ; + BlastX/Y/Z[16] float }
+    class WindowDamage { <<existing, grows>> Building, Count, 64 x window ; + HitAt[64] double }
+    class BuildingDamageEvent { <<existing, grows>> breach or collapse ; + BlastX/Y/Z }
+    class BuildingDamageSystem { <<existing, the ONE writer>> stamps now = SimClock.TotalTimeOf }
+    class BuildingDamages { <<existing>> Add(d, breach, world, at, blast) }
+    class WindowDamages { <<existing>> Hit(.., at) · Break(.., at) }
+    class EntityBuildingDamage { <<wire, grows>> + CollapsedAt ; DdsWallBreach + MadeAt, BlastX/Y/Z }
+    class EntityWindowDamage { <<wire, grows>> DdsWindow + HitAt }
+    AreaEffectSystem --> BuildingDamageEvent : the burst point
+    ContactBreach --> BuildingDamageEvent : the hull's centre
+    BladeCut --> BuildingDamageEvent : the hull's centre
+    BuildingDamageSystem --> BuildingDamages : stamps a breach
+    BuildingDamageSystem --> WindowDamages : stamps a window
+    BuildingDamageSystem --> BuildingDamage : writes CollapsedAt
+    BuildingDamage ..> EntityBuildingDamage : egress / ingress
+    WindowDamage ..> EntityWindowDamage : egress / ingress
+```
+*What it shows that the prose cannot: the TIME has one source (the writer, for every producer by construction); only the BLAST POINT must come from the
+producers, because only they know it.*
+
+| # | decision | why / rejected — one line |
+|---|---|---|
+| T-1 | ⭐ **the writer stamps the time**: `BuildingDamageSystem` reads `SimClock.TotalTimeOf(repo)` once per frame (allocation-free) and stamps every record write of that frame — a breach added or widened, a collapse, a window hit | ⛔ a time on each producer's event: five producers (a blast, a ram, a drive-through, a blade, a round through a pane — the last through a parallel command buffer) would each have to remember it. The stamp is the frame the record CHANGED, ≤ 1 tick after the cause |
+| T-2 | **the blast point = the detonation's world point** (terrain-local metres, the frame of `SimTransform`); for a hull's ram, drive-through or blade: the hull's centre (debris falls away from the hull) | ⛔ the panel side + depth: the client needs a point to throw debris from; a side flag loses the angle |
+| T-3 | **per breach: made or last WIDENED** — a merge that grows a breach moves its time and blast to the widening's; a shell into the open hole changes nothing, so moves nothing (no write, no republish); a breach a merge leaves untouched keeps its own stamp through the list's reorder | — |
+| T-4 | **parallel fixed arrays** beside the breach geometry (`MadeAt[16]`, `BlastX/Y/Z[16]`, `CollapsedAt`; `HitAt[64]`), the crater record's shape (`GroundDamage.BornAt`); `WallBreach` stays geometry-only | ⛔ the stamp inside `WallBreach`: its equality is what spots "nothing new" and what every rail compares |
+| T-5 | **0 = from a SAVE**: the save does NOT store the stamps (a loaded scenario's damage is the state before the run, not a live change), so a loaded breach / window / collapse reads 0 | ⛔ saving them: the times belong to another run's clock. A recording / checkpoint restores them (the record is recorded by bytes) |
+| T-6 | **the wire carries them** (`DdsWallBreach.MadeAt, BlastX/Y/Z`, `EntityBuildingDamage.CollapsedAt`, `DdsWindow.HitAt`); the egress's change test includes them, so a new time alone republishes | recordings made before this read the old layout — R-11013's precedent, no compatibility shim |
+
+Rails (red-proved by a compiling mutation each): `BuildingDamageSystemTests.CE11051_*` (born stamped, a widening moves time and blast, the open hole moves
+nothing, an untouched breach keeps its stamp through the reorder; the steady frame 0 B), `BuildingCollapseTests.CE11051_ACollapse_CarriesTheTimeItHappened`
+(born and written in place), `WindowDamageTests.CE11051_*` (the last hit's time, through an eviction; the writer stamps), the translator suites (the
+two-worlds round trip carries every stamp; a new time alone is a change to send).
 
 ### 8.4 ✅ AS BUILT `2026-11-10` — S-2 (the collapse) *(CE-4391, coordinator)*
 

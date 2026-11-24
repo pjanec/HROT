@@ -27,6 +27,12 @@ namespace HrotDpsPeople
 	/** the shoulder above the feet when aimed: 1.31/1.8 of the 1.8 m body standing, 0.98/1.8 crouched (metres) */
 	constexpr double ShoulderStanding = 1.31, ShoulderCrouched = 0.98;
 
+	/** U-19h 20: a gait clip's play rate so the feet do not slide: the person's ground speed over the clip's own (the kit's WalkSpeed / RunSpeed / ...,
+	 *  measured from the clips - scripts/unreal/hrot_kit_speeds.py). The floor is low (a slow walker's legs move slowly; the old floor 0.6 made a 0.5 m/s walker's
+	 *  feet run at 1.2x the ground - sliding), the ceiling covers a sprint. */
+	constexpr float MinGaitRate = 0.15f, MaxGaitRate = 2.5f;
+	inline float GaitRate(float GroundSpeed, float ClipSpeed) { return FMath::Clamp(GroundSpeed / FMath::Max(ClipSpeed, 0.1f), MinGaitRate, MaxGaitRate); }
+
 	enum class EGait : uint8 { Idle, Walk, Run };
 
 	struct FIn

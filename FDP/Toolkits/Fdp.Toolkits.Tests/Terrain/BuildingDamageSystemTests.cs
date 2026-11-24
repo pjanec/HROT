@@ -230,6 +230,56 @@ namespace Fdp.Toolkit.Terrain.Tests
         /// ⭐ B-4 — a second blast overlapping the first is MERGED into the one entity (Count stays 1, the rectangle grows); a third into the same hole
         /// changes nothing and writes nothing. 🔴 Red-proof: have <c>BuildingDamages.Add</c> append instead of merging ⇒ Count is 2.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-11051</c> (handoff ui → terrain; UTM §8.8) — every breach carries WHEN it was made or last widened (sim seconds, the clock the recorder and the gateway read)
+        /// and its BLAST POINT, so a client tells a live change from the state at join and throws the debris the right way. A widening moves both; a shell into the
+        /// open hole moves neither (nothing changed); a breach a merge leaves untouched keeps its own, even when the merge reorders the list.
+        /// 🔴 Red-proof: stamp every write with the FIRST breach's time (pass <c>d.MadeAt[0]</c> instead of <c>now</c> in <c>BuildingDamages.Add</c>) ⇒ the widening keeps 10 s.
+        /// </summary>
+        [Fact]
+        public void CE11051_ABreach_CarriesItsTimeAndBlastPoint_AWideningMovesThem_AShellIntoTheOpenHoleDoesNot()
+        {
+            static void Near(Vector3 want, Vector3 got) => Assert.True(Vector3.Distance(want, got) < 0.25f, $"blast {got}, want {want}");
+            var a = new Vector3(25f, 19.75f, 1.0f);
+            _w.SetSingleton(new GlobalTime { TotalTime = 10d });
+            Burst(Charge, a);
+            var request = Assert.Single(Tick());
+            var born = request.InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal(10d, born.MadeAtOf(0).Seconds);                                                // born stamped
+            Near(a, born.BlastOf(0));
+            var e = Materialise(request);
+
+            var b = new Vector3(19f, 19.75f, 1.0f);                                                     // a second, separate hole
+            _w.SetSingleton(new GlobalTime { TotalTime = 20d });
+            Burst(Charge, b); Tick();
+            var a2 = new Vector3(25.6f, 19.75f, 1.0f);                                                  // widens the first: merged, moved to the end of the list
+            _w.SetSingleton(new GlobalTime { TotalTime = 30d });
+            Burst(Charge, a2); Tick();
+            var d = _w.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal(2, d.Count);
+            int ia = d.Get(0).Width > d.Get(1).Width ? 0 : 1, ib = 1 - ia;                             // the widened one is the wider
+            Assert.Equal(30d, d.MadeAtOf(ia).Seconds); Near(a2, d.BlastOf(ia));                         // the widened one: the widening's time and blast
+            Assert.Equal(20d, d.MadeAtOf(ib).Seconds); Near(b, d.BlastOf(ib));                          // the untouched one keeps its own through the reorder
+
+            _w.SetSingleton(new GlobalTime { TotalTime = 40d });
+            Burst(Charge, new Vector3(25.3f, 19.75f, 1.0f)); Tick();                                    // into the open hole: nothing changed
+            d = _w.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal(30d, d.MadeAtOf(ia).Seconds); Near(a2, d.BlastOf(ia));
+        }
+
+        /// <summary>⭐ <c>CE-11051</c> — the writer's steady frame (no event) allocates nothing: the clock read is the allocation-free one (<c>SimClock.TotalTimeOf</c>, never the boxed <c>Of()</c>).</summary>
+        [Fact]
+        public void CE11051_TheWritersSteadyFrame_AllocatesNothing()
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = 5d });
+            Burst(Charge, new Vector3(25f, 19.75f, 1.0f));
+            Materialise(Assert.Single(Tick()));
+            for (int i = 0; i < 3; i++) Tick();   // warm
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) _damage.Execute(_w, 0.016f);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         [Fact]
         public void ASecondBlastOnTheSamePanel_IsMergedIntoTheOneEntity()
         {

@@ -119,6 +119,11 @@ namespace Hrot.NED.Descriptors
         public float Bottom;
         public float Top;
         public byte Kind;
+        /// <summary>⭐ CE-11051 — when it was made or last widened (sim seconds; 0 = from a save) and its blast point (terrain-local metres).</summary>
+        public double MadeAt;
+        public float BlastX;
+        public float BlastY;
+        public float BlastZ;
     }
 
     // ⭐ CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8.2 B-11) — a building's wall breaches, published by the node that decided them (it owns the entity;
@@ -144,6 +149,9 @@ namespace Hrot.NED.Descriptors
         public string Key;
 
         [DdsManaged] public List<DdsWallBreach> Breaches;
+
+        /// <summary>⭐ CE-11051 — when the building collapsed (sim seconds; 0 = not collapsed, or from a save).</summary>
+        public double CollapsedAt;
     }
 
     /// <summary>⭐ CE-5033 (glass windows GW-2) — one damaged window of <see cref="EntityWindowDamage"/>: its panel WITHIN the building (LOCAL, as a breach's), its opening on
@@ -158,6 +166,8 @@ namespace Hrot.NED.Descriptors
         public byte V0;
         public byte U1;
         public byte V1;
+        /// <summary>⭐ CE-11051 — the sim time (s) of its last hit (0 = from a save).</summary>
+        public double HitAt;
     }
 
     // ⭐ CE-5033 (docs/DESIGN_Glass_Windows.md D-3) — a building's damaged window panes, on its damage entity, published by the node that decided them and applied on every

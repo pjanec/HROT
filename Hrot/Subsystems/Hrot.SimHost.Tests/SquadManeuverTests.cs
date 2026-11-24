@@ -4925,20 +4925,21 @@ namespace Hrot.SimHost.Tests
             });
 
         /// <summary>⭐⭐ <c>CE-2310</c> (HQ-3, HQ-4) — a squad reports a mortar (IndirectFire) 1.2 km off: the platoon relays it up and asks its
-        /// HQ for FIRE SUPPORT on it — once, however often the squad re-reports it; an AirDefence element is relayed too; a plain rifle team is
-        /// not. ✅ Red-proofs: the relay's flag test dropped ⇒ the rifle team is relayed · the ask's memory dropped ⇒ a second request · the
-        /// IndirectFire test dropped from the ask ⇒ the ZU-23 is asked fire on too.</summary>
+        /// HQ for FIRE SUPPORT on it — once, however often the squad re-reports it; an AirDefence element is relayed too. ⭐ CE-4686 ① (HQ-3b, the
+        /// user-authorised amendment): the rifle team is relayed now too, as a GROUND element (the platoon commands units, it has no eyes) — and
+        /// fire support is still asked only on the mortar. ✅ Red-proofs: the ask's memory dropped ⇒ a second request · the IndirectFire test
+        /// dropped from the ask ⇒ the ZU-23 is asked fire on too.</summary>
         [Fact]
         public void CE2310_APlatoonRelaysTheMortarAndTheAirDefence_AndAsksFireSupportOnTheMortar_Once()
         {
-            var (p, hq, composer) = UnderHq();
+            var (p, hq, composer) = UnitsUnderHq();   // ⭐ CE-4686 — its members are squads (a platoon commands units)
             var mortar = new Vector3(0f, 1200f, 0f);
             ReportFlagged(p, p.Bravo, new Vector3(-300f, 200f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.NoEquipment);   // first in the picture
             ReportFlagged(p, p.Bravo, new Vector3(400f, 1300f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.AirDefence | Fdp.Toolkit.Squad.Command.ElementEquipment.Vehicle);
             ReportFlagged(p, p.Alpha, mortar, Fdp.Toolkit.Squad.Command.ElementEquipment.IndirectFire);
             Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
             var pic = PictureOf(p, hq);
-            Assert.Equal(2, pic.Elements.Count);                                       // the mortar and the ZU-23, not the rifles
+            Assert.Equal(3, pic.Elements.Count);                                       // the mortar, the ZU-23 — and (CE-4686 ①) the rifles as a ground element
             var request = Assert.Single(Requests(pic));
             Assert.Equal(Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, request.Kind);
             Assert.True(Vector3.Distance(request.At, mortar) < 0.01f);
@@ -4949,7 +4950,7 @@ namespace Hrot.SimHost.Tests
                 Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
             }
             Assert.Single(Requests(PictureOf(p, hq)));                                 // once
-            Assert.Equal(2, PictureOf(p, hq).Elements.Count);
+            Assert.Equal(3, PictureOf(p, hq).Elements.Count);
         }
 
         private static Fdp.Toolkit.Squad.Command.PendingRequest[] Requests(in Fdp.Toolkit.Squad.Command.CommandPicture pic)

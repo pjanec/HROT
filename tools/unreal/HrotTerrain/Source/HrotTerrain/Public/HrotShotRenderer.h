@@ -84,7 +84,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float ImpactPerSecond = 30.f;
 	/** explosions (UHrotExplosionFx): their effect + scorch within BlastRange, at most BlastPerSecond; the flash is always shown */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float BlastPerSecond = 20.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float BlastRange = 150000.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float BlastRange = 0.f;   // 0 = no limit: a blast is seen from any distance (user, 2026-11-23)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 MaxLights = 4;
 	/** trail puffs alive at most (the oldest go first) — each is 3 crossed cards */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 MaxPuffs = 6000;

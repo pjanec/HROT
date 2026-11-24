@@ -45,8 +45,12 @@ namespace Fdp.Toolkit.Terrain
         public Entity Shooter;
         /// <summary>⭐ S-2 — 1 = the building COLLAPSED (the breach fields are unused; <see cref="Panel"/> is −1).</summary>
         public byte Collapse;
+        /// <summary>⭐ <c>CE-11051</c> — the BLAST POINT (terrain-local metres): the detonation's world point; for a hull's ram or a blade, the hull's centre. Kept per
+        /// breach on <see cref="BuildingDamage"/> (<see cref="BuildingDamage.BlastOf"/>) so a client throws the debris away from it.</summary>
+        public float BlastX, BlastY, BlastZ;
 
         public readonly WallBreach Breach => new(Panel, From, To, Bottom, Top, (BreachKind)Kind);
+        public readonly Vector3 Blast => new(BlastX, BlastY, BlastZ);
     }
 
     /// <summary>
@@ -89,7 +93,7 @@ namespace Fdp.Toolkit.Terrain
         {
             public int Building;
             public int Age;
-            public readonly List<WallBreach> Later = new();
+            public readonly List<(WallBreach Breach, Vector3 Blast)> Later = new();   // ⭐ CE-11051 — with its blast point
             public readonly List<WindowHitEvent> LaterWindows = new();   // ⭐ CE-5033
             public readonly List<BuildingFireEvent> LaterFires = new();   // ⭐ CE-3488
             public bool Collapse;
@@ -115,7 +119,9 @@ namespace Fdp.Toolkit.Terrain
             var terrain = repo.GetSingletonManaged<TerrainWorld>();
             if (terrain == null) return;
 
-            if (_pending.Count > 0) DrainPending(repo, terrain);
+            // ⭐ CE-11051 — the sim time every record write of this frame is stamped with (the clock the recorder and the gateway read)
+            double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(repo);   // allocation-free (Of() boxes 24 B)
+            if (_pending.Count > 0) DrainPending(repo, terrain, now);
 
             if (!repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
             var events = repo.ReadEvents<BuildingDamageEvent>();
@@ -123,10 +129,10 @@ namespace Fdp.Toolkit.Terrain
             {
                 ref readonly var evt = ref events[i];
                 if ((uint)evt.Building >= (uint)WallGroups.Count(terrain)) continue;   // ⭐ CE-4599 — a wall group: a building or a free-wall line
-                if (evt.Collapse != 0) { if (WallGroups.IsBuilding(terrain, evt.Building)) ApplyCollapse(repo, terrain, evt.Building); continue; }
+                if (evt.Collapse != 0) { if (WallGroups.IsBuilding(terrain, evt.Building)) ApplyCollapse(repo, terrain, evt.Building, now); continue; }
                 if ((uint)evt.Panel >= (uint)terrain.Panels.Count) continue;
-                Apply(repo, terrain, evt.Building, evt.Breach);
-                BreakWindowsUnder(repo, terrain, evt.Building, evt.Breach);   // ⭐ CE-5033 D-10 — the glass goes with its wall
+                Apply(repo, terrain, evt.Building, evt.Breach, evt.Blast, now);
+                BreakWindowsUnder(repo, terrain, evt.Building, evt.Breach, now);   // ⭐ CE-5033 D-10 — the glass goes with its wall
             }
 
             // ⭐ CE-3488 (flame FL-4 B-1) — the buildings set alight: a FireState on the building's record (TD-6's second holder)
@@ -146,7 +152,7 @@ namespace Fdp.Toolkit.Terrain
                 if (!WallGroups.IsBuilding(terrain, h.Building) || (uint)h.Panel >= (uint)terrain.Panels.Count) continue;
                 var openings = terrain.Panels[h.Panel].Openings;
                 if (terrain.Panels[h.Panel].Building != h.Building || (uint)h.Opening >= (uint)openings.Count || !openings[h.Opening].Glazed) continue;
-                ApplyWindow(repo, terrain, in h);
+                ApplyWindow(repo, terrain, in h, now);
             }
         }
 
@@ -177,7 +183,7 @@ namespace Fdp.Toolkit.Terrain
             var fire = has ? repo.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(target) : new Fdp.Toolkit.Perception.Signatures.FireState();
             if (fire.IsBurning(now) || !fire.TryAdd(in local, now)) return;   // already alight (v1: one fire), or full
             Ignited++;
-            if (target.IsNull) Request(repo, terrain, f.Building, key, default, fire: fire);
+            if (target.IsNull) Request(repo, terrain, f.Building, key, default, f.Since.Seconds, fire: fire);
             else if (has) repo.SetComponent(target, fire);
             else repo.AddComponent(target, fire);   // a record made before it burned: added with its final value (D-31)
         }
@@ -190,7 +196,7 @@ namespace Fdp.Toolkit.Terrain
         /// ⭐ CE-5033 (D-4, D-9) — writes one window hit / shatter into THIS node's damage entity for the building (the one with a <see cref="WindowDamage"/>, else the
         /// first, which gains one), else asks for an entity born holding it. A pane that turns broken raises <see cref="WindowBrokenEvent"/> (unless silent).
         /// </summary>
-        private void ApplyWindow(EntityRepository repo, TerrainWorld terrain, in WindowHitEvent h)
+        private void ApplyWindow(EntityRepository repo, TerrainWorld terrain, in WindowHitEvent h, double now)
         {
             string key = BuildingDamages.KeyOf(terrain, h.Building);
             if (_pending.TryGetValue(key, out var waiting)) { waiting.LaterWindows.Add(h); return; }
@@ -202,9 +208,9 @@ namespace Fdp.Toolkit.Terrain
                 if (target.IsNull) target = e;
             }
             var w = !target.IsNull && repo.HasComponent<WindowDamage>(target) ? repo.GetComponentRO<WindowDamage>(target) : new WindowDamage { Building = h.Building };
-            var change = h.Shatter != 0 ? WindowDamages.Break(ref w, h.Panel, h.Opening) : WindowDamages.Hit(ref w, h.Panel, h.Opening, h.U, h.V);
+            var change = h.Shatter != 0 ? WindowDamages.Break(ref w, h.Panel, h.Opening, now) : WindowDamages.Hit(ref w, h.Panel, h.Opening, h.U, h.V, now);   // ⭐ CE-11051 — stamped
             if (change is WindowChange.Unchanged or WindowChange.Full) return;
-            if (target.IsNull) { Request(repo, terrain, h.Building, key, default, windows: w); }
+            if (target.IsNull) { Request(repo, terrain, h.Building, key, default, now, windows: w); }
             else if (repo.HasComponent<WindowDamage>(target)) repo.SetComponent(target, w);
             else repo.AddComponent(target, w);   // an entity made before it had windows: added with its final value
             if (change == WindowChange.Broke)
@@ -221,7 +227,7 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>⭐ CE-5033 D-10 — every glazed window of <paramref name="breach"/>'s panel that the breach overlaps is BROKEN (silently: the breach's debris is the effect).</summary>
-        private void BreakWindowsUnder(EntityRepository repo, TerrainWorld terrain, int building, in WallBreach breach)
+        private void BreakWindowsUnder(EntityRepository repo, TerrainWorld terrain, int building, in WallBreach breach, double now)
         {
             if (!repo.IsComponentTypeRegistered<WindowDamage>()) return;
             var openings = terrain.Panels[breach.Panel].Openings;
@@ -229,15 +235,15 @@ namespace Fdp.Toolkit.Terrain
             {
                 var o = openings[oi];
                 if (!o.Glazed || o.At > breach.To || o.At + o.Width < breach.From || o.SillZ > breach.Top || o.HeadZ < breach.Bottom) continue;
-                ApplyWindow(repo, terrain, new WindowHitEvent { Building = building, Panel = breach.Panel, Opening = oi, Shatter = 1, Silent = 1 });
+                ApplyWindow(repo, terrain, new WindowHitEvent { Building = building, Panel = breach.Panel, Opening = oi, Shatter = 1, Silent = 1 }, now);
             }
         }
 
         /// <summary>Writes <paramref name="breach"/> into this node's entity for the building (merging or appending), else asks for one.</summary>
-        private void Apply(EntityRepository repo, TerrainWorld terrain, int building, in WallBreach breach)
+        private void Apply(EntityRepository repo, TerrainWorld terrain, int building, in WallBreach breach, Vector3 blast, double now)
         {
             string key = BuildingDamages.KeyOf(terrain, building);
-            if (_pending.TryGetValue(key, out var waiting)) { waiting.Later.Add(breach); return; }   // the entity is not here yet: applied when it is
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.Later.Add((breach, blast)); return; }   // the entity is not here yet: applied when it is
 
             Entity space = Entity.Null;   // the first owned entity of this building with room
             foreach (var e in Query(repo))
@@ -247,15 +253,15 @@ namespace Fdp.Toolkit.Terrain
                 if (d.Building != building) continue;
                 bool overlaps = false;
                 for (int i = 0; i < d.Count && !overlaps; i++) overlaps = d.Get(i).Overlaps(breach);
-                if (overlaps) { Write(repo, terrain, e, d, breach); return; }   // merging never needs room
+                if (overlaps) { Write(repo, terrain, e, d, breach, blast, now); return; }   // merging never needs room
                 if (space.IsNull && d.Count < BuildingDamage.Capacity) space = e;
             }
-            if (!space.IsNull) { Write(repo, terrain, space, repo.GetComponentRO<BuildingDamage>(space), breach); return; }
-            Request(repo, terrain, building, key, breach);   // no entity of ours (or all full): make one — it is born holding this breach
+            if (!space.IsNull) { Write(repo, terrain, space, repo.GetComponentRO<BuildingDamage>(space), breach, blast, now); return; }
+            Request(repo, terrain, building, key, breach, now, blast: blast);   // no entity of ours (or all full): make one — it is born holding this breach
         }
 
         /// <summary>⭐ S-2 — sets <c>Collapsed = 1</c> on this node's entity for the building (written only when it changes), else asks for one born collapsed.</summary>
-        private void ApplyCollapse(EntityRepository repo, TerrainWorld terrain, int building)
+        private void ApplyCollapse(EntityRepository repo, TerrainWorld terrain, int building, double now)
         {
             string key = BuildingDamages.KeyOf(terrain, building);
             if (_pending.TryGetValue(key, out var waiting)) { waiting.Collapse = true; return; }
@@ -272,22 +278,23 @@ namespace Fdp.Toolkit.Terrain
             {
                 var d = repo.GetComponentRO<BuildingDamage>(mine);
                 d.Collapsed = 1;
+                d.CollapsedAt = now;   // ⭐ CE-11051
                 repo.SetComponent(mine, d);
                 Applied++;
                 return;
             }
-            Request(repo, terrain, building, key, default, collapse: true);
+            Request(repo, terrain, building, key, default, now, collapse: true);
         }
 
-        private void Write(EntityRepository repo, TerrainWorld terrain, Entity e, BuildingDamage d, in WallBreach breach)
+        private void Write(EntityRepository repo, TerrainWorld terrain, Entity e, BuildingDamage d, in WallBreach breach, Vector3 blast, double now)
         {
-            // copy → change → write back only when something changed: an already-covered breach writes nothing (no version bump, no republish)
-            if (BuildingDamages.Add(ref d, in breach, terrain) is BreachAdd.Unchanged or BreachAdd.Full) return;
+            // copy → change → write back only when something changed: an already-covered breach writes nothing (no version bump, no republish, no new time)
+            if (BuildingDamages.Add(ref d, in breach, terrain, now, blast) is BreachAdd.Unchanged or BreachAdd.Full) return;
             repo.SetComponent(e, d);
             Applied++;
         }
 
-        private void DrainPending(EntityRepository repo, TerrainWorld terrain)
+        private void DrainPending(EntityRepository repo, TerrainWorld terrain, double now)
         {
             _done.Clear();
             foreach (var (key, p) in _pending)
@@ -301,18 +308,19 @@ namespace Fdp.Toolkit.Terrain
             {
                 var p = _pending[key];
                 _pending.Remove(key);   // first: Apply must not see it as waiting
-                if (p.Collapse) ApplyCollapse(repo, terrain, p.Building);
-                for (int i = 0; i < p.Later.Count; i++) Apply(repo, terrain, p.Building, p.Later[i]);
-                for (int i = 0; i < p.LaterWindows.Count; i++) ApplyWindow(repo, terrain, p.LaterWindows[i]);   // ⭐ CE-5033
+                if (p.Collapse) ApplyCollapse(repo, terrain, p.Building, now);
+                for (int i = 0; i < p.Later.Count; i++) Apply(repo, terrain, p.Building, p.Later[i].Breach, p.Later[i].Blast, now);
+                for (int i = 0; i < p.LaterWindows.Count; i++) ApplyWindow(repo, terrain, p.LaterWindows[i], now);   // ⭐ CE-5033
                 for (int i = 0; i < p.LaterFires.Count; i++) ApplyFire(repo, terrain, p.LaterFires[i]);   // ⭐ CE-3488
             }
         }
 
-        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, bool collapse = false, WindowDamage? windows = null,
-                             Fdp.Toolkit.Perception.Signatures.FireState? fire = null)
+        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, double now, bool collapse = false, WindowDamage? windows = null,
+                             Fdp.Toolkit.Perception.Signatures.FireState? fire = null, Vector3 blast = default)
         {
             var d = new BuildingDamage { Building = building };
-            if (collapse) d.Collapsed = 1; else if (windows == null && fire == null) BuildingDamages.Add(ref d, in breach, terrain);
+            if (collapse) { d.Collapsed = 1; d.CollapsedAt = now; }   // ⭐ CE-11051 — born stamped
+            else if (windows == null && fire == null) BuildingDamages.Add(ref d, in breach, terrain, now, blast);
             var anchor = WallGroups.Anchor(terrain, building);   // ⭐ CE-4599 — a building's position, a line's first post
             int node = repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0;
             var initial = new List<object> { new SimTransform { Position = anchor, Rotation = Quaternion.Identity }, d, new TerrainObjectKey { Key = key } };

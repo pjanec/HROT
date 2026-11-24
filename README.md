@@ -189,11 +189,12 @@ twice — while HROT's own soldiers carry out its orders with their drills, cove
 | 🧪 **Terrain the way a commander sees it** | named places, each with what can see it, its cover, whether vehicles can reach it and how long it takes to get there — the model chooses between options, it never does geometry |
 | 🧪 **Explained for the debrief** | every prompt, every decision and every order applied is recorded beside the exercise: the after-action review can show *why* the enemy did what it did |
 | 🧪 **Your model, your hardware** | the model runs locally (an Ollama-compatible server; a 7–8 B model on a single laptop GPU is the target) — no exercise data leaves the site |
+| 🧪 **From platoon to company — over aggregated units** | the model can command a company whose platoons run as aggregated units — fought as numbers, cheap enough for a large enemy force — that split into squads and soldiers with full drills on contact; the commander keeps commanding them through the split |
 | 🧪 **Side against side** | two commanders can fight each other — an LLM-commanded Blue against an LLM-commanded Red — for wargaming and course-of-action analysis |
 | 🧪 **A tester that never runs out of ideas** | an LLM commander gives plausible orders nobody scripted — the fastest way we have found to expose where the forces' AI breaks |
 
-> Status: a platoon commander against a defended house and a two-sided duel are proven with a small, fast model; a local model on a laptop GPU
-> is the next step. Design: [docs/designs/llm-commander/DESIGN_LLM_Commander.md](docs/designs/llm-commander/DESIGN_LLM_Commander.md).
+> Status: a platoon commander against a defended house, a two-sided duel and a company over aggregated platoons are proven with a small,
+> fast model; a local model on a laptop GPU is the next step. Design: [docs/designs/llm-commander/DESIGN_LLM_Commander.md](docs/designs/llm-commander/DESIGN_LLM_Commander.md).
 
 ---
 

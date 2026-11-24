@@ -272,7 +272,7 @@ namespace Hrot.CGF
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffComposerSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffInboxSystem(gateOnAuthority));
             // ⭐ CE-4676 — a seated commander's FEED, after the inbox (this frame's reports are in his history)
-            simList.Add(new Hrot.CGF.Commander.CommanderFeedSystem(gateOnAuthority: gateOnAuthority));
+            simList.Add(new Hrot.CGF.Commander.CommanderFeedSystem(gateOnAuthority: gateOnAuthority, isBehaviour: n => behaviorRegistry.TryGetId(n, out _), registry: behaviorRegistry));   // ⭐ CE-4685 A-2 — a seat's kinds from his class · CE-4686 ② its play's roles
             // ⭐ CE-2273 DA-A — a unit's authored proficiency reaches its men (written on each man: the hit model reads only him).
             simList.Add(new Fdp.Toolkit.Behavior.Systems.ProficiencyFillSystem(gateOnAuthority));
             // ⭐ CE-2360 (AQ102 I) — a live grenade lying near a man: his reflex (run, drop, throw it back) as a reaction, before the brain

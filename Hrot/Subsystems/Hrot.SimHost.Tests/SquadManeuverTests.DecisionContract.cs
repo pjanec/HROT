@@ -118,21 +118,21 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ C-1 — a task the unit cannot do (a play given to a squad), then a malformed object: repaired once, still bad ⇒ CONTINUE (nothing).
+        /// ⭐ C-1 — a task the unit cannot do (the whole unit's order given to a squad — CE-4685: Bound, a kind only the platoon takes), then a malformed object: repaired once, still bad ⇒ CONTINUE (nothing).
         /// 🔴 Red-proof: the task-fits-the-unit check dropped ⇒ the first answer is taken.
         /// </summary>
         [Fact]
         public void CE4684_ATaskTheSquadCannotDo_ThenAMalformedAnswer_FallsBackToContinue()
         {
             using var server = new StandInChatServer(
-                StandInChatServer.Text(DecisionText(1, "[{\"unit\":\"Alpha\",\"task\":\"PlatoonAttack\",\"objective\":\"house\",\"purpose\":\"p\"}]")),
+                StandInChatServer.Text(DecisionText(1, "[{\"unit\":\"Alpha\",\"task\":\"Bound\",\"objective\":\"house\",\"purpose\":\"p\"}]")),
                 StandInChatServer.Text("{ not json"));
             using var mind = Chat(server, decisions: true);
             var actions = mind.ThinkAsync(ChatBriefing(10, "00:00:10 ALPHA: spot") with { Vocabulary = Vocab }, default).GetAwaiter().GetResult();
             Assert.Empty(actions);
             Assert.Equal(2, server.Requests.Count);
             Assert.True(mind.LastFellBack);
-            Assert.Contains(mind.LastValidation!, p => p.Contains("PlatoonAttack is a play"));
+            Assert.Contains(mind.LastValidation!, p => p.Contains("Bound is the whole unit's order"));
             Assert.Contains(mind.LastValidation!, p => p.Contains("not one JSON object"));
         }
 

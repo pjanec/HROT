@@ -385,7 +385,7 @@ namespace Hrot.SimHost.Tests
                 {
                     ran = true;
                     Assert.Equal(OrderKind.Move, CurrentOrders.Of(repo, u).Kind);
-                    if (SubordinateOrders.Of(repo, u) is { Orders.Count: 3 } h) held = h;   // ⚠ the bare squads here run nothing, so the relay ends next frame (none is busy)
+                    if (SubordinateOrders.Of(repo, u) is { Orders.Count: 3 } h) held = h;   // ⚠ the bare squads here run nothing: none ever starts it
                 }
             }
             Assert.True(ran, "the relay ran");
@@ -397,29 +397,48 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal("Order.Move", e.Behavior);
                 Assert.Equal(json, e.Json);
             }
+            // ⭐ CE-4685 — a squad GIVEN the order but not yet running it is still busy (StartGraceSeconds): the relay does not end under it, so ending
+            //   cannot clear the squads' moves as they start (📌 llm-company-aggregated: every split platoon stopped where it split). ✅ Red-proof: the
+            //   grace dropped ⇒ the relay ends the frame after ordering ⇒ red. And a squad that never starts still lets it end after the grace (no hang).
+            for (int i = 0; i < 60; i++) X2Frame(s, fit, hier);   // ~1 s
+            Assert.Equal(Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayMove, s.TaskName);
+            for (int i = 0; i < 250; i++) X2Frame(s, fit, hier);  // past the 3 s grace
+            Assert.NotEqual(Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayMove, s.TaskName);
         }
 
-        /// <summary>⭐ CE-8307 (R-8392, F1 (a)) — a platoon's Attack now has a physical play (<c>PlatoonAttack</c> fulfils Attack): its automatic split is not
-        /// held — unless the attack HOLDS BACK (support by fire: the platoon's attack would close, F-SOL-4), which waits (X2-D).
-        /// ✅ Red-proof: <c>HoldsBack</c> always false ⇒ the hold-back attack is not held ⇒ red.</summary>
+        /// <summary>⭐ CE-8307 (R-8392, F1 (a)) — a platoon's Attack has a physical play (<c>PlatoonAttack</c> fulfils Attack): its automatic split is not held.
+        /// ⭐ CE-4686 ③ (AMENDS R-8392's hold-back half; backend, cross-lane): a HOLD-BACK attack is support by fire — at Physical it re-resolves to the
+        /// kind SupportByFire's play (a platoon: <c>PlatoonSupportByFire</c>, which never closes), its Position (where it stands) carried and HoldBack
+        /// dropped, so its split is not held either; a COMPANY's hold-back attack (no company support-by-fire play) still waits (X2-D). 📐 Measured on
+        /// llm-company-aggregated (Haiku): the old rule CLEARED a split platoon's support by fire — TaskFailed 150 m short of its support position.
+        /// ✅ Red-proof: the SupportByFire re-resolution dropped ⇒ the platoon's hold-back attack waits again ⇒ red.</summary>
         [Fact]
-        public void CE8307_APlatoonsAttack_HasAPhysicalPlay_AHoldBackAttackWaits()
+        public void CE8307_APlatoonsAttack_HasAPhysicalPlay_AHoldBackAttackBecomesItsSupportByFire()
         {
             foreach (bool holdBack in new[] { false, true })
-            {
-                var (s, fit, _, repo, u) = X2Squad(men: 3, order: false);
-                repo.SetDisType(u, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, 225));
-                repo.Bus.PublishManaged(new AssignBehaviorEvent
+                foreach (var echelon in new[] { UnitEchelon.Platoon, UnitEchelon.Company })
                 {
-                    Entity = u, BehaviorName = ResolutionRoutingTable.Plays.Attack, Origin = BehaviorOrigin.Operator, RequestId = X2Request,
-                    JsonParams = "{" + Loc("Position", X2Post + new Vector3(300f, 0f, 0f)) + (holdBack ? ",\"HoldBack\":true" : "") + "}",
-                });
-                s.Tick(); s.Tick(); s.Tick();
-                Assert.Equal(ResolutionRoutingTable.Plays.Attack, s.TaskName);
-                Assert.Equal("PlatoonAttack", OrderReissue.PlayFor(repo, u, AggregateResolution.Physical, OrderKind.Attack, fit.IsBehaviour));
-                var why = OrderReissue.BlockReason(repo, u, AggregateResolution.Physical, fit.IsBehaviour);
-                if (holdBack) Assert.NotNull(why); else Assert.Null(why);
-            }
+                    var (s, fit, _, repo, u) = X2Squad(men: 3, order: false);
+                    repo.SetDisType(u, UnitDis.Land(UnitArm.Infantry, echelon, 225));
+                    string json = "{" + Loc("Position", X2Post + new Vector3(300f, 0f, 0f)) + (holdBack ? ",\"HoldBack\":true" : "") + "}";
+                    repo.Bus.PublishManaged(new AssignBehaviorEvent
+                    {
+                        Entity = u, BehaviorName = ResolutionRoutingTable.Plays.Attack, Origin = BehaviorOrigin.Operator, RequestId = X2Request, JsonParams = json,
+                    });
+                    s.Tick(); s.Tick(); s.Tick();
+                    Assert.Equal(ResolutionRoutingTable.Plays.Attack, s.TaskName);
+                    string attackPlay = echelon == UnitEchelon.Platoon ? "PlatoonAttack" : "CompanyAttack";
+                    Assert.Equal(attackPlay, OrderReissue.PlayFor(repo, u, AggregateResolution.Physical, OrderKind.Attack, fit.IsBehaviour));
+                    var why = OrderReissue.BlockReason(repo, u, AggregateResolution.Physical, fit.IsBehaviour);
+                    string? want = OrderReissue.PlayFor(repo, u, AggregateResolution.Physical, OrderKind.Attack, fit.IsBehaviour, json);
+                    if (!holdBack) { Assert.Null(why); Assert.Equal(attackPlay, want); continue; }
+                    if (echelon == UnitEchelon.Company) { Assert.NotNull(why); Assert.Null(want); continue; }   // no company support-by-fire play: waits
+                    Assert.Null(why);
+                    Assert.Equal("PlatoonSupportByFire", want);
+                    string carried = OrderReissue.ParamsFor(want!, json, toStochastic: false);
+                    Assert.Contains("\"Position\"", carried);
+                    Assert.DoesNotContain("HoldBack", carried);
+                }
         }
     }
 }

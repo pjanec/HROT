@@ -87,8 +87,10 @@ public static class ViewReader
         bool culling = view.Mode == "2D" && world.IsComponentTypeRegistered<CullingState>();
         bool names = world.IsComponentTypeRegistered<EntityInfo>();
 
+        bool rounds = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>();
         foreach (var e in world.Query().With<SimTransform>().With<NetworkIdentity>().Build())
         {
+            if (rounds && world.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(e)) continue;   // ⭐ CE-11050 — every host's rounds carry a NetworkIdentity now: a round in flight is not a unit in view (it would fill the limit in a fight)
             var p = world.GetComponentRO<SimTransform>(e).Position;
             float distance;
             Vector2 screen;

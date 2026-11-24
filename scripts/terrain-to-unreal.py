@@ -430,6 +430,7 @@ def main():
                     help="pad to whole components of this many quads (default: 255 above 2 000 quads, 127 above 400, else 63)")
     ap.add_argument("--tree-spacing", type=float, default=8.0, help="metres between trees in our forests (8 ⇒ one per ~64 m²)")
     ap.add_argument("--look", action="store_true", help="also the look inputs: the cover mask, the tree scatter, the views (UL-10)")
+    ap.add_argument("--panels", default=None, help="U-20: hrot-building-panels output; template houses are built from HROT's panels")
     ap.add_argument("--no-pad", action="store_true", help="write the grid as it is (Unreal may resample it - UL-7)")
     a = ap.parse_args()
     import rasterio
@@ -497,7 +498,8 @@ def main():
         local = [{**f, "geometry": {"type": f["geometry"]["type"], "coordinates": _shift(f["geometry"]["coordinates"], -de, -dn)}} for f in feats]
         def lowest(r_):
             return min(float(z[int(np.clip(round((y - y0) / cell), 0, rows - 1)), int(np.clip(round((x - x0) / cell), 0, cols - 1))]) for x, y in r_)
-        look["buildingMeshes"] = tl.write_buildings(a.out, name, local, template, lowest, x0, y0)
+        panels = json.load(open(a.panels, encoding="utf-8")) if a.panels else None
+        look["buildingMeshes"] = tl.write_buildings(a.out, name, local, template, lowest, x0, y0, panels=panels)
     vec = {"type": "FeatureCollection", "name": name, "features": feats}
     if crs is not None:
         epsg = crs.to_epsg()

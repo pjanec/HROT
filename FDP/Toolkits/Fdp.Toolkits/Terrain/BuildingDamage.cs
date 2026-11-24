@@ -67,6 +67,41 @@ namespace Fdp.Toolkit.Terrain
         public fixed float Top[Capacity];
         public fixed byte Kind[Capacity];
 
+        /// <summary>
+        /// ⭐ <c>CE-11051</c> — WHEN the building collapsed, seconds of sim time (the clock the recorder and the gateway use, <c>SimClock.TotalTime</c>); 0 = not
+        /// collapsed, or collapsed in a SAVE this run loaded (no live change). Written by <see cref="BuildingDamageSystem"/> in the frame the record changed.
+        /// </summary>
+        public double CollapsedAt;
+        /// <summary>⭐ <c>CE-11051</c> — per breach: the sim time (s) it was made or last WIDENED (a merge that grew it); 0 = loaded from a save. A second
+        /// shell into the same hole changes nothing, so moves nothing. A fixed buffer holds no <see cref="SimInstant"/>; <see cref="MadeAtOf"/> types it.</summary>
+        public fixed double MadeAt[Capacity];
+        /// <summary>⭐ <c>CE-11051</c> — per breach: the BLAST POINT that made (or last widened) it — the detonation's world point, terrain-local metres (the frame
+        /// of <c>SimTransform</c>); for a hull's ram or a blade, the hull's centre. Meaningless when <see cref="MadeAt"/> is 0. Debris flies away from it.</summary>
+        public fixed float BlastX[Capacity];
+        public fixed float BlastY[Capacity];
+        public fixed float BlastZ[Capacity];
+
+        /// <summary>When breach <paramref name="i"/> was made or last widened (0 = from a save).</summary>
+        public readonly SimInstant MadeAtOf(int i)
+        {
+            if ((uint)i >= Capacity) throw new ArgumentOutOfRangeException(nameof(i));
+            return (SimInstant)MadeAt[i];
+        }
+
+        /// <summary>The blast point of breach <paramref name="i"/>.</summary>
+        public readonly System.Numerics.Vector3 BlastOf(int i)
+        {
+            if ((uint)i >= Capacity) throw new ArgumentOutOfRangeException(nameof(i));
+            return new System.Numerics.Vector3(BlastX[i], BlastY[i], BlastZ[i]);
+        }
+
+        /// <summary>Overwrites slot <paramref name="i"/>'s time and blast point.</summary>
+        public void SetStamp(int i, double at, System.Numerics.Vector3 blast)
+        {
+            if ((uint)i >= Capacity) throw new ArgumentOutOfRangeException(nameof(i));
+            MadeAt[i] = at; BlastX[i] = blast.X; BlastY[i] = blast.Y; BlastZ[i] = blast.Z;
+        }
+
         /// <summary>Breach <paramref name="i"/> (0 ≤ i &lt; <see cref="Count"/>).</summary>
         public readonly WallBreach Get(int i)
         {
@@ -104,7 +139,7 @@ namespace Fdp.Toolkit.Terrain
     }
 
     /// <summary>⭐ <c>CE-4391</c> S-1 — the one writer-side rule for a <see cref="BuildingDamage"/>'s list (B-4): merge overlapping, else append.</summary>
-    public static class BuildingDamages
+    public static unsafe class BuildingDamages
     {
         /// <summary>⭐ The TKB type of a building-damage entity (bare: the state travels on <see cref="BuildingDamage"/> / <c>dtBuildingDamage</c>).</summary>
         public const long TkbType = 7203;
@@ -138,16 +173,17 @@ namespace Fdp.Toolkit.Terrain
             if (nb >= 0)
             {
                 n.Collapsed = WallGroups.IsBuilding(to, nb) ? d.Collapsed : (byte)0;
+                n.CollapsedAt = n.Collapsed != 0 ? d.CollapsedAt : 0d;   // ⭐ CE-11051 — the stamps travel with what they stamp
                 int k = 0;
                 for (int i = 0; i < d.Count; i++)
                 {
                     var b = d.Get(i);
-                    if (BuildingPanelIndex.TryMapBreach(from, b, to, nb, out var m)) n.Set(k++, m);   // ⭐ CE-5012 — by rank, or by geometry for a re-drawn line (a gate)
+                    if (BuildingPanelIndex.TryMapBreach(from, b, to, nb, out var m)) { n.SetStamp(k, d.MadeAt[i], d.BlastOf(i)); n.Set(k++, m); }   // ⭐ CE-5012 — by rank, or by geometry for a re-drawn line (a gate)
                 }
                 n.Count = (byte)k;
             }
             bool changed = n.Building != d.Building || n.Collapsed != d.Collapsed || n.Count != d.Count;
-            for (int i = 0; !changed && i < n.Count; i++) changed = n.Get(i) != d.Get(i);
+            for (int i = 0; !changed && i < n.Count; i++) changed = n.Get(i) != d.Get(i) || n.MadeAt[i] != d.MadeAt[i];
             if (changed) d = n;
             return changed;
         }
@@ -184,11 +220,18 @@ namespace Fdp.Toolkit.Terrain
         /// nothing overlaps); the union's kind is re-decided from <paramref name="world"/> when it is given. ⭐ Atomic: on <see cref="BreachAdd.Full"/>
         /// or <see cref="BreachAdd.Unchanged"/> <paramref name="d"/> is left exactly as it was. Allocation-free.
         /// </summary>
-        public static BreachAdd Add(ref BuildingDamage d, in WallBreach b, TerrainWorld? world)
+        public static BreachAdd Add(ref BuildingDamage d, in WallBreach b, TerrainWorld? world) => Add(ref d, in b, world, 0d, default);
+
+        /// <summary>
+        /// ⭐ <c>CE-11051</c> — <see cref="Add(ref BuildingDamage, in WallBreach, TerrainWorld?)"/> that also STAMPS the breach it adds or widens: <paramref name="at"/>
+        /// (sim seconds) and <paramref name="blast"/> (the blast point). The breaches it does not touch keep their stamps; an unchanged list moves nothing.
+        /// </summary>
+        public static BreachAdd Add(ref BuildingDamage d, in WallBreach b, TerrainWorld? world, double at, System.Numerics.Vector3 blast)
         {
             int n = d.Count;
             Span<WallBreach> list = stackalloc WallBreach[BuildingDamage.Capacity + 1];
-            for (int i = 0; i < n; i++) list[i] = d.Get(i);
+            Span<int> from = stackalloc int[BuildingDamage.Capacity + 1];   // each kept entry's slot in d (its stamp moves with it)
+            for (int i = 0; i < n; i++) { list[i] = d.Get(i); from[i] = i; }
 
             var merged = b;
             bool absorbed = false;
@@ -200,7 +243,7 @@ namespace Fdp.Toolkit.Terrain
                     if (!list[i].Overlaps(merged)) continue;
                     var kind = (BreachKind)Math.Max((byte)list[i].Kind, (byte)merged.Kind);
                     merged = list[i].UnionWith(merged, kind);
-                    for (int k = i + 1; k < n; k++) list[k - 1] = list[k];   // keep the order of the rest
+                    for (int k = i + 1; k < n; k++) { list[k - 1] = list[k]; from[k - 1] = from[k]; }   // keep the order of the rest
                     n--;
                     absorbed = again = true;
                     break;
@@ -215,8 +258,18 @@ namespace Fdp.Toolkit.Terrain
                     if (d.Get(i) == merged && n == d.Count - 1) return BreachAdd.Unchanged;
 
             if (n >= BuildingDamage.Capacity) return BreachAdd.Full;
+            from[n] = -1;
             list[n++] = merged;
-            for (int i = 0; i < n; i++) d.Set(i, list[i]);
+            // the stamps of the kept entries move with them (read before any slot is overwritten); the new / widened one takes (at, blast)
+            Span<double> times = stackalloc double[BuildingDamage.Capacity + 1];
+            Span<System.Numerics.Vector3> blasts = stackalloc System.Numerics.Vector3[BuildingDamage.Capacity + 1];
+            for (int i = 0; i < n; i++)
+            {
+                times[i] = from[i] >= 0 ? d.MadeAt[from[i]] : at;
+                blasts[i] = from[i] >= 0 ? d.BlastOf(from[i]) : blast;
+            }
+            for (int i = 0; i < n; i++) { d.Set(i, list[i]); d.SetStamp(i, times[i], blasts[i]); }
+            for (int i = n; i < d.Count; i++) d.SetStamp(i, 0d, default);   // slots a merge freed hold no stale stamp
             d.Count = (byte)n;
             return absorbed ? BreachAdd.Merged : BreachAdd.Added;
         }

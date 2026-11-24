@@ -35,6 +35,12 @@ def finish(ok, why=""):
         unreal.EditorPythonScripting.set_keep_python_script_alive(False)
 
 
+def tname(base):
+    """U-19h (2026-11-23): an asset that holds ONE terrain's data (its cover / road masks, the ground and road materials reading them) is named
+    per terrain - a shared name let rebuilding one terrain's level overwrite the masks every other look level reads."""
+    return f"{base}_{JOB['terrain'].replace('-', '_')}"
+
+
 def eas():
     return unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
@@ -97,10 +103,10 @@ def step_sky():
 def step_ground_material():
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", JOB["cover"]); task.set_editor_property("destination_path", "/Game/Hrot")
-    task.set_editor_property("destination_name", "T_HrotCover"); task.set_editor_property("replace_existing", True)
+    task.set_editor_property("destination_name", tname("T_HrotCover")); task.set_editor_property("replace_existing", True)
     task.set_editor_property("automated", True); task.set_editor_property("save", True)
     ASSETS.import_asset_tasks([task])
-    tex = unreal.load_asset("/Game/Hrot/T_HrotCover")
+    tex = unreal.load_asset("/Game/Hrot/" + tname("T_HrotCover"))
     tex.set_editor_property("srgb", False)
     tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP)
     tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
@@ -110,16 +116,16 @@ def step_ground_material():
     if JOB.get("roads") and os.path.exists(JOB["roads"]):
         rt = unreal.AssetImportTask()
         rt.set_editor_property("filename", JOB["roads"]); rt.set_editor_property("destination_path", "/Game/Hrot")
-        rt.set_editor_property("destination_name", "T_HrotRoads"); rt.set_editor_property("replace_existing", True)
+        rt.set_editor_property("destination_name", tname("T_HrotRoads")); rt.set_editor_property("replace_existing", True)
         rt.set_editor_property("automated", True); rt.set_editor_property("save", True)
         ASSETS.import_asset_tasks([rt])
-        roads_tex = unreal.load_asset("/Game/Hrot/T_HrotRoads")
+        roads_tex = unreal.load_asset("/Game/Hrot/" + tname("T_HrotRoads"))
         roads_tex.set_editor_property("srgb", False)
         roads_tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)   # RGB: R asphalt, G dirt
         roads_tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
         roads_tex.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP); roads_tex.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
     state["roads_tex"] = roads_tex
-    m = fresh_asset("/Game/Hrot", "M_HrotGround", unreal.Material, unreal.MaterialFactoryNew())
+    m = fresh_asset("/Game/Hrot", tname("M_HrotGround"), unreal.Material, unreal.MaterialFactoryNew())
     E = lambda cls, x, y: MEL.create_material_expression(m, cls, x, y)
     def c3(rgb, x, y):
         e = E(unreal.MaterialExpressionConstant3Vector, x, y); e.set_editor_property("constant", unreal.LinearColor(*rgb, 1.0)); return e
@@ -302,19 +308,24 @@ def step_buildings():
     if not spec: return
     A = JOB.get("assets") or {}
     def two_sided_instance(name, parent_path):
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path("/Game/Hrot", name)):   # U-20: SHARED by every terrain - kept (git checks them out read-only)
+            return unreal.load_asset(asset_path("/Game/Hrot", name))
         mi = fresh_asset("/Game/Hrot", name, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
         mi.set_editor_property("parent", unreal.load_asset(parent_path))
         o = mi.get_editor_property("base_property_overrides")
         o.set_editor_property("override_two_sided", True); o.set_editor_property("two_sided", True)
         mi.set_editor_property("base_property_overrides", o)
         return mi
+    def flat_or_kept(name, rgb, rough):
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path("/Game/Hrot", name)): return unreal.load_asset(asset_path("/Game/Hrot", name))
+        return flat_material(name, rgb, rough)
     def surface_or(key, fallback_rgb, name):
         return two_sided_instance("MI_Hrot_" + name, A[key]["MI"]) if A.get(key) else flat_material("M_Hrot_" + name, fallback_rgb, 0.85)
     # the slots of terrain_look.py: plaster, old plaster, brick, red roof, dark roof, glass, frame, door
     mats = [surface_or("plaster", (0.55, 0.51, 0.45), "Plaster"), surface_or("oldPlaster", (0.50, 0.47, 0.42), "OldPlaster"),
             surface_or("brick", (0.36, 0.16, 0.11), "Brick"), surface_or("roofTiles", (0.30, 0.10, 0.06), "RoofRed"),
-            surface_or("roofDark", (0.16, 0.12, 0.10), "RoofDark"), flat_material("M_HrotGlass", (0.05, 0.065, 0.075), 0.02),
-            flat_material("M_HrotFrame", (0.75, 0.74, 0.70), 0.6), surface_or("wood", (0.25, 0.15, 0.08), "Door")]
+            surface_or("roofDark", (0.16, 0.12, 0.10), "RoofDark"), flat_or_kept("M_HrotGlass", (0.34, 0.40, 0.44), 0.04),
+            flat_or_kept("M_HrotFrame", (0.75, 0.74, 0.70), 0.6), surface_or("wood", (0.25, 0.15, 0.08), "Door")]
     n = 0
     for t in spec["tiles"]:
         a = unreal.HrotTerrainLibrary.build_mesh(os.path.join(JOB["exportDir"], t["file"]).replace("\\", "/"),
@@ -341,7 +352,7 @@ def road_material():
     """The road surface: our roads mask decides it per pixel — dirt where the mask's G (tracks, paths), dark fine gravel (asphalt-like)
     elsewhere — so the ONE mesh of lane ribbons (Sim.Scene builds tracks and streets alike) reads right everywhere."""
     A = JOB.get("assets") or {}
-    m = fresh_asset("/Game/Hrot", "M_HrotRoad", unreal.Material, unreal.MaterialFactoryNew())
+    m = fresh_asset("/Game/Hrot", tname("M_HrotRoad"), unreal.Material, unreal.MaterialFactoryNew())
     m.set_editor_property("two_sided", True)
     E = lambda cls, x, y: MEL.create_material_expression(m, cls, x, y)
     def link(a, b, pin, out=""): MEL.connect_material_expressions(a, out, b, pin)
