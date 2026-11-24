@@ -55,8 +55,17 @@ public:
 	/** a soldier's footstep at `Foot` (heard within 30 m): `Loud` 0..1, louder running */
 	void Step(const FVector& Foot, bool bRun, float Loud = 1.f);
 	/** the falloff for a sound of this reach (metres): full volume within `Inner`, gone at `Reach` */
-	/** a natural-sound falloff: full to Inner m, AtMaxDb at Reach m, silent beyond. Speech uses -30 (heard 2026-11-22: -60 left a shout silent at 35 m) */
-	USoundAttenuation* Falloff(float Inner, float Reach, float AtMaxDb = -60.f);
+	/** a falloff: full to Inner m, silent beyond Reach m. ⭐ U-19h (live 2026-11-23, "shots across the river sound as loud as close ones"):
+	 *  by default the INVERSE-DISTANCE law (-6 dB per doubling from Inner) as a custom curve — Unreal's NaturalSound is linear in dB over the
+	 *  whole falloff, so a 10 m / 1500 m rifle lost only 7.7 dB at 200 m (a real shot loses 26). bNatural keeps that curve with AtMaxDb at
+	 *  Reach: speech (-30, tuned by ear 2026-11-22: faint beyond 40 m) */
+	USoundAttenuation* Falloff(float Inner, float Reach, float AtMaxDb = -60.f, bool bNatural = false);
+	/** the inverse-distance gain (0..1) at Distance m: 1 within Inner, Inner / Distance beyond, 0 at and past Reach (pure, tested) */
+	static float InverseDistanceGain(float Distance, float Inner, float Reach)
+	{
+		if (Distance >= Reach) return 0.f;
+		return Distance <= Inner ? 1.f : Inner / Distance;
+	}
 	/** U-18q — a render job's soundtrack: every falloff attenuates (distance, LPF) but does NOT spatialize. ⚠ measured: on Unreal's
 	 *  non-real-time device every SPATIALIZED sound mixes to digital zero (Epic UE-381932, "spatialized audio … the MRQ audio file is silent";
 	 *  the platform reports an 8-speaker layout on a 2-channel device) while attenuated-only sounds play — so the film gets distance and
@@ -149,4 +158,9 @@ private:
 	struct FLoop { TWeakObjectPtr<UAudioComponent> C; bool bSeen = false; };
 	TMap<TWeakObjectPtr<UObject>, FLoop> Loops;
 	static EEngine EngineOf(const AHrotVehicle* V);
+	static EEngine EngineOfKit(const FString& KitName, const FString& Dis = FString());
+public:
+	/** U-19h 20: the engine class a kit name gets (Helicopter / Propeller / Jet / Tracked ...), for a rail */
+	static const TCHAR* EngineName(const FString& KitName, const FString& Dis = FString());
+private:
 };

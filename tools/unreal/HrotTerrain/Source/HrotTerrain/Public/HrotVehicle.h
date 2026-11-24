@@ -96,6 +96,8 @@ public:
 	AHrotVehicle();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TObjectPtr<UHrotVehicleKit> Kit;
+	/** the DIS (kind.domain.country.category ...) of the entity this body draws, "" for a traffic mover: the soundscape's engine voice reads it (U-19h 21) */
+	UPROPERTY(BlueprintReadWrite, Category = "HROT|Vehicle") FString Dis;
 
 	// ---- the STATE (HROT's): write the fields, then ApplyState — or call the setters --------------------------------------------
 	/** the turret's yaw relative to the hull, degrees (+ = to the left, Unreal's yaw) */

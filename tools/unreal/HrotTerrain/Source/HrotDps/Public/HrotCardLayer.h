@@ -59,8 +59,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Labels", meta = (WorldContext = "WorldContext"))
 	static bool ExportSymbolSheet(UObject* WorldContext, const FString& FilePath);
 
-	/** the billboard element's screen-space size for a texture of Px card pixels (exposed for the rail) */
-	static FVector2f ScreenSize(FIntPoint Px, float HorizontalFovDeg, FIntPoint ViewportPx);
+	/** the billboard element's (BaseSizeX = vertical, BaseSizeY = horizontal) size so a texture of TexPx pixels shows 1:1 on screen (exposed for the rail) */
+	static FVector2f BillboardSize(FIntPoint TexPx, float P00, float P11, FIntPoint ViewportPx);
 
 private:
 	UPROPERTY() TMap<int64, FHrotCardSlot> Slots;

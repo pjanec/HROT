@@ -10,6 +10,7 @@
 #include "Materials/MaterialInterface.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "NiagaraComponent.h"
 #include "Particles/ParticleSystem.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "Sound/SoundAttenuation.h"
@@ -105,14 +106,28 @@ bool UHrotExplosionFx::ExplodeWith(UObject* WorldContext, FVector Location, FVec
 		if (Snd && FVector::Dist(Location, R->ViewLocation()) < 6000.f)
 			R->PlaySound(Snd->Pick(TEXT("expl/debris_rattle")), Location, Snd->Falloff(5.f, 80.f), nullptr, 0.6f);
 	}
-	if (R && (FVector::Dist(Location, R->ViewLocation()) > R->BlastRange || !R->TakeBudget(UHrotShotRenderer::EExtra::Blast))) return false;
+	// U-19h (user, live 2026-11-23: "explosions should have visual always no matter how far - they are big and bright"): no distance limit
+	// (BlastRange 0 = none); only the per-second budget protects the frame
+	if (R && ((R->BlastRange > 0.f && FVector::Dist(Location, R->ViewLocation()) > R->BlastRange) || !R->TakeBudget(UHrotShotRenderer::EExtra::Blast))) return false;
 
 	const FRotator Up = FRotationMatrix::MakeFromZ(Normal.GetSafeNormal()).Rotator();   // the effect's up = the surface normal
+	// ... and seen from afar: the pack's systems drop LODs / cull with distance - a blast is drawn at its full LOD with no draw-distance cull
 	if (UParticleSystem* Cascade = Cast<UParticleSystem>(Fx))
-		UGameplayStatics::SpawnEmitterAtLocation(World, Cascade, Location, Up, FVector(EffectScale), true, EPSCPoolMethod::AutoRelease);
+	{
+		if (UParticleSystemComponent* C = UGameplayStatics::SpawnEmitterAtLocation(World, Cascade, Location, Up, FVector(EffectScale), true, EPSCPoolMethod::AutoRelease))
+		{
+			C->bOverrideLODMethod = true; C->LODMethod = PARTICLESYSTEMLODMETHOD_DirectSet; C->SetLODLevel(0);
+			C->LDMaxDrawDistance = 0.f; C->CachedMaxDrawDistance = 0.f;
+		}
+	}
 	else if (UNiagaraSystem* Niagara = Cast<UNiagaraSystem>(Fx))
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Niagara, Location, Up, FVector(EffectScale), true, true, ENCPoolMethod::AutoRelease);
-	static UMaterialInterface* Scorch = LoadObject<UMaterialInterface>(nullptr, ScorchMaterial);
+	{
+		if (UNiagaraComponent* C = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Niagara, Location, Up, FVector(EffectScale), true, true, ENCPoolMethod::AutoRelease))
+		{
+			C->LDMaxDrawDistance = 0.f; C->CachedMaxDrawDistance = 0.f;
+		}
+	}
+	static UMaterialInterface* Scorch = HrotLoadRooted<UMaterialInterface>(ScorchMaterial);   // rooted (a plain static dangles)
 	if (Scorch)   // the scorch stays two minutes (a decal per blast: budgeted with it)
 		UGameplayStatics::SpawnDecalAtLocation(World, Scorch, FVector(60.f, L.ScorchSize, L.ScorchSize), Location, (-Normal).Rotation(), 120.f);
 	return true;

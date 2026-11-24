@@ -147,11 +147,12 @@ USoundBase* UHrotSoundscape::ImpactFor(const FString& Material)
 	return nullptr;   // water and the rest: the default (Lyra's) hit
 }
 
-USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach, float AtMaxDb)
+USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach, float AtMaxDb, bool bNatural)
 {
+	const EAttenuationDistanceModel Model = bNatural ? EAttenuationDistanceModel::NaturalSound : EAttenuationDistanceModel::Custom;
 	for (USoundAttenuation* A : Falloffs)
 		if (FMath::IsNearlyEqual(A->Attenuation.AttenuationShapeExtents.X, Inner * 100.f) && FMath::IsNearlyEqual(A->Attenuation.FalloffDistance, (Reach - Inner) * 100.f)
-			&& FMath::IsNearlyEqual(A->Attenuation.dBAttenuationAtMax, AtMaxDb))
+			&& FMath::IsNearlyEqual(A->Attenuation.dBAttenuationAtMax, AtMaxDb) && A->Attenuation.DistanceAlgorithm == Model)
 			return A;
 	USoundAttenuation* A = NewObject<USoundAttenuation>(this);
 	FSoundAttenuationSettings& S = A->Attenuation;
@@ -160,8 +161,22 @@ USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach, float AtMa
 	S.AttenuationShape = EAttenuationShape::Sphere;
 	S.AttenuationShapeExtents = FVector(Inner * 100.f, 0, 0);
 	S.FalloffDistance = (Reach - Inner) * 100.f;
-	S.DistanceAlgorithm = EAttenuationDistanceModel::NaturalSound;
+	S.DistanceAlgorithm = Model;
 	S.dBAttenuationAtMax = AtMaxDb;
+	if (!bNatural)
+	{
+		// the custom curve's input is the distance past the inner sphere over FalloffDistance (0..1); keys log-spaced in distance so the
+		// steep near part is sampled densely (the curve is linear between keys)
+		FRichCurve& C = S.CustomAttenuationCurve.EditorCurveData;
+		C.Reset();
+		const int32 N = 24;
+		for (int32 I = 0; I <= N; ++I)
+		{
+			const float D = Inner * FMath::Pow(Reach / Inner, float(I) / N);   // Inner .. Reach, geometric
+			const float X = (D - Inner) / FMath::Max(1e-3f, Reach - Inner);
+			C.AddKey(X, InverseDistanceGain(I == N ? Reach : D, Inner, Reach));
+		}
+	}
 	S.bAttenuateWithLPF = true;
 	S.LPFRadiusMin = Inner * 300.f;
 	S.LPFRadiusMax = Reach * 100.f;
@@ -332,7 +347,34 @@ void UHrotSoundscape::MixBeds(float Dt)
 
 UHrotSoundscape::EEngine UHrotSoundscape::EngineOf(const AHrotVehicle* V)
 {
-	const FString K = V && V->Kit ? V->Kit->GetName() : FString();
+	return EngineOfKit(V && V->Kit ? V->Kit->GetName() : FString(), V ? V->Dis : FString());
+}
+
+const TCHAR* UHrotSoundscape::EngineName(const FString& KitName, const FString& Dis)
+{
+	switch (EngineOfKit(KitName, Dis))
+	{
+	case EEngine::Tracked: return TEXT("Tracked"); case EEngine::Heavy: return TEXT("Heavy"); case EEngine::Jeep: return TEXT("Jeep"); case EEngine::Light: return TEXT("Light");
+	case EEngine::Motorcycle: return TEXT("Motorcycle"); case EEngine::Helicopter: return TEXT("Helicopter"); case EEngine::Propeller: return TEXT("Propeller");
+	case EEngine::Jet: return TEXT("Jet"); case EEngine::Dragon: return TEXT("Dragon"); default: return TEXT("None");
+	}
+}
+
+UHrotSoundscape::EEngine UHrotSoundscape::EngineOfKit(const FString& K, const FString& Dis)
+{
+	// U-19h 21: the entity's own DIS decides first (a kit NAME is a guess: the F-16 kit stands in for the A-10 AND the F-16, a city car kit may be a van ...)
+	//   1.2.*.4 C-130 -> prop; 1.2.*.20 / 1.2.*.21 helicopters (AH-64, UH-60) -> rotor; any other aircraft (1.2.*) -> jet;
+	//   1.1.*.81..83 civilian road vehicles -> car; 1.1.*.6 HMMWV / the technicals' pickup -> jeep. Anything else: by the kit's name below.
+	{
+		TArray<FString> P; Dis.ParseIntoArray(P, TEXT("."));
+		if (P.Num() >= 4 && P[0] == TEXT("1"))
+		{
+			const int32 Cat = FCString::Atoi(*P[3]);
+			if (P[1] == TEXT("2")) return Cat == 4 ? EEngine::Propeller : (Cat == 20 || Cat == 21) ? EEngine::Helicopter : EEngine::Jet;
+			if (P[1] == TEXT("1") && Cat >= 81 && Cat <= 83) return EEngine::Light;
+			if (P[1] == TEXT("1") && Cat == 6) return EEngine::Jeep;
+		}
+	}
 	if (K.Contains(TEXT("Dragon"))) return EEngine::Dragon;
 	if (HasAny(K, { TEXT("Apache"), TEXT("OH1"), TEXT("Heli"), TEXT("Hind"), TEXT("Tiger"), TEXT("Puma") })) return EEngine::Helicopter;
 	if (HasAny(K, { TEXT("AC130"), TEXT("Prop"), TEXT("Cessna") })) return EEngine::Propeller;
@@ -416,6 +458,7 @@ void UHrotSoundscape::UpdateEngines(const FVector& At, float Dt, double Now)
 		}
 		if (V.Kind == EEngine::Jet)
 		{
+			// U-19h 20: the pass one-shot as before, and now a LOOP (veh/jet_idle) below - a jet used to have only the pass, every 15 s
 			if (Now >= V.NextFlap && FVector::DistSquared(P, At) < FMath::Square(90000.0) && V.Speed > 30.f)
 			{
 				V.NextFlap = Now + 15.0;
@@ -423,8 +466,6 @@ void UHrotSoundscape::UpdateEngines(const FVector& At, float Dt, double Now)
 					UGameplayStatics::SpawnSoundAttached(S, Root, NAME_None, FVector::ZeroVector, EAttachLocation::KeepRelativeOffset, false,
 					                                     EngineVolume, 1.f, 0.f, Falloff(150.f, 4000.f));
 			}
-			++EnginesPlaying;
-			continue;
 		}
 		const TCHAR* RunName = nullptr; const TCHAR* IdleName = nullptr;
 		float Base = 1.f, Top = 20.f, Inner = 8.f, Reach = EngineReach;
@@ -437,10 +478,11 @@ void UHrotSoundscape::UpdateEngines(const FVector& At, float Dt, double Now)
 		case EEngine::Motorcycle: RunName = TEXT("veh/moto_run"); IdleName = TEXT("veh/moto_idle"); Top = 25.f; Inner = 4.f; Reach = EngineReach * 0.6f; break;
 		case EEngine::Helicopter: RunName = TEXT("veh/heli"); IdleName = TEXT("veh/heli_idle"); Top = 1.f; Inner = 40.f; Reach = EngineReach * 4.f; break;
 		case EEngine::Propeller: RunName = TEXT("veh/plane_prop"); Top = 1.f; Inner = 60.f; Reach = EngineReach * 4.f; break;
+		case EEngine::Jet: RunName = TEXT("veh/jet_idle"); Top = 1.f; Inner = 150.f; Reach = EngineReach * 6.f; break;   // audible ~2.4 km
 		default: break;
 		}
 		const float Move = Sat((V.Speed - 0.5f) / 4.f);
-		const bool bAir = V.Kind == EEngine::Helicopter || V.Kind == EEngine::Propeller;
+		const bool bAir = V.Kind == EEngine::Helicopter || V.Kind == EEngine::Propeller || V.Kind == EEngine::Jet;
 		// a helicopter: the flight loop as it moves, the idle loop on the ground or hovering slowly
 		const float AirMove = Sat((V.Speed - 3.f) / 10.f);
 		const bool bHeli = V.Kind == EEngine::Helicopter;

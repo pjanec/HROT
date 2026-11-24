@@ -1,5 +1,6 @@
 // CE-4651 (U-17) — see the header.
 #include "HrotVehicle.h"
+#include "HrotRuntimeLibrary.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
 #include "Components/SkeletalMeshComponent.h"
@@ -199,7 +200,7 @@ void AHrotVehicle::ApplyState()
 
 	// ---- the damage look, only when it changes ----------------------------------------------------------------------------------
 	ClearDamageFx();
-	static UMaterialInterface* Burnt = Load<UMaterialInterface>(BurntMaterial);
+	static UMaterialInterface* Burnt = HrotLoadRooted<UMaterialInterface>(BurntMaterial);   // rooted: a plain static of an unrooted asset dangled once it was collected (crash in ApplyState, live 2026-11-23)
 	for (UStaticMeshComponent* C : PartComps)
 	{
 		if (!C) continue;
