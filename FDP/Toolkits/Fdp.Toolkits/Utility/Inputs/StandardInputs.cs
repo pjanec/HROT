@@ -68,6 +68,8 @@ namespace Fdp.Toolkit.Utility
         public const ushort AggressionDamp           = 0x9CDB;
         /// <summary>⭐ <c>CE-2271</c> (TS-5) — a stressed man's damping of advancing and suppressing (<see cref="StandardInputs.StressDamp"/>).</summary>
         public const ushort StressDamp               = 0x2023;
+        /// <summary>⭐ <c>CE-8325</c> — a trained man under a superior's order does not run on his own (<see cref="StandardInputs.UnderOrdersDamp"/>).</summary>
+        public const ushort UnderOrdersDamp          = 0x65BE;
     }
 
     /// <summary>
@@ -572,6 +574,24 @@ namespace Fdp.Toolkit.Utility
             return 1f - Math.Clamp(ctx.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self).Level, 0f, 1f);
         }
 
+        /// <summary>⭐ <c>CE-8325</c> (village-street-mg-flank) — a TRAINED man (Regular or better) carrying out a SUPERIOR's order does not
+        /// withdraw on his own (0): doctrine — a soldier hit but able to fight does self-aid and takes cover with his team; only his leader
+        /// orders a move back. 1 (no damping) for a man acting on his own (SOP, reaction, operator), an irregular (Militia, Untrained) or a
+        /// man whose stress BROKE him (<see cref="Fdp.Toolkit.Behavior.Components.Stress.Broken"/> — breaking is the stress model's, not this).
+        /// 📐 live: a Regular at 52 % health, ordered to his stack point at the gun house, chose Flee and walked 100 m back across open
+        /// gardens, stress 0, unfired at for 20 s.</summary>
+        [UtilityInput("UnderOrdersDamp")]
+        public static float UnderOrdersDamp(in UtilityInputCtx ctx)
+        {
+            var repo = ctx.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>()
+                || !repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(ctx.Self)
+                || repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(ctx.Self).Origin != Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior) return 1f;
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>() && repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self)
+                && repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self).Broken != 0) return 1f;
+            return Fdp.Toolkit.Behavior.Components.ProficiencyOf.Tier(repo, ctx.Self) >= Fdp.Toolkit.Behavior.Components.ProficiencyTier.Regular ? 0f : 1f;
+        }
+
         public static void RegisterAll()
         {
             UtilityInputReaderStore.Register(StandardInputIds.AmmoFraction,             &AmmoFraction);
@@ -602,6 +622,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.CautionDamp,              &CautionDamp);       // ⭐ CE-2271
             UtilityInputReaderStore.Register(StandardInputIds.AggressionDamp,           &AggressionDamp);
             UtilityInputReaderStore.Register(StandardInputIds.StressDamp,               &StressDamp);
+            UtilityInputReaderStore.Register(StandardInputIds.UnderOrdersDamp,          &UnderOrdersDamp);   // ⭐ CE-8325
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

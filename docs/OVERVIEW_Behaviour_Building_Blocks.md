@@ -137,7 +137,7 @@ graph TD
     I3["EQS: top score · result count"]
     I4["weapon: range fit · effectiveness vs armour · rounds left"]
     I5["squad: knows contact · strength ratio · assigned role"]
-    I6["MODIFIERS (damp only): CautionDamp · AggressionDamp · StressDamp"]
+    I6["MODIFIERS (damp only): CautionDamp · AggressionDamp · StressDamp · UnderOrdersDamp (CE-8325: a trained man under orders never flees on his own)"]
   end
   IN --> DEC
   DEC --> BT["BTree: ChooseOption + IsOption(n)<br/>in Parallel + ObserverSelector"]
