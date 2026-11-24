@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
-updated: 2026-11-24 (§5d the seat over aggregated units, CE-4685) · 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
+updated: 2026-11-24 (§5d.1 CE-4686 the four findings) · 2026-11-24 (§5d the seat over aggregated units, CE-4685) · 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
 build-state: BUILDING — L-1 (CE-4676) §5a · L-2 (CE-4679) §5a-2 · L-2b (CE-4680) §5b · L-3 on the cloud VM (CE-4681) §5a-3 · L-3a the briefing budget (CE-4683) §5a-4 · the duel §5a-5 — all BUILT by backend; the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); NEXT L-3c the decision contract (CE-4684, §5c), then L-3b (the real model on the user's laptop); L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
@@ -592,6 +592,42 @@ sequenceDiagram
 | A-4 | `llm-company-aggregated` (berlin; ⚠ inside BOTH grids — collider ±750 m and perception [0..1000]: 📌 the first placements put Red outside the perception grid and nobody could see it) — a seated company over three stochastic platoons, Red's squad 650 m south |
 | ⭐ found by A-4, fixed (cross-lane, the AGG lane's CE-8307) | `UnitRelayBehaviors.Relay` ended `Success` two frames after ordering — a child GIVEN the order is not `Busy` until its `BehaviorState` picks it up — and ending the relay cleared the children's fresh moves (*"StochasticUnitMove cleared by Superior"*). ⇒ every split platoon stopped where it split. Now a child given the order but not yet seen running is busy for `StartGraceSeconds` (3 s sim); a child that never starts still lets the relay end. Rail: `CE8307_ASplitPlatoonsMove_IsRelayedToEverySquad_ByKind_SameParams` (extended, red-proved) |
 | ⛔ not in this slice | a battalion seat over companies; the stochastic Recover row (`PlatoonAttackBehavior.cs:977` assigns `SquadRecover`, no stochastic row) — not reached in the run |
+
+#### 5d.1 ✅ As built — CE-4686, the four findings *(backend, `2026-11-24`; handoff `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates_2.md`; ① and ④ user-authorised cross-lane edits; the runs in `STATUS_Backend_LLM_Commander.md` §Aggregates 2)*
+
+```mermaid
+classDiagram
+    class CommanderFeedSystem {
+      -RolesOf(world, commander) IPlayRoles
+      -ReporterName(world, roster, netId)$ string
+    }
+    class OccurrenceSlotCatalog { <<existing, CE-2288>> +Read(world, unit, registry)$ slots (Boxed = the blackboard) }
+    class IPlayRoles { <<NEW, Hrot.AI.Behaviors>> +RoleOf(slot) string }
+    class CompanyAttackBlackboard { <<existing + IPlayRoles>> }
+    class PlatoonAttackBlackboard { <<existing + IPlayRoles>> }
+    class CompanyDefendBlackboard { <<existing + IPlayRoles>> }
+    class PlatoonDefendBlackboard { <<existing + IPlayRoles>> }
+    class StaffComposerSystem { <<existing>> +RelayGround() HQ-3b · FoldElement eviction }
+    class CommanderActionSystem { -TakesKind(world, seat, unit, kind) bool }
+    CommanderFeedSystem ..> OccurrenceSlotCatalog : the running task's slot
+    OccurrenceSlotCatalog ..> IPlayRoles : Boxed is
+    IPlayRoles <|.. CompanyAttackBlackboard
+    IPlayRoles <|.. PlatoonAttackBlackboard
+    IPlayRoles <|.. CompanyDefendBlackboard
+    IPlayRoles <|.. PlatoonDefendBlackboard
+    StaffComposerSystem ..> CommanderFeedSystem : the company's picture now holds relayed ground elements
+```
+
+*What the picture shows that the prose hid: no new reader was built — the roles come through the one read-only way into a running behaviour
+(`OccurrenceSlotCatalog`), and each play names its own roles; the seat never learns a play's layout.*
+
+| | as built |
+|---|---|
+| ① the company hears the enemy | the command chain's HQ-3b (`DESIGN_Command_Chain_Example.md` §8d): a commander of units relays its subordinates' ground SPOTs up (≤ 2 groups, own age) and a full picture keeps its support elements. The seat's snapshot names an element's SOURCE: `enemy 4 (Team), … reported by 2nd Platoon` (json `reportedBy`), next to its age |
+| ② the roles | `IPlayRoles.RoleOf(slot)` on the four role-giving plays' blackboards (`PlatoonAttack`, `CompanyAttack`, `PlatoonDefend`, `CompanyDefend` — read-only, the play unchanged); the snapshot reads the running task's blackboard once per snapshot and shows `role assault / base of fire / reserve … in your company's Attack` per unit (json `role`); both prefixes say a role's orders are the whole unit's order's, not a mistake to undo |
+| ③ SupportByFire | ROOT CAUSE (claim table in the report): the base of fire was told to STAND on the decision's objective (Red's position — with HoldBack the Position is where it stands, CE-8302) and a physical platoon has no hold-back Attack play (R-8392). Now `support_at` is where it stands (else the objective) and the objective what it fires at; the form is the subordinate's: a physical platoon gets the KIND SupportByFire (`PlatoonSupportByFire` {Position, Post1}); a squad (the kind resolves to nothing — its play is named plain `SupportByFire`) or a stochastic unit (the generic attack reads only `HoldBack`) keeps Attack + HoldBack at the stand point. The prefix says what objective / support_at mean per order |
+| ④ Bound | the whole unit's Bound sends the neutral `BoundOrder { Position, SupportPoint }` (`DESIGN_Orders_Params_Entity_Classes.md` §16) |
+| ⚠ not done | a stochastic platoon on a hold-back Attack still does not split automatically (R-8392's "the switch waits" — by design; its physical play would be `PlatoonSupportByFire`, a ruling for the AGG lane / the user) · a whole unit's Attack takes no support position (the plays pick their own base of fire) — the prefix says so |
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 

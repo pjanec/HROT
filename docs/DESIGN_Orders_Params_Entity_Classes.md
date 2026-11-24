@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (§13 finishing the params story — measured, leans await the user)
+updated: 2026-11-24 (§16 the neutral Bound order, CE-4686 ④) · 2026-10-13 (§13 finishing the params story — measured, leans await the user)
 build-state: BUILDING — §5a records each task as built (CE-2145 ✅, CE-2131 ✅, CE-2132 ✅, CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2143, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
 current-answer: ⭐ §14 CE-4350 the behaviour filter by class (2026-11-08) · §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane · §13.12 P5b the order form (ui, CE-1059)
 stale-below: nothing
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
 related-designs:
+  - designs/llm-commander/DESIGN_LLM_Commander.md — the LLM commander seat: its whole-unit Bound is the first sender of §16's BoundOrder
+  - designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md — OWNS the neutral-DTO rule R-8300 (§23.5); §16 adds the kind Bound on it
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the new class `TwinEngineFighter` (the MiG, DIS 1.2.*.1.<sub>)
   - docs/UX/DESIGN_Mission_Plan_Editor.md — puts ORDERS into mission plans (a task = an order kind, resolved by the receiver's class at task start)
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13a: the first READER of a squad's sector area (R-2003): the platoon creates one per squad, the squad splits it into member arcs, NoFire areas looked up through the chain of command
@@ -2886,3 +2888,52 @@ graph TD
 | **R-2088** | ⭐ `CurrentOrder` is **DERIVED** (`CurrentOrders.Of`: the running task when its origin is Superior / Operator, else the paused task's when it is), not a second component "written on acceptance, cleared on the end" as R-D11 worded it; only the order's **request id** is stored, beside the start record and the paused task | the slot already owns what runs, who started it and what a reaction paused; a second copy would have to be kept in step on every start, pause, resume, restart, drop and clear path of a 1 933-line ingress — CLAUDE.md "one owner per piece of state" |
 | **R-2089** | ⭐ a behaviour's kind = `[Behavior(Fulfils = "<OrderKind>")]` if declared, else its params DTO's `[Order]` name; `Fulfils` names an `OrderKind` member or the load FAILS | the name rule O2 already gives every `<Class><K>` its kind through the DTO; a concrete play (`SquadDefend`) declares the kind it fulfils in one place — never inferred from its name |
 | **R-2090** | ⭐⭐ an order's identity is its **`RequestId`** — the edit framework's existing id (CE-4306 F5), ONE id, never a second (🔒 user, `2026-11-14`: *"why order id when we have request id?"* · *"isnt request id unique enough? what for order id?"*). A station mints it as today (`Guid.NewGuid`); a COMMANDER now mints one for every order (`RequestIds.For(issuer, run, member, now)`, deterministic — no shared counter or RNG); an order that arrives without one (a mission phase, a direct assign) gets `RequestIds.ForStart(entity, instance)`; a non-order start (SOP, reaction, self) has none. The task keeps it (`BehaviorStartRecord`, `PausedTask`, the commander's `SubordinateOrders` entry); it already crosses the wire. ⭐ The outcome reply (`InteractionOutcomes`) goes to every request a STATION made, as before (any origin — `F5_ARefusedOrder_AnswersRefused_WithTheGatesWords`), never to an id minted here: `RequestIds` stamps its Guids **UUIDv8** (RFC 9562's vendor-specific version; a station's `Guid.NewGuid` is v4), and `RequestIds.IsMinted` gates the reply — a superior's order is answered by its subordinates' reports, a resumed task was answered already | ⛔ SUPERSEDED the same day: a separate `uint OrderId` beside it — the user's question showed it was a second identity for one order. The obstacle was only the reply side effect (a non-empty id sends an `EditOutcome`, `InteractionOutcomes.cs:15-24`) — gated by origin instead |
+## 16. CE-4686 ④ — the neutral BOUND order *(backend, `2026-11-24`; a user-authorised cross-lane edit — user: *"feel free to give the aggregated unit behavior to the backend (all 4)"*; build-state: BUILT `2026-11-24`)*
+
+```mermaid
+classDiagram
+    class BoundOrder {
+      <<NEW, Order Bound>>
+      +PointLink Position
+      +PointLink SupportPoint
+      +float Speed
+    }
+    class PlatoonBoundParamsJsonDto {
+      <<existing, + Position>>
+      +PointLink SupportPoint
+      +PointLink Objective
+      +PointLink Position
+    }
+    class BoundingOverwatchParamsJsonDto {
+      <<existing, + Position, SupportPoint>>
+      +PointLink Objective
+      +PointLink Position
+      +PointLink SupportPoint unused at a squad
+    }
+    class AttackOrder {
+      <<existing, the stochastic generic attack reads it>>
+      +PointLink Position
+      +bool HoldBack
+    }
+    class ResolutionRoutingTable {
+      <<existing>>
+      +Bound stochastic: StochasticUnitAttack
+      +Bound physical platoon: PlatoonBound
+    }
+    ResolutionRoutingTable ..> AttackOrder : routes a stochastic Bound
+    BoundOrder ..> PlatoonBoundParamsJsonDto : read strictly (R-8300 rail)
+    BoundOrder ..> BoundingOverwatchParamsJsonDto : read strictly (R-8300 rail)
+    BoundOrder ..> AttackOrder : Position projected (OrderReissue.Project)
+```
+
+*What the picture shows that the prose hid: the neutral Bound names its place `Position`, as Attack and Defend do — the one name the stochastic
+generic attack (where the table routes a stochastic unit's Bound) already reads, so ONE order means the same to a physical and a stochastic subordinate.*
+
+| | as built |
+|---|---|
+| the DTO | `BoundOrder { Position, SupportPoint, Speed }` (`Orders/OrderDtos.cs`) — the kind's ONE neutral DTO, on the R-8300 pattern of `DefendOrder` / `BreakContactOrder` (`docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md` §23.5) |
+| the plays | `PlatoonBound` and `BoundingOverwatch` accept every field strictly (the R-8300 contract rail now walks the Bound pairs) and read `Position` as the objective when `Objective` is unset; `PlatoonBound` with NO support point sets its cover AT the objective (⛔ before: (0, 0) — the commanders always filled it) |
+| the first sender | the LLM commander's whole-unit Bound (`CommanderActionSystem.RunPlay`) — ⛔ it sent `PlatoonBound`'s own `{SupportPoint, Objective}` |
+| rail | `BehaviorParamsValidationTests.CE4686_OneBoundOrder_MeansTheSameToAPhysicalAndAStochasticSubordinate` (red-proved) |
+| ⚠ not done | the order MENU: `OrderMenu.OfferedFor` offers an `[Order]` kind only where the `<Class><Order>` name rule resolves it (§14) — `InfantryPlatoonBound` does not exist, so the menu's offer is unchanged; the platoon's Bound reaches it through the routing table's fallback row |
+

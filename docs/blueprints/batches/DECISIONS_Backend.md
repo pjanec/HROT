@@ -35,6 +35,19 @@ settings at editing time … My desire is simplicity and consistency."*
 | why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
 | next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
 
+## CE-4686 — the four findings of the LLM commander over aggregated units: lane decisions TAKEN · `2026-11-24` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ① ⭐ **HQ-3 AMENDED (HQ-3b)**: a commander of UNITS (its roster holds commanders or stochastic units) relays its picture's fresh GROUND elements up one level — grouped (50 m), the freshest speaking with its own age, ≤ 2 groups per sender, refreshed on a 25 m move or every 15 s | the company heard no infantry at all; HQ-3's reason (an HQ's 8 slots filling with infantry) is kept by the bound and by #2. ⚠ `CE2310_…` now expects the rifles relayed — the amendment, not a regression |
+| 2 | ① a FULL picture evicts an unflagged element before any IndirectFire / AirDefence one; a ground report never pushes a support element out | protects every superior alike — no class says "this is a support HQ" |
+| 3 | ① the criterion "commands units" (a live roster member is a commander or a stochastic unit), not "has no SquadCognitiveState" | a platoon's leader entity may carry a cognitive state with an empty pool; what has no eyes is a commander of commanders |
+| 4 | ② roles through a READ-ONLY interface on the plays' blackboards (`IPlayRoles`), read via `OccurrenceSlotCatalog` | the one way into a running behaviour already exists; each play names its own roles, the seat never learns a layout. A cross-lane, additive edit of four plays |
+| 5 | ③ a subordinate's SupportByFire: `support_at` = where it stands, the objective = what it fires at; a physical platoon gets the KIND (`PlatoonSupportByFire`), a squad or a stochastic unit keeps Attack + HoldBack | measured: the kind resolves to nothing for a squad and to the HoldBack-reading generic attack for a stochastic unit |
+| 6 | ③ ⛔ NOT changed: R-8392 — a stochastic platoon on a hold-back Attack still does not split automatically | a ruling of the AGG lane ("the switch waits"); its physical play would now be `PlatoonSupportByFire` — for the user / the AGG lane, noted in §5d.1 |
+| 7 | ④ `BoundOrder { Position, SupportPoint, Speed }` — the place is `Position` (as Attack / Defend), not `Objective` | the stochastic generic attack (the table's Bound row for a stochastic unit) already reads `Position`; the physical Bound plays accept it and read it when `Objective` is unset |
+| 8 | ④ `PlatoonBound` with no support point sets its cover AT the objective | the commanders always filled it; an unset field sent the cover to (0, 0) |
+
 ## CE-4685 — the LLM commander over AGGREGATED units: lane decisions TAKEN · `2026-11-24` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |
