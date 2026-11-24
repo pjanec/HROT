@@ -1,0 +1,183 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · HANDOFF_User_To_Behaviors_Village_Street_Fight.md — the street fight on the REAL town geometry (village-street): the same chain and REALISM rows as pc-corridor-fight (wide-corridor), judged on real streets, gardens, side streets and trees. Conditions only, no golden.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Red defends (PlatoonDefend)",
+      "on": "task",
+      "who": "Red Platoon",
+      "is": "PlatoonDefend",
+      "before": 5
+    },
+    {
+      "name": "Blue attacks (PlatoonAttack)",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonAttack",
+      "before": 5
+    },
+    {
+      "name": "Red opens fire",
+      "on": "shot",
+      "by": "*Red"
+    },
+    {
+      "name": "Blue fires back",
+      "on": "shot",
+      "by": "*Blue",
+      "before": 120
+    },
+    {
+      "name": "a Red man is hit (so the dead-man row is not vacuous)",
+      "on": "shot",
+      "by": "*Blue",
+      "hit": "*Red"
+    },
+    {
+      "name": "a Blue man is hit",
+      "on": "shot",
+      "by": "*Red",
+      "hit": "*Blue"
+    },
+    {
+      "name": "REALISM Red Squad 1's line is in cover within its first minute (no two men in the open)",
+      "never": {
+        "on": "cover",
+        "who": "*Red Squad 1 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "atLeast:2"
+      },
+      "after": 60
+    },
+    {
+      "name": "REALISM Red Squad 2's line is in cover within its first minute (no two men in the open)",
+      "never": {
+        "on": "cover",
+        "who": "*Red Squad 2 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "atLeast:2"
+      },
+      "after": 60
+    },
+    {
+      "name": "REALISM Blue Squad 1 never stands wholly in the open after 90 s",
+      "never": {
+        "on": "cover",
+        "who": "*Blue Squad 1 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "all",
+        "upright": true
+      },
+      "after": 90
+    },
+    {
+      "name": "REALISM Blue Squad 2 never stands wholly in the open after 90 s",
+      "never": {
+        "on": "cover",
+        "who": "*Blue Squad 2 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "all",
+        "upright": true
+      },
+      "after": 90
+    },
+    {
+      "name": "REALISM Blue Squad 3 never stands wholly in the open after 90 s",
+      "never": {
+        "on": "cover",
+        "who": "*Blue Squad 3 ",
+        "is": "open",
+        "m": 3,
+        "quantifier": "all",
+        "upright": true
+      },
+      "after": 90
+    },
+    {
+      "name": "REALISM Red Squad 1 never bunches (every man within 2 m of its centre) after 30 s",
+      "never": {
+        "on": "bunched",
+        "who": "*Red Squad 1 ",
+        "m": 2
+      },
+      "after": 30
+    },
+    {
+      "name": "REALISM Red Squad 2 never bunches (every man within 2 m of its centre) after 30 s",
+      "never": {
+        "on": "bunched",
+        "who": "*Red Squad 2 ",
+        "m": 2
+      },
+      "after": 30
+    },
+    {
+      "name": "REALISM Red Reserve never bunches (every man within 2 m of its centre) after 30 s",
+      "never": {
+        "on": "bunched",
+        "who": "*Red Reserve ",
+        "m": 2
+      },
+      "after": 30
+    },
+    {
+      "name": "REALISM Blue Squad 1 never bunches (every man within 2 m of its centre) after 30 s",
+      "never": {
+        "on": "bunched",
+        "who": "*Blue Squad 1 ",
+        "m": 2
+      },
+      "after": 30
+    },
+    {
+      "name": "REALISM Blue Squad 2 never bunches (every man within 2 m of its centre) after 30 s",
+      "never": {
+        "on": "bunched",
+        "who": "*Blue Squad 2 ",
+        "m": 2
+      },
+      "after": 30
+    },
+    {
+      "name": "REALISM Blue Squad 3 never bunches (every man within 2 m of its centre) after 30 s",
+      "never": {
+        "on": "bunched",
+        "who": "*Blue Squad 3 ",
+        "m": 2
+      },
+      "after": 30
+    },
+    {
+      "name": "REALISM a dead man runs no behaviour",
+      "never": {
+        "on": "field",
+        "who": "*",
+        "dead": true,
+        "path": "BehaviorState.ActiveBehaviorHash",
+        "op": "!=",
+        "value": 0
+      }
+    },
+    {
+      "name": "no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue",
+        "hit": "*Blue"
+      }
+    },
+    {
+      "name": "no Red round hits a Red man",
+      "never": {
+        "on": "shot",
+        "by": "*Red",
+        "hit": "*Red"
+      }
+    }
+  ]
+}
