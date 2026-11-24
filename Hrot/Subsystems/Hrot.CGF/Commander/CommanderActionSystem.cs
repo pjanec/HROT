@@ -358,10 +358,11 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
     /// </summary>
     private static string? RunPlay(EntityRepository world, SeatRuntime seat, CommanderAction a)
     {
-        string? play = Array.Find(Plays, p => p.Equals(a.Order, StringComparison.OrdinalIgnoreCase));
-        if (play == null) return $"'{a.Order}' is not a play — {string.Join(", ", Plays)}";
+        // ⭐ CE-4685 A-2 — the plays HIS class runs (a company: CompanyAttack / CompanyDefend)
+        string? play = Array.Find(seat.Plays, p => p.Equals(a.Order, StringComparison.OrdinalIgnoreCase));
+        if (play == null) return $"'{a.Order}' is not a play of a {seat.Echelon} — {string.Join(", ", seat.Plays)}";
         string json = "{}";
-        if (play != BehaviorNames.PlatoonHold)
+        if (!play.EndsWith("Hold", StringComparison.Ordinal))
         {
             if (seat.Places.Resolve(a.Where, out string? why) is not { } at) return why ?? "the play needs a place (where)";
             string p = Point(at);

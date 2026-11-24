@@ -48,7 +48,7 @@ namespace Hrot.SimHost.Tests
             /// <summary>⭐ CE-4679 — the node bus the hold's pause / resume ride (null = the world's bus).</summary>
             public readonly Fdp.Core.FdpEventBus? ClockBus;
 
-            public Seated(IMind mind, int squads = 2, Fdp.Core.FdpEventBus? clockBus = null)
+            public Seated(IMind mind, int squads = 2, Fdp.Core.FdpEventBus? clockBus = null, Func<string, bool>? isBehaviour = null, Action<Seated>? before = null)
             {
                 ClockBus = clockBus;
                 P = new Platoon(squads);
@@ -64,7 +64,8 @@ namespace Hrot.SimHost.Tests
                 Place("start", 0, 0);
                 Repo.AddComponent(P.S.Commander, new CommanderSeat { Mind = CommanderMind.Scripted, Mode = CommanderMode.ThinkPause });
                 Seats.MindFor = _ => mind;
-                Feed = new CommanderFeedSystem(Seats);
+                before?.Invoke(this);   // ⭐ CE-4685 — what the seat must see when it opens (its class, its units' classes)
+                Feed = new CommanderFeedSystem(Seats, isBehaviour: isBehaviour);
                 Act = new CommanderActionSystem(Seats, clockBus);
                 Watch = new CommanderWatchSystem(Seats);
             }

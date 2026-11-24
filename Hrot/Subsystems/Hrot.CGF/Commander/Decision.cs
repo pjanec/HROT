@@ -47,7 +47,20 @@ public interface IDecisionMind
 }
 
 /// <summary>⭐ <c>CE-4684</c> C-6 — the ids a seat's decision may use: himself (for a play), his squads, his side's places. Nothing else is a position.</summary>
-public sealed record SeatVocabulary(string Self, IReadOnlyList<string> Units, IReadOnlyList<string> Places);
+public sealed record SeatVocabulary(string Self, IReadOnlyList<string> Units, IReadOnlyList<string> Places)
+{
+    /// <summary>⭐ CE-4685 A-2 — the plays the commander's class runs (a company: CompanyAttack / CompanyDefend); the platoon four by default.</summary>
+    public IReadOnlyList<string> Plays { get; init; } = CommanderActionSystem.Plays;
+
+    /// <summary>The decision's tasks for this seat: the order kinds, his plays, CONTINUE.</summary>
+    public string[] Tasks()
+    {
+        var l = new List<string>(CommanderActionSystem.Orders);
+        l.AddRange(Plays);
+        l.Add(DecisionContract.Continue);
+        return l.ToArray();
+    }
+}
 
 /// <summary>
 /// ⭐⭐ <c>CE-4684</c> (DESIGN_LLM_Commander §5c C-1, C-6) — the decision contract: the JSON schema a chat model's output is decoded against (Ollama's
@@ -104,7 +117,7 @@ public static class DecisionContract
             var props = new JsonObject
             {
                 ["unit"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(units) },
-                ["task"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(Tasks) },
+                ["task"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(v.Tasks()) },
                 ["objective"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(v.Places) },
                 ["support_at"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(v.Places) },
             };
@@ -193,7 +206,7 @@ public static class DecisionContract
         bool play = false, squadOrder = false;
         foreach (var uo in orders)
         {
-            if (Array.IndexOf(CommanderActionSystem.Plays, uo.Task) >= 0 && (uo.Start == null || uo.Start.On == ConditionOn.Immediate)) play = true;
+            if (Contains(v.Plays, uo.Task) && (uo.Start == null || uo.Start.On == ConditionOn.Immediate)) play = true;
             else if (uo.Unit != v.Self && uo.Task != Continue && (uo.Start == null || uo.Start.On == ConditionOn.Immediate)) squadOrder = true;
         }
         if (play && squadOrder) problems.Add("orders give a play AND a squad order now — a squad order ENDS the play: give the squads CONTINUE (the play orders them), or no play");
@@ -240,14 +253,14 @@ public static class DecisionContract
             if (arr[k] is not JsonObject o) { problems.Add($"{at} is not an object"); continue; }
             string unit = S(o["unit"]), task = S(o["task"]);
             string? objective = Opt(o["objective"]), supportAt = Opt(o["support_at"]);
-            bool isPlay = Array.IndexOf(CommanderActionSystem.Plays, task) >= 0;
+            bool isPlay = Contains(v.Plays, task);
             bool isOrder = Array.IndexOf(CommanderActionSystem.Orders, task) >= 0;
             if (!IsUnit(v, unit, self: true)) { problems.Add($"{at}.unit '{unit}' is not one of {List(v.Self, v.Units)}"); continue; }
             if (!seen.Add(unit)) problems.Add($"{at}: {unit} has two orders in one list — one each");
-            if (!isPlay && !isOrder && task != Continue) { problems.Add($"{at}.task '{task}' is not one of {string.Join(", ", Tasks)}"); continue; }
+            if (!isPlay && !isOrder && task != Continue) { problems.Add($"{at}.task '{task}' is not one of {string.Join(", ", v.Tasks())}"); continue; }
             if (isPlay && unit != v.Self) problems.Add($"{at}: {task} is a play — the platoon's own task, so unit must be '{v.Self}', not {unit}");
             if (isOrder && unit == v.Self) problems.Add($"{at}: {task} is a squad's task — unit must be one of {string.Join(", ", v.Units)}");
-            bool needsPlace = task is not (Continue or "Hold") && task != "PlatoonHold";
+            bool needsPlace = task is not (Continue or "Hold") && !task.EndsWith("Hold", StringComparison.Ordinal);
             if (needsPlace && objective == null) problems.Add($"{at}.objective is missing — {task} needs a place id");
             if (objective != null && !Has(v.Places, objective)) problems.Add($"{at}.objective '{objective}' is not a place id: {string.Join(", ", v.Places)}");
             if (supportAt != null && !Has(v.Places, supportAt)) problems.Add($"{at}.support_at '{supportAt}' is not a place id: {string.Join(", ", v.Places)}");
@@ -298,6 +311,12 @@ public static class DecisionContract
         int nl = s.IndexOf('\n');
         int end = s.LastIndexOf("```", StringComparison.Ordinal);
         return nl > 0 && end > nl ? s.Substring(nl + 1, end - nl - 1) : s;
+    }
+
+    private static bool Contains(IReadOnlyList<string> list, string s)
+    {
+        for (int i = 0; i < list.Count; i++) if (string.Equals(list[i], s, StringComparison.Ordinal)) return true;
+        return false;
     }
 
     private static bool IsUnit(SeatVocabulary v, string? unit, bool self) => unit != null && ((self && unit == v.Self) || Has(v.Units, unit));

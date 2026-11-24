@@ -20,6 +20,7 @@ public sealed class ScriptedMind : IMind
     private readonly List<string> _squads = new();
     private bool _started, _broken;
     private string? _attacking;
+    private string _attackPlay = "PlatoonAttack";   // ⭐ CE-4685 A-2 — read from the snapshot's plays (a company: CompanyAttack)
     private Vector2 _attackAt;
 
     public ScriptedMind(string advanceTo = "objective", string supportAt = "support", string fallBackTo = "start")
@@ -47,6 +48,9 @@ public sealed class ScriptedMind : IMind
             {
                 case FeedKind.Snapshot:
                     ReadSquads(j);
+                    if (j["plays"] is JsonArray plays)
+                        foreach (var p in plays)
+                            if ((string?)p is { } name && name.EndsWith("Attack", StringComparison.Ordinal)) { _attackPlay = name; break; }
                     if (!_started)
                     {
                         _started = true;
@@ -86,7 +90,7 @@ public sealed class ScriptedMind : IMind
         {
             _attacking = "the platoon";
             _attackAt = enemy;
-            actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: place));
+            actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: _attackPlay, Where: place));   // ⭐ CE-4685 — his class's attack play
             return;
         }
         string? nearest = null;
