@@ -214,7 +214,7 @@ namespace Hrot.Map.Definitions.Tkb
                     FiringAudibleRange = 1000f, FiringClass = SoundSourceClass.HeavyWeapon,
                 } })
                 .WithFaction(type, 2)
-                .WithBehavior(type)
+                .WithBehavior(type, weapon != 0 ? Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop : null)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired) — a bare pickup stays inert
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = 6 });   // 1.1.*.6 small wheeled utility vehicle
         }
 
@@ -715,7 +715,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithTurrets(type, new TurretDto { PivotX = -1.5f, PivotZ = 2.6f, TrunnionX = 0.4f,
                     ElevationMinDeg = 0f, ElevationMaxDeg = 85f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 40f })
                 .WithFaction(type, 2)
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — the radar SAM engages aircraft by default
                 .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine, LauncherReport))
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 28, Subcategory = 1 });
         }
@@ -759,7 +759,7 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(type, 1)
                 .WithCarrier(type, HmmwvSeats(crewed))   // ⭐ CE-2151 three passengers; ⭐ ui P1 + the roof ring; ⭐ 2026-10-31 a driver seat a player can take
-                .WithBehavior(type)
+                .WithBehavior(type, crewed ? Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop : null)   // ⭐ CE-8318 — the crewed HMMWV (its roof M2 manned) fights by default
                 .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine))   // ⭐ CE-3281 — its M2 reports as its own weapon system
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
         }
@@ -1029,7 +1029,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithTurrets(TkbEntityTypes.Tank_M1Abrams, new TurretDto { PivotX = -0.55f, PivotZ = 1.9f, TrunnionX = 1.65f,
                     ElevationMinDeg = -10f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 10f })
                 .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
-                .WithBehavior(TkbEntityTypes.Tank_M1Abrams)
+                .WithBehavior(TkbEntityTypes.Tank_M1Abrams, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired)
                 .WithSignatures(TkbEntityTypes.Tank_M1Abrams, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, TankGunReport))   // ⭐ CE-3281
                 .WithDisType(TkbEntityTypes.Tank_M1Abrams, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1 });
             
@@ -1086,7 +1086,7 @@ namespace Hrot.Map.Definitions.Tkb
                     ElevationMinDeg = -10f, ElevationMaxDeg = 60f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 30f })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
                 .WithCarrier(TkbEntityTypes.IFV_Bradley, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(6))   // ⭐ CE-2151 — six dismounts; the crew stay abstract (R-2009 B5)
-                .WithBehavior(TkbEntityTypes.IFV_Bradley)
+                .WithBehavior(TkbEntityTypes.IFV_Bradley, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired)
                 .WithSignatures(TkbEntityTypes.IFV_Bradley, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, CannonReport))   // ⭐ CE-3281 — the 25 mm as the catalogue's autocannon
                 .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 2 });
             
@@ -1151,7 +1151,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = -0.3f, PivotZ = 1.75f, TrunnionX = 1.2f,
                     ElevationMinDeg = -6f, ElevationMaxDeg = 14f, TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 6f })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
-                .WithBehavior(TkbEntityTypes.Tank_T72)
+                .WithBehavior(TkbEntityTypes.Tank_T72, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired)
                 .WithSignatures(TkbEntityTypes.Tank_T72, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, TankGunReport))   // ⭐ CE-3281
                 .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 1 });
 
