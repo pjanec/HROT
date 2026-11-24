@@ -1001,6 +1001,7 @@ namespace Hrot.UI.Common.Map3D.Director
             // ⭐ CE-1303 P2b — CR-11 (§11o S9): the subtitle of this source second, to the cinema every frame (its text is also what a capture burns in)
             _subNow = TakeSubtitles.At(_subs, a => _book!.TimeOf(a), rel);
             _cinema.Subtitle(_subNow);
+            FilmStudio.Caption = _subNow;   // ⭐ CE-11035 (R-11015, §3.4) — the same subtitle, for a live client (the suggested camera's caption)
             // ⭐ CE-1305 P6 (§11t G2) — the film graphics of this source second, their units read now: to the map's screen pass every frame (a capture burns the same in)
             if (mode != DirectorMode.Plan)
             {

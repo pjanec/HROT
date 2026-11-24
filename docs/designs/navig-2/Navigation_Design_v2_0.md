@@ -913,7 +913,7 @@ re-plans to the destination itself. Vehicles everywhere and SimHost infantry fol
 
 | # | ⭐ lean | rejected (one line each) |
 |---|---|---|
-| **D1** | **`RoadUse` per request**, a byte enum: `Default`, `Never` (sneak), `Neutral` (×1.0), `Prefer` (×0.5), `StronglyPrefer` (×0.25 — convoy). On `MoveToParams`/`PlanRouteParams` → `NavigationIntent` → the wire intent → `PathfindingRequestEvent` (a pad byte, layout unchanged) → `DdsPathRequest`. `Default` resolves on the vehicle side: a vehicle (`VehicleState`) → `Prefer`, anything else → `Neutral` | a float cost on the wire — not a nameable tactic, and the factor table belongs in one place; a default keyed on `MobilityProfile` — it has 0 production writers (AQ67) |
+| **D1** | **`RoadUse` per request**, a byte enum: `Default`, `Never` (sneak), `Neutral` (×1.0), `Prefer` (×0.5), `StronglyPrefer` (×0.25 — convoy). On `MoveToParams`/`PlanRouteParams` → `NavigationIntent` → the wire intent → `PathfindingRequestEvent` (a pad byte, layout unchanged) → `DdsPathRequest`. `Default` resolves on the vehicle side: a vehicle (`VehicleState`) → `Prefer`, anything else → ⭐ **`NavmeshFirst` (R-11018, `2026-11-23`, a new appended value: the navmesh, the roads priced only when it has no path; 🔒 User, `2026-11-23`: *"the soldiers should use navmesh by default as they do not need to primarily use roads, paying the cost for route planning for every move per soldier is a nonsense."*)** ⛔ SUPERSEDED: anything else → `Neutral` | a float cost on the wire — not a nameable tactic, and the factor table belongs in one place; a default keyed on `MobilityProfile` — it has 0 production writers (AQ67) |
 | **D2** | **ONE planner, `RoutePlanner`**, pure over (navmesh, road blob, doors), used by the path solver AND the danger solve. It replaces `SelectBackend`'s distance heuristic, `SolvePath` and the Phase-1 `SolveHybrid` | keep the danger solve's own navmesh re-plan — once roads are used it would watch a route the unit does not drive |
 | **D3** | **The road is taken on COST, not geometry**: direct = `PathCost(start, end)`; road = `PathCost(start, entry) + f·road + PathCost(exit, end)` with entry/exit the nearest points ON the network (projection over all segments, within 500 m, entering mid-segment); take the road iff cheaper. `BackendForce = NavRoadGraph` still forces it; `Never` never computes it. Result backend: `Navmesh` / `Hybrid` (spliced) / `NavRoadGraph` (forced) | the both-ends-within-500 m heuristic — R-230 makes it the actor's choice; K entry candidates — v1 takes the nearest, revisit on a measured bad route |
 | **D4** | **The road leg follows the curve**: 8 Hermite samples per segment (as `RoadNetworkGizmo`), walked in travel direction, on the centre line; Z from `ProjectToNavmesh`, 0 without a navmesh. A road-only map (no navmesh) keeps straight access legs (today's CE-2059 connector) | node-to-node polyline — cuts every curve (the follower already cuts corners, CE-3029); a lane offset — no traffic model asks for it yet |
@@ -924,7 +924,7 @@ re-plans to the destination itself. Vehicles everywhere and SimHost infantry fol
 | **D9** | **Stride infantry stays out of scope**: a crowd agent targets the destination itself; handing it the corridor is a follow-up | route crowd agents through the solver now — a Stride lane change, not this item |
 
 ⚠ **What changes on screen:** vehicle demos on test-town (and basic-desert) will start using the roads once the graph lands
-(`Prefer` by default) — their live checks are re-run as part of the build. Infantry defaults to `Neutral` (×1.0), where the road
+(`Prefer` by default) — their live checks are re-run as part of the build. ⛔ SUPERSEDED by R-11018 (infantry now defaults to `NavmeshFirst`): Infantry defaults to `Neutral` (×1.0), where the road
 wins only when walking direct is genuinely longer, so `ua-danger-crossing`'s walk keeps its route.
 
 #### Build slices
@@ -1854,6 +1854,24 @@ sequenceDiagram
   so the answers keep CE-3279's bounds (its rail still holds); what changed is WHERE the nodes live (reused arrays) and WHEN it stops (the
   goals, not the reach). The module picture is unchanged: `EqsModule` (SimHost, SlowBackground) → `PathCostScoreTest` → the provider.*
   Rails: `CE3427_PathCosts_AllocateNothingWhenWarm_AndStopAtTheirGoals` (0 B warm; red-proved by removing the early stop) and CE-3279's.
+- ⭐ **The road graph's Dijkstra on a large terrain (`CE-5043`, terrain `2026-11-23`; build-state: BUILT).** 📐 On the imported Stechovice graph
+  (19 257 nodes, 19 691 segments) `RoadGraphRouter.Route` cost seconds per route: it picked the next node by scanning EVERY node and, per settled
+  node, walked EVERY segment — O(N·(N+S)). Now the router keeps a node → incident-segments index (CSR, each node's segments in ascending order,
+  rebuilt only when handed a different blob — its arrays' addresses and lengths) and pops from **`CostHeap`**, the engine's one open list, which
+  `CircleSearch` uses too (its private heap moved there — one implementation). `CostHeap` orders by cost, then node index: the road search settles
+  nodes in exactly the order the scan did, so routes, metres and legs are unchanged (rail `RoadGraphRouterLargeGraphTests`: the former scan as the
+  oracle on random graphs and an equal-cost lattice; a 19 600-node graph within 50 ms; 0 B once warm — the former `new Stack` per route is gone).
+  ⚠ `CircleSearch`'s ties used to follow push order; they now follow the node index (a node's index is its discovery order).
+  ⭐ **`RoadGraphIndex` (`CE-5045`)** — the graph's derived topology has ONE owner: node → incident segments (CSR) and each node's junction radius
+  (D7), built once per graph per thread. The router reads its adjacency there; the danger classifier (§5.2a D7) its junction test — which had
+  derived degree and radius by walking every segment per node per route point (📐 19 257 × 19 691 per point on Stechovice: the EQS commit held
+  for minutes, found as a live hang).
+  ⭐ `NearestAccess` (two calls per plan) projected onto EVERY segment, 41 curve samples each: 📐 156 ms a call on a 38 920-segment graph —
+  30× the route itself once the route was fixed. Now pruned EXACTLY: an upper bound from the segment whose start point is nearest, then each
+  segment in the same ascending order, skipped when its curve's box (a cubic Hermite = the Bézier P0, P0+T0/3, P1−T1/3, P1, inside those
+  points' box) is farther than the bound — the same answer and the same tie, bit for bit (rail: the former scan as the oracle on curved,
+  random and lattice graphs). ⛔ Not the blob's own `GridHead` grid: it rasterises each segment at 17 points (a long one skips cells), has no
+  origin (negative coordinates fall out) and is sized from metadata (default 100 × 5 m) — it cannot give the same answer.
 - **`MoveToExecutor` per-tick cost (Brain):** O(1) per active mover — read `NavigationStatus.Result`, branch on it, return BTree state. No window sliding required.
 
 ## 16. Hot reload

@@ -105,6 +105,7 @@ public static class VisualFamilies
         ["Tank"] = VisualFamily.Tank,
         ["Afv"] = VisualFamily.Afv,
         ["Car"] = VisualFamily.WheeledCar,
+        ["Bus"] = VisualFamily.WheeledCar, ["CargoTruck"] = VisualFamily.WheeledCar,   // ⭐ CE-11042 — drawn as before (sized per type) until they get kits of their own
         ["WheeledUtility"] = VisualFamily.WheeledUtility,
         ["Helicopter"] = VisualFamily.Helicopter,
         ["Jet"] = VisualFamily.Jet,

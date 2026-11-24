@@ -91,12 +91,17 @@ public sealed partial class TerrainImporter : ITerrainImporter
             ct.ThrowIfCancellationRequested();
 
             var built = BuildingTemplateGenerator.Generate(set.ReadBuildings(), swX, swY, rep, ct);
+            // ⭐ CE-11040 — the levelling is ~36 s on Stechovice (4 cores): each sub-step is its own stage and reports, so a load's stall check sees it move
+            Stage("plans"); progress?.Report(new ImportProgress("levelling", 0.2));
             // ⭐⭐ CE-4403 (P-1; 📄 DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-2…G-4, R-4228) — every house stands on a PAD: the ground under it cut
             //   down to its own base (the lowest ground under it — no house moves), a skirt blending it into the slope; then the store is written
             // ⭐⭐ CE-4403 part 2 (G-21…G-24, D-3) — the roads level the ground under them FIRST; their posts are LOCKED for the pads
             bool[]? roadLock = set.RoadsNet is string levelNet ? Corridors.Apply(posts, postCols, postRows, levelNet, ax, ay, built, rep) : null;
+            Stage("corridors"); progress?.Report(new ImportProgress("levelling", 0.4));
             Pads.Apply(posts, postCols, postRows, built, rep, roadLock);
+            Stage("pads"); progress?.Report(new ImportProgress("levelling", 0.6));
             HeightStage.Write(posts, postCols, postRows, Path.Combine(tmp, heightsFile), rep);
+            Stage("store"); progress?.Report(new ImportProgress("levelling", 0.8));
             // ⭐ G-25 / V-21 — the copied net re-elevated from the LEVELLED store (forced: netconvert's / the pipeline's old z overwritten; net − anchor = local)
             if (netFile != null)
             {
@@ -106,7 +111,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
             }
             posts = null!;
             progress?.Report(new ImportProgress("heights", 1));
-            Stage("pads");
+            Stage("net");
             foreach (var b in built.Where(b => !b.Solid)) TerrainFolderWriter.WriteTemplate(tmp, b.TemplateName!, b.TemplateJson!);
             rep.UnassignedSkipped = set.ReadUnassigned().Count;
             progress?.Report(new ImportProgress("buildings", 1));
@@ -127,7 +132,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
             string worldFile = name + ".world.geojson";
             TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees);
-            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile);
+            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)));
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");
             ct.ThrowIfCancellationRequested();

@@ -955,6 +955,9 @@ namespace Hrot.Editor
         private readonly MapUserConfig     _userConfig     = new();
         private readonly MapCameraViewport _cameraViewport = new();
         private DebugPrimitiveBuffer? _gizmoBuffer;
+        /// <summary>⭐ CE-11045 (HL-1b) — the JSON gizmo feed is built only while the gizmo group runs (always windowed; headless: while a reader holds the gate).</summary>
+        private bool GizmoFeedWanted => _editorMapInteraction == null || _editorMapInteraction.GizmoGroup.Enabled;
+        private Hrot.Presentation.DebugApi.GizmoReadLease? _gizmoLease;   // ⭐ CE-11045 — headless only: GET /panels/_gizmo's timed reference on the gizmo gate
         private DataDrivenGizmoSystem? _editorDataDrivenGizmoSystem;
         private GlobalGizmoManager?  _globalGizmoManager;
 
@@ -1591,6 +1594,8 @@ namespace Hrot.Editor
             string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
             _bootstrapper = new EditorNodeBootstrapper(EditorNodeId, isolatedTempRoot, _fdpEventHistory, _navmesh, _blueprintRegistry, MuscleCapabilitiesFactory, TranslatorPlacements);
             _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
+            _bootstrapper.ClockRunsFree = () => _timeController?.GetMode() != Fdp.ModuleHost.Time.TimeMode.Deterministic;   // ⭐ CE-4679 — the master steps ⇒ a seat's hold is the stepper's
+            _bootstrapper.RecordingPath = () => _clusterHandlers?.RecordReplayController?.ActiveRecordingModule?.FilePath;   // ⭐ CE-4679 — a commander seat's model log sits beside the recording
             _bootstrapper.MapBuildStatus = () => _map3DBuild;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
             _node = _bootstrapper.BootstrapNode(
                 new HrotNodeConfig { NodeId = (Fdp.Core.NodeId)(EditorNodeId), SubsystemName = "Editor", Headless = true, NodeName = _nodeName,
@@ -1956,6 +1961,7 @@ namespace Hrot.Editor
                     debugService.AttachTimeline(() => _node is { } timelineNode ? Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(timelineNode) : null);
 
                     _debugApiService = debugService;
+                    debugService.GizmoLeaseProvider = () => _gizmoLease;   // ⭐ CE-11045 — read lazily: the map pack (and so the lease) is built after the service
                     _debugApiHost.AttachService(debugService);
                     // ⭐ CE-4038 B5/B10 — /director/* and /map/layers reach the same runner and layer control the panel does
                     _debugApiHost.AttachDirector(_directorPack!);
@@ -2694,7 +2700,10 @@ namespace Hrot.Editor
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).
-                    StartEnabled = true,
+                    // ⭐ CE-11045 (HL-1) — ⛔ "always has a window" is false for `--mode editor --headless`: there nobody sees a gizmo, and drawing them was
+                    //   52 % of the main thread on Stechovice (unreal-ig). A headless editor starts disabled like SimHost / CGF ("headless-first"); with no
+                    //   coordinator to attach a viewer, a READER opens the gate instead — GET /panels/_gizmo holds a timed reference (GizmoReadLease, below).
+                    StartEnabled = !_headless,
                     ContributeExtras = regs =>
                     {
                         // ⭐ CE-3123 — the mission and label gizmos are reflected now (Services above).
@@ -2812,6 +2821,12 @@ namespace Hrot.Editor
             //    fixed inbound and S-6 outbound.
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
             _gizmoController = _editorMapInteraction.Gate;
+            // ⭐ CE-11045 — a headless editor's gate starts shut (StartEnabled above); the debug API's gizmo read takes a timed reference on it. A windowed editor starts open
+            //   with no viewer count, so it takes no lease (a release to 0 would shut its group).
+            if (_headless)
+            {
+                _gizmoLease = new Hrot.Presentation.DebugApi.GizmoReadLease(_editorMapInteraction.Gate);
+            }
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
             foreach (string problem in _editorMapInteraction.Unserviceable(_editorMapInteraction.InteractionSystems))
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
@@ -3142,7 +3157,7 @@ namespace Hrot.Editor
                     tickWatch.Restart();
                     try
                     {
-                        if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+                        if (_gizmoBuffer != null && GizmoFeedWanted) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
                         _gizmoBuffer?.EndFrame(dt);
                         k1.Restart();
                         TickNodeFrame(dt);
@@ -3170,7 +3185,7 @@ namespace Hrot.Editor
                     tickWatch.Restart();
                     try
                     {
-                        if (_gizmoBuffer != null)
+                        if (_gizmoBuffer != null && GizmoFeedWanted)
                             Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
                         _gizmoBuffer?.EndFrame(dt);
                         TickNodeFrame(dt);
@@ -3211,6 +3226,7 @@ namespace Hrot.Editor
 
         public void Update(float deltaTime)
         {
+            _gizmoLease?.Tick();   // ⭐ CE-11045 — release the gizmo gate once no reader has read for 5 s
             // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: the node frame runs on a worker (KernelWorkerLoop); this frame does the
             //   world work only when the drawing thread holds the world (ThreadedKernelGate); otherwise it moves the camera and returns.
             bool threaded = Fdp.ModuleHost.ThreadedKernelGate.Enabled && _node != null && !_headless;
@@ -3327,7 +3343,7 @@ namespace Hrot.Editor
             //      frame; the publish inherits that placement, so it reports the primitives the
             //      PREVIOUS Update produced — which is exactly what is on screen right now.
             using var traceGizmoFeed = Fdp.Core.AccessTrace.Scope("editor: gizmo feed publish + EndFrame");   // ⭐ A-1
-            if (!threaded && _gizmoBuffer != null)   // ⭐ X-4: in threaded mode the worker publishes and ends the gizmo frame
+            if (!threaded && _gizmoBuffer != null && GizmoFeedWanted)   // ⭐ X-4: in threaded mode the worker publishes and ends the gizmo frame
                 Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(
                     _gizmoBuffer,
                     // ⭐ BP-485 — the ADDRESS names the host; the KIND stays shared, so a
@@ -4442,7 +4458,8 @@ namespace Hrot.Editor
                 hash => _behaviorRegistry is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null,
                 registry:   () => _behaviorRegistry,
                 blueprints: () => _blueprintRegistry,
-                embeds:     () => blueprintBrainSections));
+                embeds:     () => blueprintBrainSections,
+                stagedPending: () => _blueprintRegistrar?.StagedWrites?.HasPending == true));   // ⭐ CE-3494 — the ONE staged set (silent-default rule)
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────

@@ -31,10 +31,17 @@ namespace Fdp.Toolkit.Terrain
 
         private readonly IReadOnlyList<string> _roots;
 
-        public TerrainCatalog(IEnumerable<string?> roots)
+        public TerrainCatalog(IEnumerable<string?> roots, string? sharedRoot = null)
         {
             _roots = roots.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => r!).ToList();
+            SharedRoot = string.IsNullOrWhiteSpace(sharedRoot) ? null : sharedRoot;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-11039</c> (UTM §13 F-2, revised) — the root a first-use import goes into: the SHARED content root (the NAS's <c>assets/terrain</c>), so a terrain is imported
+        /// ONCE for every node and every staging root that reads it. <c>null</c> ⇒ none named (a catalog of one root, a test): the first writable root is used.
+        /// </summary>
+        public string? SharedRoot { get; }
 
         /// <summary>The roots, in search order.</summary>
         public IReadOnlyList<string> Roots => _roots;
@@ -48,7 +55,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 localStagingRoot == null ? null : Path.Combine(localStagingRoot, StagingDirectoryName),
                 nasRoot == null ? null : ContentLayout.TerrainAssets(nasRoot),
-            });
+            }, nasRoot == null ? null : ContentLayout.TerrainAssets(nasRoot));   // ⭐ CE-11039 — the NAS is where a first-use import lands (the staging root is private to one node)
 
         /// <summary>
         /// The definition file for <paramref name="terrainName"/> (which may carry a subfolder, e.g.
@@ -61,12 +68,48 @@ namespace Fdp.Toolkit.Terrain
             if (relative.Split('/').Any(part => part == ".."))
                 throw new ArgumentException($"Terrain name '{terrainName}' may not climb out of its root.", nameof(terrainName));
 
+            string? found = null, foundRoot = null;
             foreach (var root in _roots)
             {
                 var path = Path.Combine(root, relative, DefinitionFileName);
-                if (File.Exists(path)) return path;
+                if (File.Exists(path)) { found = path; foundRoot = root; break; }
             }
-            return ResolveKeptGround(relative);
+            // ⭐ CE-11039 — the machine-wide import root is the last place a terrain may be (an earlier import by another process / staging root left it there)
+            if (found == null && TerrainSources.SharedImportRoot is { } machineRoot && File.Exists(Path.Combine(machineRoot, relative, DefinitionFileName)))
+            { found = Path.Combine(machineRoot, relative, DefinitionFileName); foundRoot = machineRoot; }
+            // ⭐ CE-11037 (UTM §13 F-1/F-4) — a terrain whose INPUT is committed imports on first use (a miss) and re-imports when the input changed (a hit):
+            //   the hook is consulted HERE, so no host can forget it; it answers null when there is no input set for the name (or the terrain is current)
+            var hook = TerrainSources.Import;
+            if (found != null)
+                return hook?.TryImport(relative, found, foundRoot!, _roots, default) ?? found;
+            var kept = ResolveKeptGround(relative);
+            if (kept != null || hook == null) return kept;
+            string? target = ImportTarget();
+            return target == null ? null : hook.TryImport(relative, null, target, _roots, default);
+        }
+
+        // ⭐ CE-11039 (F-2 revised) — where a first-use import lands: the SHARED root when it is writable (one import per machine, whatever staging root asks), else the first writable
+        //   root (a private fallback: a read-only NAS still gets its terrain, in this node's staging). The lock lives in the target, so it is shared exactly as far as the import is.
+        private string? ImportTarget()
+        {
+            if (TerrainSources.SharedImportRoot is { } machine && IsWritable(machine)) return machine;   // a dev checkout: the source tree's assets/terrain — outlives a private staging root and its private NAS
+            if (SharedRoot != null && IsWritable(SharedRoot)) return SharedRoot;
+            foreach (var root in _roots)
+                if (IsWritable(root)) return root;
+            return null;
+        }
+
+        private static bool IsWritable(string root)
+        {
+            try
+            {
+                Directory.CreateDirectory(root);
+                var probe = Path.Combine(root, ".write-probe-" + Guid.NewGuid().ToString("N"));
+                File.WriteAllBytes(probe, Array.Empty<byte>());
+                File.Delete(probe);
+                return true;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
         }
 
         /// <summary>⭐ AQ112 A — the sub-folder of a terrain folder holding its OLD versions: <c>&lt;terrain&gt;/versions/&lt;contentHash&gt;/</c>, each the whole folder as it was before a re-import. Excluded from the terrain's content hash.</summary>

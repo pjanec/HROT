@@ -388,6 +388,33 @@ public static class RunningBehaviourLocator
 public sealed class EntityBrainView : IDetailsViewInstance
 {
     private readonly Func<EntityRepository?> _world;
+    private Fdp.Toolkit.Behavior.Components.UnitIntent? _nextFor;
+    private string? _nextText;
+    private string? _lostText;
+    /// <summary>⭐ CE-3494 — the staged-edit warning the last frame drew (null = none): what a rail reads.</summary>
+    public string? LastStagedWarning { get; private set; }
+    /// <summary>⭐ CE-3494 (DESIGN_Unit_Intent.md §5 C) — any staged memory edit un-drained (the ONE staged set); null = the host has none.</summary>
+    private readonly Func<bool>? _stagedPending;
+
+    /// <summary>⭐ CE-3494 — the pending intent's task as a row text ("⏳ Attack — when time next advances"), cached per intent record; null = none.</summary>
+    private string? NextOf(EntityRepository world, Entity unit)
+    {
+        if (!world.IsAlive(unit) || !world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.UnitIntent), out _)
+            || !world.HasManagedComponent<Fdp.Toolkit.Behavior.Components.UnitIntent>(unit)) return null;
+        var intent = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.UnitIntent>(unit);
+        if (intent?.Behavior is null) return null;
+        if (!ReferenceEquals(intent, _nextFor))
+        {
+            _nextFor = intent;
+            // ⭐ CE-3494 §10 — a person's release is a pending Clear: the running task ends, the SOP picks next
+            string what = intent.Behavior.Clear ? "Release" : intent.Behavior.Name;
+            _nextText = "\u23F3 " + what + (intent.Behavior.Clear ? " — the running task ends when time next advances" : " — when time next advances");
+            _lostText = intent.Behavior.Clear
+                ? "\u26A0 When time advances, the running task ends — staged memory edits to it will be lost"
+                : "\u26A0 When time advances, " + what + " starts — staged memory edits to the running behaviour will be lost";
+        }
+        return _nextText;
+    }
     private readonly Func<int, string?> _behaviorName;
     private readonly Func<int, BehaviorDefinition?>? _definition;
     private readonly Func<BehaviorRegistry?>? _registry;
@@ -398,8 +425,9 @@ public sealed class EntityBrainView : IDetailsViewInstance
     /// <param name="blueprints">⭐ <c>CE-1315</c> — the blueprint registry, so attached blueprints are listed with their variables.</param>
     public EntityBrainView(Func<EntityRepository?> world, Func<int, string?> behaviorName, Func<int, BehaviorDefinition?>? definition = null,
         Func<BehaviorRegistry?>? registry = null, Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null,
-        Func<DetailsViewRegistry?>? embeds = null)
+        Func<DetailsViewRegistry?>? embeds = null, Func<bool>? stagedPending = null)
     {
+        _stagedPending = stagedPending;
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _behaviorName = behaviorName ?? throw new ArgumentNullException(nameof(behaviorName));
         _definition = definition;
@@ -490,6 +518,15 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (Section("Doing", "doing") && BeginGrid("doing", ("", 0.25f), ("", 0.75f)))
         {
             GridRow("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
+            // ⭐ CE-3494 (DESIGN_Unit_Intent.md §5 C) — what the unit does NEXT: its pending intent, applied when time advances (the intent
+            //   section above edits it; this section only monitors). The text is built once per intent record, never per frame (R-2084).
+            if (world is not null && NextOf(world, unit) is { } next)
+            {
+                GridRow("Next", next);
+                // ⭐ CE-3494 (§5 C) — a new task restarts the behaviour: a staged edit to its memory would land on a run that is gone
+                LastStagedWarning = _stagedPending?.Invoke() == true ? _lostText : null;
+                if (LastStagedWarning is { } lost) GridRow("", lost);
+            }
             if (b.Origin is { } o) GridRow("Ordered by", o + (b.Urgency is { } u ? $"  · {u}" : ""));
             if (b.Paused is { } p) GridRow("Paused", p);
             if (b.Sop is { } sop)
@@ -1062,12 +1099,13 @@ public static class EntityBrainViewDescriptor
     /// blueprints here; without, only to one with a brain (as before).</param>
     public static DetailsViewDescriptor For(Func<EntityRepository?> world, Func<int, string?> behaviorName,
         Func<int, BehaviorDefinition?>? definition = null, Func<BehaviorRegistry?>? registry = null,
-        Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null, Func<DetailsViewRegistry?>? embeds = null)
+        Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null, Func<DetailsViewRegistry?>? embeds = null,
+        Func<bool>? stagedPending = null)
     {
         var withBrain = DetailsViewPredicates.OneEntityWithBrain(e => world() is { } w && BrainSnapshot.Has<BehaviorState>(w, e));
         return new(ViewId, "Brain", Rank,
                context => withBrain(context)
                           || (DetailsViewPredicates.ExactlyOneEntity(context) && embeds?.Invoke() is { } r && r.All.Any(d => d.AppliesTo(context))),
-               () => new EntityBrainView(world, behaviorName, definition, registry, blueprints, embeds));
+               () => new EntityBrainView(world, behaviorName, definition, registry, blueprints, embeds, stagedPending));
     }
 }

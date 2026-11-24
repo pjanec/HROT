@@ -1244,7 +1244,7 @@ for cooldown, this degrades the gameplay experience, must be set with much highe
 TKB values — every new rifle would have to remember them (the silent-default trap); a rate-based rule with a higher constant — a slow rifle
 would still overheat in fewer shots than a fast one, the opposite of reality.
 
-### 5l. Bursts — the AI fires short bursts by situation, and says so *(ui, `2026-11-22`; `CE-11033`, R-11012; build-state: READY-TO-BUILD)*
+### 5l. Bursts — the AI fires short bursts by situation, and says so *(ui, `2026-11-22`; `CE-11033`, R-11012; build-state: BUILT, in-process path - see as-built below)*
 
 🔒 User, `2026-11-22`: *"I think we should send the burst information to the DPS instead of a single shot. Whenever Hrot actually fires a burst
 and knows that it will fire a burst, that meaning from the AI giving commands to fire a short burst, cannot apply to player, because we never
@@ -1309,6 +1309,20 @@ sequenceDiagram
 **Acceptance (rails + a feature scenario, R-4277):** the rule's table per row; N rounds at the cyclic gap then the pause; each round carries BurstId / BurstRounds / BurstIndex;
 an operator's rounds carry 0; 1 / 4 / 8 threads give the same rounds (`stepped-hash.py`); `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` on the rails;
 a scenario `rifle-bursts` (a fire team engages at 40 m and at 200 m: bursts near, singles far) with `checks.json` expect rows.
+
+**As-built (`CE-11033`, `2026-11-22`; build-state: BUILT for the in-process path):**
+
+| design said | as built — and why |
+|---|---|
+| `BurstState {uint Id; byte Rounds; byte Fired}` in the action's channel State | ⚠ the 32-byte State was **full** (Entity 8 + `AimState` 16 + `RoundsFired` 4 + `Accounted` 4). `FireBursts.BurstState {byte Seq; byte Rounds; byte Fired; byte PauseTicks}` (4 bytes) **overlays `Accounted`** (bytes 28–31), which only the turret path reads and resets on a fresh epoch; the per-shot path, where bursts live, never reads it; `OnEnter` zeroes it. `BurstId` on the wire = `(ActionInstanceId << 8) \| Seq` — unique per shooter, never 0 for a planned burst. The shared bytes carry a validity bit (`PauseTicks` bit 7; the turret's never-negative int has it 0), so what the turret path left there starts a clean burst, and a burst state left there is not read as a turret count (`accounted < 0` ⇒ `status.RoundsFired`); rails `CE11033_WhatTheTurretPathLeft…` / `CE11033_ABurstStateLeft…`. A burst id can repeat inside one action only across such a switch |
+| `Choose(world, shooter, target, mount, blind)` | + `uint burstId` (the seed). **`Rounds` 0 = no plan** (MachineGun / Autocannon keep §5k). A plan of **1 round stamps nothing** (`BurstId` 0 = "single aimed shot", as the steer says); only 2+ rounds carry a burst. Bursts only for a mount whose cyclic gap is ≤ 0.5 s (so the pause, jittered, always outlasts a jittered cyclic gap) |
+| the pause | ⭐ **SUPERSEDED `2026-11-22` (R-11016): the SAME AVERAGE RATE OF FIRE** — with an asked interval, the pause after a burst of N rounds is `N × asked − (N − 1) × cyclic` (`FireBursts.PauseAfter`), so N rounds take N asked intervals and a man fires as many rounds a minute as before, only bunched; the rule's own pause stands only when nothing is asked (0 = the mount's rate). Rails `CE11033_Bursts_KeepTheAverageRateOfFire`, `CE11033_ThePauseAfterABurst_MakesItTakeNAskedIntervals`. 🔒 User: *"If the scenario cannot stand different rate of fire, with the average being the same, then the scenario is likely wrong, or the expectations of the scenario are wrong."* ⛔ HISTORY, the first build: `max(plan pause, the asked interval)` — the behaviour's asked `CooldownSeconds` stayed the floor, so a burst never fired faster per volley than today's single rounds; the plan pause is cyclic + 0.6–1.2 s (blind: + 1.5–2.5 s), kept in 1/20 s |
+| the rifle's cyclic rate | ⚠ the `InfantrySoldier` rifle (`UrbanCombatTkbCatalog.Rifle()`) carried **no `RateOfFire`** (asked 0 ⇒ a 0 s gap, "every frame"): it now states **700** (the M4 class, as `NedTkbCatalog.M4Carbine`). The pistol keeps none ⇒ no bursts |
+| stamp reaches the notification | `WeaponFireIntent` and `WeaponFireNotification` gained `BurstId` (uint), `BurstRounds`, `BurstIndex` (bytes; +6 bytes: 85 / 87); `FireProcessingSystem` copies them (fired round, refusal, `ShotRecord`); `ShotLog` and `/combat/shots` rows carry `burstId` / `burstRounds` / `burstIndex` (what `checks.json` judges) |
+| the wire (R-11013) | ✅ built: `WeaponFireRequest` and `WeaponFire` (DDS) gained appended `BurstId` / `BurstRounds` / `BurstIndex`; `WeaponFireIntentEgressTranslator` → `WeaponFireRequestIngressTranslator` and `WeaponFireNotificationEgressTranslator` → `WeaponFireIngressTranslator` (Player) carry them; one round-trip rail per translator (`CE11033_*`, red-proved). A split brain / muscle topology and every remote reader get the stamp |
+| a rifleman's sight is 150 m | so *"a SEEN target beyond 150 m ⇒ single round"* cannot occur for riflemen; the scenario `rifle-bursts` shows Near (40 m, 2–3) · Mid (120 m, 1–2) · Supp (200 m, memory only, blind ⇒ 3–5); the far-single row is proven by the rules rail |
+
+Rails: `AimAndFireExecutorTests.CE11033_*` (rules table, burst structure, far singles, operator, accounting, determinism, 0 B), `FireProcessingSystemTests.CE11033_*` (the copy). Scenario: `scenarios/demos/weapons-and-fires/rifle-bursts` (generator `scripts/gen-rifle-bursts-scenario.py`).
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

@@ -302,5 +302,84 @@ namespace Fdp.Toolkit.Tests.Squad
             heat.AddBurst(new Vector3(4, 200, 0), 370);                                // three, but over 70 s
             Assert.Equal(0, ShelledAreas.Footprints(world, into));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-5045</c> (Stechovice showcase, terrain lane) — the junction test reads each node's degree and radius from the graph's one derived index
+        /// (<see cref="Fdp.Toolkit.Navigation.RoadGraphIndex"/>) instead of scanning every segment per node per point (19 257 × 19 691 per route point on
+        /// Stechovice: the EQS commit held for minutes). On a jittered lattice (junctions of 3 and 4, two lane widths) the first junction is the
+        /// former scan's, point for point; and a point on a 20 k-node graph is answered within a budget.
+        /// 🔴 Red-proof: the index's radius left at 0 ⇒ no junction is ever found ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5045_TheJunctionTest_IsTheFormerScan_AndALargeGraphAnswersFast()
+        {
+            var rng = new Random(17);
+            var b = new global::CarKinem.Road.RoadNetworkBuilder();
+            const int W = 20;
+            var at = new Vector2[W * W];
+            for (int y = 0; y < W; y++) for (int x = 0; x < W; x++)
+            { at[y * W + x] = new Vector2(x * 40f + (float)rng.NextDouble() * 6f, y * 40f + (float)rng.NextDouble() * 6f); b.AddNode(at[y * W + x]); }
+            void Seg(int a, int c) { var d = at[c] - at[a]; b.AddSegment(at[a], d, at[c], d, 13.9f, 3.5f, rng.Next(1, 4), a, c); }
+            for (int y = 0; y < W; y++) for (int x = 0; x < W; x++)
+            {
+                int i = y * W + x;
+                if (x + 1 < W && rng.Next(5) > 0) Seg(i, i + 1);
+                if (y + 1 < W && rng.Next(5) > 0) Seg(i, i + W);
+            }
+            using var roads = new RoadsHolder(b.Build(100f, 10, 10));
+            int junctions = 0, bands = 0;
+            for (int k = 0; k < 3000; k++)
+            {
+                var n = at[rng.Next(at.Length)];
+                var p = n + new Vector2((float)(rng.NextDouble() - 0.5) * 16f, (float)(rng.NextDouble() - 0.5) * 16f);
+                ulong mask = DangerAlongRouteClassifier.RoadMask(roads.Blob, p);
+                if (mask == 0) continue;
+                int old = FormerJunction(roads.Blob, p);
+                if ((mask & DangerAlongRouteClassifier.JunctionBit) != 0) { junctions++; Assert.Equal(DangerAlongRouteClassifier.JunctionBit | (1ul << (old % 63)), mask); }
+                else { bands++; Assert.Equal(-1, old); }
+            }
+            Assert.True(junctions > 100 && bands > 100, $"both answers exercised: junctions {junctions}, bands {bands}");
+
+            var big = new global::CarKinem.Road.RoadNetworkBuilder();
+            const int B = 140;
+            for (int y = 0; y < B; y++) for (int x = 0; x < B; x++) big.AddNode(new Vector2(x * 25f, y * 25f));
+            for (int y = 0; y < B; y++) for (int x = 0; x < B; x++)
+            {
+                int i = y * B + x; var pa = new Vector2(x * 25f, y * 25f);
+                if (x + 1 < B) big.AddSegment(pa, new Vector2(25, 0), pa + new Vector2(25, 0), new Vector2(25, 0), 13.9f, 3.5f, 2, i, i + 1);
+                if (y + 1 < B) big.AddSegment(pa, new Vector2(0, 25), pa + new Vector2(0, 25), new Vector2(0, 25), 13.9f, 3.5f, 2, i, i + B);
+            }
+            using var large = new RoadsHolder(big.Build(200f, 20, 20));
+            DangerAlongRouteClassifier.RoadMask(large.Blob, new Vector2(1000f, 1000f));   // builds the index once
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (int k = 0; k < 20; k++) Assert.NotEqual(0ul, DangerAlongRouteClassifier.RoadMask(large.Blob, new Vector2(1000f + k * 25f, 1000f)));
+            sw.Stop();
+            Assert.True(sw.Elapsed.TotalMilliseconds / 20 < 20.0, $"a point on a 19 600-node graph took {sw.Elapsed.TotalMilliseconds / 20:0.0} ms (the former scan: seconds)");
+        }
+
+        // The former junction test, verbatim: the first node (ascending) with three or more incident segments within its widest band; −1 none.
+        private static int FormerJunction(in global::CarKinem.Road.RoadNetworkBlob roads, Vector2 p)
+        {
+            for (int n = 0; n < roads.Nodes.Length; n++)
+            {
+                int degree = 0; float radius = 0f;
+                for (int i = 0; i < roads.Segments.Length; i++)
+                {
+                    var seg = roads.Segments[i];
+                    if (seg.StartNodeIndex != n && seg.EndNodeIndex != n) continue;
+                    degree++;
+                    radius = MathF.Max(radius, 0.5f * seg.LaneWidth * Math.Max(1, seg.LaneCount));
+                }
+                if (degree >= 3 && Vector2.Distance(p, roads.Nodes[n].Position) <= radius) return n;
+            }
+            return -1;
+        }
+
+        private sealed class RoadsHolder : IDisposable
+        {
+            public global::CarKinem.Road.RoadNetworkBlob Blob;
+            public RoadsHolder(global::CarKinem.Road.RoadNetworkBlob blob) => Blob = blob;
+            public void Dispose() => Blob.Dispose();
+        }
     }
 }

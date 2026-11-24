@@ -162,6 +162,8 @@ namespace Hrot.CGF
             IntentClears = new IntentClearRegistry();
             IntentClears.Register(_missionExecutionSystem);
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry, IntentClears);
+            _missionControlModule.Ingress.Holds  = IntentClears;   // ⭐ CE-3494 (R-3115) — the ingress holds the plan after an order STARTS (silent-default rule)
+            _missionControlModule.Ingress.TasksTakenByOrders = true;   // ⭐ CE-3494 §10 (R-3119) — the tactical system above takes a person's task from the intent (silent-default rule)
             // ⭐ agg-behaviors ST-2 (R-8311, the silent-default rule) — the ingress starts a stochastic unit's template-default SOP through the SAME routing table that
             //   resolves its orders; Fdp.Toolkits cannot see that table, so the host that holds it hands the ingress the resolver. Every brain host builds this pack.
             Fdp.Toolkit.Behavior.StochasticSopRouting.Resolver = TacticalIntentResolutionSystem.SopFor;
@@ -230,6 +232,10 @@ namespace Hrot.CGF
             foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);
 
             simList.Add(_missionAdapterSystem);
+            // ⭐ CE-4676 (DESIGN_LLM_Commander §3) — a seated commander's orders, from his mind, validated and given through CommandOrders (origin
+            //   Superior) — before the resolver, which takes them this frame as it takes a play's
+            simList.Add(new Hrot.CGF.Commander.CommanderActionSystem(clockBus: nodeBus));   // ⭐ CE-4679 — a held clock is the node's ONE pause (nodeBus), the seats the world's own
+            simList.Add(new Hrot.CGF.Commander.CommanderWatchSystem());   // ⭐ CE-4684 C-2 — a decision's starts, completions, aborts and contingencies, no model call
             simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             // ⛔ CE-2144 (R-2008) — HealthApplicationSystem is NOT pack content: any live-simulation node may own Health, so it is the
@@ -265,6 +271,8 @@ namespace Hrot.CGF
             simList.Add(new Fdp.Toolkit.Squad.Command.EmitterLocatingSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffComposerSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffInboxSystem(gateOnAuthority));
+            // ⭐ CE-4676 — a seated commander's FEED, after the inbox (this frame's reports are in his history)
+            simList.Add(new Hrot.CGF.Commander.CommanderFeedSystem(gateOnAuthority: gateOnAuthority));
             // ⭐ CE-2273 DA-A — a unit's authored proficiency reaches its men (written on each man: the hit model reads only him).
             simList.Add(new Fdp.Toolkit.Behavior.Systems.ProficiencyFillSystem(gateOnAuthority));
             // ⭐ CE-2360 (AQ102 I) — a live grenade lying near a man: his reflex (run, drop, throw it back) as a reaction, before the brain

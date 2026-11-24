@@ -639,7 +639,7 @@ namespace Hrot.SimHost.Tests
 
         private static JsonNode ParamsOf(EntityCreationRequest child)
         {
-            var slot = One<Fdp.Toolkit.Behavior.Components.InitialBrainIntent>(child).Behavior;
+            var slot = One<Fdp.Toolkit.Behavior.Components.UnitIntent>(child).Behavior;
             Assert.Equal("SelectionMean", slot?.Name);
             return JsonNode.Parse(slot!.Params)!;
         }

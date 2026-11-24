@@ -264,7 +264,13 @@ namespace Fdp.Toolkit.Utility
             return total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);
         }
 
-        /// <summary>⭐ <c>CE-2466</c> — Σ danger of every contact in the commander's pool (a heard one counts as armed, 1). 0 with no pool. No allocation.</summary>
+        /// <summary>⭐ <c>CE-2482</c> (🔒 user: "Yes, do that please") — a HEARD contact this close to an IDENTIFIED enemy in the pool is explained by him (m): a leader
+        /// who sees two men does not count the shots and steps he heard over there as more. 📐 uf-corner-assault 23 s: both Red men seen, the steps heard near
+        /// them before still counted ⇒ 4 for 2.</summary>
+        public const float ExplainedMetres = 20f;
+
+        /// <summary>⭐ <c>CE-2466</c> — Σ danger of every contact in the commander's pool (a heard one counts as armed, 1 — ⭐ <c>CE-2482</c>: 0 when an identified
+        /// enemy stands within <see cref="ExplainedMetres"/> of it). 0 with no pool. No allocation.</summary>
         public static float EnemyDangerOf(EntityRepository repo, Entity commander)
         {
             if (!repo.HasComponent<SquadCognitiveState>(commander)) return 0f;
@@ -274,10 +280,28 @@ namespace Fdp.Toolkit.Utility
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref Unsafe.AsRef(in state.Contacts.Contacts)), 16);
             float enemy = 0f;
             for (int i = 0; i < state.Contacts.Count; i++)
-                enemy += (span[i].Flags & SquadContact.AnonymousFlag) != 0
-                    ? 1f
-                    : Fdp.Toolkit.Perception.ThreatDanger.Of(repo, commander, new Entity((ulong)span[i].EntityId));
+            {
+                if ((span[i].Flags & SquadContact.AnonymousFlag) == 0 && span[i].EntityId > 0)
+                {
+                    enemy += Fdp.Toolkit.Perception.ThreatDanger.Of(repo, commander, new Entity((ulong)span[i].EntityId));
+                    continue;
+                }
+                if (!ExplainedBySeen(repo, span, state.Contacts.Count, i)) enemy += 1f;
+            }
             return enemy;
+        }
+
+        /// <summary>⭐ <c>CE-2482</c> — an identified ENEMY in the pool stands within <see cref="ExplainedMetres"/> of heard contact <paramref name="heard"/>.</summary>
+        private static bool ExplainedBySeen(EntityRepository repo, System.ReadOnlySpan<SquadContact> span, int count, int heard)
+        {
+            float x = span[heard].PositionX, y = span[heard].PositionY, r2 = ExplainedMetres * ExplainedMetres;
+            for (int j = 0; j < count; j++)
+            {
+                if ((span[j].Flags & SquadContact.AnonymousFlag) != 0 || span[j].EntityId <= 0) continue;
+                float dx = span[j].PositionX - x, dy = span[j].PositionY - y;
+                if (dx * dx + dy * dy <= r2 && Fdp.Toolkit.Squad.SquadContacts.IsEnemy(repo, in span[j])) return true;
+            }
+            return false;
         }
 
         /// <summary>⭐ <c>CE-2466</c> — Σ the live, in-the-fight members' own strength per man (CE-4613). 0 with no roster. No allocation.</summary>

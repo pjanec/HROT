@@ -45,13 +45,14 @@ namespace Fdp.Toolkit.Navigation
         }
 
         /// <summary>
-        /// ⭐ §5.2a D1 — an order that does not say: a vehicle prefers the roads, anything else (infantry) is neutral, where the
-        /// road wins only when walking direct is genuinely longer. ⚠ The locomotion CLASS decides, as in <see cref="NavLayerSelection"/>
+        /// ⭐ §5.2a D1 — an order that does not say: a vehicle prefers the roads, anything else (infantry) goes
+        /// <see cref="RoadUse.NavmeshFirst"/> — the navmesh, the roads only when it has no path (R-11018, superseding "neutral": pricing a road
+        /// route for every soldier's move cost the whole road graph each time). An order that wants a man on the roads says so (a march in file: Prefer). ⚠ The locomotion CLASS decides, as in <see cref="NavLayerSelection"/>
         /// — <c>VehicleParams.Class == Pedestrian</c> is infantry even though SimHost infantry carries <c>VehicleState</c> too — and not
         /// <see cref="NavAgentProfile.MobilityProfile"/>, which has no production writer (AQ67).
         /// </summary>
         public static RoadUse ResolveRoadUse(EntityRepository repo, Entity entity, RoadUse requested)
-            => requested != RoadUse.Unspecified ? requested : IsVehicle(repo, entity) ? RoadUse.Prefer : RoadUse.Neutral;
+            => requested != RoadUse.Unspecified ? requested : IsVehicle(repo, entity) ? RoadUse.Prefer : RoadUse.NavmeshFirst;   // ⭐ R-11018
 
         /// <summary>A vehicle by locomotion class — ⭐ CE-1373: the ONE rule, <see cref="Fdp.Toolkit.Motion.Locomotions.IsVehicle"/>.</summary>
         public static bool IsVehicle(EntityRepository repo, Entity entity) => Fdp.Toolkit.Motion.Locomotions.IsVehicle(repo, entity);

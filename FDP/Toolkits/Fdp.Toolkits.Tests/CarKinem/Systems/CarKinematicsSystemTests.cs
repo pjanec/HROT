@@ -1084,6 +1084,34 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>CE-5052</c> — a hull TURNING beside a building's convex corner never swings its long side onto it: 📐 live (Stechovice) a recovery reversing
+        /// while turning put a house's corner ~1 m inside an M1's left-rear quarter, between the traced corners, and held it there both ways for good.
+        /// A hull whose side already crosses the wall may still turn back out.
+        /// </summary>
+        [Fact]
+        public void CE5052_APivotBesideACorner_IsRefused_ATurnBackOut_IsNot()
+        {
+            string world = "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"height\":8,\"label\":\"Diamond\"}," +
+                "\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[-4.24,4.24],[-8.49,0],[-4.24,-4.24],[0,0]]]}}]}";
+            var q = new Fdp.Toolkit.Terrain.TerrainWorldQuery(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(world));
+            const float L = 7.93f, W = 3.66f;
+            var at = new Vector2(W * 0.5f + 0.1f, 2.7f);   // the left side 0.1 m east of the house's east corner, which lies 2.7 m behind the centre
+            static Vector2 Turned(float deg) { float r = -deg * MathF.PI / 180f; return new Vector2(-MathF.Sin(r), MathF.Cos(r)); }   // clockwise from north: the tail swings west
+            Assert.False(CarKinem.Controllers.HullClearance.StepBlocked(q, at, Vector2.UnitY, 0f, at + new Vector2(0f, 0.5f), Vector2.UnitY, 0f, L, W));   // straight on: free
+            foreach (float deg in new[] { 6f, 10f })
+                Assert.True(CarKinem.Controllers.HullClearance.StepBlocked(q, at, Vector2.UnitY, 0f, at, Turned(deg), 0f, L, W), $"a {deg}° pivot swung the side onto the corner");
+            Assert.False(CarKinem.Controllers.HullClearance.StepBlocked(q, at, Turned(10f), 0f, at, Turned(6f), 0f, L, W));   // already across: turning back out is free
+
+            // ⭐ the live house's case: WALL PANELS (here a garden wall's east end at x 80, y 10) — the side 0.2 m east of its end
+            var g = new Fdp.Toolkit.Terrain.TerrainWorldQuery(GardenWall(2.0f));
+            var by = new Vector2(80f + 0.2f + W * 0.5f, 10f + 2.7f);
+            Assert.False(CarKinem.Controllers.HullClearance.StepBlocked(g, by, Vector2.UnitY, 0f, by + new Vector2(0f, 0.5f), Vector2.UnitY, 0f, L, W));
+            foreach (float deg in new[] { 10f, 15f })
+                Assert.True(CarKinem.Controllers.HullClearance.StepBlocked(g, by, Vector2.UnitY, 0f, by, Turned(deg), 0f, L, W), $"a {deg}° pivot swung the side onto the wall's end");
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3286</c> — a point beside the wall that the hull's centre cannot reach (the live hide 2.25 m off the L-Block, a 7 m hull
         /// arriving nose-first, here with a 1 m radius) is REACHED when the nose meets the wall — not a hold to back out of. 🔴 Red-proof:
         /// drop the rule ⇒ never arrives.

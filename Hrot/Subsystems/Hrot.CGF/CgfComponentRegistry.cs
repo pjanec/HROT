@@ -48,6 +48,9 @@ public static class CgfComponentRegistry
         NavigationSolverComponentRegistry.RegisterAll(world);
 
         world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
+        world.RegisterComponent<Hrot.CGF.Commander.CommanderSeat>();   // ⭐ CE-4676 — a commander whose orders come from a mind (a scenario field)
+        world.RegisterComponent<Hrot.CGF.Commander.CommanderBrief>();   // ⭐ CE-4680 B-2 — the seated commander's mission (authoring-only)
+        world.RegisterComponent<Hrot.CGF.Commander.PlaceNote>();        // ⭐ CE-4680 B-6 — a terrain note on a named place (authoring-only)
 
         world.RegisterEvent<DamageAssessedEvent>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 — the one kill authority, read by the scenario measures

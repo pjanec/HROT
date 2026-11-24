@@ -125,6 +125,22 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2496</c> (R-2145) — an enemy position covers at least as far as it ENGAGED the squad: the farthest live member + <see cref="AfterContact.RecordNearMetres"/>,
+        /// never under <see cref="AfterContact.DirectRangeMetres"/>, never over <see cref="AfterContact.MaxCoveredMetres"/>. 📐 of-squad-outmatched: two machine guns
+        /// engaged from ~200 m; the fixed 150 m let the resumed move walk back into their sight. 🔴 Red-proof: the fixed range back ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2496_AnEnemyCovers_AsFarAsItEngagedTheSquad()
+        {
+            var s = new Squad(members: 2);
+            var enemy = new Vector3(0f, 200f, 0f);
+            foreach (var m in s.Members) s.Teleport(m, Vector3.Zero);
+            Assert.Equal(225f, AfterContact.CoveredMetres(s.Repo, s.Commander, enemy), 1);                     // 200 m out + 25
+            Assert.Equal(AfterContact.DirectRangeMetres, AfterContact.CoveredMetres(s.Repo, s.Commander, new Vector3(0f, 30f, 0f)));   // the urban floor
+            Assert.Equal(AfterContact.MaxCoveredMetres, AfterContact.CoveredMetres(s.Repo, s.Commander, new Vector3(0f, 2000f, 0f))); // the cap
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2466</c> R4 (S7) — a squad that would ASSAULT one enemy instead BREAKS CONTACT when that enemy stands at a fresh <c>Direct</c> record of its side
         /// that remembers a stronger force; without the record (control) it assaults. ✅ Red-proof: the R4 clause removed from <c>Firm()</c> ⇒ it assaults ⇒ red.
         /// </summary>

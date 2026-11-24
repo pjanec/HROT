@@ -1,0 +1,412 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: CE-11033 (R-11012, DESIGN_Weapon_Layers 5l) - on open basic-desert three rifle pairs, all immortal, no orders (they stand and fight): 'Near' 40 m apart, 'Mid' 120 m apart (both inside the 150 m sight), 'Supp' 200 m apart (beyond sight: each only knows where the other is). Judge (60 s): (1) the Near men fire SHORT BURSTS of 2-3 rounds, each round counted 1..N under one burst id; (2) the Mid men fire 1-2 rounds, never longer; (3) the Supp men fire SUPPRESSING bursts of 3-5 rounds, every round planned; (4) all three pairs fire. Check: scripts/scenario-regression.sh rifle-bursts."
+  },
+  "entities": {
+    "a1103300-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Near Blue",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "Advance": {
+            "Objective": [
+              100,
+              100,
+              0
+            ],
+            "ArrivalRadius": 1,
+            "CooldownSeconds": 1
+          },
+          "Stay": true,
+          "Post": {
+            "Point": [
+              100,
+              100,
+              0
+            ],
+            "Radius": 2.0
+          },
+          "watchTowards": [
+            140,
+            100,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1103300-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          140,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -1.0,
+          0.0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Near Red",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "Advance": {
+            "Objective": [
+              140,
+              100,
+              0
+            ],
+            "ArrivalRadius": 1,
+            "CooldownSeconds": 1
+          },
+          "Stay": true,
+          "Post": {
+            "Point": [
+              140,
+              100,
+              0
+            ],
+            "Radius": 2.0
+          },
+          "watchTowards": [
+            100,
+            100,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1103300-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          100,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Mid Blue",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "Advance": {
+            "Objective": [
+              100,
+              300,
+              0
+            ],
+            "ArrivalRadius": 1,
+            "CooldownSeconds": 1
+          },
+          "Stay": true,
+          "Post": {
+            "Point": [
+              100,
+              300,
+              0
+            ],
+            "Radius": 2.0
+          },
+          "watchTowards": [
+            220,
+            300,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1103300-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          220,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -1.0,
+          0.0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Mid Red",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "Advance": {
+            "Objective": [
+              220,
+              300,
+              0
+            ],
+            "ArrivalRadius": 1,
+            "CooldownSeconds": 1
+          },
+          "Stay": true,
+          "Post": {
+            "Point": [
+              220,
+              300,
+              0
+            ],
+            "Radius": 2.0
+          },
+          "watchTowards": [
+            100,
+            300,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1103300-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          100,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Supp Blue",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "a1103300-0000-4000-8000-000000000006",
+            "PosX": 300,
+            "PosY": 500,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "Advance": {
+            "Objective": [
+              100,
+              500,
+              0
+            ],
+            "ArrivalRadius": 1,
+            "CooldownSeconds": 1
+          },
+          "Stay": true,
+          "Post": {
+            "Point": [
+              100,
+              500,
+              0
+            ],
+            "Radius": 2.0
+          },
+          "watchTowards": [
+            300,
+            500,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1103300-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          300,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -1.0,
+          0.0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Supp Red",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "a1103300-0000-4000-8000-000000000005",
+            "PosX": 100,
+            "PosY": 500,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "Advance": {
+            "Objective": [
+              300,
+              500,
+              0
+            ],
+            "ArrivalRadius": 1,
+            "CooldownSeconds": 1
+          },
+          "Stay": true,
+          "Post": {
+            "Point": [
+              300,
+              500,
+              0
+            ],
+            "Radius": 2.0
+          },
+          "watchTowards": [
+            100,
+            500,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

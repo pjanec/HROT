@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
@@ -284,10 +285,11 @@ namespace Hrot.SimHost.Tests
             return (repo, unit, provider, new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), behaviors ?? new BehaviorRegistry(), clears));
         }
 
-        /// <summary>⭐ CE-3167 (Entity Commanding §2.5b-d) — an order with ClearsPriorIntent runs every provider for the unit in the
-        /// same call that publishes the assign; an order without the flag runs none.</summary>
+        /// <summary>⭐⭐ CE-3494 (R-3115) — an order with ClearsPriorIntent no longer runs the providers here, before it was even tried: the assign
+        /// it publishes carries <c>HoldsPlan</c>, and the INGRESS holds the plan once the order has started. An order without the flag carries none.
+        /// 🔴 Red-proof: the old ClearFor call in TIR ⇒ the "no provider ran" assertion.</summary>
         [Fact]
-        public void CE3167_ClearsPriorIntent_RunsTheProviders_AndStillAssigns_WithoutTheFlagNoneRun()
+        public void CE3494_ClearsPriorIntent_CarriesHoldsPlanToTheIngress_AndRunsNoProviderHere()
         {
             var (repo, unit, provider, system) = ClearRig();
             using var _ = repo;
@@ -302,10 +304,167 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0.016f);
             repo.Bus.SwapBuffers();
 
-            Assert.Equal(new[] { unit }, provider.Cleared);
+            Assert.Empty(provider.Cleared);                                   // ⭐ CE-3494 — not here
             var assigns = repo.Bus.ReadManaged<AssignBehaviorEvent>();
             Assert.Single(assigns);
             Assert.Equal(BehaviorOrigin.Operator, assigns[0].Origin);
+            Assert.True(assigns[0].HoldsPlan);
+        }
+
+        /// <summary>⭐⭐ CE-3494 (R-3115) — the INGRESS holds the plan only once the order STARTED: a started assign with HoldsPlan runs the
+        /// providers in the same call; a refused one (no such behaviour) holds nothing. 🔴 Red-proof: run the providers before Start ⇒ the
+        /// refused order's count.</summary>
+        [Fact]
+        public void CE3494_TheIngress_HoldsThePlan_OnlyWhenTheOrderStarts()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var (repo, unit, provider, _) = ClearRig(behaviors: registry);
+            using var _ = repo;
+            var holds = new IntentClearRegistry();
+            holds.Register(provider);
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry) { Holds = holds };
+
+            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = unit, BehaviorName = "NoSuchBehaviour", Origin = BehaviorOrigin.Operator, HoldsPlan = true });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+            Assert.Empty(provider.Cleared);                                  // refused ⇒ nothing held
+
+            repo.Bus.SwapBuffers();
+            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = unit, BehaviorName = "Idle", JsonParams = "{}", Origin = BehaviorOrigin.Operator, HoldsPlan = true });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+            Assert.Equal(new[] { unit }, provider.Cleared);                  // started ⇒ held, once
+        }
+
+        /// <summary>⭐ CE-3494 — an intent whose task is not a behaviour name is an ORDER (an edit-mode map order, <c>Order.Hold</c>): the ingress hands it
+        /// to the one order path (an AssignTacticalIntentEvent at the intent's origin) instead of starting it; TIR then resolves it per class.
+        /// 🔴 Red-proof: AssignNow for every task ⇒ "no behaviour named Order.Hold", no event.</summary>
+        [Fact]
+        public void CE3494_AnIntentWhoseTaskIsAnOrder_GoesThroughTheOrderPath()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var (repo, unit, _, _) = ClearRig(behaviors: registry);
+            using var owned = repo;
+            if (!repo.TryGetTable(typeof(UnitIntent), out _)) repo.RegisterManagedComponent<UnitIntent>();
+            if (!repo.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) repo.Bus.RegisterManaged<AssignTacticalIntentEvent>();   // a brain node has the order path
+            repo.SetManagedComponent(unit, new UnitIntent { Behavior = new IntentSlot { Name = "Order.Hold", Params = "{}", Origin = BehaviorOrigin.Superior } });
+            new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry).Execute(repo, 0.016f);
+            Assert.False(repo.HasManagedComponent<UnitIntent>(unit));                        // applied (pending-only)
+            repo.Bus.SwapBuffers();
+            var order = Assert.Single(repo.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            Assert.Equal("Order.Hold", order.IntentId);
+            Assert.Equal(BehaviorOrigin.Superior, order.Origin);
+        }
+
+        /// <summary>⭐⭐ CE-3494 §10 P5 (R-3119) — a PERSON's task in the intent (origin Operator) is left by the ingress, taken by the tactical system in
+        /// the SAME step (its Simulation phase), resolved as the order it stands for — and once it starts, the plan is held. The request id rides along.
+        /// 🔴 Red-proof: TakePersonsTasks removed ⇒ no assign, the intent never empties.</summary>
+        [Fact]
+        public void CE3494_APersonsTask_IsTakenFromTheIntent_SameStep_AndHoldsThePlan()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var (repo, unit, provider, tactical) = ClearRig(behaviors: registry);
+            using var owned = repo;
+            if (!repo.TryGetTable(typeof(UnitIntent), out _)) repo.RegisterManagedComponent<UnitIntent>();
+            var holds = new IntentClearRegistry();
+            holds.Register(provider);
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry) { Holds = holds, TasksTakenByOrders = true };
+            var id = Guid.NewGuid();
+            UnitIntents.RequestTask(repo, unit, "Idle", "{}", BehaviorOrigin.Operator, id);
+
+            ingress.Execute(repo, 0.016f);                                                    // Input phase: leaves the person's task
+            Assert.Equal("Idle", Fdp.Toolkit.Behavior.UnitIntents.Pending(repo, unit)!.Behavior!.Name);
+            tactical.Execute(repo, 0.016f);                                                   // Simulation phase: takes it
+            Assert.False(repo.HasManagedComponent<UnitIntent>(unit));
+            repo.Bus.SwapBuffers();
+            var assign = Assert.Single(repo.Bus.ReadManaged<AssignBehaviorEvent>());
+            Assert.True(assign.HoldsPlan);
+            Assert.Equal(BehaviorOrigin.Operator, assign.Origin);
+
+            ingress.Execute(repo, 0.016f);                                                    // next step: it starts, the plan is held
+            Assert.Equal(new[] { unit }, provider.Cleared);
+        }
+
+        /// <summary>⭐ CE-3494 §10 P5 — a host with no tactical system (the flag off): the ingress publishes the person's task itself, as the order event
+        /// (clears the prior intent, keeps the request id) — the task is never silently lost. 🔴 Red-proof: the person branch dropped ⇒ no event.</summary>
+        [Fact]
+        public void CE3494_WithoutTheTacticalSystem_TheIngressSendsAPersonsTaskAsTheOrder()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var (repo, unit, _, _) = ClearRig(behaviors: registry);
+            using var owned = repo;
+            if (!repo.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) repo.Bus.RegisterManaged<AssignTacticalIntentEvent>();
+            var id = Guid.NewGuid();
+            UnitIntents.RequestTask(repo, unit, "Order.Hold", "{}", BehaviorOrigin.Operator, id);
+            new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry).Execute(repo, 0.016f);
+            Assert.False(repo.HasManagedComponent<UnitIntent>(unit));
+            repo.Bus.SwapBuffers();
+            var order = Assert.Single(repo.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            Assert.Equal("Order.Hold", order.IntentId);
+            Assert.True(order.ClearsPriorIntent);
+            Assert.Equal(id, order.RequestId);
+        }
+
+        /// <summary>⭐⭐ CE-3494 §10 P3 — two requests on one paused frame: the LATER one is the slot; a release replaces an order; ROE changes merge field
+        /// by field. 🔴 Red-proof: Replace keeping the old slot ⇒ the first name survives.</summary>
+        [Fact]
+        public void CE3494_TheLaterRequestReplacesTheSlot_AReleaseReplacesAnOrder_RoeMerges()
+        {
+            var (repo, unit, _, _) = ClearRig();
+            using var owned = repo;
+            UnitIntents.RequestTask(repo, unit, "Order.Hold", "{}", BehaviorOrigin.Operator, Guid.NewGuid());
+            UnitIntents.RequestTask(repo, unit, "Order.Move", "{}", BehaviorOrigin.Operator, Guid.NewGuid());
+            Assert.Equal("Order.Move", UnitIntents.Pending(repo, unit)!.Behavior!.Name);
+            UnitIntents.RequestClear(repo, unit, BehaviorOrigin.Operator, Guid.Empty);
+            Assert.True(UnitIntents.Pending(repo, unit)!.Behavior!.Clear);
+
+            UnitIntents.RequestRoe(repo, new SetRoeEvent { Entity = unit, Fire = RoeFire.HoldFire, Origin = BehaviorOrigin.Operator });
+            UnitIntents.RequestRoe(repo, new SetRoeEvent { Entity = unit, Reactions = RoeReactions.StayOnTask, Origin = BehaviorOrigin.Operator });
+            var roe = UnitIntents.Pending(repo, unit)!.Roe!;
+            Assert.Equal(RoeFire.HoldFire, roe.Fire);                                         // kept: the second change left it unset
+            Assert.Equal(RoeReactions.StayOnTask, roe.Reactions);
+            Assert.Equal(BehaviorOrigin.Operator, roe.SetBy);
+        }
+
+        /// <summary>⭐⭐ CE-3494 §10 P7 — the intent survives a checkpoint: a person's order given on a paused frame is in the keyframe, a world restored from
+        /// it carries it, and the restored run's first step takes it. 🔴 Red-proof: UnitIntent marked NoReplay ⇒ the restored world has no intent.</summary>
+        [Fact]
+        public void CE3494_APausedFramesOrder_SurvivesACheckpoint_AndRunsAfterTheRestore()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var (repo, unit, _, _) = ClearRig(behaviors: registry);
+            using var owned = repo;
+            UnitIntents.RequestTask(repo, unit, "Idle", "{}", BehaviorOrigin.Operator, Guid.NewGuid());
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+
+            UnitIntents.Replace(repo, unit, null);                                            // the live world moves on: no intent
+            Assert.Null(UnitIntents.Pending(repo, unit));
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(repo, kf);                                // the restore
+            Assert.Equal("Idle", UnitIntents.Pending(repo, unit)!.Behavior!.Name);
+
+            var (_, _, _, tactical) = ClearRig(behaviors: registry);
+            tactical.Execute(repo, 0.016f);                                                   // the first advancing step after the restore
+            repo.Bus.SwapBuffers();
+            Assert.Equal("Idle", Assert.Single(repo.Bus.ReadManaged<AssignBehaviorEvent>()).BehaviorName);
+        }
+
+        /// <summary>⭐ CE-3494 §10 — the reverse: restoring a checkpoint taken with NO pending intent drops one the live world had (a restore is the whole
+        /// world). 🔴 Red-proof: a keyframe apply that keeps absent managed components ⇒ the intent survives.</summary>
+        [Fact]
+        public void CE3494_ACheckpointWithNoIntent_ClearsAPendingOneOnRestore()
+        {
+            var (repo, unit, _, _) = ClearRig();
+            using var owned = repo;
+            if (!repo.TryGetTable(typeof(UnitIntent), out _)) repo.RegisterManagedComponent<UnitIntent>();
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            UnitIntents.RequestTask(repo, unit, "Idle", "{}", BehaviorOrigin.Operator, Guid.NewGuid());
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(repo, kf);
+            Assert.Null(UnitIntents.Pending(repo, unit));
         }
 
         /// <summary>⭐ CE-3167 — the providers run on the brain OWNER only: a node without authority clears nothing.</summary>

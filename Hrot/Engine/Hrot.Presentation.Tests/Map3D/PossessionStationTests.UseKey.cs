@@ -322,27 +322,27 @@ public sealed partial class PossessionStationTests
         Frame(u, sw, Key(Raylib_cs.KeyboardKey.F));
         var f = Frame(u, sw, new Input());
         Assert.Equal((1, 0, 88L), (f.UseSeq, f.UseVerb, f.UseTarget));
-        Assert.Equal(PossessionStation.HandOverStep.AwaitBoard, station.Step);
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitBoard, station.Step);
         station.Update(0.016f);
         u.ApplyPossession();
         Assert.Equal(PossessionMode.Fps, u.W.GetComponentRO<PossessedBy>(u.Me).Mode);   // not aboard yet: nothing moves
 
         Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(u.W, u.Me, bmp, SeatRole.Driver));   // the brain boarded him
         station.Update(0.016f);
-        Assert.Equal(PossessionStation.HandOverStep.AwaitRiding, station.Step);
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitRiding, station.Step);
         station.Update(0.016f);                                                  // a frame before his Riding replicates (a network lags)
-        Assert.Equal(PossessionStation.HandOverStep.AwaitRiding, station.Step);  // the vehicle waits — possessing it now would release him
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitRiding, station.Step);  // the vehicle waits — possessing it now would release him
         u.ApplyPossession();
         Assert.Equal(PossessionMode.Riding, u.W.GetComponentRO<PossessedBy>(u.Me).Mode);
         Assert.False(u.W.HasComponent<PossessedBy>(bmp));
         station.Update(0.016f);                                                  // he rides: now the vehicle
-        Assert.Equal(PossessionStation.HandOverStep.AwaitVehicle, station.Step);
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitVehicle, station.Step);
         Assert.True(sw.Is3D);                                                    // between the two: still first person
         u.ApplyPossession();
         Assert.Equal(PossessionMode.Riding, u.W.GetComponentRO<PossessedBy>(u.Me).Mode);   // the vehicle's possession kept him
         station.Update(0.016f);
         station.Update(0.016f);
-        Assert.Equal((bmp, PossessionStation.HandOverStep.None), (station.Unit, station.Step));
+        Assert.Equal((bmp, DriveHandOver.HandOverStep.None), (station.Unit, station.Step));
         Assert.Equal(u.Me, PossessionStation.RiderOf(u.W, bmp));
         sw.Camera3D.Update(0.016f);
 

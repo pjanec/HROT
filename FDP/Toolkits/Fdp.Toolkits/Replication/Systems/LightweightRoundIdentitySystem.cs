@@ -15,8 +15,11 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <see cref="NetworkEntityMap"/>. That is all the existing egress needs to publish <c>EntityMaster</c> (with the Lightweight flag)
     /// and <c>WorldPos</c> — no lifecycle, no construction, no acks.
     /// <para>⛔ Network-agnostic (R-134): it knows ids, owners and the map, never DDS. The combat code knows none of it.</para>
-    /// <para>Registered by <c>EntityCreationPack</c> on every ECS host (it holds the allocator); a host without one assigns nothing, and
-    /// its rounds stay local.</para>
+    /// <para>Registered by <c>EntityCreationPack</c> on every ECS host (it holds the allocator) — ⭐ CE-11050: the editor, which has no network adapters, included, so
+    /// the gateway sees its rounds; a host without an allocator assigns nothing, and its rounds stay local.</para>
+    /// <para>⭐ CE-11050 — it also UNMAPS the rounds it identified once they are gone: a round lives a second or less and a fight fires thousands, and a host with no
+    /// replication module (the editor) has no <c>DisposalMonitoringSystem</c> to prune the map, so the entries (and the dead ids' graveyard) would grow for the whole run.
+    /// On a networked host the monitor prunes the same ids too — <c>Unregister</c> of an id already gone is a no-op, so the two do not disagree.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
@@ -27,6 +30,8 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly NodeId _localNodeId;
         [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _pending = new();
+        [Fdp.Core.WorldDerived("the rounds this system identified and has not yet unmapped — each one is a live world entity with a NetworkIdentity; the map's own RebuildFromWorld covers a restore")]
+        private readonly List<(int Id, Entity Round)> _assigned = new();
         private EntityRepository? _queryWorld;
         private EntityQuery? _query;
 
@@ -49,8 +54,10 @@ namespace Fdp.Toolkit.Replication.Systems
             if (!ReferenceEquals(world, _queryWorld))
             {
                 _queryWorld = world;
+                _assigned.Clear();   // handles of another world mean nothing in this one (and its map is its own)
                 _query = world.Query().With<LightweightRound>().Without<NetworkIdentity>().Build();
             }
+            Unmap(world);
             _pending.Clear();
             foreach (var e in _query!) _pending.Add(e);
             foreach (var e in _pending)
@@ -59,8 +66,26 @@ namespace Fdp.Toolkit.Replication.Systems
                 world.AddComponent(e, new NetworkIdentity(id));
                 world.AddComponent(e, new NetworkAuthority(_localNodeId, _localNodeId));
                 _entityMap.Register(id, e);
+                _assigned.Add((id, e));
                 Assigned++;
             }
+        }
+
+        /// <summary>⭐ CE-11050 — a round that is gone leaves the map (and its id the graveyard, aged here too): no per-frame allocation, swap-remove over a field list.</summary>
+        private void Unmap(EntityRepository world)
+        {
+            bool any = false;
+            for (int i = _assigned.Count - 1; i >= 0; i--)
+            {
+                var (id, round) = _assigned[i];
+                if (world.IsAlive(round)) continue;
+                _entityMap.Unregister(id, world.SimulationTick);
+                int last = _assigned.Count - 1;
+                _assigned[i] = _assigned[last];
+                _assigned.RemoveAt(last);
+                any = true;
+            }
+            if (any) _entityMap.PruneGraveyard(world.SimulationTick);
         }
     }
 }

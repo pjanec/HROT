@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CE-11052: a terrain's wall panels and openings, from HROT's OWN loader (TerrainFolderWorld.ReadWorld) and rank order
+       (BuildingPanelIndex), for the Unreal image generator's converter (scripts/terrain-to-unreal.py).
+       docs/designs/IG/DRAFT_Unreal_Image_Generator.md "Building panels for Unreal". Mirrors hrot-roadscene. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-building-panels</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+</Project>

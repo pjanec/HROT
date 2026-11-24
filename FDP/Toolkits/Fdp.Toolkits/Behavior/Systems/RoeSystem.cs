@@ -12,7 +12,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.4.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    [TickMode(TickPolicy.EveryFrame)]
+    // ⭐⭐ CE-3494 (R-3114, DESIGN_Unit_Intent.md §1 R1) — nothing the AI does takes effect on a paused frame: this runs only when time
+    //   advances and reads every request since its last run, IN ORDER (the step window) — so stepped and continuous runs agree.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class RoeSystem : IEcsModuleSystem
     {
         /// <summary>Refused changes since this system was built (a test / diagnostics probe).</summary>

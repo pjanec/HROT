@@ -108,7 +108,8 @@ public sealed class EntityDetailsBundle : IUiBundle
             registry:   () => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor,
             blueprints: () => Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry,
             // ⭐ CE-1316 / CE-1314 — the views a host draws INSIDE the tab (the editor: the AI tab's editing, the Entity Blueprints panel)
-            embeds:     () => BrainSections));
+            embeds:     () => BrainSections,
+            stagedPending: () => Workspace.StagedWrites?.HasPending == true));   // ⭐ CE-3494 — the ONE staged set (silent-default rule)
     }
 
     private static readonly Func<Hrot.UI.Common.Rules.IRuleDetailsHost?> NoRules = static () => null;

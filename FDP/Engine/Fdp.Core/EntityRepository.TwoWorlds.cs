@@ -44,7 +44,7 @@ namespace Fdp.Core
                 EnsureSingletonCapacity(id);
                 if (_singletons[id] is not IComponentTable mine || _borrowedSingletons.IsSet(id) || mine.GetType() != st.GetType())
                 {
-                    mine = NewTableLike(st.GetType());   // first sync only (a type change or a borrowed slot)
+                    mine = NewTableLike(st.GetType());   // first sync only (a type change, or a slot a plain SyncFrom borrowed)
                     _singletons[id] = mine;
                     _borrowedSingletons.ClearBit(id);
                 }
@@ -81,8 +81,13 @@ namespace Fdp.Core
                 _keepMasks![i] = m;
             }
 
-            // 2. the structure and the masked tables from S (SyncFrom filters every mask to tableMask)
-            SyncFromCore(source, tableMask, includeTransient: true, excludeTypes: null);
+            // 2. the structure and the masked tables from S (SyncFrom filters every mask to tableMask) — ⭐ CE-11047: WITHOUT the SoD singleton borrow.
+            //    📌 Measured (ui, headless Stechovice): step 2 borrowed twelve singleton slots, step 4 saw "borrowed" and built a NEW table for each,
+            //    and the next sync borrowed again — twelve tables (and their chunk arrays) per sync, per world: ~13 % + 52 % of a 45–55 MB/s main
+            //    thread. ⭐ DESIGN_Threaded_Simulation_Presentation §13.1 / D-4: immutable services are SHARED — step 4's copy of a managed singleton
+            //    is the SAME object, in a table this world owns; per-tick values (WorldEpoch, the EQS / raycast state) are COPIED. ⛔ A borrow here
+            //    would hand the reader the simulation's LIVE tables across threads (Publish runs on the sim thread, Pull on the main thread).
+            SyncFromCore(source, tableMask, includeTransient: true, excludeTypes: null, borrowSingletons: false);
 
             // 3. put A's own bits back on the entities that are still the same ones
             int newMax = _entityIndex.MaxIssuedIndex;

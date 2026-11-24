@@ -244,7 +244,7 @@ namespace Fdp.Toolkit.Aggregate
             {
                 RequestId = id, Start = from, End = u.Destination,
                 MobilityProfile = (byte)(!mounted ? 2 : mobility == HoldingMobility.Tracked ? 1 : 0),   // 0 wheeled · 1 tracked · 2 infantry
-                RoadUse = mounted ? RoadUse.Prefer : RoadUse.Neutral,
+                RoadUse = mounted ? RoadUse.Prefer : RoadUse.NavmeshFirst,   // ⭐ R-11018 — on foot: the navmesh first
                 NavLayerMask = (int)(mounted ? VehicleLayer : InfantryLayer),
                 SourceNodeId = LocalNodeId,
             });
@@ -375,7 +375,7 @@ namespace Fdp.Toolkit.Aggregate
             using var lease = holder?.Borrow();
             var graph = lease?.Value ?? default;
             _planner.World = Fdp.Toolkit.World.WorldQuery.Of(repo);
-            var q = new RouteQuery(from, to, mounted ? RoadUse.Prefer : RoadUse.Neutral, NavigationBackend.Auto, mounted ? VehicleLayer : InfantryLayer);
+            var q = new RouteQuery(from, to, mounted ? RoadUse.Prefer : RoadUse.NavmeshFirst, NavigationBackend.Auto, mounted ? VehicleLayer : InfantryLayer);
             Vector3[] pts;
             NavigationBackend? backend = null;
             if ((navmesh != null || RoadGraphRouter.HasRoads(graph))

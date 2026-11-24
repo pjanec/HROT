@@ -1,0 +1,19 @@
+{
+  "$doc": "docs/DESIGN_Weapon_Layers.md 5l (CE-11033, R-11012/R-11013) - rifle-bursts, the scenario's Judge list: (1) Near (40 m) fires bursts of 2-3 rounds counted 1..N; (2) Mid (120 m, standing) fires 1-2 rounds; (3) Supp (200 m, beyond the 150 m sight, memory only) fires suppressing bursts of 3-5 rounds, every round planned; (4) every pair fires. The rows' burstId / burstRounds / burstIndex are the AI brain's stamp, copied by the muscle into the shot log. A rifleman's sight is 150 m, so the 'seen target beyond 150 m = single round' row is proven by the rules rail, not here.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    { "name": "(4) the Near men fire", "on": "shot", "by": "Near Blue" },
+    { "name": "(4) the Mid men fire", "on": "shot", "by": "Mid Blue" },
+    { "name": "(4) the Supp men fire", "on": "shot", "by": "Supp Blue" },
+    { "name": "(1) a Near man fires a planned burst of 2-3 rounds", "on": "shot", "by": "Near Blue", "where": { "burstRounds": [">=", 2] } },
+    { "name": "(1) a Near burst reaches its second round (index 2)", "on": "shot", "by": "Near Blue", "where": { "burstIndex": ["==", 2] } },
+    { "name": "(1) a Near burst is never longer than 3 rounds", "never": { "on": "shot", "by": "*Near", "where": { "burstRounds": [">", 3] } } },
+    { "name": "(2) a Mid man never fires a burst of more than 2 rounds", "never": { "on": "shot", "by": "*Mid", "where": { "burstRounds": [">", 2] } } },
+    { "name": "(3) a Supp man fires a suppressing burst of 3+ rounds", "on": "shot", "by": "Supp Blue", "where": { "burstRounds": [">=", 3] } },
+    { "name": "(3) a Supp burst is never longer than 5 rounds", "never": { "on": "shot", "by": "*Supp", "where": { "burstRounds": [">", 5] } } },
+    { "name": "(3) every Supp round belongs to a planned burst", "never": { "on": "shot", "by": "*Supp", "where": { "burstId": ["==", 0] } } }
+  ]
+}

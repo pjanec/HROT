@@ -30,6 +30,17 @@
       "EntityInfo": {
         "Name": "Blue Squad",
         "ForceId": "Friend"
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
       }
     },
     "c2470005-0000-4000-8000-000000000101": {

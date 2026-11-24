@@ -20,6 +20,9 @@ namespace Fdp.Core.Collections
         public bool IsCreated => m_Buffer != null;
         public int Length => m_Length;
 
+        /// <summary>⭐ CE-11046 — the block's address: an IDENTITY for a cache keyed on "this very array" (0 when not created). Never dereference.</summary>
+        public nint Address => (nint)m_Buffer;
+
         public NativeArray(int length, Allocator allocator)
         {
             if (length < 0) throw new ArgumentOutOfRangeException(nameof(length));

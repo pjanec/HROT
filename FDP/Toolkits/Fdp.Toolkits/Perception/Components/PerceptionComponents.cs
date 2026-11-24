@@ -328,6 +328,18 @@ namespace Fdp.Toolkit.Perception.Components
             }
         }
 
+        /// <summary>⭐ <c>CE-2486</c> (Sensing §8.6e; 📐 pe-house-shot) — a sound heard within its circle PLUS this (m) of a man he already KNOWS is that man: the
+        /// memory holds where he was last SEEN, and a man moves a few steps between sightings. 📐 the ear 12 m from the shooter, sure to 1.1 m, heard him 2.7 m
+        /// from where he had last seen him and held him twice. ⚠ Two enemies closer than this are heard as one — a buddy pair, as a listener would.</summary>
+        public const float KnownMoveSlackMetres = 3f;
+
+        /// <summary>⭐ <c>CE-2492</c> — how fast a man only heard may have moved since he was last heard (m/s): a brisk walk. Caps at <see cref="KnownMoveSlackMetres"/>.</summary>
+        public const float WalkMetresPerSecond = 1.5f;
+
+        /// <summary>⭐ <c>CE-2492</c> — how far apart in time two bangs heard in ONE step may be (s): the acoustic solve delivers every bang since the last
+        /// at once (📐 the batch's ages spanned 0.02–0.30 s). The walking slack counts at least this long.</summary>
+        public const float HeardBatchSeconds = 0.5f;
+
         /// <summary>⭐ <c>CE-2477</c> (Sensing §8.6e) — the tightest a fused heard circle may get, as a share of ONE hearing's circle: a lone listener
         /// localises a sound to a few degrees of bearing and judges range only by loudness, so however many shots he hears the estimate does not
         /// sharpen past ~a third of one hearing's circle (≈ 3° at the 0.15 × distance circle). 📐 pe-seen-shooter: 146 fused shots took 26 m to
@@ -354,16 +366,19 @@ namespace Fdp.Toolkit.Perception.Components
         /// Returns the slot's id. ⛔ Never an identity: the source is not known here, only "something about here".
         /// </summary>
         public static long HearContact(ref TargetMemory mem, float x, float y, float z, float radius, byte sourceClass,
-                                       float scoreBoost, uint tick, byte via = 0, long sound = 0)
+                                       float scoreBoost, uint tick, byte via = 0, long sound = 0, float stepSeconds = 1f / 60f)
         {
             radius = radius > 0f ? radius : 1f;
             bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
             int best = -1; float bestD2 = float.MaxValue;
+            // ⭐ CE-2486 — he may have moved a few steps since he was last seen. ⭐ CE-2489 — a STRAIGHT hearing only: a point heard round an opening is the WAY
+            //   to him (D-8), and folding it into his stale spot loses the route (📐 ia-house-hunt: the stairwell, 3.9 m from where the defender was seen upstairs)
+            float knownReach = via == 0 ? radius + KnownMoveSlackMetres : radius;
             for (int i = 0; !burst && i < mem.Count; i++)
             {
                 if (mem.Anonymous[i] != 0) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
-                if (d2 <= radius * radius && d2 < bestD2) { best = i; bestD2 = d2; }
+                if (d2 <= knownReach * knownReach && d2 < bestD2) { best = i; bestD2 = d2; }
             }
             if (best >= 0)
             {
@@ -372,6 +387,12 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Modalities[best]   |= (byte)SensorModality.Acoustic;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
                 if (sound != 0) mem.SoundIds[best] = sound;   // ⭐ CE-2474
+                // ⭐ CE-2488 — heard OUTSIDE the circle of where he was seen: he has moved, and the ear says where to (📐 ia-house-hunt: CE-2486 kept the stale
+                //   spot, a room away, and the hunt went there). ⛔ Not a point heard round an opening — that is where to look, not where he is (D-8)
+                if (via == 0 && bestD2 > radius * radius)
+                {
+                    mem.PositionsX[best] = x; mem.PositionsY[best] = y; mem.PositionsZ[best] = z;
+                }
                 long known = mem.EntityIds[best];
                 Sort(ref mem);
                 return known;
@@ -384,6 +405,12 @@ namespace Fdp.Toolkit.Perception.Components
                 if (burst != (mem.SourceClass[i] == BurstClass)) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
                 float reach = mem.Radius[i] + radius;
+                // ⭐ CE-2492 — a man only HEARD may have WALKED since he was last heard (📐 pe-wall-and-door: a shooter walking to his target, 1.6 m
+                //   between two shots, 0.7 m circles ⇒ held twice). Straight hearings only (a point round an opening is the way in, CE-2489), never a burst
+                //   ⭐ at least HeardBatchSeconds: one acoustic solve delivers every bang since the last, in ONE step (📐 P2b: bangs 86 and 88 in the same
+                //   step, 1.6 m apart — the elapsed steps were 0)
+                if (!burst && via == 0 && mem.Anonymous[i] == HeardStraight && tick >= mem.LastSeenTick[i])
+                    reach += MathF.Min(KnownMoveSlackMetres, WalkMetresPerSecond * MathF.Max(HeardBatchSeconds, (tick - mem.LastSeenTick[i]) * stepSeconds));
                 if (d2 <= reach * reach && d2 < bestD2) { best = i; bestD2 = d2; }
             }
             if (best >= 0)
@@ -459,13 +486,45 @@ namespace Fdp.Toolkit.Perception.Components
                 if (cos >= bestCos) { best = i; bestCos = cos; }
             }
             if (best < 0) return false;
-            mem.Freshness[best]   += scoreBoost;
-            mem.LastSeenTick[best] = tick;
-            mem.Modalities[best]  |= (byte)SensorModality.Acoustic;
-            if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
-            if (sound != 0) mem.SoundIds[best] = sound;
-            Sort(ref mem);
+            CreditShot(ref mem, best, sourceClass, scoreBoost, tick, sound);
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-2490</c> — how long after a bang its flash, seen, still binds it (s): the sound and the flash are one instant; this is the
+        /// engine's own lag (the acoustic solve, the sighting's hysteresis), not a human's.</summary>
+        public const double FlashBindSeconds = 1.0;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2490</c> (Sensing §8.6g; 🔒 user: "its the timing that binds the visual muzzle flash with the sound from side doors, so it should be
+        /// perceived as single guys") — a listener heard a SHOT fired by <paramref name="shooter"/>, and he SEES that man now (<paramref name="seenNow"/>):
+        /// he saw the muzzle flash at the moment of the bang, so the shot is that man's WHATEVER WAY THE SOUND CAME — round a door, up a stair. That slot is
+        /// credited (Acoustic added, the sound's token stamped) instead of a new anonymous slot. ⛔ Only through sight: a shooter he does not see stays
+        /// anonymous (§6 D). Not a burst (where a round LANDED, R-2071). Returns true when it attributed.
+        /// </summary>
+        public static bool AttributeBySeenFlash(ref TargetMemory mem, long shooter, byte kind, byte sourceClass,
+                                                System.ReadOnlySpan<long> seenNow, float scoreBoost, uint tick, long sound)
+        {
+            if (kind != ShotKind || sourceClass == BurstClass || shooter <= 0) return false;
+            bool seen = false;
+            for (int k = 0; k < seenNow.Length && !seen; k++) seen = seenNow[k] == shooter;
+            if (!seen) return false;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] != 0 || mem.EntityIds[i] != shooter) continue;
+                CreditShot(ref mem, i, sourceClass, scoreBoost, tick, sound);
+                return true;
+            }
+            return false;
+        }
+
+        private static void CreditShot(ref TargetMemory mem, int slot, byte sourceClass, float scoreBoost, uint tick, long sound)
+        {
+            mem.Freshness[slot]   += scoreBoost;
+            mem.LastSeenTick[slot] = tick;
+            mem.Modalities[slot]  |= (byte)SensorModality.Acoustic;
+            if (mem.SourceClass[slot] == 0) mem.SourceClass[slot] = sourceClass;
+            if (sound != 0) mem.SoundIds[slot] = sound;
+            Sort(ref mem);
         }
 
         /// <summary><c>Signatures.SoundKind.Shot</c>.</summary>
@@ -492,7 +551,9 @@ namespace Fdp.Toolkit.Perception.Components
                 for (int k = 0; !compatible && k < entityClasses.Length; k++) compatible = ClassesCompatible(c, entityClasses[k]);
                 if (!compatible) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
-                bool inside = d2 <= mem.Radius[i] * mem.Radius[i];
+                // ⭐ CE-2487 — CE-2486's slack, the other way round: heard first, seen a few steps from the point (📐 pe-house-shot, 0.9 m off a 0.7 m circle)
+                float reach = mem.Radius[i] + KnownMoveSlackMetres;
+                bool inside = d2 <= reach * reach;
                 // ⭐ CE-2485 — a contact heard THROUGH AN OPENING (D-8: its point is the way in) is his when he stands BEYOND that point, within
                 //   AttributeThroughDegrees of its bearing from the listener (📐 uf-corner-assault: steps heard round the corner, the man then seen behind it,
                 //   held as two enemies — the attack stopped at 23.9 s; pe-house-shot: heard via the stairwell, seen through the door)

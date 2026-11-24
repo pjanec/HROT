@@ -261,7 +261,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// Bit (i mod 63) = the point lies in segment i's band; <see cref="JunctionBit"/> = it lies inside a junction, whose node
         /// index then also sets bit (node mod 63) so two junctions hash apart. 0 = off the roads.
         /// </summary>
-        private static ulong RoadMask(in global::CarKinem.Road.RoadNetworkBlob roads, Vector2 p)
+        internal static ulong RoadMask(in global::CarKinem.Road.RoadNetworkBlob roads, Vector2 p)
         {
             ulong mask = 0;
             for (int i = 0; i < roads.Segments.Length; i++)
@@ -274,17 +274,13 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 if (DistanceToCurve(seg, p) <= half) mask |= 1ul << (i % 63);
             }
             if (mask == 0) return 0;
+            // ⭐ CE-5045 — each node's degree and junction radius from the graph's ONE derived index (built once per graph): this derived them by
+            //   scanning every segment PER NODE PER POINT — 19 257 × 19 691 per route point on Stechovice, which held the EQS commit for minutes.
+            //   The same nodes in the same order, the same first junction.
+            var index = global::Fdp.Toolkit.Navigation.RoadGraphIndex.For(roads);
             for (int n = 0; n < roads.Nodes.Length; n++)
             {
-                int degree = 0; float radius = 0f;
-                for (int i = 0; i < roads.Segments.Length; i++)
-                {
-                    var seg = roads.Segments[i];
-                    if (seg.StartNodeIndex != n && seg.EndNodeIndex != n) continue;
-                    degree++;
-                    radius = MathF.Max(radius, HalfWidth(seg));
-                }
-                if (degree >= 3 && Vector2.Distance(p, roads.Nodes[n].Position) <= radius)
+                if (index.Degree(n) >= 3 && Vector2.Distance(p, roads.Nodes[n].Position) <= index.JunctionRadius[n])
                     return JunctionBit | (1ul << (n % 63));
             }
             return mask;

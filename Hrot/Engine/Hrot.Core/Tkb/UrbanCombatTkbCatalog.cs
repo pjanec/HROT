@@ -213,7 +213,7 @@ namespace Hrot.Core.Tkb
             // CivilianCar (1002)
             {
                 var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-                Master(t, "CivilianCar", new DISEntityType { Kind = 1, Domain = 1, Category = 81 });
+                Master(t, "CivilianCar", new DISEntityType { Kind = 1, Domain = 1, Category = 81, Subcategory = 10 });   // ⭐ CE-11042 — SISO-REF-010 Car › Generic
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
                 var car = CarrierDefDto.PassengerSeats(4);   // ⭐ CE-2151 (R-2009) — a car seats four beside its (abstract) driver
                 // ⭐ CE-3233 (civilians B-11b, AW-12, §7.13 ST-9) — and its BOOT: one cargo station, stowed and concealed (a car bomb's load
@@ -234,13 +234,16 @@ namespace Hrot.Core.Tkb
             // ⭐ AQ93 §12 T1 (R-4056) — the rest of the traffic: each its own type (its own model and size), SUMO's share by weight.
             // ⭐ CE-1457 (§6ad-3 TC3) — every traffic type names its BODY STYLE (a kit of its own in the 3-D map); the passenger mix is Sedan 3 · Estate 2 ·
             //   Hatchback 3 · Suv 2 · CivilianCar (a Sedan, above) 6
-            TrafficCar(tkb, "Sedan", TkbTrafficSedan, 4.6f, 1.8f, 1.45f, 24f, "passenger", 3f, "Sedan");
-            TrafficCar(tkb, "Estate", TkbTrafficEstate, 4.7f, 1.82f, 1.5f, 24f, "passenger", 2f, "Estate");
-            TrafficCar(tkb, "Hatchback", TkbTrafficHatchback, 3.7f, 1.66f, 1.5f, 22f, "passenger", 3f, "SmallHatch");
-            TrafficCar(tkb, "Suv", TkbTrafficSuv, 4.6f, 1.9f, 1.75f, 23f, "passenger", 2f, "Suv");
-            TrafficCar(tkb, "DeliveryVan", TkbTrafficVan, 5.3f, 2.0f, 2.3f, 20f, "delivery", 1.5f, "Van");
-            TrafficCar(tkb, "CityBus", TkbTrafficBus, 12.0f, 2.55f, 3.0f, 15f, "bus", 0.4f, "Bus");
-            TrafficCar(tkb, "BoxTruck", TkbTrafficTruck, 8.0f, 2.5f, 3.4f, 18f, "truck", 0.6f, "BoxTruck");
+            // ⭐ CE-11042 (R-11020) — each kind its own SISO-REF-010 DIS type, so a DIS-only image generator tells a bus from a sedan:
+            //   Car 81 › 43 sedan / 63 wagon / 52 5-door hatchback (compact) / 113 SUV; Single Unit Cargo Truck 83 › 74 delivery van / 101 box
+            //   delivery truck; Bus 82 › 1 commuter (flat nose). Values from open-dis7's enumerations (generated from SISO-REF-010).
+            TrafficCar(tkb, "Sedan", TkbTrafficSedan, 4.6f, 1.8f, 1.45f, 24f, "passenger", 3f, "Sedan", 81, 43);
+            TrafficCar(tkb, "Estate", TkbTrafficEstate, 4.7f, 1.82f, 1.5f, 24f, "passenger", 2f, "Estate", 81, 63);
+            TrafficCar(tkb, "Hatchback", TkbTrafficHatchback, 3.7f, 1.66f, 1.5f, 22f, "passenger", 3f, "SmallHatch", 81, 52);
+            TrafficCar(tkb, "Suv", TkbTrafficSuv, 4.6f, 1.9f, 1.75f, 23f, "passenger", 2f, "Suv", 81, 113);
+            TrafficCar(tkb, "DeliveryVan", TkbTrafficVan, 5.3f, 2.0f, 2.3f, 20f, "delivery", 1.5f, "Van", 83, 74);
+            TrafficCar(tkb, "CityBus", TkbTrafficBus, 12.0f, 2.55f, 3.0f, 15f, "bus", 0.4f, "Bus", 82, 1);
+            TrafficCar(tkb, "BoxTruck", TkbTrafficTruck, 8.0f, 2.5f, 3.4f, 18f, "truck", 0.6f, "BoxTruck", 83, 101);
 
             // MilitaryAPC (2001)
             {
@@ -510,6 +513,7 @@ namespace Hrot.Core.Tkb
             InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity,
             Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer,
             TracerEvery = 5, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils, Category = WeaponCategory.SmallArms,
+            RateOfFire = 700f,   // ⭐ CE-11033 (§5l) — the M4 class's cyclic rate (as NedTkbCatalog.M4Carbine): the gap inside an AI burst; it had none, so an asked 0 meant 'every frame'
         };
 
         /// <summary>⭐ <c>CE-3231</c> (civilians B-9, AW-4; docs/DESIGN_Civilians_And_Crowd_Control.md §7.12) — the soldier's PISTOL, a built-in
@@ -551,10 +555,10 @@ namespace Hrot.Core.Tkb
         /// </summary>
         /// <summary>⭐ AQ93 T1 — a civilian road vehicle SUMO may drive: a car's descriptors at its own size, plus its SUMO class and weight.</summary>
         private static void TrafficCar(ITkbDatabase tkb, string name, int type, float length, float width, float height, float maxSpeed,
-                                       string vClass, float weight, string bodyStyle)
+                                       string vClass, float weight, string bodyStyle, byte disCategory, byte disSubcategory)
         {
             var t = new TkbTemplate(name, type);
-            Master(t, name, new DISEntityType { Kind = 1, Domain = 1, Category = 81 });
+            Master(t, name, new DISEntityType { Kind = 1, Domain = 1, Category = disCategory, Subcategory = disSubcategory });
             t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = height });
             t.AddDescriptor(new VehicleParametersDto { Length = length, Width = width, MaxSpeedFwd = maxSpeed, MaxAccel = 2.0f });
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
