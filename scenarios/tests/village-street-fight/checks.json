@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · HANDOFF_User_To_Behaviors_Village_Street_Fight.md — the street fight on the REAL town geometry (village-street): the same chain and REALISM rows as pc-corridor-fight (wide-corridor), judged on real streets, gardens, side streets and trees. Conditions only, no golden.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · HANDOFF_User_To_Behaviors_Village_Street_Fight.md — the street fight on the REAL town geometry (village-street): the same chain and REALISM rows as pc-corridor-fight (wide-corridor), judged on real streets, gardens, side streets and trees. Conditions only, no golden. ⭐ 2026-11-24: rows marked (CE-83xx) are RED at the read (REPORT_Behaviors_Village_Street_Fight.md §2) and point at their tracker rows.",
   "runFor": 300,
   "golden": false,
   "expect": [
@@ -41,7 +41,7 @@
       "hit": "*Blue"
     },
     {
-      "name": "REALISM Red Squad 1's line is in cover within its first minute (no two men in the open)",
+      "name": "REALISM Red Squad 1's line is in cover within its first minute (no two men in the open) (CE-8320)",
       "never": {
         "on": "cover",
         "who": "*Red Squad 1 ",
@@ -52,7 +52,7 @@
       "after": 60
     },
     {
-      "name": "REALISM Red Squad 2's line is in cover within its first minute (no two men in the open)",
+      "name": "REALISM Red Squad 2's line is in cover within its first minute (no two men in the open) (CE-8320)",
       "never": {
         "on": "cover",
         "who": "*Red Squad 2 ",
@@ -63,7 +63,7 @@
       "after": 60
     },
     {
-      "name": "REALISM Blue Squad 1 never stands wholly in the open after 90 s",
+      "name": "REALISM Blue Squad 1 never stands wholly in the open after 90 s (CE-8322)",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 1 ",
@@ -87,7 +87,7 @@
       "after": 90
     },
     {
-      "name": "REALISM Blue Squad 3 never stands wholly in the open after 90 s",
+      "name": "REALISM Blue Squad 3 never stands wholly in the open after 90 s (CE-8322)",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 3 ",
@@ -178,6 +178,38 @@
         "by": "*Red",
         "hit": "*Red"
       }
+    },
+    {
+      "name": "REALISM no Red rifleman fires his rifle at the M1 (CE-8317)",
+      "never": {
+        "on": "shot",
+        "by": "*Red Squad",
+        "at": "Blue M1"
+      }
+    },
+    {
+      "name": "REALISM no Blue rifleman fires his rifle at the T-72 (CE-8317)",
+      "never": {
+        "on": "shot",
+        "by": "*Blue Squad",
+        "at": "Red T-72"
+      }
+    },
+    {
+      "name": "REALISM the M1 fights (CE-8318)",
+      "on": "shot",
+      "by": "Blue M1"
+    },
+    {
+      "name": "REALISM the T-72 fights (CE-8318)",
+      "on": "shot",
+      "by": "Red T-72"
+    },
+    {
+      "name": "REALISM the base of fire lands rounds on Red (CE-8319)",
+      "on": "shot",
+      "by": "*Blue Squad 2 ",
+      "hit": "*Red"
     }
   ]
 }
