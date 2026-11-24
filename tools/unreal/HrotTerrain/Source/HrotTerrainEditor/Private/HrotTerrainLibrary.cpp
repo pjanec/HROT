@@ -136,7 +136,8 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 	const int32 NV = *reinterpret_cast<const int32*>(Bytes.GetData());
 	const int32 NT = *reinterpret_cast<const int32*>(Bytes.GetData() + 4);
 	const int64 Need = 8 + int64(NV) * 12 + int64(NT) * 12 + NT;
-	if (NV <= 0 || NT <= 0 || Bytes.Num() != Need)
+	const bool bIds = Bytes.Num() == Need + int64(NV) * 8;   // U-20: a per-vertex ids trailer (building index, part) -> UV channel 1
+	if (NV <= 0 || NT <= 0 || (Bytes.Num() != Need && !bIds))
 	{
 		UE_LOG(LogHrotTerrain, Error, TEXT("BuildMesh %s: %d vertices, %d triangles need %lld bytes, the file has %d"), *Label, NV, NT, Need, Bytes.Num());
 		return nullptr;
@@ -144,6 +145,7 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 	const float* P = reinterpret_cast<const float*>(Bytes.GetData() + 8);
 	const int32* T = reinterpret_cast<const int32*>(Bytes.GetData() + 8 + NV * 12);
 	const uint8* M = Bytes.GetData() + 8 + NV * 12 + NT * 12;
+	const float* Ids = bIds ? reinterpret_cast<const float*>(Bytes.GetData() + Need) : nullptr;
 
 	FMeshDescription MD;
 	FStaticMeshAttributes Attributes(MD);
@@ -151,7 +153,7 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 	FMeshDescriptionBuilder B;
 	B.SetMeshDescription(&MD);
 	B.EnablePolyGroups();
-	B.SetNumUVLayers(1);
+	B.SetNumUVLayers(Ids ? 2 : 1);
 
 	TArray<FVertexID> V;
 	V.Reserve(NV);
@@ -176,6 +178,11 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 		FVertexInstanceID I0 = B.AppendInstance(V[A]), I1 = B.AppendInstance(V[Bi]), I2 = B.AppendInstance(V[C]);
 		for (const FVertexInstanceID& Id : { I0, I1, I2 }) B.SetInstanceNormal(Id, N);
 		B.SetInstanceUV(I0, UV(PA), 0); B.SetInstanceUV(I1, UV(PB), 0); B.SetInstanceUV(I2, UV(PC), 0);
+		if (Ids)   // U-20: which house (x) and which window / door (y) this vertex belongs to - read back at runtime to take a house out of its tile
+		{
+			B.SetInstanceUV(I0, FVector2D(Ids[A * 2], Ids[A * 2 + 1]), 1); B.SetInstanceUV(I1, FVector2D(Ids[Bi * 2], Ids[Bi * 2 + 1]), 1);
+			B.SetInstanceUV(I2, FVector2D(Ids[C * 2], Ids[C * 2 + 1]), 1);
+		}
 		B.AppendTriangle(I0, I1, I2, Groups[FMath::Clamp<int32>(M[I], 0, Slots - 1)]);
 	}
 
@@ -185,9 +192,16 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 	UStaticMesh* Mesh = NewObject<UStaticMesh>(Package, *AssetName, RF_Public | RF_Standalone);
 	for (int32 S = 0; S < Slots; ++S)
 		Mesh->GetStaticMaterials().Add(FStaticMaterial(Materials.IsValidIndex(S) ? Materials[S] : nullptr, FName(*FString::Printf(TEXT("Slot%d"), S))));
+	if (Ids) Mesh->bAllowCPUAccess = true;   // U-20: the runtime copies the tile into a dynamic mesh when one of its houses is damaged
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bBuildSimpleCollision = false;
 	Params.bFastBuild = true;
+	if (Ids)   // U-20: the ids must stay exact integers (half-float UVs lose them above 2048) and readable at runtime
+	{
+		Params.bAllowCpuAccess = true;
+		UStaticMesh::FBuildMeshDescriptionsLODParams Lod; Lod.bUseFullPrecisionUVs = true;
+		Params.PerLODOverrides.Add(Lod);
+	}
 	Mesh->BuildFromMeshDescriptions({ &MD }, Params);
 	FAssetRegistryModule::AssetCreated(Mesh);
 	Package->MarkPackageDirty();

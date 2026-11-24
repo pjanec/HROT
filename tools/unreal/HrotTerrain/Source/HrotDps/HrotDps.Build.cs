@@ -10,7 +10,7 @@ public class HrotDps : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		CppCompileWarningSettings.UndefinedIdentifierWarningLevel = WarningLevel.Off;   // the generated .c and CycloneDDS headers test __GNUC__ etc. with #if
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
-		PrivateDependencyModuleNames.AddRange(new string[] { "Projects", "HrotTerrain", "Niagara", "Json", "InputCore", "ProceduralMeshComponent",
+		PrivateDependencyModuleNames.AddRange(new string[] { "Projects", "HrotTerrain", "Niagara", "Json", "InputCore", "ProceduralMeshComponent", "GeometryCore", "GeometryFramework", "GeometryScriptingCore",
 			"RenderCore", "Slate", "SlateCore", "AudioMixer", "AudioMixerCore", "NonRealtimeAudioRenderer" });   // U-18q: the render client (capture, the non-real-time mixer)   // the actors (AHrotVehicle); U-18s: HrotTerrain is a RUNTIME module now (the importers are HrotTerrainEditor)
 
 		string Third = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "ThirdParty", "CycloneDDS"));

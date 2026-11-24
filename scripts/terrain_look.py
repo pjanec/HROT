@@ -102,9 +102,11 @@ class Mesh:
     def __init__(self, ox, oy, oz):
         self.ox, self.oy, self.oz = ox, oy, oz
         self.V, self.T, self.M = [], [], []
+        self.U, self.id = [], (0.0, 0.0)   # U-20: per vertex (building index in the tile, part = panel*256 + opening + 1 on its glass / frame / door)
 
     def v(self, x, y, h):
         self.V.append(((x - self.ox) * 100.0, -(y - self.oy) * 100.0, (h - self.oz) * 100.0))
+        self.U.append(self.id)
         return len(self.V) - 1
 
     def quad(self, a, b, c, d, slot):   # a, b, c, d counter-clockwise seen from the FRONT (HROT frame)
@@ -120,6 +122,7 @@ class Mesh:
             f.write(struct.pack("<ii", len(self.V), len(self.T)))
             f.write(np.array(self.V, dtype="<f4").tobytes()); f.write(np.array(self.T, dtype="<i4").tobytes())
             f.write(np.array(self.M, dtype="u1").tobytes())
+            f.write(np.array(self.U, dtype="<f4").tobytes())   # U-20: the ids trailer (BuildMesh: UV channel 1)
 
 
 def _ccw(ring_):
@@ -211,7 +214,82 @@ def build_house(mesh, ring_, base, storeys, openings_by_edge, wall_slot):
     return z
 
 
-def write_buildings(out, name, feats, template_of, ground_lowest, x0, y0, tile_m=500.0):
+def _free_rects(L, z0, z1, holes):
+    """The panel rectangle [0, L] x [z0, z1] minus the hole rectangles (u0, u1, h0, h1): vertical strips at every hole edge, each strip's
+    free height intervals. Returns [(u0, u1, h0, h1)]."""
+    xs = sorted({0.0, L, *[min(max(h[0], 0.0), L) for h in holes], *[min(max(h[1], 0.0), L) for h in holes]})
+    out = []
+    for i in range(len(xs) - 1):
+        a, b = xs[i], xs[i + 1]
+        if b - a < 1e-4: continue
+        m = (a + b) / 2
+        z = z0
+        for h0, h1 in sorted((h[2], h[3]) for h in holes if h[0] < m < h[1]):
+            if h0 > z + 1e-4: out.append((a, b, z, min(h0, z1)))
+            z = max(z, h1)
+        if z < z1 - 1e-4: out.append((a, b, z, z1))
+    return out
+
+
+def build_panels(mesh, bid, panels, wall_slot):
+    """U-20: a template house from HROT's OWN panels (hrot-building-panels, BuildingDamage's numbering): every panel a wall of its
+    thickness with its openings CUT through (reveals at the cut), a window's frame and glass and a door's leaf in the opening's middle
+    plane tagged with (panel, opening) in UV1, so the client can break exactly the window HROT names. Returns the top of the walls."""
+    top = max(p["top"] for p in panels)
+    for p in panels:
+        A = np.array(p["a"], dtype=float); B = np.array(p["b"], dtype=float)
+        e = B - A; L = float(np.hypot(*e))
+        if L < 1e-3: continue
+        e /= L; n = np.array([e[1], -e[0]]); h = max(float(p.get("thickness") or 0.2), 0.05) / 2
+        z0, z1 = float(p["base"]), float(p["top"])
+        P = lambda u, s: A + e * u + n * (h * s)
+        mesh.id = (float(bid), 0.0)
+        holes = []
+        for o in p["openings"]:
+            u0 = max(float(o["at"]), 0.0); u1 = min(float(o["at"]) + float(o["width"]), L)
+            h0 = max(float(o["sill"]), z0); h1 = min(float(o["head"]), z1)
+            if u1 - u0 > 0.05 and h1 - h0 > 0.05: holes.append((u0, u1, h0, h1, o))
+        for (u0, u1, a0, a1) in _free_rects(L, z0, z1, holes):   # both faces
+            for s in (1, -1):
+                q = [mesh.v(*P(u0, s), a0), mesh.v(*P(u1, s), a0), mesh.v(*P(u1, s), a1), mesh.v(*P(u0, s), a1)]
+                mesh.quad(*(q if s > 0 else q[::-1]), wall_slot)
+        def cap(pa, pb, za, zb):   # a quad joining the two faces (an end, the top, a reveal)
+            mesh.quad(mesh.v(*P(pa, 1), za), mesh.v(*P(pb, 1), zb), mesh.v(*P(pb, -1), zb), mesh.v(*P(pa, -1), za), wall_slot)
+        def cap_h(u0, u1, z):
+            mesh.quad(mesh.v(*P(u0, 1), z), mesh.v(*P(u1, 1), z), mesh.v(*P(u1, -1), z), mesh.v(*P(u0, -1), z), wall_slot)
+        def cap_v(u, za, zb):
+            mesh.quad(mesh.v(*P(u, 1), za), mesh.v(*P(u, -1), za), mesh.v(*P(u, -1), zb), mesh.v(*P(u, 1), zb), wall_slot)
+        cap_v(0.0, z0, z1); cap_v(L, z0, z1); cap_h(0.0, L, z1)
+        for (u0, u1, h0, h1, o) in holes:
+            cap_v(u0, h0, h1); cap_v(u1, h0, h1); cap_h(u0, u1, h1)
+            if h0 > z0 + 1e-3: cap_h(u0, u1, h0)
+            mesh.id = (float(bid), float(int(p["panel"]) * 256 + int(o["opening"]) + 1))
+            C = lambda u, z: (mesh.v(*P(u, 0), z))
+            if o["kind"] == "door":
+                mesh.quad(C(u0, h0), C(u1, h0), C(u1, h1), C(u0, h1), SLOT_DOOR)
+            elif o["kind"] == "window":
+                f = 0.06
+                for (ua, ub, za, zb) in ((u0, u1, h0, h0 + f), (u0, u1, h1 - f, h1), (u0, u0 + f, h0 + f, h1 - f), (u1 - f, u1, h0 + f, h1 - f)):
+                    mesh.quad(C(ua, za), C(ub, za), C(ub, zb), C(ua, zb), SLOT_FRAME)
+                if o.get("glazed", True):
+                    mesh.quad(C(u0 + f, h0 + f), C(u1 - f, h0 + f), C(u1 - f, h1 - f), C(u0 + f, h1 - f), SLOT_GLASS)
+            mesh.id = (float(bid), 0.0)
+    return top
+
+
+def build_floors(mesh, ring_, levels, slot):
+    """U-20: a floor slab per storey (its base), so a hole shows a room, not the ground."""
+    import mapbox_earcut as earcut
+    ring_ = _ccw(np.asarray(ring_, dtype=float))
+    tri = earcut.triangulate_float64(ring_, np.array([len(ring_)], dtype=np.uint32)).reshape(-1, 3)
+    for z in levels:
+        top = [mesh.v(x, y, z + 0.02) for x, y in ring_]; bot = [mesh.v(x, y, z - 0.18) for x, y in ring_]
+        for a_, b_, c_ in tri:
+            mesh.T.append((top[a_], top[b_], top[c_])); mesh.M.append(slot)
+            mesh.T.append((bot[c_], bot[b_], bot[a_])); mesh.M.append(slot)
+
+
+def write_buildings(out, name, feats, template_of, ground_lowest, x0, y0, tile_m=500.0, panels=None):
     """UL-13 — OUR houses as meshes (tiles of tile_m m): a template placement is built from its template (walls by storey, openings,
     the footprint placed by the placement's point and rotation, exactly as HROT's TerrainBuildingExpander); an inline building as a
     plain prism; every house's roof from its imported roof volume ("<id>-roof") or, without one, a low tent. Returns a summary."""
@@ -223,6 +301,9 @@ def write_buildings(out, name, feats, template_of, ground_lowest, x0, y0, tile_m
         c = np.array(f["geometry"]["coordinates"][0], dtype=float).mean(0)
         tiles.setdefault((int((c[0] - x0) // tile_m), int((c[1] - y0) // tile_m)), []).append(f)
     written, kinds = [], {"gable": 0, "tent": 0, "flat": 0, "windows": 0, "doors": 0}
+    terrain_name = (panels or {}).get("terrain") or name
+    panel_of = {b_["key"]: b_ for b_ in (panels or {}).get("buildings", []) if b_.get("kind") == "building"}
+    index = {}
     for (tx, ty), items in tiles.items():
         bases = []
         for f in items:
@@ -230,13 +311,28 @@ def write_buildings(out, name, feats, template_of, ground_lowest, x0, y0, tile_m
             ring_ = np.array(f["geometry"]["coordinates"][0], dtype=float)
             bases.append(float(pr["base_z"]) if pr.get("base_z") is not None else ground_lowest(ring_))
         mesh = Mesh(x0 + tx * tile_m, y0 + ty * tile_m, min(bases))
-        for f, base in zip(items, bases):
+        for bid, (f, base) in enumerate(zip(items, bases), start=1):
             pr = f["properties"]
+            mesh.id = (float(bid), 0.0)
+            key = f"{terrain_name}/{pr.get('name')}"
+            hp = panel_of.get(key)
             r = _hash01(pr.get("name"))
             wall_slot = SLOT_PLASTER if r < 0.55 else (SLOT_OLD_PLASTER if r < 0.85 else SLOT_BRICK)
             roof_slot = SLOT_ROOF_RED if _hash01(str(pr.get("name")) + "r") < 0.7 else SLOT_ROOF_DARK
             t = template_of(pr.get("template")) if pr.get("template") else None
-            if t and not t.get("solid") and pr.get("origin") is not None:
+            if hp and hp["panels"]:   # U-20: HROT's own panels - the walls, openings and ids BuildingDamage names
+                if t and pr.get("origin") is not None:   # the template's footprint placed as HROT's TerrainBuildingExpander places it
+                    ang = math.radians(float(pr.get("rotation", 0))); ca, sa = math.cos(ang), math.sin(ang); ox, oy = pr["origin"]
+                    ring_ = _ccw(np.array([(ox + x * ca - y * sa, oy + x * sa + y * ca) for x, y in t["footprint"]], dtype=float))
+                else:
+                    ring_ = _ccw(np.array(f["geometry"]["coordinates"][0], dtype=float)[:-1])
+                top = build_panels(mesh, bid, hp["panels"], wall_slot)
+                levels = sorted({round(float(q["base"]), 3) for q in hp["panels"]})
+                build_floors(mesh, ring_, levels, SLOT_PLASTER)
+                kinds["fromPanels"] = kinds.get("fromPanels", 0) + 1
+                kinds["windows"] += sum(1 for q in hp["panels"] for o in q["openings"] if o["kind"] == "window")
+                kinds["doors"] += sum(1 for q in hp["panels"] for o in q["openings"] if o["kind"] == "door")
+            elif t and not t.get("solid") and pr.get("origin") is not None:
                 ang = math.radians(float(pr.get("rotation", 0))); ca, sa = math.cos(ang), math.sin(ang)
                 ox, oy = pr["origin"]
                 fp = np.array([(ox + x * ca - y * sa, oy + x * sa + y * ca) for x, y in t["footprint"]], dtype=float)
@@ -259,6 +355,10 @@ def write_buildings(out, name, feats, template_of, ground_lowest, x0, y0, tile_m
             else:
                 ring_ = _ccw(np.array(f["geometry"]["coordinates"][0], dtype=float)[:-1])
                 top = build_house(mesh, ring_, base, [float(pr.get("height") or 3.0)], {}, wall_slot)
+            index[key] = {"tile": [tx, ty], "index": bid, "panels": bool(hp and hp["panels"]), "base": base, "top": top,
+                          "footprint": [[round(float(x), 3), round(float(y), 3)] for x, y in ring_]}
+            if hp and hp["panels"]:   # by rank (BuildingDamage.Panel): a, b, thickness - where the client cuts a breach
+                index[key]["walls"] = [[q["a"][0], q["a"][1], q["b"][0], q["b"][1], q.get("thickness") or 0.2] for q in sorted(hp["panels"], key=lambda q: q["panel"])]
             rv = roofs.get(pr.get("name"))
             if rv is not None:
                 rr = np.array(rv["geometry"]["coordinates"][0], dtype=float)[:-1]
@@ -272,6 +372,9 @@ def write_buildings(out, name, feats, template_of, ground_lowest, x0, y0, tile_m
                         "buildings": len(items), "triangles": len(mesh.T), "tile": [tx, ty]})
     with open(os.path.join(out, f"{name}.buildings-mesh.json"), "w", encoding="utf-8") as f:
         json.dump({"tiles": written, "tileMetres": tile_m, "slots": SLOT_NAMES}, f, indent=1)
+    # U-20: key -> tile + index (UV1.x) + footprint, for the client's damage (BuildingDamage keys)
+    with open(os.path.join(out, f"{name}.buildings-index.json"), "w", encoding="utf-8") as f:
+        json.dump({"format": 1, "terrain": terrain_name, "tileMetres": tile_m, "buildings": index}, f, indent=1)
     return {"tiles": len(written), "buildings": sum(w["buildings"] for w in written), "triangles": sum(w["triangles"] for w in written), **kinds}
 
 

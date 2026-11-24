@@ -177,6 +177,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bFollowTerrain = true;
 	/** the station's terrain now ("" before a Session) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString StationTerrain() const { return ShownTerrain; }
+	/** U-20: HROT's building damage (DPS_BuildingDamage) drawn on the house tiles */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") class UHrotBuildingDamage* Buildings();
 	/** U-18t — show a terrain by NAME without a station (a preview; the packaged client's -HrotIgTerrain=<name>): resolve it like a Session's
 	 *  (mounting its package) and open its level unless it is this one. "" = done or already here, else why not */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString ShowTerrain(const FString& Terrain);
@@ -493,6 +495,8 @@ private:
 	void Place(FEnt& E, double Real);
 	FHrotDpsPose PoseAt(const FEnt& E, double Real) const;
 	void GunOnCarrier(FEnt& E, FTransform& T);
+	void OnBuildingDamage(const FHrotDpsSample& S);
+	UPROPERTY(Transient) TObjectPtr<class UHrotBuildingDamage> BuildingDamage;
 	/** U-19h (live: rockets / missiles from the Apache, the aircraft, SAMs and ATGMs showed no rocket and no trail; 23 fired, 0 rounds drawn):
 	 *  a rocket / missile Fire with no Round entity from that shooter within FlyOutGrace s flies a stand-in missile (its kind's body, motor
 	 *  and smoke trail) from the muzzle to the target (else along the shot) - drawn from the Fire sample like the tracers; a real Round cancels it */
