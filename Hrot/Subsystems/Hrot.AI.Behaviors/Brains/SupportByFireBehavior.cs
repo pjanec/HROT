@@ -128,8 +128,12 @@ namespace Hrot.AI.Behaviors.Brains
         public const double EstablishSeconds = 15.0;
         /// <summary>… with at least this many rounds spent per man in the fight (a squad whose men carry no counted weapon: the time alone).</summary>
         public const int EstablishRoundsPerMan = 3;
-        /// <summary>⭐ D-11 B — how far round the support point the base of fire's post plan looks (m).</summary>
-        public const float PostSearchMetres = 20f;
+        /// <summary>⭐ D-11 B — how far round the support point the base of fire's post plan looks (m). ⭐ CE-8319: 40 (was 20) — the support point
+        /// is a point on the axis, often in a street: 📐 village-street, the nearest houses stood 25–30 m off it, so a 20 m plan found only open spots
+        /// IN the street and the base of fire lay there; doctrine puts it in the buildings beside its line of fire.</summary>
+        public const float PostSearchMetres = 40f;
+        /// <summary>⭐ <c>CE-8319</c> — the squad plans its posts once its men's centre is this close to the support point (m).</summary>
+        public const float PlanFromMetres = 20f;
 
         /// <summary>⭐ <c>CE-4667</c> (D-7, user-approved) — a post is still live while a live contact stands within this of it (m) …</summary>
         public const float PostLiveMetres = 25f;
@@ -245,7 +249,7 @@ namespace Hrot.AI.Behaviors.Brains
             //   so planned from where the squad STOOD they posted it in the house it was leaving. 📐 live village-street-mg-flank: support point
             //   (411,245), every man posted where he stood at (372,272–278) — 150 m from the gun, across the street, 0 hits in 207 rounds.
             var mid = MenCentre(world, self, p.Position);   // where its MEN are (CentreOf reads the squad entity's own transform first)
-            bool atPoint = (mid.X - p.Position.X) * (mid.X - p.Position.X) + (mid.Y - p.Position.Y) * (mid.Y - p.Position.Y) <= PostSearchMetres * PostSearchMetres;
+            bool atPoint = (mid.X - p.Position.X) * (mid.X - p.Position.X) + (mid.Y - p.Position.Y) * (mid.Y - p.Position.Y) <= PlanFromMetres * PlanFromMetres;
             if (ws.Planned == 0 && (atPoint || ws.Phase == 1))
             {
                 var crew = new SupportCrew(world, self, now, in p);
@@ -263,7 +267,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = world.HasComponent<SimTransform>(member) ? (Vector3)world.GetComponentRO<SimTransform>(member).Position : p.Position;
                 bool posted = ws.Planned != 0 && i < DefencePosts.Capacity && ws.Plan.PostOf[i] != DefencePosts.None && ws.Plan.PostOf[i] < ws.Plan.Count;
                 // ⭐ CE-8319 — on the way (no post yet) each man heads for his own spot on a line across the line of fire, never one shared point
-                var post = posted ? ws.Plan.Point(ws.Plan.PostOf[i]) : SpotOnTheLine(in p, i, n);
+                var post = posted ? ws.Plan.Point(ws.Plan.PostOf[i]) : OnTheGround(world, SpotOnTheLine(in p, i, n), at.Z);
                 if (ws.Phase == 0)
                     SquadManeuverRunner.Hold(world, self, member, post, p.Speed,
                                              posted ? new MemberPost { Set = 1, Radius = SquadDefendPlay.PostRadius, Open = ws.Plan.Open[ws.Plan.PostOf[i]] } : default);   // ⭐ D-13 — prone on a dispersal spot   // ⭐ D-11 B — his post
@@ -325,6 +329,15 @@ namespace Hrot.AI.Behaviors.Brains
             var across = f.LengthSquared() > 1e-4f ? Vector2.Normalize(new Vector2(-f.Y, f.X)) : Vector2.UnitX;
             float off = (i - (Math.Max(n, 1) - 1) * 0.5f) * DefencePlan.DispersalMetres;
             return p.Position + new Vector3(across * off, 0f);
+        }
+
+        /// <summary>⭐ <c>CE-8319</c> — <paramref name="spot"/> on the ground: an order's point is 2-D (its Z often 0), and a move to it on a terrain whose
+        /// ground is not at 0 aims under the ground and never starts (📐 village-street: ground ≈ 178 m, the base of fire never left its house). The
+        /// world's stand height near <paramref name="zHint"/> (the man's own); no world or no stand ⇒ the spot at the hint's height.</summary>
+        private static Vector3 OnTheGround(EntityRepository world, Vector3 spot, float zHint)
+        {
+            var q = Fdp.Toolkit.World.WorldQuery.Of(world);
+            return q != null && q.TryStandAt(spot.X, spot.Y, zHint, out float z) ? spot with { Z = z } : spot with { Z = zHint };
         }
 
         private static unsafe void Redo(ref SupportByFireState ws)

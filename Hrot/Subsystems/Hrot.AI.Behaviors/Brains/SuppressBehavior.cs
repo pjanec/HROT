@@ -105,11 +105,27 @@ namespace Hrot.AI.Behaviors.Brains
             channel.ActiveAction = CombatConstants.ActionIdFireAtPoint;
             channel.Status = NodeStatus.Running;
             System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.FireAtPointParams>(ref channel.Params[0]) =
-                new Fdp.Toolkit.Combat.Executors.FireAtPointParams { Point = p.Point, CooldownSeconds = cooldown * PointCooldownFactor, Rounds = 0, Mount = 0 };
+                new Fdp.Toolkit.Combat.Executors.FireAtPointParams { Point = AimAtReported(world, self, p.Point), CooldownSeconds = cooldown * PointCooldownFactor, Rounds = 0, Mount = 0 };
             ws.PointStarted = channel.ActionInstanceId;
             ws.PointFiring = p.Point;
             PostureNodes.PlaceSuppressor(ref p.From, ref ws.Place, self, world, Entity.Null, p.Point);   // ⭐ CE-8314 — never saw him: the stance for the point
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8319</c> — where a round at the squad's REPORTED point goes: the point ON THE GROUND (a reported post is 2-D — its Z is 0 — and
+        /// 📐 live on village-street, ground ≈ 176 m, every round flew at a point 176 m under the gun and "expired": 220 of 262), then THE blind aim
+        /// (<see cref="Fdp.Toolkit.Combat.AimPoint.BlindAt"/>, CE-8315 — the one rule: the point + the blind height, or through the nearest opening of
+        /// the building it is in). No world ⇒ the point as given.
+        /// </summary>
+        internal static Vector3 AimAtReported(EntityRepository world, Entity self, Vector3 point)
+        {
+            var q = Fdp.Toolkit.World.WorldQuery.Of(world);
+            if (q == null) return point;
+            if (point.Z == 0f && q.TryStandAt(point.X, point.Y, world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position.Z : 0f, out float z))
+                point.Z = z;
+            var eye = ShotOrigin.Eye(world, self, out _);
+            return Fdp.Toolkit.Combat.AimPoint.BlindAt(world, q, eye, point, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.BlindAimHeightMetres);
         }
 
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.SuppressNodes.SuppressContact")]
