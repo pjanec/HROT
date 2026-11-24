@@ -406,7 +406,7 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
                     if (seat.Places.Resolve(a.Target, out why) is not { } sp) return why;
                     support = Point(sp);
                 }
-                json = $"{{\"SupportPoint\":{support},\"Objective\":{p}}}";   // ⚠ Bound has no neutral DTO yet: the platoon play's own fields
+                json = $"{{\"Position\":{p},\"SupportPoint\":{support}}}";   // ⭐ CE-4686 ④ — the neutral BoundOrder (every Bound play reads it, a stochastic unit too)
             }
             else json = $"{{\"Position\":{p},\"SearchRadius\":30}}";   // the neutral Attack / Defend order (R-8300: every echelon's play reads it)
         }

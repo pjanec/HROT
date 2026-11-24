@@ -41,14 +41,18 @@ namespace Hrot.AI.Behaviors.Brains
         {
             int support = (authored.SupportSquad > 0 ? authored.SupportSquad : 2) - 1;
             int assault = (authored.AssaultSquad > 0 ? authored.AssaultSquad : 1) - 1;
+            // ⭐ CE-4686 ④ — the neutral Bound order (BoundOrder): Position is the objective when Objective is unset; an unset support point sets the
+            //   covering squad AT the objective (what the commanders sent before; ⛔ never (0, 0))
+            System.Numerics.Vector3 objective = (System.Numerics.Vector3)authored.Objective != System.Numerics.Vector3.Zero ? (System.Numerics.Vector3)authored.Objective : (System.Numerics.Vector3)authored.Position;
+            System.Numerics.Vector3 supportAt = (System.Numerics.Vector3)authored.SupportPoint != System.Numerics.Vector3.Zero ? (System.Numerics.Vector3)authored.SupportPoint : objective;
             block.Support = new MoveLegParams
             {
-                Slot = support, Point = authored.SupportPoint, Speed = authored.Speed, ArrivalRadius = authored.ArrivalRadius,
+                Slot = support, Point = supportAt, Speed = authored.Speed, ArrivalRadius = authored.ArrivalRadius,
                 SitrepEverySeconds = authored.SitrepEverySeconds,
             };
             block.Assault = block.Support;
             block.Assault.Slot = assault;
-            block.Assault.Point = authored.Objective;
+            block.Assault.Point = objective;
             block.SupportState = default;
             block.AssaultState = default;
             block.SupportSet = new ProgressReachedParams { Slot = support, Progress = ProgressKind.Set };

@@ -24,6 +24,10 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("Objective")]
         public PointLink Objective;
 
+        /// <summary>⭐ CE-4686 ④ — the neutral Bound order's place (<c>BoundOrder.Position</c>): the objective when <see cref="Objective"/> is unset.</summary>
+        [JsonPropertyName("Position")]
+        public PointLink Position;
+
         /// <summary>The support squad's place in the roster, 1-based; 0 = 2 (Bravo).</summary>
         [JsonPropertyName("SupportSquad")]
         public int SupportSquad;
