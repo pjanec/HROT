@@ -13,6 +13,7 @@
 #include "HrotDpsCameraPawn.h"
 #include "HrotExplosionFx.h"
 #include "HrotMissile.h"
+#include "HrotBuildingDamage.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
@@ -321,6 +322,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_Order"), &UHrotDpsWorld::OnOrder);
 	Sub(TEXT("DPS_Ambience"), &UHrotDpsWorld::OnAmbience);   // U-19d (DD-028): the war layers
 	Sub(TEXT("DPS_Weather"), &UHrotDpsWorld::OnWeather);
+	Sub(TEXT("DPS_BuildingDamage"), &UHrotDpsWorld::OnBuildingDamage);   // U-20
 	StartClock(C, Dps->GetClientId());
 	// U-18m — the player station's readers on this fresh client (the old client's went with it)
 	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Reconnect();
@@ -1445,6 +1447,39 @@ void UHrotDpsWorld::TickFlyOuts(double Real)
 	}
 }
 
+UHrotBuildingDamage* UHrotDpsWorld::Buildings()
+{
+	if (!BuildingDamage) BuildingDamage = NewObject<UHrotBuildingDamage>(this);
+	return BuildingDamage;
+}
+
+void UHrotDpsWorld::OnBuildingDamage(const FHrotDpsSample& S)
+{
+	// U-20: a copy (the sample is valid only here), applied on Tick
+	const SimNetGateway_Protocol_DdsPlayer_BuildingDamage& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_BuildingDamage*>(S.Data);
+	FHrotBuildingDamageIn In;
+	In.Key = UTF8_TO_TCHAR(D.Building);
+	In.bAlive = S.bValid && S.bAlive;
+	if (In.bAlive)
+	{
+		In.bCollapsed = D.Collapsed; In.CollapsedAt = D.CollapsedAt;
+		for (uint32 I = 0; I < D.Breaches._length; ++I)
+		{
+			const auto& B = D.Breaches._buffer[I];
+			In.Breaches.Add({ B.Panel, B.From, B.To, B.Bottom, B.Top, B.MadeAt, FVector(B.Blast.X, B.Blast.Y, B.Blast.Z) });
+		}
+		for (uint32 I = 0; I < D.Windows._length; ++I)
+		{
+			const auto& Wd = D.Windows._buffer[I];
+			In.Windows.Add({ Wd.Panel, Wd.Opening, Wd.Hits, Wd.HitAt });
+		}
+	}
+	Count(TEXT("building damage"));
+	UE_LOG(LogHrotDpsWorld, Display, TEXT("building damage %s: alive %d, collapsed %d, %d breaches, %d windows"), *In.Key, In.bAlive, In.bCollapsed,
+		In.Breaches.Num(), In.Windows.Num());
+	Buildings()->Queue(MoveTemp(In));
+}
+
 void UHrotDpsWorld::GunOnCarrier(FEnt& E, FTransform& T)
 {
 	// HROT places a weapon system (DIS cat 50) at its carrier's position and sends no mount height: the drawn gun is raised onto the top
@@ -1515,6 +1550,7 @@ void UHrotDpsWorld::Tick(float)
 		PendingLevel.Reset();
 	}
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, Clock); TickClock(R); }   // U-18p: the probe's echoes, ClientWorld
+	if (BuildingDamage) { CSV_SCOPED_TIMING_STAT(HrotDps, Buildings); BuildingDamage->Tick(GetWorld(), ShownTerrain, SimNow()); }   // U-20
 	if (Weather.Num() && R >= NextWeatherAt) { NextWeatherAt = R + 1.0; ApplyWeather(); }   // U-19d: the camera moves between regions
 	{   // U-19c: a burst whose rounds stopped is faded out (after the same delay as its start)
 		TArray<int32> Cuts; Bursts.PollCuts(R, Cuts);
