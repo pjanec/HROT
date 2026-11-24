@@ -79,11 +79,13 @@
       "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM no Blue squad bunches after 30 s, until the clearing stack at the door",
+      "name": "REALISM no Blue squad bunches (three or more men still in the fight within 2 m of their centre) after 30 s, until the clearing stack at the door",
       "never": {
         "on": "bunched",
         "who": "*Blue Squad 1 ",
-        "m": 2
+        "m": 2,
+        "men": 3,
+        "fighting": true
       },
       "after": 30,
       "before": "the assault starts clearing the gun's house (ClearBuilding)"

@@ -771,9 +771,12 @@ namespace Hrot.SimHost.Tests
             var ws = new EngageState();
             Assert.True(PostureNodes.Fire(w.Repo, w.Unit, ref ws, 1f));
             Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);   // only a tank: hold
+            var atTank = new ThreatAim(tank, 0, default);
+            Assert.True(PeekAndFireNodes.LockTarget(w.Repo, w.Unit, in atTank).IsNull);   // ⭐ the peek-and-fire lock too: no target at all
 
             var soldier = w.Contact(armed: true);
             Assert.True(PostureNodes.Fire(w.Repo, w.Unit, ref ws, 1f));
+            Assert.Equal(soldier, PeekAndFireNodes.LockTarget(w.Repo, w.Unit, in atTank));   // he hides from the tank, he locks on the soldier
             ref readonly var ch = ref w.Repo.GetComponentRO<WeaponChannel>(w.Unit);
             Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, ch.ActiveAction);
             Assert.Equal(soldier, System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref w.Repo.GetComponentRW<WeaponChannel>(w.Unit).Params[0]).Target);

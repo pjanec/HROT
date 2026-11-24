@@ -1570,7 +1570,7 @@ the most dangerous thing a rifleman sees, and he still hides from it), but the F
 against HIS armour, through the same private `CanHurt` (`ThreatDanger.cs`). ⭐ Unknown is permissive — no TKB, no armour (`MyArmour` true
 only for an armoured vehicle) or no suite ⇒ true, so nothing that fought before stops. Readers: `PostureNodes.Fire` (one place every
 self-chosen round passes) re-picks through `EqsTacticsNodes.FirstAllowedRemembered(…, hurtableOnly: true)` or holds; the ordered
-`SuppressContact` holds fire on an unhurtable named target and still takes its firing position. 📐 village-street-fight before: Red 517
+`SuppressContact` holds fire on an unhurtable named target and still takes its firing position. ⭐ And peek-and-fire, which locks its own target (`PeekAndFireNodes.LockTarget`: the squad's assignment, else the threat, else the first allowed contact) — each must be hurtable, and its blind burst is never at an unhurtable threat. 📐 found by the rerun: after the posture fix, Blue Squad 1 still fired 10 rifle rounds at the T-72 from its windows. 📐 village-street-fight before: Red 517
 rifle rounds at the M1, Blue Squad 1 158 at the T-72 in 300 s, all harmless.
 
 ```mermaid

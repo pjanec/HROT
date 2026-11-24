@@ -99,56 +99,68 @@
       "after": 90
     },
     {
-      "name": "REALISM Red Squad 1 never bunches (every man within 2 m of its centre) after 30 s",
+      "name": "REALISM Red Squad 1 never bunches (three or more men still in the fight, every one within 2 m of its centre) after 30 s",
       "never": {
         "on": "bunched",
         "who": "*Red Squad 1 ",
-        "m": 2
+        "m": 2,
+        "men": 3,
+        "fighting": true
       },
       "after": 30
     },
     {
-      "name": "REALISM Red Squad 2 never bunches (every man within 2 m of its centre) after 30 s",
+      "name": "REALISM Red Squad 2 never bunches (three or more men still in the fight, every one within 2 m of its centre) after 30 s",
       "never": {
         "on": "bunched",
         "who": "*Red Squad 2 ",
-        "m": 2
+        "m": 2,
+        "men": 3,
+        "fighting": true
       },
       "after": 30
     },
     {
-      "name": "REALISM Red Reserve never bunches (every man within 2 m of its centre) after 30 s",
+      "name": "REALISM Red Reserve never bunches (three or more men still in the fight, every one within 2 m of its centre) after 30 s",
       "never": {
         "on": "bunched",
         "who": "*Red Reserve ",
-        "m": 2
+        "m": 2,
+        "men": 3,
+        "fighting": true
       },
       "after": 30
     },
     {
-      "name": "REALISM Blue Squad 1 never bunches (every man within 2 m of its centre) after 30 s",
+      "name": "REALISM Blue Squad 1 never bunches (three or more men still in the fight, every one within 2 m of its centre) after 30 s",
       "never": {
         "on": "bunched",
         "who": "*Blue Squad 1 ",
-        "m": 2
+        "m": 2,
+        "men": 3,
+        "fighting": true
       },
       "after": 30
     },
     {
-      "name": "REALISM Blue Squad 2 never bunches (every man within 2 m of its centre) after 30 s",
+      "name": "REALISM Blue Squad 2 never bunches (three or more men still in the fight, every one within 2 m of its centre) after 30 s",
       "never": {
         "on": "bunched",
         "who": "*Blue Squad 2 ",
-        "m": 2
+        "m": 2,
+        "men": 3,
+        "fighting": true
       },
       "after": 30
     },
     {
-      "name": "REALISM Blue Squad 3 never bunches (every man within 2 m of its centre) after 30 s",
+      "name": "REALISM Blue Squad 3 never bunches (three or more men still in the fight, every one within 2 m of its centre) after 30 s",
       "never": {
         "on": "bunched",
         "who": "*Blue Squad 3 ",
-        "m": 2
+        "m": 2,
+        "men": 3,
+        "fighting": true
       },
       "after": 30
     },
