@@ -585,6 +585,28 @@ void UHrotBuildingDamage::Tick(UWorld* World, const FString& Terrain, double Sim
 	for (const FHrotBuildingDamageIn& In : Now) Apply(World, Terrain, In, SimNow);
 }
 
+bool UHrotBuildingDamage::HouseShape(const FString& Terrain, const FString& Key, TArray<FVector2D>& OutFootprint, float& OutBase, float& OutTop)
+{
+	if (!LoadIndex(Terrain)) return false;
+	const FIndexed* H = Index.Find(Key);
+	if (!H) return false;
+	OutFootprint = H->Footprint; OutBase = H->Base; OutTop = H->Top;
+	return true;
+}
+
+void UHrotBuildingDamage::Char(UWorld* World, const FString& Terrain, const FString& Key)
+{
+	if (!World || !LoadIndex(Terrain)) return;
+	const FIndexed* H = Index.Find(Key);
+	if (!H) return;
+	FHouse* House = TakeOut(World, Terrain, Key, *H);
+	if (!House || House->bCollapsed) return;
+	static UMaterialInterface* Burnt = HrotLoadRooted<UMaterialInterface>(TEXT("/Game/Hrot/Fx/M_HrotBurnt.M_HrotBurnt"));
+	if (UDynamicMeshComponent* C = DynOf(House->Actor.Get()); C && Burnt)
+		for (int32 I = 0; I < C->GetNumMaterials(); ++I) if (I != SlotGlass) C->SetMaterial(I, Burnt);
+	UE_LOG(LogHrotBuildings, Display, TEXT("buildings: %s burnt out (charred)"), *Key);
+}
+
 bool UHrotBuildingDamage::TestDamage(const FString& Key, int32 Panel, float From, float To, float Bottom, float Top, bool bCollapse, bool bLive)
 {
 	UWorld* W = LastWorld.Get();

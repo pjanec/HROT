@@ -324,6 +324,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_Ambience"), &UHrotDpsWorld::OnAmbience);   // U-19d (DD-028): the war layers
 	Sub(TEXT("DPS_Weather"), &UHrotDpsWorld::OnWeather);
 	Sub(TEXT("DPS_BuildingDamage"), &UHrotDpsWorld::OnBuildingDamage);   // U-20
+	Sub(TEXT("DPS_Cloud"), &UHrotDpsWorld::OnCloud);   // DD-033: smoke and gas clouds
 	StartClock(C, Dps->GetClientId());
 	// U-18m — the player station's readers on this fresh client (the old client's went with it)
 	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Reconnect();
@@ -599,6 +600,8 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 	const bool bKitGun = ShooterVehicle && ShooterVehicle->Kit && !ShooterVehicle->Kit->Muzzle.IsNearlyZero();
 	if (bPerson && (D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket || D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm))
 		Shooter->RocketFiredAt = Real;
+	// CE-12016 (HROT's ThrowArms, CE-1195: the throw is drawn from its shot): a person's grenade / stone Fire throws - soldier or civilian, standing or riding
+	if (bPerson && D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryGrenade) Shooter->ThrowAt = Real;
 	switch (D.WeaponCategory)
 	{
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryTankGun:
@@ -1306,6 +1309,20 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 		if (bTube) Count(TEXT("drawn: tube on the shoulder"));
 	}
 	if (bTube && L.Stance != HrotDpsPeople::Prone) St->UpperAnim = K->Clip(TEXT("Upper.Aimed"));   // the tube is held in the aimed pose (the lab's)
+	// CE-12016: the throw after a grenade / stone Fire, over its clip's length - standing: the whole body; riding / crouched: the upper body over his pose
+	if (E.ThrowAt >= 0)
+	{
+		UAnimSequence* Throw = K->Clip(TEXT("Gesture.Throw"));
+		const double Since = Real - E.ThrowAt;
+		if (Throw && Since < Throw->GetPlayLength())
+		{
+			if (E.bRiding || L.Stance != HrotDpsPeople::Standing) St->UpperAnim = Throw;
+			else { St->BaseAnim = Throw; St->bBaseLoops = false; }
+			if (!E.bThrowing) Count(TEXT("drawn: throw"));
+			E.bThrowing = true;
+		}
+		else { E.ThrowAt = -1; E.bThrowing = false; }
+	}
 	const bool bHide = L.bHidden && !E.bRiding;   // a rider is in an open seat: seen
 	if (A->IsHidden() != bHide) A->SetActorHiddenInGame(bHide);
 
@@ -1543,9 +1560,79 @@ void UHrotDpsWorld::OnBuildingDamage(const FHrotDpsSample& S)
 		}
 	}
 	Count(TEXT("building damage"));
+	if (In.bAlive && (D.FireSince > 0 || D.FireSeconds > 0)) HouseFire(In.Key, D.FireSince, D.FireSeconds);   // DD-033
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("building damage %s: alive %d, collapsed %d, %d breaches, %d windows"), *In.Key, In.bAlive, In.bCollapsed,
 		In.Breaches.Num(), In.Windows.Num());
 	Buildings()->Queue(MoveTemp(In));
+}
+
+void UHrotDpsWorld::HouseFire(const FString& Key, double Since, float Seconds)
+{
+	FHouseFire& F = HouseFires.FindOrAdd(Key);
+	if (F.SpotsKey != 0 && F.Since == Since && F.Seconds == Seconds) return;
+	F.Since = Since; F.Seconds = Seconds; F.bCharred = false;
+	F.SpotsKey = -int32(GetTypeHash(Key) & 0x3fffffff) - 1;   // a holder id of its own (negative: never an entity)
+	TArray<FVector2D> Fp; float Base = 0, Top = 0;
+	if (!Buildings()->HouseShape(ShownTerrain, Key, Fp, Base, Top) || Fp.Num() < 3) { UE_LOG(LogHrotDpsWorld, Warning, TEXT("house fire %s: not in the index"), *Key); return; }
+	FVector2D C(0, 0); for (const FVector2D& P : Fp) C += P; C /= Fp.Num();
+	TArray<FSpot>& L = Spots.FindOrAdd(F.SpotsKey);
+	for (FSpot& Sp : L) if (AActor* A = Sp.Fire.Get()) A->Destroy();
+	L.Reset();
+	// flames inside at the floor (seen through the windows and holes) and over the roof, spread over the footprint
+	auto Add = [&](const FVector2D& P, float Z, float R) { FSpot S; S.P = FVector3d(P.X, P.Y, Z); S.Radius = R; S.Intensity = 1.f; S.Since = Since; S.Seconds = Seconds; L.Add(S); };
+	float Span = 0; for (const FVector2D& P : Fp) Span = FMath::Max(Span, float(FVector2D::Distance(P, C)));
+	Add(C, Base + 0.3f, FMath::Clamp(Span * 0.5f, 1.f, 4.f));
+	Add(C, Top + 0.2f, FMath::Clamp(Span * 0.6f, 1.5f, 6.f));
+	for (int32 I = 0; I < Fp.Num(); I += FMath::Max(1, Fp.Num() / 4)) Add(FMath::Lerp(C, Fp[I], 0.5f), Base + 0.3f, FMath::Clamp(Span * 0.3f, 0.8f, 3.f));
+	UE_LOG(LogHrotDpsWorld, Display, TEXT("house fire %s: since %.1f s for %.0f s, %d spots"), *Key, Since, Seconds, L.Num());
+	Count(TEXT("house fire"));
+}
+
+void UHrotDpsWorld::TickHouseFires(double SimNow)
+{
+	for (TPair<FString, FHouseFire>& It : HouseFires)
+	{
+		FHouseFire& F = It.Value;
+		if (F.bCharred || F.Seconds <= 0 || SimNow < F.Since + F.Seconds) continue;
+		F.bCharred = true;   // burnt out: its spots fade by their own time; the house is charred
+		Buildings()->Char(GetWorld(), ShownTerrain, It.Key);
+	}
+}
+
+void UHrotDpsWorld::OnCloud(const FHrotDpsSample& S)
+{
+	const SimNetGateway_Protocol_DdsPlayer_Cloud& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_Cloud*>(S.Data);
+	if (!S.bValid || !S.bAlive) { Clouds.Remove(D.CloudId); return; }
+	FCloud& C = Clouds.FindOrAdd(D.CloudId);
+	if (C.Radius <= 0) { Count(TEXT("cloud")); UE_LOG(LogHrotDpsWorld, Display, TEXT("cloud %d: kind %d, r %.1f m, h %.1f m, sight %.2f, %.0f s"), D.CloudId, int32(D.Kind), D.Radius, D.Height, D.SightTransmittance, D.Seconds); }
+	C.Kind = uint8(D.Kind); C.SimTime = D.SimTime; C.BornAt = D.BornAt; C.Centre = V3(D.Centre);
+	C.Drift = FVector3f(D.Drift.X, D.Drift.Y, D.Drift.Z); C.Radius = D.Radius; C.Height = D.Height; C.Sight = D.SightTransmittance; C.Seconds = D.Seconds;
+}
+
+void UHrotDpsWorld::TickClouds(double SimNow, float Dt)
+{
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+	if (!R || Clouds.Num() == 0) return;
+	FRandomStream Rand(int32(SimNow * 1000.0));
+	for (TPair<int32, FCloud>& It : Clouds)
+	{
+		FCloud& C = It.Value;
+		// where it is now: HROT's centre at its SimTime plus its drift since (the client moves it, DD-033)
+		const FVector3d Now = C.Centre + FVector3d(C.Drift) * FMath::Max(0.0, SimNow - C.SimTime);
+		const float R0 = FMath::Max(C.Radius, 0.5f), H = FMath::Max(C.Height, 0.5f);
+		// puffs per second: the cloud's volume, denser the more sight it blocks; a budget per cloud
+		const double Rate = FMath::Clamp(R0 * R0 * H * 0.08 * (1.5 - FMath::Clamp(C.Sight, 0.f, 1.f)), 4.0, 60.0);
+		C.Carry += Rate * Dt;
+		const float Bright = C.Kind == SimNetGateway_Protocol_DdsPlayer_CloudKindTearGas ? 0.85f : 0.45f;
+		while (C.Carry >= 1.0)
+		{
+			C.Carry -= 1.0;
+			const float A = Rand.FRandRange(0.f, 2.f * PI), Rr = R0 * FMath::Sqrt(Rand.FRand());
+			const FVector3d P = Now + FVector3d(FMath::Cos(A) * Rr, FMath::Sin(A) * Rr, Rand.FRandRange(0.f, H * 0.8f));
+			const float Size = FMath::Clamp(R0 * 0.5f, 1.5f, 5.f) * 100.f;
+			R->AddPuff(HrotDpsMotion::ToUnreal(P, OriginCm), Size * 0.6f, Size * 1.4f, Rand.FRandRange(3.f, 6.f), Bright);
+		}
+	}
 }
 
 void UHrotDpsWorld::GunOnCarrier(FEnt& E, FTransform& T)
@@ -1645,9 +1732,9 @@ void UHrotDpsWorld::Tick(float)
 		FEnt& E = It.Value;
 		if (!E.Actor.IsValid()) continue;
 		if (E.bAnimal) ApplyAnimal(E, Placed);
-		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning) ApplyFlame(E);
+		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning || (!E.bFlamerLook && E.bHasPerson && !E.bFlamerChecked)) { ApplyFlame(E); E.bFlamerChecked = true; }
 	}
-	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); }
+	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); TickHouseFires(Placed); TickClouds(Placed, float(Dt)); }
 	TickFlyOuts(R);
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, Movers); TickMovers(R); }
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, Gizmos); SendGizmoView(R);   // U-18z
@@ -1785,6 +1872,9 @@ void UHrotDpsWorld::DefaultLife()
 	// U-19h 21: HROT's TECHNICALS and pickup (TKB 104 HMG, 105 ATGM, 106 bare pickup, 108 DShK, 109 minigun, 110 ZU-23-2; NedTkbCatalog Pickup(): 5.3 x 1.9 m, drives like a car) were
 	// a grey box. The city pack's truck (DA_City_vehicle04_Truck, 5.6 m, a cab and a bed) is the closest open-bed vehicle we have; their weapon is its own entity on the roof / bed.
 	for (const int64 Type : { 104, 105, 106, 108, 109, 110 }) if (!KitsByType.Contains(Type)) KitsByType.Add(Type, Kit(TEXT("DA_City_vehicle04_Truck")));
+	// HROT's MOTORCYCLE (TKB 115, NedTkbCatalog: seat 0 the driver, seat 1 the pillion - both astride and exposed - and a stowed cargo station):
+	// our motorcycle kit (U-17j), its seats in the same order (driver, passenger) with the riding clip
+	if (!KitsByType.Contains(115)) KitsByType.Add(115, Kit(TEXT("DA_Motorcycle")));
 	if (!KitsByDomain.Contains(TEXT("Air"))) KitsByDomain.Add(TEXT("Air"), Kit(TEXT("DA_Air_F16")));   // any other aircraft
 	if (CarKits.Num() == 0)
 		for (const TCHAR* N : { TEXT("DA_City_vehicle02_Car"), TEXT("DA_City_vehicle03_Car"), TEXT("DA_City_vehicle05_Car"), TEXT("DA_City_vehicle06_Car") })
@@ -1928,7 +2018,13 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 		E.bShownBurning = E.bPersonBurning;
 		UHrotBurning::SetBurning(A, E.bPersonBurning ? 1.f : 0.f);
 		Count(E.bPersonBurning ? TEXT("man burning") : TEXT("man stopped burning"));
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("person %s %s"), *E.Name, E.bPersonBurning ? TEXT("burning") : TEXT("stopped burning"));
 	}
+	// HROT's answer (NOTE_Ui_To_UnrealIg_Fire_On_The_Wire_Answer §2.3): the flamethrower man is his type's mount category Flamethrower - his
+	// flamethrower is in his hands from the start, not only while his jet burns
+	if (!E.bFlamerLook)
+		if (const TArray<FString>* M = MountCategories.Find(E.TypeId); M && M->Contains(TEXT("flamethrower")))
+			if (UHrotPersonState* St = A->FindComponentByClass<UHrotPersonState>()) { St->bFlamethrower = true; E.bFlamerLook = true; Count(TEXT("flamethrower man")); }
 	// the jet: FlameLook — from the muzzle toward the aim (the target's chest when it is an entity we have), min(distance, RangeM) long
 	UHrotFlamethrower* F = E.JetComp.Get();
 	if (!E.bJet) { if (F && F->bFiring) F->SetFiring(false); return; }
@@ -1965,7 +2061,7 @@ void UHrotDpsWorld::OnFireSpots(const FHrotDpsSample& S)
 	for (uint32 I = 0; I < N; ++I)
 	{
 		const auto& X = D.Spots._buffer[I];
-		if (int32(I) >= L.Num()) { L.AddDefaulted(); Count(TEXT("fire spot")); }
+		if (int32(I) >= L.Num()) { L.AddDefaulted(); Count(TEXT("fire spot")); UE_LOG(LogHrotDpsWorld, Display, TEXT("fire spot %d of holder %d: r %.1f m, %.0f s"), I, D.EntityId, D.Spots._buffer[I].Radius, D.Spots._buffer[I].Seconds); }
 		FSpot& Sp = L[I];
 		Sp.P = V3(X.Position); Sp.Radius = X.Radius; Sp.Intensity = X.Intensity; Sp.Since = X.Since; Sp.Seconds = X.Seconds;
 		Sp.ShownStrength = -1;
