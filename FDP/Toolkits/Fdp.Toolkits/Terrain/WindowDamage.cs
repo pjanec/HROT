@@ -42,6 +42,23 @@ namespace Fdp.Toolkit.Terrain
         public fixed byte V0[Capacity];
         public fixed byte U1[Capacity];
         public fixed byte V1[Capacity];
+        /// <summary>⭐ <c>CE-11051</c> — per window: the sim time (s, <c>SimClock.TotalTime</c>) of its LAST hit (a crack or the break); 0 = loaded from a save (no live
+        /// change). It moves with its entry when an older one is evicted (D-9). <see cref="HitAtOf"/> types it.</summary>
+        public fixed double HitAt[Capacity];
+
+        /// <summary>Overwrites window slot <paramref name="i"/>'s last-hit time (a reader outside an unsafe context: the wire's ingress).</summary>
+        public void SetHitAt(int i, double at)
+        {
+            if ((uint)i >= Capacity) throw new ArgumentOutOfRangeException(nameof(i));
+            HitAt[i] = at;
+        }
+
+        /// <summary>When window slot <paramref name="i"/> was last hit (0 = from a save).</summary>
+        public readonly SimInstant HitAtOf(int i)
+        {
+            if ((uint)i >= Capacity) throw new ArgumentOutOfRangeException(nameof(i));
+            return (SimInstant)HitAt[i];
+        }
 
         public readonly WindowEntry Get(int i)
         {
@@ -85,7 +102,7 @@ namespace Fdp.Toolkit.Terrain
     }
 
     /// <summary>⭐ <c>CE-5033</c> GW-2 — the one writer-side rule for a <see cref="WindowDamage"/> (D-4, D-9). Allocation-free.</summary>
-    public static class WindowDamages
+    public static unsafe class WindowDamages
     {
         /// <summary>The hit count that means BROKEN: the third round (D-4).</summary>
         public const byte BrokenHits = 3;
@@ -98,7 +115,10 @@ namespace Fdp.Toolkit.Terrain
         /// one more hit with its crack kept; the third breaks it (its cracks dropped). A new window past capacity evicts the OLDEST cracked-not-broken entry;
         /// a record full of broken windows records nothing (<see cref="WindowChange.Full"/>).
         /// </summary>
-        public static WindowChange Hit(ref WindowDamage d, int panel, int opening, float u, float v)
+        public static WindowChange Hit(ref WindowDamage d, int panel, int opening, float u, float v) => Hit(ref d, panel, opening, u, v, 0d);
+
+        /// <summary>⭐ <c>CE-11051</c> — <see cref="Hit(ref WindowDamage, int, int, float, float)"/> stamping the window's last hit at <paramref name="at"/> (sim seconds).</summary>
+        public static WindowChange Hit(ref WindowDamage d, int panel, int opening, float u, float v, double at)
         {
             int i = d.IndexOf(panel, opening);
             if (i >= 0)
@@ -106,28 +126,35 @@ namespace Fdp.Toolkit.Terrain
                 var w = d.Get(i);
                 if (w.Broken) return WindowChange.Unchanged;
                 byte hits = (byte)(w.Hits + 1);
+                d.HitAt[i] = at;
                 if (hits >= BrokenHits) { d.Set(i, new WindowEntry(panel, (byte)opening, BrokenHits, 0, 0, 0, 0)); return WindowChange.Broke; }
                 d.Set(i, w with { Hits = hits, U1 = Quantize(u), V1 = Quantize(v) });
                 return WindowChange.Cracked;
             }
             if (!MakeRoom(ref d)) return WindowChange.Full;
             d.Set(d.Count, new WindowEntry(panel, (byte)opening, 1, Quantize(u), Quantize(v), 0, 0));
+            d.HitAt[d.Count] = at;
             d.Count++;
             return WindowChange.Cracked;
         }
 
         /// <summary>The pane of (<paramref name="panel"/>, <paramref name="opening"/>) breaks at once — a man firing out, a blast, a breach over it (D-4, D-10).</summary>
-        public static WindowChange Break(ref WindowDamage d, int panel, int opening)
+        public static WindowChange Break(ref WindowDamage d, int panel, int opening) => Break(ref d, panel, opening, 0d);
+
+        /// <summary>⭐ <c>CE-11051</c> — <see cref="Break(ref WindowDamage, int, int)"/> stamping the break at <paramref name="at"/> (sim seconds).</summary>
+        public static WindowChange Break(ref WindowDamage d, int panel, int opening, double at)
         {
             int i = d.IndexOf(panel, opening);
             if (i >= 0)
             {
                 if (d.Get(i).Broken) return WindowChange.Unchanged;
                 d.Set(i, new WindowEntry(panel, (byte)opening, BrokenHits, 0, 0, 0, 0));
+                d.HitAt[i] = at;
                 return WindowChange.Broke;
             }
             if (!MakeRoom(ref d)) return WindowChange.Full;
             d.Set(d.Count, new WindowEntry(panel, (byte)opening, BrokenHits, 0, 0, 0, 0));
+            d.HitAt[d.Count] = at;
             d.Count++;
             return WindowChange.Broke;
         }
@@ -139,8 +166,9 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < d.Count; i++)
             {
                 if (d.Get(i).Broken) continue;
-                for (int k = i + 1; k < d.Count; k++) d.Set(k - 1, d.Get(k));
+                for (int k = i + 1; k < d.Count; k++) { d.Set(k - 1, d.Get(k)); d.HitAt[k - 1] = d.HitAt[k]; }   // ⭐ CE-11051 — the time moves with its entry
                 d.Count--;
+                d.HitAt[d.Count] = 0d;
                 return true;
             }
             return false;
@@ -183,12 +211,13 @@ namespace Fdp.Toolkit.Terrain
                     if ((uint)w.Panel >= (uint)from.Panels.Count) continue;
                     int panel = BuildingPanelIndex.ToGlobal(to, nb, BuildingPanelIndex.ToLocal(from, w.Panel));
                     if (panel < 0 || w.Opening >= to.Panels[panel].Openings.Count || !to.Panels[panel].Openings[w.Opening].Glazed) continue;
+                    n.HitAt[k] = d.HitAt[i];   // ⭐ CE-11051
                     n.Set(k++, w with { Panel = panel });
                 }
                 n.Count = (byte)k;
             }
             bool changed = n.Building != d.Building || n.Count != d.Count;
-            for (int i = 0; !changed && i < n.Count; i++) changed = n.Get(i) != d.Get(i);
+            for (int i = 0; !changed && i < n.Count; i++) changed = n.Get(i) != d.Get(i) || n.HitAt[i] != d.HitAt[i];
             if (changed) d = n;
             return changed;
         }

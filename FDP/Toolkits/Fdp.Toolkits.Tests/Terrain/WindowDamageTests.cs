@@ -157,6 +157,44 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(WindowChange.Full, WindowDamages.Hit(ref full, 999, 0, 0.5f, 0.5f));
         }
 
+        /// <summary>⭐ <c>CE-11051</c> — each window keeps the time of its LAST hit (a crack or the break); a hit on a broken pane changes nothing, so moves nothing;
+        /// an eviction carries every survivor's time with it. 🔴 Red-proof: drop the time's shift in <c>MakeRoom</c> ⇒ the survivors read their neighbours' times.</summary>
+        [Fact]
+        public void CE11051_EachWindow_KeepsItsLastHitsTime_ThroughAnEviction()
+        {
+            var d = new WindowDamage { Building = 0 };
+            WindowDamages.Hit(ref d, 5, 0, 0.5f, 0.5f, 1d);
+            WindowDamages.Hit(ref d, 5, 0, 0.5f, 0.5f, 2d);
+            Assert.Equal(2d, d.HitAtOf(0).Seconds);
+            WindowDamages.Hit(ref d, 5, 0, 0.5f, 0.5f, 3d);                       // breaks
+            Assert.Equal(3d, d.HitAtOf(0).Seconds);
+            Assert.Equal(WindowChange.Unchanged, WindowDamages.Hit(ref d, 5, 0, 0.5f, 0.5f, 4d));
+            Assert.Equal(3d, d.HitAtOf(0).Seconds);                                // nothing changed: no new time
+
+            var full = new WindowDamage { Building = 0 };
+            WindowDamages.Break(ref full, 0, 0, 100d);
+            for (int i = 1; i < WindowDamage.Capacity; i++) WindowDamages.Hit(ref full, i, 0, 0.5f, 0.5f, 100d + i);
+            WindowDamages.Hit(ref full, 999, 0, 0.5f, 0.5f, 500d);                 // evicts window 1 (the oldest cracked)
+            for (int i = 0; i < full.Count; i++)
+            {
+                var w = full.Get(i);
+                double want = w.Panel == 999 ? 500d : 100d + w.Panel;
+                Assert.Equal(want, full.HitAtOf(i).Seconds);
+            }
+        }
+
+        /// <summary>⭐ <c>CE-11051</c> — the writer stamps a window hit with the sim time of the frame it writes (born so on a new record, moved on the next hit).</summary>
+        [Fact]
+        public void CE11051_TheWriter_StampsAHit_WithTheSimTime()
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = 7d });
+            var e = Materialise(Assert.Single(Hit()));
+            Assert.Equal(7d, _w.GetComponentRO<WindowDamage>(e).HitAtOf(0).Seconds);
+            _w.SetSingleton(new GlobalTime { TotalTime = 9d });
+            Hit();
+            Assert.Equal(9d, _w.GetComponentRO<WindowDamage>(e).HitAtOf(0).Seconds);
+        }
+
         // ── the writer, end to end ───────────────────────────────────────────────────────────
 
         [Fact]
