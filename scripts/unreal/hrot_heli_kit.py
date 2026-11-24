@@ -114,6 +114,11 @@ try:
         c = unreal.Vector((go.x * ca - go.y * sa) * gs, (go.x * sa + go.y * ca) * gs, go.z * gs)
         gp = unreal.HrotVehiclePart(); gp.set_editor_property("mesh", gun); gp.set_editor_property("parent", unreal.HrotVehicleParent.HULL)
         gp.set_editor_property("transform", unreal.Transform(at - c, rot, unreal.Vector(gs, gs, gs)))
+        # CE-12010: aimed by its side's gunner (HROT seat 8 left / 10 right), about its mount pin (the mesh: on the barrel's axis behind the
+        # receiver, measured tip (-44.1, 66.6, 211.9), receiver centre (-34.4, -40.1, 206.1))
+        gp.set_editor_property("aim_seat", 8 if side_x == left_x else 10)
+        gp.set_editor_property("aim_pivot", unreal.Vector(-44.0, -15.0, 208.0))
+        gp.set_editor_property("aim_yaw_limits", unreal.Vector2D(-70.0, 70.0)); gp.set_editor_property("aim_pitch_limits", unreal.Vector2D(-50.0, 25.0))
         newparts.append(gp)
     # the cabin FLOOR (the OH-1 is a hollow shell): a thin plate at the sill across the cabin, the body's own metal
     cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")

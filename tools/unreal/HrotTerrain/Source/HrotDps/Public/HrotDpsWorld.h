@@ -503,6 +503,7 @@ private:
 	int32 PersonSpawnsThisFrame = 0;
 	TSet<int32> DeferredSpawns;
 	TMap<int32, FEnt> TestRiders;
+	bool NearestMountedGunTip(const FVector& Around, AActor* Prefer, FVector& OutTip, FVector& OutDir) const;
 	UPROPERTY(Transient) TObjectPtr<class UHrotBuildingDamage> BuildingDamage;
 	/** U-19h (live: rockets / missiles from the Apache, the aircraft, SAMs and ATGMs showed no rocket and no trail; 23 fired, 0 rounds drawn):
 	 *  a rocket / missile Fire with no Round entity from that shooter within FlyOutGrace s flies a stand-in missile (its kind's body, motor

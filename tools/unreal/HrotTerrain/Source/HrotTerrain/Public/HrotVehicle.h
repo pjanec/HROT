@@ -37,6 +37,13 @@ struct FHrotVehiclePart
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform Transform;
 	/** U-18k — material overrides by slot index (null = the mesh's own): one mesh, several liveries (the French pack's desert and green) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TArray<TObjectPtr<UMaterialInterface>> Materials;
+	/** CE-12010 (user: "rotate the gun to the direction of aiming"): a gun part aimed by the man in seat AimSeat (HROT's gunner seat; -1 = fixed).
+	 *  It turns about AimPivot (the part MESH's own coordinates: the mount pin) - its barrel is the mesh +Y - within the limits, degrees from
+	 *  its kit pose (yaw about the hull's Z, pitch up +) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") int32 AimSeat = -1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector AimPivot = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector2D AimYawLimits = FVector2D(-70.f, 70.f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector2D AimPitchLimits = FVector2D(-45.f, 20.f);
 };
 
 UCLASS(BlueprintType)
@@ -152,6 +159,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> MainRotor;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> TailRotor;
 	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> RotorDisc;
+	/** CE-12010: turn the gun part(s) aimed from seat `Seat` toward a world point (clamped to their limits); true if one exists */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") bool AimSeatGun(int32 Seat, FVector WorldTarget);
+	TArray<int32> PartOfComp;   // PartComps[i] is Kit->Parts[PartOfComp[i]]
 	float RotorAngle = 0.f;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Gun;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> WingLeft;

@@ -550,6 +550,37 @@ bool UHrotDpsWorld::BurstSound(uint32 Id, int32 Rounds, int32 Index, const TCHAR
 	return true;
 }
 
+// CE-12010 (user: "the stream should originate from the minigun on the side where the weapon mount is"): the roof MG cut from the VBL
+// (/Game/Hrot/Weapons/SM_HrotRoofMg) is every drawn mounted gun - a UH-60's door guns (kit parts), a technical's gun (a weapon-system actor).
+// A shot whose shooter has no gun of its own on screen (HROT's M134 station entity: its Origin is HROT's station, ~1 m from our model's gun)
+// starts at the TIP of the nearest such gun within 5 m. The tip: measured in the mesh (its thin +Y end, hrot gunbox measurement 2026-11-24)
+bool UHrotDpsWorld::NearestMountedGunTip(const FVector& Around, AActor* Prefer, FVector& OutTip, FVector& OutDir) const
+{
+	static const FVector TipLocal(-44.1, 66.6, 211.9);
+	static UStaticMesh* Mg = HrotLoadRooted<UStaticMesh>(TEXT("/Game/Hrot/Weapons/SM_HrotRoofMg.SM_HrotRoofMg"));
+	if (!Mg) return false;
+	double Best = 500.0 * 500.0; bool bFound = false;
+	auto Try = [&](AActor* A)
+	{
+		if (!A) return;
+		TArray<UStaticMeshComponent*> Cs; A->GetComponents(Cs);
+		for (const UStaticMeshComponent* C : Cs)
+			if (C && C->GetStaticMesh() == Mg)
+			{
+				const FTransform X = C->GetComponentTransform();
+				const FVector Tip = X.TransformPosition(TipLocal);
+				const double D2 = FVector::DistSquared(Tip, Around);
+				if (D2 < Best) { Best = D2; OutTip = Tip; OutDir = X.TransformVectorNoScale(FVector(0, 1, 0)).GetSafeNormal(); bFound = true; }
+			}
+	};
+	Try(Prefer);
+	if (!bFound)
+		for (const TPair<int32, FEnt>& It : Ents)
+			if (AHrotVehicle* V = Cast<AHrotVehicle>(It.Value.Actor.Get()))
+				if (FVector::DistSquared(V->GetActorLocation(), Around) < 1500.0 * 1500.0) Try(V);
+	return bFound;
+}
+
 void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 {
 	if (!S.bValid) return;
@@ -590,6 +621,11 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 			// HROT's FireStreams: every shot of a machine gun or autocannon shows tracer dashes running out from the muzzle toward the aim,
 			// up to 500 m - here the shot renderer's one streak per shot (its speed and look); the dash spacing is not ported yet
 			if (bKitGun) { From = ShooterVehicle->MuzzleTransform().GetLocation(); Count(TEXT("tracer from a vehicle gun")); }   // U-18f
+			else if (!bPerson)   // CE-12010: a door gun / a technical's gun - its drawn muzzle
+			{
+				FVector Tip, Along;
+				if (NearestMountedGunTip(From, Shooter ? Shooter->Actor.Get() : nullptr, Tip, Along)) { From = Tip; Count(TEXT("tracer from a mounted gun")); }
+			}
 			// HROT's FireStreams (U-18f): a STREAM of dashes toward the target (its chest when a person), else along the shot for 300 m
 			FStream St; St.Shooter = D.ShooterId; St.Origin = From; St.Along = Dir(D.Velocity); St.Born = D.SimTime; St.Toward = FVector::ZeroVector;
 			if (const FEnt* T = D.TargetId ? Ents.Find(D.TargetId) : nullptr)
@@ -859,6 +895,11 @@ void UHrotDpsWorld::OnEffect(const FHrotDpsSample& S)
 		if (Q.SizeSquared() < 0.5) Q = FQuat4d::Identity;
 		FTransform M(HrotDpsMotion::ToUnreal(Q.GetNormalized()), At);
 		if (V && V->Kit && !V->Kit->Muzzle.IsNearlyZero()) M = V->MuzzleTransform();   // a kit with no gun (the Apache): where the producer says
+		else if (!(Anchor && Anchor->bHasPerson))   // CE-12010: a door gun / a technical's gun - the flash at its drawn muzzle, facing along the barrel
+		{
+			FVector Tip, Along;
+			if (NearestMountedGunTip(At, Anchor ? Anchor->Actor.Get() : nullptr, Tip, Along)) M = FTransform(Along.Rotation(), Tip);
+		}
 		else if (Anchor && Anchor->bHasPerson && MuzzleOfPerson(Anchor->Actor.Get(), M)) Count(TEXT("flash at a rifle"));
 		R->AddFlash(M, FMath::Clamp(D.Size * FlashPerMetre, 0.5f, 12.f));
 		Count(TEXT("flash"));
@@ -2180,6 +2221,10 @@ void UHrotDpsWorld::UpdateRiding(FEnt& E)
 		E.bRiding = false; E.RidingOn = nullptr; E.SeatPose = nullptr;
 		Count(TEXT("rider got off"));
 	}
+	// CE-12010: a seated gunner turns the gun his seat aims (the UH-60's door gun) toward his aim point (PersonAim, HROT's)
+	if (E.bRiding && E.AimPoint.SquaredLength() > 1.0)
+		if (AHrotVehicle* GunOn = Cast<AHrotVehicle>(E.RidingOn.Get()))
+			GunOn->AimSeatGun(E.SeatIndex, HrotDpsMotion::ToUnreal(E.AimPoint, OriginCm));
 	if (!E.bRiding && bCan && UHrotRiding::SitOn(A, Mount, Seat))
 	{
 		E.bRiding = true; E.RidingOn = Mount; E.RidingSeat = E.SeatIndex; E.SeatPose = Seats[Seat].Pose.Get();

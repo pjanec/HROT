@@ -74,7 +74,7 @@ void AHrotVehicle::BeginPlay()
 void AHrotVehicle::Build()
 {
 	for (UStaticMeshComponent* C : PartComps) if (C) C->DestroyComponent();
-	PartComps.Reset();
+	PartComps.Reset(); PartOfComp.Reset();
 	if (SkinnedComp) { SkinnedComp->DestroyComponent(); SkinnedComp = nullptr; }
 	ClearDamageFx();
 	if (Flame) { Flame->DestroyComponent(); Flame = nullptr; }
@@ -116,8 +116,9 @@ void AHrotVehicle::Build()
 		SkinnedComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 		SkinnedComp->RegisterComponent();
 	}
-	for (const FHrotVehiclePart& P : Kit->Parts)
+	for (int32 PartIndex = 0; PartIndex < Kit->Parts.Num(); ++PartIndex)
 	{
+		const FHrotVehiclePart& P = Kit->Parts[PartIndex];
 		if (!P.Mesh) continue;
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transient);
 		C->CreationMethod = EComponentCreationMethod::UserConstructionScript;   // rebuilt with the actor, never saved
@@ -141,7 +142,7 @@ void AHrotVehicle::Build()
 			: P.Parent == EHrotVehicleParent::TailRotor ? P.Transform.GetRelativeTransform(Kit->TailRotorPivot) : P.Transform);
 		C->SetCollisionEnabled(ECollisionEnabled::QueryOnly);   // a hit test may need it; no physics
 		C->RegisterComponent();
-		PartComps.Add(C);
+		PartComps.Add(C); PartOfComp.Add(PartIndex);
 	}
 	if (bPainted) SetPaint(Paint);
 	ApplyState();
@@ -170,6 +171,37 @@ void AHrotVehicle::SetAim(float Yaw, float Pitch)
 {
 	TurretYaw = Yaw; GunPitch = Pitch;
 	ApplyState();
+}
+
+bool AHrotVehicle::AimSeatGun(int32 Seat, FVector WorldTarget)
+{
+	if (!Kit || Seat < 0) return false;
+	bool bAny = false;
+	for (int32 I = 0; I < PartComps.Num() && I < PartOfComp.Num(); ++I)
+	{
+		const FHrotVehiclePart& P = Kit->Parts[PartOfComp[I]];
+		UStaticMeshComponent* C = PartComps[I];
+		if (P.AimSeat != Seat || !C || P.Parent != EHrotVehicleParent::Hull) continue;
+		// in the Lift's frame: the pivot and the barrel of the kit pose, the wanted direction, the yaw / pitch between them (clamped)
+		const FTransform Base = P.Transform;
+		const FVector Pivot = Base.TransformPosition(P.AimPivot);
+		const FVector Barrel = Base.TransformVectorNoScale(FVector(0, 1, 0)).GetSafeNormal();
+		const FVector Want = (Lift->GetComponentTransform().InverseTransformPosition(WorldTarget) - Pivot).GetSafeNormal();
+		if (Want.IsNearlyZero()) continue;
+		const float Yaw = FMath::Clamp(FMath::FindDeltaAngleDegrees(Barrel.Rotation().Yaw, Want.Rotation().Yaw), P.AimYawLimits.X, P.AimYawLimits.Y);
+		const float Pitch = FMath::Clamp(Want.Rotation().Pitch - Barrel.Rotation().Pitch, P.AimPitchLimits.X, P.AimPitchLimits.Y);
+		// yaw about the Lift's Z, then pitch about the barrel's own horizontal side axis, both through the pivot
+		const FQuat QYaw(FVector::UpVector, FMath::DegreesToRadians(Yaw));
+		const FVector Side = FVector::CrossProduct(QYaw.RotateVector(Barrel), FVector::UpVector).GetSafeNormal();
+		const FQuat QPitch(Side, FMath::DegreesToRadians(-Pitch));
+		const FQuat Q = QPitch * QYaw;
+		FTransform T = Base;
+		T.SetRotation(Q * Base.GetRotation());
+		T.SetTranslation(Pivot + Q.RotateVector(Base.GetTranslation() - Pivot));
+		C->SetRelativeTransform(T);
+		bAny = true;
+	}
+	return bAny;
 }
 
 void AHrotVehicle::SetFlying(bool bNewFlying)
