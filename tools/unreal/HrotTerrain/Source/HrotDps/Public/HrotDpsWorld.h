@@ -300,6 +300,7 @@ private:
 		TWeakObjectPtr<UHrotPersonKit> Kit;
 		int32 SeatVehicleId = 0;
 		uint8 SeatIndex = 255, RidingSeat = 255;
+		double ThrowAt = -1; bool bThrowing = false;   // CE-12016: a grenade / stone thrown (its Fire), drawn for the throw clip's length
 		bool bRiding = false, bNoSeatCounted = false;
 		TWeakObjectPtr<AActor> RidingOn;
 		TWeakObjectPtr<class UAnimSequence> SeatPose;

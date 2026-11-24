@@ -599,6 +599,8 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 	const bool bKitGun = ShooterVehicle && ShooterVehicle->Kit && !ShooterVehicle->Kit->Muzzle.IsNearlyZero();
 	if (bPerson && (D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket || D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm))
 		Shooter->RocketFiredAt = Real;
+	// CE-12016 (HROT's ThrowArms, CE-1195: the throw is drawn from its shot): a person's grenade / stone Fire throws - soldier or civilian, standing or riding
+	if (bPerson && D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryGrenade) Shooter->ThrowAt = Real;
 	switch (D.WeaponCategory)
 	{
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryTankGun:
@@ -1306,6 +1308,20 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 		if (bTube) Count(TEXT("drawn: tube on the shoulder"));
 	}
 	if (bTube && L.Stance != HrotDpsPeople::Prone) St->UpperAnim = K->Clip(TEXT("Upper.Aimed"));   // the tube is held in the aimed pose (the lab's)
+	// CE-12016: the throw after a grenade / stone Fire, over its clip's length - standing: the whole body; riding / crouched: the upper body over his pose
+	if (E.ThrowAt >= 0)
+	{
+		UAnimSequence* Throw = K->Clip(TEXT("Gesture.Throw"));
+		const double Since = Real - E.ThrowAt;
+		if (Throw && Since < Throw->GetPlayLength())
+		{
+			if (E.bRiding || L.Stance != HrotDpsPeople::Standing) St->UpperAnim = Throw;
+			else { St->BaseAnim = Throw; St->bBaseLoops = false; }
+			if (!E.bThrowing) Count(TEXT("drawn: throw"));
+			E.bThrowing = true;
+		}
+		else { E.ThrowAt = -1; E.bThrowing = false; }
+	}
 	const bool bHide = L.bHidden && !E.bRiding;   // a rider is in an open seat: seen
 	if (A->IsHidden() != bHide) A->SetActorHiddenInGame(bHide);
 
