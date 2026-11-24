@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "berlin",
-    "description": "What: the LLM commander over AGGREGATED units (CE-4685; DESIGN_LLM_Commander §5d) - on berlin a physical 'Blue Company' (TKB 306) whose brain is a SEAT (CommanderSeat, Mind Scripted, InertSop) over three STOCHASTIC platoons ('1st/2nd/3rd Platoon', TKB 305, AggregateUnit Stochastic, no members - 30 men each from their slot tables) in the assembly area 'start' (300,700), 700 m north of Red's 'Red Defenders' (5 men, SquadDefend + BasicSquadSop, the game AI) holding 'position' (300,50) - all inside berlin's collider grid (±750 m) and perception grid ([0..1000]). Places: position, objective (300,200), support (220,200), start. The scripted mind sends every platoon to the objective (each ordered by KIND: a stochastic platoon runs the generic stochastic play), and on the first SPOT runs the company's own attack play (CompanyAttack - the seat offers his class's plays) on the reported place. Judge: (1) the seat orders a stochastic platoon by kind; (2) CompanyAttack runs; (3) inside the 600 m band a platoon hands over (Physical, X-5) and its squads fight; (4) reports reach the company from aggregated and split platoons; (5) the fight happens and lasts. Fail: a platoon given a physical play while stochastic, no CompanyAttack, no split, the seat's orders lost after a split. Check: scripts/scenario-regression.sh llm-company-aggregated"
+    "description": "What: the LLM commander over AGGREGATED units (CE-4685; DESIGN_LLM_Commander §5d) - on berlin a physical 'Blue Company' (TKB 306) whose brain is a SEAT (CommanderSeat, Mind Scripted, InertSop) over three STOCHASTIC platoons ('1st/2nd/3rd Platoon', TKB 305, AggregateUnit Stochastic, no members - 30 men each from their slot tables) in the assembly area 'start' (300,700), 700 m north of Red's 'Red Defenders' (5 men, SquadDefend + BasicSquadSop, the game AI) holding 'position' (300,50) - all inside berlin's collider grid (±750 m) and perception grid ([0..1000]). Places: position, objective (300,80, Red's front edge), support (220,200), start. The scripted mind sends every platoon to the objective (each ordered by KIND: a stochastic platoon runs the generic stochastic play), and when a platoon splits (near the enemy) runs the company's own attack play (CompanyAttack - the seat offers his class's plays) on the objective - a company hears no SPOT of infantry: its platoons relay only indirect fire and air defence up (CE-2310 HQ-3). Judge: (1) the seat orders a stochastic platoon by kind; (2) CompanyAttack runs; (3) inside the 600 m band a platoon hands over (Physical, X-5) and its squads fight; (4) reports reach the company from aggregated and split platoons; (5) the fight happens and lasts. Fail: a platoon given a physical play while stochastic, no CompanyAttack, no split, the seat's orders lost after a split. Check: scripts/scenario-regression.sh llm-company-aggregated"
   },
   "entities": {
     "b4685000-0000-4000-8000-000000000001": {
@@ -337,7 +337,7 @@
       "SimTransform": {
         "Position": [
           300,
-          200,
+          80,
           0
         ],
         "Rotation": [
@@ -355,7 +355,7 @@
         "ForceId": "Neutral"
       },
       "PlaceNote": {
-        "Text": "150 m north of the position; the assault's line of departure"
+        "Text": "Red's front edge, 30 m north of the position; the attack's objective"
       }
     },
     "b4685000-0000-4000-8000-000000000202": {
@@ -380,7 +380,7 @@
         "ForceId": "Neutral"
       },
       "PlaceNote": {
-        "Text": "west of the objective; sees the position"
+        "Text": "west of the line of approach, 150 m north of the position; sees it"
       }
     },
     "b4685000-0000-4000-8000-000000000203": {

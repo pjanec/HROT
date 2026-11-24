@@ -62,12 +62,13 @@
       "if": "scriptedMind"
     },
     {
-      "name": "the company runs its OWN attack play, CompanyAttack, after the first SPOT",
+      "name": "the company runs its OWN attack play, CompanyAttack, within 2 s of the first split (the scripted mind: near the enemy, attack the objective)",
       "on": "task",
       "who": "Blue Company",
       "is": "CompanyAttack",
-      "after": "spotted",
-      "if": "scriptedMind"
+      "after": "split",
+      "if": "scriptedMind",
+      "before": "split+2"
     },
     {
       "name": "an aggregated platoon reports to the company",
