@@ -324,7 +324,7 @@ def step_buildings():
     # the slots of terrain_look.py: plaster, old plaster, brick, red roof, dark roof, glass, frame, door
     mats = [surface_or("plaster", (0.55, 0.51, 0.45), "Plaster"), surface_or("oldPlaster", (0.50, 0.47, 0.42), "OldPlaster"),
             surface_or("brick", (0.36, 0.16, 0.11), "Brick"), surface_or("roofTiles", (0.30, 0.10, 0.06), "RoofRed"),
-            surface_or("roofDark", (0.16, 0.12, 0.10), "RoofDark"), flat_or_kept("M_HrotGlass", (0.05, 0.065, 0.075), 0.02),
+            surface_or("roofDark", (0.16, 0.12, 0.10), "RoofDark"), flat_or_kept("M_HrotGlass", (0.34, 0.40, 0.44), 0.04),
             flat_or_kept("M_HrotFrame", (0.75, 0.74, 0.70), 0.6), surface_or("wood", (0.25, 0.15, 0.08), "Door")]
     n = 0
     for t in spec["tiles"]:

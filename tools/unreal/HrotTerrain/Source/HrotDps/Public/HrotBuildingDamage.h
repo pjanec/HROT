@@ -45,7 +45,13 @@ private:
 	struct FWall { FVector2D A, B; float Thickness = 0.2f; };
 	struct FIndexed { FIntPoint Tile; int32 Index = 0; bool bPanels = false; float Base = 0, Top = 0; TArray<FVector2D> Footprint; TArray<FWall> Walls; };
 	struct FTile { TWeakObjectPtr<AActor> Static; TWeakObjectPtr<AActor> Dynamic; TSet<int32> Out; };
-	struct FHouse { TWeakObjectPtr<AActor> Actor; TWeakObjectPtr<AActor> Rubble; TSet<FString> Cuts; TSet<int64> Broken; bool bCollapsed = false; int32 WallMaterial = 0; FVector TileOrigin = FVector::ZeroVector; };
+	struct FHouse { TWeakObjectPtr<AActor> Actor; TWeakObjectPtr<AActor> Rubble; TSet<FString> Cuts; TSet<int64> Broken; bool bCollapsed = false; int32 WallMaterial = 0; FVector TileOrigin = FVector::ZeroVector;
+	                TWeakObjectPtr<class UMaterialInterface> WallMat; };
+	/** U-20 ⑤ (user: "just debris that fade out"): physics chunks thrown on a LIVE breach / collapse, shrunk away after their life - cosmetic only */
+	struct FDebris { TWeakObjectPtr<AActor> A; double Born = 0; double Life = 6; FVector Scale = FVector::OneVector; };
+	TArray<FDebris> Debris;
+	void SpawnDebris(UWorld* World, const FVector& At, const FVector& Away, int32 Count, float MinCm, float MaxCm, float Speed, UMaterialInterface* Mat, float Spread);
+	void TickDebris(UWorld* World);
 
 	bool LoadIndex(const FString& Terrain);
 	FTile* TileOf(UWorld* World, const FString& Terrain, FIntPoint T);
