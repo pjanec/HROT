@@ -164,9 +164,18 @@ namespace Fdp.Toolkit.Perception
                 suite = gunTemplate.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
             if (suite == null || suite.Mounts.Count == 0) return true;
             var mounts = suite.Mounts;
+            bool anyKnown = false;
             for (int i = 0; i < mounts.Count; i++)
-                if (CanHurt(db, mounts[i], his, face: null, distance: float.MaxValue) > 0f) return true;
-            return false;
+            {
+                var mount = mounts[i];
+                // ⭐ CE-8317 — a mount that names no round (a person's HANDS mount, PersonHands: empty until he picks something up) says
+                //   nothing about armour: it is skipped, else every soldier "could hurt" a tank. 📐 live village-street-fight: the rifle
+                //   and pistol could not, the hands could — 10 rifle rounds still went at the T-72
+                if (mount.Loadout.Count == 0 && Fdp.Toolkit.Combat.CombatTkb.RoundOf(db, mount, unchecked((long)mount.AmmoGuid)).Penetration <= 0f) continue;
+                anyKnown = true;
+                if (CanHurt(db, mount, his, face: null, distance: float.MaxValue) > 0f) return true;
+            }
+            return !anyKnown;   // nothing known about any weapon: permissive, as before
         }
 
         /// <summary>

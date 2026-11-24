@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Tests.Perception
     /// </summary>
     public sealed class ThreatDangerTests : IDisposable
     {
-        private const long RpgManType = 9101, RiflemanType = 9102, TowTeamType = 9103, LightRocketType = 9104, UnknownRoundType = 9105;
+        private const long RpgManType = 9101, RiflemanType = 9102, TowTeamType = 9103, LightRocketType = 9104, UnknownRoundType = 9105, RiflemanWithHandsType = 9106;
 
         private readonly UtilityTestWorld _world = new();
 
@@ -33,7 +33,17 @@ namespace Fdp.Toolkit.Tests.Perception
                 Armed("Rifleman", RiflemanType, new WeaponMountDto { Range = 500, Penetration = 5, DamagePerHit = 10 }),
                 Armed("TOW team", TowTeamType, new WeaponMountDto { Range = 3750, Penetration = 800, DamagePerHit = 2000 }),
                 Armed("Light rocket", LightRocketType, new WeaponMountDto { Range = 200, Penetration = 275, DamagePerHit = 300 }),
-                Armed("Unknown round", UnknownRoundType, new WeaponMountDto { Range = 500, Penetration = 0, DamagePerHit = 10 }));
+                Armed("Unknown round", UnknownRoundType, new WeaponMountDto { Range = 500, Penetration = 0, DamagePerHit = 10 }),
+                RiflemanWithHands());
+        }
+
+        /// <summary>⭐ CE-8317 — a rifleman as the catalogue builds a person: his rifle, then the HANDS mount every person type ends with
+        /// (<c>PersonHands</c>: a thrown-item mount that names no round).</summary>
+        private static Fdp.Interfaces.TkbTemplate RiflemanWithHands()
+        {
+            var t = Armed("Rifleman (hands)", RiflemanWithHandsType, new WeaponMountDto { Range = 500, Penetration = 5, DamagePerHit = 10 });
+            t.GetDescriptor<WeaponSuiteDto>()!.Mounts.Add(new WeaponMountDto { Range = 25 });
+            return t;
         }
 
         public void Dispose() => _world.Dispose();
@@ -98,6 +108,7 @@ namespace Fdp.Toolkit.Tests.Perception
             var unknown = Shooter(UnknownRoundType, new Vector3(100, 0, 0));
             var db = _world.Repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
             Assert.False(ThreatDanger.ICanHurt(_world.Repo, db, rifleman, tank));
+            Assert.False(ThreatDanger.ICanHurt(_world.Repo, db, Shooter(RiflemanWithHandsType, new Vector3(100, 0, 0)), tank));   // 📐 live: the empty hands read as "unknown ⇒ hurts"
             Assert.True(ThreatDanger.ICanHurt(_world.Repo, db, rpg, tank));
             Assert.True(ThreatDanger.ICanHurt(_world.Repo, db, unknown, tank));
             Assert.True(ThreatDanger.ICanHurt(_world.Repo, db, rifleman, soldier));
