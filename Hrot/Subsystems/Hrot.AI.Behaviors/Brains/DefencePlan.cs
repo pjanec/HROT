@@ -229,6 +229,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// 5–10 m interval between men in the open.</summary>
         public const float DispersalMetres = 5f;
 
+        /// <summary>⭐ <c>CE-8322</c> — the line's own spots are exactly <see cref="DispersalMetres"/> apart; measured they read 4.99 and only every
+        /// other spot was usable. This much short of the interval still counts as the interval (m).</summary>
+        public const float SpacingTolerance = 0.05f;
+
         /// <summary>
         /// ⭐⭐ D-13 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8c D-2n) — every live man the asks left WITHOUT a post (too few window /
         /// roof / cover points in reach) gets a DISPERSAL spot: on the line across the facing through the position (a ring round it when all-round),
@@ -276,19 +280,32 @@ namespace Hrot.AI.Behaviors.Brains
                         cand[c++] = position + new Vector3(MathF.Cos(a), MathF.Sin(a), 0f) * (ring * DispersalMetres);
                     }
             }
+            // ⭐⭐ CE-8322 — DEFILADE first: a spot the facing (the enemy's expected position) cannot see is taken before one it can — doctrine's
+            //   "out of the enemy's view". 📐 live village-street-mg-flank: the line across the facing ran over the open street, and a man waited
+            //   prone IN it for 75 s in the gun's field of fire. Judged from the facing's eye to a crouched man's middle; no world ⇒ every spot alike.
+            Span<bool> hidden = stackalloc bool[16];
+            var query = Fdp.Toolkit.World.WorldQuery.Of(crew.World);
+            if (hasEa && query != null)
+            {
+                float zHint = position.Z;
+                if (zHint == 0f) for (int i = 0; i < n; i++) if (crew.Live(i, out var anyAt)) { zHint = anyAt.Z; break; }
+                var from = Grounded(query, facing, zHint) + new Vector3(0f, 0f, DefiladeEyeMetres);
+                for (int k = 0; k < c; k++)
+                    hidden[k] = query.SightBlocked(from, Grounded(query, cand[k], zHint) + new Vector3(0f, 0f, DefiladeBodyMetres));
+            }
             for (int i = 0; i < n && posts.Count < DefencePosts.Capacity; i++)
             {
                 if (posts.PostOf[i] != DefencePosts.None && posts.PostOf[i] < posts.Count) continue;
                 if (!crew.Live(i, out var at)) continue;
-                int best = -1; float bestD = float.MaxValue;
+                int best = -1; float bestD = float.MaxValue; bool bestHidden = false;
                 for (int k = 0; k < c; k++)
                 {
                     bool free = true;
                     for (int j = 0; j < t && free; j++)
-                        if (new Vector2(cand[k].X - taken[j].X, cand[k].Y - taken[j].Y).Length() < DispersalMetres) free = false;
+                        if (new Vector2(cand[k].X - taken[j].X, cand[k].Y - taken[j].Y).Length() < DispersalMetres - SpacingTolerance) free = false;   // ⭐ CE-8322 — spots ON the 5 m line are 5 m apart (float: 4.99)
                     if (!free) continue;
                     float d = new Vector2(cand[k].X - at.X, cand[k].Y - at.Y).Length();
-                    if (d < bestD) { bestD = d; best = k; }
+                    if ((hidden[k] && !bestHidden) || (hidden[k] == bestHidden && d < bestD)) { bestD = d; best = k; bestHidden = hidden[k]; }
                 }
                 if (best < 0) continue;
                 var spot = new Vector3(cand[best].X, cand[best].Y, at.Z);
@@ -298,6 +315,13 @@ namespace Hrot.AI.Behaviors.Brains
                 taken[t++] = spot;
             }
         }
+
+        /// <summary>⭐ <c>CE-8322</c> — the defilade test's heights: the enemy's eye over his ground, a crouched man's middle over the spot's (m).</summary>
+        public const float DefiladeEyeMetres = 1.6f, DefiladeBodyMetres = 0.9f;
+
+        /// <summary>⭐ <c>CE-8322</c> — a 2-D point (Z 0) on the ground near <paramref name="zHint"/>; a point with a height as given.</summary>
+        private static Vector3 Grounded(Fdp.Toolkit.World.IWorldQuery query, Vector3 p, float zHint)
+            => p.Z != 0f ? p : query.TryStandAt(p.X, p.Y, zHint, out float z) ? p with { Z = z } : p with { Z = zHint };
 
         /// <summary>The asks' child sensors of <paramref name="carrier"/> go (a plan abandoned mid-stage).</summary>
         public static void Abandon(EntityRepository world, Entity carrier, ref DefenceAsk ask)

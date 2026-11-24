@@ -21,7 +21,7 @@
       "by": "*Blue Squad"
     },
     {
-      "name": "REALISM no Blue man in the middle of the street (y 250-260) after 20 s",
+      "name": "REALISM no Blue man in the middle of the street (y 250-260) after 20 s, while the gun fights",
       "never": {
         "on": "field",
         "who": "*Blue Squad",
@@ -36,10 +36,11 @@
           }
         ]
       },
-      "after": 20
+      "after": 20,
+      "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM Blue Squad 1 never stands wholly in the open after 60 s",
+      "name": "REALISM Blue Squad 1 never stands wholly in the open after 60 s, while the gun fights",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 1 ",
@@ -48,10 +49,11 @@
         "quantifier": "all",
         "upright": true
       },
-      "after": 60
+      "after": 60,
+      "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM Blue Squad 2 never stands wholly in the open after 60 s",
+      "name": "REALISM Blue Squad 2 never stands wholly in the open after 60 s, while the gun fights",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 2 ",
@@ -60,10 +62,11 @@
         "quantifier": "all",
         "upright": true
       },
-      "after": 60
+      "after": 60,
+      "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM Blue Squad 3 never stands wholly in the open after 60 s",
+      "name": "REALISM Blue Squad 3 never stands wholly in the open after 60 s, while the gun fights",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 3 ",
@@ -72,16 +75,18 @@
         "quantifier": "all",
         "upright": true
       },
-      "after": 60
+      "after": 60,
+      "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM no Blue squad bunches after 30 s",
+      "name": "REALISM no Blue squad bunches after 30 s, until the clearing stack at the door",
       "never": {
         "on": "bunched",
         "who": "*Blue Squad 1 ",
         "m": 2
       },
-      "after": 30
+      "after": 30,
+      "before": "the assault starts clearing the gun's house (ClearBuilding)"
     },
     {
       "name": "the base of fire puts rounds on the machine-gun team",
@@ -121,6 +126,12 @@
       "path": "Health.Current",
       "op": "<",
       "value": 30
+    },
+    {
+      "name": "the assault starts clearing the gun's house (ClearBuilding)",
+      "on": "task",
+      "who": "*Blue Squad",
+      "is": "ClearBuilding"
     },
     {
       "name": "REALISM a dead man runs no behaviour",
