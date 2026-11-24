@@ -8,7 +8,7 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-▶ `2026-11-24 13:40` — **CE-4686 (the four findings of the LLM commander over aggregated units, `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates_2.md`) — IN PROGRESS** (merged `coordinator`; ① and ④ are user-authorised cross-lane edits). Report: §Aggregates 2 (to come).
+⭐ `2026-11-24` **CE-4686 (the four findings of the LLM commander over aggregated units) — DONE**: ① HQ-3b relay · ② roles · ③ SupportByFire (root cause: the reconciler CLEARED it at the split — fixed) · ④ BoundOrder; 11 red-proved rails; scripted ✅ 11/11, Haiku low effort ✅ 7/7 judged. Report: §Aggregates 2; designs: Command Chain §8d, Orders §16, Split One Level §10, LLM §5d.1.
 ⛔ ~~`2026-11-24 10:38` — idle~~ (CE-4686 taken 13:40) **idle (self-wake-up: CE-4685 done; no new HANDOFF/STEER/NOTE for backend on coordinator / behaviors / ui; no new DECIDED answers. The open leans from §Aggregates — SupportByFire as a KIND for a platoon, a role line per platoon under a whole-unit order — wait for the user).
 ⭐ `2026-11-24` **CE-4685 (the LLM commander over AGGREGATED units, `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates.md`) — DONE**: A-1 … A-4 built, 3 rails red-proved + the relay rail extended (red-proved); ⭐ user mid-slice: *"We need to introduce the order kinds to higher level echelons. We cannot call directly a behavior name"* — the seat now gives its whole unit an order KIND (built, railed, red-proved); `llm-company-aggregated` scripted ✅ 9/9, Haiku low effort ✅ 5/5 judged (4 scripted-only SKIP); a split platoon's relayed move died at the split — fixed (cross-lane, CE-8307's relay). Report: §Aggregates; design §5d.
 ⛔ ~~`2026-11-24 07:29` — idle~~ (CE-4685 taken 08:20) **idle — waiting for a handoff** (self-wake-up: L-3c done; CE-11047 (ui's staged-presentation garbage) fixed `c77363b9a` — the Stechovice re-measure is ui's; no new HANDOFF/STEER/NOTE for backend; the next slice is L-3b on the user's laptop).
@@ -462,4 +462,66 @@ Three decisions as the model wrote them:
 
 ### Aggregates ids allocated
 none (the slice's own id is the coordinator's CE-4685).
+
+## Aggregates 2 — the four findings (CE-4686, `2026-11-24`; handoff `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates_2.md`, merged `coordinator` at `a8e866305`)
+
+⭐ **① and ④ are user-authorised CROSS-LANE edits** (behaviors' command chain; the orders design and the Bound plays), and so are ③'s change to the AGG
+lane's reconciler, ②'s read-only interface on four behaviors plays and ④'s map letter in the ui keymap — each said in its commit.
+
+| # | built | rail (each red-proved by a compiling mutation) | commit |
+|---|---|---|---|
+| ① | **HQ-3b**: a commander of UNITS relays its subordinates' ground SPOTs up — grouped (50 m), own age, ≤ 2 groups per sender, refreshed on a move / 15 s; a full picture never loses a support element to a ground report. The seat names the source (`reported by 2nd Platoon`) | `CE4686_APlatoonRelaysItsSquadsSpotUp_AsOneGroup_WithItsOwnAge` · `…AtMostTwoGroups_TheFreshest_AreRelayed` · `…AFullPicture_AGroundReportNeverEvictsASupportElement` · `…ACompanySeat_SeesARelayedSpot_WithItsSourceAndAge`; `CE2310_…` amended | `eece5cc40`, `26602fa5d` |
+| ② | the snapshot shows each unit's ROLE in the running whole-unit order (`IPlayRoles` on PlatoonAttack / CompanyAttack / PlatoonDefend / CompanyDefend, read through `OccurrenceSlotCatalog`); both prefixes say a role's orders are the order's | `CE4686_ACompanySeat_ReadsEachPlatoonsRoleInItsRunningAttack` | `c153f8b52` |
+| ③ | the base of fire STANDS at `support_at`, fires at the objective; a physical platoon gets the KIND (`PlatoonSupportByFire`); ⭐ at a split a hold-back attack is RE-ISSUED as `PlatoonSupportByFire`, not cleared (R-8392 amended); a failed order leaves the in-force table; a unit out of the fight carries no order in force | `…TheKindSupportByFire_ResolvesFor…` (measured) · `…ASupportByFire_StandsAtTheSupportPlace_…` · `CE8307_…_AHoldBackAttackBecomesItsSupportByFire` · `…AnOrderItsUnitReportedFailed_IsGivenAgain_…` · `…AUnitOutOfTheFight_CarriesNoOrderInForce` | `03cab7e19`, `410037d29`, `c21be7343` |
+| ④ | `BoundOrder { Position, SupportPoint, Speed }` — read by PlatoonBound, BoundingOverwatch and (by Position) the stochastic attack; PlatoonBound's cover never to (0, 0); Bound's map letter `N` | `BehaviorParamsValidationTests.CE4686_OneBoundOrder_MeansTheSame…` + the R-8300 contract rail (now walks Bound) | `19062a7ad`, `410037d29` |
+
+### ③ — the claim table (the stall, measured in two runs)
+
+| the claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the base of fire was told to stand on Red's position | ✅ `Decision.ToAction` passed `Where: objective`; `AttackOrder.HoldBack`'s Position = where it STANDS | ✅ CE-8302 R-8341 |
+| ⭐ the real stall: a STOCHASTIC platoon on support by fire had its order CLEARED at its split | ✅ measured (Haiku run 1): `[ResolutionFit] unit #2: its order has no play at Physical — cleared` at 6:21, TaskFailed 150 m short | ⛔ R-8392 assumed "no platoon play holds back" — false since `PlatoonSupportByFire` fulfils SupportByFire |
+| the model's re-issue was swallowed | ✅ measured: "already in force since 00:00:00 — nothing sent" after the TaskFailed | — |
+| the fix works live | ✅ measured (Haiku run 2): `unit #2 re-issues its Attack order as PlatoonSupportByFire` at its split; 2nd Platoon reached `support` (50 m NW at 6:00, at it by 8:00) — destroyed on the way by Red's 4 teams | — |
+
+### Aggregates 2 — the proof (`llm-company-aggregated`, all rows + ① and ③'s)
+
+| | CE-4685 Haiku | ① scripted | ② Haiku, LOWEST effort, the contract |
+|---|---|---|---|
+| checks | 5 / 5 judged (no ① / ③ rows) | ✅ **11 / 11** — the company runs `CompanyAttack` at the first split (39.25 s); ⭐ a platoon RELAYS Red's squad up (87.3 s); ⭐ a split platoon's man fires AT Red (102.6 s) | ✅ **7 / 7 judged**, 4 scripted-only SKIP — ⭐ ① relayed SPOT at 132.2 s; ⭐ ③ fire at Red 126.9 s |
+| did the company see the enemy (①) | ⛔ never | ✅ | ✅ `enemy 4 (Team), 15 s old, MED at position, reported by 2nd Platoon` (00:04:00 snapshot) |
+| did it keep the play running (②) | ⛔ ended CompanyAttack to undo a role | ✅ CompanyAttack ran | ⚠ not exercised: the model ordered the platoons directly (no whole-unit order) — proven by its rail only |
+| fire on the position (③) | ⛔ stalled 180 m off | ✅ | ✅ 2nd Platoon reached the support place firing; the split re-issued its order as PlatoonSupportByFire |
+| calls · decisions · stale · repaired · CONTINUE fallbacks | 19 · 17 · 2 · 0 · 0 | — | 26 · 26 · 0 · 0 · 0 |
+| contingencies armed | 4 | — | 12 |
+| request tokens first / median / last (max) | 1 826 / 2 455 / 2 973 | — | 1 930 / 2 659 / 2 621 (3 545) — under ≈ 4 000 |
+
+Three decisions as the model wrote them (run ②):
+- **00:00:00, cycle 1** — *situation:* "Blue Company is staged at the assembly area … Red holds the position at (300,50) with open ground around it." · *risk:* "The assault cannot cross open ground without fire on the position, and the 2nd Platoon walk to the support area takes about 6 minutes." · *orders:* **2nd Platoon SupportByFire, objective position, support_at support** (⭐ ③: stands at support, fires at the position) · 1st Platoon Attack position, start UNIT_AT 2nd Platoon support · 3rd Platoon Hold · *contingency:* STRENGTH_BELOW 1st Platoon 50 % → 3rd Platoon Attack.
+- **00:04:10, cycle 78** — *situation:* "2nd Platoon is out of the fight … The base of fire it was to give is gone. Red has at least four teams and a medic at the position." · *orders:* 3rd Platoon SupportByFire (support) · 1st Platoon Attack, start UNIT_AT 3rd Platoon support.
+- ⭐ **00:04:12, cycle 81 — on a RELAYED SPOT** ("2ND PLATOON: spot, 4 enemy (Team), 12 s old, position" — the platoon's relay of its squads' sighting, ①) — *situation:* "… Red has four teams and a medic at the position … 1st Platoon's earlier assault order still waits on 2nd Platoon, which will not arrive, so it must be replaced." · *risk:* "Crossing open ground without a base of fire would be destroyed." · *orders:* 3rd Platoon SupportByFire (support) · **1st Platoon Hold** (the assault waits for the new base of fire).
+
+### Aggregates 2 — what did not work, and whose
+
+| finding | owner |
+|---|---|
+| ✅ fixed here: a destroyed platoon's order stayed "in force" (found by run ②) | seat (backend) — `c21be7343` |
+| ⚠ a contingency / waiting order keyed on a unit that is OUT OF THE FIGHT (`UNIT_AT 2nd Platoon support`) never fires and never aborts — the model had to replace it by hand | seat (backend, the L-3c watcher) — lean: abort a waiting order whose condition's unit left the fight |
+| ⚠ a COMPANY's hold-back attack still waits at its split (no company support-by-fire play) | the AGG lane / the plays (no `CompanySupportByFire`) |
+| ⚠ Blue never HIT Red in 8 min in any run (fire AT Red: yes) — Red's 4 teams in cover vs. a slow approach over open ground | the scenario (not a defect measured) |
+
+### Aggregates 2 gates
+
+| gate | result |
+|---|---|
+| the commander + relay + new rails (`CE4684 TwoSeats Duel_ CE4676 CE4679 CE4680 CE4681 CE4683 Aggregates_ CE8307 X2 CE4686`) | ✅ 62 / 62 |
+| the same + the HQ-3 rails under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` | ✅ 64 / 64 |
+| ① the command chain's suite `SquadManeuverTests` (whole) | ✅ 432 / 432 |
+| ③④ orders: `TacticalIntentResolutionSystemTests` · `ScenarioRulesTests` · `BehaviorParamsValidationTests` (R-8300 incl. Bound) | ✅ 194 / 194 |
+| `ScenarioChecksTests` + `OrderVocabularyTests` · `TheOrdersTabTests` · Core `ParamsDtoRegistry` / `BehaviorFit` / routing · Presentation `MenuOrders` / `RtsCommandTool` / `RuleEditorR5b` | ✅ 39 · 5 · 22 · 72 (K2 was red until Bound declared its letter) |
+| red-proofs | 11 mutations, each red, restored |
+| ① battalion + aggregate scenarios (run, not changed) | ✅ `cc-battalion` · ✅ `agg-battalion-fight` · ✅ `agg-platoon-under-company` · ✅ `agg-platoon-splits-into-squads` — ⚠ the three agg ones print "GOLDEN different" (a warning, RT-3; they did before this slice too, CE-4685 §gates — not checked against the base) |
+
+### Aggregates 2 ids allocated
+none (the slice's own id is the coordinator's CE-4686).
 
