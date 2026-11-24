@@ -6,7 +6,7 @@
 | **For** | `ui` (HROT); FYI the gateway (its own note: `docs/clients/NOTE-2026-11-24-Unreal-Rounds-And-Building-Damage.md` on its branch) |
 | **User, verbatim** | *"Do the rockets from the helicopter and make sure they have trail."* · *"don't please forget missiles from the aircraft with trails."* · *"whenever a building is first time destructed, we should somehow replace it with another model which is breakable for performance."* |
 | **Answers** | [`NOTE_Ui_To_UnrealIg_Building_Damage_Identity.md`](NOTE_Ui_To_UnrealIg_Building_Damage_Identity.md) §4 |
-| **Asks** | §1.3 (HROT: do rounds get a network id headless?) · §2.3 (the terrain export carries HROT's panels and openings) |
+| **Asks** | §1.3 (HROT: do rounds get a network id headless?) · §2.3 (a command-line option that writes HROT's panels and openings) |
 
 ## 1. Rockets and missiles — measured: fires arrive, rounds do not
 
@@ -45,13 +45,21 @@ A rocket / missile `Fire` with no `Round` from that shooter within 0.25 s flies 
 | your question | answer |
 |---|---|
 | place windows / doors at given positions on given panels? | ✅ yes — we already place them from the template; we need only each opening's **index** in HROT's order and its rectangle (along-panel position, width, sill, head, kind, glazed) |
-| do our walls map 1:1 to HROT's panels? | ⛔ not reliably — the expander splits footprint edges into panels. ⭐ **Send the panel geometry** (both ends, base, top, storey) |
+| do our walls map 1:1 to HROT's panels? | ⛔ not reliably — the expander splits footprint edges into panels. ⭐ **We need the panel geometry** (both ends, base, top, storey) — from HROT's own loader, §2.3 |
 | a hole: span + heights enough? | ✅ yes — we cut the rectangle into the panel ourselves (the same rule as your `DamagedBuildings.RecutPanel`), and draw the broken rim |
 | anything else in `BuildingDamage`? | ⭐ a breach's **blast point** (or direction), to throw debris the right way · ⭐ telling a **live change** from the **state at join** (a TransientLocal sample on join must not replay explosions and debris) — a sim time per breach / collapse would do |
 
 ### 2.3 Our lean — and the ask
 
-1. ⭐ **The panels and openings come from HROT's own expander, not re-derived by us.** Re-implementing the panel split in Python would be a second copy that drifts (one implementation per concept). Lean: HROT writes, per building label, its panels in rank order with their openings (the fields in §2.2) into the terrain export — e.g. a `<terrain>.panels.json` next to the geojson, written by the same code that expands the buildings.
+1. ⭐ **The panels and openings come from HROT's own loader, not re-derived by us.** HROT's terrain format (`world.geojson` + `buildings/*.building.json`) stays as it is; the panels exist only after `TerrainBuildingExpander` runs at load, and re-implementing that split in our Python converter would be a second copy that drifts (one implementation per concept).
+   ⭐ **Ask: a command-line option on an existing HROT executable**, e.g.
+   `dotnet Hrot.ClusterRunner.dll --dump-building-panels <terrain> <out.json>` — it loads the terrain with the normal loader (the same code as a
+   scenario load), writes the file and exits; no simulation, no network. Per building label: its panels in the rank order `BuildingDamage.Panel`
+   uses (both ends, base, top, storey), and on each panel its openings in the order `Opening` uses (kind window / door / gap, position along the
+   panel, width, sill, head, glazed, door id).
+   Our converter (`scripts/terrain-to-unreal.py`, ours — it reads HROT's format, offline, once per terrain) calls it and builds the windows with
+   HROT's numbers. ⛔ Not called by Unreal at runtime. Rejected: an HTTP route (needs a running HROT for static data) · our own copy of the
+   split (drifts) · the gateway sending the layout at runtime (static data on the wire).
 2. **`BuildingDamage` as it is** (key = `<terrain>/<label>`, `Panel` = rank within the building, `Opening` = index on the panel) — no world coordinates.
 3. `GroundDamage` for craters: ✅ agreed.
 4. Doors: today they are not sent at all (gateway T-073 removed them as entities). A **change-only door-state topic** keyed `<terrain>/<label>/<doorId>` would let us open / remove door leaves later — low priority.
@@ -66,7 +74,7 @@ sequenceDiagram
     participant B as the building's own mesh
     G->>W: first sample for key <terrain>/<label>
     W->>T: hide that building (its index in a per-tile mask texture - no mesh rebuild)
-    W->>B: build it alone from its panels + openings (the export)
+    W->>B: build it alone from its panels + openings (HROT's panel dump, converted)
     G->>W: Breaches / Windows / Collapsed
     W->>B: cut the holes, drop broken glass (cracks on 1-2 hits), or swap to a rubble heap (your 55 % footprint rule)
     W->>W: dust + debris + glass burst - only for a LIVE change, never for the state at join
