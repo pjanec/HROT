@@ -102,12 +102,9 @@ namespace Fdp.Toolkit.Combat.Systems
         /// </summary>
         private static bool SitsOnItsSource(EntityRepository repo, Entity cloud)
         {
-            int source = repo.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId;
-            if (source <= 0) return false;
-            if (!Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, source).IsNull) return true;
-            bool mapless = !repo.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();
-            if (!mapless && !Fdp.Toolkit.Replication.Services.NetworkIdResolver.IsKnownDeadAnchor(repo, source)) return true;
-            repo.GetComponentRW<AreaEffectCloud>(cloud).SourceNetworkId = 0;
+            ref readonly var c = ref repo.GetComponentRO<AreaEffectCloud>(cloud);
+            if (AreaEffectClouds.SitsOnSource(repo, in c)) return true;   // ⭐ CE-11056 — the one read-only rule (the gateway asks it too)
+            if (c.SourceNetworkId > 0) repo.GetComponentRW<AreaEffectCloud>(cloud).SourceNetworkId = 0;   // let go: it drifts from now on
             return false;
         }
 
