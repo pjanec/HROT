@@ -646,6 +646,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         {
             var squad = roster.SubordinateEntities[i];
             if (!world.IsAlive(squad) || !seat.InForce.TryGetValue(squad, out var o)) continue;
+            // ⭐ CE-4686 — a unit OUT OF THE FIGHT carries no order in force (📌 Haiku: a destroyed platoon's SupportByFire stayed listed as in force)
+            if (!CombatEffective.IsInTheFight(world, squad)) { seat.InForce.Remove(squad); continue; }
             radio.Append(first ? " ORDERS IN FORCE:" : ",").Append(' ').Append(NameOf(world, squad).ToUpperInvariant()).Append(' ').Append(o.Text)
                  .Append(" since ").Append(Clock(o.Since)).Append(" (").Append(o.By).Append(')');
             first = false;

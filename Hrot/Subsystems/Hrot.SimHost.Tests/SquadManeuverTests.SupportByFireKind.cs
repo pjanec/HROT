@@ -94,6 +94,26 @@ namespace Hrot.SimHost.Tests
             s.Seats.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ CE-4686 — a unit OUT OF THE FIGHT carries no order in force in the snapshot. 📌 Haiku run: a destroyed platoon's SupportByFire stayed listed.
+        /// 🔴 Red-proof: the in-the-fight check dropped ⇒ "ALPHA Move" still listed.
+        /// </summary>
+        [Fact]
+        public void CE4686_AUnitOutOfTheFight_CarriesNoOrderInForce()
+        {
+            var mind = new RailMind();
+            int call = 0;
+            mind.Answer = _ => ++call == 1 ? new[] { new CommanderAction(CommanderActionKind.Order, "1st Platoon", "Move", Where: "house") } : Array.Empty<CommanderAction>();
+            var s = SeatedCompany(mind);
+            Fast(s, heartbeat: 0.5f, snapshot: 1f);
+            Run(s, 150);
+            Assert.Contains("1ST PLATOON Move", s.Items().Last(i => i.Kind == FeedKind.Snapshot).Radio);
+            AggregateTestUnits.Make(s.Repo, s.P.Alpha, slots: 9, up: 0, echelon: 1);   // every man down: out of the fight
+            Run(s, 120);
+            Assert.DoesNotContain("1ST PLATOON Move", s.Items().Last(i => i.Kind == FeedKind.Snapshot).Radio);
+            s.Seats.Dispose();
+        }
+
         private static readonly SeatVocabulary Vocab4686 = new("Blue Company", new[] { "1st Platoon", "2nd Platoon" }, new[] { "house", "objective", "support", "start" });
     }
 }
