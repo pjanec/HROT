@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — a DRAFT (recorded direction, not a buildable design)
-updated: 2026-11-17
+updated: 2026-11-24
 current-answer: the whole file; the measured results in "Measured on Windows `2026-11-17`"
 stale-below: none
 known-rot: none
@@ -244,6 +244,56 @@ to include internal floors to selected houses so that we can really place charac
 | U-13 | asphalt reads brown (darkened gravel) — a grey asphalt surface; the street view a little dark |
 | U-14 | conifers: the Megaplants trees are SKELETAL (not instanceable) — a static Megascans spruce / pine set |
 | U-15 | lane markings on rural roads: Sim.Scene draws dividers only between same-direction lanes — a centre line would be a SumoSharp change (read-only in HROT, R-4046): the user decides |
+
+## ⭐ Building panels for Unreal — `hrot-building-panels` *(CE-11052, ui, `2026-11-24`; build-state: BUILT)*
+
+Unreal's ask ([`5c36842fa`](../../blueprints/batches/NOTE_UnrealIg_To_Ui_Missiles_And_Building_Damage.md) §2.3; our answer [NOTE_Ui_To_UnrealIg_Rounds_And_Building_Damage_Decisions.md](../../blueprints/batches/NOTE_Ui_To_UnrealIg_Rounds_And_Building_Damage_Decisions.md)):
+`BuildingDamage` / `WindowDamage` name a wall by `(building key, panel, opening)` — the panel is its rank within the building (`BuildingPanelIndex`), the opening its index on that panel —
+but the panels exist only after HROT's loader splits the footprint walls. A second copy of that split in the Python converter would drift, so HROT writes the table.
+
+```mermaid
+classDiagram
+  class Program { <<hrot-building-panels, NEW>> +Main(terrain folder, out.json) }
+  class TerrainFolderWorld { <<exists, Fdp.Toolkits>> +ReadDefinition() +ReadWorld() }
+  class TerrainWorld { <<exists>> Panels Buildings }
+  class BuildingPanelDump { <<NEW, Fdp.Toolkits/Terrain>> +Write(TerrainWorld, Stream) +ToJson(TerrainWorld) }
+  class WallGroups { <<exists>> Count() IsBuilding() }
+  class BuildingPanelIndex { <<exists>> ToGlobal(group, rank) ToLocal(panel) }
+  class BuildingDamages { <<exists>> KeyOf(world, group) }
+  Program --> TerrainFolderWorld : the ONE folder to world step (node load, navmesh prefill, roadscene)
+  Program --> BuildingPanelDump
+  TerrainFolderWorld ..> TerrainWorld
+  BuildingPanelDump --> TerrainWorld
+  BuildingPanelDump --> WallGroups
+  BuildingPanelDump --> BuildingPanelIndex : rank order
+  BuildingPanelDump --> BuildingDamages : the wire's key
+```
+
+```mermaid
+sequenceDiagram
+  participant C as scripts/terrain-to-unreal.py (offline, once per terrain)
+  participant T as hrot-building-panels
+  participant L as TerrainFolderWorld + TerrainWorldParser
+  participant D as BuildingPanelDump
+  C->>T: hrot-building-panels assets/terrain/Stechovice panels.json
+  T->>L: ReadDefinition(terrain.json), ReadWorld(...)
+  L-->>T: TerrainWorld (buildings expanded into panels, openings kept)
+  T->>D: Write(world, file)
+  loop every wall group (buildings, then free-wall lines)
+    D->>D: key = BuildingDamages.KeyOf, then panels by BuildingPanelIndex.ToGlobal(group, 0..n)
+    D->>D: per panel its openings in list order (kind, at, width, sill, head, glazed, doorId)
+  end
+  D-->>C: panels.json (invariant culture, byte-identical for the same terrain)
+  Note over C: at join the client keys BuildingDamage.Panel / WindowDamage.Panel / Opening into this table
+```
+
+*What the pictures show that prose hid:* the tool owns no geometry rule — it is `TerrainFolderWorld` (the loader every HROT path shares) plus one writer that numbers panels by the
+same `BuildingPanelIndex` the save, the load and the wire use; ⛔ the base terrain only (a scenario's overlay blocks are not merged — they are part of the scenario, not the terrain).
+
+**File** `{ "format": 1, "terrain": "<name>", "buildings": [ { "key": "<terrain>/<label>", "kind": "building" | "wallLine", "group": n, "template", "baseZ", "storeys", "panels": [ { "panel": rank, "a": [x, y], "b": [x, y], "base", "top", "thickness", "storey", "openings": [ { "opening": i, "kind": "window" | "door" | "gap", "at", "width", "sill", "head", "glazed", "doorKey"?, "doorId"? } ] } ] } ] }` —
+metres, absolute Z; `at` = metres along the panel from its `a` end. A free-wall line is keyed `<terrain>/wall:<label>` (`BuildingDamage` keys it the same way).
+**Rails** (`FDP/Toolkits/Fdp.Toolkits.Tests/Terrain/BuildingPanelDumpTests.cs`): a breach and a window hit written through the damage records and the save are found at the same panel and opening in the dump;
+every panel sits at its rank; the bytes are identical twice and under `cs-CZ`; cqb-village dumps every panel deterministically.
 
 ## ⛔ HISTORY — the first open list
 
