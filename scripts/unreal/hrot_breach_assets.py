@@ -54,34 +54,33 @@ def glass():
 
 
 def crack():
-    """radial cracks: thin lines where sin(7.3 * angle + 3 * r) is near 0, out to r 0.5; a broken ring at r ~0.12; white, unlit"""
+    """a BULLET HOLE in a pane: the textures from hrot_glass_crack_tex.py (HROT_CRACK_PNG = their folder) imported to /Game/Hrot/Fx/Cracks,
+    the material samples a parameter "Crack" (the client picks a variant per hit): translucent, unlit, two-sided, alpha = the cracks.
+    (Replaced the procedural star, user 2026-11-24: "not too realistic".)"""
+    import glob, os
+    src = os.environ.get("HROT_CRACK_PNG", "")
+    tasks = []
+    for f in sorted(glob.glob(os.path.join(src, "T_HrotGlassCrack_*.png"))):
+        t = unreal.AssetImportTask(); t.filename = f; t.destination_path = "/Game/Hrot/Fx/Cracks"; t.automated = True; t.replace_existing = True; t.save = True
+        tasks.append(t)
+    AT.import_asset_tasks(tasks)
+    first = unreal.load_asset("/Game/Hrot/Fx/Cracks/T_HrotGlassCrack_0")
     m = fresh("/Game/Hrot/Fx", "M_HrotGlassCrack")
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     m.set_editor_property("two_sided", True)
-    tc = E(m, unreal.MaterialExpressionTextureCoordinate, -1400, 0)
-    d = op(m, unreal.MaterialExpressionSubtract, tc, c1(m, 0.5, -1400, 120), -1250, 0)
-    mx = E(m, unreal.MaterialExpressionComponentMask, -1100, -60); mx.set_editor_property("r", True); mx.set_editor_property("g", False)
-    my = E(m, unreal.MaterialExpressionComponentMask, -1100, 60); my.set_editor_property("r", False); my.set_editor_property("g", True)
-    MEL.connect_material_expressions(d, "", mx, ""); MEL.connect_material_expressions(d, "", my, "")
-    ang = E(m, unreal.MaterialExpressionArctangent2, -950, 0)
-    MEL.connect_material_expressions(my, "", ang, "Y"); MEL.connect_material_expressions(mx, "", ang, "X")
-    r = one(m, unreal.MaterialExpressionLength, d, -950, 150)
-    wav = op(m, unreal.MaterialExpressionAdd, op(m, unreal.MaterialExpressionMultiply, ang, c1(m, 5.0, -800, 60), -650, 0),
-             op(m, unreal.MaterialExpressionMultiply, r, c1(m, 1.2, -800, 220), -650, 160), -500, 60)
-    s = one(m, unreal.MaterialExpressionAbs, one(m, unreal.MaterialExpressionSine, wav, -380, 60), -260, 60)
-    width = op(m, unreal.MaterialExpressionMultiply, r, c1(m, 0.22, -380, 200), -260, 200)   # measured: 0.12 drew 1-2 px lines, 0.5 a spirograph
-    spokes = one(m, unreal.MaterialExpressionSaturate, op(m, unreal.MaterialExpressionSubtract, c1(m, 1.0, -150, 0),
-                 op(m, unreal.MaterialExpressionDivide, s, op(m, unreal.MaterialExpressionAdd, width, c1(m, 0.05, -260, 300), -150, 260), -50, 120), 80, 60), 220, 60)
-    ring = one(m, unreal.MaterialExpressionSaturate, op(m, unreal.MaterialExpressionSubtract, c1(m, 1.0, -150, 420),
-               op(m, unreal.MaterialExpressionMultiply, one(m, unreal.MaterialExpressionAbs, op(m, unreal.MaterialExpressionSubtract, r, c1(m, 0.05, -380, 480), -260, 420), -150, 500),
-                  c1(m, 70.0, -150, 580), -30, 520), 80, 420), 220, 420)
-    fade = one(m, unreal.MaterialExpressionSaturate, op(m, unreal.MaterialExpressionMultiply, op(m, unreal.MaterialExpressionSubtract, c1(m, 0.5, -150, 700), r, -30, 700),
-               c1(m, 6.0, -30, 800), 80, 720), 220, 720)
-    lines = op(m, unreal.MaterialExpressionMultiply, op(m, unreal.MaterialExpressionMax, spokes, ring, 360, 200), fade, 500, 300)
-    MEL.connect_material_property(op(m, unreal.MaterialExpressionMultiply, lines, c1(m, 0.8, 500, 450), 650, 300), "", unreal.MaterialProperty.MP_OPACITY)
-    MEL.connect_material_property(c3(m, (0.9, 0.93, 0.95), 650, 100), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
-    MEL.recompile_material(m); return m
+    tex = E(m, unreal.MaterialExpressionTextureSampleParameter2D, -500, 0)
+    tex.set_editor_property("parameter_name", "Crack")
+    if first: tex.set_editor_property("texture", first)
+    rgb = E(m, unreal.MaterialExpressionMultiply, -150, 0)   # measured: wiring the Multiply's (absent) "RGB" pin left emissive empty - the cracks drew BLACK
+    MEL.connect_material_expressions(tex, "RGB", rgb, "A"); MEL.connect_material_expressions(c1(m, 0.8, -300, 150), "", rgb, "B")
+    MEL.connect_material_property(rgb, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    a = E(m, unreal.MaterialExpressionMultiply, -150, 250)
+    MEL.connect_material_expressions(tex, "A", a, "A"); MEL.connect_material_expressions(c1(m, 2.0, -300, 300), "", a, "B")   # thin lines lose alpha in the mips
+    MEL.connect_material_property(one(m, unreal.MaterialExpressionSaturate, a, 0, 250), "", unreal.MaterialProperty.MP_OPACITY)
+    MEL.recompile_material(m)
+    unreal.log_warning(f"[HROT-BREACH-ASSETS] {len(tasks)} crack textures imported from {src}")
+    return m
 
 
 def wall_scorch():

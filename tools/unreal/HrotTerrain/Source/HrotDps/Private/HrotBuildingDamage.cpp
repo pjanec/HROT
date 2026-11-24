@@ -18,6 +18,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/DecalComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -290,18 +292,26 @@ void UHrotBuildingDamage::Crack(FHouse& House, const FIndexed& H, const FHrotWin
 	FVector Corner, Along, Up, Normal; float W, Ht;
 	if (!CrackMat || !Plane || !Pane(H, House, Wd.Panel, Wd.Opening, Corner, Along, Up, Normal, W, Ht)) return;
 	const float U = (Which == 0 ? Wd.U0 : Wd.U1) / 255.f, V = (Which == 0 ? Wd.V0 : Wd.V1) / 255.f;
-	const float Size = FMath::Min(W, Ht) * 0.7f / 100.f;
+	// a bullet hole (hrot_glass_crack_tex.py): one of four variants, turned at random; its cracks reach the quad's edge - sized to the nearer frame
+	const float Pu = U * W, Pv = V * Ht;
+	const float Size = FMath::Clamp(2.f * FMath::Min(FMath::Min(Pu, W - Pu), FMath::Min(Pv, Ht - Pv)) + 8.f, 14.f, 60.f) / 100.f;
+	FRandomStream Pick(int32(Wd.Panel * 7919 + Wd.Opening * 131 + Which * 17 + H.Index));
+	static UTexture* Tex[4] = { nullptr, nullptr, nullptr, nullptr };
+	for (int32 I = 0; I < 4; ++I) if (!Tex[I]) Tex[I] = HrotLoadRooted<UTexture>(*FString::Printf(TEXT("/Game/Hrot/Fx/Cracks/T_HrotGlassCrack_%d.T_HrotGlassCrack_%d"), I, I));
+	UMaterialInstanceDynamic* Mi = UMaterialInstanceDynamic::Create(CrackMat, this);
+	if (UTexture* T = Tex[Pick.RandRange(0, 3)]) Mi->SetTextureParameterValue(TEXT("Crack"), T);
+	const FVector Spin = Along.RotateAngleAxis(Pick.FRandRange(0.f, 360.f), Normal);
 	// measured: one quad on the inner face sat BEHIND the translucent pane and only its tips showed - one on each face, drawn after the glass
 	for (const float Side : { 1.f, -1.f })
 	{
 		const FVector At = Corner + Along * (U * W) + Up * (V * Ht) + Normal * (0.8f * Side);
 		FActorSpawnParameters SP; SP.ObjectFlags |= RF_Transient;
-		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), FTransform(FRotationMatrix::MakeFromZX(Normal * Side, Along).Rotator(), At, FVector(Size)), SP);
+		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), FTransform(FRotationMatrix::MakeFromZX(Normal * Side, Spin).Rotator(), At, FVector(Size)), SP);
 		if (!A) continue;
 		UStaticMeshComponent* C = A->GetStaticMeshComponent();
 		C->SetMobility(EComponentMobility::Movable);
 		C->SetStaticMesh(Plane);
-		C->SetMaterial(0, CrackMat);
+		C->SetMaterial(0, Mi);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetCastShadow(false);
 		C->SetTranslucentSortPriority(10);
