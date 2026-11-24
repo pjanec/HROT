@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "name": "village-street",
+  "frame": {
+    "utm": {
+      "zone": 33,
+      "hemisphere": "N",
+      "e0": 500000,
+      "n0": 5500000
+    }
+  },
+  "axes": "x east, y north, z up (absolute); headings compass degrees, 0 = north, clockwise",
+  "bounds": [
+    0,
+    0,
+    800.0,
+    500.0
+  ],
+  "sumoAnchor": [
+    0,
+    0
+  ],
+  "prepared": "2026-11-24",
+  "files": {
+    ".gitattributes": {
+      "sha256": "d2eec0f545bd003662acc2864b01c756e3b75632c20dda6369c98a8a444bf5b8",
+      "bytes": 90
+    },
+    "heights/heights.f32": {
+      "sha256": "f8d6f2486dfe812a9e65e157af99e682a53c86473b1b3bf10a105ba4cde202c3",
+      "bytes": 1605204,
+      "rows": 501,
+      "cols": 801
+    },
+    "heights/heights.hdr": {
+      "sha256": "039c223bca057f28fb8827629cdeb8b60ecdd44cab8500ebc6d574ad62647bab",
+      "bytes": 182
+    },
+    "heights/heights.json": {
+      "sha256": "49ab78fc6f6654e8445013edaf9cd56b2061a6525ab4a9d75c6c9e9e96358a1c",
+      "bytes": 227
+    },
+    "buildings/buildings.geojson": {
+      "sha256": "f52d70bbaa28c180d49eeedfd8cbb2a8992bc88b6ef4e2ced726df960da9117e",
+      "bytes": 851396,
+      "features": 277
+    },
+    "buildings/unassigned.geojson": {
+      "sha256": "b5efe09bff979e44487d7a6565becde613ff2122caacfb4086b1432c2a869cfd",
+      "bytes": 194,
+      "features": 0
+    },
+    "trees/trees.csv": {
+      "sha256": "0020c12731636b3bba4f3d98d1147d7994cebfb6ecd0fa2a0b8fc4bbbb0f1abb",
+      "bytes": 17801,
+      "rows": 867
+    },
+    "roads/roads.net.xml": {
+      "sha256": "7cd05fd0111e1fd3e5dffc114d3d61d99448821b3bb032a6ee05249fa70830fa",
+      "bytes": 456075
+    },
+    "walls/walls.geojson": {
+      "sha256": "1f7846c6dd86a521c52a7dbe68abd7a9b36878284354b266a18f8b9e8ef04e50",
+      "bytes": 103,
+      "features": 0
+    }
+  },
+  "notes": [
+    "an anonymized extract of a real-data town (800 x 500 m): the map frame is arbitrary and the heights are shifted; streets, house spacing, buildings with their doors and windows, and trees are as in the source",
+    "buildings: material not known (generator default); walls and fences: none in the source"
+  ]
+}
