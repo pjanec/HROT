@@ -36,7 +36,10 @@ namespace Hrot.SimHost.Tests
         private static bool KnownBehaviour(string name) => Names.Contains(name);
         private static readonly System.Collections.Generic.HashSet<string> Names = typeof(Hrot.Map.Definitions.Behavior.BehaviorNames)
             .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
-            .Where(f => f.IsLiteral && f.FieldType == typeof(string)).Select(f => (string)f.GetRawConstantValue()!).ToHashSet();
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string)).Select(f => (string)f.GetRawConstantValue()!)
+            .Concat(Hrot.Core.Tkb.ResolutionRoutingTable.StochasticPlays)   // ⭐ CE-4686 — the generic stochastic plays and the relay are registered too (not in BehaviorNames)
+            .Concat(new[] { Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayMove, Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayBreakContact })
+            .ToHashSet();
 
         /// <summary>The class as the spawner gives it: the TKB identity and the header's DIS type (the routing table reads the header).</summary>
         private static void Tkb(EntityRepository w, Entity e, long type)

@@ -343,8 +343,23 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
             case "Attack":
                 CommandOrders.Order(world, seat.Commander, squad, "Attack", $"{{\"Position\":{p}}}", newOrder: true);
                 break;
-            case "SupportByFire":   // ⭐ R-8303 — the base of fire: an Attack that holds back, standing at the position
-                CommandOrders.Order(world, seat.Commander, squad, "Attack", $"{{\"Position\":{p},\"HoldBack\":true}}", newOrder: true);
+            case "SupportByFire":
+                // ⭐ CE-4686 ③ — the base of fire STANDS at the place (a decision's support_at, else its objective) and fires at the target (the decision's
+                //   objective when a support_at was given). By the form the ONE routing table resolves for THAT subordinate: a physical platoon takes the
+                //   KIND SupportByFire (PlatoonSupportByFire: Position = where it sets, Post1 = what it fires at); a squad or a stochastic unit has no
+                //   SupportByFire play of its own ⇒ Attack + HoldBack, standing at the place (R-8303, CE-8302 R-8341 — the generic attack play reads HoldBack).
+                //   📌 Measured (CE-4685, Haiku): the old form sent a platoon to STAND on Red's position (the objective), and a physical platoon has no
+                //   hold-back Attack play (R-8392) — 2nd Platoon stalled ~180 m short
+                string post = "";
+                if (a.Where != null && a.Target != null)
+                {
+                    if (seat.Places.Resolve(a.Target, out why) is not { } fireAt) return why;
+                    post = $",\"Post1\":{Point(fireAt)}";
+                }
+                if (TakesKind(world, seat, squad, OrderKind.SupportByFire))
+                    CommandOrders.Order(world, seat.Commander, squad, "SupportByFire", $"{{\"Position\":{p}{post}}}", newOrder: true);
+                else
+                    CommandOrders.Order(world, seat.Commander, squad, "Attack", $"{{\"Position\":{p},\"HoldBack\":true}}", newOrder: true);
                 break;
             case "Defend":
                 CommandOrders.Route(world, seat.Commander, squad, OrderKind.Defend, BehaviorNames.SquadDefend, $"{{\"Position\":{p},\"SearchRadius\":30}}", newOrder: true);
@@ -354,6 +369,16 @@ public sealed class CommanderActionSystem : IEcsModuleSystem
                 break;
         }
         return null;
+    }
+
+    /// <summary>⭐ CE-4686 ③ — does <paramref name="unit"/> take the order KIND <paramref name="kind"/> as a play of its own (the routing table, at its resolution)?</summary>
+    private static bool TakesKind(EntityRepository world, SeatRuntime seat, Entity unit, OrderKind kind)
+    {
+        if (seat.IsBehaviour == null) return false;
+        var resolution = Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, unit)
+            ? Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic : Fdp.Toolkit.Aggregate.AggregateResolution.Physical;
+        string? play = OrderReissue.PlayFor(world, unit, resolution, kind, seat.IsBehaviour);
+        return play != null && !Hrot.Core.Tkb.ResolutionRoutingTable.IsStochasticPlay(play);   // the generic stochastic play reads HoldBack, not the kind
     }
 
     // ── ⭐ CE-4680 B-1 — the platoon plays as the commander's own task ───────────────────────────────

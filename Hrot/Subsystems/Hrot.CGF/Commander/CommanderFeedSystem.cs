@@ -53,6 +53,8 @@ public sealed class SeatRuntime : IDisposable
     /// <summary>⭐ CE-4685 A-2 — the order KINDS his own unit takes as a whole (those of Attack / Defend / Bound / Hold the routing table resolves for his
     /// class); the routing table picks the behaviour, ⛔ never the seat.</summary>
     public string[] OwnOrders { get; internal set; } = CommanderActionSystem.OwnOrders;
+    /// <summary>⭐ CE-4686 ③ — is a name a registered behaviour (the routing table's argument); null without a registry.</summary>
+    internal Func<string, bool>? IsBehaviour;
     /// <summary>⭐ CE-4685 A-3 — the subordinates (by roster index) that were STOCHASTIC when last looked at: a bit cleared is a split said once.</summary>
     internal ulong Aggregated;
 
@@ -293,6 +295,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         seat.Echelon = EchelonName(world, commander) ?? "platoon";
         seat.Subordinate = roster.Count > 0 && world.IsAlive(roster.SubordinateEntities[0]) ? EchelonName(world, roster.SubordinateEntities[0]) ?? "squad" : "squad";
         seat.OwnOrders = OwnOrdersOf(world, commander, _isBehaviour);
+        seat.IsBehaviour = _isBehaviour;
         for (int i = 0; i < roster.Count && i < 64; i++)
             if (world.IsAlive(roster.SubordinateEntities[i]) && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, roster.SubordinateEntities[i]))
                 seat.Aggregated |= 1UL << i;
@@ -744,6 +747,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             // ⭐ CE-4684 (§5c) — the decision's tasks: a subordinate's orders, his OWN unit's order kinds (unit = himself, CE-4685), CONTINUE
             sb.Append("Tasks: for a ").Append(seat.Subordinate).Append(' ').Append(string.Join(" | ", CommanderActionSystem.Orders)).Append(" · for your whole ").Append(seat.Echelon)
               .Append(" (unit \"").Append(seat.Name).Append("\") ").Append(string.Join(" | ", seat.OwnOrders)).Append(" · CONTINUE keeps a unit's orders.\n")
+              .Append("SupportByFire: objective = what it fires at, support_at = where it stands to fire (without support_at it stands at the objective).\n")   // ⭐ CE-4686 ③
               .Append("PREFER an order to your whole ").Append(seat.Echelon).Append(": it coordinates your ").Append(subs).Append(" for you (Attack: support set, then the assault · Defend: they hold an area together) — while it runs, give the ")
               .Append(subs).Append(" CONTINUE; an order to one of them ENDS it.\n")
               .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order in force changes nothing.");

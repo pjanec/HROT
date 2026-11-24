@@ -348,6 +348,9 @@ public static class DecisionContract
         if (o.Task == Continue) return null;
         if (o.Unit == v.Self) return new CommanderAction(CommanderActionKind.RunPlay, Order: o.Task, Where: o.Objective, Target: o.SupportAt);
         if (o.Task == "Hold") return new CommanderAction(CommanderActionKind.Hold, o.Unit);
+        // ⭐ CE-4686 ③ — a base of fire STANDS at support_at and fires at the objective (without support_at it stands at the objective)
+        if (o.Task == "SupportByFire" && o.SupportAt != null)
+            return new CommanderAction(CommanderActionKind.Order, o.Unit, o.Task, Where: o.SupportAt, Target: o.Objective);
         return new CommanderAction(CommanderActionKind.Order, o.Unit, o.Task, Where: o.Objective);
     }
 
