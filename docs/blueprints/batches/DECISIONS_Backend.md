@@ -35,6 +35,17 @@ settings at editing time … My desire is simplicity and consistency."*
 | why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
 | next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
 
+## CE-4685 — the LLM commander over AGGREGATED units: lane decisions TAKEN · `2026-11-24` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | the seat's echelon comes from the entity header's DIS type first (then the TKB type, then `AggregateUnit.Echelon`) | the routing table resolves the plays from the SAME header — the seat's words and its plays can never disagree |
+| 2 | a seat's plays are what `OrderReissue.PlayFor` resolves for its class at Physical, for Attack / Defend / Bound / Hold; none ⇒ the four platoon plays | ONE table decides what a class runs (shared, never duplicated); a company has no Bound / Hold play registered, so it is offered two |
+| 3 | an aggregated row gives its men only once its slot table holds slots | 📌 at seat open the table is not filled yet — "0 men" told the model the platoon was gone |
+| 4 | the split is news ONCE, a waking event worded "near the enemy" (not "in contact") | the hand-over is the 600 m band (X-5), not contact; the seat keeps the same entity, so its orders stand |
+| 5 | ⭐ cross-lane (the AGG lane's `UnitRelayBehaviors`, CE-8307): a child GIVEN the relayed order but not yet running it is busy for 3 s sim | 📌 measured on `llm-company-aggregated`: the relay ended 2 frames after ordering and ending it cleared the squads' moves — every split platoon stopped where it split. A child that never starts still lets it end (never a hang) |
+| 6 | the scenario sits inside BOTH of berlin's grids (collider ±750 m, perception [0..1000]) | 📌 the first two placements put units outside one or the other: Red unseen, no fight |
+
 ## CE-4684 — the LLM commander L-3c (the decision contract): lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |

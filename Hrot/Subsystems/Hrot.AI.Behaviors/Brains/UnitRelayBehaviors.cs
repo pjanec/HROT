@@ -30,7 +30,17 @@ namespace Hrot.AI.Behaviors.Brains
         public struct RelayState
         {
             public int Orders;
+            /// <summary>⭐ CE-4685 — the roster slots seen RUNNING the relayed order at least once (bit per slot).</summary>
+            public ulong Started;
+            /// <summary>⭐ CE-4685 — sim time of the last order given (s).</summary>
+            public double OrderedAt;
         }
+
+        /// <summary>⭐ CE-4685 — a child given the order but not yet running it counts as busy this long (sim s): the order reaches its
+        /// <c>BehaviorState</c> a frame or two later, through the intent bus. 📌 Measured on <c>llm-company-aggregated</c>: without it the relay ended
+        /// 2 frames after ordering ("UnitRelayMove ended: Success" at 38.07 s, the squads' moves started at 38.10 s and were cleared with it at
+        /// 38.12 s) — every split platoon stopped where it split. A child that never starts still lets the relay end after it (never a hang).</summary>
+        public const double StartGraceSeconds = 3.0;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RelayArgs
@@ -66,7 +76,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus RunBreakContact(ref RelayArgs p, ref RelayState ws, Entity self, EntityRepository world) => Relay(nameof(OrderKind.BreakContact), ref ws, self, world);
 
         /// <summary>Order every child in the roster <paramref name="kind"/> with the unit's own order params (once; again only if another run
-        /// replaced it); Success once every child was given it and none still runs it. 0 B in the steady state (an index loop, no new string).</summary>
+        /// replaced it); Success once every child was given it and none still runs it — ⭐ CE-4685: a child given it but not yet running it is
+        /// still busy (<see cref="StartGraceSeconds"/>). 0 B in the steady state (an index loop, no new string).</summary>
         public static NodeStatus Relay(string kind, ref RelayState ws, Entity self, EntityRepository world)
         {
             if (!world.HasComponent<UnitRoster>(self)) return NodeStatus.Running;
@@ -74,18 +85,23 @@ namespace Hrot.AI.Behaviors.Brains
             if (n == 0) return NodeStatus.Running;
             string? json = null;
             bool busy = false;
+            double now = Objectives.ObjectiveHost.Now(world);
             for (int slot = 0; slot < n; slot++)
             {
                 var member = CommandPictureOps.Subordinate(world, self, slot);
                 if (member.IsNull || !world.IsAlive(member)) continue;
+                ulong bit = slot < 64 ? 1UL << slot : 0UL;
                 if (CommandOrders.Stands(world, self, member))
                 {
-                    if (CommandOrders.Busy(world, self, member)) busy = true;
+                    if (CommandOrders.Busy(world, self, member)) { busy = true; ws.Started |= bit; }
+                    else if ((ws.Started & bit) == 0 && now - ws.OrderedAt < StartGraceSeconds) busy = true;   // given, not yet started (CE-4685)
                     continue;
                 }
                 json ??= OwnJson(world, self);
                 CommandOrders.Order(world, self, member, kind, json);
                 ws.Orders++;
+                ws.Started &= ~bit;
+                ws.OrderedAt = now;
                 busy = true;
             }
             return busy || ws.Orders == 0 ? NodeStatus.Running : NodeStatus.Success;

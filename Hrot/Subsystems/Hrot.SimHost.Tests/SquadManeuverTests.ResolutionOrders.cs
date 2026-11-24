@@ -385,7 +385,7 @@ namespace Hrot.SimHost.Tests
                 {
                     ran = true;
                     Assert.Equal(OrderKind.Move, CurrentOrders.Of(repo, u).Kind);
-                    if (SubordinateOrders.Of(repo, u) is { Orders.Count: 3 } h) held = h;   // ⚠ the bare squads here run nothing, so the relay ends next frame (none is busy)
+                    if (SubordinateOrders.Of(repo, u) is { Orders.Count: 3 } h) held = h;   // ⚠ the bare squads here run nothing: none ever starts it
                 }
             }
             Assert.True(ran, "the relay ran");
@@ -397,6 +397,13 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal("Order.Move", e.Behavior);
                 Assert.Equal(json, e.Json);
             }
+            // ⭐ CE-4685 — a squad GIVEN the order but not yet running it is still busy (StartGraceSeconds): the relay does not end under it, so ending
+            //   cannot clear the squads' moves as they start (📌 llm-company-aggregated: every split platoon stopped where it split). ✅ Red-proof: the
+            //   grace dropped ⇒ the relay ends the frame after ordering ⇒ red. And a squad that never starts still lets it end after the grace (no hang).
+            for (int i = 0; i < 60; i++) X2Frame(s, fit, hier);   // ~1 s
+            Assert.Equal(Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayMove, s.TaskName);
+            for (int i = 0; i < 250; i++) X2Frame(s, fit, hier);  // past the 3 s grace
+            Assert.NotEqual(Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayMove, s.TaskName);
         }
 
         /// <summary>⭐ CE-8307 (R-8392, F1 (a)) — a platoon's Attack now has a physical play (<c>PlatoonAttack</c> fulfils Attack): its automatic split is not
