@@ -1564,6 +1564,32 @@ mean harmless"*). · Changing the EQS LoS gate (it means "known recently", and t
 
 ✅ **`CE-2233` BUILT `2026-10-17` (CIV-0, the civilians' safety gate — [Civilians CV-8](DESIGN_Civilians_And_Crowd_Control.md), R-3013):** `ThreatDanger.Of` also returns 0 for a NEUTRAL (`ThreatDanger.IsNeutral`: the target's `EntityInfo.ForceId` is Neutral, read LIVE; ⚠ no `EntityInfo` = not neutral, Neutral being the enum's zero). Danger 0 alone does NOT keep a neutral out of the pick — `EqsTacticsNodes.TopThreat` takes the ranking's top even at score 0 (the CE-2202 shape) — so the pick skips it too (`Engageable` = in the fight AND not neutral), and the weapon brain holds before any AI round at one (`AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldNeutral`, both paths; an operator's fire is not held). Neutrals STAY in memory (a police line must see a crowd).
 
+✅ **`CE-8317` BUILT `2026-11-24` (exp/agg-behaviors, village-street-fight G1 — user *"yes"*):** the danger RANKING stays as it is (a tank is
+the most dangerous thing a rifleman sees, and he still hides from it), but the FIRE target is the top threat **this man's weapons can hurt**.
+`ThreatDanger.ICanHurt(view, db, me, him)` is the mirror of `ToMe`: MY weapon suite (or my crew-served gun's, `WeaponSystems.WeaponOf`)
+against HIS armour, through the same private `CanHurt` (`ThreatDanger.cs`). ⭐ Unknown is permissive — no TKB, no armour (`MyArmour` true
+only for an armoured vehicle) or no suite ⇒ true, so nothing that fought before stops. Readers: `PostureNodes.Fire` (one place every
+self-chosen round passes) re-picks through `EqsTacticsNodes.FirstAllowedRemembered(…, hurtableOnly: true)` or holds; the ordered
+`SuppressContact` holds fire on an unhurtable named target and still takes its firing position. 📐 village-street-fight before: Red 517
+rifle rounds at the M1, Blue Squad 1 158 at the T-72 in 300 s, all harmless.
+
+```mermaid
+sequenceDiagram
+  participant F as PostureNodes.Fire
+  participant D as ThreatDanger
+  participant E as EqsTacticsNodes
+  F->>F: threat = the ranking's top (unchanged)
+  F->>D: ICanHurt(me, threat)  (my suite vs his armour)
+  alt cannot hurt
+    F->>E: FirstAllowedRemembered(hurtableOnly)
+    E-->>F: the first remembered contact I can hurt, or none
+    F->>F: none ⇒ StopFiring (hold, posture still hides)
+  end
+  F->>F: aim and fire at the target
+```
+
+*What the picture shows that prose hid:* the ranking is not touched — only the target the rounds go to; a man facing only a tank holds fire.
+
 **INVENTORY** *(measured `2026-10-05`)*: the readers of `TargetMemory` scores are in §6.1 of `DESIGN_Thermal_And_Acoustic_Sensing.md`
 (grep of `EntityIds[` and of every file naming `TargetMemory`; the graph's `search_code` returned 0 for the pattern). The
 inputs that read them: `StandardInputs.ContactThreatLevel` / `HaveLiveTarget` / `EnemyStrengthRatio`,

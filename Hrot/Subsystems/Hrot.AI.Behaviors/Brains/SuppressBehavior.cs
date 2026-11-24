@@ -78,6 +78,14 @@ namespace Hrot.AI.Behaviors.Brains
             }
             bool known = !target.IsNull && world.IsAlive(target) && Injury.IsInTheFight(world, target)
                       && (Fdp.Toolkit.Perception.SightNow.Sees(world, self, target) || HiddenTargetThrow.LastKnown(world, self, target, out _));
+            // ⭐⭐ CE-8317 — a named target his weapons cannot hurt (a tank, for a rifleman) is not suppressed: he holds (still placed, D-15)
+            if (known && !Fdp.Toolkit.Perception.ThreatDanger.ICanHurt(world, PostureNodes.Tkb(world), self, target))
+            {
+                PostureNodes.StopFiring(world, self, ref ws.Fire);
+                StopPoint(world, self, ref ws);
+                PostureNodes.PlaceSuppressor(ref p.From, ref ws.Place, self, world, target, default);
+                return NodeStatus.Running;
+            }
             if (known)
             {
                 StopPoint(world, self, ref ws);

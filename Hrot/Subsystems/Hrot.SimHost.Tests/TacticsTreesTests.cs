@@ -745,6 +745,41 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8317</c> (user-approved 2026-11-24) — the fire step shoots only what the man's weapons can HURT: a rifleman (5 mm penetration)
+        /// remembering only a tank (600 mm all round) holds fire; remembering the tank AND a soldier, his round goes at the soldier. 📐 live
+        /// village-street-fight: 517 rifle rounds at the M1, 158 at the T-72. 🔴 Red-proof: the CanHurt check dropped ⇒ he fires at the tank ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8317_ARifleman_NeverFiresAtATank_HeShootsTheSoldierInstead()
+        {
+            var w = new World();
+            w.Arm();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var rifleman = new Fdp.Interfaces.TkbTemplate("Rifleman", 78);
+            rifleman.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 500f, Penetration = 5f, DamagePerHit = 10f } } });
+            db.Register(rifleman);
+            var tankType = new Fdp.Interfaces.TkbTemplate("Tank", 79);
+            tankType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 600, ArmorSide = 600, ArmorRear = 600, ArmorTop = 600 });
+            db.Register(tankType);
+            w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)78 });
+            var tank = w.Contact(armed: true);
+            if (!w.Repo.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()) w.Repo.RegisterComponent<CarKinem.Core.VehicleParams>();
+            w.Repo.AddComponent(tank, new CarKinem.Core.VehicleParams { Class = CarKinem.Core.VehicleClass.Tank });
+            w.Repo.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)79 });
+
+            var ws = new EngageState();
+            Assert.True(PostureNodes.Fire(w.Repo, w.Unit, ref ws, 1f));
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);   // only a tank: hold
+
+            var soldier = w.Contact(armed: true);
+            Assert.True(PostureNodes.Fire(w.Repo, w.Unit, ref ws, 1f));
+            ref readonly var ch = ref w.Repo.GetComponentRO<WeaponChannel>(w.Unit);
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, ch.ActiveAction);
+            Assert.Equal(soldier, System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref w.Repo.GetComponentRW<WeaponChannel>(w.Unit).Params[0]).Target);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-8313</c> — a POSTED man (his squad's post: <c>Peek.AnchorRadius</c> &gt; 0) suppressing a hidden enemy fires blind FROM his post,
         /// in the stance he holds: never prone (behind a sill he cannot fire), never off to other cover, even with a cover point in reach.
         /// 📐 live bt-window-duel: D-15 laid the window rifleman prone at his window — 0 rounds in 60 s. 🔴 Red-proof: drop the posted branch ⇒

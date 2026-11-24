@@ -412,15 +412,17 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ CE-2282 DA-27 — the first identified, live, engageable entity in memory (score order) that his SECTOR allows him to
         /// choose (<c>EngagementAreas.Allows</c>), or none.</summary>
-        internal static unsafe Entity FirstAllowedRemembered(EntityRepository world, Entity self)
+        internal static unsafe Entity FirstAllowedRemembered(EntityRepository world, Entity self, bool hurtableOnly = false)
         {
+            var db = hurtableOnly ? PostureNodes.Tkb(world) : null;   // ⭐ CE-8317 — and, when asked, one his weapons can HURT
             if (!world.HasComponent<TargetMemory>(self)) return Entity.Null;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
             for (int i = 0; i < mem.Count; i++)
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (Engageable(world, self, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)) return e;
+                if (Engageable(world, self, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)
+                    && (!hurtableOnly || Fdp.Toolkit.Perception.ThreatDanger.ICanHurt(world, db, self, e))) return e;
             }
             return Entity.Null;
         }
