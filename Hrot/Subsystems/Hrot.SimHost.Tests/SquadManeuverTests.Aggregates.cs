@@ -101,6 +101,30 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-4686 ① — a SPOT a platoon relayed up is in the company seat's snapshot with its age and its SOURCE (the platoon that reported it).
+        /// 🔴 Red-proof: the reporter's name dropped ⇒ no "reported by".
+        /// </summary>
+        [Fact]
+        public void CE4686_ACompanySeat_SeesARelayedSpot_WithItsSourceAndAge()
+        {
+            var s = SeatedCompany(new RailMind());
+            Fast(s, heartbeat: 0.5f, snapshot: 1f);
+            Run(s, 20);
+            s.P.Report(s.P.Bravo, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = new System.Numerics.Vector3(95f, 95f, 0f), Count = 4,
+                Size = Fdp.Toolkit.Squad.Command.ElementSize.Team,
+            }, observedAgo: 12f);
+            Run(s, 120);
+            var snap = s.Items().Last(i => i.Kind == FeedKind.Snapshot);
+            Assert.Contains("enemy 4 (Team)", snap.Radio);
+            Assert.Contains("reported by 2nd Platoon", snap.Radio);
+            Assert.Contains("\"reportedBy\":\"2nd Platoon\"", snap.Json);
+            Assert.Matches("\"age\":1[2-9]", snap.Json);   // its own observation time, not the relay's
+            s.Seats.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ CE-4686 ② — while the company's whole-unit Attack runs (<c>CompanyAttack</c>), the snapshot names each platoon's ROLE in it, read from the
         /// play's own plan (the first platoon the assault, the second the base of fire — the play's slot order), and the prefix says a role's
         /// orders are the play's, not a mistake to undo. 📌 CE-4685 Haiku: the model ended the attack to "undo" the reserve's Defend.

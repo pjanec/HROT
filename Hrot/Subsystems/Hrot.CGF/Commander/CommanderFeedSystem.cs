@@ -615,10 +615,14 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                     ["size"] = el.Size.ToString(), ["activity"] = el.Activity.ToString(), ["equipment"] = el.Equipment.ToString(),
                     ["age"] = Round(now - el.ObservedAt.Seconds), ["confidence"] = Confidence(in pic, i, now),
                 });
+                string? by = ReporterName(world, roster, el.FromNetId);   // ⭐ CE-4686 ① — who reported it (a platoon relays its squads' SPOTs up)
+                if (by != null) ((JsonObject)elements[^1]!)["reportedBy"] = by;
                 radio.Append(" enemy ").Append(el.Count).Append(" (").Append(el.Size).Append(')');
                 AppendDetail(radio, el.Activity, el.Equipment, now - el.ObservedAt.Seconds);   // ⭐ CE-4680 B-5
                 radio.Append(", ").Append(Confidence(in pic, i, now));                         // ⭐ CE-4684 C-5
-                radio.Append(" at ").Append(seat.Places.Describe(p)).Append(';');
+                radio.Append(" at ").Append(seat.Places.Describe(p));
+                if (by != null) radio.Append(", reported by ").Append(by);
+                radio.Append(';');
             }
         }
         var objectives = Objectives(world, seat, radio);   // ⭐ CE-4680 B-3
@@ -658,6 +662,17 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     /// reported an enemy within <see cref="SameEnemyMetres"/> of it, and the age of the newest of those reports. ≥ 2 squads, fresh ⇒ HIGH · one squad
     /// fresh, or ≥ 2 squads stale ⇒ MED · one squad, stale ⇒ LOW. ("heard" joins when behaviors adds the bit — CE-4682's NOTE.)
     /// </summary>
+    /// <summary>⭐ CE-4686 ① — the name of the subordinate whose network id sent a report (his roster); null = not one of his.</summary>
+    private static string? ReporterName(EntityRepository world, in UnitRoster roster, int netId)
+    {
+        for (int i = 0; i < roster.Count; i++)
+        {
+            var sub = roster.SubordinateEntities[i];
+            if (world.IsAlive(sub) && CommandPictureOps.NetIdOf(world, sub) == netId) return NameOf(world, sub);
+        }
+        return null;
+    }
+
     public static string Confidence(in CommandPicture pic, int index, double now)
     {
         var el = pic.Elements.Items[index];
@@ -766,7 +781,8 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             // ⭐ CE-4684 (§5c) — the decision's tasks: a subordinate's orders, his OWN unit's order kinds (unit = himself, CE-4685), CONTINUE
             sb.Append("Tasks: for a ").Append(seat.Subordinate).Append(' ').Append(string.Join(" | ", CommanderActionSystem.Orders)).Append(" · for your whole ").Append(seat.Echelon)
               .Append(" (unit \"").Append(seat.Name).Append("\") ").Append(string.Join(" | ", seat.OwnOrders)).Append(" · CONTINUE keeps a unit's orders.\n")
-              .Append("SupportByFire: objective = what it fires at, support_at = where it stands to fire (without support_at it stands at the objective).\n")   // ⭐ CE-4686 ③
+              .Append("SupportByFire: objective = what it fires at, support_at = where it stands to fire (without support_at it stands at the objective). ")
+              .Append("Bound: support_at = where the covering element sets. Your whole unit's Attack picks its own base of fire (support_at is not used).\n")   // ⭐ CE-4686 ③ ④
               .Append("PREFER an order to your whole ").Append(seat.Echelon).Append(": it coordinates your ").Append(subs).Append(" for you (Attack: support set, then the assault · Defend: they hold an area together) — while it runs, give the ")
               .Append(subs).Append(" CONTINUE; an order to one of them ENDS it. Its ROLES are shown per unit (role assault / base of fire / reserve …): the orders a role")
               .Append(" gives are that order's, not a mistake to undo.\n")   // ⭐ CE-4686 ②

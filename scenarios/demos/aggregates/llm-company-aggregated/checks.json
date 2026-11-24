@@ -1,5 +1,5 @@
 {
-  "$doc": "CE-4685 (DESIGN_LLM_Commander §5d; DESIGN_Stochastic_Units_And_Resolution §23.5 orders by KIND, X-5 'one level at a time'): a seated company over three STOCHASTIC platoons. The seat's orders reach a stochastic platoon by KIND (it runs the generic StochasticUnit* play, never a physical one); the scripted mind runs the company's OWN attack play (CompanyAttack — the seat offers his class's plays); inside the 600 m band a platoon hands over (AggregateUnit.Resolution Physical) and its squads (<platoon>/<s>) fight; reports reach the company before and after the split. One name per row (CE-3502). FEATURE scenario, no golden until two fresh runs agree. The four rows only the SCRIPTED mind can pass (the opening Move by kind, CompanyAttack on the first SPOT) carry \"if\": \"scriptedMind\" — a model run SKIPS them (L-3 ④).",
+  "$doc": "CE-4685 (DESIGN_LLM_Commander §5d; DESIGN_Stochastic_Units_And_Resolution §23.5 orders by KIND, X-5 'one level at a time'): a seated company over three STOCHASTIC platoons. The seat's orders reach a stochastic platoon by KIND (it runs the generic StochasticUnit* play, never a physical one); the scripted mind runs the company's OWN attack play (CompanyAttack — the seat offers his class's plays); inside the 600 m band a platoon hands over (AggregateUnit.Resolution Physical) and its squads (<platoon>/<s>) fight; reports reach the company before and after the split. One name per row (CE-3502). FEATURE scenario, no golden until two fresh runs agree. The four rows only the SCRIPTED mind can pass (the opening Move by kind, CompanyAttack on the first SPOT) carry \"if\": \"scriptedMind\" — a model run SKIPS them (L-3 ④). ⭐ CE-4686: ① the company now hears Red through its platoons' relayed SPOTs (HQ-3b); ③ a split platoon's men hit Red.",
   "runFor": 480,
   "golden": false,
   "later": [
@@ -101,6 +101,21 @@
       "name": "Red fires (the fight happens)",
       "on": "shot",
       "by": "*Red "
+    },
+    {
+      "name": "⭐ CE-4686 ① a platoon RELAYS Red's squad up: the company receives a SPOT from one of its platoons (HQ-3b)",
+      "on": "report",
+      "by": "*Platoon",
+      "target": "Blue Company",
+      "is": [
+        "Spot"
+      ]
+    },
+    {
+      "name": "⭐ CE-4686 ③ fire on the position: a man of a split platoon HITS a Red man",
+      "on": "shot",
+      "by": "*Platoon/",
+      "hit": "*Red "
     }
   ]
 }
