@@ -6535,6 +6535,50 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear, progress[^1].Kind);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8324</c> — the side door OPENS but there is no way through it (the bake: no path — 📐 village-street, 283 of 628 doors):
+        /// the released entry man never gets nearer his door front or threshold ⇒ after <see cref="RoomDrill.NoWayInSeconds"/> PROGRESS
+        /// RoomBlocked for the side room and the squad goes on — upstairs is still cleared, then BuildingClear and success. 📐 live
+        /// village-street-mg-flank: the stack stood at the gun house's door for good. 🔴 Red-proof: the no-way-in rule dropped ⇒ the run never ends.
+        /// </summary>
+        [Fact]
+        public void CE8324_ADoorWithNoWayThrough_ItsRoomIsBlocked_TheSquadGoesOn()
+        {
+            var s = HouseSquad();
+            var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var side = new Vector2(6f, 12f);
+            int handled = 0;
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int t = 0; t < (int)(150 / 0.016) && !done; t++)
+            {
+                s.Tick();
+                done = s.Finished(out result);
+                for (; handled < s.Orders.Count; handled++)
+                {
+                    var o = s.Orders[handled];
+                    if (o.IntentId == BehaviorNames.BreachDoor)
+                    {
+                        var key = System.Text.Json.JsonSerializer.Deserialize<BreachDoorParamsJsonDto>(o.JsonParams, opts).Door.ToString();
+                        s.Repo.SetComponent(Fdp.Toolkit.Terrain.TerrainObjects.Find(s.Repo, key),
+                                            new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+                    }
+                    else if (o.IntentId == BehaviorNames.CombatPosture)
+                        s.Teleport(o.Entity, System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, opts).Post.Point);
+                    else if (o.IntentId == BehaviorNames.AdvanceTo)
+                    {
+                        var to = System.Text.Json.JsonSerializer.Deserialize<AdvanceToParamsJsonDto>(o.JsonParams, opts).Objective;
+                        if (Vector2.Distance(new Vector2(to.Local.X, to.Local.Y), side) > 1.5f) s.Teleport(o.Entity, to);   // through the side door: no route
+                    }
+                }
+            }
+            Assert.True(done && result == Fbt.NodeStatus.Success, $"the building ends: done {done}, {result}");
+            var progress = Progress(s);
+            Assert.Contains(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked && r.At == new Vector3(8f, 12f, 0f));
+            Assert.DoesNotContain(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear && r.At == new Vector3(8f, 12f, 0f));
+            Assert.Contains(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear && r.At == new Vector3(3f, 14f, 3f));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear, progress[^1].Kind);
+        }
+
         /// <summary>⭐ <c>CE-2374</c> — <see cref="HouseAnswer"/> twice: building 5 and its copy 20 m east as building 6 (doors "t/G/…"),
         /// plus a SOLID building 9 between them that no squad can clear.</summary>
         private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload TwoHousesAnswer()
