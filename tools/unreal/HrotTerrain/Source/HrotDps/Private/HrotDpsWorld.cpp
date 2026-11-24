@@ -1465,7 +1465,10 @@ int32 UHrotDpsWorld::TestSeatPeople(AActor* Vehicle, int32 Count)
 		E.Kit = PersonKit.LoadSynchronous(); E.bHasPerson = true; E.Name = FString::Printf(TEXT("test rider %d"), I);
 		AActor* A = E.Actor.Get();
 		if (!A) { A = SpawnPerson(E, Vehicle->GetActorTransform()); E.Actor = A; }
+		const TArray<FHrotSeat> Seats = UHrotRiding::SeatsOf(Vehicle);
+		if (Seats.IsValidIndex(I) && Seats[I].Name.ToString().StartsWith(TEXT("station"))) { if (A) A->SetActorHiddenInGame(true); continue; }   // a gun's seat: no man
 		if (A && UHrotRiding::SitOn(A, Vehicle, I)) ++N;
+		else UE_LOG(LogHrotDpsWorld, Warning, TEXT("TestSeatPeople: seat %d of %d not taken (%s)"), I, Seats.Num(), A ? TEXT("SitOn failed") : TEXT("no body"));
 	}
 	return N;
 }

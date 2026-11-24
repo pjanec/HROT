@@ -55,8 +55,16 @@ def box(dm, lo, hi):
 def delete(dm, sel): GS.GeometryScript_MeshEdits.delete_selected_triangles_from_mesh(dm, sel)
 
 
+def writable(asset_path):
+    """git checks our committed assets out READ-ONLY (LFS lockable) and a save then fails quietly (measured: "saved False") - clear it first"""
+    import stat
+    f = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_content_dir()) + asset_path.replace("/Game/", "", 1).split(".")[0] + ".uasset"
+    if os.path.exists(f): os.chmod(f, stat.S_IWRITE | stat.S_IREAD)
+
+
 def save(dm, name, mats):
     path = f"/Game/Hrot/Vehicles/Parts/{name}"
+    writable(path)
     if EAL.does_asset_exist(path): EAL.delete_asset(path)
     opts = unreal.GeometryScriptCreateNewStaticMeshAssetOptions(); opts.enable_nanite = False; opts.enable_collision = False
     new = pick(GS.GeometryScript_NewAssetUtils.create_new_static_mesh_asset_from_mesh(dm, path, opts), "StaticMesh")
@@ -65,6 +73,7 @@ def save(dm, name, mats):
 
 try:
     # updated IN PLACE when it exists (a delete + duplicate of a loaded kit returned None); the hull always from the SOURCE kit
+    writable(JOB["dst"])
     kit = unreal.load_asset(JOB["dst"]) if EAL.does_asset_exist(JOB["dst"]) else EAL.duplicate_asset(JOB["src"], JOB["dst"])
     src_hull = list(unreal.load_asset(JOB["src"]).get_editor_property("parts"))[0]
     hull = unreal.HrotVehiclePart(); hull.set_editor_property("mesh", src_hull.get_editor_property("mesh")); hull.set_editor_property("parent", src_hull.get_editor_property("parent"))
@@ -96,7 +105,7 @@ try:
     gb = gun.get_bounds(); go = gb.origin
     for side_x in (left_x, -left_x):
         out = W(side_x, 0, 0) - W(0, 0, 0); out = unreal.Vector(0, 1 if out.y > 0 else -1, 0)
-        at = W(side_x, JOB["gunY"], JOB["sill"]) + unreal.Vector(0, 0, float(JOB.get("gunZ", 95)))
+        at = W(side_x, JOB["gunY"], JOB["sill"]) + out * float(JOB.get("gunOut", 0)) + unreal.Vector(0, 0, float(JOB.get("gunZ", 95)))
         yaw = -90.0 + (90.0 if out.y > 0 else -90.0)   # the mesh's barrel is +Y; yaw -90 -> +X, then turned outward
         rot = unreal.Rotator(0, 0, yaw)
         # bring the gun's own centre (it keeps its place on the VBL roof) to `at`
@@ -129,6 +138,17 @@ try:
             st = unreal.HrotSeat(); st.set_editor_property("name", f"door {'left' if side_x == left_x else 'right'} {i}")
             st.set_editor_property("offset", unreal.Transform(p, unreal.Rotator(0, 0, facing), unreal.Vector(1, 1, 1)))
             st.set_editor_property("pose", pose); seats.append(st)
+    # HROT's crew, APPENDED after the riders (NedTkbCatalog DoorSeats(), answer NOTE_Ui_To_UnrealIg_Passenger_Seats_Answer): per side (+1 = left
+    # first) a door GUNNER (8 / 10, sitting legs out in the door, forward of the riders) and the gun STATION he works (9 / 11: an M134 entity -
+    # drawn here as this kit's gun part, so the station seat carries no one and no clip; it keeps the indices aligned)
+    for side_x in (left_x, -left_x):
+        g = W(side_x, JOB["gunnerY"], JOB["sill"]) + unreal.Vector(0, 0, float(JOB.get("hips", 14)))
+        st = unreal.HrotSeat(); st.set_editor_property("name", f"gunner {'left' if side_x == left_x else 'right'}")
+        st.set_editor_property("offset", unreal.Transform(g, unreal.Rotator(0, 0, 90.0 if g.y > hubw.y else -90.0), unreal.Vector(1, 1, 1)))
+        st.set_editor_property("pose", pose); seats.append(st)
+        sp = unreal.HrotSeat(); sp.set_editor_property("name", f"station {'left' if side_x == left_x else 'right'}")
+        sp.set_editor_property("offset", unreal.Transform(W(side_x, JOB["gunnerY"], JOB["sill"]), unreal.Rotator(0, 0, 0), unreal.Vector(1, 1, 1)))
+        seats.append(sp)
     kit.set_editor_property("seats", seats)
     log(f"kit {JOB['dst']}: {len(newparts)} parts, {len(seats)} seats, rotor pivot {hubw}, radius {span / 2.0 * s}; saved {EAL.save_loaded_asset(kit, False)}")
     R["seats"] = [[round(st.get_editor_property('offset').translation.x), round(st.get_editor_property('offset').translation.y), round(st.get_editor_property('offset').translation.z)] for st in seats]
