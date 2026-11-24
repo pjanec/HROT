@@ -373,9 +373,8 @@ def build():
     s.add(unit(405, 'Blue A-10', F, *P('a10-start'), bearing=90, hp=1500, air_agl=AGL_A10,
                extra={**sub(), 'Behavior': behaviour('AirPlatformStrike', {'Location': [*W(zx, zy), 0], 'Target': zu})}), check=False)
 
-    # ---- AIR COMBAT (user, 2026-11-24: "I would like some air combat") — the proven CAP pattern (scenarios/demos/air/ac-cap): two Blue F-16s on an
-    #      armed search over an arena above the valley, two Red MiG-29s coming in from the west on them; all four start inside the arena's soft edge
-    #      and merge. A close fight (MaxShotRangeM 2.5 km, as ac-dogfight-2v2) so it stays over the map, where it can be seen.
+    # ---- AIR COMBAT (user, 2026-11-24: "I would like some air combat") — the proven 2v2 dogfight (scenarios/demos/air/ac-dogfight-2v2): two Blue
+    #      F-16s from the east, two Red MiG-29s from the west, in an arena above the valley; all four start inside it and merge. A close fight (MaxShotRangeM 2.5 km, as ac-dogfight-2v2) so it stays over the map, where it can be seen.
     #      ⚠ RadiusM 3000: a jet belongs to the arena within 1.5 × the radius (AirArenaSystem.IndexContaining) and is pulled back only while it
     #      does — 📐 with 2000 the merge ran the jets 3.8 km out (220 m/s), out of the arena, and nothing turned them back
     cz = GROUND.z(0, 0)
@@ -383,15 +382,16 @@ def build():
            'EntityInfo': {'Name': 'Air Arena', 'ForceId': N},
            'AirArena': {'Centre': [*W(0, 0), round(cz, 1)], 'RadiusM': 3000, 'FloorAglM': 300, 'CeilingAglM': 5000, 'MaxShotRangeM': 2500,
                         'StalemateSeconds': 90, 'LapsesOff': 0}}, check=False)
-    vipers = []
+    # ⭐ each pilot on a NAMED bandit (the ac-dogfight-2v2 pattern: both pairs merge through the centre). ⛔ Not the CAP's AirArmedSearch —
+    #   📐 live, F-16 2's search ran it straight south-west from the start and its fight with MiG 2 went 4–6 km south of the map, up to 10 km high
+    gids = [s.gid() for _ in range(4)]   # F-16 1, F-16 2, MiG 1, MiG 2 — reserved first so each can name its bandit
     for k, dy in ((1, 400), (2, -400)):
-        vipers.append(s.add(unit(401, 'Blue F-16 %d' % k, F, 1900, dy, bearing=270, hp=400, air_agl=1500, extra={
+        s.ents[gids[k - 1]] = unit(401, 'Blue F-16 %d' % k, F, 1800, dy, bearing=270, hp=400, air_agl=1500, extra={
             'SimVelocity': {'Linear': [-220.0, 0.0, 0]}, 'AirCombatState': {'Skill': 'Veteran'},
-            'Behavior': behaviour('AirArmedSearch', {'Location': [*W(0, 0), 0], 'RadiusM': 3000, 'QuietSeconds': 600, 'HeightAgl': 1500})}), check=False))
-    for k, dy in ((1, 400), (2, -400)):
-        s.add(unit(409, 'Red MiG-29 %d' % k, H, -1900, dy, bearing=90, hp=450, air_agl=1500, extra={
+            'Behavior': behaviour('AirPlatformAttack', {'Target': gids[k + 1]})})
+        s.ents[gids[k + 1]] = unit(409, 'Red MiG-29 %d' % k, H, -1800, -dy, bearing=90, hp=450, air_agl=1500, extra={
             'SimVelocity': {'Linear': [220.0, 0.0, 0]}, 'AirCombatState': {'Skill': 'Veteran'},
-            'Behavior': behaviour('AirPlatformAttack', {'Target': vipers[k - 1]})}), check=False)
+            'Behavior': behaviour('AirPlatformAttack', {'Target': gids[k - 1]})})
 
     header = {
         'subsystemType': 'Hrot.Scenario', 'schemaVersion': '1.0', 'terrainName': 'Stechovice',
@@ -402,7 +402,7 @@ def build():
             'VILLAGE (centre x about 1690, y about 2265): a Blue platoon (leader + 3 squads, PlatoonAttack) with four M1 tanks, three Bradleys, two HMMWVs and two HMG technicals advances from the east (x about 2250-2370) into the village; '
             'a Red platoon (leader + 3 squads, PlatoonDefend) holds the houses with an AT team (2 gunners), three T-72s and six technicals (3 HMG, ATGM, 2 DShK), and a Red radar SAM and a ZU-23 sit on the hill to the north (~330 m). '
             'AIR: Blue HQ (SupportCommand) owns both platoons, a Blue Apache that attacks the village technical inside the SAM cover and a Blue A-10 that strikes the hill ZU-23 '
-            'flying in from the west over the river. AIR COMBAT: two Blue F-16s on an armed search over the valley meet two Red MiG-29s from the west (an arena 3 km round the centre). Every soldier is Playable (a free one runs as AI until a Player takes him). SUMO background traffic (250 cars, 60 pedestrians) runs on the terrain roads. Chain of command Blue: HQ > platoon > squad > man; Red: platoon > squad > man. Behaviours as authored, nothing scripted. '
+            'flying in from the west over the river. AIR COMBAT: two Blue F-16s from the east and two Red MiG-29s from the west, each pilot on a named bandit, merge over the valley (an arena 3 km round the centre). Every soldier is Playable (a free one runs as AI until a Player takes him). SUMO background traffic (250 cars, 60 pedestrians) runs on the terrain roads. Chain of command Blue: HQ > platoon > squad > man; Red: platoon > squad > man. Behaviours as authored, nothing scripted. '
             'Judge (checks.json): both battles trade fire and cost both sides casualties; the Blue attackers reach the village; the Apache flies over the village and the A-10 over the river; '
             'the Red air defence (ZU-23, SAM) fires at them. Generated by scripts/stechovice_battle_scenario.py; first run imports the terrain (minutes), then caches it.'),
         'world': {
