@@ -232,13 +232,29 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
 
     /// <param name="seats">The world's seats; null ⇒ <see cref="CommanderSeats.For"/> the world it runs on (production — the HTTP surface finds them there).</param>
     /// <param name="isBehaviour">⭐ CE-4685 A-2 — is a name a registered behaviour (the routing table's argument); null ⇒ the platoon plays.</param>
-    public CommanderFeedSystem(CommanderSeats? seats = null, bool gateOnAuthority = false, Func<string, bool>? isBehaviour = null)
+    /// <param name="registry">⭐ CE-4686 ② — the behaviour registry, to read the running play's roles (<c>OccurrenceSlotCatalog</c>); null ⇒ no roles.</param>
+    public CommanderFeedSystem(CommanderSeats? seats = null, bool gateOnAuthority = false, Func<string, bool>? isBehaviour = null,
+                               Fdp.Toolkit.Behavior.BehaviorRegistry? registry = null)
     {
         _seats = seats;
         _gateOnAuthority = gateOnAuthority;
         _isBehaviour = isBehaviour;
+        _registry = registry;
     }
     private readonly Func<string, bool>? _isBehaviour;
+    private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _registry;
+
+    /// <summary>
+    /// ⭐ CE-4686 ② — the roles the commander's RUNNING play gave his subordinates, read from the play's own blackboard (its params slot, boxed by
+    /// <c>OccurrenceSlotCatalog</c> — the one read-only way into a running behaviour); null = no play with roles. Read per snapshot, never per frame.
+    /// </summary>
+    private Hrot.AI.Behaviors.Brains.IPlayRoles? RolesOf(EntityRepository world, Entity commander)
+    {
+        if (_registry == null || !world.IsAlive(commander)) return null;
+        foreach (var v in Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(world, commander, _registry))
+            if (v.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.Task && v.Boxed is Hrot.AI.Behaviors.Brains.IPlayRoles roles) return roles;
+        return null;
+    }
 
     public void Execute(ISimulationView view, float deltaTime)
     {
@@ -534,6 +550,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         var radio = new StringBuilder(Clock(now)).Append(" SNAPSHOT — ").Append(seat.Name).Append(':');
         var roster = Squads(world, seat.Commander);
         bool havePicture = world.HasComponent<CommandPicture>(seat.Commander);
+        var roles = seat.Play != null ? RolesOf(world, seat.Commander) : null;   // ⭐ CE-4686 ② — his whole unit's order's roles
         for (int i = 0; i < roster.Count; i++)
         {
             var squad = roster.SubordinateEntities[i];
@@ -562,9 +579,11 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             CommanderActionSystem.SyncPlayOrders(world, seat, now);   // ⭐ CE-4683 — the play's squad orders into the in-force table
             string? task = TaskOf(world, seat, squad);   // ⭐ CE-4680 B-4 — the order he is on (his commander's record)
             if (task != null) row["task"] = task;
+            if (roles?.RoleOf(i) is { } role) row["role"] = role;   // ⭐ CE-4686 ② — the roster slot IS the play's slot
             squads.Add(row);
             radio.Append(' ').Append(name.ToUpperInvariant()).Append(" at ").Append(row["place"]).Append(inFight ? "" : " (out of the fight)");
             var detail = new StringBuilder();   // ⭐ CE-4683 — the order itself is in the ORDERS IN FORCE block below (said once)
+            if (row["role"] is { } rl) detail.Append("role ").Append((string)rl!).Append(" in your ").Append(seat.Echelon).Append("'s ").Append(seat.Play);
             if (row["progress"] is { } prog) detail.Append(detail.Length > 0 ? ", " : "").Append((string)prog!);
             if (row["strength"] is { } st) detail.Append(detail.Length > 0 ? ", " : "").Append("strength ").Append((string)st!).Append(" ammo ").Append((string)row["ammo"]!);
             if (row["reportAge"] is { } age) detail.Append(detail.Length > 0 ? ", " : "").Append("last report ").Append(((double)age!).ToString("0", CultureInfo.InvariantCulture)).Append(" s ago");
@@ -749,14 +768,16 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
               .Append(" (unit \"").Append(seat.Name).Append("\") ").Append(string.Join(" | ", seat.OwnOrders)).Append(" · CONTINUE keeps a unit's orders.\n")
               .Append("SupportByFire: objective = what it fires at, support_at = where it stands to fire (without support_at it stands at the objective).\n")   // ⭐ CE-4686 ③
               .Append("PREFER an order to your whole ").Append(seat.Echelon).Append(": it coordinates your ").Append(subs).Append(" for you (Attack: support set, then the assault · Defend: they hold an area together) — while it runs, give the ")
-              .Append(subs).Append(" CONTINUE; an order to one of them ENDS it.\n")
+              .Append(subs).Append(" CONTINUE; an order to one of them ENDS it. Its ROLES are shown per unit (role assault / base of fire / reserve …): the orders a role")
+              .Append(" gives are that order's, not a mistake to undo.\n")   // ⭐ CE-4686 ②
               .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order in force changes nothing.");
             return sb.ToString();
         }
         // ⭐ CE-4683 ③ (§5a-4) — said plainly: with the actions as functions a model reached for direct orders (L-3: one play, then only orders)
         //   ⭐ the duel (§8): said for both sides — the old line described only the attack, and a defending (Red) seat read it too
         sb.Append("PREFER run_play: an order to your whole ").Append(seat.Echelon).Append(" coordinates your ").Append(Plural(seat.Subordinate))
-          .Append(" for you (Attack: support set, then the assault · Defend: they hold an area together) — a direct order to one of them ENDS it.\n");
+          .Append(" for you (Attack: support set, then the assault · Defend: they hold an area together) — a direct order to one of them ENDS it.")
+          .Append(" Its ROLES are shown per unit (role assault / base of fire / reserve …): the orders a role gives are that order's, not a mistake to undo.\n");   // ⭐ CE-4686 ②
         sb.Append("Actions: run_play(play, where[, support]) with play ").Append(string.Join(" | ", seat.OwnOrders)).Append(" (your whole ").Append(seat.Echelon).Append(") · stop_play() · ")
           .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact — only when no order to your whole unit fits · ")
           .Append("hold(squad) · ask_sitrep(squad) · note(text) — your running estimate: a new note REPLACES the last (keep it short). ")

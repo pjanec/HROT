@@ -169,10 +169,17 @@ namespace Hrot.AI.Behaviors.Brains
         public const float PositionsTimeoutSeconds = 5f;
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct PlatoonDefendBlackboard
+        public struct PlatoonDefendBlackboard : IPlayRoles
         {
             public PlatoonDefencePlan Plan;
             public PlatoonDefendState Keep;
+
+            /// <summary>⭐ CE-4686 ② — the slot's role, read from the plan (never changed).</summary>
+            public unsafe string? RoleOf(int slot) => slot < 0 || slot >= PlatoonDefencePlan.Capacity ? null : Plan.Role[slot] switch
+            {
+                PlatoonDefencePlan.Line => PlayRoleWords.Line, PlatoonDefencePlan.Reserve => PlayRoleWords.Reserve,
+                PlatoonDefencePlan.Op => PlayRoleWords.Observation, _ => null,
+            };
         }
 
         [BehaviorResolver(BehaviorNames.PlatoonDefend)]

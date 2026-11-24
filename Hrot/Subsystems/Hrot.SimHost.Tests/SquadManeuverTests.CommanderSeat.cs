@@ -67,7 +67,7 @@ namespace Hrot.SimHost.Tests
                 // ⭐ CE-4685 — a commander's class, as the spawner gives it (the header DIS type): his own orders resolve by KIND through the routing table
                 Repo.SetDisType(P.S.Commander, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Platoon, 225));
                 before?.Invoke(this);   // ⭐ CE-4685 — what the seat must see when it opens (its class, its units' classes)
-                Feed = new CommanderFeedSystem(Seats, isBehaviour: isBehaviour);
+                Feed = new CommanderFeedSystem(Seats, isBehaviour: isBehaviour, registry: P.S.Registry);
                 Act = new CommanderActionSystem(Seats, clockBus);
                 Watch = new CommanderWatchSystem(Seats);
             }

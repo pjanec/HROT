@@ -104,8 +104,16 @@ namespace Hrot.AI.Behaviors.Brains
         public const BehaviorFaultCode AbortedFault = BehaviorFaultCode.Custom + 7023;
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct CompanyAttackBlackboard
+        public struct CompanyAttackBlackboard : IPlayRoles
         {
+            /// <summary>⭐ CE-4686 ② — the slot's role, read from the plan (never changed).</summary>
+            public unsafe string? RoleOf(int slot) => slot < 0 || slot >= CompanyAttackPlan.Capacity ? null : Plan.Role[slot] switch
+            {
+                CompanyAttackPlan.Assault => PlayRoleWords.Assault, CompanyAttackPlan.Support => PlayRoleWords.BaseOfFire,
+                CompanyAttackPlan.Reserve => PlayRoleWords.Reserve, CompanyAttackPlan.Vehicle => PlayRoleWords.VehicleSupport,
+                CompanyAttackPlan.Drones => PlayRoleWords.Drones, _ => null,
+            };
+
             public CompanyAttackPlan Plan;
             public CompanyAttackState Keep;
         }
@@ -769,10 +777,16 @@ namespace Hrot.AI.Behaviors.Brains
         public const float DefaultShootAndMoveSeconds = 25f;
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct CompanyDefendBlackboard
+        public struct CompanyDefendBlackboard : IPlayRoles
         {
             public CompanyDefencePlan Plan;
             public CompanyDefendState Keep;
+
+            /// <summary>⭐ CE-4686 ② — the slot's role, read from the plan (never changed).</summary>
+            public unsafe string? RoleOf(int slot) => slot < 0 || slot >= CompanyDefencePlan.Capacity ? null : Plan.Role[slot] switch
+            {
+                CompanyDefencePlan.Line => PlayRoleWords.Line, CompanyDefencePlan.Reserve => PlayRoleWords.Reserve, _ => null,
+            };
         }
 
         [BehaviorResolver(BehaviorNames.CompanyDefend)]

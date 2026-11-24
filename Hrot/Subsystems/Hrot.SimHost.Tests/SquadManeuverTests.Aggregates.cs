@@ -101,6 +101,30 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-4686 ② — while the company's whole-unit Attack runs (<c>CompanyAttack</c>), the snapshot names each platoon's ROLE in it, read from the
+        /// play's own plan (the first platoon the assault, the second the base of fire — the play's slot order), and the prefix says a role's
+        /// orders are the play's, not a mistake to undo. 📌 CE-4685 Haiku: the model ended the attack to "undo" the reserve's Defend.
+        /// 🔴 Red-proof: <c>RolesOf</c> returns null ⇒ no role in the snapshot.
+        /// </summary>
+        [Fact]
+        public void CE4686_ACompanySeat_ReadsEachPlatoonsRoleInItsRunningAttack()
+        {
+            var mind = new RailMind();
+            int call = 0;
+            mind.Answer = _ => ++call == 1 ? new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "Attack", Where: "house") } : Array.Empty<CommanderAction>();
+            var s = SeatedCompany(mind);
+            Fast(s, heartbeat: 0.5f, snapshot: 1f);
+            Run(s, 150);
+            Assert.Contains("the orders a role gives are that order's, not a mistake to undo", s.Seat.Prefix.Replace("\n", " "));
+            var snap = s.Items().Last(i => i.Kind == FeedKind.Snapshot);
+            Assert.Contains("1ST PLATOON at", snap.Radio);
+            Assert.Contains("role assault in your company's Attack", snap.Radio);
+            Assert.Contains("role base of fire in your company's Attack", snap.Radio);
+            Assert.Contains("\"role\":\"assault\"", snap.Json);
+            s.Seats.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ A-3 — an aggregated platoon that SPLITS (Physical, X-5) is news on the radio, ONCE, and a waking event; it is the same entity, so the seat's
         /// next order to it still lands.
         /// 🔴 Red-proof: the split check dropped from <c>Falls</c> ⇒ no "has split" event.
