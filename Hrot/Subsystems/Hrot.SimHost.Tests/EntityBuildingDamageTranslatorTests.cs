@@ -116,8 +116,14 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, senderH);   // the sender's house H is building 1
             int senderSouth = SouthWall(sender);
             var decided = new BuildingDamage { Building = senderH };
-            BuildingDamages.Add(ref decided, new WallBreach(senderSouth, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null);
+            BuildingDamages.Add(ref decided, new WallBreach(senderSouth, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null, 41.5d, new Vector3(25f, 18f, 1f));   // ⭐ CE-11051 — stamped
+            decided.Collapsed = 1; decided.CollapsedAt = 44d;
             var sample = EntityBuildingDamageEgressTranslator.ToSample(5203, decided, "range/H", sender);
+            Assert.True(EntityBuildingDamageEgressTranslator.Matches(in sample, in decided, "range/H", sender));
+            var restamped = decided; restamped.SetStamp(0, 42d, new Vector3(25f, 18f, 1f));
+            Assert.False(EntityBuildingDamageEgressTranslator.Matches(in sample, in restamped, "range/H", sender));   // a new time alone is a change to send
+            decided.Collapsed = 0; decided.CollapsedAt = 0d;
+            sample = EntityBuildingDamageEgressTranslator.ToSample(5203, decided, "range/H", sender);
 
             using var replica = World(out var terrain);   // H is building 0 here
             var map = new NetworkEntityMap();
@@ -128,6 +134,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, got.Building);
             Assert.Equal(1, got.Count);
             Assert.Equal(SouthWall(terrain), got.Get(0).Panel);
+            Assert.Equal(41.5d, got.MadeAtOf(0).Seconds);                                  // ⭐ CE-11051 — the time and the blast point cross the wire
+            Assert.Equal(new Vector3(25f, 18f, 1f), got.BlastOf(0));
             Assert.False(terrain.SegmentBlocked(new Vector3(25f, 15f, 1.5f), new Vector3(25f, 25f, 1.5f), DoorStates.Of(replica, terrain)));   // the passage is in THIS node's south wall
         }
 
@@ -267,14 +275,17 @@ namespace Hrot.SimHost.Tests
         public void TheCollapse_ReachesTheOtherNodesView_AsAMound()
         {
             using var replica = World(out var terrain);
-            var original = new BuildingDamage { Building = 0, Collapsed = 1 };
+            var original = new BuildingDamage { Building = 0, Collapsed = 1, CollapsedAt = 77d };
             var sample = EntityBuildingDamageEgressTranslator.ToSample(5201, original, "range/H");
             Assert.Equal(1, sample.Collapsed);
+            Assert.Equal(77d, sample.CollapsedAt);   // ⭐ CE-11051
             var map = new NetworkEntityMap();
             var ingress = new EntityBuildingDamageIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 2);
             using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, replica); cmd.Playback(replica); }
             var damage = DoorStates.Of(replica, terrain).Damage!;
             Assert.True(damage.Collapsed(0));
+            Assert.True(map.TryGetEntity(5201, out var ghost));
+            Assert.Equal(77d, replica.GetComponentRO<BuildingDamage>(ghost).CollapsedAt);   // ⭐ CE-11051 — the collapse's time crosses the wire
             Assert.Single(damage.Rubble);
             Assert.False(terrain.SegmentBlocked(new Vector3(15f, 24f, 1.6f), new Vector3(35f, 24f, 1.6f), DoorStates.Of(replica, terrain)));   // across the former interior, above the mound
             Assert.True(terrain.SegmentBlocked(new Vector3(15f, 24f, 0.5f), new Vector3(35f, 24f, 0.5f), DoorStates.Of(replica, terrain)));    // …and the mound stops the low one

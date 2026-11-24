@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-18
+updated: 2026-11-24 (§5b CE-11051 the window's last-hit time)
 tracker: CE-5026 (row) · slices CE-5032…CE-5034
 build-state: BUILDING — GW-1, GW-2 and GW-3 BUILT `2026-11-18/19` (as-built folded into D-2, D-3, D-7, D-8, §4, §5) — ✅ D-1…D-10 APPROVED by the user `2026-11-18` ("approved", R-5068; D-10 the user's own rule); mockup docs/UX/glass-windows.svg
 current-answer: §0 the user's rulings · §1 inventory · §2 the proven solution · §3 decisions · §4 UML · §5 the look · §6 slices · §7 acceptance
@@ -9,6 +9,7 @@ known-rot: none
 superseded-inline: D-2's first form (a `TerrainPrismKind.Pane` prism) and D-3's first lean (window entries APPENDED to `BuildingDamage`) — moved to §⛔ HISTORY
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_Import_UTM.md — §8.3a OWNS the damage records' time and blast stamps (CE-11051), WindowDamage.HitAt included
   - DESIGN_Building_Interiors.md — OWNS the *.building.json template and its openings (doors, windows); this adds the window's `glazed` flag and the PANE
   - DESIGN_Vehicle_Breaching.md — OWNS building damage (`BuildingDamage`, breaches, collapse; B-*): the window state is a SEPARATE `WindowDamage` on the SAME per-building damage entity (the same owner, save, lifecycle)
   - blueprints/Architect_Question_106_Sound_Paths.md — OWNS sound through openings (R-3050, BUILT): a glazed window is one of its portals, closed while intact
@@ -212,6 +213,11 @@ window state is not authored; the building damage's existing views list it).
 | a breach or a collapse takes the pane (D-10) | `GlassLayer3D.LookOf` — the one rule the layer and its rail read: collapsed ⇒ gone; a breach over the pane's centre ⇒ gone; broken ⇒ the hole |
 
 Frames: `HROT_RAIL_SHOTS=<dir> xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter GlassFrameRail` (`glass-1-south-intact-cracked`, `glass-2-east-broken`, `glass-3-the-burst`).
+
+### 5b. As built — each window carries the time of its last hit *(terrain, `2026-11-24`, CE-11051)*
+
+`WindowDamage.HitAt[64]` (sim seconds; 0 = loaded from a save), stamped by `BuildingDamageSystem` with the frame's sim time on every crack or break, moved with its entry
+on a D-9 eviction, carried on the wire (`DdsWindow.HitAt`). The record, the reason and the rails: [UTM §8.3a](DESIGN_Terrain_Import_UTM.md).
 
 ## 6. Slices *(proposed)*
 

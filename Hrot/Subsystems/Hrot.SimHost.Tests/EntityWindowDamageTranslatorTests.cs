@@ -74,10 +74,12 @@ namespace Hrot.SimHost.Tests
             var sender = Parse(Garage, House);
             Assert.Equal(1, BuildingDamages.IndexOfKey(sender, "range/H"));
             var decided = new WindowDamage { Building = 1 };
-            WindowDamages.Break(ref decided, SouthWall(sender), 0);
-            WindowDamages.Hit(ref decided, SouthWall(sender), 1, 0.25f, 0.75f);
+            WindowDamages.Break(ref decided, SouthWall(sender), 0, 61d);                    // ⭐ CE-11051 — stamped
+            WindowDamages.Hit(ref decided, SouthWall(sender), 1, 0.25f, 0.75f, 62d);
             var sample = EntityWindowDamageEgressTranslator.ToSample(5300, decided, "range/H", sender);
             Assert.True(EntityWindowDamageEgressTranslator.Matches(in sample, in decided, "range/H", sender));
+            var restamped = decided; restamped.SetHitAt(1, 63d);
+            Assert.False(EntityWindowDamageEgressTranslator.Matches(in sample, in restamped, "range/H", sender));   // a new time alone is a change to send
 
             var terrain = Parse(House);
             using var replica = Replica(terrain);
@@ -92,6 +94,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, got.Count);
             Assert.Equal(new WindowEntry(SouthWall(terrain), 0, WindowDamages.BrokenHits, 0, 0, 0, 0), got.Get(0));
             Assert.Equal(new WindowEntry(SouthWall(terrain), 1, 1, 64, 191, 0, 0), got.Get(1));
+            Assert.Equal((61d, 62d), (got.HitAtOf(0).Seconds, got.HitAtOf(1).Seconds));   // ⭐ CE-11051 — the times cross the wire
             Assert.False(terrain.QueryFire(Outside, Inside, DoorStates.Of(replica, terrain)).Any(c => c.Kind == TerrainWorld.PaneKind));   // the owner's broken pane is gone here too
 
             // the recorded OWNER ignores a sample of its own entity

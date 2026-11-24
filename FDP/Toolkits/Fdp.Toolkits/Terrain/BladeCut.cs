@@ -99,13 +99,13 @@ namespace Fdp.Toolkit.Terrain
                 float seconds = (_progress.TryGetValue(e.Index, out var p) && p.At == cut.At ? p.Seconds : 0f) + deltaTime;
                 if (seconds < MathF.Max(cut.PushSeconds, 0.1f)) { _progress[e.Index] = (cut.At, seconds); continue; }
                 _progress.Remove(e.Index);
-                if (cut.Target == BladeCutTarget.Wall) CutWall(repo, world, at, f2, width + 2f * MarginMetres, e);
+                if (cut.Target == BladeCutTarget.Wall) CutWall(repo, world, at, f2, width + 2f * MarginMetres, e, tf.Position);
                 else FellTree(repo, world, at, e);
                 Cuts++;
             }
         }
 
-        private void CutWall(EntityRepository repo, TerrainWorld world, Vector2 at, Vector2 fwd, float width, Entity by)
+        private void CutWall(EntityRepository repo, TerrainWorld world, Vector2 at, Vector2 fwd, float width, Entity by, Vector3 hull)
         {
             if (!repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
             int panel = NearestPanel(world, at, ReachMetres, _near);
@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ CE-4629 ② — the ONE multi-panel cut (ContactBreach.CutAlong, R-5008): a stepped wall's pieces are ≤ 2 m (CE-5015), so a one-panel clamp left a gap
             //   narrower than the blade
             _cut.Clear();
-            global::CarKinem.Controllers.ContactBreach.CutAlong(world, panel, along, width, by, _cut, buildings: true);
+            global::CarKinem.Controllers.ContactBreach.CutAlong(world, panel, along, width, by, _cut, buildings: true, source: hull);   // ⭐ CE-11051 — the hull is the "blast point"
             foreach (var ev in _cut) repo.Bus.Publish(ev);
         }
 
