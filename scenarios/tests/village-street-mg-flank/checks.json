@@ -11,9 +11,9 @@
       "before": 5
     },
     {
-      "name": "the machine gun opens fire",
+      "name": "the machine-gun team opens fire (Red engages — the gunner himself may be suppressed before he finds a target: the base of fire's job)",
       "on": "shot",
-      "by": "Red MG Team Gunner"
+      "by": "*Red MG Team"
     },
     {
       "name": "Blue fires back",
