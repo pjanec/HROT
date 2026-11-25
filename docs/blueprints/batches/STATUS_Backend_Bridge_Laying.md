@@ -36,8 +36,8 @@ Ahead of it in the backend queue: CE-11057 ④ / CE-4691 (va-pop-smoke — the v
 
 | scenario | result |
 |---|---|
-| `bl-assault-crossing` | ⚠ 5/6 — bridge laid, both squads across; ONE row red: a man's height reads the river bed at the deck's very edge ([CE-4695](../Blueprint_Issues_Tracker.md)) · ⛔ "under smoke" not buildable from a scenario ([CE-4694](../Blueprint_Issues_Tracker.md)) |
+| `bl-assault-crossing` | ⚠ 5/6 — bridge laid, both squads across; ONE row red: a man's path runs ON the deck's edge and he walks the river bed beside it — measured live ([CE-4695](../Blueprint_Issues_Tracker.md), terrain, [NOTE](NOTE_Backend_To_Terrain_Floating_Deck_Vehicles.md)) · ⛔ "under smoke" not buildable from a scenario ([CE-4694](../Blueprint_Issues_Tracker.md)) |
 | `bl-recover` | ✅ 7/7 |
 | `bl-too-wide` | ✅ 5/5 |
 | `bl-floating-bridge` | ⛔ laid and Open, the column never crosses — in the EDITOR a vehicle path never uses the floating deck, in the `--mode all` cluster it does ([CE-4696](../Blueprint_Issues_Tracker.md), [NOTE to terrain](NOTE_Backend_To_Terrain_Floating_Deck_Vehicles.md)) |
-| ⭐ `bl-river-crossing` (objectives) | ⚠ every objective Achieved, but HOLLOW: the sapper reaches the deck end and fires (368 s), the deck survives — Blue never engaged him; staging under work |
+| ⭐ `bl-river-crossing` (objectives) | ⏳ rerunning — its runs found and FIXED two real defects: ① a mission plan loaded from a scenario had no task order, so a rule's `MissionCommand Jump` always failed (`MissionPlanTranslator`, rail red-proved) · ② a bridge demolished while being recovered was counted back on board (`BridgeLayingBehaviors.Recover`, rail red-proved). Staging: the sapper walks in once Blue holds the far bank; the held / fall rows branch on the BRIDGE falling ('Bridge dropped'), with the grammar's new `unless` (`ScenarioChecks`, rail red-proved) |
