@@ -124,6 +124,10 @@ namespace Hrot.NED.Descriptors
         public float BlastX;
         public float BlastY;
         public float BlastZ;
+        /// <summary>⭐ CE-11054 — what made it (<c>BreachCause</c>: 0 unknown, 1 detonation, 2 ram, 3 blade, 4 push), the explosive kg the breach rule used (0 = contact) and the acting vehicle's network id (0 = none).</summary>
+        public byte Cause;
+        public float ExplosiveKg;
+        public int Actor;
     }
 
     // ⭐ CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8.2 B-11) — a building's wall breaches, published by the node that decided them (it owns the entity;
@@ -152,6 +156,13 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>⭐ CE-11051 — when the building collapsed (sim seconds; 0 = not collapsed, or from a save).</summary>
         public double CollapsedAt;
+
+        /// <summary>⭐ CE-11054 — what collapsed it (<c>BreachCause</c>), its blast point (terrain-local metres) and the explosive kg; meaningless while <see cref="Collapsed"/> is 0.</summary>
+        public byte CollapseCause;
+        public float CollapseBlastX;
+        public float CollapseBlastY;
+        public float CollapseBlastZ;
+        public float CollapseKg;
     }
 
     /// <summary>⭐ CE-5033 (glass windows GW-2) — one damaged window of <see cref="EntityWindowDamage"/>: its panel WITHIN the building (LOCAL, as a breach's), its opening on

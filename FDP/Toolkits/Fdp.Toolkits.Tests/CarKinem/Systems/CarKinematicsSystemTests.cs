@@ -3012,6 +3012,44 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-11054</c> — every contact breach carries its CAUSE, measured through the real contact rule: a tank at speed into a free garden wall is a RAM; the same tank RESTING against it and broken by the
+        /// held full-throttle push is a PUSH; a tank's bump on a BUILDING wall is a RAM (a building is only ever rammed or bladed, D-3); a bulldozer's blade on a building is a BLADE. Each event names the hull
+        /// as its shooter (the record turns it into the network id).
+        /// 🔴 Red-proof: drop the <c>cause</c> argument of <c>ContactBreach.Event</c> ⇒ every row Unknown; classify the held push by <c>breaks</c> after the push branch ⇒ the push row says Ram; pass Ram to the
+        /// blade cut ⇒ the dozer row says Ram.
+        /// </summary>
+        [Fact]
+        public void CE11054_EveryContactBreach_CarriesItsCause_RamPushAndBlade()
+        {
+            static void All(List<Fdp.Toolkit.Terrain.BuildingDamageEvent> breaches, Entity e, Fdp.Toolkit.Terrain.BreachCause cause)
+            {
+                Assert.NotEmpty(breaches);
+                Assert.All(breaches, b => { Assert.Equal((byte)cause, b.Cause); Assert.Equal(e, b.Shooter); Assert.Equal(0f, b.ExplosiveKg); });
+            }
+
+            var (rammer, r) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);   // at speed into a free wall
+            All(DriveInto(rammer, r, 8f).Breaches, r, Fdp.Toolkit.Terrain.BreachCause.Ram);
+            rammer.Dispose();
+
+            var (pusher, p) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);   // resting against it: only the held push breaks it
+            var tf = pusher.GetComponent<SimTransform>(p);
+            tf.Position = new Vector3(15f - 0.15f - 0.1f - pusher.GetComponent<VehicleParams>(p).Length * 0.5f, 0f, 0f);
+            pusher.SetComponent(p, tf);
+            All(DriveInto(pusher, p, 8f).Breaches, p, Fdp.Toolkit.Terrain.BreachCause.Push);
+            pusher.Dispose();
+
+            var (tank, t) = Possessed(VehicleClass.Tank, 60000f, 1f, HouseAtX15);   // a building's bump
+            All(DriveInto(tank, t, 8f).Breaches, t, Fdp.Toolkit.Terrain.BreachCause.Ram);
+            tank.Dispose();
+
+            var (dozer, d) = Possessed(VehicleClass.Tank, 49000f, 1f, HouseAtX15);   // a bulldozer's blade on a building
+            ref var vp = ref dozer.GetComponentRW<VehicleParams>(d); vp.Width = 4.3f; vp.Length = 8f;
+            dozer.SetDisType(d, new Fdp.Core.DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 9, Subcategory = 1 });
+            All(DriveInto(dozer, d, 8f).Breaches, d, Fdp.Toolkit.Terrain.BreachCause.Blade);
+            dozer.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4629</c> (R-2084) — a bulldozer HELD at a building wall after its bump runs the contact rule every frame (its row matched by DIS type): steady frames
         /// allocate 0 B — possessed or not, dozer row or tank row. 📐 It caught a pre-existing 40 B a frame: <c>ContactBreachTable.For</c>'s foreach over the <c>IReadOnlyList</c> interface (CE-4600). 🔴 Red-proof: that foreach again ⇒ 2400 B over 60 frames.
         /// </summary>

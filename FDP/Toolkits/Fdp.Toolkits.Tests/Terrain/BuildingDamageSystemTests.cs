@@ -47,6 +47,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             _w.RegisterComponent<DoorState>();
             _w.RegisterComponent<BuildingDamage>();
             _w.RegisterComponent<NetworkAuthority>();
+            _w.RegisterComponent<NetworkIdentity>();   // ⭐ CE-11054 — a hull's network id is the breach's actor
             _w.RegisterManagedComponent<TerrainObjectKey>();
             _w.RegisterEvent<DetonationNotification>();
             _w.RegisterEvent<DamageAssessedEvent>();
@@ -265,6 +266,101 @@ namespace Fdp.Toolkit.Terrain.Tests
             Burst(Charge, new Vector3(25.3f, 19.75f, 1.0f)); Tick();                                    // into the open hole: nothing changed
             d = _w.GetComponentRO<BuildingDamage>(e);
             Assert.Equal(30d, d.MadeAtOf(ia).Seconds); Near(a2, d.BlastOf(ia));
+        }
+
+        // ── ⭐⭐ CE-11054 — what made each breach (and the collapse): cause, explosive kg, actor ────────────────────────────
+
+        private Entity Vehicle(int networkId)
+        {
+            var v = _w.CreateEntity();
+            _w.AddComponent(v, new NetworkIdentity(networkId));
+            return v;
+        }
+
+        private static BuildingDamageEvent Contact(int panel, float from, float to, BreachCause cause, Entity by)
+            => new() { Building = 0, Panel = panel, From = from, To = to, Bottom = 0f, Top = 2.2f, Kind = (byte)BreachKind.Passage, Cause = (byte)cause, Shooter = by, BlastX = 25f, BlastY = 16f, BlastZ = 1f };
+
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — a BLAST breach records <c>Detonation</c> and the warhead's explosive kg the breach rule used, no actor; a larger charge records more kg (so the kg is the warhead's, not a constant).
+        /// 🔴 Red-proof: drop <c>Cause = …Detonation</c> from <c>AreaEffectSystem.BreachWallsCore</c>'s event ⇒ Unknown; drop <c>ExplosiveKg = w.ExplosiveKg</c> ⇒ 0 kg.
+        /// </summary>
+        [Fact]
+        public void CE11054_ABlastBreach_RecordsDetonation_AndTheKgTheBreachRuleUsed()
+        {
+            Burst(Charge, new Vector3(25f, 19.75f, 1.0f));
+            var small = Assert.Single(Tick()).InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal(BreachCause.Detonation, small.CauseOf(0));
+            Assert.True(small.ExplosiveKgOf(0) > 0f, "the charge's kg");
+            Assert.Equal(0, small.ActorOf(0));
+
+            using var other = new BuildingDamageSystemTests();
+            other.Burst(Tank, new Vector3(25f, 19.75f, 1.0f));
+            var big = Assert.Single(other.Tick()).InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal(BreachCause.Detonation, big.CauseOf(0));
+            Assert.NotEqual(small.ExplosiveKgOf(0), big.ExplosiveKgOf(0));   // a different warhead, a different kg
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — a RAM, a BLADE cut and a PUSH record their cause and the acting vehicle's NETWORK id (<c>NetworkIdentity</c> of the event's shooter); no kg; a hull with no network id
+        /// is actor 0; a DETONATION never has an actor even when its shooter has one. 🔴 Red-proof: drop the actor lookup in <c>BuildingDamageSystem.OriginOf</c> ⇒ 0; look it up for a detonation too ⇒ the last row.
+        /// </summary>
+        [Theory]
+        [InlineData(BreachCause.Ram, 4711, 4711)]
+        [InlineData(BreachCause.Blade, 4712, 4712)]
+        [InlineData(BreachCause.Push, 4713, 4713)]
+        [InlineData(BreachCause.Ram, 0, 0)]            // a hull with no network id
+        [InlineData(BreachCause.Detonation, 4714, 0)]   // never an actor for a blast
+        public void CE11054_AContactBreach_RecordsItsCauseAndTheVehiclesNetworkId(BreachCause cause, int networkId, int actor)
+        {
+            var by = networkId != 0 ? Vehicle(networkId) : _w.CreateEntity();
+            _w.Bus.Publish(Contact(_south, 4f, 5.2f, cause, by));
+            _w.Bus.SwapBuffers();
+            var d = Assert.Single(Tick()).InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal((cause, actor, 0f), (d.CauseOf(0), d.ActorOf(0), d.ExplosiveKgOf(0)));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11054</c> — a MERGE is NOT a numeric max: the enum's order is not a severity (Detonation = 1 &lt; Ram = 2), so a ram that is widened by a blast must come out Detonation, and a blast that a
+        /// later ram overlaps stays Detonation. The kg is the larger of the two, never summed or dropped; the actor is the newest contact's. Two contact causes: the newer one wins.
+        /// 🔴 Red-proof: merge as <c>Math.Max</c> of the bytes ⇒ the ram swallows the blast; keep the newer kg only ⇒ the kg row.
+        /// </summary>
+        [Fact]
+        public void CE11054_AMerge_DetonationWins_TheLargerKgIsKept_AndTheActorIsTheNewestContacts()
+        {
+            var hull = Vehicle(4711);
+
+            // a ram, then a blast widens it
+            _w.Bus.Publish(Contact(_south, 4f, 5.2f, BreachCause.Ram, hull)); _w.Bus.SwapBuffers();
+            var e = Materialise(Assert.Single(Tick()));
+            _w.Bus.Publish(new BuildingDamageEvent { Building = 0, Panel = _south, From = 4.8f, To = 7f, Bottom = 0f, Top = 2.2f, Kind = (byte)BreachKind.Passage, Cause = (byte)BreachCause.Detonation, ExplosiveKg = 25f });
+            _w.Bus.SwapBuffers(); Tick();
+            var d = _w.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal(1, d.Count);
+            Assert.Equal((BreachCause.Detonation, 25f, 4711), (d.CauseOf(0), d.ExplosiveKgOf(0), d.ActorOf(0)));   // blast wins; kg = the blast's; the ram's actor stays the only contact
+
+            // a bigger ram of the same hole by another hull: still a detonation, the kg kept, the actor the newer contact's
+            var other = Vehicle(4712);
+            _w.Bus.Publish(Contact(_south, 6.5f, 7.5f, BreachCause.Ram, other)); _w.Bus.SwapBuffers(); Tick();
+            d = _w.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal(1, d.Count);
+            Assert.Equal((BreachCause.Detonation, 25f, 4712), (d.CauseOf(0), d.ExplosiveKgOf(0), d.ActorOf(0)));
+
+            // two contact causes: the newer wins (a blade widens a ram)
+            _w.Bus.Publish(Contact(_south, 0.2f, 0.9f, BreachCause.Ram, hull)); _w.Bus.SwapBuffers(); Tick();
+            _w.Bus.Publish(Contact(_south, 0.7f, 1.5f, BreachCause.Blade, other)); _w.Bus.SwapBuffers(); Tick();
+            d = _w.GetComponentRO<BuildingDamage>(e);
+            int ib = d.Get(0).From < 1f ? 0 : 1;
+            Assert.Equal((BreachCause.Blade, 4712), (d.CauseOf(ib), d.ActorOf(ib)));
+        }
+
+        /// <summary>⭐ <c>CE-11054</c> — a record that predates the cause (or any breach written with no origin) reads <c>Unknown</c> / 0 kg / actor 0: the enum's 0 is Unknown.</summary>
+        [Fact]
+        public void CE11054_AnUnstampedBreach_ReadsUnknown()
+        {
+            var d = new BuildingDamage { Building = 0 };
+            BuildingDamages.Add(ref d, new WallBreach(_south, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null);
+            Assert.Equal((BreachCause.Unknown, 0f, 0), (d.CauseOf(0), d.ExplosiveKgOf(0), d.ActorOf(0)));
+            Assert.Equal(BreachCause.Unknown, default(BreachCause));
         }
 
         /// <summary>⭐ <c>CE-11051</c> — the writer's steady frame (no event) allocates nothing: the clock read is the allocation-free one (<c>SimClock.TotalTimeOf</c>, never the boxed <c>Of()</c>).</summary>

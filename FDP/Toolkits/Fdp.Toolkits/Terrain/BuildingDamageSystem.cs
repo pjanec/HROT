@@ -48,6 +48,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ <c>CE-11051</c> — the BLAST POINT (terrain-local metres): the detonation's world point; for a hull's ram or a blade, the hull's centre. Kept per
         /// breach on <see cref="BuildingDamage"/> (<see cref="BuildingDamage.BlastOf"/>) so a client throws the debris away from it.</summary>
         public float BlastX, BlastY, BlastZ;
+        /// <summary>⭐ <c>CE-11054</c> — the <see cref="BreachCause"/> of this breach (or of the collapse): what the producer knows and the record keeps. Unset (0) = Unknown.</summary>
+        public byte Cause;
+        /// <summary>⭐ <c>CE-11054</c> — a Detonation's explosive kg (the warhead's, as the breach / collapse rule used it); 0 for a contact cause.</summary>
+        public float ExplosiveKg;
 
         public readonly WallBreach Breach => new(Panel, From, To, Bottom, Top, (BreachKind)Kind);
         public readonly Vector3 Blast => new(BlastX, BlastY, BlastZ);
@@ -93,10 +97,11 @@ namespace Fdp.Toolkit.Terrain
         {
             public int Building;
             public int Age;
-            public readonly List<(WallBreach Breach, Vector3 Blast)> Later = new();   // ⭐ CE-11051 — with its blast point
+            public readonly List<(WallBreach Breach, BreachOrigin Origin)> Later = new();   // ⭐ CE-11051 / CE-11054 — with its origin (time filled when it is applied)
             public readonly List<WindowHitEvent> LaterWindows = new();   // ⭐ CE-5033
             public readonly List<BuildingFireEvent> LaterFires = new();   // ⭐ CE-3488
             public bool Collapse;
+            public BreachOrigin CollapseOrigin;   // ⭐ CE-11054 — what collapsed it
         }
 
         [Fdp.Core.ProtocolCache("breaches/collapse waiting for the requested damage entity to appear: creation request in flight")]
@@ -129,9 +134,9 @@ namespace Fdp.Toolkit.Terrain
             {
                 ref readonly var evt = ref events[i];
                 if ((uint)evt.Building >= (uint)WallGroups.Count(terrain)) continue;   // ⭐ CE-4599 — a wall group: a building or a free-wall line
-                if (evt.Collapse != 0) { if (WallGroups.IsBuilding(terrain, evt.Building)) ApplyCollapse(repo, terrain, evt.Building, now); continue; }
+                if (evt.Collapse != 0) { if (WallGroups.IsBuilding(terrain, evt.Building)) ApplyCollapse(repo, terrain, evt.Building, now, OriginOf(repo, in evt, now)); continue; }
                 if ((uint)evt.Panel >= (uint)terrain.Panels.Count) continue;
-                Apply(repo, terrain, evt.Building, evt.Breach, evt.Blast, now);
+                Apply(repo, terrain, evt.Building, evt.Breach, OriginOf(repo, in evt, now));
                 BreakWindowsUnder(repo, terrain, evt.Building, evt.Breach, now);   // ⭐ CE-5033 D-10 — the glass goes with its wall
             }
 
@@ -240,10 +245,24 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>Writes <paramref name="breach"/> into this node's entity for the building (merging or appending), else asks for one.</summary>
-        private void Apply(EntityRepository repo, TerrainWorld terrain, int building, in WallBreach breach, Vector3 blast, double now)
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — the origin a record keeps for <paramref name="evt"/>: the frame's time, the blast point, the cause and kg the producer set, and — for a contact cause — the acting vehicle's
+        /// NETWORK id (<c>NetworkIdentity</c> of <see cref="BuildingDamageEvent.Shooter"/>; 0 when it has none, and always 0 for a detonation). Allocation-free.
+        /// </summary>
+        internal static BreachOrigin OriginOf(EntityRepository repo, in BuildingDamageEvent evt, double now)
+        {
+            var cause = (BreachCause)evt.Cause;
+            int actor = 0;
+            if (cause is BreachCause.Ram or BreachCause.Blade or BreachCause.Push && !evt.Shooter.IsNull && repo.IsAlive(evt.Shooter)
+                && repo.IsComponentTypeRegistered<NetworkIdentity>() && repo.HasComponent<NetworkIdentity>(evt.Shooter))
+                actor = repo.GetComponentRO<NetworkIdentity>(evt.Shooter).Value;
+            return new BreachOrigin(new SimInstant(now), evt.Blast, cause, evt.ExplosiveKg, actor);
+        }
+
+        private void Apply(EntityRepository repo, TerrainWorld terrain, int building, in WallBreach breach, in BreachOrigin origin)
         {
             string key = BuildingDamages.KeyOf(terrain, building);
-            if (_pending.TryGetValue(key, out var waiting)) { waiting.Later.Add((breach, blast)); return; }   // the entity is not here yet: applied when it is
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.Later.Add((breach, origin)); return; }   // the entity is not here yet: applied when it is
 
             Entity space = Entity.Null;   // the first owned entity of this building with room
             foreach (var e in Query(repo))
@@ -253,18 +272,18 @@ namespace Fdp.Toolkit.Terrain
                 if (d.Building != building) continue;
                 bool overlaps = false;
                 for (int i = 0; i < d.Count && !overlaps; i++) overlaps = d.Get(i).Overlaps(breach);
-                if (overlaps) { Write(repo, terrain, e, d, breach, blast, now); return; }   // merging never needs room
+                if (overlaps) { Write(repo, terrain, e, d, breach, in origin); return; }   // merging never needs room
                 if (space.IsNull && d.Count < BuildingDamage.Capacity) space = e;
             }
-            if (!space.IsNull) { Write(repo, terrain, space, repo.GetComponentRO<BuildingDamage>(space), breach, blast, now); return; }
-            Request(repo, terrain, building, key, breach, now, blast: blast);   // no entity of ours (or all full): make one — it is born holding this breach
+            if (!space.IsNull) { Write(repo, terrain, space, repo.GetComponentRO<BuildingDamage>(space), breach, in origin); return; }
+            Request(repo, terrain, building, key, breach, origin.At, origin: origin);   // no entity of ours (or all full): make one — it is born holding this breach
         }
 
         /// <summary>⭐ S-2 — sets <c>Collapsed = 1</c> on this node's entity for the building (written only when it changes), else asks for one born collapsed.</summary>
-        private void ApplyCollapse(EntityRepository repo, TerrainWorld terrain, int building, double now)
+        private void ApplyCollapse(EntityRepository repo, TerrainWorld terrain, int building, double now, in BreachOrigin cause)
         {
             string key = BuildingDamages.KeyOf(terrain, building);
-            if (_pending.TryGetValue(key, out var waiting)) { waiting.Collapse = true; return; }
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.Collapse = true; waiting.CollapseOrigin = cause; return; }
             Entity mine = Entity.Null;
             foreach (var e in Query(repo))
             {
@@ -279,17 +298,18 @@ namespace Fdp.Toolkit.Terrain
                 var d = repo.GetComponentRO<BuildingDamage>(mine);
                 d.Collapsed = 1;
                 d.CollapsedAt = now;   // ⭐ CE-11051
+                d.SetCollapse(cause.Cause, cause.Blast, cause.ExplosiveKg);   // ⭐ CE-11054
                 repo.SetComponent(mine, d);
                 Applied++;
                 return;
             }
-            Request(repo, terrain, building, key, default, now, collapse: true);
+            Request(repo, terrain, building, key, default, now, collapse: true, origin: cause);
         }
 
-        private void Write(EntityRepository repo, TerrainWorld terrain, Entity e, BuildingDamage d, in WallBreach breach, Vector3 blast, double now)
+        private void Write(EntityRepository repo, TerrainWorld terrain, Entity e, BuildingDamage d, in WallBreach breach, in BreachOrigin origin)
         {
             // copy → change → write back only when something changed: an already-covered breach writes nothing (no version bump, no republish, no new time)
-            if (BuildingDamages.Add(ref d, in breach, terrain, now, blast) is BreachAdd.Unchanged or BreachAdd.Full) return;
+            if (BuildingDamages.Add(ref d, in breach, terrain, in origin) is BreachAdd.Unchanged or BreachAdd.Full) return;
             repo.SetComponent(e, d);
             Applied++;
         }
@@ -308,19 +328,19 @@ namespace Fdp.Toolkit.Terrain
             {
                 var p = _pending[key];
                 _pending.Remove(key);   // first: Apply must not see it as waiting
-                if (p.Collapse) ApplyCollapse(repo, terrain, p.Building, now);
-                for (int i = 0; i < p.Later.Count; i++) Apply(repo, terrain, p.Building, p.Later[i].Breach, p.Later[i].Blast, now);
+                if (p.Collapse) ApplyCollapse(repo, terrain, p.Building, now, p.CollapseOrigin);
+                for (int i = 0; i < p.Later.Count; i++) Apply(repo, terrain, p.Building, p.Later[i].Breach, p.Later[i].Origin with { At = new SimInstant(now) });
                 for (int i = 0; i < p.LaterWindows.Count; i++) ApplyWindow(repo, terrain, p.LaterWindows[i], now);   // ⭐ CE-5033
                 for (int i = 0; i < p.LaterFires.Count; i++) ApplyFire(repo, terrain, p.LaterFires[i]);   // ⭐ CE-3488
             }
         }
 
         private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, double now, bool collapse = false, WindowDamage? windows = null,
-                             Fdp.Toolkit.Perception.Signatures.FireState? fire = null, Vector3 blast = default)
+                             Fdp.Toolkit.Perception.Signatures.FireState? fire = null, BreachOrigin origin = default)
         {
             var d = new BuildingDamage { Building = building };
-            if (collapse) { d.Collapsed = 1; d.CollapsedAt = now; }   // ⭐ CE-11051 — born stamped
-            else if (windows == null && fire == null) BuildingDamages.Add(ref d, in breach, terrain, now, blast);
+            if (collapse) { d.Collapsed = 1; d.CollapsedAt = now; d.SetCollapse(origin.Cause, origin.Blast, origin.ExplosiveKg); }   // ⭐ CE-11051 / CE-11054 — born stamped
+            else if (windows == null && fire == null) BuildingDamages.Add(ref d, in breach, terrain, in origin);
             var anchor = WallGroups.Anchor(terrain, building);   // ⭐ CE-4599 — a building's position, a line's first post
             int node = repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0;
             var initial = new List<object> { new SimTransform { Position = anchor, Rotation = Quaternion.Identity }, d, new TerrainObjectKey { Key = key } };
