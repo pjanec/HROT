@@ -3,7 +3,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-4693 BL-S4 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712, BL-20) - on basic-desert a WIDE RIVER, 70 m (y 60-130), far beyond an assault bridge. At 2 s 'Engineer' (a floating-bridge engineer, TKB 119: a ribbon bridge bridging up to 100 m, 1200 s to lay - an estimate, said) is ordered to LayBridge from (80, 50) to (80, 140). Its span (TKB 8826, 0.6 m above the water line) is laid as long as the river plus a metre on each bank. When it is Open the rule 'Bridge laid' moves the engineer well aside (an 11 m truck needs room to turn) and drives a column of two vehicles ('Tank 1', 'Tank 2' - M1s, formed up on the bridge's axis behind the engineer: a hull cannot yet line up onto a narrow deck from an angle, CE-4697) across to (80, 160) and (80, 172). Judge: 'Bridge laid' Achieved; the engineer laid its span (Count 0); both vehicles reach the far bank, driving over the deck; no vehicle ever stands in the river off the deck. Fail: refused, no bridge, or the column stops at the water. Check: scripts/scenario-regression.sh bl-floating-bridge"
+  "description": "What: CE-4693 BL-S4 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712, BL-20) - on basic-desert a WIDE RIVER, 70 m (y 60-130), far beyond an assault bridge. At 2 s 'Engineer' (a floating-bridge engineer, TKB 119: a ribbon bridge bridging up to 100 m, 1200 s to lay - an estimate, said) is ordered to LayBridge from (80, 50) to (80, 140). Its span (TKB 8826, 0.6 m above the water line) is laid as long as the river plus a metre on each bank. When it is Open the engineer backs off the approach by itself (out of the deck's line - it cannot turn away forwards, the river 13 m ahead) and the rule 'Bridge laid' drives a column of two vehicles ('Tank 1', 'Tank 2' - M1s, formed up on the bridge's axis behind the engineer: a hull cannot yet line up onto a narrow deck from an angle, CE-4697) across to (80, 160) and (80, 172). Judge: 'Bridge laid' Achieved; the engineer laid its span (Count 0); both vehicles reach the far bank, driving over the deck; no vehicle ever stands in the river off the deck. Fail: refused, no bridge, or the column stops at the water. Check: scripts/scenario-regression.sh bl-floating-bridge"
  },
  "entities": {
   "b4693400-0000-4000-8000-000000000000": {
@@ -228,22 +228,6 @@
       }
      },
      "do": [
-      {
-       "act": "Order",
-       "args": {
-        "target": "b4693400-0000-4000-8000-000000000003",
-        "behavior": "MoveToLocation",
-        "params": {
-         "target": [
-          30.0,
-          40.0,
-          0.0
-         ],
-         "speed": 5,
-         "arrivalRadius": 4
-        }
-       }
-      },
       {
        "act": "Order",
        "args": {

@@ -38,7 +38,7 @@ namespace Hrot.AI.Behaviors.Brains
         public const float NearestBridgeMetres = 300f;
         public const float ArrivalRadius = 2f;
 
-        public enum Step : byte { Plan = 0, Approach = 1, Stand = 2, Work = 3 }
+        public enum Step : byte { Plan = 0, Approach = 1, Stand = 2, Work = 3, Clear = 4 }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct BridgeArgs
@@ -159,12 +159,16 @@ namespace Hrot.AI.Behaviors.Brains
                 Set(world, self, carried with { Order = BridgeOrder.None, Refusal = BridgeRefusal.NotRefused, GapM = plan.Gap });
                 return NodeStatus.Running;
             }
+            if (ws.Step == Step.Clear) return ClearApproach(ref p, ref ws, self, world);
             if (ws.Step == Step.Work)
             {
                 if (!OpenBridgeAt(world, carried.BridgeType, ws.Centre).IsNull)
                 {
                     Set(world, self, carried with { Count = (byte)Math.Max(0, carried.Count - 1), Order = BridgeOrder.None });
-                    return NodeStatus.Success;
+                    // ⭐ the bridge is open: the layer CLEARS THE APPROACH — it stands on the deck's line before the near ramp, where the crossing comes
+                    StopMove(ref ws, self, world);
+                    ws.Step = Step.Clear;
+                    return ClearApproach(ref p, ref ws, self, world);
                 }
             }
             if (!Drive(ref p, ref ws, self, world)) return NodeStatus.Running;
@@ -215,6 +219,33 @@ namespace Hrot.AI.Behaviors.Brains
             Set(world, self, carried with { Order = BridgeOrder.Recover, Target = Fdp.Toolkit.Replication.EntityRef.Of(world, b), Refusal = BridgeRefusal.NotRefused });
             return NodeStatus.Running;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4693</c> — the laid bridge is open: the engineer BACKS OFF THE APPROACH, out of the deck's line (it stood before the near ramp, where the crossing comes):
+        /// reversing <see cref="ClearBackMetres"/> back and <see cref="ClearSideMetres"/> to the side — an arc any hull here can reverse (📐 the floating transporter,
+        /// 6.6 m wheelbase, turns on ~15.6 m: facing the river 13.5 m ahead it could not turn away forwards — the no-wading rule held it at the water's edge). Success when
+        /// it has backed off (or its move ended where it could).
+        /// </summary>
+        private static NodeStatus ClearApproach(ref BridgeArgs p, ref BridgeWork ws, Entity self, EntityRepository world)
+        {
+            if (ws.Moving == 1)
+            {
+                if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
+                ws.Moving = 0;
+                return NodeStatus.Success;
+            }
+            var along = ws.Stand - ws.Approach;
+            along = along.LengthSquared() > 1e-6f ? Vector2.Normalize(along) : Vector2.UnitY;
+            var side = new Vector2(-along.Y, along.X);
+            var to = ws.Stand - along * ClearBackMetres + side * ClearSideMetres;
+            float z = world.GetComponentRO<SimTransform>(self).Position.Z;
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, new Vector3(to, z), MathF.Min(p.Speed, 3f), ArrivalRadius, MoveGait.Tactical, reverseAllowed: true,
+                                                      onSurface: true, source: LocomotionMoveTo.OrderSource(world, self)) ? 1 : 0);
+            return ws.Moving == 1 ? NodeStatus.Running : NodeStatus.Success;
+        }
+
+        /// <summary>How far back along the deck's line and to its side (m) the engineer backs off once its bridge is open.</summary>
+        public const float ClearBackMetres = 14f, ClearSideMetres = 6f;
 
         /// <summary>Drives approach → stand; true while the hull is at its stand (then <see cref="Step.Work"/>). Re-drives if it is pushed off it.</summary>
         private static bool Drive(ref BridgeArgs p, ref BridgeWork ws, Entity self, EntityRepository world)

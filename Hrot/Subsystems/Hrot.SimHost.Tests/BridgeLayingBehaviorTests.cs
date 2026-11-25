@@ -130,7 +130,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐⭐⭐ LAY: from 40 m south the engineer plans a deck centred on the 12 m river (the gap + a metre's bearing each bank, ≤ the 26 m span), drives through the approach
         /// to its stand on the line, sets ITS OWN order (Lay, the banks); the mover holds it for the Wolverine's 300 s, asks for ONE bridge (TKB 8825, the planned pose
-        /// and length), and the brain — seeing the deck open there — counts the span off and succeeds. 🔴 Red-proof: the mover's seconds check removed (lays at once) ⇒
+        /// and length), and the brain — seeing the deck open there — counts the span off, BACKS OFF THE APPROACH (out of the deck's line) and succeeds. 🔴 Red-proof: the mover's seconds check removed (lays at once) ⇒
         /// the request before 300 s ⇒ red.
         /// </summary>
         [Fact]
@@ -150,8 +150,10 @@ namespace Hrot.SimHost.Tests
                 if (laidAt < 0 && _asked.Count > 0) laidAt = i;
             }
             Assert.Equal(NodeStatus.Success, status);
-            Assert.Equal(2, _moves.Count);                                    // approach, then the stand — aligned with the deck
+            Assert.Equal(3, _moves.Count);                                    // approach, then the stand — aligned with the deck — then backing off
             Assert.True(_moves[0].Y < _moves[1].Y && _moves[1].Y < 52f, "the hull stands south of the near ramp's foot");
+            // ⭐ the bridge open, the layer CLEARS THE APPROACH: back along the deck's line and off it to the side (the crossing comes through its stand)
+            Assert.True(_moves[2].Y < _moves[1].Y - 10f && System.MathF.Abs(_moves[2].X - 80f) > 4f, $"backed off the approach to {_moves[2]}");
             var r = Assert.Single(_asked);
             Assert.Equal(TkbEntityTypes.Obstacle_AssaultBridge, (long)r.TkbType);
             var shape = r.InitialComponents.OfType<ObstacleShape>().Single();
