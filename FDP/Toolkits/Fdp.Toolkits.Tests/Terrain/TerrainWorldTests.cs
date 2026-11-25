@@ -290,7 +290,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         {
             var world = TerrainWorldParser.Parse("""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,800,800]},"features":[]}""");
             var alone = TerrainGridCoverage.ColliderGrid(world);
-            Assert.True(alone.OriginY + 300 * alone.CellSize < 1000f, "the terrain alone: the collider grid ends near 850 (the live run's)");
+            Assert.True(alone.OriginY + 300 * alone.CellSize < 1200f, "the terrain alone: the collider grid ends near the terrain + its margin (850 in the live run; 1050 with CE-4694's 250 m margin) — far short of the net's 4400");
             world.AttachBeyond(new BeyondGround((_, _) => 0f, new[] { new Vector2(-1500f, -1500f), new Vector2(3000f, -1500f), new Vector2(3000f, 4400f), new Vector2(-1500f, 4400f) }));
             foreach (var (g, cells) in new[] { (TerrainGridCoverage.ColliderGrid(world), SpatialHashConstantsWidth()), (TerrainGridCoverage.PerceptionGrid(world), 200) })
             {

@@ -16,8 +16,12 @@ namespace Fdp.Toolkit.Terrain
     /// </summary>
     public static class SpatialGridFit
     {
-        /// <summary>Metres added around the terrain bounds — an entity at the very edge still has a full cell around it.</summary>
-        public const float Margin = 50f;
+        /// <summary>
+        /// Metres added around the terrain bounds — an entity at the very edge still has a full cell around it. ⭐ CE-4694 ① — 250 m (was 50): what
+        /// legitimately GRAZES a terrain's edge is not authored — SUMO's traffic at the ends of its net and aircraft turning at an air arena's rim.
+        /// 📐 Measured on stechovice-battle: 14 bodies 18–198 m past the fitted edge, each "seen by nobody". A wider margin coarsens the cells a little.
+        /// </summary>
+        public const float Margin = 250f;
 
         /// <param name="defaultOrigin">The grid's composition-time origin.</param>
         /// <param name="width">Cell count along X (fixed).</param>
