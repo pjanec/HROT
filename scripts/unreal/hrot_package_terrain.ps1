@@ -43,4 +43,9 @@ $files | % { Copy-Item $_.FullName $out; "{0,9:N1} MB  {1}" -f ($_.Length / 1MB)
 # 5. U-18x: the package's identity - the HROT terrain it was built from, by content (the client checks Session.TerrainBaseHash against it)
 python "$Here\hrot_terrain_manifest.py" $Terrain $out --source $Source
 if ($LASTEXITCODE -ne 0) { "the manifest was not written (no HROT terrain '$Terrain'?)"; exit 5 }
+# 6. U-20: the building index (which house of HROT is which piece of which tile mesh) - the client reads it at <ProjectDir>/Data/<name>/, which a
+#    packaged game does not stage; without it no breach, window or collapse is drawn (measured 2026-11-25: "buildings: no index ... not drawn")
+$idx = "$Proj\Data\$Terrain\$Terrain.buildings-index.json"
+if (Test-Path $idx) { $d = "$Client\Windows\HrotUnreal\Data\$Terrain"; New-Item -ItemType Directory -Force $d | Out-Null; Copy-Item $idx $d; "building index -> $d" }
+else { "note: no $idx - this terrain's buildings take no damage in the client" }
 "terrain package '$Terrain' -> $out"
