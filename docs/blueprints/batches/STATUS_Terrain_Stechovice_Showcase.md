@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-23
-current-answer: §1 what was measured · §2 the findings and their state · §3 what is left
+updated: 2026-11-25
+current-answer: §4 THE BRIDGEHEAD (CE-4694, in progress) · §1 what was measured · §2 the findings and their state · §3 what is left
 stale-below: nothing
 related-designs:
   - HANDOFF_Ui_To_Terrain_Stechovice_Battle_Showcase.md — the dispatch this answers (ui → terrain, scope at 92f251dc2)
@@ -44,3 +44,12 @@ related-designs:
 1. CE-5046 / CE-5047 / CE-5048 — behaviour fixes outside the terrain lane's code (air operations, HQ, vehicle tactics): leans in the tracker rows, for the user.
 2. The village attack (above), then tune `checks.draft.json` → `checks.json` against a 1/60 run; ⚠ at 0.065× a 300 s run is ~77 min, past the regression's 60-min child limit — shorten `runFor` or pass `--verify-timeout`.
 3. Preview, CAPABILITIES / USAGES rows, the optional air show.
+
+## 4. ⭐ THE BRIDGE AND THE BLUE BRIDGEHEAD — CE-4694 ([handoff](HANDOFF_Coordinator_To_Terrain_Stechovice_Bridgehead.md), taken `2026-11-25` at `867fbbf6e`)
+
+| # | item | state | sha | evidence |
+|---|---|---|---|---|
+| ① | the perception grid covers the terrain | ✅ DONE | `8bf0dd195` | 📐 4 455 warnings, ALL in the first perception tick (the epoch branch rebuilt on `[0..1000]²` before the fit), then fitted `[-358..4898] × [-249..5008]`; 14 more = SUMO traffic / aircraft 18–198 m past the 50 m margin. Fit first + 250 m margin; rail `LocalGridBuilderSystemTests.CE4694_*` (red with the old order). Terrain World §4.4 |
+| ② | why tanks get no route | ✅ ROOT-CAUSED + FIXED | `101295e4c` | a probe on the real import (vehicle layer, the deck at y 1590): the deck WIDTH matters (4 m: the deck alone disconnects under the 1.8 m erosion; 8 m carries) but the BREAK was a **0.6 m cliff down the middle of the west-bank road**: a two-way road was two import corridors (one per SUMO edge) levelled to two profiles. Refuted on the way (measured): deck headroom fill, a deeper ramp-foot sink. Now ONE corridor per two-way road (importer revision 4, Ground Patches G-21a); after the re-import the east bank reaches the west road over the deck. Rail `ImporterTests.CE4694_*`. The same-bank pair (1345, 292) → (1330, 320) still has no vehicle path — open, see §4 notes |
+| ③ | the bridge + the Blue bridgehead in the scenario | 🚧 IN PROGRESS | | generator: an authored Bridge (762 → 928 at y 1590, 8 m), a Blue "Bridgehead Platoon" (3 squads along the west road, PlatoonDefend facing S–W, under Blue HQ), "Bridgehead held" (HoldArea r 35 m, minMen 2, maxEnemy 0, 60 s); Red's riverbank platoon now PlatoonATTACKs the bridgehead from its terrace; Red's riverbank vehicles moved south on the west road (support by fire); Blue Tank 2 ordered over the bridge. ⏳ exploratory run, then `checks.json` (runFor ≤ ~180 s — the regression's 60-min child limit at 0.065×) |
+| ④ | file the OSM-bridge-deck row | ✅ DONE | `a3efdad9a` | **CE-5057** |

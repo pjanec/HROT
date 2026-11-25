@@ -950,6 +950,869 @@
     "Origin": "Superior"
    }
   },
+  "57ec1000-0000-4000-8000-000000000003": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "EntityInfo": {
+    "Name": "Bridge",
+    "ForceId": "Neutral"
+   },
+   "TerrainFeature": {
+    "Kind": 10,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 8,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     762.0,
+     1590.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 166.0,
+      "Y": 0.0
+     }
+    ],
+    "Version": 0
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     755.0,
+     1588.0,
+     204.5
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 305
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Platoon",
+    "ForceId": "Friend"
+   },
+   "RefKey": {
+    "Value": "BridgeheadPlatoon"
+   },
+   "Behavior": {
+    "Name": "PlatoonDefend",
+    "Params": {
+     "Position": [
+      755.0,
+      1588.0,
+      0
+     ],
+     "Left": 180,
+     "Right": 300,
+     "MaxRange": 300,
+     "SearchRadius": 25,
+     "Speed": 2
+    },
+    "Origin": "Superior"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec1000-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     753.0,
+     1608.0,
+     204.3
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 1",
+    "ForceId": "Friend"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     751.94,
+     1606.94,
+     204.5
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 1 Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000002",
+    "Designation": "SquadLeader"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq1 Leader"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     754.41,
+     1606.59,
+     204.1
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 1 MG",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000002",
+    "Designation": "MachineGunner"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq1 MG"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     751.59,
+     1609.41,
+     204.5
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2004
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 1 Grenadier",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq1 Grenadier"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     756.89,
+     1606.23,
+     203.7
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 1 Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq1 Rifleman 1"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [
+     754.06,
+     1609.06,
+     204.1
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 1 Rifleman 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq1 Rifleman 2"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000008": {
+   "SimTransform": {
+    "Position": [
+     751.23,
+     1611.89,
+     204.5
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 1 Rifleman 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq1 Rifleman 3"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000009": {
+   "SimTransform": {
+    "Position": [
+     755.0,
+     1587.0,
+     204.6
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 2",
+    "ForceId": "Friend"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     753.94,
+     1585.94,
+     204.9
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 2 Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000009",
+    "Designation": "SquadLeader"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq2 Leader"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     756.41,
+     1585.59,
+     204.5
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 2 MG",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000009",
+    "Designation": "MachineGunner"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq2 MG"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     753.59,
+     1588.41,
+     204.8
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2004
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 2 Grenadier",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000009",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq2 Grenadier"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     758.89,
+     1585.23,
+     204.1
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 2 Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000009",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq2 Rifleman 1"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000014": {
+   "SimTransform": {
+    "Position": [
+     756.06,
+     1588.06,
+     204.3
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 2 Rifleman 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000009",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq2 Rifleman 2"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000015": {
+   "SimTransform": {
+    "Position": [
+     753.23,
+     1590.89,
+     204.7
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 2 Rifleman 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000009",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq2 Rifleman 3"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000016": {
+   "SimTransform": {
+    "Position": [
+     759.0,
+     1566.0,
+     205.9
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 3",
+    "ForceId": "Friend"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000017": {
+   "SimTransform": {
+    "Position": [
+     757.94,
+     1564.94,
+     206.2
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 3 Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000016",
+    "Designation": "SquadLeader"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq3 Leader"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000018": {
+   "SimTransform": {
+    "Position": [
+     760.41,
+     1564.59,
+     205.9
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 3 MG",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000016",
+    "Designation": "MachineGunner"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq3 MG"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000019": {
+   "SimTransform": {
+    "Position": [
+     757.59,
+     1567.41,
+     206.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2004
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 3 Grenadier",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000016",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq3 Grenadier"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000020": {
+   "SimTransform": {
+    "Position": [
+     762.89,
+     1564.23,
+     205.5
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 3 Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000016",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq3 Rifleman 1"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [
+     760.06,
+     1567.06,
+     205.7
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 3 Rifleman 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000016",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq3 Rifleman 2"
+   }
+  },
+  "57ec0b03-0000-4000-8000-000000000022": {
+   "SimTransform": {
+    "Position": [
+     757.23,
+     1569.89,
+     205.8
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.9238795,
+     0.3826834
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead Squad 3 Rifleman 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "57ec0b03-0000-4000-8000-000000000016",
+    "Designation": "Wingman"
+   },
+   "Playable": {
+    "Side": "Friend",
+    "SlotName": "Bridgehead Sq3 Rifleman 3"
+   }
+  },
+  "57ec1000-0000-4000-8000-000000000004": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridgehead held",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HoldArea",
+    "Params": {
+     "common": {
+      "title": "Bridgehead held",
+      "subject": "57ec0b03-0000-4000-8000-000000000001"
+     },
+     "area": {
+      "circle": {
+       "center": [
+        755.0,
+        1588.0,
+        0
+       ],
+       "radius": 35
+      }
+     },
+     "minMen": 2,
+     "maxEnemy": 0,
+     "holdSeconds": 60
+    },
+    "Origin": "Superior"
+   }
+  },
   "57ec0a01-0000-4000-8000-000000000001": {
    "SimTransform": {
     "Position": [
@@ -960,8 +1823,8 @@
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -975,18 +1838,16 @@
     "Value": "RiverbankRedPlatoon"
    },
    "Behavior": {
-    "Name": "PlatoonDefend",
+    "Name": "PlatoonAttack",
     "Params": {
      "Position": [
-      765.0,
-      1524.0,
+      755.0,
+      1588.0,
       0
      ],
-     "Left": 45,
-     "Right": 135,
-     "MaxRange": 420,
-     "SearchRadius": 60,
-     "Speed": 2
+     "SearchRadius": 40,
+     "Preset": "AttackPosition",
+     "Speed": 3
     },
     "Origin": "Superior"
    }
@@ -994,15 +1855,15 @@
   "57ec0a01-0000-4000-8000-000000000002": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1539.0,
-     210.4
+     750.0,
+     1524.0,
+     217.0
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1020,15 +1881,15 @@
   "57ec0a01-0000-4000-8000-000000000003": {
    "SimTransform": {
     "Position": [
-     766.5,
-     1539.0,
-     210.1
+     750.0,
+     1525.5,
+     216.8
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1057,15 +1918,15 @@
   "57ec0a01-0000-4000-8000-000000000004": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1541.0,
-     210.0
+     748.0,
+     1524.0,
+     218.0
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1094,15 +1955,15 @@
   "57ec0a01-0000-4000-8000-000000000005": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1537.0,
-     210.9
+     752.0,
+     1524.0,
+     216.5
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1131,15 +1992,15 @@
   "57ec0a01-0000-4000-8000-000000000006": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1543.0,
-     209.8
+     746.0,
+     1522.5,
+     219.2
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1168,15 +2029,15 @@
   "57ec0a01-0000-4000-8000-000000000007": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1539.0,
-     210.7
+     750.0,
+     1522.5,
+     217.3
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1205,15 +2066,15 @@
   "57ec0a01-0000-4000-8000-000000000008": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1535.0,
-     211.7
+     754.0,
+     1522.5,
+     216.1
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1249,8 +2110,8 @@
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1268,15 +2129,15 @@
   "57ec0a01-0000-4000-8000-000000000010": {
    "SimTransform": {
     "Position": [
-     766.5,
-     1524.0,
-     212.3
+     765.0,
+     1525.5,
+     212.7
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1305,15 +2166,15 @@
   "57ec0a01-0000-4000-8000-000000000011": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1526.0,
-     212.6
+     763.0,
+     1524.0,
+     213.3
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1342,15 +2203,15 @@
   "57ec0a01-0000-4000-8000-000000000012": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1522.0,
-     212.9
+     767.0,
+     1524.0,
+     212.2
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1379,15 +2240,15 @@
   "57ec0a01-0000-4000-8000-000000000013": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1528.0,
-     212.9
+     761.0,
+     1522.5,
+     214.0
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1416,15 +2277,15 @@
   "57ec0a01-0000-4000-8000-000000000014": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1524.0,
-     213.2
+     765.0,
+     1522.5,
+     212.8
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1453,15 +2314,15 @@
   "57ec0a01-0000-4000-8000-000000000015": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1520.0,
-     213.4
+     769.0,
+     1522.5,
+     211.6
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1490,15 +2351,15 @@
   "57ec0a01-0000-4000-8000-000000000016": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1509.0,
-     213.5
+     780.0,
+     1524.0,
+     208.5
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1516,15 +2377,15 @@
   "57ec0a01-0000-4000-8000-000000000017": {
    "SimTransform": {
     "Position": [
-     766.5,
-     1509.0,
-     212.9
+     780.0,
+     1525.5,
+     208.5
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1553,15 +2414,15 @@
   "57ec0a01-0000-4000-8000-000000000018": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1511.0,
-     213.4
+     778.0,
+     1524.0,
+     209.0
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1590,15 +2451,15 @@
   "57ec0a01-0000-4000-8000-000000000019": {
    "SimTransform": {
     "Position": [
-     765.0,
-     1507.0,
-     213.6
+     782.0,
+     1524.0,
+     207.8
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1627,15 +2488,15 @@
   "57ec0a01-0000-4000-8000-000000000020": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1513.0,
-     213.9
+     776.0,
+     1522.5,
+     209.6
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1664,15 +2525,15 @@
   "57ec0a01-0000-4000-8000-000000000021": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1509.0,
-     214.1
+     780.0,
+     1522.5,
+     208.4
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1701,15 +2562,15 @@
   "57ec0a01-0000-4000-8000-000000000022": {
    "SimTransform": {
     "Position": [
-     763.5,
-     1505.0,
-     214.4
+     784.0,
+     1522.5,
+     207.1
     ],
     "Rotation": [
      0,
      0,
-     0.0,
-     1.0
+     0.7071068,
+     0.7071068
     ]
    },
    "TkbIdentity": {
@@ -1735,7 +2596,7 @@
     "SlotName": "River Red Sq3 Rifleman 3"
    }
   },
-  "57ec1000-0000-4000-8000-000000000003": {
+  "57ec1000-0000-4000-8000-000000000005": {
    "SimTransform": {
     "Position": [
      778.0,
@@ -2554,7 +3415,7 @@
     "SlotName": "Village Red Sq3 Rifleman 3"
    }
   },
-  "57ec1000-0000-4000-8000-000000000004": {
+  "57ec1000-0000-4000-8000-000000000006": {
    "SimTransform": {
     "Position": [
      1796.0,
@@ -2587,7 +3448,7 @@
     "SlotName": "Village Red AT Gunner 1"
    }
   },
-  "57ec1000-0000-4000-8000-000000000005": {
+  "57ec1000-0000-4000-8000-000000000007": {
    "SimTransform": {
     "Position": [
      1799.0,
@@ -2620,7 +3481,7 @@
     "SlotName": "Village Red AT Gunner 2"
    }
   },
-  "57ec1000-0000-4000-8000-000000000006": {
+  "57ec1000-0000-4000-8000-000000000008": {
    "SimTransform": {
     "Position": [
      1901.0,
@@ -2654,7 +3515,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000007": {
+  "57ec1000-0000-4000-8000-000000000009": {
    "SimTransform": {
     "Position": [
      1761.0,
@@ -2688,7 +3549,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000008": {
+  "57ec1000-0000-4000-8000-000000000010": {
    "SimTransform": {
     "Position": [
      1711.0,
@@ -3509,7 +4370,7 @@
     "SlotName": "Village Blue Sq3 Rifleman 3"
    }
   },
-  "57ec1000-0000-4000-8000-000000000009": {
+  "57ec1000-0000-4000-8000-000000000011": {
    "SimTransform": {
     "Position": [
      2373.0,
@@ -3556,7 +4417,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000010": {
+  "57ec1000-0000-4000-8000-000000000012": {
    "SimTransform": {
     "Position": [
      2361.0,
@@ -3603,7 +4464,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000011": {
+  "57ec1000-0000-4000-8000-000000000013": {
    "SimTransform": {
     "Position": [
      2321.48,
@@ -3650,7 +4511,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000012": {
+  "57ec1000-0000-4000-8000-000000000014": {
    "SimTransform": {
     "Position": [
      2307.93,
@@ -3697,7 +4558,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000013": {
+  "57ec1000-0000-4000-8000-000000000015": {
    "SimTransform": {
     "Position": [
      2293.93,
@@ -3744,7 +4605,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000014": {
+  "57ec1000-0000-4000-8000-000000000016": {
    "SimTransform": {
     "Position": [
      2279.91,
@@ -3791,7 +4652,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000015": {
+  "57ec1000-0000-4000-8000-000000000017": {
    "SimTransform": {
     "Position": [
      1771.19,
@@ -3825,7 +4686,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000016": {
+  "57ec1000-0000-4000-8000-000000000018": {
    "SimTransform": {
     "Position": [
      1721.13,
@@ -3859,7 +4720,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000017": {
+  "57ec1000-0000-4000-8000-000000000019": {
    "SimTransform": {
     "Position": [
      1760.09,
@@ -3893,7 +4754,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000018": {
+  "57ec1000-0000-4000-8000-000000000020": {
    "SimTransform": {
     "Position": [
      1829.27,
@@ -3927,7 +4788,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000019": {
+  "57ec1000-0000-4000-8000-000000000021": {
    "SimTransform": {
     "Position": [
      956.76,
@@ -3961,18 +4822,18 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000020": {
+  "57ec1000-0000-4000-8000-000000000022": {
    "SimTransform": {
     "Position": [
-     764.4,
-     1566.32,
-     205.1
+     779.69,
+     1493.27,
+     208.6
     ],
     "Rotation": [
      0,
      0,
-     -0.6136847,
-     0.7895512
+     -0.7895512,
+     -0.6136847
     ]
    },
    "TkbIdentity": {
@@ -3995,7 +4856,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000021": {
+  "57ec1000-0000-4000-8000-000000000023": {
    "SimTransform": {
     "Position": [
      2264.82,
@@ -4042,7 +4903,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000022": {
+  "57ec1000-0000-4000-8000-000000000024": {
    "SimTransform": {
     "Position": [
      2249.72,
@@ -4089,7 +4950,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000023": {
+  "57ec1000-0000-4000-8000-000000000025": {
    "SimTransform": {
     "Position": [
      2234.64,
@@ -4136,7 +4997,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000024": {
+  "57ec1000-0000-4000-8000-000000000026": {
    "SimTransform": {
     "Position": [
      2220.15,
@@ -4183,7 +5044,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000025": {
+  "57ec1000-0000-4000-8000-000000000027": {
    "SimTransform": {
     "Position": [
      2338.47,
@@ -4230,7 +5091,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000026": {
+  "57ec1000-0000-4000-8000-000000000028": {
    "SimTransform": {
     "Position": [
      1801.13,
@@ -4264,7 +5125,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000027": {
+  "57ec1000-0000-4000-8000-000000000029": {
    "SimTransform": {
     "Position": [
      1701.0,
@@ -4298,7 +5159,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000028": {
+  "57ec1000-0000-4000-8000-000000000030": {
    "SimTransform": {
     "Position": [
      1659.51,
@@ -4332,7 +5193,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000029": {
+  "57ec1000-0000-4000-8000-000000000031": {
    "SimTransform": {
     "Position": [
      1871.28,
@@ -4366,7 +5227,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000030": {
+  "57ec1000-0000-4000-8000-000000000032": {
    "SimTransform": {
     "Position": [
      945.12,
@@ -4398,9 +5259,22 @@
     "Name": "BasicVehicleSop",
     "Params": {},
     "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "speed": 6,
+     "arrivalRadius": 5,
+     "target": [
+      753.0,
+      1603.0,
+      0
+     ]
+    },
+    "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000031": {
+  "57ec1000-0000-4000-8000-000000000033": {
    "SimTransform": {
     "Position": [
      969.26,
@@ -4434,7 +5308,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000032": {
+  "57ec1000-0000-4000-8000-000000000034": {
    "SimTransform": {
     "Position": [
      981.03,
@@ -4468,18 +5342,18 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000033": {
+  "57ec1000-0000-4000-8000-000000000035": {
    "SimTransform": {
     "Position": [
-     750.52,
-     1607.88,
-     204.7
+     776.82,
+     1504.54,
+     208.7
     ],
     "Rotation": [
      0,
      0,
-     -0.6136847,
-     0.7895512
+     -0.7895512,
+     -0.6136847
     ]
    },
    "TkbIdentity": {
@@ -4502,18 +5376,18 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000034": {
+  "57ec1000-0000-4000-8000-000000000036": {
    "SimTransform": {
     "Position": [
-     767.74,
-     1540.23,
-     209.6
+     773.84,
+     1516.27,
+     210.1
     ],
     "Rotation": [
      0,
      0,
-     -0.6136847,
-     0.7895512
+     -0.7894753,
+     -0.6137824
     ]
    },
    "TkbIdentity": {
@@ -4536,18 +5410,18 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000035": {
+  "57ec1000-0000-4000-8000-000000000037": {
    "SimTransform": {
     "Position": [
-     746.14,
-     1638.04,
-     207.5
+     782.33,
+     1482.92,
+     209.6
     ],
     "Rotation": [
      0,
      0,
-     -0.6136847,
-     0.7895512
+     -0.7895512,
+     -0.6136847
     ]
    },
    "TkbIdentity": {
@@ -4570,7 +5444,7 @@
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000036": {
+  "57ec1000-0000-4000-8000-000000000038": {
    "TkbIdentity": {
     "TkbType": 8850
    },
@@ -4582,7 +5456,7 @@
     "CarSpawnPerStep": 25
    }
   },
-  "57ec1000-0000-4000-8000-000000000037": {
+  "57ec1000-0000-4000-8000-000000000039": {
    "SimTransform": {
     "Position": [
      2541.0,
@@ -4617,12 +5491,12 @@
    "Behavior": {
     "Name": "AirPlatformAttack",
     "Params": {
-     "Target": "57ec1000-0000-4000-8000-000000000006"
+     "Target": "57ec1000-0000-4000-8000-000000000008"
     },
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000038": {
+  "57ec1000-0000-4000-8000-000000000040": {
    "SimTransform": {
     "Position": [
      121.0,
@@ -4662,12 +5536,12 @@
       2418.0,
       0
      ],
-     "Target": "57ec1000-0000-4000-8000-000000000007"
+     "Target": "57ec1000-0000-4000-8000-000000000009"
     },
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000039": {
+  "57ec1000-0000-4000-8000-000000000041": {
    "SimTransform": {
     "Position": [
      2021.0,
@@ -4702,7 +5576,7 @@
     "LapsesOff": 0
    }
   },
-  "57ec1000-0000-4000-8000-000000000040": {
+  "57ec1000-0000-4000-8000-000000000042": {
    "SimTransform": {
     "Position": [
      3821.0,
@@ -4743,12 +5617,12 @@
    "Behavior": {
     "Name": "AirPlatformAttack",
     "Params": {
-     "Target": "57ec1000-0000-4000-8000-000000000042"
+     "Target": "57ec1000-0000-4000-8000-000000000044"
     },
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000042": {
+  "57ec1000-0000-4000-8000-000000000044": {
    "SimTransform": {
     "Position": [
      221.0,
@@ -4789,12 +5663,12 @@
    "Behavior": {
     "Name": "AirPlatformAttack",
     "Params": {
-     "Target": "57ec1000-0000-4000-8000-000000000040"
+     "Target": "57ec1000-0000-4000-8000-000000000042"
     },
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000041": {
+  "57ec1000-0000-4000-8000-000000000043": {
    "SimTransform": {
     "Position": [
      3821.0,
@@ -4835,12 +5709,12 @@
    "Behavior": {
     "Name": "AirPlatformAttack",
     "Params": {
-     "Target": "57ec1000-0000-4000-8000-000000000043"
+     "Target": "57ec1000-0000-4000-8000-000000000045"
     },
     "Origin": "Superior"
    }
   },
-  "57ec1000-0000-4000-8000-000000000043": {
+  "57ec1000-0000-4000-8000-000000000045": {
    "SimTransform": {
     "Position": [
      221.0,
@@ -4881,7 +5755,7 @@
    "Behavior": {
     "Name": "AirPlatformAttack",
     "Params": {
-     "Target": "57ec1000-0000-4000-8000-000000000041"
+     "Target": "57ec1000-0000-4000-8000-000000000043"
     },
     "Origin": "Superior"
    }

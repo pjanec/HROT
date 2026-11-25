@@ -262,6 +262,11 @@ PLACES = {
     'village-blue': (230.0, 150.0),               # Blue platoon's start, east of the village
     'village-blue-tank': (352.0, 57.0), 'village-blue-ifv': (340.0, 51.0),   # on the road (the column's head; the rest queue east of it)
     'village-objective': (-325.0, 135.0),         # where Blue's PlatoonAttack goes
+    # ⭐ CE-4694 — the BRIDGE and the Blue BRIDGEHEAD (user, 2026-11-25: "blue holds bridgehead"). The bridge spans the river on y -538 (scenario 1590) from the west-bank
+    #   road (x -1259) to the east terrace (x -1093), 8 m wide; its west end lands on the west-bank secondary road (a ramp, the road flat across since CE-4694 ②)
+    'bridge-west': (-1259.0, -538.0), 'bridge-east': (-1093.0, -538.0),
+    'bridgehead': (-1266.0, -540.0),              # the bridgehead's centre: the west-bank road at the bridge's west end
+    'bridgehead-tank': (-1268.0, -525.0),         # where Blue's 2nd riverbank tank crosses to (the west road, north of the bridge's foot)
     'village-stop': (-110.0, 113.0),              # where the tank / IFV stop (on the road) to support by fire
     'blue-hq': (420.0, 40.0),
     'apache': (520.0, 330.0), 'a10-start': (-1900.0, -300.0),
@@ -285,9 +290,24 @@ def build():
     platoon(s, 'rifle-platoon', '57ec0b01', F, 'Riverbank Blue Platoon', bx, by, 270,
             behaviour('PlatoonDefend', {'Position': [*W(bx, by), 0], 'Left': 225, 'Right': 315, 'MaxRange': 420, 'SearchRadius': 60, 'Speed': 2}), hq)
     s.add(unit(101, 'Riverbank Blue IFV', F, *P('river-blue-ifv'), bearing=270, hp=500, extra={'Sop': sop('BasicVehicleSop')}))
+    # ⭐ CE-4694 — the BRIDGE (an authored Bridge feature: deck + ramps, collapsible as a building) and the Blue BRIDGEHEAD on the west bank: a second Blue platoon dug in
+    #   along the west-bank road at the bridge's west end, facing south and west (PlatoonDefend); the east-bank platoon, the IFV and the tanks support it by fire
+    wx_, wy_ = P('bridge-west'); ex_, ey_ = P('bridge-east')
+    s.add({'TkbIdentity': {'TkbType': 8818}, 'EntityInfo': {'Name': 'Bridge', 'ForceId': N},
+           'TerrainFeature': {'Kind': 10, 'Template': '', 'HeadingDeg': 0, 'Pad': 8, 'Seed': 0},
+           'SimTransform': {'Position': [*W(wx_, wy_), 0], 'Rotation': [0, 0, 0, 1]},
+           'EditablePolyline': {'Points': [{'X': 0, 'Y': 0}, {'X': round(ex_ - wx_, 2), 'Y': round(ey_ - wy_, 2)}], 'Version': 0}}, check=False)
+    hx_, hy_ = P('bridgehead')
+    bridgehead = platoon(s, 'rifle-platoon', '57ec0b03', F, 'Bridgehead Platoon', hx_, hy_, 225,
+                         behaviour('PlatoonDefend', {'Position': [*W(hx_, hy_), 0], 'Left': 180, 'Right': 300, 'MaxRange': 300, 'SearchRadius': 25, 'Speed': 2}), hq,
+                         squad_at=[(-1268.0, -520.0), (-1266.0, -541.0), (-1262.0, -562.0)])
+    s.add({'TkbIdentity': {'TkbType': 8860}, 'EntityInfo': {'Name': 'Bridgehead held', 'ForceId': F},
+           'Behavior': behaviour('HoldArea', {'common': {'title': 'Bridgehead held', 'subject': bridgehead},
+                                              'area': {'circle': {'center': [*W(hx_, hy_), 0], 'radius': 35}}, 'minMen': 2, 'maxEnemy': 0, 'holdSeconds': 60})}, check=False)
+    # Red COUNTER-ATTACKS the bridgehead from its terrace (65 m south of it), to take or deny the bridge
     rx_, ry_ = P('river-red')
-    platoon(s, 'militia-platoon', '57ec0a01', H, 'Riverbank Red Platoon', rx_, ry_, 90,
-            behaviour('PlatoonDefend', {'Position': [*W(rx_, ry_), 0], 'Left': 45, 'Right': 135, 'MaxRange': 420, 'SearchRadius': 60, 'Speed': 2}))
+    platoon(s, 'militia-platoon', '57ec0a01', H, 'Riverbank Red Platoon', rx_, ry_, 0,
+            behaviour('PlatoonAttack', {'Position': [*W(hx_, hy_), 0], 'SearchRadius': 40, 'Preset': 'AttackPosition', 'Speed': 3}))
     s.add(unit(104, 'Riverbank Red Technical', H, *P('river-red-technical'), bearing=90, hp=500, extra={'Sop': sop('BasicVehicleSop')}))
 
     # ---- VILLAGE: Blue attacks from the east, Red defends the houses ---------------------------------------------------------------
@@ -337,7 +357,7 @@ def build():
     vehicle(108, 'Village Red DShK Technical', H, -190, 50, 90, 500)
     # riverbank: a tank each side, on the bank roads
     vehicle(100, 'Riverbank Blue Tank', F, -1063, -580, 270, 3000)
-    vehicle(103, 'Riverbank Red T-72', H, -1250, -560, 90, 2500)
+    vehicle(103, 'Riverbank Red T-72', H, -1262, -640, 0, 2500)   # ⭐ CE-4694 — south of the bridgehead on the west road: support by fire
 
     # ---- STILL MORE (user, 2026-11-24: "more armored vehicles ... more technical vehicles with machine gun on both sides") ----------------------
     # village, Blue: a 4th M1, a 3rd Bradley, a 2nd HMMWV (M2) and two HMG technicals, further back on the same road, all to the support line
@@ -353,12 +373,13 @@ def build():
     vehicle(104, 'Village Red HMG Technical 2', H, -360, 60, 90, 500)
     vehicle(108, 'Village Red DShK Technical 2', H, -150, 40, 90, 500)
     # riverbank: a 2nd tank each side and MG technicals on both banks
-    vehicle(100, 'Riverbank Blue Tank 2', F, -1070, -510, 270, 3000)
+    vehicle(100, 'Riverbank Blue Tank 2', F, -1070, -510, 270, 3000, move_to(*P('bridgehead-tank')))   # ⭐ CE-4694 — crosses the bridge to the bridgehead
     vehicle(104, 'Riverbank Blue HMG Technical', F, -1050, -600, 270, 500)
     vehicle(102, 'Riverbank Blue HMMWV', F, -1045, -630, 270, 300)
-    vehicle(103, 'Riverbank Red T-72 2', H, -1270, -520, 90, 2500)
-    vehicle(104, 'Riverbank Red HMG Technical', H, -1262, -590, 90, 500)
-    vehicle(108, 'Riverbank Red DShK Technical', H, -1275, -490, 90, 500)
+    # ⭐ CE-4694 — Red's riverbank vehicles support the counter-attack by fire from the west road SOUTH of the bridgehead (they stood on it before)
+    vehicle(103, 'Riverbank Red T-72 2', H, -1262, -628, 0, 2500)
+    vehicle(104, 'Riverbank Red HMG Technical', H, -1260, -615, 0, 500)
+    vehicle(108, 'Riverbank Red DShK Technical', H, -1258, -650, 0, 500)
 
     # ---- TRAFFIC (user: "there are no sumo cars whatsoever") — SUMO background traffic on the terrain's road net (the same demand entity as
     #      demo-city's convoys, cv-traffic-fire); a car near the fighting is abandoned by its driver (CE-1959)
