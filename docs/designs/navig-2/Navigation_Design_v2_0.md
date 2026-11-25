@@ -5,7 +5,7 @@ current-answer: §5.2b (CE-3029 — a vehicle's corners rounded for its turn rad
   navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
-known-rot: the top banner supersedes any Y-up wording (CE-3011).
+known-rot: the top banner supersedes any Y-up wording (CE-3011). · §14 "P2 as built" — "a real 0.9 m door passes (5/5 grid alignments)" holds for AXIS-ALIGNED walls only: 📐 `2026-11-25` (CE-5056) on village-street's rotated walls 0.9 m doors were blocked 20 % at 0–9° and ~70 % at 27–45° (the 0.3 m channel left by the 0.3 m erosion breaks); the importer's doors are 1.2 m since (DESIGN_Terrain_Import_UTM.md §11.5).
 related-designs:
   - ../vehicle-tactics/DESIGN_Road_Convoy.md — OWNS the road convoy; its mode 2 offsets §5.2a's road points to the outer lane (C-7)
   - ../../reference/NED_DDS_Protocol.md — OWNS the wire as an outsider sees it: §Concepts 16 documents every bit of the path request's layer mask (incl. the mover's side, bits 14–18, R-5047)
