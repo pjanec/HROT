@@ -125,6 +125,30 @@ public sealed class SourceImportTests : IDisposable
         Assert.Equal(0, _imports);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-5056</c> — a terrain imported by an OLDER importer revision (here: none recorded, as every import before revisions were) is re-imported on its
+    /// next use, even though its input did not change — so a change to what the generator makes (1.2 m doors, stairs clear of doors) reaches every machine.
+    /// Current afterwards: no second re-import. 🔒 Red-proof: compare the sha alone in <c>SourceImport.Current</c> ⇒ 1 import, the old doors stay.
+    /// </summary>
+    [Fact]
+    public void CE5056_AnImportFromAnOlderImporterRevision_ReImportsOnce()
+    {
+        string set = Input("mini");
+        var catalog = Install();
+        var def = catalog.ResolveDefinition("mini")!;
+        Assert.Equal(TerrainImporter.Revision, SourceImport.RecordedRevision(def));
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(def))!.AsObject();
+        json.Remove(SourceImport.RecordedRevisionKey);                                                      // as imported before revisions were recorded
+        File.WriteAllText(def, json.ToJsonString());
+        Assert.Equal(1, SourceImport.RecordedRevision(def));
+        Assert.Equal(Sha(set), Recorded(def));                                                              // the input is unchanged
+        Assert.Equal(def, Install().ResolveDefinition("mini"));
+        Assert.Equal(2, _imports);
+        Assert.Equal(TerrainImporter.Revision, SourceImport.RecordedRevision(def));
+        Assert.Equal(def, Install().ResolveDefinition("mini"));
+        Assert.Equal(2, _imports);                                                                          // current again
+    }
+
     [Fact]
     public void AChangedManifest_ReImports_AndKeepsTheOldVersion()
     {

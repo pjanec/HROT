@@ -20,6 +20,13 @@ public sealed class SourceImport : ITerrainSourceImport
     /// <summary>The terrain.json key holding the input manifest's sha256.</summary>
     public const string RecordedShaKey = "inputManifestSha256";
 
+    /// <summary>⭐ CE-5056 — the terrain.json key holding the importer revision that generated it (<see cref="TerrainImporter.Revision"/>; absent = 1).</summary>
+    public const string RecordedRevisionKey = "importerRevision";
+
+    /// <summary>⭐ CE-5056 — true when <paramref name="definitionPath"/> was imported from this input by THIS importer revision: the same manifest sha256 and revision.</summary>
+    private static bool Current(string definitionPath, string recordedSha, string sha)
+        => string.Equals(recordedSha, sha, StringComparison.Ordinal) && RecordedRevision(definitionPath) == TerrainImporter.Revision;
+
     /// <summary>The folder (beside a root's <c>terrain/</c>, and under the repository's <c>assets/</c>) holding input sets by name.</summary>
     public const string InputDirectoryName = "terrain-input";
 
@@ -55,7 +62,7 @@ public sealed class SourceImport : ITerrainSourceImport
             if (_current.TryGetValue(existingDefinition, out var seen) && seen == (stamp, mstamp)) return null;
             string? recorded = RecordedSha(existingDefinition);
             if (recorded == null) return null;   // not imported from an input: never overwrite it
-            if (string.Equals(recorded, Manifest.Sha256(manifest), StringComparison.Ordinal)) { _current[existingDefinition] = (stamp, mstamp); return null; }
+            if (Current(existingDefinition, recorded, Manifest.Sha256(manifest))) { _current[existingDefinition] = (stamp, mstamp); return null; }
         }
 
         Directory.CreateDirectory(targetRoot);
@@ -68,10 +75,10 @@ public sealed class SourceImport : ITerrainSourceImport
             if (exists)
             {
                 string? recorded = RecordedSha(definition);
-                if (recorded == null || string.Equals(recorded, sha, StringComparison.Ordinal)) return definition;
+                if (recorded == null || Current(definition, recorded, sha)) return definition;
             }
             var sw = Stopwatch.StartNew();
-            _log?.Invoke($"[TerrainImport] importing '{terrainName}' from {set} into {targetRoot} (first use{(exists ? ", the input changed" : "")})");
+            _log?.Invoke($"[TerrainImport] importing '{terrainName}' from {set} into {targetRoot} (first use{(exists ? ", the input or the importer changed" : "")})");
             var importer = _importerFor(targetRoot);
             string folder = importer.ImportAsync(set, terrainName, Directory.Exists(Path.Combine(targetRoot, terrainName)), new LoadDetailProgress(), cancellation).GetAwaiter().GetResult();
             _log?.Invoke($"[TerrainImport] '{terrainName}' imported in {sw.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture)} s");
@@ -94,6 +101,18 @@ public sealed class SourceImport : ITerrainSourceImport
             if (!ReferenceEquals(p.Stage, _stage)) { _stage = p.Stage; _what = "import " + p.Stage; }   // once per stage
             Fdp.Core.LoadProgress.ReportDetail(_what!, (long)(Math.Clamp(p.Fraction, 0d, 1d) * 1000d), 1000);
         }
+    }
+
+    /// <summary>⭐ CE-5056 — the importer revision a terrain.json records; 1 when none is (an import from before revisions were recorded), 0 when unreadable.</summary>
+    public static int RecordedRevision(string definitionPath)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllBytes(definitionPath));
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return 0;
+            return doc.RootElement.TryGetProperty(RecordedRevisionKey, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out int r) ? r : 1;
+        }
+        catch (Exception e) when (e is IOException or JsonException) { return 0; }
     }
 
     /// <summary>The sha256 a terrain.json records for its input, or null (none recorded, unreadable).</summary>
