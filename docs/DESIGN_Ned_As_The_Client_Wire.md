@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE
+state: PARKED
 updated: 2026-11-25
-build-state: DESIGN — spike measured (§8); an independent review found 2 blockers and 11 majors (§10) that narrow the scope; awaiting the user's decision on §10's revised scope
-current-answer: §10 (the review and the REVISED scope) overrides §4 / §6 where they differ; §7 measured claims, §8 the spike
+build-state: PARKED 2026-11-25 by the user (§11) — DPS stays a separate, NED-independent contract; return here if the duplication cost grows
+current-answer: §11 (the user's decision: PARKED); §10 the review and the narrowed scope it led to; §8 the spike's measurements (still valid if the idea returns)
 stale-below: nothing
 known-rot: none
 known-conflict: SimNetGateway docs/design/DD-017-Dps-Dds-Player-Station.md §1a rejected "one protocol for both" ("the internal wire would freeze, or the public one would break with HROT") — this design revisits that, with the user (§1); RULINGS R-4092 ("no one speaks NED besides HROT so changes are allowed") — narrowed for the client-visible subset (D-5)
@@ -15,6 +15,8 @@ related-designs:
   - blueprints/DESIGN_Time_Architecture.md §20 — OWNS turbo stepping; its gate becomes the sole-node fact (D-4)
   - SimNetGateway docs/design/DD-017 … DD-034 — OWN the DPS contract; the state topics retire into NED (§6), the look and station topics stay
 -->
+
+> ⏸ **PARKED 2026-11-25 — see §11.** DPS stays a separate, stable contract for external clients, independent of NED.
 
 # DESIGN — NED is the client's wire for simulation state; DPS keeps the looks and the player station
 
@@ -238,3 +240,21 @@ the editor's role flags, the two type checks, `@appendable` NED types, WorldPos 
 | what stays DPS | events (Fire, Detonation, Impact, Utterance, ManDowned, PlayerMessage), the station (PlayerSlot, Status, Exercise, seats, controls), time and boundaries (Session, SimClock), every look, Round, SUMO traffic |
 | what the client takes on | NED's lifecycle rule (EntityMaster dispose = gone), the drawable-entity filter table, the field differences (w-implied quaternion, damage floats), a look-before-entity buffer |
 | what NED gains | acceleration on WorldPos; the client subset in its own namespace with a semantic-review gate |
+
+## 11. Decision — PARKED (user, 2026-11-25)
+
+> 🔒 **User, verbatim:** *"isolation is not an issue. domain settings solves that. scope is editor first, the solution needs to be cluster ready. replay
+> fire/detonation/impact accepted. ok, as not so great win as expected, let's update the design with the findings, and park it, accepting separate DPS maintenance
+> costs, bringing stable and NED independent interface to external clients. maybe we will return to the idea later."*
+
+| | the user's ruling |
+|---|---|
+| review finding 1 (isolation) | **not an issue** — the domain settings separate an editor's NED from any cluster's |
+| scope | **editor first, but the solution must be cluster ready** (a design that only works in the editor would not do) |
+| finding 3 (replay events) | **accepted** — Fire, Detonation, Impact stay DPS |
+| the idea | ⏸ **PARKED.** The gain (~12 retained-state topics maintained once) does not outweigh the cost (client-side NED rules, a frozen NED subset, the drawable-entity filter, field differences). **DPS stays the stable, NED-independent interface for external clients**, and its separate maintenance is accepted |
+
+**If we return to it,** start from: §10's narrowed scope; the two tables it requires first (field by field per twin; the drawable-entity kinds); the cluster
+host for the gateway (DD-017 step 2) designed with it, so the result is cluster ready; and §8's spike (local branch `spike/ned-editor`, `55175d0d0`, not pushed —
+its 6-file shape is described in §8). Until then the reduction of double maintenance comes from ONE HROT rule per derived fact that the gateway calls (the
+CE-11054 / CE-11056 / CE-11058 pattern), never a gateway copy.
