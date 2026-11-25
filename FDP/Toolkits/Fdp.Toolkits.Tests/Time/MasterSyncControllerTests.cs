@@ -1094,6 +1094,36 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-11057 — the Update that DRAINS a resume advances nothing (delta 0, sim time unchanged); the next frame measures from the resume's
+        /// own tick — the tick every slave anchors to — so no time is lost and the master stays on the slaves' timeline. The clock here advances
+        /// 3.3 µs per read, as a real one does between two reads in one Update. 📌 Before: the resume frame advanced by those few µs and every
+        /// system got a meaningless 3 µs frame (fl-napalm-strike: the A-10 re-accelerated for ~20 s). 🔴 Red-proof: the zero-frame branch
+        /// dropped ⇒ the resume frame's delta is ~3 µs.
+        /// </summary>
+        [Fact]
+        public void CE11057_TheFrameThatResumes_AdvancesNothing_TheNextMeasuresFromTheResume()
+        {
+            long ticks = TicksFromSeconds(1.0);
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks += 33);   // 3.3 µs per read
+            ctrl.SwitchToDeterministic(new HashSet<int>());
+            bus.SwapBuffers(); bus.Read<SwitchTimeModeEvent>();
+            bus.PublishManaged(new ResumeTimeIntent());
+            bus.SwapBuffers();
+            var resumed = ctrl.Update();
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.Equal(0f, resumed.DeltaTime);
+            Assert.Equal(0.0, resumed.TotalTime);
+            bus.SwapBuffers();
+            var anchor = bus.Read<SwitchTimeModeEvent>();
+            long resumeTick = anchor[anchor.Length - 1].BarrierWallTicks;
+            ticks = resumeTick + TicksFromSeconds(0.016) - 33;            // the next read lands exactly 16 ms after the resume
+            var next = ctrl.Update();
+            Assert.Equal(0.016, next.DeltaTime, 6);
+            Assert.Equal(0.016, next.TotalTime, 6);
+        }
+
         // ── CE-3329 P1 (R4 as amended, F14): the NON-PAUSING jump of the sim axis ─────────────
 
         /// <summary>

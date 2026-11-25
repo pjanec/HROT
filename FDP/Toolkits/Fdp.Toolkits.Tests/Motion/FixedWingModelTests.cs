@@ -117,6 +117,25 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.True(new Vector2(end.X, end.Y).Length() >= Stall, "it circles at the end, still flying");
         }
 
+        /// <summary>⭐⭐ CE-11057 — a plane given a route while standing (velocity 0, as a scenario places it) flies its CRUISE from the order's first
+        /// frame even when that frame is a microsecond long (the master clock's resume frame): the velocity a too-short frame cannot measure is
+        /// kept, so when the brain's order lands a frame later the route still sees a plane at rest and snaps it to cruise. 📌 fl-napalm-strike live: a 3 µs frame wrote
+        /// 4.9 m/s, the route read it as "already flying", clamped the A-10 to its 60 m/s stall and it took ~20 s to reach cruise.
+        /// 🔴 Red-proof: <c>StepVelocity.Of</c> divides by max(dt, 1e-4) again ⇒ ~60 m/s after the first second.</summary>
+        [Fact]
+        public void CE11057_APlaneOrderedFromRest_FliesCruiseAtOnce_EvenAfterAMicrosecondFrame()
+        {
+            _routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(20000, 0) });
+            var plane = Plane(new Vector3(-3500, 300, 300), 0f);
+            _air.Execute(_w, 3.3e-6f);                                    // the resume frame: no order yet — it flies straight on
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 77 });   // the brain's order lands
+            for (int i = 0; i < 60; i++) _air.Execute(_w, Dt);           // one second
+            var v = _w.GetComponent<SimVelocity>(plane).Linear;
+            Assert.InRange(new Vector2(v.X, v.Y).Length(), Cruise - 1f, Cruise + 1f);
+            Assert.InRange(Vector2.Distance(new Vector2(-3500, 300), new Vector2(_w.GetComponent<SimTransform>(plane).Position.X, _w.GetComponent<SimTransform>(plane).Position.Y)),
+                           Cruise - 5f, Cruise + 5f);   // it flew ~150 m in the second, not ~60
+        }
+
         /// <summary>⭐ CE-10006 (AC-9, R-10030) — a route broken off mid-way (a transit's missile defence: a point move, then the SAME route
         /// re-issued with a new intent) RESUMES at the first waypoint not yet passed, from where the plane is — ⛔ never back to the first
         /// one; a FRESH route (another route entity) still starts at its first waypoint. ✅ Red-proof (mutant, run): the resume dropped

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-11-21 (§21: CE-11019 a rate change while running re-anchors every slave; CE-11022 the docs describe the anchor model, backend) · 2026-11-10 (§17: CE-3427 C-1 — live play paces slow modules by wall clock from dispatch, backend) · 2026-11-07 (§20: CE-4316 Run to …'s TURBO, the one documented exception, the networkless editor node only; the step a per-run setting, backend) · 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
+updated: 2026-11-25 (§22: CE-11057 the resume frame advances nothing; a slave's first frame is real time; motion survives a too-short frame, backend) · 2026-11-21 (§21: CE-11019 a rate change while running re-anchors every slave; CE-11022 the docs describe the anchor model, backend) · 2026-11-10 (§17: CE-3427 C-1 — live play paces slow modules by wall clock from dispatch, backend) · 2026-11-07 (§20: CE-4316 Run to …'s TURBO, the one documented exception, the networkless editor node only; the step a per-run setting, backend) · 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -1862,6 +1862,33 @@ so the master ran at the new rate while every slave extrapolated the old one.
 ⭐ The docs that described the PLL were folded: `FDP/Docs/projects/toolkits/FDP.Toolkit.Time.md` (an AS-BUILT top section, the rest marked
 HISTORY), `.dev/_DONE/time-ctrl-unif/docs/DESIGN.md` §4.6 (SUPERSEDED note), and the stale `TimePulseDescriptor` line in the
 `MasterSyncController.Update` comment.
+
+## 22. ⭐⭐ `CE-11057` — **the frame that resumes advances nothing; a slave's first frame is real time** *(AS-BUILT `2026-11-25`, backend)*
+
+```mermaid
+sequenceDiagram
+  participant H as host (▶ / POST /sim/play)
+  participant M as MasterSyncController.Update
+  participant S as SlaveSyncController.Update
+  participant W as systems (motion, brains)
+  H->>M: ResumeTimeIntent
+  M->>M: SwitchToContinuous: anchor = now (tick T)
+  M->>S: SwitchTimeModeEvent { BarrierWallTicks = T }
+  M-->>W: THIS frame: dt = 0 (time does not advance)
+  M->>M: next Update: dt = now − T
+  S->>S: first Update after the event: dt = SyncedNow − T (real time: the trip + the wait)
+```
+
+*What the picture shows that prose hid: master and slaves measure from the SAME tick T — the master simply no longer counts the few µs between
+the anchor and its own second read in the resume's Update, so it stays on the slaves' timeline.*
+
+| | as built | why |
+|---|---|---|
+| ⭐ **master** | the `Update` that drains a `ResumeTimeIntent` returns a ZERO-delta frame and keeps the anchor (`_resumedThisUpdate`); a direct `SwitchToContinuous()` before an `Update` is unchanged (its next sample is real time) | 📐 measured live (`fl-napalm-strike`, the editor's single node): the resume frame was **3.3 µs** — the gap between two clock reads — and every system got it |
+| ⭐ **slave** | unchanged: its first frame after the event is `SyncedNow − T` — honest elapsed time, usually ms, but **tiny when the slave ticks just after the master resumed** | rail `SlaveSyncControllerTests.CE11057_*` (3.3 µs, then 20 ms catches up exactly) |
+| ⭐⭐ **⇒ consumers must survive a too-short frame** | `Fdp.Toolkit.Motion.StepVelocity.Of` — a motion model that writes velocity = step ÷ dt KEEPS its velocity on a frame under 0.1 ms (`FixedWingModel.Pose`, `DescentModels`) | ⛔ before: ÷ max(dt, 1e-4) wrote 150 m/s × 3 µs ÷ 0.1 ms = **4.9 m/s**; the route then read the A-10 as "already flying", clamped it to its 60 m/s stall and it re-accelerated for ~20 s — the strike 5.7 s late |
+
+Rails: `MasterSyncControllerTests.CE11057_TheFrameThatResumes_AdvancesNothing_TheNextMeasuresFromTheResume` · `SlaveSyncControllerTests.CE11057_ASlavesFirstFrameAfterAResume_IsTheRealTimeSinceTheMastersResumeTick` · `FixedWingModelTests.CE11057_APlaneOrderedFromRest_FliesCruiseAtOnce_EvenAfterAMicrosecondFrame` (each red-proved).
 
 ## ⭐ WHERE THE TASKS WENT
 

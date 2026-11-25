@@ -1049,6 +1049,30 @@ namespace Fdp.Toolkit.Time.Tests
                 $"got {actual:F4}s. Buggy value would be ≈ {buggedExpected:F4}s.");
         }
 
+        /// <summary>
+        /// ⭐ CE-11057 — what a SLAVE's first frame after a resume is: the REAL time since the master's resume tick (the event's trip plus the wait
+        /// for the slave's frame) — never the master's resume frame. It is honest time, but it can be tiny: a slave that ticks 3 µs after the
+        /// master resumed gets a 3 µs frame. ⇒ a motion model must survive a too-short frame (<c>StepVelocity</c>), whatever the clock does.
+        /// </summary>
+        [Fact]
+        public void CE11057_ASlavesFirstFrameAfterAResume_IsTheRealTimeSinceTheMastersResumeTick()
+        {
+            long ticks = TicksFromSeconds(1.0);
+            var bus = CreateController_Bus(out var ctrl, () => ticks);
+            bus.SwapBuffers(); bus.Read<TimeSyncProbeEvent>();
+            long masterResume = ticks;
+            bus.Publish(new SwitchTimeModeEvent { TargetMode = TimeMode.Continuous, BarrierWallTicks = masterResume, SimTimeSnapshot = 5.0, TimeScale = 1f });
+            bus.SwapBuffers();
+            ticks = masterResume + 33;                                    // the slave ticks 3.3 µs after the master resumed
+            var first = ctrl.Update();
+            Assert.Equal(3.3e-6, first.DeltaTime, 7);
+            Assert.Equal(5.0 + 3.3e-6, first.TotalTime, 7);
+            bus.SwapBuffers();
+            ticks = masterResume + TicksFromSeconds(0.020);               // its next frame: 20 ms after the master's resume
+            var next = ctrl.Update();
+            Assert.Equal(5.020, next.TotalTime, 6);
+        }
+
         // ── RT-006: Instant snap-and-pause tests (T6a, T6b, T6d) ─────────────────
 
         /// <summary>

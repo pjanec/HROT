@@ -155,8 +155,12 @@ namespace Fdp.Toolkit.Time.Controllers
         /// In Stepping: drains <see cref="FrameStepCompletedEvent"/> from bus to unlock the
         /// next <see cref="Step(float)"/> call.
         /// </summary>
+        /// <summary>⭐ CE-11057 — a resume drained by THIS <see cref="Update()"/> anchored the clock a few µs ago: this frame advances nothing.</summary>
+        private bool _resumedThisUpdate;
+
         public GlobalTime Update()
         {
+            _resumedThisUpdate = false;   // ⭐ CE-11057 — only a resume drained IN this Update (a direct call before it: the next sample is real time)
             // Drain bus-published time-control intents (HEXAG2-S011).
             // SlaveNodeSetUpdatedEvent must be consumed before PauseTimeIntent so
             // SwitchToDeterministic gets the correct slave roster.
@@ -200,6 +204,17 @@ namespace Fdp.Toolkit.Time.Controllers
                 var ev = scales[i];
                 Fdp.Core.Logging.FdpLog<MasterSyncController>.Info("[TimeSync] SCALE x{0}.", ev.TimeScale);
                 SetTimeScale(ev.TimeScale);
+            }
+
+            // ⭐⭐ CE-11057 — the frame that RESUMED advances nothing: SwitchToContinuous anchored `_lastTickSample` to the resume's own
+            //   tick (the tick every slave anchors to as well), so sampling again here measured only the few µs between the two reads —
+            //   a meaningless frame. 📐 Measured live (fl-napalm-strike, the editor's single node): a 3 µs first frame made the A-10's
+            //   Pose write 4.9 m/s and the plane spent ~20 s re-accelerating. ⭐ The anchor is KEPT, so the next frame measures from the
+            //   resume — the master's sim time stays exactly the slaves' (they extrapolate from the same tick).
+            if (_resumedThisUpdate)
+            {
+                _resumedThisUpdate = false;
+                return GetCurrentState();
             }
 
             long currentTicks  = _getTick();
@@ -550,6 +565,7 @@ namespace Fdp.Toolkit.Time.Controllers
             long now = _getTick();
             _totalWallTicks = now;
             _lastTickSample = now;  // prevent a large catch-up spike on the very next Update()
+            _resumedThisUpdate = true;   // ⭐ CE-11057 — the Update that drained this resume returns a zero-delta frame (see Update)
 
             _eventBus.Publish(new SwitchTimeModeEvent
             {
