@@ -58,6 +58,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// untenable or flanked, as before).</summary>
         [JsonPropertyName("ShootAndMoveSeconds")]
         public float ShootAndMoveSeconds;
+
+        /// <summary>⭐ <c>CE-8327</c> — a RE-SENT order to the point the unit already holds (a flank turn re-plans the posts): the squad takes posts
+        /// from where it stands instead of marching to the centre. false = as ever.</summary>
+        [JsonPropertyName("InPlace")]
+        public bool InPlace;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-46) — one authored fighting position of a <c>SquadDefend</c> order.</summary>

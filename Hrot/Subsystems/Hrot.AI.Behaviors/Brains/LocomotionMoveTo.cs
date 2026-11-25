@@ -37,19 +37,55 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The blend into the moving stance (s).</summary>
         public const float BlendSeconds = 0.3f;
 
+        /// <summary>⭐ <c>CE-8328</c> — how far a squad-mate's contact still puts a man in contact (m): small-arms effective range, a rifle's
+        /// area-fire reach (ATP 3-21.8 / FM 3-21.8: effective range of a rifleman against an area target ≈ 300 m). A contact beyond it is a
+        /// report, not a fight he is in.</summary>
+        public const float SquadContactMetres = 300f;
+
         /// <summary>Threatened = the unit remembers a live contact (seen or heard), or was hit / near-missed within
-        /// <see cref="ShotAtSeconds"/>. Reuses the memory and <see cref="RecentSenses"/>; adds no state.</summary>
+        /// <see cref="ShotAtSeconds"/>, or ⭐ <c>CE-8328</c> his SQUAD is in contact (<see cref="SquadInContact"/>): contact is a UNIT state — every
+        /// member moves by rushes (ATP 3-21.8; Squad Tactics §7.6), also the man whose own memory is empty. Reuses the memory, <see cref="RecentSenses"/>
+        /// and the squad's pool; adds no state.</summary>
         public static unsafe bool Threatened(EntityRepository world, Entity self)
         {
             if (RecentSensesOf.Within(world, self, SensorChange.Hit, ShotAtSeconds)
                 || RecentSensesOf.Within(world, self, SensorChange.NearMiss, ShotAtSeconds)) return true;
-            if (!world.HasComponent<TargetMemory>(self)) return false;
-            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
-            for (int i = 0; i < mem.Count; i++)
+            if (world.HasComponent<TargetMemory>(self))
             {
-                if (TargetMemory.IsAnonymous(in mem, i)) return true;   // heard — "something about here" is a threat
-                var e = new Entity((ulong)mem.EntityIds[i]);
-                if (Injury.IsInTheFight(world, e)) return true;   // in the fight (CE-2120: a corpse is no threat; CE-2318: nor a man down)
+                ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+                for (int i = 0; i < mem.Count; i++)
+                {
+                    if (TargetMemory.IsAnonymous(in mem, i)) return true;   // heard — "something about here" is a threat
+                    var e = new Entity((ulong)mem.EntityIds[i]);
+                    if (Injury.IsInTheFight(world, e)) return true;   // in the fight (CE-2120: a corpse is no threat; CE-2318: nor a man down)
+                }
+            }
+            return SquadInContact(world, self);
+        }
+
+        /// <summary>⭐ <c>CE-8328</c> — his commander's squad pool holds an ENEMY (<see cref="Fdp.Toolkit.Squad.SquadContacts.IsEnemy"/>: alive, in the
+        /// fight, not neutral; a heard one counts) within <see cref="SquadContactMetres"/> of him. 📐 The pool is rebuilt from the members' own
+        /// memories at each merge, so a contact nobody remembers any more is already gone — its freshness rule is the memory's. No allocation.</summary>
+        private static bool SquadInContact(EntityRepository world, Entity self)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>() || !world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(self)) return false;
+            var commander = world.GetComponentRO<Fdp.Core.CommandHierarchy.UnitSubordinate>(self).Commander;
+            if (commander.IsNull || !world.IsAlive(commander) || !world.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(commander)) return false;
+            ref readonly var pool = ref world.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(commander).Contacts;
+            if (pool.Count == 0) return false;
+            bool placed = world.HasComponent<SimTransform>(self);
+            var at = placed ? world.GetComponentRO<SimTransform>(self).Position : default;
+            var span = Fdp.Toolkit.Squad.SquadContacts.Slots(in pool);
+            for (int i = 0; i < pool.Count && i < span.Length; i++)
+            {
+                ref readonly var c = ref span[i];
+                if (!Fdp.Toolkit.Squad.SquadContacts.IsEnemy(world, in c)) continue;
+                if (placed)
+                {
+                    float dx = c.PositionX - at.X, dy = c.PositionY - at.Y;
+                    if (dx * dx + dy * dy > SquadContactMetres * SquadContactMetres) continue;
+                }
+                return true;
             }
             return false;
         }
