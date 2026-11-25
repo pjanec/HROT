@@ -308,7 +308,7 @@ def build():
     rx_, ry_ = P('river-red')
     platoon(s, 'militia-platoon', '57ec0a01', H, 'Riverbank Red Platoon', rx_, ry_, 0,
             behaviour('PlatoonAttack', {'Position': [*W(hx_, hy_), 0], 'SearchRadius': 40, 'Preset': 'AttackPosition', 'Speed': 3}))
-    s.add(unit(104, 'Riverbank Red Technical', H, *P('river-red-technical'), bearing=90, hp=500, extra={'Sop': sop('BasicVehicleSop')}))
+    vehicle_late = ('Riverbank Red Technical', -1262.0, -680.0)   # ⭐ CE-4694 — placed with the other riverbank vehicles below (on the west road)
 
     # ---- VILLAGE: Blue attacks from the east, Red defends the houses ---------------------------------------------------------------
     vx, vy = P('village-red')
@@ -357,7 +357,7 @@ def build():
     vehicle(108, 'Village Red DShK Technical', H, -190, 50, 90, 500)
     # riverbank: a tank each side, on the bank roads
     vehicle(100, 'Riverbank Blue Tank', F, -1063, -580, 270, 3000)
-    vehicle(103, 'Riverbank Red T-72', H, -1262, -640, 0, 2500)   # ⭐ CE-4694 — south of the bridgehead on the west road: support by fire
+    vehicle(103, 'Riverbank Red T-72', H, -1262, -760, 0, 2500)   # ⭐ CE-4694 — ~220 m south of the bridgehead on the west road: support by fire
 
     # ---- STILL MORE (user, 2026-11-24: "more armored vehicles ... more technical vehicles with machine gun on both sides") ----------------------
     # village, Blue: a 4th M1, a 3rd Bradley, a 2nd HMMWV (M2) and two HMG technicals, further back on the same road, all to the support line
@@ -376,10 +376,12 @@ def build():
     vehicle(100, 'Riverbank Blue Tank 2', F, -1070, -510, 270, 3000, move_to(*P('bridgehead-tank')))   # ⭐ CE-4694 — crosses the bridge to the bridgehead
     vehicle(104, 'Riverbank Blue HMG Technical', F, -1050, -600, 270, 500)
     vehicle(102, 'Riverbank Blue HMMWV', F, -1045, -630, 270, 300)
-    # ⭐ CE-4694 — Red's riverbank vehicles support the counter-attack by fire from the west road SOUTH of the bridgehead (they stood on it before)
-    vehicle(103, 'Riverbank Red T-72 2', H, -1262, -628, 0, 2500)
-    vehicle(104, 'Riverbank Red HMG Technical', H, -1260, -615, 0, 500)
-    vehicle(108, 'Riverbank Red DShK Technical', H, -1258, -650, 0, 500)
+    # ⭐ CE-4694 — Red's riverbank vehicles support the counter-attack by fire from the west road 150-250 m SOUTH of the bridgehead (📐 70-100 m away, down the
+    #   same open road, they killed 17 of the bridgehead's 18 men in 150 s — the user's story is that Blue HOLDS the bridgehead)
+    vehicle(103, 'Riverbank Red T-72 2', H, -1262, -790, 0, 2500)
+    vehicle(104, 'Riverbank Red HMG Technical', H, -1262, -700, 0, 500)
+    vehicle(104, vehicle_late[0], H, vehicle_late[1], vehicle_late[2], 0, 500)
+    vehicle(108, 'Riverbank Red DShK Technical', H, -1262, -730, 0, 500)
 
     # ---- TRAFFIC (user: "there are no sumo cars whatsoever") — SUMO background traffic on the terrain's road net (the same demand entity as
     #      demo-city's convoys, cv-traffic-fire); a car near the fighting is abandoned by its driver (CE-1959)
