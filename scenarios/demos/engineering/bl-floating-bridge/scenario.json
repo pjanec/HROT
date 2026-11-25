@@ -60,7 +60,7 @@
    "SimTransform": {
     "Position": [
      80.0,
-     20.0,
+     30.0,
      0.0
     ],
     "Rotation": [
@@ -87,7 +87,7 @@
    "SimTransform": {
     "Position": [
      80.0,
-     0.0,
+     16.0,
      0.0
     ],
     "Rotation": [
@@ -121,7 +121,7 @@
    "SimTransform": {
     "Position": [
      80.0,
-     -14.0,
+     4.0,
      0.0
     ],
     "Rotation": [
