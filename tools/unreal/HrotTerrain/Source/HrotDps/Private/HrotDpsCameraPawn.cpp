@@ -447,7 +447,15 @@ void AHrotDpsCamera::TickInput(float Dt)
 	}
 	else if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bRmb) Selected = PickUnderCursor();
 	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::F) && Selected) Follow(Selected);
-	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::P) && Selected) Possess(Selected);
+	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::P) && Selected) TryPossess(Selected);   // live 2026-11-25: P skipped the menu's check and asked HROT for an un-offered man (NotPlayable)
+	if (!MenuEntity && Mode != EHrotCameraMode::Player)   // the playable units HROT offers this station, by number (the HUD lists them)
+		if (UHrotDpsStation* OSt = UHrotDpsStation::Get(this))
+		{
+			static const FKey OfferKeys[9] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine };
+			const TArray<int32> Ids = OSt->OfferIds();
+			for (int32 K = 0; K < 9 && K < Ids.Num(); ++K)
+				if (PC->WasInputKeyJustPressed(OfferKeys[K])) { Selected = Ids[K]; TryPossess(Ids[K]); break; }
+		}
 	if (PossessWanted && PC->WasInputKeyJustPressed(EKeys::Escape)) { LetGo(); return; }   // a request not taken yet: withdrawn
 
 	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::V)) { if (Mode == EHrotCameraMode::Director) Free(); else Director(); return; }   // U-18p
@@ -541,6 +549,17 @@ void AHrotDpsCamera::MenuChoose(int32 Row)
 }
 
 // ───────────────────────── U-18m: possession ─────────────────────────
+
+void AHrotDpsCamera::TryPossess(int32 EntityId)
+{
+	FString Why;
+	UHrotDpsStation* St = UHrotDpsStation::Get(this);
+	if (St) St->Connect();
+	if (St && St->CanPossess(EntityId, Why)) { Possess(EntityId); return; }
+	Notice = FString::Printf(TEXT("Cannot possess unit %d: %s"), EntityId, St ? *Why : TEXT("no player station"));
+	NoticeAt = FPlatformTime::Seconds();
+	UE_LOG(LogTemp, Display, TEXT("HROT IG: %s"), *Notice);
+}
 
 void AHrotDpsCamera::Possess(int32 EntityId)
 {
