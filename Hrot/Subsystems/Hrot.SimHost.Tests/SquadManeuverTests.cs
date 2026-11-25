@@ -298,6 +298,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8329</c> — before contact the COVERING element of a bound holds from an OPEN POST at its own spot (D-13: prone where there is no
+        /// cover, ATP 3-21.8), not a bare Hold that left it standing crouched in the open. 📐 live village-street-fight: the covering pair of Blue Squad 3
+        /// stood crouched > 5 s while the bounders moved. The movers' orders carry no post. 🔴 Red-proof: the post dropped from the watcher's order ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8329_TheCoveringElement_BeforeContact_HoldsFromAnOpenPost_AtItsOwnSpot()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15}");
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            CombatPostureParamsJsonDto Posture(Entity m) => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+            foreach (var m in s.Members.Skip(2))   // Bravo covers
+            {
+                var post = Posture(m).Post;
+                Assert.True(post.Open, "an open post: prone where there is no cover");
+                Assert.True(Posture(m).Stay);
+                Assert.Equal<Vector3>(s.At(m), post.Point.Local);
+                Assert.Equal(SquadDefendPlay.PostRadius, post.Radius);
+            }
+            foreach (var m in s.Members.Take(2))   // Alpha moves
+                Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture);
+        }
+
         /// <summary>⭐ A mover that never arrives (pinned, lost) does not stall the squad: the bound times out and the other element goes.</summary>
         /// <summary>
         /// ⭐ <c>CE-2157</c> (O-a, Squad Tactics §7.8.1) — the drill trace the debug route reads: the drill and its phase, the history

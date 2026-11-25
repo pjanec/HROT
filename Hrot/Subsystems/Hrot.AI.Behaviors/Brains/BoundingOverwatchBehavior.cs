@@ -272,8 +272,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (!mover)
             {
                 // ⭐ CE-2158 F-c — before contact the watchers watch; on contact they suppress the squad's top contact
+                //   ⭐ CE-8329 — and he watches from an OPEN POST (D-13: prone where there is no cover, ATP 3-21.8: the overwatch element uses cover or
+                //   goes prone) at his own spot — 📐 live village-street-fight: the covering pair stood crouched in the open > 5 s while the bounders moved
                 if (ws.ThreatId == 0)
-                    return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering };
+                    return new MemberOrder
+                    {
+                        Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering,
+                        Post = new MemberPost { Set = 1, Radius = SquadDefendPlay.PostRadius, Open = 1 },
+                    };
                 return new MemberOrder
                 {
                     Kind = MemberOrderKind.Suppress, Target = new Entity((ulong)ws.ThreatId), Point = ws.ThreatPoint, Speed = p.Speed,
