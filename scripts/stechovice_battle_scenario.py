@@ -299,6 +299,12 @@ def build():
            'TerrainFeature': {'Kind': 10, 'Template': '', 'HeadingDeg': 0, 'Pad': 8, 'Seed': 0},
            'SimTransform': {'Position': [*W(wx_, wy_), 0], 'Rotation': [0, 0, 0, 1]},
            'EditablePolyline': {'Points': [{'X': 0, 'Y': 0}, {'X': round(ex_ - wx_, 2), 'Y': round(ey_ - wy_, 2)}], 'Version': 0}}, check=False)
+    # ⭐ CE-4694 ② — the bridge's EAST end lands on an OSM house (way 422408687, 2 storeys, local x 928.5–935.9 y 1590.2–1599.1): its walls stood on the
+    #   north half of the east ramp, leaving the vehicle navmesh a ~1 m strip along the ramp's south edge — a tank was routed along that strip and held
+    #   at the edge. The abutment replaces the house: a base EDIT removes it (CE-5025 BE-1; its footprint levelled at its floor), as an author would
+    s.add({'TkbIdentity': {'TkbType': 8818}, 'EntityInfo': {'Name': 'Remove house at the bridge', 'ForceId': N},
+           'TerrainFeature': {'Kind': 16, 'Template': 'remove', 'HeadingDeg': 0, 'Pad': 0, 'Seed': 0, 'Target': 'w422408687'},
+           'SimTransform': {'Position': [*W(-1088.8, -533.4), 0], 'Rotation': [0, 0, 0, 1]}}, check=False)
     hx_, hy_ = P('bridgehead')
     bridgehead = platoon(s, 'rifle-platoon', '57ec0b03', F, 'Bridgehead Platoon', hx_, hy_, 225,
                          behaviour('PlatoonDefend', {'Position': [*W(hx_, hy_), 0], 'Left': 180, 'Right': 300, 'MaxRange': 300, 'SearchRadius': 25, 'Speed': 2}), hq,
