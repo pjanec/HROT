@@ -3,9 +3,12 @@
   "runFor": 1300,
   "golden": false,
   "anchors": {
-    "charge": {
-      "on": "blast",
-      "by": "Red Sapper"
+    "fell": {
+      "on": "field",
+      "who": "Bridge dropped",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
     }
   },
   "expect": [
@@ -34,8 +37,8 @@
       "is": "MoveToLocation"
     },
     {
-      "name": "held: objective 'Bridge held' Achieved",
-      "unless": "charge",
+      "name": "held: objective 'Bridge held' Achieved (the sapper is out of the fight)",
+      "unless": "fell",
       "on": "field",
       "who": "Bridge held",
       "path": "ObjectiveStatus.State",
@@ -45,7 +48,7 @@
     },
     {
       "name": "held: objective 'Bridge recovered' Achieved (the bridge back on its engineer)",
-      "unless": "charge",
+      "unless": "fell",
       "on": "field",
       "who": "Bridge recovered",
       "path": "ObjectiveStatus.State",
@@ -55,7 +58,7 @@
     },
     {
       "name": "held: the engineer carries its span again",
-      "unless": "charge",
+      "unless": "fell",
       "on": "field",
       "who": "Engineer",
       "path": "BridgeCarried.Count",
@@ -64,18 +67,14 @@
       "atEnd": true
     },
     {
-      "name": "fall: the bridge is gone",
-      "if": "charge",
-      "on": "field",
-      "who": "Bridge gone",
-      "path": "ObjectiveStatus.State",
-      "op": "==",
-      "value": "Achieved",
-      "atEnd": true
+      "name": "fall: the sapper's charge dropped it",
+      "if": "fell",
+      "on": "blast",
+      "by": "Red Sapper"
     },
     {
       "name": "fall: the river is a barrier again - the span is not back on board",
-      "if": "charge",
+      "if": "fell",
       "on": "field",
       "who": "Engineer",
       "path": "BridgeCarried.Count",

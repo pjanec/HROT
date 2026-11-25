@@ -3,7 +3,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-4693 - the WHOLE bridge-laying feature, end to end, judged by OBJECTIVES (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712). On basic-desert a RIVER 12 m wide (y 60-72); Blue must cross it to a far bank held by Red's 'Red Outpost' (three men round (80, 124)). At 2 s 'Engineer' (an assault bridge layer, TKB 118) is ordered to LayBridge from (80, 50) to (80, 82). When the bridge opens, the rule 'Bridge laid' moves the engineer aside and sends squads 'Alpha' and 'Bravo' across; 'Red Sapper' (a demolition man with an 8 kg charge, waiting 540 m away at (300, 560), out of sight) walks in for the deck once Blue holds the far bank, to blow it from ON the deck. Objectives: 'Bridge laid' (an assault bridge Open); 'Far bank seized' (Alpha holds 22 m round (80, 112) for 20 s, no enemy inside); 'Bridge held' (the sapper silenced before he fires); then, once the sapper is dealt with, 'Take the bridge back' orders RecoverBridge and 'Bridge recovered' (no assault bridge left and the span on board again). Judge, held (Blue kills him before he fires): 'Bridge held' and 'Bridge recovered' Achieved, the span back on board; fall (his charge goes off): the bridge gone and the span not back. Either way the bridge was laid and the far bank seized. Check: scripts/scenario-regression.sh bl-river-crossing"
+  "description": "What: CE-4693 - the WHOLE bridge-laying feature, end to end, judged by OBJECTIVES (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712). On basic-desert a RIVER 12 m wide (y 60-72); Blue must cross it to a far bank held by Red's 'Red Outpost' (three men round (80, 124)). At 2 s 'Engineer' (an assault bridge layer, TKB 118) is ordered to LayBridge from (80, 50) to (80, 82). When the bridge opens, the rule 'Bridge laid' moves the engineer aside and sends squads 'Alpha' and 'Bravo' across; 'Red Sapper' (a demolition man with an 8 kg charge, waiting 540 m away at (300, 560), out of sight) walks in for the deck once Blue holds the far bank, to blow it from ON the deck. Objectives: 'Bridge laid' (an assault bridge Open); 'Far bank seized' (Alpha holds 22 m round (80, 112) for 20 s, no enemy inside); 'Bridge held' (the sapper silenced before he fires); then, once the sapper is dealt with, 'Take the bridge back' orders RecoverBridge and 'Bridge recovered' (no assault bridge left and the span on board again). Judge, held (the bridge stands - Blue stops him, or his charge does not drop it): 'Bridge recovered' Achieved, the span back on board; fall ('Bridge dropped': the bridge gone with the span not back): his charge did it and the span stays lost. Either way the bridge was laid and the far bank seized. Check: scripts/scenario-regression.sh bl-river-crossing"
  },
  "entities": {
   "b4693500-0000-4000-8000-000000000000": {
@@ -976,33 +976,69 @@
     "TkbType": 8860
    },
    "EntityInfo": {
-    "Name": "Bridge gone",
+    "Name": "Bridge dropped",
     "ForceId": "Friend"
    },
    "Behavior": {
     "Name": "Trigger",
     "Params": {
      "common": {
-      "title": "Bridge gone",
+      "title": "Bridge dropped",
       "subject": "b4693500-0000-4000-8000-000000000003",
       "startActive": false
      },
      "when": {
-      "$type": "CountMatching",
-      "withComponent": "StaticObstacle",
-      "min": 0,
-      "max": 0,
-      "predicate": {
-       "$type": "PropertyMatch",
-       "componentType": "TkbIdentity",
-       "propertyPath": "TkbType.Value",
-       "operator": "Equals",
-       "predicate": {
-        "$type": "Numeric",
-        "minValue": 8825,
-        "maxValue": 8825
+      "$type": "Compound",
+      "operator": "And",
+      "conditions": [
+       {
+        "$type": "CountMatching",
+        "withComponent": "StaticObstacle",
+        "min": 0,
+        "max": 0,
+        "predicate": {
+         "$type": "PropertyMatch",
+         "componentType": "TkbIdentity",
+         "propertyPath": "TkbType.Value",
+         "operator": "Equals",
+         "predicate": {
+          "$type": "Numeric",
+          "minValue": 8825,
+          "maxValue": 8825
+         }
+        }
+       },
+       {
+        "$type": "OnEntity",
+        "ref": "b4693500-0000-4000-8000-000000000003",
+        "predicate": {
+         "$type": "PropertyMatch",
+         "componentType": "BridgeCarried",
+         "propertyPath": "Count",
+         "operator": "Equals",
+         "predicate": {
+          "$type": "Numeric",
+          "minValue": 0,
+          "maxValue": 0
+         }
+        }
+       },
+       {
+        "$type": "OnEntity",
+        "ref": "b4693500-0000-4000-8000-000000000003",
+        "predicate": {
+         "$type": "PropertyMatch",
+         "componentType": "BridgeCarried",
+         "propertyPath": "Order",
+         "operator": "Equals",
+         "predicate": {
+          "$type": "Numeric",
+          "minValue": 0,
+          "maxValue": 0
+         }
+        }
        }
-      }
+      ]
      },
      "do": []
     },
