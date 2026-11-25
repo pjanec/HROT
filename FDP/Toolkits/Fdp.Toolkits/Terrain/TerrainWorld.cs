@@ -466,7 +466,7 @@ namespace Fdp.Toolkit.Terrain
         /// ⭐ <c>CE-4692</c> BL-12 — true when (<paramref name="x"/>, <paramref name="y"/>) lies on a STANDING laid-bridge deck walkable whose surface there is within <see cref="LevelMergeDistance"/>
         /// of <paramref name="z"/> (what a hull at that height rests on). Allocation-free; false at once in a world with no decks.
         /// </summary>
-        public bool OnDeck(float x, float y, float z, DoorStates? doors) => DeckUnder(x, y, z, doors, slabOnly: false) >= 0;
+        public bool OnDeck(float x, float y, float z, DoorStates? doors) => !float.IsNaN(DeckHeight(x, y, z, doors));
 
         /// <summary>
         /// ⭐ <c>CE-4692</c> BL-9 — the laid bridge (its obstacle's entity index) whose deck walkable lies under (<paramref name="x"/>, <paramref name="y"/>) with its surface within
@@ -496,20 +496,34 @@ namespace Fdp.Toolkit.Terrain
         /// if several; NaN for none. What a HULL POINT there rests on: a vehicle is never under a deck, so a corner inside one is on it — 📐 measured live (bl-placed-bridge): a tank's
         /// front corner 0.75 m up the ramp, read with the hull centre's height as the hint, was "out of reach", read the ground, and its trace ran through the ramp. Allocation-free.
         /// </summary>
-        public float DeckSurfaceAt(float x, float y, DoorStates? doors)
+        public float DeckSurfaceAt(float x, float y, DoorStates? doors) => DeckHeight(x, y, float.NaN, doors);
+
+        /// <summary>
+        /// ⭐ <c>CE-4694</c> ② — a BRIDGE DECK walkable: a laid bridge's (<see cref="TerrainWalkable.Obstacle"/>) or an AUTHORED bridge's (a part of a STRUCTURE building, O-2 — no
+        /// storeys; a house's slabs belong to a building with storeys). 📐 Found live (stechovice-battle): the hull-point rule (CE-4692) held only for laid decks, so a tank met an
+        /// authored bridge's ramp as a wall at its foot (FailedBlocked) — the same defect, the other kind of bridge.
+        /// </summary>
+        public bool IsDeck(TerrainWalkable w) => w.Obstacle >= 0 || ((uint)w.Building < (uint)Buildings.Count && Buildings[w.Building].Structure);
+
+        /// <summary>The height of the highest STANDING deck (laid or authored: <see cref="IsDeck"/>; a fallen laid one, a collapsed authored one skipped) whose plan footprint holds
+        /// (x, y) — within <see cref="LevelMergeDistance"/> of <paramref name="z"/>, or at any height when it is NaN; NaN for none. Allocation-free.</summary>
+        private float DeckHeight(float x, float y, float z, DoorStates? doors)
         {
             if (!HasObstacleDecks) return float.NaN;
             var p = new Vector2(x, y);
             float best = float.NaN;
+            var dmg = doors?.Damage;
             using var cand = PointCandidates(x, y);
             for (int k = 0; k < cand.WalkableCount; k++)
             {
                 var w = Walkables[cand.Walkable(k)];
-                if (w.Obstacle < 0 || DeckGone(w, doors) || !InBox(p, w.Min, w.Max)) continue;
+                if (!IsDeck(w) || DeckGone(w, doors) || (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) || !InBox(p, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
                     float? h = PolygonMath.HeightOnTriangle(x, y, w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
-                    if (h.HasValue) { if (float.IsNaN(best) || h.Value > best) best = h.Value; break; }
+                    if (!h.HasValue) continue;
+                    if ((float.IsNaN(z) || MathF.Abs(h.Value - z) <= LevelMergeDistance) && (float.IsNaN(best) || h.Value > best)) best = h.Value;
+                    break;
                 }
             }
             return best;
@@ -520,7 +534,7 @@ namespace Fdp.Toolkit.Terrain
         {
             get
             {
-                if (_hasDecks == 0) { _hasDecks = 2; foreach (var w in Walkables) if (w.Obstacle >= 0) { _hasDecks = 1; break; } }
+                if (_hasDecks == 0) { _hasDecks = 2; foreach (var w in Walkables) if (IsDeck(w)) { _hasDecks = 1; break; } }   // ⭐ CE-4694 — an authored bridge's deck too
                 return _hasDecks == 1;
             }
         }
