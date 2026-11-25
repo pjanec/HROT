@@ -24,7 +24,8 @@ internal static class TerrainFolderWriter
 
     public static void WriteWorld(string path, string description, double width, double height, string? heightGrid,
                                   IReadOnlyList<(IReadOnlyList<(double X, double Y)> Ring, string? Kind)> water, IReadOnlyList<Wood> woods,
-                                  IReadOnlyList<BuiltBuilding> buildings, IReadOnlyList<WorldWall> walls, IReadOnlyList<(double X, double Y)> trees)
+                                  IReadOnlyList<BuiltBuilding> buildings, IReadOnlyList<WorldWall> walls, IReadOnlyList<(double X, double Y)> trees,
+                                  IReadOnlyList<EntranceSteps.Ramp>? entrances = null)
     {
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16);
         using var w = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = false });
@@ -75,6 +76,15 @@ internal static class TerrainFolderWriter
                 Feature(() => { w.WriteString("kind", "building"); w.WriteNumber("height", b.CapHeight); w.WriteNumber("baseZ", b.CapBaseZ); w.WriteNumber("floors", 0);
                                 w.WriteString("material", b.Material); w.WriteString("label", b.Id + "-roof"); }, "Polygon", () => Ring(b.Ring));
         }
+        // ⭐ CE-5056 ④ — the entrance ramps: ground-relative (each vertex's z is its height above the ground under it; the foot's 0 is buried by the parser)
+        foreach (var r in entrances ?? Array.Empty<EntranceSteps.Ramp>())
+            Feature(() => { w.WriteString("kind", "ramp"); w.WriteString("zRef", "ground"); w.WriteString("label", r.Building + "-steps"); }, "Polygon", () =>
+            {
+                w.WriteStartArray("coordinates"); w.WriteStartArray();
+                void V((double X, double Y) p, double z) { w.WriteStartArray(); w.WriteNumberValue(Math.Round(p.X, 3)); w.WriteNumberValue(Math.Round(p.Y, 3)); w.WriteNumberValue(z); w.WriteEndArray(); }
+                V(r.TopA, r.TopAboveA); V(r.TopB, r.TopAboveB); V(r.FootB, 0); V(r.FootA, 0); V(r.TopA, r.TopAboveA);
+                w.WriteEndArray(); w.WriteEndArray();
+            });
         foreach (var wl in walls)
             Feature(() => { w.WriteString("kind", wl.Kind); w.WriteNumber("height", wl.Height); w.WriteNumber("thickness", wl.Thickness); w.WriteString("material", wl.Material); },
                     "LineString", () =>
