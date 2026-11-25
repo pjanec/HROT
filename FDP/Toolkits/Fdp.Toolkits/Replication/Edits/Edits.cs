@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Replication.Attributes;
@@ -40,33 +41,16 @@ namespace Fdp.Toolkit.Replication.Edits
                 return new EditTicket(refusedId, EntityWriteRoute.Refused);
             }
 
-            // ⭐ Edit-mode undo U2 — an accepted authoring edit is one undo step (nested inside a bracket a gizmo opened, it joins that step).
-            //    Orders and interactions are not world authoring (and are refused in Edit mode anyway).
-            bool step = op.Kind is not (EditKind.Command or EditKind.Interact);
-            if (step) EditSteps.Begin(repo, op.Label);
-            EditTicket ticket;
-            try
-            {
-            ticket = op.Kind switch
-            {
-                EditKind.Write when op.IsCommanderWrite => WriteCommander(repo, op, netId),
-                EditKind.Write when op.Changes != null => EditRequests.Write(repo, op.Target, op.Changes),
-                EditKind.Write when op.PatchJson != null => EditRequests.WriteJson(repo, op.Target, op.PatchJson),
-                EditKind.Write => throw new ArgumentException("A Write op carries Changes, a PatchJson or a commander.", nameof(op)),
-                EditKind.Create => Create(op),
-                EditKind.Interact => Create(op),
-                EditKind.Command => Create(op),    // ⭐ F5 (CE-4306): an order — the host's intent event sent under a fresh id; the brain's owner answers
-                EditKind.Commit => Create(op),     // ⭐ F6: likewise; the version precondition rides in the host's command   // ⭐ F4: the same shape — the host's command sent under a fresh id; its executor answers
-                EditKind.Delete => Delete(repo, op, netId),
-                EditKind.AddComponent => ComponentEdit(repo, op, netId, add: true),
-                EditKind.RemoveComponent => ComponentEdit(repo, op, netId, add: false),
-                _ => throw new NotSupportedException($"Edits.Submit: the {op.Kind} kind is not built yet (edit framework F2–F6)."),
-            };
-            }
-            finally
-            {
-                if (step) EditSteps.End(repo);
-            }
+            // ⭐⭐ CE-11060 — a THREADED node's presentation world (A, a SimLink to the simulation world S): an edit that writes the world (a write, a
+            //   deletion, a component added / removed) is ROUTED ON THE SIM THREAD, against S, by this same code — posted to the ONE sim job queue
+            //   (D-5, the threaded work inventory's U-2). 📐 Before it, the form's write landed on A, the UI's copy, and the next staging pull of a
+            //   changed chunk put S's value back (the user: "every change was reverted, if not immediately then when unpaused").
+            //   The kinds that only SEND a host's event (create, interact, order, commit) stay here: their delegate publishes on A's bus, and the
+            //   staging uplink already carries it to S.
+            if (RoutesOnTheSimWorld(op.Kind) && Fdp.Core.Threading.SimJobs.LinkOf(repo) is { } link && !link.Jobs.OnSimThread)
+                return SubmitOnTheSimWorld(repo, link, op, netId, mode);
+
+            var ticket = Route(repo, op, netId, Guid.NewGuid());
 
             var e = EditJournal.Of(repo).Append(ticket.RequestId, op, netId, mode);
             if (EditOutcomeLog.Of(repo).TryGet(ticket.RequestId, out var known))   // what this node already knows (Applied here, Refused, a deferred Pending)
@@ -76,11 +60,74 @@ namespace Fdp.Toolkit.Replication.Edits
             return ticket;
         }
 
-        /// <summary>⭐ F2 — the host's creation affordance sends the request under a fresh id; the processing node's request system answers (Pending, then
-        /// Applied with the new entity's id, or Refused with the reason).</summary>
-        private static EditTicket Create(EditOp op)
+        /// <summary>The kinds that write the world, and so must run where the world is written (the sim thread, on a threaded node).</summary>
+        private static bool RoutesOnTheSimWorld(EditKind kind)
+            => kind is EditKind.Write or EditKind.Delete or EditKind.AddComponent or EditKind.RemoveComponent;
+
+        /// <summary>
+        /// ⭐ CE-11060 — the threaded form of <see cref="Submit"/>: the ticket is minted and journaled HERE (the UI's station journal, Pending); the route runs on
+        /// the sim thread against the simulation world under the SAME request id, and the outcome it knows at once (Applied here, Refused, a deferred
+        /// Pending) comes back to this world's <see cref="EditOutcomeLog"/> by the job's reply. A later answer (an owner elsewhere, a judge) is reported on S and
+        /// reaches this log through <see cref="EditOutcomes.MirrorFromBus"/>. The caller reads <see cref="EntityWriteRoute.Requested"/>: the outcome is not known yet.
+        /// </summary>
+        private static EditTicket SubmitOnTheSimWorld(EntityRepository ui, Fdp.Core.Threading.SimLink link, EditOp op, int netId, string mode)
         {
             var id = Guid.NewGuid();
+            var entry = EditJournal.Of(ui).Append(id, op, netId, mode);
+            entry.Status = EditStatus.Pending;
+            var sent = op.Changes is { } changes ? op with { Changes = Copy(changes) } : op;   // the caller may reuse its list: the job keeps its own
+            link.Jobs.Post(sim =>
+            {
+                int simNetId = sim.IsAlive(sent.Target) ? NetworkIdResolver.RuntimeNetworkIdOf(sim, sent.Target) : 0;
+                Route(sim, sent, simNetId, id);
+                if (!EditOutcomeLog.Of(sim).TryGet(id, out var known)) return null;   // Requested: the owner answers later
+                return presentation => EditOutcomes.Mirror(presentation, known);
+            }, "edit: " + op.Label);
+            return new EditTicket(id, EntityWriteRoute.Requested);
+        }
+
+        private static EntityAttributeChange[] Copy(IReadOnlyList<EntityAttributeChange> changes)
+        {
+            var copy = new EntityAttributeChange[changes.Count];
+            for (int i = 0; i < copy.Length; i++) copy[i] = changes[i];
+            return copy;
+        }
+
+        /// <summary>The kind's route on <paramref name="repo"/> under request id <paramref name="id"/>, inside one undo step (U2).</summary>
+        private static EditTicket Route(EntityRepository repo, EditOp op, int netId, Guid id)
+        {
+            // ⭐ Edit-mode undo U2 — an accepted authoring edit is one undo step (nested inside a bracket a gizmo opened, it joins that step).
+            //    Orders and interactions are not world authoring (and are refused in Edit mode anyway).
+            bool step = op.Kind is not (EditKind.Command or EditKind.Interact);
+            if (step) EditSteps.Begin(repo, op.Label);
+            try
+            {
+                return op.Kind switch
+                {
+                    EditKind.Write when op.IsCommanderWrite => WriteCommander(repo, op, netId, id),
+                    EditKind.Write when op.Changes != null => EditRequests.Write(repo, op.Target, op.Changes, id),
+                    EditKind.Write when op.PatchJson != null => EditRequests.WriteJson(repo, op.Target, op.PatchJson, id),
+                    EditKind.Write => throw new ArgumentException("A Write op carries Changes, a PatchJson or a commander.", nameof(op)),
+                    EditKind.Create => Create(op, id),
+                    EditKind.Interact => Create(op, id),
+                    EditKind.Command => Create(op, id),    // ⭐ F5 (CE-4306): an order — the host's intent event sent under a fresh id; the brain's owner answers
+                    EditKind.Commit => Create(op, id),     // ⭐ F6: likewise; the version precondition rides in the host's command   // ⭐ F4: the same shape — the host's command sent under a fresh id; its executor answers
+                    EditKind.Delete => Delete(repo, op, netId, id),
+                    EditKind.AddComponent => ComponentEdit(repo, op, netId, add: true, id),
+                    EditKind.RemoveComponent => ComponentEdit(repo, op, netId, add: false, id),
+                    _ => throw new NotSupportedException($"Edits.Submit: the {op.Kind} kind is not built yet (edit framework F2–F6)."),
+                };
+            }
+            finally
+            {
+                if (step) EditSteps.End(repo);
+            }
+        }
+
+        /// <summary>⭐ F2 — the host's creation affordance sends the request under a fresh id; the processing node's request system answers (Pending, then
+        /// Applied with the new entity's id, or Refused with the reason).</summary>
+        private static EditTicket Create(EditOp op, Guid id)
+        {
             op.Send!(id);
             return new EditTicket(id, EntityWriteRoute.Requested);
         }
@@ -89,9 +136,8 @@ namespace Fdp.Toolkit.Replication.Edits
         /// ⭐ F2 (CE-4276) — a deletion with the request id end to end: a <c>DestroyEntityCommand</c> carrying it. On the owner it is torn down here
         /// (Applied at once); elsewhere the egress asks the owner and the replica stays until the owner's dispose removes it.
         /// </summary>
-        private static EditTicket Delete(EntityRepository repo, EditOp op, int netId)
+        private static EditTicket Delete(EntityRepository repo, EditOp op, int netId, Guid id)
         {
-            var id = Guid.NewGuid();
             int node = EditOutcomes.LocalNodeOf(repo, op.Target);
             if (!repo.IsAlive(op.Target))
             {
@@ -115,9 +161,8 @@ namespace Fdp.Toolkit.Replication.Edits
         }
 
         /// <summary>⭐ F3 — the owner adds / removes the component here; a non-owner asks it with the <see cref="ComponentEdits.PatchKey"/> patch (the CommanderId shape).</summary>
-        private static EditTicket ComponentEdit(EntityRepository repo, EditOp op, int netId, bool add)
+        private static EditTicket ComponentEdit(EntityRepository repo, EditOp op, int netId, bool add, Guid id)
         {
-            var id = Guid.NewGuid();
             int node = EditOutcomes.LocalNodeOf(repo, op.Target);
             if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, op.Target))
             {
@@ -138,9 +183,8 @@ namespace Fdp.Toolkit.Replication.Edits
         /// key <c>UpdateEntityAttributeRequestSystem</c>'s intercept checks) applies it here; any other node asks the owner. ⚠ Not <see cref="EditRequests.WriteJson"/>
         /// alone: a networkless host has no system that applies a JSON patch, so the owner-local case is applied directly, as the binary router does.
         /// </summary>
-        private static EditTicket WriteCommander(EntityRepository repo, EditOp op, int netId)
+        private static EditTicket WriteCommander(EntityRepository repo, EditOp op, int netId, Guid id)
         {
-            var id = Guid.NewGuid();
             var sub = op.Target;
             int node = EditOutcomes.LocalNodeOf(repo, sub);
             if (!repo.IsAlive(sub))

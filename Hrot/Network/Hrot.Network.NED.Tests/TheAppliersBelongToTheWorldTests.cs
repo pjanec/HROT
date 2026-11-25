@@ -136,6 +136,131 @@ public class TheAppliersBelongToTheWorldTests
         Assert.Equal(3f, p.Z);                                               // Z not sent ⇒ kept
     }
 
+    // ══ ⭐⭐ CE-11060 — the ONE edit entry (Edits.Submit) on a threaded node: the Details form, the Unit form's Strength, every other Submit caller ══
+
+    /// <summary>Two worlds as the threaded node composes them: S (the simulation, owns the man) and A (the UI's copy, a SimLink to S), the man at
+    /// the same handle in both, dead (Health 0 / 100). The job queue's replies run on A when <see cref="UiOutbox.RunAll"/> plays the next pull.</summary>
+    private static (EntityRepository Sim, EntityRepository Ui, Entity Man, Fdp.Core.Threading.SimJobQueue Jobs, UiOutbox Outbox) DeadManInTwoWorlds()
+    {
+        var sim = WorldWithGeo(); var ui = WorldWithGeo();
+        Entity man = default;
+        foreach (var w in new[] { sim, ui })
+        {
+            man = w.CreateEntity();
+            w.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            w.SetAuthority<Fdp.Toolkit.Combat.Components.Health>(man, true);   // this node owns him (the editor's one node)
+        }
+        var jobs = new Fdp.Core.Threading.SimJobQueue();
+        var outbox = new UiOutbox(ui);
+        jobs.Outbox = outbox;
+        ui.SetSingletonManaged(new Fdp.Core.Threading.SimLink(jobs, sim));
+        return (sim, ui, man, jobs, outbox);
+    }
+
+    private sealed class UiOutbox : Fdp.Core.Threading.IPresentationOutbox
+    {
+        private readonly EntityRepository _ui;
+        private readonly System.Collections.Generic.List<System.Action<EntityRepository>> _queued = new();
+        public UiOutbox(EntityRepository ui) => _ui = ui;
+        public void Post(System.Action<EntityRepository> onPresentation) => _queued.Add(onPresentation);
+        public void RunAll() { foreach (var a in _queued) a(_ui); _queued.Clear(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-11060 — 📐 found by the user (`2026-11-25`): <i>"i was able to edit the fields, every change was reverted (if not immediately then when unpaused)"</i>
+    /// — setting a dead soldier's Health in the Details panel. The form's write (<c>FormView.Commit</c> → <c>Edits.Submit</c> → <c>EditRequests.Write</c>) built its
+    /// writer on the world it was given — A, the UI's copy — so it landed there, reported <i>applied</i>, and the next staging pull of a changed chunk put S's 0
+    /// back. Now: the ticket answers Requested at once, nothing touches A, the sim thread writes S under the SAME request id, and the outcome reaches A's log
+    /// (the form's pending mark turns into applied) and A's journal entry.
+    /// 🔴 Red-proof (run): without the threaded branch in <c>Edits.Submit</c> ⇒ the route is Direct, A holds 50 and S keeps 0.
+    /// </summary>
+    [Fact]
+    public void CE11060_TheFormsHealthWrite_OnAThreadedNode_LandsOnTheSimulationWorld_AndItsOutcomeReachesTheUi()
+    {
+        var (sim, ui, man, jobs, outbox) = DeadManInTwoWorlds();
+        using (sim) using (ui)
+        {
+            var ticket = Fdp.Toolkit.Replication.Edits.Edits.Submit(ui,
+                Fdp.Toolkit.Replication.Edits.EditOp.Write(man, EntityAttributeChange.Double(AttributeIds.HealthCurrent, 50), "Set strength"));
+
+            Assert.Equal(EntityWriteRoute.Requested, ticket.Route);
+            Assert.Equal(0f, ui.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(man).Current);    // ⛔ never written on the UI's copy
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Pending, Fdp.Toolkit.Replication.Edits.EditJournal.Of(ui).Find(ticket.RequestId)!.Status);
+
+            jobs.Drain(sim);   // the sim thread, between two ticks — paused or not
+            Assert.Equal(0, jobs.Faults);
+            Assert.Equal(50f, sim.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(man).Current);
+            Assert.False(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(ui).TryGet(ticket.RequestId, out _));   // not before the pull
+
+            outbox.RunAll();   // the next pull
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(ui).TryGet(ticket.RequestId, out var o));
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Applied, o.Status);
+            Fdp.Toolkit.Replication.Edits.EditJournal.Of(ui).Refresh(ui);
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Applied, Fdp.Toolkit.Replication.Edits.EditJournal.Of(ui).Find(ticket.RequestId)!.Status);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11060 — a write the simulation world REFUSES (the man is not owned here and nobody can be asked) comes back to the UI as refused, under the
+    /// ticket's id — the form turns its pending mark into ✗ with the reason (<c>FormView.StateOf</c> reads the log).
+    /// </summary>
+    [Fact]
+    public void CE11060_AThreadedWriteTheSimulationRefuses_IsReportedOnTheUiUnderTheSameTicket()
+    {
+        var (sim, ui, man, jobs, outbox) = DeadManInTwoWorlds();
+        using (sim) using (ui)
+        {
+            sim.SetAuthority<Fdp.Toolkit.Combat.Components.Health>(man, false);   // owned elsewhere, and this world has no network to ask through
+            var ticket = Fdp.Toolkit.Replication.Edits.Edits.Submit(ui,
+                Fdp.Toolkit.Replication.Edits.EditOp.Write(man, EntityAttributeChange.Double(AttributeIds.HealthCurrent, 50), "Set strength"));
+            jobs.Drain(sim);
+            outbox.RunAll();
+
+            Assert.Equal(0f, sim.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(man).Current);
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(ui).TryGet(ticket.RequestId, out var o));
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Refused, o.Status);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11060 — a LATER answer (an owner on another node, a judge) is reported on the simulation world and the staging carries the event onto the UI
+    /// world's bus; <c>EditOutcomes.MirrorFromBus</c> (once per pull) takes it into the UI's log — once, however often it is carried.
+    /// </summary>
+    [Fact]
+    public void CE11060_ALaterOutcomeCarriedOntoTheUiBus_IsTakenIntoTheUiLog_Once()
+    {
+        using var ui = WorldWithGeo();
+        var id = System.Guid.NewGuid();
+        var answer = Fdp.Toolkit.Replication.Edits.EditOutcome.Create(id, 7, Fdp.Toolkit.Replication.Edits.EditStatus.Applied, "applied on node 2", 2, 0d, fromNetwork: true);
+        ui.Bus.RegisterManaged<Fdp.Toolkit.Replication.Edits.EditOutcome>();
+        ui.Bus.PublishManaged(answer);
+        ui.Bus.SwapBuffers();   // the staging pull makes the carried events readable
+
+        Fdp.Toolkit.Replication.Edits.EditOutcomes.MirrorFromBus(ui);
+        Fdp.Toolkit.Replication.Edits.EditOutcomes.MirrorFromBus(ui);
+
+        Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(ui).TryGet(id, out var o));
+        Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Applied, o.Status);
+        Assert.Equal(1, Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(ui).Count);
+    }
+
+    /// <summary>
+    /// ⭐ CE-11060 — the kinds that only SEND a host's event (create, interact, order, commit) stay on the UI thread: their delegate publishes on A's bus, which
+    /// the staging uplink carries to S. ⛔ Running it on the sim thread would publish on A's bus from the wrong thread.
+    /// </summary>
+    [Fact]
+    public void CE11060_AnEventSendingEdit_StaysOnTheUiThread()
+    {
+        var (sim, ui, _, jobs, _) = DeadManInTwoWorlds();
+        using (sim) using (ui)
+        {
+            System.Guid sent = default;
+            var ticket = Fdp.Toolkit.Replication.Edits.Edits.Submit(ui, Fdp.Toolkit.Replication.Edits.EditOp.Create(id => sent = id, "Place"));
+            Assert.Equal(ticket.RequestId, sent);   // sent at once, here — before any job ran
+            Assert.Equal(2, jobs.Pending);           // only its undo bracket (EditSteps forwards begin / end to S, CE-4342) — no route job
+        }
+    }
+
     /// <summary>
     /// ⭐⭐⭐ <b>The write router SHARES the world's instance — it does not build its own.</b>
     /// ⭐ Asserted on the CONSTRUCTED OBJECT, which is the control that caught <c>AX-012</c>.

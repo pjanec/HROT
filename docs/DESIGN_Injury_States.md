@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13
+updated: 2026-11-25 (§9 REVIVE — design for approval, ui, CE-11061) · 2026-10-13
 build-state: BUILT (I-a) — I1–I6 approved 2026-10-13 (R-2011); behaviors lane; CE-2155; I-b wounded SPEED built 2026-10-14 (ui, CE-1082: WoundedSpeedFactor 0.6, DESIGN_Map_3D_Mode §6m); wounded AIM still open
-current-answer: §8 I-a as built · §8a CE-2318 (a man down is no target, and lies) · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
+current-answer: ⭐ §9 REVIVE (design, leans RV-1…RV-5) · §8 I-a as built · §8a CE-2318 (a man down is no target, and lies) · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
 stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — a man down is still moved and turned by collision avoidance — CE-2321 (backend). ⛔ SUPERSEDED: "§6 I4 'units stop shooting him' does NOT hold" — fixed 2026-10-20 by CE-2318, §8a.
 known-conflict: none
 related-designs:
+  - UX/DESIGN_Edit_Framework.md — OWNS Edits.Submit and its kinds; §9 adds the Revive kind in the F3 shape
+  - UX/DESIGN_Details_Forms.md — OWNS the Unit form; §9 adds the Strength row's trailing Revive action
   - DESIGN_Man_Downed_Event.md — OWNS the ONE event raised when a HIT moves a man out of the fight (CE-3364): the downing, with who fired, read by kills / assists / team kills
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS hit location: limb wounds derived from PartDamage like the states here from Health (HL-7), filling this file's open wounded AIM
@@ -186,3 +188,117 @@ it (like if aiming at still standing figure)."* I4 said units stop shooting him;
 | rails | `InjuryTests.CE2318_AManDown_LiesProne_SoTheAimPointIsTheLyingBody` · `AimAndFireExecutorTests.CE2318_AimAndFire_ReportsSuccess_WhenTheTargetIsDown` · `TacticsTreesTests.CE2318_AnIncapacitatedEnemy_IsNoLongerTheThreat_NorAThreatToMoveFrom` — each red-proofed by putting the old test back |
 | what would change it | a doctrine of *"make sure"* fire on the downed (I4's own condition) — then a play asks for it explicitly; an operator's own shot is not gated (`AimAndFire`'s operator path returns before the test) |
 
+
+## 9. REVIVE — one action that puts a man back in the fight *(`2026-11-25`, ui, `CE-11061`; DESIGN — for the user's approval)*
+
+🔒 User, `2026-11-25`: *"I do not want any hacks like that health edit from low to high automatically changes other fields; what would help is the
+'revive' icon or something that tells the entity to do whatever needed to make it operational again."* ⇒ **R-11021**: typing a number in Strength sets
+ONLY `Health.Current` (`FormAttributeInstaller.cs:19`, unchanged); putting a man back in the fight is its OWN action, one body, run by his owner.
+📐 Why a number alone is not enough (measured): death strips `CanMove` / `CanShoot` (`CombatLife.ApplyHitCapabilities`) and nothing gives them back on a
+Health raise — only a LOWERED part damage does (`FormAttributes.cs:241`); a value under the incapacitation line bleeds back to 0 (`BleedOutSystem`); his
+task was dropped at death (`BrainTickSystem.RetireTheDead`, `:488`).
+
+**INVENTORY** *(graph CLI `search_graph`, `2026-11-25`)*: `.*Reviv.*` (3 — doc sections only, none a feature) · `.*Resurrect.*` (1, a doc heading) · `.*Restore.*Capabilit.*` (1 — `CombatLife.RestoreHitCapabilities`, reused) · `.*Heal.*` (docs only); + grep `reviv|alive again|RestoreHitCapabilities` — the one give-back is the part-damage path (`FormAttributes.cs:241`); `HealthStateSinceSystem.cs:39` already clears the kill kind when Health rises. ⇒ nothing to extend but `CombatLife`; coverage could not be checked (CLI).
+
+**Mockup:** [`UX/revive-visual.svg`](UX/revive-visual.svg) (`scripts/gen-revive-mockup.py`) — scope: the Strength row's trailing button only.
+
+```mermaid
+classDiagram
+    class CombatLife {
+        <<static, EXISTS Fdp.Toolkits/Combat>>
+        +ApplyHitCapabilities(repo, e, health)
+        +RestoreHitCapabilities(repo, e, health)
+        +Revive(repo, e) string? NEW
+    }
+    class Edits {
+        <<static, EXISTS>>
+        +Submit(repo, op) EditTicket
+    }
+    class EditOp {
+        <<record, EXISTS>>
+        +Revive(target, label)$ EditOp NEW
+    }
+    class ComponentEdits {
+        <<static, EXISTS — the F3 shape>>
+        +PatchKey "$component"
+    }
+    class ReviveEdits {
+        <<static, NEW Fdp.Toolkits/Replication/Edits>>
+        +PatchKey "$revive"
+        +Patch() string
+    }
+    class UpdateEntityAttributeRequestSystem {
+        <<EXISTS Hrot.Network.NED — the owner's intercept, :255>>
+    }
+    class FormField {
+        <<EXISTS Fdp.Presentation/Forms>>
+        +Action FieldAction? NEW trailing button
+    }
+    class HrotForms_Unit {
+        <<EXISTS — the Strength row>>
+    }
+    Edits ..> CombatLife : owner here ⇒ Revive
+    Edits ..> ReviveEdits : owner elsewhere ⇒ ask with the patch
+    UpdateEntityAttributeRequestSystem ..> ReviveEdits : intercepts PatchKey
+    UpdateEntityAttributeRequestSystem ..> CombatLife : Revive on the owner
+    HrotForms_Unit --> FormField : Strength row carries the Revive action
+    FormField ..> Edits : Submit(EditOp.Revive)
+    ComponentEdits <.. ReviveEdits : same shape (precedent)
+```
+*What the picture shows that prose hid:* ONE body (`CombatLife.Revive`) and TWO ways to reach it — here, or at the owner through the request system's
+intercept, exactly the F3 component add / remove shape (`Edits.cs` `ComponentEdit`, `UpdateEntityAttributeRequestSystem.cs:255`). ⛔ No new wire type.
+
+```mermaid
+sequenceDiagram
+    actor U as user (Details, Unit form)
+    participant A as UI world A (threaded copy)
+    participant Q as sim job queue (CE-11060)
+    participant S as sim world S (this node)
+    participant O as the man's owner node (when not S)
+    U->>A: click Revive (Strength row)
+    A->>A: Edits.Submit(EditOp.Revive) — gate (Review refuses), journal Pending
+    A->>Q: post the route (threaded node)
+    Q->>S: route on the sim thread, same request id
+    alt S owns his Health (the editor's one node)
+        S->>S: CombatLife.Revive — Health = Max, wounds / stun / bleed / own fire cleared, CanMove / CanShoot per his type
+        S-->>A: outcome Applied (job reply)
+    else owned elsewhere (a CGF brain)
+        S->>O: UpdateEntityAttributeCommand {"$revive":true} + request id
+        O->>O: intercept ⇒ CombatLife.Revive
+        O-->>S: EditOutcome Applied (wire) ⇒ S's bus ⇒ A's log (MirrorFromBus)
+    end
+    Note over S,O: next frames — HealthStateSince stamps "alive since", the brain is idle (his task was dropped at death) and takes orders again
+```
+
+```mermaid
+graph TD
+    UF["Unit form (HrotForms.Unit) — Editor, CGF, SimHost stations"] -->|click| SUB["Edits.Submit"]
+    SUB -->|threaded| JQ["SimJobQueue — drained by StagedPresentation.Step every wall frame, paused or not"]
+    SUB -->|serial / headless| RT["route on this world"]
+    JQ --> RT
+    RT -->|owner here| REV["CombatLife.Revive"]
+    RT -->|owner elsewhere| REQ["UpdateEntityAttributeRequestSystem (NED pack) on the owner"]
+    REQ --> REV
+    REV -.->|next frame| HSS["HealthStateSinceSystem (HealthApplication)"]
+    REV -.->|next frame| BTS["BrainTickSystem — task already dropped; idle"]
+```
+*Caption:* who runs what each frame — the request intercept lives in the NED pack, so a networkless world (the editor's one node, a test) revives on the
+first branch and never needs it.
+
+### 9.1 Decisions — leans for approval
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| RV-1 | what Revive restores | **Health = Max; his own wounds (`PartDamage`), stun / knock-down (`EffectState`), bleeding (`BleedOut`) and his own fire (`FireState` on HIM) cleared; `CanMove` / `CanShoot` given back by `RestoreHitCapabilities` (his type's grants, seat, carry rules kept)** | keep the current number and only un-strip — a dead man at 0 cannot be "operational"; a chosen health — the Strength field already sets any number after |
+| RV-2 | when it is offered | **while he is not Ok: wounded, incapacitated or dead** (one button, tooltip names what it does) — and on every entity with `Health` + `ActorCapabilityState` (men; a vehicle has none ⇒ not offered here) | only when dead — an incapacitated man bleeding out is the commonest case |
+| RV-3 | the brain | **nothing extra: he stands up idle** (his task was dropped at death, `RetireTheDead`) and takes the next order / his doctrine's choice. ⚠ To measure in the build: whether his `UnitIntent` (R-3119) re-issues by itself; if not, a follow-up row | re-issue his last task — it may be long stale; reset the whole brain — loses his memory and knowledge for no gain |
+| RV-4 | how it reaches the owner | **an edit kind `Revive` through `Edits.Submit`** — owner here ⇒ `CombatLife.Revive`; else the `$revive` patch the request system intercepts (the F3 `$component` precedent) — outcome back under the request id | a new DDS command topic — a wire type for one verb; an action ATTRIBUTE (`Health.Revive`) — a verb in the value vocabulary |
+| RV-5 | the record | **one edit like any other** (journal, undo step in Edit mode, refused in Review); the `ManDowned` / kill already counted stays counted | un-count the kill — rewriting history the debrief already reported |
+
+### 9.2 Acceptance (rails, in the feature suites)
+- `InjuryTests` — a dead man revived: Health = Max, `CanMove | CanShoot` back, no `BleedOut` / `EffectState` / `PartDamage`; an incapacitated one too; a
+  man aboard keeps what his seat strips.
+- `TheAppliersBelongToTheWorldTests` (threaded, CE-11060) — `EditOp.Revive` on A revives on S, outcome Applied on A.
+- `UpdateEntityAttributeRequestSystem` suite — the `$revive` patch on the owner revives and answers Applied; on a non-owner it is not applied.
+- `TheUnitFormDrawsTests` — the button is drawn for a dead / wounded man and not for a healthy one; a click submits one `Revive` op; fidelity frame vs the mockup.
+- Scenario (R-4277): a squad member killed, revived from the form while paused, unpaused ⇒ he stands and moves under his squad's next order.
