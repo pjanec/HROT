@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-25
-build-state: DESIGN — not approved; open points O-4 / O-5 / O-6 to be measured by the spike (§8) before READY-TO-BUILD
-current-answer: whole document; §7 (the claim table) is what is measured, §8 what is not yet
+build-state: DESIGN — open points MEASURED by the spike 2026-11-25 (§8, all work); awaiting the user's approval to build
+current-answer: whole document; §7 the measured claims, §8 the spike's results
 stale-below: nothing
 known-rot: none
 known-conflict: SimNetGateway docs/design/DD-017-Dps-Dds-Player-Station.md §1a rejected "one protocol for both" ("the internal wire would freeze, or the public one would break with HROT") — this design revisits that, with the user (§1); RULINGS R-4092 ("no one speaks NED besides HROT so changes are allowed") — narrowed for the client-visible subset (D-5)
@@ -143,16 +143,25 @@ Clients: Unreal and the IG client move their state readers from the DPS twins to
 | the editor is offline by composition, not by its factory | ✅ §2 (Headless, plain builder, empty translators, offline orchestration) | ✅ R-3074 decision B: "one-node cluster by design; rejected: fake a participant" — ⚠ D-3 gives it a REAL participant for replication only; the cluster stays one node |
 | the full NED factory is unsafe in the editor | ✅ id allocator (D-3) · ⚠ orchestration loopback inferred, not run | ⛔ searched docs/ + .dev/: no "online editor" design |
 
-## 8. Open points — measured by the spike, not yet
+## 8. Open points — measured by the spike (2026-11-25)
 
-| # | open point | how the spike measures it |
+📌 The spike: local branch `spike/ned-editor` (`55175d0d0`, never pushed), 6 files, +40/-2 — an env var stands in for D-2; the runner creates the
+participant (sender tracking, node id 1) and hands it to `OfflineNetworkFactory`; `EditorNodeBootstrapper.BuildContext` builds `NedReplicationModule` and sets
+`context with { NedReplication, GhostCreationSystem, SoleNode = true }`; the shared bootstrapper registers it as for any node (`SharedApplicationBootstrapper.cs:358`).
+Passed to the module, **nothing stubbed**: the participant, the editor's role flags, `context.EntityMap`, the node bus, `context.NodeId`, the domain, the behavior
+registry, `context.TkbDb`, the `EntityLifecycleModule` from `context.BaseModules`, a `new SimpleClusterStateCache()`. Scenario `bd-destruction`, headless editor, domain 77.
+
+| # | verdict | evidence |
 |---|---|---|
-| **O-1** | the gateway extension stops composing when the node is not `Headless` (`NodeExtensionContext.Offline` = `config.Headless`, `SharedApplicationBootstrapper.cs:220`) | keep the editor `Headless` (no DDS in the builder) and inject the participant for replication only; read the extension's `Offline` as "not a cluster member" — confirm by loading the gateway |
-| **O-2** | the NED module with the editor's role FLAGS (it was written for single roles) — which packs load | log the registered translators; compare with SimHost + CGF |
-| **O-3** | NED INGRESS on the editor: its own samples coming back — a late `EntityMaster` for an id already cleared from the map could create a ghost (`EntityMasterIngressTranslator.cs:183-195`) | run a load, a delete, a world boundary and a preview restore; or build the module egress-only if it allows |
-| **O-4** | does it publish every entity, every frame it should — and only those | `ddsmonitor` on the domain: `WorldPos`, `EntityMaster`, `EntityDamage`, weapon events for `bt-range`'s entities |
-| **O-5** | turbo, run-to, preview and a reload still work, at what cost per frame | run-to 60 s turbo with and without the module; time it |
-| **O-6** | the explicit sole-node fact: where it lives (`HrotNodeContext`?) and that both checks read it | code it in the spike, run the two existing rails for turbo and AAR |
+| **O-1** | ✅ works | `Headless` kept ⇒ `NodeExtensionContext.Offline = True` with the module on: the gateway still composes. ⇒ the extension's `Offline` means "not a cluster member" |
+| **O-2** | ✅ works | the editor's role flags load **194 translators (93 egress, 101 ingress)**; the time and orchestration translators in the module send and receive 0 (`Expecting ACKs from 0 slave(s)`) |
+| **O-3** | ✅ no ghosts | every sample loops back (WorldPos 8948 out / 8947 in) with no harm: a delete (66 → 61, stable, dispose sent), two reloads (63, 26 networked, no duplicate ids), a preview cycle (63 → 70 → 63 → 58) — 0 errors. New noise: one `TD-9 Dispose called` WARN per disposed entity |
+| **O-4** | ✅ everything published | 30 s of play: 33 egress topics with samples — WorldPos 8948, TurretPose 293, EntityMaster 31 (all 28 networked entities + 3 that came and went), Info 10, Damage 17, WeaponFire 2, MunitionDetonation 3, BuildingDamage 3, WindowDamage 3, DoorState 16, WeaponAmmo 14, Passengers 2; the other 60 had no data in this scenario |
+| **O-5** | ✅ no measurable cost | run-to 60 s turbo, `turbo:true`, 3 runs each: 8.0 / 9.9 / 9.5 s without the module, 7.2 / 10.0 / 8.8 s with it — within the spread |
+| **O-6** | ✅ works, ⚠ unguarded | both checks read `SoleNode`; turbo stays on. ⚠ their rails (`RunToControllerTests` 15/15, `TheReviewLayoutTests` 9/1 skip) inject the decision as delegates ⇒ they cannot see the fact: the build adds a rail on the COMPOSITION (`SoleNode` true with and without the participant) |
+
+Into the build: the per-entity `TD-9` WARN is noise to quiet; a factory built without a `HrotNodeContext` (some NodeComposition tests) never sets `SoleNode`; the
+participant is created before the editor (D-2's ask happens at that point). `PreviewLifecycleRails` 3/1 with and without the module — the red is the known CE-3156.
 
 ## 9. Acceptance (when built)
 
