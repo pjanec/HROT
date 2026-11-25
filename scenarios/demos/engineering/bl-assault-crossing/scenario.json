@@ -3,7 +3,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-4693 BL-S3 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712) - on basic-desert a RIVER 12 m wide (y 60-72) parts the south from the north. At 2 s 'Engineer' (an assault bridge layer, TKB 118 - a Wolverine: a 26 m span over at most a 24 m gap, 300 s to lay) is ordered to LayBridge from (80, 50) to (80, 82); while it drives up and lays, the 'Mortar Section' (two 81 mm tubes, 380 m south) screens the far bank with smoke. The engineer stands short of the near ramp, holds the 300 s, and the bridge (TKB 8825: a deck as long as the gap plus a metre on each bank) is created, baked on every node and Open. The rule 'Bridge laid' (an open assault bridge) then moves the engineer aside and marches squads 'Alpha' and 'Bravo' (4 men each) across to (72, 108) and (88, 108). Judge: the objective 'Bridge laid' is Achieved; the engineer has laid its span (Count 0, no order left); the mortars burst smoke; both squads' objectives 'on the far bank' are Achieved (every man within 15 m); no man ever stands in the river beside the deck. Fail: no bridge, or a squad stops at the river. Check: scripts/scenario-regression.sh bl-assault-crossing"
+  "description": "What: CE-4693 BL-S3 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712) - on basic-desert a RIVER 12 m wide (y 60-72) parts the south from the north. At 2 s 'Engineer' (an assault bridge layer, TKB 118 - a Wolverine: a 26 m span over at most a 24 m gap, 300 s to lay) is ordered to LayBridge from (80, 50) to (80, 82). The engineer stands short of the near ramp, holds the 300 s, and the bridge (TKB 8825: a deck as long as the gap plus a metre on each bank) is created, baked on every node and Open. The rule 'Bridge laid' (an open assault bridge) then moves the engineer aside and marches squads 'Alpha' and 'Bravo' (4 men each) across to (72, 108) and (88, 108). Judge: the objective 'Bridge laid' is Achieved; the engineer has laid its span (Count 0, no order left); both squads' objectives 'on the far bank' are Achieved (every man within 15 m); no man ever stands in the river beside the deck. Fail: no bridge, or a squad stops at the river. Check: scripts/scenario-regression.sh bl-assault-crossing"
  },
  "entities": {
   "b4693200-0000-4000-8000-000000000000": {
@@ -80,152 +80,6 @@
    "Sop": {
     "Name": "InertSop",
     "Params": {},
-    "Origin": "Superior"
-   }
-  },
-  "b4693200-0000-4000-8000-000000000030": {
-   "SimTransform": {
-    "Position": [
-     80.0,
-     -380.0,
-     0.0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0.7071067811865475,
-     0.7071067811865476
-    ]
-   },
-   "TkbIdentity": {
-    "TkbType": 304
-   },
-   "EntityInfo": {
-    "Name": "Mortar Section",
-    "ForceId": "Friend"
-   }
-  },
-  "b4693200-0000-4000-8000-000000000031": {
-   "SimTransform": {
-    "Position": [
-     74.0,
-     -380.0,
-     0.0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0.7071067811865475,
-     0.7071067811865476
-    ]
-   },
-   "TkbIdentity": {
-    "TkbType": 610
-   },
-   "EntityInfo": {
-    "Name": "Mortar Tube 1",
-    "ForceId": "Friend"
-   }
-  },
-  "b4693200-0000-4000-8000-000000000032": {
-   "SimTransform": {
-    "Position": [
-     86.0,
-     -380.0,
-     0.0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0.7071067811865475,
-     0.7071067811865476
-    ]
-   },
-   "TkbIdentity": {
-    "TkbType": 610
-   },
-   "EntityInfo": {
-    "Name": "Mortar Tube 2",
-    "ForceId": "Friend"
-   }
-  },
-  "b4693200-0000-4000-8000-000000000033": {
-   "SimTransform": {
-    "Position": [
-     72.0,
-     -380.0,
-     0.0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0.7071067811865475,
-     0.7071067811865476
-    ]
-   },
-   "TkbIdentity": {
-    "TkbType": 2002
-   },
-   "EntityInfo": {
-    "Name": "Mortar Gunner 1",
-    "ForceId": "Friend"
-   },
-   "Health": {
-    "Current": 100,
-    "Max": 100
-   },
-   "TargetMemory": {
-    "Entries": []
-   },
-   "UnitSubordinate": {
-    "CommanderGuid": "b4693200-0000-4000-8000-000000000030",
-    "Designation": "SquadLeader"
-   },
-   "Behavior": {
-    "Name": "ManWeapon",
-    "Params": {
-     "weapon": "b4693200-0000-4000-8000-000000000031"
-    },
-    "Origin": "Superior"
-   }
-  },
-  "b4693200-0000-4000-8000-000000000034": {
-   "SimTransform": {
-    "Position": [
-     88.0,
-     -380.0,
-     0.0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0.7071067811865475,
-     0.7071067811865476
-    ]
-   },
-   "TkbIdentity": {
-    "TkbType": 2002
-   },
-   "EntityInfo": {
-    "Name": "Mortar Gunner 2",
-    "ForceId": "Friend"
-   },
-   "Health": {
-    "Current": 100,
-    "Max": 100
-   },
-   "TargetMemory": {
-    "Entries": []
-   },
-   "UnitSubordinate": {
-    "CommanderGuid": "b4693200-0000-4000-8000-000000000030",
-    "Designation": "Wingman"
-   },
-   "Behavior": {
-    "Name": "ManWeapon",
-    "Params": {
-     "weapon": "b4693200-0000-4000-8000-000000000032"
-    },
     "Origin": "Superior"
    }
   },
@@ -545,50 +399,6 @@
    "UnitSubordinate": {
     "CommanderGuid": "b4693200-0000-4000-8000-000000000018",
     "Designation": "Wingman"
-   }
-  },
-  "b4693200-0000-4000-8000-00000000002f": {
-   "TkbIdentity": {
-    "TkbType": 8860
-   },
-   "EntityInfo": {
-    "Name": "Screen the far bank",
-    "ForceId": "Friend"
-   },
-   "Behavior": {
-    "Name": "Trigger",
-    "Params": {
-     "common": {
-      "title": "Screen the far bank",
-      "subject": "b4693200-0000-4000-8000-000000000030"
-     },
-     "when": {
-      "$type": "ScenarioTime",
-      "fromSeconds": 20
-     },
-     "do": [
-      {
-       "act": "Order",
-       "args": {
-        "target": "b4693200-0000-4000-8000-000000000030",
-        "behavior": "ArtilleryUnitStrike",
-        "params": {
-         "Location": [
-          80.0,
-          100.0,
-          0
-         ],
-         "Smoke": true,
-         "Rounds": 3,
-         "Sheaf": "Open",
-         "SheafWidthM": 60,
-         "DangerClose": true
-        }
-       }
-      }
-     ]
-    },
-    "Origin": "Superior"
    }
   },
   "b4693200-0000-4000-8000-000000000020": {

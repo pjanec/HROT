@@ -32,11 +32,6 @@
       "atEnd": true
     },
     {
-      "name": "the mortars screen with smoke",
-      "on": "blast",
-      "by": "*Mortar Tube"
-    },
-    {
       "name": "Alpha is on the far bank",
       "on": "field",
       "who": "Alpha on the far bank",
@@ -72,104 +67,6 @@
             "path": "SimTransform.Position.2",
             "op": "<",
             "value": 0.5
-          }
-        ]
-      }
-    },
-    {
-      "name": "DIAG low ON the deck strip",
-      "never": {
-        "on": "field",
-        "who": "*Man",
-        "path": "SimTransform.Position.1",
-        "op": ">",
-        "value": 61.0,
-        "also": [
-          {
-            "path": "SimTransform.Position.1",
-            "op": "<",
-            "value": 71.0
-          },
-          {
-            "path": "SimTransform.Position.2",
-            "op": "<",
-            "value": 0.5
-          },
-          {
-            "path": "SimTransform.Position.0",
-            "op": ">",
-            "value": 78.0
-          },
-          {
-            "path": "SimTransform.Position.0",
-            "op": "<",
-            "value": 82.0
-          }
-        ]
-      }
-    },
-    {
-      "name": "DIAG west of the deck over water",
-      "never": {
-        "on": "field",
-        "who": "*Man",
-        "path": "SimTransform.Position.1",
-        "op": ">",
-        "value": 61.0,
-        "also": [
-          {
-            "path": "SimTransform.Position.1",
-            "op": "<",
-            "value": 71.0
-          },
-          {
-            "path": "SimTransform.Position.0",
-            "op": "<",
-            "value": 77.9
-          }
-        ]
-      }
-    },
-    {
-      "name": "DIAG east of the deck over water",
-      "never": {
-        "on": "field",
-        "who": "*Man",
-        "path": "SimTransform.Position.1",
-        "op": ">",
-        "value": 61.0,
-        "also": [
-          {
-            "path": "SimTransform.Position.1",
-            "op": "<",
-            "value": 71.0
-          },
-          {
-            "path": "SimTransform.Position.0",
-            "op": ">",
-            "value": 82.1
-          }
-        ]
-      }
-    },
-    {
-      "name": "DIAG a man low between y 58 and 61",
-      "never": {
-        "on": "field",
-        "who": "*Man",
-        "path": "SimTransform.Position.1",
-        "op": ">",
-        "value": 58.0,
-        "also": [
-          {
-            "path": "SimTransform.Position.1",
-            "op": "<",
-            "value": 61.0
-          },
-          {
-            "path": "SimTransform.Position.2",
-            "op": "<",
-            "value": -0.3
           }
         ]
       }

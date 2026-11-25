@@ -62,11 +62,6 @@
       "atEnd": true
     },
     {
-      "name": "the mortars screen with smoke",
-      "on": "blast",
-      "by": "*Mortar Tube"
-    },
-    {
       "name": "if the charge fired: the bridge is gone",
       "if": "charge",
       "on": "field",

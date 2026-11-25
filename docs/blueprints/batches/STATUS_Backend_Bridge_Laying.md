@@ -13,7 +13,7 @@ related-designs:
 ## 1. Now
 
 🔨 `2026-11-25` — **items ①–⑥ BUILT** (`caea57450`): the figures and types, `BridgeCarried` on the wire, the orders, the plays, `BridgeWorkSystem`; rails
-`BridgeLayingBehaviorTests` 6/6 (red-proved), `BridgeLayerTkbTests`, the wire round trip. ✅ `bl-too-wide` passes 5/5. ⏳ the other four scenarios run.
+`BridgeLayingBehaviorTests` 6/6 (red-proved), `BridgeLayerTkbTests`, the wire round trip. ✅ `bl-too-wide` 5/5 · ✅ `bl-recover` 7/7 · ⚠ `bl-assault-crossing` 5/6 (CE-4695) · ⏳ `bl-floating-bridge`, `bl-river-crossing`.
 Ids allocated: component **292** (`BridgeCarried`), descriptor **247** (`dtBridgeCarried`), TKB **118 / 119**, `OrderKind` **17 / 18**.
 
 ⛔ HISTORY — ⏸ `2026-11-25` — **queued, waiting on terrain's CE-4692 BL-S1** (a placed bridge obstacle that bakes). 🔒 User: *"When terrain's CE-4692 BL-S1
@@ -36,8 +36,8 @@ Ahead of it in the backend queue: CE-11057 ④ / CE-4691 (va-pop-smoke — the v
 
 | scenario | result |
 |---|---|
-| `bl-assault-crossing` | ⏳ |
-| `bl-recover` | ⏳ |
+| `bl-assault-crossing` | ⚠ 5/6 — bridge laid, both squads across; ONE row red: a man's height reads the river bed at the deck's very edge ([CE-4695](../Blueprint_Issues_Tracker.md)) · ⛔ "under smoke" not buildable from a scenario ([CE-4694](../Blueprint_Issues_Tracker.md)) |
+| `bl-recover` | ✅ 7/7 |
 | `bl-too-wide` | ✅ 5/5 |
 | `bl-floating-bridge` | ⏳ |
 | ⭐ `bl-river-crossing` (objectives) | ⏳ |
