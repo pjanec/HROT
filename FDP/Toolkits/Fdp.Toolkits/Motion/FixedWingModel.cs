@@ -579,7 +579,7 @@ namespace Fdp.Toolkit.Motion
         private static void Pose(ref MotionFrame f, Vector3 next, float yaw, float pitch, float roll, float dt)
         {
             float maxPitch = MaxPitchDeg * MathF.PI / 180f;
-            f.Velocity.Linear = (next - f.Transform.Position) / MathF.Max(dt, 1e-4f);
+            f.Velocity.Linear = StepVelocity.Of(f.Transform.Position, next, dt, f.Velocity.Linear);   // ⭐ CE-11057 — a too-short frame keeps the velocity
             f.Transform.Position = next;
             f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, (Fdp.Core.Angle)(Math.Clamp(pitch, -maxPitch, maxPitch)), (Fdp.Core.Angle)(roll)));
             if (f.World.IsComponentTypeRegistered<FlightState>() && f.World.HasComponent<FlightState>(f.Self))

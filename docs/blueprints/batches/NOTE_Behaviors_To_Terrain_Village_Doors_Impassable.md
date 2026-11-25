@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE · updated: 2026-11-24 · current-answer: §1
+state: LIVE · updated: 2026-11-25 · current-answer: §1 (the doors), §3 (a second stall, same cause)
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — the room drill that stalls at these doors (§7.1a measured table: an earlier "wedged at the jamb" case on bt-range)
   - REPORT_Behaviors_Village_Street_Fight.md — the scenario run that found it
@@ -36,3 +36,31 @@ volume (`NavDoorways`, 0.4 m reach) vs a 0.3 m wall. ⛔ We did not edit the ter
 
 `CE-8324`: the room drill no longer waits for ever at a door it cannot pass — an entry man who makes no progress toward the threshold gives the room
 up as **blocked** (the CB-53 path), and the squad tries the building's next way in. It does not make these doors passable.
+
+## 3. A second stall, the same cause (`2026-11-25`)
+
+`village-street-mg-flank`, Blue Squad 3 (the reserve) bounding: Rifleman 2 was ordered to a cover point **inside house `f9ec73982a36`**
+(452.85, 157.89) and stood at (429, 176) from 130 s to 180 s — `NavigationStatus` Idle, `Result` InProgress, no route, no replan, **no failure
+reported**, exactly as the gun-house point man.
+
+The same probe (`TerrainFolderWorld.ReadWorld` → `RecastNavmeshFactory().Build`, infantry layer):
+
+| | walkable | snapped z | path |
+|---|---|---|---|
+| from (428.94, 176.08) — outside | ✅ | 177.95 | — |
+| to (452.85, 157.89) — inside `f9ec73982a36` | ✅ | 178.20 | ⛔ none from outside |
+| the leg's midpoint (outside) | ✅ | — | ✅ from the start · ⛔ to the house |
+
+⇒ one more house whose interior is walkable and unreachable — consistent with §1's 283 doors, nothing new in the mechanism.
+
+## 4. Two asks, in order of value
+
+| # | ask | why |
+|---|---|---|
+| ① | **the doorways** — why 283 of 628 bake with no path through (§1) | every house assault and every cover point inside a house depends on it |
+| ② | ⭐ **a move with no route should FAIL, not idle** — the mover reports `InProgress` for ever when the planner finds no path | the failure was silent both times; behaviors had to add its own no-progress timers (CE-8324 room drill, CE-8321 bound clamp) to stop waiting. A reported failure would let every caller react at once. ⚠ We have not checked whether this is the navigation lane's rather than yours — if it is not yours, please pass it on |
+
+⭐ **Behaviors side, already done, needs nothing from you:** the room drill gives a room up as blocked after 15 s without progress (`CE-8324`);
+a bound never takes a man more than 50 m from his overwatch, so one stalled teammate no longer strands the other (`CE-8321`).
+⚠ **Open on our side:** the cover search offered a point inside a house the man cannot reach — we will look at whether the cover ask should
+skip unreachable points once ① is answered (if the doors are fixed, the question disappears).

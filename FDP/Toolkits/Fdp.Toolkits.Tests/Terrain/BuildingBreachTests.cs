@@ -430,6 +430,101 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         private static int GardenPanel(TerrainWorld w) => Array.FindIndex(w.Panels.ToArray(), p => p.Building < 0);
 
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — THE outward-normal rule (<see cref="WallGroups.OutwardNormal(TerrainWorld, int)"/>): each of the four walls of a box building points AWAY from its footprint centre (unit length, square to
+        /// the wall); a free garden wall has no inside, so it is the left-hand perpendicular of A→B; and <see cref="WallGroups.BreachCentre"/> is the breach's middle on its panel with z mid-height. Allocation-free.
+        /// 🔴 Red-proof: drop the flip (always the left-hand perpendicular) ⇒ the walls wound the other way point inwards; test the flip against a point on the wrong side ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE11054_OutwardNormal_OfEachWallOfABoxBuilding_PointsAwayFromItsCentre_AFreeWallIsItsLeftHand_AndTheBreachCentreIsItsMiddle()
+        {
+            var w = HouseAndGardenWall();
+            var (centre, _) = BuildingFires.Extent(w.Buildings[0]);
+            int walls = 0;
+            for (int i = 0; i < w.Panels.Count; i++)
+            {
+                var p = w.Panels[i];
+                if (p.Building != 0) continue;
+                walls++;
+                var n = WallGroups.OutwardNormal(w, i);
+                Assert.Equal(1f, n.Length(), 4);
+                Assert.Equal(0f, Vector2.Dot(n, Vector2.Normalize(p.B - p.A)), 4);                         // square to the wall
+                Assert.True(Vector2.Dot(n, (p.A + p.B) * 0.5f - centre) > 0f, $"panel {i}: the normal {n} points inwards");   // away from the centre
+                Assert.Equal(n, WallGroups.OutwardNormal(w, i, p.A + (p.B - p.A) * 0.25f));                // the same wherever on the wall the side is decided
+            }
+            Assert.Equal(4, walls);
+
+            int garden = GardenPanel(w);
+            var g = w.Panels[garden];
+            var ab = Vector2.Normalize(g.B - g.A);
+            Assert.Equal(new Vector2(-ab.Y, ab.X), WallGroups.OutwardNormal(w, garden));                   // a free wall: the left-hand perpendicular of A→B
+
+            var breach = new WallBreach(garden, 4f, 6f, 0.2f, 0.8f, BreachKind.Hole);
+            var at = WallGroups.BreachCentre(w, in breach);
+            Assert.Equal(new Vector3(g.A.X + ab.X * 5f, g.A.Y + ab.Y * 5f, 0.5f), at);
+
+            for (int i = 0; i < 20; i++) { WallGroups.OutwardNormal(w, 0); WallGroups.BreachCentre(w, in breach); }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) { WallGroups.OutwardNormal(w, 0); WallGroups.BreachCentre(w, in breach); }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11058</c> — THE rule that places an opening in the world (<see cref="WallGroups.OpeningSpan"/>, <see cref="WallGroups.OpeningCentre"/>), the sibling of <c>BreachCentre</c>: on a box building each window's
+        /// span is <c>A + dir × At</c> .. <c>A + dir × (At + Width)</c> (At = the START), its centre the middle of it at z = (Sill + Head) / 2; forward and inverse agree (<c>PaneUv(OpeningCentre)</c> = (0.5, 0.5)); the glass
+        /// pane leaves stand on exactly that span; allocation-free. 🔴 Red-proof: the span off by Width / 2 (At taken as the middle) ⇒ every row here fails.
+        /// </summary>
+        [Fact]
+        public void CE11058_OpeningSpanAndCentre_AreTheHandComputedPoints_PaneUvOfTheCentreIsTheMiddle_AndTheGlassStandsOnTheSpan()
+        {
+            var w = TerrainWorldParser.Parse("""
+                { "type": "FeatureCollection", "features": [ { "type": "Feature",
+                    "properties": { "kind": "building", "label": "H",
+                      "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                        "storeys": [ { "height": 3, "walls": [
+                          { "from": [0,0], "to": [10,0], "thickness": 0.3, "material": "brick", "openings": [ { "kind": "window", "at": 3, "width": 1.4 } ] },
+                          { "from": [10,0], "to": [10,8], "thickness": 0.3, "material": "brick", "openings": [ { "kind": "window", "at": 2, "width": 2 } ] },
+                          { "from": [10,8], "to": [0,8], "thickness": 0.3, "material": "brick" },
+                          { "from": [0,8], "to": [0,0], "thickness": 0.3, "material": "brick" } ] } ] } },
+                    "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+                """, "range");
+            int seen = 0;
+            for (int pi = 0; pi < w.Panels.Count; pi++)
+            {
+                var p = w.Panels[pi];
+                for (int oi = 0; oi < p.Openings.Count; oi++)
+                {
+                    seen++;
+                    var o = p.Openings[oi];
+                    var dir = Vector2.Normalize(p.B - p.A);                                                  // hand-computed, not through the rule
+                    var start = p.A + dir * o.At;
+                    var end = p.A + dir * (o.At + o.Width);
+                    var (s, e) = WallGroups.OpeningSpan(w, pi, oi);
+                    Assert.Equal(start, s);
+                    Assert.Equal(end, e);
+                    var c = WallGroups.OpeningCentre(w, pi, oi);
+                    Assert.Equal(((start + end) * 0.5f).X, c.X, 4);
+                    Assert.Equal(((start + end) * 0.5f).Y, c.Y, 4);
+                    Assert.Equal((o.SillZ + o.HeadZ) * 0.5f, c.Z, 4);
+                    var (u, v) = WindowDamages.PaneUv(w, pi, oi, c);                                          // the inverse of the forward rule
+                    Assert.Equal(0.5f, u, 3);
+                    Assert.Equal(0.5f, v, 3);
+                    if (o.Glazed)
+                    {
+                        var leaf = w.PaneLeaves.Single(q => q.Panel == pi && q.Label.EndsWith($"/pane{oi}"));                   // the pane stands on the span
+                        Assert.Contains(leaf.Footprint, f => Vector2.Distance(f, s) < 0.2f);
+                        Assert.Contains(leaf.Footprint, f => Vector2.Distance(f, e) < 0.2f);
+                    }
+                }
+            }
+
+            Assert.Equal(2, seen);
+            for (int i = 0; i < 20; i++) { WallGroups.OpeningSpan(w, 0, 0); WallGroups.OpeningCentre(w, 0, 0); }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) { WallGroups.OpeningSpan(w, 0, 0); WallGroups.OpeningCentre(w, 0, 0); }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         private static bool HullBlocked(TerrainWorldQuery q, Vector3 a, Vector3 b, List<Fdp.Toolkit.World.TraceCrossing> into)
         {
             q.Trace(a, b, Fdp.Toolkit.World.TracePurpose.Hull, into);

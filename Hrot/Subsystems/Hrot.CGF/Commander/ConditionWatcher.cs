@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Command;
 
 namespace Hrot.CGF.Commander;
@@ -47,6 +48,8 @@ public sealed class ConditionWatcher
     public int Aborted { get; private set; }
     public int Fired { get; private set; }
     public int Woke { get; private set; }
+    /// <summary>⭐ CE-4687 — conditions dropped because they could never hold (a unit out of the fight, a name that names nothing).</summary>
+    public int Dropped { get; private set; }
 
     public int Armed => Orders.Count + Contingencies.Count + WakeOn.Count;
 
@@ -83,6 +86,13 @@ public sealed class ConditionWatcher
             if (o.Task == DecisionContract.Continue) continue;
             for (int k = Orders.Count - 1; k >= 0; k--) if (Orders[k].Order.Unit == o.Unit) Orders.RemoveAt(k);
             bool waits = o.Start is { On: not ConditionOn.Immediate };
+            // ⭐ CE-4687 — a start that can never hold (it names nothing, or a unit already out of the fight) is said now, never left to wait silently
+            if (waits && CannotStart(world, seat, o.Start!, now) is { } why)
+            {
+                Dropped++;
+                Say(seat, now, true, "cannot-start", $"ORDER {DecisionContract.Text(o)}: CANNOT START — {why}; {o.Unit} keeps what it has");
+                continue;
+            }
             var watched = new WatchedOrder
             {
                 Order = o, Start = waits ? Arm(world, seat, o.Start, now) : null, Started = !waits,
@@ -97,6 +107,79 @@ public sealed class ConditionWatcher
         for (int i = 0; i < d.WakeOn.Count; i++)
             if (Arm(world, seat, d.WakeOn[i], now) is { } w) WakeOn.Add(w);
         NextDecisionAt = now + d.NextDecisionS;
+        // ⭐ CE-4687 — what the decision armed on a unit ALREADY out of the fight is dropped and said at once (the fall event came before)
+        while (FirstOutOfTheFight(world) is { IsNull: false } gone) UnitLeft(world, seat, gone, now);
+    }
+
+    /// <summary>The first unit an armed condition waits on to arrive / finish / make contact that is out of the fight; null when none (on a decision, not per frame).</summary>
+    private Entity FirstOutOfTheFight(EntityRepository world)
+    {
+        for (int i = 0; i < Orders.Count; i++)
+        {
+            var w = Orders[i];
+            if (w.CompleteWhen is { } c && Gone(world, c)) return c.Unit;
+            for (int k = 0; k < w.AbortWhen.Length; k++) if (Gone(world, w.AbortWhen[k])) return w.AbortWhen[k].Unit;
+        }
+        for (int i = 0; i < Contingencies.Count; i++) if (Gone(world, Contingencies[i].Trigger)) return Contingencies[i].Trigger.Unit;
+        for (int i = 0; i < WakeOn.Count; i++) if (Gone(world, WakeOn[i])) return WakeOn[i].Unit;
+        return Entity.Null;
+    }
+
+    private static bool Gone(EntityRepository world, in ArmedCondition c) => NeverHolds(c) && !InTheFight(world, c.Unit);
+
+    /// <summary>Is <paramref name="unit"/> alive and still in the fight (its members at or above its minimum) — the feed's own test.</summary>
+    internal static bool InTheFight(EntityRepository world, Entity unit) => world.IsAlive(unit) && CombatEffective.IsInTheFight(world, unit);
+
+    /// <summary>
+    /// ⭐ CE-4687 — would <paramref name="c"/> wait forever: it names nothing this seat knows, or it waits on a unit already out of the fight to ARRIVE,
+    /// FINISH or MAKE CONTACT. Null = it can still hold. ⛔ STRENGTH_BELOW is not one: a unit that fell is exactly when it should fire.
+    /// </summary>
+    internal static string? CannotStart(EntityRepository world, SeatRuntime seat, Condition c, double now)
+    {
+        if (Arm(world, seat, c, now) is not { } a) return $"{c.Text} names nothing I know";
+        return NeverHolds(a) && !InTheFight(world, a.Unit) ? $"{c.Unit} is out of the fight" : null;
+    }
+
+    /// <summary>A condition that a unit out of the fight can never make true (it will not arrive, finish, or report contact).</summary>
+    private static bool NeverHolds(in ArmedCondition c) => !c.Unit.IsNull && c.Condition.On is ConditionOn.UnitAt or ConditionOn.UnitTaskComplete or ConditionOn.Contact;
+
+    /// <summary>
+    /// ⭐⭐ CE-4687 — <paramref name="unit"/> fell out of the fight (the feed's fall event, said once): every waiting start, completion, abort,
+    /// contingency trigger and wake condition that waits on IT to arrive, finish or make contact can never hold — drop each, and say it in ONE order-state
+    /// WAKE so the seat decides again. A waiting order is not given (its unit keeps what it has); a running order runs on without that completion / abort.
+    /// 📌 llm-company-aggregated (Haiku): <c>1st Platoon Attack, start UNIT_AT 2nd Platoon support</c> waited silently after 2nd Platoon was destroyed.
+    /// </summary>
+    internal void UnitLeft(EntityRepository world, SeatRuntime seat, Entity unit, double now)
+    {
+        System.Text.StringBuilder? said = null;
+        void Note(string text) { (said ??= new System.Text.StringBuilder()).Append(said.Length > 0 ? "; " : "").Append(text); Dropped++; }
+        for (int i = Orders.Count - 1; i >= 0; i--)
+        {
+            var w = Orders[i];
+            if (!w.Started)
+            {
+                if (w.Start is { } s && s.Unit == unit && NeverHolds(s)) { Note($"ORDER {DecisionContract.Text(w.Order)} CANNOT START ({w.Order.Unit} keeps what it has)"); Orders.RemoveAt(i); }
+                continue;
+            }
+            if (w.CompleteWhen is { } c && c.Unit == unit && NeverHolds(c)) { Note($"{w.Order.Unit}'s order will not complete on {c.Condition.Text}"); w.CompleteWhen = null; }
+            int kept = 0;
+            for (int k = 0; k < w.AbortWhen.Length; k++) if (!(w.AbortWhen[k].Unit == unit && NeverHolds(w.AbortWhen[k]))) kept++;
+            if (kept < w.AbortWhen.Length)
+            {
+                var a = new ArmedCondition[kept];
+                for (int k = 0, j = 0; k < w.AbortWhen.Length; k++) if (!(w.AbortWhen[k].Unit == unit && NeverHolds(w.AbortWhen[k]))) a[j++] = w.AbortWhen[k];
+                Note($"{w.Order.Unit}'s order will not abort on {unit}'s condition");
+                w.AbortWhen = a;
+            }
+            if (w.CompleteWhen == null && w.AbortWhen.Length == 0) Orders.RemoveAt(i);
+        }
+        for (int i = Contingencies.Count - 1; i >= 0; i--)
+            if (Contingencies[i].Trigger.Unit == unit && NeverHolds(Contingencies[i].Trigger)) { Note($"CONTINGENCY {Contingencies[i].Trigger.Condition.Text} can never fire"); Contingencies.RemoveAt(i); }
+        for (int i = WakeOn.Count - 1; i >= 0; i--)
+            if (WakeOn[i].Unit == unit && NeverHolds(WakeOn[i])) { Note($"WAKE {WakeOn[i].Condition.Text} can never hold"); WakeOn.RemoveAt(i); }
+        if (said == null) return;
+        string name = world.IsAlive(unit) ? CommanderFeedSystem.NameOf(world, unit) : "a unit";
+        Say(seat, now, true, "cannot-hold", $"{name} is out of the fight — {said}");
     }
 
     private static ArmedCondition[] ArmAll(EntityRepository world, SeatRuntime seat, IReadOnlyList<Condition> cs, double now)

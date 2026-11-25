@@ -107,7 +107,6 @@ namespace Fdp.Toolkit.Terrain
             point = outward = default;
             midZ = 0f;
             if ((uint)building >= (uint)world.Buildings.Count) return false;
-            var (centre, _) = Extent(world.Buildings[building]);
             var panels = BurnablePanels(world);
             float best = float.MaxValue;
             for (int k = 0; k < panels.Count; k++)
@@ -122,8 +121,7 @@ namespace Fdp.Toolkit.Terrain
                 if (d >= best) continue;
                 best = d;
                 point = q;
-                var n = len2 > 1e-9f ? Vector2.Normalize(new Vector2(-ab.Y, ab.X)) : Vector2.UnitX;
-                outward = Vector2.Dot(n, q - centre) >= 0f ? n : -n;
+                outward = WallGroups.OutwardNormal(world, panels[k], q);   // ⭐ CE-11054 — the one outward-normal rule (the side decided at the nearest point, as before)
                 midZ = 0.5f * (w.BaseZ + w.TopZ);
             }
             return best < float.MaxValue;

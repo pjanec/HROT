@@ -334,8 +334,7 @@ namespace Fdp.Toolkit.Terrain
                     float len = dir.Length();
                     dir = len > 0f ? dir / len : Vector2.UnitX;
                     var n = new Vector2(-dir.Y, dir.X) * (PaneThickness * 0.5f);
-                    var p0 = panel.A + dir * o.At;
-                    var p1 = panel.A + dir * (o.At + o.Width);
+                    var (p0, p1) = WallGroups.OpeningSpan(this, pi, oi);   // ⭐ CE-11058 — the one rule that places an opening
                     var fp = new[] { p0 - n, p1 - n, p1 + n, p0 + n };
                     leaves.Add(new TerrainPrism
                     {

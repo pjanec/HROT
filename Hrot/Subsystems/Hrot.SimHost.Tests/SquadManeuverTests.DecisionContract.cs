@@ -216,6 +216,67 @@ namespace Hrot.SimHost.Tests
             s.Seats.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ CE-4687 — an order waiting for a unit to ARRIVE (<c>start: UNIT_AT Bravo support</c>) and a contingency waiting for its CONTACT can never hold
+        /// once Bravo falls out of the fight: both are dropped and said in ONE order-state wake ("CANNOT START"), Alpha is never given the waiting order,
+        /// and a STRENGTH_BELOW Bravo contingency stays armed (a fall is when it should fire). 📌 llm-company-aggregated (Haiku): <c>1st Platoon Attack,
+        /// start UNIT_AT 2nd Platoon support</c> waited silently after 2nd Platoon was destroyed.
+        /// 🔴 Red-proof: the feed's call to <c>UnitLeft</c> dropped ⇒ no "CANNOT START", the order still armed.
+        /// </summary>
+        [Fact]
+        public void CE4687_AWaitingOrderOnAUnitThatLeftTheFight_IsDropped_AndSaid()
+        {
+            var mind = new DecisionRailMind();
+            int calls = 0;
+            mind.Answer = b => calls++ == 0
+                ? D(b.Cycle, new[] { O("Alpha", "Attack", "house", start: new Condition(ConditionOn.UnitAt, "Bravo", "support")) },
+                    new[]
+                    {
+                        new Contingency(new Condition(ConditionOn.Contact, "Bravo"), new[] { O("Alpha", "Hold") }),
+                        new Contingency(new Condition(ConditionOn.StrengthBelow, "Bravo", Percent: 50), new[] { O("Alpha", "Hold") }),
+                    })
+                : null;
+            var s = new Seated(mind);
+            Place(s, s.P.Bravo, 0, 0);
+            Until(s, () => s.Seats.TryGet(s.P.S.Commander, out var seat) && seat.Watch.Armed == 3);
+            Assert.Equal(3, s.Seat.Watch.Armed);
+            AggregateTestUnits.Make(s.Repo, s.P.Bravo, slots: 9, up: 0, echelon: 0);   // every man down: out of the fight
+            Until(s, () => s.Items().Any(i => i.Radio.Contains("CANNOT START")), 400);
+            var said = s.Items().Single(i => i.Kind == FeedKind.OrderState && i.Radio.Contains("CANNOT START"));
+            Assert.True(said.Wake);
+            Assert.Contains("Alpha Attack → house (start: UNIT_AT Bravo support) CANNOT START (Alpha keeps what it has)", said.Radio);
+            Assert.Contains("CONTINGENCY CONTACT Bravo can never fire", said.Radio);
+            Assert.Equal(2, s.Seat.Watch.Dropped);
+            Assert.Equal(1, s.Seat.Watch.Armed);                                // ⭐ STRENGTH_BELOW Bravo stays
+            Assert.Equal(0, s.P.OrdersTo(s.P.Alpha, "Order.Attack"));           // ⛔ never given
+            s.Seats.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ CE-4687 — a decision whose order waits on a unit ALREADY out of the fight (the fall event came before it) is told at once that it cannot start.
+        /// 🔴 Red-proof: the arm-time check dropped ⇒ the order is armed and waits.
+        /// </summary>
+        [Fact]
+        public void CE4687_AnOrderWaitingOnAUnitAlreadyOutOfTheFight_CannotStart()
+        {
+            var mind = new DecisionRailMind();
+            bool fell = false;
+            int calls = 0;
+            mind.Answer = b => fell && calls++ == 0
+                ? D(b.Cycle, new[] { O("Alpha", "Attack", "house", start: new Condition(ConditionOn.UnitTaskComplete, "Bravo")) })
+                : null;
+            var s = new Seated(mind);
+            s.Ticks(2);
+            AggregateTestUnits.Make(s.Repo, s.P.Bravo, slots: 9, up: 0, echelon: 0);
+            fell = true;
+            Until(s, () => s.Items().Any(i => i.Radio.Contains("CANNOT START")), 600);
+            Assert.Contains(s.Items(), i => i.Kind == FeedKind.OrderState && i.Wake
+                                            && i.Radio.Contains("Alpha Attack → house (start: UNIT_TASK_COMPLETE Bravo): CANNOT START — Bravo is out of the fight; Alpha keeps what it has"));
+            Assert.Equal(0, s.Seat.Watch.Armed);
+            Assert.Equal(0, s.P.OrdersTo(s.P.Alpha, "Order.Attack"));
+            s.Seats.Dispose();
+        }
+
         // ── C-3 — the cycle echo and the model's own pace ────────────────────────────────────────────────────────────────────────
 
         /// <summary>

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); FL-0…FL-4 BUILT (§6, §7, §7a, §7b, §7c); FL-5 drills are the behaviors lane's
 build-state: BUILT — FL-0…FL-4 (§7, §7a, §7b, §7c)
-updated: 2026-11-19
+updated: 2026-11-25 (§7b CE-11057 a napalm bomb bursts on the ground, backend) · 2026-11-19
 current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a / §7b / §7c as built (FL-1, FL-2, FL-3, FL-4)
 related-designs:
   - ../sensor-view/DESIGN_Sensor_View.md — the sensor views show the same fires, jets and burning men (bloom in night vision, saturated in thermal)
@@ -361,6 +361,7 @@ Scenario `fl-napalm-treeline`: the strike burns the treeline's men and leaves th
 | N-7 | `LineOfFire.NeutralInNapalm` at both release gates (`AimAndFireExecutor.HoldOf` after the release cue; `FireAtPointExecutor.ShootAtPoint`) ⇒ `HoldNeutralOnLine`; the shared body grid walks the axis padded by the half-width, the exact `NapalmSystem.InEllipse` judges |
 | N-8 | the A-10 definition takes its bomb as a parameter: `Jet_AttackA10` (405, Mk 82) and `Jet_AttackA10Napalm` (**410** — the aircraft block; DIS specific 1) with the Mk 77 (`MunitionTkbCatalog.TkbMk77Firebomb` 6071: 80 × 25 m, 300 s, a 30 m smoke cloud, no blast) |
 | ⛔ deviation from §5's scenario | **`fl-napalm-strike`** on basic-desert, not `fl-napalm-treeline`: a vegetation's own burn time is FL-4's materials; ⭐ the GROUND fire is proved by its effect on a man who walks into it after the fireball (a record entity has no name a check could hold) |
+| ⭐⭐ **found live `2026-11-25` (`CE-11057`, backend)** | ⛔ a napalm bomb that met the GROUND never burst: `WarheadRound.BitsOf` set `Area` only for blast / fragments (`HasAreaEffect`) or a cloud, and the Mk 77 has neither ⇒ it burst only by striking a BODY. The fixed-step regression passed because its bomb happened to clip Line Man 2; live, released on time, it landed 1.2 m on and ended `StoppedByTerrain` — no fireball, no ground fire. ✅ `WarheadDto.HasFireArea` (an incendiary with an area) ⇒ `Area` — it bursts where it lands like a Mk 82 (the gas round's CE-3239 fix, same shape). ⛔ Kept OUT of `HasAreaEffect`, which its other readers take as blast / fragments. Rail `WarheadFlightTests.CE11057_ANapalmBomb_BurstsOnTheGround_WhereItLands` |
 | rails | `NapalmSystemTests.CE3487_*` (the ellipse along the flight line, the spots) · `GroundFireTests.CE3487_*` (the record in the anchor's frame, never a burning car; one scorch per spot) · `AimAndFireExecutorTests.CE3487_ANapalmBomb_*` — each red-proved |
 | scenario | ✅ `fl-napalm-strike`: the firebomb released (19.7 s) and bursting; the three line men lit (27.5 s) and dead (32 s); the Late Man — never in the fireball — burned by the ground fire (84 s); the Far Car 50 m off untouched |
 
