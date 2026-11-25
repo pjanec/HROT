@@ -261,6 +261,7 @@ private:
 		FString Name, Dis, DrawnAs;
 		FHrotDpsTrackPoint Track;
 		float Bank = 0, MeshYaw = 0, MeshZ = 0;
+		bool bGunSaid = false;   // GunOnCarrier logged its numbers once
 		float StepPhase = 0;   // U-18n: the stride, a footstep at each whole number
 		uint8 Side = 0;
 		int32 ParentId = 0;   // Entity.ParentId: mounted on / part of another entity

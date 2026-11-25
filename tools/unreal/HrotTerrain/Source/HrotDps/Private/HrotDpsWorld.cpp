@@ -51,6 +51,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#if WITH_EDITOR
+#include "StaticMeshCompiler.h"
+#endif
 #include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
 #include "HrotCardLayer.h"
@@ -1515,8 +1519,15 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 			C->SetStaticMesh(Gun);
 			C->SetRelativeScale3D(FVector(GunScale));
 			C->SetRelativeRotation(FRotator(0, -90, 0));
+#if WITH_EDITOR
+			// ⚠ live 2026-11-25: in an editor run the mesh is still being built when the first gun spawns - its bounds read ZERO, the offset below was
+			// not applied and the gun hung metres above and beside its pickup / HMMWV (the cut mesh keeps the VBL's origin). Finish it first.
+			FStaticMeshCompilingManager::Get().FinishCompilation({ Gun });
+#endif
 			const FVector O = Gun->GetBounds().Origin;   // the mesh keeps its place on the VBL's roof: bring its centre to the entity's point (yaw -90: (x, y) -> (y, -x))
 			C->SetRelativeLocation(FVector(-O.Y * GunScale, O.X * GunScale, LiftCm - O.Z * GunScale));
+			UE_LOG(LogHrotDpsWorld, Display, TEXT("gun mesh %s: bounds origin (%.0f, %.0f, %.0f) cm, extent (%.0f, %.0f, %.0f) cm, relative (%.0f, %.0f, %.0f)"), *Gun->GetName(),
+				O.X, O.Y, O.Z, Gun->GetBounds().BoxExtent.X, Gun->GetBounds().BoxExtent.Y, Gun->GetBounds().BoxExtent.Z, C->GetRelativeLocation().X, C->GetRelativeLocation().Y, C->GetRelativeLocation().Z);
 			E.DrawnAs = TEXT("weapon-system gun (the VBL's roof MG, cut)");
 			E.bGun = true;
 		}
@@ -1703,6 +1714,7 @@ void UHrotDpsWorld::GunOnCarrier(FEnt& E, FTransform& T)
 	// of the nearest drawn vehicle within 4 m (found once), keeping HROT's x / y and heading. Presentation only - nothing HROT sends is changed.
 	const FVector P = T.GetLocation();
 	AActor* Carrier = nullptr;
+	if (!E.GunCarrier && E.ParentId != 0 && Ents.Contains(E.ParentId)) E.GunCarrier = E.ParentId;   // HROT's own mount link, when it sends one
 	if (FEnt* C = E.GunCarrier ? Ents.Find(E.GunCarrier) : nullptr) Carrier = C->Actor.Get();
 	if (!Carrier)
 	{
@@ -1717,10 +1729,48 @@ void UHrotDpsWorld::GunOnCarrier(FEnt& E, FTransform& T)
 	if (!Carrier) return;
 	FBox Box(ForceInit);
 	TArray<UMeshComponent*> Ms; Carrier->GetComponents(Ms);
-	for (const UMeshComponent* M : Ms) if (M->IsVisible() && M->IsRegistered()) Box += M->Bounds.GetBox();
+	// the roof from each body mesh's OWN bounds (the asset's, placed by the component) - ⚠ live 2026-11-25 (Stechovice): the guns floated metres above
+	// their pickups / HMMWVs with the components' world Bounds (a skinned body's bounds are deliberately loose, and they grow with bounds scale)
+	for (const UMeshComponent* M : Ms)
+	{
+		if (!M->IsVisible() || !M->IsRegistered()) continue;
+		FBox Local(ForceInit);
+		if (const UStaticMeshComponent* S = Cast<UStaticMeshComponent>(M)) { if (S->GetStaticMesh()) Local = S->GetStaticMesh()->GetBoundingBox(); }
+		else if (const USkeletalMeshComponent* K = Cast<USkeletalMeshComponent>(M)) { if (K->GetSkeletalMeshAsset()) Local = K->GetSkeletalMeshAsset()->GetImportedBounds().GetBox(); }
+		if (Local.IsValid) Box += Local.TransformBy(M->GetComponentTransform());
+	}
 	if (!Box.IsValid) return;
 	constexpr double LiftCm = 120.0, HalfGunCm = 25.0;   // the gun's centre sits LiftCm above the actor (SpawnIfReady): its foot on the roof line
-	T.SetLocation(FVector(P.X, P.Y, Box.Max.Z + HalfGunCm - LiftCm));
+	// put the GUN MESH's centre (not the actor) on the roof line: its centre in the actor's frame is the component's relative transform applied to the
+	// mesh's own bounds origin - exact, whatever the actor's scale (⚠ live 2026-11-25: the actor carried scale 1.5 too, the offsets were scaled
+	// twice and the gun hung metres above and beside its pickup)
+	FVector Want(P.X, P.Y, Box.Max.Z + HalfGunCm);
+	const AStaticMeshActor* GA = Cast<AStaticMeshActor>(E.Actor.Get());
+	const UStaticMeshComponent* GC = GA ? GA->GetStaticMeshComponent() : nullptr;
+	if (GC && GC->GetStaticMesh())
+	{
+		// ⚠ the mesh component IS the actor's root: its "relative" yaw / scale / offset set at spawn are the actor's own transform, which Place
+		// overwrites every frame - so the whole gun transform is made here: HROT's heading turned onto the mesh's barrel (+Y -> +X), the gun's
+		// scale, and its mesh centre (the cut mesh keeps the VBL's origin) on the carrier's roof line
+		constexpr double GunScale = 1.5;
+		T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(-90.0)));
+		T.SetScale3D(FVector(GunScale));
+		T.SetLocation(Want - T.TransformVector(GC->GetStaticMesh()->GetBounds().Origin));
+	}
+	else T.SetLocation(FVector(P.X, P.Y, Box.Max.Z + HalfGunCm - LiftCm));
+	if (!E.bGunSaid)
+	{
+		E.bGunSaid = true;
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("gun %s on carrier %d (parent %d) %s: HROT z %.1f m, carrier at z %.1f m, roof %.1f m, drawn %.1f m, xy off %.1f m, %d components"),
+			*E.Name, E.GunCarrier, E.ParentId, *Carrier->GetName(), P.Z / 100, Carrier->GetActorLocation().Z / 100, Box.Max.Z / 100, T.GetLocation().Z / 100,
+			FVector::Dist2D(P, Carrier->GetActorLocation()) / 100, Ms.Num());
+		if (GC && GC->GetStaticMesh())
+		{
+			const FVector C3 = T.TransformPosition(GC->GetStaticMesh()->GetBounds().Origin);
+			UE_LOG(LogHrotDpsWorld, Display, TEXT("gun %s mesh centre drawn at z %.2f m (roof %.2f m), %.2f m from the carrier in xy (actor scale %.2f)"), *E.Name,
+				C3.Z / 100, Box.Max.Z / 100, FVector::Dist2D(C3, Carrier->GetActorLocation()) / 100, T.GetScale3D().Z);
+		}
+	}
 }
 
 FHrotDpsPose UHrotDpsWorld::PoseAt(const FEnt& E, double Real) const
