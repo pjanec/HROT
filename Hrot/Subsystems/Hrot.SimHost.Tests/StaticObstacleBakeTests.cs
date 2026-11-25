@@ -428,6 +428,15 @@ namespace Hrot.SimHost.Tests
             RunUntilBaked(sys, 2);
             Assert.True(node.PathExists(from, to, (uint)Fdp.Toolkit.Navigation.NavLayerMask.Infantry), $"{width} x {height}: no way over for a man");
             Assert.True(node.PathExists(from, to, (uint)Fdp.Toolkit.Navigation.NavLayerMask.Vehicle), $"{width} x {height}: no way over for a vehicle");
+            // ⭐ CE-4695 — a WALKER a hair (0.1 m) outside the ramp's side near its foot stands ON the ramp (within his step): the deck ends at x 137, its ramp
+            //   runs 132.2 → 137 (4.8 m, its foot buried 0.3 m). 🔴 Red-proof: DeckEdgeMargin 0 ⇒ the ground (0). And beside the
+            //   deck itself (above his step) he stays on the ground.
+            var tw = _world.GetSingletonManaged<TerrainWorld>();
+            float x = 132.2f + 4.8f * (0.55f / (height + 0.3f));   // where the ramp (its foot buried 0.3 m, TH-K) is 0.25 m up
+            Assert.InRange(tw.SurfaceZ(x, 50f, 0f), 0.22f, 0.28f);                     // on the ramp
+            Assert.InRange(tw.SurfaceZ(x, 50f - width / 2f - 0.1f, 0f), 0.22f, 0.28f);  // ⭐ a hair outside its side: still on it
+            if (height > TerrainWorld.StepHeight) Assert.Equal(0f, tw.SurfaceZ(139f, 50f - width / 2f - 0.1f, 0f), 2);   // above his step: beside it he stays on the ground
+            else Assert.Equal(height, tw.SurfaceZ(139f, 50f - width / 2f - 0.1f, 0f), 2);                               // a 0.6 m pontoon deck is one step: he may step up
             GC.KeepAlive(crate);
         }
 }

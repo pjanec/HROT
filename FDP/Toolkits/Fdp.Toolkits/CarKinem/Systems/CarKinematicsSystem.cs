@@ -895,11 +895,12 @@ namespace CarKinem.Systems
                     planar = Vector2.Zero;
                 }
             }
-            // ⭐ CE-4695 — A PERSON NEVER WADES INTO A RIVER FROM DRY GROUND: there is no water model (DESIGN_Bridge_Laying Q-3), so only the navmesh kept a man out of
-            //   the water, and a man off it was free. 📌 bl-assault-crossing (measured live): crowded off a laid bridge's ramp, a rifleman slid along the deck's side
-            //   over the river bed (x pinned at the deck's edge, z 0). A step from dry ground to a point under water whose floor is the BED (not a deck over it) is
-            //   not taken — the ledge rule's shape; on a deck, or already in the water (he may walk out), it is.
-            if (person && _terrainWorld != null && _water is { Any: true } water)
+            // ⭐ CE-4695 — NOTHING ON THE GROUND WADES INTO A RIVER FROM DRY GROUND (a man, an animal, a hull — nothing here floats): there is no water model
+            //   (DESIGN_Bridge_Laying Q-3), so only the navmesh kept a mover out of the water, and one off it was free. 📌 bl-assault-crossing (measured live):
+            //   crowded off a laid bridge's ramp, a rifleman slid along the deck's side over the river bed (x pinned at the deck's edge, z 0); 📌 bl-floating-bridge:
+            //   a tank drove into the river beside the deck. A step from dry ground to a point under water whose floor is the BED (not a deck over it) is not
+            //   taken — the ledge rule's shape; on a deck, or already in the water (it may come out), it is.
+            if (_terrainWorld != null && _water is { Any: true } water)
             {
                 var from = new Vector2(tf.Position.X, tf.Position.Y);
                 if (water.Contains(pos2D) && !water.Contains(from) && z <= _terrainWorld.GroundHeightAt(pos2D.X, pos2D.Y) + HumanGait.OnFloorTolerance)

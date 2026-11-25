@@ -1651,14 +1651,16 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
-        /// ⭐⭐ <c>CE-4695</c> (backend, cross-lane — user "fix yourself") — A PERSON NEVER WADES INTO A RIVER FROM DRY GROUND: sent straight across a river (water y 10–20)
+        /// ⭐⭐ <c>CE-4695</c> (backend, cross-lane — user "fix yourself") — NOTHING ON THE GROUND WADES INTO A RIVER FROM DRY GROUND (a man, and a tank — 📌 bl-floating-bridge): sent straight across a river (water y 10–20)
         /// he stops at the bank and never stands in it; on dry ground the same route is walked to its end. 📌 bl-assault-crossing (measured live): crowded off a laid
         /// bridge's ramp, a rifleman slid along the deck's side over the river bed. 🔴 Red-proof: drop the rule in <c>FinishMove</c> ⇒ he walks the river bed to y 30.
         /// </summary>
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void CE4695_APerson_NeverWadesIntoARiver_FromDryGround(bool river)
+        [InlineData(true, VehicleClass.Pedestrian)]
+        [InlineData(false, VehicleClass.Pedestrian)]
+        [InlineData(true, VehicleClass.Tank)]
+        [InlineData(false, VehicleClass.Tank)]
+        public void CE4695_APerson_NeverWadesIntoARiver_FromDryGround(bool river, VehicleClass cls)
         {
             string water = river
                 ? """,{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[-20,10],[20,10],[20,20],[-20,20],[-20,10]]]}}"""
@@ -1667,7 +1669,7 @@ namespace CarKinem.Tests.Systems
                 """{"type":"Feature","properties":{"kind":"surface","surface":"forest"},"geometry":{"type":"Polygon","coordinates":[[[40,40],[45,40],[45,45],[40,45],[40,40]]]}}""" + water + "]}", "river");
             var route = new[] { new Vector3(0f, 0f, 0f), new Vector3(0f, 30f, 0f) };
             var (repo, e, pool) = TrajectoryWorld(targetSpeed: 2f, startSpeed: 0f, facing: SimMath.FromYaw(MathF.PI / 2f),
-                vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+                vehicle: VehiclePresets.GetPreset(cls));
             pool.RegisterTrajectoryWithKey(route, 9);
             ref var tf0 = ref repo.GetComponentRW<SimTransform>(e);
             tf0.Position = route[0];
@@ -1686,7 +1688,7 @@ namespace CarKinem.Tests.Systems
                 kin.Execute(repo, 1f / 60f);
                 furthest = MathF.Max(furthest, repo.GetComponent<SimTransform>(e).Position.Y);
             }
-            if (river) Assert.True(furthest < 10f, $"he waded into the river (y {furthest:F2})");
+            if (river) Assert.True(furthest < 10f, $"{cls} waded into the river (y {furthest:F2})");
             else Assert.True(furthest > 29f, $"on dry ground the route is walked (y {furthest:F2})");
             pool.Dispose();
             repo.Dispose();
