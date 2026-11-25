@@ -674,6 +674,62 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8326</c> — suppressors of one squad take firing positions APART: the first man's pick is the best-ranked point and he CLAIMS it
+        /// (<c>CoverClaim</c>, PeekAndFire's mechanism); the second man, whose search ranks that SAME point first, skips it (within
+        /// <see cref="DefencePlan.DispersalMetres"/> of a squad-mate's live claim) and takes the next point 6 m away. 📐 live village-street-fight:
+        /// three riflemen of Blue Squad 2 each picked a firing position within 1–2 m of each other (≈ 394, 275), lay bunched under fire, all hit.
+        /// The second man runs in his own world carrying the first man's claim (one entity per world here — the claim is the whole interface).
+        /// 🔴 Red-proof: the Disperse skip never firing ⇒ the second man's goal is the shared point ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8326_TwoSuppressors_TakeFiringPositionsApart_TheSecondSkipsTheFirstsClaim()
+        {
+            var shared = new Vector3(10f, 10f, 0f);
+            var other = new Vector3(10f, 16f, 0f);
+            Vector3 Goal(World w, out bool claimed, Fdp.Toolkit.Combat.Components.CoverClaim? friend)
+            {
+                w.Arm();
+                w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+                SeesNothing(w);
+                w.Contact(armed: true);
+                w.Order("CombatPosture", Objective);
+                Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+                if (!w.Repo.HasComponent<SimTransform>(w.Unit)) w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+                if (friend is { } fc)
+                {
+                    var mate = w.Repo.CreateEntity();
+                    w.Repo.AddComponent(mate, fc);
+                }
+                for (int i = 0; i < 10; i++)
+                {
+                    if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                    w.Tick();
+                }
+                var sensor = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.SuppressFromSite);
+                Assert.False(sensor.IsNull, "the firing-position search on the spot is up");
+                for (int i = 0; i < 3; i++)
+                {
+                    if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                    w.AnswerPoints(sensor, 5, (shared.X, shared.Y), (other.X, other.Y));
+                    w.Tick();
+                }
+                Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+                claimed = w.Repo.HasComponent<Fdp.Toolkit.Combat.Components.CoverClaim>(w.Unit)
+                          && w.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(w.Unit).Until > (SimInstant)w.Repo.SimulationTime;
+                return w.Destination();
+            }
+
+            var first = new World();
+            Assert.Equal(shared, Goal(first, out bool firstClaimed, null));
+            Assert.True(firstClaimed, "the first man holds a live claim on his firing position");
+            var claim = first.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(first.Unit);
+            Assert.Equal(shared, claim.Hide);
+
+            var second = new World();
+            Assert.Equal(other, Goal(second, out _, claim));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-8311</c> (D-15) — a suppressor takes the LOWEST stance whose round reaches the hidden enemy's last-known spot: a wall 2 m in
         /// front of him, 20 m from the spot — none ⇒ prone; knee-high (0.6 m) ⇒ crouched over it; chest-high (1.2 m, a car) ⇒ standing over it;
         /// 3 m ⇒ nothing clears ⇒ prone (his rounds cannot reach it, so he does not stand in it). 📐 live bt-window-duel: crouched behind Van 1

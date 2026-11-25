@@ -954,6 +954,11 @@ stateDiagram-v2
 📐 Why: live `bt-window-duel` — a lone attacker blind-fired at a window for 12 s STANDING in the open, Van 1 4.5 m away, and was shot; the Suppress node set no stance and never moved (searched this design and Peek and Fire: no rule). ⛔ SUPERSEDED the same day, twice: ① the take-cover cycle (`PeekAndFire`) when cover was in reach — it fires blind only on evidence ≤ 5 s old, so every suppressor holding a remembered spot went silent (📐 the 24-scenario re-run); ② cover in reach (the posture's cover sensor), crouched — the cover hid him from the spot, so his rounds struck it (📐 `bt-window-duel`: crouched behind Van 1, 0 rounds out from 2 s to 37 s, the window man never saw him). Rails `TacticsTreesTests.CE8311_*`.
 
 ⭐⭐ **`CE-8313` — a POSTED man is not placed.** A man holding his squad's post (`Peek.AnchorRadius` > 0: window, frame, roof, room, open spot) whom the decision sends to Suppress fires blind from the post in the stance the post gave him (`PostureNodes.Posted` → `SuppressFromPost`, ahead of `Suppress` in the branch): the post already IS his place and his cover. 📐 Why: live `bt-window-duel` after D-15 — once the attacker dropped out of sight the window rifleman's decision went to Suppress, D-15 laid him prone behind his sill, and he fired 0 rounds in 60 s (before D-15: first round at 5.8 s). ⛔ The open-post (D-13, prone) and the opening-post-with-threat (CE-2366 A, the peek cycle) branches still come first. Rail `TacticsTreesTests.CE8313_*`.
+⭐ **`CE-8326` (`2026-11-25`) — the suppressors DISPERSE.** 📐 live village-street-fight: three suppressors of one squad each found the same firing
+position and lay within 2 m, all three hit. The placement now uses the ONE "first claim wins" mechanism (`CoverClaim`, CE-3158 G5 — no second
+de-confliction): a suppressor claims his firing position, and his pick skips a candidate within `DefencePlan.DispersalMetres` (5 m, doctrine's
+interval) of a squad-mate's live claim (`EqsTacticsNodes` `Mode.Disperse`; every candidate claimed ⇒ the first, never no point).
+
 ### 3.3f `CE-3090` — the wounded unit on open ground: HoldProne, and Flee only when able *(behaviors, `2026-10-07`; build-state: BUILT)*
 
 > 🔒 **User, `2026-10-07`:** *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for
