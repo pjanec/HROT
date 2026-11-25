@@ -1044,6 +1044,8 @@ void UHrotDpsWorld::OnVehicleLook(const FHrotDpsSample& S)
 	E.LookDamage = (bKilled || D.Burning) ? 2 : (D.Smoking || bPartHurt) ? 1 : 0;
 	if (D.Burning && !E.bBurning) Count(TEXT("burning started"));
 	E.bBurning = D.Burning;
+	if (D.Airborne != E.bVehicleAirborne) Count(D.Airborne ? TEXT("vehicle took off") : TEXT("vehicle landed"));
+	E.bVehicleAirborne = D.Airborne;   // gateway T-079 (HROT's Airborne.Of): the dragon's wings, a helicopter's rotors
 	ApplyDamage(E);
 }
 
@@ -1732,6 +1734,7 @@ void UHrotDpsWorld::Tick(float)
 		FEnt& E = It.Value;
 		if (!E.Actor.IsValid()) continue;
 		if (E.bAnimal) ApplyAnimal(E, Placed);
+		ApplyFlight(E, float(Dt));
 		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning || (!E.bFlamerLook && E.bHasPerson && !E.bFlamerChecked)) { ApplyFlame(E); E.bFlamerChecked = true; }
 	}
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); TickHouseFires(Placed); TickClouds(Placed, float(Dt)); }
@@ -1868,7 +1871,10 @@ void UHrotDpsWorld::DefaultLife()
 	AddDis(TEXT("1.2.225.1"), TEXT("DA_Air_F16"));            // F-16
 	AddDis(TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon"));        // MiG-29: the twin-tail stand-in
 	AddDis(TEXT("1.2.225.4"), TEXT("DA_Air_AC130"));          // C-130
-	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_UH60"));          // UH-60: no Black Hawk - the OH-1 with doors cut, seats, door guns (CE-12008, hrot_heli_kit.py)
+	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_UH60"));
+	// HROT's DRAGON (TKB 411, NOTE_Ui_To_UnrealIg_Dragon_And_Flame_Helicopter §1: key the look on its DIS class) - our dragon kit (U-17i: wings cut
+	// out and beating, riders' seats, the mouth's flamethrower). The flame helicopter (412, 1.2.225.20.0.1) is the Apache's kit by its prefix.
+	AddDis(TEXT("1.2.0.20.99"), TEXT("DA_Dragon"));          // UH-60: no Black Hawk - the OH-1 with doors cut, seats, door guns (CE-12008, hrot_heli_kit.py)
 	// U-19h 21: HROT's TECHNICALS and pickup (TKB 104 HMG, 105 ATGM, 106 bare pickup, 108 DShK, 109 minigun, 110 ZU-23-2; NedTkbCatalog Pickup(): 5.3 x 1.9 m, drives like a car) were
 	// a grey box. The city pack's truck (DA_City_vehicle04_Truck, 5.6 m, a cab and a bed) is the closest open-bed vehicle we have; their weapon is its own entity on the roof / bed.
 	for (const int64 Type : { 104, 105, 106, 108, 109, 110 }) if (!KitsByType.Contains(Type)) KitsByType.Add(Type, Kit(TEXT("DA_City_vehicle04_Truck")));
@@ -2003,7 +2009,7 @@ void UHrotDpsWorld::OnFlameJet(const FHrotDpsSample& S)
 	FEnt* E = Ents.Find(D.EntityId);
 	if (!S.bValid || !S.bAlive) { if (E) E->bJet = false; return; }   // the jet went out (disposed when unlit)
 	if (!E) E = &Ents.Add(D.EntityId);
-	if (!E->bJet) Count(TEXT("flame jet lit"));
+	if (!E->bJet) { Count(TEXT("flame jet lit")); UE_LOG(LogHrotDpsWorld, Display, TEXT("flame jet lit: entity %d mount %d, range %.0f m"), D.EntityId, int32(D.Mount), D.RangeM); }
 	E->bJet = true;
 	E->JetAim = V3(D.AimPoint); E->JetTarget = D.TargetId; E->JetRange = D.RangeM; E->JetIntensity = D.Intensity;
 }
@@ -2027,7 +2033,13 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 			if (UHrotPersonState* St = A->FindComponentByClass<UHrotPersonState>()) { St->bFlamethrower = true; E.bFlamerLook = true; Count(TEXT("flamethrower man")); }
 	// the jet: FlameLook — from the muzzle toward the aim (the target's chest when it is an entity we have), min(distance, RangeM) long
 	UHrotFlamethrower* F = E.JetComp.Get();
-	if (!E.bJet) { if (F && F->bFiring) F->SetFiring(false); return; }
+	AHrotVehicle* V = Cast<AHrotVehicle>(A);
+	if (!E.bJet)
+	{
+		if (V && V->bFlaming) V->SetFlaming(false);
+		if (F && F->bFiring) F->SetFiring(false);
+		return;
+	}
 	if (!F)
 	{
 		if (UHrotPersonState* St = A->FindComponentByClass<UHrotPersonState>())
@@ -2036,10 +2048,19 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 			St->SetFlameFiring(true);
 			F = St->ApplyFlame();
 		}
-		if (!F)   // not a person with a weapon: a flame on its body, 1.5 m up (⏳ a vehicle's flame by its TKB mount)
+		if (!F && V) F = V->GetFlame();   // the kit's own flamethrower (the dragon's mouth)
+		if (!F && V)   // a vehicle whose kit has none (the flame helicopter: the AH-64's kit) - a nozzle under its nose, 1/4 up the body
+		{
+			const FBox B = V->CalculateComponentsBoundingBoxInLocalSpace(true);
+			const FVector Nose = B.IsValid ? FVector(B.Max.X - 0.1 * (B.Max.X - B.Min.X), 0, B.Min.Z + 0.25 * (B.Max.Z - B.Min.Z)) : FVector(0, 0, 150);
+			F = UHrotFlamethrower::Attach(V->GetRootComponent(), NAME_None, FTransform(Nose), 1.5f);
+			Count(TEXT("flame jet at a vehicle's nose"));
+		}
+		if (!F)   // not a person and not a vehicle: a flame on its body, 1.5 m up
 			F = UHrotFlamethrower::Attach(A->GetRootComponent(), NAME_None, FTransform(FVector(0, 0, 150)), 1.f);
 		E.JetComp = F;
 		Count(TEXT("flame jet drawn"));
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("flame jet of %s drawn from %s"), *E.Name, !F ? TEXT("nothing") : V && F == V->GetFlame() ? TEXT("the kit's flamethrower") : V ? TEXT("the vehicle's nose") : TEXT("a person or the body"));
 	}
 	if (!F) return;
 	FVector3d Aim = E.JetAim;
@@ -2048,7 +2069,25 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 	const float Dist = float((To - From).Size() / 100.0);
 	if (Dist > 0.5f) F->SetWorldRotation((To - From).Rotation());
 	F->Range = HrotDpsLife::JetLength(Dist, E.JetRange) * 100.f / FMath::Max(F->Size, 0.01f);
-	if (!F->bFiring) F->SetFiring(true);
+	if (V && F == V->GetFlame()) { if (!V->bFlaming) V->SetFlaming(true); }   // the kit's stream: lit through the vehicle (its wreck never fires)
+	else if (!F->bFiring) F->SetFiring(true);
+}
+
+void UHrotDpsWorld::ApplyFlight(FEnt& E, float Dt)
+{
+	AHrotVehicle* V = Cast<AHrotVehicle>(E.Actor.Get());
+	if (!V) return;
+	// speed and climb as drawn (HROT's local metres), smoothed over ~0.5 s - they only choose the wings' look
+	if (E.bFlightPrev && Dt > 1e-3f)
+	{
+		const FVector3d D = (E.Shown.P - E.FlightPrevP) / Dt;
+		const float K = FMath::Clamp(Dt / 0.5f, 0.f, 1.f);
+		E.FlightSpeed += K * (float(D.Size()) - E.FlightSpeed);
+		E.FlightClimb += K * (float(D.Z) - E.FlightClimb);
+	}
+	E.FlightPrevP = E.Shown.P; E.bFlightPrev = true;
+	const bool bFly = E.bVehicleAirborne && E.Damage < 2;
+	V->SetFlight(bFly, bFly && E.FlightSpeed > 10.f && E.FlightClimb <= 1.f);
 }
 
 void UHrotDpsWorld::OnFireSpots(const FHrotDpsSample& S)

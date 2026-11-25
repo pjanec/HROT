@@ -210,6 +210,13 @@ void AHrotVehicle::SetFlying(bool bNewFlying)
 	ApplyState();
 }
 
+void AHrotVehicle::SetFlight(bool bNewFlying, bool bNewGliding)
+{
+	if (bNewFlying == bFlying && bNewGliding == bGliding) return;
+	bGliding = bNewGliding;
+	SetFlying(bNewFlying);
+}
+
 void AHrotVehicle::ApplyWings(float Angle)
 {
 	if (!Kit) return;
@@ -236,10 +243,12 @@ void AHrotVehicle::Tick(float DeltaTime)
 	}
 	if (Kit->FlapAmplitude <= 0.f) return;
 	const float S = FMath::Sin(2.f * PI * Kit->FlapRate * FlapClock);
-	ApplyWings(Kit->FlapAmplitude * S);
+	GlideBlend = FMath::FInterpConstantTo(GlideBlend, bGliding ? 1.f : 0.f, DeltaTime, 1.f);   // DESIGN_Dragon §8.2: blend 1 s
+	const float W = GlideBlend;
+	ApplyWings((1.f - W) * Kit->FlapAmplitude * S + W * Kit->GlideAngle);
 	// wings down → body high (the downstroke lifts). ⚠ measured (five side pictures): a positive beat angle lowers the wings — with
 	// −Bob·S the body rose with the wings, the wrong way round
-	Lift->SetRelativeLocation(FVector(0.f, 0.f, Kit->FlapBob * S));
+	Lift->SetRelativeLocation(FVector(0.f, 0.f, (1.f - W) * Kit->FlapBob * S));
 }
 
 void AHrotVehicle::SetFlaming(bool bNewFlaming)
@@ -279,10 +288,10 @@ void AHrotVehicle::ApplyState()
 	for (UStaticMeshComponent* C : PartComps)
 	{
 		if (!C) continue;
-		for (int32 I = 0; I < C->GetNumMaterials(); ++I) C->SetMaterial(I, bWreck ? Burnt : nullptr);   // nullptr = the mesh's own
+		for (int32 I = 0; I < C->GetNumMaterials(); ++I) C->SetMaterial(I, bWreck && !Kit->bCreature ? Burnt : nullptr);   // nullptr = the mesh's own; a creature has no wreck colour
 	}
 	if (SkinnedComp)
-		for (int32 I = 0; I < SkinnedComp->GetNumMaterials(); ++I) SkinnedComp->SetMaterial(I, bWreck ? Burnt : nullptr);
+		for (int32 I = 0; I < SkinnedComp->GetNumMaterials(); ++I) SkinnedComp->SetMaterial(I, bWreck && !Kit->bCreature ? Burnt : nullptr);
 	auto Attach = [this](const TCHAR* Path, float Scale)
 	{
 		Scale *= Kit->DamageFxScale;
@@ -291,6 +300,7 @@ void AHrotVehicle::ApplyState()
 			                                                                        FVector(Scale), EAttachLocation::KeepRelativeOffset, false))
 				DamageFx.Add(C);
 	};
+	if (Kit->bCreature) { UHrotBurning::SetBurning(this, 0.f); Shown = Damage; return; }   // a creature: hurt or dead, no smoke and no fire (the dragon is fireproof)
 	if (Damage == EHrotVehicleDamage::Damaged) Attach(SmokeFx, DamagedSmokeScale);
 	// ⭐ the wreck burns through the ONE fire implementation (UHrotBurning, U-17f): one fire + its smoke at the engine deck
 	if (bWreck) { if (UHrotBurning* B = UHrotBurning::SetBurningAt(this, Kit->EngineDeck, Kit->DamageFxScale)) { B->SmokeScale = WreckSmokeScale; B->Apply(); } }
