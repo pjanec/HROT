@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-25
-build-state: DESIGN — open points MEASURED by the spike 2026-11-25 (§8, all work); awaiting the user's approval to build
-current-answer: whole document; §7 the measured claims, §8 the spike's results
+build-state: DESIGN — spike measured (§8); an independent review found 2 blockers and 11 majors (§10) that narrow the scope; awaiting the user's decision on §10's revised scope
+current-answer: §10 (the review and the REVISED scope) overrides §4 / §6 where they differ; §7 measured claims, §8 the spike
 stale-below: nothing
 known-rot: none
 known-conflict: SimNetGateway docs/design/DD-017-Dps-Dds-Player-Station.md §1a rejected "one protocol for both" ("the internal wire would freeze, or the public one would break with HROT") — this design revisits that, with the user (§1); RULINGS R-4092 ("no one speaks NED besides HROT so changes are allowed") — narrowed for the client-visible subset (D-5)
@@ -201,3 +201,40 @@ participant is created before the editor (D-2's ask happens at that point). `Pre
 - Without the gateway: the editor composes exactly as today (no participant, null replication) — a rail on the composition.
 - Turbo, run-to, preview, reload, replay unchanged in the editor (their own rails).
 - The client subset's IDL is committed and a rail refuses a rename.
+
+## 10. Independent review (2026-11-25) — findings and the revised scope
+
+An adversarial review read this design and both repositories, not the author's reasoning. Verified as correct: the load order (extensions before the editor),
+the editor's role flags, the two type checks, `@appendable` NED types, WorldPos in local ENU (the DPS frame), DPS `EntityId` = HROT `NetworkIdentity`, §6b (SUMO).
+
+| # | sev | finding (evidence) | resolution — ⭐ = changes the design |
+|---|---|---|---|
+| 1 | blocker | NED has no partitions (`NED_DDS_Protocol.md:191`); the spike gives every editor node id 1; DPS and HROT both default to domain 0 ⇒ two editors, or an editor on a cluster's domain, mix worlds | ⭐ the editor's NED runs on a DEDICATED domain the gateway names, refused when it equals the cluster's; EGRESS-ONLY (finding 4) so nothing is ingested |
+| 2 | blocker | the gateway does not run in a cluster (`GatewayExtension.cs:50-55`: offline only) — the cluster half of §1 / §6a / §9 assumes an unbuilt host | ⭐ scope = the EDITOR; the cluster case is DD-017 step 2 (which node hosts the gateway and its looks), designed separately |
+| 3 | major | NED `WeaponFire` comes from live bus events; in REPLAY HROT raises none — DPS rebuilds Fire / Detonation from recorded effects (DD-017 §3.9, guide :717) | ⭐ Fire, Detonation, Impact STAY DPS (presentation events); replay of retained state on NED measured before retiring any of it |
+| 4 | major | 101 ingress translators listen on an open domain ⇒ any writer (a client tool) can change the editor's world | ⭐ the editor's module is EGRESS-ONLY |
+| 5 | major | a client sees all of NED: minefield truth and every side's knowledge, sensor targets, AI internals; DPS withholds them (guide :383-384) | ⭐ threat model: the IG is TRUSTED software — what the PLAYER sees is what it draws; the "never draw" rules (minefields, concealed items) become documented client rules; ⛔ whether a client can tell a concealed item from NED alone: to measure |
+| 6 | major | every client must rebuild "what is a drawable entity": damage / door / ground records, clouds, concealed items, `IsUnit`, `Playable` (`EcsHrotAdapter.cs:184, :623`) are DPS's, not NED's | ⭐ a table of every non-drawable NED entity kind and who filters it (source / client) — a precondition of slice 3 |
+| 7 | major | the twins differ: WorldPos BestEffort vs Reliable, 10 s vs 5 s heartbeat, no acceleration, no `Bank` (gateway-derived), quaternion w implied; damage as floats vs `PartCondition`; WeaponFire carries refused shots; MunitionDetonation lacks time / velocity / result | ⭐ the field-by-field table per twin (NED gains / client rule / stays DPS); `Bank` stays a DPS look |
+| 8 | major | PlayerSlot has no NED writer in the editor (DD-017:504); Status, Exercise, PlayerMessage are station data | ⭐ they STAY DPS |
+| 9 | major | `Reliable·Volatile·KeepAll` NED events: a slow external reader can stall a writer | resolved for the client by 3 (events stay DPS) |
+| 10 | major | NED's lifecycle and ownership rules (only an `EntityMaster` dispose means gone; a stale WorldPos after a hand-over) fall on the client; DPS's "any not-ALIVE = gone" would be wrong | ⭐ written into the client subset's rules; in the editor (one owner) the hand-over case does not occur |
+| 11 | major | topic name = C# namespace; WorldPos was rewritten in place in 2026 (frame, rotation), units converted in place — a rename rail does not stop semantic breaks | ⭐ the client subset in its OWN namespace / assembly with a semantic-review gate |
+| 12 | major | in the editor the time and orchestration translators send nothing ⇒ no time / world boundary on NED | ⭐ time and world boundaries STAY DPS (`Session`, `SimClock`); D-6's "world epoch on NED" dropped |
+| 13 | major | the spike never loaded the gateway, never ran an external reader (a QoS mismatch fails silently), no replay, save, hot reload, seats, or a large world | ⭐ an end-to-end rail: the gateway loaded + a reference NED reader with client QoS, before slice 4 |
+| 14 | minor | entities imported from DIS / HLA are owned by the gateway's replica owner ⇒ NED egress skips them | measure what DPS shows of them today |
+| 15 | minor | a look (DPS) can arrive before its entity (NED), or outlive it | a client buffering rule |
+| 16 | minor | `Round` in neither list; `PlayerMessage` named a twin without its NED type | `Round` stays DPS (a look of a lightweight round) |
+| 17 | minor | `NodeExtensionContext.Offline` documented as "no DDS stack" | renamed in meaning to "not a cluster member", its doc changed |
+| 18 | minor | D-2 needs the gateway's config before the editor exists; NED requested when only DIS is on? | NED only when DPS is enabled |
+
+### Revised scope (pending the user)
+
+| | |
+|---|---|
+| where | the editor first; the cluster later, with DD-017 step 2 |
+| how | the editor's NED module EGRESS-ONLY, on a DEDICATED domain the gateway names (refused if it equals a cluster's) |
+| what moves to NED | RETAINED state only: Entity, EntityState (without `Bank`), Articulation, FireSpots, GroundMarks, BuildingDamage records, GroundDamage, Cloud, Carried, Animal, Ambience, Weather — ~12 topics, each after its field-by-field row |
+| what stays DPS | events (Fire, Detonation, Impact, Utterance, ManDowned, PlayerMessage), the station (PlayerSlot, Status, Exercise, seats, controls), time and boundaries (Session, SimClock), every look, Round, SUMO traffic |
+| what the client takes on | NED's lifecycle rule (EntityMaster dispose = gone), the drawable-entity filter table, the field differences (w-implied quaternion, damage floats), a look-before-entity buffer |
+| what NED gains | acceleration on WorldPos; the client subset in its own namespace with a semantic-review gate |
