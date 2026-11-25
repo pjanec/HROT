@@ -3,7 +3,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-4693 BL-S4 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712, BL-20) - on basic-desert a WIDE RIVER, 70 m (y 60-130), far beyond an assault bridge. At 2 s 'Engineer' (a floating-bridge engineer, TKB 119: a ribbon bridge bridging up to 100 m, 1200 s to lay - an estimate, said) is ordered to LayBridge from (80, 50) to (80, 140). Its span (TKB 8826, 0.6 m above the water line) is laid as long as the river plus a metre on each bank. When it is Open the engineer backs off the approach by itself (out of the deck's line - it cannot turn away forwards, the river 13 m ahead) and the rule 'Bridge laid' drives a column of two vehicles ('Tank 1', 'Tank 2' - M1s, formed up on the bridge's axis behind the engineer: a hull cannot yet line up onto a narrow deck from an angle, CE-4697) across to (80, 160) and (80, 172). Judge: 'Bridge laid' Achieved; the engineer laid its span (Count 0); both vehicles reach the far bank, driving over the deck; no vehicle ever stands in the river off the deck. Fail: refused, no bridge, or the column stops at the water. Check: scripts/scenario-regression.sh bl-floating-bridge"
+  "description": "What: CE-4693 BL-S4 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712, BL-20) - on basic-desert a WIDE RIVER, 70 m (y 60-130), far beyond an assault bridge. At 2 s 'Engineer' (a floating-bridge engineer, TKB 119: a ribbon bridge bridging up to 100 m, 1200 s to lay - an estimate, said) is ordered to LayBridge from (80, 50) to (80, 140). Its span (TKB 8826, 0.6 m above the water line) is laid as long as the river plus a metre on each bank. When it is Open the engineer backs off the approach by itself (out of the deck's line - it cannot turn away forwards, the river 13 m ahead) and the rule 'Bridge laid' drives a column of two vehicles across one at a time (a one-lane bridge: the second goes on when the first is over) ('Tank 1', 'Tank 2' - M1s, formed up on the bridge's axis behind the engineer: a hull cannot yet line up onto a narrow deck from an angle, CE-4697) across to (80, 160) and (80, 172). Judge: 'Bridge laid' Achieved; the engineer laid its span (Count 0); both vehicles reach the far bank, driving over the deck; no vehicle ever stands in the river off the deck. Fail: refused, no bridge, or the column stops at the water. Check: scripts/scenario-regression.sh bl-floating-bridge"
  },
  "entities": {
   "b4693400-0000-4000-8000-000000000000": {
@@ -243,7 +243,43 @@
          "arrivalRadius": 4
         }
        }
-      },
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693400-0000-4000-8000-000000000024": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Tank 1 over",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Tank 1 over",
+      "subject": "b4693400-0000-4000-8000-000000000004"
+     },
+     "when": {
+      "$type": "OnEntity",
+      "ref": "b4693400-0000-4000-8000-000000000004",
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "SimTransform",
+       "propertyPath": "Position.Y",
+       "operator": "GreaterThan",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 140,
+        "maxValue": 1000000000.0
+       }
+      }
+     },
+     "do": [
       {
        "act": "Order",
        "args": {

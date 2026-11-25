@@ -245,7 +245,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>How far back along the deck's line and to its side (m) the engineer backs off once its bridge is open.</summary>
-        public const float ClearBackMetres = 14f, ClearSideMetres = 6f;
+        public const float ClearBackMetres = 20f, ClearSideMetres = 10f;
 
         /// <summary>Drives approach → stand; true while the hull is at its stand (then <see cref="Step.Work"/>). Re-drives if it is pushed off it.</summary>
         private static bool Drive(ref BridgeArgs p, ref BridgeWork ws, Entity self, EntityRepository world)
