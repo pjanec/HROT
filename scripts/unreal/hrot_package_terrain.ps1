@@ -44,7 +44,7 @@ $files | % { Copy-Item $_.FullName $out; "{0,9:N1} MB  {1}" -f ($_.Length / 1MB)
 # the HROT terrain the package matches: -HrotTerrains, else the repository's assets/terrain, else the running HROT's imported copy
 #   (2026-11-25: Stechovice is imported from terrain-input at load - it lives only under <HROT>/data/shared/assets/terrain)
 if (-not $HrotTerrains) {
-  $HrotTerrains = @("$Here\..\..ssets	errain", "D:\Work\HROT-live\data\sharedssets	errain") | ? { Test-Path (Join-Path $_ "$Terrain	errain.json") } | Select-Object -First 1
+  $HrotTerrains = @("$Here\..\..\assets\terrain", "D:\Work\HROT-live\data\shared\assets\terrain") | ? { Test-Path (Join-Path $_ "$Terrain\terrain.json") } | Select-Object -First 1
 }
 python "$Here\hrot_terrain_manifest.py" $Terrain $out --source $Source $(if ($HrotTerrains) { "--terrains"; $HrotTerrains })
 if ($LASTEXITCODE -ne 0) { "the manifest was not written (no HROT terrain '$Terrain'?)"; exit 5 }
