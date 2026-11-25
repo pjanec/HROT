@@ -261,7 +261,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   node — the navmesh, the floor, sight and fire hold its deck — and road for our road-following vehicles while it stands; a charge on the deck
   drops it, whoever was on the span goes into the river, and the river is a barrier again. (BL-S1/S2, CE-4692, R-4299; rails
   `StaticObstacleBakeTests.CE4692_*`, `BridgeClosureTests.CE4692_*`, `ObstacleDamageTests.CE4692_*`, `FeatureKindsTests.CE4692_*`; scenarios
-  `bl-placed-bridge`, `bl-placed-bridge-absent`, `bl-blow-the-bridge`) ⏳ — the engineer who lays and recovers it is BL-S3 (backend, CE-4693)
+  `bl-placed-bridge`, `bl-placed-bridge-absent`, `bl-blow-the-bridge` — 3 of 3 pass) ✅ — the engineer who lays and recovers it is BL-S3 (backend, CE-4693)
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
   any thread count. (rails `BuildingDamageSaveTests`, `CraterTests`, the translators `EntityGroundDamageTranslatorTests` / `EntityBuildingDamageTranslatorTests`;

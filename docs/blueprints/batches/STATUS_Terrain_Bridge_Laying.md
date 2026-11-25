@@ -4,19 +4,23 @@ Handoff: [HANDOFF_Coordinator_To_Terrain_Bridge_Laying.md](HANDOFF_Coordinator_T
 [DESIGN_Bridge_Laying.md](../../designs/engineering/DESIGN_Bridge_Laying.md) rev 2. Started at `829091759` (merged `coordinator@cdcc9f1e2`).
 
 ## 1. Now
-Row ①②③ IN PROGRESS — the walkable kind, the lifted deck geometry, the bake ADD.
+DONE — every row built, all three scenarios PASS (`scripts/scenario-regression.sh bl-placed-bridge,bl-placed-bridge-absent,bl-blow-the-bridge`, 3/3).
+Red-proofs: see §5. Backend may start BL-S3 — [NOTE_Terrain_To_Backend_Bridge_Laying_Built.md](NOTE_Terrain_To_Backend_Bridge_Laying_Built.md).
 
 ## 2. The queue
 | # | row | state | sha | rail | scenario |
 |---|---|---|---|---|---|
-| ① | walkable kind (`StaticObstacle.Kind`, TKB types 8825 / 8826) | IN PROGRESS | | | |
-| ② | one deck geometry (`DeckGeometry`, lifted from `FeatureKinds`) | IN PROGRESS | | | |
-| ③ | the bake ADD (`With`, `BakeObstacles`, dirty, commit) | IN PROGRESS | | | |
-| ④ | the floor + the kerb | TODO | | | |
-| ⑤ | the road ADD | TODO | | | |
-| ⑥ | destroy (immediate skip, deck reach, road cut) | TODO | | | |
-| ⑦ | the water (`WaterFallSystem`) | TODO | | | |
-| S | `bl-placed-bridge`, `bl-blow-the-bridge` | TODO | | | |
+| ① | walkable kind (`StaticObstacle.Kind`, TKB 8825 / 8826) | DONE | `6f9abc267` | `StaticObstacleBakeTests.CE4692_*` | `bl-placed-bridge` PASS |
+| ② | one deck geometry (`DeckGeometry`, lifted from `FeatureKinds`) | DONE | `6f9abc267` | `FeatureKindsTests.CE4692_*` | — |
+| ③ | the bake ADD (`With`, `BakeObstacles`, `DeckDirt`, commit) | DONE | `6f9abc267` | `StaticObstacleBakeTests.CE4692_*` (incremental) | `bl-placed-bridge` PASS |
+| ④ | the floor + the kerb (+ hull points on a deck, found live) | DONE | `9089fb47e` | `ObstacleDamageTests.CE4692_*` | `bl-placed-bridge` PASS |
+| ⑤ | the road ADD (`base − blocked + added`) | DONE | `6f9abc267` | `BridgeClosureTests.CE4692_*` | — (no road in the stage) |
+| ⑥ | destroy (immediate skip, deck reach) | DONE | `6f9abc267` | `ObstacleDamageTests.CE4692_*` | `bl-blow-the-bridge` PASS |
+| ⑦ | the water (`WaterFallSystem`, no rubble) | DONE | `6f9abc267` | `ObstacleDamageTests.CE4692_*` | `bl-blow-the-bridge` PASS |
+| S | `bl-placed-bridge`, `bl-placed-bridge-absent`, `bl-blow-the-bridge` | DONE | | | 3/3 PASS |
+
+📐 The first scenario run was red: a tank was held at the ramp's foot (its corner read with the hull centre's hint ⇒ out of reach ⇒ the
+ground; the trace ran through the ramp). Fixed by `IWorldQuery.HullPointZ` (`9089fb47e`); design §11 BL-12.
 
 ## 3. Decisions taken (deviations, folded into the design)
 - `BridgeShape` is NOT a new component: a deck obstacle reuses `ObstacleShape` (Length = span between the deck ends, Width, Height = deck height
@@ -24,4 +28,12 @@ Row ①②③ IN PROGRESS — the walkable kind, the lifted deck geometry, the b
   component with its own descriptor and translator would duplicate it (ruling 9).
 
 ## 5. Gates
-(filled per row)
+| gate | result |
+|---|---|
+| `Fdp.Toolkits.Tests` `CE4692|CarKinematicsSystemTests|HullClearance` | 180 / 180 |
+| `Fdp.Toolkits.Tests` `ObstacleDamage|StaticObstacle|FeatureKinds|BridgeRoads|CarKinematicsSystem|TerrainWorld` (before the ramp fix) | 285 / 286 — the one red was the new rail itself, then fixed |
+| `Hrot.SimHost.Tests` `StaticObstacleBake|BuildingDamageBake|LiveOverlayBake` + `CE4692` | 40 / 40 |
+| scenarios (editor tier) | 3 / 3 PASS |
+| red-proofs (7 compiling mutations) | see the commit that lands this row |
+| ⚠ not run | the parallel / read-check env on `WaterFallSystem` (serial, publishes events only); the cluster tier; the integration suite (row 8) — the bake and the road step are per-node derivations of replicated components, measured by the incremental-bake and road rails |
+| ids | TKB 8825, 8826; no new CE ids |
