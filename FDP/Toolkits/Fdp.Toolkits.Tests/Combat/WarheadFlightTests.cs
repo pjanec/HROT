@@ -228,6 +228,28 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-11057</c> — a NAPALM bomb (an incendiary with a burning area, no blast, no fragments) that falls on bare GROUND bursts there, like a
+        /// cloud round (CE-3239): one burst on the ground, no target. 📌 Live <c>fl-napalm-strike</c>: released on time, the bomb landed 1.2 m from where the
+        /// fixed-step run's did, missed the man it had clipped, met the ground and never burst — no fireball, no ground fire (<c>StoppedByTerrain</c>).
+        /// 🔴 Red-proof: <c>HasFireArea</c> dropped from <see cref="WarheadRound.BitsOf"/> ⇒ no Area bit ⇒ no burst.
+        /// </summary>
+        [Fact]
+        public void CE11057_ANapalmBomb_BurstsOnTheGround_WhereItLands()
+        {
+            var napalm = new Fdp.Toolkit.Tkb.Domain.WarheadDto
+            {
+                Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, Indirect = true, AreaLengthM = 80f, AreaWidthM = 25f, BurnSeconds = 300f, FlameIntensity = 1f,
+            };
+            byte bits = WarheadRound.BitsOf(napalm, out _);
+            Assert.True((bits & WarheadRound.Area) != 0, "a napalm bomb bursts");
+            Launch(new Vector3(0, 0, 1.5f), new Vector3(40, 0, 0), 30f, high: false, bits);
+            var (_, b) = Assert.Single(Fly(60 * 10));
+            Assert.InRange(b.HitX, 38.5f, 41.5f);
+            Assert.InRange(b.HitZ, 0f, 0.2f);
+            Assert.Equal(Entity.Null, b.Target);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-3236</c> (B-14, §7.15 VC-1) — a cloud round that bursts on the GROUND does not go: it LIES and VENTS for its burn
         /// (<see cref="WarheadRound.Landed"/> + <see cref="WarheadRound.Lingers"/>, its fuze spent), the burst names it as its round (the cloud's
         /// source), and once its burn is over it goes WITHOUT a second burst. ✅ Red-proofs: <c>BeginVenting</c> returning false ⇒ it is
