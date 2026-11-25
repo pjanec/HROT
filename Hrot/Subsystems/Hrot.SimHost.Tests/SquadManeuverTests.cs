@@ -2672,6 +2672,27 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8327</c> — a SquadDefend RE-SENT to the point the squad already holds (<c>"InPlace":true</c>; a platoon's flank turn re-plans the
+        /// posts) with every man inside the area takes posts from where he stands: it leaves Moving at once, no march to the centre. The same order
+        /// WITHOUT it marches (CE-2275's case). 📐 live village-street-fight: the restart marched Red Squad 1's posted men out of cover into the street.
+        /// 🔴 Red-proof: the <c>InPlace</c> gate always false ⇒ the squad stays Moving ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8327_AnInPlaceSquadDefend_WithEveryManInTheArea_TakesPostsAtOnce_NoMarchToTheCentre()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);   // without InPlace: the march, as ever
+
+            var t = new Squad(members: 4);
+            t.Order("{\"Position\":[6,20,0],\"SearchRadius\":25,\"InPlace\":true}", BehaviorNames.SquadDefend);
+            t.Tick(); t.Tick(); t.Tick();
+            Assert.Equal(SquadDefendManeuver.ManeuverKind, t.Kind);
+            Assert.Equal(SquadDefendManeuver.PhasePosting, t.Phase);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2359</c> (AQ102 H, R-2072) — a known enemy under the wall, seen by nobody for 2 s, is hunted by ONE man: the posted man
         /// nearest him gets his post widened to the squad's window search (any opening of the building, the window way) with his arc on the
         /// enemy; the others keep theirs. After 20 s he is sent back to his own post, and the same contact is not hunted twice. ✅ Red-proofs:
@@ -5287,6 +5308,11 @@ namespace Hrot.SimHost.Tests
             p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);    // east, 100 m: Alpha turns to it
             p.Ticks(12);
             Assert.Equal(2, DefendOrders(p, p.Alpha));
+            // ⭐ CE-8327 — the first send marches in; the turn's re-send to the same point is IN PLACE (posts from where the squad stands)
+            var sends = p.S.Orders.Where(o => o.Entity.Equals(p.Alpha) && o.IntentId == BehaviorNames.SquadDefend)
+                .Select(o => System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)).ToArray();
+            Assert.False(sends[0].InPlace, "the first send marches in");
+            Assert.True(sends[1].InPlace, "the turn's re-send to the same point is in place");
             Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(Vector3.Zero, SectorOf(p, p.Alpha).LeftBearing,
                 SectorOf(p, p.Alpha).RightBearing, 0f, 0f, new Vector3(100f, 0f, 0f)), "turned to the flank");
             p.S.Pause(PlatoonDefendBehavior.TriggerFreshSeconds + 1f);   // no fresh SPOT there any more

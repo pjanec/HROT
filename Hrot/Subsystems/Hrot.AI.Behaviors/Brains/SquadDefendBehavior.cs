@@ -38,6 +38,8 @@ namespace Hrot.AI.Behaviors.Brains
         public int InitiatedBy;
         /// <summary>⭐ <c>CE-7007</c> — shoot and move: seconds at one post in contact before he changes (0 = off).</summary>
         public float ShootAndMove;
+        /// <summary>⭐ <c>CE-8327</c> — 1 = a re-send to the point already held: posts from where the squad stands (see <c>AlreadyInTheArea</c>).</summary>
+        public byte InPlace;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — the authored fighting positions of a <c>SquadDefend</c> order (from
@@ -298,6 +300,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Order.Authored = AuthoredPosts.From(authored.Posts);   // ⭐ D-2f (DA-46)
             block.Order.InitiatedBy = authored.InitiatedBy.Ref.NetworkId;      // ⭐ CE-2306 (DA-96)
             block.Order.ShootAndMove = authored.ShootAndMoveSeconds;           // ⭐ CE-7007
+            block.Order.InPlace = authored.InPlace ? (byte)1 : (byte)0;        // ⭐ CE-8327
             block.State = default;
         }
 
@@ -435,11 +438,30 @@ namespace Hrot.AI.Behaviors.Brains
             evt = PhaseEventKind.BoundComplete;
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhaseMoving || ws.Reissue != 0) return false;
             if (ctx.Now - ws.IssuedAt >= MoveTimeoutSeconds) { ws.CompletedByTimeout = 1; return true; }
+            if (p.InPlace != 0 && AlreadyInTheArea(in p, in ctx)) return true;   // ⭐ CE-8327 — on its position already: posts from where it stands, no march
             var march = MarchTo(in p);
             if (default(SquadMarchPlay).Outcome(ref march, ref ws, in ctx) == NodeStatus.Success) return true;   // ⭐ D-13 — the wedge is there
             for (int i = 0; i < ctx.Roster.Count; i++)
                 if (ctx.Live(i, out var m) && Flat(ctx.At(m) - p.Position) > ArrivedMetres) return false;
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-8327</c> — applies to an IN-PLACE re-send only (<see cref="SquadDefendParams.InPlace"/>): every live man already stands inside the defended area (within its <c>SearchRadius</c>, at least
+        /// <see cref="ArrivedMetres"/>): the squad is ON its position, so it takes posts from where it stands instead of marching in to the centre
+        /// point (doctrine: a unit on its position occupies it; it does not leave its cover to form up). 📐 live village-street-fight: a flank turn
+        /// re-sent Red Squad 1's SquadDefend (DA-60, by design — its posts face the new slice), the restart marched the posted defenders out
+        /// of cover to the position's centre, in the street, where they were shot — the CE-2346 shape, from inside the play.</summary>
+        private static bool AlreadyInTheArea(in SquadDefendParams p, in SquadPlayContext ctx)
+        {
+            float reach = MathF.Max(p.SearchRadius, ArrivedMetres);
+            bool any = false;
+            for (int i = 0; i < ctx.Roster.Count; i++)
+            {
+                if (!ctx.Live(i, out var m)) continue;
+                any = true;
+                if (Flat(ctx.At(m) - p.Position) > reach) return false;
+            }
+            return any;
         }
 
         public void BeginIssue(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
