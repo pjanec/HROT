@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — PRELIMINARY IDEA (user, 2026-11-22: "write it as a preliminary idea")
-updated: 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
+updated: 2026-11-25 (§5c C-2 CE-4687 a condition that can never hold) · 2026-11-24 (§5d.1 CE-4686 the four findings) · 2026-11-24 (§5d the seat over aggregated units, CE-4685) · 2026-11-23 (§5a-5 the duel) · 2026-11-22 (rev 2 — the bridge INSIDE HROT, a platoon commander first, the feed stream, three minds: scripted · Haiku worker · Ollama; fairness dropped)
 build-state: BUILDING — L-1 (CE-4676) §5a · L-2 (CE-4679) §5a-2 · L-2b (CE-4680) §5b · L-3 on the cloud VM (CE-4681) §5a-3 · L-3a the briefing budget (CE-4683) §5a-4 · the duel §5a-5 — all BUILT by backend; the §12 leans APPROVED (R-4298, user 2026-11-22: "leans approved, write handoff for L-1"); NEXT L-3c the decision contract (CE-4684, §5c), then L-3b (the real model on the user's laptop); L-4 DESIGN
 current-answer: §1 the test · §2–§5 the in-HROT commander bridge and its stream · §6 the laptop · §11 the slices
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: an external bridge, a company first, fairness)
@@ -284,8 +284,8 @@ assault) that the game AI already does better.
 
 | piece | as built |
 |---|---|
-| the tools | `run_play {play, where, support?}` — play one of `PlatoonAttack` · `PlatoonDefend` · `PlatoonBound` · `PlatoonHold` (`CommanderActionSystem.Plays`); `stop_play {}`; both in `/tools` and the prefix |
-| giving the play | ⭐ an `AssignTacticalIntentEvent { Entity = the commander, IntentId = the play, Origin = Superior }` — what `CommandOrders.Assign` publishes for a superior, minus the giver's `SubordinateOrders` record (the seat has no giver entity). Params: Attack / Defend `{"Position", "SearchRadius": 30}`; Bound `{"SupportPoint", "Objective"}` (the support point defaults to the objective); Hold `{}` |
+| the tools | `run_play {play, where, support?}` — ⭐ **since CE-4685 (§5d) `play` is an order KIND to his whole unit** — `Attack` · `Defend` · `Bound` · `Hold` (`CommanderActionSystem.OwnOrders`); ⛔ ~~one of `PlatoonAttack` · `PlatoonDefend` · `PlatoonBound` · `PlatoonHold`~~ (SUPERSEDED `2026-11-24`, user: *"We cannot call directly a behavior name"*); `stop_play {}`; both in `/tools` and the prefix |
+| giving the play | ⭐ an `AssignTacticalIntentEvent { Entity = the commander, IntentId = ~~the play~~ ⭐ `Order.<kind>` (CE-4685 — the routing table picks the play for his class), Origin = Superior }` — what `CommandOrders.Assign` publishes for a superior, minus the giver's `SubordinateOrders` record (the seat has no giver entity). Params: Attack / Defend `{"Position", "SearchRadius": 30}`; Bound `{"SupportPoint", "Objective"}` (the support point defaults to the objective); Hold `{}` |
 | ending it | `stop_play` or a new play: a `ClearBehaviorEvent` at origin Superior — the run ends and `SubordinateOrders.Release` clears its squad orders (behaviors' code) |
 | ⭐ a direct order mid-play | ends the play first (an `order-state` `play-ended` item), and the order waits in `SeatRuntime.AfterPlay` until the play's run is gone AND its orders are released. 📌 measured on the rail: the behaviour hash changes BEFORE the release, and `CommandOrders.Order` records under the CURRENT run (`BehaviorOwnedParts.OwnerOf`) ⇒ an order given in between was cleared with the play's. Later direct orders queue behind it, in order |
 
@@ -526,7 +526,7 @@ the watcher gives its orders through the SAME action path as the model, so a con
 |---|---|
 | classes | `Decision` · `UnitOrder` · `Condition` (one flat shape) · `Contingency` · `SeatVocabulary` · `DecisionContract` (schema · read · validate) · `IDecisionMind` / `IDecisionTranscript` · `ConditionWatcher` + `CommanderWatchSystem` (Simulation, WhenTimeAdvances, after the action system) · `TerrainFacts` |
 | C-1 | the seat's schema (its units / places as enums) is Ollama's `format`; no tools. All or nothing: any problem sends the WHOLE decision back once with every problem named, a second failure is CONTINUE. A play AND a squad order now is a problem (a squad order ends the play). The model log keeps per call: request · raw · `validation` · `repaired` · `fallback` · the `decision`. `HROT_COMMANDER_FORMAT=tools` keeps L-3a's tool calls |
-| C-2 | `start` / `complete_when` / `abort_when[≤2]` per order, `contingencies[≤3]` with ≤ 3 orders; conditions read the squad's position, the commander's PICTURE (progress, strength colour, reported elements) and the clock — never the enemy's truth. An abort holds the squad (a play: stop_play); each fired / completed / aborted / woken one is an order-state WAKE |
+| C-2 | `start` / `complete_when` / `abort_when[≤2]` per order, `contingencies[≤3]` with ≤ 3 orders; conditions read the squad's position, the commander's PICTURE (progress, strength colour, reported elements) and the clock — never the enemy's truth. An abort holds the squad (a play: stop_play); each fired / completed / aborted / woken one is an order-state WAKE. ⭐ **CE-4687:** a condition that can NEVER hold — it waits on a unit OUT OF THE FIGHT to arrive (UNIT_AT), finish (UNIT_TASK_COMPLETE) or make contact (CONTACT), or names nothing — is dropped and said in ONE order-state wake (*"CANNOT START"*), on the feed's out-of-the-fight event (`ConditionWatcher.UnitLeft`) and when a decision arms it (`CannotStart`); a waiting order is not given (its unit keeps what it has); STRENGTH_BELOW stays armed (a fall is when it should fire). 📌 Haiku: `1st Platoon Attack, start UNIT_AT 2nd Platoon support` waited silently after 2nd Platoon was destroyed |
 | C-3 | `next_decision.not_later_than_s` (10–300) + `wake_on[≤3]` replace the fixed heartbeat for a decision seat, held ≥ 10 s and ≤ 300 s after the last wake. ⭐ The cycle = the briefing's newest seq; a decision on an older cycle than the newest wake is refused — ⛔ NOT as a wake (📌 measured: as a wake it staled the next answer, 15 refusals in a row) |
 | C-4 | in EVERY seat's static block: seen from (eye 1.7 m → chest 1.0 m, `EqsTerrainSight` — perception's occluder) · cover (a building / ≥ 4 cover points covered / 1–3 partial / 0 open) · vehicles (the vehicle navmesh within 15 m) · minutes on foot to the 3 nearest places (`PathCost` ÷ 1.4 m/s). A standable place is judged at its spot, a building at the standable points around its walls (📌 a 6 m ring read the objective behind the Low Wall as "seen from the house") |
 | C-5 | per reported element: the squads that reported an enemy within 30 m of it and the newest report's age — ≥ 2 squads fresh (≤ 60 s) HIGH · one fresh or two stale MED · one stale LOW |
@@ -535,6 +535,100 @@ the watcher gives its orders through the SAME action path as the model, so a con
 | ⭐ measured — `llm-platoon-attack`, Haiku at the LOWEST effort | baseline (L-3a tools): 26 calls · 9 orders · 0 malformed · tokens 1 159 / 1 468 / 1 465 (first / median / last) · 6/6 judged PASS (Red beaten). Contract: 58 calls · 47 decisions · 11 stale refused · 1 repaired · 0 CONTINUE fallbacks · 11 contingencies armed, 1 fired · 10 own wakes · tokens 1 776 / 2 539 / 2 150, max 3 429 · 6/6 judged PASS. ⚠ The contract costs more calls (the model chose 15–20 s deadlines) and ~600 tokens per request (the schema) |
 | ⭐ measured — `llm-platoon-duel`, the contract on both sides, lowest effort | ✅ 10/10 checks (the cross-side rows included). Blue 63 calls / 56 decisions / 7 stale / 29 no-ops; Red 66 / 57 / 9; 0 CONTINUE fallbacks; tokens max 3 448 / 3 690. Red held the sheds. 📌 A contingency re-armed with every decision fires again once its trigger already holds (Blue's fired 3 times; the repeat was a no-op) — the lean is an edge trigger (fires on BECOMING true after it is armed), not built in L-3c |
 
+
+### 5d. L-agg — the seat over AGGREGATED units *(CE-4685, backend, `2026-11-24`; user: "Please match the coordinator and read the note about LLM Commander for aggregate entities"; handoff `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates.md`; build-state: BUILT — the runs in `STATUS_Backend_LLM_Commander.md` §Aggregates)*
+
+```mermaid
+classDiagram
+    class SeatRuntime {
+      +string Echelon
+      +string Subordinate
+      +string[] OwnOrders
+      ~ulong Aggregated
+    }
+    class CommanderFeedSystem {
+      +EchelonName(world, unit)$ string
+      +OwnOrdersOf(world, commander, isBehaviour)$ string[]
+      -Falls() split news
+    }
+    class SeatVocabulary { +OwnOrders +Tasks() }
+    class OrderReissue { +PlayFor(repo, unit, resolution, kind, isBehaviour)$ }
+    class ResolutionRoutingTable { <<existing>> the ONE (class, resolution, kind) table }
+    class AggregateUnits { <<existing>> IsStochastic · Slots }
+    class UnitRelayBehaviors { <<existing, CE-8307>> Relay — CE-4685 start grace }
+    CommanderFeedSystem --> SeatRuntime : fills at Open
+    CommanderFeedSystem ..> OrderReissue : kinds his class resolves
+    OrderReissue ..> ResolutionRoutingTable
+    CommanderFeedSystem ..> AggregateUnits : aggregated rows · split
+    SeatRuntime --> SeatVocabulary : OwnOrders → the schema's task enum
+```
+
+*What the picture shows that the prose hid: nothing new decides what a company may do — the seat gives a KIND and asks the SAME routing table its
+orders resolve through (`OrderReissue.PlayFor`) which kinds his class takes, so a seat and a scripted brain can never disagree about a class's plays — and
+the seat never names one.*
+
+```mermaid
+sequenceDiagram
+    participant F as CommanderFeedSystem (frame)
+    participant M as the mind
+    participant A as CommanderActionSystem
+    participant P as stochastic platoon
+    participant X as UnitResolutionFitSystem
+    F->>F: Open — Echelon/Subordinate from the header DIS type, OwnOrders (kinds) from the routing table, Aggregated bits
+    F-->>M: "You are Blue Company, a company commander. You command platoons" · rows "aggregated, N men"
+    M->>A: Move 2nd Platoon → objective
+    A->>P: Order.Move (by KIND) ⇒ StochasticUnitMove
+    Note over P,X: inside 600 m (X-5) the platoon hands over: Physical
+    X->>P: re-issues Move as UnitRelayMove (same entity, same request id)
+    F-->>M: event (wake) "2ND PLATOON: near the enemy — it has split … your orders to it stand"
+    M->>A: Attack (his whole company — the table runs CompanyAttack) / an order to 2nd Platoon — lands on the same entity
+```
+
+| | as built |
+|---|---|
+| A-1 | `SeatRuntime.Echelon` / `Subordinate` from the CLASS — the entity header's DIS type (`UnitDis`, what the routing table reads), else the TKB type's, else `AggregateUnit.Echelon`; the prefix's first lines, the contract's `Tasks` / `PREFER` lines and the snapshot JSON (`echelon`) use them. A stochastic subordinate's row: `aggregated` + `N men` from its slot table — ⛔ only once the table holds slots (📌 the first run said "0 men" at t = 0: the table is filled from the TKB composite after the seat opens) |
+| A-2 | ⭐⭐ **ORDER KINDS, never behaviour names** (user `2026-11-24`: *"We need to introduce the order kinds to higher level echelons. We cannot call directly a behavior name"*). `SeatRuntime.OwnOrders` = the kinds of Attack / Defend / Bound / Hold that `OrderReissue.PlayFor` resolves for his class at his resolution — a platoon takes all four, a company Attack and Defend (no company Bound / Hold play is registered). The seat gives his whole unit `Order.<kind>` (`AssignTacticalIntentEvent`, origin Superior) and `TacticalIntentResolutionSystem` runs his class's play through THE routing table (`ResolutionRoutingTable`: InfantryPlatoon Attack ⇒ `PlatoonAttack`, InfantryCompany Attack ⇒ `CompanyAttack`, a stochastic unit ⇒ `StochasticUnitAttack`) — the same path a superior's `CommandOrders.Order` takes. "Is it still running" reads `CurrentOrders.Of(commander).Kind` (by kind, never the behaviour hash). The decision contract: the same kind for a subordinate or for himself (`unit` = himself) — `unit` decides, not a play name; a kind his unit does not take as a whole is refused (*"'Bound' is not an order your company takes as a whole"*). Params: Attack / Defend the neutral order (R-8300, every echelon's play reads it); ⚠ Bound has no neutral DTO yet — it carries `PlatoonBound`'s own `SupportPoint` / `Objective`. ⛔ SUPERSEDED same day: the seat named the play (`PlatoonAttack`, `CompanyAttack`) |
+| A-3 | `SeatRuntime.Aggregated` — a bit per roster slot that was stochastic at Open; `Falls` (each 1 s) clears it on the hand-over and publishes ONE waking event (`"event":"split"`). The platoon is the SAME entity, so the seat's orders keep landing; `UnitResolutionFitSystem` re-issues its standing order at the new resolution |
+| A-4 | `llm-company-aggregated` (berlin; ⚠ inside BOTH grids — collider ±750 m and perception [0..1000]: 📌 the first placements put Red outside the perception grid and nobody could see it) — a seated company over three stochastic platoons, Red's squad 650 m south |
+| ⭐ found by A-4, fixed (cross-lane, the AGG lane's CE-8307) | `UnitRelayBehaviors.Relay` ended `Success` two frames after ordering — a child GIVEN the order is not `Busy` until its `BehaviorState` picks it up — and ending the relay cleared the children's fresh moves (*"StochasticUnitMove cleared by Superior"*). ⇒ every split platoon stopped where it split. Now a child given the order but not yet seen running is busy for `StartGraceSeconds` (3 s sim); a child that never starts still lets the relay end. Rail: `CE8307_ASplitPlatoonsMove_IsRelayedToEverySquad_ByKind_SameParams` (extended, red-proved) |
+| ⛔ not in this slice | a battalion seat over companies; the stochastic Recover row (`PlatoonAttackBehavior.cs:977` assigns `SquadRecover`, no stochastic row) — not reached in the run |
+
+#### 5d.1 ✅ As built — CE-4686, the four findings *(backend, `2026-11-24`; handoff `HANDOFF_Coordinator_To_Backend_LLM_Commander_Aggregates_2.md`; ① and ④ user-authorised cross-lane edits; the runs in `STATUS_Backend_LLM_Commander.md` §Aggregates 2)*
+
+```mermaid
+classDiagram
+    class CommanderFeedSystem {
+      -RolesOf(world, commander) IPlayRoles
+      -ReporterName(world, roster, netId)$ string
+    }
+    class OccurrenceSlotCatalog { <<existing, CE-2288>> +Read(world, unit, registry)$ slots (Boxed = the blackboard) }
+    class IPlayRoles { <<NEW, Hrot.AI.Behaviors>> +RoleOf(slot) string }
+    class CompanyAttackBlackboard { <<existing + IPlayRoles>> }
+    class PlatoonAttackBlackboard { <<existing + IPlayRoles>> }
+    class CompanyDefendBlackboard { <<existing + IPlayRoles>> }
+    class PlatoonDefendBlackboard { <<existing + IPlayRoles>> }
+    class StaffComposerSystem { <<existing>> +RelayGround() HQ-3b · FoldElement eviction }
+    class CommanderActionSystem { -TakesKind(world, seat, unit, kind) bool }
+    CommanderFeedSystem ..> OccurrenceSlotCatalog : the running task's slot
+    OccurrenceSlotCatalog ..> IPlayRoles : Boxed is
+    IPlayRoles <|.. CompanyAttackBlackboard
+    IPlayRoles <|.. PlatoonAttackBlackboard
+    IPlayRoles <|.. CompanyDefendBlackboard
+    IPlayRoles <|.. PlatoonDefendBlackboard
+    StaffComposerSystem ..> CommanderFeedSystem : the company's picture now holds relayed ground elements
+```
+
+*What the picture shows that the prose hid: no new reader was built — the roles come through the one read-only way into a running behaviour
+(`OccurrenceSlotCatalog`), and each play names its own roles; the seat never learns a play's layout.*
+
+| | as built |
+|---|---|
+| ① the company hears the enemy | the command chain's HQ-3b (`DESIGN_Command_Chain_Example.md` §8d): a commander of units relays its subordinates' ground SPOTs up (≤ 2 groups, own age) and a full picture keeps its support elements. The seat's snapshot names an element's SOURCE: `enemy 4 (Team), … reported by 2nd Platoon` (json `reportedBy`), next to its age |
+| ② the roles | `IPlayRoles.RoleOf(slot)` on the four role-giving plays' blackboards (`PlatoonAttack`, `CompanyAttack`, `PlatoonDefend`, `CompanyDefend` — read-only, the play unchanged); the snapshot reads the running task's blackboard once per snapshot and shows `role assault / base of fire / reserve … in your company's Attack` per unit (json `role`); both prefixes say a role's orders are the whole unit's order's, not a mistake to undo |
+| ③ SupportByFire | ROOT CAUSE (claim table in the report): the base of fire was told to STAND on the decision's objective (Red's position — with HoldBack the Position is where it stands, CE-8302) and a physical platoon has no hold-back Attack play (R-8392). Now `support_at` is where it stands (else the objective) and the objective what it fires at; the form is the subordinate's: a physical platoon gets the KIND SupportByFire (`PlatoonSupportByFire` {Position, Post1}); a squad (the kind resolves to nothing — its play is named plain `SupportByFire`) or a stochastic unit (the generic attack reads only `HoldBack`) keeps Attack + HoldBack at the stand point. The prefix says what objective / support_at mean per order |
+| ④ Bound | the whole unit's Bound sends the neutral `BoundOrder { Position, SupportPoint }` (`DESIGN_Orders_Params_Entity_Classes.md` §16) |
+| ③ the split (measured, second half) | the first CE-4686 Haiku run measured the real stall: the stochastic platoon's support by fire was CLEARED at its split (`its order has no play at Physical`, R-8392) — TaskFailed 150 m short — and the model's re-issue was swallowed as "already in force". Fixed: `OrderReissue.PlayFor(json)` re-resolves a hold-back attack at Physical to the kind SupportByFire's play (`PlatoonSupportByFire`; a company still waits) — cross-lane, `DESIGN_Split_One_Level.md` §10 F1 amended; the seat drops an order its unit reported failed from the in-force table |
+| ⚠ not done | a whole unit's Attack takes no support position (the plays pick their own base of fire) — the prefix says so · a company's hold-back attack still waits at its split (no company support-by-fire play) |
 
 ## 6. The laptop — RTX 3070, 8 GB *(to measure, not measured)*
 
@@ -610,6 +704,7 @@ all their pictures, so it is really their superior: build it as that seat, hones
 | **L-3** | ⭐ on the CLOUD VM (CE-4681, user `2026-11-23`): `ChatModelMind` (Ollama's `/api/chat`, tools, one retry), a byte-stable prefix, checks per mind, a stand-in server, the **Haiku relay** answering HROT's exact chat requests; the laptop recipe ready, not run | the relay run plays `llm-platoon-attack` to the end; every exchange in the model log; counts of accepted / refused / malformed calls and the briefing's tokens per call |
 | **L-3a** | the briefing a small model can live with (CE-4683, user `2026-11-23`: "backend fix"): `note` one running estimate (CE-3501) · an ORDERS IN FORCE block, an identical order a no-op · prefer `run_play` said plainly · a per-call budget ≤ ≈ 4 000 tokens | the Haiku relay run again, side by side with L-3's: bounded notes, no re-sent orders, the budget held |
 | **L-3c** | §5c the decision contract (CE-4684): one schema-decoded decision per wake, conditions and contingencies run by HROT, next decision + cycle echo, terrain facts per place, enemy confidence, ids only | the Haiku relay at the LOWEST effort plays `llm-platoon-attack` AND `llm-platoon-duel` with the contract, side by side with L-3a's format at the same effort |
+| **L-agg** | the seat over AGGREGATED units (CE-4685, user `2026-11-24`): a company commander over stochastic platoons, `CompanyAttack` / `CompanyDefend` as plays, the split on contact as news (§5d) | `llm-company-aggregated`: orders by kind reach the stochastic platoons, a split platoon's squads fight, the seat keeps commanding after the split |
 | **L-3b** | the real model on the user's laptop (RTX 3070, 8 GB): the three 7–8 B models through the L-3 recipe | an 8 B model plays it in think-pause, then continuous; a per-model summary |
 | ⭐ **duel** | §5a-5 (backend, `2026-11-23`): a seat on each side, one Haiku worker each through the per-commander relay — the L-4 "second seat" pre-tested | the clock held for both and released once; each side told only its own places; a repeated play a no-op |
 | **L-4** | continuous scheduler (wake + heartbeat), stale-action refusal; a second seat (⭐ the clock for many seats BUILT in §5a-5) | two platoon seats on one model; a company seat above them |

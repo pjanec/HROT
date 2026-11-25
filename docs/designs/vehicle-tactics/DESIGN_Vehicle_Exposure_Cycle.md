@@ -675,6 +675,14 @@ graph TD
 *What the picture shows: nothing new runs on SimHost except one EQS test and a generator mode inside the existing solver, and the reverse
 fix inside the existing kinematics; the behaviour and the danger stay on the Brain.*
 
+✅ **`CE-8318` BUILT `2026-11-24` (exp/agg-behaviors, village-street-fight A7/D3 — user *"yes"*) — WHO GETS THE SOP WHEN NONE IS AUTHORED.**
+The TKB names `BasicVehicleSop` as the `DefaultSop` (`NedTkbBuilder.WithBehavior(type, defaultSop)`, the CE-2358 squad shape) of every
+ARMED ground vehicle: M1, Bradley, T-72, the crewed HMMWV, the armed technicals (HMG · ATGM · DShK · minigun · ZU-23) and the radar SAM —
+the set the stechovice showcase authors by hand. ⛔ Not the bare pickup, the crewless HMMWV, the engineers, the drones, the SPH or the
+aircraft: the vehicle SOP's moves are GROUND moves (hide, firing point, reverse) and an aircraft has its own orders. An authored `Sop`
+still wins. 📐 village-street-fight before: the M1 drove to 40 m from Red and sat 4 min silent; the T-72 saw it at 65 m and never fired.
+Rail: `NedTkbBuilderCombatTests.CE8318_AnArmedVehicle_FightsByDefault_TheUnarmedAndTheAircraftDoNot`.
+
 ## 10. Rails — in the features' own suites
 
 | rail | suite |

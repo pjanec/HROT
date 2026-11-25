@@ -175,7 +175,7 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
-        /// The pane coordinates (u along the opening from its start, v up from its sill, both 0..1) of the point <paramref name="at"/> on the window — a crack's position.
+        /// The pane coordinates (u along the opening from its start, v up from its sill, both 0..1) of the point <paramref name="at"/> on the window — a crack's position. The inverse of <see cref="WallGroups.OpeningSpan"/> (CE-11058), the forward rule that places an opening in the world.
         /// </summary>
         public static (float U, float V) PaneUv(TerrainWorld world, int panel, int opening, System.Numerics.Vector3 at)
         {

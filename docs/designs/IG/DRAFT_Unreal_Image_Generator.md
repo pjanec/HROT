@@ -6,6 +6,7 @@ stale-below: none
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../../DESIGN_Ned_As_The_Client_Wire.md — PROPOSES that the client reads simulation STATE from NED (cluster or editor) and only looks + the player station from DPS
   - ../../reference/NED_DDS_Protocol.md — OWNS the wire an outside node reads and writes (its first outside reader is the DIS/HLA gateway)
   - DESIGN-IG.md — the image-generator node role (IG) inside HROT, today raylib / the 3-D map; the Unreal client is another IG
   - ../thermal/DESIGN_Thermal_Drivers.md — the external INFRARED image generator connects the same way (DDS, the drivers on the entities)

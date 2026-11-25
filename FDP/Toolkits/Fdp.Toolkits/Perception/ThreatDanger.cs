@@ -147,6 +147,38 @@ namespace Fdp.Toolkit.Perception
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8317</c> (user-approved `2026-11-24`: "Yes to both") — can <paramref name="me"/>'s weapons hurt <paramref name="him"/> at all: true
+        /// when he is not an armoured vehicle, or when one round of one of my mounts defeats his THINNEST armoured face (<see cref="CanHurt"/>, the
+        /// same rule <see cref="ToMe"/> judges the other way); my station weapon's mounts when I am a bare host (WS-4). ⭐ Unknown ⇒ TRUE (no TKB,
+        /// no template, no mounts): never a silenced shooter on missing data. Allocation-free (List indexing). 📐 Why: live village-street-fight —
+        /// riflemen fired 517 rifle rounds at the M1 and 158 at the T-72, all harmless, while enemy infantry was in sight.
+        /// </summary>
+        public static bool ICanHurt(ISimulationView view, Fdp.Interfaces.ITkbDatabase? db, Entity me, Entity him)
+        {
+            if (db == null || !MyArmour(view, db, him, out var his)) return true;   // not armoured: anything hurts him
+            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, me, out var template)) return true;
+            var suite = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
+            if ((suite == null || suite.Mounts.Count == 0) && view is EntityRepository host
+                && Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(host, me) is var gun && !gun.IsNull && gun != me
+                && Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, gun, out var gunTemplate))
+                suite = gunTemplate.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
+            if (suite == null || suite.Mounts.Count == 0) return true;
+            var mounts = suite.Mounts;
+            bool anyKnown = false;
+            for (int i = 0; i < mounts.Count; i++)
+            {
+                var mount = mounts[i];
+                // ⭐ CE-8317 — a mount that names no round (a person's HANDS mount, PersonHands: empty until he picks something up) says
+                //   nothing about armour: it is skipped, else every soldier "could hurt" a tank. 📐 live village-street-fight: the rifle
+                //   and pistol could not, the hands could — 10 rifle rounds still went at the T-72
+                if (mount.Loadout.Count == 0 && Fdp.Toolkit.Combat.CombatTkb.RoundOf(db, mount, unchecked((long)mount.AmmoGuid)).Penetration <= 0f) continue;
+                anyKnown = true;
+                if (CanHurt(db, mount, his, face: null, distance: float.MaxValue) > 0f) return true;
+            }
+            return !anyKnown;   // nothing known about any weapon: permissive, as before
+        }
+
+        /// <summary>
         /// The chance <paramref name="mount"/> defeats <paramref name="mine"/>: the best of the ROUNDS it carries (its loadout, M8 — else its
         /// one round), each with its own penetrator (M2 / M3) against <paramref name="face"/> — a top-attack missile beyond its top-attack
         /// range dives on my TOP (as <c>FireProcessingSystem</c> flies it); none inside a missile's minimum range. A null

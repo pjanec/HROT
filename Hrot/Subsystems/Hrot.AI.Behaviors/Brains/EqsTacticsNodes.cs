@@ -130,6 +130,9 @@ namespace Hrot.AI.Behaviors.Brains
             FireAlways = 32,
             /// <summary>⭐ <c>CE-2322</c> (AQ96 C) — fired on with no point to move to: down, prone, until a point comes.</summary>
             DownInTheOpen = 64,
+            /// <summary>⭐ <c>CE-8326</c> — a candidate within <see cref="DefencePlan.DispersalMetres"/> of a squad-mate's live <c>CoverClaim</c> is skipped
+            /// (first claim wins; every one claimed ⇒ the first candidate that passed the other filters).</summary>
+            Disperse = 128,
         }
 
         /// <summary>The starter threat ranking (<see cref="ThreatRankingDecision"/>'s asset id).</summary>
@@ -201,7 +204,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         internal static NodeStatus FiringPositionOnRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
             => Run(ref p, ref ws, self, world, FindOpenFiringPosition.BlueprintId, SuppressFromSite,
-                   Mode.EndOnArrival | Mode.NeedsEntity | Mode.AtLastKnownPoint);
+                   Mode.EndOnArrival | Mode.NeedsEntity | Mode.AtLastKnownPoint | Mode.Disperse);
 
         /// <summary>⭐ <c>CE-8311</c> — drops the node's sensor and its weapon claim, leaving a finished move alone.</summary>
         internal static void ReleaseSensor(ref EqsTacticsState ws, Entity self, EntityRepository world) => Release(ref ws, self, world, stopMoving: false);
@@ -287,7 +290,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (child.IsNull) return NodeStatus.Running;
 
             bool hasThreatPos = ThreatPosition(world, self, threat, out var threatPos);
-            if (TryNewAnswer(world, child, ref ws, in p, out var best)
+            if (TryNewAnswer(world, child, self, (mode & Mode.Disperse) != 0, ref ws, in p, out var best)
                 && (ws.Moving != 1
                     || (reposition && Vector3.Distance(best, ws.Goal) >= p.MinRepositionMetres
                         && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
@@ -412,15 +415,17 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ CE-2282 DA-27 — the first identified, live, engageable entity in memory (score order) that his SECTOR allows him to
         /// choose (<c>EngagementAreas.Allows</c>), or none.</summary>
-        internal static unsafe Entity FirstAllowedRemembered(EntityRepository world, Entity self)
+        internal static unsafe Entity FirstAllowedRemembered(EntityRepository world, Entity self, bool hurtableOnly = false)
         {
+            var db = hurtableOnly ? PostureNodes.Tkb(world) : null;   // ⭐ CE-8317 — and, when asked, one his weapons can HURT
             if (!world.HasComponent<TargetMemory>(self)) return Entity.Null;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
             for (int i = 0; i < mem.Count; i++)
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (Engageable(world, self, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)) return e;
+                if (Engageable(world, self, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)
+                    && (!hurtableOnly || Fdp.Toolkit.Perception.ThreatDanger.ICanHurt(world, db, self, e))) return e;
             }
             return Entity.Null;
         }
@@ -542,7 +547,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>True once per published answer that has a best point (the buffer's per-answer stamp, as CE-2089).</summary>
-        private static bool TryNewAnswer(EntityRepository world, Entity child, ref EqsTacticsState ws, in EqsTacticsParams p, out Vector3 best)
+        private static bool TryNewAnswer(EntityRepository world, Entity child, Entity self, bool disperse, ref EqsTacticsState ws, in EqsTacticsParams p, out Vector3 best)
         {
             best = default;
             if (!world.HasComponent<EqsCognitiveBuffer>(child)) return false;
@@ -554,14 +559,27 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2327 (R-2064) — and a move made to FIRE never goes to a spot the search marked look-only: "if attacking is desired, then
             //   the spot must let him shoot" (an unmarked answer — another template, or no terrain — is taken as before)
             var span = buffer.GetSpanRO()[..buffer.Count];
+            bool haveFallback = false;
+            Vector3 fallback = default;
+            double now = disperse ? Now(world) : 0d;
             for (int i = 0; i < span.Length; i++)
             {
                 if (Fdp.Toolkit.Spatial.Eqs.CheapLineOfSightTest.FireMarkOf(in span[i]) == 2) continue;
                 var at = new Vector3(span[i].PositionX, span[i].PositionY, span[i].PositionZ);
                 if (p.AnchorRadius > 0f && Vector3.Distance(at, p.Anchor) > p.AnchorRadius) continue;
+                if (disperse)
+                {
+                    // ⭐ CE-8326 — first claim wins: a point a squad-mate already holds (within the dispersal interval) is skipped
+                    if (PeekAndFireNodes.ClaimedByAFriend(world, self, at, now, DefencePlan.DispersalMetres))
+                    {
+                        if (!haveFallback) { haveFallback = true; fallback = at; }
+                        continue;
+                    }
+                }
                 best = at;
                 return true;
             }
+            if (haveFallback) { best = fallback; return true; }   // all claimed: never leave the man with no point
             return false;
         }
 

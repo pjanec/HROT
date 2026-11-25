@@ -232,9 +232,13 @@ namespace Fdp.Toolkit.Terrain
                     var b = d.Get(i);
                     int local = BuildingPanelIndex.ToLocal(terrain, b.Panel);
                     if (local < 0 || WallGroups.Of(terrain, b.Panel) != d.Building) continue;
-                    saved.AddDistinct(b with { Panel = local });
+                    saved.AddDistinct(b with { Panel = local }, d.CauseOf(i), d.ExplosiveKgOf(i));   // ⭐ CE-11054 — the cause and kg are saved
                 }
-                if (d.Collapsed != 0) saved.Collapsed = true;
+                if (d.Collapsed != 0)
+                {
+                    saved.Collapsed = true;
+                    (saved.CollapseCause, saved.CollapseKg) = SavedBuildingDamage.Merge(((BreachCause)d.CollapseCause, d.CollapseKg), (saved.CollapseCause, saved.CollapseKg));   // ⭐ CE-11054
+                }
                 if (repo.IsComponentTypeRegistered<WindowDamage>() && repo.HasComponent<WindowDamage>(e))   // ⭐ CE-5033 — the same entity's windows
                 {
                     var w = repo.GetComponentRO<WindowDamage>(e);

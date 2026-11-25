@@ -3,7 +3,7 @@ using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
 
-namespace Hrot.UI.Common.Map3D;
+namespace Hrot.UI.Common.Map3D;   // ⭐ CE-11055 — moved from Hrot.Presentation with the namespace kept (the CE-4671 LK-S1 precedent), so no caller changes
 
 /// <summary>
 /// ⭐ CE-1236 (docs/DESIGN_People_Display.md §5 U7a, R-1022) — what a soldier's weapon LOOKS like in his hands: the DRAWING's own vocabulary,
@@ -132,7 +132,7 @@ public static class HeldWeapons
         if (Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(active))
         {
             var held = Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(world, man, active);
-            inHands = held.IsNull ? LookOf(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, man, 0)) : LookOf(WeaponKits.TypeOf(world, tkb, held).Kind);
+            inHands = held.IsNull ? LookOf(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, man, 0)) : LookOf(FiringBlasts.TypeOf(world, tkb, held).Kind);
             if (!held.IsNull && IsTube(inHands)) fromLoad = held;
         }
         else inHands = LookOf(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, man, active));

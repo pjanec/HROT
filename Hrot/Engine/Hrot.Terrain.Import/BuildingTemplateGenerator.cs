@@ -21,6 +21,8 @@ internal sealed class BuiltBuilding
     /// <summary>The cap prism of a pitched roof (over a template or a solid prism): eaves z and the height up to the ridge; 0 = none.</summary>
     public double CapBaseZ { get; init; }
     public double CapHeight { get; init; }
+    /// <summary>⭐ CE-5056 ④ — the ground-floor doors as placed (the ring edge, metres along it from its start, width): <see cref="EntranceSteps"/> reads them.</summary>
+    public IReadOnlyList<(int Edge, double At, double Width)> GroundDoors { get; init; } = Array.Empty<(int, double, double)>();
     public bool Solid => TemplateName == null;
 }
 
@@ -55,7 +57,12 @@ internal static class BuildingTemplateGenerator
             var d = new Draft { B = b, Ring = ring, Heights = StoreyHeights(b, rep), Openings = b.Openings.Select(o => o with { X = o.X - swX, Y = o.Y - swY }).ToList() };
             if (b.Enterable)
             {
-                d.Plan = StairPlanner.TryPlan(ring, d.Heights);
+                // ⭐ CE-5056 — the stairs keep clear of every ground-floor door the input names (the doors are placed after the plan, at these points)
+                var groundDoors = d.Openings.Where(o => o.Type == "door" && o.Storey == 0).Select(o => (o.X, o.Y)).ToList();
+                d.Plan = StairPlanner.TryPlan(ring, d.Heights, groundDoors);
+                // a stair that cannot keep clear of EVERY door keeps clear of ONE (the house stays enterable through it); only then of none, as before
+                for (int i = 0; d.Plan == null && groundDoors.Count > 1 && i < groundDoors.Count; i++) d.Plan = StairPlanner.TryPlan(ring, d.Heights, new[] { groundDoors[i] });
+                if (d.Plan == null && groundDoors.Count > 0) d.Plan = StairPlanner.TryPlan(ring, d.Heights);
                 d.Templated = d.Plan != null;
                 if (!d.Templated) { rep.SolidBecauseNoStair++; rep.Warnings.Add($"building {b.Id}: no stair fits its footprint — imported as a solid prism"); }
             }
@@ -248,6 +255,7 @@ internal static class BuildingTemplateGenerator
         {
             Id = b.Id, TemplateName = d.Name, TemplateJson = Encoding.UTF8.GetString(ms.ToArray()), Ring = d.Ring, Origin = o,
             BaseZ = b.BaseZ, Floors = storeys, Material = material, CapBaseZ = Math.Round(eaves, 3), CapHeight = capH,
+            GroundDoors = placed.Where(x => x.Kind == "door" && x.Storey == 0).Select(x => (x.Edge, x.At, x.Width)).ToList(),
         };
     }
 }

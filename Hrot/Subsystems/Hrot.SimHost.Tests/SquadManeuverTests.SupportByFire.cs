@@ -25,6 +25,33 @@ namespace Hrot.SimHost.Tests
                 Post3 = posts.Length > 2 ? posts[2] : default, Post4 = posts.Length > 3 ? posts[3] : default,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
+        /// <summary>⭐ <c>CE-8319</c> — the base of fire opens fire once its men are ON THEIR POSTS: answer its post plan's asks (windows and roof
+        /// with nothing, cover with the points where its men stand) and tick until every man is ordered to fire, or <paramref name="ticks"/> pass.
+        /// The surveys nobody answers here (frames, the gun fan) settle by their own timeout.</summary>
+        private static void OnPosts(Squad s, int ticks = 120)
+        {
+            string? Intent(Fdp.Core.Entity m) => s.Orders.LastOrDefault(o => o.Entity.Equals(m))?.IntentId;   // none yet ⇒ null
+            for (int k = 0; k < ticks; k++)
+            {
+                if (s.Members.All(m => Intent(m) == BehaviorNames.Suppress)) return;
+                // cover 9 m apart round the squad's middle (the plan keeps its posts 8 m apart, then 5)
+                var mid = s.Members.Select(m => (Vector3)s.Repo.GetComponentRO<Fdp.Core.SimTransform>(m).Position).Aggregate(Vector3.Zero, (a, b) => a + b) / s.Members.Length;
+                var spaced = Enumerable.Range(0, s.Members.Length).Select(i => mid + new Vector3((i - (s.Members.Length - 1) * 0.5f) * 9f, 2f, 0f)).ToArray();
+                var c = EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.CoverSite);
+                if (!c.IsNull && !s.Repo.GetComponentRO<EqsCognitiveBuffer>(c).IsReady) AnswerAll(s, c, spaced);
+                foreach (int site in new[] { SquadDefendPlay.WindowSite, SquadDefendPlay.RoofSite })
+                {
+                    var a = EqsChildSensor.Find(s.Repo, s.Commander, site);
+                    if (!a.IsNull && !s.Repo.GetComponentRO<EqsCognitiveBuffer>(a).IsReady) AnswerAll(s, a);
+                }
+                s.Pause(0.25);
+                s.Tick();
+                // each man walks onto the post he was ordered to (the test has no locomotion)
+                foreach (var m in s.Members)
+                    if (Intent(m) == BehaviorNames.CombatPosture) s.Teleport(m, PostureObjective(s, m));
+            }
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-2436</c> AU-1 (A-1) — the base of fire: the squad first HOLDS at its support point (no fire order while it is on the way);
         /// once there, EVERY man is ordered to suppress a REPORTED post — man i on post i mod n, nobody needing to see anyone there (the library
@@ -48,7 +75,7 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(Queued(s, s.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.Set);
 
             for (int i = 0; i < s.Members.Length; i++) s.Teleport(s.Members[i], support + new Vector3(i * 2f - 3f, 0f, 0f));   // arrived
-            s.Tick(); s.Tick(); s.Tick();
+            OnPosts(s);   // ⭐ CE-8319 — on its posts (planned at the point): it fires
             for (int i = 0; i < s.Members.Length; i++)
             {
                 Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[i]));
@@ -91,7 +118,7 @@ namespace Hrot.SimHost.Tests
                 s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1, Ammo0 = 200, Max0 = 200 });
             var support = new Vector3(4f, 0f, 0f);
             s.Order(SupportByFireJson(support, new Vector3(0f, 150f, 0f)), BehaviorNames.SupportByFire);
-            s.Tick(); s.Tick(); s.Tick();
+            OnPosts(s);   // ⭐ CE-8319 — at the point already: on its posts, it fires
             Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));   // at the point already: firing
             s.Tick();
             Assert.DoesNotContain(Queued(s, s.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.Set);
@@ -117,7 +144,7 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members)
                 s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1, Ammo0 = 200, Max0 = 200 });
             s.Order(SupportByFireJson(new Vector3(4f, 0f, 0f), new Vector3(0f, 150f, 0f)), BehaviorNames.SupportByFire);
-            s.Tick(); s.Tick(); s.Tick();
+            OnPosts(s);   // ⭐ CE-8319 — at the point already: on its posts, it fires
             Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
             s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponAmmo>(s.Members[0]).Ammo0 = 0;   // out of ammo
             s.Tick(); s.Tick();
@@ -140,7 +167,7 @@ namespace Hrot.SimHost.Tests
             var enemies = s.PoolMany(2, post);
             foreach (var e in enemies) s.Repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
             s.Order(SupportByFireJson(new Vector3(4f, 0f, 0f), post), BehaviorNames.SupportByFire);
-            s.Tick(); s.Tick(); s.Tick();
+            OnPosts(s);   // ⭐ CE-8319 — at the point already: on its posts, it fires
             Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
             s.Pause(SupportByFireBehavior.TargetsDownSeconds + 1); s.Tick(); s.Tick();
             Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));                       // they are alive: fire on
@@ -529,8 +556,9 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐⭐ D-11 B (CE-4666, user-approved 2026-11-19; Assault Under Fire §9.1b) — the base of fire's men are PLACED by the squad's own post plan
         /// (<see cref="DefencePlan"/>, facing the reported posts), not held on ONE point: its cover ask answers four points and each man is ordered
-        /// to a DIFFERENT one of them, his post set (<c>CombatPosture</c> with <c>Post</c>). Until the plan answers he heads for the support point.
-        /// ✅ Red-proof: phase 0 back to <c>Hold(…, p.Position)</c> ⇒ every man's objective is the support point ⇒ red.
+        /// to a DIFFERENT one of them, his post set (<c>CombatPosture</c> with <c>Post</c>). ⭐ CE-8319: the plan starts only once the squad is AT the point,
+        /// and on the way each man heads for his own spot on a line across the line of fire there.
+        /// ✅ Red-proofs: phase 0 back to <c>Hold(…, p.Position)</c> ⇒ two men on one point ⇒ red; the plan started away from the point ⇒ a post search ⇒ red.
         /// </summary>
         [Fact]
         public void D11B_TheBaseOfFire_TakesPostsFromTheSquadsOwnPlan_NotOnePoint()
@@ -539,7 +567,14 @@ namespace Hrot.SimHost.Tests
             var support = new Vector3(6f, 60f, 0f);
             s.Order(SupportByFireJson(support, new Vector3(0f, 180f, 0f), new Vector3(20f, 185f, 0f)), BehaviorNames.SupportByFire);
             s.Tick(); s.Tick(); s.Tick();
-            foreach (var m in s.Members) Assert.Equal(support, PostureObjective(s, m));   // the plan not answered yet: to the point
+            // ⭐ CE-8319 — on the way each man heads for his OWN spot on a line across the line of fire at the point (never one shared point)
+            var onTheWay = s.Members.Select(m => PostureObjective(s, m)).ToArray();
+            Assert.Equal(onTheWay.Length, onTheWay.Distinct().Count());
+            Assert.All(onTheWay, o => Assert.True(Vector3.Distance(o, support) <= 2f * Hrot.AI.Behaviors.Brains.DefencePlan.DispersalMetres, $"{o} far from the point"));
+            // ⭐ CE-8319 — and the posts are not searched for until the squad is AT its point (searched from where it stood, they were in the house it left)
+            Assert.True(EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.CoverSite).IsNull
+                        && EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.WindowSite).IsNull, "no post search while the squad is away from its point");
+            foreach (var m in s.Members) s.Repo.GetComponentRW<Fdp.Core.SimTransform>(m).Position = support;   // it arrives
 
             var cover = new[] { support + new Vector3(-9f, 4f, 0f), support + new Vector3(-3f, 5f, 0f), support + new Vector3(3f, 5f, 0f), support + new Vector3(9f, 4f, 0f) };
             for (int k = 0; k < 80; k++)
@@ -555,7 +590,7 @@ namespace Hrot.SimHost.Tests
                 s.Tick();
             }
             var objectives = s.Members.Select(m => PostureObjective(s, m)).ToArray();
-            Assert.All(objectives, o => Assert.Contains(o, cover));
+            Assert.All(objectives, o => Assert.True(cover.Contains(o), $"ordered to {o}; cover {string.Join(' ', cover)}"));
             Assert.Equal(objectives.Length, objectives.Distinct().Count());   // no two men on one point
         }
 

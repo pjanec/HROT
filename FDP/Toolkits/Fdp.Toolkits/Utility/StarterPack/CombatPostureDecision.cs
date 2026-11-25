@@ -71,7 +71,8 @@ namespace Fdp.Toolkit.Utility
                 .Consider(In.HealthFraction(),               1.0f, Curve.InverseQuadratic)
                 .Consider(In.EqsTopScore(FindSafeRetreatPoint.AssetId), 0.8f, Curve.Linear)
                 .Consider(In.EnemyStrengthRatio(),           0.7f, Curve.Logistic)
-                .Modify(In.AggressionDamp(),                 1.0f, Curve.Linear))
+                .Modify(In.AggressionDamp(),                 1.0f, Curve.Linear)
+                .Modify(In.UnderOrdersDamp(),                1.0f, Curve.Linear))   // ⭐ CE-8325 — a trained man under orders does not run on his own
             .Option((ushort)Posture.HoldProne, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HurtOrUnderFire(),             0.8f, Curve.Linear)
                 .Consider(In.HaveLiveTarget(),              1.0f, Curve.Step)

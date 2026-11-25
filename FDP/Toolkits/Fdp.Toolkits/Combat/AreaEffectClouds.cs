@@ -208,6 +208,21 @@ namespace Fdp.Toolkit.Combat
     public static class AreaEffectClouds
     {
         /// <summary>
+        /// ⭐ <c>CE-3236</c> (B-14, §7.15 VC-4) · <c>CE-11056</c> — THE rule: does <paramref name="cloud"/> still sit on its venting canister (so it does not drift)?
+        /// While its source resolves, yes; a source not yet seen here (its replica on the way) holds it too; once it is KNOWN gone, or cannot be resolved on
+        /// a world with no entity map (one world), no. READ-ONLY: <see cref="Systems.AreaEffectCloudSystem"/> clears <c>SourceNetworkId</c> when this turns
+        /// false; a reader (the gateway's cloud drift) only asks. 0 B per call.
+        /// </summary>
+        public static bool SitsOnSource(EntityRepository repo, in AreaEffectCloud cloud)
+        {
+            int source = cloud.SourceNetworkId;
+            if (source <= 0) return false;
+            if (!Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, source).IsNull) return true;
+            bool mapless = !repo.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();
+            return !mapless && !Fdp.Toolkit.Replication.Services.NetworkIdResolver.IsKnownDeadAnchor(repo, source);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3258</c> — THE wind a cloud drifts on: the wind at its MIDDLE (<paramref name="position"/> + half its
         /// <paramref name="height"/>) over the ground it lies on (its own Z — R-2037: no terrain read on its owner, CGF). The drift
         /// (<see cref="Systems.AreaEffectCloudSystem"/>) and the danger footprint's prediction (<c>GasFootprints</c>) both read it, so the

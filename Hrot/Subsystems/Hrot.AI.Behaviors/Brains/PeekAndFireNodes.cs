@@ -685,16 +685,25 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var assigned = new Entity((ulong)handle);
                 if (world.IsAlive(assigned) && SightNow.Sees(world, self, assigned)
-                    && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, assigned)) return assigned;   // ⭐ CE-2282
+                    && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, assigned)
+                    && Hurtable(world, self, assigned)) return assigned;   // ⭐ CE-2282 · ⭐ CE-8317
             }
             if (threat.IsPoint) return Entity.Null;
             // ⭐ CE-2282 DA-27 — the threat he hides from may lie outside his sector: then he shoots the first one inside it, if any
-            return Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, threat.Entity) ? threat.Entity : EqsTacticsNodes.FirstAllowedRemembered(world, self);
+            // ⭐⭐ CE-8317 — and one his weapons can HURT: he hides from the tank, he shoots the infantry (📐 village-street-fight: Blue Squad 1
+            //   peeked from its windows and fired 10 rifle rounds at the T-72 after the posture fire step was fixed)
+            return Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, threat.Entity) && Hurtable(world, self, threat.Entity)
+                ? threat.Entity : EqsTacticsNodes.FirstAllowedRemembered(world, self, hurtableOnly: true);
         }
+
+        /// <summary>⭐ <c>CE-8317</c> — can his weapons hurt this target (<c>ThreatDanger.ICanHurt</c>; no TKB ⇒ yes).</summary>
+        private static bool Hurtable(EntityRepository world, Entity self, Entity target)
+            => Fdp.Toolkit.Perception.ThreatDanger.ICanHurt(world, PostureNodes.Tkb(world), self, target);
 
         /// <summary>A burst of <c>BlindRounds</c> at the freshest evidence (D13) + <c>BlindAimHeight</c>; false = nowhere known.</summary>
         private static bool StartBurst(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, in ThreatAim threat)
         {
+            if (!threat.IsPoint && !threat.Entity.IsNull && !Hurtable(world, self, threat.Entity)) return false;   // ⭐ CE-8317 — no blind burst at a tank
             if (!FreshestEvidence(world, self, in threat, out var at, out long slotId, p.HeardMatchRadius)) return false;
             // ⭐ CE-2326 (R-3030; Peek and Fire §11.6a) — a body last SEEN there: the round names it (his feet + the stance he was seen in)
             //   and the muscle aims it — his chest, or the band that showed over a cover. Heard only (no stance): the spot + the height.
@@ -1245,6 +1254,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3158</c> G5 — whether <paramref name="at"/> is within <see cref="ClaimRadius"/> (3-D) of another unit's live
         /// claim (hide or peek) of the same force.</summary>
         internal static bool ClaimedByAFriend(EntityRepository world, Entity self, Vector3 at, double now)
+            => ClaimedByAFriend(world, self, at, now, ClaimRadius);
+
+        /// <summary>⭐ <c>CE-8326</c> — as above with the taken-radius given (the suppressor's dispersal interval).</summary>
+        internal static bool ClaimedByAFriend(EntityRepository world, Entity self, Vector3 at, double now, float radius)
 
         {
 
@@ -1252,7 +1265,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
 
-            try { return ClaimedByAFriendCore(world, self, at, now); }
+            try { return ClaimedByAFriendCore(world, self, at, now, radius); }
 
             finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_ClaimedByAFriend, t0); }
 
@@ -1262,7 +1275,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static readonly int S_ClaimedByAFriend = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.ClaimedByAFriend");
 
 
-        private static bool ClaimedByAFriendCore(EntityRepository world, Entity self, Vector3 at, double now)
+        private static bool ClaimedByAFriendCore(EntityRepository world, Entity self, Vector3 at, double now, float radius)
         {
             if (self.IsNull || !world.IsComponentTypeRegistered<CoverClaim>()) return false;
             bool forces = world.IsComponentTypeRegistered<EntityInfo>();
@@ -1280,7 +1293,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!theirs.Equals(mine)) continue;
                 if (held && Vector3.Distance(c.Hide, myClaim.Hide) <= ClaimRadius
                     && (c.Since > myClaim.Since || (c.Since == myClaim.Since && other.Index > self.Index))) continue;
-                if (Vector3.Distance(c.Hide, at) <= ClaimRadius || Vector3.Distance(c.Peek, at) <= ClaimRadius) return true;
+                if (Vector3.Distance(c.Hide, at) <= radius || Vector3.Distance(c.Peek, at) <= radius) return true;
             }
             return false;
         }

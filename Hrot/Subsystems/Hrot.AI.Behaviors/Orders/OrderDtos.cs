@@ -251,6 +251,36 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>Where the enemy comes from (local metres); zero = the play's own choice.</summary>
         [JsonPropertyName("Threat")]
         public Fdp.Toolkit.Replication.PointLink Threat;
+
+        /// <summary>⭐ <c>CE-8327</c> — a RE-SENT order to the point the unit already holds (a flank turn re-plans the posts): the squad takes posts
+        /// from where it stands instead of marching to the centre. false = as ever.</summary>
+        [JsonPropertyName("InPlace")]
+        public bool InPlace;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4686</c> ④ (the orders design's R-8300 pattern; a user-authorised cross-lane edit, `2026-11-24`) — the BOUND order: move to
+    /// <see cref="Position"/> by bounds, one element covering the other, the covering element first setting at <see cref="SupportPoint"/>. The ONE
+    /// neutral DTO of the kind; ⭐ every play that fulfils Bound (<c>PlatoonBound</c>, <c>BoundingOverwatch</c>) accepts every field strictly (the
+    /// R-8300 rail walks the pairs), and a stochastic unit's generic attack (the table routes Bound there) reads the same <see cref="Position"/> — so
+    /// ONE Bound order means the same to a physical and a stochastic subordinate. 📌 CE-4685: a whole unit's Bound carried <c>PlatoonBound</c>'s own
+    /// fields (<c>Objective</c>), which a stochastic unit cannot read. Field names follow Attack / Defend (<c>Position</c> = the place).
+    /// </summary>
+    [Order(nameof(OrderKind.Bound))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BoundOrder
+    {
+        /// <summary>Where the bounds end — the objective (local metres).</summary>
+        [JsonPropertyName("Position")]
+        public Fdp.Toolkit.Replication.PointLink Position;
+
+        /// <summary>Where the covering element sets first (local metres); unset = the play's own choice (a platoon: the objective).</summary>
+        [JsonPropertyName("SupportPoint")]
+        public Fdp.Toolkit.Replication.PointLink SupportPoint;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
     }
 
     /// <summary>

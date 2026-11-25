@@ -97,5 +97,9 @@ namespace CarKinem.Core
         public byte Recoveries;
 
         private byte _pad2;
+
+        /// <summary>⭐ <c>CE-11057</c> — the SIM SECONDS the current frustration episode has spent below the speed rule (beside <see cref="Ticks"/>, which
+        /// counts frames): the watchdog decides on this (<c>NavigationExecutionSystem.FrustrationLimitSeconds</c>), so a live step and a fixed one agree.</summary>
+        public float SlowSeconds;
     }
 }

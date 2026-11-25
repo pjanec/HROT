@@ -48,7 +48,7 @@ namespace Hrot.SimHost.Tests
             /// <summary>⭐ CE-4679 — the node bus the hold's pause / resume ride (null = the world's bus).</summary>
             public readonly Fdp.Core.FdpEventBus? ClockBus;
 
-            public Seated(IMind mind, int squads = 2, Fdp.Core.FdpEventBus? clockBus = null)
+            public Seated(IMind mind, int squads = 2, Fdp.Core.FdpEventBus? clockBus = null, Func<string, bool>? isBehaviour = null, Action<Seated>? before = null)
             {
                 ClockBus = clockBus;
                 P = new Platoon(squads);
@@ -64,7 +64,10 @@ namespace Hrot.SimHost.Tests
                 Place("start", 0, 0);
                 Repo.AddComponent(P.S.Commander, new CommanderSeat { Mind = CommanderMind.Scripted, Mode = CommanderMode.ThinkPause });
                 Seats.MindFor = _ => mind;
-                Feed = new CommanderFeedSystem(Seats);
+                // ⭐ CE-4685 — a commander's class, as the spawner gives it (the header DIS type): his own orders resolve by KIND through the routing table
+                Repo.SetDisType(P.S.Commander, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Platoon, 225));
+                before?.Invoke(this);   // ⭐ CE-4685 — what the seat must see when it opens (its class, its units' classes)
+                Feed = new CommanderFeedSystem(Seats, isBehaviour: isBehaviour, registry: P.S.Registry);
                 Act = new CommanderActionSystem(Seats, clockBus);
                 Watch = new CommanderWatchSystem(Seats);
             }
@@ -89,14 +92,22 @@ namespace Hrot.SimHost.Tests
                 Act.Execute(Repo, 0.016f);
                 P.Tick();
                 Watch.Execute(Repo, 0.016f);   // ⭐ CE-4684 C-2 — after the action pass, as the pack runs it
-                // ⭐ CE-4680 — the intent resolver's part for the commander's OWN task (the fixture has none): a play named as the intent becomes his
-                //   behaviour, as TacticalIntentResolutionSystem resolves a plain behaviour name in a node
+                // ⭐ CE-4680 — the intent resolver's part for the commander's OWN task (the fixture has none). ⭐ CE-4685 — the seat gives a KIND
+                //   (Order.<kind>): resolved through THE routing table for his class, as TacticalIntentResolutionSystem resolves it in a node
                 for (int i = _resolved; i < P.S.Orders.Count; i++)
-                    if (P.S.Orders[i].Entity.Equals(P.S.Commander)) P.S.Order(P.S.Orders[i].JsonParams, P.S.Orders[i].IntentId);
+                    if (P.S.Orders[i].Entity.Equals(P.S.Commander)) P.S.Order(P.S.Orders[i].JsonParams, ResolveOwn(P.S.Orders[i].IntentId));
                 _resolved = P.S.Orders.Count;
                 Feed.Execute(Repo, 0.016f);
             }
             private int _resolved;
+
+            private string ResolveOwn(string intent)
+            {
+                const string prefix = "Order.";
+                if (!intent.StartsWith(prefix, StringComparison.Ordinal) || !Enum.TryParse<Hrot.AI.Behaviors.Orders.OrderKind>(intent[prefix.Length..], out var kind)) return intent;
+                var resolution = Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(Repo, P.S.Commander) ? Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic : Fdp.Toolkit.Aggregate.AggregateResolution.Physical;
+                return Hrot.AI.Behaviors.Orders.OrderReissue.PlayFor(Repo, P.S.Commander, resolution, kind, KnownBehaviour) ?? intent;
+            }
             public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
 
             public SeatRuntime Seat => Seats.TryGet(P.S.Commander, out var s) ? s : throw new InvalidOperationException("no seat");
@@ -365,14 +376,14 @@ namespace Hrot.SimHost.Tests
             bool redirect = false;
             mind.Answer = b =>
             {
-                if (Interlocked.Increment(ref call) == 1) return new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: "house") };
+                if (Interlocked.Increment(ref call) == 1) return new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "Attack", Where: "house") };   // ⭐ CE-4685 — the KIND; the table runs PlatoonAttack
                 return Volatile.Read(ref redirect) ? new[] { new CommanderAction(CommanderActionKind.Order, "Alpha", "Move", Where: "start") } : Array.Empty<CommanderAction>();
             };
             var s = new Seated(mind, squads: 3);
             s.Ticks(4);
             int play = Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.PlatoonAttack);
             Assert.Equal(play, s.Repo.GetComponentRO<BehaviorState>(s.P.S.Commander).ActiveBehaviorHash);   // ⭐ the play is his task
-            Assert.Contains(s.Items(), i => i.Json.Contains("\"state\":\"accepted\"") && i.Radio.Contains("PlatoonAttack"));
+            Assert.Contains(s.Items(), i => i.Json.Contains("\"state\":\"accepted\"") && i.Radio.Contains("Attack"));
 
             // the play's choreography (behaviors' code): the assault waits for the support squad's SET
             s.Ticks(3); s.P.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); s.Ticks(4);

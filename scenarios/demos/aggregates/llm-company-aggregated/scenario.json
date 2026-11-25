@@ -1,0 +1,412 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: the LLM commander over AGGREGATED units (CE-4685; DESIGN_LLM_Commander §5d) - on berlin a physical 'Blue Company' (TKB 306) whose brain is a SEAT (CommanderSeat, Mind Scripted, InertSop) over three STOCHASTIC platoons ('1st/2nd/3rd Platoon', TKB 305, AggregateUnit Stochastic, no members - 30 men each from their slot tables) in the assembly area 'start' (300,700), 700 m north of Red's 'Red Defenders' (5 men, SquadDefend + BasicSquadSop, the game AI) holding 'position' (300,50) - all inside berlin's collider grid (±750 m) and perception grid ([0..1000]). Places: position, objective (300,80, Red's front edge), support (220,200), start. The scripted mind sends every platoon to the objective (each ordered by KIND: a stochastic platoon runs the generic stochastic play), and when a platoon splits (near the enemy) runs the company's own attack play (CompanyAttack - the seat offers his class's plays) on the objective - a company hears no SPOT of infantry: its platoons relay only indirect fire and air defence up (CE-2310 HQ-3). Judge: (1) the seat orders a stochastic platoon by kind; (2) CompanyAttack runs; (3) inside the 600 m band a platoon hands over (Physical, X-5) and its squads fight; (4) reports reach the company from aggregated and split platoons; (5) the fight happens and lasts. Fail: a platoon given a physical play while stochastic, no CompanyAttack, no split, the seat's orders lost after a split. Check: scripts/scenario-regression.sh llm-company-aggregated"
+  },
+  "entities": {
+    "b4685000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          710,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company",
+        "ForceId": "Friend"
+      },
+      "CommanderSeat": {
+        "Mind": "Scripted",
+        "Mode": "ThinkPause",
+        "HeartbeatSeconds": 30,
+        "SnapshotSeconds": 120
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "CommanderBrief": {
+        "Task": "seize the enemy position (300,50) from Red's squad",
+        "Purpose": "open the southern approach for the battalion",
+        "Constraints": "keep a platoon in reserve until the assault; do not cross the open ground without fire on the position",
+        "Time": "by 00:08"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          280,
+          700,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "1st Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4685000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          300,
+          700,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "2nd Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4685000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          320,
+          700,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "3rd Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4685000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          300,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Defenders",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SquadDefend",
+        "Params": {
+          "Position": [
+            300,
+            50,
+            0
+          ],
+          "SearchRadius": 14,
+          "Speed": 2
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          298,
+          53,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4685000-0000-4000-8000-000000000100",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          300,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Red 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4685000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000103": {
+      "SimTransform": {
+        "Position": [
+          302,
+          53,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Red 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4685000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000104": {
+      "SimTransform": {
+        "Position": [
+          304,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 4",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4685000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          300,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "position",
+        "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "Red's defended position; open ground around it"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000201": {
+      "SimTransform": {
+        "Position": [
+          300,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "objective",
+        "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "Red's front edge, 30 m north of the position; the attack's objective"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000202": {
+      "SimTransform": {
+        "Position": [
+          220,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "support",
+        "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "west of the line of approach, 150 m north of the position; sees it"
+      }
+    },
+    "b4685000-0000-4000-8000-000000000203": {
+      "SimTransform": {
+        "Position": [
+          300,
+          700,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "start",
+        "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "the assembly area, 700 m north of the position, out of contact"
+      }
+    }
+  }
+}

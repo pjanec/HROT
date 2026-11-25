@@ -47,7 +47,20 @@ public interface IDecisionMind
 }
 
 /// <summary>⭐ <c>CE-4684</c> C-6 — the ids a seat's decision may use: himself (for a play), his squads, his side's places. Nothing else is a position.</summary>
-public sealed record SeatVocabulary(string Self, IReadOnlyList<string> Units, IReadOnlyList<string> Places);
+public sealed record SeatVocabulary(string Self, IReadOnlyList<string> Units, IReadOnlyList<string> Places)
+{
+    /// <summary>⭐ CE-4685 — the order KINDS his own unit takes as a whole (unit = himself); the routing table picks the behaviour. Default: the four.</summary>
+    public IReadOnlyList<string> OwnOrders { get; init; } = CommanderActionSystem.OwnOrders;
+
+    /// <summary>The decision's tasks for this seat: the subordinates' order kinds, his own unit's kinds, CONTINUE (each once).</summary>
+    public string[] Tasks()
+    {
+        var l = new List<string>(CommanderActionSystem.Orders);
+        foreach (var k in OwnOrders) if (!l.Contains(k)) l.Add(k);
+        l.Add(DecisionContract.Continue);
+        return l.ToArray();
+    }
+}
 
 /// <summary>
 /// ⭐⭐ <c>CE-4684</c> (DESIGN_LLM_Commander §5c C-1, C-6) — the decision contract: the JSON schema a chat model's output is decoded against (Ollama's
@@ -60,8 +73,8 @@ public static class DecisionContract
     public const int MaxOrders = 6, MaxContingencies = 3, MaxContingencyOrders = 3, MaxAborts = 2, MaxWakeOn = 3;
     public const int MinNextS = 10, MaxNextS = 300;
 
-    /// <summary>The tasks: the squad order kinds, the plays (the commander's own), CONTINUE.</summary>
-    public static readonly string[] Tasks = Concat(CommanderActionSystem.Orders, CommanderActionSystem.Plays, new[] { Continue });
+    /// <summary>The tasks: the order kinds (a subordinate's, his own unit's — CE-4685), CONTINUE.</summary>
+    public static readonly string[] Tasks = new SeatVocabulary("", Array.Empty<string>(), Array.Empty<string>()).Tasks();
 
     public static readonly string[] ConditionNames = { "IMMEDIATE", "AT_TIME", "UNIT_AT", "UNIT_TASK_COMPLETE", "CONTACT", "STRENGTH_BELOW", "ENEMY_SEEN_AT" };
 
@@ -104,7 +117,7 @@ public static class DecisionContract
             var props = new JsonObject
             {
                 ["unit"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(units) },
-                ["task"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(Tasks) },
+                ["task"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(v.Tasks()) },
                 ["objective"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(v.Places) },
                 ["support_at"] = new JsonObject { ["type"] = "string", ["enum"] = Enum(v.Places) },
             };
@@ -189,14 +202,14 @@ public static class DecisionContract
         if (i != null && !IsUnit(v, mainEffort, self: true)) problems.Add($"intent.main_effort '{mainEffort}' is not one of {List(v.Self, v.Units)}");
 
         var orders = ReadOrders(o["orders"] as JsonArray, v, "orders", MaxOrders, full: true, problems);
-        // a play coordinates the squads; a squad order in the same decision would END it (§5b) — say so instead of letting it happen
+        // his own unit's order coordinates the squads; a squad order in the same decision would END it (§5b) — say so instead of letting it happen
         bool play = false, squadOrder = false;
         foreach (var uo in orders)
         {
-            if (Array.IndexOf(CommanderActionSystem.Plays, uo.Task) >= 0 && (uo.Start == null || uo.Start.On == ConditionOn.Immediate)) play = true;
+            if (uo.Unit == v.Self && uo.Task != Continue && (uo.Start == null || uo.Start.On == ConditionOn.Immediate)) play = true;
             else if (uo.Unit != v.Self && uo.Task != Continue && (uo.Start == null || uo.Start.On == ConditionOn.Immediate)) squadOrder = true;
         }
-        if (play && squadOrder) problems.Add("orders give a play AND a squad order now — a squad order ENDS the play: give the squads CONTINUE (the play orders them), or no play");
+        if (play && squadOrder) problems.Add($"orders give {v.Self} (the whole unit) an order AND a subordinate an order now — the subordinate's order ENDS the whole unit's: give the subordinates CONTINUE (the whole unit's order orders them), or no order to {v.Self}");
         var contingencies = new List<Contingency>();
         if (o["contingencies"] is JsonArray cs)
         {
@@ -240,14 +253,15 @@ public static class DecisionContract
             if (arr[k] is not JsonObject o) { problems.Add($"{at} is not an object"); continue; }
             string unit = S(o["unit"]), task = S(o["task"]);
             string? objective = Opt(o["objective"]), supportAt = Opt(o["support_at"]);
-            bool isPlay = Array.IndexOf(CommanderActionSystem.Plays, task) >= 0;
+            // ⭐ CE-4685 — the same KIND for a subordinate or for his whole unit (unit = himself); the routing table picks the behaviour
+            bool own = Contains(v.OwnOrders, task);
             bool isOrder = Array.IndexOf(CommanderActionSystem.Orders, task) >= 0;
             if (!IsUnit(v, unit, self: true)) { problems.Add($"{at}.unit '{unit}' is not one of {List(v.Self, v.Units)}"); continue; }
             if (!seen.Add(unit)) problems.Add($"{at}: {unit} has two orders in one list — one each");
-            if (!isPlay && !isOrder && task != Continue) { problems.Add($"{at}.task '{task}' is not one of {string.Join(", ", Tasks)}"); continue; }
-            if (isPlay && unit != v.Self) problems.Add($"{at}: {task} is a play — the platoon's own task, so unit must be '{v.Self}', not {unit}");
-            if (isOrder && unit == v.Self) problems.Add($"{at}: {task} is a squad's task — unit must be one of {string.Join(", ", v.Units)}");
-            bool needsPlace = task is not (Continue or "Hold") && task != "PlatoonHold";
+            if (!own && !isOrder && task != Continue) { problems.Add($"{at}.task '{task}' is not one of {string.Join(", ", v.Tasks())}"); continue; }
+            if (unit == v.Self && !own && task != Continue) problems.Add($"{at}: {task} is not an order {v.Self}'s whole unit takes — {string.Join(", ", v.OwnOrders)}");
+            if (unit != v.Self && !isOrder && task != Continue) problems.Add($"{at}: {task} is the whole unit's order — unit must be '{v.Self}', not {unit}");
+            bool needsPlace = task is not (Continue or "Hold") && !task.EndsWith("Hold", StringComparison.Ordinal);
             if (needsPlace && objective == null) problems.Add($"{at}.objective is missing — {task} needs a place id");
             if (objective != null && !Has(v.Places, objective)) problems.Add($"{at}.objective '{objective}' is not a place id: {string.Join(", ", v.Places)}");
             if (supportAt != null && !Has(v.Places, supportAt)) problems.Add($"{at}.support_at '{supportAt}' is not a place id: {string.Join(", ", v.Places)}");
@@ -300,6 +314,12 @@ public static class DecisionContract
         return nl > 0 && end > nl ? s.Substring(nl + 1, end - nl - 1) : s;
     }
 
+    private static bool Contains(IReadOnlyList<string> list, string s)
+    {
+        for (int i = 0; i < list.Count; i++) if (string.Equals(list[i], s, StringComparison.Ordinal)) return true;
+        return false;
+    }
+
     private static bool IsUnit(SeatVocabulary v, string? unit, bool self) => unit != null && ((self && unit == v.Self) || Has(v.Units, unit));
     private static bool Has(IReadOnlyList<string> list, string s)
     {
@@ -328,6 +348,9 @@ public static class DecisionContract
         if (o.Task == Continue) return null;
         if (o.Unit == v.Self) return new CommanderAction(CommanderActionKind.RunPlay, Order: o.Task, Where: o.Objective, Target: o.SupportAt);
         if (o.Task == "Hold") return new CommanderAction(CommanderActionKind.Hold, o.Unit);
+        // ⭐ CE-4686 ③ — a base of fire STANDS at support_at and fires at the objective (without support_at it stands at the objective)
+        if (o.Task == "SupportByFire" && o.SupportAt != null)
+            return new CommanderAction(CommanderActionKind.Order, o.Unit, o.Task, Where: o.SupportAt, Target: o.Objective);
         return new CommanderAction(CommanderActionKind.Order, o.Unit, o.Task, Where: o.Objective);
     }
 
