@@ -78,7 +78,7 @@ internal static class TerrainFolderWriter
         }
         // ⭐ CE-5056 ④ — the entrance ramps: ground-relative (each vertex's z is its height above the ground under it; the foot's 0 is buried by the parser)
         foreach (var r in entrances ?? Array.Empty<EntranceSteps.Ramp>())
-            Feature(() => { w.WriteString("kind", "ramp"); w.WriteString("zRef", "ground"); w.WriteString("label", r.Building + "-steps"); }, "Polygon", () =>
+            Feature(() => { w.WriteString("kind", "ramp"); w.WriteString("zRef", "ground"); w.WriteBoolean("steps", true); w.WriteString("label", r.Building + "-steps"); }, "Polygon", () =>
             {
                 w.WriteStartArray("coordinates"); w.WriteStartArray();
                 void V((double X, double Y) p, double z) { w.WriteStartArray(); w.WriteNumberValue(Math.Round(p.X, 3)); w.WriteNumberValue(Math.Round(p.Y, 3)); w.WriteNumberValue(z); w.WriteEndArray(); }
