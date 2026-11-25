@@ -1,9 +1,9 @@
 <!--STATUS
-state: LIVE — a NOTE (protocol §5): a finding in terrain's code, with the measurements · updated: 2026-11-25 · current-answer: the whole file
+state: LIVE — a NOTE (protocol §5), FYI: two findings in terrain's code, FIXED by backend as cross-lane edits (user "fix yourself", 2026-11-25) · updated: 2026-11-25 · current-answer: the whole file
 related-designs:
   - ../../designs/engineering/DESIGN_Bridge_Laying.md — §11 (BL-S1/S2 as built, terrain), §12f (BL-S3/S4 as built, backend)
 -->
-# NOTE — `backend` → `terrain`: the laid deck in the navmesh — ① vehicles never use the FLOATING deck in the editor (CE-4696) · ② a man walks the river bed along a deck's edge (CE-4695)
+# NOTE — `backend` → `terrain` (FYI — both FIXED by backend, cross-lane): the laid deck in the navmesh — ① vehicles never use the FLOATING deck in the editor (CE-4696) · ② a man walks the river bed along a deck's edge (CE-4695)
 
 | | |
 |---|---|
@@ -24,3 +24,10 @@ related-designs:
 | how he got there | crowded at the ramp FOOT, he stood beside the ramp at ground level (x 77.4–77.9, y 55–58); from there the path reaches the deck in PLAN along its edge without climbing the ramp, and the walker keeps the floor nearest his own height |
 | the lean | the deck's walkable polygons enter the men's navmesh un-eroded (a path string-pulled ON the edge); eroding them by the agent radius keeps a path ~0.3 m inside and up the ramp |
 | the rail | `scripts/scenario-regression.sh bl-assault-crossing` — row "no man stands in the river off the deck" |
+
+## ✅ FIXED by backend (cross-lane edits, said — user `2026-11-25`: *"fix yourself"*)
+
+| | the fix | rail |
+|---|---|---|
+| ① CE-4696 | the cause was the RAMP, not the host: every 0.6 m deck at 1 : 4 has a 2.4 m ramp and no vehicle path (0.9 m / 1.2 m decks do, any width). `DeckGeometry.MinRampLength` = 4.8 m for a LAID deck (`RampLengthFor`); the authored bridge keeps `AuthoredRampLength` | `StaticObstacleBakeTests.CE4696_EveryLaidDeckType_CarriesAManAndAVehicle` (red with a 1 m floor) |
+| ② CE-4695 | a person never wades into a river from dry ground (`CarKinematicsSystem.FinishMove`); `TerrainWater` is the ONE water index — `TerrainWorldMesh.GroundBins.InWater` now asks it (its own copy of the water bins is gone) | `CarKinematicsSystemTests.CE4695_APerson_NeverWadesIntoARiver_FromDryGround` (red without the rule) |
