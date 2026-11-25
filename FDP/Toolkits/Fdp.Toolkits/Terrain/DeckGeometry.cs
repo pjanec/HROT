@@ -19,8 +19,16 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The ramp's run per metre of rise — the authored bridge's 1 : 4 (14°).</summary>
         public const float RampRunPerRise = AuthoredRampLength / AuthoredDeckHeight;
 
-        /// <summary>A ramp's length for a deck <paramref name="rise"/> metres above the bank: the authored slope, never shorter than 1 m.</summary>
-        public static float RampLengthFor(float rise) => MathF.Max(1f, rise * RampRunPerRise);
+        /// <summary>
+        /// ⭐ <c>CE-4696</c> (backend, cross-lane — user "fix yourself") — the SHORTEST ramp a laid deck gets (m). 📐 Measured (<c>StaticObstacleBakeTests.CE4696_*</c>): a
+        /// deck 0.6 m up (the floating span) at 1 : 4 had a 2.4 m ramp and NO vehicle path (the vehicle layer's 1.8 m agent radius leaves a ramp that short unusable);
+        /// 3.6 m (a 0.9 m deck) and longer carry one. The assault span's own 4.8 m is the floor; a real ribbon bridge's ramp bay is ~6.9 m (DESIGN_Bridge_Laying §12d).
+        /// </summary>
+        public const float MinRampLength = 4.8f;
+
+        /// <summary>A LAID deck's ramp length for a deck <paramref name="rise"/> metres above the bank: the authored slope, never shorter than <see cref="MinRampLength"/>
+        /// (a lower deck gets a gentler ramp). ⚠ The authored bridge feature keeps its own <see cref="AuthoredRampLength"/>.</summary>
+        public static float RampLengthFor(float rise) => MathF.Max(MinRampLength, rise * RampRunPerRise);
 
         /// <summary>One quad of the deck: <see cref="Kind"/>, and its four corners counter-clockwise along the bridge (p0 − n, p1 − n, p1 + n, p0 + n), each with
         /// its height above the ground. A ramp's foot corners are at height 0 (the parser / <see cref="TerrainObstacles.DeckOf"/> bury them, TH-K).</summary>

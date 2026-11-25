@@ -396,5 +396,39 @@ namespace Hrot.SimHost.Tests
             foreach (var l in layers) Assert.False(node.PathExists(from, to, (uint)l), $"{l}: the removed bridge still carries");
             GC.KeepAlive(crate);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4696</c> (backend, cross-lane — user "fix yourself") — BOTH laid-bridge types carry a man AND a vehicle: the assault span (4 m wide, 1.2 m up) and the
+        /// FLOATING span (4.5 m wide, 0.6 m up). 📌 bl-floating-bridge: a tank's path never used the floating deck — 📐 measured here, by height not width: every 0.6 m deck
+        /// (2.4 m ramps) had no vehicle path, 0.9 m and 1.2 m did. 🔴 Red-proof: <c>DeckGeometry.MinRampLength</c> back to 1 m ⇒ the 0.6 m case is red.
+        /// </summary>
+        [Theory]
+        [InlineData(4f, 1.2f)]
+        [InlineData(4.5f, 0.6f)]
+        public void CE4696_EveryLaidDeckType_CarriesAManAndAVehicle(float width, float height)
+        {
+            var terrain = TerrainWorldParser.Parse(River, "river");
+            var factory = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { Layers = Fdp.Toolkit.Navigation.NavLayerMask.Infantry | Fdp.Toolkit.Navigation.NavLayerMask.Vehicle, TileCache = new Fdp.Toolkit.Navigation.Recast.NavTileCache() };
+            var node = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+            var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
+            var baseline = factory.Build(terrain);
+            residency.AttachNavmesh(factory, node);
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "river" }, World = terrain, TerrainName = "river", Navmesh = baseline, BakeSerial = factory.BakeSerial });
+            var from = new Vector3(100, 50, 0); var to = new Vector3(200, 50, 0);
+            var sys = System();
+            var crate = Obstacle(20f);
+            sys.Execute(_world, 0.016f); _wall += 1.0;
+            RunUntilBaked(sys, 1);
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(150, 50, 0), Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new StaticObstacle { Material = new FixedString32("steel-plate"), Kind = ObstacleKind.WalkableDeck });
+            _world.AddComponent(e, new ObstacleShape { Length = 26f, Width = width, Height = height });
+            _world.SetLifecycleState(e, EntityLifecycle.Constructing);
+            sys.Execute(_world, 0.016f); _wall += 1.0;
+            RunUntilBaked(sys, 2);
+            Assert.True(node.PathExists(from, to, (uint)Fdp.Toolkit.Navigation.NavLayerMask.Infantry), $"{width} x {height}: no way over for a man");
+            Assert.True(node.PathExists(from, to, (uint)Fdp.Toolkit.Navigation.NavLayerMask.Vehicle), $"{width} x {height}: no way over for a vehicle");
+            GC.KeepAlive(crate);
+        }
 }
 }

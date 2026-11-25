@@ -155,19 +155,8 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The query <see cref="OpenBridgeAt"/> walks (Active obstacles only — a Constructing deck is not open yet, R-243).</summary>
         public static EntityQuery OpenObstacles(EntityRepository world) => world.Query().With<StaticObstacle>().With<SimTransform>().Build();
 
-        /// <summary>Whether <paramref name="p"/> is under authored water (a Water surface of the terrain).</summary>
-        public static bool InWater(TerrainWorld terrain, Vector2 p)
-        {
-            var surfaces = terrain.Surfaces;
-            for (int i = 0; i < surfaces.Count; i++)
-            {
-                var s = surfaces[i];
-                if (s.Type != TerrainSurfaceType.Water) continue;
-                if (p.X < s.Min.X || p.Y < s.Min.Y || p.X > s.Max.X || p.Y > s.Max.Y) continue;
-                if (PolygonMath.Contains(s.Polygon, p)) return true;
-            }
-            return false;
-        }
+        /// <summary>Whether <paramref name="p"/> is under authored water — the ONE water index (<see cref="TerrainWater"/>).</summary>
+        public static bool InWater(TerrainWorld terrain, Vector2 p) => TerrainWater.Of(terrain).Contains(p);
     }
 
     /// <summary>

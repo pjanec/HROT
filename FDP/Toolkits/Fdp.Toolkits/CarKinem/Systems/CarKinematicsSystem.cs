@@ -76,6 +76,7 @@ namespace CarKinem.Systems
             _woods = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { } woodsWorld ? woodsWorld.Woods : null;
             // ⭐ CE-4600 (B-3) — the terrain the contact rule names barriers in (read once per tick; the parallel update only reads it)
             _terrainWorld = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+            _water = _terrainWorld != null ? Fdp.Toolkit.Terrain.TerrainWater.Of(_terrainWorld) : null;   // ⭐ CE-4695 (built once per surface list; read-only in the parallel update)
             // ⭐ CE-1034 H1 (R-249) — an entity's runtime ground-clamping flag decides whether the movement model holds it to the
             //   surface; no flag = clamped, as before. Read once per tick: the parallel update only reads it.
             _clampFlags = repo.IsComponentTypeRegistered<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
@@ -173,6 +174,8 @@ namespace CarKinem.Systems
         private Fdp.Toolkit.World.IWorldQuery? _terrain;
         private Fdp.Toolkit.Terrain.TerrainWoods? _woods;
         private Fdp.Toolkit.Terrain.TerrainWorld? _terrainWorld;
+        /// <summary>⭐ CE-4695 — the terrain's water (<see cref="Fdp.Toolkit.Terrain.TerrainWater"/>), taken with <see cref="_terrainWorld"/>.</summary>
+        private Fdp.Toolkit.Terrain.TerrainWater? _water;
         // ⭐ CE-4621 MC-2 — the surface-class grid and what it was built from (the terrain world, the road network's segment count)
         private Fdp.Toolkit.Terrain.SurfaceClassGrid? _surface;
         private Fdp.Toolkit.Terrain.TerrainWorld? _surfaceWorld;
@@ -887,6 +890,21 @@ namespace CarKinem.Systems
                 if (MathF.Abs(_terrain.SurfaceZ(here.X, here.Y, tf.Position.Z) - tf.Position.Z) <= HumanGait.OnFloorTolerance)
                 {
                     pos2D = here;
+                    z = tf.Position.Z;
+                    state.Speed = 0f;
+                    planar = Vector2.Zero;
+                }
+            }
+            // ⭐ CE-4695 — A PERSON NEVER WADES INTO A RIVER FROM DRY GROUND: there is no water model (DESIGN_Bridge_Laying Q-3), so only the navmesh kept a man out of
+            //   the water, and a man off it was free. 📌 bl-assault-crossing (measured live): crowded off a laid bridge's ramp, a rifleman slid along the deck's side
+            //   over the river bed (x pinned at the deck's edge, z 0). A step from dry ground to a point under water whose floor is the BED (not a deck over it) is
+            //   not taken — the ledge rule's shape; on a deck, or already in the water (he may walk out), it is.
+            if (person && _terrainWorld != null && _water is { Any: true } water)
+            {
+                var from = new Vector2(tf.Position.X, tf.Position.Y);
+                if (water.Contains(pos2D) && !water.Contains(from) && z <= _terrainWorld.GroundHeightAt(pos2D.X, pos2D.Y) + HumanGait.OnFloorTolerance)
+                {
+                    pos2D = from;
                     z = tf.Position.Z;
                     state.Speed = 0f;
                     planar = Vector2.Zero;

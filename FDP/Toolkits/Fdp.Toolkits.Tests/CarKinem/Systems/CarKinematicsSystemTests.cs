@@ -1651,6 +1651,48 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4695</c> (backend, cross-lane — user "fix yourself") — A PERSON NEVER WADES INTO A RIVER FROM DRY GROUND: sent straight across a river (water y 10–20)
+        /// he stops at the bank and never stands in it; on dry ground the same route is walked to its end. 📌 bl-assault-crossing (measured live): crowded off a laid
+        /// bridge's ramp, a rifleman slid along the deck's side over the river bed. 🔴 Red-proof: drop the rule in <c>FinishMove</c> ⇒ he walks the river bed to y 30.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CE4695_APerson_NeverWadesIntoARiver_FromDryGround(bool river)
+        {
+            string water = river
+                ? """,{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[-20,10],[20,10],[20,20],[-20,20],[-20,10]]]}}"""
+                : "";
+            var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-50,-50,50,50],"groundZ":0},"features":[""" +
+                """{"type":"Feature","properties":{"kind":"surface","surface":"forest"},"geometry":{"type":"Polygon","coordinates":[[[40,40],[45,40],[45,45],[40,45],[40,40]]]}}""" + water + "]}", "river");
+            var route = new[] { new Vector3(0f, 0f, 0f), new Vector3(0f, 30f, 0f) };
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 2f, startSpeed: 0f, facing: SimMath.FromYaw(MathF.PI / 2f),
+                vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            pool.RegisterTrajectoryWithKey(route, 9);
+            ref var tf0 = ref repo.GetComponentRW<SimTransform>(e);
+            tf0.Position = route[0];
+            ref var nav0 = ref repo.GetComponentRW<NavState>(e);
+            nav0.TrajectoryId = 9;
+            nav0.FinalDestination = route[^1];
+            nav0.ArrivalRadius = 0.5f;
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(world);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float furthest = 0f;
+            for (int i = 0; i < 25 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                furthest = MathF.Max(furthest, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            if (river) Assert.True(furthest < 10f, $"he waded into the river (y {furthest:F2})");
+            else Assert.True(furthest > 29f, $"on dry ground the route is walked (y {furthest:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-3145</c> — A PERSON ON THE REAL HOUSE: from House A's upstairs window (107.1, 100.9, 3) along the route the navmesh
         /// plans to the ground-floor east window (109.1, 103.6, 0) — east past the stairwell's edge (5 cm away), north, down the stairs —
         /// he arrives downstairs and never drops more than a step (`HumanGait.MaxStepDown`) in one frame; and sent STRAIGHT across the stairwell he never falls
