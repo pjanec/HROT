@@ -1,0 +1,72 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-4693 bl-recover (see scenario.json's header). State and objectives, never a time.",
+  "runFor": 1080,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the bridge was laid (objective Achieved)",
+      "on": "field",
+      "who": "Bridge laid",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the bridge is gone (objective 'Bridge recovered' Achieved)",
+      "on": "field",
+      "who": "Bridge recovered",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the engineer carries its span again",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "the engineer's order is done",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Order",
+      "op": "==",
+      "value": "None",
+      "atEnd": true
+    },
+    {
+      "name": "the tank is ordered across",
+      "on": "task",
+      "who": "Tank",
+      "is": "MoveToLocation"
+    },
+    {
+      "name": "the river is a barrier again: the tank never reaches the far bank",
+      "never": {
+        "on": "near",
+        "who": "Tank",
+        "point": [
+          80.0,
+          110.0
+        ],
+        "within": 10
+      }
+    },
+    {
+      "name": "the tank never stands north of the river",
+      "never": {
+        "on": "field",
+        "who": "Tank",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 72.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,1168 @@
+{
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4693 - the WHOLE bridge-laying feature, end to end, judged by OBJECTIVES (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712). On basic-desert a RIVER 12 m wide (y 60-72); Blue must cross it to a far bank held by Red's 'Red Outpost' (three men round (80, 124)). At 2 s 'Engineer' (an assault bridge layer, TKB 118) is ordered to LayBridge from (80, 50) to (80, 82) while the 'Mortar Section' screens the far bank with smoke and 'Blue Tank' (an M1 at (112, 44)) overwatches. When the bridge opens, the rule 'Bridge laid' moves the engineer aside and sends squads 'Alpha' and 'Bravo' across; 'Red Sapper' (a demolition man with an 8 kg charge, waiting at (118, 96)) tries to reach the deck's north end and blow it. Objectives: 'Bridge laid' (an assault bridge Open); 'Far bank seized' (Alpha holds 22 m round (80, 112) for 20 s, no enemy inside); 'Bridge held' (the sapper silenced before he fires); then 'Take the bridge back' orders RecoverBridge and 'Bridge recovered' (no assault bridge left and the span on board again). Judge: every objective Achieved, the engineer carries its span again. If the sapper's charge DOES go off, the fall is judged instead (rows marked 'if charge'): the bridge gone. Check: scripts/scenario-regression.sh bl-river-crossing"
+ },
+ "entities": {
+  "b4693500-0000-4000-8000-000000000000": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 9,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -5,
+     60.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 12.0
+     },
+     {
+      "X": 0,
+      "Y": 12.0
+     }
+    ],
+    "Version": 0
+   },
+   "EntityInfo": {
+    "Name": "River",
+    "ForceId": "Neutral"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     80.0,
+     20.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 118
+   },
+   "EntityInfo": {
+    "Name": "Engineer",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     112.0,
+     44.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 100
+   },
+   "EntityInfo": {
+    "Name": "Blue Tank",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "b4693500-0000-4000-8000-000000000030": {
+   "SimTransform": {
+    "Position": [
+     80.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 304
+   },
+   "EntityInfo": {
+    "Name": "Mortar Section",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ArtilleryUnitStrike",
+    "Params": {
+     "Location": [
+      80.0,
+      100.0,
+      0
+     ],
+     "Smoke": true,
+     "Rounds": 3,
+     "Sheaf": "Open",
+     "SheafWidthM": 60,
+     "DangerClose": true
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000031": {
+   "SimTransform": {
+    "Position": [
+     74.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "Mortar Tube 1",
+    "ForceId": "Friend"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000032": {
+   "SimTransform": {
+    "Position": [
+     86.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "Mortar Tube 2",
+    "ForceId": "Friend"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000033": {
+   "SimTransform": {
+    "Position": [
+     72.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Mortar Gunner 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000030",
+    "Designation": "SquadLeader"
+   },
+   "Behavior": {
+    "Name": "ManWeapon",
+    "Params": {
+     "weapon": "b4693500-0000-4000-8000-000000000031"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000034": {
+   "SimTransform": {
+    "Position": [
+     88.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Mortar Gunner 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000030",
+    "Designation": "Wingman"
+   },
+   "Behavior": {
+    "Name": "ManWeapon",
+    "Params": {
+     "weapon": "b4693500-0000-4000-8000-000000000032"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     64.0,
+     22.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Alpha",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "BasicSquadSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     58.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000010",
+    "Designation": "SquadLeader"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     62.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Man 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000010",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     66.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Man 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000010",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000014": {
+   "SimTransform": {
+    "Position": [
+     70.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Man 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000010",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000018": {
+   "SimTransform": {
+    "Position": [
+     96.0,
+     22.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Bravo",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "BasicSquadSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000019": {
+   "SimTransform": {
+    "Position": [
+     90.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000018",
+    "Designation": "SquadLeader"
+   }
+  },
+  "b4693500-0000-4000-8000-00000000001a": {
+   "SimTransform": {
+    "Position": [
+     94.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Man 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000018",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-00000000001b": {
+   "SimTransform": {
+    "Position": [
+     98.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Man 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000018",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-00000000001c": {
+   "SimTransform": {
+    "Position": [
+     102.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Man 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000018",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000040": {
+   "SimTransform": {
+    "Position": [
+     80.0,
+     124.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red Outpost",
+    "ForceId": "Hostile"
+   },
+   "Sop": {
+    "Name": "BasicSquadSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000041": {
+   "SimTransform": {
+    "Position": [
+     74.0,
+     120.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Outpost Leader",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000040",
+    "Designation": "SquadLeader"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000042": {
+   "SimTransform": {
+    "Position": [
+     78.0,
+     120.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Outpost Man 1",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693500-0000-4000-8000-000000000040",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     118.0,
+     96.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Sapper",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "b4693900-0000-4000-9000-000000000001",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "100000"
+        }
+       ]
+      },
+      {
+       "taskId": "b4693900-0000-4000-9000-000000000002",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 1.5,
+        "arrivalRadius": 0.4,
+        "target": [
+         80.0,
+         74.0,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "b4693900-0000-4000-9000-000000000003",
+       "executingEngine": "",
+       "behaviorName": "DetonateCharge",
+       "behaviorParams": {
+        "Seconds": 1
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "b4693900-0000-4000-9000-000000000004",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "b4693500-0000-4000-8000-000000000006": {
+   "TkbIdentity": {
+    "TkbType": 618
+   },
+   "EntityInfo": {
+    "Name": "Demolition Charge",
+    "ForceId": "Hostile"
+   },
+   "IsEmbarkedTag": {
+    "Vehicle": "b4693500-0000-4000-8000-000000000005",
+    "Seat": 3
+   }
+  },
+  "b4693500-0000-4000-8000-000000000020": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Lay the bridge",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Lay the bridge",
+      "subject": "b4693500-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "ScenarioTime",
+      "fromSeconds": 2
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000003",
+        "behavior": "Order.LayBridge",
+        "params": {
+         "NearBank": [
+          80.0,
+          50.0,
+          0
+         ],
+         "FarBank": [
+          80.0,
+          82.0,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000021": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge laid",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Bridge laid",
+      "subject": "b4693500-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "CountMatching",
+      "withComponent": "StaticObstacle",
+      "min": 1,
+      "max": 1000,
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "TkbIdentity",
+       "propertyPath": "TkbType.Value",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 8825,
+        "maxValue": 8825
+       }
+      }
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000003",
+        "behavior": "MoveToLocation",
+        "params": {
+         "target": [
+          56.0,
+          34.0,
+          0.0
+         ],
+         "speed": 5,
+         "arrivalRadius": 4
+        }
+       }
+      },
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000010",
+        "behavior": "SquadMarch",
+        "params": {
+         "Objective": [
+          74.0,
+          110.0,
+          0.0
+         ],
+         "Shape": 0,
+         "Spacing": 3
+        }
+       }
+      },
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000018",
+        "behavior": "SquadMarch",
+        "params": {
+         "Objective": [
+          88.0,
+          104.0,
+          0.0
+         ],
+         "Shape": 0,
+         "Spacing": 3
+        }
+       }
+      },
+      {
+       "act": "MissionCommand",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000005",
+        "command": "Jump",
+        "taskIndex": 1
+       }
+      },
+      {
+       "act": "SetObjectiveActive",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000025",
+        "active": true
+       }
+      },
+      {
+       "act": "Message",
+       "args": {
+        "toKind": "All",
+        "text": "Bridge open - cross",
+        "seconds": 6
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000022": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Far bank seized",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HoldArea",
+    "Params": {
+     "common": {
+      "title": "Far bank seized",
+      "subject": "b4693500-0000-4000-8000-000000000010"
+     },
+     "area": {
+      "circle": {
+       "center": [
+        80.0,
+        112.0,
+        0
+       ],
+       "radius": 22
+      }
+     },
+     "minMen": 3,
+     "maxEnemy": 0,
+     "holdSeconds": 20
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000024": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge held",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "DestroyTargets",
+    "Params": {
+     "common": {
+      "title": "Bridge held"
+     },
+     "targets": [
+      "b4693500-0000-4000-8000-000000000005"
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000026": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Take the bridge back",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Take the bridge back",
+      "subject": "b4693500-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "OnEntity",
+      "ref": "b4693500-0000-4000-8000-000000000022",
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "ObjectiveStatus",
+       "propertyPath": "State",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 2,
+        "maxValue": 2
+       }
+      }
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000003",
+        "behavior": "Order.RecoverBridge",
+        "params": {}
+       }
+      },
+      {
+       "act": "SetObjectiveActive",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000023",
+        "active": true
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000023": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge recovered",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Bridge recovered",
+      "subject": "b4693500-0000-4000-8000-000000000003",
+      "startActive": false
+     },
+     "when": {
+      "$type": "Compound",
+      "operator": "And",
+      "conditions": [
+       {
+        "$type": "CountMatching",
+        "withComponent": "StaticObstacle",
+        "min": 0,
+        "max": 0,
+        "predicate": {
+         "$type": "PropertyMatch",
+         "componentType": "TkbIdentity",
+         "propertyPath": "TkbType.Value",
+         "operator": "Equals",
+         "predicate": {
+          "$type": "Numeric",
+          "minValue": 8825,
+          "maxValue": 8825
+         }
+        }
+       },
+       {
+        "$type": "OnEntity",
+        "ref": "b4693500-0000-4000-8000-000000000003",
+        "predicate": {
+         "$type": "PropertyMatch",
+         "componentType": "BridgeCarried",
+         "propertyPath": "Count",
+         "operator": "Equals",
+         "predicate": {
+          "$type": "Numeric",
+          "minValue": 1,
+          "maxValue": 1
+         }
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "act": "Message",
+       "args": {
+        "toKind": "All",
+        "text": "Bridge recovered",
+        "seconds": 6
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693500-0000-4000-8000-000000000025": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge gone",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Bridge gone",
+      "subject": "b4693500-0000-4000-8000-000000000003",
+      "startActive": false
+     },
+     "when": {
+      "$type": "CountMatching",
+      "withComponent": "StaticObstacle",
+      "min": 0,
+      "max": 0,
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "TkbIdentity",
+       "propertyPath": "TkbType.Value",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 8825,
+        "maxValue": 8825
+       }
+      }
+     },
+     "do": []
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

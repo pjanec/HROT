@@ -1,0 +1,80 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-4693 bl-river-crossing, the whole feature by objectives (see scenario.json's header). Objective STATES, never a time: the bake is wall-clock paced (R-244).",
+  "runFor": 1300,
+  "golden": false,
+  "anchors": {
+    "charge": {
+      "on": "blast",
+      "by": "Red Sapper"
+    }
+  },
+  "expect": [
+    {
+      "name": "objective 'Bridge laid' Achieved (an assault bridge Open at the crossing)",
+      "on": "field",
+      "who": "Bridge laid",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "objective 'Far bank seized' Achieved (Alpha holds it, Blue only)",
+      "on": "field",
+      "who": "Far bank seized",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "objective 'Bridge held' Achieved (the sapper silenced before he fires)",
+      "on": "field",
+      "who": "Bridge held",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the sapper never sets off his charge",
+      "never": {
+        "on": "blast",
+        "by": "Red Sapper"
+      }
+    },
+    {
+      "name": "objective 'Bridge recovered' Achieved (the bridge back on its engineer)",
+      "on": "field",
+      "who": "Bridge recovered",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the engineer carries its span again",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "the mortars screen with smoke",
+      "on": "blast",
+      "by": "*Mortar Tube"
+    },
+    {
+      "name": "if the charge fired: the bridge is gone",
+      "if": "charge",
+      "on": "field",
+      "who": "Bridge gone",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    }
+  ]
+}

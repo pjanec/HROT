@@ -1,0 +1,757 @@
+{
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4693 BL-S3 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712) - on basic-desert a RIVER 12 m wide (y 60-72) parts the south from the north. At 2 s 'Engineer' (an assault bridge layer, TKB 118 - a Wolverine: a 26 m span over at most a 24 m gap, 300 s to lay) is ordered to LayBridge from (80, 50) to (80, 82); while it drives up and lays, the 'Mortar Section' (two 81 mm tubes, 380 m south) screens the far bank with smoke. The engineer stands short of the near ramp, holds the 300 s, and the bridge (TKB 8825: a deck as long as the gap plus a metre on each bank) is created, baked on every node and Open. The rule 'Bridge laid' (an open assault bridge) then moves the engineer aside and marches squads 'Alpha' and 'Bravo' (4 men each) across to (72, 108) and (88, 108). Judge: the objective 'Bridge laid' is Achieved; the engineer has laid its span (Count 0, no order left); the mortars burst smoke; both squads' objectives 'on the far bank' are Achieved (every man within 15 m); no man ever stands in the river beside the deck. Fail: no bridge, or a squad stops at the river. Check: scripts/scenario-regression.sh bl-assault-crossing"
+ },
+ "entities": {
+  "b4693200-0000-4000-8000-000000000000": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 9,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -5,
+     60.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 12.0
+     },
+     {
+      "X": 0,
+      "Y": 12.0
+     }
+    ],
+    "Version": 0
+   },
+   "EntityInfo": {
+    "Name": "River",
+    "ForceId": "Neutral"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     80.0,
+     20.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 118
+   },
+   "EntityInfo": {
+    "Name": "Engineer",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000030": {
+   "SimTransform": {
+    "Position": [
+     80.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 304
+   },
+   "EntityInfo": {
+    "Name": "Mortar Section",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ArtilleryUnitStrike",
+    "Params": {
+     "Location": [
+      80.0,
+      100.0,
+      0
+     ],
+     "Smoke": true,
+     "Rounds": 3,
+     "Sheaf": "Open",
+     "SheafWidthM": 60,
+     "DangerClose": true
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000031": {
+   "SimTransform": {
+    "Position": [
+     74.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "Mortar Tube 1",
+    "ForceId": "Friend"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000032": {
+   "SimTransform": {
+    "Position": [
+     86.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "Mortar Tube 2",
+    "ForceId": "Friend"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000033": {
+   "SimTransform": {
+    "Position": [
+     72.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Mortar Gunner 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000030",
+    "Designation": "SquadLeader"
+   },
+   "Behavior": {
+    "Name": "ManWeapon",
+    "Params": {
+     "weapon": "b4693200-0000-4000-8000-000000000031"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000034": {
+   "SimTransform": {
+    "Position": [
+     88.0,
+     -380.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Mortar Gunner 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000030",
+    "Designation": "Wingman"
+   },
+   "Behavior": {
+    "Name": "ManWeapon",
+    "Params": {
+     "weapon": "b4693200-0000-4000-8000-000000000032"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     64.0,
+     22.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Alpha",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "BasicSquadSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     58.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000010",
+    "Designation": "SquadLeader"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     62.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Man 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000010",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     66.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Man 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000010",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000014": {
+   "SimTransform": {
+    "Position": [
+     70.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Alpha Man 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000010",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000018": {
+   "SimTransform": {
+    "Position": [
+     96.0,
+     22.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Bravo",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "BasicSquadSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000019": {
+   "SimTransform": {
+    "Position": [
+     90.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000018",
+    "Designation": "SquadLeader"
+   }
+  },
+  "b4693200-0000-4000-8000-00000000001a": {
+   "SimTransform": {
+    "Position": [
+     94.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Man 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000018",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693200-0000-4000-8000-00000000001b": {
+   "SimTransform": {
+    "Position": [
+     98.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Man 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000018",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693200-0000-4000-8000-00000000001c": {
+   "SimTransform": {
+    "Position": [
+     102.0,
+     18.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bravo Man 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b4693200-0000-4000-8000-000000000018",
+    "Designation": "Wingman"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000020": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Lay the bridge",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Lay the bridge",
+      "subject": "b4693200-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "ScenarioTime",
+      "fromSeconds": 2
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693200-0000-4000-8000-000000000003",
+        "behavior": "Order.LayBridge",
+        "params": {
+         "NearBank": [
+          80.0,
+          50.0,
+          0
+         ],
+         "FarBank": [
+          80.0,
+          82.0,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000021": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge laid",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Bridge laid",
+      "subject": "b4693200-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "CountMatching",
+      "withComponent": "StaticObstacle",
+      "min": 1,
+      "max": 1000,
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "TkbIdentity",
+       "propertyPath": "TkbType.Value",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 8825,
+        "maxValue": 8825
+       }
+      }
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693200-0000-4000-8000-000000000003",
+        "behavior": "MoveToLocation",
+        "params": {
+         "target": [
+          56.0,
+          34.0,
+          0.0
+         ],
+         "speed": 5,
+         "arrivalRadius": 4
+        }
+       }
+      },
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693200-0000-4000-8000-000000000010",
+        "behavior": "SquadMarch",
+        "params": {
+         "Objective": [
+          72.0,
+          108.0,
+          0.0
+         ],
+         "Shape": 0,
+         "Spacing": 3
+        }
+       }
+      },
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693200-0000-4000-8000-000000000018",
+        "behavior": "SquadMarch",
+        "params": {
+         "Objective": [
+          88.0,
+          108.0,
+          0.0
+         ],
+         "Shape": 0,
+         "Spacing": 3
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000022": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Alpha on the far bank",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ReachArea",
+    "Params": {
+     "common": {
+      "title": "Alpha on the far bank",
+      "subject": "b4693200-0000-4000-8000-000000000010"
+     },
+     "area": {
+      "circle": {
+       "center": [
+        72.0,
+        108.0,
+        0.0
+       ],
+       "radius": 15
+      }
+     },
+     "minMen": 4
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693200-0000-4000-8000-000000000023": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bravo on the far bank",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ReachArea",
+    "Params": {
+     "common": {
+      "title": "Bravo on the far bank",
+      "subject": "b4693200-0000-4000-8000-000000000018"
+     },
+     "area": {
+      "circle": {
+       "center": [
+        88.0,
+        108.0,
+        0.0
+       ],
+       "radius": 15
+      }
+     },
+     "minMen": 4
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

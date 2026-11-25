@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-25 (rev 4 — §12 BL-S3/S4 designed by backend, CE-4693; rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
-build-state: BUILDING — BL-S1/S2 built by terrain (CE-4692, §11); BL-S3/S4 to backend (CE-4693)
-current-answer: §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates · §12 BL-S3/S4 the engineer (backend's design, READY-TO-BUILD)
+updated: 2026-11-25 (rev 5 — §12f BL-S3/S4 AS-BUILT by backend, CE-4693; rev 4 — §12 BL-S3/S4 designed by backend; rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
+build-state: BUILDING — BL-S1/S2 built by terrain (CE-4692, §11); BL-S3/S4 built by backend (CE-4693, §12f), its scenarios running
+current-answer: §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates · §12 BL-S3/S4 the engineer (backend's design) · §12f what it built
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge entity + a side surface table)
 known-rot: none
 known-conflict: none
@@ -306,14 +306,14 @@ node that moves hulls (the dozer's).*
 
 ```mermaid
 classDiagram
-  class BridgeCarried { <<NEW unmanaged, recorded, Brain group, id 292>> byte Count · byte Order (None Lay Recover) · long BridgeType · WorldPoint NearBank · WorldPoint FarBank · EntityRef Target }
+  class BridgeCarried { <<NEW unmanaged, recorded, Brain group, id 292>> byte Count · byte Order (None Lay Recover) · long BridgeType · WorldPoint NearBank · WorldPoint FarBank · EntityRef Target · byte Refusal · float GapM }
   class BridgeLayerDto { <<NEW TKB descriptor, on the engineer>> BridgeType · Carried · SpanMaxM · BuildSeconds · RecoverSeconds · Source }
   class EntityBridgeCarried { <<NEW wire descriptor dtBridgeCarried 247>> }
   class BridgeCarriedTranslators { <<NEW egress + ingress, the RamOrder pair>> }
   class BridgeWorkSystem { <<NEW serial, mover node>> progress per hull (own state) }
   class LayBridgeOrder { <<NEW [Order LayBridge]>> PointLink NearBank · PointLink FarBank }
-  class RecoverBridgeOrder { <<NEW [Order RecoverBridge]>> EntityLink Bridge }
-  class BridgeLaying { <<NEW static>> Refusal(gap, ends) · the bank points · BridgeAt(near, far) }
+  class RecoverBridgeOrder { <<NEW [Order RecoverBridge]>> EntityLink Bridge (optional) }
+  class BridgeLaying { <<NEW static>> Plan(terrain, near, far) LaidDeckPlan · RecoverStand · OpenBridgeAt · Say(refusal) }
   class DozerCutSystem { <<existing precedent>> }
   class WreckObstacleSystem { <<existing precedent: EntityCreationRequest>> }
   class ObstacleRemovalSystem { <<existing precedent: NetworkEntityDestroy>> }
@@ -369,6 +369,19 @@ sequenceDiagram
 | BL-19 | `BridgeLayerDto` on the engineer; the span's size stays terrain's `StaticObstacleDto` | the engineer's capability vs the object's size — two owners, no copy |
 | BL-20 | a laid span's `ObstacleShape.Length` = the bank-to-bank gap + the deck's ramp reach, capped at the type's | the obstacle is per-instance already (§11); a floating bridge is as long as its river |
 | BL-21 | no progress on the wire in v1 — a renderer reads `Order` (laying / recovering) and `Count` (carried) | progress is the mover's; a renderer-facing progress is a later mover-owned field (said) |
+
+### 12f. AS-BUILT — where the build went beyond / differs from §12a–§12e (backend, `2026-11-25`, `caea57450`)
+
+| # | as built | why (measured) |
+|---|---|---|
+| 1 | ⭐ `BridgeCarried` also carries **`Refusal`** (`BridgeRefusal`: `GapTooWide` · `NearBankInWater` · `FarBankInWater` · `NoWater` · `DeckEndInWater` · `NoSpanCarried` · `NotItsBridge`; zero = `NotRefused`) and **`GapM`** — written by the brain with the order | BL-11's *"refused with a reason"* needs a reason a scenario row and a renderer can read: there is no general play-failure reason channel (searched: none). ⚠ The zero is not `None`: the DDS IDL puts this enum's members in one scope with `BridgeOrder`'s (`idlc`: *"Declaration 'None' collides"*) |
+| 2 | ⭐ `BridgeLayerTkbTranslator` adds `BridgeCarried {Count = Carried, BridgeType}` at creation | the brain only SETS it (never a structural change in the parallel phase, D-31) |
+| 3 | ⭐ `RecoverBridgeOrder.Bridge` is OPTIONAL — none ⇒ the nearest OPEN bridge of the type the engineer carries, within 300 m (resolved once, serially) | a bridge laid during the run has no authored name, so a scenario rule or an LLM commander could not name it |
+| 4 | the plan type is `LaidDeckPlan` (`BridgeLaying.Plan`), not `BridgePlan` | `BridgePlan` is `BridgeRoads`'s record already |
+| 5 | the deck: centred on the water gap ALONG the line, `Length = min(type length, gap + 2 × bearing)`, bearing = `max(1 m, (type length − SpanMax) / 2)` (1 m for both types) | BL-20; the stand is on the same line, short of the near ramp's foot (ramp = `DeckGeometry.RampLengthFor(height)` + half the hull + 2 m), reached through an approach point 10 m behind it so the hull ends aligned |
+| 6 | the brain counts the span off when an **ACTIVE** (baked, open) deck of its type stands within 3 m of the plan's centre | a Constructing deck is not in the simulation yet (R-243) |
+| 7 | the mover plans ONCE per order (cached), works only while the hull is within 6 m of its stand, and keeps its progress per hull | the stand check is the safety net for: ⚠ an INTERRUPTED play leaves `Order` set (a BTree action has no abort hook) — the mover then does nothing unless the hull still stands there, and the next bridge order overwrites it |
+| 8 | ⚠ after laying, the engineer STAYS at its stand (on the deck's line, before the ramp) — a scenario moves it aside before the crossing | moving off is the order-giver's call (a commander may keep it there to recover); said in every `bl-*` scenario |
 
 ---
 

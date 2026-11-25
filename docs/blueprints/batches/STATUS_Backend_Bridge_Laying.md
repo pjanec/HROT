@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — queued, NOT started (waits on terrain's CE-4692 BL-S1)
+state: LIVE — BUILDING: items ①–⑥ built and committed; the scenarios running
 updated: 2026-11-25
 current-answer: §1 Now
 related-designs:
@@ -12,7 +12,11 @@ related-designs:
 
 ## 1. Now
 
-⏸ `2026-11-25` — **queued, waiting on terrain's CE-4692 BL-S1** (a placed bridge obstacle that bakes). 🔒 User: *"When terrain's CE-4692 BL-S1
+🔨 `2026-11-25` — **items ①–⑥ BUILT** (`caea57450`): the figures and types, `BridgeCarried` on the wire, the orders, the plays, `BridgeWorkSystem`; rails
+`BridgeLayingBehaviorTests` 6/6 (red-proved), `BridgeLayerTkbTests`, the wire round trip. ✅ `bl-too-wide` passes 5/5. ⏳ the other four scenarios run.
+Ids allocated: component **292** (`BridgeCarried`), descriptor **247** (`dtBridgeCarried`), TKB **118 / 119**, `OrderKind` **17 / 18**.
+
+⛔ HISTORY — ⏸ `2026-11-25` — **queued, waiting on terrain's CE-4692 BL-S1** (a placed bridge obstacle that bakes). 🔒 User: *"When terrain's CE-4692 BL-S1
 … is merged, take … HANDOFF_Coordinator_To_Backend_Bridge_Laying.md (CE-4693 …). Done = every listed scenario passes, including the end-to-end
 bl-river-crossing judged by objectives."* Measured: `origin/terrain` @ `a4b886397` = "started CE-4692 bridge laying (BL-S1/S2)" — not landed.
 Ahead of it in the backend queue: CE-11057 ④ / CE-4691 (va-pop-smoke — the vehicle drive-out stops and fires on sight; gates running).
@@ -21,12 +25,12 @@ Ahead of it in the backend queue: CE-11057 ④ / CE-4691 (va-pop-smoke — the v
 
 | # | item | state |
 |---|---|---|
-| ① | real figures (assault + floating bridge), TKB with sources | ⏳ |
-| ② | the engineer types (DIS slot, class rows, TKB rail) | ⏳ |
-| ③ | `BridgeCarried` + descriptor + translator + appearance | ⏳ |
-| ④ | the orders `LayBridge` / `RecoverBridge`, refusals with reasons | ⏳ |
-| ⑤ | the behaviours | ⏳ |
-| ⑥ | `BridgeWorkSystem` | ⏳ |
+| ① | real figures (assault + floating bridge), TKB with sources | ✅ design §12d, `BridgeLayerTkbTests` |
+| ② | the engineer types (DIS slot, class rows, TKB rail) | ✅ 118 / 119, 1.1.*.9.3 / 1.1.*.7.1 |
+| ③ | `BridgeCarried` + descriptor + translator + appearance | ✅ 292 / 247, `BridgeLayerLook` |
+| ④ | the orders `LayBridge` / `RecoverBridge`, refusals with reasons | ✅ `BridgeCarried.Refusal`; the two-point pick → [NOTE to ui](NOTE_Backend_To_Ui_Bridge_Laying.md) |
+| ⑤ | the behaviours | ✅ `BridgeLayingBehaviors` |
+| ⑥ | `BridgeWorkSystem` | ✅ |
 
 ## 3. Scenarios (DONE = all pass)
 
@@ -34,6 +38,6 @@ Ahead of it in the backend queue: CE-11057 ④ / CE-4691 (va-pop-smoke — the v
 |---|---|
 | `bl-assault-crossing` | ⏳ |
 | `bl-recover` | ⏳ |
-| `bl-too-wide` | ⏳ |
+| `bl-too-wide` | ✅ 5/5 |
 | `bl-floating-bridge` | ⏳ |
 | ⭐ `bl-river-crossing` (objectives) | ⏳ |
