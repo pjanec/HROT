@@ -256,6 +256,8 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-11034 (R-11014; docs/designs/audio/DESIGN_Ambience.md) — an AMBIENCE LAYER (kind, intensity, radius, end time), its creator → every node (no group; the gateway's DPS row reads it).
         //   246 measured free on every origin branch's AllDescriptors.cs and nowhere else in the tree, 2026-11-22.
         dtAmbience                    = 246,
+        // ⭐ CE-4693 (bridge laying BL-S3) — a bridge engineer's span and its brain's order (the Brain group → every node; the mover reads it). 247 measured free on every branch 2026-11-25.
+        dtBridgeCarried               = 247,
         // etc., all known descriptor types here
     }
 

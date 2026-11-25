@@ -101,6 +101,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMinefieldLanesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMineClearingEgressTranslator(participant);                    // ⭐ CE-4624 MS-T4 — the clearer's tool marker (Brain group, the BladeCut pair)
             yield return new EntityMineClearingIngressTranslator(participant, entityMap);
+            yield return new EntityBridgeCarriedEgressTranslator(participant);                    // ⭐ CE-4693 (BL-S3) — the bridge engineer's span and order (Brain group, the MineClearing pair)
+            yield return new EntityBridgeCarriedIngressTranslator(participant, entityMap);
             yield return new EntityRamOrderEgressTranslator(participant);                        // ⭐ CE-4622 K-2 — the hull's ram order (Brain group, the MineClearing pair)
             yield return new EntityRamOrderIngressTranslator(participant, entityMap);
             // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker, its brain → the Muscle that cuts.

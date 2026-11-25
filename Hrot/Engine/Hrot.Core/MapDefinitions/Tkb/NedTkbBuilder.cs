@@ -207,6 +207,16 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ <c>CE-4693</c> (BL-S3 / BL-S4) — the type LAYS BRIDGES: which span it carries, how many, the longest gap, build and recover seconds
+        /// (<c>Engineering.BridgeLayer</c>). A type without this lays none.</summary>
+        public NedTkbBuilder WithBridgeLayer(long tkbId, Fdp.Toolkit.Tkb.Domain.BridgeLayerDto layer)
+        {
+            var template = _db.GetByType(tkbId)
+                ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(layer);
+            return this;
+        }
+
         /// <summary>⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §4) — the type JUMPS: its parachute
         /// (<c>Gen.Parachute</c>). A type without one that is made to jump gets a round canopy's defaults.</summary>
         public NedTkbBuilder WithParachute(long tkbId, Fdp.Toolkit.Tkb.Domain.ParachuteDto parachute)

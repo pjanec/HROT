@@ -926,6 +926,64 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1, Subcategory = 20 });
         }
 
+        /// <summary>⭐ <c>CE-4693</c> (Bridge Laying §12d, Q-6) — the assault bridge's figures (the M104 Wolverine): a 26 m bridge over a 24 m gap, 4 m wide, MLC 70
+        /// (man.fas.org/dod-101/sys/land/wolverine.htm; en.wikipedia.org/wiki/M104_Wolverine); launched in ≤ 5 min, recovered in ≤ 10 min (slashgear.com — ONE source).</summary>
+        public const string AssaultBridgeSource = "M104 Wolverine: 26 m bridge for a 24 m gap, 4 m wide, MLC 70 (man.fas.org/dod-101/sys/land/wolverine.htm; en.wikipedia.org/wiki/M104_Wolverine); launch <= 5 min, recovery <= 10 min (slashgear.com/1600839/army-m104-wolverine-bridgelayer, one source)";
+        /// <summary>⭐ <c>CE-4693</c> — the floating bridge: an Improved Ribbon Bridge bay is 6.9 m (22 ft 8.5 in) and unfolds to 8.1 m (militarymachine.com/improved-ribbon-bridge, an
+        /// enthusiast source); ⚠ the 4.5 m roadway, the 100 m longest gap and the 20-minute build / recover are ESTIMATES — no open source was found.</summary>
+        public const string FloatingBridgeSource = "Improved Ribbon Bridge: bay 6.9 m, unfolded 8.1 m (militarymachine.com/improved-ribbon-bridge); ESTIMATE: roadway 4.5 m, longest gap 100 m, build / recover 20 min (no open source found)";
+
+        private static void DefineBridgeLayers(NedTkbBuilder builder)
+        {
+            // the assault bridge layer: an M1-chassis launcher carrying ONE 26 m span (the Wolverine)
+            const long assault = TkbEntityTypes.Engineer_AssaultBridgeLayer;
+            builder
+                .DefineVehicle(assault, "Assault Bridge Layer")
+                .WithVisual(assault, v => { v.SymbolCode = "SFGPEVEB-------"; v.ColorHex = "#6B6B3A"; v.Scale = 1.2f; v.ShowLabel = true; })   // 2525B ground equipment · vehicle · engineer · bridge
+                .WithPhysics(assault, p =>
+                {
+                    p.Mass = 68_700;   // with the bridge (deagel.com)
+                    p.Length = 13.4f;  // the folded span on the hull
+                    p.Width = 4.0f;
+                    p.Height = 4.0f;
+                    p.MaxSpeed = 18.0f; p.MaxSpeedRev = 6.0f; p.Acceleration = 1.5f; p.TurnRate = 25f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(assault, c => { c.ArmorFront = 400; c.ArmorSide = 60; c.ArmorRear = 40; c.ArmorTop = 30; c.MaxHealth = 2500; c.BlastSusceptibility = 0.1f; c.EyeHeight = 3.0f; c.SensorRange = 500; })
+                .WithFaction(assault, 1)
+                .WithBehavior(assault)
+                .WithSignatures(assault, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                .WithBridgeLayer(assault, new Fdp.Toolkit.Tkb.Domain.BridgeLayerDto
+                {
+                    BridgeType = TkbEntityTypes.Obstacle_AssaultBridge, Carried = 1, SpanMaxM = 24f, BuildSeconds = 300f, RecoverSeconds = 600f, Source = AssaultBridgeSource,
+                })
+                // Large Tracked Utility Vehicle (1.1.*.9) · subcategory 3 = the assault bridge layer (HROT, EntityClassTable "AssaultBridgeLayer")
+                .WithDisType(assault, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 3 });
+
+            // the floating-bridge engineer: a wheeled transporter laying a floating span as long as its river (BL-S4)
+            const long floating = TkbEntityTypes.Engineer_FloatingBridge;
+            builder
+                .DefineVehicle(floating, "Floating Bridge Engineer")
+                .WithVisual(floating, v => { v.SymbolCode = "SFGPEVEB-------"; v.ColorHex = "#5E6B3A"; v.Scale = 1.1f; v.ShowLabel = true; })
+                .WithPhysics(floating, p =>
+                {
+                    p.Mass = 30_000;
+                    p.Length = 11.0f; p.Width = 2.6f; p.Height = 3.5f;
+                    p.MaxSpeed = 22.0f; p.MaxSpeedRev = 4.0f; p.Acceleration = 1.2f; p.TurnRate = 30f;
+                    p.Mobility = TerrainMobility.Wheeled;
+                })
+                .WithCombat(floating, c => { c.ArmorFront = 10; c.ArmorSide = 8; c.ArmorRear = 8; c.ArmorTop = 5; c.MaxHealth = 600; c.BlastSusceptibility = 0.4f; c.EyeHeight = 2.6f; c.SensorRange = 400; })
+                .WithFaction(floating, 1)
+                .WithBehavior(floating)
+                .WithSignatures(floating, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                .WithBridgeLayer(floating, new Fdp.Toolkit.Tkb.Domain.BridgeLayerDto
+                {
+                    BridgeType = TkbEntityTypes.Obstacle_FloatingBridge, Carried = 1, SpanMaxM = 100f, BuildSeconds = 1200f, RecoverSeconds = 1200f, Source = FloatingBridgeSource,
+                })
+                // Large Wheeled Utility Vehicle (1.1.*.7) · subcategory 1 = the floating-bridge engineer (HROT, EntityClassTable "FloatingBridgeEngineer")
+                .WithDisType(floating, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 7, Subcategory = 1 });
+        }
+
         private static void DefineMineClearer(NedTkbBuilder builder)
         {
             const long type = TkbEntityTypes.Engineer_MineClearer;
@@ -1520,6 +1578,7 @@ namespace Hrot.Map.Definitions.Tkb
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
             DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
             DefineMineClearer(builder);             // ⭐ CE-4624 (MS-T4, MF-9) — the mine-clearing vehicle: plough / flail / line charge
+            DefineBridgeLayers(builder);            // ⭐ CE-4693 (BL-S3 / BL-S4) — the assault bridge layer and the floating-bridge engineer
             DefineFlameTank(builder);               // ⭐ CE-3486 (flame FL-2) — the M67 flame tank
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
@@ -1689,8 +1748,10 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         private static void RegisterBridges(TkbDatabase tkbDb, DISEntityType feature)
         {
-            RegisterBridge(tkbDb, "Assault bridge",  TkbEntityTypes.Obstacle_AssaultBridge,  18f, 4f,   1.2f, feature, maxHealth: 600f);
-            RegisterBridge(tkbDb, "Floating bridge", TkbEntityTypes.Obstacle_FloatingBridge, 60f, 4.5f, 0.6f, feature, maxHealth: 600f);
+            // ⭐ CE-4693 (Q-6) — the SOURCED spans (the placeholders were 18 m and 60 m): the Wolverine's 26 m deck; the floating span as long as its longest gap (an
+            //   ESTIMATE, said — a laid floating span's ObstacleShape is its river's width, BL-20). The deck heights stay terrain's.
+            RegisterBridge(tkbDb, "Assault bridge",  TkbEntityTypes.Obstacle_AssaultBridge,  26f,  4f,   1.2f, feature, maxHealth: 600f);
+            RegisterBridge(tkbDb, "Floating bridge", TkbEntityTypes.Obstacle_FloatingBridge, 100f, 4.5f, 0.6f, feature, maxHealth: 600f);
         }
 
         private static void RegisterBridge(TkbDatabase tkbDb, string name, long type, float span, float width, float deckHeight, DISEntityType dis, float maxHealth)

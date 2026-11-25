@@ -44,6 +44,13 @@ namespace Hrot.Map.Common
         /// turret flamethrower in place of the gun, the coax and the smoke dischargers kept. DIS 1.1.225.1.20 (a tank; 20 HROT-local). ⛔ A permanent wire
         /// value (117 measured free on every lane 2026-11-19).</summary>
         public const long Tank_FlameM67 = 117;
+        /// <summary>⭐ <c>CE-4693</c> (BL-S3; docs/designs/engineering/DESIGN_Bridge_Laying.md §12) — the ASSAULT BRIDGE LAYER: an M1-chassis bridge launcher (the M104 Wolverine's
+        /// figures) carrying one assault span (8825). DIS 1.1.*.9.3 (beside the dozer 9.1 and the mine clearer 9.2), class <c>"AssaultBridgeLayer"</c>.
+        /// ⛔ A permanent wire value (118 measured free on every lane 2026-11-25).</summary>
+        public const long Engineer_AssaultBridgeLayer = 118;
+        /// <summary>⭐ <c>CE-4693</c> (BL-S4) — the FLOATING-BRIDGE ENGINEER: a wheeled bridge transporter laying a floating span (8826) as long as its river.
+        /// DIS 1.1.*.7.1 (a large wheeled utility vehicle), class <c>"FloatingBridgeEngineer"</c>. ⛔ A permanent wire value (119 measured free on every lane 2026-11-25).</summary>
+        public const long Engineer_FloatingBridge = 119;
 
         // ⛔ PERMANENT WIRE VALUES. ⭐ CE-4623 AB-1 (docs/designs/animals/DESIGN_Animals.md §4a, R-4269) — the ANIMALS: 700…711 the species
         //   (TKB order = AnimalSpecies, the sound block's species index), 712 the domestic animal AREA. 700–799 measured free on every lane 2026-11-16.

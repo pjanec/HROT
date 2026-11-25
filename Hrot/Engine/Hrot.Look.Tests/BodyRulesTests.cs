@@ -70,6 +70,25 @@ public sealed class BodyRulesTests
         Assert.False(FlailActivity.IsOn(world, clearer));
     }
 
+    /// <summary>⭐ <c>CE-4693</c> (bridge laying BL-S3 ③) — <see cref="BridgeLayerLook.Of"/>: carried with a span and no order; laying / recovering by its brain's order; no span
+    /// once laid (the deck is the obstacle's). 🔴 Red-proof: the Order switch dropped ⇒ a laying engineer reads Carried.</summary>
+    [Fact]
+    public void CE4693_ABridgeEngineersLook_IsAFunctionOfItsReplicatedSpan()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.BridgeCarried>();
+        var e = world.CreateEntity();
+        Assert.Equal(BridgeLayerState.NoSpan, BridgeLayerLook.Of(world, e));
+        world.AddComponent(e, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 1 });
+        Assert.Equal(BridgeLayerState.Carried, BridgeLayerLook.Of(world, e));
+        world.SetComponent(e, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 1, Order = Fdp.Toolkit.Terrain.BridgeOrder.Lay });
+        Assert.Equal(BridgeLayerState.Laying, BridgeLayerLook.Of(world, e));
+        world.SetComponent(e, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 0 });
+        Assert.Equal(BridgeLayerState.NoSpan, BridgeLayerLook.Of(world, e));
+        world.SetComponent(e, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 0, Order = Fdp.Toolkit.Terrain.BridgeOrder.Recover });
+        Assert.Equal(BridgeLayerState.Recovering, BridgeLayerLook.Of(world, e));
+    }
+
     /// <summary>RR-8 — <see cref="Hrot.Look.Airborne.Of"/>: a flyer's <c>FlightState</c> wins; else a flock's mode; else a lone bird's flag; else false.
     /// 🔒 Red-proved: the flag arm dropped ⇒ red (the lone bird reads grounded).</summary>
     [Fact]
