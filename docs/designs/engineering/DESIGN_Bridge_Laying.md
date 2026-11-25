@@ -1,20 +1,21 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-25
-build-state: DESIGN — leans for the user (§9); an independent review is folded in §10
-current-answer: §2 the diagrams · §3 the decisions · §9 the open questions with leans · §10 the review
-stale-below: nothing
+updated: 2026-11-25 (rev 2 — the independent review folded: the bridge is a STATIC-OBSTACLE KIND with a walkable shape; ONE deck, in the baked world)
+build-state: DESIGN — leans for the user (§9)
+current-answer: §2 the diagrams · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review and what each finding changed
+stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge entity + a side surface table)
 known-rot: none
 known-conflict: none
 related-designs:
-  - ../../DESIGN_Terrain_Authoring.md — OWNS the authored Bridge feature (§8: deck slab + 6 m ramps, FeatureKinds) and the bridge roads (§18k-2 BridgeRoads, §18k-3 BridgeClosureSystem, §18k-4 the SUMO net); THIS reuses the deck shape and adds a run-time road ADD to the one road-edit step
-  - ../../PLAN_Dynamic_Terrain.md — OWNS the run-time terrain changes (craters, breaches, trees, the obstacle bake P-7a); THIS adds a walkable contribution to that bake
-  - ../../DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the road blockage step (§9.9 CE-4590, §9.11 CE-4591) the bridge's road add and cut go through
-  - ../../DESIGN_World_Query_Seam.md — OWNS IWorldQuery (SurfaceZ / HullSurfaceZ / SurfacesAt); THIS adds the laid bridges as one more dynamic table under it
-  - ../../DESIGN_Vehicle_Breaching.md — OWNS the engineer pattern (§7.6 the bulldozer: the brain marks, the Muscle writes); THIS follows it
-  - ../minefields/DESIGN_Minefields.md — OWNS the other engineer task (§3f the lane, MF-9/10) and the place-knowledge save (§3d)
-  - ../../DESIGN_Orders_Params_Entity_Classes.md — OWNS orders (§8 the receiver's resolution, §9 the routes and gestures); THIS adds LayBridge / RecoverBridge and a two-point pick
-  - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — OWNS what a renderer is told about a vehicle (§6a openings); THIS adds the bridge carried / laid state
+  - ../../DESIGN_Peek_And_Fire.md — OWNS the static obstacle (§9, P-7a, R-243: an entity that is TERRAIN on every node, held Constructing until baked); THIS adds a WALKABLE kind
+  - ../../DESIGN_Terrain_Authoring.md — OWNS the authored Bridge feature (§8: the deck shape, the "rubble still carries units" case) and the bridge roads (§18k-2/3/4); THIS lifts the deck shape below the JSON and adds a run-time road ADD
+  - ../../PLAN_Dynamic_Terrain.md — OWNS the run-time terrain changes and the obstacle bake (P-7a)
+  - ../../DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the one road-edit step (§9.9 CE-4590, §9.11 CE-4591) the bridge's road add and cut go through
+  - ../../DESIGN_World_Query_Seam.md — OWNS IWorldQuery (SurfaceZ / HullSurfaceZ / SurfacesAt): the baked deck is answered there with no new table
+  - ../../DESIGN_Vehicle_Breaching.md — OWNS the engineer pattern (§7.6 the bulldozer: the brain marks, the node that moves the hull writes)
+  - ../minefields/DESIGN_Minefields.md — OWNS the other engineer task (§3f the lane)
+  - ../../DESIGN_Orders_Params_Entity_Classes.md — OWNS orders (§8, §9); THIS adds LayBridge / RecoverBridge and a two-point pick
+  - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — OWNS what a renderer is told about a vehicle; THIS adds bridge carried / laid
   - ../../DESIGN_Terrain_Import_UTM.md — §8 P3-a/b the per-tile navmesh versions that re-plan stale paths
 -->
 
@@ -25,99 +26,98 @@ entities need to be able to cross the river (sumo not necessary if not easy)"* �
 a bridge; no problem if it lays long ponton bridge for wider rivers"* · *"how will we let the navigation to find the path if we do NOT change the
 navmesh? How will be allow vehicles to find out there is a solid floor"* · *"yes, write the design. and run an independent review"*.
 
-⭐ **The decision in one line:** a laid bridge is an **ENTITY** (health, owner, saved, replicated, replayed like any entity); from it, the world
-gets a **walkable deck** in the navmesh bake, a **surface** in the world query, and a **road segment** in the road graph — each through the seam
-that already carries craters, breaches and roadblocks. The engineer vehicle is just whom you order.
+⭐ **The decision in one line:** a laid bridge is a **static obstacle of a new WALKABLE kind** — an entity that every node bakes into its own
+terrain, exactly as sandbags and roadblocks are today, except that its shape is a deck with ramps you stand on instead of a box you stand behind.
+**ONE deck**, in the baked world: the navmesh, the floor (`SurfaceZ` / `HullSurfaceZ`), sight and fire all read it from there. The engineer
+vehicle is just whom you order.
 
 ## 0. The proven solution, and how ours maps to it
 
-Armies cross gaps two ways: an **assault bridge** launched from a vehicle (AVLB-type, a short span of about 20–26 m, laid in minutes, under
-fire, recovered from either end) and a **floating bridge** (ribbon / pontoon bays joined into a long span, tens of minutes, at a prepared site).
-Both are one object that appears, carries a load class, can be destroyed, and can be taken away. ⇒ one entity type with per-type TKB values
-(span, width, deck height, build time, recover time, load class) covers both; the "who" is an engineer vehicle with an order.
-⚠ The real figures are to verify before they become TKB values (§9 Q-6).
+Armies cross gaps two ways: an **assault bridge** launched from a vehicle (a short span, laid in minutes, under fire, recovered from either end)
+and a **floating bridge** (bays joined into a long span, tens of minutes, at a prepared site). Both are one object that appears, has a load class,
+can be destroyed and can be taken away ⇒ one obstacle kind, per-type TKB values (span, width, deck height, build / recover time, load class).
+⚠ The real figures are to verify before they become TKB values (§9 Q-6). Engines model such an object as dynamic navigation geometry that the
+navmesh is rebuilt around (tile rebuild) — which is what HROT's obstacle bake already does.
 
 ## 1. INVENTORY — the queries run (`2026-11-25`)
 
 | query | total | what it says |
 |---|---|---|
-| `search_graph name_pattern=".*(Bridge|River|Water|Ford|Crater|Breach|Overlay|OffMesh|NavRebuild|Bake).*" label=Class` | 175 (88 read) | `BridgeClosureSystem`, `BridgeRoads`, `BridgeNetBuilder`, `StaticObstacleBakeSystem`, `NavTileCache`, the crater / tree / building damage records |
-| `search_graph name_pattern=".*(Engineer|Bulldozer|Clear|Obstacle|Breach|Lane|Bridge|Damage|Destroy).*" label=Class` | 313 | `ClearObstacleBehavior`, `ClearLaneBehavior`, `DozerCutSystem`, `ObstacleDamage`, `ObstacleRemovalSystem`, `BuildingDamage*` — no bridge layer, no AVLB, no pontoon |
-| grep `AVLB|pontoon|bridge.lay` over `docs/` + `.dev/` | 0 relevant | ⛔ no earlier design |
-| grep `HullSurfaceZ|\.SurfaceZ(` in motion / navigation | 12 call sites | ⭐ vehicle kinematics stand on `IWorldQuery.HullSurfaceZ` (`CarKinem/Controllers/HullClearance.cs:138,174,264`); roads and destinations on `SurfaceZ` |
-| read `TerrainWorldQuery.cs`, `TerrainObjects.cs` (`DoorStates`) | — | the query layers per-view dynamic tables (craters, damage, trees, knowledge) over the static terrain |
-| ⚠ `check_index_coverage` | — | not available through the CLI: the absence claims (no bridge layer, no run-time road add) rest on graph + grep |
+| `search_graph ".*(Bridge|River|Water|Ford|Crater|Breach|Overlay|OffMesh|NavRebuild|Bake).*"` Class | 175 | `BridgeClosureSystem`, `BridgeRoads`, `StaticObstacleBakeSystem`, `NavTileCache`, the damage records |
+| `search_graph ".*(Engineer|Bulldozer|Clear|Obstacle|Breach|Lane|Bridge|Damage|Destroy).*"` Class | 313 | `ClearObstacleBehavior`, `ClearLaneBehavior`, `DozerCutSystem`, `ObstacleDamage`, `ObstacleRemovalSystem` — no bridge layer |
+| ⭐ (review) `search_graph ".*(Walkable|StaticObstacle|LiveOverlay|TerrainWorldMerge|ViewTableCache|ObstacleRemoval|DozerCut).*"` Class | 20 | ⭐ **the static-obstacle pipeline** (`StaticObstacles.cs:9-38`) — the seam rev 1 missed |
+| grep `AVLB|pontoon|bridge.lay|laid bridge|gap crossing` over `docs/` + `.dev/` | 0 | no earlier design |
+| grep `HullSurfaceZ|SurfaceZ(|GroundHeightAt(` in motion / CarKinem | — | vehicles stand on `HullSurfaceZ`, men on `SurfaceZ` (`CarKinematicsSystem.cs:879`, `HullClearance.cs:138,174,264`); direct `GroundHeightAt` only on fence and air paths |
+| grep `InWater|drown` in motion / combat | 0 | ⛔ no water model |
+| ⚠ `check_index_coverage` | — | not available through the CLI: absence claims rest on graph + grep |
 
 ## 2. The diagrams
 
-### 2a. The module view — who runs what, on which node
+### 2a. The module view
 
 ```mermaid
 graph TD
   subgraph BRAIN["brain node (CGF / editor)"]
-    BEH["EngineerLayBridge / RecoverBridge behaviours — NEW<br/>drive, align, mark the vehicle"]
+    BEH["EngineerLayBridge / RecoverBridge — NEW behaviours<br/>drive, align, set BridgeCarried.State on its own vehicle"]
   end
-  subgraph MUSCLE["the deciding node (Muscle) — R-4196"]
-    WORK["BridgeWorkSystem — NEW, serial<br/>timer → spawn / remove the bridge entity"]
-    DMG["damage: AreaEffectSystem → ObstacleDamage.BlastDamage → Health"]
-    FALL["BridgeFallSystem — NEW: Health 0 → bridge falls"]
+  subgraph MOVER["the node that moves the engineer's hull (the dtWorldPos owner) — never in a replay"]
+    WORK["BridgeWorkSystem — NEW, serial<br/>Laying: spawn the bridge obstacle · Recovering: remove it"]
   end
-  ENT["LaidBridge entity — NEW TKB types<br/>LaidBridge component + Health, replicated, saved, recorded"]
+  subgraph DECIDE["the deciding node (Muscle, R-4196)"]
+    DMG["AreaEffectSystem → AssessObstacle<br/>reach + nearest point against the DECK footprint (FIX)"]
+    REM["ObstacleRemovalSystem (existing) — Health 0"]
+    WET["WaterFallSystem — NEW: who stood on a fallen deck"]
+  end
+  OBS["bridge obstacle entity — StaticObstacle (Walkable kind) + BridgeShape (per-instance) + Health"]
   subgraph EVERY["every node"]
-    TABLE["LaidBridgeTable — NEW, in DoorStates (beside Craters)"]
-    QUERY["TerrainWorldQuery SurfaceZ / HullSurfaceZ / SurfacesAt — + the deck"]
-    BAKE["StaticObstacleBakeSystem → TerrainObstacles.With — + the walkable deck"]
-    ROAD["BridgeClosureSystem — the one road-edit step: + With(added)"]
+    BAKE["StaticObstacleBakeSystem → TerrainObstacles.With — ADDS walkables (NEW)<br/>SignatureNow · DirtyRegions · CommitObstacles include decks"]
+    WORLD["TerrainWorld.Walkables — the ONE deck<br/>SurfaceZ / HullSurfaceZ / SurfacesAt / fire / sight"]
+    ROAD["BridgeClosureSystem — base − blocked + ADDED (NEW)"]
   end
-  CAR["vehicle kinematics (HullClearance)"]
-  NAV["RoutePlanner (navmesh + road graph)"]
-  BEH -->|"marker on its own vehicle"| WORK
-  WORK --> ENT
-  DMG --> ENT
-  FALL --> ENT
-  ENT -->|"replicated"| TABLE
-  TABLE --> QUERY
-  TABLE --> BAKE
-  TABLE --> ROAD
-  QUERY --> CAR
-  BAKE --> NAV
-  ROAD --> NAV
+  BEH --> WORK --> OBS
+  DMG --> OBS
+  REM --> OBS
+  REM --> WET
+  OBS -->|"replicated, per-instance shape"| BAKE --> WORLD
+  OBS --> ROAD
 ```
 
-*What the picture shows that prose hid: the brain never writes the world (R-4212) — it marks its own vehicle; ONE node writes the bridge entity;
-EVERY node derives the same three things from it (surface, navmesh, road), so a late joiner or a replay gets them by construction.*
-⚠ The Replay Browser and display nodes run no bake today (P-7a known gap): there the bridge is drawn and is a surface, but has no navmesh.
+*What the picture shows that prose hid: no new entity pipeline and no side table — the bridge rides the static obstacle's existing path (an entity
+that is terrain on every node, held Constructing until its bake commits, removed at Health 0); the new code is the WALKABLE kind in the bake,
+the deck-footprint damage reach, the road ADD and the water fall.*
+⚠ The Replay Browser and display nodes run no bake (P-7a known gap): there the bridge is drawn but is not a surface or a path.
 
 ### 2b. The classes
 
 ```mermaid
 classDiagram
-  class LaidBridge { <<NEW, unmanaged, recorded>> A WorldPoint · B WorldPoint · Width · DeckZ · Kind (Assault|Floating) · State (Building|Open|Falling) · Progress · LoadClass · LaidBy NetworkId }
+  class StaticObstacle { <<existing>> material · NEW Kind (Solid|WalkableDeck) }
+  class BridgeShape { <<NEW, [PerInstanceValue], unmanaged>> A · B (deck ends) · Width · DeckZ · RampRise }
   class Health { <<existing>> }
-  class BridgeCarried { <<NEW, unmanaged, on the engineer vehicle>> Count · BridgeType · State (Carried|Laying|Recovering) }
-  class BridgeTkb { <<NEW TKB types>> SpanMax · Width · DeckHeight · BuildSeconds · RecoverSeconds · LoadClass · HealthMax }
-  class LayBridgeOrder { <<NEW [Order] DTO>> NearBank PointLink · FarBank PointLink }
-  class RecoverBridgeOrder { <<NEW [Order] DTO>> Bridge EntityRef }
-  class LaidBridgeTable { <<NEW, per view, in DoorStates>> footprints · DeckAt(x,y,zHint) }
-  class DeckShape { <<EXISTING, FeatureKinds bridge expansion — lifted to share>> deck slab + two ramps }
-  class TerrainWorldQuery { <<existing>> SurfaceZ · HullSurfaceZ · SurfacesAt }
-  class TerrainObstacles { <<existing>> With(...) solid prisms + NEW walkable decks }
-  class BridgeClosureSystem { <<existing>> RoadNetworkEdit.Without + NEW With(added) }
-  class BridgeRoads { <<existing>> Plan: snap ends to road nodes ≤ 25 m }
-  LaidBridge -- Health
-  LaidBridge ..> BridgeTkb : its type
+  class BridgeCarried { <<NEW, unmanaged, on the engineer, own descriptor>> Count · BridgeType · State (Carried|Laying|Recovering) · Progress }
+  class BridgeTkb { <<NEW TKB types>> SpanMax · Width · DeckHeight · BuildSeconds · RecoverSeconds · LoadClass · HealthMax · Floating }
+  class DeckGeometry { <<LIFTED from FeatureKinds, below the JSON>> Build(A, B, width, deckZ, rampLength) · the buried ramp foot }
+  class TerrainObstacles { <<existing>> With(...) NEW adds walkable decks · IsObstacle }
+  class TerrainWorld { <<existing>> Walkables · SurfaceZCore · NEW skips a fallen deck until rebaked }
+  class StaticObstacleBakeSystem { <<existing>> NEW SignatureNow + DirtyRegions include decks }
+  class BridgeClosureSystem { <<existing>> NEW base − blocked + added · a bridge set change test · bridges exempt from the blocker walk }
+  class AreaEffectSystem { <<existing>> NEW reach to the deck footprint }
+  class WaterFallSystem { <<NEW>> occupants of a fallen deck → DamageAssessedEvent }
+  StaticObstacle -- BridgeShape
+  StaticObstacle -- Health
+  BridgeShape ..> BridgeTkb
   BridgeCarried ..> BridgeTkb
-  LaidBridgeTable o-- LaidBridge : built from
-  LaidBridgeTable ..> DeckShape
-  TerrainWorldQuery ..> LaidBridgeTable
-  TerrainObstacles ..> LaidBridgeTable
-  TerrainObstacles ..> DeckShape
-  BridgeClosureSystem ..> LaidBridgeTable
-  BridgeClosureSystem ..> BridgeRoads
+  TerrainObstacles ..> DeckGeometry
+  TerrainObstacles ..> BridgeShape
+  StaticObstacleBakeSystem --> TerrainObstacles
+  TerrainObstacles --> TerrainWorld
+  BridgeClosureSystem ..> BridgeShape
+  AreaEffectSystem ..> BridgeShape
+  WaterFallSystem ..> BridgeShape
 ```
 
-*What the picture shows that prose hid: ONE deck shape (the authored bridge's, lifted to share — never a second shape-builder), read by both
-the bake and the query; the road add goes through the ONE road-edit step that today only removes.*
+*What the picture shows that prose hid: ONE deck geometry, lifted from the authored bridge below its JSON so the authoring compile and the bake
+share it, with height and ramp length as parameters (the floating bridge needs both); every NEW method sits on an EXISTING class.*
 
 ### 2c. The sequence — lay, cross, fall
 
@@ -125,81 +125,111 @@ the bake and the query; the road add goes through the ONE road-edit step that to
 sequenceDiagram
   participant O as order (menu / RTS / HTTP / LLM seat)
   participant B as brain: LayBridge behaviour
-  participant M as Muscle: BridgeWorkSystem
-  participant E as LaidBridge entity
-  participant N as every node: table → query, bake, road
+  participant W as the engineer's mover node: BridgeWorkSystem
+  participant E as bridge obstacle entity
+  participant N as every node: bake · world · road
   participant V as a tank
   O->>B: LayBridge(near bank, far bank)
-  B->>B: refuse if the gap over water > SpanMax (a reason)
+  B->>B: refuse if the water gap is longer than SpanMax, or a deck end is not on ground (a reason)
   B->>B: drive to the near bank, align
-  B->>M: BridgeCarried.State = Laying (its own entity)
-  M->>E: spawn, State Building, Progress 0 → 1 over BuildSeconds
-  E->>N: State Open
-  N->>N: table + deck surface · bake dirty tiles (≈ 0.2–2 s) · road With(added)
-  V->>N: route over the deck (navmesh or road), the hull stands on HullSurfaceZ = deck
-  Note over E: explosives → Health 0
-  E->>N: State Falling → removed
-  N->>N: table − · rebake · road cut · stale paths re-plan
+  B->>W: BridgeCarried.State = Laying (its own entity)
+  W->>E: after BuildSeconds, spawn the obstacle (Constructing)
+  E->>N: bake its dirty tiles, the deck in TerrainWorld.Walkables
+  N->>E: bake committed, Constructing released, Open
+  N->>N: the road ADD (base minus blocked, plus the deck)
+  V->>N: a route over the deck, the hull stands on HullSurfaceZ (the baked deck)
+  Note over E: a charge on the deck, Health 0
+  E->>N: removed, the deck skipped at once, then rebaked, the road cut
+  N->>V: whoever stood on it, WaterFallSystem
 ```
 
 ## 3. Decisions (leans — for the user's nod, §9)
 
 | # | decision | why |
 |---|---|---|
-| BL-1 | ⭐ **the laid bridge is an ENTITY** with `Health`, owned by the deciding node | targeting, damage, save, replication, replay and late join come with entities; a terrain record would need each built again |
-| BL-2 | ⭐ **one deck shape** — the authored bridge's (`FeatureKinds.cs:232-259`), lifted to a shared function used by the authoring compile, the bake and the query | ruling 9: never a second implementation |
-| BL-3 | **the navmesh**: the obstacle bake gains WALKABLE contributions (deck + ramps) beside its solid prisms; only the dirty tiles rebake; stale paths re-plan by the tile versions | the existing seam (P-7a); ⚠ the run-time join of deck to banks is UNMEASURED (§9 Q-1) |
-| BL-4 | **the floor**: `LaidBridgeTable` in `DoorStates`; `TerrainWorldQuery.SurfaceZ / HullSurfaceZ / SurfacesAt` answer the deck inside its footprint near deck height | vehicles stand on `HullSurfaceZ`, men on `SurfaceZ`; sight, fire and drones ask the same query |
-| BL-5 | **the road**: `BridgeClosureSystem` gains `With(added)`; the ends snap by `BridgeRoads.Plan` (≤ 25 m to a road node) | the ONE road-edit step; a bridge with no road nearby is navmesh-only |
-| BL-6 | **SUMO out of v1** | SUMO cannot add an edge at run time; later: pre-built closed edges at likely sites, opened |
-| BL-7 | **the engineer pattern**: the brain sets `BridgeCarried.State` on its own vehicle; the Muscle's `BridgeWorkSystem` spawns / removes the entity | R-4212 (write only your own entity) and the bulldozer / mine-clearer precedent |
-| BL-8 | **real `[Order]`s** `LayBridge` / `RecoverBridge` with a NEW two-point pick (near bank → far bank) | the first engineer tasks offered as orders (ClearObstacle / ClearLane are behaviour names only) |
-| BL-9 | **refuse a gap longer than the type's span**, measured over the water polygons along the line; refuse a bank where no deck end stands on ground | a reason the order route returns, never a bridge into the river |
-| BL-10 | **damage**: the obstacle blast law (`ObstacleDamage.BlastDamage`, explosives by kg and distance); bullets never | the existing law; ⚠ heavy HE and AT rounds: §9 Q-4 |
-| BL-11 | **the fall**: Health 0 ⇒ `Falling` for a short beat ⇒ removed; a vehicle or man on it then has water under him | ⚠ what happens to him: §9 Q-3 |
-| BL-12 | **recovery**: the engineer at either end, over `RecoverSeconds`; the entity removed, `BridgeCarried.Count` back | the doctrine's "recover from either end" |
-| BL-13 | **load class** on the bridge and a weight class on the vehicle: a too-heavy vehicle is refused the deck (a navmesh area flag / road access) | ⚠ v1 or later: §9 Q-5 |
-| BL-14 | **appearance**: `BridgeCarried` and `LaidBridge.State/Progress` go to renderers (the look library) | the external IG draws the bridge being laid |
-| BL-15 | **authoring**: a scenario may place a `LaidBridge` entity already Open; it saves as an entity | no new save section |
+| BL-1 | ⭐ **the laid bridge is a STATIC OBSTACLE of a new WALKABLE kind** (`StaticObstacle.Kind`), with a per-instance `BridgeShape` and `Health` | the existing pipeline already makes an entity terrain on every node, holds it Constructing until baked (R-243), ignores its own collider, removes it at Health 0 (`ObstacleRemovalSystem`, with replay rails) — review ② |
+| BL-2 | ⭐ **ONE deck, in the baked world** (`TerrainWorld.Walkables`): navmesh, floor, sight and fire read it there; ⛔ no side table | a second copy disagrees with the first for 0.5–2 s at every change — review ① (BLOCKER) |
+| BL-3 | **a fall is immediate**: at removal the deck is SKIPPED at query time (as a felled trunk is, CE-4603, `TerrainWorld.cs:772`) until the rebake commits; Open only after the bake commits | no window where the floor and the navmesh disagree in the dangerous direction — review ① |
+| BL-4 | ⭐ **one deck geometry, lifted from `FeatureKinds` below the JSON** (corners + the buried ramp foot), with deck height and ramp length (from the rise, ≤ 20°) as parameters; the authoring compile and the bake both call it | ruling 9; the floating bridge needs a low deck and the parser's 20° limit — review ⑥ |
+| BL-5 | **the bake**: `TerrainObstacles.With` ADDS walkables; `BakeObstacles` takes them; `SignatureNow`, `DirtyRegions` and `CommitObstacles` include them | otherwise the incremental bake reuses old tiles — review ③ |
+| BL-6 | **the deck joins the banks** — ✅ measured already: `FeatureKindsTests.ABridge_IsTheOnlyCrossing_ForMenAndGroundVehicles…` (`:123`) bakes a run-time world and finds a path over the deck and none after the fall; the per-tile input is ground + prisms + walkables in one gather (`TerrainWorldMesh.cs:127-141`) | rev 1's Q-1 answered — the new rail is the INCREMENTAL bake (dirty rectangles), not a full build — review ③ |
+| BL-7 | **the road**: `BridgeClosureSystem` keeps base and added apart — `base − blocked + added`; its own change test for the bridge set; bridges exempt from the blocker walk; the ends snap by `BridgeRoads.Plan` over the RUN-TIME network | the step rebuilds from base and would lose an add, and would treat the bridge obstacle as a blocker — review ⑦ |
+| BL-8 | **damage**: `AreaEffectSystem` measures reach and the nearest point against the DECK footprint (not the entity centre); the obstacle blast law; bullets never | a charge on a 26 m span's end, or anywhere on a pontoon, is culled today — review ④ |
+| BL-9 | **the water**: a `WaterFallSystem` on the deciding node: a man on a fallen deck is out of the fight, a vehicle destroyed, through `DamageAssessedEvent` (R-171); a fallen laid bridge leaves NO rubble | there is no water model — the river bed would carry them on; the authored bridge's rubble already carries units across (Authoring §8) — review ⑤, ⑩ |
+| BL-10 | **the engineer**: the brain sets `BridgeCarried.State` on its own vehicle (R-4212); `BridgeWorkSystem` runs on the node that moves its hull, never in a replay (the `DozerCutSystem` precedent); `BridgeCarried` has its own descriptor | the precedent, and the brain and the mover may be different nodes — review ⑪ |
+| BL-11 | **orders**: `[Order]` `LayBridge {NearBank, FarBank}` / `RecoverBridge {Bridge}` with a two-point pick; refused with a reason when the water gap exceeds the span or a deck end is not on ground | real orders; never a bridge into the river |
+| BL-12 | **the deck edges**: `HullClearance` treats a drop of more than its climb as a block on a deck (a kerb in effect) | avoidance would push a 3.6 m hull off a 4 m deck — review ⑩ |
+| BL-13 | **drawn once**: a walkable gets a drawn-by-entity flag (like prisms, CE-4656), so the terrain mesh does not draw the deck the renderer draws | review ⑪ |
+| BL-14 | **why a laid bridge AND the authored Bridge feature**: the authored one is permanent terrain (destroyable, never removed or owned); a laid one is owned, built over time, recoverable — a necessary difference, sharing the ONE deck geometry | ruling 9 asks the reason — review ⑨ |
+| BL-15 | **SUMO out of v1** | SUMO cannot add an edge at run time |
+| BL-16 | **load class later**: one class "takes everything" in v1 | §9 Q-5 |
 
 ## 4. Rejected — one line each
 
-- **A terrain record like a crater** — it needs its own record, save section and targeting; the entity has them.
-- **The editor's live overlay on every node** — editor-only by design and a whole-overlay rebuild per bridge.
-- **Recast off-mesh links for vehicles** — used only for jumping men; no width, no surface for the hull.
-- **A second deck shape for laid bridges** — two shapes for one concept drift (ruling 9).
-- **SUMO road edges in v1** — no run-time edge add in SUMO; not needed for HROT's own units.
+- **A separate bridge entity + a side surface table (rev 1)** — two decks that disagree for up to 2 s at every change; the static obstacle already is the pipeline.
+- **A terrain record like a crater** — no Health, no targeting, its own save section.
+- **The editor's live overlay on every node** — editor-only by design.
+- **Recast off-mesh links for vehicles** — jumping men only, no width, no floor.
+- **A second deck shape for laid bridges** — ruling 9.
 
-## 5. Slices
+## 5. Slices — each with its scenarios and their expect rows (R-4277)
 
-| slice | builds | done when (scenario checks) |
+| slice | builds | scenario · its `checks.json` expect rows (sketch) |
 |---|---|---|
-| **BL-S1** the bridge itself | `LaidBridge` + TKB types, `LaidBridgeTable`, the shared deck shape, the query's deck, the walkable bake, the road add; a scenario-placed bridge | `bl-placed-bridge`: a squad and a tank cross a river on an authored laid bridge and fail to cross without it |
-| **BL-S2** destroy | the blast damage, the fall, the road cut, the rebake | `bl-blow-the-bridge`: a demolition charge drops it; a tank ordered across re-plans or stops at the bank |
-| **BL-S3** the engineer | the engineer types, `BridgeCarried`, `LayBridge` / `RecoverBridge` orders and behaviours, the two-point pick, the gap refusal | `bl-assault-crossing`: an engineer lays an assault bridge under smoke, a platoon crosses; `bl-recover`: it is taken back and the river is a barrier again; `bl-too-wide`: refused with a reason |
-| **BL-S4** floating bridge | the floating type (long span, deck near water) | `bl-floating-bridge`: a wide river crossed |
-| later | SUMO edges, load classes, appearance in the IG | — |
+| **BL-S1** the walkable obstacle | `StaticObstacle.Kind`, `BridgeShape`, the lifted `DeckGeometry`, the bake ADD (signature, dirty regions, commit), the TKB types, the road ADD; a scenario-placed laid bridge | `bl-placed-bridge`: a squad and a tank ordered across a river — rows: the tank reaches the far bank; the squad reaches it; ⭐ the same order with the bridge absent: neither does (a path-exists cue, never a time) |
+| **BL-S2** destroy | deck-footprint reach, the immediate skip, `WaterFallSystem`, no rubble, the road cut | `bl-blow-the-bridge`: a charge on the deck — rows: the bridge is gone; a tank on it is destroyed; a tank ordered across afterwards does not reach the far bank |
+| **BL-S3** the engineer | the engineer types, `BridgeCarried` (+ descriptor), the orders, the behaviours, `BridgeWorkSystem`, the gap refusal, the kerb | `bl-assault-crossing`: an engineer lays under smoke, a platoon crosses — rows: the bridge Open; every squad across · `bl-recover`: the bridge gone and the river a barrier again · `bl-too-wide`: the order refused with its reason, no bridge |
+| **BL-S4** floating | the floating type (low deck, long span) | `bl-floating-bridge`: a wide river crossed |
+| later | SUMO edges, load classes, the IG's laying animation, a re-plan when a bridge opens (§9 Q-8) | — |
+
+⚠ The bake is paced by the wall clock (R-244): every check keys on the bridge's STATE and on path existence, never on a time.
 
 ## 6. Rules this respects
 
-- **R-4212 parallel**: the brain writes only its own vehicle; one serial Muscle system writes the bridge.
-- **Recorded components are unmanaged**: `LaidBridge` and `BridgeCarried` are fixed-size.
-- **Hot path**: the table is rebuilt on a bridge change, never per frame; the query's deck test is a footprint check (0 B).
-- **R-4277**: every slice ships its scenarios with machine checks.
-- **R-4295**: the wire carries its own bridge types; translators convert.
+- **R-4212**: the brain writes only its own vehicle; one serial system on one node writes the bridge.
+- **Recorded components are unmanaged**: `BridgeShape`, `BridgeCarried` fixed-size; the shape a `[PerInstanceValue]` so every node bakes the same deck.
+- **Hot path**: the bake runs on a change, off-thread; the query's skip of a fallen deck is a set lookup (0 B); `SurfacesAt` already allocates (unchanged).
+- **R-4277**: every slice ships its scenarios with expect rows.
+- **R-4295**: the wire carries its own types for `BridgeShape` / `BridgeCarried`; translators convert.
 
 ## 9. Open questions — with leans
 
 | # | question | ⭐ lean |
 |---|---|---|
-| Q-1 | ⚠ does a deck baked at RUN TIME join the banks in Recast as the compiled authored bridge does? | measure FIRST in BL-S1 (a rail: a path exists bank to bank after the bake); if not, the bake must take the deck as input geometry of the same tile set as the banks |
-| Q-2 | which lane | terrain (the bake, the query, the road) builds BL-S1/S2; BL-S3's behaviours with backend, cross-lane allowed |
-| Q-3 | a man or vehicle on a falling bridge | v1: he falls with it — a man into the water is out of the fight, a vehicle is destroyed; nothing swims |
-| Q-4 | what can damage it | explosives by the blast law; heavy HE (artillery, bombs) through the same law; AT rounds later |
-| Q-5 | load class in v1? | later — one class "takes everything" in v1 |
-| Q-6 | the real figures (span, width, times, class) of an assault and a floating bridge | from open sources, recorded in the TKB with the source, before BL-S3 |
+| Q-2 | which lane | **terrain** builds BL-S1/S2 (the bake, the world, the road); BL-S3's behaviours with **backend**, cross-lane allowed |
+| Q-3 | a man or vehicle on a falling bridge | BL-9: a man out of the fight, a vehicle destroyed — nothing swims in v1 |
+| Q-4 | what can damage it | explosives by the blast law (charges, artillery, bombs through the same law); AT rounds later |
+| Q-5 | load class in v1 | later |
+| Q-6 | real figures (span, width, times, class) for an assault and a floating bridge | from open sources, recorded in the TKB with the source, before BL-S3 |
 | Q-7 | the two-point pick on the map | the ui lane's gesture; HTTP and the LLM commander's seat take two named places / points from the start |
+| Q-8 | a unit already on a detour when a bridge opens does not re-plan (only paths through changed tiles do; a failed request is not retried) | v1: accepted, said in the scenarios; later a "the network gained a crossing" signal re-asks blocked routes |
 
-## 10. Independent review
+*(rev 1's Q-1 — does a run-time deck join the banks — is answered: BL-6.)*
 
-*(to be folded in — `2026-11-25`)*
+## 10. The independent review (`2026-11-25`) — each finding and what it changed
+
+| # | severity | finding | disposition |
+|---|---|---|---|
+| ① | BLOCKER | the deck twice (a side table AND the bake) — they disagree for 0.5–2 s at every change; the table cannot remove a baked surface | ✅ adopted — BL-2, BL-3 |
+| ② | MAJOR | the static-obstacle pipeline was missed; it already is the entity-that-is-terrain path | ✅ adopted — BL-1 |
+| ③ | MAJOR | rev 1's Q-1 is already answered (`FeatureKindsTests:123`); the real work — `With` adding walkables, the bake signature, the dirty regions, the commit — was not drawn | ✅ adopted — BL-5, BL-6, §2b |
+| ④ | MAJOR | damage is culled by the entity CENTRE and measured to a box | ✅ adopted — BL-8 |
+| ⑤ | MAJOR | no water model; a unit on a fallen deck lands on the river bed and moves on | ✅ adopted — BL-9, `WaterFallSystem`, BL-S2 rows |
+| ⑥ | MAJOR | the deck shape is fixed (1.5 m, 6 m ramps, ≤ 20°) and emitted as JSON; no water level for a floating deck | ✅ adopted — BL-4 (lifted below the JSON, height and ramp as parameters) |
+| ⑦ | MAJOR | the road step rebuilds from base and would lose an add; would treat the bridge as a blocker | ✅ adopted — BL-7 |
+| ⑧ | MINOR | the bake is wall-clock paced; detoured units never re-plan | ✅ adopted — checks key on state and paths (§5); Q-8 |
+| ⑨ | MINOR | BL-15 duplicated the authored bridge without a reason | ✅ adopted — BL-14 states the necessary difference |
+| ⑩ | MINOR | hull avoidance can push a hull off the deck; rubble can carry units across | ✅ adopted — BL-12, BL-9 (no rubble) |
+| ⑪ | MINOR | table caching, `SurfacesAt` allocates, drawn twice, `BridgeCarried` needs a descriptor, the work system's node and replay | ✅ adopted — BL-13, BL-10, §6 (the table is gone with ①) |
+| ⑫ | MINOR | the scenarios had no expect rows | ✅ adopted — §5 |
+
+✅ **What held** (verified by the review): vehicles and men take their height from `IWorldQuery`; water is cut from the ground mesh and impassable;
+`BridgeClosureSystem` is the one road-edit step; `ObstacleDamage.BlastDamage` exists; the obstacle bake runs on every node; no earlier design.
+
+---
+
+## ⛔ HISTORY — rev 1 (`2026-11-25`, superseded the same day by the review)
+
+Rev 1 made the laid bridge a NEW entity type (`LaidBridge`) and put its deck in a NEW per-view `LaidBridgeTable` under the world query, beside
+the bake. The review showed the deck would exist twice and disagree at every change, and that the static obstacle is already the entity-is-terrain
+pipeline. ⛔ Do not quote rev 1's BL-1/BL-4/BL-11 or its `LaidBridgeTable`.
