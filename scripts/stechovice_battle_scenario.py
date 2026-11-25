@@ -266,7 +266,9 @@ PLACES = {
     #   road (x -1259) to the east terrace (x -1093), 8 m wide; its west end lands on the west-bank secondary road (a ramp, the road flat across since CE-4694 ②)
     'bridge-west': (-1259.0, -538.0), 'bridge-east': (-1093.0, -538.0),
     'bridgehead': (-1266.0, -540.0),              # the bridgehead's centre: the west-bank road at the bridge's west end
-    'bridgehead-tank': (-1268.0, -525.0),         # where Blue's 2nd riverbank tank crosses to (the west road, north of the bridge's foot)
+    # ⭐ Blue's 2nd riverbank tank crosses STRAIGHT: from the bridge's axis on the east terrace to the west ramp's foot. 📐 Turning 90° onto the 8 m ramp at its foot
+    #   (from the bank road), the 7.9 m hull swept its corner past the ramp's side face and was held there (FailedBlocked) — filed as CE-5058 (the hull-on-a-narrow-ramp turn)
+    'bridgehead-tank-start': (-1041.0, -538.0), 'bridgehead-tank': (-1263.0, -538.0),
     'village-stop': (-110.0, 113.0),              # where the tank / IFV stop (on the road) to support by fire
     'blue-hq': (420.0, 40.0),
     'apache': (520.0, 330.0), 'a10-start': (-1900.0, -300.0),
@@ -373,7 +375,8 @@ def build():
     vehicle(104, 'Village Red HMG Technical 2', H, -360, 60, 90, 500)
     vehicle(108, 'Village Red DShK Technical 2', H, -150, 40, 90, 500)
     # riverbank: a 2nd tank each side and MG technicals on both banks
-    vehicle(100, 'Riverbank Blue Tank 2', F, -1070, -510, 270, 3000, move_to(*P('bridgehead-tank')))   # ⭐ CE-4694 — crosses the bridge to the bridgehead
+    s.add(unit(100, 'Riverbank Blue Tank 2', F, *P('bridgehead-tank-start'), bearing=270, hp=3000,   # ⭐ CE-4694 — crosses the bridge to the bridgehead, straight
+               extra={'Sop': sop('BasicVehicleSop'), 'Behavior': move_to(*P('bridgehead-tank'))}))
     vehicle(104, 'Riverbank Blue HMG Technical', F, -1050, -600, 270, 500)
     vehicle(102, 'Riverbank Blue HMMWV', F, -1045, -630, 270, 300)
     # ⭐ CE-4694 — Red's riverbank vehicles support the counter-attack by fire from the west road 150-250 m SOUTH of the bridgehead (📐 70-100 m away, down the
