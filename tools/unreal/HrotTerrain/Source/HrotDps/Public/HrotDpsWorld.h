@@ -283,6 +283,10 @@ private:
 		uint8 ActiveSlot = 0;                // PersonState.ActiveSlot: his selected weapon mount (U-18f)
 		double RocketFiredAt = -1;           // real seconds of his last rocket / ATGM shot (the tube, when no type data says)
 		uint8 StateDamage = 0, LookDamage = 0;   // EntityState.Damage and VehicleLook's verdict; the shown damage is the worse
+		// a flyer (VehicleLook.Airborne, gateway T-079): its speed and climb on screen (m/s, smoothed) choose beat or glide (DESIGN_Dragon §8.2)
+		bool bVehicleAirborne = false, bFlightPrev = false;
+		FVector3d FlightPrevP = FVector3d::ZeroVector;
+		float FlightSpeed = 0.f, FlightClimb = 0.f;
 		bool bBurning = false;   // real seconds of his last shot (the kick) and of the last hit on him (the flinch)
 		// U-18h — an animal: Animal's state, its flock's birds
 		bool bAnimal = false, bHasAnimal = false, bDangerous = false, bAirborne = false;
@@ -477,6 +481,8 @@ private:
 	AActor* SpawnAnimal(FEnt& E, const FTransform& At);
 	void ApplyAnimal(FEnt& E, double SimNow);
 	void ApplyFlame(FEnt& E);
+	/** a flyer's wings / rotors: flying from VehicleLook.Airborne, gliding at speed (> 10 m/s, not climbing > 1 m/s) */
+	void ApplyFlight(FEnt& E, float Dt);
 	void TickSpots(double SimNow);
 	void TickMovers(double Real);
 	void ClearLife();
