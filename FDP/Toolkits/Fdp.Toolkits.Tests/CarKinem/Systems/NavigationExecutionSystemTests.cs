@@ -17,6 +17,9 @@ namespace CarKinem.Tests.Systems
     /// </summary>
     public class NavigationExecutionSystemTests
     {
+        /// <summary>⭐ CE-11057 — the frames at this file's 0.016 s step that reach the watchdog's 2 s rule (it decides in seconds, not frames).</summary>
+        private static readonly int FrustrationFrames = (int)System.MathF.Ceiling(NavigationExecutionSystem.FrustrationLimitSeconds / 0.016f);
+
         // ── Helpers ──────────────────────────────────────────────────────────────────────────────
 
         private static EntityRepository CreateWorld()
@@ -119,7 +122,7 @@ namespace CarKinem.Tests.Systems
 
             // Run FrustrationTickLimit + 2 ticks.
             NavigationResult? lastResult = null;
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
             {
                 system.Execute(repo, 0.016f);
                 lastResult = repo.GetComponent<NavigationStatus>(entity).Result;
@@ -128,6 +131,31 @@ namespace CarKinem.Tests.Systems
             }
 
             Assert.Equal(NavResult.FailedBlocked, lastResult);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11057</c> — the frustration rule is the design's 2 SECONDS (Navigation v2 N2), whatever the frame: at a live ~7.5 ms step a mover held
+        /// under the speed rule for 1.5 s is NOT blocked (it was at 120 frames = 0.9 s), and it is after ~2 s; at the fixed 1/60 s step it still trips on
+        /// frame 121, as before. 📌 <c>fl-napalm-strike</c> live: the Late Man squeezing past a parked car was failed Blocked in under a second.
+        /// 🔴 Red-proof: the guard back on <c>Ticks &gt; FrustrationTickLimit</c> ⇒ blocked at 0.9 s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE11057_TheFrustrationRule_IsTwoSeconds_AtAnyStep()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+            var live = AddNavigatingEntity(repo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 5f, velocityX: 0f, intentId: 1);
+            const float LiveDt = 0.0075f;
+            for (int i = 0; i < 200; i++) system.Execute(repo, LiveDt);                         // 1.5 s
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(live).Result);
+            for (int i = 0; i < 80; i++) system.Execute(repo, LiveDt);                          // 2.1 s
+            Assert.Equal(NavResult.FailedBlocked, repo.GetComponent<NavigationStatus>(live).Result);
+
+            using var fixedRepo = CreateWorld();
+            var fixedStep = AddNavigatingEntity(fixedRepo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 5f, velocityX: 0f, intentId: 1);
+            int frame = 0;
+            while (fixedRepo.GetComponent<NavigationStatus>(fixedStep).Result == NavResult.InProgress && frame < 500) { system.Execute(fixedRepo, 1f / 60f); frame++; }
+            Assert.Equal(NavigationExecutionSystem.FrustrationTickLimit + 1, frame);           // the same frame as the frame count gave
         }
 
         /// <summary>
@@ -406,7 +434,7 @@ namespace CarKinem.Tests.Systems
             // dt = 0.016f; after FrustrationTickLimit + 2 ticks the guard fires.
             // ElapsedSinceFirstReplan = (FrustrationTickLimit + 2) * 0.016 >> 0.01 budget.
             NavigationResult? lastResult = null;
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 2; i++)
+            for (int i = 0; i <= FrustrationFrames + 2; i++)
             {
                 system.Execute(repo, 0.016f);
                 lastResult = repo.GetComponent<NavigationStatus>(entity).Result;
@@ -443,7 +471,7 @@ namespace CarKinem.Tests.Systems
             intent.Mode = mode; intent.FinalDestination = new Vector3(3f, 2f, 0f);   // 3.6 m away, radius 5
             repo.SetComponent(entity, intent);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 2; i++) system.Execute(repo, 0.016f);
+            for (int i = 0; i <= FrustrationFrames + 2; i++) system.Execute(repo, 0.016f);
 
             Assert.Equal(NavResult.Arrived, repo.GetComponent<NavigationStatus>(entity).Result);
         }

@@ -216,7 +216,8 @@ namespace Fdp.Toolkit.Combat.Components
             fuzeSeconds = 0f;
             if (warhead == null) return 0;
             byte bits = 0;
-            if (warhead.HasAreaEffect || warhead.HasCloud) bits |= Area;
+            // ⭐ CE-11057 — a napalm bomb's fire area bursts where it lands too (📌 live fl-napalm-strike: 1.2 m off a man's body it hit the ground and never burst)
+            if (warhead.HasAreaEffect || warhead.HasCloud || warhead.HasFireArea) bits |= Area;
             if (warhead.HasCloud && !warhead.HasAreaEffect) bits |= Vents;   // ⭐ CE-3236 (B-14, VC-1) — a canister vents where it lands
             if (warhead.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && warhead.FuzeDelayS > 0f) { bits |= TimeFuze; fuzeSeconds = warhead.FuzeDelayS; }
             if (warhead.Indirect) bits |= Arc;
