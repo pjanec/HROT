@@ -442,6 +442,9 @@ private:
 	struct FRoundLook { float Length = 0, Diameter = 0; bool bSmokeTrail = false; };
 	TMap<int64, FRoundLook> RoundLooks;   // MunitionLook, by munition type
 	TMap<int64, TArray<FString>> MountCategories;
+	/** TkbType Body.Geometry (BodyGeometryDto): a CENTRE-OF-GRAVITY type's lowest ground contact, cm along body z (< 0) — its feet are there, so the
+	 *  kit (feet at its origin) is drawn at position + rotate(orientation, (0, 0, drop)). HROT note Dragon_Height_Answer (ui 1d35c4fcb) */
+	TMap<int64, float> RestDropCm;
 	/** U-18f — an automatic weapon's tracer STREAM (HROT's FireStreams): who fired (his gun's muzzle NOW starts the dashes), where it ran
 	 *  to (Unreal cm; zero = along the shot), the shot's line as fallback, and when (sim s) */
 	struct FStream { int32 Shooter = 0; FVector Origin, Along, Toward; double Born = 0; };

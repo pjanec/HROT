@@ -1073,6 +1073,29 @@ void UHrotDpsWorld::OnTkbType(const FHrotDpsSample& S)
 		{
 			const TSharedPtr<FJsonObject> O = V->AsObject();
 			const TSharedPtr<FJsonValue> T = O.IsValid() ? Field(O, TEXT("type")) : nullptr;
+			if (T.IsValid() && T->AsString() == TEXT("BodyGeometryDto"))
+			{
+				// where the position IS (ReferencePoint: GroundCentre = on the ground, CentreOfGravity = the feet are the GroundContacts below it);
+				// HROT's rule is BodyGeometry.RestingHeight: the lowest contact's z
+				const TSharedPtr<FJsonValue> Data = Field(O, TEXT("data"));
+				const TSharedPtr<FJsonObject> G = Data.IsValid() && Data->Type == EJson::Object ? Data->AsObject() : nullptr;
+				const TSharedPtr<FJsonValue> Ref = G.IsValid() ? Field(G, TEXT("referencePoint")) : nullptr;
+				const bool bCg = Ref.IsValid() && (Ref->Type == EJson::String ? Ref->AsString() == TEXT("CentreOfGravity") : Ref->Type == EJson::Number && int32(Ref->AsNumber()) == 1);
+				const TSharedPtr<FJsonValue> Cs = G.IsValid() ? Field(G, TEXT("groundContacts")) : nullptr;
+				double Lowest = 0; bool bAny = false;
+				if (bCg && Cs.IsValid() && Cs->Type == EJson::Array)
+					for (const TSharedPtr<FJsonValue>& C : Cs->AsArray())
+						if (const TSharedPtr<FJsonValue> Z = C->Type == EJson::Object ? Field(C->AsObject(), TEXT("z")) : nullptr; Z.IsValid() && Z->Type == EJson::Number)
+						{ Lowest = bAny ? FMath::Min(Lowest, Z->AsNumber()) : Z->AsNumber(); bAny = true; }
+				if (bAny && Lowest < 0)
+				{
+					RestDropCm.Add(D.TypeId, float(Lowest * 100.0));
+					UE_LOG(LogHrotDpsWorld, Display, TEXT("type %lld (%s): centre of gravity, feet %.2f m below"), D.TypeId, *FString(UTF8_TO_TCHAR(D.Name ? D.Name : "")), -Lowest);
+					Count(TEXT("tkb type: CG body"));
+				}
+				else RestDropCm.Remove(D.TypeId);
+				continue;
+			}
 			if (!T.IsValid() || T->AsString() != TEXT("WeaponSuiteDto")) continue;
 			const TSharedPtr<FJsonValue> Data = Field(O, TEXT("data"));
 			const TSharedPtr<FJsonValue> Ms = Data.IsValid() && Data->Type == EJson::Object ? Field(Data->AsObject(), TEXT("mounts")) : nullptr;
@@ -1684,6 +1707,7 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 		FTransform T = HrotDpsMotion::ToUnreal(Drawn, OriginCm);
 		if (E.MeshYaw != 0) T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(E.MeshYaw)));   // the model's own facing
 		if (E.MeshZ != 0) T.AddToTranslation(FVector(0, 0, E.MeshZ));                                                          // and its origin
+		if (const float* Drop = RestDropCm.Find(E.TypeId)) T.AddToTranslation(T.GetRotation().RotateVector(FVector(0, 0, *Drop)));   // a CG body: its feet
 		T.SetScale3D(A->GetActorScale3D());   // ⚠ measured (U-18e): the full transform reset a sized body (a grenade, the unknown-type box) to scale 1
 		if (E.bGun) GunOnCarrier(E, T);   // U-19h (live: the technical's gun was hidden inside the pickup): on its carrier's roof line
 		if (HrotDpsMotion::NeedsPlace(A->GetActorTransform(), T)) { A->SetActorTransform(T); ++PlacedActors; }   // U-19h ⑱ B: a body standing still is not re-placed
