@@ -28,7 +28,7 @@
 | what burns afterwards | `FireSpots`, `GroundMarks`, `PersonState.Burning`, `BuildingDamage.FireSince` | as any fire | same |
 | the riders | `PersonState`: `SeatVehicleId` = the dragon, `SeatIndex` 0 (the rider, a `Driver` seat) or 1 (the pillion, a firing `Passenger` seat), **`SeatPose = SeatPoseRide`** — draw them MOUNTED (astride, as on a horse) | crew as on the AH-64 |
 | damage, death | `EntityState.Damage`, `VehicleLook` | the dragon is fireproof (it never burns); dead = the body as it fell, wings flat, legs folded, no wreck colour | as the AH-64 |
-| flying or landed | ⏳ **`VehicleLook.Airborne`** — being added now (gateway T-079, HROT's `Airborne.Of`); until it lands, use height above the ground | same |
+| flying or landed | ✅ **`VehicleLook.Airborne`** — on the wire since gateway `40f0cf5` (T-079, HROT's `Airborne.Of`; regenerate from the IDL, one line added) | same |
 
 ## 3. Drawing the dragon (HROT's numbers — DESIGN_Dragon §8.2)
 
