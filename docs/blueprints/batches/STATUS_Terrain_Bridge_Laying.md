@@ -34,6 +34,7 @@ ground; the trace ran through the ramp). Fixed by `IWorldQuery.HullPointZ` (`908
 | `Fdp.Toolkits.Tests` `ObstacleDamage|StaticObstacle|FeatureKinds|BridgeRoads|CarKinematicsSystem|TerrainWorld` (before the ramp fix) | 285 / 286 — the one red was the new rail itself, then fixed |
 | `Hrot.SimHost.Tests` `StaticObstacleBake|BuildingDamageBake|LiveOverlayBake` + `CE4692` | 40 / 40 |
 | scenarios (editor tier) | 3 / 3 PASS |
-| red-proofs (7 compiling mutations) | see the commit that lands this row |
-| ⚠ not run | the parallel / read-check env on `WaterFallSystem` (serial, publishes events only); the cluster tier; the integration suite (row 8) — the bake and the road step are per-node derivations of replicated components, measured by the incremental-bake and road rails |
+| red-proofs (7 compiling mutations) | 7 / 7 RED: no `DeckDirt` · road `Edited` → no added · flipped deck normal · reach to the centre (needed a 600 m test deck: every fragmentation warhead reaches tens of metres) · no fall · no `DeckGone` skip · no kerb |
+| `ObstacleDamageTests` under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` | 7 / 7 |
+| ⚠ not run | the cluster tier; the integration suite (row 8) — the bake and the road step are per-node derivations of replicated components, measured by the incremental-bake and road rails |
 | ids | TKB 8825, 8826; no new CE ids |

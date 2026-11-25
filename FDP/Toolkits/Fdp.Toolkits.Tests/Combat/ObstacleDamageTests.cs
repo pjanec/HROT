@@ -103,9 +103,9 @@ namespace Fdp.Toolkit.Combat.Tests
         // ── ⭐ CE-4692 BL-S2 — a laid bridge's DECK ──────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// ⭐⭐ <c>CE-4692</c> BL-3 / BL-8 / BL-9 / BL-12 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §3) — a laid bridge (a WalkableDeck obstacle: a 26 m span along X centred at the origin, 4 m wide,
+        /// ⭐⭐ <c>CE-4692</c> BL-3 / BL-8 / BL-9 / BL-12 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §3) — a laid bridge (a WalkableDeck obstacle: a 600 m pontoon line along X centred at the origin, 4 m wide,
         /// 1.2 m above the ground, 600 hp — the TKB types' figure) baked into the world as its deck walkables. Standing, its EDGE is a kerb (a hull pushed sideways off the deck is refused; along it, not).
-        /// The 8 kg charge at its FAR END (12.5 m from the centre) reaches it — measured to the deck, not the entity's centre — and drops it; in the owner's frame a man and a vehicle on the
+        /// A grenade, then the 8 kg charge, at its FAR END (299.5 m from the centre) reaches it — measured to the deck, not the entity's centre — and drops it; in the owner's frame a man and a vehicle on the
         /// span get lethal damage (into the river), a man on the bank nothing; and once it is removed, the SAME baked world (no rebake yet) carries nobody at deck height — the floor is gone at once.
         /// 🔴 Red-proofs: measure the cull to the entity centre (<c>ReachPoint</c> ⇒ position) ⇒ no damage; skip <c>WaterFallSystem</c>'s publish ⇒ no fall; drop the <c>DeckGone</c> skip
         /// in <c>SurfaceZCore</c> ⇒ the floor stays; drop the kerb in <c>HullClearance.Enters</c> ⇒ the sideways step passes.
@@ -115,14 +115,14 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             _w.RegisterEvent<NearMissEvent>();   // the burst passes near the man on the span
             var deck = _w.CreateEntity();
-            var shape = new ObstacleShape { Length = 26f, Width = 4f, Height = 1.2f };
+            var shape = new ObstacleShape { Length = 600f, Width = 4f, Height = 1.2f };   // a long pontoon line: its far end (300 m out) is beyond every warhead's reach from the centre
             _w.AddComponent(deck, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             _w.AddComponent(deck, new StaticObstacle { Material = new FixedString32("steel-plate"), Kind = ObstacleKind.WalkableDeck });
             _w.AddComponent(deck, shape);
             _w.AddComponent(deck, new Health { Current = 600f, Max = 600f });
             var decks = new System.Collections.Generic.List<TerrainWalkable>();
             TerrainObstacles.DeckOf(Vector3.Zero, 0f, shape, (_, _) => 0f, deck.Index, false, decks);
-            var world = TerrainObstacles.With(new TerrainWorld { BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50) }, Array.Empty<TerrainPrism>(), null, null, null, null, decks);
+            var world = TerrainObstacles.With(new TerrainWorld { BoundsMin = new Vector2(-350, -50), BoundsMax = new Vector2(350, 50) }, Array.Empty<TerrainPrism>(), null, null, null, null, decks);
             _w.SetSingletonManaged(world);
             Entity Body(Vector3 at)
             {
@@ -133,7 +133,7 @@ namespace Fdp.Toolkit.Combat.Tests
             }
             var onSpan = Body(new Vector3(5f, 0.5f, 1.2f));
             var vehicle = Body(new Vector3(-6f, 0f, 1.2f));
-            var onBank = Body(new Vector3(30f, 0f, 0f));
+            var onBank = Body(new Vector3(330f, 0f, 0f));
 
             var q = TerrainWorldQuery.ForView(_w, world);
             Assert.Equal(1.2f, q.SurfaceZ(5f, 0f, 1.2f), 2);                                     // the deck is the floor
@@ -141,12 +141,16 @@ namespace Fdp.Toolkit.Combat.Tests
                 "the kerb: a hull pushed sideways off the deck");
             Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, Vector2.Zero, Vector2.UnitX, 1.2f, new Vector2(0.5f, 0f), Vector2.UnitX, 1.2f, 7.9f, 3.6f),
                 "a hull driving along the deck");
-            // 📐 bl-placed-bridge (live): a tank at the ramp's foot — its nose 2.9 m up the ramp (the B ramp runs x 13 → 17.8, down to the ground), the hull still on the
+            // 📐 bl-placed-bridge (live): a tank at the ramp's foot — its nose 2.9 m up the ramp (the B ramp runs x 300 → 304.8, down to the ground), the hull still on the
             //   ground — was held by its own front corner (the surface ahead read "out of reach", like a drop). Climbing a ramp is never a kerb.
-            Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, new Vector2(18.85f, 0f), -Vector2.UnitX, 0f, new Vector2(18.75f, 0f), -Vector2.UnitX, 0f, 7.9f, 3.66f),
+            Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, new Vector2(305.85f, 0f), -Vector2.UnitX, 0f, new Vector2(305.75f, 0f), -Vector2.UnitX, 0f, 7.9f, 3.66f),
                 "a hull climbing the ramp");
 
-            var got = Burst(Charge8Kg, new Vector3(12.5f, 0f, 1.25f), deck);
+            // a GRENADE at the far end: its reach (its fragments' hazard radius) is far short of the deck's centre (299.5 m) — measured to the DECK it still scratches it
+            //   (⚠ every fragmentation warhead reaches tens of metres — measured: 39.5 m was still inside a grenade's)
+            var scratch = Burst(Grenade, new Vector3(299.5f, 0f, 1.25f), deck);
+            Assert.True(scratch[0] > 0f, "a grenade at the span's far end was culled by the distance to the deck's centre");
+            var got = Burst(Charge8Kg, new Vector3(299.5f, 0f, 1.25f), deck);
             Assert.True(got[0] >= 600f, $"the charge at the span's far end dealt {got[0]:F0} (the deck has 600)");
 
             _apply.Execute(_w, 0.016f);
