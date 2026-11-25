@@ -13,7 +13,7 @@ related-designs:
 ## 1. Now
 
 🔨 `2026-11-25` — **items ①–⑥ BUILT** (`caea57450`): the figures and types, `BridgeCarried` on the wire, the orders, the plays, `BridgeWorkSystem`; rails
-`BridgeLayingBehaviorTests` 6/6 (red-proved), `BridgeLayerTkbTests`, the wire round trip. ✅ `bl-too-wide` 5/5 · ✅ `bl-recover` 7/7 · ⚠ `bl-assault-crossing` 5/6 (CE-4695) · ⏳ `bl-floating-bridge`, `bl-river-crossing`.
+`BridgeLayingBehaviorTests` 6/6 (red-proved), `BridgeLayerTkbTests`, the wire round trip. ✅ `bl-too-wide` 5/5 · ✅ `bl-recover` 7/7 · ⚠ `bl-assault-crossing` 5/6 (CE-4695) · ⛔ `bl-floating-bridge` (CE-4696, terrain) · ⚠ `bl-river-crossing` (hollow pass, staging).
 Ids allocated: component **292** (`BridgeCarried`), descriptor **247** (`dtBridgeCarried`), TKB **118 / 119**, `OrderKind` **17 / 18**.
 
 ⛔ HISTORY — ⏸ `2026-11-25` — **queued, waiting on terrain's CE-4692 BL-S1** (a placed bridge obstacle that bakes). 🔒 User: *"When terrain's CE-4692 BL-S1
@@ -39,5 +39,5 @@ Ahead of it in the backend queue: CE-11057 ④ / CE-4691 (va-pop-smoke — the v
 | `bl-assault-crossing` | ⚠ 5/6 — bridge laid, both squads across; ONE row red: a man's height reads the river bed at the deck's very edge ([CE-4695](../Blueprint_Issues_Tracker.md)) · ⛔ "under smoke" not buildable from a scenario ([CE-4694](../Blueprint_Issues_Tracker.md)) |
 | `bl-recover` | ✅ 7/7 |
 | `bl-too-wide` | ✅ 5/5 |
-| `bl-floating-bridge` | ⏳ |
-| ⭐ `bl-river-crossing` (objectives) | ⏳ |
+| `bl-floating-bridge` | ⛔ laid and Open, the column never crosses — in the EDITOR a vehicle path never uses the floating deck, in the `--mode all` cluster it does ([CE-4696](../Blueprint_Issues_Tracker.md), [NOTE to terrain](NOTE_Backend_To_Terrain_Floating_Deck_Vehicles.md)) |
+| ⭐ `bl-river-crossing` (objectives) | ⚠ every objective Achieved, but HOLLOW: the sapper reaches the deck end and fires (368 s), the deck survives — Blue never engaged him; staging under work |
