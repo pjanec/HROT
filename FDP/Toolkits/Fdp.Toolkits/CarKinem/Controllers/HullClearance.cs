@@ -178,6 +178,13 @@ namespace CarKinem.Controllers
                 hit = new BarrierHit(true, -1, b, Vector2.Normalize(a - b));   // a SOLID piece rose under b: which one is the terrain's to say (TerrainWorld.SolidUnder)
                 return true;
             }
+            // ⭐ CE-4692 BL-12 — a laid bridge's deck has a KERB: a point that stands on a deck may not step off its side where the surface drops by more than a
+            //   step (into the river) — avoidance would otherwise push a 3.6 m hull off a 4 m deck. The ramps run down to the ground, so the ends are no drop.
+            if (-rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM && -rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxClimbSlope * step && world.OnDeck(a.X, a.Y, ground))
+            {
+                hit = new BarrierHit(false, -1, b, Vector2.Normalize(a - b));
+                return true;
+            }
             var crossings = t_crossings ??= new List<TraceCrossing>();   // ⭐ one per thread: the kinematics runs ForEachParallel
             float probe = CarKinem.Systems.CarKinematicsSystem.HullProbeM;
             // ⭐ CE-4041 — and the barrier trace runs at the point's OWN ground + the probe: at the centre's height a front corner's line

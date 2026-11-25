@@ -97,6 +97,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (var w in world.Walkables)
             {
                 Fdp.Core.LoadProgress.Report();
+                if (drawnOnly && w.DrawnByEntity) continue;   // ⭐ CE-4692 BL-13 — the entity draws this deck; the navmesh soup keeps it
                 AddWalkable(w, v, t, g);
             }
 

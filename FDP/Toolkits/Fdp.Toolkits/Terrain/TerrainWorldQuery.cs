@@ -53,10 +53,12 @@ namespace Fdp.Toolkit.Terrain
 
         public float GroundHeightAt(float x, float y) => World.GroundHeightAt(x, y, Doors);   // ⭐ CE-1034 H1 — the height grid, else the flat ground; ⭐ CE-4591 (D-1) — with the view's craters
 
+        public bool OnDeck(float x, float y, float z) => World.OnDeck(x, y, z, Doors);   // ⭐ CE-4692 BL-12
+
         public float WoodDensityAt(float x, float y) => World.Woods?.DensityAt(x, y) ?? 0f;   // ⭐ CE-4649 part D
 
-        public float SurfaceZ(float x, float y, float zHint) => Cratered(x, y, World.SurfaceZ(x, y, zHint));
-        public float HullSurfaceZ(float x, float y, float zHint) => Cratered(x, y, World.HullSurfaceZ(x, y, zHint));   // ⭐ CE-4598 (D-4)
+        public float SurfaceZ(float x, float y, float zHint) => Cratered(x, y, World.SurfaceZ(x, y, zHint, Doors));   // ⭐ CE-4692 — a fallen deck is no floor
+        public float HullSurfaceZ(float x, float y, float zHint) => Cratered(x, y, World.HullSurfaceZ(x, y, zHint, Doors));   // ⭐ CE-4598 (D-4)
 
         /// <summary>
         /// ⭐ <c>CE-4591</c> (D-1) — a surface answer that IS the plain ground becomes the cratered ground (a floor, a roof or a deck is never cratered: a crater is
@@ -71,7 +73,7 @@ namespace Fdp.Toolkit.Terrain
             return MathF.Abs(surface - ground) < 1e-3f ? World.BareGroundHeightAt(x, y) + off : surface;
         }
 
-        public IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex) => World.SurfacesAt(x, y, out groundIndex);
+        public IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex) => World.SurfacesAt(x, y, out groundIndex, Doors);
 
         public float ResolveLevel(float x, float y, int level) => Cratered(x, y, World.ResolveLevel(x, y, level));   // ⭐ CE-4591 — the ground level is the cratered ground
 

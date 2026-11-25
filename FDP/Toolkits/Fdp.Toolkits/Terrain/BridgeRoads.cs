@@ -24,18 +24,40 @@ namespace Fdp.Toolkit.Terrain
         /// <c>roads.SegmentCount + k</c> for the k-th snapped bridge.
         /// </summary>
         public static List<BridgePlan> Plan(IEnumerable<(string Key, Vector2 A, Vector2 B)> bridges, TerrainRoads? roads)
+            => roads == null ? Plan(bridges, 0, null) : Plan(bridges, roads.SegmentCount, roads.TryNearestNode);
+
+        /// <summary>A road net's "nearest node within a radius" — <see cref="TerrainRoads.TryNearestNode"/> for the terrain's file, <see cref="NearestNodeOf"/> for a run-time net.</summary>
+        public delegate bool NearestNode(Vector2 p, float radius, out int index, out Vector2 position);
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-7 — the same plan over ANY road net: the authored bridges over the terrain's roads file (above), a LAID bridge over the RUN-TIME net (<c>BridgeClosureSystem</c>,
+        /// <see cref="NearestNodeOf"/>) — one snap rule. The k-th snapped bridge's segment index is <paramref name="firstSegment"/> + k.
+        /// </summary>
+        public static List<BridgePlan> Plan(IEnumerable<(string Key, Vector2 A, Vector2 B)> bridges, int firstSegment, NearestNode? nearest)
         {
             var list = new List<(string Key, Vector2 A, Vector2 B)>(bridges);
             list.Sort((x, y) => string.CompareOrdinal(x.Key, y.Key));
             var plans = new List<BridgePlan>(list.Count);
-            int next = roads?.SegmentCount ?? 0;
+            int next = firstSegment;
             foreach (var (key, a, b) in list)
             {
                 int na = -1, nb = -1; Vector2 pa = default, pb = default;
-                bool ok = roads != null && roads.TryNearestNode(a, SnapMetres, out na, out pa) && roads.TryNearestNode(b, SnapMetres, out nb, out pb) && na != nb;
+                bool ok = nearest != null && nearest(a, SnapMetres, out na, out pa) && nearest(b, SnapMetres, out nb, out pb) && na != nb;
                 plans.Add(ok ? new BridgePlan(key, true, na, nb, pa, pb, next++) : new BridgePlan(key, false, -1, -1, default, default, -1));
             }
             return plans;
+        }
+
+        /// <summary>⭐ <c>CE-4692</c> BL-7 — <see cref="NearestNode"/> over a list of node positions (a run-time net's), the terrain file's rule: the nearest within the radius, ties to the lowest index.</summary>
+        public static bool NearestNodeOf(IReadOnlyList<Vector2> nodes, Vector2 p, float radius, out int index, out Vector2 position)
+        {
+            index = -1; position = default; float best = radius * radius;
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                float d2 = Vector2.DistanceSquared(p, nodes[i]);
+                if (d2 < best || (index < 0 && d2 <= best)) { best = d2; index = i; position = nodes[i]; }
+            }
+            return index >= 0;
         }
 
         /// <summary>The overlay's roads file (<see cref="TerrainOverlayHeader.RoadsFileName"/>): the terrain's road-network format with no nodes of its own and one straight Hermite segment per snapped bridge naming the base nodes by index.</summary>

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-25 (rev 2 — the independent review folded: the bridge is a STATIC-OBSTACLE KIND with a walkable shape; ONE deck, in the baked world)
-build-state: READY-TO-BUILD — the §9 leans APPROVED (R-4299, user 2026-11-25: "leans approved, write the hand offs"); BL-S1/S2 to terrain (CE-4692), BL-S3/S4 to backend (CE-4693)
-current-answer: §2 the diagrams · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review and what each finding changed
+updated: 2026-11-25 (rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
+build-state: BUILDING — BL-S1/S2 built by terrain (CE-4692, §11); BL-S3/S4 to backend (CE-4693)
+current-answer: §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge entity + a side surface table)
 known-rot: none
 known-conflict: none
@@ -87,37 +87,58 @@ that is terrain on every node, held Constructing until its bake commits, removed
 the deck-footprint damage reach, the road ADD and the water fall.*
 ⚠ The Replay Browser and display nodes run no bake (P-7a known gap): there the bridge is drawn but is not a surface or a path.
 
-### 2b. The classes
+### 2b. The classes — ⭐ AS-BUILT (BL-S1/S2, CE-4692; the rev-2 drawing's `BridgeShape` is SUPERSEDED by `ObstacleShape`, §11)
 
 ```mermaid
 classDiagram
-  class StaticObstacle { <<existing>> material · NEW Kind (Solid|WalkableDeck) }
-  class BridgeShape { <<NEW, [PerInstanceValue], unmanaged>> A · B (deck ends) · Width · DeckZ · RampRise }
+  class StaticObstacle { <<existing>> Material · Kind (Solid|WalkableDeck) NEW }
+  class ObstacleKind { <<NEW enum>> Solid · WalkableDeck }
+  class ObstacleShape { <<existing, [PerInstanceValue]>> Length = span between the deck ends · Width · Height = deck above the bank }
+  class StaticObstacleDto { <<existing TKB>> NEW Kind · types 8825 assault span, 8826 floating span }
   class Health { <<existing>> }
-  class BridgeCarried { <<NEW, unmanaged, on the engineer, own descriptor>> Count · BridgeType · State (Carried|Laying|Recovering) · Progress }
-  class BridgeTkb { <<NEW TKB types>> SpanMax · Width · DeckHeight · BuildSeconds · RecoverSeconds · LoadClass · HealthMax · Floating }
-  class DeckGeometry { <<LIFTED from FeatureKinds, below the JSON>> Build(A, B, width, deckZ, rampLength) · the buried ramp foot }
-  class TerrainObstacles { <<existing>> With(...) NEW adds walkable decks · IsObstacle }
-  class TerrainWorld { <<existing>> Walkables · SurfaceZCore · NEW skips a fallen deck until rebaked }
-  class StaticObstacleBakeSystem { <<existing>> NEW SignatureNow + DirtyRegions include decks }
-  class BridgeClosureSystem { <<existing>> NEW base − blocked + added · a bridge set change test · bridges exempt from the blocker walk }
-  class AreaEffectSystem { <<existing>> NEW reach to the deck footprint }
-  class WaterFallSystem { <<NEW>> occupants of a fallen deck → DamageAssessedEvent }
-  StaticObstacle -- BridgeShape
+  class DeckGeometry { <<NEW, lifted from FeatureKinds.Bridge>> Build(A, B, width, deckHeight, rampLength) · Ends · RampLengthFor · Bounds }
+  class TerrainWorldParser { <<existing>> NEW GroundRelativeWalkable · Buried (TH-K, one rule) }
+  class TerrainObstacles { <<existing>> NEW DeckOf · WalkableKey · With(..., decks) }
+  class TerrainWalkable { <<existing>> NEW Obstacle · DrawnByEntity }
+  class TerrainWorld { <<existing>> NEW DeckGone · OnDeck · DeckUnder · SurfaceZ / HullSurfaceZ / SurfacesAt (…, doors) }
+  class DeckTable { <<NEW, per view>> Standing(obstacle) }
+  class DoorStates { <<existing>> NEW Decks }
+  class StaticObstacleBakeSystem { <<existing>> CollectPrisms(…, decks) · signature mixes Kind }
+  class TerrainResidency { <<existing>> BakeObstacles(…, decks) · DeckDirt · commit keeps the decks }
+  class BridgeRoads { <<existing>> NEW Plan(bridges, firstSegment, NearestNode) · NearestNodeOf }
+  class RoadNetworkEdit { <<existing>> NEW Edited(base, drop, added) }
+  class BridgeClosureSystem { <<existing>> base − blocked + added · DeckSignature }
+  class RoadBlockage { <<existing>> a deck is never a blocker }
+  class IWorldQuery { <<existing seam>> NEW OnDeck }
+  class HullClearance { <<existing>> the kerb: no drop off a deck }
+  class AreaEffectSystem { <<existing>> NEW ReachPoint (the deck footprint) · nearest point ON the deck }
+  class WaterFallSystem { <<NEW>> who stood on the falling span → DamageAssessedEvent }
+  StaticObstacle --> ObstacleKind
+  StaticObstacle -- ObstacleShape
   StaticObstacle -- Health
-  BridgeShape ..> BridgeTkb
-  BridgeCarried ..> BridgeTkb
+  StaticObstacleDto ..> StaticObstacle : ObstacleTkbTranslator
   TerrainObstacles ..> DeckGeometry
-  TerrainObstacles ..> BridgeShape
+  TerrainObstacles ..> TerrainWorldParser
   StaticObstacleBakeSystem --> TerrainObstacles
-  TerrainObstacles --> TerrainWorld
-  BridgeClosureSystem ..> BridgeShape
-  AreaEffectSystem ..> BridgeShape
-  WaterFallSystem ..> BridgeShape
+  StaticObstacleBakeSystem --> TerrainResidency
+  TerrainResidency --> TerrainWorld : With(decks)
+  TerrainWorld o-- TerrainWalkable
+  DoorStates o-- DeckTable
+  TerrainWorld ..> DoorStates : DeckGone
+  IWorldQuery <|.. TerrainWorldQuery
+  TerrainWorldQuery ..> TerrainWorld
+  HullClearance ..> IWorldQuery : OnDeck
+  BridgeClosureSystem ..> BridgeRoads
+  BridgeClosureSystem ..> RoadNetworkEdit
+  BridgeClosureSystem ..> RoadBlockage
+  FeatureKinds ..> DeckGeometry : the authored bridge
+  AreaEffectSystem ..> ObstacleShape
+  WaterFallSystem ..> TerrainWorld : DeckUnder
 ```
 
-*What the picture shows that prose hid: ONE deck geometry, lifted from the authored bridge below its JSON so the authoring compile and the bake
-share it, with height and ramp length as parameters (the floating bridge needs both); every NEW method sits on an EXISTING class.*
+*What the picture shows that prose hid: there is still ONE deck — `DeckGeometry` feeds both the authored bridge's features and the laid bridge's walkables, and the
+parser's ground-relative rule makes both — and no new component carries the bridge's size: `ObstacleShape` already was the per-instance, replicated, saved size of a
+static obstacle. The only new runtime state is the per-view `DeckTable` (which decks still stand), and the only new system is `WaterFallSystem`.*
 
 ### 2c. The sequence — lay, cross, fall
 
@@ -225,6 +246,24 @@ sequenceDiagram
 
 ✅ **What held** (verified by the review): vehicles and men take their height from `IWorldQuery`; water is cut from the ground mesh and impassable;
 `BridgeClosureSystem` is the one road-edit step; `ObstacleDamage.BlastDamage` exists; the obstacle bake runs on every node; no earlier design.
+
+## 11. AS-BUILT — BL-S1 / BL-S2 (terrain, CE-4692, `2026-11-25`)
+
+| # | built | where | deviation from rev 2, and why |
+|---|---|---|---|
+| BL-1 | `StaticObstacle.Kind`, `ObstacleKind`, `StaticObstacleDto.Kind`, TKB 8825 / 8826 (placeholder figures: 18 m × 4 m × 1.2 m and 60 m × 4.5 m × 0.6 m, 600 hp — the 8 kg charge drops a span) | `StaticObstacles.cs`, `ObstacleTkbTranslator.cs`, `NedTkbCatalog.RegisterBridges` | ⭐ **no `BridgeShape`**: `ObstacleShape` (Length = the span between the deck ends, centred on the entity along its heading; Height = the deck above the bank) — it already is `[PerInstanceValue]`, replicated (`EntityObstacleShape`) and saved; a second size component with its own descriptor and translator would be a duplicate (ruling 9). A deck gets **no `PhysicsCollider`** (a mover crosses it) |
+| BL-4 | `DeckGeometry` (deck + two ramps, ground-relative corners); `TerrainWorldParser.GroundRelativeWalkable` / `Buried` (TH-K, one rule) | `DeckGeometry.cs`, `FeatureKinds.Bridge`, `TerrainObstacles.DeckOf` | ramp length from the rise at the authored 1 : 4 (`RampLengthFor`) |
+| BL-5 | decks collected beside the prisms; `With(…, decks)` appends them; `BakeObstacles(…, decks)`; `DeckDirt` (old and new place); the commit keeps them; the signature mixes `Kind` | `StaticObstacleBake.cs`, `TerrainResidency.cs` | decks are baked on EVERY node (like craters), not only a damage-baking one |
+| BL-3 | `TerrainWalkable.Obstacle`; per-view `DeckTable` (standing = Active or Constructing) on `DoorStates.Decks`; `TerrainWorld.DeckGone` skips a fallen deck in `SurfaceZ` / `HullSurfaceZ` / `SurfacesAt` (the view's overloads, used by `TerrainWorldQuery`) and the sight / fire loops | `DeckTable.cs`, `TerrainWorld.cs`, `TerrainObjects.cs` | — |
+| BL-7 | `BridgeClosureSystem` publishes `Edited(base, blocked, added)`; added = an Active deck's ends snapped by `BridgeRoads.Plan` over the run-time nodes (`NearestNodeOf`); its own `DeckSignature`; `RoadBlockage.Blockers` skips decks | `BridgeClosureSystem.cs`, `BridgeRoads.cs`, `RoadNetworkEdit.cs`, `RoadBlockage.cs` | the ends snapped are the DECK ends (the authored bridge's rule) |
+| BL-8 | `AreaEffectSystem.ReachPoint` (the deck's nearest point for the reach cull); the deck's nearest point's height is the deck SURFACE | `AreaEffectSystem.cs` | — |
+| BL-9 | `WaterFallSystem` (the deck's Health owner, the frame its Health reaches 0, before the removal; the SLAB only — a ramp runs onto the bank); no rubble (the obstacle is just removed) | `WaterFallSystem.cs`, `CoreInfrastructureCapabilities` | — |
+| BL-12 | `IWorldQuery.OnDeck`; `HullClearance.Enters` refuses a DROP of more than a step off a standing deck | `IWorldQuery.cs`, `TerrainWorld.OnDeck`, `HullClearance.cs` | — |
+| BL-13 | `TerrainWalkable.DrawnByEntity`, skipped by the drawn mesh (never by the navmesh soup) | `TerrainWorldMesh*.cs` | the bridge types are cultural features (DIS kind 5): the TERRAIN draws their deck |
+
+Rails: `FeatureKindsTests.CE4692_TheAuthoredBridge_AndALaidDeck_AreTheOneDeckGeometry` · `StaticObstacleBakeTests.CE4692_ALaidBridge_IsBakedIncrementally_…` ·
+`BridgeClosureTests.CE4692_ALaidBridge_IsRoadWhileItStandsOpen_…` · `ObstacleDamageTests.CE4692_AChargeAtTheSpansFarEnd_DropsIt_…`. Scenarios: `bl-placed-bridge`,
+`bl-placed-bridge-absent` (the handoff's "second variant" — the runner has no variants), `bl-blow-the-bridge` (`scripts/bridge_laying_scenarios.py`).
 
 ---
 

@@ -1,0 +1,71 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4692 bl-blow-the-bridge (see scenario.json's header). The bridge's removal is judged by its DestroyTargets objective (the objective's state, Scenario Rules), the tank's loss by its own and by Health. ⚠ No golden: the obstacle bake's wall-clock pacing (R-244) makes the tick of the rebake machine-dependent.",
+  "runFor": 130,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the charge bursts",
+      "on": "blast",
+      "by": "Charge Man"
+    },
+    {
+      "name": "the tank parked on the deck, up at deck height",
+      "on": "field",
+      "who": "Tank On Bridge",
+      "path": "SimTransform.Position.2",
+      "op": ">",
+      "value": 0.8,
+      "before": "the charge bursts"
+    },
+    {
+      "name": "the objective 'blow the bridge' ends Achieved (the bridge is gone)",
+      "on": "field",
+      "who": "Blow the bridge",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the objective 'the tank on the bridge is lost' ends Achieved (the tank on it is destroyed)",
+      "on": "field",
+      "who": "The tank on the bridge is lost",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the tank on the bridge is destroyed",
+      "on": "field",
+      "who": "Tank On Bridge",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "after": "the charge bursts"
+    },
+    {
+      "name": "the second tank never reaches the far bank",
+      "never": {
+        "on": "near",
+        "who": "Second Tank",
+        "point": [
+          60,
+          110
+        ],
+        "within": 6
+      }
+    },
+    {
+      "name": "the second tank never stands north of the river",
+      "never": {
+        "on": "field",
+        "who": "Second Tank",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 72.0
+      }
+    }
+  ]
+}

@@ -68,6 +68,11 @@ namespace Fdp.Toolkit.Terrain
         public float MaxZ { get; init; }
         /// <summary>⭐ <c>CE-4391</c> S-2 — the building this slab / ramp belongs to (index into <see cref="TerrainWorld.Buildings"/>), −1 for a free one.</summary>
         public int Building { get; init; } = -1;
+        /// <summary>⭐ <c>CE-4692</c> BL-2/BL-3 — the static obstacle (entity index) whose WALKABLE DECK this is (a laid bridge), −1 for none. A view whose obstacle is gone
+        /// skips it at once (<see cref="DeckTable"/>), before the rebake takes it out.</summary>
+        public int Obstacle { get; init; } = -1;
+        /// <summary>⭐ <c>CE-4692</c> BL-13 — drawn by the entity layer (as a prism's <see cref="TerrainPrism.DrawnByEntity"/>, CE-4656): the terrain mesh does not draw it.</summary>
+        public bool DrawnByEntity { get; init; }
     }
 
     /// <summary>A flat ground-cover area at ground level (open, forest, water — roads are the road graph, CE-3128).</summary>
@@ -434,14 +439,68 @@ namespace Fdp.Toolkit.Terrain
         /// and a unit walking under it stays on the ground. When every candidate is above the reach (a unit
         /// spawned at Z=0 inside a building footprint), the LOWEST candidate wins.
         /// </summary>
-        public float SurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: false);
+        public float SurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: false, null);
+
+        /// <summary>⭐ <c>CE-4692</c> BL-3 — <see cref="SurfaceZ(float, float, float)"/> as <paramref name="doors"/>' view sees it: a laid bridge's deck that has fallen there is no floor (<see cref="DeckGone"/>).</summary>
+        public float SurfaceZ(float x, float y, float zHint, DoorStates? doors) => SurfaceZCore(x, y, zHint, hull: false, doors);
 
         /// <summary>
         /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 D-4) — the surface a vehicle's HULL rests on: <see cref="SurfaceZ"/>
         /// with no wall panel's top as a candidate. 📌 A panel's top within <see cref="StepHeight"/> was a surface, so a hull drove up onto a
         /// 0.4 m garden wall and over it; a low wall is MET (the hull trace stops it), never climbed. A kerb (ground) and a slab are unchanged.
         /// </summary>
-        public float HullSurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: true);
+        public float HullSurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: true, null);
+
+        /// <summary>⭐ <c>CE-4692</c> BL-3 — <see cref="HullSurfaceZ(float, float, float)"/> as <paramref name="doors"/>' view sees it.</summary>
+        public float HullSurfaceZ(float x, float y, float zHint, DoorStates? doors) => SurfaceZCore(x, y, zHint, hull: true, doors);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4692</c> BL-3 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §3) — true when <paramref name="w"/> is a laid bridge's deck (<see cref="TerrainWalkable.Obstacle"/>) whose obstacle
+        /// no longer stands in the view of <paramref name="doors"/> (<see cref="DoorStates.Decks"/>): it has FALLEN, and is skipped at once — the rebake takes it out of the world later
+        /// (R-244 paces that by the wall clock). ⛔ No allocation; false for every other walkable and for a view with no obstacles.
+        /// </summary>
+        public static bool DeckGone(TerrainWalkable w, DoorStates? doors)
+            => w.Obstacle >= 0 && doors?.Decks is { } decks && !decks.Standing(w.Obstacle);
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-12 — true when (<paramref name="x"/>, <paramref name="y"/>) lies on a STANDING laid-bridge deck walkable whose surface there is within <see cref="LevelMergeDistance"/>
+        /// of <paramref name="z"/> (what a hull at that height rests on). Allocation-free; false at once in a world with no decks.
+        /// </summary>
+        public bool OnDeck(float x, float y, float z, DoorStates? doors) => DeckUnder(x, y, z, doors, slabOnly: false) >= 0;
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-9 — the laid bridge (its obstacle's entity index) whose deck walkable lies under (<paramref name="x"/>, <paramref name="y"/>) with its surface within
+        /// <see cref="LevelMergeDistance"/> of <paramref name="z"/> — the SLAB only when <paramref name="slabOnly"/> (the span over the water; a ramp runs onto the bank); −1 for none.
+        /// <paramref name="doors"/> null ⇒ every deck the world holds, fallen or not (who stood on a deck as it fell). Allocation-free.
+        /// </summary>
+        public int DeckUnder(float x, float y, float z, DoorStates? doors, bool slabOnly)
+        {
+            if (!HasObstacleDecks) return -1;
+            var p = new Vector2(x, y);
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.WalkableCount; k++)
+            {
+                var w = Walkables[cand.Walkable(k)];
+                if (w.Obstacle < 0 || (slabOnly && w.Kind != TerrainWalkableKind.Slab) || DeckGone(w, doors) || !InBox(p, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    float? h = PolygonMath.HeightOnTriangle(x, y, w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
+                    if (h.HasValue && MathF.Abs(h.Value - z) <= LevelMergeDistance) return w.Obstacle;
+                }
+            }
+            return -1;
+        }
+
+        /// <summary>⭐ <c>CE-4692</c> — true when this world holds a laid bridge's deck (a view then builds its <see cref="DeckTable"/>).</summary>
+        public bool HasObstacleDecks
+        {
+            get
+            {
+                if (_hasDecks == 0) { _hasDecks = 2; foreach (var w in Walkables) if (w.Obstacle >= 0) { _hasDecks = 1; break; } }
+                return _hasDecks == 1;
+            }
+        }
+        private int _hasDecks;   // 0 unknown, 1 yes, 2 no — the world is immutable, so computed once
 
         /// <summary>
         /// ⭐ <c>CE-4600</c> (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.1 <c>BarrierHit</c>) — the SOLID piece (not a wall panel) that stands over (<paramref name="x"/>,
@@ -465,7 +524,7 @@ namespace Fdp.Toolkit.Terrain
             return best;
         }
 
-        private float SurfaceZCore(float x, float y, float zHint, bool hull)
+        private float SurfaceZCore(float x, float y, float zHint, bool hull, DoorStates? doors)
         {
             var p = new Vector2(x, y);
             float best = float.NegativeInfinity;
@@ -495,6 +554,7 @@ namespace Fdp.Toolkit.Terrain
             for (int k = 0; k < cand.WalkableCount; k++)
             {
                 var w = Walkables[cand.Walkable(k)];
+                if (DeckGone(w, doors)) continue;   // ⭐ CE-4692 BL-3 — a fallen laid bridge carries nobody
                 if (!InBox(p, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -524,7 +584,10 @@ namespace Fdp.Toolkit.Terrain
         /// level 0; any other cluster stands at its HIGHEST member (so an entity never lands inside the thicker one).
         /// 📄 docs/DESIGN_Add_Entity_Picker.md §2b–§2c (D6b rev 4/5).
         /// </summary>
-        public float[] SurfacesAt(float x, float y, out int groundIndex)
+        public float[] SurfacesAt(float x, float y, out int groundIndex) => SurfacesAt(x, y, out groundIndex, null);
+
+        /// <summary>⭐ <c>CE-4692</c> BL-3 — <see cref="SurfacesAt(float, float, out int)"/> as <paramref name="doors"/>' view sees it (a fallen deck is no level).</summary>
+        public float[] SurfacesAt(float x, float y, out int groundIndex, DoorStates? doors)
         {
             float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — level 0 is the ground at (x, y)
             var p = new Vector2(x, y);
@@ -549,6 +612,7 @@ namespace Fdp.Toolkit.Terrain
             for (int k = 0; k < cand.WalkableCount; k++)
             {
                 var w = Walkables[cand.Walkable(k)];
+                if (DeckGone(w, doors)) continue;   // ⭐ CE-4692 BL-3
                 if (!InBox(p, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -795,6 +859,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 var w = Walkables[cand.Walkable(kw)];
                 if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
+                if (DeckGone(w, doors)) continue;   // ⭐ CE-4692 BL-3 — a fallen laid bridge, before its rebake
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -984,6 +1049,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 var w = Walkables[cand.Walkable(kw)];
                 if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
+                if (DeckGone(w, doors)) continue;   // ⭐ CE-4692 BL-3 — a fallen laid bridge, before its rebake
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -1155,6 +1221,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 var w = Walkables[cand.Walkable(kw)];
                 if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
+                if (DeckGone(w, doors)) continue;   // ⭐ CE-4692 BL-3 — a fallen laid bridge, before its rebake
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {

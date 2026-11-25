@@ -183,6 +183,10 @@ namespace Hrot.Map.Common
         //   ⛔ PERMANENT WIRE VALUES; 8823–8824 measured free on every origin branch's TkbEntityTypes.cs and nowhere else in the tree, 2026-11-18.
         public const long Obstacle_BarrelWater   = 8823;
         public const long Obstacle_BarrelSand    = 8824;
+        /// <summary>⭐ <c>CE-4692</c> BL-1 — a LAID BRIDGE (a walkable-deck static obstacle, docs/designs/engineering/DESIGN_Bridge_Laying.md): the ASSAULT span a bridge-layer
+        /// vehicle launches, and the FLOATING span (pontoon bays). ⚠ Placeholder figures until Q-6 (BL-S3) fills them from open sources.</summary>
+        public const long Obstacle_AssaultBridge  = 8825;
+        public const long Obstacle_FloatingBridge = 8826;
 
         /// <summary>The starter obstacle types (O4; ⭐ CE-5010 adds the barrel, the jersey barrier and the guard booth — seven).</summary>
         public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth, Obstacle_BarrelWater, Obstacle_BarrelSand };

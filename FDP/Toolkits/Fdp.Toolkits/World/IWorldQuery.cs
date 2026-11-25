@@ -92,6 +92,10 @@ namespace Fdp.Toolkit.World
         /// panels answers <see cref="SurfaceZ"/>.</summary>
         float HullSurfaceZ(float x, float y, float zHint) => SurfaceZ(x, y, zHint);
 
+        /// <summary>⭐ <c>CE-4692</c> BL-12 — true when something at (x, y) near <paramref name="z"/> stands on a laid bridge's DECK (a standing one): its edge is a kerb for a hull
+        /// (<c>HullClearance</c> refuses the drop off it). A world with no decks answers false. Allocation-free.</summary>
+        bool OnDeck(float x, float y, float z) => false;
+
         /// <summary>⭐ <c>CE-4649</c> part D (AN-21a/c) — the trees per hectare at (x, y) (<c>TerrainWoods</c>, 25 m cells); 0 outside every wood and for a world with none. Allocation-free.</summary>
         float WoodDensityAt(float x, float y) => 0f;
 

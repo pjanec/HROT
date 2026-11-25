@@ -43,7 +43,10 @@ public sealed class BridgeClosureTests : IDisposable
         public void Dispose() { Holder.Dispose(); }
     }
 
-    private World Build()
+    private World Build() => Build(authoredBridge: true);
+
+    /// <param name="authoredBridge">false ⇒ the river and the roads only (no authored Bridge feature, no overlay): the ground a LAID bridge is placed on (CE-4692).</param>
+    private World Build(bool authoredBridge)
     {
         string terrains = Path.Combine(_root, "assets", "terrain"), folder = Path.Combine(terrains, "t"), scenario = Path.Combine(_root, "scn");
         Directory.CreateDirectory(folder); Directory.CreateDirectory(scenario);
@@ -72,6 +75,16 @@ public sealed class BridgeClosureTests : IDisposable
             } },
         };
         var catalog = new TerrainCatalog(new[] { terrains });
+        if (!authoredBridge)
+        {
+            var plain = new World();
+            var r = new TerrainResidency(catalog, plain.Holder);
+            r.Commit(plain.Repo, r.Prepare("t"));
+            plain.Terrain = plain.Repo.GetSingletonManaged<TerrainWorld>()!;
+            plain.Bridge = -1;
+            plain.Repo.RegisterComponent<NavigationIntent>(); plain.Repo.RegisterComponent<NavigationStatus>(); plain.Repo.RegisterComponent<NavState>(); plain.Repo.RegisterComponent<SimTransform>();
+            return plain;
+        }
         Assert.True(OverlayCompiler.Compile(dom, scenario, catalog.ResolveDefinition, bakeNavtiles: false, bridgeNet: new FakeBridgeNet()).Wrote);
 
         var w = new World();
@@ -456,4 +469,46 @@ public sealed class BridgeClosureTests : IDisposable
     }
 
     public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4692</c> BL-7 — a LAID bridge (a WalkableDeck obstacle over the river, its deck ends near the west and east roads' ends) is ROAD while it stands open: held Constructing it is
+    /// not (the bake has not committed), once Active a route between the banks takes it (≈ 150 m instead of the ≈ 380 m detour) and the net has ONE added segment; it never blocks a road
+    /// (a deck is exempt from the blocker walk); once it is gone the published net is the base again, segment for segment. 🔴 Red-proof: publish <c>Without</c> instead of <c>Edited</c>
+    /// (no added segment) ⇒ the route keeps the detour.
+    /// </summary>
+    [Fact]
+    public void CE4692_ALaidBridge_IsRoadWhileItStandsOpen_AndTheBaseIsUnchangedAfterIt()
+    {
+        using var w = Build(authoredBridge: false);
+        w.Repo.RegisterComponent<StaticObstacle>(); w.Repo.RegisterComponent<ObstacleShape>();
+        var sys = new BridgeClosureSystem(null, () => w.Pool);
+        sys.Execute(w.Repo, 0.1f);
+        int baseSegments; using (var l = w.Holder.Borrow()) baseSegments = l.Value.Segments.Length;
+        var west = new Vector2(150, 200); var east = new Vector2(300, 200);
+        float detour = RoadMetres(w.Holder, west, east);
+        Assert.True(detour > 300f && detour < 500f, $"the base route between the banks is the detour ({detour:F0} m)");
+
+        var deck = w.Repo.CreateEntity();
+        w.Repo.AddComponent(deck, new SimTransform { Position = new Vector3(215, 200, 0), Rotation = Quaternion.Identity });
+        w.Repo.AddComponent(deck, new StaticObstacle { Material = new FixedString32("steel-plate"), Kind = ObstacleKind.WalkableDeck });
+        w.Repo.AddComponent(deck, new ObstacleShape { Length = 46f, Width = 4f, Height = 1.2f });
+        w.Repo.SetLifecycleState(deck, EntityLifecycle.Constructing);
+        sys.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, sys.Added);                                                       // not open before its bake commits
+        Assert.Equal(detour, RoadMetres(w.Holder, west, east), 1);
+
+        w.Repo.SetLifecycleState(deck, EntityLifecycle.Active);
+        sys.Execute(w.Repo, 0.1f);
+        Assert.Equal(1, sys.Added);
+        Assert.Equal(0, sys.Blocked);                                                     // ⛔ the deck closes no road
+        float over = RoadMetres(w.Holder, west, east);
+        Assert.True(over < 200f, $"the route takes the laid bridge ({over:F0} m, detour {detour:F0} m)");
+        using (var l = w.Holder.Borrow()) Assert.Equal(baseSegments + 1, l.Value.Segments.Length);
+
+        w.Repo.DestroyEntity(deck);
+        sys.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, sys.Added);
+        using (var l = w.Holder.Borrow()) Assert.Equal(baseSegments, l.Value.Segments.Length);
+        Assert.Equal(detour, RoadMetres(w.Holder, west, east), 1);
+    }
 }

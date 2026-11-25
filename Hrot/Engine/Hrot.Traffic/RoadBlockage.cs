@@ -25,6 +25,7 @@ public static class RoadBlockage
         library.TryGet(TerrainMaterialLibrary.DefaultMaterial, out var material);
         foreach (var e in world.Query().With<StaticObstacle>().With<ObstacleShape>().With<SimTransform>().Build())
         {
+            if (world.GetComponentRO<StaticObstacle>(e).Kind == ObstacleKind.WalkableDeck) continue;   // ⭐ CE-4692 BL-7 — a laid bridge CARRIES a road, it never blocks one
             ref readonly var t = ref world.GetComponentRO<SimTransform>(e);
             ref readonly var shape = ref world.GetComponentRO<ObstacleShape>(e);
             into.Add(TerrainObstacles.PrismOf(t.Position, TerrainObstacles.Yaw(t.Rotation), shape, material!).Footprint);
