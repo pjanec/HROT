@@ -9,6 +9,9 @@ param([Parameter(Mandatory = $true)][string]$Terrain, [string]$Source = "", [str
       [string]$Project = "D:\Work\HrotUnreal\HrotUnreal.uproject", [string]$Engine = "C:\UE_5.8\UE_5.8")
 $ErrorActionPreference = "Stop"
 if (Get-Process UnrealEditor -ErrorAction SilentlyContinue) { "EDITOR OPEN - close it first"; exit 1 }
+# ⚠ 2026-11-25: the package's copy of the level comes back READ-ONLY (LFS) - the next copy could not replace it and the package silently kept the
+# previous level (no road / water fixes). Clear the flag on the plugin's content first.
+Get-ChildItem -Recurse "$(Split-Path $Project)\Plugins\HrotTerrain_$($Terrain.Replace('-', '_'))\Content" -File -ErrorAction SilentlyContinue | ? { $_.IsReadOnly } | % { $_.IsReadOnly = $false }
 $Proj = Split-Path $Project
 $Here = Split-Path $MyInvocation.MyCommand.Path
 $N = $Terrain.Replace("-", "_")
@@ -25,6 +28,9 @@ New-Item -ItemType Directory -Force "$pd\Content\Maps" | Out-Null
 
 # 2. the level into it
 $env:HROT_TERRAIN_NAME = $Terrain; $env:HROT_TERRAIN_SOURCE = $Source
+# ⚠ 2026-11-25: the editor's delete_asset left the previous copy in place ("An asset already exists at this location"), the copy failed and the
+# package silently kept the OLD level - the file goes before the editor starts, and a missing copy afterwards stops the script
+Remove-Item "$pd\Content\Maps\$N.umap" -Force -ErrorAction SilentlyContinue
 & "$Engine\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" $Project "-ExecutePythonScript=$Here\hrot_terrain_into_package.py" -unattended -nosplash -nullrhi | Out-Null
 if (-not (Test-Path "$pd\Content\Maps\$N.umap")) { "the level was not copied into $pd\Content\Maps\$N.umap"; exit 3 }
 "level: $Source -> /$Plugin/Maps/$N"
