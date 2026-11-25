@@ -58,6 +58,10 @@ namespace Hrot.SimHost.Tests
             public bool Drives;
             /// <summary>⭐ CE-2230 — the crest: the unit sees the enemy exactly while its X is at least this (null = <see cref="See"/> rules).</summary>
             public float? SeesFromX;
+            /// <summary>⭐ CE-4691 — when set, whether the hull sees the enemy this step (e.g. only once it has arrived at its firing point).</summary>
+            public Func<bool>? SeesWhen;
+            /// <summary>The last move order has arrived.</summary>
+            public bool Arrived => Repo.GetComponentRO<LocomotionChannel>(Self).Status == NodeStatus.Success;
             private uint _moveInst, _fireInst;
             private int _fired;
             private long _frame;
@@ -118,6 +122,7 @@ namespace Hrot.SimHost.Tests
             {
                 Clock();
                 if (SeesFromX is float crest) See(Repo.GetComponentRO<SimTransform>(Self).Position.X >= crest);
+                if (SeesWhen is { } sight) See(sight());   // ⭐ CE-4691 — sight decided by the rail each step
                 var status = VehicleFightFromCoverNodes.VehicleFightFromCover(ref P, ref Ws, Self, Repo);
                 Repo.FlushCommandBuffers();
                 Body();
@@ -601,6 +606,7 @@ namespace Hrot.SimHost.Tests
             Assert.False(d.Sensor(VehicleFightFromCoverNodes.FiringSite).IsNull, "hidden, the node asks for a firing point");
             Assert.Equal(FindVehicleFiringPoint.BlueprintId, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.FiringSite)).BlueprintId);
             d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            d.SeesWhen = () => d.Arrived && d.Moves.Count >= 2 && d.Moves[^1].Item1 == FiringA;   // ⭐ CE-4691 — a hide hides: he is seen only from the firing point (seen from the hide, it fires from there — its own rail)
 
             Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging));
             Assert.False(d.Tracking);
@@ -848,6 +854,29 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((float)(p.ExposeSeconds), VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
             d.Repo.GetComponentRW<PerceptionReceptor>(d.Enemy).VisionRange = 100f;   // 100 m: he can
             Assert.InRange(VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self), 1.39f, 1.41f);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4691</c> (CE-11057 ④) — a hull that ALREADY SEES its target as it sets out for its firing point (its hide stopped hiding it — the
+        /// threat moved) stops where it is and fires: the drive-out stops the first tick it sees, as the lane and the creep do (<c>StopIfSees</c>).
+        /// 📐 Live <c>va-pop-smoke</c>: the Bradley and the tank saw each other for 6 s; the drive to a firing point 6 m off ran out of its 2.45 s
+        /// budget and the Bradley withdrew without a round. 🔴 Red-proof: the stop dropped from the drive-out ⇒ it drives on to <c>FiringA</c>.
+        /// </summary>
+        [Fact]
+        public void CE4691_SeenFromWhereItSetsOut_TheDriveOutStopsAndFires()
+        {
+            var d = new Duel(Tank());
+            d.Step();
+            d.See(false);
+            d.ToHide(HideA);
+            d.See(true);                                                     // the threat moved: the hide no longer hides
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 10));
+            var at = d.Repo.GetComponentRO<SimTransform>(d.Self).Position;
+            Assert.True(Vector3.Distance((Vector3)at, d.Ws.FiringPoint) < 0.01f, $"it fires from where it stood (at {at}, firing point {d.Ws.FiringPoint})");
+            Assert.NotEqual(FiringA, d.Ws.FiringPoint);                       // … never driven on to the firing point
+            d.Run(3);
+            Assert.True(d.AimedRounds > 0, "and it fires from there");
         }
 
         /// <summary>
