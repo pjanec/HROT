@@ -6,14 +6,6 @@
     "charge": {
       "on": "blast",
       "by": "Red Sapper"
-    },
-    "held": {
-      "on": "field",
-      "who": "Red Sapper",
-      "path": "Health.Current",
-      "op": "<=",
-      "value": 0,
-      "before": "charge"
     }
   },
   "expect": [
@@ -43,7 +35,7 @@
     },
     {
       "name": "held: objective 'Bridge held' Achieved",
-      "if": "held",
+      "unless": "charge",
       "on": "field",
       "who": "Bridge held",
       "path": "ObjectiveStatus.State",
@@ -53,7 +45,7 @@
     },
     {
       "name": "held: objective 'Bridge recovered' Achieved (the bridge back on its engineer)",
-      "if": "held",
+      "unless": "charge",
       "on": "field",
       "who": "Bridge recovered",
       "path": "ObjectiveStatus.State",
@@ -63,7 +55,7 @@
     },
     {
       "name": "held: the engineer carries its span again",
-      "if": "held",
+      "unless": "charge",
       "on": "field",
       "who": "Engineer",
       "path": "BridgeCarried.Count",

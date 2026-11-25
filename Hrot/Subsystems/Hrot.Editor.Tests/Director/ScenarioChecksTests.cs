@@ -106,6 +106,42 @@ public sealed class ScenarioChecksTests
         Assert.Contains(bad, p => p.Contains("if names 'nope'"));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4693</c> <c>unless</c> — the mirror of <c>if</c>: the row is judged only when the named event did NOT happen, else <c>skipped</c>. Two outcomes
+    /// keyed on one event (📌 <c>bl-river-crossing</c>: no charge ⇒ the bridge held; the charge ⇒ the fall). 🔴 Red-proof: drop the <c>Unless</c> term in
+    /// <c>Verdicts</c> ⇒ the row is judged in the hurt run and FAILS.
+    /// </summary>
+    [Fact]
+    public void CE4693_Unless_ARowIsJudgedOnlyWhenTheEventDidNotHappen()
+    {
+        const string json = """
+            { "runFor": 10, "anchors": {"harm": {"on": "field", "who": "Villager", "path": "Health.Current", "op": "<", "value": 100}},
+              "expect": [{"name": "the village is safe", "on": "field", "who": "Tree", "path": "State", "op": "==", "value": "Safe", "atEnd": true, "unless": "harm"}] }
+            """;
+        var checks = Parse(json, out var problems);
+        Assert.Empty(problems);
+        Assert.Equal("harm", checks.Expect[0].Unless);
+
+        var calm = new FakeWorld().Unit("Villager", 1, 100, 0).Unit("Tree", 2, 100, 0);
+        var book = new ConditionBook(checks, calm, 0);
+        book.Observe(0); book.Finish(10);
+        Assert.False(book.Verdicts().Single().Ok);   // no harm: judged, and the tree never read Safe
+
+        var hurt = new FakeWorld().Unit("Villager", 1, 100, 0).Unit("Tree", 2, 100, 0);
+        var book2 = new ConditionBook(checks, hurt, 0);
+        book2.Observe(0);
+        hurt.Comps[1] = new JsonObject { ["Health"] = new JsonObject { ["Current"] = 40 } };
+        book2.Observe(3);
+        book2.Finish(10);
+        var skipped = book2.Verdicts().Single();
+        Assert.True(skipped.Ok); Assert.Equal("skipped", skipped.Kind);
+
+        Parse(json.Replace("\"unless\": \"harm\"", "\"unless\": \"nope\""), out var bad);
+        Assert.Contains(bad, p => p.Contains("unless names 'nope'"));
+        Parse(json.Replace("\"unless\": \"harm\"", "\"unless\": \"harm\", \"if\": \"harm\""), out var both);
+        Assert.Contains(both, p => p.Contains("if and unless together"));
+    }
+
     // ── a world the book reads ────────────────────────────────────────────────────────────────
 
     /// <summary>

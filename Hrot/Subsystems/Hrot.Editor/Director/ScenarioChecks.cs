@@ -106,6 +106,10 @@ namespace Hrot.Editor.Director
         /// for a line about an EVENT the run need not produce (📌 Bridgehead: "a civilian harmed fails the tree", once the fire-discipline fix
         /// CE-2379 stopped the accidental harm the row relied on).</summary>
         public string? If { get; init; }
+        /// <summary>⭐ <c>CE-4693</c> — the mirror of <see cref="If"/>: judged only when this anchor / action / expectation did NOT happen; else <c>skipped</c>.
+        /// For a scenario with two legitimate outcomes (📌 <c>bl-river-crossing</c>: the sapper silenced ⇒ the bridge held and is recovered; his charge
+        /// fired ⇒ the fall), each outcome's rows keyed on the same event.</summary>
+        public string? Unless { get; init; }
     }
 
     /// <summary>⭐ A change the check makes to the world at <see cref="At"/> (the old live checks' hand edits — wound a man, set an attribute).</summary>
@@ -236,17 +240,19 @@ namespace Hrot.Editor.Director
                     bool atEnd = e["atEnd"] is JsonValue ev && ev.TryGetValue<bool>(out var ae) && ae;
                     CheckCue cue = never
                         ? ParseCue((JsonObject)e["never"]!, where + " never", problems, Array.Empty<string>())
-                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never", "if" });
+                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never", "if", "unless" });
                     if (never)
                         foreach (var (k, _) in e)
-                            if (k is not ("name" or "never" or "after" or "before" or "if")) problems.Add($"{where}: unknown key '{k}' beside never");
+                            if (k is not ("name" or "never" or "after" or "before" or "if" or "unless")) problems.Add($"{where}: unknown key '{k}' beside never");
                     if (never && atEnd) problems.Add($"{where}: never and atEnd together");
                     expect.Add(new Expectation
                     {
                         Name = name!, Cue = cue, Never = never, AtEnd = atEnd,
                         After = Time(e["after"], where + " after", problems), Before = Time(e["before"], where + " before", problems),
                         If = e["if"]?.ToString(),
+                        Unless = e["unless"]?.ToString(),
                     });
+                    if (e["if"] != null && e["unless"] != null) problems.Add($"{where}: if and unless together");
                 }
 
             if (expect.Count == 0) problems.Add("expect is empty — a check with nothing to judge");
@@ -261,6 +267,8 @@ namespace Hrot.Editor.Director
                 if (t is { Anchor: { } n } && !known.Contains(n)) problems.Add($"a time names '{n}', which is no anchor, action or expectation");
             foreach (var e in expect.Where(x => x.If != null && !known.Contains(x.If)))
                 problems.Add($"expect '{e.Name}': if names '{e.If}', which is no anchor, action or expectation");
+            foreach (var e in expect.Where(x => x.Unless != null && !known.Contains(x.Unless)))
+                problems.Add($"expect '{e.Name}': unless names '{e.Unless}', which is no anchor, action or expectation");
 
             var later = new List<string>();
             if (json["later"] is { } ln)
