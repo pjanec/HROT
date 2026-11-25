@@ -18,6 +18,8 @@ public sealed class ImportReport
     public int BuildingsSolid { get; set; }
     public int SolidBecauseNoStair { get; set; }
     public int RoofCaps { get; set; }
+    /// <summary>⭐ CE-5056 ④ — entrance ramps generated for raised ground-floor doors (<see cref="EntranceSteps"/>).</summary>
+    public int EntranceSteps { get; set; }
     public int SharedWallsMerged { get; set; }
 
     public int OpeningsPlaced { get; set; }
@@ -73,7 +75,7 @@ public static class ImportReportText
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         w.WriteLine(string.Create(inv, $"terrain '{r.TerrainName}': heights {r.HeightCols} x {r.HeightRows} posts at 1 m ({r.HeightPostsFilled} NODATA filled)"));
-        w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs ({r.StairsSwitchBack} switch-back)"));
+        w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.EntranceSteps} entrance steps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs ({r.StairsSwitchBack} switch-back)"));
         w.WriteLine(string.Create(inv, $"openings: {r.OpeningsPlaced} placed, {r.OpeningsDropped} dropped (off wall {r.OpeningsDroppedOffWall}, party wall {r.OpeningsDroppedOnPartyWall}, overlap {r.OpeningsDroppedOverlap}, other {r.OpeningsDroppedOther}); {r.UnassignedSkipped} unassigned points ignored"));
         w.WriteLine(string.Create(inv, $"vegetation: {r.WoodsPolygons} wood polygons + {r.WoodsFromPoints} clustered from points, {r.LoneTrees} lone trees, {r.WaterAreas} water areas, {r.Walls} walls, {r.ScrubSkipped} scrub skipped"));
         w.WriteLine(string.Create(inv, $"pads: {r.Pads} house pads, {r.PadPostsCut} posts cut, {r.PadsWidened} skirts widened for a deep cut"));

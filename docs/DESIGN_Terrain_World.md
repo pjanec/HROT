@@ -528,6 +528,12 @@ load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-bak
   wall that crossed a cell centre cut a 2 m strip out of the floor — bt-range House A's hall and front doorways never
   connected (found by the `bt-doors` live run). ⭐ A panel is thin and its own side faces block, so it keeps the ground under
   it. 📄 `DESIGN_Building_Interiors.md` §3j "5d-3 / 5d-4 as built".
+- **Why the ground grid keeps the ground under an OVERHEAD solid** *(`TerrainWorldMesh.GroundBins.Overhead`, CE-5056, as built `2026-11-25`)*: the
+  overhead rule above, now on the grid too — a solid prism whose base is more than `StepHeight` over the ground at its footprint's centre (a pitched
+  roof's cap at the eaves) cuts no ground cell. 📐 It used to: every capped house (the importer writes the cap as a building block with a `baseZ`)
+  lost the ground under it and, the cells being coarse, a strip OUTSIDE its walls — its doors opened onto a hole in the navmesh (village-street: 25
+  doors with no path in; the Recast spans across one showed no floor from the wall's outer half to 0.3 m beyond it). Rail
+  `TerrainWorldTests.CE5056_AnOverheadBlock_KeepsTheGroundUnderIt_ABlockOnTheGroundCutsIt`.
 
 ## 6a. ALLOCATION — a background batch allocates nothing per query *(R-220, backend, `2026-10-08`)*
 
