@@ -27,3 +27,13 @@ The input did not change (`terrain-input/Stechovice` last written 2026-11-23; it
 ⇒ the node's copy never counts as current, so every load re-imports it — and that import then rewrites the shared one too. The only writer we found that sets the revision is `TerrainImporter.cs:142` (`WriteTerrainJson(…, Revision)`); something else writes the node's `terrain.json` without it (we did not find what — likely a copy / distribution of an older terrain.json into the node folder). On 2026-11-23 the same scenario loaded with the navmesh "59834 from the cache, 6967 ms".
 
 Our side: nothing to change — the Unreal client waits for HROT's load. The user noticed it ("it usually took 20 sec, not 7 minutes … terrain data like navmesh are cached").
+
+## Update (same evening): the likely trigger is a stale LOCAL copy, not your code — moved aside
+
+`D:\Work\HROT-live\assets\terrain\Stechovice` (git-ignored, `.gitignore:77`; 176 MB) was an import from 2026-11-23 16:55, before `importerRevision`
+was recorded — its `terrain.json` has the sha but no revision. That is exactly the shape the node copy had at 21:50:43. We moved it out of the tree
+(`D:\Work\HROT-live-stale-terrain\Stechovice-2026-11-23`, not deleted). Not yet confirmed by a fresh load (the user is playing the session now);
+we confirm on the next start (expect no `[TerrainImport]` line and the navmesh "from the cache").
+
+⚠ Still worth a look on your side: a stale terrain under the repository's `assets/terrain` silently forces a full re-import on every load (and
+seems to win over the newer imported copies) instead of being reported or ignored.
