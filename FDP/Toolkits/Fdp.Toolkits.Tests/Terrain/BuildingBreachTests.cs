@@ -469,6 +469,62 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-11058</c> — THE rule that places an opening in the world (<see cref="WallGroups.OpeningSpan"/>, <see cref="WallGroups.OpeningCentre"/>), the sibling of <c>BreachCentre</c>: on a box building each window's
+        /// span is <c>A + dir × At</c> .. <c>A + dir × (At + Width)</c> (At = the START), its centre the middle of it at z = (Sill + Head) / 2; forward and inverse agree (<c>PaneUv(OpeningCentre)</c> = (0.5, 0.5)); the glass
+        /// pane leaves stand on exactly that span; allocation-free. 🔴 Red-proof: the span off by Width / 2 (At taken as the middle) ⇒ every row here fails.
+        /// </summary>
+        [Fact]
+        public void CE11058_OpeningSpanAndCentre_AreTheHandComputedPoints_PaneUvOfTheCentreIsTheMiddle_AndTheGlassStandsOnTheSpan()
+        {
+            var w = TerrainWorldParser.Parse("""
+                { "type": "FeatureCollection", "features": [ { "type": "Feature",
+                    "properties": { "kind": "building", "label": "H",
+                      "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                        "storeys": [ { "height": 3, "walls": [
+                          { "from": [0,0], "to": [10,0], "thickness": 0.3, "material": "brick", "openings": [ { "kind": "window", "at": 3, "width": 1.4 } ] },
+                          { "from": [10,0], "to": [10,8], "thickness": 0.3, "material": "brick", "openings": [ { "kind": "window", "at": 2, "width": 2 } ] },
+                          { "from": [10,8], "to": [0,8], "thickness": 0.3, "material": "brick" },
+                          { "from": [0,8], "to": [0,0], "thickness": 0.3, "material": "brick" } ] } ] } },
+                    "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+                """, "range");
+            int seen = 0;
+            for (int pi = 0; pi < w.Panels.Count; pi++)
+            {
+                var p = w.Panels[pi];
+                for (int oi = 0; oi < p.Openings.Count; oi++)
+                {
+                    seen++;
+                    var o = p.Openings[oi];
+                    var dir = Vector2.Normalize(p.B - p.A);                                                  // hand-computed, not through the rule
+                    var start = p.A + dir * o.At;
+                    var end = p.A + dir * (o.At + o.Width);
+                    var (s, e) = WallGroups.OpeningSpan(w, pi, oi);
+                    Assert.Equal(start, s);
+                    Assert.Equal(end, e);
+                    var c = WallGroups.OpeningCentre(w, pi, oi);
+                    Assert.Equal(((start + end) * 0.5f).X, c.X, 4);
+                    Assert.Equal(((start + end) * 0.5f).Y, c.Y, 4);
+                    Assert.Equal((o.SillZ + o.HeadZ) * 0.5f, c.Z, 4);
+                    var (u, v) = WindowDamages.PaneUv(w, pi, oi, c);                                          // the inverse of the forward rule
+                    Assert.Equal(0.5f, u, 3);
+                    Assert.Equal(0.5f, v, 3);
+                    if (o.Glazed)
+                    {
+                        var leaf = w.PaneLeaves.Single(q => q.Panel == pi && q.Label.EndsWith($"/pane{oi}"));                   // the pane stands on the span
+                        Assert.Contains(leaf.Footprint, f => Vector2.Distance(f, s) < 0.2f);
+                        Assert.Contains(leaf.Footprint, f => Vector2.Distance(f, e) < 0.2f);
+                    }
+                }
+            }
+
+            Assert.Equal(2, seen);
+            for (int i = 0; i < 20; i++) { WallGroups.OpeningSpan(w, 0, 0); WallGroups.OpeningCentre(w, 0, 0); }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) { WallGroups.OpeningSpan(w, 0, 0); WallGroups.OpeningCentre(w, 0, 0); }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         private static bool HullBlocked(TerrainWorldQuery q, Vector3 a, Vector3 b, List<Fdp.Toolkit.World.TraceCrossing> into)
         {
             q.Trace(a, b, Fdp.Toolkit.World.TracePurpose.Hull, into);

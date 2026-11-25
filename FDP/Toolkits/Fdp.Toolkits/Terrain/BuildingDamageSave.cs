@@ -279,6 +279,38 @@ namespace Fdp.Toolkit.Terrain
             return new System.Numerics.Vector3(at.X, at.Y, (b.Bottom + b.Top) * 0.5f);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-11058</c> — THE rule that places an opening in the world: its two ends on its panel, <c>A + dir × At</c> and <c>A + dir × (At + Width)</c> (terrain-local metres). ⚠ <see cref="TerrainOpening.At"/> is the
+        /// START of the opening along the panel (metres from <c>A</c>), not its middle. <c>dir</c> = normalised B − A (<see cref="System.Numerics.Vector2.UnitX"/> for a degenerate panel — the glass layer's fallback).
+        /// The glass pane leaves, the blind-round aim at an opening and <see cref="OpeningCentre"/> all use it; <see cref="WindowDamage.PaneUv"/> is its inverse. Allocation-free.
+        /// </summary>
+        public static (System.Numerics.Vector2 Start, System.Numerics.Vector2 End) OpeningSpan(TerrainWorld world, int panel, int opening)
+        {
+            var p = world.Panels[panel];
+            var o = p.Openings[opening];
+            var ab = p.B - p.A;
+            float len = ab.Length();
+            var dir = len > 0f ? ab / len : System.Numerics.Vector2.UnitX;
+            return (p.A + dir * o.At, p.A + dir * (o.At + o.Width));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11058</c> — the world centre of opening <paramref name="opening"/> of wall panel <paramref name="panel"/>: the middle of <see cref="OpeningSpan"/>, z = (SillZ + HeadZ) / 2 (terrain-local metres).
+        /// The sibling of <see cref="BreachCentre"/>. Allocation-free.
+        /// </summary>
+        public static System.Numerics.Vector3 OpeningCentre(TerrainWorld world, int panel, int opening)
+        {
+            // ⚠ A + dir * (At + Width/2), NOT the midpoint of OpeningSpan: the two differ by a float ulp, and AimPoint's blind-round aim (which this replaced)
+            //   must stay bit-identical so no deterministic run or golden moves
+            var p = world.Panels[panel];
+            var o = p.Openings[opening];
+            var ab = p.B - p.A;
+            float len = ab.Length();
+            var dir = len > 0f ? ab / len : System.Numerics.Vector2.UnitX;
+            var m = p.A + dir * (o.At + o.Width * 0.5f);
+            return new System.Numerics.Vector3(m.X, m.Y, (o.SillZ + o.HeadZ) * 0.5f);
+        }
+
         /// <summary>Where a group's damage entity stands: a building's position, a line's first post (its base).</summary>
         public static System.Numerics.Vector3 Anchor(TerrainWorld world, int group)
         {
