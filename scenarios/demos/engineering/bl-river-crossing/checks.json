@@ -6,6 +6,14 @@
     "charge": {
       "on": "blast",
       "by": "Red Sapper"
+    },
+    "held": {
+      "on": "field",
+      "who": "Red Sapper",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": "charge"
     }
   },
   "expect": [
@@ -28,7 +36,14 @@
       "atEnd": true
     },
     {
-      "name": "objective 'Bridge held' Achieved (the sapper silenced before he fires)",
+      "name": "the sapper makes his attempt (walks in for the deck)",
+      "on": "task",
+      "who": "Red Sapper",
+      "is": "MoveToLocation"
+    },
+    {
+      "name": "held: objective 'Bridge held' Achieved",
+      "if": "held",
       "on": "field",
       "who": "Bridge held",
       "path": "ObjectiveStatus.State",
@@ -37,20 +52,8 @@
       "atEnd": true
     },
     {
-      "name": "the sapper makes his run for the deck",
-      "on": "task",
-      "who": "Red Sapper",
-      "is": "MoveToLocation"
-    },
-    {
-      "name": "the sapper never sets off his charge",
-      "never": {
-        "on": "blast",
-        "by": "Red Sapper"
-      }
-    },
-    {
-      "name": "objective 'Bridge recovered' Achieved (the bridge back on its engineer)",
+      "name": "held: objective 'Bridge recovered' Achieved (the bridge back on its engineer)",
+      "if": "held",
       "on": "field",
       "who": "Bridge recovered",
       "path": "ObjectiveStatus.State",
@@ -59,7 +62,8 @@
       "atEnd": true
     },
     {
-      "name": "the engineer carries its span again",
+      "name": "held: the engineer carries its span again",
+      "if": "held",
       "on": "field",
       "who": "Engineer",
       "path": "BridgeCarried.Count",
@@ -68,13 +72,23 @@
       "atEnd": true
     },
     {
-      "name": "if the charge fired: the bridge is gone",
+      "name": "fall: the bridge is gone",
       "if": "charge",
       "on": "field",
       "who": "Bridge gone",
       "path": "ObjectiveStatus.State",
       "op": "==",
       "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "fall: the river is a barrier again - the span is not back on board",
+      "if": "charge",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 0,
       "atEnd": true
     }
   ]
