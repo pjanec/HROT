@@ -136,6 +136,8 @@ private:
 	int32 SlotUnit = 0, Requested = 0;
 	FString Reason;
 	TArray<FOffer> Offers;
+	int32 LoggedOffers = -1;
+	mutable TSet<int32> SaidRefused;   // CanPossess is const (the menu asks every frame) - each refused unit logged once
 	float OwnHealth = 0, OwnMaxHealth = 0, OwnSpread = 0, LastHealth = -1;
 	int32 OwnActiveSlot = 0;
 	uint8 OwnFireMode = 0;
