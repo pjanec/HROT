@@ -29,12 +29,17 @@ try:
         done = []
         for f in flags:
             usage = getattr(unreal.MaterialUsage, f)
-            needs = [False]
-            ok = unreal.MaterialEditingLibrary.set_material_usage(root, usage, needs) if hasattr(unreal.MaterialEditingLibrary, "set_material_usage") else None
+            ok = unreal.MaterialEditingLibrary.set_material_usage(root, usage) if hasattr(unreal.MaterialEditingLibrary, "set_material_usage") else None
+            if isinstance(ok, tuple): ok = ok[0]   # Python returns (ok, needs_recompile)
             if ok is None:   # older API: the bool property on the material
                 prop = {"MATUSAGE_INSTANCED_STATIC_MESHES": "used_with_instanced_static_meshes", "MATUSAGE_NANITE": "used_with_nanite"}[f]
                 root.set_editor_property(prop, True); ok = True
             done.append(f"{f}={ok}")
+        props = {}
+        for prop in ("used_with_instanced_static_meshes", "used_with_nanite"):
+            try: props[prop] = root.get_editor_property(prop)
+            except Exception as e: props[prop] = f"? {e}"
+        done.append(props)
         saved = bool(unreal.EditorAssetLibrary.save_loaded_asset(root, only_if_is_dirty=False))
         R["materials"][path] = {"root": root.get_path_name(), "set": done, "saved": saved}
     for path in JOB.get("meshes", []):

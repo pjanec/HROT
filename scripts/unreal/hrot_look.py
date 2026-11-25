@@ -335,6 +335,9 @@ def step_buildings():
     log(f"buildings: {n} shapes in {len(spec['tiles'])} tiles")
 
 
+PLANT_SCALE = {"Rough_Meadow_Grass": 0.5, "Tall_Grass": 0.55, "Fern": 0.7}
+
+
 def scatter_split(bin_path, meshes, label, cull_cm):
     data = open(bin_path, "rb").read(); rec = 24; n = len(data) // rec; k = len(meshes)
     total = 0
@@ -342,7 +345,10 @@ def scatter_split(bin_path, meshes, label, cull_cm):
         part = b"".join(data[j * rec:(j + 1) * rec] for j in range(i, n, k))
         if not part: continue
         fn = bin_path[:-4] + f".v{i}.bin"; open(fn, "wb").write(part)
-        a = unreal.HrotTerrainLibrary.scatter_instances(fn, unreal.load_asset(path), None, f"{label}_{i}", cull_cm, unreal.Vector(1, 1, 1), 0.0)
+        # live 2026-11-25 (Stechovice): the Megascans meadow grass is up to 1.7 m tall and the tall grass / ferns about 1 m - drawn at full size it stood
+        # as high as a soldier ("the grass is giant"); scaled to knee / waist height. The short wild grass keeps its size.
+        k_ = next((v for key, v in PLANT_SCALE.items() if key in path), 1.0)
+        a = unreal.HrotTerrainLibrary.scatter_instances(fn, unreal.load_asset(path), None, f"{label}_{i}", cull_cm, unreal.Vector(k_, k_, k_), 0.0)
         if not a: raise RuntimeError("ScatterInstances failed: " + path)
         total += len(part) // rec
     return total
