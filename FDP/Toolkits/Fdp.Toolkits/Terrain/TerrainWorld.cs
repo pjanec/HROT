@@ -471,7 +471,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>
         /// ⭐ <c>CE-4692</c> BL-9 — the laid bridge (its obstacle's entity index) whose deck walkable lies under (<paramref name="x"/>, <paramref name="y"/>) with its surface within
         /// <see cref="LevelMergeDistance"/> of <paramref name="z"/> — the SLAB only when <paramref name="slabOnly"/> (the span over the water; a ramp runs onto the bank); −1 for none.
-        /// <paramref name="doors"/> null ⇒ every deck the world holds, fallen or not (who stood on a deck as it fell). Allocation-free.
+        /// <paramref name="doors"/> null ⇒ every deck the world holds, fallen or not (who stood on a deck as it fell); <paramref name="z"/> NaN ⇒ at any height (the plan footprint). Allocation-free.
         /// </summary>
         public int DeckUnder(float x, float y, float z, DoorStates? doors, bool slabOnly)
         {
@@ -485,10 +485,34 @@ namespace Fdp.Toolkit.Terrain
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
                     float? h = PolygonMath.HeightOnTriangle(x, y, w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
-                    if (h.HasValue && MathF.Abs(h.Value - z) <= LevelMergeDistance) return w.Obstacle;
+                    if (h.HasValue && (float.IsNaN(z) || MathF.Abs(h.Value - z) <= LevelMergeDistance)) return w.Obstacle;   // NaN ⇒ at any height (in plan)
                 }
             }
             return -1;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-12 — the height of the STANDING laid-bridge deck (slab or ramp) whose plan footprint holds (<paramref name="x"/>, <paramref name="y"/>), the highest
+        /// if several; NaN for none. What a HULL POINT there rests on: a vehicle is never under a deck, so a corner inside one is on it — 📐 measured live (bl-placed-bridge): a tank's
+        /// front corner 0.75 m up the ramp, read with the hull centre's height as the hint, was "out of reach", read the ground, and its trace ran through the ramp. Allocation-free.
+        /// </summary>
+        public float DeckSurfaceAt(float x, float y, DoorStates? doors)
+        {
+            if (!HasObstacleDecks) return float.NaN;
+            var p = new Vector2(x, y);
+            float best = float.NaN;
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.WalkableCount; k++)
+            {
+                var w = Walkables[cand.Walkable(k)];
+                if (w.Obstacle < 0 || DeckGone(w, doors) || !InBox(p, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    float? h = PolygonMath.HeightOnTriangle(x, y, w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
+                    if (h.HasValue) { if (float.IsNaN(best) || h.Value > best) best = h.Value; break; }
+                }
+            }
+            return best;
         }
 
         /// <summary>⭐ <c>CE-4692</c> — true when this world holds a laid bridge's deck (a view then builds its <see cref="DeckTable"/>).</summary>

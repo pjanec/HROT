@@ -141,6 +141,10 @@ namespace Fdp.Toolkit.Combat.Tests
                 "the kerb: a hull pushed sideways off the deck");
             Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, Vector2.Zero, Vector2.UnitX, 1.2f, new Vector2(0.5f, 0f), Vector2.UnitX, 1.2f, 7.9f, 3.6f),
                 "a hull driving along the deck");
+            // 📐 bl-placed-bridge (live): a tank at the ramp's foot — its nose 2.9 m up the ramp (the B ramp runs x 13 → 17.8, down to the ground), the hull still on the
+            //   ground — was held by its own front corner (the surface ahead read "out of reach", like a drop). Climbing a ramp is never a kerb.
+            Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, new Vector2(18.85f, 0f), -Vector2.UnitX, 0f, new Vector2(18.75f, 0f), -Vector2.UnitX, 0f, 7.9f, 3.66f),
+                "a hull climbing the ramp");
 
             var got = Burst(Charge8Kg, new Vector3(12.5f, 0f, 1.25f), deck);
             Assert.True(got[0] >= 600f, $"the charge at the span's far end dealt {got[0]:F0} (the deck has 600)");
