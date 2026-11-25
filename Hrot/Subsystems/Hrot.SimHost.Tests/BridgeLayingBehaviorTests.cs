@@ -234,5 +234,42 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BridgeOrder.None, Carried.Order);
             Assert.Equal(1, _work.Recovered);
         }
+
+        /// <summary>
+        /// ⭐⭐ A bridge DEMOLISHED while the engineer takes it back is LOST, never counted back on board (📌 bl-river-crossing: a recovery ordered as the
+        /// sapper's charge dropped the span counted it back). 🔴 Red-proof: count the span back whenever the bridge goes ⇒ Count 1 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4693_ABridgeDemolishedWhileItIsRecovered_IsLost_NotCountedBack()
+        {
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) _w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _w.SetComponent(_eng, Carried with { Count = 0 });
+            Spawn(new EntityCreationRequest
+            {
+                TkbType = (TkbTypeId)TkbEntityTypes.Obstacle_AssaultBridge,
+                InitialComponents = new List<object>
+                {
+                    new SimTransform { Position = new Vector3(80f, 66f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, System.MathF.PI / 2f) },
+                    new ObstacleShape { Length = 14f, Width = 4f, Height = 1.2f },
+                },
+            });
+            var bridge = Entity.Null;
+            foreach (var e in _w.Query().With<StaticObstacle>().Build()) bridge = e;
+            _w.AddComponent(bridge, new Fdp.Toolkit.Combat.Components.Health { Current = 600f, Max = 600f });
+            var b = new BridgeLayingBehaviors.BridgeBlackboard();
+            BridgeLayingBehaviors.ResolveAssaultRecover(new Hrot.AI.Behaviors.Orders.RecoverBridgeOrder(), ref b, _w, _eng);
+            var (a, ws) = (b.Order, b.State);
+            for (int i = 0; i < 20 && ws.Step != BridgeLayingBehaviors.Step.Work; i++) Step(() => BridgeLayingBehaviors.Recover(ref a, ref ws, _eng, _w));
+            Assert.Equal(BridgeLayingBehaviors.Step.Work, ws.Step);
+            Assert.Equal(BridgeOrder.Recover, Carried.Order);
+
+            // the charge: Health 0, then the obstacle's owner removes it (ObstacleRemovalSystem) a frame later
+            _w.SetComponent(bridge, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 600f });
+            Assert.Equal(NodeStatus.Running, Step(() => BridgeLayingBehaviors.Recover(ref a, ref ws, _eng, _w)));
+            _w.DestroyEntity(bridge);
+            Assert.Equal(NodeStatus.Failure, Step(() => BridgeLayingBehaviors.Recover(ref a, ref ws, _eng, _w)));
+            Assert.Equal(0, Carried.Count);
+            Assert.Equal(BridgeOrder.None, Carried.Order);
+        }
     }
 }

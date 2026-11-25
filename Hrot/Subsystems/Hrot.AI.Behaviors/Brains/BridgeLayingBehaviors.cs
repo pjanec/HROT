@@ -60,6 +60,8 @@ namespace Hrot.AI.Behaviors.Brains
             public Vector2 Centre;
             public Vector2 Stand;
             public Vector2 Approach;
+            /// <summary>Recover: 1 once the bridge was seen DESTROYED (its Health at 0 — a demolition, never a recovery): its span never comes back.</summary>
+            public byte Destroyed;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -181,6 +183,9 @@ namespace Hrot.AI.Behaviors.Brains
             var carried = world.GetComponentRO<BridgeCarried>(self);
             var b = p.Bridge;
             bool gone = b.IsNull || !world.IsAlive(b) || world.GetLifecycleState(b) == EntityLifecycle.TearDown;
+            // ⭐ a demolished bridge (Health 0 — the charge, WaterFallSystem) is gone too, but its span is LOST: seen once, remembered
+            if (!b.IsNull && world.IsAlive(b) && world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()
+                && world.HasComponent<Fdp.Toolkit.Combat.Components.Health>(b) && world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(b).Current <= 0f) ws.Destroyed = 1;
             if (ws.Step == Step.Plan)
             {
                 if (gone || !IsItsBridge(world, b, carried.BridgeType) || !BridgeLaying.Figures(world, self, out _, out var span))
@@ -199,8 +204,12 @@ namespace Hrot.AI.Behaviors.Brains
             if (gone)
             {
                 StopMove(ref ws, self, world);
-                Set(world, self, carried with { Count = (byte)Math.Min(255, carried.Count + 1), Order = BridgeOrder.None, Target = default });
-                return NodeStatus.Success;
+                // ⭐ the span is back only when the bridge went while THIS engineer was taking it back at its stand and it was not destroyed —
+                //   📌 bl-river-crossing: a recovery ordered as the sapper's charge dropped the span counted it back on board
+                bool recovered = ws.Step == Step.Work && ws.Destroyed == 0 && carried.Order == BridgeOrder.Recover;
+                Set(world, self, carried with { Count = recovered ? (byte)Math.Min(255, carried.Count + 1) : carried.Count, Order = BridgeOrder.None, Target = default });
+                if (!recovered) Hrot.AI.Behaviors.Logging.BehaviorLog.Warn(self, world, "RecoverBridge: the bridge is gone, not recovered (destroyed, or taken by another)");
+                return recovered ? NodeStatus.Success : NodeStatus.Failure;
             }
             if (!Drive(ref p, ref ws, self, world)) return NodeStatus.Running;
             Set(world, self, carried with { Order = BridgeOrder.Recover, Target = Fdp.Toolkit.Replication.EntityRef.Of(world, b), Refusal = BridgeRefusal.NotRefused });
