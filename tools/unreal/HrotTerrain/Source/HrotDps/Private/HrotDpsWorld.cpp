@@ -251,6 +251,30 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 	int32 Sounds = 0;
 	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this)) Sounds = Snd->PreloadAll();
 	Sounds += UHrotBuildingDamage::Preload();   // U-20: crack textures, damage materials, debris meshes, glass sounds
+	// live 2026-11-25 (Stechovice, the CSV profiler): 57 s of 103 s in frames over 200 ms was FlushAsyncLoading - the effects loaded by path on
+	// their FIRST use (a rocket, an explosion, a fire, a burnt wreck) stalled the game for seconds. Load every one of them here, up front, and hold it
+	static const TCHAR* const Effects[] = {
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/P_Explosion_Big_A.P_Explosion_Big_A"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/P_Explosion_Big_B.P_Explosion_Big_B"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_Fire_Big.P_Fire_Big"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_Fire_Wall.P_Fire_Wall"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_flamethrower.P_flamethrower"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Smoke/P_Smoke_A.P_Smoke_A"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Sparks/P_Embers_A.P_Embers_A"),
+		TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire.NS_WeaponFire"),
+		TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire_Tracer.NS_WeaponFire_Tracer"),
+		TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire_ShellEject.NS_WeaponFire_ShellEject"),
+		TEXT("/Game/Effects/Particles/Impacts/NS_ImpactConcrete.NS_ImpactConcrete"),
+		TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch"),
+		TEXT("/Game/Hrot/Fx/M_HrotBurnt.M_HrotBurnt"),
+		TEXT("/Game/Hrot/Weapons/SM_HrotRoofMg.SM_HrotRoofMg"),
+		TEXT("/Engine/BasicShapes/Sphere.Sphere"),
+		TEXT("/Engine/BasicShapes/Cube.Cube"),
+		TEXT("/Game/Hrot/Fx/Labels/M_HrotCard.M_HrotCard") };
+	int32 Fx = 0;
+	for (const TCHAR* Path : Effects)
+		if (UObject* O = StaticLoadObject(UObject::StaticClass(), nullptr, Path, nullptr, LOAD_NoWarn | LOAD_Quiet)) { Preloaded.Add(O); ++Fx; }
+	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d / %d effects loaded up front"), Fx, int32(UE_ARRAY_COUNT(Effects)));
 	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d person kits, %d skinned assets (%d assets held) in %.2f s; %d sounds in %.2f s"),
 		Kits, Skinned.Num(), Preloaded.Num(), T1 - T0, Sounds, FPlatformTime::Seconds() - T1);
 }
@@ -593,6 +617,19 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 	FEnt* Shooter = Ents.Find(D.ShooterId);
 	const bool bPerson = Shooter && Shooter->bHasPerson;
 	if (bPerson) Shooter->ShotAt = Real;   // the kick on his upper body (ApplyPerson); his flash comes as an Effect, at his rifle
+	if (bPerson)   // live 2026-11-25: a player's RPG drew as a rifle with no launch - say once per man, weapon slot and category what HROT sent
+	{
+		static TSet<int64> Said;
+		const int64 Key = (int64(D.ShooterId) << 16) | (int64(D.WeaponSlot) << 8) | int64(D.WeaponCategory);
+		if (!Said.Contains(Key))
+		{
+			Said.Add(Key);
+			const TArray<FString>* M = MountCategories.Find(Shooter->TypeId);
+			UE_LOG(LogHrotDpsWorld, Display, TEXT("person fire: %s (%d) slot %d category %d munition %lld; held slot %d = %s; type %lld mounts [%s]"),
+				*Shooter->Name, D.ShooterId, int32(D.WeaponSlot), int32(D.WeaponCategory), (long long)D.MunitionTypeId, int32(Shooter->ActiveSlot),
+				M && M->IsValidIndex(Shooter->ActiveSlot) ? *(*M)[Shooter->ActiveSlot] : TEXT("?"), (long long)Shooter->TypeId, M ? *FString::Join(*M, TEXT(",")) : TEXT("none"));
+		}
+	}
 	FVector From = HrotDpsMotion::ToUnreal(FVector3d(D.Origin.X, D.Origin.Y, D.Origin.Z), OriginCm);
 	FTransform Muzzle;
 	if (bPerson && MuzzleOfPerson(Shooter->Actor.Get(), Muzzle)) From = Muzzle.GetLocation();   // the round leaves HIS rifle on screen
