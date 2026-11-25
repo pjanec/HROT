@@ -1395,6 +1395,43 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // hit, shooter unknown
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8328</c> — contact is a UNIT state: a man with an EMPTY memory and no recent fire is NOT threatened while his squad's pool is
+        /// empty, IS threatened while it holds a live enemy within small-arms range (he moves by rushes with his squad), and is NOT when that
+        /// contact is dead, or beyond <see cref="TacticalGait.SquadContactMetres"/>. 📐 live village-street-fight: Blue Squad 1 Rifleman 3 walked
+        /// 1.9 m/s upright across the open (Threatened 0) while his squad's pool held the enemy.
+        /// 🔴 Red-proof: the squad branch skipped ⇒ the "live contact" row is not threatened ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8328_AManWhoseSquadIsInContact_IsThreatened_EvenWithAnEmptyMemory()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var commander = w.Repo.CreateEntity();
+            w.Repo.AddComponent(commander, new Fdp.Toolkit.Squad.SquadCognitiveState());
+            w.Repo.AddComponent(w.Unit, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+            var enemy = w.Repo.CreateEntity();
+            w.Repo.AddComponent(enemy, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+
+            void Pool(Entity who, Vector3 at)
+            {
+                ref var squad = ref w.Repo.GetComponentRW<Fdp.Toolkit.Squad.SquadCognitiveState>(commander);
+                var slots = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                    ref System.Runtime.CompilerServices.Unsafe.As<Fdp.Toolkit.Squad.SquadContactPoolSlots, Fdp.Toolkit.Squad.SquadContact>(ref squad.Contacts.Contacts), 16);
+                slots[0] = new Fdp.Toolkit.Squad.SquadContact { EntityId = (long)who.PackedValue, PositionX = at.X, PositionY = at.Y, ThreatScore = 0.9f };
+                squad.Contacts.Count = who.IsNull ? (byte)0 : (byte)1;
+            }
+
+            Assert.False(TacticalGait.Threatened(w.Repo, w.Unit), "his squad's pool is empty");
+            Pool(enemy, new Vector3(120f, 0f, 0f));
+            Assert.True(TacticalGait.Threatened(w.Repo, w.Unit), "his squad holds a live enemy in range");
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 0f;
+            Assert.False(TacticalGait.Threatened(w.Repo, w.Unit), "the contact is dead");
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 100f;
+            Pool(enemy, new Vector3(600f, 0f, 0f));
+            Assert.False(TacticalGait.Threatened(w.Repo, w.Unit), "the contact is beyond small-arms range");
+        }
+
         // ── ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire: docs/blueprints/Architect_Question_96_Movement_Under_Fire.md ────
 
         /// <summary>A soldier on the move, as the dispatcher leaves him: the move issued through the one helper and its intent written.</summary>
