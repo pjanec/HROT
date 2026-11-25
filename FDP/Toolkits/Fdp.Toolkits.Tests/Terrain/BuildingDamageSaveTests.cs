@@ -74,6 +74,62 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(before.NavHash, after.NavHash);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11054</c> — a scorched rim is how a hole LOOKS, so the cause and the kg are SAVED (per breach, and the collapse's) and a load restores them; the actor (a vehicle's network id) and the time / blast point
+        /// are NOT (they mean nothing after a load). A save written before this (no cause, no kg) loads as Unknown / 0. The cause is written as text, omitted when Unknown.
+        /// 🔴 Red-proof: drop the cause column in <c>BuildingDamageJson.Write</c> ⇒ the reload reads Unknown; drop the kg ⇒ 0; drop <c>SetCollapse</c> in <c>BuildingDamageLoad.Resolve</c> ⇒ the collapse reads Unknown.
+        /// </summary>
+        [Fact]
+        public void CE11054_TheCauseAndKg_SurviveASaveAndLoad_TheActorDoesNot_AnOldSaveReadsUnknown()
+        {
+            var w = BreachFixtures.House();
+            int south = BreachFixtures.SouthWall(w);
+            using var repo = World(w);
+            var d = new BuildingDamage { Building = 0 };
+            var at = new System.Numerics.Vector3(1, 2, 3);
+            BuildingDamages.Add(ref d, new WallBreach(south, 1f, 2f, 0f, 2f, BreachKind.Hole), null, new BreachOrigin(new SimInstant(5d), at, BreachCause.Detonation, 25f, 0));
+            BuildingDamages.Add(ref d, new WallBreach(south, 4f, 5.2f, 0f, 2.2f, BreachKind.Passage), null, new BreachOrigin(new SimInstant(6d), at, BreachCause.Ram, 0f, 4711));
+            BuildingDamages.Add(ref d, new WallBreach(south, 8f, 8.6f, 1.1f, 1.6f, BreachKind.Hole), null, new BreachOrigin(new SimInstant(7d), at, BreachCause.Unknown, 0f, 0));
+            d.Collapsed = 1; d.SetCollapse(BreachCause.Detonation, at, 120f);
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, d);
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = BuildingDamages.KeyOf(w, 0) });
+
+            var section = TerrainObjectsSection.Write(repo)!;
+            var entry = (JsonObject)section["range/H"]!;
+            var rows = entry["breaches"]!.AsArray();
+            Assert.Equal(3, rows.Count);
+            Assert.Equal(["detonation", "ram"], rows.Where(r => r!.AsArray().Count > 6).Select(r => (string)r![6]!).Order(StringComparer.Ordinal).ToArray());
+            Assert.Single(rows, r => r!.AsArray().Count == 6);   // Unknown writes nothing extra: the row is the old shape
+            Assert.Equal("detonation", (string)entry["collapseCause"]!);
+            Assert.Equal(120f, (float)entry["collapseKg"]!);
+
+            var dom = new JsonObject { [TerrainObjectsSection.Name] = JsonNode.Parse(section.ToJsonString()) };
+            var loaded = BuildingDamageLoad.Resolve(w, TerrainObjectsSection.ReadBuildingDamage(dom), null).Single().Entities.Single();
+            var causes = Enumerable.Range(0, loaded.Count).ToDictionary(i => loaded.Get(i).From, i => (loaded.CauseOf(i), loaded.ExplosiveKgOf(i), loaded.ActorOf(i), loaded.MadeAtOf(i).Seconds));
+            Assert.Equal((BreachCause.Detonation, 25f, 0, 0d), causes[1f]);
+            Assert.Equal((BreachCause.Ram, 0f, 0, 0d), causes[4f]);          // the actor and the time are not saved
+            Assert.Equal((BreachCause.Unknown, 0f, 0, 0d), causes[8f]);
+            Assert.Equal((BreachCause.Detonation, 120f), ((BreachCause)loaded.CollapseCause, loaded.CollapseKg));
+
+            // a save from before CE-11054: six-element rows, no collapse cause ⇒ Unknown / 0
+            var old = (JsonObject)JsonNode.Parse("""{ "TerrainObjects": { "range/H": { "collapsed": true, "breaches": [ [0, 4, 6, 0, 2.2, "passage"] ] } } }""")!;
+            var oldLoaded = BuildingDamageLoad.Resolve(w, TerrainObjectsSection.ReadBuildingDamage(old), null).Single().Entities.Single();
+            Assert.Equal((BreachCause.Unknown, 0f, BreachCause.Unknown, 0f), (oldLoaded.CauseOf(0), oldLoaded.ExplosiveKgOf(0), (BreachCause)oldLoaded.CollapseCause, oldLoaded.CollapseKg));
+        }
+
+        /// <summary>⭐ <c>CE-11054</c> — two slices of a distributed save that hold the same breach merge their causes the way a live merge does (Detonation wins, the larger kg), through the section's own union.</summary>
+        [Fact]
+        public void CE11054_TwoSavedSlices_MergeTheirCauses_DetonationWins()
+        {
+            var a = JsonNode.Parse("""{ "breaches": [ [0, 4, 6, 0, 2.2, "passage", "ram"] ] }""")!.AsObject();
+            var b = JsonNode.Parse("""{ "breaches": [ [0, 4, 6, 0, 2.2, "passage", "detonation", 40] ], "collapsed": true, "collapseCause": "detonation", "collapseKg": 90 }""")!.AsObject();
+            var merged = TerrainObjectsSection.MergeBuildingDamage("range/H", a, b);
+            var row = merged["breaches"]!.AsArray().Single()!.AsArray();
+            Assert.Equal(("detonation", 40f), ((string)row[6]!, (float)row[7]!));
+            Assert.Equal(("detonation", 90f), ((string)merged["collapseCause"]!, (float)merged["collapseKg"]!));
+        }
+
         /// <summary>An untouched building writes nothing: no entity, an empty entity, a foreign-owned one — no section at all. 🔴 Red-proof: drop the empty-entry removal ⇒ an entry for an empty entity.</summary>
         [Fact]
         public void AnUntouchedBuilding_WritesNothing()

@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ CE-4629 ② — the ONE multi-panel cut (ContactBreach.CutAlong, R-5008): a stepped wall's pieces are ≤ 2 m (CE-5015), so a one-panel clamp left a gap
             //   narrower than the blade
             _cut.Clear();
-            global::CarKinem.Controllers.ContactBreach.CutAlong(world, panel, along, width, by, _cut, buildings: true, source: hull);   // ⭐ CE-11051 — the hull is the "blast point"
+            global::CarKinem.Controllers.ContactBreach.CutAlong(world, panel, along, width, by, _cut, buildings: true, source: hull, cause: BreachCause.Blade);   // ⭐ CE-11051 — the hull is the "blast point"
             foreach (var ev in _cut) repo.Bus.Publish(ev);
         }
 

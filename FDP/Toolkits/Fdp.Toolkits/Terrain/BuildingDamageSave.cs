@@ -15,6 +15,19 @@ namespace Fdp.Toolkit.Terrain
         public List<WallBreach> Breaches { get; } = new();
         public bool Collapsed { get; set; }
 
+        /// <summary>⭐ <c>CE-11054</c> — what made each breach look as it does (saved: a scorched rim is how the hole LOOKS): its <see cref="BreachCause"/> and explosive kg. A breach with no entry is Unknown / 0
+        /// (an old save). ⛔ Not the actor (a vehicle's id does not survive a load) and not the time or blast point (a time means nothing after a load).</summary>
+        public Dictionary<WallBreach, (BreachCause Cause, float Kg)> Origins { get; } = new();
+
+        /// <summary>⭐ <c>CE-11054</c> — what collapsed the building and with how many kg (Unknown / 0 = not stated).</summary>
+        public BreachCause CollapseCause { get; set; }
+        public float CollapseKg { get; set; }
+
+        /// <summary>⭐ <c>CE-11054</c> — the cause / kg of two origins of one hole: Detonation wins (any blast in it ⇒ scorched), else <paramref name="newer"/> (the older when the newer is Unknown); kg the larger.</summary>
+        public static (BreachCause Cause, float Kg) Merge((BreachCause Cause, float Kg) newer, (BreachCause Cause, float Kg) older)
+            => (newer.Cause == BreachCause.Detonation || older.Cause == BreachCause.Detonation ? BreachCause.Detonation : newer.Cause != BreachCause.Unknown ? newer.Cause : older.Cause,
+                MathF.Max(newer.Kg, older.Kg));
+
         private static int Order(in WallBreach a, in WallBreach b)
         {
             int c = a.Panel.CompareTo(b.Panel); if (c != 0) return c;
@@ -27,6 +40,14 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>Adds <paramref name="b"/> unless an equal breach is already there (the union of two slices holding the same one).</summary>
         public void AddDistinct(in WallBreach b) { if (!Breaches.Contains(b)) Breaches.Add(b); }
+
+        /// <summary>⭐ <c>CE-11054</c> — <see cref="AddDistinct(in WallBreach)"/> that also remembers the breach's cause and kg (merged by <see cref="Merge"/> when the same breach arrives twice).</summary>
+        public void AddDistinct(in WallBreach b, BreachCause cause, float kg)
+        {
+            AddDistinct(b);
+            if (cause == BreachCause.Unknown && kg == 0f) return;
+            Origins[b] = Origins.TryGetValue(b, out var have) ? Merge((cause, kg), have) : (cause, kg);
+        }
 
         /// <summary>⭐ <c>CE-5033</c> (glass windows GW-2) — the damaged windows, <see cref="WindowEntry.Panel"/> = the index within the building, sorted by (panel, opening).</summary>
         public List<WindowEntry> Windows { get; } = new();
@@ -42,8 +63,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The union of <paramref name="other"/> into this: breaches distinct, collapsed OR-ed, windows by the most hits.</summary>
         public void UnionWith(SavedBuildingDamage other)
         {
-            foreach (var b in other.Breaches) AddDistinct(b);
+            foreach (var b in other.Breaches) AddDistinct(b, other.Origins.TryGetValue(b, out var o) ? o.Cause : BreachCause.Unknown, o.Kg);
             Collapsed |= other.Collapsed;
+            (CollapseCause, CollapseKg) = Merge((other.CollapseCause, other.CollapseKg), (CollapseCause, CollapseKg));
             foreach (var w in other.Windows) AddWindow(w);
         }
 
@@ -220,6 +242,43 @@ namespace Fdp.Toolkit.Terrain
             return l >= 0 && l < keys.Length ? keys[l] : null;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — THE outward normal of wall panel <paramref name="panel"/> (global index): the left-hand perpendicular of A→B, flipped to face AWAY from its building's footprint centre
+        /// (<see cref="BuildingFires.Extent"/>). A free-wall panel (no building) has no inside: the left-hand perpendicular of A→B as it is. Unit length; a zero-length panel gives +X. Allocation-free.
+        /// Used by the building fire (<see cref="BuildingFires.NearestBurnableWall"/>) and by whoever draws a breach's rim (the gateway).
+        /// </summary>
+        public static System.Numerics.Vector2 OutwardNormal(TerrainWorld world, int panel)
+        {
+            var w = world.Panels[panel];
+            return OutwardNormal(world, panel, (w.A + w.B) * 0.5f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — <see cref="OutwardNormal(TerrainWorld, int)"/> with the side decided at <paramref name="at"/> (a point on the wall): the same answer for a convex footprint wherever on the wall it is taken.
+        /// </summary>
+        public static System.Numerics.Vector2 OutwardNormal(TerrainWorld world, int panel, System.Numerics.Vector2 at)
+        {
+            var w = world.Panels[panel];
+            var ab = w.B - w.A;
+            var n = ab.LengthSquared() > 1e-9f ? System.Numerics.Vector2.Normalize(new System.Numerics.Vector2(-ab.Y, ab.X)) : System.Numerics.Vector2.UnitX;
+            if ((uint)w.Building >= (uint)world.Buildings.Count) return n;   // a free wall: no inside, the left-hand side
+            var (centre, _) = BuildingFires.Extent(world.Buildings[w.Building]);
+            return System.Numerics.Vector2.Dot(n, at - centre) >= 0f ? n : -n;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — the world centre of breach <paramref name="b"/>: A + dir × (From + To) / 2 along its panel (terrain-local metres), z = (Bottom + Top) / 2. Allocation-free.
+        /// </summary>
+        public static System.Numerics.Vector3 BreachCentre(TerrainWorld world, in WallBreach b)
+        {
+            var p = world.Panels[b.Panel];
+            var ab = p.B - p.A;
+            float len = ab.Length();
+            var dir = len > 1e-6f ? ab / len : System.Numerics.Vector2.UnitX;
+            var at = p.A + dir * ((b.From + b.To) * 0.5f);
+            return new System.Numerics.Vector3(at.X, at.Y, (b.Bottom + b.Top) * 0.5f);
+        }
+
         /// <summary>Where a group's damage entity stands: a building's position, a line's first post (its base).</summary>
         public static System.Numerics.Vector3 Anchor(TerrainWorld world, int group)
         {
@@ -236,6 +295,22 @@ namespace Fdp.Toolkit.Terrain
     {
         public const string BreachesProperty = "breaches";
         public const string CollapsedProperty = "collapsed";
+        /// <summary>⭐ CE-11054 — what collapsed it ("detonation" ...) and with how many kg; omitted when not stated. A breach row may carry a 7th element, its cause, and an 8th, its kg (both omitted when Unknown / 0).</summary>
+        public const string CollapseCauseProperty = "collapseCause", CollapseKgProperty = "collapseKg";
+
+        private static string? CauseName(BreachCause c) => c switch
+        {
+            BreachCause.Detonation => "detonation", BreachCause.Ram => "ram", BreachCause.Blade => "blade", BreachCause.Push => "push", _ => null,
+        };
+
+        private static bool TryCause(string? name, out BreachCause cause)
+        {
+            cause = name?.ToLowerInvariant() switch
+            {
+                "detonation" => BreachCause.Detonation, "ram" => BreachCause.Ram, "blade" => BreachCause.Blade, "push" => BreachCause.Push, "unknown" => BreachCause.Unknown, _ => (BreachCause)255,
+            };
+            return cause != (BreachCause)255;
+        }
         /// <summary>⭐ CE-5033 — the damaged windows: <c>[panel, opening, hits, u0, v0, u1, v1]</c> each (panel within the building; hits 3 = broken; u, v 0..255).</summary>
         public const string WindowsProperty = "windows";
 
@@ -249,11 +324,24 @@ namespace Fdp.Toolkit.Terrain
             {
                 var rows = new JsonArray();
                 foreach (var b in d.Breaches)
-                    rows.Add(new JsonArray(JsonValue.Create(b.Panel), JsonValue.Create(b.From), JsonValue.Create(b.To), JsonValue.Create(b.Bottom), JsonValue.Create(b.Top),
-                        JsonValue.Create(b.Kind == BreachKind.Passage ? "passage" : "hole")));
+                {
+                    var row = new JsonArray(JsonValue.Create(b.Panel), JsonValue.Create(b.From), JsonValue.Create(b.To), JsonValue.Create(b.Bottom), JsonValue.Create(b.Top),
+                        JsonValue.Create(b.Kind == BreachKind.Passage ? "passage" : "hole"));
+                    if (d.Origins.TryGetValue(b, out var org) && (org.Cause != BreachCause.Unknown || org.Kg > 0f))   // ⭐ CE-11054 — the cause (and kg) only when stated: a save without them stays as before
+                    {
+                        row.Add(JsonValue.Create(CauseName(org.Cause) ?? "unknown"));
+                        if (org.Kg > 0f) row.Add(JsonValue.Create(org.Kg));
+                    }
+                    rows.Add(row);
+                }
                 o[BreachesProperty] = rows;
             }
-            if (d.Collapsed) o[CollapsedProperty] = true;
+            if (d.Collapsed)
+            {
+                o[CollapsedProperty] = true;
+                if (CauseName(d.CollapseCause) is { } cc) o[CollapseCauseProperty] = cc;   // ⭐ CE-11054
+                if (d.CollapseKg > 0f) o[CollapseKgProperty] = d.CollapseKg;
+            }
             if (d.Windows.Count > 0)
             {
                 var rows = new JsonArray();
@@ -287,7 +375,7 @@ namespace Fdp.Toolkit.Terrain
                 foreach (var row in rows)
                 {
                     string r = $"{at}.breaches[{n++}]";
-                    if (row is not JsonArray a || a.Count != 6) throw new InvalidOperationException($"{r} is not [panel, from, to, bottom, top, kind].");
+                    if (row is not JsonArray a || a.Count < 6 || a.Count > 8) throw new InvalidOperationException($"{r} is not [panel, from, to, bottom, top, kind] (optionally followed by a cause and a kg).");
                     if (!Num(a[0], out double p) || p < 0 || p != Math.Floor(p) || p > int.MaxValue) throw new InvalidOperationException($"{r}: the panel '{a[0]}' is not a panel index.");
                     if (!Num(a[1], out double from) || !Num(a[2], out double to) || !Num(a[3], out double bottom) || !Num(a[4], out double top))
                         throw new InvalidOperationException($"{r}: from, to, bottom and top must be numbers.");
@@ -295,14 +383,34 @@ namespace Fdp.Toolkit.Terrain
                     if (a[5] is not JsonValue kv || !kv.TryGetValue(out string? k)
                         || !(string.Equals(k, "hole", StringComparison.OrdinalIgnoreCase) || string.Equals(k, "passage", StringComparison.OrdinalIgnoreCase)))
                         throw new InvalidOperationException($"{r}: the kind '{a[5]}' is not 'hole' or 'passage'.");
+                    var cause = BreachCause.Unknown;
+                    float kg = 0f;
+                    if (a.Count >= 7 && (a[6] is not JsonValue cv2 || !cv2.TryGetValue(out string? cs) || !TryCause(cs, out cause)))
+                        throw new InvalidOperationException($"{r}: the cause '{a[6]}' is not 'detonation', 'ram', 'blade' or 'push'.");
+                    if (a.Count == 8)
+                    {
+                        if (!Num(a[7], out double kgv) || kgv < 0) throw new InvalidOperationException($"{r}: the kg '{a[7]}' is not a number of at least 0.");
+                        kg = (float)kgv;
+                    }
                     d.AddDistinct(new WallBreach((int)p, (float)from, (float)to, (float)bottom, (float)top,
-                        string.Equals(k, "passage", StringComparison.OrdinalIgnoreCase) ? BreachKind.Passage : BreachKind.Hole));
+                        string.Equals(k, "passage", StringComparison.OrdinalIgnoreCase) ? BreachKind.Passage : BreachKind.Hole), cause, kg);   // ⭐ CE-11054 — absent ⇒ Unknown / 0
                 }
             }
             if (entry[CollapsedProperty] is { } cn)
             {
                 if (cn is not JsonValue cv || !cv.TryGetValue(out bool c)) throw new InvalidOperationException($"{at}.collapsed is not true or false.");
                 d.Collapsed = c;
+            }
+            if (entry[CollapseCauseProperty] is { } ccn)   // ⭐ CE-11054
+            {
+                if (ccn is not JsonValue ccv || !ccv.TryGetValue(out string? ccs) || !TryCause(ccs, out var collapseCause))
+                    throw new InvalidOperationException($"{at}.collapseCause '{ccn}' is not a cause name.");
+                d.CollapseCause = collapseCause;
+            }
+            if (entry[CollapseKgProperty] is { } ckn)
+            {
+                if (!Num(ckn, out double ck) || ck < 0) throw new InvalidOperationException($"{at}.collapseKg '{ckn}' is not a number of at least 0.");
+                d.CollapseKg = (float)ck;
             }
             if (entry[WindowsProperty] is { } wn)
             {
@@ -354,6 +462,7 @@ namespace Fdp.Toolkit.Terrain
                 var s = saved[key];
                 var entities = new List<BuildingDamage>();
                 var d = new BuildingDamage { Building = building, Collapsed = (byte)(s.Collapsed && WallGroups.IsBuilding(world, building) ? 1 : 0) };
+                if (d.Collapsed != 0) d.SetCollapse(s.CollapseCause, default, s.CollapseKg);   // ⭐ CE-11054 — how it looks, not when
                 bool any = s.Collapsed;
                 foreach (var b in s.Breaches)
                 {
@@ -365,6 +474,7 @@ namespace Fdp.Toolkit.Terrain
                     }
                     if (d.Count == BuildingDamage.Capacity) { entities.Add(d); d = new BuildingDamage { Building = building }; }
                     d.Set(d.Count, b with { Panel = global });
+                    if (s.Origins.TryGetValue(b, out var origin)) d.SetOrigin(d.Count, new BreachOrigin(default, default, origin.Cause, origin.Kg));   // ⭐ CE-11054 — time 0 = from a save, the cause and kg are kept
                     d.Count++;
                     any = true;
                 }

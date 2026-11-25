@@ -116,12 +116,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, senderH);   // the sender's house H is building 1
             int senderSouth = SouthWall(sender);
             var decided = new BuildingDamage { Building = senderH };
-            BuildingDamages.Add(ref decided, new WallBreach(senderSouth, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null, 41.5d, new Vector3(25f, 18f, 1f));   // ⭐ CE-11051 — stamped
-            decided.Collapsed = 1; decided.CollapsedAt = 44d;
+            BuildingDamages.Add(ref decided, new WallBreach(senderSouth, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null, new BreachOrigin(new SimInstant(41.5d), new Vector3(25f, 18f, 1f), BreachCause.Detonation, 25f, 4711));   // ⭐ CE-11051 / CE-11054 — stamped
+            decided.Collapsed = 1; decided.CollapsedAt = 44d; decided.SetCollapse(BreachCause.Detonation, new Vector3(26f, 19f, 2f), 120f);
             var sample = EntityBuildingDamageEgressTranslator.ToSample(5203, decided, "range/H", sender);
             Assert.True(EntityBuildingDamageEgressTranslator.Matches(in sample, in decided, "range/H", sender));
             var restamped = decided; restamped.SetStamp(0, 42d, new Vector3(25f, 18f, 1f));
             Assert.False(EntityBuildingDamageEgressTranslator.Matches(in sample, in restamped, "range/H", sender));   // a new time alone is a change to send
+            // ⭐ CE-11054 — each new field alone is a change to send: the cause, the kg, the actor, and the collapse's cause / blast point / kg
+            var o = decided.OriginOf(0);
+            foreach (var changed in new[] { o with { Cause = BreachCause.Ram }, o with { ExplosiveKg = 26f }, o with { Actor = 4712 } })
+            {
+                var other = decided; other.SetOrigin(0, in changed);
+                Assert.False(EntityBuildingDamageEgressTranslator.Matches(in sample, in other, "range/H", sender), changed.ToString());
+                Assert.False(EntityBuildingDamageEgressTranslator.Same(in sample, EntityBuildingDamageEgressTranslator.ToSample(5203, other, "range/H", sender)), changed.ToString());
+            }
+            foreach (var other in new[] { With(decided, (ref BuildingDamage d) => d.SetCollapse(BreachCause.Ram, d.CollapseBlast, d.CollapseKg)), With(decided, (ref BuildingDamage d) => d.SetCollapse((BreachCause)d.CollapseCause, new Vector3(0, 0, 1), d.CollapseKg)),
+                                          With(decided, (ref BuildingDamage d) => d.SetCollapse((BreachCause)d.CollapseCause, d.CollapseBlast, 121f)) })
+                Assert.False(EntityBuildingDamageEgressTranslator.Matches(in sample, in other, "range/H", sender));
+            Assert.Equal(((byte)BreachCause.Detonation, 25f, 4711, (byte)BreachCause.Detonation, 120f), (sample.Breaches![0].Cause, sample.Breaches[0].ExplosiveKg, sample.Breaches[0].Actor, sample.CollapseCause, sample.CollapseKg));
             decided.Collapsed = 0; decided.CollapsedAt = 0d;
             sample = EntityBuildingDamageEgressTranslator.ToSample(5203, decided, "range/H", sender);
 
@@ -136,7 +148,16 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(SouthWall(terrain), got.Get(0).Panel);
             Assert.Equal(41.5d, got.MadeAtOf(0).Seconds);                                  // ⭐ CE-11051 — the time and the blast point cross the wire
             Assert.Equal(new Vector3(25f, 18f, 1f), got.BlastOf(0));
+            Assert.Equal((BreachCause.Detonation, 25f, 4711), (got.CauseOf(0), got.ExplosiveKgOf(0), got.ActorOf(0)));   // ⭐ CE-11054 — the cause, the kg and the actor cross the wire
             Assert.False(terrain.SegmentBlocked(new Vector3(25f, 15f, 1.5f), new Vector3(25f, 25f, 1.5f), DoorStates.Of(replica, terrain)));   // the passage is in THIS node's south wall
+        }
+
+        private delegate void Edit(ref BuildingDamage d);
+
+        private static BuildingDamage With(BuildingDamage d, Edit apply)
+        {
+            apply(ref d);   // a struct: the copy is what changes
+            return d;
         }
 
         /// <summary>
@@ -276,6 +297,7 @@ namespace Hrot.SimHost.Tests
         {
             using var replica = World(out var terrain);
             var original = new BuildingDamage { Building = 0, Collapsed = 1, CollapsedAt = 77d };
+            original.SetCollapse(BreachCause.Detonation, new Vector3(3f, 4f, 5f), 90f);   // ⭐ CE-11054
             var sample = EntityBuildingDamageEgressTranslator.ToSample(5201, original, "range/H");
             Assert.Equal(1, sample.Collapsed);
             Assert.Equal(77d, sample.CollapsedAt);   // ⭐ CE-11051
@@ -286,6 +308,8 @@ namespace Hrot.SimHost.Tests
             Assert.True(damage.Collapsed(0));
             Assert.True(map.TryGetEntity(5201, out var ghost));
             Assert.Equal(77d, replica.GetComponentRO<BuildingDamage>(ghost).CollapsedAt);   // ⭐ CE-11051 — the collapse's time crosses the wire
+            var got = replica.GetComponentRO<BuildingDamage>(ghost);
+            Assert.Equal((BreachCause.Detonation, new Vector3(3f, 4f, 5f), 90f), ((BreachCause)got.CollapseCause, got.CollapseBlast, got.CollapseKg));   // ⭐ CE-11054 — what collapsed it crosses too
             Assert.Single(damage.Rubble);
             Assert.False(terrain.SegmentBlocked(new Vector3(15f, 24f, 1.6f), new Vector3(35f, 24f, 1.6f), DoorStates.Of(replica, terrain)));   // across the former interior, above the mound
             Assert.True(terrain.SegmentBlocked(new Vector3(15f, 24f, 0.5f), new Vector3(35f, 24f, 0.5f), DoorStates.Of(replica, terrain)));    // …and the mound stops the low one

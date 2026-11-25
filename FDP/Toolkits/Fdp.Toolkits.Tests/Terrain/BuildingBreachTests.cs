@@ -430,6 +430,45 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         private static int GardenPanel(TerrainWorld w) => Array.FindIndex(w.Panels.ToArray(), p => p.Building < 0);
 
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — THE outward-normal rule (<see cref="WallGroups.OutwardNormal(TerrainWorld, int)"/>): each of the four walls of a box building points AWAY from its footprint centre (unit length, square to
+        /// the wall); a free garden wall has no inside, so it is the left-hand perpendicular of A→B; and <see cref="WallGroups.BreachCentre"/> is the breach's middle on its panel with z mid-height. Allocation-free.
+        /// 🔴 Red-proof: drop the flip (always the left-hand perpendicular) ⇒ the walls wound the other way point inwards; test the flip against a point on the wrong side ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE11054_OutwardNormal_OfEachWallOfABoxBuilding_PointsAwayFromItsCentre_AFreeWallIsItsLeftHand_AndTheBreachCentreIsItsMiddle()
+        {
+            var w = HouseAndGardenWall();
+            var (centre, _) = BuildingFires.Extent(w.Buildings[0]);
+            int walls = 0;
+            for (int i = 0; i < w.Panels.Count; i++)
+            {
+                var p = w.Panels[i];
+                if (p.Building != 0) continue;
+                walls++;
+                var n = WallGroups.OutwardNormal(w, i);
+                Assert.Equal(1f, n.Length(), 4);
+                Assert.Equal(0f, Vector2.Dot(n, Vector2.Normalize(p.B - p.A)), 4);                         // square to the wall
+                Assert.True(Vector2.Dot(n, (p.A + p.B) * 0.5f - centre) > 0f, $"panel {i}: the normal {n} points inwards");   // away from the centre
+                Assert.Equal(n, WallGroups.OutwardNormal(w, i, p.A + (p.B - p.A) * 0.25f));                // the same wherever on the wall the side is decided
+            }
+            Assert.Equal(4, walls);
+
+            int garden = GardenPanel(w);
+            var g = w.Panels[garden];
+            var ab = Vector2.Normalize(g.B - g.A);
+            Assert.Equal(new Vector2(-ab.Y, ab.X), WallGroups.OutwardNormal(w, garden));                   // a free wall: the left-hand perpendicular of A→B
+
+            var breach = new WallBreach(garden, 4f, 6f, 0.2f, 0.8f, BreachKind.Hole);
+            var at = WallGroups.BreachCentre(w, in breach);
+            Assert.Equal(new Vector3(g.A.X + ab.X * 5f, g.A.Y + ab.Y * 5f, 0.5f), at);
+
+            for (int i = 0; i < 20; i++) { WallGroups.OutwardNormal(w, 0); WallGroups.BreachCentre(w, in breach); }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) { WallGroups.OutwardNormal(w, 0); WallGroups.BreachCentre(w, in breach); }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         private static bool HullBlocked(TerrainWorldQuery q, Vector3 a, Vector3 b, List<Fdp.Toolkit.World.TraceCrossing> into)
         {
             q.Trace(a, b, Fdp.Toolkit.World.TracePurpose.Hull, into);
