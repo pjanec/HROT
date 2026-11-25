@@ -143,6 +143,32 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(33d, w2.CollapseAt(33d));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — the collapse carries WHAT collapsed it: the cause (Detonation: only blasts collapse), the blast point and the explosive kg the collapse rule used — born so on a new record, and
+        /// written so on one that already holds breaches. 🔴 Red-proof: drop <c>SetCollapse</c> in <c>ApplyCollapse</c> / <c>Request</c> ⇒ Unknown / 0 kg; drop the cause / kg from the collapse event in
+        /// <c>AreaEffectSystem.CollapseBuildings</c> ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE11054_ACollapse_CarriesItsCauseBlastPointAndKg()
+        {
+            var burst = new Vector3(25f, 24f, 3f + AreaEffect.BurstStandOffMetres);
+            Burst(Bomb, burst);
+            var born = Assert.Single(Tick()).InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal(1, born.Collapsed);
+            Assert.Equal(BreachCause.Detonation, (BreachCause)born.CollapseCause);
+            Assert.True(Vector3.Distance(burst, born.CollapseBlast) < 0.25f, $"collapse blast {born.CollapseBlast}");
+            Assert.True(born.CollapseKg >= 80f, $"the bomb's kg ({born.CollapseKg})");
+
+            // a building that already has a record (a breach) collapses later: the record is written in place
+            using var other = new BuildingCollapseTests();
+            other.Burst(Howitzer, new Vector3(25f, 19.75f, 1.0f));
+            var e = other.Materialise(Assert.Single(other.Tick()));
+            other.Burst(Bomb, burst);
+            Assert.Empty(other.Tick());
+            var d = other._w.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal((1, BreachCause.Detonation, born.CollapseKg), (d.Collapsed, (BreachCause)d.CollapseCause, d.CollapseKg));
+        }
+
         /// <summary>A second fixture: a record made by a breach first, then a collapse written into it.</summary>
         private sealed class CollapseOnARecord : IDisposable
         {

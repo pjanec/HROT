@@ -578,6 +578,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Building = group, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
                     Kind = (byte)breach.Kind, Shooter = evt.Shooter,
                     BlastX = burst.X, BlastY = burst.Y, BlastZ = burst.Z,   // ⭐ CE-11051 — the debris flies away from here
+                    Cause = (byte)Terrain.BreachCause.Detonation, ExplosiveKg = w.ExplosiveKg,   // ⭐ CE-11054 — a blast, and the charge the breach rule used
                 });
                 if (FaceDistance(panel, burst) <= CraterRuleTable.Shared.WallContactM) _spentOnWall = true;   // ⭐ CE-5019 — a contact burst: no crater
                 record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, group)} panel {pi} {breach.Kind} " +
@@ -603,7 +604,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 var building = terrain.Buildings[bi];
                 if (!BreachRule.Collapses(table, building, burst, w.ExplosiveKg)) continue;
                 _collapsedNow.Add(bi);
-                repo.Bus.Publish(new BuildingDamageEvent { Building = bi, Panel = -1, Collapse = 1, Shooter = evt.Shooter, BlastX = burst.X, BlastY = burst.Y, BlastZ = burst.Z });
+                repo.Bus.Publish(new BuildingDamageEvent { Building = bi, Panel = -1, Collapse = 1, Shooter = evt.Shooter, BlastX = burst.X, BlastY = burst.Y, BlastZ = burst.Z,
+                    Cause = (byte)Terrain.BreachCause.Detonation, ExplosiveKg = w.ExplosiveKg });   // ⭐ CE-11054
                 record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, bi)} COLLAPSED");
                 float baseZ = building.StoreyZ.Count > 0 ? building.StoreyZ[0] : building.BaseZ;
                 float roofZ = building.StoreyZ.Count > 1 ? building.StoreyZ[building.StoreyZ.Count - 1] : baseZ + 3f;

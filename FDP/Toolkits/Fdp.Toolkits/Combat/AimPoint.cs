@@ -154,12 +154,12 @@ namespace Fdp.Toolkit.Combat
                 if (panel.Building != building || panel.Openings.Count == 0) continue;
                 float length = Vector2.Distance(panel.A, panel.B);
                 if (length < 1e-3f) continue;
-                var dir = (panel.B - panel.A) / length;
                 for (int oi = 0; oi < panel.Openings.Count; oi++)
                 {
                     var op = panel.Openings[oi];
                     if (op.HeadZ < feet.Z + StoreyBandLow || op.SillZ > feet.Z + StoreyBandHigh) continue;   // another storey's opening
-                    var centre = panel.A + dir * (op.At + op.Width * 0.5f);
+                    var centre3 = Fdp.Toolkit.Terrain.WallGroups.OpeningCentre(terrain, pi, oi);   // ⭐ CE-11058 — the one rule that places an opening
+                    var centre = new Vector2(centre3.X, centre3.Y);
                     float z = System.Math.Clamp(feet.Z + OpeningAimHeight, op.SillZ + OpeningMargin, System.Math.Max(op.SillZ + OpeningMargin, op.HeadZ - OpeningMargin));
                     var target = new Vector3(centre.X, centre.Y, z);
                     // judged to the near side of the opening (its glass, if any, is what the round meets there)

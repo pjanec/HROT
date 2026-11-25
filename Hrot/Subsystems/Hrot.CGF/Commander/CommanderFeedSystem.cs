@@ -540,6 +540,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             string name = world.IsAlive(squad) ? NameOf(world, squad) : $"squad {i + 1}";
             Publish(seat, FeedKind.Event, now, true, $"{Clock(now)} {name.ToUpperInvariant()}: out of the fight",
                     new JsonObject { ["kind"] = "event", ["t"] = Round(now), ["event"] = "combat-ineffective", ["squad"] = name }.ToJsonString());
+            seat.Watch.UnitLeft(world, seat, squad, now);   // ⭐ CE-4687 — what waits on it to arrive / finish / make contact can never hold: dropped and said
         }
     }
 
