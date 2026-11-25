@@ -81,6 +81,95 @@
           }
         ]
       }
+    },
+    {
+      "name": "DIAG Truck 1 y > 20",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 20
+    },
+    {
+      "name": "DIAG Truck 1 y > 40",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 40
+    },
+    {
+      "name": "DIAG Truck 1 y > 52",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 52
+    },
+    {
+      "name": "DIAG Truck 1 y > 58",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 58
+    },
+    {
+      "name": "DIAG Truck 1 y > 62",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 62
+    },
+    {
+      "name": "DIAG Truck 1 y > 80",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 80
+    },
+    {
+      "name": "DIAG Truck 1 y > 120",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 120
+    },
+    {
+      "name": "DIAG Truck 1 y > 132",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 132
+    },
+    {
+      "name": "DIAG Truck 1 runs MoveToLocation",
+      "on": "task",
+      "who": "Truck 1",
+      "is": "MoveToLocation"
+    },
+    {
+      "name": "DIAG Truck 1 x at the end",
+      "on": "field",
+      "who": "Truck 1",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 79.0,
+      "atEnd": true
+    },
+    {
+      "name": "DIAG the engineer moved aside",
+      "on": "near",
+      "who": "Engineer",
+      "point": [
+        56.0,
+        34.0
+      ],
+      "within": 6
     }
   ]
 }

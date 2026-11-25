@@ -37,6 +37,12 @@
       "atEnd": true
     },
     {
+      "name": "the sapper makes his run for the deck",
+      "on": "task",
+      "who": "Red Sapper",
+      "is": "MoveToLocation"
+    },
+    {
       "name": "the sapper never sets off his charge",
       "never": {
         "on": "blast",
