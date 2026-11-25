@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - designs/engineering/DESIGN_Bridge_Laying.md — a laid / recovered / destroyed bridge: adds a WALKABLE contribution to the obstacle bake (P-7a)
   - DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS P-0…P-6 (house pads, road corridors, road blockage, craters, the ground-shaping tool, ditches, foxholes); ⭐ §9 its review wins over the rows it names; acceptance §6
   - DESIGN_Vehicle_Breaching.md — OWNS B-1…B-6 (a player's vehicle breaks weak barriers, the bulldozer cuts on order, lone trees felled); ⭐ §7 its review wins over the rows it names; acceptance §6 + §7.5
   - DESIGN_Terrain_Import_UTM.md — OWNS §8 runtime destruction (`BuildingDamage`, the bake, save, seek) both designs extend; §9.6 T-4 amended by R-4241
