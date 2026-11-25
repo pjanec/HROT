@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-25 (rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
+updated: 2026-11-25 (rev 4 — §12 BL-S3/S4 designed by backend, CE-4693; rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
 build-state: BUILDING — BL-S1/S2 built by terrain (CE-4692, §11); BL-S3/S4 to backend (CE-4693)
-current-answer: §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates
+current-answer: §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates · §12 BL-S3/S4 the engineer (backend's design, READY-TO-BUILD)
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge entity + a side surface table)
 known-rot: none
 known-conflict: none
@@ -264,6 +264,111 @@ sequenceDiagram
 Rails: `FeatureKindsTests.CE4692_TheAuthoredBridge_AndALaidDeck_AreTheOneDeckGeometry` · `StaticObstacleBakeTests.CE4692_ALaidBridge_IsBakedIncrementally_…` ·
 `BridgeClosureTests.CE4692_ALaidBridge_IsRoadWhileItStandsOpen_…` · `ObstacleDamageTests.CE4692_AChargeAtTheSpansFarEnd_DropsIt_…`. Scenarios: `bl-placed-bridge`,
 `bl-placed-bridge-absent` (the handoff's "second variant" — the runner has no variants), `bl-blow-the-bridge` (`scripts/bridge_laying_scenarios.py`).
+
+## 12. BL-S3 / BL-S4 — the engineer: design (backend, CE-4693, `2026-11-25`; `build-state: READY-TO-BUILD`)
+
+⭐ The handoff's frame is kept; three details decided here, each against a measured precedent:
+① **one writer per component** — the handoff's `BridgeCarried` held both the brain's order and the mover's progress / count. The brain and the
+mover may be two nodes (BL-10), and a replicated component has ONE owner, so: the BRAIN writes `BridgeCarried` (what it is told to do and how many
+spans it carries); the MOVER keeps its progress in its own system (the `DozerCutSystem` precedent, `BladeCut.cs:57`) and its RESULT is the bridge
+obstacle itself — spawned through the ONE creation request (the `WreckObstacleSystem` precedent, `WreckObstacleSystem.cs:94`) and recovered through
+the ONE network destroy (`NetworkEntityDestroy.Request`, as `ObstacleRemovalSystem`), ⛔ never Health 0 — Health 0 is a demolition and drops whoever
+stands on the deck into the river (`WaterFallSystem`). The brain sees the result (the obstacle appears / is gone) and updates its own count.
+② **the engineer's figures live on the ENGINEER** (`BridgeLayerDto`: the bridge type it carries, how many, the longest gap, build and recover
+seconds, the source) — the span's own size stays terrain's `StaticObstacleDto` (8825 / 8826), its figures replaced by the sourced ones (Q-6).
+③ **the orders are kinds** (`OrderKind.LayBridge` 17, `RecoverBridge` 18 — measured free on every lane), fulfilled by `<Class><Order>` plays
+(`AssaultBridgeLayerLayBridge` …, the routing rule, Orders §1 O1–O2).
+
+### 12a. The module view — who runs what, each frame
+
+```mermaid
+graph TD
+  subgraph BRAIN["brain node — the engineer's behaviour (parallel phase, R-4212)"]
+    LAY["&lt;Class&gt;LayBridge — refuse (gap &gt; SpanMax, an end not on ground) · drive to the near bank · align · BridgeCarried.Order = Lay"]
+    REC["&lt;Class&gt;RecoverBridge — drive to the nearer end · BridgeCarried.Order = Recover (Target)"]
+  end
+  subgraph MOVER["the node that moves the engineer's hull (dtWorldPos owner) — DamageAssessmentModule, beside DozerCutSystem; never in a replay"]
+    WORK["BridgeWorkSystem NEW (serial) — Order Lay held BuildSeconds at the bank ⇒ EntityCreationRequest (the bridge obstacle) · Order Recover held RecoverSeconds at an end ⇒ NetworkEntityDestroy"]
+  end
+  OBS["bridge obstacle (terrain's CE-4692): StaticObstacle WalkableDeck + ObstacleShape + Health — Constructing until baked, then Open"]
+  REPL["dtBridgeCarried 247 NEW — Brain group → every node"]
+  LAY --> REPL --> WORK
+  REC --> REPL
+  WORK -->|create / destroy| OBS
+  OBS -.->|"the brain sees it appear / go: Count ∓ 1, Order None"| LAY
+```
+
+*What the picture shows that prose hid: the brain never writes the bridge and the mover never writes `BridgeCarried` — each side reads the other's
+result, so two nodes never write one component; and the mover's system is reached every frame because `DamageAssessmentModule` already runs on the
+node that moves hulls (the dozer's).*
+
+### 12b. The classes
+
+```mermaid
+classDiagram
+  class BridgeCarried { <<NEW unmanaged, recorded, Brain group, id 292>> byte Count · byte Order (None Lay Recover) · long BridgeType · WorldPoint NearBank · WorldPoint FarBank · EntityRef Target }
+  class BridgeLayerDto { <<NEW TKB descriptor, on the engineer>> BridgeType · Carried · SpanMaxM · BuildSeconds · RecoverSeconds · Source }
+  class EntityBridgeCarried { <<NEW wire descriptor dtBridgeCarried 247>> }
+  class BridgeCarriedTranslators { <<NEW egress + ingress, the RamOrder pair>> }
+  class BridgeWorkSystem { <<NEW serial, mover node>> progress per hull (own state) }
+  class LayBridgeOrder { <<NEW [Order LayBridge]>> PointLink NearBank · PointLink FarBank }
+  class RecoverBridgeOrder { <<NEW [Order RecoverBridge]>> EntityLink Bridge }
+  class BridgeLaying { <<NEW static>> Refusal(gap, ends) · the bank points · BridgeAt(near, far) }
+  class DozerCutSystem { <<existing precedent>> }
+  class WreckObstacleSystem { <<existing precedent: EntityCreationRequest>> }
+  class ObstacleRemovalSystem { <<existing precedent: NetworkEntityDestroy>> }
+  class StaticObstacleDto { <<existing, terrain's>> 8825 / 8826 — sourced figures (Q-6) }
+  BridgeCarried ..> EntityBridgeCarried : translators
+  BridgeLayerDto ..> StaticObstacleDto : BridgeType
+  BridgeWorkSystem ..> BridgeCarried : reads
+  BridgeWorkSystem ..> BridgeLayerDto : seconds
+  LayBridgeOrder ..> BridgeLaying : refusal
+  BridgeWorkSystem ..> BridgeLaying : the deck pose
+```
+
+*What the picture shows that prose hid: the only new runtime component is `BridgeCarried`; the bridge's size and existence are terrain's obstacle,
+and `BridgeLaying` is the one place the deck's pose and the refusal are computed — the order's refusal and the mover's spawn cannot disagree.*
+
+### 12c. The sequence — lay and recover
+
+```mermaid
+sequenceDiagram
+  participant O as order (HTTP / menu / LLM seat)
+  participant B as brain: LayBridge play
+  participant W as mover: BridgeWorkSystem
+  participant E as bridge obstacle
+  O->>B: LayBridge(NearBank, FarBank)
+  B->>B: BridgeLaying.Refusal — gap over SpanMax, or an end not on ground ⇒ fail with the reason
+  B->>B: drive to the near bank, face the far bank
+  B->>W: BridgeCarried.Order = Lay (its own entity, replicated)
+  W->>W: at the bank, BuildSeconds held
+  W->>E: EntityCreationRequest (deck pose from BridgeLaying, ObstacleShape length = the gap + the bearing)
+  E-->>B: replicated - the brain sees it Open, Count minus 1, Order None, Success
+  O->>B: RecoverBridge(Bridge)
+  B->>B: drive to the nearer deck end
+  B->>W: BridgeCarried.Order = Recover, Target
+  W->>E: RecoverSeconds held ⇒ NetworkEntityDestroy (never Health 0)
+  E-->>B: gone - Count plus 1, Order None, Success
+```
+
+### 12d. The figures (Q-6) — sourced where a source exists, said where not
+
+| | assault (8825) — M104 Wolverine | floating (8826) — Improved Ribbon Bridge |
+|---|---|---|
+| deck length / gap | 26 m bridge, a 24 m gap ([FAS](https://man.fas.org/dod-101/sys/land/wolverine.htm), [Wikipedia](https://en.wikipedia.org/wiki/M104_Wolverine)) | per bay 6.9 m (22 ft 8.5 in, [militarymachine.com](https://militarymachine.com/improved-ribbon-bridge)); ⚠ the longest gap 100 m (14 bays + 2 ramp bays) — an ESTIMATE |
+| width | 4 m (FAS) | ⚠ roadway 4.5 m — UNSOURCED (the bay unfolds to 8.1 m; the roadway is narrower) |
+| launch / recover | ≤ 5 min / ≤ 10 min ([SlashGear](https://www.slashgear.com/1600839/army-m104-wolverine-bridgelayer), one source) | ⚠ 20 min / 20 min — UNSOURCED estimates |
+| load class | MLC 70 (Wikipedia, FAS) — recorded, not used (BL-16) | ⚠ not found |
+
+### 12e. Decisions taken here (no user question — engineering, each with its reason)
+
+| # | decision | why |
+|---|---|---|
+| BL-17 | `BridgeCarried` is the BRAIN's only; the mover's progress is its own; the bridge obstacle is the mover's result | one writer per replicated component (R-4212, the ownership groups) |
+| BL-18 | recovery = the ONE network destroy, never Health 0 | Health 0 is a demolition (`WaterFallSystem`) |
+| BL-19 | `BridgeLayerDto` on the engineer; the span's size stays terrain's `StaticObstacleDto` | the engineer's capability vs the object's size — two owners, no copy |
+| BL-20 | a laid span's `ObstacleShape.Length` = the bank-to-bank gap + the deck's ramp reach, capped at the type's | the obstacle is per-instance already (§11); a floating bridge is as long as its river |
+| BL-21 | no progress on the wire in v1 — a renderer reads `Order` (laying / recovering) and `Count` (carried) | progress is the mover's; a renderer-facing progress is a later mover-owned field (said) |
 
 ---
 
