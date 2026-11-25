@@ -37,3 +37,5 @@ we confirm on the next start (expect no `[TerrainImport]` line and the navmesh "
 
 ⚠ Still worth a look on your side: a stale terrain under the repository's `assets/terrain` silently forces a full re-import on every load (and
 seems to win over the newer imported copies) instead of being reported or ignored.
+
+✅ **Confirmed on the next load (22:11):** no `[TerrainImport]` line; `[Navmesh] 'Stechovice': 59834 tiles - 0 baked, 59834 from the cache, 6925 ms`; HROT loaded 4956 entities ~73 s after start (was ~7 min).
