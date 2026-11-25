@@ -336,7 +336,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Revive:** one action puts a dead, incapacitated or wounded man back in the fight — full health, wounds / stun / his own fire cleared, move and fire
   back as his type allows; the Unit form's heart-pulse button beside Strength, `POST /entities/{id}/revive`, or a scenario's `revive` action; any node,
   answered by the owner of his Health (CE-11061, [Injury States §9](DESIGN_Injury_States.md)). Typing a Strength number sets only the number (R-11021).
-  ▶ `ua-revive` ⏳
+  ▶ `ua-revive` ✅
 - **Under fire:** a soldier moving under fire runs crouched, drops prone at a near miss, stays down while pinned, and rushes on when the
   fire stops. ▶ `uf-alone-under-fire` ✅ · `rf-pinned-in-open` ⚠ he goes prone, but never fires and walks toward the house instead of crawling to the wreck (CE-3464)
 - ⚠ **Found by the new scenario checks (`2026-11-16`, regression suite item 7):** militia never break under fire (`ts-fire-discipline`, CE-3461) · the Waverer never breaks (`ts-house-defenders`, CE-3462) · an area's guard is outgunned before he fires first (`ia-area-defend`, CE-3463) · defenders never grenade a man hugging their wall (`rf-wall-hugger`, CE-3465). The regulars, the Coward and the Fanatic, the Shooter behave as designed ✅
