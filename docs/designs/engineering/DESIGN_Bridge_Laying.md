@@ -136,7 +136,7 @@ sequenceDiagram
   M->>E: spawn, State Building, Progress 0 → 1 over BuildSeconds
   E->>N: State Open
   N->>N: table + deck surface · bake dirty tiles (≈ 0.2–2 s) · road With(added)
-  V->>N: route: navmesh across the deck / road over it; hull stands on HullSurfaceZ = deck
+  V->>N: route over the deck (navmesh or road), the hull stands on HullSurfaceZ = deck
   Note over E: explosives → Health 0
   E->>N: State Falling → removed
   N->>N: table − · rebake · road cut · stale paths re-plan
