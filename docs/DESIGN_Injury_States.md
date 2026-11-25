@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-25 (§9 REVIVE — design for approval, ui, CE-11061) · 2026-10-13
+updated: 2026-11-25 (§9 REVIVE — approved and BUILT, ui, CE-11061) · 2026-10-13
 build-state: BUILT (I-a) — I1–I6 approved 2026-10-13 (R-2011); behaviors lane; CE-2155; I-b wounded SPEED built 2026-10-14 (ui, CE-1082: WoundedSpeedFactor 0.6, DESIGN_Map_3D_Mode §6m); wounded AIM still open
-current-answer: ⭐ §9 REVIVE (design, leans RV-1…RV-5) · §8 I-a as built · §8a CE-2318 (a man down is no target, and lies) · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
+current-answer: ⭐ §9 REVIVE (built — §9.3 as built) · §8 I-a as built · §8a CE-2318 (a man down is no target, and lies) · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
 stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — a man down is still moved and turned by collision avoidance — CE-2321 (backend). ⛔ SUPERSEDED: "§6 I4 'units stop shooting him' does NOT hold" — fixed 2026-10-20 by CE-2318, §8a.
 known-conflict: none
@@ -189,7 +189,7 @@ it (like if aiming at still standing figure)."* I4 said units stop shooting him;
 | what would change it | a doctrine of *"make sure"* fire on the downed (I4's own condition) — then a play asks for it explicitly; an operator's own shot is not gated (`AimAndFire`'s operator path returns before the test) |
 
 
-## 9. REVIVE — one action that puts a man back in the fight *(`2026-11-25`, ui, `CE-11061`; DESIGN — for the user's approval)*
+## 9. REVIVE — one action that puts a man back in the fight *(`2026-11-25`, ui, `CE-11061`; RV-1…RV-5 approved by the user `2026-11-25`; BUILT — §9.3)*
 
 🔒 User, `2026-11-25`: *"I do not want any hacks like that health edit from low to high automatically changes other fields; what would help is the
 'revive' icon or something that tells the entity to do whatever needed to make it operational again."* ⇒ **R-11021**: typing a number in Strength sets
@@ -302,3 +302,17 @@ first branch and never needs it.
 - `UpdateEntityAttributeRequestSystem` suite — the `$revive` patch on the owner revives and answers Applied; on a non-owner it is not applied.
 - `TheUnitFormDrawsTests` — the button is drawn for a dead / wounded man and not for a healthy one; a click submits one `Revive` op; fidelity frame vs the mockup.
 - Scenario (R-4277): a squad member killed, revived from the form while paused, unpaused ⇒ he stands and moves under his squad's next order.
+
+### 9.3 As built *(`2026-11-25`, ui, CE-11061)* — matches §9's diagrams, plus two additions
+
+| piece | where | note |
+|---|---|---|
+| the ONE body | `CombatLife.Revive` (`Fdp.Toolkits/Combat/CombatLife.cs`) | RV-1 as leaned; every value SET with its final value |
+| the kind | `EditKind.Revive`, `EditOp.Revive`, `Edits.Revive` route; `ReviveEdits.Patch` = `{"$revive":true}` | RV-4; on a threaded node it runs on the sim thread (CE-11060) |
+| the owner's intercept | `UpdateEntityAttributeRequestSystem`, beside `$component` | gated on `HealthOwnership.AppliesHere` (the Brain group's claim), not the entity's primary owner |
+| the button | `FormField.Action` + `FieldAction` (`Fdp.Presentation/Forms`), drawn by `FormView` after the control; the Strength row's `HrotForms.Revive`, offered by `HrotForms.ReviveOffered` (RV-2) | a generic row action — any form row can carry one; 0 B per steady frame |
+| ➕ the route | `POST /entities/{networkId}/revive` (`DebugApiService.ReviveEntity`, route doc `revive_entity`) | ➕ not in the design: the scenario's action and an agent need it; the same `Edits.Submit` |
+| ➕ the scenario action | `checks.json` `do`: `"revive": "<who>"` (`ScenarioChecks`, `IVerifyWorld.Revive` — editor service, cluster route) | ➕ not in the design: R-4277's scenario needs a revive the way a user does it |
+
+Rails: `InjuryTests.CE11061_*` (3) · `EditOutcomeOwnerTests.CE11061_ReviveOnANonOwner…` · `TheAppliersBelongToTheWorldTests.CE11061_ReviveOnAThreadedNode…` ·
+`TheUnitFormDrawsTests.CE11061_TheStrengthRow…` (frame, `unit-form-revive.png` matches the mockup). Scenario: `ua-revive`.

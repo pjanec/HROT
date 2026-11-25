@@ -58,6 +58,9 @@ namespace Hrot.Editor.Director
 
         /// <summary>⭐ CE-3494 F3 — resumes the unit's held mission plan (<c>POST /missions/{id}/resume</c>); null when sent, else why not.</summary>
         string? ResumePlan(int networkId) => "this host resumes no plans";
+
+        /// <summary>⭐ CE-11061 — revives the unit (<c>POST /entities/{id}/revive</c>); null when revived or asked of its owner, else why not.</summary>
+        string? Revive(int networkId) => "this host revives no units";
     }
 
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
@@ -1339,8 +1342,9 @@ namespace Hrot.Editor.Director
                 {
                     string? why = a.Order is { } order ? _w.Order(id, order)
                                 : a.Resume ? _w.ResumePlan(id)
+                                : a.Revive ? _w.Revive(id)
                                 : _w.SetComponent(id, a.Component, a.Patch);
-                    string what = a.Order != null ? "order" : a.Resume ? "resume" : a.Component;
+                    string what = a.Order != null ? "order" : a.Resume ? "resume" : a.Revive ? "revive" : a.Component;
                     if (why != null) ActionProblems.Add($"do at {rel:0.###} s: {a.Who}.{what}: {why}");
                 }
                 if (a.Name != null) _book.Record(a.Name, rel);

@@ -122,6 +122,8 @@ namespace Hrot.Editor.Director
         public JsonObject? Order { get; init; }
         /// <summary>⭐ CE-3494 F3 — resume the unit's held (or halted) mission plan — the <c>POST /missions/{id}/resume</c> service.</summary>
         public bool Resume { get; init; }
+        /// <summary>⭐ CE-11061 — REVIVE the unit (the Unit form's Revive, <c>POST /entities/{id}/revive</c>): back in the fight, through the edit framework.</summary>
+        public bool Revive { get; init; }
     }
 
     /// <summary>⭐ <c>CE-4042</c> — <c>scenarios/&lt;s&gt;/checks.json</c>: what a scenario must do, as data (§3).</summary>
@@ -192,9 +194,9 @@ namespace Hrot.Editor.Director
                     var where = $"do[{i}]";
                     if (da[i] is not JsonObject a) { problems.Add($"{where} is not an object"); continue; }
                     foreach (var (k, _) in a)
-                        if (k is not ("name" or "at" or "set" or "order" or "resume")) problems.Add($"{where}: unknown key '{k}'");
-                    int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1);
-                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume"); continue; }
+                        if (k is not ("name" or "at" or "set" or "order" or "resume" or "revive")) problems.Add($"{where}: unknown key '{k}'");
+                    int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1) + (a["revive"] is null ? 0 : 1);
+                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume, revive"); continue; }
                     var at = Time(a["at"], where + " at", problems);
                     if (at is null) { problems.Add($"{where}: at is required"); continue; }
                     if (a["order"] is not null)
@@ -211,6 +213,13 @@ namespace Hrot.Editor.Director
                         if (a["resume"] is not JsonValue rv || !rv.TryGetValue<string>(out var rwho) || rwho.Length == 0)
                         { problems.Add($"{where}: resume is the unit's name"); continue; }
                         actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = rwho, Resume = true });
+                        continue;
+                    }
+                    if (a["revive"] is not null)   // ⭐ CE-11061 — "revive": "<unit name>"
+                    {
+                        if (a["revive"] is not JsonValue vv || !vv.TryGetValue<string>(out var vwho) || vwho.Length == 0)
+                        { problems.Add($"{where}: revive is the unit's name"); continue; }
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = vwho, Revive = true });
                         continue;
                     }
                     if (a["set"] is not JsonObject set || set["who"] is null || set["component"] is null || set["patch"] is not JsonObject patch)

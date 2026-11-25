@@ -201,6 +201,28 @@ public class TheAppliersBelongToTheWorldTests
     }
 
     /// <summary>
+    /// ⭐ CE-11061 — REVIVE clicked on a threaded node's Unit form: routed on the sim thread like any world-writing edit (CE-11060), the man is revived on S —
+    /// never on the UI's copy — and the outcome reaches the UI's log.
+    /// </summary>
+    [Fact]
+    public void CE11061_ReviveOnAThreadedNode_RevivesOnTheSimulationWorld()
+    {
+        var (sim, ui, man, jobs, outbox) = DeadManInTwoWorlds();
+        using (sim) using (ui)
+        {
+            var ticket = Fdp.Toolkit.Replication.Edits.Edits.Submit(ui, Fdp.Toolkit.Replication.Edits.EditOp.Revive(man));
+            Assert.Equal(EntityWriteRoute.Requested, ticket.Route);
+            jobs.Drain(sim);
+            outbox.RunAll();
+            Assert.Equal(0, jobs.Faults);
+            Assert.Equal(100f, sim.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(man).Current);
+            Assert.Equal(0f, ui.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(man).Current);   // the copy follows at the next pull, never written here
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(ui).TryGet(ticket.RequestId, out var o));
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Applied, o.Status);
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-11060 — a write the simulation world REFUSES (the man is not owned here and nobody can be asked) comes back to the UI as refused, under the
     /// ticket's id — the form turns its pending mark into ✗ with the reason (<c>FormView.StateOf</c> reads the log).
     /// </summary>

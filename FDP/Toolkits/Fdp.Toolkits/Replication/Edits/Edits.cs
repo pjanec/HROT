@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Replication.Edits
 
         /// <summary>The kinds that write the world, and so must run where the world is written (the sim thread, on a threaded node).</summary>
         private static bool RoutesOnTheSimWorld(EditKind kind)
-            => kind is EditKind.Write or EditKind.Delete or EditKind.AddComponent or EditKind.RemoveComponent;
+            => kind is EditKind.Write or EditKind.Delete or EditKind.AddComponent or EditKind.RemoveComponent or EditKind.Revive;
 
         /// <summary>
         /// ⭐ CE-11060 — the threaded form of <see cref="Submit"/>: the ticket is minted and journaled HERE (the UI's station journal, Pending); the route runs on
@@ -115,6 +115,7 @@ namespace Fdp.Toolkit.Replication.Edits
                     EditKind.Delete => Delete(repo, op, netId, id),
                     EditKind.AddComponent => ComponentEdit(repo, op, netId, add: true, id),
                     EditKind.RemoveComponent => ComponentEdit(repo, op, netId, add: false, id),
+                    EditKind.Revive => Revive(repo, op, netId, id),
                     _ => throw new NotSupportedException($"Edits.Submit: the {op.Kind} kind is not built yet (edit framework F2–F6)."),
                 };
             }
@@ -171,6 +172,30 @@ namespace Fdp.Toolkit.Replication.Edits
                 return new EditTicket(id, why is null ? EntityWriteRoute.Direct : EntityWriteRoute.Refused);
             }
             if (netId <= 0 || !EntityAttributeChangeRequests.TryPublishJsonPatch(repo, op.Target, ComponentEdits.Patch(op.ComponentName!, add), id, wantOutcome: true))
+            {
+                EditOutcomes.Report(repo, id, netId, EditStatus.Refused, "the entity is not replicated — nobody to ask", node);
+                return new EditTicket(id, EntityWriteRoute.Refused);
+            }
+            return new EditTicket(id, EntityWriteRoute.Requested);
+        }
+
+        /// <summary>⭐ CE-11061 — REVIVE: the node that applies the unit's Health revives it here (<c>CombatLife.Revive</c>, Applied at once); any other node asks
+        /// that owner with the <see cref="ReviveEdits.Patch"/> and the owner answers.</summary>
+        private static EditTicket Revive(EntityRepository repo, EditOp op, int netId, Guid id)
+        {
+            int node = EditOutcomes.LocalNodeOf(repo, op.Target);
+            if (Fdp.Toolkit.Combat.HealthOwnership.AppliesHere(repo, op.Target))
+            {
+                string? why = Fdp.Toolkit.Combat.CombatLife.Revive(repo, op.Target);
+                EditOutcomes.Report(repo, id, netId, why is null ? EditStatus.Applied : EditStatus.Refused, why ?? "revived on this node", node);
+                return new EditTicket(id, why is null ? EntityWriteRoute.Direct : EntityWriteRoute.Refused);
+            }
+            if (!repo.IsAlive(op.Target) || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(op.Target))
+            {
+                EditOutcomes.Report(repo, id, netId, EditStatus.Refused, repo.IsAlive(op.Target) ? "it has no health to restore" : "the entity is gone", node);
+                return new EditTicket(id, EntityWriteRoute.Refused);
+            }
+            if (netId <= 0 || !EntityAttributeChangeRequests.TryPublishJsonPatch(repo, op.Target, ReviveEdits.Patch, id, wantOutcome: true))
             {
                 EditOutcomes.Report(repo, id, netId, EditStatus.Refused, "the entity is not replicated — nobody to ask", node);
                 return new EditTicket(id, EntityWriteRoute.Refused);

@@ -269,6 +269,16 @@ namespace Hrot.Map.Common.Systems
                 return;
             }
 
+            // 3-. ⭐ CE-11061 (Injury States §9, RV-4) — {"$revive":true}: the node that APPLIES his Health (HealthOwnership — the Brain group's claim, not the
+            //     entity's primary owner) revives him through the ONE body (CombatLife.Revive, as Edits.Submit does where it applies Health); a bystander is silent.
+            if (!string.IsNullOrEmpty(req.AttributePatchJson) && req.AttributePatchJson.Contains(Fdp.Toolkit.Replication.Edits.ReviveEdits.PatchKey, StringComparison.Ordinal))
+            {
+                if (!Fdp.Toolkit.Combat.HealthOwnership.AppliesHere(repo, entity)) return;
+                string? why = Fdp.Toolkit.Combat.CombatLife.Revive(repo, entity);
+                if (req.WantOutcome) ReportOutcome(repo, entity, req, why is null ? EditStatus.Applied : EditStatus.Refused, why ?? "revived");
+                return;
+            }
+
             bool commanderIntercepted = false;
             if (!string.IsNullOrEmpty(req.AttributePatchJson))
             {

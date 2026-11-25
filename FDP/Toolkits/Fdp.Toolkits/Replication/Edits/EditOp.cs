@@ -17,6 +17,8 @@ namespace Fdp.Toolkit.Replication.Edits
         Interact = 5,
         Command = 6,
         Commit = 7,
+        /// <summary>⭐ CE-11061 (Injury States §9) — put a unit back in the fight (<c>CombatLife.Revive</c>) on the node that applies its Health.</summary>
+        Revive = 8,
     }
 
     /// <summary>
@@ -82,6 +84,11 @@ namespace Fdp.Toolkit.Replication.Edits
         /// <summary>⭐ F2 (CE-4276) — a deletion, carrying its request id end to end; the owner tears it down and answers.</summary>
         public static EditOp Delete(Entity target, string label)
             => new() { Kind = EditKind.Delete, Target = target, Label = label ?? string.Empty };
+
+        /// <summary>⭐ CE-11061 (📄 docs/DESIGN_Injury_States.md §9, RV-4) — REVIVE: the node that applies the unit's Health runs <c>CombatLife.Revive</c>; any other
+        /// node asks it with the <see cref="ReviveEdits.PatchKey"/> patch (the F3 shape) and the answer comes back under the request id.</summary>
+        public static EditOp Revive(Entity target, string label = "Revive")
+            => new() { Kind = EditKind.Revive, Target = target, Label = label ?? string.Empty };
 
         public static EditOp WritePatch(Entity target, string patchJson, string label)
             => new() { Kind = EditKind.Write, Target = target, PatchJson = patchJson ?? throw new ArgumentNullException(nameof(patchJson)), Label = label ?? string.Empty };

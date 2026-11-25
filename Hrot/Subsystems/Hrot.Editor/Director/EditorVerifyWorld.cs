@@ -64,5 +64,8 @@ namespace Hrot.Editor.Director
 
         /// <summary>⭐ CE-3494 F3 — the <c>POST /missions/{id}/resume</c> service (the command lands on the next step).</summary>
         public string? ResumePlan(int networkId) => Service.BeginResumeMission(networkId).error;
+
+        /// <summary>⭐ CE-11061 — the <c>POST /entities/{id}/revive</c> service.</summary>
+        public string? Revive(int networkId) => Service.ReviveEntity(networkId).error;
     }
 }
