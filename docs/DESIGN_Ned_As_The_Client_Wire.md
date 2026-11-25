@@ -131,6 +131,38 @@ sequenceDiagram
 
 Clients: Unreal and the IG client move their state readers from the DPS twins to the NED subset; their look and station readers are untouched.
 
+### 6a. Where a client reads what (DPS is NOT merged into NED — two layers on one domain)
+
+| | NED (state) | DPS (looks + player station) |
+|---|---|---|
+| a CGF + SimHost cluster (+ a player node with the gateway) | the cluster's own NED topics, written by each OWNING node; the client joins the cluster's domain read-only; nothing republished | written by the gateway on the player node |
+| the editor alone | the editor's NED replication module, ON only because the gateway asked (D-2), on the gateway's domain | written by the gateway in the editor |
+| domain | the cluster's (editor: the gateway's) | the same domain |
+| partition | NED's own, unchanged (⛔ whether NED uses a partition at all: checked in slice 3) | unchanged: the world partition `<base>-*`, one per seat `<base>-n` (DD-023, R-140) |
+| names | NED's (`Hrot_NED_Descriptors_WorldPos` …) — never clashing with DPS names | unchanged |
+
+DPS shrinks from 55 topics to ~35; every state fact then has ONE type and ONE translator. DPS's own contract rules (append-only, producer-neutral wording) stay for what remains.
+
+### 6b. SUMO traffic stays on DPS — two KINDS of vehicles, not two ways of sending one
+
+SumoSharp's own wire (`sumo/*`, `reference/NED_DDS_Protocol.md` §SUMO) is lane-relative dead reckoning (lane, distance along it, lateral offset, speed,
+upcoming lanes) in `FrameCodec` blobs, in SUMO net metres; a receiver needs the net geometry, SumoSharp's lane numbering, its three codecs and its
+`DrExtrapolation` curve — or SumoSharp's C# assemblies, which a C++ client cannot host. Turning that into world poses is a DERIVATION, so by this design's rule
+(state from its owner as is; a derivation the client cannot port stays DPS) the DPS traffic topics (`Mover`, `MoverTracks` world-frame track knots,
+`TrafficLights`) STAY — as DD-018 §3.6b already ruled for the same reason.
+
+| | a HROT vehicle (tank, HMMWV, a scenario car) | a SUMO ambient car |
+|---|---|---|
+| what it is | a full HROT entity: owner, damage, weapons, seats, possession | a lightweight traffic participant, possibly thousands, no damage model |
+| who simulates it | its owning node (SimHost / CGF) | the traffic node |
+| channel | **NED** (`WorldPos`, `EntityMaster`, …) — was DPS `Entity` / `EntityState` | **DPS** `Mover` / `MoverTracks` / `TrafficLights` (unchanged) |
+
+Never both: a HROT vehicle driving in SUMO (`hrot:` name) is a HROT entity — NED only; the DPS traffic gather already drops it. A SUMO car that is hit or
+converted becomes a HROT entity — it moves to NED and SUMO despawns it (the hand-over that already exists between DPS `Mover` and `Entity`). Ambient cars are not
+NED entities on purpose (AQ93, R-4020: per-car ids, ownership and topics would cost far more than SUMO's compact stream). The client keeps ONE curve routine for
+both: NED positions and DPS track knots are track points in the same local frame. ⛔ Not measured: whether the editor writes `sumo/*` today; what DPS traffic
+carries beyond `sumo/*` (e.g. a car's TKB type and colour) — slice 3.
+
 ## 7. Claim table (measured)
 
 | the design rests on | code — how it is | design — how it was meant |
