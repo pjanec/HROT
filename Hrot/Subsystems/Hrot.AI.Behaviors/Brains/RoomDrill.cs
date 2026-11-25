@@ -74,6 +74,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>CB-73 — the turn the stack was placed with · the roster slots that were live when it was.</summary>
         public int Turn;
         public ushort Placed;
+        /// <summary>⭐ <c>CE-8324</c> — the nearest a released entry man has come to his way in (m) · since when no man got nearer.</summary>
+        public float WayInBest;
+        public SimInstant WayInSince;
     }
 
     /// <summary>
@@ -99,6 +102,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// covers from where he stands: a point on another storey or behind furniture held the squad in Entering for good (as stacking has
         /// <see cref="StackTimeoutSeconds"/> and breaching <see cref="BreachTimeoutSeconds"/>).</summary>
         public const float EnterTimeoutSeconds = 20f;
+        /// <summary>⭐ <c>CE-8324</c> — no entry man across yet and none of the released got <see cref="WayInProgressMetres"/> nearer his way in
+        /// (the door front, then the threshold) for this long (s) ⇒ there is no way in: the room is BLOCKED (CB-53's report), as a door that
+        /// will not open. 📐 live village-street-mg-flank: the gun house's door bakes with no path through it; the point man stood 1.4 m
+        /// short of the threshold for 55 s, his move idle with no route, and the house was never entered.</summary>
+        public const float NoWayInSeconds = 15f, WayInProgressMetres = 0.3f;
         /// <summary>⭐ CE-2334 — the threshold is crossed this far past the way in (m) · reached within this (m) · the door front reached
         /// within this (m).</summary>
         public const float CrossedMetres = 0.5f, ThresholdArrival = 0.4f, DoorFrontMetres = 0.6f;
@@ -184,6 +192,13 @@ namespace Hrot.AI.Behaviors.Brains
                     evt = PhaseEventKind.Abort;
                     return true;
                 case StackAndRoomEntryManeuver.PhaseEntering:
+                    if (d.Crossed == 0 && NoWayIn(ref d, in ctx))
+                    {
+                        Report(in ctx, d.RoomAt, ProgressKind.RoomBlocked);   // ⭐ CE-8324 — nobody can get in this way
+                        d.Outcome = Blocked;
+                        evt = PhaseEventKind.Abort;
+                        return true;
+                    }
                     bool placed = AllAt(ref d, in ctx, stack: false, AtPointMetres)
                                   || (d.Released >= d.Plan.Entry && ctx.Now - d.EnterSince >= EnterTimeoutSeconds);   // R-2117
                     if (!placed || HostileInRoom(ref d, in ctx)) { d.ClearSince = (SimInstant)0; return false; }
@@ -662,6 +677,25 @@ namespace Hrot.AI.Behaviors.Brains
                 if (atDoor && (d.AtDoor & (1 << i)) == 0) { d.AtDoor |= (ushort)(1 << i); ws.Reissue = 1; }
                 if (crossed) { d.Crossed |= (ushort)(1 << i); ws.Reissue = 1; }
             }
+        }
+
+        /// <summary>⭐ <c>CE-8324</c> — true once the released entry men have made no progress toward their way in for
+        /// <see cref="NoWayInSeconds"/> (the gate shut — contact, the grenade — restarts the clock: waiting there is the drill, not a stall).</summary>
+        private static unsafe bool NoWayIn(ref RoomDrillState d, in SquadPlayContext ctx)
+        {
+            float best = float.MaxValue;
+            if (d.GateOpen != 0 && d.Released != 0 && d.Threshold != 0)
+                for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
+                {
+                    int k = d.OrderOf[i];
+                    if (k == RoomDrillState.NotInIt || k >= d.Plan.Entry || k >= d.Released || !InDrill(in ctx, i, out var m)) continue;
+                    var target = (d.AtDoor & (1 << i)) == 0 ? d.Plan.DoorFront : d.Plan.Threshold;
+                    var at = ctx.At(m);
+                    best = Math.Min(best, Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(target.X, target.Y)));
+                }
+            if (best == float.MaxValue) { d.WayInBest = float.MaxValue; d.WayInSince = (SimInstant)ctx.Now; return false; }
+            if (d.WayInBest <= 0f || best < d.WayInBest - WayInProgressMetres) { d.WayInBest = best; d.WayInSince = (SimInstant)ctx.Now; return false; }   // 0 = a fresh drill
+            return ctx.Now - d.WayInSince >= NoWayInSeconds;
         }
 
         /// <summary>Every live ENTRY man within <paramref name="metres"/> of his stack point (or of his point) — the rest of the stack (the

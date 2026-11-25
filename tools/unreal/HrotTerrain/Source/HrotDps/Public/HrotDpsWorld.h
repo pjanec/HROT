@@ -122,6 +122,8 @@ public:
 	/** the default kit tables (animals, ground and AIR DIS kits, the domain fallbacks) where the job gave none; idempotent (a rail reads them) */
 	void DefaultLife();
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void Stop();
+	/** TEST / tools (CE-12009): `Count` soldiers of the person kit seated in a vehicle's kit seats (SitOn, the seat's clip) - no HROT needed */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 TestSeatPeople(AActor* Vehicle, int32 Count);
 
 	// ── read back (tests, a HUD) ──
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") double SimNow() const;
@@ -177,6 +179,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") bool bFollowTerrain = true;
 	/** the station's terrain now ("" before a Session) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString StationTerrain() const { return ShownTerrain; }
+	/** U-20: HROT's building damage (DPS_BuildingDamage) drawn on the house tiles */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") class UHrotBuildingDamage* Buildings();
 	/** U-18t — show a terrain by NAME without a station (a preview; the packaged client's -HrotIgTerrain=<name>): resolve it like a Session's
 	 *  (mounting its package) and open its level unless it is this one. "" = done or already here, else why not */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString ShowTerrain(const FString& Terrain);
@@ -296,6 +300,7 @@ private:
 		TWeakObjectPtr<UHrotPersonKit> Kit;
 		int32 SeatVehicleId = 0;
 		uint8 SeatIndex = 255, RidingSeat = 255;
+		double ThrowAt = -1; bool bThrowing = false; bool bFlamerLook = false, bFlamerChecked = false;   // the flamethrower man by his mount category - looked up once   // CE-12016: a grenade / stone thrown (its Fire), drawn for the throw clip's length
 		bool bRiding = false, bNoSeatCounted = false;
 		TWeakObjectPtr<AActor> RidingOn;
 		TWeakObjectPtr<class UAnimSequence> SeatPose;
@@ -493,6 +498,24 @@ private:
 	void Place(FEnt& E, double Real);
 	FHrotDpsPose PoseAt(const FEnt& E, double Real) const;
 	void GunOnCarrier(FEnt& E, FTransform& T);
+	void OnBuildingDamage(const FHrotDpsSample& S);
+	/** CE-12006: new people built per frame (a person's construction dresses him, 25-60 ms); 0 = no limit */
+	UPROPERTY(EditAnywhere, Category = "HROT|DPS") int32 MaxPersonSpawnsPerFrame = 2;
+	int32 PersonSpawnsThisFrame = 0;
+	TSet<int32> DeferredSpawns;
+	TMap<int32, FEnt> TestRiders;
+	/** DD-033 (gateway T-078): a burning house (BuildingDamage.FireSince / FireSeconds) - its fire spots and, past the fire, its char */
+	struct FHouseFire { double Since = 0; float Seconds = 0; int32 SpotsKey = 0; bool bCharred = false; };
+	TMap<FString, FHouseFire> HouseFires;
+	void HouseFire(const FString& Key, double Since, float Seconds);
+	void TickHouseFires(double SimNow);
+	/** DD-033: a smoke / tear-gas cloud (DPS_Cloud): a cylinder that drifts, drawn as puffs */
+	struct FCloud { uint8 Kind = 0; double SimTime = 0, BornAt = 0; FVector3d Centre = FVector3d::ZeroVector; FVector3f Drift = FVector3f::ZeroVector; float Radius = 0, Height = 0, Sight = 1, Seconds = 0; double Carry = 0; };
+	TMap<int32, FCloud> Clouds;
+	void OnCloud(const FHrotDpsSample& S);
+	void TickClouds(double SimNow, float Dt);
+	bool NearestMountedGunTip(const FVector& Around, AActor* Prefer, FVector& OutTip, FVector& OutDir) const;
+	UPROPERTY(Transient) TObjectPtr<class UHrotBuildingDamage> BuildingDamage;
 	/** U-19h (live: rockets / missiles from the Apache, the aircraft, SAMs and ATGMs showed no rocket and no trail; 23 fired, 0 rounds drawn):
 	 *  a rocket / missile Fire with no Round entity from that shooter within FlyOutGrace s flies a stand-in missile (its kind's body, motor
 	 *  and smoke trail) from the muzzle to the target (else along the shot) - drawn from the Fire sample like the tracers; a real Round cancels it */

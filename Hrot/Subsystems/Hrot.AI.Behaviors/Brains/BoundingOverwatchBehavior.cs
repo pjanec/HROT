@@ -104,6 +104,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const float CoverStretch = 1.25f;
         /// <summary>A mover sent to a cover point stops this close to it (m): the point stands 0.75 m off the wall.</summary>
         public const float CoverArrivalMetres = 1f;
+        /// <summary>⭐ <c>CE-8321</c> — the farthest a bounding man ends from the covering element's centre (m): the top of doctrine's 20–50 m
+        /// bound (ATP 3-21.8), so the overwatch can still support him.</summary>
+        public const float MaxLeadMetres = 50f;
 
         private static readonly SquadHsmShell s_shell = new(
             BoundingOverwatchManeuver.BuildTransitionTable(), BoundingOverwatchManeuver.PhaseAborted);
@@ -196,8 +199,9 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
             {
                 if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m)) continue;
-                bool cover = SquadCover.Has(in p.Cover, i, out var pick);
-                var target = cover ? pick : new Vector3(ws.TargetX[i], ws.TargetY[i], ws.TargetZ[i]);
+                // ⭐ CE-8321 — judged against what he was TOLD (the runner's record): a cover order only when that point IS his cover pick
+                var target = new Vector3(ws.TargetX[i], ws.TargetY[i], ws.TargetZ[i]);
+                bool cover = SquadCover.Has(in p.Cover, i, out var pick) && Vector2.Distance(new Vector2(pick.X, pick.Y), new Vector2(target.X, target.Y)) < 0.05f;
                 var d = ctx.At(m) - target; d.Z = 0f;
                 if (d.Length() > (cover ? SquadGates.SetMetres : SquadManeuverRunner.MoverArrivalMetres)) return false;
             }
@@ -276,16 +280,41 @@ namespace Hrot.AI.Behaviors.Brains
                     RoleId = BoundingOverwatchManeuver.RoleCovering,
                 };
             }
-            bool cover = SquadCover.Has(in p.Cover, member, out var pick);   // ⭐ F-c — a cover point, else the formation's bound
+            var point = BoundPoint(in p, in ws, in ctx, member, element, at, out bool cover);
             return new MemberOrder
             {
                 Kind          = MemberOrderKind.AdvanceTo,
-                Point         = cover ? pick : at + ws.Scratch,
+                Point         = point,
                 Cover         = cover ? (byte)1 : (byte)0,
                 Speed         = p.Speed,
                 ArrivalRadius = cover ? CoverArrivalMetres : SquadManeuverRunner.MoverArrivalMetres,   // in cover, not 3 m from it
                 RoleId        = BoundingOverwatchManeuver.RoleMoving,
             };
+        }
+
+        /// <summary>Where mover <paramref name="member"/> of <paramref name="element"/> bounds to: his cover point, else the formation's bound —
+        /// and ⭐ <c>CE-8321</c> never past the overwatch's support.</summary>
+        private static Vector3 BoundPoint(in BoundingOverwatchParams p, in SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at, out bool cover)
+        {
+            cover = SquadCover.Has(in p.Cover, member, out var pick);   // ⭐ F-c — a cover point, else the formation's bound
+            var point = cover ? pick : at + ws.Scratch;
+            // ⭐⭐ CE-8321 — never past the overwatch's support: a bound ends within MaxLeadMetres of the covering element's centre, and a man
+            //   already that far waits where he stands for the overwatch to come up (doctrine: the bounding element stays inside the range the
+            //   overwatch can cover — bounds of 20–50 m). 📐 live village-street-mg-flank: his teammate's move stalled, the element's centre
+            //   lagged, and each bound sent the front man 30 m beyond where he stood — 75 m ahead of his overwatch, alone in the open
+            var watch = ctx.Centre((byte)(1 - element), out bool watched);
+            if (watched)
+            {
+                var off = point - watch; off.Z = 0f;
+                float lead = off.Length();
+                if (lead > MaxLeadMetres)
+                {
+                    var mine = at - watch; mine.Z = 0f;
+                    if (mine.Length() >= MaxLeadMetres) { point = at; cover = false; }
+                    else { point = watch + off * (MaxLeadMetres / lead); point.Z = at.Z; cover = false; }
+                }
+            }
+            return point;
         }
 
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);

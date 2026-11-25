@@ -55,7 +55,12 @@ internal static class BuildingTemplateGenerator
             var d = new Draft { B = b, Ring = ring, Heights = StoreyHeights(b, rep), Openings = b.Openings.Select(o => o with { X = o.X - swX, Y = o.Y - swY }).ToList() };
             if (b.Enterable)
             {
-                d.Plan = StairPlanner.TryPlan(ring, d.Heights);
+                // ⭐ CE-5056 — the stairs keep clear of every ground-floor door the input names (the doors are placed after the plan, at these points)
+                var groundDoors = d.Openings.Where(o => o.Type == "door" && o.Storey == 0).Select(o => (o.X, o.Y)).ToList();
+                d.Plan = StairPlanner.TryPlan(ring, d.Heights, groundDoors);
+                // a stair that cannot keep clear of EVERY door keeps clear of ONE (the house stays enterable through it); only then of none, as before
+                for (int i = 0; d.Plan == null && groundDoors.Count > 1 && i < groundDoors.Count; i++) d.Plan = StairPlanner.TryPlan(ring, d.Heights, new[] { groundDoors[i] });
+                if (d.Plan == null && groundDoors.Count > 0) d.Plan = StairPlanner.TryPlan(ring, d.Heights);
                 d.Templated = d.Plan != null;
                 if (!d.Templated) { rep.SolidBecauseNoStair++; rep.Warnings.Add($"building {b.Id}: no stair fits its footprint — imported as a solid prism"); }
             }

@@ -829,8 +829,20 @@ namespace Hrot.AI.Behaviors.Brains
                 threat = EqsTacticsNodes.FirstAllowedRemembered(world, self);
                 if (threat.IsNull) { StopFiring(world, self, ref ws); return true; }
             }
+            // ⭐⭐ CE-8317 (user-approved 2026-11-24) — he SHOOTS only what his weapons can hurt (he still HIDES from the top threat — TopThreat is
+            //   unchanged): a tank his rifle cannot touch gives way to the first remembered enemy in his sector he CAN hurt, else he holds fire.
+            //   📐 live village-street-fight: 517 rifle rounds at the M1, 158 at the T-72, while enemy infantry was in sight
+            if (!Fdp.Toolkit.Perception.ThreatDanger.ICanHurt(world, Tkb(world), self, threat))
+            {
+                threat = EqsTacticsNodes.FirstAllowedRemembered(world, self, hurtableOnly: true);
+                if (threat.IsNull) { StopFiring(world, self, ref ws); return true; }
+            }
             return Fire(world, self, ref ws, cooldown, rounds, threat, blind);
         }
+
+        /// <summary>⭐ <c>CE-8317</c> — the TKB, or null (then every target counts as hurtable).</summary>
+        internal static Fdp.Interfaces.ITkbDatabase? Tkb(EntityRepository world)
+            => world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
 
         /// <summary>
         /// ⭐ <c>CE-3158</c> G4 / L5 — the same ONE aimed step at a NAMED target (no re-ranking): what the caller checked for sight is

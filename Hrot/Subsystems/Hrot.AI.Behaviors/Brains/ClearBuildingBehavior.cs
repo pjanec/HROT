@@ -178,7 +178,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (!RoomDrill.PhaseComplete(ref p.Drill, ref ws, in ctx, out evt)) return false;
             if (p.Drill.Outcome != RoomDrill.Blocked) return true;
             Finish(ref p, RoomOrder.Blocked);                             // CB-58 — skipped, not the end
-            evt = PhaseEventKind.FarSideReached;                          // Breaching → Stacking on the next
+            evt = ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering
+                ? PhaseEventKind.BoundComplete                            // ⭐ CE-8324 — Entering (no way in) → Stacking on the next
+                : PhaseEventKind.FarSideReached;                          // Breaching → Stacking on the next
             if (NextRoom(ref p, ref ws, in ctx)) return true;
             if (p.ClearedCount == 0) { p.Failed = 1; return false; }      // nothing could be entered at all
             return false;

@@ -16,6 +16,9 @@ namespace Fdp.Toolkit.Navigation.Tests
     /// </summary>
     public class NavigationProgressTrackerSystemTests
     {
+        /// <summary>⭐ CE-11057 — the frames at this file's 0.016 s step that reach the watchdog's 2 s rule (it decides in seconds, not frames).</summary>
+        private static readonly int FrustrationFrames = (int)System.MathF.Ceiling(NavigationExecutionSystem.FrustrationLimitSeconds / 0.016f);
+
         // ── Helpers ──────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -158,7 +161,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             CreateStuckEntity(repo, intentFlags: 0 /* AllowReplan off */);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
                 sys.Execute(view, 0.016f);
             repo.Bus.SwapBuffers();
 
@@ -179,7 +182,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             const byte AllowReplan = 1; // bit 0
             CreateStuckEntity(repo, intentFlags: AllowReplan, maxReplans: 1);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
                 sys.Execute(view, 0.016f);
             repo.Bus.SwapBuffers();
 
@@ -200,7 +203,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             const byte AllowReplan = 1;
             var entity = CreateStuckEntity(repo, intentFlags: AllowReplan, maxReplans: 3);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
                 sys.Execute(view, 0.016f);
             repo.Bus.SwapBuffers();
 
@@ -221,7 +224,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             const byte AllowReplan = 1;
             var entity = CreateStuckEntity(repo, intentFlags: AllowReplan, maxReplans: 3);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
                 sys.Execute(view, 0.016f);
             repo.Bus.SwapBuffers();
 
@@ -244,7 +247,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             CreateStuckEntity(repo, intentFlags: flags, maxReplans: 3);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
                 sys.Execute(view, 0.016f);
             repo.Bus.SwapBuffers();
 
@@ -265,7 +268,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             const byte AllowReplan = 1 << NavigationConstants.FlagBitAllowReplan;
             CreateStuckEntity(repo, intentFlags: AllowReplan, maxReplans: 3);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
                 sys.Execute(view, 0.016f);
             repo.Bus.SwapBuffers();
 
@@ -286,7 +289,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             var entity = CreateStuckEntity(repo, intentFlags: AllowReplan, maxReplans: 1);
 
             // Drive through 2 frustration episodes (episode 1 replans, episode 2 hard-fails).
-            int ticksPerEpisode = NavigationExecutionSystem.FrustrationTickLimit + 2;
+            int ticksPerEpisode = FrustrationFrames + 2;
             for (int ep = 0; ep < 2; ep++)
             {
                 for (int i = 0; i <= ticksPerEpisode; i++)

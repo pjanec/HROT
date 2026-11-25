@@ -221,6 +221,43 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.Flee, posture);
         }
 
+        // ⭐⭐ CE-8325 (village-street-mg-flank: a wounded Regular under his squad's assault order walked 100 m back across open gardens) —
+        //   the SAME man as CE3090_HalfHealth_…_Flees, but carrying out a SUPERIOR's order: a trained man does not withdraw on his own (his
+        //   leader orders a move back); an irregular (Militia) still may, and so may a man whose stress BROKE him. 🔴 Red-proof: the
+        //   UnderOrdersDamp modifier dropped ⇒ the ordered Regular flees ⇒ red.
+        [Fact]
+        public void CE8325_ATrainedManUnderOrders_DoesNotRunOnHisOwn_AnIrregularOrABrokenManStillMay()
+        {
+            byte Posture01(Fdp.Toolkit.Behavior.Components.BehaviorOrigin origin, float? proficiency, bool broken)
+            {
+                var enemy = _world.Repo.CreateEntity();
+                var self = _world.SpawnAgent(health01: 0.55f, ammo01: 0.3f);
+                _world.SeedContact(self, enemy, 70f, 0.9f, 1f, hasLos: true);
+                _world.SetEnemyStrengthRatio(self, 2.5f);
+                _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.05f, count: 0, instanceId: 0);
+                _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.90f, count: 2, instanceId: 1);
+                var repo = _world.Repo;
+                if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>()) repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+                repo.AddComponent(self, new Fdp.Toolkit.Behavior.Components.BehaviorState { Origin = origin });
+                if (proficiency is { } v)
+                {
+                    if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatProficiency>()) repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();
+                    repo.AddComponent(self, new Fdp.Toolkit.Behavior.Components.CombatProficiency { Authored = v, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
+                }
+                if (broken)
+                {
+                    if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>()) repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.Stress>();
+                    repo.AddComponent(self, new Fdp.Toolkit.Behavior.Components.Stress { Level = 1f, Broken = 1 });
+                }
+                return _world.Scorer.SelectPosture(repo, self, CombatPostureDecision.Id);
+            }
+            const float militia = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia;
+            Assert.Equal((byte)Posture.Flee, Posture01(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Sop, null, broken: false));        // on his own: as CE-3090
+            Assert.NotEqual((byte)Posture.Flee, Posture01(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior, null, broken: false));   // a Regular under orders: stays
+            Assert.Equal((byte)Posture.Flee, Posture01(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior, militia, broken: false));  // an irregular may
+            Assert.Equal((byte)Posture.Flee, Posture01(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior, null, broken: true));     // a broken man may
+        }
+
         // SC-P1-07-3 / SC-P1-08-4: Near death with no escape and no cover does not flee into nothing.
         // ⭐ CE-3090 — the open-ground case itself: it HOLDS PRONE (was the plain Hold floor, which did not fire back).
         [Fact]

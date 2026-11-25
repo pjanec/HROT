@@ -296,6 +296,91 @@ metres, absolute Z; `at` = metres along the panel from its `a` end. A free-wall 
 **Rails** (`FDP/Toolkits/Fdp.Toolkits.Tests/Terrain/BuildingPanelDumpTests.cs`): a breach and a window hit written through the damage records and the save are found at the same panel and opening in the dump;
 every panel sits at its rank; the bytes are identical twice and under `cs-CZ`; cqb-village dumps every panel deterministically.
 
+## ⭐ U-20 Building destruction in Unreal *(unreal-ig, `2026-11-24`; build-state: READY-TO-BUILD)*
+
+🔒 User: *"whenever a building is first time destructed, we should somehow replace it with another model which is breakable for performance"* ·
+*"let's work on some different terrain that supports destructible buildings from templates … larger stechovice terrain later"*.
+Inputs: HROT's panels (`hrot-building-panels`, section above) and DPS `BuildingDamage` (gateway DD-018/DD-030: breaches with `MadeAt` + `Blast`,
+windows with `HitAt`, `Collapsed` + `CollapsedAt`; 0 = from a save). Proving ground: `bt-range` + `scenarios/demos/buildings-and-doors/bd-destruction`
+(passage, hole, collapse), then `demo-city`, then Stechovice (HROT's Stechovice destruction test, terrain lane).
+
+**INVENTORY** (`scripts/cbm.sh search_graph` `.*Building.*` / `.*Breach.*` / `.*Rubble.*` Class, + grep `tools/unreal`, `scripts/`): the client has
+**no** building-damage reader; `scripts/terrain_look.py` `write_buildings` / `build_house` (the ONE house builder: template walls by storey, openings
+as glass + frame OVERLAYS on an uncut wall, merged 500 m tiles); `UHrotTerrainLibrary::BuildMesh` (editor: a tile `.bin` → a static mesh, UV0
+planar); `AHrotExplosionFx` (blasts, scorch); GeometryScripting is enabled in the project. HROT: `BuildingPanelDump` (exists), `RubbleMound`
+(HROT's own rubble: 55 % footprint heap + blocks — the look is ours, R-146).
+
+| decision | lean | rejected (one line each) |
+|---|---|---|
+| D-1 the proven solution | ⭐ **static merged houses, a destructible proxy on first damage** (the swap games use for large static cities) | Chaos fracture of every house — precomputed collections for 4,099 houses, memory and build time, and HROT decides the damage anyway |
+| D-2 one house builder | ⭐ `terrain_look.py` stays the ONLY builder; it builds template houses **from the panels file** (HROT's numbering) with **openings CUT** through the wall (reveals at the cut) and a floor slab per storey | a C++ port of the builder for the runtime — a second copy that drifts |
+| D-3 identity in the mesh | ⭐ **UV channel 1 per vertex**: x = the building's index in its tile (+1; 0 = not a house), y = `panel*256 + opening + 1` on glass, frame and door (0 = wall / roof / floor). Vertex data survives the mesh build; a sidecar `<name>.buildings-index.json` maps key → tile + index (+ footprint, for rubble) | triangle ranges (the static-mesh build reorders triangles) · a material mask texture (every look material would need our own master) |
+| D-4 taking a house out | ⭐ on its FIRST `BuildingDamage`: the tile's static mesh is swapped for a dynamic mesh of the same tile **minus that house** (Geometry Script, from the tile mesh with CPU access, delete triangles by UV1.x); the house becomes its own dynamic mesh | rebuilding tiles offline per house (4,099 actors) — unmeasured draw cost; kept as the fallback if D-4's swap measures slow |
+| D-5 a hole | ⭐ Geometry Script **boolean subtract** of a box: the breach's panel (a → b), `From`..`To` along it, `Bottom`..`Top`, depth = thickness + 0.2 m; a broken-brick rim decal | our own rectangle cutting — the boolean is proven and exact |
+| D-6 a window | ⭐ `Hits` 3: delete its glass triangles (UV1.y); 1–2: a crack decal on the pane | — |
+| D-7 a collapse | ⭐ the house's dynamic mesh replaced by a rubble heap built from its footprint (HROT's rule: top 55 % of the footprint, blocks on it); a solid (untemplated) house collapses the same way, found by label | — |
+| D-8 live vs at join | ⭐ the gateway's rule: a stamp of 0 or older than what we hold ⇒ draw only; a new / changed stamp ⇒ dust, debris thrown away from `Blast`, glass shards | — |
+
+```mermaid
+classDiagram
+  class terrain_look_py { <<exists: write_buildings, build_house>> CHANGED: houses from panels.json, openings cut, floors, UV1 ids, buildings-index.json }
+  class hrot_building_panels { <<exists, HROT CE-11052>> panels.json }
+  class UHrotTerrainLibrary { <<exists, editor>> BuildMesh(bin...) CHANGED: UV1 from the bin's id trailer, CPU access }
+  class UHrotDpsWorld { <<exists>> Sub(DPS_BuildingDamage) NEW · Tick }
+  class UHrotBuildingDamage { <<NEW, HrotDps>> OnBuildingDamage(sample) Tick() Houses: key to FHouse }
+  class FHouseIndex { <<NEW, HrotTerrain>> Load(buildings-index.json) Find(key): tile, index, footprint }
+  class UHrotHouseProxy { <<NEW, HrotTerrain>> TakeOut(tileActor, index) Cut(breach) BreakGlass(panel, opening) Collapse() }
+  class AHrotExplosionFx { <<exists>> dust, debris, scorch }
+  hrot_building_panels ..> terrain_look_py : offline, once per terrain
+  terrain_look_py ..> UHrotTerrainLibrary : tile bin + ids
+  UHrotDpsWorld --> UHrotBuildingDamage : owns, forwards samples, ticks
+  UHrotBuildingDamage --> FHouseIndex
+  UHrotBuildingDamage --> UHrotHouseProxy : one per damaged house
+  UHrotBuildingDamage --> AHrotExplosionFx : live changes only
+```
+
+```mermaid
+sequenceDiagram
+  participant G as gateway (DPS_BuildingDamage)
+  participant D as UHrotBuildingDamage
+  participant I as FHouseIndex
+  participant P as UHrotHouseProxy
+  participant T as tile (static mesh)
+  G->>D: sample key <terrain>/<label> (first time)
+  D->>I: Find(key)
+  I-->>D: tile actor, index, footprint
+  D->>P: TakeOut(tile, index)
+  P->>T: hidden; a dynamic copy without the house's triangles (UV1.x) replaces it
+  P->>P: the house alone as a dynamic mesh
+  loop each breach / window not yet applied
+    D->>P: Cut(panel, From, To, Bottom, Top) / BreakGlass(panel, opening)
+  end
+  G->>D: Collapsed
+  D->>P: Collapse() - rubble from the footprint
+  D->>D: stamp new? then dust / debris / shards (away from Blast), else nothing
+```
+
+```mermaid
+graph TD
+  subgraph offline["offline, once per terrain"]
+    HP[hrot-building-panels] --> TU[terrain-to-unreal.py --look / terrain_look.py]
+    TU --> LK[hrot_look.py in the editor: BuildMesh per tile]
+  end
+  subgraph runtime["the game, every frame"]
+    W[UHrotDpsWorld.Tick] --> BD[UHrotBuildingDamage.Tick: applies queued samples]
+    S[DDS reader DPS_BuildingDamage] --> W
+    BD --> HX[UHrotHouseProxy]
+  end
+  LK -.->|tile meshes with UV1 ids, buildings-index.json| BD
+```
+
+*What the pictures show that prose hid:* the only per-frame caller is `UHrotDpsWorld.Tick` (the reader is already there for every topic — one more
+`Sub`); the house geometry has ONE builder, offline, and the runtime never builds a house — it only takes one out of a tile, cuts it and swaps it
+for rubble. ⚠ Unmeasured, to measure on bt-range first: the cost of the tile swap (D-4) and of a boolean on a house (D-5).
+
+**Steps:** ① the converter: houses from panels, openings cut, floors, UV1 ids, the index (bt-range, flat copy) · ② `BuildMesh` UV1 + CPU access ·
+③ the client reader + take-out + holes + glass · ④ collapse + rubble · ⑤ live effects · ⑥ demo-city · ⑦ Stechovice.
+
 ## ⛔ HISTORY — the first open list
 
 | # | question |

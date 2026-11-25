@@ -13,6 +13,13 @@ namespace Hrot.Terrain.Import;
 /// </summary>
 public sealed partial class TerrainImporter : ITerrainImporter
 {
+    /// <summary>
+    /// ⭐ <c>CE-5056</c> — the GENERATOR's revision, recorded in <c>terrain.json</c> beside the input's manifest sha256 (§13 F-4): a first use whose recorded revision differs
+    /// re-imports, exactly as a changed input does — so a change to what the importer GENERATES reaches every machine that imported before. ⭐ Bump it with any such change.
+    /// 2 = 1.2 m doors and stairs clear of the ground doors (CE-5056, village-street: 234 of 582 ground doors had no path through). 1 = everything before (recorded as none).
+    /// </summary>
+    public const int Revision = 2;
+
     private readonly string? _terrainsRoot, _scenariosRoot;
 
     /// <param name="terrainsRoot">default <c>&lt;repo&gt;/assets/terrain</c></param>
@@ -132,7 +139,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
             string worldFile = name + ".world.geojson";
             TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees);
-            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)));
+            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)), Revision);
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");
             ct.ThrowIfCancellationRequested();

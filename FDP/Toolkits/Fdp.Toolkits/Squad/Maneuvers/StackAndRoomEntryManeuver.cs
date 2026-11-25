@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.Squad.Maneuvers
                 //   squad stacks on the next (a single-room order never sends these)
                 new PhaseTransitionEntry { FromPhaseId = PhaseCleared,   EventKind = PhaseEventKind.BoundComplete,  ToPhaseId = PhaseStacking },
                 new PhaseTransitionEntry { FromPhaseId = PhaseBreaching, EventKind = PhaseEventKind.FarSideReached, ToPhaseId = PhaseStacking },
+                // ⭐ CE-8324 (behaviors, cross-lane) — a room with no way in (its doorway cannot be walked) is skipped from Entering too
+                new PhaseTransitionEntry { FromPhaseId = PhaseEntering,  EventKind = PhaseEventKind.BoundComplete,  ToPhaseId = PhaseStacking },
             };
 
         // 4 candidates: 1 PointMan + 1 BreachCover + 2 Secondary

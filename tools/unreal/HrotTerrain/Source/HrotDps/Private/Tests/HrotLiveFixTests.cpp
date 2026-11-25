@@ -111,7 +111,7 @@ bool FHrotLiveFixAircraftTest::RunTest(const FString&)
 	UHrotDpsWorld* W = NewObject<UHrotDpsWorld>(GetTransientPackage());
 	W->DefaultLife();
 	const TMap<FString, FString> Want = { { TEXT("1.2.225.20"), TEXT("DA_Air_Apache") }, { TEXT("1.2.225.2"), TEXT("DA_Air_F16") }, { TEXT("1.2.225.1"), TEXT("DA_Air_F16") },
-		{ TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon") }, { TEXT("1.2.225.4"), TEXT("DA_Air_AC130") }, { TEXT("1.2.225.21"), TEXT("DA_Air_OH1") } };
+		{ TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon") }, { TEXT("1.2.225.4"), TEXT("DA_Air_AC130") }, { TEXT("1.2.225.21"), TEXT("DA_Air_UH60") } };
 	for (const TPair<FString, FString>& P : Want)
 	{
 		const TSoftObjectPtr<UHrotVehicleKit>* K = W->KitsByDis.Find(P.Key);
@@ -141,7 +141,7 @@ bool FHrotLiveFixAircraftTest::RunTest(const FString&)
 	TestEqual(TEXT("MiG-29 on the Typhoon kit: jet"), Eng(TEXT("DA_Air_Typhoon"), TEXT("1.2.222.1.0.0.0")), FString(TEXT("Jet")));
 	TestEqual(TEXT("C-130: prop"), Eng(TEXT("DA_Air_AC130"), TEXT("1.2.225.4.0.0.0")), FString(TEXT("Propeller")));
 	TestEqual(TEXT("AH-64: rotor"), Eng(TEXT("DA_Air_Apache"), TEXT("1.2.225.20.0.0.0")), FString(TEXT("Helicopter")));
-	TestEqual(TEXT("UH-60 on the OH-1 kit: rotor"), Eng(TEXT("DA_Air_OH1"), TEXT("1.2.225.21.0.0.0")), FString(TEXT("Helicopter")));
+	TestEqual(TEXT("UH-60 on its OH-1-based kit: rotor"), Eng(TEXT("DA_Air_UH60"), TEXT("1.2.225.21.0.0.0")), FString(TEXT("Helicopter")));
 	TestEqual(TEXT("an unknown aircraft on any kit: jet, not prop"), Eng(TEXT("DA_Air_AC130"), TEXT("1.2.225.99.0.0.0")), FString(TEXT("Jet")));
 	for (const TCHAR* CarDis : { TEXT("1.1.0.81.0.0.0"), TEXT("1.1.0.82.0.0.0"), TEXT("1.1.0.83.0.0.0") })
 		TestEqual(*FString::Printf(TEXT("civilian road vehicle %s: car (never a truck / tank), whatever the kit"), CarDis), Eng(TEXT("DA_City_vehicle04_Truck"), CarDis), FString(TEXT("Light")));
@@ -158,7 +158,7 @@ bool FHrotLiveFixAircraftTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotLiveFixAirNoseTest, "Hrot.Dps.LiveFix.AirNose", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FHrotLiveFixAirNoseTest::RunTest(const FString&)
 {
-	const TMap<FString, float> Yaw = { { TEXT("DA_Air_Apache"), 180.f }, { TEXT("DA_Air_F16"), 180.f }, { TEXT("DA_Air_AC130"), 0.f }, { TEXT("DA_Air_OH1"), 90.f },
+	const TMap<FString, float> Yaw = { { TEXT("DA_Air_Apache"), 180.f }, { TEXT("DA_Air_F16"), 180.f }, { TEXT("DA_Air_AC130"), 0.f }, { TEXT("DA_Air_OH1"), 90.f }, { TEXT("DA_Air_UH60"), 90.f },
 		{ TEXT("DA_Air_F22"), 180.f }, { TEXT("DA_Air_Typhoon"), 0.f } };
 	for (const TPair<FString, float>& K : Yaw)
 	{

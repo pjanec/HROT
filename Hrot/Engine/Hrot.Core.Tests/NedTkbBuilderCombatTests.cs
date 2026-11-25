@@ -766,6 +766,23 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal("BasicSquadSop", squad.GetDescriptor<BehaviorProfileDto>()!.DefaultSop);   // ⭐ CE-2358 (AQ102 G) — every squad type, by default
         }
 
+        /// <summary>⭐ <c>CE-8318</c> — an ARMED ground vehicle with no SOP authored fights by default: the tanks, the IFV, the crewed HMMWV, every
+        /// armed technical and the radar SAM name <c>BasicVehicleSop</c> (the set the stechovice showcase authors by hand). ⛔ What has no gun, or no
+        /// crew, stays inert (the bare pickup, the crewless HMMWV); ⛔ and no aircraft — the vehicle SOP's moves are ground moves.
+        /// 📐 village-street-fight: the M1 and the T-72 never fired in 300 s. 🔴 Red-proof: drop the default from the tanks.</summary>
+        [Fact]
+        public void CE8318_AnArmedVehicle_FightsByDefault_TheUnarmedAndTheAircraftDoNot()
+        {
+            var db = BuildDatabase();
+            string? SopOf(long type) => db.GetByType(type)?.GetDescriptor<BehaviorProfileDto>()?.DefaultSop;
+            foreach (long t in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.IFV_Bradley, TkbEntityTypes.Tank_T72, TkbEntityTypes.Truck_HMMWV,
+                                       TkbEntityTypes.Technical_Hmg, TkbEntityTypes.Technical_Atgm, TkbEntityTypes.Technical_Dshk,
+                                       TkbEntityTypes.Technical_Minigun, TkbEntityTypes.Technical_Zu23, TkbEntityTypes.AirDefence_RadarSam })
+                Assert.True(SopOf(t) == "BasicVehicleSop", $"type {t}: {SopOf(t) ?? "none"}");
+            foreach (long t in new[] { TkbEntityTypes.Pickup_Toyota, TkbEntityTypes.Truck_HMMWV_NoCrew, TkbEntityTypes.Heli_AH64, TkbEntityTypes.Heli_UH60 })
+                Assert.True(string.IsNullOrEmpty(SopOf(t)), $"type {t}: {SopOf(t)}");
+        }
+
         /// <summary>⭐ <c>CE-7028</c> — the RECON drone: a rotorcraft with feet, NO weapon (the operator sends it to watch), a 30-minute battery, a
         /// 1 500 m camera, and it does not burst on impact.</summary>
         [Fact]
