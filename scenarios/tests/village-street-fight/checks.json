@@ -63,38 +63,41 @@
       "after": 60
     },
     {
-      "name": "REALISM Blue Squad 1 never stands wholly in the open after 90 s (CE-8322)",
+      "name": "REALISM Blue Squad 1 never stands wholly in the open longer than a rush (3 s) after 90 s (CE-8322)",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 1 ",
         "is": "open",
         "m": 3,
         "quantifier": "all",
-        "upright": true
+        "upright": true,
+        "for": 3
       },
       "after": 90
     },
     {
-      "name": "REALISM Blue Squad 2 never stands wholly in the open after 90 s",
+      "name": "REALISM Blue Squad 2 never stands wholly in the open longer than a rush (3 s) after 90 s",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 2 ",
         "is": "open",
         "m": 3,
         "quantifier": "all",
-        "upright": true
+        "upright": true,
+        "for": 3
       },
       "after": 90
     },
     {
-      "name": "REALISM Blue Squad 3 never stands wholly in the open after 90 s (CE-8322)",
+      "name": "REALISM Blue Squad 3 never stands wholly in the open longer than a rush (3 s) after 90 s (CE-8322)",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 3 ",
         "is": "open",
         "m": 3,
         "quantifier": "all",
-        "upright": true
+        "upright": true,
+        "for": 3
       },
       "after": 90
     },
