@@ -135,7 +135,7 @@ namespace CarKinem.Controllers
             hit = default;
             var crossings = t_crossings ??= new List<TraceCrossing>();
             float probe = CarKinem.Systems.CarKinematicsSystem.HullProbeM;
-            float gp = world.HullSurfaceZ(p.X, p.Y, z), gq = world.HullSurfaceZ(q.X, q.Y, z);
+            float gp = world.HullPointZ(p.X, p.Y, z), gq = world.HullPointZ(q.X, q.Y, z);   // ⭐ CE-4692 — a point on a deck is on it
             world.Trace(new Vector3(p, gp + probe), new Vector3(q, gq + probe), TracePurpose.Hull, crossings);
             float step = MathF.Max(gp, gq) + CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM;
             for (int i = 0; i < crossings.Count; i++)
@@ -171,11 +171,21 @@ namespace CarKinem.Controllers
             //   VehicleMaxStepM. 📌 ua-hill-attack: every tank was held at the ridge's foot (slope ~0.1, a 9.8 m hull) and backed out again,
             //   no round fired for minutes. A corner stepping onto a solid block still rises by its height; one already on it rises 0.
             // ⭐ CE-4598 (D-4) — the HULL's surface: a wall panel's top is never one, so a low garden wall is met, not climbed
-            float ground = world.HullSurfaceZ(a.X, a.Y, za), groundB = world.HullSurfaceZ(b.X, b.Y, za);
+            float ground = world.HullPointZ(a.X, a.Y, za), groundB = world.HullPointZ(b.X, b.Y, za);   // ⭐ CE-4692 — a point on a deck is on it
             float rise = groundB - ground;
             if (rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM && rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxClimbSlope * step)
             {
                 hit = new BarrierHit(true, -1, b, Vector2.Normalize(a - b));   // a SOLID piece rose under b: which one is the terrain's to say (TerrainWorld.SolidUnder)
+                return true;
+            }
+            // ⭐ CE-4692 BL-12 — a laid bridge's deck has a KERB: a point that stands on a deck may not step off its side where the surface drops by more than a
+            //   step (into the river) — avoidance would otherwise push a 3.6 m hull off a 4 m deck. The ramps run down to the ground, so the ends are no drop.
+            //   ⚠ Only a step OUT of every deck's plan footprint: along a ramp a corner ahead of the hull's height reads "out of reach" (the surface sampler's
+            //   step reach), which looks like a drop — 📐 measured live (bl-placed-bridge): a tank held at the ramp's foot by its own front corner.
+            if (-rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM && -rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxClimbSlope * step
+                && world.OnDeck(a.X, a.Y, ground) && !world.OnDeck(b.X, b.Y, float.NaN))
+            {
+                hit = new BarrierHit(false, -1, b, Vector2.Normalize(a - b));
                 return true;
             }
             var crossings = t_crossings ??= new List<TraceCrossing>();   // ⭐ one per thread: the kinematics runs ForEachParallel

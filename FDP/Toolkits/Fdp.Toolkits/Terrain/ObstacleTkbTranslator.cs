@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Terrain
             if (dto == null) return;
 
             if (repo.IsComponentTypeRegistered<StaticObstacle>())
-                repo.AddComponent(entity, new StaticObstacle { Material = new FixedString32(dto.Material ?? "concrete") });
+                repo.AddComponent(entity, new StaticObstacle { Material = new FixedString32(dto.Material ?? "concrete"), Kind = dto.Kind });
 
             var shape = new ObstacleShape { Length = dto.Length, Width = dto.Width, Height = dto.Height };
             if (repo.IsComponentTypeRegistered<ObstacleShape>())
@@ -47,7 +47,8 @@ namespace Fdp.Toolkit.Terrain
                 else repo.AddComponent(entity, shape);
             }
 
-            if (repo.IsComponentTypeRegistered<PhysicsCollider>())
+            // ⭐ CE-4692 BL-1 — a walkable DECK has no movement collider: a mover crosses a bridge, it does not steer round it (the deck is terrain, baked)
+            if (repo.IsComponentTypeRegistered<PhysicsCollider>() && dto.Kind != ObstacleKind.WalkableDeck)
                 repo.AddComponent(entity, new PhysicsCollider
                 {
                     Radius         = 0.5f * MathF.Sqrt(shape.Length * shape.Length + shape.Width * shape.Width),

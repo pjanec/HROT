@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Terrain
     public static partial class FeatureExpander
     {
         public const float DefaultWallHeight = 2.0f, DefaultFenceHeight = 1.6f, DefaultHedgeHeight = 1.5f, HedgeThickness = 0.8f;
-        public const float DefaultBridgeWidth = 4.0f, BridgeDeckHeight = 1.5f, BridgeRampLength = 6.0f;
+        public const float DefaultBridgeWidth = 4.0f, BridgeDeckHeight = DeckGeometry.AuthoredDeckHeight, BridgeRampLength = DeckGeometry.AuthoredRampLength;
         public const int MaxScatterItems = 2000;
         public const float DefaultRowSpacing = 8f;
         public const int DefaultGroupCount = 10;
@@ -240,24 +240,20 @@ namespace Fdp.Toolkit.Terrain
         {
             if (points.Count < 2) throw new ArgumentException($"[Terrain] {where}: a bridge needs two points (the banks).");
             var a = points[0]; var b = points[^1];
-            var d = b - a; float len = d.Length();
-            if (len < 1f) throw new ArgumentException($"[Terrain] {where}: a bridge's two points are the same place.");
-            var u = d / len; var n = new Vector2(-u.Y, u.X); float hw = width / 2f;
-            JsonArray Quad(Vector2 p0, float z0, Vector2 p1, float z1)   // p0 → p1 along the bridge; z0 / z1 are the heights above the ground at each end
+            if ((b - a).Length() < 1f) throw new ArgumentException($"[Terrain] {where}: a bridge's two points are the same place.");
+            // ⭐ CE-4692 BL-4 — the ONE deck geometry (DeckGeometry), shared with the laid bridge's bake; this only writes its parts as features
+            JsonArray Ring(DeckGeometry.Part q)
             {
-                var corners = new[] { (p0 - n * hw, z0), (p1 - n * hw, z1), (p1 + n * hw, z1), (p0 + n * hw, z0) };
                 var ring = new JsonArray();
-                foreach (var (p, z) in corners) ring.Add(new JsonArray(Round(p.X), Round(p.Y), Round(z)));
-                ring.Add(new JsonArray(Round(corners[0].Item1.X), Round(corners[0].Item1.Y), Round(corners[0].Item2)));
+                for (int i = 0; i < 4; i++) ring.Add(new JsonArray(Round(q[i].At.X), Round(q[i].At.Y), Round(q[i].Above)));
+                ring.Add(new JsonArray(Round(q[0].At.X), Round(q[0].At.Y), Round(q[0].Above)));
                 return ring;
             }
             JsonObject Part(string kind, string label, JsonArray ring)
                 => Feature(new JsonObject { ["kind"] = kind, ["zRef"] = "ground", ["structure"] = key, ["label"] = label },
                            new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(ring) });
-            var deck = Part("slab", key + "/0", Quad(a, BridgeDeckHeight, b, BridgeDeckHeight));
-            var rampA = Part("ramp", key + "/1", Quad(a - u * BridgeRampLength, 0f, a, BridgeDeckHeight));
-            var rampB = Part("ramp", key + "/2", Quad(b, BridgeDeckHeight, b + u * BridgeRampLength, 0f));
-            return new[] { deck, rampA, rampB };
+            var q = DeckGeometry.Build(a, b, width, BridgeDeckHeight, BridgeRampLength);
+            return new[] { Part("slab", key + "/0", Ring(q[0])), Part("ramp", key + "/1", Ring(q[1])), Part("ramp", key + "/2", Ring(q[2])) };
         }
 
         // ── row and group of lone trees (CE-5007) ─────────────────────────────────────────────────────────────────

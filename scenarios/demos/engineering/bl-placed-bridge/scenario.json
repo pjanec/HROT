@@ -1,0 +1,374 @@
+{
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: CE-4692 BL-S1 (docs/designs/engineering/DESIGN_Bridge_Laying.md §5) — on basic-desert a RIVER (an authored Water feature, y 60-72 across the whole map) parts the south from the north. A LAID BRIDGE (an assault span, TKB 8825: a walkable-deck static obstacle, 18 m between its deck ends, 4 m wide, 1.2 m above the banks, a ramp at each end) is placed by the scenario at (80, 66), heading north, so its deck ends stand on the banks. Every node bakes it into its own terrain — the navmesh, the floor, sight and fire — before it is Open (held Constructing until the bake commits). 'Tank' (an M1 at (80, 20)) is ordered to (80, 110) on the far bank; 'Squad' (a leader and three riflemen at (64, 22)) marches to (64, 108). Judge: the tank reaches the far bank driving over the deck (up at deck height, never in the river beside it); the squad's objective 'reach the far bank' ends Achieved (all four men inside 15 m of (64, 108)). Fail: either stops at the river. Check: scripts/scenario-regression.sh bl-placed-bridge"
+  },
+  "entities": {
+    "b4692000-0000-4000-8000-000000000000": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 9,
+        "Template": "",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          -5,
+          60.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 610,
+            "Y": 0
+          },
+          {
+            "X": 610,
+            "Y": 12.0
+          },
+          {
+            "X": 0,
+            "Y": 12.0
+          }
+        ],
+        "Version": 0
+      },
+      "EntityInfo": {
+        "Name": "River",
+        "ForceId": "Neutral"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          80.0,
+          66.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071067811865475,
+          0.7071067811865476
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8825
+      },
+      "EntityInfo": {
+        "Name": "Bridge",
+        "ForceId": "Friend"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          80.0,
+          20.0,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071067811865475,
+          0.7071067811865476
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b4692000-0000-4000-9000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "5"
+                }
+              ]
+            },
+            {
+              "taskId": "b4692000-0000-4000-9000-000000000002",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 5,
+                "arrivalRadius": 5,
+                "target": [
+                  80.0,
+                  110.0,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b4692000-0000-4000-9000-000000000003",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          64.0,
+          22.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071067811865475,
+          0.7071067811865476
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {
+          "Objective": [
+            64.0,
+            108.0,
+            0
+          ],
+          "Shape": 0,
+          "Spacing": 4
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          58.0,
+          18.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071067811865475,
+          0.7071067811865476
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4692000-0000-4000-8000-000000000002",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          62.0,
+          18.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071067811865475,
+          0.7071067811865476
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4692000-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          66.0,
+          18.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071067811865475,
+          0.7071067811865476
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4692000-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          70.0,
+          18.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071067811865475,
+          0.7071067811865476
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4692000-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "b4692000-0000-4000-8000-000000000020": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Squad reaches the far bank",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "ReachArea",
+        "Params": {
+          "common": {
+            "title": "Squad reaches the far bank",
+            "subject": "b4692000-0000-4000-8000-000000000002",
+            "deadlineSeconds": 110
+          },
+          "area": {
+            "circle": {
+              "center": [
+                64.0,
+                108.0,
+                0
+              ],
+              "radius": 15
+            }
+          },
+          "minMen": 4
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

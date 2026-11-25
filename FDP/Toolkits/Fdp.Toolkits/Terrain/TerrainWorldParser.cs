@@ -307,12 +307,13 @@ namespace Fdp.Toolkit.Terrain
                                     // ⭐ TH-K — a RAMP's foot (a vertex AT the ground) is BURIED: sunk below the ground, so the walkable
                                     //   top surface is max(ground, ramp), joined along their intersection whatever the grid's
                                     //   triangulation — continuous for the navmesh's step and for SurfaceZ by construction.
-                                    if (walkableKind == TerrainWalkableKind.Ramp && above <= RampFootTolerance) above = -RampFootSink;
+                                    above = Buried(walkableKind, above);
                                     float under = ground?.Sample(ring[i].X, ring[i].Y) ?? groundZ;
                                     ring[i] = new Vector3(ring[i].X, ring[i].Y, under + above);
                                 }
                             var walkable = MakeWalkable(walkableKind, ring, relative ? null : flatZ, where);
-                            if (walkableKind == TerrainWalkableKind.Ramp && MaxSlopeDegrees(walkable) > VehicleRampMaxSlopeDegrees)
+                            // ⭐ CE-5056 ④ — a flight of STEPS ("steps": true; the importer's entrance steps) is for feet: too steep for a vehicle by design, so no warning
+                            if (walkableKind == TerrainWalkableKind.Ramp && props["steps"]?.GetValue<bool>() != true && MaxSlopeDegrees(walkable) > VehicleRampMaxSlopeDegrees)
                                 (warnings ??= new List<string>()).Add(
                                     $"Terrain world {where}: ramp slope {MaxSlopeDegrees(walkable):F0}° is steeper than the vehicle navmesh's {VehicleRampMaxSlopeDegrees:F0}° — vehicles cannot use it.");
                             int structure = StructureOf(props, where, PlanOf(walkable), walkable.MinZ, walkable.MaxZ);
@@ -520,6 +521,20 @@ namespace Fdp.Toolkit.Terrain
                 Kind = kind, Footprint = footprint, BaseZ = baseZ, TopZ = topZ, Floors = floors, Label = label,
                 Triangles = tris, Min = min, Max = max,
             };
+        }
+
+        /// <summary>⭐ TH-K — a ramp vertex's height above the ground, its FOOT (at the ground) buried <see cref="RampFootSink"/> below it. The one rule, for the parser and the laid bridge (CE-4692).</summary>
+        public static float Buried(TerrainWalkableKind kind, float above) => kind == TerrainWalkableKind.Ramp && above <= RampFootTolerance ? -RampFootSink : above;
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-4 — a walkable from GROUND-RELATIVE corners (each its height above the ground under it, a ramp's foot buried — TH-K), exactly as the parser makes a
+        /// <c>"zRef": "ground"</c> slab or ramp: the laid bridge's deck (<see cref="TerrainObstacles.DeckOf"/>) is built by the same code as the authored one's.
+        /// </summary>
+        public static TerrainWalkable GroundRelativeWalkable(TerrainWalkableKind kind, IReadOnlyList<(Vector2 At, float Above)> corners, Func<float, float, float> groundAt, string where)
+        {
+            var ring = new List<Vector3>(corners.Count);
+            foreach (var (at, above) in corners) ring.Add(new Vector3(at.X, at.Y, groundAt(at.X, at.Y) + Buried(kind, above)));
+            return MakeWalkable(kind, ring, null, where);
         }
 
         /// <summary>⭐ TH-K — how far a ramp's foot is sunk below the ground (m).</summary>

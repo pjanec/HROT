@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Terrain_Height.md TH-C ("a building stands on the LOWEST ground under its footprint") — overturned for a building that carries a pad, once G-2 is ruled
 related-designs:
+  - designs/engineering/DESIGN_Bridge_Laying.md — the laid bridge's road segment: an ADD through the same road-edit step (and its cut when it falls)
   - DESIGN_Terrain_Base_Edits.md — OWNS removing a baked-in building: its footprint is levelled by this design's `Level` shape once the building leaves the base (no longer an island)
   - DESIGN_Terrain_Editor_UX.md — CE-4594, the user-friendly way to reach and repeat the features §4d makes ready (toolbar row, sticky tools, snapping, the scatter's line, the Terrain Details tab); bound by §4d
   - DESIGN_Vehicle_Breaching.md — builds on P-0, R-4232 and P-2 here: a crushed roadblock re-opens its road; a breach is read at query time

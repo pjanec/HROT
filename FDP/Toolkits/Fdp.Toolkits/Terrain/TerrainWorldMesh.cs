@@ -97,6 +97,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (var w in world.Walkables)
             {
                 Fdp.Core.LoadProgress.Report();
+                if (drawnOnly && w.DrawnByEntity) continue;   // ⭐ CE-4692 BL-13 — the entity draws this deck; the navmesh soup keeps it
                 AddWalkable(w, v, t, g);
             }
 
@@ -372,6 +373,19 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         private sealed class GroundBins
         {
+            /// <summary>
+            /// ⭐ <c>CE-5056</c> — a prism that starts ABOVE the ground (base more than <see cref="TerrainWorld.StepHeight"/> over the ground at its footprint's
+            /// centre — a pitched roof's cap at the eaves) is OVERHEAD: it takes no ground away, the rule <c>SurfaceZ</c> already applies to a point (Terrain
+            /// World §6, "an overhead piece does not take the ground away"). 📐 It used to: every capped house (village-street, Stechovice) lost the ground under
+            /// it AND, the grid's cells being coarse, a strip outside its walls — a door's threshold over a hole in the navmesh, no path in (25 doors of
+            /// village-street, both doors of each such house).
+            /// </summary>
+            private static bool Overhead(TerrainWorld world, TerrainPrism prism)
+            {
+                var c = (prism.Min + prism.Max) * 0.5f;
+                return prism.BaseZ > world.GroundHeightAt(c.X, c.Y) + TerrainWorld.StepHeight;
+            }
+
             private const float Bin = 32f;
             private readonly Vector2 _min;
             private readonly int _nx, _ny;
@@ -381,7 +395,7 @@ namespace Fdp.Toolkit.Terrain
             public GroundBins(TerrainWorld world)
             {
                 foreach (var prism in world.Prisms)
-                    if (prism.Panel < 0 && !prism.DrawnByEntity) _cutPolys.Add((prism.Min, prism.Max, prism.Footprint));   // ⭐ CE-4656 — no hole under a self-drawn entity
+                    if (prism.Panel < 0 && !prism.DrawnByEntity && !Overhead(world, prism)) _cutPolys.Add((prism.Min, prism.Max, prism.Footprint));   // ⭐ CE-4656 — no hole under a self-drawn entity
                 foreach (var s in world.Surfaces)
                 {
                     if (s.Type == TerrainSurfaceType.Water) { _cutPolys.Add((s.Min, s.Max, s.Polygon)); _waterPolys.Add((s.Min, s.Max, s.Polygon)); }

@@ -16,9 +16,10 @@ public sealed partial class TerrainImporter : ITerrainImporter
     /// <summary>
     /// ⭐ <c>CE-5056</c> — the GENERATOR's revision, recorded in <c>terrain.json</c> beside the input's manifest sha256 (§13 F-4): a first use whose recorded revision differs
     /// re-imports, exactly as a changed input does — so a change to what the importer GENERATES reaches every machine that imported before. ⭐ Bump it with any such change.
-    /// 2 = 1.2 m doors and stairs clear of the ground doors (CE-5056, village-street: 234 of 582 ground doors had no path through). 1 = everything before (recorded as none).
+    /// 3 = entrance steps for raised ground doors (CE-5056 ④). 2 = 1.2 m doors and stairs clear of the ground doors (CE-5056, village-street: 234 of 582 ground
+    /// doors had no path through). 1 = everything before (recorded as none).
     /// </summary>
-    public const int Revision = 2;
+    public const int Revision = 3;
 
     private readonly string? _terrainsRoot, _scenariosRoot;
 
@@ -106,6 +107,9 @@ public sealed partial class TerrainImporter : ITerrainImporter
             bool[]? roadLock = set.RoadsNet is string levelNet ? Corridors.Apply(posts, postCols, postRows, levelNet, ax, ay, built, rep) : null;
             Stage("corridors"); progress?.Report(new ImportProgress("levelling", 0.4));
             Pads.Apply(posts, postCols, postRows, built, rep, roadLock);
+            // ⭐ CE-5056 ④ — entrance steps on the FINAL ground (after the pads): a raised ground-floor door gets a ramp down to it
+            var finalGround = new TerrainHeightGrid(System.Numerics.Vector2.Zero, 1f, postCols, postRows, posts);
+            var entrances = EntranceSteps.For(built, (x, y) => finalGround.Sample((float)x, (float)y), rep);
             Stage("pads"); progress?.Report(new ImportProgress("levelling", 0.6));
             HeightStage.Write(posts, postCols, postRows, Path.Combine(tmp, heightsFile), rep);
             Stage("store"); progress?.Report(new ImportProgress("levelling", 0.8));
@@ -138,7 +142,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
             ct.ThrowIfCancellationRequested();
 
             string worldFile = name + ".world.geojson";
-            TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees);
+            TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees, entrances);
             TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)), Revision);
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");

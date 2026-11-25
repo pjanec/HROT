@@ -18,7 +18,17 @@ namespace Fdp.Toolkit.Terrain
     {
         /// <summary>The wall-library material (<see cref="TerrainMaterialLibrary"/>).</summary>
         public FixedString32 Material;
+        /// <summary>⭐ <c>CE-4692</c> BL-1 — what the obstacle is in the terrain: a box you stand behind, or a deck you stand ON (a laid bridge). From the TKB type.</summary>
+        public ObstacleKind Kind;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4692</c> BL-1 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §3) — the kind of a static obstacle. <see cref="Solid"/>: a box prism of its material (sandbags,
+    /// a block, a parked car). <see cref="WalkableDeck"/>: a bridge deck with a ramp at each end (<see cref="DeckGeometry"/>), its <see cref="ObstacleShape"/> read as Length = the
+    /// span between the deck ends (along the heading, centred on the entity), Width = the deck width, Height = the deck's height above the ground at each end — baked as
+    /// WALKABLES, not a prism, and given no movement collider (a mover crosses it, it does not steer round it).
+    /// </summary>
+    public enum ObstacleKind : byte { Solid = 0, WalkableDeck = 1 }
 
     /// <summary>
     /// ⭐ <c>CE-3136</c> P-7a O3 — a static obstacle's box: <see cref="Length"/> along its heading × <see cref="Width"/> ×
@@ -92,6 +102,43 @@ namespace Fdp.Toolkit.Terrain
             };
         }
 
+        /// <summary>The label prefix of a deck's walkables, kept for diagnostics (a walkable has no label; <see cref="TerrainWalkable.Obstacle"/> names its entity).</summary>
+        public const string DeckWhere = "obstacle deck ";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4692</c> BL-4 — the WALKABLES a deck obstacle is in the terrain: <see cref="DeckGeometry.Build"/> from its deck ends (<see cref="DeckGeometry.Ends"/> of the entity's
+        /// position, heading and <see cref="ObstacleShape.Length"/>), <see cref="ObstacleShape.Width"/> wide, <see cref="ObstacleShape.Height"/> above the ground at each end, a ramp at the
+        /// authored slope beyond each end — each part made by the parser's own ground-relative rule (<see cref="TerrainWorldParser.GroundRelativeWalkable"/>, the foot buried).
+        /// <paramref name="groundAt"/> is the ground the bake lays it on.
+        /// </summary>
+        public static void DeckOf(Vector3 position, float yaw, in ObstacleShape shape, Func<float, float, float> groundAt, int obstacle, bool drawnByEntity, List<TerrainWalkable> into)
+        {
+            var (a, b) = DeckGeometry.Ends(new Vector2(position.X, position.Y), yaw, MathF.Max(shape.Length, 1f));
+            float rise = MathF.Max(shape.Height, 0.05f);
+            var parts = DeckGeometry.Build(a, b, MathF.Max(shape.Width, 0.5f), rise, DeckGeometry.RampLengthFor(rise));
+            var corners = new (Vector2, float)[4];
+            foreach (var part in parts)
+            {
+                for (int i = 0; i < 4; i++) corners[i] = part[i];
+                var w = TerrainWorldParser.GroundRelativeWalkable(part.Kind, corners, groundAt, DeckWhere + obstacle);
+                into.Add(new TerrainWalkable
+                {
+                    Kind = w.Kind, Vertices = w.Vertices, Triangles = w.Triangles, Min = w.Min, Max = w.Max, MinZ = w.MinZ, MaxZ = w.MaxZ,
+                    Obstacle = obstacle, DrawnByEntity = drawnByEntity,
+                });
+            }
+        }
+
+        /// <summary>A deck walkable's identity for "did it change": its vertices at 1 cm (the prisms' <c>PrismKey</c> rule).</summary>
+        public static ulong WalkableKey(TerrainWalkable w)
+        {
+            ulong h = 1469598103934665603UL;
+            void Mix(float f) { h ^= (ulong)(long)MathF.Round(f * 100f); h *= 1099511628211UL; }
+            foreach (var v in w.Vertices) { Mix(v.X); Mix(v.Y); Mix(v.Z); }
+            h ^= (ulong)w.Kind; h *= 1099511628211UL;
+            return h;
+        }
+
         /// <summary>
         /// <paramref name="terrain"/> with <paramref name="obstacles"/> added to its prisms — a NEW immutable world (R-218): every
         /// other part is shared by reference (they are immutable), the door leaves and indexes are rebuilt lazily by the new object.
@@ -128,9 +175,18 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>⭐ <c>CE-4624</c> MS-T3 (MR-3) — and the world's MINEFIELDS laid into <see cref="TerrainWorld.Minefields"/> (the navmesh stamps them as composite areas; the bake reads nothing else of them).</summary>
         public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields)
+            => With(terrain, obstacles, damage, craters, trees, minefields, null);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4692</c> BL-5 — and the WALKABLE DECKS of the laid bridges (<see cref="DeckOf"/>) ADDED to <see cref="TerrainWorld.Walkables"/>: the ONE deck, in the baked world (BL-2) —
+        /// the navmesh's per-tile gather (ground + prisms + walkables), the floor (<c>SurfaceZ</c> / <c>HullSurfaceZ</c>), sight and fire all read it there.
+        /// </summary>
+        public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields,
+                                        IReadOnlyList<TerrainWalkable>? decks)
         {
             bool overlay = damage != null && damage.NavHash != 0;
-            if (obstacles.Count == 0 && !overlay && craters == null && trees == null && (minefields == null || minefields.Count == 0)) return terrain;
+            bool hasDecks = decks is { Count: > 0 };
+            if (obstacles.Count == 0 && !overlay && craters == null && trees == null && (minefields == null || minefields.Count == 0) && !hasDecks) return terrain;
             var prisms = new List<TerrainPrism>(terrain.Prisms.Count + obstacles.Count);
             var walkables = terrain.Walkables;
             IReadOnlyList<int> bakedCollapse = terrain.BakedCollapsed;
@@ -187,6 +243,13 @@ namespace Fdp.Toolkit.Terrain
             prisms.AddRange(obstacles);
             var min = terrain.BoundsMin; var max = terrain.BoundsMax;
             foreach (var o in obstacles) { min = Vector2.Min(min, o.Min); max = Vector2.Max(max, o.Max); }
+            if (hasDecks)   // ⭐ CE-4692 BL-5 — appended after the base's (and the collapse's kept) walkables: every base index stays valid
+            {
+                var all = new List<TerrainWalkable>(walkables.Count + decks!.Count);
+                all.AddRange(walkables); all.AddRange(decks);
+                walkables = all;
+                foreach (var w in decks) { min = Vector2.Min(min, w.Min); max = Vector2.Max(max, w.Max); }
+            }
             var derived = new TerrainWorld
             {
                 Name      = terrain.Name,

@@ -1675,9 +1675,33 @@ namespace Hrot.Map.Definitions.Tkb
             //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
             //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.
             RegisterObstacle(tkbDb, "Wreck", TkbEntityTypes.Obstacle_Wreck, 6.5f, 3.4f, 2.4f, "car-body", feature, maxHealth: 600f);
+            RegisterBridges(tkbDb, feature);   // ⭐ CE-4692 BL-1
             foreach (long heavy in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.Tank_T72, TkbEntityTypes.IFV_Bradley })
                 if (tkbDb.TryGetByType(heavy, out var vehicle) && vehicle.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WreckObstacleDto>() == null)
                     vehicle.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WreckObstacleDto { ObstacleType = TkbEntityTypes.Obstacle_Wreck });
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-1 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §0, §9 Q-6) — the LAID BRIDGES: walkable-deck static obstacles (Length = the span between the deck
+        /// ends, Width = the deck, Height = the deck above the bank; a ramp at each end at the authored 1 : 4). ⚠ PLACEHOLDER figures, said: an assault span of 18 m × 4 m, 1.2 m
+        /// above the bank; a floating span of 60 m × 4.5 m, 0.6 m above the bank. Destructible by the obstacle blast law (100 hp per kg at contact): 600 hp, a concrete block's ⇒ the 8 kg demolition charge
+        /// at the deck. Q-6 replaces them with sourced values in BL-S3. Cultural-feature DIS kind: the terrain mesh draws the deck (no entity kit for a bridge).
+        /// </summary>
+        private static void RegisterBridges(TkbDatabase tkbDb, DISEntityType feature)
+        {
+            RegisterBridge(tkbDb, "Assault bridge",  TkbEntityTypes.Obstacle_AssaultBridge,  18f, 4f,   1.2f, feature, maxHealth: 600f);
+            RegisterBridge(tkbDb, "Floating bridge", TkbEntityTypes.Obstacle_FloatingBridge, 60f, 4.5f, 0.6f, feature, maxHealth: 600f);
+        }
+
+        private static void RegisterBridge(TkbDatabase tkbDb, string name, long type, float span, float width, float deckHeight, DISEntityType dis, float maxHealth)
+        {
+            var t = new TkbTemplate(name, type);
+            t.DisType = dis;
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto
+            {
+                Length = span, Width = width, Height = deckHeight, Material = "steel-plate", MaxHealth = maxHealth, Kind = Fdp.Toolkit.Terrain.ObstacleKind.WalkableDeck,
+            });
+            tkbDb.Register(t);
         }
 
         private static void RegisterObstacle(TkbDatabase tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Type type, long tkbType, DISEntityType dis, float maxHealth)

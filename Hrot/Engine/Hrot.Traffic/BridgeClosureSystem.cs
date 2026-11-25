@@ -68,6 +68,59 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
     private string[] _closed = Array.Empty<string>();
     private int _worldEpoch;
 
+    // ⭐⭐ CE-4692 BL-7 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §3) — the ROAD ADD: the published net is base − blocked + ADDED, the added part one segment per OPEN laid bridge
+    //   (a WalkableDeck obstacle that is Active — its bake committed) whose deck ends snap to two base nodes (BridgeRoads.Plan, the authored bridges' own rule, over the run-time net).
+    //   Base and added are kept apart: the net is always rebuilt from the base, so a recovered or fallen bridge leaves the base exactly as it was.
+    [Fdp.Core.WorldDerived("signature of the open laid bridges: change detection")]
+    private ulong _deckSig;
+    private EntityRepository? _deckFor;
+    private EntityQuery? _deckQuery;
+    [Fdp.Core.WorldDerived("the laid bridges' road segments now in the published net, recomputed from the open decks")]
+    private List<(int NodeA, int NodeB, float SpeedLimit, float LaneWidth)> _added = new();
+
+    /// <summary>⭐ CE-4692 — laid-bridge road segments in the published net now (rails / diagnostics).</summary>
+    public int Added => _added.Count;
+
+    /// <summary>A hash of the OPEN laid bridges (Active WalkableDeck obstacles: index, place, heading, span), allocation-free over a cached query.</summary>
+    private ulong DeckSignature(EntityRepository repo)
+    {
+        ulong h = 1469598103934665603UL;
+        if (!repo.IsComponentTypeRegistered<StaticObstacle>() || !repo.IsComponentTypeRegistered<ObstacleShape>()) return h;
+        if (!ReferenceEquals(repo, _deckFor) || _deckQuery == null) { _deckQuery = repo.Query().With<StaticObstacle>().With<ObstacleShape>().With<SimTransform>().Build(); _deckFor = repo; }
+        foreach (var e in _deckQuery)
+        {
+            if (repo.GetComponentRO<StaticObstacle>(e).Kind != ObstacleKind.WalkableDeck) continue;
+            ref readonly var t = ref repo.GetComponentRO<SimTransform>(e);
+            h ^= (ulong)e.Index; h *= 1099511628211UL;
+            h ^= (ulong)(long)MathF.Round(t.Position.X * 10f); h *= 1099511628211UL;
+            h ^= (ulong)(long)MathF.Round(t.Position.Y * 10f); h *= 1099511628211UL;
+            h ^= (ulong)(long)MathF.Round(TerrainObstacles.Yaw(t.Rotation) * 1000f); h *= 1099511628211UL;
+            h ^= (ulong)(long)MathF.Round(repo.GetComponentRO<ObstacleShape>(e).Length * 10f); h *= 1099511628211UL;
+        }
+        return h;
+    }
+
+    /// <summary>The road segments of the open laid bridges over <see cref="_base"/>: each one's deck ends snapped to base nodes (<see cref="BridgeRoads.Plan(IEnumerable{ValueTuple{string, Vector2, Vector2}}, int, BridgeRoads.NearestNode?)"/>).</summary>
+    private List<(int, int, float, float)> PlanAdded(EntityRepository repo)
+    {
+        var added = new List<(int, int, float, float)>();
+        if (!_haveBase || _deckQuery == null) return added;
+        var decks = new List<(string Key, Vector2 A, Vector2 B)>();
+        foreach (var e in _deckQuery)
+        {
+            if (repo.GetComponentRO<StaticObstacle>(e).Kind != ObstacleKind.WalkableDeck) continue;
+            ref readonly var t = ref repo.GetComponentRO<SimTransform>(e);
+            var (a, b) = DeckGeometry.Ends(new Vector2(t.Position.X, t.Position.Y), TerrainObstacles.Yaw(t.Rotation), repo.GetComponentRO<ObstacleShape>(e).Length);
+            decks.Add((e.Index.ToString("D10", System.Globalization.CultureInfo.InvariantCulture), a, b));
+        }
+        if (decks.Count == 0) return added;
+        var nodes = new List<Vector2>(_base.Nodes.Length);
+        for (int i = 0; i < _base.Nodes.Length; i++) nodes.Add(_base.Nodes[i].Position);
+        foreach (var plan in BridgeRoads.Plan(decks, _base.Segments.Length, (Vector2 p, float r, out int i, out Vector2 at) => BridgeRoads.NearestNodeOf(nodes, p, r, out i, out at)))
+            if (plan.Snapped) added.Add((plan.NodeA, plan.NodeB, BridgeRoads.SpeedLimit, BridgeRoads.LaneWidth));
+        return added;
+    }
+
     /// <summary>Bridges this system has treated as fallen (rails / diagnostics).</summary>
     public int Fallen => _fallen.Count;
 
@@ -108,7 +161,7 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
         {
             if (_haveBase) _base.Dispose();
             _base = RoadNetworkEdit.Without(holder.Current, static _ => false);
-            _haveBase = true; _blocked.Clear(); _publishedVersion = holder.Version;
+            _haveBase = true; _blocked.Clear(); _added = new(); _publishedVersion = holder.Version;
             changed = true;
         }
 
@@ -143,6 +196,9 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
         // ⭐ CE-4624 MS-T3 (MR-16) — the minefields: a MARKED field (or one known at start) across a road closes it like a roadblock (the view's table: the same instance while unchanged)
         var knowledge = DoorStates.Of(repo, terrain).Knowledge;
         if (!ReferenceEquals(knowledge, _knowledge)) { _knowledge = knowledge; changed = true; }
+        // ⭐ CE-4692 BL-7 — the open laid bridges: their own change test (a bridge OPENS when its bake commits — Constructing → Active, which the obstacle signature does not see)
+        ulong deckSig = DeckSignature(repo);
+        if (deckSig != _deckSig) { _deckSig = deckSig; changed = true; }
 
         if (!changed) return;
         Recompute(repo, holder);
@@ -181,7 +237,9 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
             if (!edges.SequenceEqual(_closed)) { _closed = edges.ToArray(); _runtime.SetClosedEdges(_closed); }
         }
 
-        if (!_haveBase || holder == null || _scratch.SetEquals(_blocked)) return;
+        var added = PlanAdded(repo);   // ⭐ CE-4692 BL-7
+        if (!_haveBase || holder == null || (_scratch.SetEquals(_blocked) && added.SequenceEqual(_added))) return;
+        _added = added;
 
         // corridors of the NEWLY dropped segments: vehicles whose way crosses them re-plan (a re-opened one needs nobody to re-plan)
         var corridors = new List<(System.Numerics.Vector2 A, System.Numerics.Vector2 B, float Half)>();
@@ -193,7 +251,7 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
         }
         _blocked.Clear(); foreach (int s in _scratch) _blocked.Add(s);
 
-        var next = RoadNetworkEdit.Without(in _base, i => _blocked.Contains(i));
+        var next = RoadNetworkEdit.Edited(in _base, i => _blocked.Contains(i), _added);   // ⭐ CE-4692 — base − blocked + added
         holder.Publish(next);
         _publishedVersion = holder.Version;
         Republished++;
