@@ -5,7 +5,7 @@
 # 3. BuildCookRun as DLC against the client's release: -dlcname -basedonreleaseversion -> only what the release lacks is cooked in
 # 4. the package (pak + IoStore utoc/ucas) copied into <Client>\Windows\HrotUnreal\Terrains\<name>\ - the client mounts it by name
 # 5. hrot-terrain.json beside it: the HROT terrain's content hash (scripts/unreal/hrot_terrain_manifest.py)
-param([Parameter(Mandatory = $true)][string]$Terrain, [string]$Source = "", [string]$Release = "1.0", [string]$Client = "D:\Work\HrotIG\1.0",
+param([Parameter(Mandatory = $true)][string]$Terrain, [string]$Source = "", [string]$HrotTerrains = "", [string]$Release = "1.0", [string]$Client = "D:\Work\HrotIG\1.0",
       [string]$Project = "D:\Work\HrotUnreal\HrotUnreal.uproject", [string]$Engine = "C:\UE_5.8\UE_5.8")
 $ErrorActionPreference = "Stop"
 if (Get-Process UnrealEditor -ErrorAction SilentlyContinue) { "EDITOR OPEN - close it first"; exit 1 }
@@ -41,7 +41,12 @@ $files = Get-ChildItem -Recurse "$pd\Saved\StagedBuilds" -File | Where-Object { 
 if (-not $files) { "no package files under $pd\Saved\StagedBuilds"; exit 4 }
 $files | % { Copy-Item $_.FullName $out; "{0,9:N1} MB  {1}" -f ($_.Length / 1MB), $_.Name }
 # 5. U-18x: the package's identity - the HROT terrain it was built from, by content (the client checks Session.TerrainBaseHash against it)
-python "$Here\hrot_terrain_manifest.py" $Terrain $out --source $Source
+# the HROT terrain the package matches: -HrotTerrains, else the repository's assets/terrain, else the running HROT's imported copy
+#   (2026-11-25: Stechovice is imported from terrain-input at load - it lives only under <HROT>/data/shared/assets/terrain)
+if (-not $HrotTerrains) {
+  $HrotTerrains = @("$Here\..\..ssets	errain", "D:\Work\HROT-live\data\sharedssets	errain") | ? { Test-Path (Join-Path $_ "$Terrain	errain.json") } | Select-Object -First 1
+}
+python "$Here\hrot_terrain_manifest.py" $Terrain $out --source $Source $(if ($HrotTerrains) { "--terrains"; $HrotTerrains })
 if ($LASTEXITCODE -ne 0) { "the manifest was not written (no HROT terrain '$Terrain'?)"; exit 5 }
 # 6. U-20: the building index (which house of HROT is which piece of which tile mesh) - the client reads it at <ProjectDir>/Data/<name>/, which a
 #    packaged game does not stage; without it no breach, window or collapse is drawn (measured 2026-11-25: "buildings: no index ... not drawn")
