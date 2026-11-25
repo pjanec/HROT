@@ -10,7 +10,10 @@ internal sealed record PlacedOpening(string Kind, int Edge, int Storey, double A
 /// </summary>
 internal static class OpeningPlacer
 {
-    public const double Reach = 0.6, GroundDoorReach = 1.5, DoorWidth = 0.9, WindowWidth = 1.2;
+    /// <summary>⭐ <c>DoorWidth</c> 1.2 m (CE-5056, user `2026-11-25`: "ok to 1,2"; was 0.9): the infantry navmesh keeps 0.3 m off each jamb, so a 0.9 m door left a
+    /// 0.3 m channel (two 0.15 m cells) that broke up on a wall rotated off the grid — 📐 village-street: 234 of 582 ground doors had no path through at 0.9 m,
+    /// 118 at 1.0 m, 72 at 1.2 m (the rest: a stair behind the door, now kept clear — <see cref="StairPlanner.DoorApron"/>). The source gives no door widths.</summary>
+    public const double Reach = 0.6, GroundDoorReach = 1.5, DoorWidth = 1.2, WindowWidth = 1.2;
 
     /// <param name="AddedDoor">⭐ CE-5029 — the ≥ 1 door rule added the ground-floor door (the input had none that fit).</param>
     /// <param name="Doorless">⭐ CE-5029 — no ground-floor door, and no free wall to put one on (every wall shared): REPORTED, never silent.</param>
