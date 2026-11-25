@@ -3,7 +3,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-4693 - the WHOLE bridge-laying feature, end to end, judged by OBJECTIVES (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712). On basic-desert a RIVER 12 m wide (y 60-72); Blue must cross it to a far bank held by Red's 'Red Outpost' (three men round (80, 124)). At 2 s 'Engineer' (an assault bridge layer, TKB 118) is ordered to LayBridge from (80, 50) to (80, 82). When the bridge opens, the rule 'Bridge laid' moves the engineer aside and sends squads 'Alpha' and 'Bravo' across; 'Red Sapper' (a demolition man with an 8 kg charge, waiting 600 m north at (90, 640), out of sight) runs for the deck's north end at 230 s to blow it. Objectives: 'Bridge laid' (an assault bridge Open); 'Far bank seized' (Alpha holds 22 m round (80, 112) for 20 s, no enemy inside); 'Bridge held' (the sapper silenced before he fires); then 'Take the bridge back' orders RecoverBridge and 'Bridge recovered' (no assault bridge left and the span on board again). Judge: every objective Achieved, the engineer carries its span again. If the sapper's charge DOES go off, the fall is judged instead (rows marked 'if charge'): the bridge gone. Check: scripts/scenario-regression.sh bl-river-crossing"
+  "description": "What: CE-4693 - the WHOLE bridge-laying feature, end to end, judged by OBJECTIVES (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712). On basic-desert a RIVER 12 m wide (y 60-72); Blue must cross it to a far bank held by Red's 'Red Outpost' (three men round (80, 124)). At 2 s 'Engineer' (an assault bridge layer, TKB 118) is ordered to LayBridge from (80, 50) to (80, 82). When the bridge opens, the rule 'Bridge laid' moves the engineer aside and sends squads 'Alpha' and 'Bravo' across; 'Red Sapper' (a demolition man with an 8 kg charge, waiting 540 m away at (300, 560), out of sight) runs for the deck's north end at 230 s to blow it. Objectives: 'Bridge laid' (an assault bridge Open); 'Far bank seized' (Alpha holds 22 m round (80, 112) for 20 s, no enemy inside); 'Bridge held' (the sapper silenced before he fires); then 'Take the bridge back' orders RecoverBridge and 'Bridge recovered' (no assault bridge left and the span on board again). Judge: every objective Achieved, the engineer carries its span again. If the sapper's charge DOES go off, the fall is judged instead (rows marked 'if charge'): the bridge gone. Check: scripts/scenario-regression.sh bl-river-crossing"
  },
  "entities": {
   "b4693500-0000-4000-8000-000000000000": {
@@ -497,8 +497,8 @@
   "b4693500-0000-4000-8000-000000000005": {
    "SimTransform": {
     "Position": [
-     90.0,
-     640.0,
+     300.0,
+     560.0,
      0.0
     ],
     "Rotation": [
