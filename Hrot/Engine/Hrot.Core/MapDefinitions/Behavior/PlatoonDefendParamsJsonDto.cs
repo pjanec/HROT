@@ -50,6 +50,10 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("ShootAndMoveSeconds")]
         public float ShootAndMoveSeconds;
 
+        /// <summary>Accepted — unused at this echelon (<c>CE-8327</c>: the Defend order's neutral DTO; only <c>SquadDefend</c> reads it).</summary>
+        [JsonPropertyName("InPlace")]
+        public bool InPlace;
+
         /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
         [JsonPropertyName("Threat")]
         public PointLink Threat;

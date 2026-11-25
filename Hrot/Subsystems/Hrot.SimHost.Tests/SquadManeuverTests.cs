@@ -298,6 +298,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8329</c> — before contact the COVERING element of a bound holds from an OPEN POST at its own spot (D-13: prone where there is no
+        /// cover, ATP 3-21.8), not a bare Hold that left it standing crouched in the open. 📐 live village-street-fight: the covering pair of Blue Squad 3
+        /// stood crouched > 5 s while the bounders moved. The movers' orders carry no post. 🔴 Red-proof: the post dropped from the watcher's order ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8329_TheCoveringElement_BeforeContact_HoldsFromAnOpenPost_AtItsOwnSpot()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15}");
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            CombatPostureParamsJsonDto Posture(Entity m) => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+            foreach (var m in s.Members.Skip(2))   // Bravo covers
+            {
+                var post = Posture(m).Post;
+                Assert.True(post.Open, "an open post: prone where there is no cover");
+                Assert.True(Posture(m).Stay);
+                Assert.Equal<Vector3>(s.At(m), post.Point.Local);
+                Assert.Equal(SquadDefendPlay.PostRadius, post.Radius);
+            }
+            foreach (var m in s.Members.Take(2))   // Alpha moves
+                Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture);
+        }
+
         /// <summary>⭐ A mover that never arrives (pinned, lost) does not stall the squad: the bound times out and the other element goes.</summary>
         /// <summary>
         /// ⭐ <c>CE-2157</c> (O-a, Squad Tactics §7.8.1) — the drill trace the debug route reads: the drill and its phase, the history
@@ -2669,6 +2696,27 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members) s.Teleport(m, given[m].Objective + new Vector3(3f, 0f, 0f));
             s.Tick(); s.Tick();
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set), "every man at his post ⇒ PROGRESS Set");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8327</c> — a SquadDefend RE-SENT to the point the squad already holds (<c>"InPlace":true</c>; a platoon's flank turn re-plans the
+        /// posts) with every man inside the area takes posts from where he stands: it leaves Moving at once, no march to the centre. The same order
+        /// WITHOUT it marches (CE-2275's case). 📐 live village-street-fight: the restart marched Red Squad 1's posted men out of cover into the street.
+        /// 🔴 Red-proof: the <c>InPlace</c> gate always false ⇒ the squad stays Moving ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8327_AnInPlaceSquadDefend_WithEveryManInTheArea_TakesPostsAtOnce_NoMarchToTheCentre()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);   // without InPlace: the march, as ever
+
+            var t = new Squad(members: 4);
+            t.Order("{\"Position\":[6,20,0],\"SearchRadius\":25,\"InPlace\":true}", BehaviorNames.SquadDefend);
+            t.Tick(); t.Tick(); t.Tick();
+            Assert.Equal(SquadDefendManeuver.ManeuverKind, t.Kind);
+            Assert.Equal(SquadDefendManeuver.PhasePosting, t.Phase);
         }
 
         /// <summary>
@@ -5287,6 +5335,11 @@ namespace Hrot.SimHost.Tests
             p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);    // east, 100 m: Alpha turns to it
             p.Ticks(12);
             Assert.Equal(2, DefendOrders(p, p.Alpha));
+            // ⭐ CE-8327 — the first send marches in; the turn's re-send to the same point is IN PLACE (posts from where the squad stands)
+            var sends = p.S.Orders.Where(o => o.Entity.Equals(p.Alpha) && o.IntentId == BehaviorNames.SquadDefend)
+                .Select(o => System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)).ToArray();
+            Assert.False(sends[0].InPlace, "the first send marches in");
+            Assert.True(sends[1].InPlace, "the turn's re-send to the same point is in place");
             Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(Vector3.Zero, SectorOf(p, p.Alpha).LeftBearing,
                 SectorOf(p, p.Alpha).RightBearing, 0f, 0f, new Vector3(100f, 0f, 0f)), "turned to the flank");
             p.S.Pause(PlatoonDefendBehavior.TriggerFreshSeconds + 1f);   // no fresh SPOT there any more
