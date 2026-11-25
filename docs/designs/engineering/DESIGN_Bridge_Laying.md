@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-25 (rev 2 — the independent review folded: the bridge is a STATIC-OBSTACLE KIND with a walkable shape; ONE deck, in the baked world)
-build-state: DESIGN — leans for the user (§9)
+build-state: READY-TO-BUILD — the §9 leans APPROVED (R-4299, user 2026-11-25: "leans approved, write the hand offs"); BL-S1/S2 to terrain (CE-4692), BL-S3/S4 to backend (CE-4693)
 current-answer: §2 the diagrams · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review and what each finding changed
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge entity + a side surface table)
 known-rot: none
@@ -192,7 +192,7 @@ sequenceDiagram
 - **R-4277**: every slice ships its scenarios with expect rows.
 - **R-4295**: the wire carries its own types for `BridgeShape` / `BridgeCarried`; translators convert.
 
-## 9. Open questions — with leans
+## 9. Decisions — ✅ APPROVED `2026-11-25` (R-4299: *"leans approved"*)
 
 | # | question | ⭐ lean |
 |---|---|---|
