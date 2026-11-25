@@ -402,6 +402,10 @@ namespace Fdp.Toolkit.Terrain.Tests
         {
             var steep = SlopeFixture.World(Feature("ramp", ", \"zRef\": \"ground\"", "[ [40, 90, 0], [48, 90, 6], [48, 110, 6], [40, 110, 0], [40, 90, 0] ]"));
             Assert.Contains(steep.Warnings, w => w.Contains("steeper than the vehicle navmesh"));
+            // ⭐ CE-5056 ④ — a flight of STEPS (the importer's entrance steps) is for feet: the same slope warns nothing
+            var steps = SlopeFixture.World(Feature("ramp", ", \"zRef\": \"ground\", \"steps\": true", "[ [40, 90, 0], [48, 90, 6], [48, 110, 6], [40, 110, 0], [40, 90, 0] ]"));
+            Assert.DoesNotContain(steps.Warnings, w => w.Contains("steeper than the vehicle navmesh"));
+            Assert.Single(steps.Walkables);
 
             var absolute = SlopeFixture.World(Feature("slab", ", \"z\": 30", "[ [80, 60], [120, 60], [120, 140], [80, 140], [80, 60] ]"));
             Assert.All(Assert.Single(absolute.Walkables).Vertices, v => Assert.Equal(30f, v.Z, 3));

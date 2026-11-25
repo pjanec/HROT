@@ -1254,6 +1254,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3158</c> G5 — whether <paramref name="at"/> is within <see cref="ClaimRadius"/> (3-D) of another unit's live
         /// claim (hide or peek) of the same force.</summary>
         internal static bool ClaimedByAFriend(EntityRepository world, Entity self, Vector3 at, double now)
+            => ClaimedByAFriend(world, self, at, now, ClaimRadius);
+
+        /// <summary>⭐ <c>CE-8326</c> — as above with the taken-radius given (the suppressor's dispersal interval).</summary>
+        internal static bool ClaimedByAFriend(EntityRepository world, Entity self, Vector3 at, double now, float radius)
 
         {
 
@@ -1261,7 +1265,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
 
-            try { return ClaimedByAFriendCore(world, self, at, now); }
+            try { return ClaimedByAFriendCore(world, self, at, now, radius); }
 
             finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_ClaimedByAFriend, t0); }
 
@@ -1271,7 +1275,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static readonly int S_ClaimedByAFriend = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.ClaimedByAFriend");
 
 
-        private static bool ClaimedByAFriendCore(EntityRepository world, Entity self, Vector3 at, double now)
+        private static bool ClaimedByAFriendCore(EntityRepository world, Entity self, Vector3 at, double now, float radius)
         {
             if (self.IsNull || !world.IsComponentTypeRegistered<CoverClaim>()) return false;
             bool forces = world.IsComponentTypeRegistered<EntityInfo>();
@@ -1289,7 +1293,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!theirs.Equals(mine)) continue;
                 if (held && Vector3.Distance(c.Hide, myClaim.Hide) <= ClaimRadius
                     && (c.Since > myClaim.Since || (c.Since == myClaim.Since && other.Index > self.Index))) continue;
-                if (Vector3.Distance(c.Hide, at) <= ClaimRadius || Vector3.Distance(c.Peek, at) <= ClaimRadius) return true;
+                if (Vector3.Distance(c.Hide, at) <= radius || Vector3.Distance(c.Peek, at) <= radius) return true;
             }
             return false;
         }

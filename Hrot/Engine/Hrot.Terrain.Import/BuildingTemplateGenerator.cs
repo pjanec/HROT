@@ -21,6 +21,8 @@ internal sealed class BuiltBuilding
     /// <summary>The cap prism of a pitched roof (over a template or a solid prism): eaves z and the height up to the ridge; 0 = none.</summary>
     public double CapBaseZ { get; init; }
     public double CapHeight { get; init; }
+    /// <summary>⭐ CE-5056 ④ — the ground-floor doors as placed (the ring edge, metres along it from its start, width): <see cref="EntranceSteps"/> reads them.</summary>
+    public IReadOnlyList<(int Edge, double At, double Width)> GroundDoors { get; init; } = Array.Empty<(int, double, double)>();
     public bool Solid => TemplateName == null;
 }
 
@@ -253,6 +255,7 @@ internal static class BuildingTemplateGenerator
         {
             Id = b.Id, TemplateName = d.Name, TemplateJson = Encoding.UTF8.GetString(ms.ToArray()), Ring = d.Ring, Origin = o,
             BaseZ = b.BaseZ, Floors = storeys, Material = material, CapBaseZ = Math.Round(eaves, 3), CapHeight = capH,
+            GroundDoors = placed.Where(x => x.Kind == "door" && x.Storey == 0).Select(x => (x.Edge, x.At, x.Width)).ToList(),
         };
     }
 }

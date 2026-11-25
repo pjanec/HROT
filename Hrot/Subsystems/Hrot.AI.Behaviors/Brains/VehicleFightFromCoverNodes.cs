@@ -131,7 +131,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// the RPG man first, by danger to its own armour (V1) — and withdraws before the enemy's aim time runs out: REVERSE into the same hide
     /// (a tank) or SCOOT on to the next (a light vehicle). 📄 docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §4.
     /// <para>The sibling of <see cref="PeekAndFireNodes"/>: the same steps (<see cref="EqsTacticsNodes.TopAim"/>, <see cref="PostureNodes.Keep"/>,
-    /// <c>PostureNodes.Fire</c>, <see cref="FiringPositionMemory"/> heat, <see cref="PeekAndFireNodes.ClaimedByAFriend"/>) — its own phases.</para>
+    /// <c>PostureNodes.Fire</c>, <see cref="FiringPositionMemory"/> heat, <see cref="PeekAndFireNodes.ClaimedByAFriend(EntityRepository, Entity, System.Numerics.Vector3, double)"/>) — its own phases.</para>
     /// </summary>
     public static class VehicleFightFromCoverNodes
     {

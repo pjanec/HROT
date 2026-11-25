@@ -39,7 +39,7 @@ public class ImporterTests : IDisposable
         Assert.Equal(input.ReadBuildings().Count(b => b.Enterable) - rep.SolidBecauseNoStair, world.Buildings.Count(b => !b.Solid));
         Assert.Equal(rep.OpeningsPlaced, world.Panels.Sum(p => p.Openings.Count));
         Assert.NotEmpty(world.Doors);
-        Assert.Equal(rep.Stairs, world.Walkables.Count(w => w.Kind == TerrainWalkableKind.Ramp));
+        Assert.Equal(rep.Stairs + rep.EntranceSteps, world.Walkables.Count(w => w.Kind == TerrainWalkableKind.Ramp));   // ⭐ CE-5056 ④ — a stair or an entrance step
         Assert.Contains(world.Surfaces, s => s.Type == TerrainSurfaceType.Forest);
         Assert.NotNull(world.Height);
         Assert.Equal(new Vector2(0, 0), world.BoundsMin); Assert.Equal(new Vector2((float)(input.Manifest.MaxX - input.Manifest.MinX), (float)(input.Manifest.MaxY - input.Manifest.MinY)), world.BoundsMax);

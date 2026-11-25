@@ -111,7 +111,8 @@ bool FHrotLiveFixAircraftTest::RunTest(const FString&)
 	UHrotDpsWorld* W = NewObject<UHrotDpsWorld>(GetTransientPackage());
 	W->DefaultLife();
 	const TMap<FString, FString> Want = { { TEXT("1.2.225.20"), TEXT("DA_Air_Apache") }, { TEXT("1.2.225.2"), TEXT("DA_Air_F16") }, { TEXT("1.2.225.1"), TEXT("DA_Air_F16") },
-		{ TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon") }, { TEXT("1.2.225.4"), TEXT("DA_Air_AC130") }, { TEXT("1.2.225.21"), TEXT("DA_Air_UH60") } };
+		{ TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon") }, { TEXT("1.2.225.4"), TEXT("DA_Air_AC130") }, { TEXT("1.2.225.21"), TEXT("DA_Air_UH60") },
+		{ TEXT("1.2.0.20.99"), TEXT("DA_Dragon") } };   // HROT's dragon (TKB 411) by its DIS class
 	for (const TPair<FString, FString>& P : Want)
 	{
 		const TSoftObjectPtr<UHrotVehicleKit>* K = W->KitsByDis.Find(P.Key);

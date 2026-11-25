@@ -55,5 +55,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// negative value = off.</summary>
         [JsonPropertyName("ShootAndMoveSeconds")]
         public float ShootAndMoveSeconds;
+
+        /// <summary>Accepted — unused at this echelon (<c>CE-8327</c>: the Defend order's neutral DTO; only <c>SquadDefend</c> reads it).</summary>
+        [JsonPropertyName("InPlace")]
+        public bool InPlace;
     }
 }

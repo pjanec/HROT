@@ -79,6 +79,11 @@ public:
 	/** the body's rise and fall with the beat (cm, on top of HROT's steady altitude): highest when the wings are lowest (the
 	 *  downstroke lifts) — U-17i, user: "synchronized up/down motion on top of HROT steady altitude" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapBob = 0.f;
+	/** the wings at speed (HROT DESIGN_Dragon §8.2: GLIDE, no beat, above 10 m/s unless climbing): held at this angle (degrees, the beat's sign:
+	 *  positive lowers the wing); the beat and the glide blend over 1 s */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float GlideAngle = 0.f;
+	/** a CREATURE (the dragon): dies without a wreck - no burnt colour, no fire or smoke; its wings lie still (DESIGN_Dragon §8.2) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bCreature = false;
 	/** U-19h (user: "the helicopter rotor is not moving when the helicopter is hovering or flying"): parts parented MainRotor / TailRotor turn about
 	 *  their pivot's Z while flying (deg/s - well under the real rate, which would strobe at the frame rate); a faint disc of RotorRadius shows the blur */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform MainRotorPivot;
@@ -133,6 +138,10 @@ public:
 	/** sets the paint and applies it (a dynamic instance of the paint slot's material on every part that has the slot); returns the parts repainted */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") int32 SetPaint(FLinearColor NewPaint);
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlying(bool bNewFlying);
+	/** flying (HROT's VehicleLook.Airborne) and gliding (at speed, not climbing): applied only when either changes */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlight(bool bNewFlying, bool bNewGliding);
+	/** the kit's flamethrower (null when the kit has none) - a host aims it; SetFlaming lights it */
+	class UHrotFlamethrower* GetFlame() const { return Flame; }
 	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void ApplyState();
@@ -174,6 +183,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<class UHrotFlamethrower> Flame;
 	EHrotVehicleDamage Shown = EHrotVehicleDamage::Intact;
 	float FlapClock = 0.f;
+	bool bGliding = false;
+	float GlideBlend = 0.f;   // 0 = beating, 1 = gliding
 	void ApplyWings(float Angle);
 	void ClearDamageFx();
 };
