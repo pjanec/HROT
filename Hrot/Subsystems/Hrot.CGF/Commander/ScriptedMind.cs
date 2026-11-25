@@ -20,6 +20,9 @@ public sealed class ScriptedMind : IMind
     private readonly List<string> _squads = new();
     private bool _started, _broken;
     private string? _attacking;
+    /// <summary>⭐ CE-4685 — his whole unit's attack is the order KIND Attack: the routing table runs his class's play (a platoon PlatoonAttack, a company
+    /// CompanyAttack). ⛔ Never a behaviour name.</summary>
+    private const string AttackOrder = "Attack";
     private Vector2 _attackAt;
 
     public ScriptedMind(string advanceTo = "objective", string supportAt = "support", string fallBackTo = "start")
@@ -60,6 +63,14 @@ public sealed class ScriptedMind : IMind
                         Engage(enemy, place, actions);
                     break;
                 case FeedKind.Event:
+                    // ⭐ CE-4685 — a split subordinate is NEAR THE ENEMY (X-5): with no SPOT yet, the attack play goes in on the objective. 📌 A company
+                    //   seat hears no SPOT of infantry at all — its platoons relay only indirect fire / air defence up (StaffSystems.Relay, CE-2310 HQ-3)
+                    if ((string?)j["event"] == "split" && UsePlays && _attacking == null && !_broken)
+                    {
+                        _attacking = "the unit";
+                        _attackAt = new Vector2(float.NaN);   // a later SPOT is a new target
+                        actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: AttackOrder, Where: _advanceTo));
+                    }
                     if ((string?)j["event"] == "combat-ineffective" && (string?)j["squad"] is { } down)
                     {
                         _out.Add(down);
@@ -86,7 +97,7 @@ public sealed class ScriptedMind : IMind
         {
             _attacking = "the platoon";
             _attackAt = enemy;
-            actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: place));
+            actions.Add(new CommanderAction(CommanderActionKind.RunPlay, Order: AttackOrder, Where: place));   // ⭐ CE-4685 — the KIND; his class's play runs it
             return;
         }
         string? nearest = null;

@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("blue-start", s.Seat.Prefix);                // Blue's own
             Assert.DoesNotContain("blue-start", redSeat.Prefix);         // ⭐ never the other side's
             Assert.Contains("house", redSeat.Prefix);                    // a Neutral place is everybody's
-            Assert.Contains("PlatoonDefend: the squads hold an area together", redSeat.Prefix);
+            Assert.Contains("Defend: they hold an area together", redSeat.Prefix);
             s.Seats.Dispose();
         }
 
@@ -118,13 +118,13 @@ namespace Hrot.SimHost.Tests
         public void Duel_ARepeatedPlayInForce_IsANoOp_AndTheSnapshotSaysItsAge()
         {
             var mind = new RailMind();
-            mind.Answer = _ => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "PlatoonAttack", Where: "House") };
+            mind.Answer = _ => new[] { new CommanderAction(CommanderActionKind.RunPlay, Order: "Attack", Where: "House") };
             var s = new Seated(mind);
             Fast(s, heartbeat: 0.5f, snapshot: 60f);
             Run(s, 200);
-            Assert.Equal(1, s.P.S.Orders.Count(o => o.Entity.Equals(s.P.S.Commander) && o.IntentId == "PlatoonAttack"));
+            Assert.Equal(1, s.P.S.Orders.Count(o => o.Entity.Equals(s.P.S.Commander) && o.IntentId == "Order.Attack"));   // ⭐ CE-4685 — the seat sends the KIND
             Assert.True(s.Act.NoOps >= 1, $"{s.Act.NoOps} no-ops");
-            Assert.Contains(s.Items(), i => i.Kind == FeedKind.OrderState && i.Radio.Contains("PLAY PlatoonAttack → House: already in force since"));
+            Assert.Contains(s.Items(), i => i.Kind == FeedKind.OrderState && i.Radio.Contains("PLATOON ORDER Attack → House: already in force since"));
             Assert.Contains(s.Items(), i => i.Kind == FeedKind.Heartbeat && i.Radio.Contains("the orders in force stand unless you change them"));   // D-6
             List<Briefing> seen;
             lock (mind.Seen) seen = mind.Seen.ToList();

@@ -61,6 +61,13 @@ bool FHrotDpsPeopleLookTest::RunTest(const FString&)
 	In.Gesture = 0; In.bInSeat = true; TestTrue(TEXT("seated inside: hidden"), Look(In).bHidden);
 	In.bSeatExposed = true; TestFalse(TEXT("head out: shown"), Look(In).bHidden);
 
+	// U-19h 20: the gait rate = ground speed / the clip's own, so the feet match the ground
+	TestEqual(TEXT("at the clip's own speed: 1"), GaitRate(3.0f, 3.0f), 1.f, 1e-6f);
+	TestEqual(TEXT("half the speed, half the rate (no 0.6 floor)"), GaitRate(0.5f, 1.0f), 0.5f, 1e-6f);
+	TestEqual(TEXT("a crawl-slow walker is still slow"), GaitRate(0.3f, 3.0f), 0.15f, 1e-6f);
+	TestEqual(TEXT("a sprint is capped"), GaitRate(20.f, 3.0f), MaxGaitRate, 1e-6f);
+	TestEqual(TEXT("a zero clip speed does not divide by zero"), GaitRate(1.f, 0.f), MaxGaitRate, 1e-6f);
+
 	// fallbacks end at a clip every body has
 	TestEqual(TEXT("run -> walk"), Fallback(TEXT("Rifle.Prone.Run")), FName(TEXT("Rifle.Prone.Walk")));
 	TestEqual(TEXT("rifle -> unarmed"), Fallback(TEXT("Rifle.Prone.Walk")), FName(TEXT("Unarmed.Prone.Walk")));

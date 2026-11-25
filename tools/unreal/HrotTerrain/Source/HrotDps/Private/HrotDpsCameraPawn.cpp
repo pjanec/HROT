@@ -650,7 +650,7 @@ void AHrotDpsCamera::TickPlayer(float Dt, APlayerController* PC)
 	double FlyerYaw;
 	if (SideIn != 0.f) { FlyerYaw = FlyerHeading(HullYaw, SideIn); HeldHeading.Reset(); }
 	else { if (!HeldHeading.IsSet()) HeldHeading = HullYaw; FlyerYaw = HeldHeading.GetValue(); }   // held, never re-read (CE-1354)
-	bRunning = Down(EKeys::LeftShift) || Down(EKeys::RightShift);
+	bRunning = Down(EKeys::LeftShift) || Down(EKeys::RightShift) || TestRun;
 
 	// the wheel: the distance continuum (ahead / eyes / shoulder); O: the eyes <-> over the shoulder
 	const float WheelIn = Pressed(EKeys::MouseScrollUp) ? 1.f : Pressed(EKeys::MouseScrollDown) ? -1.f : 0.f;

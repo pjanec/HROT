@@ -3,6 +3,7 @@
 // Run: UnrealEditor-Cmd <project> -ExecCmds="Automation RunTests Hrot.Dps.Cards; Quit" -nullrhi -unattended
 #include "Misc/AutomationTest.h"
 #include "HrotCards.h"
+#include "HrotCardLayer.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -253,4 +254,20 @@ bool FHrotCardsStatusTest::RunTest(const FString&)
 	return true;
 }
 
+// U-19h 20: the billboard's size gives the texture 1:1 on screen at any aspect (the engine's own formulas, MaterialBillboardComponent.cpp:166-171)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHrotCardBillboardSizeTest, "Hrot.Dps.Cards.BillboardSize", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHrotCardBillboardSizeTest::RunTest(const FString&)
+{
+	struct FView { int32 W, H; float P00, P11; };
+	for (const FView V : { FView{ 1160, 605, 0.9272f, 1.7778f }, FView{ 1920, 1080, 1.f, 1.7778f }, FView{ 1280, 720, 0.75f, 1.3333f } })
+		for (const FIntPoint Tex : { FIntPoint(74, 96), FIntPoint(123, 140), FIntPoint(104, 84) })
+		{
+			const FVector2f S = UHrotCardLayer::BillboardSize(Tex, V.P00, V.P11, FIntPoint(V.W, V.H));
+			const float Vertical = S.X * V.P11 * V.H;                              // BaseSizeX * W along view up
+			const float Horizontal = S.Y * (V.P00 / V.P11) * V.P00 * V.W;          // BaseSizeY * AspectRatio * W along view right
+			TestEqual(*FString::Printf(TEXT("%dx%d view, %dx%d card: shown as wide as the texture"), V.W, V.H, Tex.X, Tex.Y), Horizontal, float(Tex.X), 0.01f);
+			TestEqual(*FString::Printf(TEXT("%dx%d view, %dx%d card: shown as tall as the texture"), V.W, V.H, Tex.X, Tex.Y), Vertical, float(Tex.Y), 0.01f);
+		}
+	return true;
+}
 #endif

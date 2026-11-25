@@ -35,6 +35,12 @@ def finish(ok, why=""):
         unreal.EditorPythonScripting.set_keep_python_script_alive(False)
 
 
+def tname(base):
+    """U-19h (2026-11-23): an asset that holds ONE terrain's data (its cover / road masks, the ground and road materials reading them) is named
+    per terrain - a shared name let rebuilding one terrain's level overwrite the masks every other look level reads."""
+    return f"{base}_{JOB['terrain'].replace('-', '_')}"
+
+
 def eas():
     return unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
@@ -97,10 +103,10 @@ def step_sky():
 def step_ground_material():
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", JOB["cover"]); task.set_editor_property("destination_path", "/Game/Hrot")
-    task.set_editor_property("destination_name", "T_HrotCover"); task.set_editor_property("replace_existing", True)
+    task.set_editor_property("destination_name", tname("T_HrotCover")); task.set_editor_property("replace_existing", True)
     task.set_editor_property("automated", True); task.set_editor_property("save", True)
     ASSETS.import_asset_tasks([task])
-    tex = unreal.load_asset("/Game/Hrot/T_HrotCover")
+    tex = unreal.load_asset("/Game/Hrot/" + tname("T_HrotCover"))
     tex.set_editor_property("srgb", False)
     tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP)
     tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
@@ -110,16 +116,16 @@ def step_ground_material():
     if JOB.get("roads") and os.path.exists(JOB["roads"]):
         rt = unreal.AssetImportTask()
         rt.set_editor_property("filename", JOB["roads"]); rt.set_editor_property("destination_path", "/Game/Hrot")
-        rt.set_editor_property("destination_name", "T_HrotRoads"); rt.set_editor_property("replace_existing", True)
+        rt.set_editor_property("destination_name", tname("T_HrotRoads")); rt.set_editor_property("replace_existing", True)
         rt.set_editor_property("automated", True); rt.set_editor_property("save", True)
         ASSETS.import_asset_tasks([rt])
-        roads_tex = unreal.load_asset("/Game/Hrot/T_HrotRoads")
+        roads_tex = unreal.load_asset("/Game/Hrot/" + tname("T_HrotRoads"))
         roads_tex.set_editor_property("srgb", False)
         roads_tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)   # RGB: R asphalt, G dirt
         roads_tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
         roads_tex.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP); roads_tex.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
     state["roads_tex"] = roads_tex
-    m = fresh_asset("/Game/Hrot", "M_HrotGround", unreal.Material, unreal.MaterialFactoryNew())
+    m = fresh_asset("/Game/Hrot", tname("M_HrotGround"), unreal.Material, unreal.MaterialFactoryNew())
     E = lambda cls, x, y: MEL.create_material_expression(m, cls, x, y)
     def c3(rgb, x, y):
         e = E(unreal.MaterialExpressionConstant3Vector, x, y); e.set_editor_property("constant", unreal.LinearColor(*rgb, 1.0)); return e
@@ -341,7 +347,7 @@ def road_material():
     """The road surface: our roads mask decides it per pixel — dirt where the mask's G (tracks, paths), dark fine gravel (asphalt-like)
     elsewhere — so the ONE mesh of lane ribbons (Sim.Scene builds tracks and streets alike) reads right everywhere."""
     A = JOB.get("assets") or {}
-    m = fresh_asset("/Game/Hrot", "M_HrotRoad", unreal.Material, unreal.MaterialFactoryNew())
+    m = fresh_asset("/Game/Hrot", tname("M_HrotRoad"), unreal.Material, unreal.MaterialFactoryNew())
     m.set_editor_property("two_sided", True)
     E = lambda cls, x, y: MEL.create_material_expression(m, cls, x, y)
     def link(a, b, pin, out=""): MEL.connect_material_expressions(a, out, b, pin)

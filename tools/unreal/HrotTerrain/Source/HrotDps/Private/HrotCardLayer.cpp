@@ -1,6 +1,7 @@
 // CE-4651 (U-18y) — see HrotCardLayer.h.
 #include "HrotCardLayer.h"
 
+#include "HrotRuntimeLibrary.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "Components/MaterialBillboardComponent.h"
@@ -27,7 +28,7 @@ namespace
 	//   with none, which drew NO text (measured: names and the symbols' marks missing). The engine's Roboto is a runtime UFont.
 	FSlateFontInfo FontPx(float Px)
 	{
-		static UFont* Roboto = LoadObject<UFont>(nullptr, TEXT("/Engine/EngineFonts/Roboto.Roboto"));
+		static UFont* Roboto = HrotLoadRooted<UFont>(TEXT("/Engine/EngineFonts/Roboto.Roboto"));   // rooted (a plain static dangles)
 		const int32 Size = FMath::Max(1, FMath::RoundToInt(Px * 0.75f));
 		return Roboto ? FSlateFontInfo(Roboto, Size) : FCoreStyle::GetDefaultFontStyle("Regular", Size);
 	}
@@ -121,13 +122,14 @@ namespace
 	};
 }
 
-FVector2f UHrotCardLayer::ScreenSize(FIntPoint Px, float HorizontalFovDeg, FIntPoint ViewportPx)
+FVector2f UHrotCardLayer::BillboardSize(FIntPoint TexPx, float P00, float P11, FIntPoint ViewportPx)
 {
-	// MaterialBillboardComponent (bSizeIsInScreenSpace): the quad's half extents are Size * W and Size * Aspect * W in world units, where
-	// W is the clip w at the anchor and Aspect = P00 / P11 ⇒ on screen, a half width of Size.X * P00 * ViewW / 2 px and a half height of
-	// Size.Y * P00 * ViewH / 2 px (P00 = 1 / tan(hfov / 2)). For a card of Px pixels: Size = Px / (P00 * View).
-	const float P00 = 1.f / FMath::Tan(FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDeg, 1.f, 170.f)) * 0.5f);
-	return FVector2f(Px.X / (P00 * FMath::Max(1, ViewportPx.X)), Px.Y / (P00 * FMath::Max(1, ViewportPx.Y)));
+	// UMaterialBillboardComponent (bSizeIsInScreenSpace, MaterialBillboardComponent.cpp:166-171): with W the clip w at the anchor, the sprite's half extents are
+	//   along view UP    : BaseSizeX * W              -> BaseSizeX * P11 * ViewH / 2 px
+	//   along view RIGHT : BaseSizeY * AspectRatio * W -> BaseSizeY * (P00 / P11) * P00 * ViewW / 2 px      (AspectRatio = |clip y dir| / |clip x dir| = P00 / P11)
+	// ⚠ BaseSizeX is the VERTICAL extent and BaseSizeY the HORIZONTAL one (the texture's U runs along view right): measured 2026-11-23 on a 1160 x 605 view - cards
+	// came out wider than the texture by TexH / TexW and shorter by its inverse (user: "squashed, text stretched, cut on the left").
+	return FVector2f(TexPx.Y / (P11 * FMath::Max(1, ViewportPx.Y)), TexPx.X * P11 / (P00 * P00 * FMath::Max(1, ViewportPx.X)));
 }
 
 void UHrotCardLayer::Begin(UWorld* World, const FVector& CameraCm, float HorizontalFovDeg, FIntPoint ViewportPx, float InP00, float InP11)
@@ -235,7 +237,9 @@ void UHrotCardLayer::Paint(FHrotCardSlot& S, const HrotCards::FLayout& L)
 
 void UHrotCardLayer::SetSize(FHrotCardSlot& S)
 {
-	const FVector2f Want(S.TexPx.X / (P00 * Viewport.X), S.TexPx.Y / (P00 * Viewport.Y));   // see ScreenSize
+	// BaseSizeX = the VERTICAL extent, BaseSizeY the horizontal one (see BillboardSize); P11 = 1 / TanHalfV
+	const FVector2f SizeXY = BillboardSize(S.TexPx, P00, 1.f / TanHalfV, Viewport);
+	const FVector2f Want = SizeXY;
 	if (Want.Equals(S.SizeSet, 1e-6f)) return;
 	S.SizeSet = Want;
 	TArray<FMaterialSpriteElement> E;

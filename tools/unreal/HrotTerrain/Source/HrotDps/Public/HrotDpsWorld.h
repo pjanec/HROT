@@ -119,6 +119,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") bool Start(int32 Domain, const FString& Partition);
 	/** U-19h: hides the components a kit names (its body's own gun) */
 	static void HideKitComponents(AActor* A, const UHrotPersonKit* K);
+	/** the default kit tables (animals, ground and AIR DIS kits, the domain fallbacks) where the job gave none; idempotent (a rail reads them) */
+	void DefaultLife();
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") void Stop();
 
 	// ── read back (tests, a HUD) ──
@@ -300,6 +302,7 @@ private:
 		// a round in flight (U-18e)
 		bool bRound = false, bLying = false;
 		int64 MunitionType = 0;
+		bool bGun = false; int32 GunCarrier = 0;   // U-19h: a weapon system drawn as a gun - it sits on the vehicle it stands on (HROT sends no mount height)
 		double LaunchedAt = 0;
 		float BurnSeconds = 0;
 		float TurretYaw = 0, GunPitch = 0;   // Unreal degrees (Articulation turret 0)
@@ -462,7 +465,6 @@ private:
 	void OnGroundMarks(const struct FHrotDpsSample& S);
 	void OnMover(const struct FHrotDpsSample& S);
 	void OnMoverTracks(const struct FHrotDpsSample& S);
-	void DefaultLife();
 	void PreloadPeopleAndSounds();
 	bool IsCrowdKit(const UHrotPersonKit* K) const;
 	/** how many times each body Blueprint is built at join to collect its random outfit parts (U-19h 15) */
@@ -490,4 +492,14 @@ private:
 	UHrotVehicleKit* KitFor(int32 Id, const FEnt& E) const;
 	void Place(FEnt& E, double Real);
 	FHrotDpsPose PoseAt(const FEnt& E, double Real) const;
+	void GunOnCarrier(FEnt& E, FTransform& T);
+	/** U-19h (live: rockets / missiles from the Apache, the aircraft, SAMs and ATGMs showed no rocket and no trail; 23 fired, 0 rounds drawn):
+	 *  a rocket / missile Fire with no Round entity from that shooter within FlyOutGrace s flies a stand-in missile (its kind's body, motor
+	 *  and smoke trail) from the muzzle to the target (else along the shot) - drawn from the Fire sample like the tracers; a real Round cancels it */
+	struct FFlyOut { int32 Shooter = 0, Target = 0; int64 Munition = 0; uint8 Category = 0; FVector From = FVector::ZeroVector, Dir = FVector::ForwardVector;
+	                 double Born = 0, EndAt = 0; TWeakObjectPtr<class AHrotMissile> M; };
+	TArray<FFlyOut> FlyOuts;
+	int32 RoundsSeen = 0;
+	void TickFlyOuts(double Real);
+	static float FlyOutSpeedMps(uint8 Category);
 };

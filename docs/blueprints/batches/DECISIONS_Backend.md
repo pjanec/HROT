@@ -35,6 +35,31 @@ settings at editing time … My desire is simplicity and consistency."*
 | why not A | A (the rule only during a run; editing keeps applying at once) was the coordinator's lean only because it changed less — the user: B is the consistent one |
 | next | the design (UML, `DESIGN_Paused_And_Stepped_Execution.md`), then the build (behaviors' infrastructure — a cross-lane edit, said), then the 1- / 4-thread pairs again |
 
+## CE-4686 — the four findings of the LLM commander over aggregated units: lane decisions TAKEN · `2026-11-24` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | ① ⭐ **HQ-3 AMENDED (HQ-3b)**: a commander of UNITS (its roster holds commanders or stochastic units) relays its picture's fresh GROUND elements up one level — grouped (50 m), the freshest speaking with its own age, ≤ 2 groups per sender, refreshed on a 25 m move or every 15 s | the company heard no infantry at all; HQ-3's reason (an HQ's 8 slots filling with infantry) is kept by the bound and by #2. ⚠ `CE2310_…` now expects the rifles relayed — the amendment, not a regression |
+| 2 | ① a FULL picture evicts an unflagged element before any IndirectFire / AirDefence one; a ground report never pushes a support element out | protects every superior alike — no class says "this is a support HQ" |
+| 3 | ① the criterion "commands units" (a live roster member is a commander or a stochastic unit), not "has no SquadCognitiveState" | a platoon's leader entity may carry a cognitive state with an empty pool; what has no eyes is a commander of commanders |
+| 4 | ② roles through a READ-ONLY interface on the plays' blackboards (`IPlayRoles`), read via `OccurrenceSlotCatalog` | the one way into a running behaviour already exists; each play names its own roles, the seat never learns a layout. A cross-lane, additive edit of four plays |
+| 5 | ③ a subordinate's SupportByFire: `support_at` = where it stands, the objective = what it fires at; a physical platoon gets the KIND (`PlatoonSupportByFire`), a squad or a stochastic unit keeps Attack + HoldBack | measured: the kind resolves to nothing for a squad and to the HoldBack-reading generic attack for a stochastic unit |
+| 6 | ③ ⭐ R-8392's hold-back half AMENDED (⛔ the first version of this row said "not changed" — the run overturned it): at Physical a platoon's hold-back attack re-resolves to `PlatoonSupportByFire` (Position carried, HoldBack dropped); a company's still waits | 📐 measured: the old rule CLEARED the order at a forced split (TaskFailed 150 m short) — the AGG lane's code, changed under the user's "all 4"; the ruling's premise ("no platoon play holds back") was false since `PlatoonSupportByFire` fulfils SupportByFire |
+| 9 | ③ an order its unit REPORTED failed (picture progress TaskFailed) leaves the seat's in-force table | measured: the model's re-issue of the cleared order was answered "already in force — nothing sent" |
+| 7 | ④ `BoundOrder { Position, SupportPoint, Speed }` — the place is `Position` (as Attack / Defend), not `Objective` | the stochastic generic attack (the table's Bound row for a stochastic unit) already reads `Position`; the physical Bound plays accept it and read it when `Objective` is unset |
+| 8 | ④ `PlatoonBound` with no support point sets its cover AT the objective | the commanders always filled it; an unset field sent the cover to (0, 0) |
+
+## CE-4685 — the LLM commander over AGGREGATED units: lane decisions TAKEN · `2026-11-24` · 🟢 **TAKEN — reverse any by writing DECIDED here**
+
+| # | decision | why |
+|---|---|---|
+| 1 | the seat's echelon comes from the entity header's DIS type first (then the TKB type, then `AggregateUnit.Echelon`) | the routing table resolves the plays from the SAME header — the seat's words and its plays can never disagree |
+| 2 | ⭐ **USER `2026-11-24`: the seat gives ORDER KINDS, never a behaviour name** (*"We need to introduce the order kinds to higher level echelons. We cannot call directly a behavior name"*): his whole unit gets `Order.<kind>`; the kinds offered are those `OrderReissue.PlayFor` resolves for his class (a company: Attack, Defend); "still running" reads `CurrentOrders` by kind | ONE table decides what a class runs (shared, never duplicated) — the seat now takes the same path as a superior's `CommandOrders.Order`. ⛔ Superseded the same day: the seat named the plays (`CompanyAttack`) |
+| 3 | an aggregated row gives its men only once its slot table holds slots | 📌 at seat open the table is not filled yet — "0 men" told the model the platoon was gone |
+| 4 | the split is news ONCE, a waking event worded "near the enemy" (not "in contact") | the hand-over is the 600 m band (X-5), not contact; the seat keeps the same entity, so its orders stand |
+| 5 | ⭐ cross-lane (the AGG lane's `UnitRelayBehaviors`, CE-8307): a child GIVEN the relayed order but not yet running it is busy for 3 s sim | 📌 measured on `llm-company-aggregated`: the relay ended 2 frames after ordering and ending it cleared the squads' moves — every split platoon stopped where it split. A child that never starts still lets it end (never a hang) |
+| 6 | the scenario sits inside BOTH of berlin's grids (collider ±750 m, perception [0..1000]) | 📌 the first two placements put units outside one or the other: Red unseen, no fight |
+
 ## CE-4684 — the LLM commander L-3c (the decision contract): lane decisions TAKEN · `2026-11-23` · 🟢 **TAKEN — reverse any by writing DECIDED here**
 
 | # | decision | why |

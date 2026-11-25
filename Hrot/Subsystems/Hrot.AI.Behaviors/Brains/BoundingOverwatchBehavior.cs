@@ -66,7 +66,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = new BoundingOverwatchParams
             {
-                Objective           = authored.Objective,
+                Objective           = (System.Numerics.Vector3)authored.Objective != System.Numerics.Vector3.Zero ? (System.Numerics.Vector3)authored.Objective : (System.Numerics.Vector3)authored.Position,   // ⭐ CE-4686 ④ — the neutral BoundOrder
                 BoundMetres         = authored.BoundMetres > 0f ? authored.BoundMetres : 30f,
                 Speed               = authored.Speed > 0f ? authored.Speed : 3f,
                 ArrivalRadius       = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : 10f,

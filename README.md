@@ -10,6 +10,8 @@
   enterable.
 - **Serious gaming built in** — trainees take the place of any soldier, crew or vehicle and fight alongside and against the AI, in the same
   world, on the same record.
+- **Opposing forces that think for themselves** — a language model can take a commander's seat and plan, adapt and explain its tactics,
+  while HROT's soldiers carry them out — a thinking enemy that never fights the same battle twice.
 - **Every exercise recorded, reviewable and resumable** — review during the action, debrief after it, and go live again from any moment.
 - **A brain that fits your world** — the AI runs on HROT's own perception, motion and navigation, or on yours: they are
   interchangeable reference implementations.
@@ -43,6 +45,7 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | **Echelons from team to battalion** | Higher echelons can run as aggregated units that fight as numbers and **deaggregate into individual soldiers and vehicles on contact**, keeping every identity. |
 | **Objective evaluation** | Exercises are scored by measurable objectives and standards, live and in the debrief, and every score traces back to the recorded moment that earned it. |
 | **Deterministic and verifiable** | The same scenario gives the same result at 1, 4 or 8 threads, and every scenario states its expectations as machine-checked conditions. |
+| **A thinking opposing force** 🧪 | A language model — local, on the exercise's own hardware — commands a platoon: it reads the situation as its radio reports it, decides, and HROT's soldiers execute with their own drills. The OPFOR adapts to what the trainees actually do and explains every decision for the debrief. |
 | **A brain you can take with you** | The AI "brain" is separate from the world it acts in: perception, motion and navigation sit behind interfaces. HROT's own implementations are strong, but they are **reference implementations** — plug in your environment's sensors, vehicle dynamics or pathfinding and the same tactics run on top of them. |
 | **Open to your systems** | A documented publish/subscribe wire, a written DIS mapping, and renderer-facing state including physics-based thermal drivers. |
 
@@ -169,6 +172,29 @@ HROT is a serious-gaming engine as well as a CGF: the same simulation that runs 
 | 🚧 **Set up the game** | playable units, deploy roles and kits, spawn areas and respawn delay per scenario (authoring of kits still basic) |
 | ✅ **Mixed teams** | a trainee who takes over a squad leader commands his AI squad from an order wheel; trainees fight AI opponents who see, hear and react to them exactly as to any other unit |
 | ✅ **One record for all** | a trainee's actions are recorded with everyone else's — every shot, hit and order — for the review and the score, and replayed from any point of view — the instructor's free camera or the trainee's own view; any moment can be played again live |
+
+---
+
+## A thinking opposing force — LLM commanders 🧪
+
+Scripted opponents get learned: by the third run, trainees know where the enemy will be. HROT lets a **language model take a commander's
+seat**, so the opposing force reads the situation, makes a plan, changes it when the plan meets the trainees, and never fights the same battle
+twice — while HROT's own soldiers carry out its orders with their drills, cover and fire discipline.
+
+| | |
+|---|---|
+| 🧪 **A commander, not a puppeteer** | the model commands a platoon: it chooses the play (attack, defend, bound, support by fire) and the orders for its squads; HROT's squads and soldiers execute, react and report |
+| 🧪 **Fog of war by construction** | the model knows only what its radio has reported — the enemy's size, activity, equipment, how old the report is and how sure — never the simulation's ground truth |
+| 🧪 **Real tactical reasoning** | each decision states its assessment, the enemy's likely course of action, the main risk and the commander's intent, then the orders — with conditions, abort triggers and pre-authorised contingencies that HROT carries out on its own between decisions |
+| 🧪 **Terrain the way a commander sees it** | named places, each with what can see it, its cover, whether vehicles can reach it and how long it takes to get there — the model chooses between options, it never does geometry |
+| 🧪 **Explained for the debrief** | every prompt, every decision and every order applied is recorded beside the exercise: the after-action review can show *why* the enemy did what it did |
+| 🧪 **Your model, your hardware** | the model runs locally (an Ollama-compatible server; a 7–8 B model on a single laptop GPU is the target) — no exercise data leaves the site |
+| 🧪 **From platoon to company — over aggregated units** | the model can command a company whose platoons run as aggregated units — fought as numbers, cheap enough for a large enemy force — that split into squads and soldiers with full drills on contact; the commander keeps commanding them through the split |
+| 🧪 **Side against side** | two commanders can fight each other — an LLM-commanded Blue against an LLM-commanded Red — for wargaming and course-of-action analysis |
+| 🧪 **A tester that never runs out of ideas** | an LLM commander gives plausible orders nobody scripted — the fastest way we have found to expose where the forces' AI breaks |
+
+> Status: a platoon commander against a defended house, a two-sided duel and a company over aggregated platoons are proven with a small,
+> fast model; a local model on a laptop GPU is the next step. Design: [docs/designs/llm-commander/DESIGN_LLM_Commander.md](docs/designs/llm-commander/DESIGN_LLM_Commander.md).
 
 ---
 

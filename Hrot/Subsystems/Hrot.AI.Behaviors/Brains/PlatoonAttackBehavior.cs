@@ -195,10 +195,17 @@ namespace Hrot.AI.Behaviors.Brains
         public const BehaviorFaultCode AbortedFault = BehaviorFaultCode.Custom + 277;
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct PlatoonAttackBlackboard
+        public struct PlatoonAttackBlackboard : IPlayRoles
         {
             public PlatoonAttackPlan Plan;
             public PlatoonAttackState Keep;
+
+            /// <summary>⭐ CE-4686 ② — the slot's role, read from the plan (never changed).</summary>
+            public unsafe string? RoleOf(int slot) => slot < 0 || slot >= PlatoonAttackPlan.Capacity ? null : Plan.Role[slot] switch
+            {
+                PlatoonAttackPlan.Assault => PlayRoleWords.Assault, PlatoonAttackPlan.Support => PlayRoleWords.BaseOfFire,
+                PlatoonAttackPlan.Reserve => PlayRoleWords.Reserve, _ => null,
+            };
         }
 
         [BehaviorResolver(BehaviorNames.PlatoonAttack)]

@@ -18,7 +18,7 @@ using Hrot.AI.Behaviors.Brains;
 namespace Hrot.CGF.Commander;
 
 /// <summary>⭐ <c>CE-4683</c> ② — an order in force on a squad: its kind (the seat's order vocabulary), where as said, the resolved point, since when, and
-/// who gave it (<c>"you"</c> or <c>"play PlatoonAttack"</c>).</summary>
+/// who gave it (<c>"you"</c> or <c>"platoon order Attack"</c>).</summary>
 public sealed record GivenOrder(string Kind, string? Where, System.Numerics.Vector2? Point, double Since, string By)
 {
     public string Text => Where is { Length: > 0 } w ? $"{Kind} → {w}" : Kind;
@@ -47,6 +47,16 @@ public sealed class SeatRuntime : IDisposable
     public SeatVocabulary? Vocabulary { get; internal set; }
     /// <summary>⭐ CE-4684 C-2 — what the last decision left HROT to do without a model call.</summary>
     public ConditionWatcher Watch { get; } = new();
+    /// <summary>⭐ CE-4685 A-1 — the commander's echelon and his subordinates' ("platoon" / "squad", "company" / "platoon"), from their classes.</summary>
+    public string Echelon { get; internal set; } = "platoon";
+    public string Subordinate { get; internal set; } = "squad";
+    /// <summary>⭐ CE-4685 A-2 — the order KINDS his own unit takes as a whole (those of Attack / Defend / Bound / Hold the routing table resolves for his
+    /// class); the routing table picks the behaviour, ⛔ never the seat.</summary>
+    public string[] OwnOrders { get; internal set; } = CommanderActionSystem.OwnOrders;
+    /// <summary>⭐ CE-4686 ③ — is a name a registered behaviour (the routing table's argument); null without a registry.</summary>
+    internal Func<string, bool>? IsBehaviour;
+    /// <summary>⭐ CE-4685 A-3 — the subordinates (by roster index) that were STOCHASTIC when last looked at: a bit cleared is a split said once.</summary>
+    internal ulong Aggregated;
 
     // what the feed already said (frame thread)
     internal double LastItemAt, LastSnapshotAt, LastFightCheckAt;
@@ -221,10 +231,29 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     private EntityQuery? _query;
 
     /// <param name="seats">The world's seats; null ⇒ <see cref="CommanderSeats.For"/> the world it runs on (production — the HTTP surface finds them there).</param>
-    public CommanderFeedSystem(CommanderSeats? seats = null, bool gateOnAuthority = false)
+    /// <param name="isBehaviour">⭐ CE-4685 A-2 — is a name a registered behaviour (the routing table's argument); null ⇒ the platoon plays.</param>
+    /// <param name="registry">⭐ CE-4686 ② — the behaviour registry, to read the running play's roles (<c>OccurrenceSlotCatalog</c>); null ⇒ no roles.</param>
+    public CommanderFeedSystem(CommanderSeats? seats = null, bool gateOnAuthority = false, Func<string, bool>? isBehaviour = null,
+                               Fdp.Toolkit.Behavior.BehaviorRegistry? registry = null)
     {
         _seats = seats;
         _gateOnAuthority = gateOnAuthority;
+        _isBehaviour = isBehaviour;
+        _registry = registry;
+    }
+    private readonly Func<string, bool>? _isBehaviour;
+    private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _registry;
+
+    /// <summary>
+    /// ⭐ CE-4686 ② — the roles the commander's RUNNING play gave his subordinates, read from the play's own blackboard (its params slot, boxed by
+    /// <c>OccurrenceSlotCatalog</c> — the one read-only way into a running behaviour); null = no play with roles. Read per snapshot, never per frame.
+    /// </summary>
+    private Hrot.AI.Behaviors.Brains.IPlayRoles? RolesOf(EntityRepository world, Entity commander)
+    {
+        if (_registry == null || !world.IsAlive(commander)) return null;
+        foreach (var v in Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(world, commander, _registry))
+            if (v.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.Task && v.Boxed is Hrot.AI.Behaviors.Brains.IPlayRoles roles) return roles;
+        return null;
     }
 
     public void Execute(ISimulationView view, float deltaTime)
@@ -278,6 +307,14 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         for (int i = 0; i < roster.Count; i++)
             CommandOrders.AskSitrep(world, roster.SubordinateEntities[i], RoutineSitrepSeconds);
 
+        // ⭐ CE-4685 A-1 / A-2 — the seat at ANY echelon: what he is, what his subordinates are, which plays his class runs
+        seat.Echelon = EchelonName(world, commander) ?? "platoon";
+        seat.Subordinate = roster.Count > 0 && world.IsAlive(roster.SubordinateEntities[0]) ? EchelonName(world, roster.SubordinateEntities[0]) ?? "squad" : "squad";
+        seat.OwnOrders = OwnOrdersOf(world, commander, _isBehaviour);
+        seat.IsBehaviour = _isBehaviour;
+        for (int i = 0; i < roster.Count && i < 64; i++)
+            if (world.IsAlive(roster.SubordinateEntities[i]) && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, roster.SubordinateEntities[i]))
+                seat.Aggregated |= 1UL << i;
         // ⭐ CE-4684 — the mind first: whether it answers with decisions decides the prefix's vocabulary (C-6)
         var mind = seats.MindFor(config);
         seat.Contract = mind is IDecisionMind { AnswersWithDecisions: true };
@@ -286,7 +323,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             if (world.IsAlive(roster.SubordinateEntities[i])) units.Add(NameOf(world, roster.SubordinateEntities[i]));
         var placeIds = new List<string>();
         foreach (var (n, _) in seat.Places.Places) placeIds.Add(n);
-        seat.Vocabulary = new SeatVocabulary(seat.Name, units, placeIds);
+        seat.Vocabulary = new SeatVocabulary(seat.Name, units, placeIds) { OwnOrders = seat.OwnOrders };
         seat.Prefix = Prefix(world, seat, roster);
         Fdp.Core.Logging.FdpLog<CommanderFeedSystem>.Info("[Commander] seat {0} open — prefix {1} chars", seat.Name, seat.Prefix.Length);   // ⭐ CE-4680 — the briefing's size (an 8 B model's context, L-3)
         if (mind == null)
@@ -427,6 +464,58 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     }
 
     /// <summary>A squad that falls out of the fight (its members below its minimum) is an event — once.</summary>
+    /// <summary>
+    /// ⭐ CE-4685 A-1 — a unit's echelon in words, from its CLASS (its header's DIS echelon, <c>UnitDis</c> — what the routing table reads; else its TKB type's), else a stochastic unit's
+    /// <c>AggregateUnit.Echelon</c>; null = unknown. Never hard-coded per seat.
+    /// </summary>
+    public static string? EchelonName(EntityRepository world, Entity unit)
+    {
+        // the entity header's DIS type first — the one the routing table resolves its plays from (A-2), so echelon and plays agree
+        var dis = world.GetDisType(unit);
+        if (dis.Kind == Hrot.Core.Tkb.UnitDis.Kind && System.Enum.IsDefined(typeof(Hrot.Core.Tkb.UnitEchelon), dis.Subcategory))
+            return ((Hrot.Core.Tkb.UnitEchelon)dis.Subcategory).ToString().ToLowerInvariant();
+        if (world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && world.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)
+            && world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()?.GetByType((long)world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType) is { } t
+            && t.DisType.Kind == Hrot.Core.Tkb.UnitDis.Kind && System.Enum.IsDefined(typeof(Hrot.Core.Tkb.UnitEchelon), t.DisType.Subcategory))
+            return ((Hrot.Core.Tkb.UnitEchelon)t.DisType.Subcategory).ToString().ToLowerInvariant();
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.AggregateUnit>() && world.HasComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(unit))
+            return world.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(unit).Echelon switch { 0 => "squad", 1 => "platoon", 2 => "company", 3 => "battalion", _ => null };
+        return null;
+    }
+
+    private static JsonArray OwnOrdersJson(SeatRuntime seat)
+    {
+        var a = new JsonArray();
+        foreach (var p in seat.OwnOrders) a.Add(p);
+        return a;
+    }
+
+    /// <summary>An echelon's plural ("squads", "companies").</summary>
+    public static string Plural(string echelon) => echelon.EndsWith("y", StringComparison.Ordinal) ? echelon[..^1] + "ies" : echelon + "s";
+
+    /// <summary>
+    /// ⭐ CE-4685 A-2 — the order KINDS <paramref name="commander"/>'s own unit takes as a whole: each of Attack / Defend / Bound / Hold that the ONE
+    /// routing table resolves for his class at his resolution (<c>OrderReissue.PlayFor</c> — a platoon takes all four, a company Attack and Defend).
+    /// The seat gives the KIND; the table picks the behaviour (user `2026-11-24`: "We cannot call directly a behavior name"). No registry, or nothing
+    /// resolved ⇒ the four kinds.
+    /// </summary>
+    public static string[] OwnOrdersOf(EntityRepository world, Entity commander, Func<string, bool>? isBehaviour)
+    {
+        if (isBehaviour == null) return CommanderActionSystem.OwnOrders;
+        var resolution = Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, commander)
+            ? Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic : Fdp.Toolkit.Aggregate.AggregateResolution.Physical;
+        var kinds = new List<string>(4);
+        foreach (var kind in PlayKinds)
+            if (Hrot.AI.Behaviors.Orders.OrderReissue.PlayFor(world, commander, resolution, kind, isBehaviour) != null) kinds.Add(kind.ToString());
+        return kinds.Count > 0 ? kinds.ToArray() : CommanderActionSystem.OwnOrders;
+    }
+
+    private static readonly Hrot.AI.Behaviors.Orders.OrderKind[] PlayKinds =
+    {
+        Hrot.AI.Behaviors.Orders.OrderKind.Attack, Hrot.AI.Behaviors.Orders.OrderKind.Defend,
+        Hrot.AI.Behaviors.Orders.OrderKind.Bound, Hrot.AI.Behaviors.Orders.OrderKind.Hold,
+    };
+
     private void Falls(EntityRepository world, SeatRuntime seat, double now)
     {
         seat.LastFightCheckAt = now;
@@ -435,12 +524,23 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         {
             ulong bit = 1UL << i;
             var squad = roster.SubordinateEntities[i];
+            // ⭐ CE-4685 A-3 — an aggregated subordinate that SPLIT (X-5: it hands over and commands its own units now) is news, said once; it is the same
+            //   entity, so the seat's orders to it still land
+            if ((seat.Aggregated & bit) != 0 && world.IsAlive(squad) && !Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, squad))
+            {
+                seat.Aggregated &= ~bit;
+                string split = NameOf(world, squad);
+                Publish(seat, FeedKind.Event, now, true,
+                        $"{Clock(now)} {split.ToUpperInvariant()}: near the enemy — it has split from an aggregated {seat.Subordinate} into its own units and fights them with its drills; your orders to it stand",
+                        new JsonObject { ["kind"] = "event", ["t"] = Round(now), ["event"] = "split", ["unit"] = split }.ToJsonString());
+            }
             bool out_ = !world.IsAlive(squad) || !CombatEffective.IsInTheFight(world, squad);
             if (!out_ || (seat.OutOfFight & bit) != 0) continue;
             seat.OutOfFight |= bit;
             string name = world.IsAlive(squad) ? NameOf(world, squad) : $"squad {i + 1}";
             Publish(seat, FeedKind.Event, now, true, $"{Clock(now)} {name.ToUpperInvariant()}: out of the fight",
                     new JsonObject { ["kind"] = "event", ["t"] = Round(now), ["event"] = "combat-ineffective", ["squad"] = name }.ToJsonString());
+            seat.Watch.UnitLeft(world, seat, squad, now);   // ⭐ CE-4687 — what waits on it to arrive / finish / make contact can never hold: dropped and said
         }
     }
 
@@ -451,6 +551,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         var radio = new StringBuilder(Clock(now)).Append(" SNAPSHOT — ").Append(seat.Name).Append(':');
         var roster = Squads(world, seat.Commander);
         bool havePicture = world.HasComponent<CommandPicture>(seat.Commander);
+        var roles = seat.Play != null ? RolesOf(world, seat.Commander) : null;   // ⭐ CE-4686 ② — his whole unit's order's roles
         for (int i = 0; i < roster.Count; i++)
         {
             var squad = roster.SubordinateEntities[i];
@@ -479,12 +580,25 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
             CommanderActionSystem.SyncPlayOrders(world, seat, now);   // ⭐ CE-4683 — the play's squad orders into the in-force table
             string? task = TaskOf(world, seat, squad);   // ⭐ CE-4680 B-4 — the order he is on (his commander's record)
             if (task != null) row["task"] = task;
+            if (roles?.RoleOf(i) is { } role) row["role"] = role;   // ⭐ CE-4686 ② — the roster slot IS the play's slot
             squads.Add(row);
             radio.Append(' ').Append(name.ToUpperInvariant()).Append(" at ").Append(row["place"]).Append(inFight ? "" : " (out of the fight)");
             var detail = new StringBuilder();   // ⭐ CE-4683 — the order itself is in the ORDERS IN FORCE block below (said once)
+            if (row["role"] is { } rl) detail.Append("role ").Append((string)rl!).Append(" in your ").Append(seat.Echelon).Append("'s ").Append(seat.Play);
             if (row["progress"] is { } prog) detail.Append(detail.Length > 0 ? ", " : "").Append((string)prog!);
             if (row["strength"] is { } st) detail.Append(detail.Length > 0 ? ", " : "").Append("strength ").Append((string)st!).Append(" ammo ").Append((string)row["ammo"]!);
             if (row["reportAge"] is { } age) detail.Append(detail.Length > 0 ? ", " : "").Append("last report ").Append(((double)age!).ToString("0", CultureInfo.InvariantCulture)).Append(" s ago");
+            if (Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, squad))   // ⭐ CE-4685 A-1 — an aggregated unit fights as numbers: its men from its slots
+            {
+                row["aggregated"] = true;
+                detail.Append(detail.Length > 0 ? ", " : "").Append("aggregated");
+                // ⛔ only once its slot table holds men — 📌 the first scripted run said "0 men" at t = 0: the table is filled from the TKB composite after the seat opens
+                if (Fdp.Toolkit.Aggregate.AggregateUnits.Slots(world, squad, standing: false, out int men, out int total, out _) && total > 0)
+                {
+                    row["men"] = men;
+                    detail.Append(", ").Append(men.ToString(CultureInfo.InvariantCulture)).Append(" men");
+                }
+            }
             if (detail.Length > 0) radio.Append(" (").Append(detail).Append(')');
             radio.Append(';');
         }
@@ -502,10 +616,14 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
                     ["size"] = el.Size.ToString(), ["activity"] = el.Activity.ToString(), ["equipment"] = el.Equipment.ToString(),
                     ["age"] = Round(now - el.ObservedAt.Seconds), ["confidence"] = Confidence(in pic, i, now),
                 });
+                string? by = ReporterName(world, roster, el.FromNetId);   // ⭐ CE-4686 ① — who reported it (a platoon relays its squads' SPOTs up)
+                if (by != null) ((JsonObject)elements[^1]!)["reportedBy"] = by;
                 radio.Append(" enemy ").Append(el.Count).Append(" (").Append(el.Size).Append(')');
                 AppendDetail(radio, el.Activity, el.Equipment, now - el.ObservedAt.Seconds);   // ⭐ CE-4680 B-5
                 radio.Append(", ").Append(Confidence(in pic, i, now));                         // ⭐ CE-4684 C-5
-                radio.Append(" at ").Append(seat.Places.Describe(p)).Append(';');
+                radio.Append(" at ").Append(seat.Places.Describe(p));
+                if (by != null) radio.Append(", reported by ").Append(by);
+                radio.Append(';');
             }
         }
         var objectives = Objectives(world, seat, radio);   // ⭐ CE-4680 B-3
@@ -513,7 +631,7 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         var places = new JsonArray();
         foreach (var (n, _) in seat.Places.Places) places.Add(n);
         Publish(seat, FeedKind.Snapshot, now, wake, radio.ToString(),
-                new JsonObject { ["kind"] = "snapshot", ["t"] = Round(now), ["commander"] = seat.Name, ["squads"] = squads, ["elements"] = elements, ["objectives"] = objectives, ["places"] = places }.ToJsonString());
+                new JsonObject { ["kind"] = "snapshot", ["t"] = Round(now), ["commander"] = seat.Name, ["echelon"] = seat.Echelon, ["ownOrders"] = OwnOrdersJson(seat), ["squads"] = squads, ["elements"] = elements, ["objectives"] = objectives, ["places"] = places }.ToJsonString());
     }
 
     /// <summary>
@@ -523,12 +641,14 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     private static void InForceBlock(EntityRepository world, SeatRuntime seat, in UnitRoster roster, StringBuilder radio)
     {
         if (seat.Play != null)
-            radio.Append(" PLAY IN FORCE: ").Append(seat.Play).Append(seat.PlayWhere is { } pw ? " → " + pw : "").Append(" since ").Append(Clock(seat.PlaySince)).Append(';');
+            radio.Append(' ').Append(seat.Echelon.ToUpperInvariant()).Append(" ORDER IN FORCE: ").Append(seat.Play).Append(seat.PlayWhere is { } pw ? " → " + pw : "").Append(" since ").Append(Clock(seat.PlaySince)).Append(';');
         bool first = true;
         for (int i = 0; i < roster.Count; i++)
         {
             var squad = roster.SubordinateEntities[i];
             if (!world.IsAlive(squad) || !seat.InForce.TryGetValue(squad, out var o)) continue;
+            // ⭐ CE-4686 — a unit OUT OF THE FIGHT carries no order in force (📌 Haiku: a destroyed platoon's SupportByFire stayed listed as in force)
+            if (!CombatEffective.IsInTheFight(world, squad)) { seat.InForce.Remove(squad); continue; }
             radio.Append(first ? " ORDERS IN FORCE:" : ",").Append(' ').Append(NameOf(world, squad).ToUpperInvariant()).Append(' ').Append(o.Text)
                  .Append(" since ").Append(Clock(o.Since)).Append(" (").Append(o.By).Append(')');
             first = false;
@@ -545,6 +665,17 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     /// reported an enemy within <see cref="SameEnemyMetres"/> of it, and the age of the newest of those reports. ≥ 2 squads, fresh ⇒ HIGH · one squad
     /// fresh, or ≥ 2 squads stale ⇒ MED · one squad, stale ⇒ LOW. ("heard" joins when behaviors adds the bit — CE-4682's NOTE.)
     /// </summary>
+    /// <summary>⭐ CE-4686 ① — the name of the subordinate whose network id sent a report (his roster); null = not one of his.</summary>
+    private static string? ReporterName(EntityRepository world, in UnitRoster roster, int netId)
+    {
+        for (int i = 0; i < roster.Count; i++)
+        {
+            var sub = roster.SubordinateEntities[i];
+            if (world.IsAlive(sub) && CommandPictureOps.NetIdOf(world, sub) == netId) return NameOf(world, sub);
+        }
+        return null;
+    }
+
     public static string Confidence(in CommandPicture pic, int index, double now)
     {
         var el = pic.Elements.Items[index];
@@ -622,8 +753,11 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
     private static string Prefix(EntityRepository world, SeatRuntime seat, in UnitRoster roster)
     {
         var sb = new StringBuilder();
-        sb.Append("You are ").Append(seat.Name).Append(", a platoon commander. You command squads, never single soldiers; they fight with their own drills.\n");
-        sb.Append("Your squads:");
+        // ⭐ CE-4685 A-1 — his echelon and his subordinates' from their classes (a company commander commands platoons)
+        string subs = Plural(seat.Subordinate);
+        sb.Append("You are ").Append(seat.Name).Append(", a ").Append(seat.Echelon).Append(" commander. You command ").Append(subs)
+          .Append(", never single soldiers; they fight with their own drills.\n");
+        sb.Append("Your ").Append(subs).Append(':');
         for (int i = 0; i < roster.Count; i++)
             if (world.IsAlive(roster.SubordinateEntities[i])) sb.Append(' ').Append(NameOf(world, roster.SubordinateEntities[i]));
         // ⭐ CE-4680 B-2 — the mission, as his scenario gives it
@@ -647,18 +781,24 @@ public sealed class CommanderFeedSystem : IEcsModuleSystem
         }
         if (seat.Contract)
         {
-            // ⭐ CE-4684 (§5c) — the decision's tasks: a squad's orders, the plays (his own, unit = himself), CONTINUE
-            sb.Append("Tasks: for a squad ").Append(string.Join(" | ", CommanderActionSystem.Orders)).Append(" · for yourself (unit \"").Append(seat.Name)
-              .Append("\") a play ").Append(string.Join(" | ", CommanderActionSystem.Plays)).Append(" · CONTINUE keeps a unit's orders.\n")
-              .Append("PREFER a play: it coordinates both squads for you (PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together) — with a play running, give the squads CONTINUE; a squad order ENDS the play.\n")
-              .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order or a play in force changes nothing.");
+            // ⭐ CE-4684 (§5c) — the decision's tasks: a subordinate's orders, his OWN unit's order kinds (unit = himself, CE-4685), CONTINUE
+            sb.Append("Tasks: for a ").Append(seat.Subordinate).Append(' ').Append(string.Join(" | ", CommanderActionSystem.Orders)).Append(" · for your whole ").Append(seat.Echelon)
+              .Append(" (unit \"").Append(seat.Name).Append("\") ").Append(string.Join(" | ", seat.OwnOrders)).Append(" · CONTINUE keeps a unit's orders.\n")
+              .Append("SupportByFire: objective = what it fires at, support_at = where it stands to fire (without support_at it stands at the objective). ")
+              .Append("Bound: support_at = where the covering element sets. Your whole unit's Attack picks its own base of fire (support_at is not used).\n")   // ⭐ CE-4686 ③ ④
+              .Append("PREFER an order to your whole ").Append(seat.Echelon).Append(": it coordinates your ").Append(subs).Append(" for you (Attack: support set, then the assault · Defend: they hold an area together) — while it runs, give the ")
+              .Append(subs).Append(" CONTINUE; an order to one of them ENDS it. Its ROLES are shown per unit (role assault / base of fire / reserve …): the orders a role")
+              .Append(" gives are that order's, not a mistake to undo.\n")   // ⭐ CE-4686 ②
+              .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order in force changes nothing.");
             return sb.ToString();
         }
         // ⭐ CE-4683 ③ (§5a-4) — said plainly: with the actions as functions a model reached for direct orders (L-3: one play, then only orders)
         //   ⭐ the duel (§8): said for both sides — the old line described only the attack, and a defending (Red) seat read it too
-        sb.Append("PREFER run_play: a play coordinates both squads for you (PlatoonAttack: support set, then the assault · PlatoonDefend: the squads hold an area together) — a direct order to a squad ENDS the play.\n");
-        sb.Append("Actions: run_play(play, where[, support]) with play PlatoonAttack | PlatoonDefend | PlatoonBound | PlatoonHold · stop_play() · ")
-          .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact — only when no play fits · ")
+        sb.Append("PREFER run_play: an order to your whole ").Append(seat.Echelon).Append(" coordinates your ").Append(Plural(seat.Subordinate))
+          .Append(" for you (Attack: support set, then the assault · Defend: they hold an area together) — a direct order to one of them ENDS it.")
+          .Append(" Its ROLES are shown per unit (role assault / base of fire / reserve …): the orders a role gives are that order's, not a mistake to undo.\n");   // ⭐ CE-4686 ②
+        sb.Append("Actions: run_play(play, where[, support]) with play ").Append(string.Join(" | ", seat.OwnOrders)).Append(" (your whole ").Append(seat.Echelon).Append(") · stop_play() · ")
+          .Append("order(squad, kind, where) with kind Move | Hold | Attack | SupportByFire | Defend | BreakContact — only when no order to your whole unit fits · ")
           .Append("hold(squad) · ask_sitrep(squad) · note(text) — your running estimate: a new note REPLACES the last (keep it short). ")
           .Append("The snapshot lists the ORDERS IN FORCE as of its time; orders given since are in the radio log. Repeating an order or a play in force changes nothing.");   // ⭐ CE-4680 B-1, CE-4683 ①②
         return sb.ToString();
