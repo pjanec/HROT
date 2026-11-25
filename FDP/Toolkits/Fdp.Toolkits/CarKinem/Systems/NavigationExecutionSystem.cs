@@ -66,6 +66,15 @@ namespace CarKinem.Systems
         public const int FrustrationTickLimit = 120;
 
         /// <summary>
+        /// ⭐⭐ <c>CE-11057</c> — the SECONDS below the speed rule before a frustration episode (replan, else <see cref="NavigationResult.FailedBlocked"/>):
+        /// the design's "0.2 m/s / 2 s speed rule" (Navigation v2, N2), placed half a 60 Hz frame past <see cref="FrustrationTickLimit"/> ÷ 60 so a fixed
+        /// 1/60 s step still trips on the same frame it always did (121). ⛔ Before, the guard counted FRAMES: at a live step of ~7.5 ms, 120 frames were
+        /// 0.9 s — 📌 <c>fl-napalm-strike</c> live: the Late Man, squeezing past a parked car at ~0.2–0.4 m/s, was failed Blocked at 57 s and stood there
+        /// for good; the fixed-step run gave him his 2 s and he slid past.
+        /// </summary>
+        public const float FrustrationLimitSeconds = (FrustrationTickLimit + 0.5f) / 60f;
+
+        /// <summary>
         /// ⭐ <c>CE-5040</c> (terrain, mf-clear-lane-and-cross) — the speed under which a move counts as frustrated: <see cref="FrustrationSpeedThreshold"/>, or half the
         /// move's own <see cref="NavigationIntent.TargetSpeed"/> when that is lower. 📌 An engineer ordered to walk at detector pace (0.2 m/s, ReconMinefield) moved at
         /// ~0.19 m/s, under the fixed 0.2 m/s threshold every tick ⇒ FailedBlocked after 0.29 m, and his sweep waited on the failed move for good. A body that is
@@ -276,7 +285,7 @@ namespace CarKinem.Systems
                         RouteHandle = intent.RouteHandle,
                     });
 
-                    frustration.Ticks = 0;
+                    frustration.Ticks = 0; frustration.SlowSeconds = 0f;
                     repo.SetComponent(entity, frustration);
                     continue;
                 }
@@ -312,7 +321,7 @@ namespace CarKinem.Systems
                 {
                     if (frustration.Ticks != 0 || frustration.NoProgressSeconds != 0f)
                     {
-                        frustration.Ticks = 0;
+                        frustration.Ticks = 0; frustration.SlowSeconds = 0f;
                         frustration.NoProgressSeconds = 0f;
                         frustration.BestProgressS = progressAtThisTick;
                         repo.SetComponent(entity, frustration);
@@ -327,10 +336,11 @@ namespace CarKinem.Systems
                 if (speed < FrustrationSpeedFor(in intent) || stalled)
                 {
                     frustration.Ticks++;
+                    frustration.SlowSeconds += deltaTime;   // ⭐ CE-11057 — the decision is in sim seconds, not frames
                     frustration.ElapsedSinceFirstReplan += deltaTime;
                     repo.SetComponent(entity, frustration);
 
-                    if (frustration.Ticks > FrustrationTickLimit || stalled)
+                    if (frustration.SlowSeconds > FrustrationLimitSeconds || stalled)
                     {
                         // ⭐ CE-2304 — the episode is spent either way: the no-progress window starts again from here
                         frustration.NoProgressSeconds = 0f;
@@ -352,7 +362,7 @@ namespace CarKinem.Systems
                                 frustration.BlockedEventFired = 1;
                             }
 
-                            frustration.Ticks = 0;
+                            frustration.Ticks = 0; frustration.SlowSeconds = 0f;
                             repo.SetComponent(entity, frustration);
                             continue;
                         }
@@ -361,7 +371,7 @@ namespace CarKinem.Systems
                             // ── Hard failure: replan budget exhausted or not allowed ────────────
                             FailBlocked(repo, entity, in intent, ref status);
 
-                            frustration.Ticks = 0;
+                            frustration.Ticks = 0; frustration.SlowSeconds = 0f;
                             repo.SetComponent(entity, frustration);
                             continue;
                         }
@@ -370,7 +380,7 @@ namespace CarKinem.Systems
                 else
                 {
                     // Vehicle is moving — reset frustration counter. ⭐ CE-2304 — written every tick: the no-progress window moved
-                    frustration.Ticks = 0;
+                    frustration.Ticks = 0; frustration.SlowSeconds = 0f;
                     repo.SetComponent(entity, frustration);
                 }
 
