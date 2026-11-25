@@ -13,7 +13,7 @@ related-designs:
 ## 1. Now
 
 🔨 `2026-11-25` — **items ①–⑥ BUILT** (`caea57450`): the figures and types, `BridgeCarried` on the wire, the orders, the plays, `BridgeWorkSystem`; rails
-`BridgeLayingBehaviorTests` 6/6 (red-proved), `BridgeLayerTkbTests`, the wire round trip. ✅ `bl-too-wide` 5/5 · ✅ `bl-recover` 7/7 · ⚠ `bl-assault-crossing` 5/6 (CE-4695) · ⛔ `bl-floating-bridge` (CE-4696, terrain) · ⚠ `bl-river-crossing` (hollow pass, staging).
+`BridgeLayingBehaviorTests` 6/6 (red-proved), `BridgeLayerTkbTests`, the wire round trip. ✅ `bl-too-wide` 5/5 · ✅ `bl-recover` 7/7 · ✅ `bl-river-crossing` 6/6 · ⚠ `bl-assault-crossing` 5/6 (CE-4695, terrain) · ⛔ `bl-floating-bridge` (CE-4696, terrain). ⇒ 3 of 5 pass; the other two wait on terrain's deck-in-the-navmesh fixes ([NOTE](NOTE_Backend_To_Terrain_Floating_Deck_Vehicles.md)).
 Ids allocated: component **292** (`BridgeCarried`), descriptor **247** (`dtBridgeCarried`), TKB **118 / 119**, `OrderKind` **17 / 18**.
 
 ⛔ HISTORY — ⏸ `2026-11-25` — **queued, waiting on terrain's CE-4692 BL-S1** (a placed bridge obstacle that bakes). 🔒 User: *"When terrain's CE-4692 BL-S1
@@ -40,4 +40,4 @@ Ahead of it in the backend queue: CE-11057 ④ / CE-4691 (va-pop-smoke — the v
 | `bl-recover` | ✅ 7/7 |
 | `bl-too-wide` | ✅ 5/5 |
 | `bl-floating-bridge` | ⛔ laid and Open, the column never crosses — in the EDITOR a vehicle path never uses the floating deck, in the `--mode all` cluster it does ([CE-4696](../Blueprint_Issues_Tracker.md), [NOTE to terrain](NOTE_Backend_To_Terrain_Floating_Deck_Vehicles.md)) |
-| ⭐ `bl-river-crossing` (objectives) | ⏳ rerunning — its runs found and FIXED two real defects: ① a mission plan loaded from a scenario had no task order, so a rule's `MissionCommand Jump` always failed (`MissionPlanTranslator`, rail red-proved) · ② a bridge demolished while being recovered was counted back on board (`BridgeLayingBehaviors.Recover`, rail red-proved). Staging: the sapper walks in once Blue holds the far bank; the held / fall rows branch on the BRIDGE falling ('Bridge dropped'), with the grammar's new `unless` (`ScenarioChecks`, rail red-proved) |
+| ⭐ `bl-river-crossing` (objectives) | ✅ **PASS** 6/6 (+2 fall rows skipped: the bridge held) — every objective Achieved: laid, far bank seized, the sapper's attempt, the bridge held and RECOVERED, the span back on board. Its runs found and fixed two real defects: ① a mission plan loaded from a scenario had no task order (`MissionPlanTranslator`) · ② a bridge demolished while being recovered was counted back (`BridgeLayingBehaviors.Recover`); and the grammar gained `unless` — each rail red-proved |
