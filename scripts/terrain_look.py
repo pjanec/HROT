@@ -358,7 +358,9 @@ def write_buildings(out, name, feats, template_of, ground_lowest, x0, y0, tile_m
             index[key] = {"tile": [tx, ty], "index": bid, "panels": bool(hp and hp["panels"]), "base": base, "top": top,
                           "footprint": [[round(float(x), 3), round(float(y), 3)] for x, y in ring_]}
             if hp and hp["panels"]:   # by rank (BuildingDamage.Panel): a, b, thickness - where the client cuts a breach
-                index[key]["walls"] = [[q["a"][0], q["a"][1], q["b"][0], q["b"][1], q.get("thickness") or 0.2] for q in sorted(hp["panels"], key=lambda q: q["panel"])]
+                index[key]["walls"] = [[q["a"][0], q["a"][1], q["b"][0], q["b"][1], q.get("thickness") or 0.2, q["base"], q["top"],
+                                        [[o["at"], o["width"], o["sill"], o["head"], 1 if (o["kind"] == "window" and o.get("glazed", True)) else 0] for o in q["openings"]]]
+                                       for q in sorted(hp["panels"], key=lambda q: q["panel"])]   # + base, top, openings (at, width, sill, head, glazed) by index
             rv = roofs.get(pr.get("name"))
             if rv is not None:
                 rr = np.array(rv["geometry"]["coordinates"][0], dtype=float)[:-1]

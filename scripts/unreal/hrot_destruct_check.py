@@ -70,6 +70,8 @@ def tick(dt):
             t0 = time.time()
             if "breach" in act:
                 k, p, f, to, bo, top = act["breach"]; ok = b.test_damage(k, p, f, to, bo, top, False, live)
+            elif "hit" in act:   # [key, panel, opening, hits, u0, v0, u1, v1]
+                ok = b.test_hit_window(*act["hit"], live)
             elif "window" in act:
                 k, p, o = act["window"]; ok = b.test_break_window(k, p, o, live)
             elif "decals" in act:   # a probe: scorch decals placed straight from Python (location HROT m, rotation pitch/yaw/roll)

@@ -181,6 +181,34 @@ public sealed class RecastNavmeshFactoryTests
            "geometry":{"type":"Point","coordinates":[20,20]}}]}
         """;
 
+    /// <summary>
+    /// ⭐ <c>CE-5056</c> (behaviors' note: village-street's doors impassable) — a 1.2 m door (the importer's <c>OpeningPlacer.DoorWidth</c>) is passable on a wall at ANY angle to
+    /// the grid. 📐 At 0.9 m the infantry erosion (0.3 m off each jamb) left a 0.3 m channel — two 0.15 m cells — that broke on a rotated wall: on village-street 20 % of
+    /// the ground doors near the grid axes and ~70 % at 27–45° had no path through (the "5/5 alignments" of Navigation §14 P2 were measured on axis-aligned walls only).
+    /// </summary>
+    [Theory]
+    [InlineData(0f)] [InlineData(7f)] [InlineData(15f)] [InlineData(22f)] [InlineData(30f)] [InlineData(38f)] [InlineData(45f)]
+    public void CE5056_AOnePointTwoMetreDoor_IsPassable_OnAWallAtAnyAngle(float degrees)
+    {
+        float a = degrees * MathF.PI / 180f, c = MathF.Cos(a), s = MathF.Sin(a);
+        string P(float x, float y) => FormattableString.Invariant($"[{x * c - y * s:0.###},{x * s + y * c:0.###}]");
+        string json = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"R","doors":{"front":"open"},"building":{
+                 "footprint":[@A,@B,@C,@D],
+                 "storeys":[{"height":3,"walls":[
+                      {"from":@A,"to":@B,"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},
+                      {"from":@B,"to":@C},{"from":@C,"to":@D},{"from":@D,"to":@A}]}]}},
+               "geometry":{"type":"Point","coordinates":[30,30]}}]}
+            """.Replace("@A", P(0, 0)).Replace("@B", P(10, 0)).Replace("@C", P(10, 8)).Replace("@D", P(0, 8));
+        var world = TerrainWorldParser.Parse(json, "range");
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        // 1.5 m outside and 1.5 m inside the door's middle, along the wall's normal
+        Vector2 Local(float x, float y) => new(30f + x * c - y * s, 30f + x * s + y * c);
+        var outside = Local(5f, -1.5f); var inside = Local(5f, 1.5f);
+        Assert.True(nav.PathExists(new Vector3(outside, 0f), new Vector3(inside, 0f), (uint)NavLayerMask.Infantry), $"no path through the door at {degrees}°");
+    }
+
     [Fact]
     public void Stage5c_TheDoorwayBakesIntoDoorPolygons_AndAPathThroughItIsMarkedDoor()
     {

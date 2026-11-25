@@ -999,7 +999,7 @@ must pass is ≥ 1.2 m; House A's doors are 1.2 m"* (the stopgap at one 0.3 m ti
 `RecastNavmeshFactoryTests.Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry`.
 ④ ✅ **the agent planned on the VEHICLE layer** (1.8 m: no doorway admits it): `NavLayerSelection.For` read `VehicleState` as "a vehicle", and SimHost infantry carries it. Fixed by R-222 (`CE-3112`): the layer is mapped from the TKB locomotion class (`Pedestrian` ⇒ Infantry); the human templates now say `Pedestrian`.
 ✅ Real doors (0.8–0.9 m) pass since the tiled bake — 📄 [`Navigation_Design_v2_0.md`](designs/navig-2/Navigation_Design_v2_0.md)
-§14 "P2 as built" (0.9 m: 5/5 grid alignments at 0.15 m; 0.8 m only 2/5 — a 0.8 m door is still alignment-dependent).
+§14 "P2 as built" (0.9 m: 5/5 grid alignments at 0.15 m; 0.8 m only 2/5 — a 0.8 m door is still alignment-dependent). ⚠ **Measured `2026-11-25` (CE-5056): on walls ROTATED off the grid a 0.9 m door is NOT reliably passable** — village-street: blocked 20 % at 0–9°, ~70 % at 27–45°; the importer's doors are 1.2 m since ([UTM §11.5](DESIGN_Terrain_Import_UTM.md)). An authored 0.9 m door on a rotated wall has the same risk.
 ⚠ **Found by the first 0.9 m live run, fixed** — `bt-doors` failed on some runs (the back door never opened): turning through the
 narrower doorway the mover clipped a jamb, `SurfaceZ` took the ground away inside the wall panel, and the agent was held at the
 upper floor's 3 m from then on. ✅ a wall panel never takes the ground away (📄 `DESIGN_Terrain_World.md` §6).
