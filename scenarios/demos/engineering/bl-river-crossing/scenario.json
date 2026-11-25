@@ -132,22 +132,6 @@
    "EntityInfo": {
     "Name": "Mortar Section",
     "ForceId": "Friend"
-   },
-   "Behavior": {
-    "Name": "ArtilleryUnitStrike",
-    "Params": {
-     "Location": [
-      80.0,
-      100.0,
-      0
-     ],
-     "Smoke": true,
-     "Rounds": 3,
-     "Sheaf": "Open",
-     "SheafWidthM": 60,
-     "DangerClose": true
-    },
-    "Origin": "Superior"
    }
   },
   "b4693500-0000-4000-8000-000000000031": {
@@ -683,6 +667,50 @@
    "UnitSubordinate": {
     "CommanderGuid": "b4693500-0000-4000-8000-000000000040",
     "Designation": "Wingman"
+   }
+  },
+  "b4693500-0000-4000-8000-00000000002f": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Screen the far bank",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Screen the far bank",
+      "subject": "b4693500-0000-4000-8000-000000000030"
+     },
+     "when": {
+      "$type": "ScenarioTime",
+      "fromSeconds": 20
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693500-0000-4000-8000-000000000030",
+        "behavior": "ArtilleryUnitStrike",
+        "params": {
+         "Location": [
+          80.0,
+          100.0,
+          0
+         ],
+         "Smoke": true,
+         "Rounds": 3,
+         "Sheaf": "Open",
+         "SheafWidthM": 60,
+         "DangerClose": true
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
    }
   },
   "b4693500-0000-4000-8000-000000000005": {
