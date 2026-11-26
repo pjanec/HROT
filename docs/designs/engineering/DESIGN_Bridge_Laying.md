@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-25 (rev 5 — §12f BL-S3/S4 AS-BUILT by backend, CE-4693; rev 4 — §12 BL-S3/S4 designed by backend; rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
+updated: 2026-11-26 (rev 6 — §13 ui's half: the two-point pick, the Bridge rows, the looks, CE-6500…6502) · 2026-11-25 (rev 5 — §12f BL-S3/S4 AS-BUILT by backend, CE-4693; rev 4 — §12 BL-S3/S4 designed by backend; rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
 build-state: BUILT — BL-S1/S2 by terrain (CE-4692, §11); BL-S3/S4 by backend (CE-4693, §12f) — every bl-* scenario passes
-current-answer: §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates · §12 BL-S3/S4 the engineer (backend's design) · §12f what it built
+current-answer: §13 ui's half (pick, rows, looks) · §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates · §12 BL-S3/S4 the engineer (backend's design) · §12f what it built
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge entity + a side surface table)
 known-rot: none
 known-conflict: none
@@ -389,6 +389,130 @@ sequenceDiagram
 | 13 | ⚠ **a hull cannot yet line up onto a narrow deck from an angle** (CE-4697, open) — the scenarios form a column on the bridge's axis and send it one at a time once the approach is clear | 📐 measured live: from 16 m off the axis an M1 stops at the ramp's top, `FailedBlocked`; on the axis it crosses the 72 m floating deck in 30 s |
 
 ---
+
+## 13. ui's half — the two-point pick, the refusal on the Unit form, the engineers' looks *(ui, CE-6500…6502, `2026-11-26`; from [NOTE_Backend_To_Ui_Bridge_Laying](../../blueprints/batches/NOTE_Backend_To_Ui_Bridge_Laying.md))*
+
+**Mockup:** [`UX/bridge-laying-ui-visual.svg`](../../UX/bridge-laying-ui-visual.svg) (`scripts/gen-bridge-laying-ui-mockup.py`) — scope: the pick's line and label, the Bridge rows, the two silhouettes.
+
+**INVENTORY** *(graph CLI + grep, `2026-11-26`)*: `search_graph .*(Pick|Gesture|OrderForm|OrderMenu|PointPick|TwoPoint).*` (Class) — no two-point or segment pick exists;
+the location / entity / area picks are gizmos run by ONE host, `PickerToolHost.RunPickAsync` (`CanvasMapPickAdapter.cs`), and `FdpLocationPickerGizmo` is the model.
+`OrderMenu.PickOf` (`OrderMenu.cs:153`) answers `Several` for two required points ⇒ today `LayBridge` opens the order form, one point per row. The two `HullHalf`
+copies (`BridgeLayingBehaviors.cs:303`, `BridgeWorkSystem.cs:116`) are identical — unified into `BridgeLaying.HullHalf` / `PlanFor` here, so the preview, the
+brain and the mover plan with ONE call. The terrain is on the UI world (`EntityRepository.Sync.cs:227` pins `TerrainWorld`). 3-D: `VisualFamily` + a `ShapeKit`
+per family (`MineClearer` the model, `ShapeKit.cs:668`).
+
+```mermaid
+classDiagram
+    class OrderPick {
+        <<enum, EXISTS Hrot.Common/Orders>>
+        None
+        Point
+        Entity
+        Several
+        TwoPoints NEW
+    }
+    class IMapPickService {
+        <<interface, EXISTS>>
+        +PickLocalAsync(prompt) Task~WorldPoint~
+        +PickSegmentAsync(first, second, hint) Task~(WorldPoint, WorldPoint)~ NEW default = two PickLocalAsync
+    }
+    class CanvasMapPickAdapter {
+        <<EXISTS — the 2-D map's picks>>
+        +PickSegmentAsync() NEW via PickerToolHost
+    }
+    class SegmentPickerGizmo {
+        <<NEW Fdp.Presentation/Vis2D/Gizmos>>
+        click 1 = A, line A→cursor + hint label, click 2 = B
+    }
+    class FdpLocationPickerGizmo {
+        <<EXISTS — the model>>
+    }
+    class MenuOrders {
+        <<EXISTS>>
+        +Begin(order) TwoPoints ⇒ PickSegmentAsync NEW
+    }
+    class OrderSegmentHints {
+        <<static, NEW Hrot.Presentation/Orders>>
+        +For(order) Func~world, unit, A, B, SegmentHint~?
+    }
+    class BridgeLaying {
+        <<static, EXISTS Fdp.Toolkits/Terrain>>
+        +Plan(...) LaidDeckPlan
+        +HullHalf(world, e) NEW (was 2 copies)
+        +PlanFor(world, engineer, near, far) NEW
+        +Say(refusal, gap, span)
+    }
+    class HrotForms_Unit {
+        <<EXISTS>>
+        Bridge row NEW · Refused row NEW
+    }
+    class BridgeLayerLook {
+        <<EXISTS Hrot.Look>>
+        +Of(world, e)
+    }
+    class ShapeKit {
+        <<EXISTS Map3D>>
+        BridgeLayer NEW · FloatingBridge NEW
+    }
+    IMapPickService <|.. CanvasMapPickAdapter
+    CanvasMapPickAdapter ..> SegmentPickerGizmo : runs
+    MenuOrders ..> IMapPickService : TwoPoints
+    MenuOrders ..> OrderSegmentHints : the order's live label
+    OrderSegmentHints ..> BridgeLaying : LayBridge ⇒ PlanFor + Say
+    HrotForms_Unit ..> BridgeLayerLook
+    HrotForms_Unit ..> BridgeLaying : Say
+    ShapeKit ..> BridgeLayerLook : the span drawn only while carried
+```
+*What the picture shows that prose hid:* the preview and the engineer call the SAME `BridgeLaying.PlanFor` — a label cannot disagree with the order;
+and the pick is generic (any order with two required map points), only its label is per order.
+
+```mermaid
+sequenceDiagram
+    actor U as operator
+    participant M as MenuOrders (UI world A)
+    participant P as CanvasMapPickAdapter
+    participant G as SegmentPickerGizmo
+    participant B as BridgeLaying
+    U->>M: unit menu ▸ Lay bridge (an engineer)
+    M->>P: PickSegmentAsync("near bank", "far bank", hint = LayBridge's)
+    P->>G: run (PickerToolHost, the banner)
+    U->>G: click 1 — the near bank
+    loop each frame, cursor moved
+        G->>B: hint(A, cursor) ⇒ PlanFor(world, engineer, A, cursor)
+        G-->>U: line A→cursor, "gap 18.4 m — fits" (green) / Say(refusal) (red)
+    end
+    U->>G: click 2 — the far bank
+    G-->>M: (A, B)
+    M->>M: draft {NearBank: A, FarBank: B} ⇒ EntityOrders (every selected unit)
+```
+
+### 13.1 Decisions (engineering, no user question — each with its reason)
+
+| # | decision | reason |
+|---|---|---|
+| U-1 | a GENERIC pick: `OrderPick.TwoPoints` for any order whose required fields are exactly two map points; the first required point is A, the second B | ruling 9 — the next two-point order (a route leg, a breach line) gets it free; ⛔ not a LayBridge special case in the menu |
+| U-2 | the label is a per-order HINT (`OrderSegmentHints`), optional; no hint ⇒ the line alone with its length | the pick stays generic; the bridge's words live with the bridge |
+| U-3 | a refused plan does NOT block the click | the engineer refuses with the same words and the Bridge row shows it — the operator may know better (a bank the terrain misreads); the label already warned |
+| U-4 | the hint is recomputed only when the cursor moved ≥ 0.25 m | `Plan` samples the line every metre; per frame while still would waste it |
+| U-5 | the Bridge rows are read-only text; ⚠ drawn in the form's text style (the mockup's red reason is the form's grey) | a form row has no per-row colour today; the refusal is still worded and shown only while set |
+| U-6 | two families, `BridgeLayer` (118) and `FloatingBridge` (119), each with its span part hidden while `BridgeLayerLook` says `NoSpan` | the note's ask; the look already exists on the wire (`dtBridgeCarried`) |
+
+Rejected: a LayBridge-only gesture in `MenuOrders` — a second pick path for one order (ruling 9) · drawing the plan's deck outline as the preview — the gap and the verdict are what decide; the deck is drawn by terrain once laid · blocking a refused click — the order would then disagree with the engineer's own judgement.
+
+### 13.2 AS-BUILT *(ui, `2026-11-26`)* — matches §13's diagrams; where it went further
+
+| # | as built | note |
+|---|---|---|
+| 1 | `OrderPick.TwoPoints` · `IMapPickService.PickSegmentAsync` (default = two location picks) · `SegmentPickerGizmo` (Fdp.Presentation) under tool id `scenario.pick.segment`, banner *"Pick the near bank, then the far bank"* (`PickPrompts.Segment` / `FieldWords`) · `MenuOrders.BeginSegment` · `OrderSegmentHints` | as drawn |
+| 2 | ⭐ `BridgeLaying.HullHalf` + `PlanFor(world, engineer, near, far)` — ⚠ cross-lane (backend's `BridgeLayingBehaviors`, `BridgeWorkSystem`): their two identical `HullHalf` copies now call it | backend's `BridgeLayingBehaviorTests` 7/7 after |
+| 3 | ⚠ cross-lane: `MapMenuActions.OrderShortcuts` `LayBridge` = **L**, `RecoverBridge` = **U** | `K2_OrderLettersAreDeclaredAndDistinct` was red at the merge (the orders arrived without letters) |
+| 4 | the Bridge rows: `BridgeFacts` (`Bridge`, `Refused`), cached `FixedString64` texts | U-5: grey text, not the mockup's red |
+| 5 | the looks: `VisualFamily.BridgeLayer` / `FloatingBridge` (appended), `ShapeKits.BridgeLayer` / `FloatingBridge` (the TKB boxes), span parts `Round = ShapeKits.BridgeSpanRound` (0) and the layer's `rounds = 0` on NoSpan; the truck's wheels roll (`MotionTracker`, `FloatingBridgeWheelRadius`) | ⚠ the span draws in the kit's Metal (dark grey), the mockup's lighter grey; the frame (`bridge-*.png`) otherwise matches panel ④ |
+| 6 | the catalogue goldens gained 118 / 119 (the families) and terrain's 8825 / 8826 obstacles (missing since BL-S1) | `EntityTypeCatalogTests.BuiltInGolden`; `Map3DTests` excepts 1.1.*.9.3 and the bridge families' icons on purpose |
+
+Rails: `MenuOrdersTests.CE6500_*` (the one gesture, the label = the engineer's plan ×3), `PickerToolHostTests.CE6500_*` (the gizmo), `TheUnitFormDrawsTests.CE6501_*`,
+`BridgeEngineerModelRail` (families, span parts, the frame: a laid span leaves the roof). ⏳ No scenario: the pick is a UI gesture and sends the same order HTTP
+does — backend's `bl-*` scenarios already judge the order.
 
 ## ⛔ HISTORY — rev 1 (`2026-11-25`, superseded the same day by the review)
 

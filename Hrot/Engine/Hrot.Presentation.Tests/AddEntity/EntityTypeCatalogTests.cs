@@ -613,6 +613,8 @@ public sealed class EntityTypeCatalogTests
         115 Motorcycle | dis 1.1.0.80.1.0.0 | family Motorcycle | folder Platform/Land/Motorcycle | icon _motorcycle
         116 Mine Clearer (engineer tank) | dis 1.1.225.9.2.0.0 | family MineClearer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon _tank
         117 M67 flame tank | dis 1.1.225.1.20.0.0 | family Tank | folder Platform/Land/United States/Tank | icon _tank
+        118 Assault Bridge Layer | dis 1.1.225.9.3.0.0 | family BridgeLayer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon _tank
+        119 Floating Bridge Engineer | dis 1.1.225.7.1.0.0 | family FloatingBridge | folder Platform/Land/United States/Large Wheeled Utility Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
@@ -737,6 +739,8 @@ public sealed class EntityTypeCatalogTests
         8822 Guard booth | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8823 Barrel, water-filled | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8824 Barrel, sand-filled | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8825 Assault bridge | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8826 Floating bridge | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8830 Minefield | dis 5.0.0.91.0.0.0 | family Unknown | folder Cultural Feature/Minefield (HROT) | icon -
         8840 Air Arena | dis - | family Unknown | folder Other | icon -
         8841 Ambience Layer | dis - | family Unknown | folder Other | icon -

@@ -70,6 +70,29 @@ public interface IMapPickService
     }
 
     /// <summary>
+    /// ⭐ CE-6500 (DESIGN_Bridge_Laying §13) — TWO points in one gesture: click A, then B, with a line from A to the cursor and, when <paramref name="hint"/> is given, its
+    /// live label (the words and whether they are good news) for (A, cursor). Cancelled on Esc / right-click. The DEFAULT asks two location picks in turn (no line):
+    /// a service with no map still answers.
+    /// </summary>
+    Task<(Fdp.Core.WorldPoint A, Fdp.Core.WorldPoint B)> PickSegmentAsync(string? firstPrompt, string? secondPrompt,
+        Func<System.Numerics.Vector2, System.Numerics.Vector2, Fdp.Toolkit.Vis2D.Gizmos.SegmentHint>? hint = null, CancellationToken ct = default)
+    {
+        var result = new TaskCompletionSource<(Fdp.Core.WorldPoint, Fdp.Core.WorldPoint)>();
+        PickLocalAsync(firstPrompt, ct).ContinueWith(first =>
+        {
+            if (first.IsCanceled) { result.TrySetCanceled(); return; }
+            if (first.IsFaulted) { result.TrySetException(first.Exception!.InnerExceptions); return; }
+            PickLocalAsync(secondPrompt, ct).ContinueWith(second =>
+            {
+                if (second.IsCanceled) result.TrySetCanceled();
+                else if (second.IsFaulted) result.TrySetException(second.Exception!.InnerExceptions);
+                else result.TrySetResult((first.Result, second.Result));
+            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return result.Task;
+    }
+
+    /// <summary>
     /// Requests a single entity pick from the operator, optionally filtered by layer preset names.
     /// Returns a <see cref="Task{Int32}"/> that resolves with the network entity ID when the
     /// operator clicks a valid entity on the map.

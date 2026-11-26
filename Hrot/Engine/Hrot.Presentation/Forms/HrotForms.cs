@@ -207,6 +207,9 @@ public static class HrotForms
                 MaxOf = (w, e) => w.GetComponentRO<Health>(e).Max,   // derived: the max — no attribute reads it   // reads "80 / 100"; the write stays Health.Current
                 Action = Revive,   // ⭐ CE-11061 (Injury States §9) — the trailing Revive; the number above sets ONLY the number (R-11021)
             },
+            // ⭐ CE-6501 (DESIGN_Bridge_Laying §13, mockup ③) — a bridge engineer: what it does with its span, and the last refusal in its own words (read-only)
+            new FormField { Label = "Bridge", Kind = FieldKind.Text, Has = BridgeFacts.IsBridgeLayer, ReadText = BridgeFacts.StateText },
+            new FormField { Label = "Refused", Kind = FieldKind.Text, Has = BridgeFacts.IsRefused, ReadText = BridgeFacts.RefusalText },
             // ⭐ CE-8601 (exp/agg-ui, DESIGN_Stochastic_Unit_UI §4 UI-3) — a UNIT's strength and ammunition: men present / authorized + the SITREP colour (UnitStrength,
             //   the ONE strength seam) and its rounds (the staff's RoundsOf / AmmoOf). Read-only, derived; a man keeps his Health row below.
             //   ⭐ CE-8606 (UI-10) — drawn as GAUGES: the bar in the SITREP colour with the numbers on it, the thresholds as ticks, the word + glyph chip

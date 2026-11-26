@@ -123,7 +123,7 @@ public sealed class BulldozerModelRail
         Assert.Equal(1, bodies.BodiesDrawn);
     }
 
-    private static Vector2 OpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)
+    internal static Vector2 OpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)   // ⭐ CE-6502 — shared with BridgeEngineerModelRail
     {
         var mid = (terrain.BoundsMin + terrain.BoundsMax) / 2f;
         for (float r = 0f; r < 400f; r += 6f)
