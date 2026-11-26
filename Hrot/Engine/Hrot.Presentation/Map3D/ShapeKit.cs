@@ -802,8 +802,8 @@ public static class ShapeKits
         foreach (float s in new[] { 1f, -1f })
             p.Add(La(0f, s * 1.85f, 1.25f, 26f, 0.3f, 0.7f, ColourRole.Metal));    // a side girder: 0.3 m below the deck's top to 0.4 m above it
         p.Add(La(0f, 0f, 1.0f, 0.35f, 4.0f, 0.9f, ColourRole.Dark));                // the scissor hinge at mid-span, under the deck
-        p.Add(La(13f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));              // the end plates
-        p.Add(La(-13f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));
+        p.Add(La(12.875f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));          // the end plates, flush with the deck's ends
+        p.Add(La(-12.875f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));
         p.Add(La(0f, 0f, 1.22f, 26f, 0.7f, 0.04f, ColourRole.Dark));                // the gap between the two treadways
         return p.ToArray();
     }
