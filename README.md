@@ -4,7 +4,7 @@
 
 - **Computer-generated forces that fight like soldiers** — they react to fire, use cover, suppress, bound, break contact and break under
   stress, from the single rifleman up to a battalion — in open country and room by room inside a building.
-- **A synthetic environment that changes under fire** — walls are breached, ground is cratered, buildings burn, minefields are cleared lane
+- **A synthetic environment that changes under fire** — walls are breached, ground is cratered, buildings burn, bridges are laid and blown, minefields are cleared lane
   by lane, and every node of the exercise sees the same change at the same moment.
 - **Your area of operations in minutes** — built from OpenStreetMap or imported from another simulator's terrain, with every house
   enterable.
@@ -38,7 +38,7 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | | |
 |---|---|
 | **AI that fights like soldiers** | Behaviour is driven by what each soldier perceives and how much stress he is under, not by scripts. A suppressed man goes to cover; a squad bounds from cover to cover; a defence that breaks rallies, reports and does not walk back into the ground it lost. |
-| **A world that changes** | Breaches, craters, collapsing buildings, burning houses, felled trees and cleared minefield lanes change sight, fire and movement for every unit in the same tick, and survive save, replay and seek. |
+| **A world that changes** | Breaches, craters, collapsing buildings, burning houses, felled trees, laid and blown bridges and cleared minefield lanes change sight, fire and movement for every unit in the same tick, and survive save, replay and seek. |
 | **Real places, on demand** | An area built from OpenStreetMap or imported from another simulator's terrain — heights, roads, woods, walls and every building enterable — ready for the AI to fight in. |
 | **Trainees in the loop** | Any unit can be played: a trainee joins, picks a side and a unit, and takes it over in first person or over the shoulder — driving, gunning, leading — while the AI runs everyone else and takes the unit back when the trainee leaves. Human and AI units obey the same physics, the same damage and the same rules, and are reviewed the same way. |
 | **Review without stopping** | Pause a live exercise, rewind to show the trainee what happened, then carry on live — or branch a new exercise from any recorded moment. |
@@ -120,6 +120,7 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | ✅ **Minefields** | anti-personnel and anti-tank fields as one object; each side knows only what it has learned; strike, halt and back out; engineers trace and mark; a clearer cuts a lane · 🚧 the full strike-to-crossing chain |
 | ✅ **Incendiary weapons** | man-portable and vehicle flamethrowers, napalm, burning buildings — all within the rules of engagement and switched off in a police scenario |
 | ✅ **Obscurants** | smoke and tear gas as clouds that block sight (and infrared where the munition does) |
+| ✅ **Gap crossing** | an engineer ordered to a river lays an assault bridge (a short span in minutes) or a floating bridge (a long span over a wide river); men and vehicles cross it, it can be blown, and it can be recovered — the river is a barrier again; real-map bridges are crossed at deck height · 🚧 vehicles cross a narrow deck only from its axis |
 | ✅ **Terrain shaping** | ditches, anti-tank ditches and foxholes that the AI uses as cover; craters whose rim becomes cover |
 
 ### Civilians and the asymmetric fight
