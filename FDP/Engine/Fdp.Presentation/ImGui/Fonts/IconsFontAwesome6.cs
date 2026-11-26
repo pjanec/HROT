@@ -163,4 +163,5 @@ public static class IconsFontAwesome6
     public const string Bridge              = "\ue4c8"; // a bridge
     public const string ChevronLeft         = "\uf053"; // back
     public const string ChevronRight        = "\uf054"; // next
+    public const string HeartPulse          = "\uf21e"; // revive (CE-11061)
 }
