@@ -165,7 +165,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         /// <summary>
         /// ⭐ DD-035 D-2 (gateway) — <c>TerrainObstacles.DeckParts</c> IS what <c>DeckOf</c> feeds the walkables, for an assault span (8825-like) and a floating span (8826-like, low deck, rotated and off-origin,
         /// and a degenerate shape the clamps lift): the same three parts in the same order, each part's footprint the walkable's own, a slab's corners at the deck height. 🔴 Red-proof: give <c>DeckOf</c> its own clamp again (e.g. <c>Max(shape.Length, 2f)</c> there) ⇒ the degenerate case's footprints differ.
-        </summary>
+        /// </summary>
         [Fact]
         public void DeckParts_IsWhatDeckOfFeedsTheWalkables_ForAnAssaultAndAFloatingSpan()
         {
