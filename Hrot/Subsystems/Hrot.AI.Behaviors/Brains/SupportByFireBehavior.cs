@@ -47,6 +47,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Empty[CommandPicture.MaxSubordinates];
         /// <summary>⭐ <c>CE-4667</c> (D-7) — since when no post has had a live contact near it · 1 = the play stopped firing (exit b).</summary>
         public SimInstant QuietSince;
+        /// <summary>⭐ <c>CE-5051</c> — the nearest the squad's men have come to the point on the way (m), and when it last got nearer.</summary>
+        public float Nearest;
+        public SimInstant GainedAt;
         public byte Down;
         /// <summary>⭐ D-11 B (CE-4666, user-approved) — the base of fire's posts: the squad's own post plan (<see cref="DefencePlan"/>), facing the
         /// reported posts · its outstanding ask · 1 once the posts are given (the men re-ordered to them).</summary>
@@ -110,7 +113,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>
     /// ⭐⭐ <c>CE-2436</c> AU-1 (A-1; 📄 docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md §5) — the BASE OF FIRE as a squad play: the
     /// squad moves to its support point and holds (every man the library <c>CombatPosture</c> hold — <see cref="SquadManeuverRunner.Hold"/>);
-    /// once its men are ON THEIR POSTS — planned at the point (⭐ CE-8319) — or after <see cref="ArriveTimeoutSeconds"/> on the way, every man keeps
+    /// once its men are ON THEIR POSTS — planned at the point (⭐ CE-8319) — or after <see cref="StallSeconds"/> with no ground gained on the way, every man keeps
     /// SUSTAINED fire on a REPORTED post — man <c>i</c> on post <c>i mod n</c> — through the library <c>Suppress</c>
     /// (<see cref="SquadManeuverRunner.Suppress"/>: aimed when he sees someone there, blind at the point when not — 📌 the measured cause: a
     /// base of fire that only fought what it SAW rarely saw a man in a window at 120–250 m). Ammunition-paced by <c>Suppress</c>'s own cadence
@@ -122,8 +125,12 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>⭐ <c>CE-8319</c> — a squad this close to its support point when ordered is already THERE: it fires at once (m).</summary>
         public const float ArriveMetres = 12f;
-        /// <summary>Firing starts after this long on the way even short of the point (s): a base of fire that cannot reach its point still fires.</summary>
-        public const double ArriveTimeoutSeconds = 60.0;
+        /// <summary>⭐ <c>CE-5051</c> — firing starts short of the point once the squad has GAINED nothing on it for this long (s): a base of fire that
+        /// cannot reach its point still fires. ⛔ SUPERSEDED: <c>ArriveTimeoutSeconds = 60</c> from the order — 📐 stechovice-battle: a squad marching
+        /// steadily (2.9 m/s) was stopped 265 m short of its point and fired from 385 m.</summary>
+        public const double StallSeconds = 20.0;
+        /// <summary>⭐ <c>CE-5051</c> — what counts as getting nearer the point (m): less is a stall.</summary>
+        public const float GainMetres = 2f;
         /// <summary>⭐ <c>CE-2436</c> AU-2 (A-8) — suppression is ESTABLISHED after this long firing (s) …</summary>
         public const double EstablishSeconds = 15.0;
         /// <summary>… with at least this many rounds spent per man in the fight (a squad whose men carry no counted weapon: the time alone).</summary>
@@ -200,6 +207,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Issued == 0)
             {
                 ws.Issued = 1; ws.Since = (SimInstant)now;
+                ws.Nearest = float.MaxValue; ws.GainedAt = (SimInstant)now;
                 for (int i = 0; i < CommandPicture.MaxSubordinates; i++) ws.Dirty[i] = 1;
                 // ⭐ D-11 B — nobody has a post yet (SquadDefendPlay.Start's own reset: a zeroed PostOf reads as "post 0", and the plan asks nothing)
                 for (int i = 0; i < DefencePosts.Capacity; i++) { ws.Plan.PostOf[i] = DefencePosts.None; ws.Plan.MovedAt[i] = double.NegativeInfinity; ws.Plan.DwellFrom[i] = double.NegativeInfinity; }
@@ -219,7 +227,11 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐⭐ CE-8319 — it opens fire once its men are ON THEIR POSTS (planned at the point), not when the squad's centre is near the point:
                 //   phase 1 orders each man to Suppress where he STANDS, so firing began before the men reached their posts — 📐 live, the arrival
                 //   timeout started the fire from the house the squad was leaving. The timeout stays the fallback (a post he cannot reach).
-                if (OnTheirPosts(ref ws, self, world, n) || now - ws.Since >= ArriveTimeoutSeconds)
+                // ⭐ CE-5051 — the fallback fires only a squad that is STUCK (nothing gained on the point for StallSeconds), never one still marching
+                var c = MenCentre(world, self, p.Position);
+                float d = MathF.Sqrt((c.X - p.Position.X) * (c.X - p.Position.X) + (c.Y - p.Position.Y) * (c.Y - p.Position.Y));
+                if (d < ws.Nearest - GainMetres) { ws.Nearest = d; ws.GainedAt = (SimInstant)now; }
+                if (OnTheirPosts(ref ws, self, world, n) || now - ws.GainedAt >= StallSeconds)
                 {
                     ws.Phase = 1;
                     ws.FiringSince = (SimInstant)now;

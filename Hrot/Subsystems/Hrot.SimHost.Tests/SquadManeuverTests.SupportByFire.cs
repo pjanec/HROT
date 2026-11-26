@@ -106,6 +106,30 @@ namespace Hrot.SimHost.Tests
     
 
         /// <summary>
+        /// ⭐ <c>CE-5051</c> — a base of fire still MARCHING to a far support point does not open fire short of it on a clock: 90 s on the way, gaining
+        /// ground, no fire order; once it gains nothing for <see cref="SupportByFireBehavior.StallSeconds"/> (it cannot get nearer) it fires from where it
+        /// is. 📐 stechovice-battle: stopped 265 m short by the old 60 s timeout. 🔴 Red-proof: the clock back ⇒ fire orders at 60 s on the way.
+        /// </summary>
+        [Fact]
+        public void CE5051_SupportByFire_StillMarching_DoesNotFireShortOfThePoint_AStuckOneDoes()
+        {
+            var s = new Squad(4);
+            var support = new Vector3(0f, 300f, 0f);
+            s.Order(SupportByFireJson(support, new Vector3(0f, 420f, 0f)), BehaviorNames.SupportByFire);
+            s.Tick(); s.Tick(); s.Tick();
+            for (int k = 1; k <= 9; k++)   // 90 s, 25 m nearer each 10 s
+            {
+                for (int i = 0; i < s.Members.Length; i++) s.Teleport(s.Members[i], new Vector3(i * 2f - 3f, 25f * k, 0f));
+                s.Pause(10.0);
+                s.Tick();
+            }
+            Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.Suppress);   // still marching: no fire short of the point
+            s.Pause(SupportByFireBehavior.StallSeconds + 0.5);                              // stuck 75 m short
+            s.Tick(); s.Tick();
+            Assert.Contains(s.Orders, o => o.IntentId == BehaviorNames.Suppress);          // it fires from where it is
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2436</c> AU-2 (A-8) — "suppression established" is a CAUSE, not a clock: a base of fire whose men carry counted weapons reports
         /// SET only once it has fired <see cref="SupportByFireBehavior.EstablishSeconds"/> AND spent <see cref="SupportByFireBehavior.EstablishRoundsPerMan"/>
         /// rounds a man since firing began. ✅ Red-proofs: the rounds check dropped ⇒ Set with nothing fired · the time check dropped ⇒ Set at once.
