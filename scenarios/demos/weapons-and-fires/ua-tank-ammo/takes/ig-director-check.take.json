@@ -1,0 +1,179 @@
+{
+  "title": "IG director check",
+  "caption": "Every director feature once, for a linked image generator: fixed, orbiting, following and over-the-shoulder cameras, a fly, a hard cut, a dip to black, slow motion, subtitles in three places, film graphics and a still",
+  "note": "CE-11064 - NOTE_UiIntegration_To_UnrealIg_Director_Test.md; times are anchored on THIS run's first tank shot (s1), so no bake is needed for live play",
+  "endAt": "s1+10",
+  "anchors": {
+    "s1": {
+      "on": "shot",
+      "by": "Tank",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "s1-8",
+      "eye": [
+        300,
+        200,
+        40
+      ],
+      "target": [
+        300,
+        450,
+        0
+      ],
+      "fov": 50,
+      "segment": "open"
+    },
+    {
+      "at": "s1-6",
+      "lookAt": [
+        300,
+        400,
+        0
+      ],
+      "distance": 260,
+      "yaw": 0,
+      "pitch": -30,
+      "orbit": 6,
+      "fov": 50,
+      "in": {
+        "fly": 2,
+        "ease": "inOut"
+      },
+      "segment": "open"
+    },
+    {
+      "at": "s1-3",
+      "follow": "Tank",
+      "distance": 25,
+      "yaw": 210,
+      "pitch": -15,
+      "lift": 2,
+      "fov": 45,
+      "segment": "open"
+    },
+    {
+      "at": "s1-1",
+      "over": "Tank",
+      "toward": "Enemy Tank",
+      "back": 9,
+      "height": 3.5,
+      "lift": 2,
+      "fov": 30,
+      "segment": "shot",
+      "still": "the-first-shot"
+    },
+    {
+      "at": "s1+1",
+      "follow": "Enemy Tank",
+      "distance": 30,
+      "yaw": 160,
+      "pitch": -12,
+      "lift": 1.5,
+      "fov": 40,
+      "in": {
+        "dip": [
+          0.5,
+          0.5
+        ]
+      },
+      "segment": "rest"
+    },
+    {
+      "at": "s1+6",
+      "eye": [
+        380,
+        330,
+        25
+      ],
+      "target": [
+        300,
+        400,
+        0
+      ],
+      "fov": 70,
+      "in": {
+        "fly": 1.5,
+        "ease": "linear"
+      },
+      "segment": "rest"
+    }
+  ],
+  "segments": [
+    {
+      "id": "open",
+      "from": "s1-8",
+      "to": "s1-1"
+    },
+    {
+      "id": "shot",
+      "from": "s1-1",
+      "to": "s1+1",
+      "speed": 0.25
+    },
+    {
+      "id": "rest",
+      "from": "s1+1",
+      "to": "s1+10",
+      "gap": "dip"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "s1-8",
+      "until": "s1-3",
+      "text": "IG director check: a fixed camera, then a fly into an orbit",
+      "position": "bottom",
+      "fade": 0.5
+    },
+    {
+      "at": "s1-3",
+      "until": "s1-1",
+      "text": "Following the M1 (camera bound to an entity)",
+      "position": "top",
+      "fade": 0.3
+    },
+    {
+      "at": "s1-1",
+      "until": "s1+1",
+      "text": "Slow motion: the first shot, over the M1's shoulder",
+      "position": "middle"
+    },
+    {
+      "at": "s1+1",
+      "until": "s1+10",
+      "text": "A dip to black, then the T-72; at the end a fly to a wide view",
+      "position": "bottom",
+      "fade": 0.5
+    }
+  ],
+  "graphics": [
+    {
+      "at": "s1-3",
+      "until": "s1+1",
+      "kind": "ring",
+      "who": "Tank",
+      "radius": 6,
+      "color": "#3BA0FF",
+      "fade": 0.3
+    },
+    {
+      "at": "s1-3",
+      "until": "s1+1",
+      "kind": "arrow",
+      "who": "Tank",
+      "toward": "Enemy Tank",
+      "color": "#FF4040"
+    },
+    {
+      "at": "s1+1",
+      "until": "s1+10",
+      "kind": "label",
+      "who": "Enemy Tank",
+      "text": "T-72",
+      "color": "#FFFFFF"
+    }
+  ]
+}
