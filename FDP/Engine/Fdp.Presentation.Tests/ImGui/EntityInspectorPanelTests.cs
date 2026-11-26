@@ -288,6 +288,55 @@ namespace Fdp.Presentation.Tests
             public bool HasAuthority(Entity e, Type t) => false;
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-11060 — <b>the inspector's write on a THREADED node lands on the SIMULATION world.</b> The editor hands the inspector the UI's world (A), a copy
+        /// the staging refreshes from S; a component written on A came back as S's value on the next pull of a changed chunk (the user: "every change was
+        /// reverted, if not immediately then when unpaused"). Now the write is a sim job: nothing on A, S takes it when the sim thread drains. A singleton S does
+        /// not have is the UI's own state and comes back to A, in order. 🔴 Red-proof (run): <c>SetComponent</c> writing <c>_repo</c> directly ⇒ S keeps 0.
+        /// </summary>
+        [Fact]
+        public void CE11060_AThreadedInspectorWrite_LandsOnTheSimulationWorld_AndAUiSingletonStaysOnTheUiWorld()
+        {
+            using var sim = new EntityRepository();
+            using var ui = new EntityRepository();
+            Entity es = default, eu = default;
+            foreach (var w in new[] { sim, ui })
+            {
+                w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+                var e = w.CreateEntity();
+                w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+                if (w == sim) es = e; else eu = e;
+            }
+            Assert.Equal(es, eu);   // the staging keeps one entity's handle the same in both worlds
+            var jobs = new Fdp.Core.Threading.SimJobQueue();
+            var outbox = new RunOnUi(ui);
+            jobs.Outbox = outbox;
+            ui.SetSingletonManaged(new Fdp.Core.Threading.SimLink(jobs, sim));
+            var session = new RepositoryAdapter(ui);
+
+            session.SetComponent(eu, typeof(Fdp.Toolkit.Combat.Components.Health), new Fdp.Toolkit.Combat.Components.Health { Current = 50f, Max = 100f });
+            session.SetComponent(RepositoryAdapter.SingletonEntity, typeof(FakeInspectorContext), new FakeInspectorContext { IsMergedView = true });
+            Assert.Equal(0f, ui.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(eu).Current);   // ⛔ never written on the UI's copy
+            Assert.Equal(2, jobs.Pending);
+
+            jobs.Drain(sim);   // the sim thread's turn
+            outbox.RunAll();   // the next pull: the replies, on A
+
+            Assert.Equal(0, jobs.Faults);
+            Assert.Equal(50f, sim.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(es).Current);
+            Assert.False(sim.HasSingletonManaged<FakeInspectorContext>());   // the UI's own singleton is not pushed into S …
+            Assert.True(ui.GetSingletonManaged<FakeInspectorContext>()!.IsMergedView);   // … it lands on A
+        }
+
+        private sealed class RunOnUi : Fdp.Core.Threading.IPresentationOutbox
+        {
+            private readonly EntityRepository _ui;
+            private readonly List<Action<EntityRepository>> _queued = new();
+            public RunOnUi(EntityRepository ui) => _ui = ui;
+            public void Post(Action<EntityRepository> onPresentation) => _queued.Add(onPresentation);
+            public void RunAll() { foreach (var a in _queued) a(_ui); _queued.Clear(); }
+        }
+
         private static NestedProbe Nested() => new NestedProbe { A = 1, B = new InnerProbe { X = 2.5f, Y = 7, Deep = new DeepProbe { Z = 9 } } };
 
         /// <summary>(a) A struct inside a struct shows its inner fields — at any depth — without the person clicking each node open. ⛔ MEASURED red before the fix: the nested nodes started collapsed.</summary>

@@ -3190,6 +3190,27 @@ namespace Hrot.Editor.DebugApi
         /// descriptor covers has no remote owner to ask (a networkless host, or a node-local component), and an
         /// entity with no network identity cannot be addressed — both answer an error, never <c>ok</c>.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐ CE-11061 (docs/DESIGN_Injury_States.md §9) — <c>POST /entities/{networkId}/revive</c>: the Unit form's Revive as a route — ONE edit-framework
+        /// <c>Revive</c> op (the same <see cref="Fdp.Toolkit.Replication.Edits.Edits.Submit"/> the button uses): revived here where this node applies his Health,
+        /// else asked of the owner. Returns the route and the request id (<c>GET /edits/{requestId}</c> reads the owner's answer); an error when refused.
+        /// </summary>
+        public (JsonNode? result, string? error) ReviveEntity(int networkId)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                return (null, $"Entity {networkId} not found. List entities with GET /entities.");
+            if (SessionRefusal() is { } refused) return (null, refused);
+            var ticket = Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Revive(entity));
+            if (ticket.Route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
+                return (null, Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(_world).TryGet(ticket.RequestId, out var o) && o.Reason.Length > 0 ? o.Reason : "refused");
+            return (new JsonObject
+            {
+                ["networkId"] = networkId,
+                ["route"] = ticket.Route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested",
+                ["requestId"] = ticket.RequestId.ToString(),
+            }, null);
+        }
+
         public (JsonNode? result, string? error) PatchEntityAttribute(int networkId, string? patchJson)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))

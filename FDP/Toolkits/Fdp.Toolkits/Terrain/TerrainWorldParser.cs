@@ -403,7 +403,7 @@ namespace Fdp.Toolkit.Terrain
                 var old = sink.Buildings[acc.Index];
                 sink.Buildings[acc.Index] = new TerrainBuilding
                 {
-                    Label = old.Label, Solid = true, BaseZ = acc.MinZ, StoreyZ = new[] { acc.MinZ, acc.MaxZ },
+                    Label = old.Label, Solid = true, Structure = true, BaseZ = acc.MinZ, StoreyZ = new[] { acc.MinZ, acc.MaxZ },   // ⭐ CE-4694 — marked a structure
                     Footprint = acc.Footprint(), Position = acc.Centre(),
                 };
             }

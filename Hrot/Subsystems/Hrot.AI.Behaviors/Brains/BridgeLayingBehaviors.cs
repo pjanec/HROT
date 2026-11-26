@@ -300,10 +300,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Hull centre to its front (m): half its <c>VehicleParams</c> length, else 3.</summary>
-        internal static float HullHalf(EntityRepository world, Entity self)
-            => world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>() && world.HasComponent<global::CarKinem.Core.VehicleParams>(self)
-               && world.GetComponentRO<global::CarKinem.Core.VehicleParams>(self).Length > 0f
-                ? world.GetComponentRO<global::CarKinem.Core.VehicleParams>(self).Length * 0.5f : 3f;
+        internal static float HullHalf(EntityRepository world, Entity self) => BridgeLaying.HullHalf(world, self);   // ⭐ CE-6500 — the ONE copy
 
         /// <summary>Sets the engineer's OWN component only when it changes (no needless chunk-version bump, no needless sample).</summary>
         private static void Set(EntityRepository world, Entity self, in BridgeCarried want)

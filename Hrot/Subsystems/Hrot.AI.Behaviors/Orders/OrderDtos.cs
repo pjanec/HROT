@@ -294,6 +294,11 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>Where the enemy comes from (local metres); zero = the play's own choice.</summary>
         [JsonPropertyName("Threat")]
         public Fdp.Toolkit.Replication.PointLink Threat;
+
+        /// <summary>⭐ <c>CE-8327</c> — a RE-SENT order to the point the unit already holds (a flank turn re-plans the posts): the squad takes posts
+        /// from where it stands instead of marching to the centre. false = as ever.</summary>
+        [JsonPropertyName("InPlace")]
+        public bool InPlace;
     }
 
     /// <summary>

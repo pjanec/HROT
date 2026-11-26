@@ -214,6 +214,7 @@ public sealed class StagedPresentation : IDisposable
         bool pulled;
         using (AccessTrace.Scope("ui: staging pull", TraceContext.Presentation)) pulled = Staging.Pull(a);
         if (!pulled) return false;
+        Fdp.Toolkit.Replication.Edits.EditOutcomes.MirrorFromBus(a);   // ⭐ CE-11060 — the edit outcomes S reported (an owner's answer, a judge) reach the UI's log
         Map.RebuildFromWorld(a);
         UiClusterView.Update();
         float dt = _pulledDt; _pulledDt = 0f;

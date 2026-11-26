@@ -11,9 +11,9 @@
       "before": 5
     },
     {
-      "name": "the machine gun opens fire",
+      "name": "the machine-gun team opens fire (Red engages — the gunner himself may be suppressed before he finds a target: the base of fire's job)",
       "on": "shot",
-      "by": "Red MG Team Gunner"
+      "by": "*Red MG Team"
     },
     {
       "name": "Blue fires back",
@@ -40,40 +40,43 @@
       "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM Blue Squad 1 never stands wholly in the open after 60 s, while the gun fights",
+      "name": "REALISM Blue Squad 1 never stands wholly in the open longer than a rush (3 s) after 60 s, while the gun fights",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 1 ",
         "is": "open",
         "m": 3,
         "quantifier": "all",
-        "upright": true
+        "upright": true,
+        "for": 3
       },
       "after": 60,
       "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM Blue Squad 2 never stands wholly in the open after 60 s, while the gun fights",
+      "name": "REALISM Blue Squad 2 never stands wholly in the open longer than a rush (3 s) after 60 s, while the gun fights",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 2 ",
         "is": "open",
         "m": 3,
         "quantifier": "all",
-        "upright": true
+        "upright": true,
+        "for": 3
       },
       "after": 60,
       "before": "the machine gun is silenced (the gunner down: under 30 %)"
     },
     {
-      "name": "REALISM Blue Squad 3 never stands wholly in the open after 60 s, while the gun fights",
+      "name": "REALISM Blue Squad 3 never stands wholly in the open longer than a rush (3 s) after 60 s, while the gun fights",
       "never": {
         "on": "cover",
         "who": "*Blue Squad 3 ",
         "is": "open",
         "m": 3,
         "quantifier": "all",
-        "upright": true
+        "upright": true,
+        "for": 3
       },
       "after": 60,
       "before": "the machine gun is silenced (the gunner down: under 30 %)"

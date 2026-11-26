@@ -263,6 +263,11 @@ public sealed class MotionTracker
                 antenna = st.RotorAngle;
                 break;
             }
+            case VisualFamily.FloatingBridge:
+            {
+                st.Roll = MotionRules.Roll(st.Roll, along, ShapeKits.FloatingBridgeWheelRadius);   // ⭐ CE-6502 — the truck's wheels roll on its own radius
+                break;
+            }
             case VisualFamily.MineClearer:
             {
                 // ⭐ CE-4624 — tracked: no wheel to roll. The flail drum spools up while the flail is on (rotorTurning = FlailActivity.IsOn) and down when it stops, turning by the frame

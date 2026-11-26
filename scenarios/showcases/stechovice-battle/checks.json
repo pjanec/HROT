@@ -1,0 +1,183 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md section 3 - the Stechovice show beats; see scenario.json description (What / Judge). ⭐ CE-4694: the BRIDGE rows (the Blue bridgehead on the west bank, Red's counter-attack, the tank crossing; the objective 'Bridgehead held'). Keys on state and arrival, never a time (the overlay bake is wall-clock paced). runFor 180: at ~0.065x real time a 300 s run passed the regression's 60-min child limit. ⚠ Not expressible as a row: 'no unit at the riverbank is outside the perception grid' - measured in the log instead (rail LocalGridBuilderSystemTests.CE4694_*). No golden: the bake's wall-clock pacing.",
+  "runFor": 180,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "Riverbank: the Blue platoon fires across the river",
+      "on": "shot",
+      "by": "*Riverbank Blue "
+    },
+    {
+      "name": "Riverbank: the Red platoon fires back",
+      "on": "shot",
+      "by": "*Riverbank Red "
+    },
+    {
+      "name": "Riverbank: a Red man is hit",
+      "on": "shot",
+      "by": "*Riverbank Blue ",
+      "hit": "*Riverbank Red "
+    },
+    {
+      "name": "Riverbank: a Blue man is hit",
+      "on": "shot",
+      "by": "*Riverbank Red ",
+      "hit": "*Riverbank Blue "
+    },
+    {
+      "name": "Riverbank: a Red man falls",
+      "on": "field",
+      "who": "*Riverbank Red ",
+      "dead": true,
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "Riverbank: a Blue man falls",
+      "on": "field",
+      "who": "*Riverbank Blue ",
+      "dead": true,
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "Village: the Blue attackers fire",
+      "on": "shot",
+      "by": "*Village Blue "
+    },
+    {
+      "name": "Village: the Red defenders fire",
+      "on": "shot",
+      "by": "*Village Red "
+    },
+    {
+      "name": "Village: a Red man falls",
+      "on": "field",
+      "who": "*Village Red ",
+      "dead": true,
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "Village: a Blue man falls",
+      "on": "field",
+      "who": "*Village Blue ",
+      "dead": true,
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "Village: Blue enters the village area",
+      "on": "close",
+      "who": "*Village Blue Squad",
+      "point": [
+        1686,
+        2268
+      ],
+      "m": 120
+    },
+    {
+      "name": "Air: the Apache flies over the village",
+      "on": "close",
+      "who": "Blue Apache",
+      "point": [
+        1686,
+        2268
+      ],
+      "m": 500
+    },
+    {
+      "name": "Air: the A-10 flies over the riverbank",
+      "on": "close",
+      "who": "Blue A-10",
+      "point": [
+        821,
+        1378
+      ],
+      "m": 700
+    },
+    {
+      "name": "Air defence: the ZU-23 fires at an aircraft",
+      "on": "shot",
+      "by": "Red ZU-23",
+      "at": "Blue A-10"
+    },
+    {
+      "name": "Air defence: the SAM fires at an aircraft",
+      "on": "shot",
+      "by": "Red Radar SAM",
+      "at": "Blue Apache"
+    },
+    {
+      "name": "Bridge: the bridgehead fires at the Red counter-attack and hits",
+      "on": "shot",
+      "by": "*Bridgehead ",
+      "hit": "*Riverbank Red "
+    },
+    {
+      "name": "Bridge: the Red counter-attack fires at the bridgehead and hits",
+      "on": "shot",
+      "by": "*Riverbank Red ",
+      "hit": "*Bridgehead "
+    },
+    {
+      "name": "Bridge: the east bank supports the bridgehead by fire",
+      "on": "shot",
+      "by": "*Riverbank Blue "
+    },
+    {
+      "name": "Bridge: a bridgehead squad reports a Spot or Contact",
+      "on": "report",
+      "by": "*Bridgehead ",
+      "is": [
+        "Spot",
+        "Contact"
+      ]
+    },
+    {
+      "name": "Bridge: a Red riverbank squad reports a Spot or Contact",
+      "on": "report",
+      "by": "*Riverbank Red ",
+      "is": [
+        "Spot",
+        "Contact"
+      ]
+    },
+    {
+      "name": "Bridge: Blue holds the bridgehead (at least 2 of its men still in the fight at the end)",
+      "on": "field",
+      "who": "*Bridgehead Squad",
+      "fighting": true,
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "quantifier": "atLeast:2",
+      "atEnd": true
+    },
+    {
+      "name": "Bridge: the objective 'Bridgehead held' ends Achieved",
+      "on": "field",
+      "who": "Bridgehead held",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "Bridge: a Blue tank ordered over the bridge reaches the west bank",
+      "on": "near",
+      "who": "Riverbank Blue Tank 2",
+      "point": [
+        758,
+        1590
+      ],
+      "within": 8
+    }
+  ]
+}

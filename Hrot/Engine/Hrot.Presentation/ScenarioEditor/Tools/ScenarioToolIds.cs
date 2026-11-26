@@ -83,6 +83,9 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>Pick one world location — <c>IMapPickService.PickLocationAsync</c>.</summary>
         public const string PickLocation = "scenario.pick.location";
 
+        /// <summary>⭐ CE-6500 — pick TWO world points in one gesture (A, then B) — <c>IMapPickService.PickSegmentAsync</c>.</summary>
+        public const string PickSegment = "scenario.pick.segment";
+
         /// <summary>Pick one entity — <c>IMapPickService.PickEntityAsync</c>.</summary>
         public const string PickEntity = "scenario.pick.entity";
 

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-23
-current-answer: §1 what was measured · §2 the findings and their state · §3 what is left
+updated: 2026-11-25
+current-answer: §4 THE BRIDGEHEAD (CE-4694, in progress) · §1 what was measured · §2 the findings and their state · §3 what is left
 stale-below: nothing
 related-designs:
   - HANDOFF_Ui_To_Terrain_Stechovice_Battle_Showcase.md — the dispatch this answers (ui → terrain, scope at 92f251dc2)
@@ -44,3 +44,12 @@ related-designs:
 1. CE-5046 / CE-5047 / CE-5048 — behaviour fixes outside the terrain lane's code (air operations, HQ, vehicle tactics): leans in the tracker rows, for the user.
 2. The village attack (above), then tune `checks.draft.json` → `checks.json` against a 1/60 run; ⚠ at 0.065× a 300 s run is ~77 min, past the regression's 60-min child limit — shorten `runFor` or pass `--verify-timeout`.
 3. Preview, CAPABILITIES / USAGES rows, the optional air show.
+
+## 4. ⭐ THE BRIDGE AND THE BLUE BRIDGEHEAD — CE-4694 ✅ CLOSED `2026-11-26` (user; the 5 behaviour reds stay filed: CE-5051, CE-5061, CE-5062) ([handoff](HANDOFF_Coordinator_To_Terrain_Stechovice_Bridgehead.md), taken `2026-11-25` at `867fbbf6e`)
+
+| # | item | state | sha | evidence |
+|---|---|---|---|---|
+| ① | the perception grid covers the terrain | ✅ DONE | `8bf0dd195` | 📐 4 455 warnings, ALL in the first perception tick (the epoch branch rebuilt on `[0..1000]²` before the fit), then fitted `[-358..4898] × [-249..5008]`; 14 more = SUMO traffic / aircraft 18–198 m past the 50 m margin. Fit first + 250 m margin; rail `LocalGridBuilderSystemTests.CE4694_*` (red with the old order). Terrain World §4.4 |
+| ② | why tanks get no route | ✅ ROOT-CAUSED + FIXED | `101295e4c` | a probe on the real import (vehicle layer, the deck at y 1590): the deck WIDTH matters (4 m: the deck alone disconnects under the 1.8 m erosion; 8 m carries) but the BREAK was a **0.6 m cliff down the middle of the west-bank road**: a two-way road was two import corridors (one per SUMO edge) levelled to two profiles. Refuted on the way (measured): deck headroom fill, a deeper ramp-foot sink. Now ONE corridor per two-way road (importer revision 4, Ground Patches G-21a); after the re-import the east bank reaches the west road over the deck. Rail `ImporterTests.CE4694_*`. The same-bank pair (1345, 292) → (1330, 320) still has no vehicle path — open, see §4 notes |
+| ③ | the bridge + the Blue bridgehead in the scenario | ✅ BRIDGE ROWS PASS (the scenario not yet: 5 earlier draft rows) | `bf0e9f68b` `de88a74de` `8c221d308` `3d80cd10a` | 📐 exploratory runs (step 1/6): with Red's vehicles 70–100 m down the road the bridgehead died (1 of 18 by 150 s); pulled back to 150–250 m ⇒ **Blue holds** (6 of 18 vs Red 1 of 18 at 180 s; 50 bridgehead hits on Red, 30 Red hits on it in the first 60 s). ⚠ The TANK CROSSING failed: the hull was held at the east ramp's SOUTH EDGE even from the axis. 📐 Cause measured (a navmesh dump across the ramp foot): an OSM house (`w422408687`) stood on the ramp's NORTH half, leaving the vehicle mesh a ~1 m strip at y 1587.6–1588.8 — the planner's own path ran there. ⭐ Fixed in the scenario: a base edit removes the house (CE-5059 filed: no warning for a bridge over a building; CE-5058 corrected). `checks.json` written (23 rows: the draft's 15 + 8 bridge rows, runFor 180) — not yet run in the regression | ⭐ **Regression `2026-11-26` (`artifacts/scenario-regression/20261125-232549`, 180 s, 2 821 s wall): ALL 8 bridge rows PASS** — both sides fire and hit across the bridgehead (2.3 s / 1.3 s), the east bank supports it (3.3 s), Spot reports both sides (3.1 s), ≥ 2 bridgehead men in the fight at the end, `Bridgehead held` **Achieved**, the tank over the bridge at **60.75 s**; the 6 riverbank + 2 air-flyover rows pass. ⛔ 5 rows from the earlier draft fail (Village: Red defenders fire · a Blue man falls · Blue enters the village; Air defence: the ZU-23 at the A-10 · the SAM at the Apache) — measured live: ⏳ behaviour, not the bridge — the ZU-23 never fires (**CE-5062**), the village attack is still 390–460 m out at 180 s (**CE-5051**), the SAM fires (its target unread: the editor crashed on a second preview, **CE-5061**); sent to behaviors / ui ([NOTE](NOTE_Terrain_To_Behaviors_UI_Stechovice_Battle_Reds.md))
+| ④ | file the OSM-bridge-deck row | ✅ DONE | `a3efdad9a` | **CE-5057** |

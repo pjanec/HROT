@@ -106,6 +106,7 @@ namespace Hrot.ScenarioEditor.Tools
             // ⛔ Before any pick is requested a picker tool has nothing to arm — it REPORTS rather than
             //   pretending (ruling 49: registered-and-explained beats absent).
             foreach (var id in new[] { ScenarioToolIds.PickLocation,
+                                       ScenarioToolIds.PickSegment,   // ⭐ CE-6500
                                        ScenarioToolIds.PickEntity,
                                        ScenarioToolIds.PickArea,
                                        ScenarioToolIds.PickBounds })
@@ -188,6 +189,7 @@ namespace Hrot.ScenarioEditor.Tools
             foreach (var pair in new[]
                      {
                          (ScenarioToolIds.PickLocation, "Pick Location"),
+                         (ScenarioToolIds.PickSegment,  "Pick Two Points"),   // ⭐ CE-6500
                          (ScenarioToolIds.PickEntity,   "Pick Entity"),
                          (ScenarioToolIds.PickArea,     "Pick Area"),
                          (ScenarioToolIds.PickBounds,   "Pick Bounds"),

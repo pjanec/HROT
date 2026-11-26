@@ -62,6 +62,30 @@ public static class HrotForms
 
     // ── ⭐ U-24 / S5 (DESIGN_Initial_State §4.2) — Damage: one number row per PART of his body (Damage.Part.*, attribute 85, the part id as the sub-index) and the mobility kill as a switch (86) ─────────────
 
+    // ── ⭐ CE-11061 (docs/DESIGN_Injury_States.md §9, mockup UX/revive-visual.svg) — Revive: the Strength row's trailing action ─────────────
+
+    /// <summary>The Strength row's action: one edit-framework <c>Revive</c> to the node that applies his Health.</summary>
+    private static readonly FieldAction Revive = new()
+    {
+        Icon = new NodeEditor.Core.Widgets.IconGlyph(Fdp.Presentation.Fonts.IconsFontAwesome6.HeartPulse, NodeEditor.Core.Widgets.IconPalette.Green),
+        Tip = "Revive — back in the fight: full health, wounds and stun cleared, can move and fire. His brain starts idle and takes orders again.",
+        Offered = ReviveOffered,
+        Op = e => Fdp.Toolkit.Replication.Edits.EditOp.Revive(e),
+    };
+
+    /// <summary>RV-2 — offered while he is not whole: below full health, or a wounded body part (a man at full health with a wound is not Ok).</summary>
+    public static bool ReviveOffered(EntityRepository w, Entity e)
+    {
+        if (!w.IsComponentTypeRegistered<Health>() || !w.HasComponent<Health>(e)) return false;
+        ref readonly var h = ref w.GetComponentRO<Health>(e);
+        if (h.Max <= 0f) return false;
+        if (h.Current < h.Max) return true;
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>() || !w.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(e)) return false;
+        ref readonly var d = ref w.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.PartDamage>(e);
+        for (byte p = 0; p < Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts; p++) if (d.LevelOf(p) != 0) return true;
+        return false;
+    }
+
     private static bool HasBody(EntityRepository w, Entity e)
         => w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>() && w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(e)
            && Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e) != null;   // a unit that can be damaged: PartDamage is added by the owner on the first write
@@ -181,7 +205,11 @@ public static class HrotForms
             {
                 Label = "Strength", Attribute = "Health.Current", Min = 0,
                 MaxOf = (w, e) => w.GetComponentRO<Health>(e).Max,   // derived: the max — no attribute reads it   // reads "80 / 100"; the write stays Health.Current
+                Action = Revive,   // ⭐ CE-11061 (Injury States §9) — the trailing Revive; the number above sets ONLY the number (R-11021)
             },
+            // ⭐ CE-6501 (DESIGN_Bridge_Laying §13, mockup ③) — a bridge engineer: what it does with its span, and the last refusal in its own words (read-only)
+            new FormField { Label = "Bridge", Kind = FieldKind.Text, Has = BridgeFacts.IsBridgeLayer, ReadText = BridgeFacts.StateText },
+            new FormField { Label = "Refused", Kind = FieldKind.Text, Has = BridgeFacts.IsRefused, ReadText = BridgeFacts.RefusalText },
             // ⭐ CE-8601 (exp/agg-ui, DESIGN_Stochastic_Unit_UI §4 UI-3) — a UNIT's strength and ammunition: men present / authorized + the SITREP colour (UnitStrength,
             //   the ONE strength seam) and its rounds (the staff's RoundsOf / AmmoOf). Read-only, derived; a man keeps his Health row below.
             //   ⭐ CE-8606 (UI-10) — drawn as GAUGES: the bar in the SITREP colour with the numbers on it, the thresholds as ticks, the word + glyph chip

@@ -130,9 +130,22 @@ namespace Hrot.ScenarioEditor.Tools
             return field.Length == 0 ? $"Pick {what}" : $"Pick {what} for {field}";
         }
 
+        /// <summary>⭐ CE-6500 — a field's words for a banner, with "the": <c>NearBank</c> ⇒ "the near bank"; "" when it has none.</summary>
+        public static string FieldWords(string? jsonPath)
+        {
+            var w = LastWord(jsonPath);
+            return w.Length == 0 ? "" : "the " + w.ToLowerInvariant();
+        }
+
+        /// <summary>⭐ CE-6500 — ONE banner for a two-point pick: "Pick the near bank, then the far bank" (each part a field's words); a default when neither is given.</summary>
+        public static string Segment(string? first, string? second)
+            => string.IsNullOrWhiteSpace(first) && string.IsNullOrWhiteSpace(second) ? "Pick two points on the map"
+             : $"Pick {first ?? "a point"}, then {second ?? "a point"}";
+
         /// <summary>The default for a picker tool with no asking field; null for a tool that is not a pick.</summary>
         public static string? DefaultFor(string toolId)
             => toolId == ScenarioToolIds.PickLocation ? "Pick a point on the map"
+             : toolId == ScenarioToolIds.PickSegment  ? "Pick two points on the map"
              : toolId == ScenarioToolIds.PickEntity   ? "Pick a unit on the map"
              : toolId == ScenarioToolIds.PickArea     ? "Drag a box on the map"
              : toolId == ScenarioToolIds.PickBounds   ? "Drag a box on the map"

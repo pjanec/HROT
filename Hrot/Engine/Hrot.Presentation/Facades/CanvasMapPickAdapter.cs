@@ -156,6 +156,19 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             ct, prompt);
 
     /// <inheritdoc/>
+    /// <remarks>⭐ CE-6500 — ONE gesture (<see cref="Fdp.Toolkit.Vis2D.Gizmos.SegmentPickerGizmo"/>) under one banner naming both clicks; local metres, Z 0, as <see cref="PickLocalAsync(string?, CancellationToken)"/>.</remarks>
+    public Task<(Fdp.Core.WorldPoint A, Fdp.Core.WorldPoint B)> PickSegmentAsync(string? firstPrompt, string? secondPrompt,
+        Func<System.Numerics.Vector2, System.Numerics.Vector2, Fdp.Toolkit.Vis2D.Gizmos.SegmentHint>? hint = null, CancellationToken ct = default)
+        => _pickers.RunPickAsync<(Fdp.Core.WorldPoint, Fdp.Core.WorldPoint)>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickSegment,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.SegmentPickerGizmo(
+                onPicked: (a, b) => tcs.TrySetResult((new Fdp.Core.WorldPoint(a.X, a.Y, 0f), new Fdp.Core.WorldPoint(b.X, b.Y, 0f))),
+                onRemove: remove,
+                onCancelled: () => tcs.TrySetCanceled(),
+                hint: hint),
+            ct, Hrot.ScenarioEditor.Tools.PickPrompts.Segment(firstPrompt, secondPrompt));
+
+    /// <inheritdoc/>
     public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => PickEntityAsync(filterPresets, null, ct);
 
     /// <inheritdoc/>

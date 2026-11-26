@@ -195,7 +195,11 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 	if (Ids) Mesh->bAllowCPUAccess = true;   // U-20: the runtime copies the tile into a dynamic mesh when one of its houses is damaged
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bBuildSimpleCollision = false;
-	Params.bFastBuild = true;
+	// ⛔ 2026-11-26: NOT bFastBuild - it builds only the in-memory render data and leaves the asset's SOURCE model as it was, so a rebuilt tile
+	// SAVED (and cooked) the previous mesh: Stechovice's houses kept the pre-panel walls (13 706 triangles saved for a 92 358-triangle build; the
+	// packaged game showed solid walls behind every window and no floors). The description is committed to the source model and built normally.
+	Params.bFastBuild = false;
+	Params.bCommitMeshDescription = true;
 	if (Ids)   // U-20: the ids must stay exact integers (half-float UVs lose them above 2048) and readable at runtime
 	{
 		Params.bAllowCpuAccess = true;
@@ -203,6 +207,12 @@ AActor* UHrotTerrainLibrary::BuildMesh(const FString& BinPath, const FString& As
 		Params.PerLODOverrides.Add(Lod);
 	}
 	Mesh->BuildFromMeshDescriptions({ &MD }, Params);
+	if (Ids && Mesh->GetNumSourceModels() > 0 && !Mesh->GetSourceModel(0).BuildSettings.bUseFullPrecisionUVs)
+	{   // the normal build reads the source model's settings (the LOD override above serves only the fast path)
+		Mesh->GetSourceModel(0).BuildSettings.bUseFullPrecisionUVs = true;
+		Mesh->Build(true);
+	}
+	UE_LOG(LogHrotTerrain, Log, TEXT("%s: %d triangles in the saved mesh"), *AssetName, Mesh->GetNumTriangles(0));
 	FAssetRegistryModule::AssetCreated(Mesh);
 	Package->MarkPackageDirty();
 

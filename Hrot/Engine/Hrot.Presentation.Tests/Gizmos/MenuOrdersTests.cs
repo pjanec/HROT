@@ -13,6 +13,7 @@ using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Constants;
 using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.Common.Orders;
+using Hrot.Map.Common;
 using Hrot.Core.Mission;
 using Hrot.ScenarioEditor.Map;
 using Hrot.UI.Common.Facades;
@@ -67,6 +68,13 @@ public sealed class MenuOrdersTests : IDisposable
         public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) { Presets = filterPresets; return (Enemy = new()).Task; }
         public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
+        // ⭐ CE-6500 — the two-point pick: its prompts and its live label as the menu asked
+        public TaskCompletionSource<(WorldPoint A, WorldPoint B)>? Segment;
+        public string? First, Second;
+        public Func<Vector2, Vector2, Fdp.Toolkit.Vis2D.Gizmos.SegmentHint>? Hint;
+        public Task<(WorldPoint A, WorldPoint B)> PickSegmentAsync(string? firstPrompt, string? secondPrompt,
+            Func<Vector2, Vector2, Fdp.Toolkit.Vis2D.Gizmos.SegmentHint>? hint = null, CancellationToken ct = default)
+        { First = firstPrompt; Second = secondPrompt; Hint = hint; return (Segment = new()).Task; }
     }
 
     private (MapInteraction mi, FakePick pick) Live()
@@ -338,6 +346,70 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal("Order.Move", order.IntentId);                    // ⭐ CE-2143 — the ORDER; the unit picks how
         Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, order.Origin);
         Assert.Contains("\"Location\":[-40,120,0]", order.JsonParams);    // ⭐ S0 item 5: local metres [x, y, z] (the stub has no frame: x = the longitude field)
+    }
+
+    // ── ⭐ CE-6500 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13; NOTE_Backend_To_Ui_Bridge_Laying) — Lay bridge: ONE two-point pick ─────────────────
+
+    private const int EngineerId = 99;
+
+    /// <summary>An assault bridge layer (DIS 1.1.225.9.3, TKB 118) on a flat map with a river y 60 → 60 + <paramref name="riverWidth"/>; the TKB and terrain on the world.</summary>
+    private Entity Engineer(float riverWidth = 12f)
+    {
+        if (!_w.IsComponentTypeRegistered<TkbIdentity>()) _w.RegisterComponent<TkbIdentity>();
+        _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+        string y1 = (60f + riverWidth).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,300,300],\"groundZ\":0},\"features\":[" +
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"surface\",\"surface\":\"water\"},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[-50,60],[300,60],[300," + y1 + "],[-50," + y1 + "],[-50,60]]]}}]}", "river"));
+        var e = Add(EngineerId);
+        _w.SetDisType(e, new DISEntityType { Value = (1UL << 56) | (1UL << 48) | (225UL << 32) | (9UL << 24) | (3UL << 16) });
+        _w.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)TkbEntityTypes.Engineer_AssaultBridgeLayer });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-6500 — Lay bridge from the unit menu is ONE gesture: its two required map points make it <c>OrderPick.TwoPoints</c> (no longer the order form's
+    /// "Lay bridge…"), the pick names both banks in one banner, carries the order's live label, and on (A, B) ONE order goes with NearBank = A and FarBank = B.
+    /// 🔴 Red-proof (compiles): <c>PickOf</c> without the TwoPoints arm ⇒ Several ⇒ the order form, no segment pick ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE6500_LayBridge_IsOneTwoPointPick_ThenOneOrderWithBothBanks()
+    {
+        var engineer = Engineer();
+        Assert.True(OrderMenu.TryGetByName("LayBridge", out var lay));
+        Assert.Equal((OrderPick.TwoPoints, "NearBank"), (lay.Pick, lay.PickField));
+        var (mi, pick) = Live();
+        Assert.True(mi.Actions.TryGetHandler(lay.ActionId, out var handler));
+        handler!(_w, engineer);
+        Assert.True(mi.MenuOrders.IsPicking);
+        Assert.Equal(("the near bank", "the far bank"), (pick.First, pick.Second));
+        Assert.NotNull(pick.Hint);                                     // LayBridge's own label
+        Assert.Empty(Published(mi));
+
+        pick.Segment!.SetResult((new WorldPoint(80f, 50f, 0f), new WorldPoint(80f, 82f, 0f)));
+        var order = Assert.Single(Published(mi));
+        Assert.Equal((engineer, "Order.LayBridge"), (order.Entity, order.IntentId));
+        Assert.Contains("\"NearBank\":[80,50,0]", order.JsonParams);
+        Assert.Contains("\"FarBank\":[80,82,0]", order.JsonParams);
+    }
+
+    /// <summary>
+    /// ⭐ CE-6500 (U-2) — the label is the engineer's OWN plan (<c>BridgeLaying.PlanFor</c>, the brain's call): across a 12 m river it fits and says the gap; across a
+    /// 30 m one it says the refusal in <c>BridgeLaying.Say</c>'s words; a bank in the water says so. A unit with no bridge says it carries none.
+    /// </summary>
+    [Theory]
+    [InlineData(12f, 50f, 82f, true, "gap ")]
+    [InlineData(30f, 50f, 100f, false, "wider than")]
+    [InlineData(12f, 65f, 90f, false, "near bank is in the water")]
+    public void CE6500_TheLayBridgeLabel_IsTheEngineersOwnPlan(float river, float nearY, float farY, bool ok, string words)
+    {
+        var engineer = Engineer(river);
+        var hint = Hrot.Presentation.Orders.OrderSegmentHints.LayBridge(_w, engineer, new Vector2(80f, nearY), new Vector2(80f, farY));
+        Assert.Equal(ok, hint.Ok);
+        Assert.Contains(words, hint.Text);
+        Assert.True(Fdp.Toolkit.Terrain.BridgeLaying.PlanFor(_w, engineer, new Vector2(80f, nearY), new Vector2(80f, farY), out var plan, out _));
+        Assert.Equal(ok, plan.Ok);                                     // the same call the brain plans with
+        Assert.False(Hrot.Presentation.Orders.OrderSegmentHints.LayBridge(_w, _unit, new Vector2(80f, nearY), new Vector2(80f, farY)).Ok);   // the soldier carries no bridge
+        Assert.Null(Hrot.Presentation.Orders.OrderSegmentHints.For("Move", _w, engineer));   // an order with no label: the plain line
     }
 
     [Fact]

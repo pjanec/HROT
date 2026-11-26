@@ -14,10 +14,12 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         /// <param name="terrainName">the terrain's name as resolved (may carry a sub-folder; the hook answers null for a name it has no input for)</param>
         /// <param name="existingDefinition">the <c>terrain.json</c> a root already holds, or null on a miss</param>
-        /// <param name="targetRoot">the root an import lands in: the root holding <paramref name="existingDefinition"/>, else the first writable root</param>
+        /// <param name="targetRoot">the root an import lands in — asked only when an import is needed (a write probe): on a miss the catalog's import target; on a STALE hit the
+        /// machine-wide target when there is one (⭐ <c>CE-11061</c> / <c>CE-5060</c>: a stale copy seeded into a private NAS must not be re-imported there, run after run), else the
+        /// root holding <paramref name="existingDefinition"/></param>
         /// <param name="catalogRoots">every root of the catalog (where sibling <c>terrain-input</c> folders may be)</param>
         /// <returns>the <c>terrain.json</c> to use after an import, or null when nothing was imported (no input set, or the existing terrain is current)</returns>
-        string? TryImport(string terrainName, string? existingDefinition, string targetRoot, IReadOnlyList<string> catalogRoots, CancellationToken cancellation);
+        string? TryImport(string terrainName, string? existingDefinition, System.Func<string> targetRoot, IReadOnlyList<string> catalogRoots, CancellationToken cancellation);
     }
 
     /// <summary>

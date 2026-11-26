@@ -147,7 +147,7 @@ namespace Hrot.Editor.DebugApi
             ("POST", "/entities/{networkId}/order"), ("DELETE", "/entities/{networkId}/order"),
             ("POST", "/entities/{networkId}/possess"), ("DELETE", "/entities/{networkId}/possess"), ("POST", "/entities/{networkId}/control"),
             ("POST", "/orders"), ("POST", "/orders/side-lock"), ("POST", "/entities/{networkId}/sector"),
-            ("POST", "/entities/{networkId}/attribute"), ("POST", "/entities/{networkId}/component"), ("POST", "/objectives/{networkId}/control"),
+            ("POST", "/entities/{networkId}/attribute"), ("POST", "/entities/{networkId}/component"), ("POST", "/entities/{networkId}/revive"), ("POST", "/objectives/{networkId}/control"),
             ("POST", "/entities/{networkId}/ownership/transfer"), ("POST", "/entities/{networkId}/variable"),
             ("POST", "/entities/{networkId}/attach-blueprint"), ("POST", "/entities/{networkId}/detach-blueprint"),
             ("DELETE", "/entities/{networkId}"), ("POST", "/checkpoint"), ("POST", "/checkpoint/restore"),
@@ -1814,6 +1814,14 @@ namespace Hrot.Editor.DebugApi
                     return Fail(400, "patchJson is required.");
                 var (node, error) = await _jobQueue.RunOnMainThread(() =>
                     Service().PatchEntityAttribute(id, patchJson!)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/entities/{networkId}/revive", async ctx =>   // ⭐ CE-11061 — the Unit form's Revive as a route
+            {
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().ReviveEntity(id)).ConfigureAwait(false);
                 return error != null ? Fail(400, error) : Ok(node);
             }));
 

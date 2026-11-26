@@ -162,7 +162,7 @@ sequenceDiagram
   participant AS as assault squad
   PA->>SBF: SupportByFire(support point, the objective's reported posts)
   SBF->>M: hold at the point (CombatPosture)
-  Note over SBF: centre within 12 m, or 60 s on the way
+  Note over SBF: on its posts at the point, or STUCK (no ground gained for 20 s, CE-5051 / R-2150)
   SBF->>M: Suppress post i mod n (no target: the point)
   SBF-->>PA: PROGRESS Set
   PA->>AS: bound to the assault point

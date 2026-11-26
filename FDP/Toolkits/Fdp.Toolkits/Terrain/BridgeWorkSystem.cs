@@ -113,10 +113,7 @@ namespace Fdp.Toolkit.Terrain
             view.GetCommandBuffer().DestroyEntity(b);
         }
 
-        private static float HullHalf(EntityRepository repo, Entity e)
-            => repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>() && repo.HasComponent<global::CarKinem.Core.VehicleParams>(e)
-               && repo.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Length > 0f
-                ? repo.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Length * 0.5f : 3f;
+        private static float HullHalf(EntityRepository repo, Entity e) => BridgeLaying.HullHalf(repo, e);   // ⭐ CE-6500 — the ONE copy
     }
 
     internal static class BridgeVectorExtensions

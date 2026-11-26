@@ -261,6 +261,7 @@ private:
 		FString Name, Dis, DrawnAs;
 		FHrotDpsTrackPoint Track;
 		float Bank = 0, MeshYaw = 0, MeshZ = 0;
+		bool bGunSaid = false;   // GunOnCarrier logged its numbers once
 		float StepPhase = 0;   // U-18n: the stride, a footstep at each whole number
 		uint8 Side = 0;
 		int32 ParentId = 0;   // Entity.ParentId: mounted on / part of another entity
@@ -283,6 +284,10 @@ private:
 		uint8 ActiveSlot = 0;                // PersonState.ActiveSlot: his selected weapon mount (U-18f)
 		double RocketFiredAt = -1;           // real seconds of his last rocket / ATGM shot (the tube, when no type data says)
 		uint8 StateDamage = 0, LookDamage = 0;   // EntityState.Damage and VehicleLook's verdict; the shown damage is the worse
+		// a flyer (VehicleLook.Airborne, gateway T-079): its speed and climb on screen (m/s, smoothed) choose beat or glide (DESIGN_Dragon §8.2)
+		bool bVehicleAirborne = false, bFlightPrev = false;
+		FVector3d FlightPrevP = FVector3d::ZeroVector;
+		float FlightSpeed = 0.f, FlightClimb = 0.f;
 		bool bBurning = false;   // real seconds of his last shot (the kick) and of the last hit on him (the flinch)
 		// U-18h — an animal: Animal's state, its flock's birds
 		bool bAnimal = false, bHasAnimal = false, bDangerous = false, bAirborne = false;
@@ -438,6 +443,9 @@ private:
 	struct FRoundLook { float Length = 0, Diameter = 0; bool bSmokeTrail = false; };
 	TMap<int64, FRoundLook> RoundLooks;   // MunitionLook, by munition type
 	TMap<int64, TArray<FString>> MountCategories;
+	/** TkbType Body.Geometry (BodyGeometryDto): a CENTRE-OF-GRAVITY type's lowest ground contact, cm along body z (< 0) — its feet are there, so the
+	 *  kit (feet at its origin) is drawn at position + rotate(orientation, (0, 0, drop)). HROT note Dragon_Height_Answer (ui 1d35c4fcb) */
+	TMap<int64, float> RestDropCm;
 	/** U-18f — an automatic weapon's tracer STREAM (HROT's FireStreams): who fired (his gun's muzzle NOW starts the dashes), where it ran
 	 *  to (Unreal cm; zero = along the shot), the shot's line as fallback, and when (sim s) */
 	struct FStream { int32 Shooter = 0; FVector Origin, Along, Toward; double Born = 0; };
@@ -477,6 +485,8 @@ private:
 	AActor* SpawnAnimal(FEnt& E, const FTransform& At);
 	void ApplyAnimal(FEnt& E, double SimNow);
 	void ApplyFlame(FEnt& E);
+	/** a flyer's wings / rotors: flying from VehicleLook.Airborne, gliding at speed (> 10 m/s, not climbing > 1 m/s) */
+	void ApplyFlight(FEnt& E, float Dt);
 	void TickSpots(double SimNow);
 	void TickMovers(double Real);
 	void ClearLife();

@@ -87,8 +87,13 @@ def main():
     if not a.placeholders:
         job["assets"] = find_assets(a.project)
         print("assets:", json.dumps({k: (v if not isinstance(v, dict) else v["B"]) for k, v in job["assets"].items()}, indent=1))
+    # a terrain's look options (<name>.look-options.json beside its export): {"roadMeshes": false} keeps HROT's road-scene meshes OUT of the level
+    # (Stechovice, the user 2026-11-23: "the brown asphalt carpet on the top is useless ... wrong height and variously broken"; a rebuild on
+    # 2026-11-25 put it back because the removal lived only in a later edit of the level)
+    opts_path = os.path.join(folder, f"{name}.look-options.json")
+    opts = json.load(open(opts_path, encoding="utf-8")) if os.path.exists(opts_path) else {}
     rm = os.path.join(folder, "roads", f"{name}.roads-mesh.json")   # hrot-roadscene: HROT's own TrafficRoadScene (UL-14)
-    if os.path.exists(rm):
+    if os.path.exists(rm) and opts.get("roadMeshes", True):
         job["roadMeshes"] = json.load(open(rm, encoding="utf-8")); job["roadMeshDir"] = fwd(os.path.join(folder, "roads"))
     bm = os.path.join(folder, f"{name}.buildings-mesh.json")
     if os.path.exists(bm) and not a.no_buildings:
@@ -120,6 +125,15 @@ def main():
         print(json.dumps({k: r.get(k) for k in ("ok", "why", "seconds", "log", "shots")}, indent=1))
     else:
         print("no result — see look-editor.log")
+    # the water (hrot_water_mesh.py tiles) is laid by its own pass into the finished level - run it whenever the terrain has water tiles, so a
+    # rebuild never drops the river (2026-11-25: the Stechovice rebuild lost the Vltava, added by hand on 2026-11-23)
+    wm = os.path.join(folder, f"{name}.water-mesh.json")
+    if os.path.exists(wm):
+        wjob = os.path.join(folder, "water-job.json")
+        json.dump({"level": level, "export": fwd(folder), "terrain": name, "out": fwd(os.path.join(folder, "water-result.json"))}, open(wjob, "w"), indent=1)
+        w = subprocess.run([exe, a.project, f"-ExecutePythonScript={os.path.join(HERE, 'hrot_add_water.py')}", "-unattended", "-nosplash", "-NoSound",
+                            f"-abslog={os.path.join(folder, 'water-editor.log')}"], env=dict(os.environ, HROT_WATER_JOB=wjob))
+        print(f"water pass exit {w.returncode}: " + (open(os.path.join(folder, "water-result.json"), encoding="utf-8").read()[:300] if os.path.exists(os.path.join(folder, "water-result.json")) else "no result"))
 
 
 if __name__ == "__main__":

@@ -51,6 +51,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#if WITH_EDITOR
+#include "StaticMeshCompiler.h"
+#endif
 #include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
 #include "HrotCardLayer.h"
@@ -251,6 +255,30 @@ void UHrotDpsWorld::PreloadPeopleAndSounds()
 	int32 Sounds = 0;
 	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(this)) Sounds = Snd->PreloadAll();
 	Sounds += UHrotBuildingDamage::Preload();   // U-20: crack textures, damage materials, debris meshes, glass sounds
+	// live 2026-11-25 (Stechovice, the CSV profiler): 57 s of 103 s in frames over 200 ms was FlushAsyncLoading - the effects loaded by path on
+	// their FIRST use (a rocket, an explosion, a fire, a burnt wreck) stalled the game for seconds. Load every one of them here, up front, and hold it
+	static const TCHAR* const Effects[] = {
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/P_Explosion_Big_A.P_Explosion_Big_A"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/P_Explosion_Big_B.P_Explosion_Big_B"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_Fire_Big.P_Fire_Big"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_Fire_Wall.P_Fire_Wall"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_flamethrower.P_flamethrower"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Smoke/P_Smoke_A.P_Smoke_A"),
+		TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Sparks/P_Embers_A.P_Embers_A"),
+		TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire.NS_WeaponFire"),
+		TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire_Tracer.NS_WeaponFire_Tracer"),
+		TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire_ShellEject.NS_WeaponFire_ShellEject"),
+		TEXT("/Game/Effects/Particles/Impacts/NS_ImpactConcrete.NS_ImpactConcrete"),
+		TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch"),
+		TEXT("/Game/Hrot/Fx/M_HrotBurnt.M_HrotBurnt"),
+		TEXT("/Game/Hrot/Weapons/SM_HrotRoofMg.SM_HrotRoofMg"),
+		TEXT("/Engine/BasicShapes/Sphere.Sphere"),
+		TEXT("/Engine/BasicShapes/Cube.Cube"),
+		TEXT("/Game/Hrot/Fx/Labels/M_HrotCard.M_HrotCard") };
+	int32 Fx = 0;
+	for (const TCHAR* Path : Effects)
+		if (UObject* O = StaticLoadObject(UObject::StaticClass(), nullptr, Path, nullptr, LOAD_NoWarn | LOAD_Quiet)) { Preloaded.Add(O); ++Fx; }
+	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d / %d effects loaded up front"), Fx, int32(UE_ARRAY_COUNT(Effects)));
 	UE_LOG(LogTemp, Display, TEXT("HROT preload: %d person kits, %d skinned assets (%d assets held) in %.2f s; %d sounds in %.2f s"),
 		Kits, Skinned.Num(), Preloaded.Num(), T1 - T0, Sounds, FPlatformTime::Seconds() - T1);
 }
@@ -593,6 +621,19 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 	FEnt* Shooter = Ents.Find(D.ShooterId);
 	const bool bPerson = Shooter && Shooter->bHasPerson;
 	if (bPerson) Shooter->ShotAt = Real;   // the kick on his upper body (ApplyPerson); his flash comes as an Effect, at his rifle
+	if (bPerson)   // live 2026-11-25: a player's RPG drew as a rifle with no launch - say once per man, weapon slot and category what HROT sent
+	{
+		static TSet<int64> Said;
+		const int64 Key = (int64(D.ShooterId) << 16) | (int64(D.WeaponSlot) << 8) | int64(D.WeaponCategory);
+		if (!Said.Contains(Key))
+		{
+			Said.Add(Key);
+			const TArray<FString>* M = MountCategories.Find(Shooter->TypeId);
+			UE_LOG(LogHrotDpsWorld, Display, TEXT("person fire: %s (%d) slot %d category %d munition %lld; held slot %d = %s; type %lld mounts [%s]"),
+				*Shooter->Name, D.ShooterId, int32(D.WeaponSlot), int32(D.WeaponCategory), (long long)D.MunitionTypeId, int32(Shooter->ActiveSlot),
+				M && M->IsValidIndex(Shooter->ActiveSlot) ? *(*M)[Shooter->ActiveSlot] : TEXT("?"), (long long)Shooter->TypeId, M ? *FString::Join(*M, TEXT(",")) : TEXT("none"));
+		}
+	}
 	FVector From = HrotDpsMotion::ToUnreal(FVector3d(D.Origin.X, D.Origin.Y, D.Origin.Z), OriginCm);
 	FTransform Muzzle;
 	if (bPerson && MuzzleOfPerson(Shooter->Actor.Get(), Muzzle)) From = Muzzle.GetLocation();   // the round leaves HIS rifle on screen
@@ -1044,6 +1085,8 @@ void UHrotDpsWorld::OnVehicleLook(const FHrotDpsSample& S)
 	E.LookDamage = (bKilled || D.Burning) ? 2 : (D.Smoking || bPartHurt) ? 1 : 0;
 	if (D.Burning && !E.bBurning) Count(TEXT("burning started"));
 	E.bBurning = D.Burning;
+	if (D.Airborne != E.bVehicleAirborne) Count(D.Airborne ? TEXT("vehicle took off") : TEXT("vehicle landed"));
+	E.bVehicleAirborne = D.Airborne;   // gateway T-079 (HROT's Airborne.Of): the dragon's wings, a helicopter's rotors
 	ApplyDamage(E);
 }
 
@@ -1071,6 +1114,29 @@ void UHrotDpsWorld::OnTkbType(const FHrotDpsSample& S)
 		{
 			const TSharedPtr<FJsonObject> O = V->AsObject();
 			const TSharedPtr<FJsonValue> T = O.IsValid() ? Field(O, TEXT("type")) : nullptr;
+			if (T.IsValid() && T->AsString() == TEXT("BodyGeometryDto"))
+			{
+				// where the position IS (ReferencePoint: GroundCentre = on the ground, CentreOfGravity = the feet are the GroundContacts below it);
+				// HROT's rule is BodyGeometry.RestingHeight: the lowest contact's z
+				const TSharedPtr<FJsonValue> Data = Field(O, TEXT("data"));
+				const TSharedPtr<FJsonObject> G = Data.IsValid() && Data->Type == EJson::Object ? Data->AsObject() : nullptr;
+				const TSharedPtr<FJsonValue> Ref = G.IsValid() ? Field(G, TEXT("referencePoint")) : nullptr;
+				const bool bCg = Ref.IsValid() && (Ref->Type == EJson::String ? Ref->AsString() == TEXT("CentreOfGravity") : Ref->Type == EJson::Number && int32(Ref->AsNumber()) == 1);
+				const TSharedPtr<FJsonValue> Cs = G.IsValid() ? Field(G, TEXT("groundContacts")) : nullptr;
+				double Lowest = 0; bool bAny = false;
+				if (bCg && Cs.IsValid() && Cs->Type == EJson::Array)
+					for (const TSharedPtr<FJsonValue>& C : Cs->AsArray())
+						if (const TSharedPtr<FJsonValue> Z = C->Type == EJson::Object ? Field(C->AsObject(), TEXT("z")) : nullptr; Z.IsValid() && Z->Type == EJson::Number)
+						{ Lowest = bAny ? FMath::Min(Lowest, Z->AsNumber()) : Z->AsNumber(); bAny = true; }
+				if (bAny && Lowest < 0)
+				{
+					RestDropCm.Add(D.TypeId, float(Lowest * 100.0));
+					UE_LOG(LogHrotDpsWorld, Display, TEXT("type %lld (%s): centre of gravity, feet %.2f m below"), D.TypeId, *FString(UTF8_TO_TCHAR(D.Name ? D.Name : "")), -Lowest);
+					Count(TEXT("tkb type: CG body"));
+				}
+				else RestDropCm.Remove(D.TypeId);
+				continue;
+			}
 			if (!T.IsValid() || T->AsString() != TEXT("WeaponSuiteDto")) continue;
 			const TSharedPtr<FJsonValue> Data = Field(O, TEXT("data"));
 			const TSharedPtr<FJsonValue> Ms = Data.IsValid() && Data->Type == EJson::Object ? Field(Data->AsObject(), TEXT("mounts")) : nullptr;
@@ -1453,8 +1519,15 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 			C->SetStaticMesh(Gun);
 			C->SetRelativeScale3D(FVector(GunScale));
 			C->SetRelativeRotation(FRotator(0, -90, 0));
+#if WITH_EDITOR
+			// ⚠ live 2026-11-25: in an editor run the mesh is still being built when the first gun spawns - its bounds read ZERO, the offset below was
+			// not applied and the gun hung metres above and beside its pickup / HMMWV (the cut mesh keeps the VBL's origin). Finish it first.
+			FStaticMeshCompilingManager::Get().FinishCompilation({ Gun });
+#endif
 			const FVector O = Gun->GetBounds().Origin;   // the mesh keeps its place on the VBL's roof: bring its centre to the entity's point (yaw -90: (x, y) -> (y, -x))
 			C->SetRelativeLocation(FVector(-O.Y * GunScale, O.X * GunScale, LiftCm - O.Z * GunScale));
+			UE_LOG(LogHrotDpsWorld, Display, TEXT("gun mesh %s: bounds origin (%.0f, %.0f, %.0f) cm, extent (%.0f, %.0f, %.0f) cm, relative (%.0f, %.0f, %.0f)"), *Gun->GetName(),
+				O.X, O.Y, O.Z, Gun->GetBounds().BoxExtent.X, Gun->GetBounds().BoxExtent.Y, Gun->GetBounds().BoxExtent.Z, C->GetRelativeLocation().X, C->GetRelativeLocation().Y, C->GetRelativeLocation().Z);
 			E.DrawnAs = TEXT("weapon-system gun (the VBL's roof MG, cut)");
 			E.bGun = true;
 		}
@@ -1641,6 +1714,7 @@ void UHrotDpsWorld::GunOnCarrier(FEnt& E, FTransform& T)
 	// of the nearest drawn vehicle within 4 m (found once), keeping HROT's x / y and heading. Presentation only - nothing HROT sends is changed.
 	const FVector P = T.GetLocation();
 	AActor* Carrier = nullptr;
+	if (!E.GunCarrier && E.ParentId != 0 && Ents.Contains(E.ParentId)) E.GunCarrier = E.ParentId;   // HROT's own mount link, when it sends one
 	if (FEnt* C = E.GunCarrier ? Ents.Find(E.GunCarrier) : nullptr) Carrier = C->Actor.Get();
 	if (!Carrier)
 	{
@@ -1655,10 +1729,48 @@ void UHrotDpsWorld::GunOnCarrier(FEnt& E, FTransform& T)
 	if (!Carrier) return;
 	FBox Box(ForceInit);
 	TArray<UMeshComponent*> Ms; Carrier->GetComponents(Ms);
-	for (const UMeshComponent* M : Ms) if (M->IsVisible() && M->IsRegistered()) Box += M->Bounds.GetBox();
+	// the roof from each body mesh's OWN bounds (the asset's, placed by the component) - ⚠ live 2026-11-25 (Stechovice): the guns floated metres above
+	// their pickups / HMMWVs with the components' world Bounds (a skinned body's bounds are deliberately loose, and they grow with bounds scale)
+	for (const UMeshComponent* M : Ms)
+	{
+		if (!M->IsVisible() || !M->IsRegistered()) continue;
+		FBox Local(ForceInit);
+		if (const UStaticMeshComponent* S = Cast<UStaticMeshComponent>(M)) { if (S->GetStaticMesh()) Local = S->GetStaticMesh()->GetBoundingBox(); }
+		else if (const USkeletalMeshComponent* K = Cast<USkeletalMeshComponent>(M)) { if (K->GetSkeletalMeshAsset()) Local = K->GetSkeletalMeshAsset()->GetImportedBounds().GetBox(); }
+		if (Local.IsValid) Box += Local.TransformBy(M->GetComponentTransform());
+	}
 	if (!Box.IsValid) return;
 	constexpr double LiftCm = 120.0, HalfGunCm = 25.0;   // the gun's centre sits LiftCm above the actor (SpawnIfReady): its foot on the roof line
-	T.SetLocation(FVector(P.X, P.Y, Box.Max.Z + HalfGunCm - LiftCm));
+	// put the GUN MESH's centre (not the actor) on the roof line: its centre in the actor's frame is the component's relative transform applied to the
+	// mesh's own bounds origin - exact, whatever the actor's scale (⚠ live 2026-11-25: the actor carried scale 1.5 too, the offsets were scaled
+	// twice and the gun hung metres above and beside its pickup)
+	FVector Want(P.X, P.Y, Box.Max.Z + HalfGunCm);
+	const AStaticMeshActor* GA = Cast<AStaticMeshActor>(E.Actor.Get());
+	const UStaticMeshComponent* GC = GA ? GA->GetStaticMeshComponent() : nullptr;
+	if (GC && GC->GetStaticMesh())
+	{
+		// ⚠ the mesh component IS the actor's root: its "relative" yaw / scale / offset set at spawn are the actor's own transform, which Place
+		// overwrites every frame - so the whole gun transform is made here: HROT's heading turned onto the mesh's barrel (+Y -> +X), the gun's
+		// scale, and its mesh centre (the cut mesh keeps the VBL's origin) on the carrier's roof line
+		constexpr double GunScale = 1.5;
+		T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(-90.0)));
+		T.SetScale3D(FVector(GunScale));
+		T.SetLocation(Want - T.TransformVector(GC->GetStaticMesh()->GetBounds().Origin));
+	}
+	else T.SetLocation(FVector(P.X, P.Y, Box.Max.Z + HalfGunCm - LiftCm));
+	if (!E.bGunSaid)
+	{
+		E.bGunSaid = true;
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("gun %s on carrier %d (parent %d) %s: HROT z %.1f m, carrier at z %.1f m, roof %.1f m, drawn %.1f m, xy off %.1f m, %d components"),
+			*E.Name, E.GunCarrier, E.ParentId, *Carrier->GetName(), P.Z / 100, Carrier->GetActorLocation().Z / 100, Box.Max.Z / 100, T.GetLocation().Z / 100,
+			FVector::Dist2D(P, Carrier->GetActorLocation()) / 100, Ms.Num());
+		if (GC && GC->GetStaticMesh())
+		{
+			const FVector C3 = T.TransformPosition(GC->GetStaticMesh()->GetBounds().Origin);
+			UE_LOG(LogHrotDpsWorld, Display, TEXT("gun %s mesh centre drawn at z %.2f m (roof %.2f m), %.2f m from the carrier in xy (actor scale %.2f)"), *E.Name,
+				C3.Z / 100, Box.Max.Z / 100, FVector::Dist2D(C3, Carrier->GetActorLocation()) / 100, T.GetScale3D().Z);
+		}
+	}
 }
 
 FHrotDpsPose UHrotDpsWorld::PoseAt(const FEnt& E, double Real) const
@@ -1682,6 +1794,7 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 		FTransform T = HrotDpsMotion::ToUnreal(Drawn, OriginCm);
 		if (E.MeshYaw != 0) T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(E.MeshYaw)));   // the model's own facing
 		if (E.MeshZ != 0) T.AddToTranslation(FVector(0, 0, E.MeshZ));                                                          // and its origin
+		if (const float* Drop = RestDropCm.Find(E.TypeId)) T.AddToTranslation(T.GetRotation().RotateVector(FVector(0, 0, *Drop)));   // a CG body: its feet
 		T.SetScale3D(A->GetActorScale3D());   // ⚠ measured (U-18e): the full transform reset a sized body (a grenade, the unknown-type box) to scale 1
 		if (E.bGun) GunOnCarrier(E, T);   // U-19h (live: the technical's gun was hidden inside the pickup): on its carrier's roof line
 		if (HrotDpsMotion::NeedsPlace(A->GetActorTransform(), T)) { A->SetActorTransform(T); ++PlacedActors; }   // U-19h ⑱ B: a body standing still is not re-placed
@@ -1732,6 +1845,7 @@ void UHrotDpsWorld::Tick(float)
 		FEnt& E = It.Value;
 		if (!E.Actor.IsValid()) continue;
 		if (E.bAnimal) ApplyAnimal(E, Placed);
+		ApplyFlight(E, float(Dt));
 		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning || (!E.bFlamerLook && E.bHasPerson && !E.bFlamerChecked)) { ApplyFlame(E); E.bFlamerChecked = true; }
 	}
 	{ CSV_SCOPED_TIMING_STAT(HrotDps, StreamsSpots); DrawStreams(Placed); TickSpots(Placed); TickHouseFires(Placed); TickClouds(Placed, float(Dt)); }
@@ -1868,7 +1982,10 @@ void UHrotDpsWorld::DefaultLife()
 	AddDis(TEXT("1.2.225.1"), TEXT("DA_Air_F16"));            // F-16
 	AddDis(TEXT("1.2.222.1"), TEXT("DA_Air_Typhoon"));        // MiG-29: the twin-tail stand-in
 	AddDis(TEXT("1.2.225.4"), TEXT("DA_Air_AC130"));          // C-130
-	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_UH60"));          // UH-60: no Black Hawk - the OH-1 with doors cut, seats, door guns (CE-12008, hrot_heli_kit.py)
+	AddDis(TEXT("1.2.225.21"), TEXT("DA_Air_UH60"));
+	// HROT's DRAGON (TKB 411, NOTE_Ui_To_UnrealIg_Dragon_And_Flame_Helicopter §1: key the look on its DIS class) - our dragon kit (U-17i: wings cut
+	// out and beating, riders' seats, the mouth's flamethrower). The flame helicopter (412, 1.2.225.20.0.1) is the Apache's kit by its prefix.
+	AddDis(TEXT("1.2.0.20.99"), TEXT("DA_Dragon"));          // UH-60: no Black Hawk - the OH-1 with doors cut, seats, door guns (CE-12008, hrot_heli_kit.py)
 	// U-19h 21: HROT's TECHNICALS and pickup (TKB 104 HMG, 105 ATGM, 106 bare pickup, 108 DShK, 109 minigun, 110 ZU-23-2; NedTkbCatalog Pickup(): 5.3 x 1.9 m, drives like a car) were
 	// a grey box. The city pack's truck (DA_City_vehicle04_Truck, 5.6 m, a cab and a bed) is the closest open-bed vehicle we have; their weapon is its own entity on the roof / bed.
 	for (const int64 Type : { 104, 105, 106, 108, 109, 110 }) if (!KitsByType.Contains(Type)) KitsByType.Add(Type, Kit(TEXT("DA_City_vehicle04_Truck")));
@@ -2003,7 +2120,7 @@ void UHrotDpsWorld::OnFlameJet(const FHrotDpsSample& S)
 	FEnt* E = Ents.Find(D.EntityId);
 	if (!S.bValid || !S.bAlive) { if (E) E->bJet = false; return; }   // the jet went out (disposed when unlit)
 	if (!E) E = &Ents.Add(D.EntityId);
-	if (!E->bJet) Count(TEXT("flame jet lit"));
+	if (!E->bJet) { Count(TEXT("flame jet lit")); UE_LOG(LogHrotDpsWorld, Display, TEXT("flame jet lit: entity %d mount %d, range %.0f m"), D.EntityId, int32(D.Mount), D.RangeM); }
 	E->bJet = true;
 	E->JetAim = V3(D.AimPoint); E->JetTarget = D.TargetId; E->JetRange = D.RangeM; E->JetIntensity = D.Intensity;
 }
@@ -2027,7 +2144,13 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 			if (UHrotPersonState* St = A->FindComponentByClass<UHrotPersonState>()) { St->bFlamethrower = true; E.bFlamerLook = true; Count(TEXT("flamethrower man")); }
 	// the jet: FlameLook — from the muzzle toward the aim (the target's chest when it is an entity we have), min(distance, RangeM) long
 	UHrotFlamethrower* F = E.JetComp.Get();
-	if (!E.bJet) { if (F && F->bFiring) F->SetFiring(false); return; }
+	AHrotVehicle* V = Cast<AHrotVehicle>(A);
+	if (!E.bJet)
+	{
+		if (V && V->bFlaming) V->SetFlaming(false);
+		if (F && F->bFiring) F->SetFiring(false);
+		return;
+	}
 	if (!F)
 	{
 		if (UHrotPersonState* St = A->FindComponentByClass<UHrotPersonState>())
@@ -2036,10 +2159,19 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 			St->SetFlameFiring(true);
 			F = St->ApplyFlame();
 		}
-		if (!F)   // not a person with a weapon: a flame on its body, 1.5 m up (⏳ a vehicle's flame by its TKB mount)
+		if (!F && V) F = V->GetFlame();   // the kit's own flamethrower (the dragon's mouth)
+		if (!F && V)   // a vehicle whose kit has none (the flame helicopter: the AH-64's kit) - a nozzle under its nose, 1/4 up the body
+		{
+			const FBox B = V->CalculateComponentsBoundingBoxInLocalSpace(true);
+			const FVector Nose = B.IsValid ? FVector(B.Max.X - 0.1 * (B.Max.X - B.Min.X), 0, B.Min.Z + 0.25 * (B.Max.Z - B.Min.Z)) : FVector(0, 0, 150);
+			F = UHrotFlamethrower::Attach(V->GetRootComponent(), NAME_None, FTransform(Nose), 1.5f);
+			Count(TEXT("flame jet at a vehicle's nose"));
+		}
+		if (!F)   // not a person and not a vehicle: a flame on its body, 1.5 m up
 			F = UHrotFlamethrower::Attach(A->GetRootComponent(), NAME_None, FTransform(FVector(0, 0, 150)), 1.f);
 		E.JetComp = F;
 		Count(TEXT("flame jet drawn"));
+		UE_LOG(LogHrotDpsWorld, Display, TEXT("flame jet of %s drawn from %s"), *E.Name, !F ? TEXT("nothing") : V && F == V->GetFlame() ? TEXT("the kit's flamethrower") : V ? TEXT("the vehicle's nose") : TEXT("a person or the body"));
 	}
 	if (!F) return;
 	FVector3d Aim = E.JetAim;
@@ -2048,7 +2180,25 @@ void UHrotDpsWorld::ApplyFlame(FEnt& E)
 	const float Dist = float((To - From).Size() / 100.0);
 	if (Dist > 0.5f) F->SetWorldRotation((To - From).Rotation());
 	F->Range = HrotDpsLife::JetLength(Dist, E.JetRange) * 100.f / FMath::Max(F->Size, 0.01f);
-	if (!F->bFiring) F->SetFiring(true);
+	if (V && F == V->GetFlame()) { if (!V->bFlaming) V->SetFlaming(true); }   // the kit's stream: lit through the vehicle (its wreck never fires)
+	else if (!F->bFiring) F->SetFiring(true);
+}
+
+void UHrotDpsWorld::ApplyFlight(FEnt& E, float Dt)
+{
+	AHrotVehicle* V = Cast<AHrotVehicle>(E.Actor.Get());
+	if (!V) return;
+	// speed and climb as drawn (HROT's local metres), smoothed over ~0.5 s - they only choose the wings' look
+	if (E.bFlightPrev && Dt > 1e-3f)
+	{
+		const FVector3d D = (E.Shown.P - E.FlightPrevP) / Dt;
+		const float K = FMath::Clamp(Dt / 0.5f, 0.f, 1.f);
+		E.FlightSpeed += K * (float(D.Size()) - E.FlightSpeed);
+		E.FlightClimb += K * (float(D.Z) - E.FlightClimb);
+	}
+	E.FlightPrevP = E.Shown.P; E.bFlightPrev = true;
+	const bool bFly = E.bVehicleAirborne && E.Damage < 2;
+	V->SetFlight(bFly, bFly && E.FlightSpeed > 10.f && E.FlightClimb <= 1.f);
 }
 
 void UHrotDpsWorld::OnFireSpots(const FHrotDpsSample& S)

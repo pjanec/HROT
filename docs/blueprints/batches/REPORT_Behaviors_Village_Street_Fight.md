@@ -130,3 +130,25 @@ silenced · the assault clears the house.
   on the terrain fix.
 - Still red: Squad 1's Rifleman 3 (wounded, 52 %) walks west across the open gardens from ~150 s; Squad 3's Rifleman 3 stands alone in the open
   south of the gun from ~200 s.
+
+## 7. After merging terrain + coordinator and CE-8326…8329 (`2026-11-25`, at `390e652ed`)
+
+| scenario | rows | still red |
+|---|---|---|
+| village-street-mg-flank | 13 / 14 → **14 / 14** with the precondition widened (below) | — |
+| village-street-fight | 24 / 25 | Blue Squad 2's last two survivors fire CROUCHED from open ground ≥ 5 s at ~135 s — D-15's "lowest stance that clears the line" (user-approved); accepted, not chased |
+
+| id | what was unrealistic (measured live) | what the soldiers do now |
+|---|---|---|
+| `CE-8326` | three suppressors lay within 2 m of each other, all hit | each claims his firing position; a squad-mate's claim within 5 m is skipped (the one `CoverClaim` mechanism) |
+| `CE-8327` | a flank turn re-sent Red Squad 1's defend; the restart marched posted defenders into the street | a re-send to the same point takes posts in place |
+| `CE-8328` | a bounding man with an empty memory walked upright across the open while his squad was in contact | contact is a unit state: every member of a squad in contact moves by rushes |
+| `CE-8329` | a bound's covering pair stood crouched in the open > 5 s | before contact the covering element lies prone on an open post |
+| `CE-8319`, `CE-8324` | closed — verified on the merged tree (rounds on Red; the gun house entered at 220 s after terrain's door fix) | |
+
+**Two rows changed, each measured first:**
+- "never stands wholly in the open" now tolerates a rush (`for: 3`): probe rows (1 / 3 / 5 s) showed Blue Squad 1's whole-squad exposures all
+  under 3 s — the swap of a bound (ATP 3-21.8: a 3–5 s rush); Squads 2 and 3 stood ≥ 5 s and still failed until CE-8329.
+- mg-flank's premise "the machine gun opens fire" was the GUNNER's shot; it is now the gun TEAM's (25 rounds). With CE-8326…8329 Blue stays in
+  cover, the base of fire is on the gun from 66 s, and the gunner — never seeing a target — takes cover until he is killed at 126 s. A gun
+  suppressed before it finds a target is the drill working, not a vacuous run.

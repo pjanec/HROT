@@ -14,6 +14,11 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "HAL/IConsoleManager.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "EngineUtils.h"
+#include "Materials/MaterialInterface.h"
+#include "Materials/Material.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotDpsGame, Log, All);
 
@@ -156,4 +161,26 @@ void AHrotDpsGameMode::LogStatus()
 	UE_LOG(LogHrotDpsGame, Display, TEXT("HROT IG status: level %s | %d entities, %d movers, %d spawned | terrain '%s' | ClientWorld %s | clock %s | %s | events %d kinds"),
 		*GetWorld()->GetMapName(), W->EntityIds().Num(), W->MoversKnown(), W->SpawnedTotal(), *W->StationTerrain(), *W->DescribeClientWorld(), *W->DescribeClock(),
 		*(W->DescribeLabels() + TEXT(" | ") + W->DescribeGizmos()), W->EventCounts().Num());
+	// live 2026-11-26 (Stechovice, the packaged game): no grass and white windows though the editor drew both - say ONCE, on the terrain's level,
+	// what the scattered plants and the house glass really are at run time
+	if (!bSaidScene && W->StationTerrain().Len() && GetWorld()->GetMapName().Contains(W->StationTerrain()))
+	{
+		bSaidScene = true;
+		TMap<FString, FIntPoint> ByMesh;   // mesh -> (components, instances)
+		for (TObjectIterator<UHierarchicalInstancedStaticMeshComponent> It; It; ++It)
+		{
+			UHierarchicalInstancedStaticMeshComponent* H = *It;
+			if (!H || H->GetWorld() != GetWorld()) continue;
+			const UStaticMesh* M = H->GetStaticMesh();
+			FString Key = M ? M->GetName() : TEXT("(no mesh)");
+			if (M) Key += FString::Printf(TEXT(" lods %d%s%s"), M->GetNumLODs(), M->GetRenderData() ? TEXT("") : TEXT(" NO RENDER DATA"), H->IsVisible() ? TEXT("") : TEXT(" HIDDEN"));
+			if (const UMaterialInterface* Mi = H->GetMaterial(0)) Key += TEXT(" mat ") + Mi->GetName();
+			int32 S, E; H->GetCullDistances(S, E);
+			Key += FString::Printf(TEXT(" cull %d"), E);
+			FIntPoint& C = ByMesh.FindOrAdd(Key); C.X += 1; C.Y += H->GetInstanceCount();
+		}
+		for (const TPair<FString, FIntPoint>& It : ByMesh) UE_LOG(LogHrotDpsGame, Display, TEXT("scene: %s - %d components, %d instances"), *It.Key, It.Value.X, It.Value.Y);
+		if (const UMaterialInterface* G = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Hrot/M_HrotGlass.M_HrotGlass")))
+			UE_LOG(LogHrotDpsGame, Display, TEXT("scene: glass %s blend %d (0 opaque, 2 translucent), two-sided %d"), *G->GetPathName(), int32(G->GetBlendMode()), G->IsTwoSided() ? 1 : 0);
+	}
 }

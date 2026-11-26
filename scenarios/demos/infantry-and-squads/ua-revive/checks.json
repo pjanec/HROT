@@ -1,0 +1,91 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-11061 REVIVE (DESIGN_Injury_States.md \u00a79): killed at 10 s by a Health patch, revived at 20 s by the revive action (the Unit form's Revive through the edit framework). The number alone would not revive him (R-11021) \u2014 that is why the action exists.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "do": [
+    {
+      "name": "killed",
+      "at": 10,
+      "set": {
+        "who": "Rifleman",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    },
+    {
+      "name": "revived",
+      "at": 20,
+      "revive": "Rifleman"
+    }
+  ],
+  "expect": [
+    {
+      "name": "the healthy man fights",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Armed Hostile",
+      "before": "killed"
+    },
+    {
+      "name": "dead, he fires nothing",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman"
+      },
+      "after": "killed",
+      "before": "revived"
+    },
+    {
+      "name": "dead, he cannot move",
+      "never": {
+        "on": "field",
+        "who": "Rifleman",
+        "path": "ActorCapabilityState.Capabilities",
+        "op": "contains",
+        "value": "CanMove"
+      },
+      "after": "killed",
+      "before": "revived"
+    },
+    {
+      "name": "revived, he is at full health",
+      "on": "field",
+      "who": "Rifleman",
+      "path": "Health.Current",
+      "op": ">=",
+      "value": 100,
+      "after": "revived"
+    },
+    {
+      "name": "revived, he can move again",
+      "on": "field",
+      "who": "Rifleman",
+      "path": "ActorCapabilityState.Capabilities",
+      "op": "contains",
+      "value": "CanMove",
+      "after": "revived"
+    },
+    {
+      "name": "revived, he can fire again",
+      "on": "field",
+      "who": "Rifleman",
+      "path": "ActorCapabilityState.Capabilities",
+      "op": "contains",
+      "value": "CanShoot",
+      "after": "revived"
+    },
+    {
+      "name": "the Rifleman is alive at the end",
+      "on": "field",
+      "who": "Rifleman",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

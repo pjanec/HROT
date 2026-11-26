@@ -298,6 +298,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8329</c> — before contact the COVERING element of a bound holds from an OPEN POST at its own spot (D-13: prone where there is no
+        /// cover, ATP 3-21.8), not a bare Hold that left it standing crouched in the open. 📐 live village-street-fight: the covering pair of Blue Squad 3
+        /// stood crouched > 5 s while the bounders moved. The movers' orders carry no post. 🔴 Red-proof: the post dropped from the watcher's order ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8329_TheCoveringElement_BeforeContact_HoldsFromAnOpenPost_AtItsOwnSpot()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15}");
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            CombatPostureParamsJsonDto Posture(Entity m) => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+            foreach (var m in s.Members.Skip(2))   // Bravo covers
+            {
+                var post = Posture(m).Post;
+                Assert.True(post.Open, "an open post: prone where there is no cover");
+                Assert.True(Posture(m).Stay);
+                Assert.Equal<Vector3>(s.At(m), post.Point.Local);
+                Assert.Equal(SquadDefendPlay.PostRadius, post.Radius);
+            }
+            foreach (var m in s.Members.Take(2))   // Alpha moves
+                Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture);
+        }
+
         /// <summary>⭐ A mover that never arrives (pinned, lost) does not stall the squad: the bound times out and the other element goes.</summary>
         /// <summary>
         /// ⭐ <c>CE-2157</c> (O-a, Squad Tactics §7.8.1) — the drill trace the debug route reads: the drill and its phase, the history
@@ -2672,6 +2699,27 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8327</c> — a SquadDefend RE-SENT to the point the squad already holds (<c>"InPlace":true</c>; a platoon's flank turn re-plans the
+        /// posts) with every man inside the area takes posts from where he stands: it leaves Moving at once, no march to the centre. The same order
+        /// WITHOUT it marches (CE-2275's case). 📐 live village-street-fight: the restart marched Red Squad 1's posted men out of cover into the street.
+        /// 🔴 Red-proof: the <c>InPlace</c> gate always false ⇒ the squad stays Moving ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8327_AnInPlaceSquadDefend_WithEveryManInTheArea_TakesPostsAtOnce_NoMarchToTheCentre()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);   // without InPlace: the march, as ever
+
+            var t = new Squad(members: 4);
+            t.Order("{\"Position\":[6,20,0],\"SearchRadius\":25,\"InPlace\":true}", BehaviorNames.SquadDefend);
+            t.Tick(); t.Tick(); t.Tick();
+            Assert.Equal(SquadDefendManeuver.ManeuverKind, t.Kind);
+            Assert.Equal(SquadDefendManeuver.PhasePosting, t.Phase);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2359</c> (AQ102 H, R-2072) — a known enemy under the wall, seen by nobody for 2 s, is hunted by ONE man: the posted man
         /// nearest him gets his post widened to the squad's window search (any opening of the building, the window way) with his arc on the
         /// enemy; the others keep theirs. After 20 s he is sent back to his own post, and the same contact is not hunted twice. ✅ Red-proofs:
@@ -4332,7 +4380,7 @@ namespace Hrot.SimHost.Tests
         public void D12_WhileTheBaseOfFireSets_TheAssaultAndTheReserveWaitInCover_FacingTheObjective()
         {
             var p = new Platoon(squads: 3);
-            var o = new Vector3(0f, 200f, 0f);
+            var o = new Vector3(0f, 140f, 0f);   // ⭐ CE-5051 — within the support line + margin of every squad: the near case (far out: the next rail)
             // ⭐ Alpha as a squad WITH a man: its entity's own transform stays where it was authored, its one man stands elsewhere
             var stale = new Vector3(500f, -400f, 0f);
             var manAt = new Vector3(30f, 40f, 0f);
@@ -4375,6 +4423,36 @@ namespace Hrot.SimHost.Tests
             // ⭐ the wait's Set is not "the reserve's bound arrived": it BOUNDS to its point, it is not sent to walk there and defend it
             Assert.Equal(defends, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
             Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(x => x.Entity.Equals(p.Charlie)).IntentId);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5051</c> (D-12 extended, user `2026-11-26`; ATP 3-21.8: the platoon moves to its attack position, then splits) — squads that start
+        /// BEYOND the support line (+ <see cref="PlatoonAttackBehavior.AttackPositionMarginMetres"/>) do not wait at the start line: each waits in cover at
+        /// its ATTACK POSITION — on its own axis, at the support line's distance from the objective — its sector drawn from there. 📐 stechovice-battle:
+        /// the assault and the reserve waited 83 s at the start line 550 m out. 🔴 Red-proof: Forward never set ⇒ they wait where they stand.
+        /// </summary>
+        [Fact]
+        public void CE5051_D12_FarOut_TheWaitingSquadsMoveUpToTheirAttackPositions()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 450f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            foreach (var waiting in new[] { p.Alpha, p.Charlie })
+            {
+                var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
+                Vector3 dp = d.Position;
+                float fromObjective = Vector2.Distance(new Vector2(dp.X, dp.Y), new Vector2(o.X, o.Y));
+                Assert.True(MathF.Abs(fromObjective - PlatoonAttackBehavior.SupportStandOffMetres) < 1f,
+                            $"it waits at its attack position, on the support line ({fromObjective:0.0} m from the objective)");
+                Assert.True(Vector3.Distance(p.S.At(waiting), dp) > 200f, "not where it stood");
+                var ea = SectorOf(p, waiting);
+                Assert.True(Vector3.Distance(ea.ArcOrigin, dp) < 0.01f, "the sector is drawn from the attack position");
+            }
         }
 
         [Fact]
@@ -5287,6 +5365,11 @@ namespace Hrot.SimHost.Tests
             p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);    // east, 100 m: Alpha turns to it
             p.Ticks(12);
             Assert.Equal(2, DefendOrders(p, p.Alpha));
+            // ⭐ CE-8327 — the first send marches in; the turn's re-send to the same point is IN PLACE (posts from where the squad stands)
+            var sends = p.S.Orders.Where(o => o.Entity.Equals(p.Alpha) && o.IntentId == BehaviorNames.SquadDefend)
+                .Select(o => System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)).ToArray();
+            Assert.False(sends[0].InPlace, "the first send marches in");
+            Assert.True(sends[1].InPlace, "the turn's re-send to the same point is in place");
             Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(Vector3.Zero, SectorOf(p, p.Alpha).LeftBearing,
                 SectorOf(p, p.Alpha).RightBearing, 0f, 0f, new Vector3(100f, 0f, 0f)), "turned to the flank");
             p.S.Pause(PlatoonDefendBehavior.TriggerFreshSeconds + 1f);   // no fresh SPOT there any more

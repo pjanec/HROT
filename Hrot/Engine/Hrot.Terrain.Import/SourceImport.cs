@@ -49,10 +49,12 @@ public sealed class SourceImport : ITerrainSourceImport
     /// <summary>⭐ F-3 (user, 2026-11-22) — the importer a first use runs: the whole navmesh is prefilled into <c>navtiles/</c> INSIDE the import (the same lock, the same cache), so the first load bakes nothing.</summary>
     public static TerrainImporter DefaultImporter(string targetRoot) => new(targetRoot) { NavmeshPrefill = new NavmeshPrefill() };
 
-    public string? TryImport(string terrainName, string? existingDefinition, string targetRoot, IReadOnlyList<string> catalogRoots, CancellationToken cancellation)
+    public string? TryImport(string terrainName, string? existingDefinition, Func<string> targetRootOf, IReadOnlyList<string> catalogRoots, CancellationToken cancellation)
     {
         if (!TerrainName.IsValid(terrainName)) return null;   // a sub-folder name cannot be imported (the importer refuses it)
-        string? set = FindSet(terrainName, targetRoot, catalogRoots);
+        // the root that holds the terrain (a hit: <root>/<name>/terrain.json — a valid name has no sub-folder), else the import target
+        string holder = existingDefinition != null ? Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(existingDefinition)))! : targetRootOf();
+        string? set = FindSet(terrainName, holder, catalogRoots);
         if (set == null) return null;
         string manifest = Path.Combine(set, InputSetLayout.Manifest);
 
@@ -65,6 +67,12 @@ public sealed class SourceImport : ITerrainSourceImport
             if (Current(existingDefinition, recorded, Manifest.Sha256(manifest))) { _current[existingDefinition] = (stamp, mstamp); return null; }
         }
 
+        // ⭐ CE-11061 (unreal-ig) / CE-5060 — asked only now (a write probe): a STALE hit goes to the machine-wide target when the catalog has one, so a stale copy
+        //   seeded into a private NAS is replaced ONCE where every NAS is seeded from, not re-imported into the NAS on every run
+        string targetRoot = existingDefinition != null ? targetRootOf() : holder;
+        if (existingDefinition != null)
+            _log?.Invoke($"[TerrainImport] '{terrainName}': the import at {Path.GetDirectoryName(existingDefinition)} is stale (importer revision {RecordedRevision(existingDefinition)}, now {TerrainImporter.Revision}; or its input changed)"
+                         + (PathsEqual(holder, targetRoot) ? "" : $" — it is passed over for {Path.Combine(targetRoot, terrainName)}"));
         Directory.CreateDirectory(targetRoot);
         using (AcquireLock(Path.Combine(targetRoot, "." + terrainName + ".import.lock"), cancellation))
         {
@@ -142,6 +150,8 @@ public sealed class SourceImport : ITerrainSourceImport
         }
         return null;
     }
+
+    private static bool PathsEqual(string a, string b) => string.Equals(Path.GetFullPath(a).TrimEnd('/', '\\'), Path.GetFullPath(b).TrimEnd('/', '\\'), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     private static long Stamp(string file) { var i = new FileInfo(file); return i.LastWriteTimeUtc.Ticks ^ (i.Length * 397); }
 

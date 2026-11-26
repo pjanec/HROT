@@ -163,6 +163,56 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ DD-035 D-2 (gateway) — <c>TerrainObstacles.DeckParts</c> IS what <c>DeckOf</c> feeds the walkables, for an assault span (8825-like) and a floating span (8826-like, low deck, rotated and off-origin,
+        /// and a degenerate shape the clamps lift): the same three parts in the same order, each part's footprint the walkable's own, a slab's corners at the deck height. 🔴 Red-proof: give <c>DeckOf</c> its own clamp again (e.g. <c>Max(shape.Length, 2f)</c> there) ⇒ the degenerate case's footprints differ.
+        /// </summary>
+        [Fact]
+        public void DeckParts_IsWhatDeckOfFeedsTheWalkables_ForAnAssaultAndAFloatingSpan()
+        {
+            var cases = new (Vector3 At, float Yaw, ObstacleShape Shape)[]
+            {
+                (new Vector3(215, 200, 0), 0f, new ObstacleShape { Length = 34f, Width = 4f, Height = 1.5f }),
+                (new Vector3(-40, 12, 0), 0.7f, new ObstacleShape { Length = 22f, Width = 3.2f, Height = 0.6f }),
+                (new Vector3(5, 5, 0), 2.1f, new ObstacleShape { Length = 0f, Width = 0f, Height = 0f }),
+            };
+            foreach (var (at, yaw, shape) in cases)
+            {
+                var parts = TerrainObstacles.DeckParts(at, yaw, shape);
+                Assert.Equal(3, parts.Length);
+                Assert.Equal(new[] { TerrainWalkableKind.Slab, TerrainWalkableKind.Ramp, TerrainWalkableKind.Ramp }, parts.Select(p => p.Kind));
+                var laid = new System.Collections.Generic.List<TerrainWalkable>();
+                TerrainObstacles.DeckOf(at, yaw, shape, (_, _) => 0f, 3, false, laid);
+                Assert.Equal(parts.Length, laid.Count);
+                for (int k = 0; k < parts.Length; k++)
+                {
+                    Assert.Equal(parts[k].Kind, laid[k].Kind);
+                    var (lo, hi) = DeckGeometry.Bounds(new[] { parts[k] });
+                    Assert.True(Vector2.Distance(lo, laid[k].Min) < 0.02f && Vector2.Distance(hi, laid[k].Max) < 0.02f, $"part {k} footprint");
+                    for (int i = 0; i < 4; i++)
+                        Assert.True(laid[k].Vertices.Any(v => Vector2.Distance(new Vector2(v.X, v.Y), parts[k][i].At) < 0.02f), $"part {k} corner {i}");
+                    if (parts[k].Kind == TerrainWalkableKind.Slab)
+                        for (int i = 0; i < 4; i++) Assert.Equal(MathF.Max(shape.Height, 0.05f), parts[k][i].Above, 3);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4694</c> ② — a vehicle climbs an AUTHORED bridge's ramp: a hull whose nose is 4 m up the west ramp (0.9 m high — above the hull's step reach, 0.6 m, from the
+        /// ground; the foot is sunk 0.3 m) is NOT held, and its corner there rests ON the ramp. 📐 Found live (stechovice-battle): a tank was held at the authored bridge's ramp foot (FailedBlocked) —
+        /// CE-4692's hull-point rule held for LAID decks only. 🔴 Red-proof: make <c>TerrainWorld.IsDeck</c> test <c>Obstacle</c> only ⇒ the step is blocked.
+        /// </summary>
+        [Fact]
+        public void CE4694_AHullClimbsAnAuthoredBridgesRamp()
+        {
+            var world = Merged((G1, River()), (G2, Bridge()));
+            var q = new TerrainWorldQuery(world);
+            // the bridge runs x 198 → 232 at y 200, its west ramp x 192 → 198; a 7.9 m hull heading east, nose at x 196.0 (4 m up)
+            Assert.True(q.HullPointZ(196.0f, 200f, 0f) > 0.8f, "the hull's nose on the ramp rests on it");
+            Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, new Vector2(192.05f, 200f), Vector2.UnitX, 0f, new Vector2(192.15f, 200f), Vector2.UnitX, 0f, 7.9f, 3.66f),
+                "a hull climbing the authored bridge's ramp is held");
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-6002</c> (showcase world, T-2 measured) — the bridge over the river carries BOTH layers, and the way over it is the only way: a man AND a ground vehicle go bank to bank, their path is
         /// at least the straight distance and keeps to the bridge's strip (y 198..202, never in the water at x 200..230), the river alone has no crossing, and once the bridge collapses neither layer has one.
         /// 🔴 Red-proof: expand a bridge to its deck only (no ramps) ⇒ the vehicle layer has no way on to the deck ⇒ no crossing.

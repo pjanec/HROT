@@ -1,0 +1,98 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: CE-11061 (DESIGN_Injury_States.md \u00a79) - REVIVE. One Rifleman (Friend) advances on test-town toward (325,300), about 74 m from one Armed Hostile who stands still. At 10 s the check kills the Rifleman (Health 0: he drops, stops moving and firing); at 20 s it REVIVES him - the Unit form's Revive button, the same edit-framework op (POST /entities/{id}/revive): full health, wounds and stun cleared, move and fire given back. Judge: (1) the healthy man fights before he is killed; (2) dead, he fires no shot until revived; (3) revived, he is at full health and can move and fire again, and he is alive at the end. Fail: he shoots while dead, or after the revive he stays at 0, or stays without move / fire. Check: scripts/scenario-regression.sh ua-revive"
+  },
+  "entities": {
+    "a1010000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          295,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "advance": {
+            "Objective": [
+              325,
+              300,
+              0
+            ],
+            "Speed": 2,
+            "ArrivalRadius": 3,
+            "CooldownSeconds": 1
+          }
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a1010000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          360,
+          320,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Armed Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

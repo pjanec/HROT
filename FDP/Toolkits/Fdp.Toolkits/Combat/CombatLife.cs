@@ -109,6 +109,36 @@ namespace Fdp.Toolkit.Combat
             if (give != ActorCapabilities.None) repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities |= give;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11061</c> (📄 docs/DESIGN_Injury_States.md §9, RV-1; R-11021) — <b>REVIVE: put the unit back in the fight</b>, the ONE body (the edit framework's
+        /// <c>Revive</c> kind runs it here, or at the owner through the request system's <c>$revive</c> intercept). On the node that applies his
+        /// <see cref="Health"/> (<see cref="HealthOwnership.AppliesHere"/>): Health to its maximum; his own wounds (<c>PartDamage</c> levels, its plan kept), the timed
+        /// effects of a hit (stunned, irritated, knocked down, on fire — <see cref="EffectState"/>; a behaviour's cowering is its own and stays) and his own fire
+        /// (<c>FireState</c>) cleared; then <see cref="RestoreHitCapabilities"/> gives back moving and shooting as his type, his seat and a carry allow. Every
+        /// value is SET with its final value (no add-then-write). What follows by itself: <c>HealthStateSinceSystem</c> stamps "alive since" and clears the kill
+        /// kind, <c>BleedOutSystem</c> drops his bleed, the brain (its task dropped at death) takes the next order. ⛔ The kill already counted stays counted (RV-5).
+        /// Returns null when revived, else why not (nothing is changed).
+        /// </summary>
+        public static string? Revive(EntityRepository repo, Entity entity)
+        {
+            if (!repo.IsAlive(entity)) return "the entity is gone";
+            if (!repo.IsComponentTypeRegistered<Health>() || !repo.HasComponent<Health>(entity)) return "it has no health to restore";
+            if (!HealthOwnership.AppliesHere(repo, entity)) return "its health is owned by another node";
+            var health = repo.GetComponentRO<Health>(entity);
+            if (health.Max <= 0f) return "it has no maximum health";
+
+            health.Current = health.Max;
+            repo.SetComponent(entity, health);
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>() && repo.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(entity))
+                repo.SetComponent(entity, new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = repo.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.PartDamage>(entity).Plan });
+            if (repo.IsComponentTypeRegistered<EffectState>() && repo.HasComponent<EffectState>(entity))
+                repo.SetComponent(entity, new EffectState { Cowering = repo.GetComponentRO<EffectState>(entity).Cowering });
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>() && repo.HasComponent<Fdp.Toolkit.Perception.Signatures.FireState>(entity))
+                repo.SetComponent(entity, default(Fdp.Toolkit.Perception.Signatures.FireState));
+            RestoreHitCapabilities(repo, entity, in health);
+            return null;
+        }
+
         /// <summary>The capabilities the unit's TYPE grants (its <c>BehaviorProfileDto</c>); everything when the type is unknown here.</summary>
         private static ActorCapabilities TypeGrants(EntityRepository repo, Entity entity)
         {
