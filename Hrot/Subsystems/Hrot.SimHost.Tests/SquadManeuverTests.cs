@@ -4442,14 +4442,27 @@ namespace Hrot.SimHost.Tests
             p.Ticks(3);
             p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
             p.Ticks(4);
+            var at = new Dictionary<Entity, Vector3>();
+            foreach (var waiting in new[] { p.Alpha, p.Charlie })
+            {
+                // ① far out: a squad MOVE to the attack position (never a SquadDefend on a far point: its post plan searches round where the men stand)
+                Assert.Equal(0, p.OrdersTo(waiting, BehaviorNames.SquadDefend));
+                Assert.True(p.OrdersTo(waiting, BehaviorNames.InfantrySquadMove) > 0, "it moves to its attack position first");
+                var m = OrderTo<Hrot.AI.Behaviors.Orders.MoveOrder>(p, waiting, BehaviorNames.InfantrySquadMove);
+                Vector3 to = m.Location;
+                float fromObjective = Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(o.X, o.Y));
+                Assert.True(MathF.Abs(fromObjective - PlatoonAttackBehavior.SupportStandOffMetres) < 1f,
+                            $"its attack position is on the support line ({fromObjective:0.0} m from the objective)");
+                at[waiting] = to;
+            }
+            // ② arrived: it waits there in cover, its sector drawn from there
+            foreach (var w in new[] { p.Alpha, p.Charlie }) p.S.Teleport(w, at[w]);
+            p.Ticks(4);
             foreach (var waiting in new[] { p.Alpha, p.Charlie })
             {
                 var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
                 Vector3 dp = d.Position;
-                float fromObjective = Vector2.Distance(new Vector2(dp.X, dp.Y), new Vector2(o.X, o.Y));
-                Assert.True(MathF.Abs(fromObjective - PlatoonAttackBehavior.SupportStandOffMetres) < 1f,
-                            $"it waits at its attack position, on the support line ({fromObjective:0.0} m from the objective)");
-                Assert.True(Vector3.Distance(p.S.At(waiting), dp) > 200f, "not where it stood");
+                Assert.True(Vector3.Distance(dp, at[waiting]) < 0.5f, "it waits at its attack position");
                 var ea = SectorOf(p, waiting);
                 Assert.True(Vector3.Distance(ea.ArcOrigin, dp) < 0.01f, "the sector is drawn from the attack position");
             }
