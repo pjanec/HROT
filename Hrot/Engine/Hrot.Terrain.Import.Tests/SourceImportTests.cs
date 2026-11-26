@@ -175,7 +175,7 @@ public sealed class SourceImportTests : IDisposable
         using var cts = new CancellationTokenSource();
         var hook = Hook(m => { if (m.Contains("importing")) cts.Cancel(); });
         var roots = new[] { TerrainRoot };
-        Assert.ThrowsAny<OperationCanceledException>(() => hook.TryImport("mini", null, TerrainRoot, roots, cts.Token));
+        Assert.ThrowsAny<OperationCanceledException>(() => hook.TryImport("mini", null, () => TerrainRoot, roots, cts.Token));
         Assert.Equal(1, _imports);
         Assert.False(Directory.Exists(Path.Combine(TerrainRoot, "mini")));
         Assert.Empty(Directory.GetDirectories(TerrainRoot));           // no temp folder either
@@ -326,6 +326,43 @@ public sealed class SourceImportTests : IDisposable
         Assert.NotNull(catalog.ResolveFolder("mini"));
         Assert.Equal(1, _imports);
         Assert.Contains("mini", catalog.List());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-11061</c> (unreal-ig) / <c>CE-5060</c> — a STALE import (an older importer revision) that every run finds FIRST in its own private NAS (seeded from the machine's
+    /// stale copy) re-imports ONCE, into the machine-wide root, and every later run resolves that current copy with no import. 📌 Measured: each verify child re-imported
+    /// Stechovice into its private NAS (207 s, thrown away with the run) and the stale machine copy stayed stale, so every run imported again.
+    /// 🔴 Mutation: a stale hit re-imports into the root it was FOUND in ⇒ one import per run (3), each in its private NAS, and the machine copy stays at revision 1.
+    /// </summary>
+    [Fact]
+    public void CE11061_AStaleImport_FoundFirstInEveryRunsPrivateNas_ReImportsOnce_IntoTheMachineRoot()
+    {
+        string machine = Path.Combine(_env.Root, "repo-assets-terrain");
+        string repo = Path.Combine(_env.Root, "repo");
+        new MiniSet().Write(Path.Combine(repo, "assets", "terrain-input", "mini"));
+        TerrainSources.SharedImportRoot = machine;
+        TerrainSources.Import = new SourceImport(root => { Interlocked.Increment(ref _imports); return SourceImport.DefaultImporter(root); }, m => { lock (_log) _log.Add(m); }, repo);
+        var def = TerrainCatalog.ForNode(Path.Combine(_env.Root, "run0", "node"), Path.Combine(_env.Root, "run0", "shared")).ResolveDefinition("mini")!;
+        Assert.Equal(Path.Combine(machine, "mini", "terrain.json"), def);
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(def))!.AsObject();
+        json.Remove(SourceImport.RecordedRevisionKey);                                                      // imported before revisions were recorded
+        File.WriteAllText(def, json.ToJsonString());
+        Assert.Equal(1, SourceImport.RecordedRevision(def));
+        string Nas(int run) => Path.Combine(_env.Root, "run" + run, "shared");
+        for (int run = 1; run <= 3; run++) CopyTree(Path.Combine(machine, "mini"), Path.Combine(Nas(run), "assets", "terrain", "mini"));   // each run's private NAS seeded with the stale copy
+
+        for (int run = 1; run <= 3; run++)
+            Assert.Equal(def, TerrainCatalog.ForNode(Path.Combine(_env.Root, "run" + run, "node"), Nas(run)).ResolveDefinition("mini"));
+        Assert.Equal(2, _imports);                                                                          // the first import + ONE re-import, not one per run
+        Assert.Equal(TerrainImporter.Revision, SourceImport.RecordedRevision(def));                         // the machine copy is current now
+        Assert.Contains(_log, l => l.Contains("stale") && l.Contains(Path.Combine(Nas(1), "assets", "terrain", "mini")));   // the stale copy is named once it is passed over
+    }
+
+    private static void CopyTree(string from, string to)
+    {
+        Directory.CreateDirectory(to);
+        foreach (var f in Directory.GetFiles(from)) File.Copy(f, Path.Combine(to, Path.GetFileName(f)));
+        foreach (var d in Directory.GetDirectories(from)) CopyTree(d, Path.Combine(to, Path.GetFileName(d)));
     }
 
     [Fact]

@@ -32,10 +32,11 @@ namespace Fdp.Toolkits.Tests.Terrain
         {
             public readonly List<(string Name, string? Existing, string Target)> Calls = new();
             public Func<string, string?, string, string?> Answer = (_, _, _) => null;
-            public string? TryImport(string terrainName, string? existingDefinition, string targetRoot, IReadOnlyList<string> catalogRoots, CancellationToken cancellation)
+            public string? TryImport(string terrainName, string? existingDefinition, Func<string> targetRoot, IReadOnlyList<string> catalogRoots, CancellationToken cancellation)
             {
-                Calls.Add((terrainName, existingDefinition, targetRoot));
-                return Answer(terrainName, existingDefinition, targetRoot);
+                string target = targetRoot();
+                Calls.Add((terrainName, existingDefinition, target));
+                return Answer(terrainName, existingDefinition, target);
             }
         }
 
