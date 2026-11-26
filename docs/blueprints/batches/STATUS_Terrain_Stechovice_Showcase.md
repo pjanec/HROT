@@ -45,6 +45,8 @@ related-designs:
 2. The village attack (above), then tune `checks.draft.json` → `checks.json` against a 1/60 run; ⚠ at 0.065× a 300 s run is ~77 min, past the regression's 60-min child limit — shorten `runFor` or pass `--verify-timeout`.
 3. Preview, CAPABILITIES / USAGES rows, the optional air show.
 
+⭐ **`2026-11-26` — CE-5062 (the ZU-23 never fired): it stood IN a wood** (behaviors' root cause). Moved with the SAM to a clearing on the same hill (sky 8/8 and 7/8 by the sight rule; were 2/8) — a regression run to confirm.
+
 ## 4. ⭐ THE BRIDGE AND THE BLUE BRIDGEHEAD — CE-4694 ✅ CLOSED `2026-11-26` (user; the 5 behaviour reds stay filed: CE-5051, CE-5061, CE-5062) ([handoff](HANDOFF_Coordinator_To_Terrain_Stechovice_Bridgehead.md), taken `2026-11-25` at `867fbbf6e`)
 
 | # | item | state | sha | evidence |
