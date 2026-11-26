@@ -135,6 +135,8 @@ internal static class Corridors
         public bool Tunnel { get; set; }
         /// <summary>⭐ CE-5057 — OSM <c>layer</c> (0 when absent).</summary>
         public int Layer { get; set; }
+        /// <summary>⭐ CE-5057 — the SUMO edge type (<c>highway.secondary</c>, <c>railway.rail</c> …; empty when absent).</summary>
+        public string Type { get; set; } = "";
     }
 
     /// <summary>⭐ V-15 — whether an OSM tag value says yes (<c>bridge=yes</c>, <c>=viaduct</c>, <c>tunnel=culvert</c> …): anything but empty / <c>no</c>.</summary>
@@ -155,7 +157,7 @@ internal static class Corridors
                 case "edge":
                     current = null;
                     if (r.GetAttribute("function") is { } fn && fn != "normal") break;   // internal, walkingarea, crossing
-                    current = new Edge(r.GetAttribute("id") ?? "", r.GetAttribute("from") ?? "", r.GetAttribute("to") ?? "", new List<Lane>());
+                    current = new Edge(r.GetAttribute("id") ?? "", r.GetAttribute("from") ?? "", r.GetAttribute("to") ?? "", new List<Lane>()) { Type = r.GetAttribute("type") ?? "" };
                     edges.Add(current);
                     break;
                 case "lane":

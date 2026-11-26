@@ -129,11 +129,20 @@ public sealed partial class TerrainImporter : ITerrainImporter
                 var onDeck = new Dictionary<string, Func<double, double, double>>(StringComparer.Ordinal);
                 var junctionZ = new Dictionary<string, double>(StringComparer.Ordinal);
                 var junctionAt = decks.Count > 0 && set.RoadsNet is string jn ? Corridors.Read(jn, ax, ay).Junctions.ToDictionary(j => j.Id, j => j.At) : null;
+                // per bridged edge, its decks (an edge longer than its structure may have several, or none): a lane point ON one takes the deck's height, any other the ground's
+                var decksOf = new Dictionary<string, List<Bridges.Deck>>(StringComparer.Ordinal);
                 foreach (var d in decks)
-                {
-                    foreach (var id in d.EdgeIds) onDeck[id] = (x, y) => d.ZNear(new System.Numerics.Vector2((float)(x - ax), (float)(y - ay)));
-                    foreach (var j in d.InnerJunctions) if (junctionAt != null && junctionAt.TryGetValue(j, out var at)) junctionZ[j] = d.ZNear(at);
-                }
+                    foreach (var id in d.EdgeIds) { if (!decksOf.TryGetValue(id, out var l)) decksOf[id] = l = new List<Bridges.Deck>(); l.Add(d); }
+                foreach (var (id, list) in decksOf)
+                    onDeck[id] = (x, y) =>
+                    {
+                        var p = new System.Numerics.Vector2((float)(x - ax), (float)(y - ay));
+                        foreach (var d in list) if (d.Covers(p, out float z)) return z;
+                        return levelled.Sample(p.X, p.Y);
+                    };
+                foreach (var d in decks)
+                    foreach (var j in d.InnerJunctions)
+                        if (junctionAt != null && junctionAt.TryGetValue(j, out var at) && d.Covers(at, out float jz)) junctionZ[j] = jz;
                 var res = Hrot.Terrain.InputSet.NetElevation.Apply(Path.Combine(tmp, netFile), (x, y) => levelled.Sample((float)(x - ax), (float)(y - ay)), force: true,
                                                                    edgeSurface: onDeck, junctionZ: junctionZ);
                 rep.NetPointsElevated = res.PointsAfter;
