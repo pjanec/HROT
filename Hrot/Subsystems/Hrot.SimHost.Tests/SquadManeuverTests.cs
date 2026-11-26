@@ -4642,7 +4642,7 @@ namespace Hrot.SimHost.Tests
         public void CE4669_AReserveAtItsPoint_DefendsThere_NotIdleOnAFinishedBound()
         {
             var p = new Platoon(squads: 3);
-            var o = new Vector3(0f, 200f, 0f);
+            var o = new Vector3(0f, 140f, 0f);   // ⭐ CE-5051 — the near case: within the support line + margin, so the wait is where it stands (D-12)
             p.ReportSpot(p.Bravo, o, 3);
             p.Ticks(2);
             Attack(p, o);
