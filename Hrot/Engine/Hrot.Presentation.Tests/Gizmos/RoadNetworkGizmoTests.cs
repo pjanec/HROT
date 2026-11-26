@@ -48,7 +48,8 @@ public sealed class RoadNetworkGizmoTests : IDisposable
         Assert.Equal(RoadNetworkGizmo.CurveSamples, bands.Length);
         Assert.Equal(RoadNetworkGizmo.CurveSamples,
             roads.Count(p => p.Shape == DebugPrimitiveShape.Line && p.Color.Equals(RoadNetworkGizmo.CentreColor)));
-        Assert.Equal(2, roads.Count(p => p.Shape == DebugPrimitiveShape.Sphere));
+        Assert.Equal(0, roads.Count(p => p.Shape == DebugPrimitiveShape.Sphere));   // ⭐ CE-6504 — the nodes are on their own layer
+        Assert.Equal(2, _draw.GetFrame().ToArray().Count(p => p.DebugLayer == DebugTraceLayers.RoadNodes && p.Shape == DebugPrimitiveShape.Sphere));
         Assert.Equal(new Vector3(0, 0, 0), bands[0].LineStart);
         Assert.Equal(new Vector3(100, 0, 0), bands[^1].LineEnd);
         Assert.True(bands.Max(p => p.LineEnd.Y) > 5f, "the bend is drawn, not the chord");
@@ -82,6 +83,34 @@ public sealed class RoadNetworkGizmoTests : IDisposable
         {
             float z = p.Shape == DebugPrimitiveShape.Line ? MathF.Min(p.LineStart.Z, p.LineEnd.Z) : p.SphereCenter.Z;
             Assert.Equal(500f + RoadNetworkGizmo.GroundLift, z, 3);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-6504 — the road NODES (blue spheres every few metres of a bend) are their own row, <i>Road nodes</i>, off by default: with the default layer set
+    /// the bands and centre lines draw and not one node sphere; ticked, every node does — cached and uncached alike. 🔴 Red-proof: the nodes back on
+    /// <see cref="DebugTraceLayers.Roads"/> ⇒ spheres with the default set ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE6504_TheRoadNodes_AreTheirOwnRow_OffByDefault()
+    {
+        _blob = SeededNet(5, 12);
+        _w.SetSingleton(new ZoneEnvironmentData { RoadNetwork = _blob });
+        int Spheres(DebugPrimitiveBuffer d) => d.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Sphere);
+        int Lines(DebugPrimitiveBuffer d) => d.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Line);
+        var off = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto();
+        Assert.False(off.Map.RoadNodes);
+        var on = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { RoadNodes = true } };
+        foreach (bool cached in new[] { true, false })
+        {
+            var hidden = new DebugPrimitiveBuffer(1 << 14); hidden.SetActiveLayers(off.ToMask());
+            var shown = new DebugPrimitiveBuffer(1 << 14); shown.SetActiveLayers(on.ToMask());
+            if (cached) { new RoadNetworkGizmo().Draw(_w, hidden); new RoadNetworkGizmo().Draw(_w, shown); }
+            else { RoadNetworkGizmo.Draw(_blob, hidden, null); RoadNetworkGizmo.Draw(_blob, shown, null); }
+            Assert.True(Lines(hidden) > 0, "the roads themselves still draw");
+            Assert.Equal(0, Spheres(hidden));
+            Assert.Equal(_blob.Nodes.Length, Spheres(shown));
+            Assert.Equal(Lines(hidden), Lines(shown));
         }
     }
 
