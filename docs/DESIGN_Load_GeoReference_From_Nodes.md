@@ -1,9 +1,29 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN v2 — not dispatched (user, 2026-11-26: "write it as a design, do not send to backend"); revised after the independent review (§8)
+build-state: EXPERIMENT — built on the LOCAL branch exp/ce5060-origin-peek (user, 2026-11-26: "try this yourself, as experiment, testing thoroughly in both single editor and cluster modes first"); not merged, not pushed — §9 the as-built and its measurements
 updated: 2026-11-26 (v2 after the independent review: the origin from the INPUT SET, no aggregator, no wire change) · 2026-11-26 (v1, terrain lane — CE-5060)
-current-answer: §2 the decision (v2) · §3 the UML · §4 the claim table · §5 the preconditions · §6 acceptance · §8 the review and what was done with each finding
-stale-below: ## ⛔ HISTORY — v1 (the nodes report the origin in a LoadPrepareResult, a LoadGeoAggregator) — SUPERSEDED by the review: do not quote it
+current-answer: §9 the experiment's as-built (where it deviates from §2–§5) · §2 the decision (v2) · §3 the UML · §4 the claim table · §5 the preconditions · §6 acceptance · §8 the review and what was done with each finding
+stale-below: ## 9. The experiment — as built (local branch `exp/ce5060-origin-peek`, `2026-11-26`)
+
+| piece | as built | vs §2–§5 |
+|---|---|---|
+| the import-free read | `TerrainCatalog.PeekDefinition(name)` — `ITerrainSourceImport.TryReadInputDefinition(name, existing, roots)` first (the input set's manifest → `TerrainFolderWriter.OriginOf`, the ONE origin rule the writer uses too), else the folder / kept ground; ⛔ never imports | named `PeekDefinition` (returns the definition's origin fields), not `PeekOrigin`; a hand-made folder (no recorded input) keeps its own origin |
+| readers | `ClusterMaster.NoteLoadGeoReference` (cross-lane: backend) and `TerrainResidency.ApplyOriginAhead` call it | as §2 |
+| ⭐ the count (P1) | ⭐⭐ `Fdp.Core.LoadProgress.ReportDetail` ADVANCES the count (with its call site) — ONE place for every loader that says how far it is | ⛔ §5 P1 put it in the importer; 📐 measured: a detail-only stage (the road levelling, 12 s) got the node EJECTED 8 s into the import (`Node 1 (Editor) ejected (heartbeat timeout)`), and every other detail-only loader has the same gap |
+| ⭐ the navmesh packing | `NavTilePack.Pack` (the prefill cache's `Seal`) reports per tile read, per pack written, per tile removed, per folder removed | ⛔ not foreseen; 📐 a gap probe on the real import found **16 s silent** after the last tile (~60 000 tiles packed) — the node was ejected 3 min in; then 3.6 / 4.3 s in the folder removal |
+| P2 (the lock wait) | `SourceImport.AcquireLock` reports while it waits | as §5 |
+| P3 (cancellation) | ⏳ NOT built | open |
+
+**Measured (`2026-11-26`, this VM):**
+
+| test | result |
+|---|---|
+| unit suites | `SourceImportTests` 24/24 (4 new), `LoadProgressTests` 7/7 (1 new), `RecastNavmeshFactoryTests` + terrain bake / overlay 59/59 (1 new), terrain catalog 9/9, `Hrot.Orchestrator.Tests` 483/483 (the AQ107C master rails unchanged), SimHost `TerrainLoadStep` / geo 34/34; every new rail red-proved by a compiling mutation. SimHost full: 16 red — 10 red on the base too (pre-existing), 6 green 3× in isolation (contention during a branch switch) |
+| the gap probe (real Stechovice import under a load progress) | before the packing reports: one 16.2 s silence; after: **none over 2 s** across 267 s |
+| editor, `village-street-fight`, first use (20.8 s import) | the import runs in the node's Terrain step; longest silence 1.1 s; GeoReference = the import's origin to the last digit; 2 REALISM rows red — ⭐ the SAME 2 on the base branch (pre-existing) |
+| editor, `stechovice-battle`, first use (195.6 s import) | ⭐ **the load passes the director's stall check** (was: failed, CE-5060); no ejection; longest silence 1.7 s; the origin set ahead of the bake from the input set (*"geo frame set to UTM zone 33N at E 455779, N 5522272"*) before the import; GeoReference = the import's origin exactly |
+
+## ⛔ HISTORY — v1 (the nodes report the origin in a LoadPrepareResult, a LoadGeoAggregator) — SUPERSEDED by the review: do not quote it
 known-rot: none
 known-conflict: none — v2 keeps DESIGN_Geo_Origin.md §4 ⑨ / ⑩ as they are (the master still reads; the node still reads ahead); only the READ changes, to one that cannot import
 related-designs:
