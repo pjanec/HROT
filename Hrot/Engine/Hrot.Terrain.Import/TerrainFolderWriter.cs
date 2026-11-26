@@ -99,9 +99,14 @@ internal static class TerrainFolderWriter
         w.WriteEndObject();
     }
 
+    /// <summary>⭐ <c>CE-5060</c> — THE one rule for an imported terrain's origin: the geodetic point of its (0, 0) — the input set's south-west corner
+    /// (<paramref name="swX"/>, <paramref name="swY"/>) in <paramref name="frame"/>. Written by <see cref="WriteTerrainJson"/> and read ahead of an
+    /// import by <c>SourceImport.TryReadInputDefinition</c>, so both answer the same origin by construction.</summary>
+    public static (double Lat, double Lon) OriginOf(UtmFrame frame, double swX, double swY) => Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY, frame.Zone, frame.South);
+
     public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null, string? inputManifestSha256 = null, int importerRevision = 0)
     {
-        var (lat, lon) = Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY, frame.Zone, frame.South);
+        var (lat, lon) = OriginOf(frame, swX, swY);
         using var ms = new MemoryStream();
         using (var w = new Utf8JsonWriter(ms, new JsonWriterOptions { Indented = true }))
         {
