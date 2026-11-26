@@ -4380,7 +4380,7 @@ namespace Hrot.SimHost.Tests
         public void D12_WhileTheBaseOfFireSets_TheAssaultAndTheReserveWaitInCover_FacingTheObjective()
         {
             var p = new Platoon(squads: 3);
-            var o = new Vector3(0f, 200f, 0f);
+            var o = new Vector3(0f, 140f, 0f);   // ⭐ CE-5051 — within the support line + margin of every squad: the near case (far out: the next rail)
             // ⭐ Alpha as a squad WITH a man: its entity's own transform stays where it was authored, its one man stands elsewhere
             var stale = new Vector3(500f, -400f, 0f);
             var manAt = new Vector3(30f, 40f, 0f);
@@ -4423,6 +4423,36 @@ namespace Hrot.SimHost.Tests
             // ⭐ the wait's Set is not "the reserve's bound arrived": it BOUNDS to its point, it is not sent to walk there and defend it
             Assert.Equal(defends, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
             Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(x => x.Entity.Equals(p.Charlie)).IntentId);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5051</c> (D-12 extended, user `2026-11-26`; ATP 3-21.8: the platoon moves to its attack position, then splits) — squads that start
+        /// BEYOND the support line (+ <see cref="PlatoonAttackBehavior.AttackPositionMarginMetres"/>) do not wait at the start line: each waits in cover at
+        /// its ATTACK POSITION — on its own axis, at the support line's distance from the objective — its sector drawn from there. 📐 stechovice-battle:
+        /// the assault and the reserve waited 83 s at the start line 550 m out. 🔴 Red-proof: Forward never set ⇒ they wait where they stand.
+        /// </summary>
+        [Fact]
+        public void CE5051_D12_FarOut_TheWaitingSquadsMoveUpToTheirAttackPositions()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 450f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            foreach (var waiting in new[] { p.Alpha, p.Charlie })
+            {
+                var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
+                Vector3 dp = d.Position;
+                float fromObjective = Vector2.Distance(new Vector2(dp.X, dp.Y), new Vector2(o.X, o.Y));
+                Assert.True(MathF.Abs(fromObjective - PlatoonAttackBehavior.SupportStandOffMetres) < 1f,
+                            $"it waits at its attack position, on the support line ({fromObjective:0.0} m from the objective)");
+                Assert.True(Vector3.Distance(p.S.At(waiting), dp) > 200f, "not where it stood");
+                var ea = SectorOf(p, waiting);
+                Assert.True(Vector3.Distance(ea.ArcOrigin, dp) < 0.01f, "the sector is drawn from the attack position");
+            }
         }
 
         [Fact]

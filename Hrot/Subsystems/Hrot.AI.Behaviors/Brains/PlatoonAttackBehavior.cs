@@ -63,6 +63,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Casevac[Capacity];
         /// <summary>⭐ CE-4608 — 1 = this slot was the assault and was relieved to the reserve (spent): in the assault it HOLDS the objective's foothold.</summary>
         public fixed byte Spent[Capacity];
+        /// <summary>⭐ <c>CE-5051</c> (D-12 extended, user `2026-11-26`) — 1 = this slot started the support phase beyond the support line: it waits at its
+        /// ATTACK POSITION (<see cref="PlatoonAttackBehavior.AttackPositionOf"/>), not where it stood.</summary>
+        public fixed byte Forward[Capacity];
         public Vector3 SupportAt;
         public Vector3 AssaultAt;
         public Vector3 ReserveAt;
@@ -187,6 +190,25 @@ namespace Hrot.AI.Behaviors.Brains
         public const float SupportPostRadius = 25f, ConsolidateRadius = 60f;
         /// <summary>⭐ D-12 (CE-4666, user-approved 2026-11-19) — how far round where it stands a squad WAITING for the base of fire looks for its covered posts (m).</summary>
         public const float WaitRadius = 15f;
+        /// <summary>⭐ <c>CE-5051</c> — a waiting squad farther than the support line plus this (m) moves up to its attack position first.</summary>
+        public const float AttackPositionMarginMetres = 40f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5051</c> (D-12 extended; user `2026-11-26`: <i>"yes, build the D-12 extension"</i>; doctrine ATP 3-21.8 — the platoon moves
+        /// together to its attack position, then splits) — where slot <paramref name="slot"/> waits while the base of fire sets when it started far
+        /// out: on ITS OWN axis (the bearing from the objective to its assault / reserve point), at the support line's distance. 📐 stechovice-battle:
+        /// the assault and the reserve waited 83 s at the start line 550 m from the village.
+        /// </summary>
+        public static unsafe Vector3 AttackPositionOf(in PlatoonAttackPlan p, int slot)
+        {
+            var o = p.Objective(Math.Min(p.Current, Math.Max(0, p.Objectives - 1)));
+            var axisPoint = p.Role[slot] == PlatoonAttackPlan.Reserve ? p.ReserveAt : p.AssaultAt;
+            var d = new Vector2(axisPoint.X - o.X, axisPoint.Y - o.Y);
+            if (d.LengthSquared() < 1e-4f) d = new Vector2(p.SupportAt.X - o.X, p.SupportAt.Y - o.Y);
+            if (d.LengthSquared() < 1e-4f) return axisPoint;
+            d = Vector2.Normalize(d) * SupportStandOffMetres;
+            return new Vector3(o.X + d.X, o.Y + d.Y, axisPoint.Z);
+        }
         public const float ElementFreshSeconds = 120f;
         /// <summary>⭐ <c>CE-2436</c> AU-1 — a reported element this close to the objective is one of its posts (m); the SHIFT puts fire this far
         /// beyond it (the depth) and to its flanks (m).</summary>
@@ -421,6 +443,20 @@ namespace Hrot.AI.Behaviors.Brains
                 //   gun); it walked through the street to it, then its post plan found the house it had left and walked back — a man crossed twice
                 if (p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding || dx * dx + dy * dy <= SupportFromHereMetres * SupportFromHereMetres)
                     p.SupportAt = stands;
+            }
+            // ⭐ CE-5051 (D-12 extended) — which waiting squads start beyond the support line: they move up to their attack position
+            {
+                var obj = p.Objective(p.Current);
+                for (int s = 0; s < PlatoonAttackPlan.Capacity; s++)
+                {
+                    p.Forward[s] = 0;
+                    if (p.Role[s] != PlatoonAttackPlan.Assault && p.Role[s] != PlatoonAttackPlan.Reserve) continue;
+                    var sub = CommandPictureOps.Subordinate(world, self, s);
+                    if (sub.IsNull || !world.IsAlive(sub)) continue;
+                    var at = MenCentre(world, sub);
+                    float far = SupportStandOffMetres + AttackPositionMarginMetres;
+                    if ((at.X - obj.X) * (at.X - obj.X) + (at.Y - obj.Y) * (at.Y - obj.Y) > far * far) p.Forward[s] = 1;
+                }
             }
             SetPhase(ref p, PlatoonAttackPlan.PhaseSupport);
             ObjectivePosts(ref p, world, self);   // ⭐ CE-2436 AU-1 (A-1) — the base of fire's targets: the objective's reported posts
@@ -685,7 +721,7 @@ namespace Hrot.AI.Behaviors.Brains
                     //   approach replaces it at the support's Set. 📌 Live (pc-corridor-fight): with no order both squads stood idle in the open ~90 s.
                     //   ⛔ Was: return false (no order: they kept whatever the platoon's approach left them doing)
                     if (p.Phase == PlatoonAttackPlan.PhaseSupport)
-                        return Defend(standsAt, WaitRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
+                        return Defend(p.Forward[slot] != 0 ? AttackPositionOf(in p, slot) : standsAt, WaitRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);   // ⭐ CE-5051 — far out: the attack position first
                     if (reserveArrived && role == PlatoonAttackPlan.Reserve)   // ⭐ CE-4669 — at its point: it holds there, ready to relieve
                         return Defend(p.ReserveAt, SupportPostRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     // ⭐⭐ CE-2436 AU-2 (A-7) — in contact the assault CLOSES by fire and movement (rushes between cover, its own half covering,
@@ -764,7 +800,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
-            var from = waiting ? standsAt : p.SupportAt;
+            var from = waiting ? (p.Forward[slot] != 0 ? AttackPositionOf(in p, slot) : standsAt) : p.SupportAt;   // ⭐ CE-5051 — from its attack position
             float bearing = SectorSplit.Norm(MathF.Atan2(o.X - from.X, o.Y - from.Y) * (180f / MathF.PI));
             world.Bus.Publish(new SetEngagementAreaEvent
             {
