@@ -81,21 +81,34 @@ namespace Fdp.Toolkit.Terrain
             //   the hook is consulted HERE, so no host can forget it; it answers null when there is no input set for the name (or the terrain is current)
             var hook = TerrainSources.Import;
             if (found != null)
-                return hook?.TryImport(relative, found, foundRoot!, _roots, default) ?? found;
+            {
+                string holder = foundRoot!;
+                // ⭐ CE-11061 (unreal-ig) / CE-5060 — a STALE hit re-imports into the MACHINE-WIDE target when there is one: every NAS is seeded from the machine's copy, so re-importing
+                //   into the root that holds it (a private NAS, a node's staging) is thrown away with the run and the stale copy wins again, every load. Asked only when stale (a write probe).
+                return hook?.TryImport(relative, found, () => SharedImportTarget() ?? holder, _roots, default) ?? found;
+            }
             var kept = ResolveKeptGround(relative);
             if (kept != null || hook == null) return kept;
             string? target = ImportTarget();
-            return target == null ? null : hook.TryImport(relative, null, target, _roots, default);
+            return target == null ? null : hook.TryImport(relative, null, () => target, _roots, default);
         }
 
         // ⭐ CE-11039 (F-2 revised) — where a first-use import lands: the SHARED root when it is writable (one import per machine, whatever staging root asks), else the first writable
         //   root (a private fallback: a read-only NAS still gets its terrain, in this node's staging). The lock lives in the target, so it is shared exactly as far as the import is.
         private string? ImportTarget()
         {
-            if (TerrainSources.SharedImportRoot is { } machine && IsWritable(machine)) return machine;   // a dev checkout: the source tree's assets/terrain — outlives a private staging root and its private NAS
-            if (SharedRoot != null && IsWritable(SharedRoot)) return SharedRoot;
+            if (SharedImportTarget() is { } shared) return shared;
             foreach (var root in _roots)
                 if (IsWritable(root)) return root;
+            return null;
+        }
+
+        /// <summary>⭐ CE-11039 / CE-11061 — the MACHINE-WIDE import target, or null: the machine root (a dev checkout: the source tree's assets/terrain — outlives a private staging root
+        /// and its private NAS), else the NAS's shared root; each only when writable.</summary>
+        private string? SharedImportTarget()
+        {
+            if (TerrainSources.SharedImportRoot is { } machine && IsWritable(machine)) return machine;
+            if (SharedRoot != null && IsWritable(SharedRoot)) return SharedRoot;
             return null;
         }
 
