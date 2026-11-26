@@ -131,7 +131,7 @@ PlatoonConvoy | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonConvoyParamsJso
 PlatoonDefend | hostedInput=- | inputBytes=504
 PlatoonHillAttack | hostedInput=- | inputBytes=256
 PlatoonHold | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonHoldParamsJsonDto | inputBytes=16
-PlatoonSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonSupportByFireParamsJsonDto | inputBytes=2080
+PlatoonSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonSupportByFireParamsJsonDto | inputBytes=2096
 Points | hostedInput=- | inputBytes=160
 Protect | hostedInput=- | inputBytes=192
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40
@@ -173,7 +173,7 @@ StochasticUnitSop | hostedInput=- | inputBytes=0
 StopAtSignal | hostedInput=Hrot.Map.Definitions.Behavior.StopAtSignalParamsJsonDto | inputBytes=64
 Strength | hostedInput=- | inputBytes=160
 SubordinateForEachDemo | hostedInput=- | inputBytes=0
-SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=2080
+SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=2096
 SupportCommand | hostedInput=Hrot.AI.Behaviors.Orders.SupportCommandParamsJsonDto | inputBytes=96
 Suppress | hostedInput=Hrot.Map.Definitions.Behavior.SuppressParamsJsonDto | inputBytes=264
 SuppressAndManeuver | hostedInput=Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto | inputBytes=1216
