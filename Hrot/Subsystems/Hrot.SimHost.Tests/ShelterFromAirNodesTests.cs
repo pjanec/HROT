@@ -41,6 +41,8 @@ namespace Hrot.SimHost.Tests
             public bool OutOfArc;
             /// <summary>The fake body arrives (true) or never arrives (false: the leg keeps running).</summary>
             public bool Arrive = true;
+            /// <summary>⭐ CE-2501 — a move to this point FAILS at once (an unreachable shelter).</summary>
+            public Vector3? FailAt;
             private uint _moveInst, _fireInst, _tick = 10;
             private long _frame;
 
@@ -129,6 +131,12 @@ namespace Hrot.SimHost.Tests
                     _moveInst = loco.ActionInstanceId;
                     fixed (byte* src = loco.Params) Moves.Add((((MoveToParams*)src)->Destination, ((MoveToParams*)src)->ReverseAllowed == 1));
                     return;
+                }
+                if (FailAt is Vector3 bad)
+                {
+                    Vector3 dest;
+                    fixed (byte* src = loco.Params) dest = ((MoveToParams*)src)->Destination;
+                    if (Vector3.Distance(dest, bad) < 1f) { loco.Status = NodeStatus.Failure; return; }
                 }
                 if (Arrive) loco.Status = NodeStatus.Success;
             }
@@ -228,6 +236,24 @@ namespace Hrot.SimHost.Tests
                 Assert.False(reverse);
             }
             Assert.True(r.Moves[0].To.X * r.Moves[1].To.X < 0f, "the legs swerve to alternate sides");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2501</c> (📐 terrain, stechovice-battle: an M1 re-picked the same unreachable shelters every 2–3 ticks and never moved for ~14 s) —
+        /// a shelter the vehicle cannot reach (its move fails) is not picked again: it evades and then takes the NEXT answer, once.
+        /// 🔴 Red-proof: the failed-shelter skip dropped ⇒ the unreachable point is re-picked again and again.
+        /// </summary>
+        [Fact]
+        public void CE2501_AnUnreachableShelter_IsNotPickedAgain_TheNextAnswerIs()
+        {
+            var second = new Vector3(25f, -15f, 0f);
+            var r = new Raid(new ShelterFromAirParams { FindSeconds = 3f, ClearSeconds = 30f }) { FailAt = ShelterAt, Arrive = false };
+            r.Step();
+            r.AnswerShelter(ShelterAt, second);
+            r.Run(3.0, sensed: true);
+            Assert.Equal(1, r.Moves.Count(m => Vector3.Distance(m.To, ShelterAt) < 1f));   // tried once
+            Assert.Contains(r.Moves, m => Vector3.Distance(m.To, second) < 1f);             // then the next answer
+            Assert.True(r.Moves.Count < 6, $"no thrash ({r.Moves.Count} moves in 3 s)");
         }
 
         /// <summary>⭐ <c>V8_R2b</c> — a shelter that answers WHILE evading is taken.</summary>
