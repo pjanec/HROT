@@ -115,6 +115,7 @@ bool UHrotDpsStation::CanPossess(int32 UnitId, FString& Why) const
 	for (const FOffer& O : Offers)
 		if (O.Id == UnitId) { if (O.bFree) return true; Why = TEXT("taken by another player"); return false; }
 	Why = TEXT("not offered to this station");
+	if (!SaidRefused.Contains(UnitId)) { SaidRefused.Add(UnitId); UE_LOG(LogHrotDpsStation, Display, TEXT("possess %d refused: not among the %d offers"), UnitId, Offers.Num()); }
 	return false;
 }
 
@@ -132,6 +133,13 @@ void UHrotDpsStation::OnSlot(const FHrotDpsSample& S)
 	}
 	if (State == 6 || State == 7 || State <= 2) Requested = 0;   // taken, dead, or back to choosing: the request is over
 	if (Was != State) UE_LOG(LogHrotDpsStation, Display, TEXT("slot: %s unit %d (%d offers) %s"), StateName(State), SlotUnit, Offers.Num(), *Reason);
+	if (Offers.Num() != LoggedOffers)   // live 2026-11-25: most soldiers' "Possess" was greyed - say what the station offers
+	{
+		LoggedOffers = Offers.Num();
+		int32 Free = 0; FString Some;
+		for (int32 I = 0; I < Offers.Num(); ++I) { if (Offers[I].bFree) ++Free; if (I < 12) Some += FString::Printf(TEXT(" %d '%s'%s"), Offers[I].Id, *Offers[I].Name, Offers[I].bFree ? TEXT("") : TEXT(" taken")); }
+		UE_LOG(LogHrotDpsStation, Display, TEXT("offers: %d (%d free):%s"), Offers.Num(), Free, *Some);
+	}
 }
 
 void UHrotDpsStation::OnOwnUnit(const FHrotDpsSample& S)

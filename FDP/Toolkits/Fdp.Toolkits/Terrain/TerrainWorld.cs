@@ -602,6 +602,23 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
+            // ⭐ CE-4695 — a WALKER within DeckEdgeMargin OUTSIDE a laid deck / ramp stands on it when it is within his step (BL-12's hull rule, for a man). Laid decks
+            //   are few: their own short list, not the spatial index (whose point query returns only the pieces over the point).
+            if (!hull && HasObstacleDecks)
+            {
+                var decks = DeckWalkables;
+                for (int k = 0; k < decks.Length; k++)
+                {
+                    var w = Walkables[decks[k]];
+                    if (DeckGone(w, doors) || InBox(p, w.Min, w.Max) && InsideWalkable(w, x, y)) continue;   // inside: the loop above has it
+                    if (!InBox(p, w.Min - new Vector2(DeckEdgeMargin), w.Max + new Vector2(DeckEdgeMargin))) continue;
+                    float? near = null;
+                    for (int t = 0; t + 2 < w.Triangles.Length && near == null; t += 3)
+                        near = HeightNearTriangleEdge(p, w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]], DeckEdgeMargin);
+                    if (near.HasValue) Consider(near.Value, reach, ref best, ref lowest);
+                }
+            }
+
             // The ground is a candidate unless the point is inside a solid prism (you cannot stand under a
             // building's footprint at ground level — it is solid in v1).
             float ground = GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the ground HERE, not one flat height
@@ -609,6 +626,56 @@ namespace Fdp.Toolkit.Terrain
 
             if (!float.IsNegativeInfinity(best)) return best;
             return float.IsPositiveInfinity(lowest) ? ground : lowest;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4695</c> (backend, cross-lane — user "fix yourself") — how far OUTSIDE a laid deck's / ramp's plan a WALKER still stands on it (m): more than a
+        /// man's navmesh radius (0.3 m). 📐 bl-assault-crossing / bl-placed-bridge (measured live): a man's path ran on the ramp's raw edge (x = 78.000, the
+        /// ramp's side joins the ground near its foot, so nothing erodes it); a hair outside the triangles the floor was the ground, so he walked BESIDE the ramp
+        /// and the deck instead of up them. A floor is still taken only within his step (<see cref="StepHeight"/>), so a man beside the 1.2 m deck stays on the ground.
+        /// </summary>
+        public const float DeckEdgeMargin = 0.35f;
+
+        private int[]? _deckWalkables;
+
+        /// <summary>⭐ CE-4695 — the indices of the LAID-deck walkables (<see cref="TerrainWalkable.Obstacle"/> ≥ 0), built once (a world's walkables never change).</summary>
+        private int[] DeckWalkables
+        {
+            get
+            {
+                var cached = System.Threading.Volatile.Read(ref _deckWalkables);
+                if (cached != null) return cached;
+                var list = new List<int>();
+                for (int i = 0; i < Walkables.Count; i++) if (Walkables[i].Obstacle >= 0) list.Add(i);
+                var built = list.ToArray();
+                System.Threading.Volatile.Write(ref _deckWalkables, built);   // a benign race: every builder makes the same array
+                return built;
+            }
+        }
+
+        private static bool InsideWalkable(TerrainWalkable w, float x, float y)
+        {
+            for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                if (PolygonMath.HeightOnTriangle(x, y, w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]).HasValue) return true;
+            return false;
+        }
+
+        /// <summary>The height of triangle (<paramref name="a"/>, <paramref name="b"/>, <paramref name="c"/>) at its edge point nearest <paramref name="p"/> (plan), when that
+        /// point is within <paramref name="margin"/>; else null. Allocation-free.</summary>
+        private static float? HeightNearTriangleEdge(Vector2 p, Vector3 a, Vector3 b, Vector3 c, float margin)
+        {
+            float bestD = margin * margin; float? z = null;
+            Edge(a, b); Edge(b, c); Edge(c, a);
+            return z;
+
+            void Edge(Vector3 u, Vector3 v)
+            {
+                var u2 = new Vector2(u.X, u.Y); var d = new Vector2(v.X, v.Y) - u2;
+                float len2 = d.LengthSquared();
+                float t = len2 > 1e-9f ? Math.Clamp(Vector2.Dot(p - u2, d) / len2, 0f, 1f) : 0f;
+                float dist2 = Vector2.DistanceSquared(p, u2 + d * t);
+                if (dist2 <= bestD) { bestD = dist2; z = u.Z + (v.Z - u.Z) * t; }
+            }
         }
 
         /// <summary>Surfaces closer than this merge into one LEVEL (a ramp foot meeting the ground is not a second level).</summary>

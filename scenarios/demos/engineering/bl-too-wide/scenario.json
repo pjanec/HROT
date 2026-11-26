@@ -1,0 +1,168 @@
+{
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4693 BL-S3 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712, BL-11) - on basic-desert a RIVER 30 m wide (an authored Water feature, y 60-90) parts the south from the north. At 2 s the scenario orders 'Engineer' (an assault bridge layer, TKB 118: a Wolverine whose 26 m span bridges at most a 24 m gap) to LayBridge from (80, 50) to (80, 100) - a gap wider than its span. Judge: the order is REFUSED at once with its reason on the engineer (BridgeCarried.Refusal = GapTooWide, the measured gap about 30 m); it still carries its span (Count 1); no bridge is ever laid (the objective 'Bridge laid' - an open assault bridge anywhere - stays Active). Fail: a bridge appears, or the engineer drives off to the bank. Check: scripts/scenario-regression.sh bl-too-wide"
+ },
+ "entities": {
+  "b4693100-0000-4000-8000-000000000000": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 9,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -5,
+     60.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 30.0
+     },
+     {
+      "X": 0,
+      "Y": 30.0
+     }
+    ],
+    "Version": 0
+   },
+   "EntityInfo": {
+    "Name": "River",
+    "ForceId": "Neutral"
+   }
+  },
+  "b4693100-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     80.0,
+     30.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 118
+   },
+   "EntityInfo": {
+    "Name": "Engineer",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693100-0000-4000-8000-000000000020": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Lay the bridge",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Lay the bridge",
+      "subject": "b4693100-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "ScenarioTime",
+      "fromSeconds": 2
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693100-0000-4000-8000-000000000003",
+        "behavior": "Order.LayBridge",
+        "params": {
+         "NearBank": [
+          80.0,
+          50.0,
+          0
+         ],
+         "FarBank": [
+          80.0,
+          100.0,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693100-0000-4000-8000-000000000021": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge laid",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Bridge laid",
+      "subject": "b4693100-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "CountMatching",
+      "withComponent": "StaticObstacle",
+      "min": 1,
+      "max": 1000,
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "TkbIdentity",
+       "propertyPath": "TkbType.Value",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 8825,
+        "maxValue": 8825
+       }
+      }
+     },
+     "do": []
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

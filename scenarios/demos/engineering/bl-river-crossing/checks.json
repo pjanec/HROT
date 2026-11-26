@@ -1,0 +1,86 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-4693 bl-river-crossing, the whole feature by objectives (see scenario.json's header). Objective STATES, never a time: the bake is wall-clock paced (R-244).",
+  "runFor": 1300,
+  "golden": false,
+  "anchors": {
+    "fell": {
+      "on": "field",
+      "who": "Bridge dropped",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
+    }
+  },
+  "expect": [
+    {
+      "name": "objective 'Bridge laid' Achieved (an assault bridge Open at the crossing)",
+      "on": "field",
+      "who": "Bridge laid",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "objective 'Far bank seized' Achieved (Alpha holds it, Blue only)",
+      "on": "field",
+      "who": "Far bank seized",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the sapper makes his attempt (walks in for the deck)",
+      "on": "task",
+      "who": "Red Sapper",
+      "is": "MoveToLocation"
+    },
+    {
+      "name": "held: objective 'Bridge held' Achieved (the sapper is out of the fight)",
+      "unless": "fell",
+      "on": "field",
+      "who": "Bridge held",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "held: objective 'Bridge recovered' Achieved (the bridge back on its engineer)",
+      "unless": "fell",
+      "on": "field",
+      "who": "Bridge recovered",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "held: the engineer carries its span again",
+      "unless": "fell",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "fall: the sapper's charge dropped it",
+      "if": "fell",
+      "on": "blast",
+      "by": "Red Sapper"
+    },
+    {
+      "name": "fall: the river is a barrier again - the span is not back on board",
+      "if": "fell",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

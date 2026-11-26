@@ -173,6 +173,9 @@ namespace Hrot.Core.Tkb
             yield return C("Bulldozer", "Bulldozer (HROT)", "1.1.*.9.1");
             // ⭐ CE-4624 (minefields MS-T4, MF-9) — the mine-clearing vehicle (TKB 116): a heavier large tracked utility vehicle, beside the dozer; ui maps the class to its 3-D family (MS-U4)
             yield return C("MineClearer", "Mine Clearer (HROT)", "1.1.*.9.2");
+            // ⭐ CE-4693 (bridge laying BL-S3 / BL-S4) — the bridge engineers: an assault bridge layer on a tracked chassis (TKB 118), a floating-bridge transporter on wheels (TKB 119)
+            yield return C("AssaultBridgeLayer", "Assault Bridge Layer (HROT)", "1.1.*.9.3");
+            yield return C("FloatingBridgeEngineer", "Floating Bridge Engineer (HROT)", "1.1.*.7.1");
             // ⭐ CE-4617 (B-2, the ids note) — the radar SAM vehicle: SISO category 28 "Air Defense / Missile Defense Unit Equipment"; ui maps
             //   the class to its 3-D family (VisualFamily.AirDefenceVehicle) — the ONE key both lanes share
             yield return C("AirDefenceVehicle", "Air Defence Vehicle", "1.1.*.28");

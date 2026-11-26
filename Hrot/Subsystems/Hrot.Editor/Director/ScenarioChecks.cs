@@ -106,6 +106,10 @@ namespace Hrot.Editor.Director
         /// for a line about an EVENT the run need not produce (📌 Bridgehead: "a civilian harmed fails the tree", once the fire-discipline fix
         /// CE-2379 stopped the accidental harm the row relied on).</summary>
         public string? If { get; init; }
+        /// <summary>⭐ <c>CE-4693</c> — the mirror of <see cref="If"/>: judged only when this anchor / action / expectation did NOT happen; else <c>skipped</c>.
+        /// For a scenario with two legitimate outcomes (📌 <c>bl-river-crossing</c>: the sapper silenced ⇒ the bridge held and is recovered; his charge
+        /// fired ⇒ the fall), each outcome's rows keyed on the same event.</summary>
+        public string? Unless { get; init; }
     }
 
     /// <summary>⭐ A change the check makes to the world at <see cref="At"/> (the old live checks' hand edits — wound a man, set an attribute).</summary>
@@ -122,6 +126,8 @@ namespace Hrot.Editor.Director
         public JsonObject? Order { get; init; }
         /// <summary>⭐ CE-3494 F3 — resume the unit's held (or halted) mission plan — the <c>POST /missions/{id}/resume</c> service.</summary>
         public bool Resume { get; init; }
+        /// <summary>⭐ CE-11061 — REVIVE the unit (the Unit form's Revive, <c>POST /entities/{id}/revive</c>): back in the fight, through the edit framework.</summary>
+        public bool Revive { get; init; }
     }
 
     /// <summary>⭐ <c>CE-4042</c> — <c>scenarios/&lt;s&gt;/checks.json</c>: what a scenario must do, as data (§3).</summary>
@@ -192,9 +198,9 @@ namespace Hrot.Editor.Director
                     var where = $"do[{i}]";
                     if (da[i] is not JsonObject a) { problems.Add($"{where} is not an object"); continue; }
                     foreach (var (k, _) in a)
-                        if (k is not ("name" or "at" or "set" or "order" or "resume")) problems.Add($"{where}: unknown key '{k}'");
-                    int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1);
-                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume"); continue; }
+                        if (k is not ("name" or "at" or "set" or "order" or "resume" or "revive")) problems.Add($"{where}: unknown key '{k}'");
+                    int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1) + (a["revive"] is null ? 0 : 1);
+                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume, revive"); continue; }
                     var at = Time(a["at"], where + " at", problems);
                     if (at is null) { problems.Add($"{where}: at is required"); continue; }
                     if (a["order"] is not null)
@@ -211,6 +217,13 @@ namespace Hrot.Editor.Director
                         if (a["resume"] is not JsonValue rv || !rv.TryGetValue<string>(out var rwho) || rwho.Length == 0)
                         { problems.Add($"{where}: resume is the unit's name"); continue; }
                         actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = rwho, Resume = true });
+                        continue;
+                    }
+                    if (a["revive"] is not null)   // ⭐ CE-11061 — "revive": "<unit name>"
+                    {
+                        if (a["revive"] is not JsonValue vv || !vv.TryGetValue<string>(out var vwho) || vwho.Length == 0)
+                        { problems.Add($"{where}: revive is the unit's name"); continue; }
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = vwho, Revive = true });
                         continue;
                     }
                     if (a["set"] is not JsonObject set || set["who"] is null || set["component"] is null || set["patch"] is not JsonObject patch)
@@ -236,17 +249,19 @@ namespace Hrot.Editor.Director
                     bool atEnd = e["atEnd"] is JsonValue ev && ev.TryGetValue<bool>(out var ae) && ae;
                     CheckCue cue = never
                         ? ParseCue((JsonObject)e["never"]!, where + " never", problems, Array.Empty<string>())
-                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never", "if" });
+                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never", "if", "unless" });
                     if (never)
                         foreach (var (k, _) in e)
-                            if (k is not ("name" or "never" or "after" or "before" or "if")) problems.Add($"{where}: unknown key '{k}' beside never");
+                            if (k is not ("name" or "never" or "after" or "before" or "if" or "unless")) problems.Add($"{where}: unknown key '{k}' beside never");
                     if (never && atEnd) problems.Add($"{where}: never and atEnd together");
                     expect.Add(new Expectation
                     {
                         Name = name!, Cue = cue, Never = never, AtEnd = atEnd,
                         After = Time(e["after"], where + " after", problems), Before = Time(e["before"], where + " before", problems),
                         If = e["if"]?.ToString(),
+                        Unless = e["unless"]?.ToString(),
                     });
+                    if (e["if"] != null && e["unless"] != null) problems.Add($"{where}: if and unless together");
                 }
 
             if (expect.Count == 0) problems.Add("expect is empty — a check with nothing to judge");
@@ -261,6 +276,8 @@ namespace Hrot.Editor.Director
                 if (t is { Anchor: { } n } && !known.Contains(n)) problems.Add($"a time names '{n}', which is no anchor, action or expectation");
             foreach (var e in expect.Where(x => x.If != null && !known.Contains(x.If)))
                 problems.Add($"expect '{e.Name}': if names '{e.If}', which is no anchor, action or expectation");
+            foreach (var e in expect.Where(x => x.Unless != null && !known.Contains(x.Unless)))
+                problems.Add($"expect '{e.Name}': unless names '{e.Unless}', which is no anchor, action or expectation");
 
             var later = new List<string>();
             if (json["later"] is { } ln)

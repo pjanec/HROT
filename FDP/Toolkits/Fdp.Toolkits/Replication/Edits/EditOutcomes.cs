@@ -36,6 +36,30 @@ namespace Fdp.Toolkit.Replication.Edits
         public static int LocalNodeOf(EntityRepository repo, Entity entity)
             => repo.IsAlive(entity) && repo.HasComponent<NetworkAuthority>(entity) ? (int)repo.GetComponentRO<NetworkAuthority>(entity).LocalNodeId : -1;
 
+        /// <summary>
+        /// ⭐ CE-11060 — takes an outcome reported on ANOTHER world of this node into <paramref name="presentation"/>'s log: a threaded node's UI world (A)
+        /// learns what its simulation world (S) decided. Only the log — ⛔ never re-published (A's bus goes UP to S). A no-op when the log already holds it.
+        /// </summary>
+        public static void Mirror(EntityRepository presentation, EditOutcome outcome)
+        {
+            ArgumentNullException.ThrowIfNull(presentation);
+            ArgumentNullException.ThrowIfNull(outcome);
+            var log = EditOutcomeLog.Of(presentation);
+            if (!log.Holds(outcome.RequestId, outcome.Status, (int)outcome.RespondingNode)) log.Add(outcome);
+        }
+
+        /// <summary>
+        /// ⭐ CE-11060 — the outcomes the staging carried from the simulation world's bus onto <paramref name="presentation"/>'s (a later answer: an owner on
+        /// another node, a deferred judge) into its log. Called once per pull by the threaded node (<c>StagedPresentation.Pull</c>). 0 B when none.
+        /// </summary>
+        public static void MirrorFromBus(EntityRepository presentation)
+        {
+            ArgumentNullException.ThrowIfNull(presentation);
+            if (!presentation.Bus.IsRegisteredManaged<EditOutcome>()) return;
+            var events = presentation.ReadManagedEvents<EditOutcome>();   // ⛔ no foreach over the interface: this runs every pull (0 B)
+            for (int i = 0; i < events.Count; i++) Mirror(presentation, events[i]);
+        }
+
         /// <summary>Publishes <paramref name="outcome"/> on the world's bus (registering the event type when a bare world has not).</summary>
         public static void Publish(EntityRepository repo, EditOutcome outcome)
         {

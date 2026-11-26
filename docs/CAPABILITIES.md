@@ -262,6 +262,14 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   drops it, whoever was on the span goes into the river, and the river is a barrier again. (BL-S1/S2, CE-4692, R-4299; rails
   `StaticObstacleBakeTests.CE4692_*`, `BridgeClosureTests.CE4692_*`, `ObstacleDamageTests.CE4692_*`, `FeatureKindsTests.CE4692_*`; scenarios
   `bl-placed-bridge`, `bl-placed-bridge-absent`, `bl-blow-the-bridge` — 3 of 3 pass) ✅ — the engineer who lays and recovers it is BL-S3 (backend, CE-4693)
+- **An engineer lays and recovers a bridge on order:** `LayBridge {NearBank, FarBank}` to an assault bridge layer (TKB 118, an M104 Wolverine: 26 m deck over
+  ≤ 24 m, 5 min) or a floating-bridge engineer (TKB 119: a ribbon bridge up to 100 m, 20 min); a gap wider than its span, or a bank in the water, is REFUSED
+  with its reason on the engineer (`BridgeCarried.Refusal`); the deck is centred on the water gap, built after the laying seconds, baked and Open; the
+  engineer backs off the approach; `RecoverBridge` takes it back (600 s) and the river is a barrier again; a bridge blown while being recovered is lost.
+  Nothing on the ground wades into a river (men, animals, vehicles). (BL-S3/S4, CE-4693; rails `BridgeLayingBehaviorTests`, `BridgeLayerTkbTests`,
+  `StaticObstacleBakeTests.CE4696_*`, `CarKinematicsSystemTests.CE4695_*`; scenarios `bl-too-wide`, `bl-recover`, `bl-assault-crossing`,
+  `bl-floating-bridge` and the end-to-end `bl-river-crossing` judged by objectives — 5 of 5 pass) ✅ — ⚠ a vehicle cannot yet line up onto a narrow deck from
+  an angle: a column crosses from the bridge's axis, one at a time (CE-4697)
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
   any thread count. (rails `BuildingDamageSaveTests`, `CraterTests`, the translators `EntityGroundDamageTranslatorTests` / `EntityBuildingDamageTranslatorTests`;
@@ -338,6 +346,10 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Weapon choice per shot** from effectiveness, ammo and range band. ▶ `ua-weapon-choice` ✅
 - **Injury:** ok, wounded (slower), incapacitated (cannot move or fire; bleeds out in 120 s; no longer a target) and dead.
   ▶ `ua-casualty-care` ✅
+- **Revive:** one action puts a dead, incapacitated or wounded man back in the fight — full health, wounds / stun / his own fire cleared, move and fire
+  back as his type allows; the Unit form's heart-pulse button beside Strength, `POST /entities/{id}/revive`, or a scenario's `revive` action; any node,
+  answered by the owner of his Health (CE-11061, [Injury States §9](DESIGN_Injury_States.md)). Typing a Strength number sets only the number (R-11021).
+  ▶ `ua-revive` ✅
 - **Under fire:** a soldier moving under fire runs crouched, drops prone at a near miss, stays down while pinned, and rushes on when the
   fire stops. ▶ `uf-alone-under-fire` ✅ · `rf-pinned-in-open` ⚠ he goes prone, but never fires and walks toward the house instead of crawling to the wreck (CE-3464)
 - ⚠ **Found by the new scenario checks (`2026-11-16`, regression suite item 7):** militia never break under fire (`ts-fire-discipline`, CE-3461) · the Waverer never breaks (`ts-house-defenders`, CE-3462) · an area's guard is outgunned before he fires first (`ia-area-defend`, CE-3463) · defenders never grenade a man hugging their wall (`rf-wall-hugger`, CE-3465). The regulars, the Coward and the Fanatic, the Shooter behave as designed ✅

@@ -510,7 +510,7 @@ classDiagram
 |---|---|
 | composition: build the node on S and the presentation on A in the editor and the player (one place each) | the main build item; every `_world` handed to the node vs to the presentation must be chosen once |
 | the presentation mask + singleton policy + a rail that every type the presentation reads is in it | small; the X-2 list is the seed |
-| commands for the ~15 direct writes, the 20 `Edits.Submit`, the drag / rotate previews (a ghost in A) | S-3 of §9 as before — the WRITE half of the migration remains |
+| commands for the ~15 direct writes, the 20 `Edits.Submit`, the drag / rotate previews (a ghost in A) | S-3 of §9 as before — the WRITE half of the migration remains · ✅ `2026-11-25` (ui, CE-11060): `Edits.Submit`'s world-writing kinds and the inspector's `RepositoryAdapter.SetComponent` now run on S (Inventory U-2) |
 | A's own entities (effects) vs the entity-index sync | ⚠ open: an id range, or effects in a store |
 | events and edit outcomes forwarded S → A per tick | ⚠ open: the per-reader queue of R-4 becomes "copy into A's bus at the sync" |
 | ✅ the presentation mask's copy measured (X-1b) | map-wide **1.6 ms / 16 MB** per tick on the VM (~0.8 ms est. on the user's machine) — the sync is cheap enough to hold the lock for |

@@ -145,6 +145,9 @@ internal sealed class ClusterVerifyWorld : IVerifyWorld, IShotWorld, IDisposable
     /// <summary>⭐ CE-3494 F3 — the <c>POST /missions/{id}/resume</c> route.</summary>
     public string? ResumePlan(int networkId) => Post($"/missions/{networkId}/resume", new JsonObject()).Error;
 
+    /// <summary>⭐ CE-11061 — the <c>POST /entities/{id}/revive</c> route.</summary>
+    public string? Revive(int networkId) => Post($"/entities/{networkId}/revive", new JsonObject()).Error;
+
     /// <summary>⭐ CE-9021 — the other perspectives that hold a world and may own a component (the Muscle: bodies' poses, health …).</summary>
     private static readonly string[] OwnerPerspectives = { "SimHost" };
 

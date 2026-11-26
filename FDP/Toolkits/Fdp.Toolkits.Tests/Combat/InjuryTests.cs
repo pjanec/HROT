@@ -87,6 +87,71 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(Injury.IsInTheFight(_world, hurt));
         }
 
+        // ── ⭐ CE-11061 (docs/DESIGN_Injury_States.md §9, RV-1 / RV-5; R-11021) — REVIVE ────────────────────────────────────────────────────────
+
+        private void RegisterReviveState()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            _world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.FireState>();
+        }
+
+        /// <summary>
+        /// ⭐ RV-1 — a DEAD soldier (shot in the head, stunned, cowering, burning) revived: full health, the wound and the timed effects gone (the cowering
+        /// mode is his behaviour's and stays, the body plan stays), move and fire back, Ok — through the ONE body every path calls.
+        /// ✅ Red-proof (run): <c>Revive</c> without its <c>RestoreHitCapabilities</c> ⇒ he is at 100 but cannot move ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE11061_Revive_PutsADeadSoldierBackInTheFight()
+        {
+            RegisterReviveState();
+            var man = Soldier(0f, new InjuryDefDto());
+            Hit(man);
+            Assert.Equal((ActorCapabilities)0, Caps(man) & MoveAndFire);
+            var wound = new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person };
+            wound.Set(1, 200);
+            _world.AddComponent(man, wound);
+            _world.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)500.0, BurningUntil = (SimInstant)500.0, Cowering = 1 });
+            var fire = new Fdp.Toolkit.Perception.Signatures.FireState();
+            fire.TryAdd(new Fdp.Toolkit.Perception.Signatures.FireSpot(0f, 0f, 1f, 2f, (SimInstant)1.0, 60f, 1f), 1.0);
+            _world.AddComponent(man, fire);
+
+            Assert.Null(CombatLife.Revive(_world, man));
+
+            var h = _world.GetComponentRO<Health>(man);
+            Assert.Equal((100f, 100f), (h.Current, h.Max));
+            Assert.Equal(InjuryState.Ok, Injury.StateOf(_world, man));
+            Assert.Equal(MoveAndFire, Caps(man) & MoveAndFire);
+            var d = _world.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.PartDamage>(man);
+            Assert.Equal((byte)0, d.LevelOf(1));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person, d.Plan);
+            var fx = _world.GetComponentRO<Fdp.Toolkit.Combat.EffectState>(man);
+            Assert.Equal((0.0, 0.0, (byte)1), (fx.StunnedUntil.Seconds, fx.BurningUntil.Seconds, fx.Cowering));
+            Assert.False(_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(man).IsBurning(2.0));
+        }
+
+        /// <summary>⭐ RV-1 — an INCAPACITATED soldier (bleeding out) is revived the same way: full health, move and fire back, no longer incapacitated.</summary>
+        [Fact]
+        public void CE11061_Revive_PutsAnIncapacitatedSoldierBackInTheFight()
+        {
+            var man = Soldier(20f, new InjuryDefDto());
+            Hit(man);
+            Assert.True(Injury.IsIncapacitated(_world, man));
+            Assert.Null(CombatLife.Revive(_world, man));
+            Assert.Equal(100f, _world.GetComponentRO<Health>(man).Current);
+            Assert.Equal(MoveAndFire, Caps(man) & MoveAndFire);
+            Assert.True(Injury.IsInTheFight(_world, man));
+        }
+
+        /// <summary>⭐ RV-4 — a node that does not apply his Health revives nothing (it must ask the owner): refused with the reason, nothing changed.</summary>
+        [Fact]
+        public void CE11061_Revive_OnANodeThatDoesNotOwnHisHealth_ChangesNothing()
+        {
+            var man = Soldier(0f, new InjuryDefDto(), ownsHealth: false);
+            Assert.Equal("its health is owned by another node", CombatLife.Revive(_world, man));
+            Assert.Equal(0f, _world.GetComponentRO<Health>(man).Current);
+        }
+
         /// <summary>⭐ I2 — a type without <c>Gen.Injury</c> is unchanged: ok at 10 HP, keeps moving and firing until dead.</summary>
         [Fact]
         public void ATypeWithoutGenInjury_IsOkUntilDead()

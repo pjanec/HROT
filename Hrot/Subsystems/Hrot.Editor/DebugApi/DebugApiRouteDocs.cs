@@ -3625,6 +3625,24 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000,\"patchJson\":{\"Name\":\"Alpha\"}}",
             ExampleGist: "rename entity 1000 to Alpha"),
 
+        [("POST", "/entities/{networkId}/revive")] = new RouteDoc(
+            Tool:    "revive_entity",
+            Group:   "L — Mutation / fault injection",
+            Summary: "Revive a unit — put it back in the fight: full health, its wounds, stun and own fire cleared, move and fire given back as its type allows (CE-11061). The Unit form's Revive button as a route.",
+            Returns: "{ networkId, route: direct | requested, requestId } — requested: the node that owns his Health answers; GET /edits/{requestId} reads Applied / Refused.",
+            Hint:    "Raising Health.Current alone does NOT revive (R-11021): the number sets only the number. Use this route to make a dead or wounded unit operational again.",
+            Params: new RouteParam[]
+            {
+                new("networkId", "integer", true, "Network id of the unit to revive"),
+            },
+            Notes: new[]
+            {
+                "Refused (400) in Review / a recording, for an entity with no Health, or when nobody can be asked (an unreplicated entity this node does not own).",
+                "His brain starts idle (its task was dropped at death) and takes the next order; a kill already counted stays counted.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "revive entity 1000"),
+
         [("POST", "/entities/create-request")] = new RouteDoc(
             Tool:    "create_entity_request",
             Group:   "B — Queries",
