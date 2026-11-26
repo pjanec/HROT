@@ -30,7 +30,7 @@ related-designs:
 | the rest | Sázava road bridge (2 edges, 245 m), Posázavský pacifik rail (3 edges: 51 m, 1145 m, 1749 m — netconvert's merged edges, longer than the structures), local streets / paths / tracks over streams (13 edges, 33–220 m) | | |
 
 ⚠ The two long rail edges (1145 m, 1749 m) carry `bridge=yes` over their whole merged length (`--geometry.remove` joins the OSM ways). Whether the BRIDGES stage
-takes an edge's whole length as the deck is yours to decide — flagged so a 1.7 m km "bridge" is not a surprise.
+takes an edge's whole length as the deck is yours to decide — flagged so a 1.7 km "bridge" is not a surprise.
 
 ## Not done (per your note)
 
