@@ -164,7 +164,13 @@ void UHrotDpsRender::Tick(float)
 	if (!bEnabled) return;
 	Connect();
 	if (!Subs.Num()) return;
-	Announce(RenderReal());
+	const double Now = RenderReal();
+	if (bJob && OrphanSince > 0 && Now - OrphanSince >= OrphanGrace)
+	{
+		LastWhy = FString::Printf(TEXT("the job's instance went away and did not come back within %.0f s"), OrphanGrace);
+		EndJob(false);
+	}
+	Announce(Now);
 }
 
 // ── the job ──
@@ -173,10 +179,26 @@ void UHrotDpsRender::OnJob(const FHrotDpsSample& S)
 {
 	const FRenderJob& J = *static_cast<const FRenderJob*>(S.Data);
 	const FString Id = UTF8_TO_TCHAR(J.JobId);
-	if (!S.bValid) { if (!S.bAlive && bJob && Id == JobId) { LastWhy = TEXT("the job's instance went away"); EndJob(false); } return; }
+	// CE-11064: a world boundary rebuilds the gateway's writers and the job's instance goes away with the old one, while the gateway keeps the
+	// job and writes it again (Running) from the new writer — measured on the director's reel and on a take's load. So the instance going away
+	// is NOT the end: hold the job (frames, track, clock) for OrphanGrace; the station's Done / Failed / Cancelled is what ends it
+	if (!S.bValid)
+	{
+		if (!S.bAlive && bJob && Id == JobId && OrphanSince == 0)
+		{
+			OrphanSince = RenderReal();
+			UE_LOG(LogHrotDpsRender, Display, TEXT("DPS RenderJob %s: its instance went away - held %.0f s for it to come back"), *Id, OrphanGrace);
+		}
+		return;
+	}
 	if (J.ClientId != ClientId) return;
 	UE_LOG(LogHrotDpsRender, Display, TEXT("DPS RenderJob %s %s (%s) %d fps %dx%d x%d audio %d"), *Id, RenderStateName(uint8(J.State)), UTF8_TO_TCHAR(J.What), J.Fps,
 		J.Width, J.Height, int32(J.Supersample), J.Audio ? 1 : 0);
+	if (bJob && Id == JobId && OrphanSince > 0)
+	{
+		UE_LOG(LogHrotDpsRender, Display, TEXT("DPS RenderJob %s: back after %.2f s - the job goes on"), *Id, RenderReal() - OrphanSince);
+		OrphanSince = 0;
+	}
 	switch (J.State)
 	{
 	case SimNetGateway_Protocol_DdsPlayer_RenderStateStarting: if (!bJob || Id != JobId) BeginJob(J); break;
@@ -213,7 +235,7 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 {
 	if (bJob) EndJob(false);
 	JobId = UTF8_TO_TCHAR(J.JobId);
-	bJob = true; bJobOk = true; LastWhy.Reset();
+	bJob = true; bJobOk = true; LastWhy.Reset(); OrphanSince = 0;
 	Fps = FMath::Max(1, J.Fps); Width = J.Width; Height = J.Height; Supersample = FMath::Max(1, int32(J.Supersample));
 	bAudio = J.Audio; SampleRate = J.SampleRate; Channels = FMath::Max(1, int32(J.Channels));
 	Dir = UTF8_TO_TCHAR(J.Dir);
@@ -301,7 +323,7 @@ void UHrotDpsRender::EndJob(bool bDone)
 	if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld())) SR->TimeSource = nullptr;
 	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(GetWorld())) Snd->SetSpatialize(true);
 	if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) Dps->Client().ResetStepCount(false);
-	bJob = false; Phase = EPhase::Idle; ReadyJobId.Reset(); NextAnnounce = 0; Queue.Reset();
+	bJob = false; Phase = EPhase::Idle; ReadyJobId.Reset(); NextAnnounce = 0; Queue.Reset(); OrphanSince = 0;
 }
 
 // ── steps and frames ──
