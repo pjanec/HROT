@@ -125,6 +125,9 @@ namespace Hrot.AI.Behaviors.Brains
         public TrackTargetNodeParams Track;
         /// <summary>⭐ <c>CE-4691</c> — when it reached its hide (sim s): a hit or a launch at it SINCE then means the hide does not hide.</summary>
         public SimInstant HiddenAt;
+        /// <summary>⭐ <c>CE-4700</c> — 1 once the gun fired a round in THIS exposure (cleared when the exposure begins): before it, a near miss
+        /// does not end the exposure — only a hit or a launch at it does.</summary>
+        public byte FiredHere;
     }
 
     /// <summary>
@@ -510,6 +513,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             // at the firing point: the exposure is real — count it, heat the point, set the budget
             ws.ExposedAt = (SimInstant)now;
+            ws.FiredHere = 0;   // ⭐ CE-4700
             ws.ExposedTick = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // ⭐ CE-3292 — compared with LastSeenTick
             ws.ExposuresHere++;
             ws.Exposures++;
@@ -684,7 +688,16 @@ namespace Hrot.AI.Behaviors.Brains
             // the aimed-fire executor's own answer (its status row): a guided round in flight holds the gunner (W-12c) — the one reader (CE-2228)
             bool guiding = PeekAndFireNodes.Guiding(world, self);
             bool done = channel.ActiveAction != CombatConstants.ActionIdAimAndFire || channel.Status != NodeStatus.Running;
-            bool hit = FiredUponSince(world, self, ws.ExposedAt);
+            if (!done && ws.FiredHere == 0)
+            {
+                var ch = channel;   // a copy: RoundsFiredOf reads the channel state by ref
+                if (AimAndFireExecutor.RoundsFiredOf(ref ch) > 0) ws.FiredHere = 1;
+            }
+            // ⭐⭐ CE-4700 (user: "build both backend fixes") — before its FIRST round of this exposure (still braking, aiming, locking) or while
+            //   it GUIDES, only a HIT ends the exposure; a near miss does not. 📐 ua-technical-scoot: the ATGM technical reached its firing point
+            //   at 15.3 s still braking (HoldMoving) and the IFV's near miss at 15.7 s sent it back — the Kornet never fired in 90 s. The
+            //   budget (his aim time) and ExposeSeconds still bound the exposure. ⛔ SUPERSEDED: a near miss withdrew at once, fired or not.
+            bool hit = ws.FiredHere == 0 || guiding ? HitSince(world, self, (double)ws.ExposedAt) : FiredUponSince(world, self, ws.ExposedAt);
             bool overBudget = ws.SeenSince > 0 && now - ws.SeenSince >= ws.Budget;
             bool overTime = now - ws.ExposedAt >= p.ExposeSeconds;
             bool launch = LaunchHeard(world, self, ws.ExposedTick, in threat) || LaunchedAtMe(world, self, ws.ExposedAt);   // ⭐ CE-4670 VA-S5

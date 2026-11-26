@@ -180,15 +180,20 @@ namespace Hrot.SimHost.Tests
                 }
                 ref var row = ref Repo.GetComponentRW<ActionStatus>(Self).Weapon;
                 if (Masked) { row.Reason = ActionReason.Masked; row.At = (SimInstant)Time; return; }   // ⭐ CE-2218 — the muzzle line runs into a wall: held
+                if (Aims) { row.Reason = ActionReason.Aiming; return; }   // ⭐ CE-4700 — still aiming / locking: no round yet
                 row.Reason = Guiding ? ActionReason.Guiding : ActionReason.Firing;
                 if (Guiding) return;   // a round in flight: the next is not granted
                 _fired++;
+                Unsafe.As<byte, int>(ref ch.State[24]) = _fired;   // ⭐ CE-4700 — the executor's own count (AimAndFireExecutor.RoundsFired, bytes 24–27)
                 AimedRounds++;
                 if (rounds > 0 && _fired >= rounds) ch.Status = NodeStatus.Success;
             }
 
             /// <summary>⭐ CE-2218 — the weapon holds Masked (its round would stop in front of the muzzle).</summary>
             public bool Masked;
+
+            /// <summary>⭐ CE-4700 — the weapon is still aiming (a missile locking): no round leaves.</summary>
+            public bool Aims;
 
             public bool Firing
             {
@@ -963,6 +968,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(VehiclePhase.Withdrawing, d.Ws.Phase);
             Assert.Equal((HideA, true), d.Moves[^1]);
             Assert.True(d.AimedRounds < 10, "the fire was cut short");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4700</c> — BEFORE ITS FIRST ROUND a near miss does not end the exposure: a missile still LOCKING stays at its firing point;
+        /// a HIT still sends it back. 📐 Live <c>ua-technical-scoot</c>: the IFV's near miss 0.4 s into the ATGM technical's exposure sent it
+        /// back every time — the Kornet never fired in 90 s. 🔴 Red-proof: <c>FiredUponSince</c> for every exposure ⇒ it withdraws on the near miss.
+        /// </summary>
+        [Fact]
+        public void CE4700_BeforeItsFirstRound_ANearMissDoesNotEndTheExposure_AHitDoes()
+        {
+            var d = new Duel(Tank() with { RoundsPerExposure = 100, ExposeSeconds = 30f }) { Aims = true };
+            d.ToHide(HideA);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging));
+            d.Step();
+            d.Sense(SensorChange.NearMiss);
+            d.Run(0.5);
+            Assert.Equal(VehiclePhase.Engaging, d.Ws.Phase);   // locking: stays
+            Assert.Equal(0, d.AimedRounds);
+            d.Sense(SensorChange.Hit);
+            d.Step();
+            Assert.Equal(VehiclePhase.Withdrawing, d.Ws.Phase);   // a hit: back
         }
 
         /// <summary>

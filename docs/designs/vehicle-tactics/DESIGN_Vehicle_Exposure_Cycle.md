@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-26 (§ hide: CE-4691 a hide hides the whole hull; hit in it ⇒ another, backend) · 2026-11-25 (§ drive-out: CE-4691 seen on the drive out, it stops and fires, backend) · 2026-10-22 (§4a CE-2232 the reach term, CE-2351 the sensors' aim)
+updated: 2026-11-26 (§ near miss: CE-4700 only a hit ends an exposure before its first round · § hide: CE-4691 a hide hides the whole hull; hit in it ⇒ another, backend) · 2026-11-25 (§ drive-out: CE-4691 seen on the drive out, it stops and fires, backend) · 2026-10-22 (§4a CE-2232 the reach term, CE-2351 the sensors' aim)
 build-state: BUILDING — V1, V3, V4, V8 built (as-built rows in §2–§4, §8); V6 compositions + demos to do. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
@@ -241,7 +241,7 @@ stateDiagram-v2
   Hidden --> Exposing : hide time over, gun tracking the expected target
   Exposing --> Engaging : at the firing point and the target seen
   Exposing --> Watching : at the firing point, nothing to fire at
-  Engaging --> Withdrawing : rounds fired · budget spent · hit or near miss · heavy-weapon launch heard
+  Engaging --> Withdrawing : rounds fired · budget spent · hit (a near miss only once a round left, CE-4700) · heavy-weapon launch heard
   Watching --> Withdrawing : watch time over
   Engaging --> Engaging : Guiding (a command missile in flight) — stay
   Withdrawing --> Hidden : REVERSE back to the hide
@@ -305,6 +305,7 @@ kills it, taking one hit (3000 → 2550). 📐 **What the run taught — five ro
 | SEEN on the drive out | ⭐ **CE-4691 (`2026-11-25`, backend, user-approved "yes build it")**: while the drive to the firing point RUNS, the first tick the hull sees its target it stops there and fires (`StopIfSees` — the same ONE step as the lane and the creep; an arrival keeps its firing point and the path above). 📐 Live `va-pop-smoke`: the Bradley's hide stopped hiding it (the tank moved; mutual sight 6.7–12.6 s), its drive-out to a point 6 m off began with a turn and ran out of its 2.45 s budget (R-2086, initiative 0) before arriving — no round; the golden's TOW had been fired by chance on the withdrawal. Rail `VehicleFightFromCoverNodesTests.CE4691_SeenFromWhereItSetsOut_TheDriveOutStopsAndFires`. ⭐ Re-choosing a hide that no longer hides: the two rows below |
 | a hide that HIDES | ⭐ **CE-4691 (`2026-11-26`, backend, user "take the height fixes")**: for a self with a HULL (`PhysicsColliderReaders.HullHeight` > 0) the hide query's sight filter (`CheapLineOfSightTest`, viewer = the threat) tests the threat's eye against the hull's TOP over its centre, its edge toward the threat and both flanks (the collider radius) — hidden only when none is seen. A person keeps one ray at the crouched eye | 📐 `va-pop-smoke`: the tank's hide was "hidden" by 0.14 m — one ray at a crouched MAN's eye over its centre — while its hull stood in view. ⛔ SUPERSEDED: the crouched-eye ray for every self. Rail `CoverGeneratorAndLosTests.CE4691_CheapLineOfSight_AVehicleHideHidesTheWholeHull` |
 | HIT in the hide | ⭐ **CE-4691 (`2026-11-26`)**: a HIT, or a missile launched at it, since it reached the hide (`HiddenAt`) ⇒ the hide does not hide: burned as a FAILED hide (`FailedHideHeat`, matched by the hull, CE-5048) and `Hidden → Choose` — the query asks again from where the threats are now. A NEAR MISS moves nothing (area fire round a good hide) | 📐 `va-pop-smoke`: hit in a hide the Bradley saw into, Hidden's "under fire ⇒ stay" kept it there. ⛔ SUPERSEDED: under fire ⇒ stay hidden, whatever hit it. Rail `VehicleFightFromCoverNodesTests.CE4691_HitWhileHidden_TheHideIsGivenUp_ForAnother` |
+| a NEAR MISS while Engaging | ⭐ **CE-4700 (`2026-11-26`, backend, user "build both backend fixes")**: before its FIRST round of this exposure (still braking, aiming, a missile locking) or while it GUIDES, only a HIT ends the exposure (`HitSince`); once a round has left (`FiredHere`, read from the executor's own count `AimAndFireExecutor.RoundsFiredOf`) a near miss ends it as before (`FiredUponSince`). The budget (his aim time) and `ExposeSeconds` still bound it | 📐 `ua-technical-scoot`: the ATGM technical reached its firing point braking (HoldMoving) at 15.3 s; the IFV's near miss at 15.7 s sent it back every exposure — the Kornet never fired in 90 s; now it fires at 16.88 s (4/4). ⛔ SUPERSEDED: a near miss withdrew at once, fired or not. Rail `CE4700_BeforeItsFirstRound_ANearMissDoesNotEndTheExposure_AHitDoes`. ⏳ ② the withdraw that circled ~14 s short of its hide — not measured further |
 | a firing point the gun cannot use | ⭐ **CE-2430 / CE-2431 (`2026-11-10`, as built)**: `PickBest` never takes a firing point inside the primary weapon's minimum range (`AimAndFireExecutor.MinRangeOf` — the number `HoldOf` refuses with); at the point, a target outside a STATION's arc gets a turning leg (8 m on the heading that centres it in the arc) that stops the tick it is in the arc | 📐 live drafts of `ua-technical-scoot`: exposures at 73 / 62 m held TooClose (ridge); a Kornet held OutOfArc 30 s (demo-city) |
 | long range | ⭐ **CE-2432 (`2026-11-10`, as built)**: with the initiative, "long enough to fire once" = the time MY sensors need to acquire him at this range (`AcquireSeconds` — `Acquisition.DelaySeconds`, him fully exposed) + my own aim + 0.5 s; the watch lasts at least that dwell + 1 s | 📐 live demo-city (~580 m): the 2 s floor ended before the technical had acquired the IFV (~2.4 s) |
 | drive speed | `Speed` 0 ⇒ **5 m/s** (was: the type's own) | CE-2198: at 20 m/s an M1 overshot its hide by its braking distance (~26 m) into a building — the follower does not brake for a short leg (backend handoff) |
@@ -686,6 +687,13 @@ the set the stechovice showcase authors by hand. ⛔ Not the bare pickup, the cr
 aircraft: the vehicle SOP's moves are GROUND moves (hide, firing point, reverse) and an aircraft has its own orders. An authored `Sop`
 still wins. 📐 village-street-fight before: the M1 drove to 40 m from Red and sat 4 min silent; the T-72 saw it at 65 m and never fired.
 Rail: `NedTkbBuilderCombatTests.CE8318_AnArmedVehicle_FightsByDefault_TheUnarmedAndTheAircraftDoNot`.
+
+✅ **`CE-4703` BUILT `2026-11-26` (backend; 🔒 user *"agree with the lean"*) — A VEHICLE UNDER A LIVE COMMANDER LEAVES CONTACT TO ITS COMMANDER'S PLAY.**
+`BasicVehicleSop` carries the squads' CE-2358 row (`SopConditions.UnderCommand` — true = nothing ordered) BELOW the self-defence rows (a hit,
+a launch at me, the air rows) and ABOVE *"Contact → fight from cover"*: a first sight of the enemy no longer pauses the play's order; a hit
+still sends the hull to fight from cover; its commander gone (or out of the fight), contact is its own again. 📐 `ua-hill-attack` before: Tank 1
+saw the enemy from the baseline at 5.2 s, its contact row paused the platoon's move and it fought alone, the pairs never crested — now PASS (both
+T-72s die). Rail: `BasicVehicleSopTests.CE4703_UnderACommander_ContactIsThePlays_AHitIsItsOwn_CommanderGone_ContactIsItsOwn` (red-proved).
 
 ## 10. Rails — in the features' own suites
 
