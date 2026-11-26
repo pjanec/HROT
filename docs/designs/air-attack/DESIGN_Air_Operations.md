@@ -741,6 +741,8 @@ sequenceDiagram
 
 ### 7f. Air defence, the behaviour half — the ground engages the aircraft (CE-2191, `2026-10-15`) — build-state: BUILT (rails) · live in `ua-air-defence`
 
+⭐ **`2026-11-26` (CE-4699, backend): the aircraft ALREADY ENGAGED is kept while it is still seen and in the fight** (`AirSense.FireAt`) — the newest contact flipped between two aircraft seen on the same tick (equal `LastSeenTick`, memory order by score) and every flip restarted the aim. 📐 `ua-air-defence`: the Stinger's 6.33 s aim at the Apache reset to 0.05 s every tick from 36 s, the one missile went to the UH-60, the Apache was never warned; the row *"fires a missile"* passed on his RIFLE rounds — it now names the launcher and the Apache. Now PASS. Rail `AirDefenceNodesTests.CE4699_TwoAircraftInSight_TheEngagedOneIsKept_NotTheNewestEachFrame`.
+
 📐 **Measured first** (live probes on `basic-desert`, `2026-10-15`): with an Apache flying a running-fire pass over them, a Stinger gunner
 (202), an Igla gunner (203), two ZU-23 technicals (110) and a rifleman — with and without their default SOPs — **fired nothing at it**.
 Two separate causes:

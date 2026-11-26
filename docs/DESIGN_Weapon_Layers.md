@@ -711,6 +711,8 @@ so the muscle reports `NoTarget` instead of aiming at the origin.
 
 ### 5e. WL-3 — Engage: the brain grants rounds, the muscle fires them *(✅ built 2026-10-11 — as drawn, plus the notes below)*
 
+⭐ **`2026-11-26` (CE-4698, backend): a hull OUT OF THE FIGHT (destroyed, knocked out, incapacitated) or with a firepower kill releases none of its granted rounds** (`WeaponTaskDispatcherSystem.Engage`) — the turret's task outlives the brain. 📐 `ua-tank-ammo`: the T-72, destroyed at 30.6 s, kept firing its granted rounds at 35.4–55.5 s and knocked the M1 out. Rail `WeaponTaskDispatcherTests.CE4698_ADestroyedHull_FiresNoneOfItsGrantedRounds`.
+
 ```mermaid
 sequenceDiagram
   participant X as AimAndFireExecutor (Brain, weapon brain)
