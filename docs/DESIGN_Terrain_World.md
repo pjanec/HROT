@@ -328,6 +328,13 @@ footprint of `TerrainWorld.Beyond` (the SUMO net, attached by `SumoNetTerrainLoa
 cars "StoppedByTerrain"), nor avoidance or sight. ⚠ The cells coarsen with the extent (demo-city: collider 16 m, perception 24 m — queries cost more, never
 wrong; the seven convoy scenarios pass). Rail `TerrainWorldTests.CE1959_*`.
 
+⭐ **CE-4694 ① (`terrain` lane, `2026-11-25`) — the FIRST tick is fitted, and the margin is 250 m:** ⛔ the perception grid's writer
+(`LocalGridBuilderSystem`) took its epoch branch (every scenario load is an epoch move) and rebuilt on the composition-time placement `[0..1000]²`
+BEFORE the terrain fit — 📐 measured on `stechovice-battle`: 4 455 "outside the perception grid" warnings in that one tick (everyone past 1 km unseen
+for it). Now the fit runs first. And `SpatialGridFit.Margin` is 250 m (was 50): what legitimately grazes a terrain's edge is not authored — SUMO's traffic
+at the ends of its net, aircraft turning at an air arena's rim (📐 14 bodies 18–198 m past the old fitted edge). Rail
+`LocalGridBuilderSystemTests.CE4694_*`; `CE1959_*` restated for the margin.
+
 ```mermaid
 classDiagram
   class SpatialHashGrid {

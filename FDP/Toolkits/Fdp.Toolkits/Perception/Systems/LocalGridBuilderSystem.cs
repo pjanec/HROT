@@ -124,24 +124,27 @@ namespace Fdp.Toolkit.Perception.Systems
             var query = view.Query().With<SimTransform>().Build();
 
             // ⭐ CE-3294 — a reload is a new world under the same handles: forget every remembered position and rebuild
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _prevPositions.Clear(); _liveByIndex.Clear(); _lastEntityCount = -1; FullRebuild(view, query); return; }
-
-            // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: the visual template's copy sees the shared
-            //    geometry) and invalidates every remembered position, which was hashed with the old geometry.
+            // ⭐ CE-4694 ① — the terrain fit comes FIRST: the first tick of a world is an epoch move, and its rebuild ran on the
+            //   composition-time placement ([0..1000]²) before the fit — 📐 measured on stechovice-battle: 4 455 "outside the
+            //   perception grid" warnings in that one tick (everyone past 1 km unseen for it), then the fit and silence.
+            bool refit = false;
             if (_terrainSource != null)
             {
                 var world = _terrainSource();
                 if (!ReferenceEquals(world, _fittedTo))
                 {
+                    // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: the visual template's copy sees the shared
+                    //    geometry) and invalidates every remembered position, which was hashed with the old geometry.
                     _fittedTo = world;
                     var g = SpatialGridFit.For(new System.Numerics.Vector2(_defaultGeometry.OriginX, _defaultGeometry.OriginY),
                         _grid.Width, _grid.Height, _defaultGeometry.CellSize, world);
                     _grid.Rebase(g.OriginX, g.OriginY, g.CellSize);
                     _warned.Clear();   // ⭐ CE-2194 — a new fit: warn afresh about whoever is still outside it
-                    FullRebuild(view, query);
-                    return;
+                    refit = true;
                 }
             }
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _prevPositions.Clear(); _liveByIndex.Clear(); _lastEntityCount = -1; FullRebuild(view, query); return; }
+            if (refit) { FullRebuild(view, query); return; }
 
             // ── Count pass — O(n) reads, no grid mutations ────────────────────
             // Count entities and detect whether the entity set has changed.

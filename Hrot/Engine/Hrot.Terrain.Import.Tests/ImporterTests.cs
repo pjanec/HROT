@@ -227,6 +227,30 @@ public class ImporterTests : IDisposable
             Assert.InRange(z - L(x, y), -0.02, 0.02);                   // the net sits on the store
     }
 
+    /// <summary>A TWO-WAY road as SUMO writes it: one edge per direction (<c>e</c> a→b, <c>-e</c> b→a), one 3.2 m lane each, 3.2 m apart.</summary>
+    private const string TwoWayNet = "<net version=\"1.20\"><location netOffset=\"0,0\"/>" +
+        "<edge id=\"e\" from=\"a\" to=\"b\"><lane id=\"e_0\" index=\"0\" width=\"3.2\" shape=\"-90,-1.6 90,-1.6\"/></edge>" +
+        "<edge id=\"-e\" from=\"b\" to=\"a\"><lane id=\"-e_0\" index=\"0\" width=\"3.2\" shape=\"90,1.6 -90,1.6\"/></edge></net>\n";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4694</c> ② — a TWO-WAY road (two SUMO edges, one per direction) across a steep slope (0.3 / m) is ONE corridor, level across BOTH carriageways: no step
+    /// down its middle. 📐 Measured on Stechovice (the west-bank secondary road, edges ±703941184#0): each direction was its own corridor, levelled to its own profile, and
+    /// "the nearest road wins" left a 0.6 m cliff along the centreline — more than a vehicle climbs (0.2 m), so the vehicle navmesh was cut along the road; a bridge's
+    /// ramp landing on it was unreachable for every tank. 🔴 Red-proof: skip the pairing in <c>Corridors.Apply</c> ⇒ two corridors and a step across the road.
+    /// </summary>
+    [Fact]
+    public async Task CE4694_ATwoWayRoad_IsOneCorridor_LevelAcrossBothCarriageways()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.3 * y), Net = true, NetXml = TwoWayNet };
+        var (_, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.Equal(1, rep.RoadCorridors);
+        Assert.InRange(L(0, 4.0) - L(0, -4.0), -0.02, 0.02);           // level across both carriageways and the shoulders
+        for (double y = -4; y < 4; y += 0.5)   // across the road and its shoulders (the skirt beyond is a bank, ≤ 45° — V-16)
+            Assert.True(MathF.Abs(L(0, y + 0.5) - L(0, y)) <= 0.1f, $"a step of {L(0, y + 0.5) - L(0, y):F2} m across the road at y {y}");
+    }
+
     /// <summary>
     /// ⭐⭐ <c>CE-4403</c> part 2 (D-3, G-24, R-4234) — houses close to a road are TOLERATED: one standing ON the road (an old town, OSM drift) leaves the road its
     /// natural cross-slope there and is counted as information, never an error; one beside it gets its pad, and the pad's skirt never alters the road's

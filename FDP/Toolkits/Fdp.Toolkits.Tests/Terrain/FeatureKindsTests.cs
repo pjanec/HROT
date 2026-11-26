@@ -163,6 +163,22 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-4694</c> ② — a vehicle climbs an AUTHORED bridge's ramp: a hull whose nose is 4 m up the west ramp (0.9 m high — above the hull's step reach, 0.6 m, from the
+        /// ground; the foot is sunk 0.3 m) is NOT held, and its corner there rests ON the ramp. 📐 Found live (stechovice-battle): a tank was held at the authored bridge's ramp foot (FailedBlocked) —
+        /// CE-4692's hull-point rule held for LAID decks only. 🔴 Red-proof: make <c>TerrainWorld.IsDeck</c> test <c>Obstacle</c> only ⇒ the step is blocked.
+        /// </summary>
+        [Fact]
+        public void CE4694_AHullClimbsAnAuthoredBridgesRamp()
+        {
+            var world = Merged((G1, River()), (G2, Bridge()));
+            var q = new TerrainWorldQuery(world);
+            // the bridge runs x 198 → 232 at y 200, its west ramp x 192 → 198; a 7.9 m hull heading east, nose at x 196.0 (4 m up)
+            Assert.True(q.HullPointZ(196.0f, 200f, 0f) > 0.8f, "the hull's nose on the ramp rests on it");
+            Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, new Vector2(192.05f, 200f), Vector2.UnitX, 0f, new Vector2(192.15f, 200f), Vector2.UnitX, 0f, 7.9f, 3.66f),
+                "a hull climbing the authored bridge's ramp is held");
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-6002</c> (showcase world, T-2 measured) — the bridge over the river carries BOTH layers, and the way over it is the only way: a man AND a ground vehicle go bank to bank, their path is
         /// at least the straight distance and keeps to the bridge's strip (y 198..202, never in the water at x 200..230), the river alone has no crossing, and once the bridge collapses neither layer has one.
         /// 🔴 Red-proof: expand a bridge to its deck only (no ramps) ⇒ the vehicle layer has no way on to the deck ⇒ no crossing.

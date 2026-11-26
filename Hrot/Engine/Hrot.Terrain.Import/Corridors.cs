@@ -25,14 +25,22 @@ internal static class Corridors
         var junctionAt = junctions.ToDictionary(j => j.Id, j => j.At);
         var corridors = new List<RoadCorridor>(edges.Count);
         int offGround = 0;
+        // ⭐⭐ CE-4694 ② — a TWO-WAY road is two SUMO edges (one per direction, between the same junctions): they become ONE corridor along their midline, so one profile
+        //   levels the whole road. 📐 Two corridors on a cross-slope were levelled to two profiles and "the nearest road wins" left a cliff down the road's middle
+        //   (0.6 m on Stechovice's west-bank road — a vehicle climbs 0.2 m). Paired only when the carriageways are ADJACENT (a divided highway's median is never levelled).
+        var paired = PairTwoWay(edges);
         foreach (var e in edges)
         {
             if (e.Lanes.Count == 0) continue;
             if (e.OffGround) { offGround++; continue; }   // ⭐ V-15 (G-22) — a bridge or a tunnel levels nothing
-            var first = e.Lanes[0].Shape; var last = e.Lanes[^1].Shape;
-            Vector2[] line = first.Length == last.Length ? first.Select((p, i) => (p + last[i]) * 0.5f).ToArray() : first;
+            Vector2[] line = ReferenceLine(e);
             if (line.Length < 2) continue;
             float half = e.Lanes.Sum(l => l.Width) / 2f + RoadCorridors.Shoulder;
+            if (paired.TryGetValue(e, out var other))
+            {
+                if (other == null) continue;   // the second edge of a pair: the first one's corridor covers it
+                (line, half) = Merged(e, other);
+            }
             float z0 = Ground(junctionAt.TryGetValue(e.From, out var a) ? a : line[0]);
             float z1 = Ground(junctionAt.TryGetValue(e.To, out var b) ? b : line[^1]);
             corridors.Add(new RoadCorridor(line, half, z0, z1));
@@ -51,6 +59,68 @@ internal static class Corridors
         if (cr.PostsUnderHouses > 0)
             rep.Warnings.Add($"{cr.PostsUnderHouses} road posts lie inside a house footprint — the road keeps its natural cross-slope there (information, D-3)");
         return locked;
+    }
+
+    /// <summary>An edge's reference line: the mean of its outer lanes' shapes (same point count), else its first lane.</summary>
+    private static Vector2[] ReferenceLine(Edge e)
+    {
+        var first = e.Lanes[0].Shape; var last = e.Lanes[^1].Shape;
+        return first.Length == last.Length ? first.Select((p, i) => (p + last[i]) * 0.5f).ToArray() : first;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4694 — the two directions of a two-way road: per edge, its opposite (same junctions reversed, on the ground) when their reference lines run ADJACENT — the mean
+    /// distance between them at most half their widths + 1 m —; the first edge of a pair maps to the second, the second to null. Pure.
+    /// </summary>
+    internal static Dictionary<Edge, Edge?> PairTwoWay(List<Edge> edges)
+    {
+        var result = new Dictionary<Edge, Edge?>(ReferenceEqualityComparer.Instance);
+        var byEnds = new Dictionary<(string, string), Edge>();
+        foreach (var e in edges)
+        {
+            if (e.Lanes.Count == 0 || e.OffGround || e.From.Length == 0 || e.To.Length == 0 || e.From == e.To) continue;
+            if (byEnds.TryGetValue((e.To, e.From), out var o) && !result.ContainsKey(o))
+            {
+                var la = ReferenceLine(o); var lb = ReferenceLine(e);
+                if (la.Length < 2 || lb.Length < 2) continue;
+                float gap = MeanDistance(la, lb), widths = (o.Lanes.Sum(l => l.Width) + e.Lanes.Sum(l => l.Width)) / 2f;
+                if (gap > widths + 1f) continue;   // a divided road: two corridors
+                result[o] = e; result[e] = null;
+            }
+            else byEnds.TryAdd((e.From, e.To), e);
+        }
+        return result;
+    }
+
+    /// <summary>The corridor of a pair: its midline (each of <paramref name="a"/>'s points halfway to <paramref name="b"/>'s line) and a half-width covering both carriageways + the shoulder.</summary>
+    private static (Vector2[] Line, float Half) Merged(Edge a, Edge b)
+    {
+        var la = ReferenceLine(a); var lb = ReferenceLine(b);
+        var mid = new Vector2[la.Length];
+        for (int i = 0; i < la.Length; i++) mid[i] = (la[i] + Closest(lb, la[i])) * 0.5f;
+        float gap = MeanDistance(la, lb);
+        float half = gap / 2f + (a.Lanes.Sum(l => l.Width) + b.Lanes.Sum(l => l.Width)) / 4f + RoadCorridors.Shoulder;
+        return (mid, half);
+    }
+
+    private static float MeanDistance(Vector2[] a, Vector2[] b)
+    {
+        float sum = 0f;
+        foreach (var p in a) sum += Vector2.Distance(p, Closest(b, p));
+        return sum / a.Length;
+    }
+
+    private static Vector2 Closest(Vector2[] line, Vector2 p)
+    {
+        var best = line[0]; float bd = float.MaxValue;
+        for (int i = 0; i + 1 < line.Length; i++)
+        {
+            var d = line[i + 1] - line[i]; float l2 = d.LengthSquared();
+            float t = l2 > 0f ? Math.Clamp(Vector2.Dot(p - line[i], d) / l2, 0f, 1f) : 0f;
+            var q = line[i] + d * t; float dd = Vector2.DistanceSquared(p, q);
+            if (dd < bd) { bd = dd; best = q; }
+        }
+        return best;
     }
 
     internal sealed record Lane(Vector2[] Shape, float Width);
