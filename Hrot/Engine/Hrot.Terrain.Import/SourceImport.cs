@@ -39,8 +39,15 @@ public sealed class SourceImport : ITerrainSourceImport
     /// <param name="importerFor">the importer for a target root (tests count imports through it); default <c>new TerrainImporter(root)</c></param>
     /// <param name="log">one line at the start and end of an import (a first load waits minutes); default the console</param>
     /// <param name="repoRoot">the repository whose <c>assets/terrain-input</c> is searched last; default found from the working directory (null in a deployment)</param>
-    public SourceImport(Func<string, TerrainImporter>? importerFor = null, Action<string>? log = null, string? repoRoot = null)
+    /// <summary>⭐ CE-5060 follow-up (coordinator review) — how long a load waits for ANOTHER process's import of the same terrain before it gives up and fails with a
+    /// reason. 📐 Stechovice's import measured 195–258 s on a 4-core VM ⇒ 20 min is a ~5× margin; a hung importer would otherwise keep every waiting node alive forever.</summary>
+    public static readonly TimeSpan DefaultLockWaitLimit = TimeSpan.FromMinutes(20);
+
+    private readonly TimeSpan _lockWaitLimit;
+
+    public SourceImport(Func<string, TerrainImporter>? importerFor = null, Action<string>? log = null, string? repoRoot = null, TimeSpan? lockWaitLimit = null)
     {
+        _lockWaitLimit = lockWaitLimit ?? DefaultLockWaitLimit;
         _importerFor = importerFor ?? DefaultImporter;
         _log = log ?? Console.WriteLine;
         _repoRoot = repoRoot ?? Netconvert.RepoRoot();
@@ -74,7 +81,7 @@ public sealed class SourceImport : ITerrainSourceImport
             _log?.Invoke($"[TerrainImport] '{terrainName}': the import at {Path.GetDirectoryName(existingDefinition)} is stale (importer revision {RecordedRevision(existingDefinition)}, now {TerrainImporter.Revision}; or its input changed)"
                          + (PathsEqual(holder, targetRoot) ? "" : $" — it is passed over for {Path.Combine(targetRoot, terrainName)}"));
         Directory.CreateDirectory(targetRoot);
-        using (AcquireLock(Path.Combine(targetRoot, "." + terrainName + ".import.lock"), cancellation))
+        using (AcquireLock(Path.Combine(targetRoot, "." + terrainName + ".import.lock"), terrainName, _lockWaitLimit, cancellation))
         {
             // inside the lock: another thread or process may have imported it while this one waited
             string definition = Path.Combine(targetRoot, terrainName, TerrainCatalog.DefinitionFileName);
@@ -179,16 +186,22 @@ public sealed class SourceImport : ITerrainSourceImport
     private static long Stamp(string file) { var i = new FileInfo(file); return i.LastWriteTimeUtc.Ticks ^ (i.Length * 397); }
 
     /// <summary>F-5 — one lock file per terrain beside the target; a second thread or process waits for it, then finds the folder. (The file stays: deleting a lock file is racy.)</summary>
-    private static FileStream AcquireLock(string lockPath, CancellationToken ct)
+    private static FileStream AcquireLock(string lockPath, string terrainName, TimeSpan limit, CancellationToken ct)
     {
+        var waited = Stopwatch.StartNew();
         for (; ; )
         {
             ct.ThrowIfCancellationRequested();
             try { return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None); }
             catch (IOException)
             {
-                // ⭐ CE-5060 P2 — a node waiting for another node's (or process's) import of the same terrain is not hung: it says so (a detail report advances the load's count)
-                Fdp.Core.LoadProgress.ReportDetail("import: waiting for another import", 0, 1);
+                // ⭐ CE-5060 P2 + the coordinator's follow-up — a load waiting for another node's (or process's) import of the same terrain is not hung: it reports the
+                //   TIME it has waited (a changing value, so the load's count advances — a detail report advances only on change) — and it gives up at the limit with a
+                //   reason, so a hung importer elsewhere fails this load instead of keeping its node alive forever
+                if (waited.Elapsed >= limit)
+                    throw new TimeoutException($"[TerrainImport] '{terrainName}': another import has held {lockPath} for {limit.TotalMinutes.ToString("0.#", CultureInfo.InvariantCulture)} min — "
+                                               + "giving up (is that importer hung? when no import runs, the lock is free).");
+                Fdp.Core.LoadProgress.ReportDetail("import: waiting for another import (0.1 s)", (long)(waited.Elapsed.TotalSeconds * 10), (long)(limit.TotalSeconds * 10));
                 Thread.Sleep(50);
             }
         }

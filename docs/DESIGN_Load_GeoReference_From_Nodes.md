@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: EXPERIMENT — built on the LOCAL branch exp/ce5060-origin-peek (user, 2026-11-26: "try this yourself, as experiment, testing thoroughly in both single editor and cluster modes first"); not merged, not pushed — §9 the as-built and its measurements
+build-state: BUILT — merged by the coordinator (2026-11-26), follow-ups built on terrain; was: EXPERIMENT on exp/ce5060-origin-peek (user, 2026-11-26: "try this yourself, as experiment, testing thoroughly in both single editor and cluster modes first"); not merged, not pushed — §9 the as-built and its measurements
 updated: 2026-11-26 (v2 after the independent review: the origin from the INPUT SET, no aggregator, no wire change) · 2026-11-26 (v1, terrain lane — CE-5060)
 current-answer: §9 the experiment's as-built (where it deviates from §2–§5) · §2 the decision (v2) · §3 the UML · §4 the claim table · §5 the preconditions · §6 acceptance · §8 the review and what was done with each finding
 stale-below: ## 9. The experiment — as built (local branch `exp/ce5060-origin-peek`, `2026-11-26`)
@@ -13,6 +13,7 @@ stale-below: ## 9. The experiment — as built (local branch `exp/ce5060-origin-
 | ⭐ the navmesh packing | `NavTilePack.Pack` (the prefill cache's `Seal`) reports per tile read, per pack written, per tile removed, per folder removed | ⛔ not foreseen; 📐 a gap probe on the real import found **16 s silent** after the last tile (~60 000 tiles packed) — the node was ejected 3 min in; then 3.6 / 4.3 s in the folder removal |
 | P2 (the lock wait) | `SourceImport.AcquireLock` reports while it waits | as §5 |
 | P3 (cancellation) | ⏳ NOT built | open |
+| ⭐ the coordinator's follow-ups (review, `2026-11-26`, after the merge) | ① the lock wait reports its elapsed time and GIVES UP at `SourceImport.DefaultLockWaitLimit` (20 min; a ~5× margin over Stechovice's measured 195–258 s) with a `TimeoutException` naming the terrain and the lock — a hung importer elsewhere fails this load instead of keeping its node alive forever · ② `LoadProgress.ReportDetail` advances only when the report CHANGED (`what` or `done`) — a stuck loop re-reporting one value no longer keeps its node alive; the wait reports tenths of a second so it changes inside the heartbeat's 1 s window | rails `SourceImportTests.CE5060_ALoadWaitingForAHungImport_GivesUpAtTheLimit_WithAReason`, `LoadProgressTests.CE5060_ADetailReport_AdvancesTheCount_OnlyWhenItChanges` (both red-proved) |
 
 **Measured (`2026-11-26`, this VM):**
 

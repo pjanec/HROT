@@ -42,11 +42,12 @@ namespace Fdp.Tests
         /// the call goes nowhere. 🔴 Red-proof: <c>ReportDetail</c> not storing ⇒ the first cell reds; the throttle removed ⇒ the second reds; the clear in <c>Active</c> removed ⇒ the fourth.
         /// </summary>
         /// <summary>
-        /// ⭐⭐ <c>CE-5060</c> — a detail report ADVANCES the count (the heartbeat reads the count, never the text): every call, throttled text or not.
-        /// 📐 A first-use import reported only details for 12 s and its node was ejected. 🔴 Red-proof: <c>ReportDetail</c> without the advance ⇒ the count stays.
+        /// ⭐⭐ <c>CE-5060</c> — a detail report ADVANCES the count (the heartbeat reads the count, never the text) — but only when it CHANGED: a stuck loop
+        /// re-reporting the same value is hung and must not keep its node alive (coordinator review). 📐 A first-use import reported only details for 12 s and
+        /// its node was ejected. 🔴 Red-proof: no advance ⇒ the first two asserts red; an advance on every call ⇒ the third.
         /// </summary>
         [Fact]
-        public void CE5060_ADetailReport_AdvancesTheCount_EveryCall()
+        public void CE5060_ADetailReport_AdvancesTheCount_OnlyWhenItChanges()
         {
             var progress = new LoadProgress();
             LoadProgress.Current = progress;
@@ -57,6 +58,11 @@ namespace Fdp.Tests
                 LoadProgress.ReportDetail("import corridors", 2, 10);   // inside the text's throttle second: the text stays, the count still moves
                 Assert.Equal(before + 2, progress.Value);
                 Assert.Equal("import corridors 1/10", progress.Detail);
+                LoadProgress.ReportDetail("import corridors", 2, 10);   // the SAME report again: a stuck loop
+                LoadProgress.ReportDetail("import corridors", 2, 10);
+                Assert.Equal(before + 2, progress.Value);
+                LoadProgress.ReportDetail("import pads", 2, 10);        // a new stage at the same index is a change
+                Assert.Equal(before + 3, progress.Value);
             }
             finally { LoadProgress.Current = null; }
         }

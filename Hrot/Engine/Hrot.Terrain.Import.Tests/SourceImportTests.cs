@@ -168,10 +168,31 @@ public sealed class SourceImportTests : IDisposable
         long a = progress.Value;
         Thread.Sleep(300);
         Assert.True(progress.Value > a, "the count moved while waiting for the lock");
-        Assert.Equal("import: waiting for another import 0/1", progress.Detail);
+        Assert.StartsWith("import: waiting for another import (0.1 s) ", progress.Detail);
         ImportNow(new TerrainImporter(TerrainRoot, _env.Scenarios), set, "mini", false, null, default);
         held.Dispose();
         Assert.True(Done(task, 20000));
+        Assert.Equal(0, _imports);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-5060</c> follow-up (coordinator review) — a load waiting for an import that never finishes (a HUNG importer holding the lock) gives up at the limit and
+    /// FAILS with a reason naming the terrain and the lock, instead of keeping its node alive forever. 🔴 Mutation: no limit in the wait loop ⇒ the task never ends (red on the timeout assert).
+    /// </summary>
+    [Fact]
+    public void CE5060_ALoadWaitingForAHungImport_GivesUpAtTheLimit_WithAReason()
+    {
+        Input("mini");
+        Directory.CreateDirectory(TerrainRoot);
+        using var held = new FileStream(Path.Combine(TerrainRoot, ".mini.import.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);   // never released
+        TerrainSources.Import = new SourceImport(root => { Interlocked.Increment(ref _imports); return SourceImport.DefaultImporter(root); }, null,
+                                                 Path.Combine(_env.Root, "no-repo"), lockWaitLimit: TimeSpan.FromMilliseconds(400));
+        var catalog = TerrainCatalog.ForNode(null, Content);
+        var task = Task.Run(() => catalog.ResolveDefinition("mini"));
+        Assert.True(Done(Task.WhenAny(task), 10000) && task.IsCompleted, "the wait gave up");
+        var ex = Assert.IsType<TimeoutException>(task.Exception!.GetBaseException());
+        Assert.Contains("'mini'", ex.Message);
+        Assert.Contains(".mini.import.lock", ex.Message);
         Assert.Equal(0, _imports);
     }
 

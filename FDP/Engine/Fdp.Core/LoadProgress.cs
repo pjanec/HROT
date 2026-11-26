@@ -49,13 +49,28 @@ namespace Fdp.Core
         /// <para>⭐⭐ <c>CE-5060</c> — and it ADVANCES the count, as <see cref="Report"/> does: a loader saying how far it has got HAS advanced, and both heartbeat sources
         /// beat only while the count moves (<see cref="MovedWithin"/>). 📐 Measured: a first-use terrain import inside a node's load reported only its detail
         /// (the road levelling, 12 s on Stechovice) and the master ejected the node for a heartbeat timeout 8 s in. A hung loader still reports nothing.</para>
+        /// <para>⭐ Only when the report CHANGED (<paramref name="what"/> or <paramref name="done"/> differs from the last one): a stuck loop re-reporting the same value
+        /// is a hung loader and must not keep its node alive (coordinator review, <c>2026-11-26</c>). Reports from parallel workers race benignly (a change may advance
+        /// twice or once; an unchanged value never does).</para>
         /// </summary>
         public static void ReportDetail(string what, long done, long total,
             [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
         {
             if (Ambient.Value is not { } progress) return;
             progress.SetDetail(what, done, total);
-            progress.AdvanceAt(1, file, line);
+            if (progress.DetailChanged(what, done)) progress.AdvanceAt(1, file, line);
+        }
+
+        private string? _lastWhat;
+        private long _lastDone = long.MinValue;
+
+        /// <summary>True when this report differs from the previous one (and remembers it). Allocation-free: the text is compared, never built.</summary>
+        private bool DetailChanged(string what, long done)
+        {
+            if (done == Volatile.Read(ref _lastDone) && string.Equals(what, Volatile.Read(ref _lastWhat), StringComparison.Ordinal)) return false;
+            Volatile.Write(ref _lastWhat, what);
+            Volatile.Write(ref _lastDone, done);
+            return true;
         }
 
         /// <summary>⭐ The detail the last <see cref="ReportDetail"/> stored for the step in flight (<c>null</c> when none; cleared when a step is entered).</summary>
