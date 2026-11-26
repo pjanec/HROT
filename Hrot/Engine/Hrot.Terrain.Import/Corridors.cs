@@ -62,7 +62,7 @@ internal static class Corridors
     }
 
     /// <summary>An edge's reference line: the mean of its outer lanes' shapes (same point count), else its first lane.</summary>
-    private static Vector2[] ReferenceLine(Edge e)
+    internal static Vector2[] ReferenceLine(Edge e)
     {
         var first = e.Lanes[0].Shape; var last = e.Lanes[^1].Shape;
         return first.Length == last.Length ? first.Select((p, i) => (p + last[i]) * 0.5f).ToArray() : first;
@@ -72,13 +72,14 @@ internal static class Corridors
     /// ⭐ CE-4694 — the two directions of a two-way road: per edge, its opposite (same junctions reversed, on the ground) when their reference lines run ADJACENT — the mean
     /// distance between them at most half their widths + 1 m —; the first edge of a pair maps to the second, the second to null. Pure.
     /// </summary>
-    internal static Dictionary<Edge, Edge?> PairTwoWay(List<Edge> edges)
+    internal static Dictionary<Edge, Edge?> PairTwoWay(List<Edge> edges, Func<Edge, bool>? eligible = null)
     {
+        eligible ??= e => !e.OffGround;   // the corridors pair the GROUND roads; ⭐ CE-5057 — the bridge stage pairs its bridged edges through the same rule
         var result = new Dictionary<Edge, Edge?>(ReferenceEqualityComparer.Instance);
         var byEnds = new Dictionary<(string, string), Edge>();
         foreach (var e in edges)
         {
-            if (e.Lanes.Count == 0 || e.OffGround || e.From.Length == 0 || e.To.Length == 0 || e.From == e.To) continue;
+            if (e.Lanes.Count == 0 || !eligible(e) || e.From.Length == 0 || e.To.Length == 0 || e.From == e.To) continue;
             if (byEnds.TryGetValue((e.To, e.From), out var o) && !result.ContainsKey(o))
             {
                 var la = ReferenceLine(o); var lb = ReferenceLine(e);
@@ -93,7 +94,7 @@ internal static class Corridors
     }
 
     /// <summary>The corridor of a pair: its midline (each of <paramref name="a"/>'s points halfway to <paramref name="b"/>'s line) and a half-width covering both carriageways + the shoulder.</summary>
-    private static (Vector2[] Line, float Half) Merged(Edge a, Edge b)
+    internal static (Vector2[] Line, float Half) Merged(Edge a, Edge b)
     {
         var la = ReferenceLine(a); var lb = ReferenceLine(b);
         var mid = new Vector2[la.Length];
@@ -128,6 +129,12 @@ internal static class Corridors
     {
         /// <summary>⭐ V-15 — a bridge or a tunnel (the OSM tag kept by netconvert's <c>--osm.extra-attributes</c>), or any edge on another LAYER than the ground's.</summary>
         public bool OffGround { get; set; }
+        /// <summary>⭐ CE-5057 / CE-11063 (DESIGN_Terrain_OSM_Bridges D-1) — OSM <c>bridge</c> says yes.</summary>
+        public bool Bridge { get; set; }
+        /// <summary>⭐ CE-5057 — OSM <c>tunnel</c> says yes (never a deck).</summary>
+        public bool Tunnel { get; set; }
+        /// <summary>⭐ CE-5057 — OSM <c>layer</c> (0 when absent).</summary>
+        public int Layer { get; set; }
     }
 
     /// <summary>⭐ V-15 — whether an OSM tag value says yes (<c>bridge=yes</c>, <c>=viaduct</c>, <c>tunnel=culvert</c> …): anything but empty / <c>no</c>.</summary>
@@ -163,6 +170,9 @@ internal static class Corridors
                     string? key = r.GetAttribute("key"), value = r.GetAttribute("value");
                     if ((key is "bridge" or "tunnel" && Says(value)) || (key == "layer" && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int layer) && layer != 0))
                         current.OffGround = true;
+                    if (key == "bridge" && Says(value)) current.Bridge = true;   // ⭐ CE-5057 — kept apart: only a bridge gets a deck
+                    if (key == "tunnel" && Says(value)) current.Tunnel = true;
+                    if (key == "layer" && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int lv)) current.Layer = lv;
                     break;
                 case "junction":
                     current = null;
