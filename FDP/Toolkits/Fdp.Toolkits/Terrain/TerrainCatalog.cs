@@ -68,15 +68,7 @@ namespace Fdp.Toolkit.Terrain
             if (relative.Split('/').Any(part => part == ".."))
                 throw new ArgumentException($"Terrain name '{terrainName}' may not climb out of its root.", nameof(terrainName));
 
-            string? found = null, foundRoot = null;
-            foreach (var root in _roots)
-            {
-                var path = Path.Combine(root, relative, DefinitionFileName);
-                if (File.Exists(path)) { found = path; foundRoot = root; break; }
-            }
-            // ⭐ CE-11039 — the machine-wide import root is the last place a terrain may be (an earlier import by another process / staging root left it there)
-            if (found == null && TerrainSources.SharedImportRoot is { } machineRoot && File.Exists(Path.Combine(machineRoot, relative, DefinitionFileName)))
-            { found = Path.Combine(machineRoot, relative, DefinitionFileName); foundRoot = machineRoot; }
+            string? found = FindExisting(relative, out string? foundRoot);
             // ⭐ CE-11037 (UTM §13 F-1/F-4) — a terrain whose INPUT is committed imports on first use (a miss) and re-imports when the input changed (a hit):
             //   the hook is consulted HERE, so no host can forget it; it answers null when there is no input set for the name (or the terrain is current)
             var hook = TerrainSources.Import;
@@ -91,6 +83,40 @@ namespace Fdp.Toolkit.Terrain
             if (kept != null || hook == null) return kept;
             string? target = ImportTarget();
             return target == null ? null : hook.TryImport(relative, null, () => target, _roots, default);
+        }
+
+        /// <summary>The definition a root already holds (the catalog's roots in order, then the machine-wide import root) — never through the import hook.</summary>
+        private string? FindExisting(string relative, out string? foundRoot)
+        {
+            foreach (var root in _roots)
+            {
+                var path = Path.Combine(root, relative, DefinitionFileName);
+                if (File.Exists(path)) { foundRoot = root; return path; }
+            }
+            // ⭐ CE-11039 — the machine-wide import root is the last place a terrain may be (an earlier import by another process / staging root left it there)
+            if (TerrainSources.SharedImportRoot is { } machineRoot && File.Exists(Path.Combine(machineRoot, relative, DefinitionFileName)))
+            { foundRoot = machineRoot; return Path.Combine(machineRoot, relative, DefinitionFileName); }
+            foundRoot = null;
+            return null;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5060</c> (docs/DESIGN_Load_GeoReference_From_Nodes.md §2) — a terrain's definition WITHOUT EVER IMPORTING, for the frame-thread readers that need
+        /// only its ORIGIN (the master's GeoReference, <c>TerrainResidency.ApplyOriginAhead</c>): when the terrain is imported from a committed input set, the
+        /// definition that import writes, read from the set's manifest (so a first use and a stale copy both answer the origin the nodes are about to load);
+        /// else the folder a root holds (a hand-made terrain), else its kept ground; null when none. ⛔ Its other fields are NOT the folder's: use
+        /// <see cref="ReadDefinition(string)"/> for anything but the origin.
+        /// </summary>
+        public TerrainDefinition? PeekDefinition(string terrainName)
+        {
+            if (string.IsNullOrWhiteSpace(terrainName)) return null;
+            var relative = terrainName.Replace('\\', '/').Trim('/');
+            if (relative.Split('/').Any(part => part == ".."))
+                throw new ArgumentException($"Terrain name '{terrainName}' may not climb out of its root.", nameof(terrainName));
+            string? existing = FindExisting(relative, out _);
+            if (TerrainSources.Import?.TryReadInputDefinition(relative, existing, _roots) is { } fromInput) return fromInput;
+            var path = existing ?? ResolveKeptGround(relative);
+            return path == null ? null : TerrainDefinitionParser.Parse(File.ReadAllText(path));
         }
 
         // ⭐ CE-11039 (F-2 revised) — where a first-use import lands: the SHARED root when it is writable (one import per machine, whatever staging root asks), else the first writable

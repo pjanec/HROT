@@ -41,6 +41,26 @@ namespace Fdp.Tests
         /// call within the same second is dropped (the text is built only when stored), the LAST one (<c>done == total</c>) always lands, a new step clears it, and with no load running
         /// the call goes nowhere. 🔴 Red-proof: <c>ReportDetail</c> not storing ⇒ the first cell reds; the throttle removed ⇒ the second reds; the clear in <c>Active</c> removed ⇒ the fourth.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-5060</c> — a detail report ADVANCES the count (the heartbeat reads the count, never the text): every call, throttled text or not.
+        /// 📐 A first-use import reported only details for 12 s and its node was ejected. 🔴 Red-proof: <c>ReportDetail</c> without the advance ⇒ the count stays.
+        /// </summary>
+        [Fact]
+        public void CE5060_ADetailReport_AdvancesTheCount_EveryCall()
+        {
+            var progress = new LoadProgress();
+            LoadProgress.Current = progress;
+            try
+            {
+                long before = progress.Value;
+                LoadProgress.ReportDetail("import corridors", 1, 10);
+                LoadProgress.ReportDetail("import corridors", 2, 10);   // inside the text's throttle second: the text stays, the count still moves
+                Assert.Equal(before + 2, progress.Value);
+                Assert.Equal("import corridors 1/10", progress.Detail);
+            }
+            finally { LoadProgress.Current = null; }
+        }
+
         [Fact]
         public async Task CE11038_ADetail_IsStoredThrottled_TheLastAlwaysLands_AndAStepClearsIt()
         {

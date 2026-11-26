@@ -95,6 +95,29 @@ public sealed class SourceImport : ITerrainSourceImport
     }
 
     /// <summary>
+    /// ⭐ <c>CE-5060</c> (docs/DESIGN_Load_GeoReference_From_Nodes.md §2) — the definition this input set's import WRITES, as far as its origin goes (name,
+    /// <c>origin</c>, <c>frame.utm</c> + <c>corner</c> — <see cref="TerrainFolderWriter.OriginOf"/>), read from <c>manifest.json</c> alone: never imports, never
+    /// takes the lock. Null when there is no input set, or <paramref name="existingDefinition"/> records no input (a hand-made terrain keeps its own origin).
+    /// </summary>
+    public TerrainDefinition? TryReadInputDefinition(string terrainName, string? existingDefinition, IReadOnlyList<string> catalogRoots)
+    {
+        if (!TerrainName.IsValid(terrainName)) return null;
+        if (existingDefinition != null && RecordedSha(existingDefinition) == null) return null;   // not imported from an input: its own file is the truth
+        string where = existingDefinition != null ? Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(existingDefinition)))!
+                                                  : (catalogRoots.Count > 0 ? catalogRoots[0] : Directory.GetCurrentDirectory());
+        string? set = FindSet(terrainName, where, catalogRoots);
+        if (set == null) return null;
+        var m = InputSetReader.Open(set).Manifest;
+        var (lat, lon) = TerrainFolderWriter.OriginOf(m.Frame, m.MinX, m.MinY);
+        return new TerrainDefinition
+        {
+            Name = terrainName,
+            Origin = new TerrainGeoOrigin(lat, lon, 0.0),
+            Utm = new TerrainUtmFrame(m.Frame.Zone, m.Frame.South, m.Frame.E0 + m.MinX, m.Frame.N0 + m.MinY),
+        };
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-11040</c> (handoff ui → terrain, Stechovice showcase §2 row 4) — a first use runs the whole import INSIDE the node's load (minutes on a large
     /// terrain); each stage's fraction goes to <see cref="Fdp.Core.LoadProgress.ReportDetail"/> (<i>"import navmesh 412/1000"</i>), so the load step's text
     /// moves and the 30 s stall check (CE-11023) sees it advancing — as CE-11038 does for the navmesh bake of a load. Synchronous (no posting to a
@@ -162,7 +185,12 @@ public sealed class SourceImport : ITerrainSourceImport
         {
             ct.ThrowIfCancellationRequested();
             try { return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None); }
-            catch (IOException) { Thread.Sleep(50); }
+            catch (IOException)
+            {
+                // ⭐ CE-5060 P2 — a node waiting for another node's (or process's) import of the same terrain is not hung: it says so (a detail report advances the load's count)
+                Fdp.Core.LoadProgress.ReportDetail("import: waiting for another import", 0, 1);
+                Thread.Sleep(50);
+            }
         }
     }
 }

@@ -47,7 +47,7 @@ public sealed partial class ClusterMaster
 
         try
         {
-            var definition = TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _config.NasBasePath).ReadDefinition(terrainName!);
+            var definition = TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _config.NasBasePath).PeekDefinition(terrainName!);   // ⭐ CE-5060 — never imports: the master's frame never runs a terrain import (the nodes do, in their Terrain step)
             if (definition == null)
             {
                 FdpLog<ClusterMaster>.Warn(
