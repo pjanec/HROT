@@ -12,11 +12,12 @@ variable AirSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"AirThreat","Sec
 parse (empty) -> ok
   c2123000-0000-0000-0000-000000000041 {"Kind":"SquadUnderFire","Seconds":3}
   c7029000-0000-0000-0000-000000000011 {"Kind":"AirThreat","Seconds":3}
+  c4624000-0000-0000-0000-000000000b41 {"WithinMetres":30}
+  c2466000-0000-0000-0000-000000000c11 {"WithinMetres":30}
   c2123000-0000-0000-0000-000000000011 {"Kind":"SquadUnderFire","Seconds":3}
   c2123000-0000-0000-0000-000000000031 {"Kind":"SquadLeaderDown","Seconds":3}
   c2123000-0000-0000-0000-000000000051 {"Kind":"SquadMemberDown","Seconds":3}
   c2123000-0000-0000-0000-000000000021 {"Kind":"SquadContact","Seconds":3}
-  c4624000-0000-0000-0000-000000000b41 {"WithinMetres":30}
   c2123000-0000-0000-0000-000000000061 {"WithinMetres":30}
 parse {} -> ok
 parse {"bogus":1} -> refused InvalidOperationException
@@ -55,42 +56,61 @@ Selector c2123000-0000-0000-0000-000000000002 "Rows — first true wins"
     # CE-7029 (City Battle R-1d): a man senses a drone ⇒ the squad does (SquadSensing.AirThreat); every live man is sent ShelterFromAir (overhead cover, else keep moving; fire at it while seen) until the sky has been clear 10 s. Above 'under a platoon': a drone is the squad's own immediate threat, as the carrier rows are its own.
     Condition c7029000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "A drone over the squad (fresh, 3 s)"
     Action c7029000-0000-0000-0000-000000000012 sop React:SquadShelterFromAir:UnderFire "React: SquadShelterFromAir"
+  Sequence c4624000-0000-0000-0000-000000000b40 "Minefield ahead → halt, call the engineers"
+    # CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill. ⭐ CE-5040 (terrain, user: "we cant wait for behaviors"): ABOVE the UnderCommand row, like the carrier rows — the halt and the request are the squad's own (MS-B5 sends the Engineers request UP the chain, so the asking squad always has a commander); below it a squad under a live HQ never reached this row and walked into the field.
+    Condition c4624000-0000-0000-0000-000000000b41 call Hrot.AI.Behaviors.Brains.SquadSopConditions.MinefieldAhead p:SopAreaParams={"WithinMetres":30} "A minefield ahead (within 30 m)"
+    Action c4624000-0000-0000-0000-000000000b42 sop React:MinefieldAhead:Alert "React: MinefieldAhead"
+  Sequence c2466000-0000-0000-0000-000000000c10 "Covered ground ahead → hold short, ask for fire support"
+    # CE-2466 R6 (Squad Tactics §7.9, R-2140): the route reaches ground its side knows an enemy covers (UnderFire, Minefields §9b) and the planner could not go round it — hold short, never cross it as a drill; after 120 s ask for fire support and report TaskFailed. ABOVE the UnderCommand row like the minefield halt (S3): a squad of a platoon never walks into known covered ground either.
+    Condition c2466000-0000-0000-0000-000000000c11 call Hrot.AI.Behaviors.Brains.SquadSopConditions.CoveredByFireAhead p:SopAreaParams={"WithinMetres":30} "Ground a known enemy covers ahead (within 30 m)"
+    Action c2466000-0000-0000-0000-000000000c12 sop React:CoveredByFireAhead:Alert "React: CoveredByFireAhead"
   Condition c2123000-0000-0000-0000-0000000000c1 call Fdp.Toolkit.Behavior.SopConditions.UnderCommand "Under a platoon → the platoon reacts for the squad"
-    # CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride). Every squad type now carries this SOP by default.
+    # CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride) — ⭐ and the minefield halt (CE-5040: the squad stops and asks its HQ for engineers). Every squad type now carries this SOP by default.
   Sequence c2123000-0000-0000-0000-000000000010 "Squad under fire → react"
     Condition c2359000-0000-0000-0000-0000000000d1 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
       # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2453000-0000-0000-0000-0000000000e1 call Hrot.AI.Behaviors.Brains.RoomSuspicion.NotClearingItsContact "Not clearing the building the contact is in"
+      # CE-2453 (Building Clearing CB-66 / CB-72 / CB-73): a squad CLEARING a building whose every contact is inside that building — its room drill answers (a heard man suspects the room, a seen one or a hit at the way in holds the entry); ReactToContact would hold it at the door (measured live, ia-area-defend: 60 s+ at House A's entry).
     Condition c2123000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadUnderFire","Seconds":3} "Squad under fire (fresh, 3 s)"
     Action c2123000-0000-0000-0000-000000000012 sop React:ReactToContact:UnderFire "React: ReactToContact"
       # Hold and return fire, decide once (assault / break contact / hold), run the drill.
   Sequence c2123000-0000-0000-0000-000000000030 "Squad leader down → react"
     Condition c2359000-0000-0000-0000-0000000000d3 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
       # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2453000-0000-0000-0000-0000000000e3 call Hrot.AI.Behaviors.Brains.RoomSuspicion.NotClearingItsContact "Not clearing the building the contact is in"
+      # CE-2453 (Building Clearing CB-66 / CB-72 / CB-73): a squad CLEARING a building whose every contact is inside that building — its room drill answers (a heard man suspects the room, a seen one or a hit at the way in holds the entry); ReactToContact would hold it at the door (measured live, ia-area-defend: 60 s+ at House A's entry).
     Condition c2123000-0000-0000-0000-000000000031 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadLeaderDown","Seconds":3} "Squad leader down (fresh, 3 s)"
     Action c2123000-0000-0000-0000-000000000032 sop React:ReactToContact:UnderFire "React: ReactToContact"
       # The next man took over (CE-2125): hold, then decide again with the weaker squad.
   Sequence c2123000-0000-0000-0000-000000000050 "Squad member down → react"
     Condition c2359000-0000-0000-0000-0000000000d4 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
       # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2453000-0000-0000-0000-0000000000e4 call Hrot.AI.Behaviors.Brains.RoomSuspicion.NotClearingItsContact "Not clearing the building the contact is in"
+      # CE-2453 (Building Clearing CB-66 / CB-72 / CB-73): a squad CLEARING a building whose every contact is inside that building — its room drill answers (a heard man suspects the room, a seen one or a hit at the way in holds the entry); ReactToContact would hold it at the door (measured live, ia-area-defend: 60 s+ at House A's entry).
     Condition c2123000-0000-0000-0000-000000000051 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadMemberDown","Seconds":3} "Squad member down (fresh, 3 s)"
     Action c2123000-0000-0000-0000-000000000052 sop React:ReactToContact:UnderFire "React: ReactToContact"
       # CE-2152 C-c (R-2013): a man is down — the reaction scores Rescue against the fight (and with nothing to fight, brings him in).
   Sequence c2123000-0000-0000-0000-0000000000a0 "Man down, a lull → bring him in"
     # CE-2344 (R-2066 E, Squad Tactics §7.5.4): a man down still to care for and no round at the squad for 10 s — the squad drags him to cover itself (the care play: the others cover, the medic carries). Under fire the rows above react and the care waits.
+    Condition c2467000-0000-0000-0000-0000000000a3 call Hrot.AI.Behaviors.Brains.ReactToContactBehavior.NotPressingTheAttack "Not pressing an attack"
+      # CE-2467 (Squad Tactics §7.10): a superior squad on an attack order goes through first; the wounded are treated on the objective.
     Condition c2123000-0000-0000-0000-0000000000a1 call Hrot.AI.Behaviors.Brains.SquadSopConditions.CasualtyInALull "A man down to care for, no fire for 10 s"
     Action c2123000-0000-0000-0000-0000000000a2 sop React:CasualtyCare:Contact "React: CasualtyCare"
   Sequence c2123000-0000-0000-0000-000000000020 "Squad contact → react"
     Condition c2359000-0000-0000-0000-0000000000d2 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
       # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2453000-0000-0000-0000-0000000000e2 call Hrot.AI.Behaviors.Brains.RoomSuspicion.NotClearingItsContact "Not clearing the building the contact is in"
+      # CE-2453 (Building Clearing CB-66 / CB-72 / CB-73): a squad CLEARING a building whose every contact is inside that building — its room drill answers (a heard man suspects the room, a seen one or a hit at the way in holds the entry); ReactToContact would hold it at the door (measured live, ia-area-defend: 60 s+ at House A's entry).
     Condition c2123000-0000-0000-0000-000000000021 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadContact","Seconds":3} "Squad contact (fresh, 3 s)"
     Action c2123000-0000-0000-0000-000000000022 sop React:ReactToContact:Contact "React: ReactToContact"
       # Hold and return fire, decide once (assault / break contact / hold), run the drill.
-  Sequence c4624000-0000-0000-0000-000000000b40 "Minefield ahead → halt, call the engineers"
-    # CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill.
-    Condition c4624000-0000-0000-0000-000000000b41 call Hrot.AI.Behaviors.Brains.SquadSopConditions.MinefieldAhead p:SopAreaParams={"WithinMetres":30} "A minefield ahead (within 30 m)"
-    Action c4624000-0000-0000-0000-000000000b42 sop React:MinefieldAhead:Alert "React: MinefieldAhead"
   Sequence c2123000-0000-0000-0000-000000000060 "Danger area ahead → cross it"
     # CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it).
     Condition c2123000-0000-0000-0000-000000000061 call Hrot.AI.Behaviors.Brains.SquadSopConditions.DangerAreaAhead p:SopAreaParams={"WithinMetres":30} "Danger area ahead (within 30 m, not yet crossed)"
     Action c2123000-0000-0000-0000-000000000062 sop React:SquadDangerCrossing:Alert "React: SquadDangerCrossing"
       # Security watches the near side; the rest cross by pairs on new lanes; the far side watches; security follows; reform. The march resumes after.
+  Sequence c2457000-0000-0000-0000-000000000000 "No task, an enemy still known → hold (consolidate)"
+    # CE-2457 (Urban Fight Suite U1): a squad whose contact reaction ended with nothing to resume (no order) HOLDS instead of its men standing in the street. Do-when-idle: any order or contact row replaces it.
+    Condition c2457000-0000-0000-0000-000000000001 call Hrot.AI.Behaviors.Brains.SquadSopConditions.KnowsAnEnemy "An enemy still known"
+    Action c2457000-0000-0000-0000-000000000002 sop DoWhenIdle:SquadHold:- "When idle: SquadHold"
+      # Every man fights from cover where he is, eyes out; the lull row above still brings a casualty in.
