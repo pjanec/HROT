@@ -197,7 +197,10 @@ def step_ground_material():
 # ground material's grass output (our open-ground weight: not forest, not water, not steep, not road). It replaced the whole-map scatter of
 # Megascans clumps: ~290 000 over the map was one clump per ~30 m2 - giant at full size, invisible at knee height ("grass missing").
 # Per variety: (mesh name part, instances per 10 m2 ... the engine's GrassDensity unit, scale range, end cull cm)
-LANDSCAPE_GRASS = [("vlkhcbxia", 60.0, (0.8, 1.3), 6000), ("skFjJ", 6.0, (0.35, 0.55), 6000), ("rbEkI", 2.0, (0.4, 0.6), 6000)]
+# ⭐ 2026-11-26 (the user live, camera 40 m+ up: "no grass"): a FAR tier of the same clumps, sparser and larger, out to 250 m - the near tier
+# alone ends at 60 m, so from a commander's height there was none; near density doubled (one tuft per m2 read as bare ground with tufts)
+LANDSCAPE_GRASS = [("vlkhcbxia", 120.0, (0.8, 1.3), 6000), ("skFjJ", 6.0, (0.35, 0.55), 6000), ("rbEkI", 2.0, (0.4, 0.6), 6000),
+                   ("vlkhcbxia", 6.0, (1.2, 1.6), 25000)]
 
 
 def landscape_grass(m, E, link, op, c1, ts, steep, roads):
@@ -213,7 +216,7 @@ def landscape_grass(m, E, link, op, c1, ts, steep, roads):
                 v.set_editor_property("grass_mesh", unreal.load_asset(path))
                 share = density / max(1, sum(1 for p_ in meshes if key in p_))   # the kind's density split over its variants
                 v.set_editor_property("grass_density", unreal.PerPlatformFloat(default=share))
-                v.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=int(cull * 0.6)))
+                v.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=int(cull * 0.6 if cull <= 6000 else cull * 0.8)))
                 v.set_editor_property("end_cull_distance", unreal.PerPlatformInt(default=cull))
                 v.set_editor_property("scaling", unreal.GrassScaling.UNIFORM)
                 v.set_editor_property("scale_x", unreal.FloatInterval(min=s0, max=s1))

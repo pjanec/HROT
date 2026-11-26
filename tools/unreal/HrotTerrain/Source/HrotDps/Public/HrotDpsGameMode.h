@@ -38,4 +38,5 @@ public:
 private:
 	FTimerHandle StatusTimer, ShotTimer, QuitTimer, ShotEveryTimer;
 	void LogStatus();
+	bool bSaidScene = false;   // LogStatus: the scene report, once
 };
