@@ -250,6 +250,7 @@ namespace Hrot.SimHost.Tests
         public unsafe void CE4698_ASurvivedHit_SmokesOnlyAHullThatCanBackOutOfSight_ALaunchAlways()
         {
             var tank = SmokeTank(salvos: 3);
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(_w);   // the unit-memory store
             _w.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
             var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
             Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, -1, 800f, 0f, 10f, 1);   // the threat, heard at (800, 0)
