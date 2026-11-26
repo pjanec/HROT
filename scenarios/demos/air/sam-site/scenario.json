@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "city-battle",
-    "description": "What: the radar SAM (CE-4617, docs/designs/air-attack/DESIGN_Radar_SAM.md) on city-battle's hill at (1404, 736), beside a 'Red Truck'. Blue HQ (SupportCommand, the top commander) owns an 'Apache' attacking the truck from inside the radar's coverage, a 'Bomber Drone' attacking it too, and an 'A-10' striking it from 6.6 km BEYOND the terrain's west edge (⭐ CE-4701: from 5 km its salvo came at ~6 s, the radar went off 18 s later (RV-10's outcome) — before RS-7's 30 s, so no SPOT; from 6.6 km it comes at ~18 s), and an 'FPV Drone' loitering 300-400 m from the hill (tracked by the radar, never fired at: below the missile's lock floor \u2014 it keeps the radar radiating). Judge: (1) cued by its eyes, the SAM's radar comes on (2) an aircraft is warned searched, then tracked, before the first launch (3) the SAM fires a salvo (2 at a manned aircraft, 1 at a drone) (4) after the outcome or 20 s quiet the radar goes off while it relocates (5) the FPV is never fired at (6) after 30 s of emission Blue HQ's picture holds an AirDefence element (the SPOT) and it orders a strike. Fixed seeds; whether a missile hits may vary. Check: --verify sam-site"
+    "description": "What: the radar SAM (CE-4617, docs/designs/air-attack/DESIGN_Radar_SAM.md) on city-battle's hill at (1404, 736), beside a 'Red Truck'. Blue HQ (SupportCommand, the top commander) owns an 'Apache' attacking the truck from inside the radar's coverage, a 'Bomber Drone' attacking it too, and an 'A-10' striking it from 9.2 km BEYOND the terrain's west edge (⭐ CE-4701: the SAM fires the moment its radar tracks — from 5 km the jet was inside the 8 km radar at once, the salvo left at ~6 s and the radar went off 18 s later (RV-10's outcome), before RS-7's 30 s, so no SPOT; from 9.2 km it enters the radar's reach at ~20 s), and an 'FPV Drone' loitering 300-400 m from the hill (tracked by the radar, never fired at: below the missile's lock floor \u2014 it keeps the radar radiating). Judge: (1) cued by its eyes, the SAM's radar comes on (2) an aircraft is warned searched, then tracked, before the first launch (3) the SAM fires a salvo (2 at a manned aircraft, 1 at a drone) (4) after the outcome or 20 s quiet the radar goes off while it relocates (5) the FPV is never fired at (6) after 30 s of emission Blue HQ's picture holds an AirDefence element (the SPOT) and it orders a strike. Fixed seeds; whether a missile hits may vary. Check: --verify sam-site"
   },
   "entities": {
     "c4617b60-0000-4000-8000-000000000001": {
@@ -183,7 +183,7 @@
     "c4617b60-0000-4000-8000-000000000013": {
       "SimTransform": {
         "Position": [
-          -6600,
+          -9200,
           736,
           600
         ],
