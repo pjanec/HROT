@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_OSM_Bridges.md — PROPOSES the importer stage BRIDGES (after the road levelling) and importer revision 5
   - DESIGN_Load_GeoReference_From_Nodes.md — PROPOSES the fix of CE-5060's progress half: an import-free origin read from the INPUT SET's manifest (master + node frame), the import only on the node's Terrain worker, and the import advancing LoadProgress (heartbeat)
   - DESIGN_Terrain_Base_Edits.md — OWNS converting / removing a baked-in building in the editor; reuses this design's generator and adds its ≥ 1 door rule (the importer adopts it)
   - DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the pads applied by the importer (P-1, CE-4403) and the crater as a third runtime record beside breaches and collapses (P-4)

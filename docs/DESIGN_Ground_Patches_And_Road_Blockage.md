@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Terrain_Height.md TH-C ("a building stands on the LOWEST ground under its footprint") — overturned for a building that carries a pad, once G-2 is ruled
 related-designs:
+  - DESIGN_Terrain_OSM_Bridges.md — PROPOSES that the net re-elevation (G-25) takes the DECK's height on bridged edges (a per-edge override), not the levelled ground under them
   - designs/engineering/DESIGN_Bridge_Laying.md — the laid bridge's road segment: an ADD through the same road-edit step (and its cut when it falls)
   - DESIGN_Terrain_Base_Edits.md — OWNS removing a baked-in building: its footprint is levelled by this design's `Level` shape once the building leaves the base (no longer an island)
   - DESIGN_Terrain_Editor_UX.md — CE-4594, the user-friendly way to reach and repeat the features §4d makes ready (toolbar row, sticky tools, snapping, the scatter's line, the Terrain Details tab); bound by §4d
