@@ -254,11 +254,13 @@ PLACES = {
     #   below cannot see): its ±20 m spread sees 8 of 9 lines to the Blue spread; the first pick sat behind house walls (2 of 3 posts blind)
     'river-red': (-1256.0, RIVER_Y - 44),         # Red platoon, the west terrace
     'river-red-technical': (-1243.0, RIVER_Y - 58),
-    'zu23': (-260.0, 290.0),                      # Red ZU-23 on the hill north of the village (~330 m, open ground)
+    # ⭐ CE-5062 (behaviors' NOTE: the gun stood IN a wood — its sight saw no aircraft): moved to the clearing west on the same hill, chosen by the rule
+    #   perception uses (TerrainWorldQuery.SightBlocked to 8 sky points 400 m out, 120 m up): the old spot 2/8 clear, this one 8/8 (the SAM's 7/8)
+    'zu23': (-340.0, 240.0),                      # Red ZU-23 on the hill north of the village (~326 m, a clearing: a clear sky arc)
     'village-red': (-335.0, 140.0),               # Red platoon holding the houses of the village centre
     'village-at': (-225.0, 150.0),                # the anti-tank team (east edge of the village, covering the attack road)
     'village-red-technical': (-120.0, 110.0),    # on the village's E-W road
-    'sam': (-310.0, 300.0),                       # Red radar SAM on the same hill (~328 m)
+    'sam': (-320.0, 260.0),                       # Red radar SAM on the same hill (~326 m, the same clearing; was 2/8 clear, now 7/8)
     'village-blue': (230.0, 150.0),               # Blue platoon's start, east of the village
     'village-blue-tank': (352.0, 57.0), 'village-blue-ifv': (340.0, 51.0),   # on the road (the column's head; the rest queue east of it)
     'village-objective': (-325.0, 135.0),         # where Blue's PlatoonAttack goes
