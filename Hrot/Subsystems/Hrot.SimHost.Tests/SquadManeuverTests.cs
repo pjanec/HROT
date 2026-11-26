@@ -4445,12 +4445,13 @@ namespace Hrot.SimHost.Tests
             foreach (var waiting in new[] { p.Alpha, p.Charlie })
             {
                 var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
-                float fromObjective = Vector2.Distance(new Vector2(d.Position.X, d.Position.Y), new Vector2(o.X, o.Y));
+                Vector3 dp = d.Position;
+                float fromObjective = Vector2.Distance(new Vector2(dp.X, dp.Y), new Vector2(o.X, o.Y));
                 Assert.True(MathF.Abs(fromObjective - PlatoonAttackBehavior.SupportStandOffMetres) < 1f,
                             $"it waits at its attack position, on the support line ({fromObjective:0.0} m from the objective)");
-                Assert.True(Vector3.Distance(p.S.At(waiting), d.Position) > 200f, "not where it stood");
+                Assert.True(Vector3.Distance(p.S.At(waiting), dp) > 200f, "not where it stood");
                 var ea = SectorOf(p, waiting);
-                Assert.True(Vector3.Distance(ea.ArcOrigin, d.Position) < 0.01f, "the sector is drawn from the attack position");
+                Assert.True(Vector3.Distance(ea.ArcOrigin, dp) < 0.01f, "the sector is drawn from the attack position");
             }
         }
 
