@@ -131,7 +131,6 @@ public sealed class SourceImport : ITerrainSourceImport
         {
             if (!ReferenceEquals(p.Stage, _stage)) { _stage = p.Stage; _what = "import " + p.Stage; }   // once per stage
             Fdp.Core.LoadProgress.ReportDetail(_what!, (long)(Math.Clamp(p.Fraction, 0d, 1d) * 1000d), 1000);
-            Fdp.Core.LoadProgress.Report();   // ⭐ CE-5060 P1 — the COUNT too: both heartbeat sources beat only while it moves (a detail alone does not), so a long stage is not read as a hung node
         }
     }
 
@@ -188,9 +187,8 @@ public sealed class SourceImport : ITerrainSourceImport
             try { return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None); }
             catch (IOException)
             {
-                // ⭐ CE-5060 P2 — a node waiting for another node's (or process's) import of the same terrain is not hung: it says so and keeps its load's count moving
+                // ⭐ CE-5060 P2 — a node waiting for another node's (or process's) import of the same terrain is not hung: it says so (a detail report advances the load's count)
                 Fdp.Core.LoadProgress.ReportDetail("import: waiting for another import", 0, 1);
-                Fdp.Core.LoadProgress.Report();
                 Thread.Sleep(50);
             }
         }

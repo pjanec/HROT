@@ -136,7 +136,7 @@ public sealed class SourceImportTests : IDisposable
 
     /// <summary>
     /// ⭐⭐ <c>CE-5060</c> P1 — every import stage advances the load's COUNT (both heartbeat sources beat only while it moves; a detail alone does not), not
-    /// just its text. 🔴 Mutation: drop the <c>LoadProgress.Report()</c> in <c>LoadDetailProgress</c> ⇒ the count does not move (no navmesh prefill here, so only the import's own stage reports can move it).
+    /// just its text. 🔴 Mutation: <c>LoadProgress.ReportDetail</c> without its advance (CE-5060) ⇒ the count does not move (no navmesh prefill here, so only the import's own stage reports can move it).
     /// </summary>
     [Fact]
     public void CE5060_AFirstUseImport_AdvancesTheLoadsCount_NotOnlyItsText()
@@ -154,7 +154,7 @@ public sealed class SourceImportTests : IDisposable
     }
 
     /// <summary>⭐ <c>CE-5060</c> P2 — a load waiting for ANOTHER import of the same terrain (a second node on this machine) keeps its count moving while it waits.
-    /// 🔴 Mutation: drop the report in the lock's wait loop ⇒ the count does not move while the lock is held.</summary>
+    /// 🔴 Mutation: drop the detail report in the lock's wait loop ⇒ the count does not move while the lock is held.</summary>
     [Fact]
     public void CE5060_ALoadWaitingForAnotherImport_KeepsItsCountMoving()
     {
