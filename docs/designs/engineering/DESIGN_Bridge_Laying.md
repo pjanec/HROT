@@ -514,6 +514,27 @@ Rails: `MenuOrdersTests.CE6500_*` (the one gesture, the label = the engineer's p
 `BridgeEngineerModelRail` (families, span parts, the frame: a laid span leaves the roof). ⏳ No scenario: the pick is a UI gesture and sends the same order HTTP
 does — backend's `bl-*` scenarios already judge the order.
 
+### 13.4 The LAID bridge's look *(ui, CE-6503, `2026-11-26`; acceptance spec [`UX/laid-bridge-visual.svg`](../../UX/laid-bridge-visual.svg))*
+
+```mermaid
+graph TD
+  BAKE["TerrainObstacles.DeckOf / With (bake)"] -->|"deck + ramps, DrawnByEntity = false"| TW["TerrainWorld.Walkables"]
+  TW -->|"draws the deck slab"| TL["TerrainLayer3D / TerrainWorldMesh"]
+  TW -->|"navmesh · SurfaceZ · sight · 3-D pick"| SIM["sim + picking (unchanged)"]
+  ENT["bridge obstacle entity (TKB 8825 / 8826, ObstacleShape)"] -->|"VisualFamily.LaidAssaultBridge / LaidFloatingBridge"| BL["EntityBodyLayer3D"]
+  BL -->|"draws ONLY the details, sized by ObstacleShape"| DET["girders · hinge · end plates · treadways / pontoon bays · joints · curbs"]
+```
+*What the picture shows that prose hid: the deck has ONE owner (the terrain) for drawing, walking, sight and picking; the entity adds detail and owns nothing a unit stands on.*
+
+| # | decision | reason |
+|---|---|---|
+| U-7 | ⭐ the terrain keeps drawing the deck; the bridge ENTITY draws only details (`ShapeKits.LaidAssaultBridge` / `LaidFloatingBridge`), sized by its own `ObstacleShape` (`EntityBodyLayer3D.SizeOf`) | ⛔ flipping `DrawnByEntity` would move the drawn deck out of the terrain mesh, and 3-D click picking reads that mesh ⇒ a picking change and a terrain-lane edit for a look. ⭐ Here nothing a unit walks on, sees through or is picked on changes |
+| U-8 | the two obstacle types get families by TKB type (`VisualFamilies.Of`), not by class | the obstacles carry no class; before, they fell to `Unknown` and drew the 2 m unknown box in the river |
+
+Rejected: the entity draws the whole bridge (deck included) with `DrawnByEntity = true` — moves picking off the terrain mesh, a cross-lane terrain change for a look · leave it to the terrain mesh (a textured slab) — the terrain has no per-type detail and the deck would still read as a slab.
+⚠ Known limit: the kit is rigid; the deck follows the ground per corner (`DeckOf`), so on banks of very different height the details may sit a few cm off the slab.
+Rail: `LaidBridgeModelRail` (families + kits + size from the real types; the details stay within the deck's length, the bays reach the water; the frame `laid-*.png`: the details are drawn on the terrain's deck).
+
 ## ⛔ HISTORY — rev 1 (`2026-11-25`, superseded the same day by the review)
 
 Rev 1 made the laid bridge a NEW entity type (`LaidBridge`) and put its deck in a NEW per-view `LaidBridgeTable` under the world query, beside

@@ -739,8 +739,8 @@ public sealed class EntityTypeCatalogTests
         8822 Guard booth | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8823 Barrel, water-filled | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8824 Barrel, sand-filled | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
-        8825 Assault bridge | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
-        8826 Floating bridge | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8825 Assault bridge | dis 5.0.0.0.0.0.0 | family LaidAssaultBridge | folder Cultural Feature | icon -
+        8826 Floating bridge | dis 5.0.0.0.0.0.0 | family LaidFloatingBridge | folder Cultural Feature | icon -
         8830 Minefield | dis 5.0.0.91.0.0.0 | family Unknown | folder Cultural Feature/Minefield (HROT) | icon -
         8840 Air Arena | dis - | family Unknown | folder Other | icon -
         8841 Ambience Layer | dis - | family Unknown | folder Other | icon -

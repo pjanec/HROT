@@ -1,0 +1,79 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1320' height='560' viewBox='0 0 1320 560'>
+<rect x='0' y='0' width='1320' height='560' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Laid bridges — the deck stays the terrain's; the entity draws the bridge on it (house style; Bridge Laying §13.4)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the detail parts (coloured). The grey deck slab and ramps are drawn by the terrain, unchanged (context). Grey annotations are not drawn by the app.</text>
+<rect x='20' y='70' width='630' height='200' fill='#202530' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='32' y='92' fill='#E8E8EE' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>① Assault bridge (8825) — side view, 26 m deck, 1.2 m above the banks</text>
+<text x='32' y='260' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>girders + mid-span hinge + end plates on the terrain's deck; ramps stay the terrain's</text>
+<rect x='30' y='210' width='120' height='40' fill='#3E5A33' rx='0' opacity='1'/>
+<rect x='520' y='210' width='120' height='40' fill='#3E5A33' rx='0' opacity='1'/>
+<rect x='150' y='224' width='370' height='26' fill='#2C5C8A' rx='0' opacity='1'/>
+<path d='M60 210 L130 186 L540 186 L610 210' stroke='#8C8C8C' stroke-width='5' fill='none'/>
+<rect x='130' y='170' width='410' height='16' fill='#6F7466' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='329' y='166' width='12' height='34' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='126' y='166' width='8' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='536' y='166' width='8' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<text x='335' y='158' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>scissor hinge</text>
+<rect x='670' y='70' width='630' height='200' fill='#202530' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='682' y='92' fill='#E8E8EE' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>② Floating bridge (8826) — side view, 0.6 m above the water</text>
+<text x='682' y='260' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>pontoon bays in the water under the deck, a joint between bays, low curbs</text>
+<rect x='680' y='210' width='70' height='40' fill='#3E5A33' rx='0' opacity='1'/>
+<rect x='1220' y='210' width='70' height='40' fill='#3E5A33' rx='0' opacity='1'/>
+<rect x='750' y='214' width='470' height='36' fill='#2C5C8A' rx='0' opacity='1'/>
+<path d='M690 210 L740 198 L1230 198 L1280 210' stroke='#8C8C8C' stroke-width='5' fill='none'/>
+<rect x='755' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='798' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='801' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='844' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='847' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='890' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='893' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='936' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='939' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='982' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='985' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='1028' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1031' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='1074' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1077' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='1120' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1123' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='1166' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1169' y='202' width='42' height='18' fill='#5E6B3A' rx='0' stroke='#3A3D34' stroke-width='1' opacity='1'/>
+<rect x='1212' y='194' width='3' height='8' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='740' y='191' width='490' height='5' fill='#6F7466' rx='0' opacity='1'/>
+<rect x='20' y='300' width='1280' height='220' fill='#202530' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='32' y='322' fill='#E8E8EE' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>③ from above — the treadways (assault) and the bays (floating) read as a bridge, not a slab</text>
+<rect x='40' y='340' width='600' height='160' fill='#3E5A33' rx='0' opacity='1'/>
+<rect x='40' y='395' width='600' height='50' fill='#2C5C8A' rx='0' opacity='1'/>
+<rect x='170' y='405' width='340' height='30' fill='#8C8C8C' rx='0' opacity='1'/>
+<rect x='170' y='405' width='340' height='4' fill='#6F7466' rx='0' opacity='1'/>
+<rect x='170' y='431' width='340' height='4' fill='#6F7466' rx='0' opacity='1'/>
+<rect x='170' y='417' width='340' height='6' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='338' y='403' width='4' height='34' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='680' y='340' width='600' height='160' fill='#3E5A33' rx='0' opacity='1'/>
+<rect x='720' y='360' width='520' height='120' fill='#2C5C8A' rx='0' opacity='1'/>
+<rect x='710' y='405' width='540' height='30' fill='#8C8C8C' rx='0' opacity='1'/>
+<rect x='732' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='778' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='782' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='828' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='832' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='878' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='882' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='928' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='932' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='978' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='982' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='1028' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1032' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='1078' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1082' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='1128' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1132' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='1178' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='1182' y='401' width='46' height='38' fill='#5E6B3A' rx='0' opacity='0.55'/>
+<rect x='1228' y='405' width='3' height='30' fill='#3A3D34' rx='0' opacity='1'/>
+<rect x='710' y='405' width='540' height='3' fill='#6F7466' rx='0' opacity='1'/>
+<rect x='710' y='432' width='540' height='3' fill='#6F7466' rx='0' opacity='1'/>
+</svg>
