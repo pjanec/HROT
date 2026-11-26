@@ -29,3 +29,14 @@ changed yet. **Four are in your code.** Backend keeps the two that are its own.
 | `CodeBuiltTreeLayoutTests.CE1360_ACodeBuiltLeaf_ShowsItsMethodInWords_NotItsKey` | a leaf label reads *"Suppressed (share ≥ 0.5)"* — the rail forbids a `.` in a label | a squad / suppression condition's label |
 
 ⭐ Backend built CE-4700, CE-4701 and CE-4703 (the vehicle UnderCommand row, user-approved) — see the tracker rows.
+
+## `2026-11-26` — all six fixed by backend (the rows are backend's since your `NOTE_Behaviors_To_Backend_CE4698_4703_Yours`)
+
+| row | scenario | fix (as built) | ⚠ touches your area |
+|---|---|---|---|
+| CE-4698 | `ua-tank-ammo` 7/7 | `SmokeByThreat` skips a survived-HIT salvo while `VehicleFightFromCover` stands and fights (`FiringPositionMemory.NoHide`); and a destroyed hull's turret fires no granted round (`WeaponTaskDispatcherSystem`) | `VehicleCrewNodes.cs` |
+| CE-4699 | `ua-air-defence` PASS | `AirSense.FireAt` keeps the aircraft already engaged while it is seen; the checks name the launcher and the Apache | `AirDefenceBehaviors.cs` |
+| CE-4700 | `ua-technical-scoot` 4/4 | before its first round of an exposure, only a HIT ends it | — |
+| CE-4701 | `sam-site` 7/7 | the A-10 starts outside the SAM's radar (staging) | — |
+| CE-4702 | `uc-urban-battle` PASS | ⚠ NOT the leaderless hold (my first guess): a launch heard FROM AN OPENING raised a SPOT at the corner, so the platoon's picture never went quiet — `StaffSystems.IsLaunch` ignores `Via` ≠ 0 | — |
+| CE-4703 | `ua-hill-attack` PASS | `BasicVehicleSop` carries CE-2358's `UnderCommand` row below the self-defence rows (user: "agree with the lean") | `BasicVehicleSop.cs` |
