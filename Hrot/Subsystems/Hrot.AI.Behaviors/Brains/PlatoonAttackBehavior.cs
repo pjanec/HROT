@@ -190,8 +190,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float SupportPostRadius = 25f, ConsolidateRadius = 60f;
         /// <summary>⭐ D-12 (CE-4666, user-approved 2026-11-19) — how far round where it stands a squad WAITING for the base of fire looks for its covered posts (m).</summary>
         public const float WaitRadius = 15f;
-        /// <summary>⭐ <c>CE-5051</c> — a waiting squad farther than the support line plus this (m) moves up to its attack position first.</summary>
-        public const float AttackPositionMarginMetres = 40f;
+        /// <summary>⭐ <c>CE-5051</c> — a waiting squad farther than the support line plus this (m) moves up to its attack position first. 📐 120, not
+        /// 40: at 40 the village-street-fight squads (161 m out) were sent 40 m up the open street and the scenario went from all-pass to 7 reds
+        /// (A/B, the extension off ⇒ all pass); stechovice-battle's 550 m is what the move is for.</summary>
+        public const float AttackPositionMarginMetres = 120f;
         /// <summary>⭐ <c>CE-5051</c> — a squad whose men's centre is this close to its attack position has arrived there (m).</summary>
         public const float AttackPositionArriveMetres = 20f;
 
