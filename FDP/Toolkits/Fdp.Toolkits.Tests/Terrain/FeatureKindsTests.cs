@@ -163,6 +163,40 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ DD-035 D-2 (gateway) — <c>TerrainObstacles.DeckParts</c> IS what <c>DeckOf</c> feeds the walkables, for an assault span (8825-like) and a floating span (8826-like, low deck, rotated and off-origin,
+        /// and a degenerate shape the clamps lift): the same three parts in the same order, each part's footprint the walkable's own, a slab's corners at the deck height. 🔴 Red-proof: give <c>DeckOf</c> its own clamp again (e.g. <c>Max(shape.Length, 2f)</c> there) ⇒ the degenerate case's footprints differ.
+        </summary>
+        [Fact]
+        public void DeckParts_IsWhatDeckOfFeedsTheWalkables_ForAnAssaultAndAFloatingSpan()
+        {
+            var cases = new (Vector3 At, float Yaw, ObstacleShape Shape)[]
+            {
+                (new Vector3(215, 200, 0), 0f, new ObstacleShape { Length = 34f, Width = 4f, Height = 1.5f }),
+                (new Vector3(-40, 12, 0), 0.7f, new ObstacleShape { Length = 22f, Width = 3.2f, Height = 0.6f }),
+                (new Vector3(5, 5, 0), 2.1f, new ObstacleShape { Length = 0f, Width = 0f, Height = 0f }),
+            };
+            foreach (var (at, yaw, shape) in cases)
+            {
+                var parts = TerrainObstacles.DeckParts(at, yaw, shape);
+                Assert.Equal(3, parts.Length);
+                Assert.Equal(new[] { TerrainWalkableKind.Slab, TerrainWalkableKind.Ramp, TerrainWalkableKind.Ramp }, parts.Select(p => p.Kind));
+                var laid = new System.Collections.Generic.List<TerrainWalkable>();
+                TerrainObstacles.DeckOf(at, yaw, shape, (_, _) => 0f, 3, false, laid);
+                Assert.Equal(parts.Length, laid.Count);
+                for (int k = 0; k < parts.Length; k++)
+                {
+                    Assert.Equal(parts[k].Kind, laid[k].Kind);
+                    var (lo, hi) = DeckGeometry.Bounds(new[] { parts[k] });
+                    Assert.True(Vector2.Distance(lo, laid[k].Min) < 0.02f && Vector2.Distance(hi, laid[k].Max) < 0.02f, $"part {k} footprint");
+                    for (int i = 0; i < 4; i++)
+                        Assert.True(laid[k].Vertices.Any(v => Vector2.Distance(new Vector2(v.X, v.Y), parts[k][i].At) < 0.02f), $"part {k} corner {i}");
+                    if (parts[k].Kind == TerrainWalkableKind.Slab)
+                        for (int i = 0; i < 4; i++) Assert.Equal(MathF.Max(shape.Height, 0.05f), parts[k][i].Above, 3);
+                }
+            }
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4694</c> ② — a vehicle climbs an AUTHORED bridge's ramp: a hull whose nose is 4 m up the west ramp (0.9 m high — above the hull's step reach, 0.6 m, from the
         /// ground; the foot is sunk 0.3 m) is NOT held, and its corner there rests ON the ramp. 📐 Found live (stechovice-battle): a tank was held at the authored bridge's ramp foot (FailedBlocked) —
         /// CE-4692's hull-point rule held for LAID decks only. 🔴 Red-proof: make <c>TerrainWorld.IsDeck</c> test <c>Obstacle</c> only ⇒ the step is blocked.
