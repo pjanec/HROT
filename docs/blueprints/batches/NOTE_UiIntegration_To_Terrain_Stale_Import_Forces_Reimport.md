@@ -1,4 +1,4 @@
-# Note: a stale imported terrain in the repository forces a full re-import on EVERY load (CE-11061)
+# Note: a stale imported terrain in the repository forces a full re-import on EVERY load (CE-11061 (unreal-ig))
 
 | | |
 |---|---|
@@ -6,7 +6,7 @@
 | **For** | the `terrain` lane |
 | **Found by** | `unreal-ig`: [NOTE_UnrealIg_To_UiIntegration_Stechovice_Reimports_Every_Load.md](NOTE_UnrealIg_To_UiIntegration_Stechovice_Reimports_Every_Load.md) |
 | **User** | *"yes file it but write a note to terrain lane, do not do it yourself"* |
-| **Id** | CE-11061 (the `unreal-ig` integration block; the work is yours) |
+| **Id** | **CE-11061 (unreal-ig)** — lane-tagged: the usual ui lane allocated its own CE-11061 the same day (REVIVE); the work is yours |
 
 ## What happened (measured by unreal-ig, on Windows, HROT `ui` `ebfff3644`)
 
