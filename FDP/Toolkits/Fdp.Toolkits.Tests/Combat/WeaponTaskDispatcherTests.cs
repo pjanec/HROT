@@ -240,6 +240,28 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(3, Status(turret).RoundsFired);
         }
 
+        /// <summary>⭐⭐ <c>CE-4698</c> — a DESTROYED hull's turret fires none of its granted rounds: the task outlives the brain, the gun must not.
+        /// 📐 ua-tank-ammo: the T-72, destroyed at 30.6 s, kept firing at 35.4–55.5 s and knocked the M1 out. 🔴 Red-proof: the gate removed ⇒ rounds.</summary>
+        [Fact]
+        public void CE4698_ADestroyedHull_FiresNoneOfItsGrantedRounds()
+        {
+            _world.RegisterComponent<WeaponMuscleState>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+            var (hull, turret) = Tank(1);
+            _world.AddComponent(hull, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 2500f });   // destroyed
+            _world.AddOrSet(turret, new WeaponTask { Mode = WeaponTaskMode.Engage, Point = new Vector3(0, 100, 2), RoundsGranted = 3,
+                                                     CooldownSeconds = 0.5f, Epoch = 1 });
+            int rounds = 0;
+            for (int f = 0; f < 60 * 8; f++)
+            {
+                _muscle.Execute(_world, Dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<Fdp.Toolkit.Combat.Events.WeaponFireIntent>()) rounds++;
+            }
+            Assert.Equal(0, rounds);
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-4143</c> (docs/DESIGN_Entity_Control.md §8r R-4) — a player's SIGHT shot (<see cref="WeaponTask.AlongBarrel"/> 1) fires
         /// every cooldown WHILE the turret still slews, the round going along the barrel as it points NOW (not at the task's point); the

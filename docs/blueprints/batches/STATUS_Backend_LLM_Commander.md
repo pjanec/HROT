@@ -8,7 +8,9 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⏸ `2026-11-26 11:28` — **idle — waiting for a handoff** (self-wake-up: coordinator merged `8bffa6c02`; the six failing vehicle scenarios ROOT-CAUSED, CE-4698…CE-4703 `ef96dbef4`, NOTE to behaviors for their four. Waiting on the user: build backend's two — CE-4701 `sam-site` staging, CE-4700 a locking shot ignores a near miss. No new HANDOFF/STEER/NOTE for backend; behaviors' overlap note already answered).
+⏸ `2026-11-26 14:00` — **idle — waiting for a handoff** (the six failing vehicle scenarios FIXED, CE-4698…CE-4703 — every one passes: `ua-tank-ammo`, `ua-air-defence`, `ua-technical-scoot`, `sam-site`, `uc-urban-battle`, `ua-hill-attack`; other lanes merged first; NOTE to behaviors updated. Open finding: CE-4704 `uc-convoy-hit-ifv` not repeatable run to run. Pre-existing red: `PersonHandsTests.CE3248` (red at `401210d13`)).
+
+⛔ ~~`2026-11-26 11:28` — idle~~ (the six fixes taken on the user's go) `2026-11-26 11:28` — **idle — waiting for a handoff** (self-wake-up: coordinator merged `8bffa6c02`; the six failing vehicle scenarios ROOT-CAUSED, CE-4698…CE-4703 `ef96dbef4`, NOTE to behaviors for their four. Waiting on the user: build backend's two — CE-4701 `sam-site` staging, CE-4700 a locking shot ignores a near miss. No new HANDOFF/STEER/NOTE for backend; behaviors' overlap note already answered).
 
 ⛔ ~~`2026-11-26 10:28` — idle~~ (the six vehicle scenarios taken on the user's ask) `2026-11-26 10:28` — **idle — waiting for a handoff** (self-wake-up: CE-4691 DONE — a vehicle's hide hides its whole hull; hit or launched at in a hide ⇒ another; `va-pop-smoke` 6/6 (fixture start moved); the 6 other vehicle-gate failures are pre-existing. No new HANDOFF/STEER/NOTE for backend on coordinator / behaviors / ui / terrain; no new DECIDED answers).
 

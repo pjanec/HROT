@@ -151,7 +151,12 @@ namespace Hrot.AI.Behaviors.Brains
             else if (senses.TryGetLast(SensorChange.Hit, out double hit) && hit > p.AnsweredHit && now - hit <= SmokeFreshSeconds)
             {
                 p.AnsweredHit = hit;
-                threat = EqsTacticsNodes.TopAim(world, self, default, out var aim) && EqsTacticsNodes.ThreatPosition(world, self, in aim, out at);
+                // ⭐⭐ CE-4698 (user: "build the remaining three too") — a survived HIT is screened only by a hull that can back OUT of the cloud:
+                //   one standing and fighting (no hide, or it cannot drive — VehicleFightFromCover's NoHide) would only blind its own gun.
+                //   📐 ua-tank-ammo: hit at 12.8 s in the open desert, the M1 smoked and sat in its cloud — blind past 60 s, one round fired.
+                //   A launch at it (above) still smokes: the screen breaks the gunner's guidance wherever the hull stands.
+                threat = UnitMemory.Get<Fdp.Toolkit.Combat.FiringPositionMemory>(world, self).NoHide == 0
+                         && EqsTacticsNodes.TopAim(world, self, default, out var aim) && EqsTacticsNodes.ThreatPosition(world, self, in aim, out at);
             }
             if (!threat || now - p.LastSalvo < (p.CooldownSeconds > 0f ? p.CooldownSeconds : SmokeCooldownSeconds)) return NodeStatus.Success;
             if (!Fdp.Toolkit.Combat.Countermeasures.MountOfKind(world, self, Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmokeDischarger,
