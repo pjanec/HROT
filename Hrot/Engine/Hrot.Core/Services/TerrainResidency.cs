@@ -979,7 +979,7 @@ public sealed class TerrainResidency
             ApplyGeoOrigin(world, null, terrainName: null);
             return;
         }
-        var definition = _catalog.ReadDefinition(terrainName);   // ⭐ AQ107 C — the catalog's one locate-and-parse (the master reads it the same way)
+        var definition = _catalog.PeekDefinition(terrainName);   // ⭐ CE-5060 — never imports (this runs on the frame): the origin from the input set on a first use; the import runs in Prepare, on the worker
         if (definition == null) return;
         ApplyGeoOrigin(world, definition.Origin, terrainName, definition.Utm);
     }

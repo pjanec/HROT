@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Linq;
+using System.IO;
 using System.Numerics;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Recast;
@@ -53,6 +54,30 @@ public sealed class RecastNavmeshFactoryTests
         var detail = progress.Detail;
         Assert.NotNull(detail);
         Assert.Matches(@"^navmesh (\d+)/\1$", detail!);   // the last call (done == total) always lands
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-5060</c> — packing a prefilled terrain's tiles (<see cref="NavTilePack.Pack"/>, the prefill's last step) advances the running load's count for every
+    /// tile it reads and removes: 📐 measured 16 s with no report on Stechovice (~60 000 tiles), long enough for the master to eject a node importing on first use.
+    /// 🔴 Mutation: the read loop's <c>ReportDetail</c> removed ⇒ the count moves by less than one per tile.
+    /// </summary>
+    [Fact]
+    public void CE5060_PackingTiles_AdvancesTheLoadsCount_PerTile()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "ce5060-pack-" + Guid.NewGuid().ToString("N"));
+        string layer = Path.Combine(folder, "infantry");
+        Directory.CreateDirectory(layer);
+        const int tiles = 40;
+        for (int i = 0; i < tiles; i++) File.WriteAllBytes(Path.Combine(layer, $"{i}_{i % 7}_h{i}.navtile"), new byte[] { 1, 2, 3, (byte)i });
+        var progress = new Fdp.Core.LoadProgress();
+        Fdp.Core.LoadProgress.Current = progress;
+        try
+        {
+            long before = progress.Value;
+            Assert.True(NavTilePack.Pack(folder) > 0);
+            Assert.True(progress.Value - before >= tiles * 2, $"the count moved {progress.Value - before} for {tiles} tiles (read + remove)");
+        }
+        finally { Fdp.Core.LoadProgress.Current = null; Directory.Delete(folder, true); }
     }
 
     [Fact]

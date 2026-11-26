@@ -20,6 +20,13 @@ namespace Fdp.Toolkit.Terrain
         /// <param name="catalogRoots">every root of the catalog (where sibling <c>terrain-input</c> folders may be)</param>
         /// <returns>the <c>terrain.json</c> to use after an import, or null when nothing was imported (no input set, or the existing terrain is current)</returns>
         string? TryImport(string terrainName, string? existingDefinition, System.Func<string> targetRoot, IReadOnlyList<string> catalogRoots, CancellationToken cancellation);
+
+        /// <summary>
+        /// ⭐ <c>CE-5060</c> (docs/DESIGN_Load_GeoReference_From_Nodes.md §2) — WITHOUT importing: the definition (name, origin, UTM frame) the import of
+        /// <paramref name="terrainName"/>'s committed input set writes — read from its <c>manifest.json</c> only (milliseconds). Null when there is no input
+        /// set, or <paramref name="existingDefinition"/> records no input (a hand-made terrain: never touched, its own file is the truth).
+        /// </summary>
+        TerrainDefinition? TryReadInputDefinition(string terrainName, string? existingDefinition, IReadOnlyList<string> catalogRoots) => null;
     }
 
     /// <summary>

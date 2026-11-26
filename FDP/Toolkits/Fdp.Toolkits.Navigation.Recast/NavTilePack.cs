@@ -84,8 +84,12 @@ public static class NavTilePack
             var byKey = new Dictionary<(int, int, string), Entry>();
             foreach (var pack in Directory.GetFiles(layerDir, "*" + Extension))
                 foreach (var e in ReadAll(pack)) byKey[(e.X, e.Z, e.Hash)] = e;
-            foreach (var file in Directory.GetFiles(layerDir, "*.navtile", SearchOption.AllDirectories))
+            var loose = Directory.GetFiles(layerDir, "*.navtile", SearchOption.AllDirectories);
+            for (int li = 0; li < loose.Length; li++)
             {
+                var file = loose[li];
+                // ⭐ CE-5060 — packing a prefilled terrain reads ~60 000 tiles (16 s on Stechovice, measured): it says how far it is, so a node importing on first use keeps its heartbeat (free with no load)
+                Fdp.Core.LoadProgress.ReportDetail("navmesh packing", li, loose.Length);
                 var parts = Path.GetFileNameWithoutExtension(file).Split('_', 3);   // <x>_<z>_<hash>
                 if (parts.Length != 3 || !int.TryParse(parts[0], out int x) || !int.TryParse(parts[1], out int z)) continue;
                 byKey[(x, z, parts[2])] = new Entry(x, z, parts[2], File.ReadAllBytes(file));
@@ -106,17 +110,28 @@ public static class NavTilePack
             var byRegion = new Dictionary<(int, int), List<Entry>>();
             foreach (var e in entries) Add(byRegion, e);
             var old = new HashSet<string>(Directory.GetFiles(layerDir, "*" + Extension), StringComparer.Ordinal);
+            int region = 0;
             foreach (var ((rx, rz), list) in byRegion)
             {
                 string path = Path.Combine(layerDir, $"{rx}_{rz}{Extension}");
+                Fdp.Core.LoadProgress.ReportDetail("navmesh packing", region++, byRegion.Count);   // ⭐ CE-5060 — as the read above
                 Write(path, list);
                 old.Remove(path);
                 packs++;
             }
             foreach (var stale in old) File.Delete(stale);   // a region with no tile left
-            foreach (var file in Directory.GetFiles(layerDir, "*.navtile", SearchOption.AllDirectories)) File.Delete(file);
-            foreach (var dir in Directory.GetDirectories(layerDir))
-                if (Directory.GetFileSystemEntries(dir, "*", SearchOption.AllDirectories).All(e => Directory.Exists(e))) Directory.Delete(dir, recursive: true);
+            var written = Directory.GetFiles(layerDir, "*.navtile", SearchOption.AllDirectories);
+            for (int di = 0; di < written.Length; di++)
+            {
+                Fdp.Core.LoadProgress.ReportDetail("navmesh packing: removing loose tiles", di, written.Length);   // ⭐ CE-5060 — ~60 000 deletes
+                File.Delete(written[di]);
+            }
+            var dirs = Directory.GetDirectories(layerDir);
+            for (int si = 0; si < dirs.Length; si++)
+            {
+                Fdp.Core.LoadProgress.ReportDetail("navmesh packing: removing tile folders", si, dirs.Length);   // ⭐ CE-5060 — measured 3.6–4.3 s silent here on Stechovice
+                if (Directory.GetFileSystemEntries(dirs[si], "*", SearchOption.AllDirectories).All(e => Directory.Exists(e))) Directory.Delete(dirs[si], recursive: true);
+            }
         }
         return packs;
     }
