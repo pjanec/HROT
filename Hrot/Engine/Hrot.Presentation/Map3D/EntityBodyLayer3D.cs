@@ -520,7 +520,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                 var kit = KitOf(look);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
-                if (look.Family == VisualFamily.AirDefenceVehicle) rounds = LauncherLoad.RoundsLeft(world, e, 0);   // ⭐ CE-4618 — the covers of the rounds still in the canisters
+                if (look.Family == VisualFamily.AirDefenceVehicle) rounds = LauncherLoad.RoundsLeft(world, e, 0);
+                if (look.Family is VisualFamily.BridgeLayer or VisualFamily.FloatingBridge && BridgeLayerLook.Of(world, e) == BridgeLayerState.NoSpan) rounds = 0;   // ⭐ CE-6502 — the span is laid: off the roof / bed   // ⭐ CE-4618 — the covers of the rounds still in the canisters
                 if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation);   // ⭐ CE-1089 (N-5)
                 if (look.Family == VisualFamily.AttackJet)   // ⭐ CE-1092 (N-8) — the pylons, and a bomb on each for every round left
                     parts = [.. parts, .. ShapeKits.AttackJetPylons, .. ShapeKits.AttackJetBombs.AsSpan(0, BombsLeft(world, e, tkb))];
@@ -2406,7 +2407,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
         VisualFamily.TwinEngineJet => new Color(120, 128, 140, 255),   // ⭐ CE-4647 — a slightly bluer grey than the F-16 (the faction / TKB colour wins)
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
-        VisualFamily.MineClearer => new Color(98, 108, 66, 255),   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
+        VisualFamily.MineClearer or VisualFamily.BridgeLayer or VisualFamily.FloatingBridge => new Color(98, 108, 66, 255),   // ⭐ CE-6502 — the bridge engineers too   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
         (>= VisualFamily.Cattle and <= VisualFamily.Goat) or VisualFamily.Rabbit => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)

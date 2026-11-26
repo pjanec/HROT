@@ -561,5 +561,44 @@ namespace Hrot.Presentation.Tests.Tools
             public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
             public Task<System.Collections.Generic.IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
         }
+
+        /// <summary>
+        /// ⭐ CE-6500 (DESIGN_Bridge_Laying §13) — the two-point picker: the first click places A (nothing completes), a line follows the cursor with the order's label —
+        /// asked again only when the cursor moved ≥ 0.25 m (U-4) — and the second click completes with (A, B), removing itself first; Esc cancels. No hint ⇒ the length.
+        /// </summary>
+        [Fact]
+        public void CE6500_TheSegmentPicker_PlacesA_LabelsTheLine_AndCompletesWithAThenB()
+        {
+            int asked = 0, removed = 0; (Vector2 A, Vector2 B)? got = null;
+            var g = new Fdp.Toolkit.Vis2D.Gizmos.SegmentPickerGizmo(
+                onPicked: (a, b) => { Assert.Equal(1, removed); got = (a, b); },
+                onRemove: () => removed++,
+                hint: (a, b) => { asked++; return new Fdp.Toolkit.Vis2D.Gizmos.SegmentHint("gap " + (b.Y - a.Y), true); });
+            var draw = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            g.OnMouseEvent(MapMouseButton.Left, false, new Vector3(80f, 50f, 0f));
+            Assert.Equal(new Vector2(80f, 50f), g.First);
+            Assert.Null(got);
+            g.OnDragUpdate(new Vector3(80f, 70f, 0f));
+            g.UpdateAndDraw(null!, 0.016f, draw);
+            g.UpdateAndDraw(null!, 0.016f, draw);
+            g.OnDragUpdate(new Vector3(80.1f, 70f, 0f));   // under 0.25 m: not asked again
+            g.UpdateAndDraw(null!, 0.016f, draw);
+            Assert.Equal((1, "gap 20"), (asked, g.Label.Text));
+            g.OnDragUpdate(new Vector3(80f, 82f, 0f));
+            g.UpdateAndDraw(null!, 0.016f, draw);
+            Assert.Equal((2, "gap 32"), (asked, g.Label.Text));
+            g.OnMouseEvent(MapMouseButton.Left, false, new Vector3(80f, 82f, 0f));
+            Assert.Equal((new Vector2(80f, 50f), new Vector2(80f, 82f)), got!.Value);
+
+            bool cancelled = false;
+            var esc = new Fdp.Toolkit.Vis2D.Gizmos.SegmentPickerGizmo((a, b) => Assert.Fail("not picked"), () => { }, () => cancelled = true);
+            esc.OnMouseEvent(MapMouseButton.Left, false, new Vector3(1f, 2f, 0f));
+            esc.OnDragUpdate(new Vector3(4f, 6f, 0f));
+            esc.UpdateAndDraw(null!, 0.016f, draw);
+            Assert.Equal("5.0 m", esc.Label.Text);   // no hint: the line's length
+            esc.OnKeyEvent(MapKeyboardKey.Escape, true);
+            Assert.True(cancelled);
+        }
+
     }
 }

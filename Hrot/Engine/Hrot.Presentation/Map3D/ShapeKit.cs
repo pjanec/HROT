@@ -711,6 +711,89 @@ public static class ShapeKits
     /// (<see cref="PartRole.FlailDrum"/>) turn on <see cref="MotionPose.Flail"/>.</summary>
     public static readonly ShapeKit MineClearer = new(MineClearerParts(), default);
 
+    // ── ⭐ CE-6502 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13 U-6; mockup UX/bridge-laying-ui-visual.svg ④) — the two bridge engineers ─────────────────────
+    //    Each kit's metres ARE the TKB's box (NedTkbCatalog: 118 13.4 × 4.0 × 4.0 m, 119 11.0 × 2.6 × 3.5 m). The SPAN parts carry KitPart.Round 0: the layer draws them while the
+    //    engineer carries a span (rounds = Full) and leaves them out once it is laid (BridgeLayerLook NoSpan ⇒ rounds 0) — the launcher canisters' one rule, no new hiding path.
+    private const float BlL = 13.4f, BlW = 4.0f, BlH = 4.0f, FbL = 11.0f, FbW = 2.6f, FbH = 3.5f;
+    /// <summary>The floating-bridge truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>).</summary>
+    public const float FloatingBridgeWheelRadius = 0.55f;
+    /// <summary>The <see cref="KitPart.Round"/> every span part carries: drawn while rounds &gt; 0 (a span on board), left out at 0.</summary>
+    public const int BridgeSpanRound = 0;
+
+    private static KitPart Bl(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, bool span = false)
+    {
+        var p = Box(cx / BlL, cy / BlW, cz / BlH, lx / BlL, ly / BlW, lz / BlH, c);
+        return span ? p with { Round = BridgeSpanRound } : p;
+    }
+
+    private static KitPart Fb(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, bool span = false, float pitch = 0f)
+    {
+        var p = Box(cx / FbL, cy / FbW, cz / FbH, lx / FbL, ly / FbW, lz / FbH, c, pitch);
+        return span ? p with { Round = BridgeSpanRound } : p;
+    }
+
+    private static KitPart[] BridgeLayerParts()
+    {
+        var p = new List<KitPart>(40);
+        foreach (float s in new[] { 1f, -1f })   // the tank chassis' two track units: 7.6 m, seven road wheels each
+        {
+            p.Add(Bl(0f, s * 1.5f, 0.45f, 7.6f, 0.75f, 0.9f, ColourRole.Dark));
+            for (int i = 0; i < 7; i++)
+                p.Add(Cyl(PartAxis.Y, (-3.0f + i) / BlL, s * 1.9f / BlW, 0.45f / BlH, 0f, 0.06f / BlW, 0.62f / BlH, ColourRole.Metal));
+        }
+        p.Add(Bl(0f, 0f, 1.35f, 7.6f, 3.0f, 1.0f, ColourRole.Body));          // the hull
+        p.Add(Bl(2.6f, 0f, 2.15f, 1.6f, 1.6f, 0.6f, ColourRole.Body));        // the driver's / commander's cupola block, front
+        p.Add(Bl(3.42f, 0f, 2.2f, 0.04f, 1.2f, 0.25f, ColourRole.Glass));     // its vision block
+        p.Add(Bl(-3.0f, 0f, 2.15f, 1.2f, 2.6f, 0.6f, ColourRole.Dark));       // the launching arm's frame at the rear, under the span's hinge
+        p.Add(Bl(3.9f, 0f, 1.1f, 0.25f, 3.0f, 0.8f, ColourRole.Dark));        // the stabiliser blade across the front
+        // the folded scissor span on the roof: two halves stacked, the length of the TKB's box, the deck's width; their hinge plates at the ends
+        p.Add(Bl(0f, 0f, 2.75f, 13.4f, 4.0f, 0.45f, ColourRole.Metal, span: true));
+        p.Add(Bl(0f, 0f, 3.25f, 13.4f, 4.0f, 0.45f, ColourRole.Metal, span: true));
+        foreach (float s in new[] { 1f, -1f })
+            p.Add(Bl(0f, s * 1.98f, 3.0f, 13.0f, 0.06f, 0.95f, ColourRole.Dark, span: true));   // the treadway's side girders
+        p.Add(Bl(6.6f, 0f, 3.0f, 0.2f, 3.6f, 0.95f, ColourRole.Dark, span: true));               // the folded ends
+        p.Add(Bl(-6.6f, 0f, 3.0f, 0.2f, 3.6f, 0.95f, ColourRole.Dark, span: true));
+        return p.ToArray();
+    }
+
+    private static KitPart FbTyre(float x, float y)
+        => Cyl(PartAxis.Y, x / FbL, y / FbW, FloatingBridgeWheelRadius / FbH, 0f, 0.45f / FbW, 2f * FloatingBridgeWheelRadius / FbH, ColourRole.Dark);
+
+    private static KitPart FbSpoke(float x, float y)   // the bar across the wheel, so the roll shows
+        => new(PartShape.Box, new Vector3(x / FbL, y / FbW, FloatingBridgeWheelRadius / FbH), new Vector3(1.15f / FbL, 0.5f / FbW, 0.12f / FbH), ColourRole.Metal, Role: PartRole.WheelSpoke);
+
+    private static KitPart[] FloatingBridgeParts()
+    {
+        var p = new List<KitPart>(40);
+        foreach (float x in new[] { 4.0f, 2.5f, -2.0f, -3.5f })   // four axles
+            foreach (float s in new[] { 1f, -1f })
+            {
+                p.Add(FbTyre(x, s * 1.05f));
+                p.Add(FbSpoke(x, s * 1.05f));
+            }
+        p.Add(Fb(0f, 0f, 1.05f, 10.6f, 1.9f, 0.5f, ColourRole.Dark));       // the chassis frame
+        p.Add(Fb(-1.2f, 0f, 1.45f, 7.6f, 2.5f, 0.3f, ColourRole.Body));     // the bed
+        // the cab, forward
+        p.Add(Fb(4.45f, 0f, 2.05f, 2.0f, 2.5f, 1.7f, ColourRole.Body));
+        p.Add(Fb(5.47f, 0f, 2.45f, 0.04f, 2.1f, 0.7f, ColourRole.Glass));    // the windscreen
+        p.Add(Fb(4.55f, 1.26f, 2.45f, 1.2f, 0.04f, 0.6f, ColourRole.Glass));
+        p.Add(Fb(4.55f, -1.26f, 2.45f, 1.2f, 0.04f, 0.6f, ColourRole.Glass));
+        p.Add(Fb(5.42f, 0f, 1.35f, 0.12f, 2.5f, 0.3f, ColourRole.Dark));     // the front bumper
+        p.Add(Fb(-0.4f, 0f, 1.85f, 0.4f, 0.5f, 0.5f, ColourRole.Dark, pitch: -35f));   // the hydraulic launching arm's foot
+        // the folded ribbon bay on the bed: a block the bed's length and width, the W of its folded pontoons on each side
+        p.Add(Fb(-1.4f, 0f, 2.45f, 6.8f, 2.6f, 1.7f, ColourRole.Metal, span: true));
+        foreach (float s in new[] { 1f, -1f })
+            for (int k = 0; k < 4; k++)
+                p.Add(Fb(-4.2f + k * 1.85f, s * 1.27f, 2.6f, 1.9f, 0.05f, 0.08f, ColourRole.Dark, span: true, pitch: k % 2 == 0 ? 28f : -28f));   // the pontoons' folds
+        p.Add(Fb(-1.4f, 0f, 3.32f, 6.8f, 2.4f, 0.06f, ColourRole.Dark, span: true));   // the roadway's top
+        return p.ToArray();
+    }
+
+    /// <summary>⭐ CE-6502 — the assault bridge layer (x forward): tracks, hull, the folded span on the roof (<see cref="BridgeSpanRound"/>).</summary>
+    public static readonly ShapeKit BridgeLayer = new(BridgeLayerParts(), default);
+    /// <summary>⭐ CE-6502 — the floating-bridge truck (x forward): four axles that roll, a cab, the folded ribbon bay on the bed (<see cref="BridgeSpanRound"/>).</summary>
+    public static readonly ShapeKit FloatingBridge = new(FloatingBridgeParts(), default);
+
     // ── ⭐ CE-4618 (docs/designs/air-attack/DESIGN_Radar_SAM.md §5 U-1) — the RADAR SAM truck: an 8×8 carrier, a cab, a four-canister launcher on a turntable, a radar mast ─────
     private const float SaL = 9.1f, SaW = 2.8f, SaH = 4.2f;   // a short-range radar SAM on an 8×8 truck (Tor / Pantsir-like, generic): the TKB's own box (type 114: 9.1 × 2.8 × 4.2 m) — so the kit's metres ARE metres
     /// <summary>The SAM truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>; the car kits' radius is a fraction of THEIR height).</summary>
@@ -853,6 +936,8 @@ public static class ShapeKits
         VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
         VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
         VisualFamily.MineClearer => MineClearer,             // ⭐ CE-4624
+        VisualFamily.BridgeLayer => BridgeLayer,             // ⭐ CE-6502
+        VisualFamily.FloatingBridge => FloatingBridge,       // ⭐ CE-6502
         VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
         VisualFamily.Dragon => DragonKits.Flying,            // ⭐ CE-4634 — the layer picks the folded kit when it stands (DragonKits.For)
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
@@ -879,6 +964,8 @@ public static class ShapeKits
         VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         VisualFamily.MineClearer => new Vector3(McL, McW, McH),         // ⭐ CE-4624 — 9.2 × 3.5 × 3.3 m: the tracks + the flail's reach, the flail's width, the launcher rail's top (the TKB's own wins)
+        VisualFamily.BridgeLayer => new Vector3(BlL, BlW, BlH),         // ⭐ CE-6502 — 13.4 × 4.0 × 4.0 m: the folded span's length and width, to its top (the TKB's own wins)
+        VisualFamily.FloatingBridge => new Vector3(FbL, FbW, FbH),      // ⭐ CE-6502 — 11.0 × 2.6 × 3.5 m (the TKB's own wins)
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
         VisualFamily.Dragon => DragonKits.Size,   // ⭐ CE-4634 — the TKB 411 box: 20 m long, 26 m span, 6 m tall (the TKB's own wins)
         VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)

@@ -81,6 +81,26 @@ namespace Fdp.Toolkit.Terrain
             return Figures(tkb, (long)world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(engineer).TkbType, out layer, out span);
         }
 
+        /// <summary>⭐ CE-6500 — the hull's half-length (centre to front): the vehicle's own <c>VehicleParams.Length</c>, else 3 m. ONE copy (was the brain's and the mover's own, identical).</summary>
+        public static float HullHalf(EntityRepository world, Entity e)
+            => world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>() && world.HasComponent<global::CarKinem.Core.VehicleParams>(e)
+               && world.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Length > 0f
+                ? world.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Length * 0.5f : 3f;
+
+        /// <summary>
+        /// ⭐ CE-6500 (DESIGN_Bridge_Laying §13) — <see cref="Plan"/> for ENGINEER <paramref name="engineer"/> from <paramref name="near"/> to <paramref name="far"/>, with its own figures
+        /// (<see cref="Figures(EntityRepository, Entity, out BridgeLayerDto, out StaticObstacleDto)"/>), its hull and the world's terrain — the ONE call the brain, the mover and the
+        /// operator's preview make, so a preview cannot disagree with the order. False when the engineer carries no bridge layer figures.
+        /// </summary>
+        public static bool PlanFor(EntityRepository world, Entity engineer, Vector2 near, Vector2 far, out LaidDeckPlan plan, out float spanMax)
+        {
+            plan = default; spanMax = 0f;
+            if (!Figures(world, engineer, out var layer, out var span)) return false;
+            spanMax = layer.SpanMaxM;
+            plan = Plan(Fdp.Toolkit.Spatial.Eqs.EqsTerrainSight.World(world), near, far, layer.SpanMaxM, span.Length, span.Height, HullHalf(world, engineer));
+            return true;
+        }
+
         /// <summary>The ramp beyond each deck end for a deck <paramref name="deckHeight"/> above the bank (terrain's rule, <see cref="DeckGeometry.RampLengthFor"/>).</summary>
         public static float RampOf(float deckHeight) => DeckGeometry.RampLengthFor(deckHeight);
 
