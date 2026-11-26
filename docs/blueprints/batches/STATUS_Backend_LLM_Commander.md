@@ -8,7 +8,9 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⏸ `2026-11-26 00:30` — **idle — waiting for a handoff** (self-wake-up: CE-4693 bridge laying DONE — every scenario passes, [STATUS_Backend_Bridge_Laying](STATUS_Backend_Bridge_Laying.md); no new HANDOFF/STEER/NOTE for backend on coordinator / behaviors / ui / terrain / convoy; no new DECIDED answers. Waiting on the user: CE-4691's two hide fixes (a vehicle's hide hidden only when its whole hull is; hit while hidden ⇒ choose another)).
+⏸ `2026-11-26 10:28` — **idle — waiting for a handoff** (self-wake-up: CE-4691 DONE — a vehicle's hide hides its whole hull; hit or launched at in a hide ⇒ another; `va-pop-smoke` 6/6 (fixture start moved); the 6 other vehicle-gate failures are pre-existing. No new HANDOFF/STEER/NOTE for backend on coordinator / behaviors / ui / terrain; no new DECIDED answers).
+
+⛔ ~~`2026-11-26 00:30` — idle~~ (CE-4691 taken on the user's go, done `0136eed59`) `2026-11-26 00:30` — **idle — waiting for a handoff** (self-wake-up: CE-4693 bridge laying DONE — every scenario passes, [STATUS_Backend_Bridge_Laying](STATUS_Backend_Bridge_Laying.md); no new HANDOFF/STEER/NOTE for backend on coordinator / behaviors / ui / terrain / convoy; no new DECIDED answers. Waiting on the user: CE-4691's two hide fixes (a vehicle's hide hidden only when its whole hull is; hit while hidden ⇒ choose another)).
 
 ⛔ ~~`2026-11-24 15:35` — idle~~ **idle — waiting for a handoff** (self-wake-up: CE-4686 done; no new HANDOFF/STEER/NOTE for backend on coordinator / behaviors / ui; no new DECIDED answers. Open leans in §Aggregates 2: abort a waiting order whose condition's unit left the fight (backend); a company hold-back attack at its split (AGG lane)).
 ⭐ `2026-11-24` **CE-4686 (the four findings of the LLM commander over aggregated units) — DONE**: ① HQ-3b relay · ② roles · ③ SupportByFire (root cause: the reconciler CLEARED it at the split — fixed) · ④ BoundOrder; 11 red-proved rails; scripted ✅ 11/11, Haiku low effort ✅ 7/7 judged. Report: §Aggregates 2; designs: Command Chain §8d, Orders §16, Split One Level §10, LLM §5d.1.
