@@ -23,7 +23,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
-  - DESIGN_Load_GeoReference_From_Nodes.md — PROPOSES a load prepare RESULT (LoadPrepareResult, the terrain's geo frame) aggregated by the master, and that BeforePrepare's terrain read never imports (CE-5060)
+  - DESIGN_Load_GeoReference_From_Nodes.md — PROPOSES that BeforePrepare's terrain read never imports (CE-5060) and that the terrain import advances LoadProgress (§12: the heartbeat), incl. a node waiting on another's import lock
   - designs/IG/DESIGN_Linked_Client_Director.md — OWNS the linked client for the director; LinkedClientLoadStep beside MapBuildLoadStep (Q113-I, CE-11026 built); a replay open runs the chain's Terrain / Map3D / linked-client parts for the RECORDING's terrain through IReplayWorldLoad (F-H3, Q113-J, CE-11025 built — its §2e-1 holds the as-built)
   - docs/DESIGN_Terrain_Authoring.md — OWNS the editor's live terrain overlay (§18e-2); §11.10d here makes the load wait for its first bake (CE-5039)
   - docs/DESIGN_Node_Features.md — R-1046 / CE-3354 ③'s MapInLoad is migrated into the feature map3d.in-load (its S1)

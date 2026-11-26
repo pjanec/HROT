@@ -1,18 +1,18 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — not dispatched (user, 2026-11-26: "write it as a design, do not send to backend"); an independent review is folded in §8
-updated: 2026-11-26 (first version, terrain lane — CE-5060)
-current-answer: §2 the decision · §3 the UML · §5 the claim table · §6 the open questions · §8 the review
-stale-below: nothing
+build-state: DESIGN v2 — not dispatched (user, 2026-11-26: "write it as a design, do not send to backend"); revised after the independent review (§8)
+updated: 2026-11-26 (v2 after the independent review: the origin from the INPUT SET, no aggregator, no wire change) · 2026-11-26 (v1, terrain lane — CE-5060)
+current-answer: §2 the decision (v2) · §3 the UML · §4 the claim table · §5 the preconditions · §6 acceptance · §8 the review and what was done with each finding
+stale-below: ## ⛔ HISTORY — v1 (the nodes report the origin in a LoadPrepareResult, a LoadGeoAggregator) — SUPERSEDED by the review: do not quote it
 known-rot: none
-known-conflict: DESIGN_Geo_Origin.md §4 ⑩ says the master publishes "the loaded terrain's declared origin" read by the master itself (AQ107 C, ClusterMaster.GeoReference.cs) — this design moves that read to the nodes; not reconciled until approved
+known-conflict: none — v2 keeps DESIGN_Geo_Origin.md §4 ⑨ / ⑩ as they are (the master still reads; the node still reads ahead); only the READ changes, to one that cannot import
 related-designs:
   - DESIGN_Geo_Origin.md — OWNS where the origin comes from and §4 ⑨ (the origin set ahead of the bake on a world boundary, CE-2242) and ⑩ (the master publishes); this changes WHO reads the load's origin for ⑩, and what ⑨ does on a first use
   - blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the retained GeoReference topic and its publisher (the master); unchanged here: still the master, still on round success
   - DESIGN_Terrain_Import_UTM.md §13 — OWNS the import on first use (CE-11037/11039/11061) and CE-5060, the defect this design removes
   - DESIGN_Cluster_Load_Phase.md — OWNS the load transaction, ILoadPartProvider.BeforePrepare / PrepareAsync / Commit and the per-node LoadProgress (§12) the stall check and the heartbeats read
 -->
-# The load's geo-reference comes from the nodes — no terrain import on the master (CE-5060)
+# No terrain import on the master or the node's frame — the load's origin read from the INPUT SET (CE-5060)
 
 ## 1. The problem (measured `2026-11-26`)
 
@@ -27,183 +27,163 @@ related-designs:
 
 ⇒ a first-use or stale import (CE-11037 / CE-11061) runs in ①: on the master's frame thread, minutes long, before any progress source exists — so the director's 30 s stall check fails the load (CE-5060), and the master's frame (its heartbeat processing, its HTTP) is blocked for the whole import. ① exists only to read the terrain's ORIGIN for the `GeoReference` it publishes when the round succeeds (AQ107 C, `DESIGN_Geo_Origin.md` §4 ⑩).
 
-## 2. Decision
+## 2. Decision (v2)
 
-⭐ **Each node puts its terrain's geo frame in its load prepare result; the master aggregates the results (`INodeResponseAggregator`, as the replay already does with `ReplayPrepareResult.GeoOrigin`) and publishes on round success. The master never resolves the terrain.** And the node's frame-thread read ② never imports: the one import of a load runs in ③, on the worker, with the load's progress.
+⭐ **One import-free read of a terrain's ORIGIN — `TerrainCatalog.PeekOrigin(name)` — used by BOTH frame-thread readers (① the master's `NoteLoadGeoReference`, ② the node's `ApplyOriginAhead`):** the current terrain folder's `terrain.json` when there is one; else, through the import hook, the origin of the terrain's committed INPUT SET — `Utm.ToGeodetic(e0 + minX, n0 + minY)` from its `manifest.json` (`frame.utm` + `bounds`), exactly what the importer writes (`TerrainFolderWriter.cs:104`, `TerrainImporter.cs:76`). ⇒ ① and ② never import; the load's one import runs in ③ (`TerrainResidency.Prepare`, the node's worker), inside the Terrain step where the progress shows. Precondition (§5): the import keeps the node's heartbeat and the stall check moving.
 
 | rejected | the one fact |
 |---|---|
-| the master reads the origin WITHOUT importing, at round success | 📐 the nodes import into their MACHINE's root (`SharedImportTarget`): a master-only machine of a dev-checkout cluster, or any cluster with a read-only NAS, finds nothing and publishes no GeoReference (the gateway — Unreal — loses its frame) |
-| attach a progress around ① | the gate is not loading yet (measured: `localPhase Ready`, gate open) — the stall check still reads nothing, and the master's frame stays blocked for minutes |
-| move the import off the frame inside the catalog | hides the caller instead of removing it; a resolve that may take minutes would still sit under the master's transition |
+| v1 — nodes report the origin in a `LoadPrepareResult`, a `LoadGeoAggregator` publishes | ⛔ review §8 ①②: the master keeps ONE aggregator per op (`ClusterMaster.cs:2266`; `PrepareLive` is `LiveBranchAggregator`'s), and the DDS decoder drops an unknown load result (`NodeOpMasterTranslator`: `PrepareEdit` → `default: null`) — it would work in the editor and fail in the multi-node case it was built for; and ② would still have no origin on a first use (CE-2242) |
+| the master reads the import's `terrain.json` without importing | fails where the master's machine never holds the import (a master-only dev-checkout machine, a read-only NAS — review §8 ⑤); the input set does not have that gap: it is committed (git) or beside a terrain root (`SourceImport.FindSet`) |
+| a progress around ① | the gate is not loading yet (measured); the master's frame stays blocked for minutes |
 
-## 3. The UML
+## 3. The UML (v2)
 
-### 3.1 Classes — existing (plain) beside proposed (`<<new>>`)
+### 3.1 Classes
 
 ```mermaid
 classDiagram
-  class INodeResponseAggregator {
+  class ITerrainSourceImport {
     <<interface, existing>>
-    +TargetOp NodeOpType
-    +Aggregate(nodeResponses) object
+    +TryImport(name, existing, targetRoot, roots, ct) string
+    +TryReadInputOrigin(name, roots) TerrainGeoOrigin_and_Utm
   }
-  class ReplayConsensusAggregator {
+  class SourceImport {
     <<existing>>
-    +Aggregate() ReplayPrepareResult
+    +TryImport() string
+    +TryReadInputOrigin() reads manifest.json, never imports
   }
-  class ReplayPrepareResult {
-    <<existing, wire JSON>>
-    +GeoOrigin GeoOriginRecord
-    +TerrainName string
-    +NoGeoFrame bool
-  }
-  class LoadPrepareResult {
-    <<new, wire JSON>>
-    +Geo LoadGeoFrame
-  }
-  class LoadGeoFrame {
-    <<new>>
-    +TerrainName string
-    +Frame TerrainGeoFrame_Wire
-  }
-  class LoadGeoAggregator {
-    <<new>>
-    +TargetOp PrepareEdit or PrepareLive
-    +Aggregate() LoadGeoFrame
+  class TerrainCatalog {
+    <<existing>>
+    +ResolveDefinition(name) string
+    +ReadDefinition(name) TerrainDefinition
+    +PeekOrigin(name) TerrainGeoFrame
   }
   class ClusterMaster {
     <<existing>>
-    -NoteLoadGeoReference() REMOVED
-    -OnRoundSucceededForGeoReference(parked, aggregated)
-    -PublishGeoReference(frame, terrain, source)
-  }
-  class LoadPhaseChain {
-    <<existing>>
-    +PrepareAsync(intent) object
-  }
-  class TerrainLoadStep {
-    <<existing>>
-    +BeforePrepare(context, world)
-    +PrepareAsync(context, ct)
+    -NoteLoadGeoReference(tx, name)
   }
   class TerrainResidency {
     <<existing>>
     +ApplyOriginAhead(world, name)
     +Prepare(name, overlay)
-    +PeekDefinition(name) TerrainDefinition
   }
-  class TerrainCatalog {
-    <<existing>>
-    +ResolveDefinition(name) string
-    +PeekDefinition(name) string
+  class LoadDetailProgress {
+    <<existing, SourceImport>>
+    +Report(p) ReportDetail AND Report
   }
-  INodeResponseAggregator <|.. ReplayConsensusAggregator
-  INodeResponseAggregator <|.. LoadGeoAggregator
-  ReplayConsensusAggregator ..> ReplayPrepareResult : reads
-  LoadGeoAggregator ..> LoadPrepareResult : reads
-  LoadPrepareResult *-- LoadGeoFrame
-  LoadPhaseChain ..> LoadPrepareResult : returns
-  TerrainLoadStep ..> LoadGeoFrame : fills (context)
-  TerrainLoadStep --> TerrainResidency
-  TerrainResidency --> TerrainCatalog
-  ClusterMaster o-- "1..*" INodeResponseAggregator
+  ITerrainSourceImport <|.. SourceImport
+  TerrainCatalog --> ITerrainSourceImport : TerrainSources.Import
+  ClusterMaster ..> TerrainCatalog : PeekOrigin (was ReadDefinition)
+  TerrainResidency ..> TerrainCatalog : PeekOrigin ahead, ResolveDefinition in Prepare
+  SourceImport *-- LoadDetailProgress
 ```
 
-*What the picture shows that prose hid:* the load gains NO new transport — `LoadPrepareResult` rides the same `NodeOpCompletedEvent.ResultPayload` JSON (`NodeOpSlaveTranslator.SerializeResultPayload`) that `ReplayPrepareResult` already rides, and `LoadGeoAggregator` sits beside `ReplayConsensusAggregator` behind the one interface. `PeekDefinition` is the only new catalog surface (a resolve that never calls the import hook).
+*What the picture shows that prose hid:* no new type crosses a process — the change is one catalog read (`PeekOrigin`) and one hook method (`TryReadInputOrigin`), both in the two classes that already own a terrain's resolve and import; the wire, the aggregators and `DESIGN_Geo_Origin.md` §4 ⑨ ⑩ stay as they are.
 
 ### 3.2 Sequence — a world-boundary load, first use on this machine
 
 ```mermaid
 sequenceDiagram
   participant M as ClusterMaster (frame)
-  participant S as ClusterSlave (node frame)
-  participant T as TerrainLoadStep
-  participant R as TerrainResidency
   participant C as TerrainCatalog
-  participant W as load worker
-  M->>S: ExecuteNodeOpIntent PrepareEdit (TerrainName) — no terrain read on the master
-  S->>T: BeforePrepare (frame)
-  T->>R: ApplyOriginAhead
-  R->>C: PeekDefinition (never imports)
-  C-->>R: null on a first use, else the current definition
-  Note over R: first use: no origin ahead (open question Q1)
-  S->>W: PrepareAsync (worker, LoadProgress set)
-  W->>R: Prepare
-  R->>C: ResolveDefinition — the ONE import, progress shown as "Terrain: import navmesh n/1000"
-  W-->>T: staged + the definition's geo frame into the context
-  S-->>M: NodeOpCompleted ResultPayload = LoadPrepareResult(Geo)
-  M->>M: round succeeds — LoadGeoAggregator over every node's result
-  M->>M: PublishGeoReference(frame, terrain, "terrain load")
+  participant H as SourceImport (hook)
+  participant S as node frame (BeforePrepare)
+  participant W as node worker (Terrain PrepareAsync)
+  M->>C: PeekOrigin(name) — no folder yet
+  C->>H: TryReadInputOrigin(name) — manifest.json only
+  H-->>M: origin (parked, published on round success as today)
+  M->>S: PrepareEdit fan-out
+  S->>C: PeekOrigin(name) — the same read
+  C-->>S: origin — set ahead of the bake (CE-2242 holds on a first use)
+  S->>W: PrepareAsync
+  W->>C: ResolveDefinition — the ONE import, LoadProgress advancing
+  Note over W: Report per stage step keeps the heartbeat and moves the step text
+  W-->>S: Commit sets the origin again (a no-op when equal)
 ```
 
-*What the picture shows:* the import moves from the master's frame (before the gate) to the node's worker (inside the Terrain step, where `LoadProgress` and the gate's progress text already work — measured: *"Terrain: navmesh 10885/30951"*).
+*What the picture shows:* both frame-thread readers get the origin in milliseconds on a first use, so the ahead-of-bake rule (⑨) keeps working; only the worker imports.
 
-### 3.3 Modules — who runs what, and who calls it each load
+### 3.3 Modules — who calls the terrain catalog during a load
 
 ```mermaid
 graph TD
-  OC[OrchestratorCore ctor] -->|RegisterAggregator, once| LGA[LoadGeoAggregator NEW]
-  OC -->|RegisterAggregator, once| RCA[ReplayConsensusAggregator]
-  CM[ClusterMaster.Tick, master frame] -->|round success: TryAggregate| LGA
-  CM -->|round success| PUB[PublishGeoReference]
-  CS[ClusterSlave.Tick, node frame] -->|BeforePrepare| TLS[TerrainLoadStep]
-  CS -->|PrepareAsync, worker| TLS
-  TLS --> RES[TerrainResidency]
-  RES --> CAT[TerrainCatalog]
-  CM -.->|REMOVED: NoteLoadGeoReference reads the terrain| CAT
-  linkStyle 8 stroke:#d33,stroke-dasharray:5
+  CM[ClusterMaster.Tick, master frame] -->|PeekOrigin| CAT[TerrainCatalog]
+  BP[TerrainLoadStep.BeforePrepare, node frame] -->|PeekOrigin| CAT
+  PR[TerrainLoadStep.PrepareAsync, node worker] -->|ResolveDefinition, may import| CAT
+  SPM[StorageProcessManager, master: save / recompile / new scenario] -->|ResolveDefinition, may import| CAT
+  CAT --> HOOK[SourceImport]
+  linkStyle 3 stroke:#d80,stroke-dasharray:5
 ```
 
-*Caption:* the red dashed edge is the one this design deletes — the master's only path into the terrain catalog. ⚠ Every master hosts an `OrchestratorCore`, so the aggregator is registered on every master by construction (`OrchestratorCore.cs:119-127`, the existing list).
+*Caption:* the orange dashed edge is OUT of this design's scope and still imports on the master — the overlay compile at save, the recompile and the blank new scenario (`StorageProcessManager.cs:245`, `:276`, `:340`; review §8 ⑥) — filed as its own row.
 
-## 4. INVENTORY
+## 4. Claim table (v2)
+
+| the decision rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| ① is the load's first resolve and the one that imports | ✅ measured probe (§1); `ClusterMaster.cs:1731` | ✅ `DESIGN_Geo_Origin.md` §4 ⑩ (the master reads the header) |
+| the origin is a pure function of the input set's manifest | ✅ `TerrainFolderWriter.cs:104` (`Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY)`), `TerrainImporter.cs:76` (`swX = m.MinX`); Stechovice's `manifest.json` carries `frame.utm` + `bounds` | ✅ `DESIGN_Terrain_Import_UTM.md` (origin = the set's south-west corner) |
+| a read of `manifest.json` cannot import | ✅ `TryReadInputOrigin` is new and reads one JSON file | — |
+| the master can see the input set where it cannot see the import | ✅ `SourceImport.FindSet` (beside every catalog root, then the repository) | ✅ `DESIGN_Terrain_Import_UTM.md` §13 (git keeps the INPUT) |
+| the import on the worker keeps the heartbeat | ⛔ **NOT today** — `ReportDetail` does not advance the count (`LoadProgress.cs:50–63`); only the navmesh baker's per-tile `Report()` does (review §8 ③) ⇒ precondition §5 | `DESIGN_Cluster_Load_Phase.md` §12 ("all loaders need to report progress") |
+| two nodes on one machine: the second waits on the import lock | ⛔ the wait (`SourceImport.AcquireLock`, `Sleep(50)`) reports nothing ⇒ precondition §5 | — |
+| the proven solution | read the immutable SOURCE of a derived value instead of producing the derived artefact on the critical path — adopt: the origin depends on the input only | — |
+
+## 5. Preconditions (part of the build, not "measure first")
+
+| # | precondition | why |
+|---|---|---|
+| P1 | `SourceImport.LoadDetailProgress.Report` also calls `Fdp.Core.LoadProgress.Report()` | the heartbeat (both sources) and the director's count move during every stage, not only the navmesh |
+| P2 | the import-lock wait reports progress (`ReportDetail("import: waiting for another import", …)` + `Report()` per poll) | N nodes on one machine on a first use: N−1 wait silently and would be ejected |
+| P3 | the catalog passes the load's cancellation into `TryImport` (today `default`, `TerrainCatalog.cs:88,93`) | a cancelled load stops importing and frees the lock (review §8 ⑩) |
+| P4 | the master's existing rails (`ClusterMasterFanOutTests` AQ107C, `:356–405`, `:490–515`) stay green — they read a NAS terrain FOLDER, which `PeekOrigin` reads first | v2 keeps the master's read; only its fallback is new |
+
+## 6. Acceptance
+
+| rail | asserts |
+|---|---|
+| `TerrainCatalogTests.CE5060_PeekOrigin_*` | a folder ⇒ its origin; no folder + an input set ⇒ the manifest's origin, equal to what the import then writes; ⛔ the hook's import count stays 0 |
+| `SourceImportTests.CE5060_TheImport_AdvancesTheLoadsCount` | every stage advances `LoadProgress` (`MovedWithin(1 s)` true through a stage), and a lock waiter advances it too |
+| `TerrainLoadStepTests.CE2242_*` on a FIRST use | the origin is set ahead of the bake with no terrain folder yet |
+| `ClusterMasterFanOutTests` AQ107C | unchanged, green |
+| `scripts/scenario-regression.sh stechovice-battle` with no import on the machine | passes the load (the step text moves through the import) |
+
+## 7. INVENTORY
 
 | query | total | what it found |
 |---|---|---|
 | `search_graph name_pattern ".*GeoReference.*" label Class` | 2 | `OrchestrationMessages.GeoReference` (the wire), `GeoReferencePublishedEvent` |
 | `… ".*GeoReference.*" label Interface` | 0 | — |
 | `… ".*GeoOrigin.*" label Class` | 2 | `RecordingMetadata.GeoOriginRecord`, `TerrainDefinition.TerrainGeoOrigin` |
-| `… ".*PrepareResult.*" label Class` | 1 | `ReplayPrepareResult` — ⇒ no load result type exists |
+| `… ".*PrepareResult.*" label Class` | 1 | `ReplayPrepareResult` — no load result type exists |
 | `… ".*LoadPhase.*Result.*" label Class` | 0 | — |
-| `… ".*Aggregator.*" label Class` | 12 | the master's 9 (`CheckpointRestore`, `DiagnosticsConsensus`, `EpisodeConsensus`, `LiveBranch`, `ReplayConsensus`, `ReplaySeek`, `StorageConsensus`, `UnsavedCheck`) + 3 unrelated (blackboard, utility) — ⇒ none for a load |
-| `… ".*Aggregator.*" label Interface` | 2 | `INodeResponseAggregator` (the seam), a blackboard one (unrelated) |
-| grep `TryImport(` / `ResolveDefinition(` callers | 4 resolves on a load | the table in §1 (a probe, not committed) |
+| `… ".*Aggregator.*" label Class` | 12 | the master's 9 + 3 unrelated — none for a load (v1's premise; v2 needs none) |
+| `… ".*Aggregator.*" label Interface` | 2 | `INodeResponseAggregator`, a blackboard one (unrelated) |
+| grep `ResolveDefinition(` / `ReadDefinition(` on a load | 4 resolves | §1 (a probe, not committed); ⭐ the review found 3 more on the master off the load path (`StorageProcessManager.cs:245,276,340`) |
+| grep the input set's origin | 1 writer | `TerrainFolderWriter.WriteTerrainJson` (`:104`) — no reader of the manifest's origin exists yet (`TryReadInputOrigin` is new) |
 
-⚠ `check_index_coverage` is not available through the CLI — the absence claims ("no load result type", "no load aggregator") rest on the graph plus grep, not a coverage check.
+⚠ `check_index_coverage` is not available through the CLI — the absence claims rest on the graph plus grep, not a coverage check.
 
-## 5. Claim table
+## 8. Independent review *(a fresh agent, read-only, given the design and the code; `2026-11-26`)*
 
-| the decision rests on | code — how it IS | design — how it was MEANT to be |
-|---|---|---|
-| ① is the first resolve and the one that imports | ✅ measured probe (§1); `ClusterMaster.cs:1731` | ✅ `DESIGN_Geo_Origin.md` §4 ⑩ (the master reads the terrain header — AQ107 C "the orchestrator can load the terrain header") |
-| a node's prepare result reaches the master as JSON with no new transport | ✅ `ClusterSlave.cs:740` (`ResultPayload = result`), `ReplayPrepareResult.cs:14` (serialiser named) | ✅ `INodeResponseAggregator.cs` doc (aggregators over TransitionState rounds) |
-| load rounds return nothing today | ✅ `LoadPhaseChain.PrepareAsync` returns `null` on every path (`LoadPhaseChain.cs:202-303`) | ⛔ searched `DESIGN_Cluster_Load_Phase.md` for a load result — none found |
-| the master's aggregators run on load rounds | ⚠ `TryAggregate` (`ClusterMaster.cs:2274`) runs for a tracker with neither `SuccessResult` nor `ResultFromResponses` (`:2607`) — ⛔ **not measured that a load's tracker takes that path** | `INodeResponseAggregator.cs` doc: "after all node ACKs for a TransitionState round" |
-| a master-only machine / a read-only NAS cannot see the nodes' import | ✅ `TerrainCatalog.SharedImportTarget` (machine root first), `ForNode(null, nas)` on the master | ✅ `DESIGN_Terrain_Import_UTM.md` §13.2 (once per MACHINE) |
-| the node's frame-thread read ② would import next once ① stops | ✅ measured order (§1) | ✅ `DESIGN_Geo_Origin.md` §4 ⑨ ("reads just the definition") — ⭐ an import there was never intended |
-| an import on the node's worker keeps the node's heartbeat alive | ⛔ **assumed** — the pump beats only when `LoadProgress.MovedWithin(1 s)` (`NodeOpSlaveTranslator.cs:160`); the import reports `ReportDetail` only (`SourceImport.LoadDetailProgress`), and `SetDetail` does NOT advance the count (`LoadProgress.cs`) — whether the navmesh prefill advances it is not measured | `DESIGN_Cluster_Load_Phase.md` §12: "all loaders need to report progress" |
-| the proven solution | ⭐ distributed systems publish a fact from the party that HOLDS it (here: the node that loaded the terrain), aggregated by the coordinator — the same as this codebase's replay prepare | adopt: the replay already does it here (ruling 9 — one mechanism) |
+**Verdict: unsound as written (v1)** — the goal right, the transport and the aggregation wrong. ⭐ Spot-verified here before acting: the decoder's `default: null` (`NodeOpMasterTranslator.cs:286`, with two earlier fixes of the same bug in its comments), the origin as a function of the manifest (`TerrainFolderWriter.cs:104`, `TerrainImporter.cs:76`), the manifest's `frame` + `bounds`.
 
-## 6. Open questions (with leans)
+| # | severity | finding | done |
+|---|---|---|---|
+| ① | BLOCKING | one aggregator per op: a `PrepareLive` one replaces `LiveBranchAggregator` (CE-3312 regresses) | v1 dropped — v2 has no aggregator |
+| ② | BLOCKING | the DDS decoder drops an unknown load result (`PrepareEdit` → `null`; `PrepareLive` → a default `LiveBranchResult`) — v1 works only in-process | v1 dropped — v2 crosses no process |
+| ③ | BLOCKING | the import reports only `ReportDetail`, which does not advance the count — a stage > ~5 s stops the beats and the master ejects the node; lock waiters report nothing | §5 P1, P2 (preconditions) |
+| ④ | IMPORTANT | Q1's mitigation impossible: off-frame steps run in one `Task.Run`, no frame callback before `Commit`; ⭐ the origin is a function of the input set's manifest — read it import-free and Q1 disappears | ⭐ adopted: v2's decision |
+| ⑤ | IMPORTANT | the rejected "master reads without importing" was over-stated: it fails only on a master-only dev machine or a read-only NAS — and the input-set read fixes those too | §2 table corrected |
+| ⑥ | IMPORTANT | the master also resolves (and may import) at save, recompile and new scenario (`StorageProcessManager.cs:245,276,340`) — "the only path" was false | §3.3 caption; tracker row filed |
+| ⑦ | MINOR | the world-boundary rule and "names no terrain ⇒ `Frame=None`" | v2 keeps `NoteLoadGeoReference` as it is (both rules stay) |
+| ⑧ | MINOR | the replay's tie rule is the earliest first frame, not the lowest id | moot in v2 |
+| ⑨ | MINOR | the AQ107C master rails would break under v1 | §5 P4 — v2 keeps them |
+| ⑩ | MINOR | the catalog passes `default` cancellation into the import | §5 P3 |
 
-| # | question | lean |
-|---|---|---|
-| **Q1** | ⑨ on a FIRST use: ② (`PeekDefinition`) finds no current terrain, so the origin is not set ahead of the bake; CE-2242's race (entities arriving from other nodes before this node's commit) returns for that one load | ⭐ accept for a first use only, AND let ③ hand the definition back so the chain sets the origin on the frame as soon as the worker finishes the Terrain step, before `ScenarioEntities` (the chain's step order is serial on one node) — measure CE-2242's rail under a first use |
-| **Q2** | a STALE copy (an older importer revision) at ②: `PeekDefinition` cannot tell stale from current without the hook — ⑨ would set the stale copy's origin | ⭐ the peek returns the definition anyway: an importer revision does not move the origin (it is the input set's corner); only a changed INPUT can — and then ③'s import changes it and `Commit` re-sets it (③ holds: a no-op when equal) |
-| **Q3** | nodes that disagree (two terrains or two origins in one cluster) | ⭐ the aggregator warns and takes the lowest node id's frame — the same tie rule as the replay's (`ReplayConsensusAggregator`, earliest first frame) |
-| **Q4** | roles that do not load terrain (no Terrain step) | ⭐ they return no `Geo`; the aggregator ignores them. No node with a terrain ⇒ `Frame = none` (CE-4396 UE-e, as the replay) |
-| **Q5** | the heartbeat during a multi-minute import on the worker (claim row 7) | ⭐ measure first; if the prefill does not advance the count, `SourceImport.LoadDetailProgress` also calls `LoadProgress.Report()` per stage step |
+Confirmed by the review: the §1 lines; load rounds DO run the aggregators (`GenericTransactionTracker`, `ClusterMaster.cs:1768–1777`, `:2607`); `LoadPhaseChain.PrepareAsync` returns null; the import is synchronous under a lock per target root. ⚠ Not determined: each import stage's length without an advance.
 
-## 7. Acceptance (rails + scenario)
+## ⛔ HISTORY — v1 (SUPERSEDED `2026-11-26` by the review above; do not quote)
 
-| rail | asserts |
-|---|---|
-| `LoadGeoAggregatorTests` | one node / three nodes agree / two disagree (warn, lowest id) / none carries a terrain (`Frame = none`) |
-| `TerrainResidencyTests.CE5060_ApplyOriginAhead_NeverImports` | a missing terrain with an input set: `ApplyOriginAhead` returns with no import (the hook's count 0); `Prepare` imports once |
-| `ClusterMaster` rail | a load round publishes the aggregated frame; ⛔ no `TerrainCatalog` resolve on the master (a counting hook) |
-| `scripts/scenario-regression.sh stechovice-battle` on a machine with no import | the load passes the 30 s stall check (the step text moves through the import) |
-
-## 8. Independent review
-
-*(folded in below when it returns)*
+v1 had each node return its terrain's geo frame in a new `LoadPrepareResult`, aggregated by a new `LoadGeoAggregator` (`PrepareEdit` / `PrepareLive`), the master publishing the aggregate and never resolving the terrain; the node's ahead read used an import-free `PeekDefinition` (no origin on a first use — its open Q1). Killed by §8 ① ② (one aggregator per op; the DDS decoder drops an unknown load result) and ④ (no frame point before `Commit`).
