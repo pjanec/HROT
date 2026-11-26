@@ -141,6 +141,8 @@ public:
 	// read by the HUD
 	int32 PlayedId() const { return PlayerUnit; }
 	int32 PendingPossess() const { return PossessWanted; }
+	/** a short message for the status line (e.g. why a unit cannot be possessed), shown for a few seconds; empty when none */
+	FString NoticeLine() const { return FPlatformTime::Seconds() - NoticeAt < 5.0 ? Notice : FString(); }
 	bool IsZooming() const { return bZooming; }
 	float VerticalFov() const { return bZooming ? HrotPlayer::IronSightsFov : HrotPlayer::NormalFov; }
 	int32 AimTargetId() const { return AimTarget; }
@@ -198,6 +200,9 @@ private:
 	bool bLookCaptured = false; FVector2D RmbPressAt = FVector2D::ZeroVector;   // U-19g: RMB held for look: the mouse is captured, the press point is restored on release
 	// the player
 	int32 PossessWanted = 0, PlayerUnit = 0;
+	FString Notice; double NoticeAt = -100.0;
+	/** possess when HROT offers the unit to this station (PlayerSlot.Offers, free); otherwise only says why — the P key and the offer keys */
+	void TryPossess(int32 EntityId);
 	double PlayerYaw = 0, PlayerPitch = 0, BodyYaw = 0;
 	float PlayerDistance = HrotCamera::PersonDefault, PlayerArm = 0, LookIdle = 0;
 	bool bPlayerArmPlaced = false, bZooming = false, bRunning = false, bCrouchHeld = false;

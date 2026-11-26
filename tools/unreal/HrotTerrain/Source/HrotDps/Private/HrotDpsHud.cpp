@@ -239,6 +239,19 @@ static void DrawBody(UCanvas* Canvas, AHrotDpsCamera* Cam, APlayerController* PC
 		if (!St->SlotReason().IsEmpty()) Line += TEXT(" (") + St->SlotReason() + TEXT(")");
 		L.Add({ Line + TEXT("   Esc: cancel"), Yellow });
 	}
+	if (!Cam->NoticeLine().IsEmpty()) L.Add({ Cam->NoticeLine(), Yellow });
+	if (St && !Cam->PendingPossess())   // the playable units HROT offers this station (PlayerSlot.Offers) - a number possesses one
+	{
+		const TArray<int32> Ids = St->OfferIds();
+		if (Ids.Num() == 0) L.Add({ St->SlotState() == TEXT("(no slot)") ? TEXT("No player slot from the station yet") : TEXT("No playable units offered to this station"), Grey });
+		else
+		{
+			L.Add({ TEXT("Playable units - press the number to possess:"), White });
+			for (int32 K = 0; K < Ids.Num() && K < 9; ++K)
+				L.Add({ FString::Printf(TEXT("  %d  %s  [unit %d]"), K + 1, *St->OfferName(Ids[K]), Ids[K]), White });
+			if (Ids.Num() > 9) L.Add({ FString::Printf(TEXT("  ... %d playable in all: click any of them and press P"), Ids.Num()), Grey });
+		}
+	}
 	if (Cam->SelectedId()) L.Add({ FString::Printf(TEXT("Selected unit %d   right-click: menu   F follow   P possess"), Cam->SelectedId()), White });
 	else L.Add({ TEXT("Click a unit to select it, right-click it for its menu"), Grey });
 	P.Lines(L, 16.f, Canvas->ClipY - 16.f);
