@@ -126,6 +126,9 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c4670000-0000-0000-0000-0000000000d0"))
                     .Label("Launch at me → fight from cover")
                     .Comment("CE-4670 VA-S5: a launch is answered like a hit — smoke (the side step above) and out of the shooter's sight before the missile arrives.")
+                .Condition(SopConditions.UnderCommand, Id("c4703000-0000-0000-0000-0000000000c1"))
+                    .Label("Under a live commander → the commander reacts for the vehicle")
+                    .Comment("CE-4703 (user 2026-11-26: \"agree with the lean\"; CE-2358 for vehicles): true = the row wins and nothing is ordered — a vehicle under a live commander (a platoon's play: the hill attack, the convoy) gets its fight from that play, so a first sight of the enemy does not take it out of the play. Self-defence stays its own: the hit, the launch at me and the air rows are ABOVE this row. 📐 ua-hill-attack: Tank 1 saw the enemy from the baseline at 5.2 s, its contact row paused the platoon's move, it fought alone and the pairs never crested.")
                 .Sequence(row => row
                     .Condition(bb => bb.ThreatSense, SopConditions.SensedFresh, Id("c2165000-0000-0000-0000-000000000031"))
                         .Label("First threat (fresh, 3 s)")

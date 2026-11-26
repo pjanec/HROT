@@ -147,6 +147,39 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("ShelterFromAir", both.TaskName);
         }
 
+        /// <summary>⭐⭐ <c>CE-4703</c> (user: "agree with the lean"; CE-2358 for vehicles) — a vehicle under a live commander leaves CONTACT to its
+        /// commander's play: a first sight of the enemy orders nothing, the play's order runs on. Self-defence stays its own — a HIT still sends it
+        /// to fight from cover. Its commander gone, contact is its own again. 📐 <c>ua-hill-attack</c>: Tank 1's contact row paused the platoon's move
+        /// at 5.2 s and it fought alone. 🔴 Red-proof: the UnderCommand row removed ⇒ the contact starts VehicleFightFromCover ⇒ red.</summary>
+        [Fact]
+        public void CE4703_UnderACommander_ContactIsThePlays_AHitIsItsOwn_CommanderGone_ContactIsItsOwn()
+        {
+            var w = new World();
+            var commander = w.Repo.CreateEntity();
+            w.Repo.AddComponent(w.Unit, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+            w.Order("Idle"); w.StartSop(); w.Run(0.3);
+            w.Remember(true);
+            w.Sense(SensorChange.FirstThreat);
+            w.Run(0.1);
+            Assert.Equal("Idle", w.TaskName);                                  // the play's order runs on
+            Assert.Equal(BehaviorOrigin.Superior, w.Task.Origin);
+
+            w.Sense(SensorChange.Hit);
+            w.Run(0.1);
+            Assert.Equal("VehicleFightFromCover", w.TaskName);                 // self-defence: its own
+            Assert.Equal(ReactionUrgency.Hit, w.Task.Urgency);
+
+            var alone = new World();
+            var gone = alone.Repo.CreateEntity();
+            alone.Repo.AddComponent(alone.Unit, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = gone });
+            alone.Repo.DestroyEntity(gone);
+            alone.Order("Idle"); alone.StartSop(); alone.Run(0.3);
+            alone.Remember(true);
+            alone.Sense(SensorChange.FirstThreat);
+            alone.Run(0.1);
+            Assert.Equal("VehicleFightFromCover", alone.TaskName);             // no commander: contact is its own
+        }
+
         /// <summary>A carrier: <paramref name="passenger"/> ⇒ a soldier aboard (a passenger seat); <paramref name="speed"/> its velocity
         /// east (m/s); <paramref name="mobile"/> false ⇒ a mobility kill (no CanMove).</summary>
         private static World Carrier(bool passenger, float speed, bool mobile = true, bool crewOnly = false, bool brainNode = false)
