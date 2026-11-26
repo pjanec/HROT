@@ -2233,23 +2233,24 @@ namespace Hrot.SimHost.Tests
         /// <summary>A sound one of <paramref name="c"/>'s men hears, as the acoustic sensor's answer reaches the brain.</summary>
         private static void Hear(Chain c, Vector3 at, Fdp.Toolkit.Tkb.Domain.SoundSourceClass what,
                                  Fdp.Toolkit.Perception.Signatures.SoundKind kind = Fdp.Toolkit.Perception.Signatures.SoundKind.Shot,
-                                 Fdp.Toolkit.Tkb.Domain.SoundFamily family = Fdp.Toolkit.Tkb.Domain.SoundFamily.Untold)
+                                 Fdp.Toolkit.Tkb.Domain.SoundFamily family = Fdp.Toolkit.Tkb.Domain.SoundFamily.Untold, byte via = 0)
         {
             if (!c.S.Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
                 c.S.Repo.Bus.Register<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
             c.S.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SoundContactEvent
             {
                 Observer = c.S.Members[0], X = at.X, Y = at.Y, Z = at.Z, Radius = 80f, Kind = (byte)kind, SourceClass = (byte)what,
-                Family = (byte)family,
+                Family = (byte)family, Via = via,
             });
         }
 
         /// <summary>⭐⭐ <c>CE-2309</c> (HQ-1, Command Chain §8d) as Q95 E1 left it — a LAUNCH is a mortar's or a gun's shot as the ear TOLD it, at
         /// any range: after the report delay the platoon's picture holds one element there, Count 1, flagged IndirectFire, the estimate's radius;
         /// the same launch again (60 m off, 5 s later) adds nothing. No launch: a heavy MG 1.2 km off (once a launch by range alone), a heavy
-        /// shot the ear could not tell (family 0 — an ear below Regular), rifles, a mortar's BURST.
+        /// shot the ear could not tell (family 0 — an ear below Regular), rifles, a mortar's BURST, ⭐ a launch heard FROM AN OPENING (CE-4702: its point is
+        /// the corner it came in by, never the gun — 📐 uc-urban-battle's mortar SPOTted round the convoy, the platoon never quiet).
         /// ✅ Red-proofs: the family test dropped ⇒ the HMG / the untold shot · the kind test dropped ⇒ the burst · the same-launch memory
-        /// dropped ⇒ two elements.</summary>
+        /// dropped ⇒ two elements · ⭐ the Via test dropped ⇒ the corner is SPOTted.</summary>
         [Fact]
         public void CE2309_ALaunchToldByTheEar_IsSpottedAsIndirectFire_OnceAtAnyRange_NotAnHmgOrAnUntoldShot()
         {
@@ -2263,6 +2264,7 @@ namespace Hrot.SimHost.Tests
                  Fdp.Toolkit.Tkb.Domain.SoundFamily.Rifle);                                                                // rifles
             Hear(c, near + new Vector3(1200f, 0f, 0f), heavy, Fdp.Toolkit.Perception.Signatures.SoundKind.Detonation,
                  Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar);                                                              // a burst
+            Hear(c, near + new Vector3(40f, 30f, 0f), heavy, shot, Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar, via: 1);   // ⭐ CE-4702 — heard round a corner: the corner, not the gun
             c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             Assert.Equal(0, c.Picture.Elements.Count);
 
