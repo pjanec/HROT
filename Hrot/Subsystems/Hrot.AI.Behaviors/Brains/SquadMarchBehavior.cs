@@ -95,6 +95,18 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>A lead that gets no 0.5 m closer to the objective for this long hands the lead on (s) — 📐 live: the first lead
         /// picked stood on a spot no move works from (z 9 on <c>test-town</c>) and the whole squad waited behind it.</summary>
         public const float LeadStuckSeconds = 5f;
+        /// <summary>⭐ <c>CE-5051</c> — a lead still waiting for its route (<see cref="Planning"/>) keeps the lead this long at most (s).</summary>
+        public const float LeadPlanMaxSeconds = 30f;
+
+        /// <summary>⭐ <c>CE-5051</c> — <paramref name="member"/>'s move has no route yet: its mover reports the move in progress and is not
+        /// following a corridor (a declared brain-phase read, as <see cref="SquadGates.MoversStopped"/>). No status ⇒ false (as before).</summary>
+        public static bool Planning(EntityRepository world, Entity member)
+        {
+            if (!world.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(member)) return false;
+            ref readonly var st = ref world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationStatus>(member);
+            return st.Result == Fdp.Toolkit.Navigation.NavigationResult.InProgress
+                   && st.Phase is Fdp.Toolkit.Navigation.NavigationPhase.Idle or Fdp.Toolkit.Navigation.NavigationPhase.AwaitingPath;
+        }
         /// <summary>⭐ <c>CE-2159</c> (§6.1b) — a follower more than <see cref="CatchUpLagMetres"/> behind its slot is sent this much faster
         /// than the march: a slot on the lead's trail moves at the march speed, so a man sent at that speed never closes the gap and
         /// the lead held for him again and again (📐 live: ~0.3 m/s from a diagonal start).</summary>
@@ -145,7 +157,11 @@ namespace Hrot.AI.Behaviors.Brains
 
             // A lead that makes no progress (not waiting, not there) hands the lead on.
             if (march.LeadHalted != 0 || march.LeadArrivedAt >= 0f || toGo < march.LeadBest - ProgressMetres) { march.LeadBest = MathF.Min(march.LeadBest, toGo); march.LeadProgressAt = t; }
-            else if (t - march.LeadProgressAt > LeadStuckSeconds)
+            // ⭐ CE-5051 — a lead whose route is still being PLANNED is not stuck (up to LeadPlanMaxSeconds): 📐 live (stechovice-battle) a
+            //   520 m route took ~4 s to plan, the lead was handed on at 5 s, every order went out again, the followers walked to slots
+            //   BEHIND the next lead — and the squad ratcheted 130 m AWAY from its objective in 150 s
+            else if (t - march.LeadProgressAt > LeadStuckSeconds
+                     && !(t - march.LeadProgressAt <= LeadPlanMaxSeconds && Planning(ctx.World, leadEntity)))
             {
                 march.FailedLeads |= (ushort)(1 << lead);
                 march.LeadPlusOne = 0;

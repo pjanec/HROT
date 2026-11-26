@@ -1766,6 +1766,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-5051</c> — a lead whose route is still being PLANNED keeps the lead past <see cref="SquadMarchPlay.LeadStuckSeconds"/>;
+        /// once it has a route and still makes no progress, it hands the lead on. 📐 live (stechovice-battle): the lead was handed on while its
+        /// 520 m route was planned, and each hand-over sent the followers to slots behind the next lead — the squad drifted 130 m away.</summary>
+        [Fact]
+        public void CE5051_SquadMarch_ALeadStillPlanningItsRoute_KeepsTheLead_OneWithARouteThatStandsStill_HandsItOn()
+        {
+            var s = new Squad(members: 3);
+            if (!s.Repo.IsComponentTypeRegistered<NavigationStatus>()) s.Repo.RegisterComponent<NavigationStatus>();
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new NavigationStatus { Result = NavigationResult.InProgress, Phase = NavigationPhase.Idle });
+            s.Order("{\"Objective\":[0,200,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — the order enters one frame later, its member orders one frame after
+            var lead = s.Members.First(m => s.LastOrders()[m] == (BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)));
+            s.Orders.Clear();
+            for (int i = 0; i < 480; i++) s.Tick();                                                   // ~8 s, nobody moves: the route is still planned
+            Assert.DoesNotContain(s.Members.Where(m => m != lead), m => s.LastOrders().TryGetValue(m, out var o) && o == (BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)));
+
+            s.Repo.GetComponentRW<NavigationStatus>(lead).Phase = NavigationPhase.Following;         // it has its route, and stands still
+            for (int i = 0; i < 480; i++) s.Tick();
+            Assert.Contains(s.Members.Where(m => m != lead), m => s.LastOrders().TryGetValue(m, out var o) && o == (BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)));
+        }
+
         // ── ⭐ CE-2141 (D2, docs/DESIGN_Orders_Params_Entity_Classes.md §7) — the orders a squad fulfils, and the release ──
 
         private static string MoveJson(Squad s, Vector3 to, string roadUse = "Unspecified")
