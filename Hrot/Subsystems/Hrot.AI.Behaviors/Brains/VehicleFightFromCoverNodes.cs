@@ -346,6 +346,9 @@ namespace Hrot.AI.Behaviors.Brains
                 case VehiclePhase.Watching:    Watching(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Withdrawing: Withdrawing(ref ws, in p, self, world, now); break;
             }
+            // ⭐ CE-4698 — tell the crew whether the hull can back out of sight (the smoke side step reads it); written only when it changes
+            byte noHide = (byte)(ws.Phase == VehiclePhase.StandAndFight ? 1 : 0);
+            if (mem.NoHide != noHide) mem.NoHide = noHide;
             Claim(ref ws, self, world, now);
             return NodeStatus.Running;
         }
@@ -353,7 +356,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Leaving the node: its sensors go, its fire, its tracking and its move stop. ⭐ The position memory stays.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover")]
         public static void Deactivate_VehicleFightFromCover(ref VehicleFightFromCoverParams p, ref VehicleFightFromCoverState ws, Entity self, EntityRepository world)
-            => Release(ref ws, self, world);
+        {
+            Release(ref ws, self, world);
+            ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
+            if (mem.NoHide != 0) mem.NoHide = 0;   // ⭐ CE-4698 — out of the cycle the crew's smoke is its own again
+        }
 
         // ── the phases ──────────────────────────────────────────────────────────────────────────────
 

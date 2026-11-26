@@ -240,6 +240,40 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Salvos());
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4698</c> — a survived HIT is screened only by a hull that can back out of the cloud: while its fight-from-cover cycle STANDS AND
+        /// FIGHTS (<c>FiringPositionMemory.NoHide</c>) the hit fires nothing; with a hide to go to the same hit fires the salvo at the threat; a LAUNCH
+        /// still smokes either way. 📐 <c>ua-tank-ammo</c>: smoked in the open desert, the M1 sat blind in its own cloud past 60 s.
+        /// 🔴 Red-proof: the NoHide gate removed ⇒ the standing hull smokes ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE4698_ASurvivedHit_SmokesOnlyAHullThatCanBackOutOfSight_ALaunchAlways()
+        {
+            var tank = SmokeTank(salvos: 3);
+            _w.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, -1, 800f, 0f, 10f, 1);   // the threat, heard at (800, 0)
+            mem.Anonymous[0] = 1;
+            _w.AddComponent(tank, mem);
+            void Hit(double t) { At(t); _w.GetComponentRW<RecentSenses>(tank).Record(SensorChange.Hit, t); }
+
+            UnitMemory.Ref<Fdp.Toolkit.Combat.FiringPositionMemory>(_w, tank).NoHide = 1;   // standing and fighting: nowhere to back out
+            var p = new CrewSmokeParams();
+            Hit(10);
+            VehicleCrewNodes.SmokeByThreat(ref p, tank, _w);
+            Assert.Empty(Salvos());                                                    // the cloud would blind its own gun
+            Launch(tank, 11, 1200f);
+            VehicleCrewNodes.SmokeByThreat(ref p, tank, _w);
+            Assert.Single(Salvos());                                                   // a launch still smokes
+
+            UnitMemory.Ref<Fdp.Toolkit.Combat.FiringPositionMemory>(_w, tank).NoHide = 0;   // a hide to back into
+            var q = new CrewSmokeParams();
+            Hit(50);
+            VehicleCrewNodes.SmokeByThreat(ref q, tank, _w);
+            var salvo = Assert.Single(Salvos());
+            Assert.Equal(800f, salvo.TargetPoint.X, 0.01f);                            // at the threat
+        }
+
         /// <summary>A vehicle with no dischargers, or with none left, pops nothing (and the gun's mount 0 is never fired).</summary>
         [Fact]
         public void CE4670_PopSmoke_NoDischargers_OrNoneLeft_FiresNothing()
