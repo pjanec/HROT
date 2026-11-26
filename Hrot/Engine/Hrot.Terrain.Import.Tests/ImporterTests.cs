@@ -343,6 +343,28 @@ public class ImporterTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-5057</c> A-3b — the COMMITTED synthetic set <c>assets/terrain-input/te-osm-bridge</c> (its net made by SUMO's own netconvert, two-way: each direction's lane
+    /// off the centreline, both tagged <c>bridge</c>) imports ONE deck named after the forward edge, at the banks' height, the net's bridged lanes on it — the set the
+    /// <c>te-osm-bridge</c> scenario runs on. 🔴 Mutation: no two-way pairing for bridged edges ⇒ two decks.
+    /// </summary>
+    [Fact]
+    public async Task CE5057_TheCommittedOsmBridgeSet_ImportsOneDeck()
+    {
+        string set = Path.Combine(Netconvert.RepoRoot()!, "assets", "terrain-input", "te-osm-bridge");
+        var imp = _env.Importer();
+        string folder = await imp.ImportAsync(set, "te-osm-bridge", false, null, default);
+        var world = Env.Load(folder, "te-osm-bridge");
+        Assert.Equal(1, imp.LastReport!.Bridges);
+        var b = Assert.Single(world.Buildings, bd => bd.Label.StartsWith("osm-bridge/", StringComparison.Ordinal));
+        Assert.Equal("osm-bridge/bridge", b.Label);
+        float bank = world.Height!.Sample(30, 100);                                   // terrain-local: the set spans −100..100
+        foreach (var x in new[] { 85f, 100f, 115f })
+            Assert.InRange(world.DeckSurfaceAt(x, 100, null) - bank, -0.1f, 0.1f);
+        foreach (var (x, _, z) in NetPoints(folder).Where(p => MathF.Abs(p.X) <= 12))
+            Assert.True(MathF.Abs(z - bank) <= 0.1f, $"the bridged lane at x {x:F1} is at z {z:F2}, not on the deck ({bank:F2})");
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4403</c> part 2 (D-3, G-24, R-4234) — houses close to a road are TOLERATED: one standing ON the road (an old town, OSM drift) leaves the road its
     /// natural cross-slope there and is counted as information, never an error; one beside it gets its pad, and the pad's skirt never alters the road's
     /// levelled posts (the corridor is locked). 🔴 Red-proof: pass no lock to the pads ⇒ the road beside the house is cut below its level.

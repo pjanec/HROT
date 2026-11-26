@@ -257,6 +257,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
   (B-4, CE-4601, R-4242; rails `ClearObstacleBehaviorTests.CE4601_*`) ✅ — the order and the cut; 📐 the map's "clear here" gesture
   ⚠ scenario `tt-dozer-breach` (R-4277): a house wall opens, but a FREE wall (a garden wall, a fence row) is not yet opened for infantry by the ordered cut in a live run — red, engine defect filed in its `$doc`
+- **A real-map (OSM) bridge is a bridge:** an imported road tagged `bridge` becomes a deck from bank to bank at the banks' height — men, vehicles, the navmesh
+  and SUMO's cars cross on it, the valley stays under it, and it collapses like an authored bridge (CE-5057 / CE-11063, `docs/DESIGN_Terrain_OSM_Bridges.md`;
+  rails `ImporterTests.CE5057_*`; ▶ `te-osm-bridge` — 3 of 3 pass) ✅ on a synthetic net · ⏳ Stechovice's Vltava bridges wait for its regenerated road net
 - **A laid bridge carries men and vehicles over a river, and can be blown:** a laid bridge (an assault or a floating span) is terrain on every
   node — the navmesh, the floor, sight and fire hold its deck — and road for our road-following vehicles while it stands; a charge on the deck
   drops it, whoever was on the span goes into the river, and the river is a barrier again. (BL-S1/S2, CE-4692, R-4299; rails

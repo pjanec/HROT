@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — terrain lane, 2026-11-26 (CE-11063 (unreal-ig) = CE-5057); development on a synthetic net (user: "use synthetic small net for development")
-updated: 2026-11-26 (first version)
-current-answer: §2 the decision · §3 the UML · §4 the claim table · §5 open questions with leans · §6 acceptance
+build-state: BUILT on the synthetic net (2026-11-26, §8 as built) — ⏳ A-5 (Stechovice) waits for unreal-ig's regenerated input-set net
+updated: 2026-11-26 (§8 as built — the synthetic net) · 2026-11-26 (first version)
+current-answer: §8 as built · §2 the decision · §3 the UML · §4 the claim table · §5 open questions with leans · §6 acceptance
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Terrain_From_OSM.md §5.3 says "a bridge stays SUMO-elevated with the valley under it untouched" — the valley stays untouched here too, but the importer's net re-elevation (G-25) DRAPES the bridge's road onto the valley today (measured, §1); this design makes the bridge's road follow its deck
@@ -175,6 +175,21 @@ graph TD
 | A-3 | `ImporterTests` on a synthetic input set with a river | the world has the deck parts under one `structure`; the infantry AND vehicle navmesh connect the banks over it; the net's bridged lanes lie on the deck (not the river bed) |
 | A-4 | a scenario on that synthetic terrain (`te-osm-bridge`) — `scripts/scenario-regression.sh te-osm-bridge` | a vehicle crosses (a `near` row on the far bank); a man walks across |
 | A-5 | Stechovice, once `unreal-ig` commits the regenerated net | the Vltava crossings are decks in `Stechovice.world.geojson`; `stechovice-battle` stays green on its bridgehead rows |
+
+## 8. As built *(terrain, `2026-11-26`)*
+
+| piece | as built | vs §2–§3 |
+|---|---|---|
+| D-1 | `Corridors.Edge` gets `Bridge`, `Tunnel`, `Layer` beside `OffGround`; `Bridges.Plan` takes `Bridge`, a bare `layer` > 0 only over a ≥ `Bridges.LayerDip` (1 m) dip, never `Tunnel` | as designed |
+| D-2 | `Corridors.PairTwoWay(edges, eligible)` — the corridors' own pairing, its eligibility now a parameter (default: the ground roads, unchanged); the stage pairs its bridged edges through it, then chains through junctions joining exactly two segments | `PairTwoWay` was `OffGround`-only; generalised, not copied (ruling 9) |
+| D-3 / D-4 | ends at `finalGround` (after the pads, which never alter a road) at the chain's first and last points; width = the lanes' widths (a pair: the corridor's `half` × 2 − the shoulders) | as designed |
+| D-5 | `DeckGeometry.BuildAlong(line, width, zAt, groundAt)` — mitred slabs (the mitre capped at 2 × half-width), a ramp only where an end stands > `RampThreshold` (0.3 m) above the ground, length `RampLengthFor` | as designed |
+| D-6 | `TerrainFolderWriter.WriteWorld(…, bridges)` — `slab` / `ramp` features, `zRef: ground`, `structure: osm-bridge/<forward edge id>` (SUMO's reverse edge is `-<id>`: the forward one names it) | the name rule added |
+| D-7 | `NetElevation.Apply(…, edgeSurface, junctionZ)` — a second pass over the bridged `<edge>` blocks onto `Deck.ZNear`, a junction ON a bridge to the deck; no override ⇒ the single pass as before | as designed |
+| D-8 | `TerrainImporter.Revision` 5; `ImportReport.Bridges` | as designed |
+| the synthetic set | ⭐ `assets/terrain-input/te-osm-bridge` (224 KB): a 200 m square, a 6 m dip with a river (x −10..10), a two-way road along y 0 — its net made by **SUMO's own netconvert** from plain nodes / edges (the crossing edges carry `<param key="bridge" value="yes"/>`, as the OSM stage keeps it); written through the rails' `MiniSet` writers by a local generator | 📐 a hand-written minimal net (the rails' form) failed SUMO's traffic loader (*"&lt;lane&gt; is missing required attribute 'speed'"*) — the committed set needs a full net |
+
+**Gates (`2026-11-26`):** `ImporterTests.CE5057_*` 4 / 4 — each red-proved by a compiling mutation (no stage ⇒ 3 red; no net override ⇒ 2 red; no chaining ⇒ 1 red; no pairing of bridged edges ⇒ the committed-set rail red) · `Hrot.Terrain.Import.Tests` 93 / 1 / 1 — ⚠ the one red is **CE-5021** (*"red wherever SUMO is installed"* — SUMO was installed for this set's net; pre-existing) · `Hrot.Terrain.InputSet.Tests` 19 / 19 · `Fdp.Toolkits` deck / feature / world 109 / 109 · ⭐ **`scripts/scenario-regression.sh te-osm-bridge` — 3 / 3 PASS** (the tank reaches the east bank at 33 s, never below the banks' height over the river; the squad's objective Achieved).
 
 ## 7. INVENTORY
 

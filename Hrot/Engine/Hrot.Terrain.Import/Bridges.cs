@@ -101,7 +101,9 @@ public static class Bridges
             }
             if (line.Count < 2) continue;
             var arr = line.ToArray();
-            decks.Add(new Deck("osm-bridge/" + ids[0], arr, width, groundAt(arr[0]), groundAt(arr[^1]), ids, inner));
+            // named after its forward edge (SUMO's reverse edge is "-<id>"), the lowest id — stable across imports of the same net
+            string name = ids.OrderBy(i => i.StartsWith('-') ? 1 : 0).ThenBy(i => i, StringComparer.Ordinal).First();
+            decks.Add(new Deck("osm-bridge/" + name, arr, width, groundAt(arr[0]), groundAt(arr[^1]), ids, inner));
         }
         return decks;
 
