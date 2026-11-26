@@ -378,7 +378,8 @@ public sealed class DirectorRunnerTests : IDisposable
         public string Name => "fake client";
         public void BeginWorld(Guid loadId) { }
         public bool IsWorldReady(Guid loadId, out string? failure, out string? step) { failure = null; step = null; return true; }
-        public bool CanFilm => true;
+        public bool Films = true;
+        public bool CanFilm => Films;
         public Task BeginFilm(Hrot.Common.Infrastructure.FilmJob job) { lock (Begins) Begins.Add(job); return Task.CompletedTask; }
         public Task Frame(Hrot.Common.Infrastructure.FilmFrame frame)
         {
@@ -487,6 +488,31 @@ public sealed class DirectorRunnerTests : IDisposable
             Assert.True(map.Frames.Count >= 20, $"{(offer ? "frames: map" : "no client")}: the map filmed {map.Frames.Count} frames");
             Assert.Empty(client.Begins);
             Assert.Empty(client.Frames);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11067 (unreal-ig director test H-3) — the sink says where each job's frames went, so a fallback to HROT's map is never silent: the client, frames: map, a client that
+    /// cannot film now (named), no client. 🔴 Mutation: Route not set in Begin ⇒ null rows.
+    /// </summary>
+    [Fact]
+    public void CE11067_TheSink_NamesWhereAJobsFramesWent()
+    {
+        foreach (var (offer, films, frames, expected) in new[]
+        {
+            (true, true, Hrot.Common.Infrastructure.FilmFrames.Auto, "the linked client 'fake client'"),
+            (true, true, Hrot.Common.Infrastructure.FilmFrames.Map, "HROT's map (frames: map)"),
+            (true, false, Hrot.Common.Infrastructure.FilmFrames.Auto, "HROT's map: the linked client 'fake client' cannot film now"),
+            (false, true, Hrot.Common.Infrastructure.FilmFrames.Auto, "HROT's map (no linked client)"),
+        })
+        {
+            var clients = new Hrot.Common.Infrastructure.LinkedClients();
+            if (offer) clients.Offer(new FakeClient { Films = films });
+            var sink = new RoutingFrameSink(new Sink(), () => clients);
+            Assert.Null(sink.Route);
+            sink.Begin(new Hrot.Common.Infrastructure.FilmJob(Guid.NewGuid(), Hrot.Common.Infrastructure.FilmJobKind.Reel, "r", 30, 640, 360, 1, "f", Frames: frames));
+            Assert.Equal(expected, sink.Route);
+            Assert.Equal(expected, ((IFrameSink)sink).Route);
         }
     }
 

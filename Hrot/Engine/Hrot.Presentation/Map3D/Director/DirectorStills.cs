@@ -341,6 +341,7 @@ namespace Hrot.UI.Common.Map3D.Director
             ["planned"] = PlanJson(_plan),
             ["stills"] = new JsonArray(_done.Select(d => (JsonNode?)d.DeepClone()).ToArray()),
             ["sheet"] = _sheet,
+            ["framesTo"] = _step == Step.Idle ? null : _sink?.Route,   // ⭐ CE-11067 — the linked client or HROT's map (and why)
             ["sheetGrid"] = _sheet == null ? null : ContactSheet.Layout(_done.Count, _width, _height).ToJson(),
             ["problems"] = new JsonArray(_problems.Select(p => (JsonNode?)p).ToArray()),
         };

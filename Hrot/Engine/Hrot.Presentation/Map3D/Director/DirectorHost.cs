@@ -134,6 +134,10 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>A film job starts (a reel captured to frames, or a still). The director waits for the task before its first frame; a FAULT fails the job with its reason.</summary>
         Task Begin(Hrot.Common.Infrastructure.FilmJob job) => Task.CompletedTask;
 
+        /// <summary>⭐ CE-11067 (unreal-ig director test H-3) — where the last job's frames went, in words ("HROT's map", "the linked client 'dps'",
+        /// "HROT's map: the linked client 'dps' cannot film now"); null before the first job. The status shows it so a fallback is never silent.</summary>
+        string? Route => null;
+
         /// <summary>A scene frame of the job, with what a renderer elsewhere needs besides the overlay (<see cref="FilmFrameContext"/>).</summary>
         Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay, FilmFrameContext context) => Frame(path, width, height, supersample, overlay);
 

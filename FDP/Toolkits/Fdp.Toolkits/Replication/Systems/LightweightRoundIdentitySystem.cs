@@ -42,6 +42,12 @@ namespace Fdp.Toolkit.Replication.Systems
             _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
+        /// <summary>How many ids the allocator handed out that the map still held for another entity (CE-5061) — skipped, never registered twice.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
+        public int IdCollisions { get; private set; }
+
+        private const int MaxIdRetries = 64;
+
         /// <summary>Rounds given an identity in the last tick — the rail's counter.</summary>
         [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Assigned { get; private set; }
@@ -62,7 +68,17 @@ namespace Fdp.Toolkit.Replication.Systems
             foreach (var e in _query!) _pending.Add(e);
             foreach (var e in _pending)
             {
+                // ⭐ CE-5061 (unreal-ig H-6: the editor process ended after ~23 min of live stechovice-battle, "NetworkId 6263 already registered") — the allocator handed out an
+                //   id the map still holds for ANOTHER entity (it was reissued: a world boundary resets the id authority while restored rounds keep theirs). A round must never
+                //   end the process: take the next id, count it, say it once. ⛔ The reissue itself is the open defect (CE-5061), not fixed here.
                 int id = _ids.AllocateId();
+                for (int tries = 0; _entityMap.TryGetEntity(id, out var holder) && holder != e && tries < MaxIdRetries; tries++)
+                {
+                    if (IdCollisions++ == 0)
+                        Console.WriteLine($"[LightweightRoundIdentity] CE-5061: id {id} is still mapped to entity {holder} - the allocator reissued it; the round takes the next id (said once)");
+                    id = _ids.AllocateId();
+                }
+                if (_entityMap.TryGetEntity(id, out var still) && still != e) continue;   // no free id after the retries: the round stays local (drawn by this node only)
                 world.AddComponent(e, new NetworkIdentity(id));
                 world.AddComponent(e, new NetworkAuthority(_localNodeId, _localNodeId));
                 _entityMap.Register(id, e);

@@ -1399,6 +1399,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 ["tickHz"] = _take?.TickHz,
                 ["frames"] = _request?.Capture != null ? _frameNo : null,
                 ["movie"] = MoviePath,
+                ["framesTo"] = _request?.Capture != null ? _sink?.Route : null,   // ⭐ CE-11067 — where this capture's frames go (the linked client or HROT's map, with why)
                 ["error"] = Error,
                 ["reports"] = new JsonArray(_reports.Select(r => (JsonNode?)r.ToJson()).ToArray()),
             };

@@ -47,12 +47,20 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>The linked client the CURRENT job's scene frames go to; null = the map (or no job).</summary>
         public ILinkedClient? Routed => _client;
 
+        /// <summary>⭐ CE-11067 — where the last job's frames went, in words (see <see cref="IFrameSink.Route"/>).</summary>
+        public string? Route { get; private set; }
+
         public Task Begin(FilmJob job)
         {
             if (job == null) throw new ArgumentNullException(nameof(job));
             _job = job.JobId;
             _tail = Task.CompletedTask;
-            _client = job.Frames == FilmFrames.Auto && _clients?.Invoke()?.Current is { CanFilm: true } c ? c : null;
+            var current = _clients?.Invoke()?.Current;
+            _client = job.Frames == FilmFrames.Auto && current is { CanFilm: true } c ? c : null;
+            Route = _client != null ? $"the linked client '{_client.Name}'"
+                : job.Frames != FilmFrames.Auto ? "HROT's map (frames: map)"
+                : current != null ? $"HROT's map: the linked client '{current.Name}' cannot film now"
+                : "HROT's map (no linked client)";
             return _client != null ? Chain(() => _client.BeginFilm(job)) : _map.Begin(job);
         }
 
