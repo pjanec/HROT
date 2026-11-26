@@ -7,15 +7,17 @@
   "anchors": {
     "launch": {
       "on": "shot",
-      "by": "Stinger Gunner",
+      "by": "Stinger (MANPADS)",
+      "at": "Apache",
       "n": 1
     }
   },
   "expect": [
     {
-      "name": "the Stinger gunner fires a missile",
+      "name": "the Stinger gunner fires a missile at the Apache (the launcher's round — CE-4699: his rifle rounds once passed this row)",
       "on": "shot",
-      "by": "Stinger Gunner"
+      "by": "Stinger (MANPADS)",
+      "at": "Apache"
     },
     {
       "name": "the Apache receives a missile warning",
