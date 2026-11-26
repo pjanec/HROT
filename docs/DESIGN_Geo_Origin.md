@@ -2,6 +2,7 @@
 state: LIVE
 build-state: BUILT — ⭐ §6 UTM everywhere BUILT 2026-11-10 (CE-4396, as built §6.3) · A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
 updated: 2026-11-10 (§6.3 as built — CE-4396) · 2026-11-10 (§6 UTM everywhere — coordinator) · 2026-11-10 (related-designs: UTM §12.2 — the one instance becomes switchable, CE-4394)
+  - DESIGN_Load_GeoReference_From_Nodes.md — PROPOSES (CE-5060, 2026-11-26, not built) that the load's GeoReference (§4 ⑩) comes from the nodes' prepare results, the master never reading the terrain; and that ⑨'s read never imports
 current-answer: ⭐ §6 UTM EVERYWHERE — §6.1a the user's correction (the lat / lon origin IS the frame; an optional zone override only) supersedes UE-1 / UE-5 / UE-6's added fields; leans APPROVED (R-4197, 2026-11-10) — building (CE-4396) · §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack.
