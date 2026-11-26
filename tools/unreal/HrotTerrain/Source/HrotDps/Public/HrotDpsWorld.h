@@ -292,6 +292,10 @@ private:
 		// T-083 (DD-035): a bridge layer's span - VehicleLook.BridgeLayer (0 NoSpan, 1 Carried, 2 Laying, 3 Recovering) and the span drawn on it
 		uint8 BridgeLayer = 0;
 		TWeakObjectPtr<class UStaticMeshComponent> Span;
+		// T-084 (DD-035): a roadblock - its own size from Obstacle (m: length along the heading, width, height); drawn from it, not as a box of the domain
+		bool bObstacle = false;
+		FVector ObstacleSize = FVector::ZeroVector;
+		uint8 ObstacleShownDamage = 255;
 		// U-18h — an animal: Animal's state, its flock's birds
 		bool bAnimal = false, bHasAnimal = false, bDangerous = false, bAirborne = false;
 		uint8 AnimalMode = 0, FlockMode = 0, Family = 0;
@@ -485,6 +489,11 @@ private:
 	/** T-083: the span on a bridge layer (118 / 119) as VehicleLook.BridgeLayer says - on its back, raised over its front while laying or
 	 *  recovering (HROT sends no progress in v1), gone once laid (the laid span is the Deck) */
 	void ApplyBridgeLayer(FEnt& E);
+	/** T-084: a roadblock (sandbag wall, concrete block, jersey barrier, barrel, crate, wreck, booth) from its Obstacle size */
+	void OnObstacle(const struct FHrotDpsSample& S);
+	AActor* SpawnObstacle(int32 Id, FEnt& E, const FTransform& At);
+	/** its damage: Damaged sags it, Destroyed (a dozer's breach) leaves a low spill that fades */
+	void ApplyObstacleDamage(FEnt& E);
 	void OnMover(const struct FHrotDpsSample& S);
 	void OnMoverTracks(const struct FHrotDpsSample& S);
 	void PreloadPeopleAndSounds();

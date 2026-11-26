@@ -51,6 +51,7 @@
 #include "Animation/SkeletalMeshActor.h"
 #include "Animation/AnimationAsset.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -125,6 +126,7 @@ namespace
 	using FFireSpots = SimNetGateway_Protocol_DdsPlayer_FireSpots;
 	using FGroundMarks = SimNetGateway_Protocol_DdsPlayer_GroundMarks;
 	using FDeckS = SimNetGateway_Protocol_DdsPlayer_Deck;
+	using FObstacleS = SimNetGateway_Protocol_DdsPlayer_Obstacle;
 	using FMoverS = SimNetGateway_Protocol_DdsPlayer_Mover;
 	using FMoverTracks = SimNetGateway_Protocol_DdsPlayer_MoverTracks;
 	/** a contract direction (ENU) → Unreal (no scale) */
@@ -343,6 +345,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_FireSpots"), &UHrotDpsWorld::OnFireSpots);
 	Sub(TEXT("DPS_GroundMarks"), &UHrotDpsWorld::OnGroundMarks);
 	Sub(TEXT("DPS_Deck"), &UHrotDpsWorld::OnDeck);   // T-083
+	Sub(TEXT("DPS_Obstacle"), &UHrotDpsWorld::OnObstacle);   // T-084: roadblocks
 	Sub(TEXT("DPS_Mover"), &UHrotDpsWorld::OnMover);
 	Sub(TEXT("DPS_MoverTracks"), &UHrotDpsWorld::OnMoverTracks);
 	// U-18p — round 7: the station's clock and steps, its suggested view; the echo goes to the probe thread's own reader
@@ -396,7 +399,21 @@ void UHrotDpsWorld::Forget(int32 Id)
 {
 	FEnt E;
 	if (!Ents.RemoveAndCopyValue(Id, E)) return;
-	if (AActor* A = E.Actor.Get()) { A->Destroy(); ++Removed; }
+	if (AActor* A = E.Actor.Get())
+	{
+		// T-084: a roadblock that went while damaged was breached (a dozer's push drains it to zero, then HROT removes it): its spill stays a few
+		// seconds, flattened. Whether HROT always shows the destroyed state before the dispose is asked (NOTE_UnrealIg_To_UiIntegration_Roadblocks_Needs.md #1)
+		if (E.bObstacle && E.StateDamage >= SimNetGateway_Protocol_DdsPlayer_PartConditionDamaged)
+		{
+			E.StateDamage = SimNetGateway_Protocol_DdsPlayer_PartConditionDestroyed;
+			ApplyObstacleDamage(E);
+			A->SetLifeSpan(8.f);
+			Count(TEXT("roadblock breached"));
+			UE_LOG(LogHrotDpsWorld, Display, TEXT("roadblock %d breached (%s)"), Id, *E.DrawnAs);
+		}
+		else { A->Destroy(); if (E.bObstacle) Count(TEXT("roadblock removed")); }
+		++Removed;
+	}
 	for (TWeakObjectPtr<AHrotAnimal>& B : E.Birds) if (AHrotAnimal* X = B.Get()) X->Destroy();
 }
 
@@ -499,6 +516,7 @@ void UHrotDpsWorld::OnState(const FHrotDpsSample& S)
 	E.bHasState = true;
 	E.StateDamage = uint8(D.Damage);
 	ApplyDamage(E);
+	if (E.bObstacle) ApplyObstacleDamage(E);
 	SpawnIfReady(D.EntityId, E);
 }
 
@@ -1508,6 +1526,15 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 	// ⚠ measured LIVE (U-18g, showcases/player-station): 510 of 551 entities were Domain Other — HROT's doors (no door state yet, the
 	// guide's known gap), groups (teams, squads), score holders, a terrain's own buildings (already in the level). None is a body:
 	// counted, never a box (the "never invisible" box is for a vehicle or a person with no model)
+	if (E.bObstacle)   // T-084: a roadblock (Domain Other, a cultural feature) is drawn from its Obstacle size
+	{
+		AActor* A = SpawnObstacle(Id, E, HrotDpsMotion::ToUnreal(E.Shown, OriginCm));
+		if (!A) return;
+		E.Actor = A;
+		++Spawned;
+		ApplyObstacleDamage(E);
+		return;
+	}
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainOther) { if (E.DrawnAs.IsEmpty()) Count(TEXT("not drawn: domain Other")); E.DrawnAs = TEXT("not drawn: domain Other"); return; }
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainMunition && !E.bRound) { E.DrawnAs = TEXT("(waiting for its Round)"); return; }
 	// CE-12006 (measured, Stechovice flight 2026-11-24): a person's construction script dresses him (SetCharacterDefinition + SetGroomBinding,
@@ -2416,6 +2443,154 @@ void UHrotDpsWorld::OnDeck(const FHrotDpsSample& S)
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("deck %d: %s, %.1f x %.1f m, %.2f m above the bank, %u parts"), D.EntityId,
 		D.Kind == SimNetGateway_Protocol_DdsPlayer_DeckKindFloating ? TEXT("floating") : TEXT("assault"), D.Length, D.Width, D.Height, D.Parts._length);
 	Count(TEXT("deck shown"));
+}
+
+// ── roadblocks (T-084) ──
+
+void UHrotDpsWorld::OnObstacle(const FHrotDpsSample& S)
+{
+	const FObstacleS& D = *static_cast<const FObstacleS*>(S.Data);
+	if (!S.bAlive || !S.bValid) return;   // its removal comes with the entity's own dispose (Forget: breached or just gone)
+	FEnt& E = Ents.FindOrAdd(D.EntityId);
+	const FVector Size(FMath::Max(D.Length, 0.1f), FMath::Max(D.Width, 0.1f), FMath::Max(D.Height, 0.1f));
+	if (E.bObstacle && E.ObstacleSize.Equals(Size, 0.01)) return;
+	E.bObstacle = true;
+	E.ObstacleSize = Size;
+	E.ObstacleShownDamage = 255;
+	if (AActor* A = E.Actor.Get()) { A->Destroy(); E.Actor.Reset(); }   // re-sized: rebuilt
+	E.DrawnAs.Reset();
+	UE_LOG(LogHrotDpsWorld, Display, TEXT("roadblock %d: type %lld, %.1f x %.1f x %.1f m"), D.EntityId, (long long)E.TypeId, D.Length, D.Width, D.Height);
+	Count(TEXT("roadblock shown"));
+	SpawnIfReady(D.EntityId, E);
+}
+
+AActor* UHrotDpsWorld::SpawnObstacle(int32 Id, FEnt& E, const FTransform& At)
+{
+	UWorld* W = GetWorld();
+	if (!W) return nullptr;
+	FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AActor* A = W->SpawnActor<AActor>(AActor::StaticClass(), At, P);
+	USceneComponent* Root = NewObject<USceneComponent>(A, TEXT("Root"));
+	Root->SetMobility(EComponentMobility::Movable);
+	A->SetRootComponent(Root);
+	Root->RegisterComponent();
+	A->SetActorTransform(At);
+	USceneComponent* Body = NewObject<USceneComponent>(A, TEXT("Body"));   // ApplyObstacleDamage scales this, never the actor the motion moves
+	Body->SetupAttachment(Root);
+	Body->RegisterComponent();
+	const FVector Cm = E.ObstacleSize * 100.0;   // X along the heading, Y across, Z up; the base at the entity's point (HROT's TerrainObstacles.PrismOf)
+	UMaterialInterface* Base = HrotLoadRooted<UMaterialInterface>(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	auto Paint = [&](UPrimitiveComponent* C, const FLinearColor& Col)
+	{
+		if (!Base) return;
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, C);
+		M->SetVectorParameterValue(TEXT("Color"), Col);
+		C->SetMaterial(0, M);
+	};
+	int32 N = 0;
+	auto Part = [&](const TCHAR* Mesh, const FVector& SizeCm, const FVector& CentreCm, const FLinearColor& Col)   // a basic shape is 100 cm, centred
+	{
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(A, *FString::Printf(TEXT("Part%d"), N++));
+		C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, Mesh));
+		C->SetupAttachment(Body);
+		C->SetRelativeLocation(CentreCm);
+		C->SetRelativeScale3D(SizeCm / 100.0);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);   // HROT stops the units; our ground traces must not land on it
+		Paint(C, Col);
+		C->RegisterComponent();
+	};
+	const TCHAR* Cube = TEXT("/Engine/BasicShapes/Cube.Cube");
+	const TCHAR* Cylinder = TEXT("/Engine/BasicShapes/Cylinder.Cylinder");
+	// the kind by HROT's obstacle type (Entity.TypeId) until Obstacle carries one (asked, NOTE_UnrealIg_To_UiIntegration_Roadblocks_Needs.md #2)
+	switch (E.TypeId)
+	{
+	case 8807:   // a sandbag wall: staggered courses of bags, tiled along its own length
+	{
+		UInstancedStaticMeshComponent* I = NewObject<UInstancedStaticMeshComponent>(A, TEXT("Bags"));
+		I->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+		I->SetupAttachment(Body);
+		I->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Paint(I, FLinearColor(0.42f, 0.36f, 0.24f));
+		I->RegisterComponent();
+		const double BagL = 60, BagW = 34, BagH = 16;
+		const int32 Along = FMath::Max(1, FMath::RoundToInt(Cm.X / (BagL * 0.95)));
+		const int32 Across = FMath::Max(1, FMath::RoundToInt(Cm.Y / BagW));
+		const int32 Courses = FMath::Max(1, FMath::RoundToInt(Cm.Z / (BagH * 0.85)));
+		const double StepL = Cm.X / Along, StepW = Cm.Y / Across, StepH = Cm.Z / Courses;
+		for (int32 K = 0; K < Courses; ++K)
+			for (int32 J = 0; J < Across; ++J)
+			{
+				const bool bOdd = (K & 1) != 0 && Along > 1;   // every other course is offset by half a bag (one bag fewer)
+				for (int32 L = 0; L < (bOdd ? Along - 1 : Along); ++L)
+				{
+					const double X = -Cm.X * 0.5 + StepL * (L + (bOdd ? 1.0 : 0.5));
+					const double Jit = FMath::Frac(FMath::Abs(FMath::Sin(double(Id * 131 + K * 17 + J * 7 + L) * 12.9898)) * 43758.5453) - 0.5;   // a fixed per-bag wobble
+					I->AddInstance(FTransform(FRotator(0, Jit * 8.0, Jit * 4.0), FVector(X, -Cm.Y * 0.5 + StepW * (J + 0.5), StepH * (K + 0.5)),
+						FVector(StepL * 1.02, StepW * 1.05, StepH * 1.25) / 100.0));
+				}
+			}
+		E.DrawnAs = FString::Printf(TEXT("sandbag wall (%d bags)"), I->GetInstanceCount());
+		break;
+	}
+	case 8820: case 8823: case 8824:   // barrels: a drum per diameter of length
+	{
+		const double Dia = FMath::Min(Cm.X, Cm.Y);
+		const int32 Drums = FMath::Max(1, FMath::RoundToInt(Cm.X / Dia));
+		const FLinearColor Col = E.TypeId == 8823 ? FLinearColor(0.10f, 0.20f, 0.45f) : E.TypeId == 8824 ? FLinearColor(0.45f, 0.38f, 0.25f) : FLinearColor(0.30f, 0.32f, 0.20f);
+		for (int32 K = 0; K < Drums; ++K) Part(Cylinder, FVector(Dia * 0.95, Dia * 0.95, Cm.Z), FVector(-Cm.X * 0.5 + Cm.X / Drums * (K + 0.5), 0, Cm.Z * 0.5), Col);
+		E.DrawnAs = TEXT("barrels");
+		break;
+	}
+	case 8821:   // a jersey barrier: a wide foot under a narrow wall
+		Part(Cube, FVector(Cm.X, Cm.Y, Cm.Z * 0.3), FVector(0, 0, Cm.Z * 0.15), FLinearColor(0.62f, 0.61f, 0.57f));
+		Part(Cube, FVector(Cm.X, Cm.Y * 0.45, Cm.Z * 0.7), FVector(0, 0, Cm.Z * 0.65), FLinearColor(0.62f, 0.61f, 0.57f));
+		E.DrawnAs = TEXT("jersey barrier");
+		break;
+	case 8806:   // a parked car: a body and a cabin
+		Part(Cube, FVector(Cm.X, Cm.Y, Cm.Z * 0.55), FVector(0, 0, Cm.Z * 0.3), FLinearColor(0.18f, 0.22f, 0.28f));
+		Part(Cube, FVector(Cm.X * 0.5, Cm.Y * 0.9, Cm.Z * 0.4), FVector(-Cm.X * 0.05, 0, Cm.Z * 0.78), FLinearColor(0.12f, 0.14f, 0.16f));
+		E.DrawnAs = TEXT("car");
+		break;
+	default:
+	{
+		const FLinearColor Col = E.TypeId == 8808 ? FLinearColor(0.55f, 0.55f, 0.52f)   // concrete block
+			: E.TypeId == 8809 ? FLinearColor(0.38f, 0.27f, 0.15f)                         // crate
+			: E.TypeId == 8819 ? FLinearColor(0.08f, 0.07f, 0.06f)                         // wreck
+			: E.TypeId == 8822 ? FLinearColor(0.35f, 0.38f, 0.30f)                         // guard booth
+			: FLinearColor(0.40f, 0.40f, 0.38f);
+		Part(Cube, Cm, FVector(0, 0, Cm.Z * 0.5), Col);
+		E.DrawnAs = FString::Printf(TEXT("obstacle %lld"), (long long)E.TypeId);
+	}
+	}
+#if WITH_EDITOR
+	A->SetActorLabel(FString::Printf(TEXT("DPS_Obstacle_%d"), Id));
+#endif
+	return A;
+}
+
+void UHrotDpsWorld::ApplyObstacleDamage(FEnt& E)
+{
+	AActor* A = E.Actor.Get();
+	if (!A || !A->GetRootComponent() || E.ObstacleShownDamage == E.StateDamage) return;
+	E.ObstacleShownDamage = E.StateDamage;
+	USceneComponent* Body = nullptr;
+	for (USceneComponent* C : A->GetRootComponent()->GetAttachChildren()) if (C && C->GetFName() == TEXT("Body")) Body = C;
+	if (!Body) return;
+	if (E.StateDamage >= SimNetGateway_Protocol_DdsPlayer_PartConditionDestroyed)   // breached: a low spill, wider than the wall stood
+	{
+		Body->SetRelativeScale3D(FVector(1.1, 1.8, 0.3));
+		Body->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+	else if (E.StateDamage >= SimNetGateway_Protocol_DdsPlayer_PartConditionDamaged)   // being pushed: it sags and leans
+	{
+		Body->SetRelativeScale3D(FVector(1.0, 1.15, 0.8));
+		Body->SetRelativeRotation(FRotator(0, 0, 6));
+	}
+	else
+	{
+		Body->SetRelativeScale3D(FVector::OneVector);
+		Body->SetRelativeRotation(FRotator::ZeroRotator);
+	}
 }
 
 // ── traffic ──
