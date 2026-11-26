@@ -17,11 +17,13 @@ PARAMS = ("Wind Animation Strength", "Wind Noise Strength")
 R = {"factor": FACTOR, "instances": {}, "log": []}
 try:
     parent = unreal.load_asset("/Game/EuropeanBeech/Materials/Simplewind/MAI_EuropeanBeech")
-    base = {p: MEL.get_material_default_scalar_parameter_value(parent, p) for p in PARAMS}
+    # MAI_EuropeanBeech is itself an instance (of the pack's master): its effective values are the base
+    base = {p: (MEL.get_material_instance_scalar_parameter_value(parent, p) if isinstance(parent, unreal.MaterialInstance)
+                else MEL.get_material_default_scalar_parameter_value(parent, p)) for p in PARAMS}
     R["parent_defaults"] = base
     for path in unreal.EditorAssetLibrary.list_assets("/Game/EuropeanBeech/Materials/Simplewind", recursive=False):
         mi = unreal.load_asset(path)
-        if not isinstance(mi, unreal.MaterialInstanceConstant): continue
+        if not isinstance(mi, unreal.MaterialInstanceConstant) or mi == parent: continue   # the parent stays the base (a re-run never compounds)
         names = [str(n) for n in MEL.get_scalar_parameter_names(mi)]
         row = {}
         for p in PARAMS:

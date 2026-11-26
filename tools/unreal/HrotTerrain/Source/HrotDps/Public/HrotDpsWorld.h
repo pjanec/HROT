@@ -289,6 +289,9 @@ private:
 		FVector3d FlightPrevP = FVector3d::ZeroVector;
 		float FlightSpeed = 0.f, FlightClimb = 0.f;
 		bool bBurning = false;   // real seconds of his last shot (the kick) and of the last hit on him (the flinch)
+		// T-083 (DD-035): a bridge layer's span - VehicleLook.BridgeLayer (0 NoSpan, 1 Carried, 2 Laying, 3 Recovering) and the span drawn on it
+		uint8 BridgeLayer = 0;
+		TWeakObjectPtr<class UStaticMeshComponent> Span;
 		// U-18h — an animal: Animal's state, its flock's birds
 		bool bAnimal = false, bHasAnimal = false, bDangerous = false, bAirborne = false;
 		uint8 AnimalMode = 0, FlockMode = 0, Family = 0;
@@ -433,6 +436,8 @@ private:
 	struct FSpot { FVector3d P; float Radius = 0, Intensity = 0, Seconds = 0; double Since = 0; TWeakObjectPtr<AHrotGroundFire> Fire; float ShownStrength = -1; };
 	TMap<int32, TArray<FSpot>> Spots;
 	TMap<int32, TArray<TWeakObjectPtr<ADecalActor>>> Scorches;
+	// T-083 (DD-035): a laid bridge per span entity, its deck and ramps from Deck (ground-relative corners laid on OUR terrain)
+	TMap<int32, TWeakObjectPtr<AActor>> Decks;
 	FHrotDpsClock Clock;
 	uint32 Epoch = 0;
 	bool bEpoch = false;
@@ -476,6 +481,10 @@ private:
 	void OnFlameJet(const struct FHrotDpsSample& S);
 	void OnFireSpots(const struct FHrotDpsSample& S);
 	void OnGroundMarks(const struct FHrotDpsSample& S);
+	void OnDeck(const struct FHrotDpsSample& S);
+	/** T-083: the span on a bridge layer (118 / 119) as VehicleLook.BridgeLayer says - on its back, raised over its front while laying or
+	 *  recovering (HROT sends no progress in v1), gone once laid (the laid span is the Deck) */
+	void ApplyBridgeLayer(FEnt& E);
 	void OnMover(const struct FHrotDpsSample& S);
 	void OnMoverTracks(const struct FHrotDpsSample& S);
 	void PreloadPeopleAndSounds();
