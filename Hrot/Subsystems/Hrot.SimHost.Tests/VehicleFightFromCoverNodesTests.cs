@@ -880,6 +880,29 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4691</c> — HIT while HIDDEN: the hide does not hide. It is given up — burned as a failed hide, matched by the hull — and the
+        /// hull drives to ANOTHER hide; a NEAR MISS (area fire round a good hide) moves nothing. 📐 Live <c>va-pop-smoke</c>: the tank was hit in a hide
+        /// the Bradley saw into, and Hidden's "under fire ⇒ stay hidden" kept it there. 🔴 Red-proof: the give-up dropped ⇒ it stays <c>Hidden</c>.
+        /// </summary>
+        [Fact]
+        public void CE4691_HitWhileHidden_TheHideIsGivenUp_ForAnother()
+        {
+            var d = new Duel(Tank());
+            d.Step();
+            d.See(false);
+            d.ToHide(HideA, HideB);
+            d.Run(1);
+            d.Sense(SensorChange.NearMiss);
+            d.Run(1);
+            Assert.Equal(VehiclePhase.Hidden, d.Ws.Phase);                    // a near miss: stays
+            d.Sense(SensorChange.Hit);
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide, 3));
+            Assert.Equal((HideB, false), d.Moves[^1]);                        // another hide …
+            var m = d.Memory;
+            Assert.True(PositionHeat.IsBurnedAt(ref m, HideA, d.Time, VehicleFightFromCoverNodes.Rules(d.P)), "… and the hit one is burned");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2216</c> — the DRIVE OUT is part of the exposure: seen by the RPG man on my side (2 s aim ⇒ a 1.4 s budget) while still
         /// driving to the firing point, I turn back to the hide once the budget is spent, before I ever reach it. 📐 Live <c>ua-javelin-lock</c>:
         /// Javelin A saw the tank 3 s before its firing point and launched as it arrived — the clock started only at the point.

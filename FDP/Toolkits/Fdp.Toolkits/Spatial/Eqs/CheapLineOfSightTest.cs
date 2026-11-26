@@ -31,7 +31,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <list type="bullet">
     ///   <item>Sight = <see cref="Terrain.TerrainWorld.SegmentBlocked"/> — the occluder perception uses. Heights: an eye at the
     ///     viewer's STANDING height; a context entity is aimed at half its standing height; a positional candidate the threat
-    ///     looks at is aimed at the self's CROUCHED eye (the part that must be hidden).</item>
+    ///     looks at is aimed at the self's CROUCHED eye (the part that must be hidden) — ⭐ or, for a self with a HULL (a vehicle), at the hull's
+    ///     top over its centre, its near edge and both flanks (CE-4691: the whole hull is hidden).</item>
     ///   <item>Flag bit <see cref="ContextSlotIndex"/> = <c>HasLOSToContextN</c> (§4.2), set on every judged candidate's
     ///     <c>FlagsMeaningful</c>.</item>
     ///   <item>⭐ No terrain resident ⇒ sight is unknown ⇒ the test does nothing (no flag judged, nothing rejected).</item>
@@ -112,6 +113,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var otherMount = EqsTerrainSight.Mount(view, other);
             var selfMount  = EqsTerrainSight.Mount(view, self);
             short bit      = (short)(1 << ContextSlotIndex);
+            // ⭐ CE-4691 — a self with a HULL (a vehicle; a person's is 0) hides its whole hull, not a crouched man's eye
+            float selfHull   = Viewer == EqsLosViewer.Slot && !self.IsNull ? Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(view, self) : 0f;
+            float selfRadius = selfHull > 0f ? Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.Radius(view, self) : 0f;
 
             // ⭐ CE-3144 (P-8) — "can I shoot him from there" looks at the other's BODY POINTS for its logical stance and is clear when
             //   ANY is: perception's rule (TerrainWorldLosStrategy.IsVisible, Buildings §3f/§3i). A point (a remembered or heard spot)
@@ -156,6 +160,22 @@ namespace Fdp.Toolkit.Spatial.Eqs
                         c.FlagsMeaningful |= FireClearBit;
                         if (fireClear) c.Flags |= FireClearBit;
                     }
+                }
+                else if (c.EntityId <= 0 && selfHull > 0f)
+                {
+                    // ⭐ CE-4691 — a VEHICLE's hide hides its WHOLE HULL: the eye is tested against the hull's top at its centre and at the
+                    //   edge nearest the threat and both flank edges (the collider's circle); seen if ANY is. ⛔ SUPERSEDED: one ray at a
+                    //   crouched MAN's eye (≈1 m) — a tank's hide on a crest was "hidden" by 0.14 m while its turret stood in full view.
+                    var eyeAt = otherPos + new Vector3(0, 0, otherMount.Standing);
+                    var toThreat = new Vector2(otherPos.X - cPos.X, otherPos.Y - cPos.Y);
+                    float dl = toThreat.Length();
+                    var f = dl > 1e-3f ? toThreat / dl : Vector2.UnitX;
+                    var side = new Vector2(-f.Y, f.X);
+                    var top = cPos + new Vector3(0, 0, selfHull);
+                    visible = los.HasLineOfSight(eyeAt, top)
+                        || los.HasLineOfSight(eyeAt, top + new Vector3(f * selfRadius, 0))
+                        || los.HasLineOfSight(eyeAt, top + new Vector3(side * selfRadius, 0))
+                        || los.HasLineOfSight(eyeAt, top - new Vector3(side * selfRadius, 0));
                 }
                 else
                 {

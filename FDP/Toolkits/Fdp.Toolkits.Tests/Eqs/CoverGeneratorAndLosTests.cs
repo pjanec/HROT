@@ -231,5 +231,44 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0L, kept[0].EntityId);
             Assert.Equal(0, (int)kept[0].FlagsMeaningful);
         }
+
+        /// <summary>A sight source that sees only points at or beyond <see cref="MinX"/> (a crest at x = MinX hides everything behind it).</summary>
+        private sealed class CrestLos : ILosService
+        {
+            public float MinX;
+            public bool HasLineOfSight(Vector3 eye, Vector3 aim) => aim.X >= MinX;
+        }
+
+        /// <summary>⭐ <c>CE-4691</c> — a VEHICLE's hide hides its whole hull: a candidate whose hull edge toward the threat pokes over the crest is
+        /// SEEN, though its centre is not. ⛔ Was: one ray at a crouched man's eye over the centre ⇒ "hidden" while the hull stood in view. A
+        /// PERSON (no hull) keeps the one-ray rule.</summary>
+        [Fact]
+        public void CE4691_CheapLineOfSight_AVehicleHideHidesTheWholeHull()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var threat = _repo.CreateEntity();
+            _repo.AddComponent(threat, new SimTransform { Position = new Vector3(40f, 0f, 0f), Rotation = Quaternion.Identity });
+            var tank = _repo.CreateEntity();
+            _repo.AddComponent(tank, new SimTransform { Position = new Vector3(-20f, 0f, 0f), Rotation = Quaternion.Identity });
+            _repo.AddComponent(tank, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3f, Height = 2.4f });
+
+            var los = new CrestLos { MinX = 2f };   // the crest: the hull's near edge (x = 3) is in view, its centre (x = 0) is not
+            var test = new CheapLineOfSightTest(los) { Viewer = EqsLosViewer.Slot, Require = EqsLosRequire.Hidden };
+            var sensor = new EqsSensor { ContextSlot0 = tank, ContextSlot1 = threat };
+            var hide = new[] { new EqsResult { EntityId = 0, PositionX = 0f, PositionY = 0f } };
+            test.ExecuteBatch(tank, ref sensor, _repo, hide.AsSpan());
+            Assert.Equal(-1L, hide[0].EntityId);   // the near edge is seen ⇒ not a hide
+
+            var deeper = new[] { new EqsResult { EntityId = 0, PositionX = -4f, PositionY = 0f } };   // the whole hull behind the crest
+            test.ExecuteBatch(tank, ref sensor, _repo, deeper.AsSpan());
+            Assert.Equal(0L, deeper[0].EntityId);
+
+            var man = _repo.CreateEntity();   // no collider ⇒ no hull ⇒ the crouched eye over the centre, as before
+            _repo.AddComponent(man, new SimTransform { Position = new Vector3(-20f, 0f, 0f), Rotation = Quaternion.Identity });
+            var manSensor = new EqsSensor { ContextSlot0 = man, ContextSlot1 = threat };
+            var manHide = new[] { new EqsResult { EntityId = 0, PositionX = 0f, PositionY = 0f } };
+            test.ExecuteBatch(man, ref manSensor, _repo, manHide.AsSpan());
+            Assert.Equal(0L, manHide[0].EntityId);
+        }
     }
 }
