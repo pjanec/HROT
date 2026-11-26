@@ -2504,8 +2504,38 @@ AActor* UHrotDpsWorld::SpawnObstacle(int32 Id, FEnt& E, const FTransform& At)
 	// the kind by HROT's obstacle type (Entity.TypeId) until Obstacle carries one (asked, NOTE_UnrealIg_To_UiIntegration_Roadblocks_Needs.md #2)
 	switch (E.TypeId)
 	{
-	case 8807:   // a sandbag wall: staggered courses of bags, tiled along its own length
+	case 8807:   // a sandbag wall: the Megascans sandbag-wall segment (3.2 x 0.39 x 0.87 m, cooked by hrot_package_client.ps1) tiled along its length
 	{
+		static UStaticMesh* Seg = HrotLoadRooted<UStaticMesh>(TEXT("/Game/Fab/Megascans/3D/Military_Trenches_Barrier_Sandbag_Canvas_Worn_ydxlcck/Medium/SM_ydxlcck_tier_2/StaticMeshes/SM_ydxlcck_tier_2.SM_ydxlcck_tier_2"));
+		if (Seg)
+		{
+			UInstancedStaticMeshComponent* I = NewObject<UInstancedStaticMeshComponent>(A, TEXT("Bags"));
+			I->SetStaticMesh(Seg);
+			I->SetupAttachment(Body);
+			I->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			I->RegisterComponent();
+			const FBox B = Seg->GetBoundingBox();
+			const FVector SegSize = B.GetSize().ComponentMax(FVector(1.0));
+			const FVector SegCentre = B.GetCenter();
+			// whole segments along the length, a row per segment depth across, stacked when the wall is much taller; each scaled to fill exactly
+			const int32 Along = FMath::Max(1, FMath::RoundToInt(Cm.X / SegSize.X));
+			const int32 Across = FMath::Max(1, FMath::RoundToInt(Cm.Y / SegSize.Y));
+			const int32 Courses = FMath::Max(1, FMath::RoundToInt(Cm.Z / SegSize.Z));
+			const FVector Step(Cm.X / Along, Cm.Y / Across, Cm.Z / Courses);
+			const FVector Scale = Step / SegSize;
+			for (int32 K = 0; K < Courses; ++K)
+				for (int32 J = 0; J < Across; ++J)
+					for (int32 L = 0; L < Along; ++L)
+					{
+						const bool bFlip = ((L + J + K + Id) & 1) != 0;   // every other segment turned round, so the repeat does not read
+						const FRotator R(0, bFlip ? 180.0 : 0.0, 0);
+						const FVector Target(-Cm.X * 0.5 + Step.X * (L + 0.5), -Cm.Y * 0.5 + Step.Y * (J + 0.5), Step.Z * (K + 0.5));
+						I->AddInstance(FTransform(R, Target - R.RotateVector(SegCentre * Scale), Scale));   // the segment's bounds centre lands on the cell's centre
+					}
+			E.DrawnAs = FString::Printf(TEXT("sandbag wall (%d segments)"), I->GetInstanceCount());
+			break;
+		}
+		// the mesh missing (an older cook): bags drawn from basic shapes
 		UInstancedStaticMeshComponent* I = NewObject<UInstancedStaticMeshComponent>(A, TEXT("Bags"));
 		I->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
 		I->SetupAttachment(Body);
