@@ -1766,25 +1766,21 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
-        /// <summary>⭐ <c>CE-5051</c> — a lead whose route is still being PLANNED keeps the lead past <see cref="SquadMarchPlay.LeadStuckSeconds"/>;
-        /// once it has a route and still makes no progress, it hands the lead on. 📐 live (stechovice-battle): the lead was handed on while its
-        /// 520 m route was planned, and each hand-over sent the followers to slots behind the next lead — the squad drifted 130 m away.</summary>
+        /// <summary>⭐ <c>CE-5051</c> — a march whose objective has NO WAY to it fails: <see cref="SquadMarchPlay.NoWayLeadsToFail"/> leads in a row handed on
+        /// without having walked at all ⇒ Failure (never an endless hand-over). 📐 live (stechovice-battle): the attack position lay on ground no path
+        /// reaches, each hand-over sent the followers to slots behind the next lead, and the squad ratcheted 130 m AWAY in 150 s.</summary>
         [Fact]
-        public void CE5051_SquadMarch_ALeadStillPlanningItsRoute_KeepsTheLead_OneWithARouteThatStandsStill_HandsItOn()
+        public void CE5051_SquadMarch_AnObjectiveWithNoWayToIt_FailsAfterThreeLeadsThatNeverWalked()
         {
-            var s = new Squad(members: 3);
-            if (!s.Repo.IsComponentTypeRegistered<NavigationStatus>()) s.Repo.RegisterComponent<NavigationStatus>();
-            foreach (var m in s.Members) s.Repo.AddComponent(m, new NavigationStatus { Result = NavigationResult.InProgress, Phase = NavigationPhase.Idle });
+            var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,200,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — the order enters one frame later, its member orders one frame after
-            var lead = s.Members.First(m => s.LastOrders()[m] == (BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)));
-            s.Orders.Clear();
-            for (int i = 0; i < 480; i++) s.Tick();                                                   // ~8 s, nobody moves: the route is still planned
-            Assert.DoesNotContain(s.Members.Where(m => m != lead), m => s.LastOrders().TryGetValue(m, out var o) && o == (BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)));
-
-            s.Repo.GetComponentRW<NavigationStatus>(lead).Phase = NavigationPhase.Following;         // it has its route, and stands still
-            for (int i = 0; i < 480; i++) s.Tick();
-            Assert.Contains(s.Members.Where(m => m != lead), m => s.LastOrders().TryGetValue(m, out var o) && o == (BehaviorNames.AdvanceTo, new Vector3(0f, 200f, 0f)));
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 720 && !done; i++) { s.Tick(); done = s.Finished(out result); }   // ~12 s, nobody can move: two hand-overs
+            Assert.False(done, "two leads that could not start are not yet the ground");
+            for (int i = 0; i < 600 && !done; i++) { s.Tick(); done = s.Finished(out result); }   // the third
+            Assert.True(done, "the third lead that never walked ends the march");
+            Assert.Equal(Fbt.NodeStatus.Failure, result);
         }
 
         // ── ⭐ CE-2141 (D2, docs/DESIGN_Orders_Params_Entity_Classes.md §7) — the orders a squad fulfils, and the release ──
@@ -4487,6 +4483,34 @@ namespace Hrot.SimHost.Tests
                 var ea = SectorOf(p, waiting);
                 Assert.True(Vector3.Distance(ea.ArcOrigin, dp) < 0.01f, "the sector is drawn from the attack position");
             }
+        }
+
+        /// <summary>⭐ <c>CE-5051</c> — a waiting squad with NO WAY to its attack position (its move FAILED: the march's no-way-there end) waits where it
+        /// stands, as D-12 before the extension. 📐 stechovice-battle: the point lay on ground no path reaches. 🔴 Red-proof: the TaskFailed arm off ⇒
+        /// no SquadDefend.</summary>
+        [Fact]
+        public void CE5051_D12_FarOut_ASquadWithNoWayToItsAttackPosition_WaitsWhereItStands()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 450f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.InfantrySquadMove) > 0, "it moves to its attack position first");
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));
+            p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
+            });
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend) > 0, "no way there: it waits");
+            var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, p.Alpha, BehaviorNames.SquadDefend);
+            Vector3 dp = d.Position;
+            float fromObjective = Vector2.Distance(new Vector2(dp.X, dp.Y), new Vector2(o.X, o.Y));
+            Assert.True(fromObjective > PlatoonAttackBehavior.SupportStandOffMetres + 50f, $"where it stands, not at the attack position ({fromObjective:0} m out)");
         }
 
         [Fact]
