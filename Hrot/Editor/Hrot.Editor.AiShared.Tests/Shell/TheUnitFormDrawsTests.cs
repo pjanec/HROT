@@ -257,6 +257,36 @@ public sealed class TheUnitFormDrawsTests
     }
 
     /// <summary>
+    /// ⭐ CE-6501 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13) — a bridge engineer's Unit form: the <b>Bridge</b> row says what it does with its span
+    /// (<c>BridgeLayerLook</c>: carried with the count, laying, no span), and the <b>Refused</b> row appears only while its replicated refusal is set, in
+    /// <c>BridgeLaying.Say</c>'s words; a man has neither row. 🔒 Red-proof (compiles): <c>BridgeFacts.IsRefused</c> answering true always ⇒ the clean engineer shows a Refused row ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE6501_ABridgeEngineer_ShowsItsSpan_AndItsRefusalOnlyWhileRefused()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.BridgeCarried>(); world.RegisterComponent<Health>();
+        var engineer = world.CreateEntity();
+        world.AddComponent(engineer, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 1, BridgeType = 8825 });
+        var man = world.CreateEntity();
+        world.AddComponent(man, new Health { Current = 100, Max = 100 });
+        FormField Row(string label) => HrotForms.Unit.Fields.First(f => f.Label == label);
+
+        Assert.True(Row("Bridge").Has!(world, engineer));
+        Assert.Equal("Carried — 1 span", Row("Bridge").ReadText!(world, engineer).ToString());
+        Assert.False(Row("Refused").Has!(world, engineer));
+        Assert.False(Row("Bridge").Has!(world, man));
+
+        world.SetComponent(engineer, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 1, BridgeType = 8825, Refusal = Fdp.Toolkit.Terrain.BridgeRefusal.NoWater, GapM = 0f });
+        Assert.True(Row("Refused").Has!(world, engineer));
+        Assert.Equal("there is no water between the two banks", Row("Refused").ReadText!(world, engineer).ToString());
+
+        world.SetComponent(engineer, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 0, BridgeType = 8825 });
+        Assert.Equal("No span on board (laid)", Row("Bridge").ReadText!(world, engineer).ToString());
+        Assert.False(Row("Refused").Has!(world, engineer));
+    }
+
+    /// <summary>
     /// ⭐ CE-11061 (docs/DESIGN_Injury_States.md §9, mockup UX/revive-visual.svg) — the Strength row's trailing REVIVE in a real frame: offered for a dead man and
     /// a hurt one, not for a man at full health; a click submits ONE <c>Revive</c> op for him (and never a Health write — R-11021: the number sets only the
     /// number); the steady frame allocates nothing. 🔴 Red-proof (compiles): <c>ReviveOffered</c> answering false ⇒ red. Renders <c>unit-form-revive.png</c>.

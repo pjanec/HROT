@@ -113,9 +113,7 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public static void DeckOf(Vector3 position, float yaw, in ObstacleShape shape, Func<float, float, float> groundAt, int obstacle, bool drawnByEntity, List<TerrainWalkable> into)
         {
-            var (a, b) = DeckGeometry.Ends(new Vector2(position.X, position.Y), yaw, MathF.Max(shape.Length, 1f));
-            float rise = MathF.Max(shape.Height, 0.05f);
-            var parts = DeckGeometry.Build(a, b, MathF.Max(shape.Width, 0.5f), rise, DeckGeometry.RampLengthFor(rise));
+            var parts = DeckParts(position, yaw, shape);
             var corners = new (Vector2, float)[4];
             foreach (var part in parts)
             {
@@ -127,6 +125,18 @@ namespace Fdp.Toolkit.Terrain
                     Obstacle = obstacle, DrawnByEntity = drawnByEntity,
                 });
             }
+        }
+
+        /// <summary>
+        /// ⭐ THE one rule for a laid deck's quads (the gateway shares it with <see cref="DeckOf"/>, DD-035 D-2): [deck, ramp at A, ramp at B] from the entity's position, heading and
+        /// <see cref="ObstacleShape"/> — the deck ends (<see cref="DeckGeometry.Ends"/> of <c>Max(Length, 1)</c>), <c>Max(Width, 0.5)</c> wide, <c>Max(Height, 0.05)</c> above the ground at each end,
+        /// a ramp of <see cref="DeckGeometry.RampLengthFor"/> beyond each. Every corner carries its height ABOVE THE GROUND under it. Allocates the three parts: call it on change, not per frame.
+        /// </summary>
+        public static DeckGeometry.Part[] DeckParts(Vector3 position, float yaw, in ObstacleShape shape)
+        {
+            var (a, b) = DeckGeometry.Ends(new Vector2(position.X, position.Y), yaw, MathF.Max(shape.Length, 1f));
+            float rise = MathF.Max(shape.Height, 0.05f);
+            return DeckGeometry.Build(a, b, MathF.Max(shape.Width, 0.5f), rise, DeckGeometry.RampLengthFor(rise));
         }
 
         /// <summary>A deck walkable's identity for "did it change": its vertices at 1 cm (the prisms' <c>PrismKey</c> rule).</summary>

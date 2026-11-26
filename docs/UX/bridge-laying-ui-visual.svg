@@ -1,0 +1,117 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1320' height='760' viewBox='0 0 1320 760'>
+<rect x='0' y='0' width='1320' height='760' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bridge laying — ui's half: the two-point pick, the refusal on the Unit form, the engineers' looks (house style; Bridge Laying §13)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the pick's line + label, the Bridge row, the two silhouettes. The map, river and other rows are context, unchanged. Grey annotations are not drawn by the app.</text>
+<rect x='20' y='70' width='410' height='300' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='70' width='410' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='84' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Map</text>
+<rect x='21' y='91' width='408' height='278' fill='#2B3A2A' rx='0' opacity='1'/>
+<path d='M21 207.76 C 143.39999999999998 174.39999999999998, 265.79999999999995 243.9, 429 202.2 L 429 263.36 C 265.79999999999995 299.5, 143.39999999999998 235.56, 21 268.92 Z' fill='#2C5C8A'/>
+<rect x='69' y='133' width='22' height='14' fill='#3F6DB5' rx='0' stroke='#FFFFFF' stroke-width='1.2' opacity='1'/>
+<text x='80' y='144' fill='#FFFFFF' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>E</text>
+<line x1='170' y1='180' x2='270' y2='266' stroke='#5BD06A' stroke-width='2.5'/>
+<circle cx='170' cy='180' r='4' fill='#5BD06A'/>
+<line x1='266.85' y1='266.0' x2='261' y2='266' stroke='#66BFFF' stroke-width='1.5'/>
+<line x1='273.15' y1='266.0' x2='279' y2='266' stroke='#66BFFF' stroke-width='1.5'/>
+<line x1='270.0' y1='262.85' x2='270' y2='257' stroke='#66BFFF' stroke-width='1.5'/>
+<line x1='270.0' y1='269.15' x2='270' y2='275' stroke='#66BFFF' stroke-width='1.5'/>
+<text x='228.0' y='215.0' fill='#5BD06A' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>gap 18.4 m — fits (span 24 m)</text>
+<rect x='28' y='98' width='394' height='22' fill='#1E2A3A' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<text x='36' y='113' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Pick the far bank for Lay bridge</text>
+<text x='414' y='113' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>Esc</text>
+<text x='20' y='386' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>① OK: near bank clicked; the line follows the cursor;</text>
+<text x='20' y='400' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   the label is BridgeLaying.Plan's answer — green, fits</text>
+<rect x='450' y='70' width='410' height='300' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='450' y='70' width='410' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='458' y='84' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Map</text>
+<rect x='451' y='91' width='408' height='278' fill='#2B3A2A' rx='0' opacity='1'/>
+<path d='M451 207.76 C 573.4 174.39999999999998, 695.8 243.9, 859 202.2 L 859 263.36 C 695.8 299.5, 573.4 235.56, 451 268.92 Z' fill='#2C5C8A'/>
+<rect x='499' y='133' width='22' height='14' fill='#3F6DB5' rx='0' stroke='#FFFFFF' stroke-width='1.2' opacity='1'/>
+<text x='510' y='144' fill='#FFFFFF' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>E</text>
+<line x1='600' y1='180' x2='750' y2='300' stroke='#E65555' stroke-width='2.5'/>
+<circle cx='600' cy='180' r='4' fill='#E65555'/>
+<line x1='746.85' y1='300.0' x2='741' y2='300' stroke='#66BFFF' stroke-width='1.5'/>
+<line x1='753.15' y1='300.0' x2='759' y2='300' stroke='#66BFFF' stroke-width='1.5'/>
+<line x1='750.0' y1='296.85' x2='750' y2='291' stroke='#66BFFF' stroke-width='1.5'/>
+<line x1='750.0' y1='303.15' x2='750' y2='309' stroke='#66BFFF' stroke-width='1.5'/>
+<rect x='458' y='336' width='394' height='22' fill='#1B1B1F' rx='3' opacity='0.85'/>
+<text x='464' y='351' fill='#E65555' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the gap is 30.0 m, wider than the 24.0 m this bridge spans</text>
+<rect x='458' y='98' width='394' height='22' fill='#1E2A3A' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<text x='466' y='113' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Pick the far bank for Lay bridge</text>
+<text x='844' y='113' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>Esc</text>
+<text x='450' y='386' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>② refused: the same line in red with the refusal's</text>
+<text x='450' y='400' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   own words (BridgeLaying.Say); a click still sends it</text>
+<text x='880' y='90' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>THE GESTURE (CE-6500) — Lay bridge from the</text>
+<text x='880' y='104' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>unit's order menu:</text>
+<text x='880' y='118' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>  click 1 = the near bank (a point appears),</text>
+<text x='880' y='132' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>  click 2 = the far bank → the order goes.</text>
+<text x='880' y='146' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>  Esc / right-click = cancel, nothing sent.</text>
+<text x='880' y='160' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<text x='880' y='174' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Generic: ANY order whose two required fields</text>
+<text x='880' y='188' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>are map points gets this pick (OrderPick.TwoPoints);</text>
+<text x='880' y='202' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>an order may add a live label (Lay bridge: the</text>
+<text x='880' y='216' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>gap and the verdict, from BridgeLaying.Plan — the</text>
+<text x='880' y='230' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>function the engineer plans with, so the preview</text>
+<text x='880' y='244' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>cannot disagree with the order).</text>
+<rect x='20' y='430' width='520' height='230' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='430' width='520' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='444' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Wolverine 1 (Assault bridge layer)</text>
+<rect x='491.66153846153844' y='432' width='40.33846153846154' height='16' fill='#3A3112' rx='8' opacity='1'/>
+<text x='511.83076923076925' y='444' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Live</text>
+<path d='M28 477 L28 460 Q28 456 32 456 L91.4 456 Q95.4 456 95.4 460 L95.4 477 Z' fill='#3A3A48'/>
+<rect x='30' y='456' width='63.400000000000006' height='2' fill='#3369AD' rx='0' opacity='1'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#5AA9FF' fill-opacity='1' transform='translate(36,471.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='55' y='471' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Unit</text>
+<path d='M97.4 477 L97.4 460 Q97.4 456 101.4 456 L215.0 456 Q219.0 456 219.0 460 L219.0 477 Z' fill='#24242C'/>
+<path d='M64 344V256V344V256H160V352H72Q65 351 64 344ZM546 256 465 352 546 256 465 352H384V256H546ZM320 256V352V256V352H224V256H320ZM592 64H576H592H576Q575 23 548 -4Q521 -31 480 -32Q439 -31 412 -4Q385 23 384 64H256Q255 23 228 -4Q201 -31 160 -32Q119 -31 92 -4Q65 23 64 64H48Q28 65 14 78Q1 92 0 112V344Q1 375 21 395Q41 415 72 416H192H465Q495 415 514 393L625 261Q640 244 640 220V112Q639 92 626 78Q612 65 592 64ZM528 64Q527 91 504 106Q480 118 456 106Q433 91 432 64Q433 37 456 22Q480 10 504 22Q527 37 528 64ZM160 16Q187 17 202 40Q214 64 202 88Q187 111 160 112Q133 111 118 88Q106 64 118 40Q133 17 160 16Z' fill='#F29B38' fill-opacity='1' transform='translate(105.4,471.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='124.4' y='471' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Crew &amp; cargo</text>
+<path d='M221.0 477 L221.0 460 Q221.0 456 225.0 456 L301.1 456 Q305.1 456 305.1 460 L305.1 477 Z' fill='#24242C'/>
+<path d='M512 352Q511 326 496 296Q480 266 461 239Q441 213 427 197Q421 190 413 192H320Q306 192 297 183Q288 174 288 160Q288 146 297 137Q306 128 320 128H416Q457 127 484 100Q511 73 512 32Q511 -9 484 -36Q457 -63 416 -64H140Q153 -49 170 -27Q179 -15 189 0H416Q430 0 439 9Q448 18 448 32Q448 46 439 55Q430 64 416 64H320Q279 65 252 92Q225 119 224 160Q225 201 252 228Q279 255 320 256H360Q344 280 332 305Q321 330 320 352Q321 393 348 420Q375 447 416 448Q457 447 484 420Q511 393 512 352ZM117 -41Q111 -48 107 -52L105 -54Q95 -61 85 -52Q72 -38 52 -13Q32 12 16 41Q1 70 0 96Q1 137 28 164Q55 191 96 192Q137 191 164 164Q191 137 192 96Q191 73 179 47Q166 22 149 -2Q132 -24 118 -40L117 -41ZM128 96Q128 110 119 119Q110 128 96 128Q82 128 73 119Q64 110 64 96Q64 82 73 73Q82 64 96 64Q110 64 119 73Q128 82 128 96ZM416 320Q430 320 439 329Q448 338 448 352Q448 366 439 375Q430 384 416 384Q402 384 393 375Q384 366 384 352Q384 338 393 329Q402 320 416 320Z' fill='#5BD06A' fill-opacity='1' transform='translate(229.0,471.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='248.0' y='471' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Orders</text>
+<path d='M307.1 477 L307.1 460 Q307.1 456 311.1 456 L377.40000000000003 456 Q381.40000000000003 456 381.40000000000003 460 L381.40000000000003 477 Z' fill='#24242C'/>
+<path d='M184 448Q208 447 224 432Q239 416 240 392V-8Q239 -32 224 -48Q208 -63 184 -64Q162 -64 146 -50Q131 -36 128 -14Q120 -16 112 -16Q85 -15 67 3Q49 21 48 48Q48 59 52 69Q29 78 14 98Q0 118 0 144Q0 168 13 187Q25 206 46 216Q32 233 32 256Q32 279 46 296Q60 313 82 319Q80 327 80 336Q80 359 94 376Q107 392 128 398Q131 420 146 434Q162 448 184 448ZM328 448Q350 448 366 434Q381 420 384 398Q405 392 418 376Q432 359 432 336Q432 327 430 319Q452 313 466 296Q480 279 480 256Q480 233 466 216Q487 206 499 187Q512 168 512 144Q512 118 498 98Q483 78 460 69Q464 59 464 48Q463 21 445 3Q427 -15 400 -16Q392 -16 384 -14Q381 -36 366 -50Q350 -64 328 -64Q304 -63 288 -48Q273 -32 272 -8V392Q273 416 288 432Q304 447 328 448Z' fill='#E8A0C8' fill-opacity='1' transform='translate(315.1,471.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='334.1' y='471' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Brain</text>
+<path d='M383.40000000000003 477 L383.40000000000003 460 Q383.40000000000003 456 387.40000000000003 456 L493.80000000000007 456 Q497.80000000000007 456 497.80000000000007 460 L497.80000000000007 477 Z' fill='#24242C'/>
+<path d='M393 447Q380 450 368 444Q357 438 353 425L225 -23Q222 -36 228 -48Q234 -59 247 -63Q260 -66 272 -60Q283 -54 287 -41L415 407Q418 420 412 432Q406 443 393 447ZM473 327Q464 317 464 304Q464 291 473 281L563 192L473 103Q464 93 464 80Q464 67 473 57Q483 48 496 48Q509 48 519 57L631 169Q640 179 640 192Q640 205 631 215L519 327Q509 336 496 336Q483 336 473 327ZM167 327Q157 336 144 336Q131 336 121 327L9 215Q0 205 0 192Q0 179 9 169L121 57Q131 48 144 48Q157 48 167 57Q176 67 176 80Q176 93 167 103L77 192L167 281Q176 291 176 304Q176 317 167 327Z' fill='#A0A0AA' fill-opacity='1' transform='translate(391.40000000000003,471.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='410.40000000000003' y='471' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Components</text>
+<rect x='28' y='477' width='504' height='1.5' fill='#3369AD' rx='0' opacity='1'/>
+<text x='34' y='502' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>State</text>
+<line x1='78.19999999999999' y1='498' x2='526' y2='498' stroke='#4A4A55' stroke-width='1'/>
+<text x='34' y='528' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Strength</text>
+<rect x='140' y='514' width='386' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='146' y='528' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>100 / 100</text>
+<text x='34' y='554' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bridge</text>
+<text x='140' y='554' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Carried — 1 span (24 m)</text>
+<text x='34' y='580' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM175 273Q192 287 209 273L256 226L303 273Q320 287 337 273Q351 256 337 239L290 192L337 145Q351 128 337 111Q320 97 303 111L256 158L209 111Q192 97 175 111Q161 128 175 145L222 192L175 239Q161 256 175 273Z' fill='#E65555' fill-opacity='1' transform='translate(140,580.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='160' y='580' fill='#E65555' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>refused: the gap is 30.0 m, wider than the 24.0 m this bridge spans</text>
+<text x='20' y='676' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>③ the Bridge row (CE-6501): what he carries, laying / recovering / no span (BridgeLayerLook.Of),</text>
+<text x='20' y='690' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   and the last refusal in its own words under it — shown only while BridgeCarried.Refusal is set. Read-only.</text>
+<rect x='600' y='430' width='700' height='300' fill='#202530' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='612' y='452' fill='#E8E8EE' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>④ the 3-D looks (CE-6502) — side view, x forward →</text>
+<rect x='640' y='600' width='260' height='30' fill='#3B3F2E' rx='6' opacity='1'/>
+<circle cx='662' cy='615' r='11' fill='#6E7262'/>
+<circle cx='698' cy='615' r='11' fill='#6E7262'/>
+<circle cx='734' cy='615' r='11' fill='#6E7262'/>
+<circle cx='770' cy='615' r='11' fill='#6E7262'/>
+<circle cx='806' cy='615' r='11' fill='#6E7262'/>
+<circle cx='842' cy='615' r='11' fill='#6E7262'/>
+<circle cx='878' cy='615' r='11' fill='#6E7262'/>
+<rect x='650' y='568' width='230' height='32' fill='#626C42' rx='0' opacity='1'/>
+<rect x='790' y='548' width='50' height='20' fill='#626C42' rx='0' opacity='1'/>
+<rect x='634' y='532' width='250' height='16' fill='#8A8F7A' rx='0' stroke='#4A4D40' stroke-width='1' opacity='1'/>
+<rect x='634' y='518' width='250' height='14' fill='#9BA08A' rx='0' stroke='#4A4D40' stroke-width='1' opacity='1'/>
+<text x='770' y='656' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Assault bridge layer (118) — the folded span on the roof</text>
+<text x='770' y='672' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>span hidden while NoSpan (laid)</text>
+<rect x='1180' y='560' width='60' height='50' fill='#626C42' rx='4' opacity='1'/>
+<rect x='1192' y='568' width='30' height='18' fill='#7FA6C8' rx='0' opacity='1'/>
+<rect x='980' y='600' width='270' height='14' fill='#3B3F2E' rx='0' opacity='1'/>
+<circle cx='1010' cy='618' r='14' fill='#2A2C24'/>
+<circle cx='1060' cy='618' r='14' fill='#2A2C24'/>
+<circle cx='1120' cy='618' r='14' fill='#2A2C24'/>
+<circle cx='1212' cy='618' r='14' fill='#2A2C24'/>
+<rect x='988' y='542' width='180' height='58' fill='#8A8F7A' rx='0' stroke='#4A4D40' stroke-width='1' opacity='1'/>
+<path d='M988 542 l45 22 l45 -22 l45 22 l45 -22' stroke='#4A4D40' fill='none' stroke-width='1.5'/>
+<text x='1115' y='656' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Floating bridge engineer (119) — a ribbon bay on the bed</text>
+<text x='1115' y='672' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>bay hidden while NoSpan</text>
+</svg>

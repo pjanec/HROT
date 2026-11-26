@@ -15,7 +15,8 @@ namespace Hrot.Common.Orders
 {
     /// <summary>What a front-end must ask the operator before an order can go: nothing, a point, an entity — or more
     /// (⭐ <c>CE-2148</c>: then it needs the order FORM, <see cref="IOrderForm"/>). Counted over the <c>[Required]</c> fields only.</summary>
-    public enum OrderPick : byte { None = 0, Point = 1, Entity = 2, Several = 3 }
+    // ⭐ CE-6500 — TwoPoints: exactly two required map points, picked in ONE two-click gesture (A, then B)
+    public enum OrderPick : byte { None = 0, Point = 1, Entity = 2, Several = 3, TwoPoints = 4 }
 
     /// <summary>⭐ <c>CE-2148</c> — what kind of value an order field takes: a map point, an entity, or a value typed in.
     /// ⚠ The member names must differ from <see cref="OrderPick"/>'s: the DDS code generator emits every enum of this assembly into ONE
@@ -155,6 +156,9 @@ namespace Hrot.Common.Orders
             // ⭐ R-8316 — an any-of group counts as ONE required pick, by its FIRST declared field (Attack: the Target entity the EnemyClick fills)
             var required = fields.Where(f => f.Required || (f.AnyOf != null && fields.First(g => g.AnyOf == f.AnyOf) == f)).ToArray();
             if (required.Length == 0) return (OrderPick.None, null);
+            // ⭐ CE-6500 (DESIGN_Bridge_Laying §13 U-1) — two required MAP POINTS (LayBridge's near / far bank): one two-click pick, A then B, in declared order
+            if (required.Length == 2 && required[0].Kind == OrderFieldKind.MapPoint && required[1].Kind == OrderFieldKind.MapPoint && required[0].AnyOf == null && required[1].AnyOf == null)
+                return (OrderPick.TwoPoints, required[0].Name);
             if (required.Length > 1 || required[0].Kind == OrderFieldKind.Value) return (OrderPick.Several, null);
             return (required[0].Kind == OrderFieldKind.MapPoint ? OrderPick.Point : OrderPick.Entity, required[0].Name);
         }

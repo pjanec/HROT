@@ -49,10 +49,12 @@ public sealed class SourceImport : ITerrainSourceImport
     /// <summary>⭐ F-3 (user, 2026-11-22) — the importer a first use runs: the whole navmesh is prefilled into <c>navtiles/</c> INSIDE the import (the same lock, the same cache), so the first load bakes nothing.</summary>
     public static TerrainImporter DefaultImporter(string targetRoot) => new(targetRoot) { NavmeshPrefill = new NavmeshPrefill() };
 
-    public string? TryImport(string terrainName, string? existingDefinition, string targetRoot, IReadOnlyList<string> catalogRoots, CancellationToken cancellation)
+    public string? TryImport(string terrainName, string? existingDefinition, Func<string> targetRootOf, IReadOnlyList<string> catalogRoots, CancellationToken cancellation)
     {
         if (!TerrainName.IsValid(terrainName)) return null;   // a sub-folder name cannot be imported (the importer refuses it)
-        string? set = FindSet(terrainName, targetRoot, catalogRoots);
+        // the root that holds the terrain (a hit: <root>/<name>/terrain.json — a valid name has no sub-folder), else the import target
+        string holder = existingDefinition != null ? Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(existingDefinition)))! : targetRootOf();
+        string? set = FindSet(terrainName, holder, catalogRoots);
         if (set == null) return null;
         string manifest = Path.Combine(set, InputSetLayout.Manifest);
 
@@ -65,6 +67,12 @@ public sealed class SourceImport : ITerrainSourceImport
             if (Current(existingDefinition, recorded, Manifest.Sha256(manifest))) { _current[existingDefinition] = (stamp, mstamp); return null; }
         }
 
+        // ⭐ CE-11061 (unreal-ig) / CE-5060 — asked only now (a write probe): a STALE hit goes to the machine-wide target when the catalog has one, so a stale copy
+        //   seeded into a private NAS is replaced ONCE where every NAS is seeded from, not re-imported into the NAS on every run
+        string targetRoot = existingDefinition != null ? targetRootOf() : holder;
+        if (existingDefinition != null)
+            _log?.Invoke($"[TerrainImport] '{terrainName}': the import at {Path.GetDirectoryName(existingDefinition)} is stale (importer revision {RecordedRevision(existingDefinition)}, now {TerrainImporter.Revision}; or its input changed)"
+                         + (PathsEqual(holder, targetRoot) ? "" : $" — it is passed over for {Path.Combine(targetRoot, terrainName)}"));
         Directory.CreateDirectory(targetRoot);
         using (AcquireLock(Path.Combine(targetRoot, "." + terrainName + ".import.lock"), cancellation))
         {
@@ -84,6 +92,29 @@ public sealed class SourceImport : ITerrainSourceImport
             _log?.Invoke($"[TerrainImport] '{terrainName}' imported in {sw.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture)} s");
             return Path.Combine(folder, TerrainCatalog.DefinitionFileName);
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-5060</c> (docs/DESIGN_Load_GeoReference_From_Nodes.md §2) — the definition this input set's import WRITES, as far as its origin goes (name,
+    /// <c>origin</c>, <c>frame.utm</c> + <c>corner</c> — <see cref="TerrainFolderWriter.OriginOf"/>), read from <c>manifest.json</c> alone: never imports, never
+    /// takes the lock. Null when there is no input set, or <paramref name="existingDefinition"/> records no input (a hand-made terrain keeps its own origin).
+    /// </summary>
+    public TerrainDefinition? TryReadInputDefinition(string terrainName, string? existingDefinition, IReadOnlyList<string> catalogRoots)
+    {
+        if (!TerrainName.IsValid(terrainName)) return null;
+        if (existingDefinition != null && RecordedSha(existingDefinition) == null) return null;   // not imported from an input: its own file is the truth
+        string where = existingDefinition != null ? Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(existingDefinition)))!
+                                                  : (catalogRoots.Count > 0 ? catalogRoots[0] : Directory.GetCurrentDirectory());
+        string? set = FindSet(terrainName, where, catalogRoots);
+        if (set == null) return null;
+        var m = InputSetReader.Open(set).Manifest;
+        var (lat, lon) = TerrainFolderWriter.OriginOf(m.Frame, m.MinX, m.MinY);
+        return new TerrainDefinition
+        {
+            Name = terrainName,
+            Origin = new TerrainGeoOrigin(lat, lon, 0.0),
+            Utm = new TerrainUtmFrame(m.Frame.Zone, m.Frame.South, m.Frame.E0 + m.MinX, m.Frame.N0 + m.MinY),
+        };
     }
 
     /// <summary>
@@ -143,6 +174,8 @@ public sealed class SourceImport : ITerrainSourceImport
         return null;
     }
 
+    private static bool PathsEqual(string a, string b) => string.Equals(Path.GetFullPath(a).TrimEnd('/', '\\'), Path.GetFullPath(b).TrimEnd('/', '\\'), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
     private static long Stamp(string file) { var i = new FileInfo(file); return i.LastWriteTimeUtc.Ticks ^ (i.Length * 397); }
 
     /// <summary>F-5 — one lock file per terrain beside the target; a second thread or process waits for it, then finds the folder. (The file stays: deleting a lock file is racy.)</summary>
@@ -152,7 +185,12 @@ public sealed class SourceImport : ITerrainSourceImport
         {
             ct.ThrowIfCancellationRequested();
             try { return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None); }
-            catch (IOException) { Thread.Sleep(50); }
+            catch (IOException)
+            {
+                // ⭐ CE-5060 P2 — a node waiting for another node's (or process's) import of the same terrain is not hung: it says so (a detail report advances the load's count)
+                Fdp.Core.LoadProgress.ReportDetail("import: waiting for another import", 0, 1);
+                Thread.Sleep(50);
+            }
         }
     }
 }

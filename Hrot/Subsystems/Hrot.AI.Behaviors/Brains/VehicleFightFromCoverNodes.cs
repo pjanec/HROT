@@ -123,6 +123,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The aimed fire · the gun kept on the threat while hidden.</summary>
         public EngageState Fire;
         public TrackTargetNodeParams Track;
+        /// <summary>⭐ <c>CE-4691</c> — when it reached its hide (sim s): a hit or a launch at it SINCE then means the hide does not hide.</summary>
+        public SimInstant HiddenAt;
+        /// <summary>⭐ <c>CE-4700</c> — 1 once the gun fired a round in THIS exposure (cleared when the exposure begins): before it, a near miss
+        /// does not end the exposure — only a hit or a launch at it does.</summary>
+        public byte FiredHere;
     }
 
     /// <summary>
@@ -417,6 +422,16 @@ namespace Hrot.AI.Behaviors.Brains
                                    Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
             if (Disarmed(world, self)) return;   // ⭐ CE-2197 — a broken gun stays in its hide
+            // ⭐⭐ CE-4691 (user: "giving up the non-functional hide is for sure a good idea") — HIT, or a missile launched at it, while HIDDEN: the hide does not hide
+            //   (📐 va-pop-smoke: the tank was hit in a hide the Bradley saw into, and Hidden's "under fire ⇒ stay" kept it there). Burn the hide as a failed one
+            //   (never this spot again for a while) and choose another — the hide query asks again from where the threats are now.
+            if (HitSince(world, self, (double)ws.HiddenAt) || LaunchedAtMe(world, self, ws.HiddenAt))
+            {
+                var hullRules = Rules(in p, world, self);
+                PositionHeat.Add(ref mem, ws.HidePoint, FailedHideHeat(in hullRules), now, hullRules, exposure: false);
+                ws.Phase = VehiclePhase.Choose;
+                return;
+            }
 
             // T4 — the gun stays on the threat while hidden (an entity only: a heard point has nothing to track)
             if (!threat.IsPoint && !threat.Entity.IsNull)
@@ -498,6 +513,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             // at the firing point: the exposure is real — count it, heat the point, set the budget
             ws.ExposedAt = (SimInstant)now;
+            ws.FiredHere = 0;   // ⭐ CE-4700
             ws.ExposedTick = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // ⭐ CE-3292 — compared with LastSeenTick
             ws.ExposuresHere++;
             ws.Exposures++;
@@ -672,7 +688,16 @@ namespace Hrot.AI.Behaviors.Brains
             // the aimed-fire executor's own answer (its status row): a guided round in flight holds the gunner (W-12c) — the one reader (CE-2228)
             bool guiding = PeekAndFireNodes.Guiding(world, self);
             bool done = channel.ActiveAction != CombatConstants.ActionIdAimAndFire || channel.Status != NodeStatus.Running;
-            bool hit = FiredUponSince(world, self, ws.ExposedAt);
+            if (!done && ws.FiredHere == 0)
+            {
+                var ch = channel;   // a copy: RoundsFiredOf reads the channel state by ref
+                if (AimAndFireExecutor.RoundsFiredOf(ref ch) > 0) ws.FiredHere = 1;
+            }
+            // ⭐⭐ CE-4700 (user: "build both backend fixes") — before its FIRST round of this exposure (still braking, aiming, locking) or while
+            //   it GUIDES, only a HIT ends the exposure; a near miss does not. 📐 ua-technical-scoot: the ATGM technical reached its firing point
+            //   at 15.3 s still braking (HoldMoving) and the IFV's near miss at 15.7 s sent it back — the Kornet never fired in 90 s. The
+            //   budget (his aim time) and ExposeSeconds still bound the exposure. ⛔ SUPERSEDED: a near miss withdrew at once, fired or not.
+            bool hit = ws.FiredHere == 0 || guiding ? HitSince(world, self, (double)ws.ExposedAt) : FiredUponSince(world, self, ws.ExposedAt);
             bool overBudget = ws.SeenSince > 0 && now - ws.SeenSince >= ws.Budget;
             bool overTime = now - ws.ExposedAt >= p.ExposeSeconds;
             bool launch = LaunchHeard(world, self, ws.ExposedTick, in threat) || LaunchedAtMe(world, self, ws.ExposedAt);   // ⭐ CE-4670 VA-S5
@@ -797,6 +822,7 @@ namespace Hrot.AI.Behaviors.Brains
             var rng = SimRng.FromSim(self.Index, HideSite ^ (ws.Exposures * 7919), (float)now);
             ws.PhaseUntil = (SimInstant)(now + p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin));
             ws.Waiting = 0;
+            ws.HiddenAt = (SimInstant)now;   // ⭐ CE-4691
             ws.Phase = VehiclePhase.Hidden;
         }
 
@@ -971,6 +997,10 @@ namespace Hrot.AI.Behaviors.Brains
                && Magazine.Reloading(world.GetComponentRO<WeaponState>(gun));   // ⭐ WS-4 — own gun or the controlled station weapon
 
         private static bool UnderFire(EntityRepository world, Entity self, double since) => FiredUponSince(world, self, since);
+
+        /// <summary>⭐ <c>CE-4691</c> — HIT since <paramref name="since"/> (a near miss is not: area fire round a good hide must not move it).</summary>
+        private static bool HitSince(EntityRepository world, Entity self, double since)
+            => RecentSensesOf.WithinSince(world, self, SensorChange.Hit, Now(world) - since + 1e-6, since);
 
         private static bool FiredUponSince(EntityRepository world, Entity self, double since)
         {

@@ -46,8 +46,17 @@ namespace Fdp.Core
         /// (<see cref="Detail"/>), so the one progress report every watcher reads (the cluster's load step; the director's stall clock) CHANGES while a
         /// stage that has no step of its own works for long. Throttled to once a second (the last call, <c>done == total</c>, always lands); the text is
         /// built only when it is stored — a call in between is free (0 B). Free when no load runs.
+        /// <para>⭐⭐ <c>CE-5060</c> — and it ADVANCES the count, as <see cref="Report"/> does: a loader saying how far it has got HAS advanced, and both heartbeat sources
+        /// beat only while the count moves (<see cref="MovedWithin"/>). 📐 Measured: a first-use terrain import inside a node's load reported only its detail
+        /// (the road levelling, 12 s on Stechovice) and the master ejected the node for a heartbeat timeout 8 s in. A hung loader still reports nothing.</para>
         /// </summary>
-        public static void ReportDetail(string what, long done, long total) => Ambient.Value?.SetDetail(what, done, total);
+        public static void ReportDetail(string what, long done, long total,
+            [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+        {
+            if (Ambient.Value is not { } progress) return;
+            progress.SetDetail(what, done, total);
+            progress.AdvanceAt(1, file, line);
+        }
 
         /// <summary>⭐ The detail the last <see cref="ReportDetail"/> stored for the step in flight (<c>null</c> when none; cleared when a step is entered).</summary>
         public string? Detail => _detail;

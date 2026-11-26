@@ -424,7 +424,8 @@ public sealed class Map3DTests
     public void S1_TheIconFallback_IsUnchangedByTheExtraction_ForEveryBuiltInType()
     {
         foreach (var t in BuiltIn().GetAll())
-            Assert.Equal(VisualFamilies.Of(t) == VisualFamily.MineClearer ? "_tank" : OldFallbackIconName(t),   // ⭐ CE-1955 — the mine clearer (CE-4624) is a tracked body on the picker, on purpose
+            Assert.Equal(VisualFamilies.Of(t) is VisualFamily.MineClearer or VisualFamily.BridgeLayer or VisualFamily.FloatingBridge   // ⭐ CE-1955 — the mine clearer (CE-4624) and ⭐ CE-6502 the
+                             ? VisualFamilies.IconName(VisualFamilies.Of(t)) : OldFallbackIconName(t),                                     //   bridge engineers have their own families, on purpose
                          EntityTypeCatalog.FallbackIconName(t));
     }
 
@@ -560,6 +561,7 @@ public sealed class Map3DTests
                         var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = country, Subcategory = 3 };
                         if (VisualFamilies.IsAnimal(VisualFamilies.Of(d))) continue;   // ⭐ CE-4623 — Kind 3 categories 200-208 are the ANIMALS now (AnimalModelRail), no longer the man the old switch fell up to
                         var now = VisualFamilies.Of(new TkbTemplate("sweep", 9999) { DisType = d });
+                        if (now == VisualFamily.BridgeLayer && d.Kind == 1 && d.Domain == 1 && d.Category == 9) continue;   // ⭐ CE-6502 — 1.1.*.9.3 is the assault bridge layer's own family now, on purpose
                         if (now != OldFamily(d)) moved.Add($"{d}: {OldFamily(d)} -> {now}");
                     }
         Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));

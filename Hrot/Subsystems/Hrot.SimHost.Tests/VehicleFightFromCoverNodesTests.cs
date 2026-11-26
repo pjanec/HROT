@@ -180,15 +180,20 @@ namespace Hrot.SimHost.Tests
                 }
                 ref var row = ref Repo.GetComponentRW<ActionStatus>(Self).Weapon;
                 if (Masked) { row.Reason = ActionReason.Masked; row.At = (SimInstant)Time; return; }   // ⭐ CE-2218 — the muzzle line runs into a wall: held
+                if (Aims) { row.Reason = ActionReason.Aiming; return; }   // ⭐ CE-4700 — still aiming / locking: no round yet
                 row.Reason = Guiding ? ActionReason.Guiding : ActionReason.Firing;
                 if (Guiding) return;   // a round in flight: the next is not granted
                 _fired++;
+                Unsafe.As<byte, int>(ref ch.State[24]) = _fired;   // ⭐ CE-4700 — the executor's own count (AimAndFireExecutor.RoundsFired, bytes 24–27)
                 AimedRounds++;
                 if (rounds > 0 && _fired >= rounds) ch.Status = NodeStatus.Success;
             }
 
             /// <summary>⭐ CE-2218 — the weapon holds Masked (its round would stop in front of the muzzle).</summary>
             public bool Masked;
+
+            /// <summary>⭐ CE-4700 — the weapon is still aiming (a missile locking): no round leaves.</summary>
+            public bool Aims;
 
             public bool Firing
             {
@@ -880,6 +885,29 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4691</c> — HIT while HIDDEN: the hide does not hide. It is given up — burned as a failed hide, matched by the hull — and the
+        /// hull drives to ANOTHER hide; a NEAR MISS (area fire round a good hide) moves nothing. 📐 Live <c>va-pop-smoke</c>: the tank was hit in a hide
+        /// the Bradley saw into, and Hidden's "under fire ⇒ stay hidden" kept it there. 🔴 Red-proof: the give-up dropped ⇒ it stays <c>Hidden</c>.
+        /// </summary>
+        [Fact]
+        public void CE4691_HitWhileHidden_TheHideIsGivenUp_ForAnother()
+        {
+            var d = new Duel(Tank());
+            d.Step();
+            d.See(false);
+            d.ToHide(HideA, HideB);
+            d.Run(1);
+            d.Sense(SensorChange.NearMiss);
+            d.Run(1);
+            Assert.Equal(VehiclePhase.Hidden, d.Ws.Phase);                    // a near miss: stays
+            d.Sense(SensorChange.Hit);
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide, 3));
+            Assert.Equal((HideB, false), d.Moves[^1]);                        // another hide …
+            var m = d.Memory;
+            Assert.True(PositionHeat.IsBurnedAt(ref m, HideA, d.Time, VehicleFightFromCoverNodes.Rules(d.P)), "… and the hit one is burned");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2216</c> — the DRIVE OUT is part of the exposure: seen by the RPG man on my side (2 s aim ⇒ a 1.4 s budget) while still
         /// driving to the firing point, I turn back to the hide once the budget is spent, before I ever reach it. 📐 Live <c>ua-javelin-lock</c>:
         /// Javelin A saw the tank 3 s before its firing point and launched as it arrived — the clock started only at the point.
@@ -940,6 +968,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(VehiclePhase.Withdrawing, d.Ws.Phase);
             Assert.Equal((HideA, true), d.Moves[^1]);
             Assert.True(d.AimedRounds < 10, "the fire was cut short");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4700</c> — BEFORE ITS FIRST ROUND a near miss does not end the exposure: a missile still LOCKING stays at its firing point;
+        /// a HIT still sends it back. 📐 Live <c>ua-technical-scoot</c>: the IFV's near miss 0.4 s into the ATGM technical's exposure sent it
+        /// back every time — the Kornet never fired in 90 s. 🔴 Red-proof: <c>FiredUponSince</c> for every exposure ⇒ it withdraws on the near miss.
+        /// </summary>
+        [Fact]
+        public void CE4700_BeforeItsFirstRound_ANearMissDoesNotEndTheExposure_AHitDoes()
+        {
+            var d = new Duel(Tank() with { RoundsPerExposure = 100, ExposeSeconds = 30f }) { Aims = true };
+            d.ToHide(HideA);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging));
+            d.Step();
+            d.Sense(SensorChange.NearMiss);
+            d.Run(0.5);
+            Assert.Equal(VehiclePhase.Engaging, d.Ws.Phase);   // locking: stays
+            Assert.Equal(0, d.AimedRounds);
+            d.Sense(SensorChange.Hit);
+            d.Step();
+            Assert.Equal(VehiclePhase.Withdrawing, d.Ws.Phase);   // a hit: back
         }
 
         /// <summary>
