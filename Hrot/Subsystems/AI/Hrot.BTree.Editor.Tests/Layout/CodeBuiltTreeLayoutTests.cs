@@ -248,6 +248,8 @@ public sealed class CodeBuiltTreeLayoutTests
     {
         "BasicSquadSop", "BasicInfantrySop", "BasicPlatoonSop", "BasicVehicleSop", "CivilianSop", "InertSop", "PilotSop",
         "TakeCover", "FallBack", "Flank", "FiringPosition", "Sentry", "DangerCrossing", "PlatoonHillAttack", "HullDownAttackRun",
+        // the SOPs written in C# from the start carry AUTHORED row titles (`.Label`) too — uncapped like the converted ones
+        "StochasticUnitSop", "HunterSop",
     };
 
     [Fact]

@@ -96,7 +96,7 @@ HsmShowcase | hostedInput=- | inputBytes=0
 HsmStatefulBindingDemo | hostedInput=- | inputBytes=0
 HsmTwoChannelRegionsDemo | hostedInput=- | inputBytes=0
 HsmVariableShowcase | hostedInput=- | inputBytes=0
-HullDownAttackRun | hostedInput=Hrot.AI.Behaviors.Brains.HullDownAttackParams | inputBytes=304
+HullDownAttackRun | hostedInput=Hrot.AI.Behaviors.Brains.HullDownAttackParams | inputBytes=320
 Hunt | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 HunterSop | hostedInput=- | inputBytes=0
 Idle | hostedInput=- | inputBytes=0
@@ -105,7 +105,7 @@ InfantrySquadAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBy
 InfantrySquadHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=1208
 InfantrySquadMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=1232
 JoinFormation | hostedInput=Hrot.AI.Behaviors.Brains.CgfNodes+JoinFormationParams | inputBytes=44
-LandPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=320
+LandPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=336
 LoadCasualty | hostedInput=Hrot.Map.Definitions.Behavior.LoadCasualtyParamsJsonDto | inputBytes=80
 ManWeapon | hostedInput=Hrot.Map.Definitions.Behavior.ManWeaponParamsJsonDto | inputBytes=36
 MemberEvaluation | hostedInput=- | inputBytes=616
@@ -209,7 +209,7 @@ UnitRelayBreakContact | hostedInput=Hrot.AI.Behaviors.Orders.BreakContactOrder |
 UnitRelayMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=32
 UrbanMovement | hostedInput=- | inputBytes=308
 VehicleFightFromCover | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
-VehicleSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.VehicleSupportByFireParamsJsonDto | inputBytes=408
+VehicleSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.VehicleSupportByFireParamsJsonDto | inputBytes=424
 WanderMilitary | hostedInput=- | inputBytes=0
 WeaponSystemAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=24
 WeaponSystemHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=24

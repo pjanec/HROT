@@ -657,6 +657,10 @@ namespace Hrot.AI.Behaviors.Brains
                     var ap = AttackPositionOf(in p, slot);
                     if ((c.X - ap.X) * (c.X - ap.X) + (c.Y - ap.Y) * (c.Y - ap.Y) <= AttackPositionArriveMetres * AttackPositionArriveMetres)
                     { p.Forward[slot] = 2; p.Dirty[slot] = 1; }
+                    // ⭐ CE-5051 — no way to its attack position (its march FAILED: SquadMarchPlay.NoWayLeadsToFail): it waits where it stands, as
+                    //   D-12 before the extension. 📐 live (stechovice-battle): the point lay on ground no path reaches
+                    else if (p.Dirty[slot] == 0 && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.TaskFailed)
+                    { p.Forward[slot] = 0; p.Dirty[slot] = 1; }
                 }
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
