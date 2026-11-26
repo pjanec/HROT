@@ -38,21 +38,38 @@ public static class NetElevation
     /// <summary>Gives <paramref name="netPath"/> the heights <paramref name="ground"/> returns, in place.</summary>
     /// <param name="force">⭐ CE-4403 (G-25, V-21) — overwrite a z a point (or a junction) already has: the importer re-elevates the net over the LEVELLED ground,
     /// where the pipeline's z (on the unlevelled ground) is stale. False (the default) keeps netconvert's own z, as before.</param>
-    public static Result Apply(string netPath, Func<double, double, double> ground, double spacing = Spacing, bool force = false)
+    /// <param name="edgeSurface">⭐ <c>CE-5057</c> (DESIGN_Terrain_OSM_Bridges D-7) — per EDGE id, the surface its lanes lie on instead of <paramref name="ground"/> (a bridge's deck):
+    /// a bridged edge's lanes cross on the deck, not on the river bed. ⛔ Per edge, never "the higher of the two" — a road passing UNDER a bridge stays on the ground.</param>
+    /// <param name="junctionZ">⭐ <c>CE-5057</c> — per junction id, its height (a junction ON a bridge, between two of its edges).</param>
+    public static Result Apply(string netPath, Func<double, double, double> ground, double spacing = Spacing, bool force = false,
+                               IReadOnlyDictionary<string, Func<double, double, double>>? edgeSurface = null, IReadOnlyDictionary<string, double>? junctionZ = null)
     {
         string text = File.ReadAllText(netPath);
         long before = new FileInfo(netPath).Length;
         int shapes = 0, pointsBefore = 0, pointsAfter = 0;
 
-        string rewritten = ShapeAttribute.Replace(text, m =>
+        string ShapesIn(string block, Func<double, double, double> surface, bool forced) => ShapeAttribute.Replace(block, m =>
         {
-            var (s, pb, pa) = Shape(m.Groups[1].Value, ground, spacing, force);
+            var (s, pb, pa) = Shape(m.Groups[1].Value, surface, spacing, forced);
             shapes++; pointsBefore += pb; pointsAfter += pa;
             return " shape=\"" + s + "\"";
         });
+        string rewritten = edgeSurface is { Count: > 0 }
+            ? EdgeBlock.Replace(text, m => edgeSurface.TryGetValue(m.Groups[1].Value, out var deck) ? ShapesIn(m.Value, deck, true) : ShapesIn(m.Value, ground, force))
+            : text;
+        // every shape outside the overridden edges (and every edge when there is no override) — as before
+        rewritten = edgeSurface is { Count: > 0 }
+            ? OutsideEdges(rewritten, block => ShapesIn(block, ground, force))
+            : ShapesIn(rewritten, ground, force);
         rewritten = JunctionTag.Replace(rewritten, m =>
         {
             string tag = m.Value;
+            if (junctionZ != null && Regex.Match(tag, "\\sid=\"([^\"]*)\"") is { Success: true } jid && junctionZ.TryGetValue(jid.Groups[1].Value, out double jz))
+            {
+                tag = Regex.Replace(tag, "\\sz=\"[^\"]*\"", "");
+                var at = Regex.Match(tag, "\\sx=\"([^\"]*)\"\\s+y=\"([^\"]*)\"");
+                return at.Success ? tag.Insert(at.Index + at.Length, " z=\"" + F(jz) + "\"") : tag;
+            }
             if (Regex.IsMatch(tag, "\\sz=\"")) { if (!force) return tag; tag = Regex.Replace(tag, "\\sz=\"[^\"]*\"", ""); }
             var xy = Regex.Match(tag, "\\sx=\"([^\"]*)\"\\s+y=\"([^\"]*)\"");
             if (!xy.Success) return tag;
@@ -65,6 +82,22 @@ public static class NetElevation
     }
 
     private static readonly Regex ShapeAttribute = new("\\sshape=\"([^\"]*)\"", RegexOptions.Compiled);
+    private static readonly Regex EdgeBlock = new("<edge\\b[^>]*?\\sid=\"([^\"]*)\"[^>]*?(?:/>|>.*?</edge>)", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>Applies <paramref name="rewrite"/> to every stretch of <paramref name="text"/> OUTSIDE the <c>&lt;edge&gt;</c> blocks (those are rewritten already).</summary>
+    private static string OutsideEdges(string text, Func<string, string> rewrite)
+    {
+        var sb = new StringBuilder(text.Length + 1024);
+        int at = 0;
+        foreach (Match m in EdgeBlock.Matches(text))
+        {
+            sb.Append(rewrite(text.Substring(at, m.Index - at)));
+            sb.Append(m.Value);
+            at = m.Index + m.Length;
+        }
+        sb.Append(rewrite(text.Substring(at)));
+        return sb.ToString();
+    }
     private static readonly Regex JunctionTag = new("<junction\\b[^>]*>", RegexOptions.Compiled);
 
     private static (string Shape, int Before, int After) Shape(string shape, Func<double, double, double> ground, double spacing, bool force = false)

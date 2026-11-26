@@ -57,6 +57,62 @@ namespace Fdp.Toolkit.Terrain
             };
         }
 
+        /// <summary>A deck end standing higher than this above the ground under it (m) gets a ramp down to it in <see cref="BuildAlong"/> — one step (the vehicle navmesh's).</summary>
+        public const float RampThreshold = 0.3f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5057</c> / <c>CE-11063</c> (docs/DESIGN_Terrain_OSM_Bridges.md D-5) — a deck ALONG a polyline (an imported bridge: from bank to bank, possibly curved),
+        /// <paramref name="width"/> wide, its top at <paramref name="zAt"/>(arc length) — ABSOLUTE heights, so a deck can run straight over a valley — written as this
+        /// geometry's own parts: one SLAB per segment, MITRED (an interior vertex's two corners on the bisector, so neighbouring slabs share their edge), each corner's
+        /// height ABOVE THE GROUND under it (<paramref name="groundAt"/>; may be negative where the bank rises above the deck — the walkable top is the higher of the two);
+        /// and a RAMP beyond an end only where that end stands more than <see cref="RampThreshold"/> above the ground ([slabs…, ramp at the start?, ramp at the end?]).
+        /// The same quads the authored and the laid bridge write (<see cref="Build"/>) — ruling 9.
+        /// </summary>
+        public static Part[] BuildAlong(IReadOnlyList<Vector2> line, float width, Func<float, float> zAt, Func<Vector2, float> groundAt)
+        {
+            if (line.Count < 2) throw new ArgumentException("[Terrain] a deck along a line needs two points.");
+            float hw = width / 2f;
+            int n = line.Count;
+            var s = new float[n];
+            for (int i = 1; i < n; i++) s[i] = s[i - 1] + Vector2.Distance(line[i - 1], line[i]);
+            if (s[n - 1] < 1e-3f) throw new ArgumentException("[Terrain] a deck's two ends are the same place.");
+            Vector2 Dir(int i) { var d = line[i + 1] - line[i]; float l = d.Length(); return l < 1e-6f ? Vector2.UnitX : d / l; }
+            static Vector2 Left(Vector2 u) => new(-u.Y, u.X);
+            // the offset of each vertex's two corners: the segment's normal at the ends, the mitre (bisector, length hw / cos(half the turn), capped at 2 hw) inside
+            var off = new Vector2[n];
+            for (int i = 0; i < n; i++)
+            {
+                if (i == 0) { off[i] = Left(Dir(0)) * hw; continue; }
+                if (i == n - 1) { off[i] = Left(Dir(n - 2)) * hw; continue; }
+                var na = Left(Dir(i - 1)); var nb = Left(Dir(i));
+                var m = na + nb; float ml = m.Length();
+                if (ml < 1e-4f) { off[i] = nb * hw; continue; }   // a U-turn: no mitre
+                m /= ml;
+                float cos = MathF.Max(0.5f, Vector2.Dot(m, nb));
+                off[i] = m * (hw / cos);
+            }
+            (Vector2 At, float Above) C(Vector2 at, float z) => (at, z - groundAt(at));
+            var parts = new List<Part>(n + 1);
+            for (int i = 0; i + 1 < n; i++)
+            {
+                float z0 = zAt(s[i]), z1 = zAt(s[i + 1]);
+                parts.Add(new Part(TerrainWalkableKind.Slab, C(line[i] - off[i], z0), C(line[i + 1] - off[i + 1], z1), C(line[i + 1] + off[i + 1], z1), C(line[i] + off[i], z0)));
+            }
+            // a ramp where an END stands above the ground (an embankment end, DESIGN_Terrain_OSM_Bridges Q1): from the end down to the ground, at the authored slope
+            void Ramp(Vector2 end, Vector2 outward, Vector2 o, float z, bool atStart)
+            {
+                float rise = z - groundAt(end);
+                if (rise <= RampThreshold) return;
+                var foot = end + outward * RampLengthFor(rise);
+                parts.Add(atStart
+                    ? new Part(TerrainWalkableKind.Ramp, (foot - o, 0f), C(end - o, z), C(end + o, z), (foot + o, 0f))
+                    : new Part(TerrainWalkableKind.Ramp, C(end - o, z), (foot - o, 0f), (foot + o, 0f), C(end + o, z)));
+            }
+            Ramp(line[0], -Dir(0), off[0], zAt(0f), atStart: true);
+            Ramp(line[n - 1], Dir(n - 2), off[n - 1], zAt(s[n - 1]), atStart: false);
+            return parts.ToArray();
+        }
+
         /// <summary>The deck ends of an obstacle centred at <paramref name="centre"/>, heading <paramref name="yaw"/>, <paramref name="span"/> long (the span between the ends).</summary>
         public static (Vector2 A, Vector2 B) Ends(Vector2 centre, float yaw, float span)
         {

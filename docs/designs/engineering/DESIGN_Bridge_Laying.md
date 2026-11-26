@@ -7,6 +7,7 @@ stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../../DESIGN_Terrain_OSM_Bridges.md — PROPOSES DeckGeometry.BuildAlong (a deck along a polyline at given heights, mitred) for the OSM bridges the importer builds — the third user of the one deck geometry
   - ../../DESIGN_Peek_And_Fire.md — OWNS the static obstacle (§9, P-7a, R-243: an entity that is TERRAIN on every node, held Constructing until baked); THIS adds a WALKABLE kind
   - ../../DESIGN_Terrain_Authoring.md — OWNS the authored Bridge feature (§8: the deck shape, the "rubble still carries units" case) and the bridge roads (§18k-2/3/4); THIS lifts the deck shape below the JSON and adds a run-time road ADD
   - ../../PLAN_Dynamic_Terrain.md — OWNS the run-time terrain changes and the obstacle bake (P-7a)

@@ -16,6 +16,8 @@ public sealed class MiniSet
     public List<WallFeature> Walls = new();
     public List<AreaFeature>? Woods, Water, Scrub;
     public List<Opening> Unassigned = new();
+    /// <summary>The input set's name (its manifest's <c>name</c>) — ⭐ CE-5057: the committed synthetic sets are written through this too.</summary>
+    public string Name = "mini";
 
     /// <summary>A rectangle building, counter-clockwise and closed; storeys of 3 m on <paramref name="baseZ"/>.</summary>
     public static Building Rect(string id, double x0, double y0, double x1, double y1, int storeys = 1, bool enterable = true, string roof = "flat",
@@ -55,7 +57,7 @@ public sealed class MiniSet
             File.WriteAllText(Path.Combine(dir, InputSetLayout.RoadsNet),
                 NetXml ?? "<net version=\"1.20\"><location netOffset=\"0,0\"/><edge id=\"e\"><lane id=\"e_0\" index=\"0\" width=\"3.2\" shape=\"-100,0 100,0\"/></edge></net>\n");
         }
-        Manifest.Write(dir, new ManifestHead("mini", frame, MinX, MinY, MaxX, MaxY, AnchorX, AnchorY), "generator", w => w.WriteString("name", "mini"));
+        Manifest.Write(dir, new ManifestHead(Name, frame, MinX, MinY, MaxX, MaxY, AnchorX, AnchorY), "generator", w => w.WriteString("name", "mini"));
         var problems = InputSetChecks.Check(dir);
         if (problems.Count > 0) throw new InvalidOperationException("the mini set is not a valid input set: " + string.Join("; ", problems));
         return dir;

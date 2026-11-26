@@ -16,10 +16,10 @@ public sealed partial class TerrainImporter : ITerrainImporter
     /// <summary>
     /// ⭐ <c>CE-5056</c> — the GENERATOR's revision, recorded in <c>terrain.json</c> beside the input's manifest sha256 (§13 F-4): a first use whose recorded revision differs
     /// re-imports, exactly as a changed input does — so a change to what the importer GENERATES reaches every machine that imported before. ⭐ Bump it with any such change.
-    /// 4 = a two-way road is ONE corridor (CE-4694 ②: no cliff down its middle). 3 = entrance steps for raised ground doors (CE-5056 ④). 2 = 1.2 m doors and stairs clear of the ground doors (CE-5056, village-street: 234 of 582 ground
+    /// 5 = an OSM bridge edge becomes a DECK from bank to bank, the net's bridged lanes on it (CE-5057 / CE-11063, DESIGN_Terrain_OSM_Bridges). 4 = a two-way road is ONE corridor (CE-4694 ②: no cliff down its middle). 3 = entrance steps for raised ground doors (CE-5056 ④). 2 = 1.2 m doors and stairs clear of the ground doors (CE-5056, village-street: 234 of 582 ground
     /// doors had no path through). 1 = everything before (recorded as none).
     /// </summary>
-    public const int Revision = 4;
+    public const int Revision = 5;
 
     private readonly string? _terrainsRoot, _scenariosRoot;
 
@@ -110,6 +110,14 @@ public sealed partial class TerrainImporter : ITerrainImporter
             // ⭐ CE-5056 ④ — entrance steps on the FINAL ground (after the pads): a raised ground-floor door gets a ramp down to it
             var finalGround = new TerrainHeightGrid(System.Numerics.Vector2.Zero, 1f, postCols, postRows, posts);
             var entrances = EntranceSteps.For(built, (x, y) => finalGround.Sample((float)x, (float)y), rep);
+            // ⭐⭐ CE-5057 / CE-11063 (DESIGN_Terrain_OSM_Bridges §2) — BRIDGES: every bridged edge chain becomes one deck from bank to bank on the LEVELLED ground (the bank
+            //   roads' height at its ends, straight between); its parts go to the world, and the net's bridged lanes onto it (below)
+            var decks = set.RoadsNet is string bridgeNet
+                ? Bridges.Plan(Corridors.Read(bridgeNet, ax, ay).Edges, p => finalGround.Sample(p.X, p.Y))
+                : new List<Bridges.Deck>();
+            var bridgeParts = decks.Select(d => (d.Id, (IReadOnlyList<Fdp.Toolkit.Terrain.DeckGeometry.Part>)Fdp.Toolkit.Terrain.DeckGeometry.BuildAlong(
+                d.Line, d.Width, d.ZAt, p => finalGround.Sample(p.X, p.Y)))).ToList();
+            rep.Bridges = decks.Count;
             Stage("pads"); progress?.Report(new ImportProgress("levelling", 0.6));
             HeightStage.Write(posts, postCols, postRows, Path.Combine(tmp, heightsFile), rep);
             Stage("store"); progress?.Report(new ImportProgress("levelling", 0.8));
@@ -117,7 +125,17 @@ public sealed partial class TerrainImporter : ITerrainImporter
             if (netFile != null)
             {
                 var levelled = new TerrainHeightGrid(System.Numerics.Vector2.Zero, 1f, postCols, postRows, posts);
-                var res = Hrot.Terrain.InputSet.NetElevation.Apply(Path.Combine(tmp, netFile), (x, y) => levelled.Sample((float)(x - ax), (float)(y - ay)), force: true);
+                // ⭐ CE-5057 (D-7) — a bridged edge's lanes (and a junction ON a bridge) take the deck's height, not the river bed's
+                var onDeck = new Dictionary<string, Func<double, double, double>>(StringComparer.Ordinal);
+                var junctionZ = new Dictionary<string, double>(StringComparer.Ordinal);
+                var junctionAt = decks.Count > 0 && set.RoadsNet is string jn ? Corridors.Read(jn, ax, ay).Junctions.ToDictionary(j => j.Id, j => j.At) : null;
+                foreach (var d in decks)
+                {
+                    foreach (var id in d.EdgeIds) onDeck[id] = (x, y) => d.ZNear(new System.Numerics.Vector2((float)(x - ax), (float)(y - ay)));
+                    foreach (var j in d.InnerJunctions) if (junctionAt != null && junctionAt.TryGetValue(j, out var at)) junctionZ[j] = d.ZNear(at);
+                }
+                var res = Hrot.Terrain.InputSet.NetElevation.Apply(Path.Combine(tmp, netFile), (x, y) => levelled.Sample((float)(x - ax), (float)(y - ay)), force: true,
+                                                                   edgeSurface: onDeck, junctionZ: junctionZ);
                 rep.NetPointsElevated = res.PointsAfter;
             }
             posts = null!;
@@ -142,7 +160,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
             ct.ThrowIfCancellationRequested();
 
             string worldFile = name + ".world.geojson";
-            TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees, entrances);
+            TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees, entrances, bridgeParts);
             TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)), Revision);
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");

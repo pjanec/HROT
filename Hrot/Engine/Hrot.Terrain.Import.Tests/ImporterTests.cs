@@ -251,6 +251,119 @@ public class ImporterTests : IDisposable
             Assert.True(MathF.Abs(L(0, y + 0.5) - L(0, y)) <= 0.1f, $"a step of {L(0, y + 0.5) - L(0, y):F2} m across the road at y {y}");
     }
 
+    // ── CE-5057 / CE-11063 — OSM bridges (docs/DESIGN_Terrain_OSM_Bridges.md §6) ─────────────────────────────────────────────────────────────
+
+    /// <summary>A road along y = 0 over a 6 m dip (|x| ≤ 12 at 4 m, the banks at 10 m beyond |x| 18): the bank edges, and the crossing edge(s) between x −20 and 20.</summary>
+    private static float Dip(double x, double y) { double a = Math.Abs(x); return (float)(a <= 12 ? 4 : a >= 18 ? 10 : 4 + (a - 12)); }
+
+    private static string BridgeNet(string crossing, bool tagged = true)
+    {
+        string tag = tagged ? "<param key=\"bridge\" value=\"yes\"/>" : "";
+        return "<net version=\"1.20\"><location netOffset=\"0,0\"/>" +
+               "<edge id=\"e1\" from=\"a\" to=\"b\"><lane id=\"e1_0\" index=\"0\" width=\"7\" shape=\"-90,0 -20,0\"/></edge>" +
+               crossing.Replace("{tag}", tag) +
+               "<edge id=\"e3\" from=\"c\" to=\"d\"><lane id=\"e3_0\" index=\"0\" width=\"7\" shape=\"20,0 90,0\"/></edge>" +
+               "<junction id=\"a\" type=\"dead_end\" x=\"-90\" y=\"0\"/><junction id=\"b\" type=\"priority\" x=\"-20\" y=\"0\"/>" +
+               "<junction id=\"m\" type=\"priority\" x=\"0\" y=\"0\"/>" +
+               "<junction id=\"c\" type=\"priority\" x=\"20\" y=\"0\"/><junction id=\"d\" type=\"dead_end\" x=\"90\" y=\"0\"/></net>\n";
+    }
+
+    private const string OneCrossing = "<edge id=\"e2\" from=\"b\" to=\"c\"><lane id=\"e2_0\" index=\"0\" width=\"7\" shape=\"-20,0 20,0\"/>{tag}</edge>";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-5057</c> / <c>CE-11063</c> A-1 — an OSM bridge edge (<c>bridge=yes</c>) over a 6 m dip becomes ONE deck from bank to bank: its ends at the banks' levelled height,
+    /// straight (level here) over the dip, under one structure; the net's lanes on it cross on the deck, not on the dip's floor; the SAME net untagged gets no deck.
+    /// 🔴 Mutation: no bridges stage in the importer ⇒ no deck (the deck asserts red); the net override dropped ⇒ the lane points at the dip's floor.
+    /// </summary>
+    [Fact]
+    public async Task CE5057_AnOsmBridgeEdge_IsOneDeck_BankToBank_AndTheNetCrossesOnIt()
+    {
+        var mini = new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(OneCrossing) };
+        var (folder, world, rep) = await Import(mini);
+        float Deck(double x) => world.DeckSurfaceAt((float)(x - mini.MinX), (float)(0 - mini.MinY), null);
+        float L(double x) => world.Height!.Sample((float)(x - mini.MinX), (float)(0 - mini.MinY));
+        Assert.Equal(1, rep.Bridges);
+        Assert.InRange(L(0), 3.5f, 4.5f);                                            // the dip is still there under the bridge (no corridor levelled it)
+        foreach (var x in new[] { -19.0, -10, 0, 10, 19 })
+            Assert.InRange(Deck(x) - L(-30), -0.1f, 0.1f);                           // the deck at the banks' height all the way across
+        var b = Assert.Single(world.Buildings, bd => bd.Label == "osm-bridge/e2");
+        Assert.True(b.Structure);                                                    // collapsible, a hull deck (CE-4694)
+        foreach (var (x, _, z) in NetPoints(folder).Where(p => MathF.Abs(p.X) <= 12))
+            Assert.True(MathF.Abs(z - L(-30)) <= 0.1f, $"the bridged lane at x {x:F1} is at z {z:F2}, not on the deck ({L(-30):F2})");
+
+        var (_, plain, plainRep) = await Import(new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(OneCrossing, tagged: false) }, "plain");
+        Assert.Equal(0, plainRep.Bridges);
+        Assert.True(float.IsNaN(plain.DeckSurfaceAt((float)(0 - mini.MinX), (float)(0 - mini.MinY), null)));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-5057</c> A-2 — a bridge SPLIT at a junction on it (two bridged edges) is ONE deck with no step at the joint, and the junction on it lies on the deck; a TWO-WAY
+    /// bridge (one edge per direction) is ONE deck as wide as both. 🔴 Mutation: no chaining ⇒ two decks.
+    /// </summary>
+    [Fact]
+    public async Task CE5057_ASplitBridge_AndATwoWayBridge_AreOneDeckEach()
+    {
+        const string split = "<edge id=\"e2a\" from=\"b\" to=\"m\"><lane id=\"e2a_0\" index=\"0\" width=\"7\" shape=\"-20,0 0,0\"/>{tag}</edge>" +
+                             "<edge id=\"e2b\" from=\"m\" to=\"c\"><lane id=\"e2b_0\" index=\"0\" width=\"7\" shape=\"0,0 20,0\"/>{tag}</edge>";
+        var mini = new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(split) };
+        var (folder, world, rep) = await Import(mini);
+        Assert.Equal(1, rep.Bridges);
+        float L(double x) => world.Height!.Sample((float)(x - mini.MinX), (float)(0 - mini.MinY));
+        Assert.InRange(world.DeckSurfaceAt((float)(-1 - mini.MinX), (float)(0 - mini.MinY), null) - world.DeckSurfaceAt((float)(1 - mini.MinX), (float)(0 - mini.MinY), null), -0.05f, 0.05f);
+        var m = System.Xml.Linq.XDocument.Load(Directory.GetFiles(folder, "*.net.xml").Single()).Descendants("junction").Single(j => (string?)j.Attribute("id") == "m");
+        Assert.InRange(float.Parse((string)m.Attribute("z")!, System.Globalization.CultureInfo.InvariantCulture) - L(-30), -0.1f, 0.1f);   // the junction ON the bridge is on the deck
+
+        const string twoWay = "<edge id=\"e2\" from=\"b\" to=\"c\"><lane id=\"e2_0\" index=\"0\" width=\"3.5\" shape=\"-20,-1.75 20,-1.75\"/>{tag}</edge>" +
+                              "<edge id=\"-e2\" from=\"c\" to=\"b\"><lane id=\"-e2_0\" index=\"0\" width=\"3.5\" shape=\"20,1.75 -20,1.75\"/>{tag}</edge>";
+        var (_, world2, rep2) = await Import(new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(twoWay) }, "twoway");
+        Assert.Equal(1, rep2.Bridges);
+        foreach (var y in new[] { -3.0, 0, 3.0 })                                    // both carriageways on the one deck
+            Assert.False(float.IsNaN(world2.DeckSurfaceAt((float)(0 - mini.MinX), (float)(y - mini.MinY), null)), $"no deck at y {y}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-5057</c> A-3 — the VEHICLE navmesh connects the two banks over the deck (the 6 m dip's 45° sides alone carry no vehicle), and does not without the bridge tag.
+    /// 🔴 Mutation: no bridges stage ⇒ no vehicle path.
+    /// </summary>
+    [Fact]
+    public async Task CE5057_TheVehicleNavmesh_CrossesTheDeck()
+    {
+        bool Crosses(TerrainWorld w, MiniSet m)
+        {
+            var nav = new RecastNavmeshFactory { Layers = NavLayerMask.Infantry | NavLayerMask.Vehicle, TileCache = null }.Build(w)!;
+            Vector3 At(double x) { float lx = (float)(x - m.MinX), ly = (float)(0 - m.MinY); return new Vector3(lx, ly, w.Height!.Sample(lx, ly)); }
+            return nav.PathExists(At(-60), At(60), (uint)NavLayerMask.Vehicle);
+        }
+        var mini = new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(OneCrossing) };
+        var (_, world, _) = await Import(mini);
+        Assert.True(Crosses(world, mini), "a vehicle crosses the bridge");
+        var plainSet = new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(OneCrossing, tagged: false) };
+        var (_, plain, _) = await Import(plainSet, "plain");
+        Assert.False(Crosses(plain, plainSet), "without the bridge the dip stops a vehicle");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-5057</c> A-3b — the COMMITTED synthetic set <c>assets/terrain-input/te-osm-bridge</c> (its net made by SUMO's own netconvert, two-way: each direction's lane
+    /// off the centreline, both tagged <c>bridge</c>) imports ONE deck named after the forward edge, at the banks' height, the net's bridged lanes on it — the set the
+    /// <c>te-osm-bridge</c> scenario runs on. 🔴 Mutation: no two-way pairing for bridged edges ⇒ two decks.
+    /// </summary>
+    [Fact]
+    public async Task CE5057_TheCommittedOsmBridgeSet_ImportsOneDeck()
+    {
+        string set = Path.Combine(Netconvert.RepoRoot()!, "assets", "terrain-input", "te-osm-bridge");
+        var imp = _env.Importer();
+        string folder = await imp.ImportAsync(set, "te-osm-bridge", false, null, default);
+        var world = Env.Load(folder, "te-osm-bridge");
+        Assert.Equal(1, imp.LastReport!.Bridges);
+        var b = Assert.Single(world.Buildings, bd => bd.Label.StartsWith("osm-bridge/", StringComparison.Ordinal));
+        Assert.Equal("osm-bridge/bridge", b.Label);
+        float bank = world.Height!.Sample(30, 100);                                   // terrain-local: the set spans −100..100
+        foreach (var x in new[] { 85f, 100f, 115f })
+            Assert.InRange(world.DeckSurfaceAt(x, 100, null) - bank, -0.1f, 0.1f);
+        foreach (var (x, _, z) in NetPoints(folder).Where(p => MathF.Abs(p.X) <= 12))
+            Assert.True(MathF.Abs(z - bank) <= 0.1f, $"the bridged lane at x {x:F1} is at z {z:F2}, not on the deck ({bank:F2})");
+    }
+
     /// <summary>
     /// ⭐⭐ <c>CE-4403</c> part 2 (D-3, G-24, R-4234) — houses close to a road are TOLERATED: one standing ON the road (an old town, OSM drift) leaves the road its
     /// natural cross-slope there and is counted as information, never an error; one beside it gets its pad, and the pad's skirt never alters the road's

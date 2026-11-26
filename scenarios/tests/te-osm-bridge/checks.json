@@ -1,0 +1,49 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-5057 te-osm-bridge (see scenario.json's header). Keys on arrival and state, never a time.",
+  "runFor": 180,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the tank reaches the east bank",
+      "on": "near",
+      "who": "Tank",
+      "point": [
+        170.0,
+        100.0
+      ],
+      "within": 6
+    },
+    {
+      "name": "the tank crossed ON the deck (never below the banks' height over the river)",
+      "never": {
+        "on": "field",
+        "who": "Tank",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 90.0,
+        "also": [
+          {
+            "path": "SimTransform.Position.0",
+            "op": "<",
+            "value": 110.0
+          },
+          {
+            "path": "SimTransform.Position.2",
+            "op": "<",
+            "value": 8.5
+          }
+        ]
+      }
+    },
+    {
+      "name": "the squad's objective 'reach the far bank' ends Achieved",
+      "on": "field",
+      "who": "Squad reaches the far bank",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    }
+  ]
+}

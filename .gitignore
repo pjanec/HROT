@@ -113,3 +113,4 @@ terrain-input/
 assets/terrain-input/*
 !assets/terrain-input/Stechovice/
 !assets/terrain-input/village-street/
+!assets/terrain-input/te-osm-bridge/
