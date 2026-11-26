@@ -20,3 +20,12 @@ changed yet. **Four are in your code.** Backend keeps the two that are its own.
 | [CE-4701](../Blueprint_Issues_Tracker.md) | `sam-site` | the radar is never on 30 s (RV-10 relocates 18 s after the 8.27 s salvo), so no SPOT | backend (CE-4617) | stage the scenario so the radar radiates ≥ 30 s before it fires |
 
 ⭐ None touches `ShelterFromAirNodes.cs`.
+
+## `2026-11-26` later — two reds in YOUR files, met by backend's gates (not caused by backend)
+
+| test | red because | file |
+|---|---|---|
+| `ShippedTreesAreCSharpTests.TheCSharpTree_IsTheTreeItsJsonAssetWas(BasicSquadSop)` | the snapshot predates the CE-4624 row (diff at pos 863: `c4624000…` where `c2123000…` was) — re-record with `HROT_UPDATE_SHIPPED_TREES=1` and read the diff | `BasicSquadSop.cs` / its snapshot |
+| `CodeBuiltTreeLayoutTests.CE1360_ACodeBuiltLeaf_ShowsItsMethodInWords_NotItsKey` | a leaf label reads *"Suppressed (share ≥ 0.5)"* — the rail forbids a `.` in a label | a squad / suppression condition's label |
+
+⭐ Backend built CE-4700, CE-4701 and CE-4703 (the vehicle UnderCommand row, user-approved) — see the tracker rows.

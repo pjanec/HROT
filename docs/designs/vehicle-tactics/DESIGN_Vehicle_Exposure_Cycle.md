@@ -688,6 +688,13 @@ aircraft: the vehicle SOP's moves are GROUND moves (hide, firing point, reverse)
 still wins. 📐 village-street-fight before: the M1 drove to 40 m from Red and sat 4 min silent; the T-72 saw it at 65 m and never fired.
 Rail: `NedTkbBuilderCombatTests.CE8318_AnArmedVehicle_FightsByDefault_TheUnarmedAndTheAircraftDoNot`.
 
+✅ **`CE-4703` BUILT `2026-11-26` (backend; 🔒 user *"agree with the lean"*) — A VEHICLE UNDER A LIVE COMMANDER LEAVES CONTACT TO ITS COMMANDER'S PLAY.**
+`BasicVehicleSop` carries the squads' CE-2358 row (`SopConditions.UnderCommand` — true = nothing ordered) BELOW the self-defence rows (a hit,
+a launch at me, the air rows) and ABOVE *"Contact → fight from cover"*: a first sight of the enemy no longer pauses the play's order; a hit
+still sends the hull to fight from cover; its commander gone (or out of the fight), contact is its own again. 📐 `ua-hill-attack` before: Tank 1
+saw the enemy from the baseline at 5.2 s, its contact row paused the platoon's move and it fought alone, the pairs never crested — now PASS (both
+T-72s die). Rail: `BasicVehicleSopTests.CE4703_UnderACommander_ContactIsThePlays_AHitIsItsOwn_CommanderGone_ContactIsItsOwn` (red-proved).
+
 ## 10. Rails — in the features' own suites
 
 | rail | suite |
