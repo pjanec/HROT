@@ -286,6 +286,11 @@ namespace Fdp.Toolkit.Squad.Command
                 || (heard.Family != (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar && heard.Family != (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Gun))
                 return false;
             if (heard.Observer.IsNull || !repo.IsAlive(heard.Observer) || !repo.HasComponent<UnitSubordinate>(heard.Observer)) return false;
+            // ⭐⭐ CE-4702 (user: "build the remaining three too") — a launch heard FROM an opening or round a corner (CE-4666 D-8: "the point is where
+            //   it came in, never where its source is") locates the corner, not the gun: no SPOT. 📐 uc-urban-battle: the Red mortar 670 m away,
+            //   heard through the streets, was SPOTted at the corners round the convoy (within 300 m of it) — the platoon's picture never went quiet,
+            //   CContact held for the rest of the run and the convoy never moved on. A launch heard straight is SPOTted as before.
+            if (heard.Via != 0) return false;
             commander = repo.GetComponentRO<UnitSubordinate>(heard.Observer).Commander;
             return !commander.IsNull;
         }

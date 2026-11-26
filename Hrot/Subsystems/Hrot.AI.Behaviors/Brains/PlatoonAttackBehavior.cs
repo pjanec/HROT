@@ -63,8 +63,8 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Casevac[Capacity];
         /// <summary>⭐ CE-4608 — 1 = this slot was the assault and was relieved to the reserve (spent): in the assault it HOLDS the objective's foothold.</summary>
         public fixed byte Spent[Capacity];
-        /// <summary>⭐ <c>CE-5051</c> (D-12 extended, user `2026-11-26`) — 1 = this slot started the support phase beyond the support line: it waits at its
-        /// ATTACK POSITION (<see cref="PlatoonAttackBehavior.AttackPositionOf"/>), not where it stood.</summary>
+        /// <summary>⭐ <c>CE-5051</c> (D-12 extended, user `2026-11-26`) — this slot started the support phase beyond the support line: 1 = MOVING to its
+        /// ATTACK POSITION (<see cref="PlatoonAttackBehavior.AttackPositionOf"/>), 2 = there, waiting in cover (0 = it waits where it stood).</summary>
         public fixed byte Forward[Capacity];
         public Vector3 SupportAt;
         public Vector3 AssaultAt;
@@ -192,6 +192,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float WaitRadius = 15f;
         /// <summary>⭐ <c>CE-5051</c> — a waiting squad farther than the support line plus this (m) moves up to its attack position first.</summary>
         public const float AttackPositionMarginMetres = 40f;
+        /// <summary>⭐ <c>CE-5051</c> — a squad whose men's centre is this close to its attack position has arrived there (m).</summary>
+        public const float AttackPositionArriveMetres = 20f;
 
         /// <summary>
         /// ⭐⭐ <c>CE-5051</c> (D-12 extended; user `2026-11-26`: <i>"yes, build the D-12 extension"</i>; doctrine ATP 3-21.8 — the platoon moves
@@ -646,6 +648,20 @@ namespace Hrot.AI.Behaviors.Brains
                     && (p.Phase == PlatoonAttackPlan.PhaseApproach || p.Phase == PlatoonAttackPlan.PhaseAssault)
                     && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.Set;
                 if (reserveArrived) p.Dirty[slot] = 1;
+                // ⭐⭐ CE-5051 — a squad MOVING to its attack position that has arrived: now it waits there in cover. 📐 live (stechovice-battle): a
+                //   SquadDefend on the far point never marched there — its post plan searched cover round where the men stood, and they drifted
+                //   130 m the wrong way — so the move comes first, the wait on arrival
+                if (p.Phase == PlatoonAttackPlan.PhaseSupport && p.Forward[slot] == 1)
+                {
+                    var c = MenCentre(world, squad);
+                    var ap = AttackPositionOf(in p, slot);
+                    if ((c.X - ap.X) * (c.X - ap.X) + (c.Y - ap.Y) * (c.Y - ap.Y) <= AttackPositionArriveMetres * AttackPositionArriveMetres)
+                    { p.Forward[slot] = 2; p.Dirty[slot] = 1; }
+                    // ⭐ CE-5051 — no way to its attack position (its march FAILED: SquadMarchPlay.NoWayLeadsToFail): it waits where it stands, as
+                    //   D-12 before the extension. 📐 live (stechovice-battle): the point lay on ground no path reaches
+                    else if (p.Dirty[slot] == 0 && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.TaskFailed)
+                    { p.Forward[slot] = 0; p.Dirty[slot] = 1; }
+                }
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
                 var standsAt = MenCentre(world, squad);   // ⭐ D-12 — where a waiting squad takes cover: where its MEN stand
@@ -721,7 +737,11 @@ namespace Hrot.AI.Behaviors.Brains
                     //   approach replaces it at the support's Set. 📌 Live (pc-corridor-fight): with no order both squads stood idle in the open ~90 s.
                     //   ⛔ Was: return false (no order: they kept whatever the platoon's approach left them doing)
                     if (p.Phase == PlatoonAttackPlan.PhaseSupport)
-                        return Defend(p.Forward[slot] != 0 ? AttackPositionOf(in p, slot) : standsAt, WaitRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);   // ⭐ CE-5051 — far out: the attack position first
+                    {
+                        if (p.Forward[slot] == 1)   // ⭐ CE-5051 — far out: MOVE to the attack position first (tactical movement), then wait there
+                            return Move(AttackPositionOf(in p, slot), p.Speed, json, out behaviour, out order, out kind, out neutral);
+                        return Defend(p.Forward[slot] == 2 ? AttackPositionOf(in p, slot) : standsAt, WaitRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
+                    }
                     if (reserveArrived && role == PlatoonAttackPlan.Reserve)   // ⭐ CE-4669 — at its point: it holds there, ready to relieve
                         return Defend(p.ReserveAt, SupportPostRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     // ⭐⭐ CE-2436 AU-2 (A-7) — in contact the assault CLOSES by fire and movement (rushes between cover, its own half covering,
@@ -781,6 +801,15 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ <c>CE-5051</c> — a squad MOVE (the squad's own march, traveling): the neutral Move order is also the play's.</summary>
+        private static bool Move(Vector3 to, float speed, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
+        {
+            behaviour = BehaviorNames.InfantrySquadMove;
+            order = neutral = JsonSerializer.Serialize(new MoveOrder { Location = to, Speed = speed }, json);
+            kind = OrderKind.Move;
+            return true;
+        }
+
         private static bool Bound(Vector3 to, float speed, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
         {
             behaviour = BehaviorNames.BoundingOverwatch;
@@ -800,7 +829,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
-            var from = waiting ? (p.Forward[slot] != 0 ? AttackPositionOf(in p, slot) : standsAt) : p.SupportAt;   // ⭐ CE-5051 — from its attack position
+            var from = waiting ? (p.Forward[slot] == 2 ? AttackPositionOf(in p, slot) : standsAt) : p.SupportAt;   // ⭐ CE-5051 — from its attack position
             float bearing = SectorSplit.Norm(MathF.Atan2(o.X - from.X, o.Y - from.Y) * (180f / MathF.PI));
             world.Bus.Publish(new SetEngagementAreaEvent
             {

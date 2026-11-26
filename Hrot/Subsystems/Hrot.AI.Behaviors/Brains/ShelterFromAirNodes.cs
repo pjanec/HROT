@@ -52,6 +52,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>When the node began · when an air contact was last sensed · when a failed fire may be retried (sim s).</summary>
         public SimInstant StartedAt, LastAirAt, RetryFireAt;
         public EngageState Fire;
+        /// <summary>⭐ <c>CE-2501</c> — the shelter point the vehicle could not reach (its move failed), never picked again this run.</summary>
+        public Vector3 FailedShelter;
+        public byte HasFailed;
     }
 
     /// <summary>
@@ -67,6 +70,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const int ShelterSite = 0x21650003;
 
         public const float ArrivalRadius = 2f;
+        /// <summary>⭐ <c>CE-2501</c> — a candidate this close to a shelter that already failed is the same place (m).</summary>
+        public const float FailedNearMetres = 5f;
 
         /// <summary>A failed fire (out of arc, no weapon for it) is retried after this (s) — not every frame.</summary>
         public const double RetryFireSeconds = 2.0;
@@ -117,7 +122,13 @@ namespace Hrot.AI.Behaviors.Brains
                     if (status == NodeStatus.Running) break;
                     ws.Moving = 0;
                     if (status == NodeStatus.Success) ws.Phase = ShelterPhase.Holding;
-                    else Evade(ref ws, in p, self, world);   // the way there failed: keep moving instead
+                    else
+                    {
+                        // ⭐ CE-2501 (📐 terrain, stechovice-battle: an M1 re-picked the same unreachable shelters every 2–3 ticks and never moved for
+                        //   ~14 s) — the point it could not reach is not picked again: evade, and take the NEXT answer when one comes
+                        ws.FailedShelter = ws.Shelter; ws.HasFailed = 1;
+                        Evade(ref ws, in p, self, world);   // the way there failed: keep moving instead
+                    }
                     break;
                 }
                 case ShelterPhase.Holding:
@@ -163,15 +174,22 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The shelter query's best answer (the sensor ranks; the first is the best).</summary>
+        /// <summary>The shelter query's best answer (the sensor ranks; the first is the best) — ⭐ <c>CE-2501</c> skipping one that already failed.</summary>
         private static bool PickShelter(in ShelterFromAirState ws, EntityRepository world, out Vector3 point)
         {
             point = default;
             if (!ws.Sensor.IsValid || !world.IsAlive(ws.Sensor.ChildId) || !world.HasComponent<EqsCognitiveBuffer>(ws.Sensor.ChildId)) return false;
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.Sensor.ChildId);
             if (!buffer.IsReady || buffer.Count == 0) return false;
-            var r = buffer.GetSpanRO()[0];
-            point = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
-            return true;
+            var answers = buffer.GetSpanRO();
+            for (int i = 0; i < buffer.Count && i < answers.Length; i++)
+            {
+                var c = new Vector3(answers[i].PositionX, answers[i].PositionY, answers[i].PositionZ);
+                if (ws.HasFailed != 0 && Vector3.DistanceSquared(c, ws.FailedShelter) <= FailedNearMetres * FailedNearMetres) continue;
+                point = c;
+                return true;
+            }
+            return false;
         }
 
         private static void GoTo(ref ShelterFromAirState ws, in ShelterFromAirParams p, Entity self, EntityRepository world, Vector3 shelter)

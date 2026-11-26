@@ -290,6 +290,8 @@ namespace Hrot.AI.Behaviors.Brains
         public SimDuration LeadProgressAt;
         /// <summary>1 = at the last tick every follower stood within 3 m of its slot.</summary>
         public byte AllAtSlots;
+        /// <summary>⭐ <c>CE-5051</c> — leads in a row handed on without having walked at all (the objective has no way to it).</summary>
+        public byte NoWayLeads;
         public SimDuration HaltSince;
         public SimDuration HaltsAllowedAt;
         /// <summary>When the lead arrived (−1 = not yet).</summary>

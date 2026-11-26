@@ -1766,6 +1766,23 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-5051</c> — a march whose objective has NO WAY to it fails: <see cref="SquadMarchPlay.NoWayLeadsToFail"/> leads in a row handed on
+        /// without having walked at all ⇒ Failure (never an endless hand-over). 📐 live (stechovice-battle): the attack position lay on ground no path
+        /// reaches, each hand-over sent the followers to slots behind the next lead, and the squad ratcheted 130 m AWAY in 150 s.</summary>
+        [Fact]
+        public void CE5051_SquadMarch_AnObjectiveWithNoWayToIt_FailsAfterThreeLeadsThatNeverWalked()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,200,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — the order enters one frame later, its member orders one frame after
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 720 && !done; i++) { s.Tick(); done = s.Finished(out result); }   // ~12 s, nobody can move: two hand-overs
+            Assert.False(done, "two leads that could not start are not yet the ground");
+            for (int i = 0; i < 600 && !done; i++) { s.Tick(); done = s.Finished(out result); }   // the third
+            Assert.True(done, "the third lead that never walked ends the march");
+            Assert.Equal(Fbt.NodeStatus.Failure, result);
+        }
+
         // ── ⭐ CE-2141 (D2, docs/DESIGN_Orders_Params_Entity_Classes.md §7) — the orders a squad fulfils, and the release ──
 
         private static string MoveJson(Squad s, Vector3 to, string roadUse = "Unspecified")
@@ -2233,23 +2250,24 @@ namespace Hrot.SimHost.Tests
         /// <summary>A sound one of <paramref name="c"/>'s men hears, as the acoustic sensor's answer reaches the brain.</summary>
         private static void Hear(Chain c, Vector3 at, Fdp.Toolkit.Tkb.Domain.SoundSourceClass what,
                                  Fdp.Toolkit.Perception.Signatures.SoundKind kind = Fdp.Toolkit.Perception.Signatures.SoundKind.Shot,
-                                 Fdp.Toolkit.Tkb.Domain.SoundFamily family = Fdp.Toolkit.Tkb.Domain.SoundFamily.Untold)
+                                 Fdp.Toolkit.Tkb.Domain.SoundFamily family = Fdp.Toolkit.Tkb.Domain.SoundFamily.Untold, byte via = 0)
         {
             if (!c.S.Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
                 c.S.Repo.Bus.Register<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
             c.S.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SoundContactEvent
             {
                 Observer = c.S.Members[0], X = at.X, Y = at.Y, Z = at.Z, Radius = 80f, Kind = (byte)kind, SourceClass = (byte)what,
-                Family = (byte)family,
+                Family = (byte)family, Via = via,
             });
         }
 
         /// <summary>⭐⭐ <c>CE-2309</c> (HQ-1, Command Chain §8d) as Q95 E1 left it — a LAUNCH is a mortar's or a gun's shot as the ear TOLD it, at
         /// any range: after the report delay the platoon's picture holds one element there, Count 1, flagged IndirectFire, the estimate's radius;
         /// the same launch again (60 m off, 5 s later) adds nothing. No launch: a heavy MG 1.2 km off (once a launch by range alone), a heavy
-        /// shot the ear could not tell (family 0 — an ear below Regular), rifles, a mortar's BURST.
+        /// shot the ear could not tell (family 0 — an ear below Regular), rifles, a mortar's BURST, ⭐ a launch heard FROM AN OPENING (CE-4702: its point is
+        /// the corner it came in by, never the gun — 📐 uc-urban-battle's mortar SPOTted round the convoy, the platoon never quiet).
         /// ✅ Red-proofs: the family test dropped ⇒ the HMG / the untold shot · the kind test dropped ⇒ the burst · the same-launch memory
-        /// dropped ⇒ two elements.</summary>
+        /// dropped ⇒ two elements · ⭐ the Via test dropped ⇒ the corner is SPOTted.</summary>
         [Fact]
         public void CE2309_ALaunchToldByTheEar_IsSpottedAsIndirectFire_OnceAtAnyRange_NotAnHmgOrAnUntoldShot()
         {
@@ -2263,6 +2281,7 @@ namespace Hrot.SimHost.Tests
                  Fdp.Toolkit.Tkb.Domain.SoundFamily.Rifle);                                                                // rifles
             Hear(c, near + new Vector3(1200f, 0f, 0f), heavy, Fdp.Toolkit.Perception.Signatures.SoundKind.Detonation,
                  Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar);                                                              // a burst
+            Hear(c, near + new Vector3(40f, 30f, 0f), heavy, shot, Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar, via: 1);   // ⭐ CE-4702 — heard round a corner: the corner, not the gun
             c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             Assert.Equal(0, c.Picture.Elements.Count);
 
@@ -4442,17 +4461,58 @@ namespace Hrot.SimHost.Tests
             p.Ticks(3);
             p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
             p.Ticks(4);
+            var at = new Dictionary<Entity, Vector3>();
+            foreach (var waiting in new[] { p.Alpha, p.Charlie })
+            {
+                // ① far out: a squad MOVE to the attack position (never a SquadDefend on a far point: its post plan searches round where the men stand)
+                Assert.Equal(0, p.OrdersTo(waiting, BehaviorNames.SquadDefend));
+                Assert.True(p.OrdersTo(waiting, BehaviorNames.InfantrySquadMove) > 0, "it moves to its attack position first");
+                var m = OrderTo<Hrot.AI.Behaviors.Orders.MoveOrder>(p, waiting, BehaviorNames.InfantrySquadMove);
+                Vector3 to = m.Location;
+                float fromObjective = Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(o.X, o.Y));
+                Assert.True(MathF.Abs(fromObjective - PlatoonAttackBehavior.SupportStandOffMetres) < 1f,
+                            $"its attack position is on the support line ({fromObjective:0.0} m from the objective)");
+                at[waiting] = to;
+            }
+            // ② arrived: it waits there in cover, its sector drawn from there
+            foreach (var w in new[] { p.Alpha, p.Charlie }) p.S.Teleport(w, at[w]);
+            p.Ticks(4);
             foreach (var waiting in new[] { p.Alpha, p.Charlie })
             {
                 var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
                 Vector3 dp = d.Position;
-                float fromObjective = Vector2.Distance(new Vector2(dp.X, dp.Y), new Vector2(o.X, o.Y));
-                Assert.True(MathF.Abs(fromObjective - PlatoonAttackBehavior.SupportStandOffMetres) < 1f,
-                            $"it waits at its attack position, on the support line ({fromObjective:0.0} m from the objective)");
-                Assert.True(Vector3.Distance(p.S.At(waiting), dp) > 200f, "not where it stood");
+                Assert.True(Vector3.Distance(dp, at[waiting]) < 0.5f, "it waits at its attack position");
                 var ea = SectorOf(p, waiting);
                 Assert.True(Vector3.Distance(ea.ArcOrigin, dp) < 0.01f, "the sector is drawn from the attack position");
             }
+        }
+
+        /// <summary>⭐ <c>CE-5051</c> — a waiting squad with NO WAY to its attack position (its move FAILED: the march's no-way-there end) waits where it
+        /// stands, as D-12 before the extension. 📐 stechovice-battle: the point lay on ground no path reaches. 🔴 Red-proof: the TaskFailed arm off ⇒
+        /// no SquadDefend.</summary>
+        [Fact]
+        public void CE5051_D12_FarOut_ASquadWithNoWayToItsAttackPosition_WaitsWhereItStands()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 450f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.InfantrySquadMove) > 0, "it moves to its attack position first");
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));
+            p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
+            });
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend) > 0, "no way there: it waits");
+            var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, p.Alpha, BehaviorNames.SquadDefend);
+            Vector3 dp = d.Position;
+            float fromObjective = Vector2.Distance(new Vector2(dp.X, dp.Y), new Vector2(o.X, o.Y));
+            Assert.True(fromObjective > PlatoonAttackBehavior.SupportStandOffMetres + 50f, $"where it stands, not at the attack position ({fromObjective:0} m out)");
         }
 
         [Fact]
@@ -4629,7 +4689,7 @@ namespace Hrot.SimHost.Tests
         public void CE4669_AReserveAtItsPoint_DefendsThere_NotIdleOnAFinishedBound()
         {
             var p = new Platoon(squads: 3);
-            var o = new Vector3(0f, 200f, 0f);
+            var o = new Vector3(0f, 140f, 0f);   // ⭐ CE-5051 — the near case: within the support line + margin, so the wait is where it stands (D-12)
             p.ReportSpot(p.Bravo, o, 3);
             p.Ticks(2);
             Attack(p, o);

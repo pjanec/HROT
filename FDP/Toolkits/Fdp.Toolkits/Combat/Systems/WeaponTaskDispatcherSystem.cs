@@ -83,6 +83,10 @@ namespace Fdp.Toolkit.Combat.Systems
         /// </summary>
         private static void Engage(EntityRepository repo, Entity part, Entity hull, in WeaponTask task, ref WeaponTaskStatus status)
         {
+            // ⭐⭐ CE-4698 (found on ua-tank-ammo) — a hull OUT OF THE FIGHT (destroyed, knocked out, incapacitated) or whose gun is gone (a
+            //   firepower kill) releases no more of its granted rounds: the brain stops, but the turret's task outlives it. 📐 The T-72, destroyed
+            //   (Catastrophic) at 30.6 s, kept firing its granted rounds at 35.4 / 41.7 / 48.4 / 55.5 s and knocked the M1 out.
+            if (!Injury.IsInTheFight(repo, hull) || Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, hull, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower)) return;
             if (status.RoundsFired >= task.RoundsGranted)
             {
                 if (task.RoundsGranted > 0) status.State = WeaponTaskState.Done;

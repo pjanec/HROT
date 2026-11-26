@@ -24,7 +24,11 @@ $always = "/Game/Hrot/Vehicles", "/Game/Hrot/People", "/Game/Hrot/Air", "/Game/H
           # Lyra: ONLY the subfolders of the assets the code loads by path (its whole /Game/Audio and /Game/Characters/Heroes hold gameplay
           # Blueprints needing LyraGame, MotionWarping, GameplayMessageRuntime - not in this project: measured, the first cook failed on 203 errors there)
           "/Game/Audio/AttenuationPresets", "/Game/Audio/Concurrency", "/Game/Audio/MetaSounds", "/Game/Audio/Sounds/Explosions", "/Game/Audio/Sounds/Weapons/Rifle",
-          "/Game/Effects/Particles/Impacts", "/Game/Effects/Particles/Weapons", "/Game/Realistic_Starter_VFX_Pack_Vol2/Particles"
+          "/Game/Effects/Particles/Impacts", "/Game/Effects/Particles/Weapons", "/Game/Realistic_Starter_VFX_Pack_Vol2/Particles",
+          # roadblocks (gateway T-084): the Megascans sandbag-wall segment the DPS world tiles along an 8807 wall (its master is in /Game/Fab/Materials/Standard, the kit)
+          "/Game/Fab/Megascans/3D/Military_Trenches_Barrier_Sandbag_Canvas_Worn_ydxlcck/Medium/SM_ydxlcck_tier_2/Materials",
+          "/Game/Fab/Megascans/3D/Military_Trenches_Barrier_Sandbag_Canvas_Worn_ydxlcck/Medium/SM_ydxlcck_tier_2/StaticMeshes",
+          "/Game/Fab/Megascans/3D/Military_Trenches_Barrier_Sandbag_Canvas_Worn_ydxlcck/Medium/SM_ydxlcck_tier_2/Textures"
           # (not Lyra's Mannequin folders: its rifle anim-layer Blueprints need LyraGame - the person kits under /Game/Hrot/People carry the people)
 # U-18w: the shared terrain kit - the folders of the vegetation / ground materials / textures that the terrain packages repeat
 # (scripts/unreal/hrot_terrain_kit.py writes the list); cooked here once, so a terrain package holds only its own content

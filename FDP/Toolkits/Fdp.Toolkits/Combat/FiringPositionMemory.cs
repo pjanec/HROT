@@ -55,6 +55,10 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>T4 display — the node's phase (<see cref="PeekPhase"/>) and the sim time it was last written / its timer ends.</summary>
         public byte Phase;
+        /// <summary>⭐ <c>CE-4698</c> — 1 while <c>VehicleFightFromCover</c> STANDS AND FIGHTS (no hide, or it cannot drive): the hull has nowhere
+        /// to back out of sight, so the crew's survived-HIT smoke salvo would only blind its own gun (<c>VehicleCrewNodes.SmokeByThreat</c> reads it).
+        /// In the struct's padding after <see cref="Phase"/> — the size is unchanged.</summary>
+        public byte NoHide;
         public SimInstant PhaseAt, PhaseUntil;
         public Vector3 HidePoint, PeekPoint;
 
