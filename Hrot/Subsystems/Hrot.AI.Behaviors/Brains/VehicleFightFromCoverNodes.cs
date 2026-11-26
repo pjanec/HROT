@@ -601,7 +601,13 @@ namespace Hrot.AI.Behaviors.Brains
                 var creep = LocomotionMoveTo.Status(world, self);
                 return creep == NodeStatus.Running ? NodeStatus.Running : NodeStatus.Success;
             }
+            // ⭐⭐ CE-4691 (CE-11057 ④) — the drive OUT stops the first tick it sees its target, as the lane and the creep do (StopIfSees — the ONE step):
+            //   a hull that already sees him from where it sets out (its hide stopped hiding it — the threat moved) fires from there. 📐 Live va-pop-smoke:
+            //   the Bradley and the tank saw each other (3/3 body points, both ways) for 6 s; the drive-out to a firing point 6 m off, starting with a
+            //   turn, ran out of its 2.45 s budget before arriving and withdrew — never a round; the golden's TOW had been fired by chance on the way back
+            //   (only while the drive RUNS: an arrival keeps its firing point and takes the path below, unchanged)
             var status = MoveStatus(world, self, ws.FiringPoint);   // the arrival test (CE-2205) — unchanged
+            if (status == NodeStatus.Running && StopIfSees(ref ws, self, world, in threat, at3)) return TurnOntoArc(ref ws, in p, self, world, in threat, at3);
             if (status != NodeStatus.Success) return status;
             var target = PeekAndFireNodes.LockTarget(world, self, in threat);
             if (dir == Vector2.Zero || target.IsNull) return NodeStatus.Success;   // nothing to look for: as before

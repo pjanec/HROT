@@ -106,7 +106,11 @@ namespace Hrot.SimHost.Serializers
             if (domainPlan == null) return;
 
             // 1. Restore managed component.
-            repo.SetManagedComponent(entity, new ActiveMissionPlan { Plan = domainPlan });
+            // ⭐ CE-4693 — WITH its task order (the queue below runs the tasks in list order): without it a rule's MissionCommand Jump found "no task N"
+            //   on every plan loaded from a scenario (📌 bl-river-crossing: the sapper's plan, alive, "the target's mission has no task 1").
+            var order = new Guid[domainPlan.Tasks.Count];
+            for (int i = 0; i < order.Length; i++) order[i] = domainPlan.Tasks[i].TaskId;
+            repo.SetManagedComponent(entity, new ActiveMissionPlan { Plan = domainPlan, TaskOrder = order });
 
             // 2. Rebuild unmanaged execution queue.
             //    Use Get -> Mutate -> SetComponent to avoid [InlineArray] defensive-copy trap.

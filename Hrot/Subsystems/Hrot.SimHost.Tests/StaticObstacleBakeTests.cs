@@ -331,5 +331,113 @@ namespace Hrot.SimHost.Tests
             var dirty = Assert.Single(info.Dirty!);
             Assert.True(dirty.Min.X > 50f && dirty.Max.X < 70f, $"the dirty rectangle {dirty.Min}..{dirty.Max} is not round the new obstacle at x=60");
         }
-    }
+    
+        // ── ⭐ CE-4692 BL-S1 — the WALKABLE DECK (a laid bridge) ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>A 300 × 100 m flat terrain with a river across it (water at x 140..160, every y): nothing crosses it but a deck.</summary>
+        private const string River = """
+            { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 300, 100], "groundZ": 0 }, "features": [
+              { "type": "Feature", "properties": { "kind": "surface", "surface": "water" },
+                "geometry": { "type": "Polygon", "coordinates": [[[140,-5],[160,-5],[160,105],[140,105],[140,-5]]] } } ] }
+            """;
+
+        /// <summary>A laid bridge over the river at x = 150: a WalkableDeck obstacle, 26 m between the deck ends (on the banks), 4 m wide, 1.2 m above them.</summary>
+        private Entity Deck()
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(150, 50, 0), Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new StaticObstacle { Material = new FixedString32("steel-plate"), Kind = ObstacleKind.WalkableDeck });
+            _world.AddComponent(e, new ObstacleShape { Length = 26f, Width = 4f, Height = 1.2f });
+            _world.SetLifecycleState(e, EntityLifecycle.Constructing);
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-4692</c> BL-5 / BL-6 — a laid bridge is baked by the INCREMENTAL bake (dirty rectangles, every other tile reused): after it commits, a MAN and a GROUND VEHICLE
+        /// each have a path from bank to bank, the deck stands in the world as walkables (no prism), its construction is acked only then; once the bridge is gone the next incremental
+        /// bake leaves NO crossing. 🔴 Red-proof: leave <c>DeckDirt</c> out of <c>TerrainResidency.BakeObstacles</c> ⇒ the bake reuses the river's old tiles ⇒ no path over the deck.
+        /// </summary>
+        [Fact]
+        public void CE4692_ALaidBridge_IsBakedIncrementally_AndCarriesAManAndAVehicle_UntilItIsGone()
+        {
+            var terrain = TerrainWorldParser.Parse(River, "river");
+            var factory = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { Layers = Fdp.Toolkit.Navigation.NavLayerMask.Infantry | Fdp.Toolkit.Navigation.NavLayerMask.Vehicle, TileCache = new Fdp.Toolkit.Navigation.Recast.NavTileCache() };
+            var node = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+            var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
+            var baseline = factory.Build(terrain);
+            residency.AttachNavmesh(factory, node);
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "river" }, World = terrain, TerrainName = "river", Navmesh = baseline, BakeSerial = factory.BakeSerial });
+            var from = new Vector3(100, 50, 0); var to = new Vector3(200, 50, 0);
+            var layers = new[] { Fdp.Toolkit.Navigation.NavLayerMask.Infantry, Fdp.Toolkit.Navigation.NavLayerMask.Vehicle };
+            foreach (var l in layers) Assert.False(node.PathExists(from, to, (uint)l), $"{l}: the river alone has a crossing");
+
+            // a first bake with nothing: the baseline the next ones diff against (the incremental path needs one)
+            var sys = System();
+            var crate = Obstacle(20f);
+            sys.Execute(_world, 0.016f); _wall += 1.0;
+            RunUntilBaked(sys, 1);
+            var bridge = Deck();
+            sys.Execute(_world, 0.016f); _wall += 1.0;
+            RunUntilBaked(sys, 2);
+            Assert.Contains(bridge.Index, Acked());
+            var info = _world.GetSingletonManaged<LiveTerrainBakeInfo>();
+            Assert.NotNull(info.Dirty);                                                                   // ⭐ the INCREMENTAL bake, not a full one
+            var world = _world.GetSingletonManaged<TerrainWorld>();
+            Assert.Equal(3, world.Walkables.Count(w => w.Obstacle == bridge.Index));                     // the deck and its two ramps
+            Assert.DoesNotContain(world.Prisms, p => p.Label == TerrainObstacles.LabelPrefix + bridge.Index);   // ⛔ never a box
+            Assert.InRange(world.SurfaceZ(150f, 50f, 1.2f), 1.1f, 1.3f);                                  // a man stands on the deck over the water
+            foreach (var l in layers) Assert.True(node.PathExists(from, to, (uint)l), $"{l}: no way over the laid bridge");
+
+            _world.DestroyEntity(bridge);
+            sys.Execute(_world, 0.016f); _wall += 1.0;
+            RunUntilBaked(sys, 3);
+            Assert.NotNull(_world.GetSingletonManaged<LiveTerrainBakeInfo>().Dirty);
+            Assert.DoesNotContain(_world.GetSingletonManaged<TerrainWorld>().Walkables, w => w.Obstacle >= 0);
+            foreach (var l in layers) Assert.False(node.PathExists(from, to, (uint)l), $"{l}: the removed bridge still carries");
+            GC.KeepAlive(crate);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4696</c> (backend, cross-lane — user "fix yourself") — BOTH laid-bridge types carry a man AND a vehicle: the assault span (4 m wide, 1.2 m up) and the
+        /// FLOATING span (4.5 m wide, 0.6 m up). 📌 bl-floating-bridge: a tank's path never used the floating deck — 📐 measured here, by height not width: every 0.6 m deck
+        /// (2.4 m ramps) had no vehicle path, 0.9 m and 1.2 m did. 🔴 Red-proof: <c>DeckGeometry.MinRampLength</c> back to 1 m ⇒ the 0.6 m case is red.
+        /// </summary>
+        [Theory]
+        [InlineData(4f, 1.2f)]
+        [InlineData(4.5f, 0.6f)]
+        public void CE4696_EveryLaidDeckType_CarriesAManAndAVehicle(float width, float height)
+        {
+            var terrain = TerrainWorldParser.Parse(River, "river");
+            var factory = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { Layers = Fdp.Toolkit.Navigation.NavLayerMask.Infantry | Fdp.Toolkit.Navigation.NavLayerMask.Vehicle, TileCache = new Fdp.Toolkit.Navigation.Recast.NavTileCache() };
+            var node = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+            var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
+            var baseline = factory.Build(terrain);
+            residency.AttachNavmesh(factory, node);
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "river" }, World = terrain, TerrainName = "river", Navmesh = baseline, BakeSerial = factory.BakeSerial });
+            var from = new Vector3(100, 50, 0); var to = new Vector3(200, 50, 0);
+            var sys = System();
+            var crate = Obstacle(20f);
+            sys.Execute(_world, 0.016f); _wall += 1.0;
+            RunUntilBaked(sys, 1);
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(150, 50, 0), Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new StaticObstacle { Material = new FixedString32("steel-plate"), Kind = ObstacleKind.WalkableDeck });
+            _world.AddComponent(e, new ObstacleShape { Length = 26f, Width = width, Height = height });
+            _world.SetLifecycleState(e, EntityLifecycle.Constructing);
+            sys.Execute(_world, 0.016f); _wall += 1.0;
+            RunUntilBaked(sys, 2);
+            Assert.True(node.PathExists(from, to, (uint)Fdp.Toolkit.Navigation.NavLayerMask.Infantry), $"{width} x {height}: no way over for a man");
+            Assert.True(node.PathExists(from, to, (uint)Fdp.Toolkit.Navigation.NavLayerMask.Vehicle), $"{width} x {height}: no way over for a vehicle");
+            // ⭐ CE-4695 — a WALKER a hair (0.1 m) outside the ramp's side near its foot stands ON the ramp (within his step): the deck ends at x 137, its ramp
+            //   runs 132.2 → 137 (4.8 m, its foot buried 0.3 m). 🔴 Red-proof: DeckEdgeMargin 0 ⇒ the ground (0). And beside the
+            //   deck itself (above his step) he stays on the ground.
+            var tw = _world.GetSingletonManaged<TerrainWorld>();
+            float x = 132.2f + 4.8f * (0.55f / (height + 0.3f));   // where the ramp (its foot buried 0.3 m, TH-K) is 0.25 m up
+            Assert.InRange(tw.SurfaceZ(x, 50f, 0f), 0.22f, 0.28f);                     // on the ramp
+            Assert.InRange(tw.SurfaceZ(x, 50f - width / 2f - 0.1f, 0f), 0.22f, 0.28f);  // ⭐ a hair outside its side: still on it
+            if (height > TerrainWorld.StepHeight) Assert.Equal(0f, tw.SurfaceZ(139f, 50f - width / 2f - 0.1f, 0f), 2);   // above his step: beside it he stays on the ground
+            else Assert.Equal(height, tw.SurfaceZ(139f, 50f - width / 2f - 0.1f, 0f), 2);                               // a 0.6 m pontoon deck is one step: he may step up
+            GC.KeepAlive(crate);
+        }
+}
 }

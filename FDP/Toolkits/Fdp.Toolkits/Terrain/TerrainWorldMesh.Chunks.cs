@@ -156,7 +156,7 @@ namespace Fdp.Toolkit.Terrain
                 for (int i = 0; i < craters.Count; i++)
                     if (ch.ChunkOf(craters[i].Centre, craters[i].Centre) == k) AddCraterScorch(world, craters[i], v, t, g);
             foreach (int w in ch.Walkables[k])
-                if (damage == null || DamagedBuildings.Keeps(world.Walkables[w], damage)) AddWalkable(world.Walkables[w], v, t, g);
+                if (!world.Walkables[w].DrawnByEntity && (damage == null || DamagedBuildings.Keeps(world.Walkables[w], damage))) AddWalkable(world.Walkables[w], v, t, g);
             int before = t.Count;
             foreach (int s in ch.Water[k]) AppendWater(world, world.Surfaces[s], v, t);
             waterTriangles = (t.Count - before) / 3;

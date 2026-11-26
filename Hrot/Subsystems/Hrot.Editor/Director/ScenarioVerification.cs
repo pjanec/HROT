@@ -169,7 +169,7 @@ namespace Hrot.Editor.Director
         }
 
         public IReadOnlyList<Verdict> Verdicts() => _checks.Expect.Select(e =>
-            e.If != null && !_times.ContainsKey(e.If) ? new Verdict(e.Name, true, null, "skipped")
+            (e.If != null && !_times.ContainsKey(e.If)) || (e.Unless != null && _times.ContainsKey(e.Unless)) ? new Verdict(e.Name, true, null, "skipped")
             : e.Never ? new Verdict(e.Name, !_broken.ContainsKey(e.Name), _broken.TryGetValue(e.Name, out var b) ? b : null, "never",
                                     By: _brokenBy.TryGetValue(e.Name, out var by) ? by : null)
                     : new Verdict(e.Name, _times.ContainsKey(e.Name), _times.TryGetValue(e.Name, out var t) ? t : null, e.AtEnd ? "atEnd" : "once",

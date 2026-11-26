@@ -274,5 +274,30 @@ namespace Hrot.SimHost.Tests
             var off = ro; off.Active = 0;
             Assert.False(EntityRamOrderEgressTranslator.Same(in s, in off));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4693</c> (bridge laying BL-S3) — a bridge engineer's <c>BridgeCarried</c> (count, order, the span type, both banks, the target) crosses the wire byte for byte
+        /// on <c>dtBridgeCarried</c> = 247, component 292; an unchanged one matches its last sample (no resend); a changed order differs (it is sent).
+        /// 🔴 Red-proof: drop the far bank's copy in <c>FromSample</c> ⇒ the bytes differ.
+        /// </summary>
+        [Fact]
+        public void CE4693_TheBridgeCarried_RoundTripsByteForByte_OnOrdinal247()
+        {
+            Assert.Equal(247L, (long)Hrot.NED.Descriptors.EDescriptorType.dtBridgeCarried);
+            Assert.Equal(292, GlobalComponentIds.BridgeCarried);
+            var bc = new Fdp.Toolkit.Terrain.BridgeCarried
+            {
+                Count = 1, Order = Fdp.Toolkit.Terrain.BridgeOrder.Lay, BridgeType = 8825,
+                NearBank = new Fdp.Core.WorldPoint(10.5f, -3f, 1.25f), FarBank = new Fdp.Core.WorldPoint(34.25f, -2f, 1.5f), Target = new Fdp.Toolkit.Replication.EntityRef(4693),
+                Refusal = Fdp.Toolkit.Terrain.BridgeRefusal.GapTooWide, GapM = 31.5f,
+            };
+            var s = EntityBridgeCarriedEgressTranslator.ToSample(7107, in bc);
+            Assert.True(EntityBridgeCarriedEgressTranslator.Same(in s, in bc));
+            Assert.True(SameBytes(in bc, EntityBridgeCarriedIngressTranslator.FromSample(in s)));
+            var recover = bc; recover.Order = Fdp.Toolkit.Terrain.BridgeOrder.Recover;
+            Assert.False(EntityBridgeCarriedEgressTranslator.Same(in s, in recover));
+            var cleared = bc; cleared.Refusal = Fdp.Toolkit.Terrain.BridgeRefusal.NotRefused;
+            Assert.False(EntityBridgeCarriedEgressTranslator.Same(in s, in cleared));
+        }
     }
 }

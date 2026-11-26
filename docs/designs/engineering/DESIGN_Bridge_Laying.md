@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-25 (rev 2 — the independent review folded: the bridge is a STATIC-OBSTACLE KIND with a walkable shape; ONE deck, in the baked world)
-build-state: READY-TO-BUILD — the §9 leans APPROVED (R-4299, user 2026-11-25: "leans approved, write the hand offs"); BL-S1/S2 to terrain (CE-4692), BL-S3/S4 to backend (CE-4693)
-current-answer: §2 the diagrams · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review and what each finding changed
+updated: 2026-11-25 (rev 5 — §12f BL-S3/S4 AS-BUILT by backend, CE-4693; rev 4 — §12 BL-S3/S4 designed by backend; rev 3 — BL-S1/S2 AS-BUILT by terrain, CE-4692: §2b redrawn, §11 the deviations; rev 2 — the independent review folded)
+build-state: BUILT — BL-S1/S2 by terrain (CE-4692, §11); BL-S3/S4 by backend (CE-4693, §12f) — every bl-* scenario passes
+current-answer: §2 the diagrams (§2b AS-BUILT) · §3 the decisions · §5 the slices with their checks · §9 the open questions · §10 the review · §11 what BL-S1/S2 built and where it deviates · §12 BL-S3/S4 the engineer (backend's design) · §12f what it built
 stale-below: the ⛔ HISTORY section at the bottom (rev 1: a separate LaidBridge entity + a side surface table)
 known-rot: none
 known-conflict: none
@@ -87,37 +87,58 @@ that is terrain on every node, held Constructing until its bake commits, removed
 the deck-footprint damage reach, the road ADD and the water fall.*
 ⚠ The Replay Browser and display nodes run no bake (P-7a known gap): there the bridge is drawn but is not a surface or a path.
 
-### 2b. The classes
+### 2b. The classes — ⭐ AS-BUILT (BL-S1/S2, CE-4692; the rev-2 drawing's `BridgeShape` is SUPERSEDED by `ObstacleShape`, §11)
 
 ```mermaid
 classDiagram
-  class StaticObstacle { <<existing>> material · NEW Kind (Solid|WalkableDeck) }
-  class BridgeShape { <<NEW, [PerInstanceValue], unmanaged>> A · B (deck ends) · Width · DeckZ · RampRise }
+  class StaticObstacle { <<existing>> Material · Kind (Solid|WalkableDeck) NEW }
+  class ObstacleKind { <<NEW enum>> Solid · WalkableDeck }
+  class ObstacleShape { <<existing, [PerInstanceValue]>> Length = span between the deck ends · Width · Height = deck above the bank }
+  class StaticObstacleDto { <<existing TKB>> NEW Kind · types 8825 assault span, 8826 floating span }
   class Health { <<existing>> }
-  class BridgeCarried { <<NEW, unmanaged, on the engineer, own descriptor>> Count · BridgeType · State (Carried|Laying|Recovering) · Progress }
-  class BridgeTkb { <<NEW TKB types>> SpanMax · Width · DeckHeight · BuildSeconds · RecoverSeconds · LoadClass · HealthMax · Floating }
-  class DeckGeometry { <<LIFTED from FeatureKinds, below the JSON>> Build(A, B, width, deckZ, rampLength) · the buried ramp foot }
-  class TerrainObstacles { <<existing>> With(...) NEW adds walkable decks · IsObstacle }
-  class TerrainWorld { <<existing>> Walkables · SurfaceZCore · NEW skips a fallen deck until rebaked }
-  class StaticObstacleBakeSystem { <<existing>> NEW SignatureNow + DirtyRegions include decks }
-  class BridgeClosureSystem { <<existing>> NEW base − blocked + added · a bridge set change test · bridges exempt from the blocker walk }
-  class AreaEffectSystem { <<existing>> NEW reach to the deck footprint }
-  class WaterFallSystem { <<NEW>> occupants of a fallen deck → DamageAssessedEvent }
-  StaticObstacle -- BridgeShape
+  class DeckGeometry { <<NEW, lifted from FeatureKinds.Bridge>> Build(A, B, width, deckHeight, rampLength) · Ends · RampLengthFor · Bounds }
+  class TerrainWorldParser { <<existing>> NEW GroundRelativeWalkable · Buried (TH-K, one rule) }
+  class TerrainObstacles { <<existing>> NEW DeckOf · WalkableKey · With(..., decks) }
+  class TerrainWalkable { <<existing>> NEW Obstacle · DrawnByEntity }
+  class TerrainWorld { <<existing>> NEW DeckGone · OnDeck · DeckUnder · SurfaceZ / HullSurfaceZ / SurfacesAt (…, doors) }
+  class DeckTable { <<NEW, per view>> Standing(obstacle) }
+  class DoorStates { <<existing>> NEW Decks }
+  class StaticObstacleBakeSystem { <<existing>> CollectPrisms(…, decks) · signature mixes Kind }
+  class TerrainResidency { <<existing>> BakeObstacles(…, decks) · DeckDirt · commit keeps the decks }
+  class BridgeRoads { <<existing>> NEW Plan(bridges, firstSegment, NearestNode) · NearestNodeOf }
+  class RoadNetworkEdit { <<existing>> NEW Edited(base, drop, added) }
+  class BridgeClosureSystem { <<existing>> base − blocked + added · DeckSignature }
+  class RoadBlockage { <<existing>> a deck is never a blocker }
+  class IWorldQuery { <<existing seam>> NEW OnDeck }
+  class HullClearance { <<existing>> the kerb: no drop off a deck }
+  class AreaEffectSystem { <<existing>> NEW ReachPoint (the deck footprint) · nearest point ON the deck }
+  class WaterFallSystem { <<NEW>> who stood on the falling span → DamageAssessedEvent }
+  StaticObstacle --> ObstacleKind
+  StaticObstacle -- ObstacleShape
   StaticObstacle -- Health
-  BridgeShape ..> BridgeTkb
-  BridgeCarried ..> BridgeTkb
+  StaticObstacleDto ..> StaticObstacle : ObstacleTkbTranslator
   TerrainObstacles ..> DeckGeometry
-  TerrainObstacles ..> BridgeShape
+  TerrainObstacles ..> TerrainWorldParser
   StaticObstacleBakeSystem --> TerrainObstacles
-  TerrainObstacles --> TerrainWorld
-  BridgeClosureSystem ..> BridgeShape
-  AreaEffectSystem ..> BridgeShape
-  WaterFallSystem ..> BridgeShape
+  StaticObstacleBakeSystem --> TerrainResidency
+  TerrainResidency --> TerrainWorld : With(decks)
+  TerrainWorld o-- TerrainWalkable
+  DoorStates o-- DeckTable
+  TerrainWorld ..> DoorStates : DeckGone
+  IWorldQuery <|.. TerrainWorldQuery
+  TerrainWorldQuery ..> TerrainWorld
+  HullClearance ..> IWorldQuery : OnDeck
+  BridgeClosureSystem ..> BridgeRoads
+  BridgeClosureSystem ..> RoadNetworkEdit
+  BridgeClosureSystem ..> RoadBlockage
+  FeatureKinds ..> DeckGeometry : the authored bridge
+  AreaEffectSystem ..> ObstacleShape
+  WaterFallSystem ..> TerrainWorld : DeckUnder
 ```
 
-*What the picture shows that prose hid: ONE deck geometry, lifted from the authored bridge below its JSON so the authoring compile and the bake
-share it, with height and ramp length as parameters (the floating bridge needs both); every NEW method sits on an EXISTING class.*
+*What the picture shows that prose hid: there is still ONE deck — `DeckGeometry` feeds both the authored bridge's features and the laid bridge's walkables, and the
+parser's ground-relative rule makes both — and no new component carries the bridge's size: `ObstacleShape` already was the per-instance, replicated, saved size of a
+static obstacle. The only new runtime state is the per-view `DeckTable` (which decks still stand), and the only new system is `WaterFallSystem`.*
 
 ### 2c. The sequence — lay, cross, fall
 
@@ -225,6 +246,147 @@ sequenceDiagram
 
 ✅ **What held** (verified by the review): vehicles and men take their height from `IWorldQuery`; water is cut from the ground mesh and impassable;
 `BridgeClosureSystem` is the one road-edit step; `ObstacleDamage.BlastDamage` exists; the obstacle bake runs on every node; no earlier design.
+
+## 11. AS-BUILT — BL-S1 / BL-S2 (terrain, CE-4692, `2026-11-25`)
+
+| # | built | where | deviation from rev 2, and why |
+|---|---|---|---|
+| BL-1 | `StaticObstacle.Kind`, `ObstacleKind`, `StaticObstacleDto.Kind`, TKB 8825 / 8826 (placeholder figures: 18 m × 4 m × 1.2 m and 60 m × 4.5 m × 0.6 m, 600 hp — the 8 kg charge drops a span) | `StaticObstacles.cs`, `ObstacleTkbTranslator.cs`, `NedTkbCatalog.RegisterBridges` | ⭐ **no `BridgeShape`**: `ObstacleShape` (Length = the span between the deck ends, centred on the entity along its heading; Height = the deck above the bank) — it already is `[PerInstanceValue]`, replicated (`EntityObstacleShape`) and saved; a second size component with its own descriptor and translator would be a duplicate (ruling 9). A deck gets **no `PhysicsCollider`** (a mover crosses it) |
+| BL-4 | `DeckGeometry` (deck + two ramps, ground-relative corners); `TerrainWorldParser.GroundRelativeWalkable` / `Buried` (TH-K, one rule) | `DeckGeometry.cs`, `FeatureKinds.Bridge`, `TerrainObstacles.DeckOf` | ramp length from the rise at the authored 1 : 4 (`RampLengthFor`) |
+| BL-5 | decks collected beside the prisms; `With(…, decks)` appends them; `BakeObstacles(…, decks)`; `DeckDirt` (old and new place); the commit keeps them; the signature mixes `Kind` | `StaticObstacleBake.cs`, `TerrainResidency.cs` | decks are baked on EVERY node (like craters), not only a damage-baking one |
+| BL-3 | `TerrainWalkable.Obstacle`; per-view `DeckTable` (standing = Active or Constructing) on `DoorStates.Decks`; `TerrainWorld.DeckGone` skips a fallen deck in `SurfaceZ` / `HullSurfaceZ` / `SurfacesAt` (the view's overloads, used by `TerrainWorldQuery`) and the sight / fire loops | `DeckTable.cs`, `TerrainWorld.cs`, `TerrainObjects.cs` | — |
+| BL-7 | `BridgeClosureSystem` publishes `Edited(base, blocked, added)`; added = an Active deck's ends snapped by `BridgeRoads.Plan` over the run-time nodes (`NearestNodeOf`); its own `DeckSignature`; `RoadBlockage.Blockers` skips decks | `BridgeClosureSystem.cs`, `BridgeRoads.cs`, `RoadNetworkEdit.cs`, `RoadBlockage.cs` | the ends snapped are the DECK ends (the authored bridge's rule) |
+| BL-8 | `AreaEffectSystem.ReachPoint` (the deck's nearest point for the reach cull); the deck's nearest point's height is the deck SURFACE | `AreaEffectSystem.cs` | — |
+| BL-9 | `WaterFallSystem` (the deck's Health owner, the frame its Health reaches 0, before the removal; the SLAB only — a ramp runs onto the bank); no rubble (the obstacle is just removed) | `WaterFallSystem.cs`, `CoreInfrastructureCapabilities` | — |
+| BL-12 | `IWorldQuery.OnDeck`; `HullClearance.Enters` refuses a DROP of more than a step off a standing deck, only when the point leaves every deck's plan footprint; ⭐ `IWorldQuery.HullPointZ` — a hull POINT inside a standing deck (slab or ramp) is ON it | `IWorldQuery.cs`, `TerrainWorld.OnDeck` / `DeckSurfaceAt`, `HullClearance.cs` | 📐 found by `bl-placed-bridge` (live): a tank's front corner 0.75 m up the ramp was read with the hull centre's height as the hint (out of the step reach) ⇒ "the ground", its trace ran through the ramp, and the tank was held at the ramp's foot (FailedBlocked). A vehicle is never UNDER a deck, so a hull point inside one rests on it. ⚠ The AUTHORED bridge's ramps keep the old reading (not an obstacle deck) — no vehicle has been measured driving one live |
+| BL-13 | `TerrainWalkable.DrawnByEntity`, skipped by the drawn mesh (never by the navmesh soup) | `TerrainWorldMesh*.cs` | the bridge types are cultural features (DIS kind 5): the TERRAIN draws their deck |
+
+Rails: `FeatureKindsTests.CE4692_TheAuthoredBridge_AndALaidDeck_AreTheOneDeckGeometry` · `StaticObstacleBakeTests.CE4692_ALaidBridge_IsBakedIncrementally_…` ·
+`BridgeClosureTests.CE4692_ALaidBridge_IsRoadWhileItStandsOpen_…` · `ObstacleDamageTests.CE4692_AChargeAtTheSpansFarEnd_DropsIt_…`. Scenarios: `bl-placed-bridge`,
+`bl-placed-bridge-absent` (the handoff's "second variant" — the runner has no variants), `bl-blow-the-bridge` (`scripts/bridge_laying_scenarios.py`).
+
+## 12. BL-S3 / BL-S4 — the engineer: design (backend, CE-4693, `2026-11-25`; `build-state: READY-TO-BUILD`)
+
+⭐ The handoff's frame is kept; three details decided here, each against a measured precedent:
+① **one writer per component** — the handoff's `BridgeCarried` held both the brain's order and the mover's progress / count. The brain and the
+mover may be two nodes (BL-10), and a replicated component has ONE owner, so: the BRAIN writes `BridgeCarried` (what it is told to do and how many
+spans it carries); the MOVER keeps its progress in its own system (the `DozerCutSystem` precedent, `BladeCut.cs:57`) and its RESULT is the bridge
+obstacle itself — spawned through the ONE creation request (the `WreckObstacleSystem` precedent, `WreckObstacleSystem.cs:94`) and recovered through
+the ONE network destroy (`NetworkEntityDestroy.Request`, as `ObstacleRemovalSystem`), ⛔ never Health 0 — Health 0 is a demolition and drops whoever
+stands on the deck into the river (`WaterFallSystem`). The brain sees the result (the obstacle appears / is gone) and updates its own count.
+② **the engineer's figures live on the ENGINEER** (`BridgeLayerDto`: the bridge type it carries, how many, the longest gap, build and recover
+seconds, the source) — the span's own size stays terrain's `StaticObstacleDto` (8825 / 8826), its figures replaced by the sourced ones (Q-6).
+③ **the orders are kinds** (`OrderKind.LayBridge` 17, `RecoverBridge` 18 — measured free on every lane), fulfilled by `<Class><Order>` plays
+(`AssaultBridgeLayerLayBridge` …, the routing rule, Orders §1 O1–O2).
+
+### 12a. The module view — who runs what, each frame
+
+```mermaid
+graph TD
+  subgraph BRAIN["brain node — the engineer's behaviour (parallel phase, R-4212)"]
+    LAY["&lt;Class&gt;LayBridge — refuse (gap &gt; SpanMax, an end not on ground) · drive to the near bank · align · BridgeCarried.Order = Lay"]
+    REC["&lt;Class&gt;RecoverBridge — drive to the nearer end · BridgeCarried.Order = Recover (Target)"]
+  end
+  subgraph MOVER["the node that moves the engineer's hull (dtWorldPos owner) — DamageAssessmentModule, beside DozerCutSystem; never in a replay"]
+    WORK["BridgeWorkSystem NEW (serial) — Order Lay held BuildSeconds at the bank ⇒ EntityCreationRequest (the bridge obstacle) · Order Recover held RecoverSeconds at an end ⇒ NetworkEntityDestroy"]
+  end
+  OBS["bridge obstacle (terrain's CE-4692): StaticObstacle WalkableDeck + ObstacleShape + Health — Constructing until baked, then Open"]
+  REPL["dtBridgeCarried 247 NEW — Brain group → every node"]
+  LAY --> REPL --> WORK
+  REC --> REPL
+  WORK -->|create / destroy| OBS
+  OBS -.->|"the brain sees it appear / go: Count ∓ 1, Order None"| LAY
+```
+
+*What the picture shows that prose hid: the brain never writes the bridge and the mover never writes `BridgeCarried` — each side reads the other's
+result, so two nodes never write one component; and the mover's system is reached every frame because `DamageAssessmentModule` already runs on the
+node that moves hulls (the dozer's).*
+
+### 12b. The classes
+
+```mermaid
+classDiagram
+  class BridgeCarried { <<NEW unmanaged, recorded, Brain group, id 292>> byte Count · byte Order (None Lay Recover) · long BridgeType · WorldPoint NearBank · WorldPoint FarBank · EntityRef Target · byte Refusal · float GapM }
+  class BridgeLayerDto { <<NEW TKB descriptor, on the engineer>> BridgeType · Carried · SpanMaxM · BuildSeconds · RecoverSeconds · Source }
+  class EntityBridgeCarried { <<NEW wire descriptor dtBridgeCarried 247>> }
+  class BridgeCarriedTranslators { <<NEW egress + ingress, the RamOrder pair>> }
+  class BridgeWorkSystem { <<NEW serial, mover node>> progress per hull (own state) }
+  class LayBridgeOrder { <<NEW [Order LayBridge]>> PointLink NearBank · PointLink FarBank }
+  class RecoverBridgeOrder { <<NEW [Order RecoverBridge]>> EntityLink Bridge (optional) }
+  class BridgeLaying { <<NEW static>> Plan(terrain, near, far) LaidDeckPlan · RecoverStand · OpenBridgeAt · Say(refusal) }
+  class DozerCutSystem { <<existing precedent>> }
+  class WreckObstacleSystem { <<existing precedent: EntityCreationRequest>> }
+  class ObstacleRemovalSystem { <<existing precedent: NetworkEntityDestroy>> }
+  class StaticObstacleDto { <<existing, terrain's>> 8825 / 8826 — sourced figures (Q-6) }
+  BridgeCarried ..> EntityBridgeCarried : translators
+  BridgeLayerDto ..> StaticObstacleDto : BridgeType
+  BridgeWorkSystem ..> BridgeCarried : reads
+  BridgeWorkSystem ..> BridgeLayerDto : seconds
+  LayBridgeOrder ..> BridgeLaying : refusal
+  BridgeWorkSystem ..> BridgeLaying : the deck pose
+```
+
+*What the picture shows that prose hid: the only new runtime component is `BridgeCarried`; the bridge's size and existence are terrain's obstacle,
+and `BridgeLaying` is the one place the deck's pose and the refusal are computed — the order's refusal and the mover's spawn cannot disagree.*
+
+### 12c. The sequence — lay and recover
+
+```mermaid
+sequenceDiagram
+  participant O as order (HTTP / menu / LLM seat)
+  participant B as brain: LayBridge play
+  participant W as mover: BridgeWorkSystem
+  participant E as bridge obstacle
+  O->>B: LayBridge(NearBank, FarBank)
+  B->>B: BridgeLaying.Refusal — gap over SpanMax, or an end not on ground ⇒ fail with the reason
+  B->>B: drive to the near bank, face the far bank
+  B->>W: BridgeCarried.Order = Lay (its own entity, replicated)
+  W->>W: at the bank, BuildSeconds held
+  W->>E: EntityCreationRequest (deck pose from BridgeLaying, ObstacleShape length = the gap + the bearing)
+  E-->>B: replicated - the brain sees it Open, Count minus 1, Order None, Success
+  O->>B: RecoverBridge(Bridge)
+  B->>B: drive to the nearer deck end
+  B->>W: BridgeCarried.Order = Recover, Target
+  W->>E: RecoverSeconds held ⇒ NetworkEntityDestroy (never Health 0)
+  E-->>B: gone - Count plus 1, Order None, Success
+```
+
+### 12d. The figures (Q-6) — sourced where a source exists, said where not
+
+| | assault (8825) — M104 Wolverine | floating (8826) — Improved Ribbon Bridge |
+|---|---|---|
+| deck length / gap | 26 m bridge, a 24 m gap ([FAS](https://man.fas.org/dod-101/sys/land/wolverine.htm), [Wikipedia](https://en.wikipedia.org/wiki/M104_Wolverine)) | per bay 6.9 m (22 ft 8.5 in, [militarymachine.com](https://militarymachine.com/improved-ribbon-bridge)); ⚠ the longest gap 100 m (14 bays + 2 ramp bays) — an ESTIMATE |
+| width | 4 m (FAS) | ⚠ roadway 4.5 m — UNSOURCED (the bay unfolds to 8.1 m; the roadway is narrower) |
+| launch / recover | ≤ 5 min / ≤ 10 min ([SlashGear](https://www.slashgear.com/1600839/army-m104-wolverine-bridgelayer), one source) | ⚠ 20 min / 20 min — UNSOURCED estimates |
+| load class | MLC 70 (Wikipedia, FAS) — recorded, not used (BL-16) | ⚠ not found |
+
+### 12e. Decisions taken here (no user question — engineering, each with its reason)
+
+| # | decision | why |
+|---|---|---|
+| BL-17 | `BridgeCarried` is the BRAIN's only; the mover's progress is its own; the bridge obstacle is the mover's result | one writer per replicated component (R-4212, the ownership groups) |
+| BL-18 | recovery = the ONE network destroy, never Health 0 | Health 0 is a demolition (`WaterFallSystem`) |
+| BL-19 | `BridgeLayerDto` on the engineer; the span's size stays terrain's `StaticObstacleDto` | the engineer's capability vs the object's size — two owners, no copy |
+| BL-20 | a laid span's `ObstacleShape.Length` = the bank-to-bank gap + the deck's ramp reach, capped at the type's | the obstacle is per-instance already (§11); a floating bridge is as long as its river |
+| BL-21 | no progress on the wire in v1 — a renderer reads `Order` (laying / recovering) and `Count` (carried) | progress is the mover's; a renderer-facing progress is a later mover-owned field (said) |
+
+### 12f. AS-BUILT — where the build went beyond / differs from §12a–§12e (backend, `2026-11-25`, `caea57450`)
+
+| # | as built | why (measured) |
+|---|---|---|
+| 1 | ⭐ `BridgeCarried` also carries **`Refusal`** (`BridgeRefusal`: `GapTooWide` · `NearBankInWater` · `FarBankInWater` · `NoWater` · `DeckEndInWater` · `NoSpanCarried` · `NotItsBridge`; zero = `NotRefused`) and **`GapM`** — written by the brain with the order | BL-11's *"refused with a reason"* needs a reason a scenario row and a renderer can read: there is no general play-failure reason channel (searched: none). ⚠ The zero is not `None`: the DDS IDL puts this enum's members in one scope with `BridgeOrder`'s (`idlc`: *"Declaration 'None' collides"*) |
+| 2 | ⭐ `BridgeLayerTkbTranslator` adds `BridgeCarried {Count = Carried, BridgeType}` at creation | the brain only SETS it (never a structural change in the parallel phase, D-31) |
+| 3 | ⭐ `RecoverBridgeOrder.Bridge` is OPTIONAL — none ⇒ the nearest OPEN bridge of the type the engineer carries, within 300 m (resolved once, serially) | a bridge laid during the run has no authored name, so a scenario rule or an LLM commander could not name it |
+| 4 | the plan type is `LaidDeckPlan` (`BridgeLaying.Plan`), not `BridgePlan` | `BridgePlan` is `BridgeRoads`'s record already |
+| 5 | the deck: centred on the water gap ALONG the line, `Length = min(type length, gap + 2 × bearing)`, bearing = `max(1 m, (type length − SpanMax) / 2)` (1 m for both types) | BL-20; the stand is on the same line, short of the near ramp's foot (ramp = `DeckGeometry.RampLengthFor(height)` + half the hull + 2 m), reached through an approach point 10 m behind it so the hull ends aligned |
+| 6 | the brain counts the span off when an **ACTIVE** (baked, open) deck of its type stands within 3 m of the plan's centre | a Constructing deck is not in the simulation yet (R-243) |
+| 7 | the mover plans ONCE per order (cached), works only while the hull is within 6 m of its stand, and keeps its progress per hull | the stand check is the safety net for: ⚠ an INTERRUPTED play leaves `Order` set (a BTree action has no abort hook) — the mover then does nothing unless the hull still stands there, and the next bridge order overwrites it |
+| 8 | ⚠ after laying, the engineer STAYS at its stand (on the deck's line, before the ramp) — a scenario moves it aside before the crossing | moving off is the order-giver's call (a commander may keep it there to recover); said in every `bl-*` scenario |
+| 9 | ⭐ **a laid deck's ramp is at least 4.8 m** (`DeckGeometry.MinRampLength`; the 1 : 4 slope above that) — ⚠ cross-lane edit in terrain's code (CE-4696, user *"fix yourself"*) | 📐 measured (`StaticObstacleBakeTests.CE4696_*`): every 0.6 m deck (the floating span) at 1 : 4 had a 2.4 m ramp and **no vehicle path** (the vehicle layer's 1.8 m agent radius); 0.9 m and 1.2 m decks did, at any width; ≥ 4.8 m ramps all carry. A real ribbon bridge's ramp bay is ~6.9 m (§12d). The authored bridge keeps its own 6 m ramp |
+| 10 | ⭐ **nothing on the ground wades into a river from dry ground** (a man, an animal, a hull — nothing here floats) (`CarKinematicsSystem.FinishMove`, the ledge rule's shape) over **ONE water index** (`TerrainWater`: the ground mesh's private bins and the bridge plan route to it) — ⚠ cross-lane (CE-4695) | 📐 measured live (`bl-assault-crossing`): crowded off the ramp at ground level, a rifleman's next path point lay on the deck 1.2 m above him; he slid along the deck's side (x pinned at its edge) over the river bed — no water model (Q-3) meant only the navmesh kept a man out of a river |
+| 11 | ⭐ **a walker within 0.35 m OUTSIDE a laid deck / ramp stands on it when it is within his step** (`TerrainWorld.DeckEdgeMargin`, a deck-only pass beside the spatial index) — ⚠ cross-lane (CE-4695) | 📐 measured live (`bl-placed-bridge`, `bl-assault-crossing`): men's paths ran on the ramp's raw edge (x = 78.000 — the ramp's side joins the ground near its foot, so nothing erodes it) and a hair outside the triangles their floor was the ground: they walked BESIDE the ramp and the deck (terrain's own `bl-placed-bridge` squad met its deadline that way) |
+| 12 | ⭐ **once its bridge is open the layer BACKS OFF THE APPROACH** — reversing 20 m back and 10 m aside, out of the deck's line (`BridgeLayingBehaviors.ClearApproach`) | 📐 measured: the floating transporter (6.6 m wheelbase, ~15.6 m turn) facing the river 13.5 m ahead could not turn away forwards and blocked the column; backed off only 8 m aside, a tank passing it swung off the line and the deck's 0.4 m of slack each side held it (CE-4697) |
+| 13 | ⚠ **a hull cannot yet line up onto a narrow deck from an angle** (CE-4697, open) — the scenarios form a column on the bridge's axis and send it one at a time once the approach is clear | 📐 measured live: from 16 m off the axis an M1 stops at the ramp's top, `FailedBlocked`; on the axis it crosses the 72 m floating deck in 30 s |
 
 ---
 

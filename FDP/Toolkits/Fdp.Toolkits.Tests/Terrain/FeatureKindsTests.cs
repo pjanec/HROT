@@ -115,6 +115,54 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4692</c> BL-4 — ONE deck geometry: the authored bridge's compiled parts are, corner for corner, the pre-lift quads (deck, ramp at A, ramp at B — the formula as it stood in
+        /// <c>FeatureKinds.Bridge</c> before the lift, restated here as the reference), and a laid bridge of the same span, width and height (a WalkableDeck obstacle, <c>TerrainObstacles.DeckOf</c>)
+        /// is the SAME three walkables as the parsed authored ones. 🔴 Red-proof: flip the side normal in <c>DeckGeometry.Build</c> (or reorder its corners) ⇒ the compiled corners differ.
+        /// </summary>
+        [Fact]
+        public void CE4692_TheAuthoredBridge_AndALaidDeck_AreTheOneDeckGeometry()
+        {
+            var world = Merged((G1, River()), (G2, Bridge()));
+            var features = JsonNode.Parse(File.ReadAllText(Path.Combine(_f.Overlay, "overlay.world.geojson")))!["features"]!.AsArray()
+                .Where(ft => ((string?)ft!["properties"]!["label"])?.StartsWith(G2 + "/", StringComparison.Ordinal) == true).ToList();
+            Assert.Equal(3, features.Count);
+            // the pre-lift formula (FeatureKinds.Bridge before CE-4692), as the reference
+            var a = new Vector2(198, 200); var b = new Vector2(232, 200);
+            var u = Vector2.Normalize(b - a); var n = new Vector2(-u.Y, u.X); float hw = 2f;
+            (Vector2, float)[] Quad(Vector2 p0, float z0, Vector2 p1, float z1) => new[] { (p0 - n * hw, z0), (p1 - n * hw, z1), (p1 + n * hw, z1), (p0 + n * hw, z0) };
+            var expected = new[] { Quad(a, 1.5f, b, 1.5f), Quad(a - u * 6f, 0f, a, 1.5f), Quad(b, 1.5f, b + u * 6f, 0f) };
+            var kinds = new[] { "slab", "ramp", "ramp" };
+            for (int f = 0; f < 3; f++)
+            {
+                var ft = features.Single(x => (string)x!["properties"]!["label"]! == $"{G2}/{f}")!;
+                Assert.Equal(kinds[f], (string)ft["properties"]!["kind"]!);
+                var ring = ft["geometry"]!["coordinates"]![0]!.AsArray();
+                Assert.Equal(5, ring.Count);
+                for (int i = 0; i < 4; i++)
+                {
+                    Assert.Equal(expected[f][i].Item1.X, (float)ring[i]![0]!, 3);
+                    Assert.Equal(expected[f][i].Item1.Y, (float)ring[i]![1]!, 3);
+                    Assert.Equal(expected[f][i].Item2, (float)ring[i]![2]!, 3);
+                }
+            }
+            // the laid deck: the same three walkables
+            var authored = world.Walkables.Where(w => w.Building >= 0 && world.Buildings[w.Building].Label == G2).ToList();
+            Assert.Equal(3, authored.Count);
+            var laid = new System.Collections.Generic.List<TerrainWalkable>();
+            TerrainObstacles.DeckOf(new Vector3(215, 200, 0), 0f, new ObstacleShape { Length = 34f, Width = 4f, Height = 1.5f }, (x, y) => world.GroundHeightAt(x, y), 7, false, laid);
+            Assert.Equal(3, laid.Count);
+            Assert.All(laid, w => Assert.Equal(7, w.Obstacle));
+            foreach (var w in laid)
+            {
+                var twin = authored.SingleOrDefault(o => o.Kind == w.Kind && Vector2.Distance(o.Min, w.Min) < 0.02f && Vector2.Distance(o.Max, w.Max) < 0.02f);
+                Assert.True(twin != null, $"the laid {w.Kind} {w.Min}..{w.Max} has no authored twin");
+                Assert.Equal(twin!.Vertices.Length, w.Vertices.Length);
+                for (int i = 0; i < w.Vertices.Length; i++)
+                    Assert.True(w.Vertices.Any(v => Vector3.Distance(v, twin.Vertices[i]) < 0.02f), $"vertex {twin.Vertices[i]} of the authored {w.Kind} is not on the laid one");
+            }
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-6002</c> (showcase world, T-2 measured) — the bridge over the river carries BOTH layers, and the way over it is the only way: a man AND a ground vehicle go bank to bank, their path is
         /// at least the straight distance and keeps to the bridge's strip (y 198..202, never in the water at x 200..230), the river alone has no crossing, and once the bridge collapses neither layer has one.
         /// 🔴 Red-proof: expand a bridge to its deck only (no ramps) ⇒ the vehicle layer has no way on to the deck ⇒ no crossing.

@@ -68,6 +68,8 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.Systems.BleedOutSystem _bleedOut = new();
         // ⭐ CE-6003 (city battle O-1) — a destructible obstacle at 0 HP is removed by its Health owner, right after the damage that emptied it.
         private readonly Fdp.Toolkit.Combat.Systems.ObstacleRemovalSystem _obstacles = new();
+        // ⭐ CE-4692 BL-9 — whoever stood on a laid bridge's span as it fell goes into the river (its Health owner, the frame its Health reaches 0, before the removal).
+        private readonly Fdp.Toolkit.Combat.Systems.WaterFallSystem _waterFall = new();
         // ⭐ CE-6005 (city battle O-2) — a heavy vehicle's death leaves ONE wreck obstacle on the hulk, asked by its Health owner.
         private readonly Fdp.Toolkit.Combat.Systems.WreckObstacleSystem _wrecks = new();
         // ⭐ CE-4660 (thermal drivers TD-16) — a destroyed fuelled hull catches fire, and a fire burns the bodies in it, on the Health owner.
@@ -82,7 +84,7 @@ public static class CoreInfrastructureCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _flame, _burn, _stateSince };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _waterFall, _obstacles, _wrecks, _flame, _burn, _stateSince };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -93,6 +95,7 @@ public static class CoreInfrastructureCapabilities
             if (simulation is null) throw new ArgumentNullException(nameof(simulation));
             simulation.Add(_system);
             simulation.Add(_bleedOut);
+            simulation.Add(_waterFall);
             simulation.Add(_obstacles);
             simulation.Add(_wrecks);
             simulation.Add(_flame);

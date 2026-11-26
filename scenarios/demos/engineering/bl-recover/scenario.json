@@ -1,0 +1,273 @@
+{
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4693 BL-S3 (docs/designs/engineering/DESIGN_Bridge_Laying.md \u00a712, BL-18) - on basic-desert a RIVER 12 m wide (y 60-72). At 2 s 'Engineer' (an assault bridge layer, TKB 118) lays its bridge from (80, 50) to (80, 82) (300 s at the bank). When the bridge is Open the rule 'Bridge laid' orders it to RecoverBridge (no bridge named: the nearest of the type it carries) and arms 'Bridge recovered'. It drives to the nearer deck end and takes the span back (600 s) through the network destroy - never a demolition. When no assault bridge is left, 'Bridge recovered' orders 'Tank' (an M1 at (60, 20)) to (80, 110) on the far bank. Judge: 'Bridge laid' and 'Bridge recovered' are Achieved; the engineer carries its span again (Count 1, no order); the river is a barrier again: the tank, ordered across, never reaches the far bank. Fail: the bridge stays, the span is not back on board, or the tank crosses. Check: scripts/scenario-regression.sh bl-recover"
+ },
+ "entities": {
+  "b4693300-0000-4000-8000-000000000000": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 9,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -5,
+     60.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 0
+     },
+     {
+      "X": 610,
+      "Y": 12.0
+     },
+     {
+      "X": 0,
+      "Y": 12.0
+     }
+    ],
+    "Version": 0
+   },
+   "EntityInfo": {
+    "Name": "River",
+    "ForceId": "Neutral"
+   }
+  },
+  "b4693300-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     80.0,
+     20.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 118
+   },
+   "EntityInfo": {
+    "Name": "Engineer",
+    "ForceId": "Friend"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693300-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     60.0,
+     20.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071067811865475,
+     0.7071067811865476
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 100
+   },
+   "EntityInfo": {
+    "Name": "Tank",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "b4693300-0000-4000-8000-000000000020": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Lay the bridge",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Lay the bridge",
+      "subject": "b4693300-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "ScenarioTime",
+      "fromSeconds": 2
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693300-0000-4000-8000-000000000003",
+        "behavior": "Order.LayBridge",
+        "params": {
+         "NearBank": [
+          80.0,
+          50.0,
+          0
+         ],
+         "FarBank": [
+          80.0,
+          82.0,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693300-0000-4000-8000-000000000021": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge laid",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Bridge laid",
+      "subject": "b4693300-0000-4000-8000-000000000003"
+     },
+     "when": {
+      "$type": "CountMatching",
+      "withComponent": "StaticObstacle",
+      "min": 1,
+      "max": 1000,
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "TkbIdentity",
+       "propertyPath": "TkbType.Value",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 8825,
+        "maxValue": 8825
+       }
+      }
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693300-0000-4000-8000-000000000003",
+        "behavior": "Order.RecoverBridge",
+        "params": {}
+       }
+      },
+      {
+       "act": "SetObjectiveActive",
+       "args": {
+        "target": "b4693300-0000-4000-8000-000000000022",
+        "active": true
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "b4693300-0000-4000-8000-000000000022": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bridge recovered",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Bridge recovered",
+      "subject": "b4693300-0000-4000-8000-000000000003",
+      "startActive": false
+     },
+     "when": {
+      "$type": "CountMatching",
+      "withComponent": "StaticObstacle",
+      "min": 0,
+      "max": 0,
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "TkbIdentity",
+       "propertyPath": "TkbType.Value",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 8825,
+        "maxValue": 8825
+       }
+      }
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "b4693300-0000-4000-8000-000000000004",
+        "behavior": "MoveToLocation",
+        "params": {
+         "target": [
+          80.0,
+          110.0,
+          0.0
+         ],
+         "speed": 5,
+         "arrivalRadius": 4
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

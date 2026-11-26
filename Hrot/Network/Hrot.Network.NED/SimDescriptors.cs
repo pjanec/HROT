@@ -394,6 +394,28 @@ namespace Hrot.NED.Descriptors
         public float ToZ;
     }
 
+    // ⭐ CE-4693 (BL-S3) — a bridge engineer's span (BridgeCarried), the Brain group's, applied on every other node (the mover reads the order): the MineClearing shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityBridgeCarried
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Count;
+        public byte Order;
+        public long BridgeType;
+        public float NearX;
+        public float NearY;
+        public float NearZ;
+        public float FarX;
+        public float FarY;
+        public float FarZ;
+        public int TargetNetId;
+        public byte Refusal;
+        public float GapM;
+    }
+
     // ⭐ CE-4603 (B-6) — one cell's felled lone trunks (their centimetre keys), the felling node → every node. Reliable + TransientLocal + KeepLast(1).
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]

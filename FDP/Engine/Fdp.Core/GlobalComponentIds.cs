@@ -1427,6 +1427,11 @@ namespace Fdp.Core
         /// bulldozer's <c>BladeCut</c> pattern). ⚠ 324 / 325 measured free on every lane 2026-11-16.</summary>
         public const int MinefieldLanes = 324, MineClearing = 325;
 
+        /// <summary>⭐ <c>CE-4693</c> (bridge laying BL-S3, BL-17) — <c>BridgeCarried</c>: a bridge engineer's span (count, its brain's order: lay / recover). Brain group,
+        /// replicated (<c>dtBridgeCarried</c> 247). ⚠ backend's block 434–449 is full: 292 measured free on every lane (coordinator, behaviors, ui, terrain, backend, convoy,
+        /// the exp/agg-* branches, air, unreal-ig — every *Ids file and literal [ComponentId]) 2026-11-25.</summary>
+        public const int BridgeCarried = 292;
+
         /// <summary>⭐ CE-4624 MS-T2 (MR-5, R-5049) — <c>MineBreadcrumbs</c>: a unit's own recent track near a minefield (the back-out path), written by its brain node, recorded,
         /// not replicated. ⚠ 326 measured free on every lane 2026-11-16.</summary>
         public const int MineBreadcrumbs = 326;

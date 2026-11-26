@@ -154,6 +154,9 @@ namespace Hrot.SimHost.Tests
             Assert.NotNull(activePlan);
             Assert.Single(activePlan!.Plan.Tasks);
             Assert.Equal("FireAtTarget", activePlan.Plan.Tasks[0].BehaviorName);
+            // ⭐ CE-4693 — and its task ORDER (a rule's MissionCommand Jump reads it): the tasks' ids in the queue's order. 🔴 Red-proof: the loader without
+            //   TaskOrder ⇒ empty ⇒ red (bl-river-crossing: "the target's mission has no task 1").
+            Assert.Equal(new[] { activePlan.Plan.Tasks[0].TaskId }, activePlan.TaskOrder);
 
             // Assert MissionPlanQueue.
             var queue = _repo.GetComponent<MissionPlanQueue>(entity);
