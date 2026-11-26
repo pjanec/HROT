@@ -789,6 +789,46 @@ public static class ShapeKits
         return p.ToArray();
     }
 
+    // ── ⭐ CE-6503 (DESIGN_Bridge_Laying §13.4; mockup UX/laid-bridge-visual.svg) — the LAID bridges: the terrain draws the deck slab and its ramps (where units stand, U-7);
+    //    these kits draw only what makes it read as a bridge, on it and under it. x along the deck (the entity's heading), z up from the BANK (the entity stands at the bank's height),
+    //    every part a fraction of the entity's ObstacleShape (Length between the deck ends, Width, Height above the banks) — so a short or a long laid deck fits.
+    private const float LaL = 26f, LaW = 4f, LaH = 1.2f, LfL = 100f, LfW = 4.5f, LfH = 0.6f;
+    private static KitPart La(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c) => Box(cx / LaL, cy / LaW, cz / LaH, lx / LaL, ly / LaW, lz / LaH, c);
+    private static KitPart Lf(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c) => Box(cx / LfL, cy / LfW, cz / LfH, lx / LfL, ly / LfW, lz / LfH, c);
+
+    private static KitPart[] LaidAssaultBridgeParts()
+    {
+        var p = new List<KitPart>(8);
+        foreach (float s in new[] { 1f, -1f })
+            p.Add(La(0f, s * 1.85f, 1.25f, 26f, 0.3f, 0.7f, ColourRole.Metal));    // a side girder: 0.3 m below the deck's top to 0.4 m above it
+        p.Add(La(0f, 0f, 1.0f, 0.35f, 4.0f, 0.9f, ColourRole.Dark));                // the scissor hinge at mid-span, under the deck
+        p.Add(La(12.875f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));          // the end plates, flush with the deck's ends
+        p.Add(La(-12.875f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));
+        p.Add(La(0f, 0f, 1.22f, 26f, 0.7f, 0.04f, ColourRole.Dark));                // the gap between the two treadways
+        return p.ToArray();
+    }
+
+    /// <summary>The floating bridge's bays (pontoon sections) along its deck.</summary>
+    public const int FloatingBridgeBays = 10;
+
+    private static KitPart[] LaidFloatingBridgeParts()
+    {
+        var p = new List<KitPart>(32);
+        float bay = LfL / FloatingBridgeBays;
+        for (int k = 0; k < FloatingBridgeBays; k++)
+            p.Add(Lf(-LfL / 2f + bay * (k + 0.5f), 0f, 0.2f, bay - 0.7f, 5.4f, 0.75f, ColourRole.Body));   // a pontoon bay: half in the water, wider than the deck
+        for (int k = 1; k < FloatingBridgeBays; k++)
+            p.Add(Lf(-LfL / 2f + bay * k, 0f, 0.62f, 0.25f, 4.5f, 0.08f, ColourRole.Dark));                 // the joint between two bays, on the deck
+        foreach (float s in new[] { 1f, -1f })
+            p.Add(Lf(0f, s * 2.2f, 0.7f, 100f, 0.15f, 0.22f, ColourRole.Metal));                           // a curb along the edge
+        return p.ToArray();
+    }
+
+    /// <summary>⭐ CE-6503 — a laid assault bridge's details (the terrain draws its deck): girders, hinge, end plates, treadways.</summary>
+    public static readonly ShapeKit LaidAssaultBridge = new(LaidAssaultBridgeParts(), default);
+    /// <summary>⭐ CE-6503 — a laid floating bridge's details: the pontoon bays, the joints, the curbs.</summary>
+    public static readonly ShapeKit LaidFloatingBridge = new(LaidFloatingBridgeParts(), default);
+
     /// <summary>⭐ CE-6502 — the assault bridge layer (x forward): tracks, hull, the folded span on the roof (<see cref="BridgeSpanRound"/>).</summary>
     public static readonly ShapeKit BridgeLayer = new(BridgeLayerParts(), default);
     /// <summary>⭐ CE-6502 — the floating-bridge truck (x forward): four axles that roll, a cab, the folded ribbon bay on the bed (<see cref="BridgeSpanRound"/>).</summary>
@@ -938,6 +978,8 @@ public static class ShapeKits
         VisualFamily.MineClearer => MineClearer,             // ⭐ CE-4624
         VisualFamily.BridgeLayer => BridgeLayer,             // ⭐ CE-6502
         VisualFamily.FloatingBridge => FloatingBridge,       // ⭐ CE-6502
+        VisualFamily.LaidAssaultBridge => LaidAssaultBridge,     // ⭐ CE-6503
+        VisualFamily.LaidFloatingBridge => LaidFloatingBridge,   // ⭐ CE-6503
         VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
         VisualFamily.Dragon => DragonKits.Flying,            // ⭐ CE-4634 — the layer picks the folded kit when it stands (DragonKits.For)
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
@@ -965,7 +1007,9 @@ public static class ShapeKits
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         VisualFamily.MineClearer => new Vector3(McL, McW, McH),         // ⭐ CE-4624 — 9.2 × 3.5 × 3.3 m: the tracks + the flail's reach, the flail's width, the launcher rail's top (the TKB's own wins)
         VisualFamily.BridgeLayer => new Vector3(BlL, BlW, BlH),         // ⭐ CE-6502 — 13.4 × 4.0 × 4.0 m: the folded span's length and width, to its top (the TKB's own wins)
-        VisualFamily.FloatingBridge => new Vector3(FbL, FbW, FbH),      // ⭐ CE-6502 — 11.0 × 2.6 × 3.5 m (the TKB's own wins)
+        VisualFamily.FloatingBridge => new Vector3(FbL, FbW, FbH),
+        VisualFamily.LaidAssaultBridge => new Vector3(LaL, LaW, LaH),     // ⭐ CE-6503 — the TKB 8825 deck; the entity's ObstacleShape wins
+        VisualFamily.LaidFloatingBridge => new Vector3(LfL, LfW, LfH),    // ⭐ CE-6503 — the TKB 8826 deck      // ⭐ CE-6502 — 11.0 × 2.6 × 3.5 m (the TKB's own wins)
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
         VisualFamily.Dragon => DragonKits.Size,   // ⭐ CE-4634 — the TKB 411 box: 20 m long, 26 m span, 6 m tall (the TKB's own wins)
         VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)

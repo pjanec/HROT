@@ -85,6 +85,12 @@ public enum VisualFamily : byte
     /// <summary>⭐ CE-6502 — the FLOATING-BRIDGE ENGINEER (class <c>FloatingBridgeEngineer</c>, DIS <c>1.1.*.7.1</c>, TKB 119, an Improved Ribbon Bridge transporter): an 8×8 truck with a
     /// folded ribbon bay on its bed — the bay drawn only while it carries one. ⛔ Appended.</summary>
     FloatingBridge,
+    /// <summary>⭐ CE-6503 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13.4) — a LAID assault bridge (TKB 8825, a cultural feature): the TERRAIN draws its deck and ramps
+    /// (the walkables units stand on); this family draws the bridge ON it — the side girders, the scissor hinge, the end plates, the two treadways. Sized by the entity's
+    /// <c>ObstacleShape</c>. ⛔ Appended.</summary>
+    LaidAssaultBridge,
+    /// <summary>⭐ CE-6503 — a LAID floating bridge (TKB 8826): the terrain's deck, and here the pontoon bays in the water under it, the joints between bays and the curbs. ⛔ Appended.</summary>
+    LaidFloatingBridge,
 }
 
 /// <summary>
@@ -141,6 +147,9 @@ public static class VisualFamilies
     /// (<c>Gen.Locomotion</c>) is a <see cref="VisualFamily.Drone"/> — a quadcopter, not a 15 m fighter. A fixed-wing UAV stays a jet.</para>
     public static VisualFamily Of(TkbTemplate t)
     {
+        // ⭐ CE-6503 — the two laid-bridge obstacles share the cultural-feature DIS type (5.0.0.0.0) with every other obstacle: they are told apart by their TKB type
+        if ((long)t.TkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_AssaultBridge) return VisualFamily.LaidAssaultBridge;
+        if ((long)t.TkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_FloatingBridge) return VisualFamily.LaidFloatingBridge;
         var family = Of(t.DisType);
         if (family == VisualFamily.Jet && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.LocomotionDto>()?.Class == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft
             && EntityClassTable.Default.ChainContains(t.DisType, "Uav"))   // ⭐ CE-2394 — no LINQ

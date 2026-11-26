@@ -2351,6 +2351,13 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
 
     private static Vector3 SizeOf(EntityRepository world, Entity e, in TypeLook look)
     {
+        // ⭐ CE-6503 — a laid bridge is as big as ITS deck (the plan's length over the gap, the type's width and height): the same shape the bake lays the walkables from
+        if (look.Family is VisualFamily.LaidAssaultBridge or VisualFamily.LaidFloatingBridge && world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.ObstacleShape>()
+            && world.HasComponent<Fdp.Toolkit.Terrain.ObstacleShape>(e))
+        {
+            ref readonly var shape = ref world.GetComponentRO<Fdp.Toolkit.Terrain.ObstacleShape>(e);
+            if (shape.Length > 0f && shape.Width > 0f && shape.Height > 0f) return new Vector3(shape.Length, shape.Width, shape.Height);
+        }
         if (look.Family == VisualFamily.Person || !world.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()
             || !world.HasComponent<CarKinem.Core.VehicleParams>(e)) return look.Size;
         ref readonly var p = ref world.GetComponentRO<CarKinem.Core.VehicleParams>(e);
@@ -2407,7 +2414,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
         VisualFamily.TwinEngineJet => new Color(120, 128, 140, 255),   // ⭐ CE-4647 — a slightly bluer grey than the F-16 (the faction / TKB colour wins)
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
-        VisualFamily.MineClearer or VisualFamily.BridgeLayer or VisualFamily.FloatingBridge => new Color(98, 108, 66, 255),   // ⭐ CE-6502 — the bridge engineers too   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
+        VisualFamily.MineClearer or VisualFamily.BridgeLayer or VisualFamily.FloatingBridge or VisualFamily.LaidFloatingBridge => new Color(98, 108, 66, 255),   // ⭐ CE-6503 — the floating bridge's pontoons too
+        VisualFamily.LaidAssaultBridge => new Color(122, 126, 112, 255),   // ⭐ CE-6503 — bare steel   // ⭐ CE-6502 — the bridge engineers too   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
         (>= VisualFamily.Cattle and <= VisualFamily.Goat) or VisualFamily.Rabbit => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)
