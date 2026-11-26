@@ -7,6 +7,8 @@ AllMustPass | hostedInput=- | inputBytes=144
 AnimalHsm | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ArcheryScore | hostedInput=- | inputBytes=168
 ArtilleryUnitStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=1608
+AssaultBridgeLayerLayBridge | hostedInput=Hrot.AI.Behaviors.Orders.LayBridgeOrder | inputBytes=68
+AssaultBridgeLayerRecoverBridge | hostedInput=Hrot.AI.Behaviors.Orders.RecoverBridgeOrder | inputBytes=68
 AssembleAfterDrop | hostedInput=Hrot.Map.Definitions.Behavior.AssembleAfterDropParamsJsonDto | inputBytes=1232
 BTreeCuratedBindingDemo | hostedInput=- | inputBytes=0
 BTreeRenderShowcase | hostedInput=- | inputBytes=0
@@ -77,6 +79,8 @@ FireAtTarget | hostedInput=Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonD
 FireFromSeat | hostedInput=- | inputBytes=0
 FiringPosition | hostedInput=- | inputBytes=0
 Flank | hostedInput=- | inputBytes=0
+FloatingBridgeEngineerLayBridge | hostedInput=Hrot.AI.Behaviors.Orders.LayBridgeOrder | inputBytes=68
+FloatingBridgeEngineerRecoverBridge | hostedInput=Hrot.AI.Behaviors.Orders.RecoverBridgeOrder | inputBytes=68
 FollowRoute | hostedInput=- | inputBytes=16
 GreyZoneDash | hostedInput=- | inputBytes=120
 HitRatio | hostedInput=- | inputBytes=608
