@@ -159,7 +159,7 @@ classDiagram
   RangefinderDevice --> DevicePanel : PanelOut, on change
 ```
 
-*What the picture shows that prose hid: a new DEVICE TYPE is ONE class with three parts — the action, its `[UnitMemory]` state, its HUD drawing —
+*What the picture shows that prose hid (⚠ "ONE class" → a small set of types in one folder, §3s D-57): a new DEVICE TYPE is ONE class with three parts — the action, its `[UnitMemory]` state, its HUD drawing —
 all on the brain; a new PANEL is one `IDeviceAdapter`. Nothing device-specific exists on the station node, and the blackboard never crosses the wire.*
 
 ### 2c. The sequence — a button press changes the HUD (and the same in pause) *(rev 6)*
@@ -728,6 +728,26 @@ their communication needs to be somehow safe."*
 | D-53 | ⭐ **a DATA link is just an address**: `DeviceLinks { Entity Peer[2] }` on a device (set in the scenario, or by the trainee pairing them) tells its logic WHERE to send; ⭐ the rigid link (D-49) and the data link are independent — two stacked devices need not exchange data, and two linked ones need not be stacked | 🔒 *"might be mounted as stacked … but don't need to be"* |
 | D-54 | ⭐ **a tripod is a host with stations** (a ground host type with one or two `Station` seats accepting `Device`) — the same mounting as a vehicle (§3q); stacking = two stations on one tripod, the upper device `PoseFrom` the lower | one mounting model |
 | D-55 | ⭐ **scenarios** (§5a, a later slice): `dv-linked-pair` — a rangefinder sends a target location to a second device (`device` cue on the receiver's stored point, within tolerance); `dv-stacked-tracker` — one scripted orientation drives both stacked devices (their world directions agree) | R-4277 |
+
+## 3s. ⭐ The user's refinements to §3r (`2026-11-27`)
+
+🔒 User: *"agreed."* · *"usually devices have their own tracker input channel each, just the slave one is not using it when stack-linked to its master."* ·
+*"'One C# class per device type' — shouldn't there be actually multiple? blackboard working state dto, device behavior (logic) action, gizmo
+projector …"* · *"DeviceMessageEvent might even have a json formatted payload, not expected to be sent frequently, using shared Dto both devices are
+using to serialize/deserialize. Or a fixed byte buffer payload with the unmanaged shared DTO for frequent events."*
+
+| claim | code |
+|---|---|
+| a library behaviour is already several types: a blackboard struct, a resolver from its params DTO, a `[BTreeDefinition]` tree, its action node; its gizmo is a separate `[GizmoProjector]` class in `Gizmos/` | `AdvanceToBehavior.cs` (`AdvanceToBlackboard`, `[BehaviorResolver]`, `[BTreeDefinition]`); `Hrot.AI.Behaviors/Gizmos/HillAttackGizmo.cs` |
+| the event bus takes MANAGED events too, and the command buffer can publish one | `IEventBus.cs:8` (`PublishManaged<T>`); `EntityCommandBuffer.cs:26` (`PublishManagedEvent`) |
+| the interaction transport's wire payload is a UNION, one arm per kind | the generated `InteractionPayload` (`Hrot.NED.Messages`) |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-56 | ⭐ **every device has its OWN tracker channel**; a device that is `PoseFrom` another (stacked) IGNORES its own tracker while the link holds, and uses it again when unlinked. ⛔ amends D-49 / D-50 | 🔒 user |
+| D-57 | ⭐ **a device TYPE is a small set of types, in ONE folder** (`Hrot.AI.Behaviors/Devices/<Device>/`): ① its params DTO (TKB / scenario), ② its `[UnitMemory]` state struct, ③ its behaviour (resolver + `[BTreeDefinition]` + the action node — the logic), ④ its HUD projector (`[GizmoProjector]`), ⑤ its `PanelOut` (state → `DevicePanel`), ⑥ the message DTOs it SENDS (in a shared `Devices/Contracts/` folder, because the receiver uses the same DTO). ⛔ supersedes "one C# class per device type" (§2b, §3k, the overview picture) — the point stands: they live side by side, and nothing else changes for a new device | the library's own shape; one folder keeps logic and drawing together |
+| D-58 | ⭐ **`DeviceMessageEvent` has TWO payload forms, one event concept**: ① **binary** — a fixed byte buffer (lean 64 B) holding an UNMANAGED shared DTO, for frequent messages (unmanaged event, allocation-free); ② **JSON** — the shared DTO serialised with the one shared JSON options (`FdpJsonOptionsRegistry`), for rare, richer messages (a MANAGED event, `PublishManaged`). Both carry `Target · From · Kind`, ride the SAME interaction kind on the wire (a union arm: bytes or a bounded string), and are applied by the receiver's own brain next tick | 🔒 user; ✅ the bus and the command buffer already carry managed events; the `Kind` names the DTO in both device types' TKB entries |
+| D-59 | ⚠ **to measure before SD-S5b**: that a managed event is recorded and replayed like an unmanaged one (a debrief must show the message), and the wire's string bound for the JSON arm | the JSON form must not be the one thing replay cannot show |
 
 ## 4. Rejected — one line each
 
