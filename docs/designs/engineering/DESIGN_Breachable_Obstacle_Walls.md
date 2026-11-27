@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 built (§9a) (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
+build-state: BUILDING — S1, S3 built; S2 city-battle built, roadblock-blast open (§9) (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
 updated: 2026-11-27 (rev 2: a placed wall is a terrain-feature WALL; rev 1's segment design is HISTORY)
 current-answer: §8 the review's answers (supersede §2 A-1, §5 D-2/D-3/D-4) · §2 the decision · §3 the UML · §5 decisions · §6 acceptance · §9 stages
 stale-below: ⛔ HISTORY (rev 1, segments) — must NOT be quoted as the design
@@ -265,8 +265,10 @@ hand-over to the end (a probe); the editor's SUMO held the shadow because its GU
 (`TrafficBodyFeedTests.CE11072_ARider_IsNoBody_OnlyItsVehicleIs`). Every vehicle with a crew handed to SUMO was affected (an APC, an IFV with its squad aboard).
 
 ⭐ **The dozer's exit (measured, 10 runs):** a blade cut is the hull's width + 1 m, so a DIAGONAL drive out of it clips the wall's edge — the move ended `FailedBlocked` at the
-blade (2 of 7 runs, then 3 of 3 once the car drove). The scenario drives the dozer STRAIGHT through its own cut, then off the road. ⚠ That a bulldozer cannot turn
-inside its own cut is true of the real vehicle too; an order to cut a WIDER gap (two cuts side by side) is the user's call, not built.
+blade (2 of 7 runs, then 3 of 3 once the car drove). ⭐ A blade cut is the hull's width + 0.5 m a side, so the dozer fits through its OWN cut only centred to ±0.5 m — its exit ended
+`FailedBlocked` straight or diagonal. The scenario cuts TWICE (the second point 4 m beside the first — ⚠ it must lie OUTSIDE the first cut: a point order is done once a
+Passage covers its point, so a point inside it cuts nothing), then drives straight through and parks off the road: 3 of 3 runs pass, the same times
+(cut 24 s, through 54 s, the car past the wall 57 s, east bank 72 s). ⚠ An order to cut a gap of a given WIDTH is not built (a point order cuts one blade).
 
  (stopped, R-106): the three `city-battle/roadblock` instances carry `Presence: 0.6` (each stands in 60 % of runs), and the
 overlay compiler reads every saved feature entity without `Presence` (`OverlayCompiler.cs`) — moving the macro's walls into the scenario (V-3) would make them stand in EVERY run. ⇒ needs

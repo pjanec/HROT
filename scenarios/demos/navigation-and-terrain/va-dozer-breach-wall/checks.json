@@ -30,11 +30,22 @@
       "on": "near",
       "who": "Dozer",
       "point": [
-        64.0,
-        104.25
+        62.0,
+        98.25
       ],
       "within": 4,
       "after": "the dozer reaches the wall"
+    },
+    {
+      "name": "the dozer parks off the road beyond the wall",
+      "on": "near",
+      "who": "Dozer",
+      "point": [
+        70.0,
+        88.0
+      ],
+      "within": 4,
+      "after": "the dozer drives through its cut"
     },
     {
       "name": "the car is handed to SUMO",

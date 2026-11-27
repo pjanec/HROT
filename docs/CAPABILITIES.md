@@ -204,6 +204,10 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
   a heavy bomb close by collapses the whole building into rubble and kills the people inside. The navmesh follows in the background and
   only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
   ▶ `bd-destruction`
+- **Breachable walls placed in a scenario:** a sandbag wall or a concrete barrier line is a terrain-feature wall of its material's thickness (sandbags 0.6 m,
+  concrete 0.4 m), breached IN PART — by a charge, a ram, the bulldozer's blade — never removed whole (R-11022). Across a road it closes the lanes it crosses, and a
+  lane re-opens where a gap wide enough to drive through is cut over it, the same on every node, for our road graph and SUMO's cars. A wall can stand in some run
+  variants only, rolling with another entity (`PresenceWith`: a roadblock's walls with the roadblock). (CE-11069, CE-11070, CE-11071, CE-11072) ✅ `va-dozer-breach-wall`
 - **Glass in windows:** a window has a pane that sight passes unchanged and that muffles sound (20 dB); rounds crack it (two cracks kept,
   the third breaks it), a man firing out breaks it at once, a grenade's fragments or a big blast's pressure shatter it, and a breach takes it
   with the wall. A broken window lets sound into the building and is an open hole again; no navmesh rebake. Saved and replicated; the
