@@ -30,6 +30,11 @@ namespace Fdp.Toolkit.Scenario
         public const string ArgName = "$variant";
         /// <summary>The entity-level key of an optional entity's chance (0..1).</summary>
         public const string PresenceKey = "Presence";
+        /// <summary>
+        /// ⭐ <c>CE-11071</c> (DESIGN_Breachable_Obstacle_Walls.md §9c) — the entity-level key naming ANOTHER entity (its guid) whose presence roll this one SHARES: with the same
+        /// <c>Presence</c>, the two stand or fall together in every variant (a roadblock's feature walls with the roadblock's macro instance). Absent ⇒ the entity rolls under its own key.
+        /// </summary>
+        public const string PresenceWithKey = "PresenceWith";
         /// <summary>⭐ SR-101 ④ — the entity-level key of a one-of-N place (<see cref="PositionsOf"/>).</summary>
         public const string PositionsKey = "Positions";
 
@@ -162,8 +167,16 @@ namespace Fdp.Toolkit.Scenario
             {
                 if (node is not JsonObject entity) continue;
                 // ⭐ CE-3374 (§17.1) — the AUTHORED forms, copied BEFORE they are stripped (the ONE writer of VariantForms); a save writes them back
-                double? presence = null; string? positionsJson = null; int positionChosen = 0; string? macroJson = null; int macroChosen = 0;
+                double? presence = null; string? presenceWith = null; string? positionsJson = null; int positionChosen = 0; string? macroJson = null; int macroChosen = 0;
+                string? pw = ComponentJsonPath.FindKey(entity, PresenceWithKey);
+                if (pw != null)
+                {
+                    presenceWith = entity[pw] is JsonValue wv && wv.TryGetValue<string>(out var ws) && Guid.TryParse(ws, out _) ? ws
+                        : throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s PresenceWith must be an entity guid");
+                    entity.Remove(pw);
+                }
                 string? pk = ComponentJsonPath.FindKey(entity, PresenceKey);
+                if (pk == null && presenceWith != null) throw new ScenarioParams.ArgsRefused($"{here}: entity {key} has PresenceWith but no Presence");
                 if (pk != null)
                 {
                     double p = entity[pk] is JsonValue pv && pv.TryGetValue<double>(out var pd) ? pd
@@ -171,7 +184,7 @@ namespace Fdp.Toolkit.Scenario
                     if (p < 0 || p > 1) throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s Presence {p} is not within 0..1");
                     entity.Remove(pk);
                     presence = p;
-                    if (!IsPresent(variant, salt, key, p)) { absent.Add(key); continue; }
+                    if (!IsPresent(variant, salt, presenceWith ?? key, p)) { absent.Add(key); continue; }   // ⭐ CE-11071 — rolled under the shared key when one is named
                 }
                 string? posKey = ComponentJsonPath.FindKey(entity, PositionsKey);
                 if (posKey != null)
@@ -206,7 +219,7 @@ namespace Fdp.Toolkit.Scenario
                 if (presence != null || positionsJson != null || macroJson != null)
                     entity[VariantForms.ComponentName] = new VariantForms
                     {
-                        Variant = variant, Presence = presence, PositionsJson = positionsJson, PositionChosen = positionChosen,
+                        Variant = variant, Presence = presence, PresenceWith = presenceWith, PositionsJson = positionsJson, PositionChosen = positionChosen,
                         MacroChoicesJson = macroJson, MacroChosen = macroChosen,
                     }.ToJson();
             }

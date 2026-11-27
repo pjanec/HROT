@@ -32,7 +32,10 @@ namespace Fdp.Toolkit.Terrain
                 case TerrainFeature.House:
                     return new[] { House(baseWorld, assets, template, at, headingDeg, pad, key) };
                 case TerrainFeature.Wall:
-                    return new[] { Line("wall", key, template.Length > 0 ? template : TerrainMaterialLibrary.DefaultMaterial, pad > 0 ? pad : DefaultWallHeight, 0f, points, where) };
+                {
+                    string material = template.Length > 0 ? template : TerrainMaterialLibrary.DefaultMaterial;
+                    return new[] { Line("wall", key, material, pad > 0 ? pad : DefaultWallHeight, WallThicknessOf(material), points, where) };
+                }
                 case TerrainFeature.Fence:
                     return new[] { Line("fence", key, template.Length > 0 ? template : TerrainMaterialLibrary.DefaultFenceMaterial, pad > 0 ? pad : DefaultFenceHeight, 0f, points, where) };
                 case TerrainFeature.Hedge:
@@ -67,6 +70,20 @@ namespace Fdp.Toolkit.Terrain
                     throw new ArgumentException($"[Terrain] {where}: unknown feature kind {kind}.");
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-11069</c> (docs/designs/engineering/DESIGN_Breachable_Obstacle_Walls.md §8 V-4) — the thickness (m) a WALL feature of <paramref name="material"/> is built with: a sandbag wall
+        /// 0.6 m, a concrete barrier line 0.4 m; any other material 0 = the parser's default (0.3 m), as before. ⭐ It is what a contact breach weighs (strength = resistance × thickness × height):
+        /// a 1 m sandbag wall is 100 × 0.6 × 1 = 60 — above a ramming car's 40, so a car is held and a tank / an IFV breaks it. No struct field: the recorded <see cref="TerrainFeature"/> layout is unchanged.
+        /// </summary>
+        public static float WallThicknessOf(string material) => material switch
+        {
+            "sandbags" => SandbagWallThickness,
+            "concrete" => ConcreteWallThickness,
+            _ => 0f,
+        };
+
+        public const float SandbagWallThickness = 0.6f, ConcreteWallThickness = 0.4f;
 
         /// <summary>True for the kinds that carry a shape (a polyline beside the component): they are the line and area kinds.</summary>
         public static bool NeedsShape(byte kind) => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Wood or TerrainFeature.Scrub or TerrainFeature.Water or TerrainFeature.Lane

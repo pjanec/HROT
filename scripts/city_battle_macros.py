@@ -82,16 +82,18 @@ def obstacle(pos,tkb,name,yaw,l,w,h):
             "EntityInfo":{"Name":name},"ObstacleShape":{"Length":l,"Width":w,"Height":h}}
 FACE_W=[0,0,0.7071068,0.7071068]
 def g(n): return f'c6011a00-0000-4000-8000-{n:012d}'
-E={g(1):obstacle((-14,-2.2),8808,"Roadblock block 1",90,6,1,1), g(2):obstacle((-16,2.6),8808,"Roadblock block 2",90,6,1,1),
-   g(3):obstacle((-24,-1.5),8806,"Roadblock car 1",30,4.5,1.9,1.8), g(4):obstacle((-27,2.5),8806,"Roadblock car 2",-25,4.5,1.9,1.8)}
+# ⭐ CE-11071 (DESIGN_Breachable_Obstacle_Walls.md §8 V-3, §9c) — the roadblock's WALLS (the two concrete barriers across the road, the MG nests' sandbags) are terrain-
+#   feature walls, breached IN PART (R-11022); a macro cannot carry a feature to the cluster (the overlay compiles the saved scenario only), so they are placed in the
+#   SCENARIO beside each instance (scripts/city_battle_scenario.py, ROADBLOCK_WALLS), rolling with it (PresenceWith). The macro keeps its non-wall members.
+E={g(3):obstacle((-24,-1.5),8806,"Roadblock car 1",30,4.5,1.9,1.8), g(4):obstacle((-27,2.5),8806,"Roadblock car 2",-25,4.5,1.9,1.8)}
 n=5
 for dy,tag in ((-14,"S"),(14,"N")):
-    E[g(n)]=obstacle((4,dy),8807,f"MG Nest {tag} sandbags",90,4,0.8,1.2); n+=1
+    n+=1   # (g(5) / g(7) were the MG nests' sandbags — now scenario walls; the ids of the rest are kept)
     m=ent((6,dy),2009,f"MG Nest {tag}","Hostile",{"Health":{"Current":100,"Max":100},"TargetMemory":{"Entries":[]}}); m["SimTransform"]["Rotation"]=FACE_W
     E[g(n)]=m; n+=1
 for j in range(2):
     m=ent((10,(j-0.5)*4),2006,f"AT Team Gunner {j+1}","Hostile",{"Health":{"Current":100,"Max":100},"TargetMemory":{"Entries":[]}}); m["SimTransform"]["Rotation"]=FACE_W
     E[g(n)]=m; n+=1
 write("roadblock",
- "What: CE-6011 (city battle V-A, §4 prepared positions, D-3) - a ROADBLOCK at a road crossing (the anchor): two concrete blocks (8808) and two cars (8806) across an east-west road 14-27 m WEST of the anchor, an MG nest (an automatic rifleman 2009 behind sandbags 8807) 14 m each side of the road, an AT team (2 x 2006) behind. One macro so a variant keeps or drops a whole roadblock with one Presence roll. Params: side (default Hostile).",
+ "What: CE-6011 (city battle V-A, §4 prepared positions, D-3) - a ROADBLOCK at a road crossing (the anchor): two cars (8806) across an east-west road 24-27 m WEST of the anchor, an MG nest (an automatic rifleman 2009) 14 m each side of the road, an AT team (2 x 2006) behind. ⭐ CE-11071: the roadblock's WALLS (two concrete barriers across the road 14-16 m west, the MG nests' sandbags) are terrain-feature walls placed in the SCENARIO beside each instance, rolling with it (PresenceWith) - a macro cannot carry a feature. One macro so a variant keeps or drops a whole roadblock with one Presence roll. Params: side (default Hostile).",
  [{"Name":"side","TypeId":"ForceId","Default":"Hostile"}],E)

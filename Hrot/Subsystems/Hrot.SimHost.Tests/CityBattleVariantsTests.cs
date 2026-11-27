@@ -36,7 +36,13 @@ namespace Hrot.SimHost.Tests
             ScenarioVariants.Apply(dom, variant, Guid.Empty, "city-battle");
             var es = dom["entities"]!.AsObject().ToDictionary(kv => kv.Key, kv => kv.Value!.AsObject());
             string Of(IEnumerable<string> names) => string.Join(" ", names.Select(n => es.Values.FirstOrDefault(e => Name(e) == n) is { } e ? $"{n}@{Where(e)}" : $"{n}:-"));
-            var roadblocks = string.Join(" ", es.Values.Where(e => Name(e).StartsWith("Roadblock ")).Select(Name).OrderBy(n => n));
+            // ⭐ CE-11071 — a roadblock is its macro INSTANCE; its walls (scenario features named "Roadblock <k> …", PresenceWith the instance) stand exactly when it does
+            var kept = es.Values.Where(e => Name(e).StartsWith("Roadblock ") && e["MacroInstance"] != null).Select(Name).OrderBy(n => n).ToList();
+            var roadblocks = string.Join(" ", kept);
+            var walls = es.Values.Where(e => Name(e).StartsWith("Roadblock ") && e["TerrainFeature"] != null).Select(Name).ToList();
+            foreach (var w in walls)
+                Assert.True(kept.Contains(string.Join(" ", w.Split(' ').Take(2))), $"variant {variant}: '{w}' stands without its roadblock [{roadblocks}]");
+            Assert.True(walls.Count == 4 * kept.Count, $"variant {variant}: {walls.Count} roadblock walls for [{roadblocks}] (4 each)");
             int civilians = es.Values.Count(e => Name(e).StartsWith("Civilian "));
             // everything the variant forms do not touch, minus the bookkeeping Apply adds (VariantForms)
             var rest = string.Join("\n", es.Where(kv => !Name(kv.Value).StartsWith("Civilian ") && !Name(kv.Value).StartsWith("Roadblock ")

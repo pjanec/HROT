@@ -200,24 +200,55 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
         ulong deckSig = DeckSignature(repo);
         if (deckSig != _deckSig) { _deckSig = deckSig; changed = true; }
 
+        // ⭐⭐ CE-11070 (DESIGN_Breachable_Obstacle_Walls.md §8 V-1, V-2) — the scenario feature WALLS: a wall across a lane closes it until a gap wide enough to drive through is cut.
+        //   Judged from the panels and the REPLICATED breach table (every node the same), re-judged only when the walls' geometry or the Passages on them change — a house hole, a Hole
+        //   in a wall or a bake's new world with the same walls leave the signature as it was (the table reference and the world are compared first: a steady frame does nothing).
+        var damage = repo.IsComponentTypeRegistered<BuildingDamage>() ? BuildingDamageTable.Of(repo, terrain) : null;
+        if (!ReferenceEquals(terrain, _wallWorld) || !ReferenceEquals(damage, _wallTable))
+        {
+            _wallWorld = terrain; _wallTable = damage;
+            ulong wallSig = RoadBlockage.WallSignature(terrain, damage);
+            if (wallSig != _wallSig) { _wallSig = wallSig; changed = true; }
+        }
+
         if (!changed) return;
         Recompute(repo, holder);
     }
 
+    [Fdp.Core.WorldDerived("the world the wall signature was taken from: change detection")]
+    private TerrainWorld? _wallWorld;
+    [Fdp.Core.WorldDerived("the breach table the wall signature was taken from: change detection")]
+    private BuildingDamageTable? _wallTable;
+    [Fdp.Core.WorldDerived("signature of the scenario wall lines and their Passages: change detection")]
+    private ulong _wallSig;
+    [Fdp.Core.FrameScratch("scenario wall lines refilled by FeatureWallLines each Recompute")]
+    private readonly List<RoadBlockage.WallLine> _walls = new();
+
+    /// <summary>⭐ CE-11070 — scenario feature wall lines judged at the last recompute (rails / diagnostics).</summary>
+    public int Walls => _walls.Count;
+
     [Fdp.Core.WorldDerived("cached knowledge table instance used for change detection")]
     private PlaceKnowledgeTable? _knowledge;
 
+    /// <summary>⭐ CE-11070 — times the blocked set was recomputed (rails: a change that is no change — a house hole — must not recompute).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of recomputes")]
+    public int Recomputes { get; private set; }
+
     private void Recompute(EntityRepository repo, RoadNetworkHolder? holder)
     {
+        Recomputes++;
         RoadBlockage.Blockers(repo, _blockers);
         RoadBlockage.AddCraters(_craters, _blockers);   // ⭐ CE-4591 — the craters' bowls
         RoadBlockage.AddMinefields(repo, _knowledge, _blockers);   // ⭐ CE-4624 — the marked minefields' outlines
+        if (_wallWorld != null) RoadBlockage.FeatureWallLines(_wallWorld, _wallTable, ContactBreachTable.Shared.MinDriveThroughM, _walls);   // ⭐ CE-11070
+        else _walls.Clear();
 
         // the set of base segments to drop now
         _scratch.Clear();
         if (_haveBase)
         {
             RoadBlockage.ClosedSegments(in _base, _blockers, _scratch);
+            RoadBlockage.WallClosedSegments(in _base, _walls, _scratch);   // ⭐ CE-11070 — a segment every lane of which a wall closes
             if (_bridges != null)
                 foreach (var b in _bridges.Items)
                     if (_fallen.Contains(b.Key)) foreach (int s in b.Segments) if ((uint)s < (uint)_base.Segments.Length) _scratch.Add(s);
@@ -232,9 +263,16 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
             {
                 RoadBlockage.ClosedEdges(net.Model, net.Placement.ToLocal, _blockers, _sumoScratch);
                 foreach (var e in _sumoScratch) if (!edges.Contains(e)) edges.Add(e);
+                _sumoScratch.Clear();
+                RoadBlockage.WallClosedEdges(net.Model, net.Placement.ToLocal, _walls, _sumoScratch);   // ⭐ CE-11070 — per lane: an edge whose every lane a wall closes
+                foreach (var e in _sumoScratch) if (!edges.Contains(e)) edges.Add(e);
             }
             edges.Sort(StringComparer.Ordinal);
-            if (!edges.SequenceEqual(_closed)) { _closed = edges.ToArray(); _runtime.SetClosedEdges(_closed); }
+            if (!edges.SequenceEqual(_closed))
+            {
+                _closed = edges.ToArray(); _runtime.SetClosedEdges(_closed);
+                Fdp.Core.Logging.FdpLog<BridgeClosureSystem>.Info("[Traffic] SUMO closed edges now [{0}] ({1} scenario wall line(s) judged)", string.Join(", ", _closed), _walls.Count);   // ⭐ CE-11072 — cold: on a change only
+            }
         }
 
         var added = PlanAdded(repo);   // ⭐ CE-4692 BL-7

@@ -52,6 +52,7 @@ public sealed class TerrainResidency
         internal string?            BaseHash;        // ⭐ O-8 — the base terrain's content hash, known when an overlay is merged
         internal TerrainBridges     Bridges = TerrainBridges.None;   // ⭐ T-7b (CE-4423) — the overlay's bridges (overlay.json bridges[]), for the BridgeClosureSystem
         internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
+        internal string             OverlayAbsent = "";   // ⭐ CE-11071 — the overlay features this run's variant left out (sorted roll keys; "" = none)
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
         /// <summary>⭐ AQ93 R-4021 — what each attached <see cref="ITerrainContentLoader"/> prepared, committed in attach order.</summary>
@@ -86,6 +87,7 @@ public sealed class TerrainResidency
     private string?  _lastLoadedTerrainName;
     private DateTime _lastLoadedTimestamp;
     private string?  _lastLoadedOverlay;   // ⭐ O-4 — a resident terrain is only 'unchanged' for the same overlay HASH
+    private string   _lastLoadedAbsent = "";   // ⭐ CE-11071 — … and the same features left out by the run's variant
 
     /// <summary>
     /// The production constructor: resolves terrains through the standard node search list —
@@ -177,7 +179,11 @@ public sealed class TerrainResidency
     /// <para>⛔ <b>A named-but-missing definition THROWS.</b> Loading the terrain a scenario names is
     /// mandatory, so that is a broken deployment rather than a terrain-less scenario.</para>
     /// </summary>
-    public Staged Prepare(string? terrainName, string? overlayFolder = null)
+    public Staged Prepare(string? terrainName, string? overlayFolder = null) => Prepare(terrainName, overlayFolder, variant: 0);
+
+    /// <summary>⭐ CE-11071 — as above for the run <paramref name="variant"/> (<c>ScenarioVariants.VariantOf</c> of the run's args): an overlay feature that variant leaves out is not merged
+    /// (<see cref="OverlayPresence"/>), on every node alike; the resident terrain is "unchanged" only for the same set of absent features.</summary>
+    public Staged Prepare(string? terrainName, string? overlayFolder, int variant)
     {
         if (string.IsNullOrWhiteSpace(terrainName))
         {
@@ -219,7 +225,9 @@ public sealed class TerrainResidency
 
         DateTime currentFileTime = LatestWriteTime(definitionPath);
 
-        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, OverlayHashOf(overlayFolder), StringComparison.Ordinal))
+        string absent = OverlayAbsentOf(overlayFolder, variant);
+        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, OverlayHashOf(overlayFolder), StringComparison.Ordinal)
+            && string.Equals(_lastLoadedAbsent, absent, StringComparison.Ordinal))
         {
             FdpLog<TerrainResidency>.Info(
                 "[Terrain] Terrain '{0}' already resident and unchanged — skipping re-ingestion.",
@@ -235,6 +243,7 @@ public sealed class TerrainResidency
             TerrainName   = terrainName,
             FileTimestamp = currentFileTime,
             OverlayFolder = OverlayHashOf(overlayFolder),
+            OverlayAbsent = absent,
         };
 
         // ⭐ Schema v2 — the terrain WORLD every derived query reads (docs/DESIGN_Terrain_World.md).
@@ -259,7 +268,7 @@ public sealed class TerrainResidency
                 if (!string.Equals(actualOverlay, header.ContentHash, StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
-                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!), baseWorld.Height);   // ⭐ CE-5014 — the overlay's walls / trees on the resident relief
+                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!), baseWorld.Height, variant);   // ⭐ CE-5014 — the overlay's walls / trees on the resident relief
                 baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
                 if (header.Bridges.Count > 0) staged.Bridges = new TerrainBridges(header.Bridges);
             }
@@ -410,6 +419,7 @@ public sealed class TerrainResidency
         _lastLoadedTerrainName = staged.TerrainName;
         _lastLoadedTimestamp   = staged.FileTimestamp;
         _lastLoadedOverlay     = staged.OverlayFolder;
+        _lastLoadedAbsent      = staged.OverlayAbsent;
 
         FdpLog<TerrainResidency>.Info(
             $"[Terrain] Terrain '{staged.TerrainName ?? "(unnamed)"}' committed "
@@ -481,6 +491,7 @@ public sealed class TerrainResidency
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
         _lastLoadedOverlay     = null;
+        _lastLoadedAbsent      = "";
 
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
     }
@@ -523,6 +534,15 @@ public sealed class TerrainResidency
     /// the main thread (Prepare and the obstacle bake both run there). ⛔ It was built and attached nowhere, so every live sight
     /// line and every EQS point placement scanned every piece.
     /// </summary>
+    private static string OverlayAbsentOf(string? overlayFolder, int variant)
+    {
+        if (variant == 0 || string.IsNullOrEmpty(overlayFolder)) return "";
+        var header = Path.Combine(overlayFolder, TerrainOverlayHeader.FileName);
+        if (!File.Exists(header)) return "";
+        var h = TerrainOverlayHeader.Parse(File.ReadAllText(header), header);
+        return OverlayPresence.AbsentKeys(Path.GetFullPath(Path.Combine(overlayFolder, h.World)), variant);
+    }
+
     private static string? OverlayHashOf(string? overlayFolder)
     {
         if (string.IsNullOrEmpty(overlayFolder)) return null;

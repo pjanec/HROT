@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System;
 using System.IO;
 
@@ -37,7 +38,10 @@ namespace Fdp.Toolkit.Terrain
         public static TerrainOverlay ReadOverlay(string overlayFolder, string? terrainName, string? sharedBuildingsRoot = null) => ReadOverlay(overlayFolder, terrainName, sharedBuildingsRoot, groundOf: null);
 
         /// <summary>⭐ CE-5014 — as above, its pieces standing on <paramref name="groundOf"/> (the base's relief the overlay is merged onto). ⭐ A caller that HAS the base passes it.</summary>
-        public static TerrainOverlay ReadOverlay(string overlayFolder, string? terrainName, string? sharedBuildingsRoot, TerrainHeightGrid? groundOf)
+        public static TerrainOverlay ReadOverlay(string overlayFolder, string? terrainName, string? sharedBuildingsRoot, TerrainHeightGrid? groundOf) => ReadOverlay(overlayFolder, terrainName, sharedBuildingsRoot, groundOf, variant: 0);
+
+        /// <summary>⭐ CE-11071 — as above for the run <paramref name="variant"/>: the features that variant leaves out (<see cref="OverlayPresence"/>) are not part of the world. Variant 0 = everything.</summary>
+        public static TerrainOverlay ReadOverlay(string overlayFolder, string? terrainName, string? sharedBuildingsRoot, TerrainHeightGrid? groundOf, int variant)
         {
             string folder = Path.GetFullPath(overlayFolder);
             string headerPath = Path.Combine(folder, TerrainOverlayHeader.FileName);
@@ -47,7 +51,10 @@ namespace Fdp.Toolkit.Terrain
             string worldPath = Path.GetFullPath(Path.Combine(folder, header.World));
             if (!File.Exists(worldPath))
                 throw new FileNotFoundException($"[Terrain] Overlay '{folder}' declares world '{header.World}', which does not exist at '{worldPath}'.", worldPath);
-            var world = TerrainWorldParser.Parse(Fdp.Core.ProgressStream.ReadAllText(worldPath), terrainName, TerrainAssets.ForFolder(folder, sharedBuildingsRoot), groundOf);
+            string text = Fdp.Core.ProgressStream.ReadAllText(worldPath);
+            if (variant != 0 && OverlayPresence.Mentions(text) && JsonNode.Parse(text) is JsonObject doc && OverlayPresence.Filter(doc, variant) > 0)
+                text = doc.ToJsonString();   // ⭐ CE-11071 — this run's absent features dropped before the parse
+            var world = TerrainWorldParser.Parse(text, terrainName, TerrainAssets.ForFolder(folder, sharedBuildingsRoot), groundOf);
             return new TerrainOverlay(header, world, folder);
         }
     }

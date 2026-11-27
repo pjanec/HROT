@@ -246,8 +246,19 @@ public sealed class TrafficSession : IDisposable
             //   `eb88338`): a blue light, red ignored at the front, approaching junction foes ignored; a queue at a red still holds it until green
             bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t, h.Priority)
                       || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, null, h.Priority);   // an unmapped type: SUMO's default car
-            if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); _capped.Remove(h.NetworkId); }
-            else _refused[h.NetworkId] = _sim.Time;
+            if (ok)
+            {
+                Fdp.Core.Logging.FdpLog<TrafficSession>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,   // ⭐ CE-11072 — every hand-over SUMO takes (cold: once per spawn)
+                    $"[Traffic] SUMO took vehicle {h.NetworkId} at ({h.X:0.0}, {h.Y:0.0}) to ({h.DestX:0.0}, {h.DestY:0.0}){(_refused.ContainsKey(h.NetworkId) ? " after refusing it" : "")}"));
+                _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); _capped.Remove(h.NetworkId);
+            }
+            else
+            {
+                if (!_refused.ContainsKey(h.NetworkId))   // ⭐ CE-11072 — the FIRST refusal of a hand-over is logged (a retry every RetrySeconds is not)
+                    Fdp.Core.Logging.FdpLog<TrafficSession>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                        $"[Traffic] SUMO refused to take vehicle {h.NetworkId} at ({h.X:0.0}, {h.Y:0.0}) to ({h.DestX:0.0}, {h.DestY:0.0}) — no lane near it or no open route; retried every {RetrySeconds} s"));
+                _refused[h.NetworkId] = _sim.Time;
+            }
         }
         // ⭐ CE-9000 (C-6) — a convoy's escort slows while its column is stretched: its shadow's top speed is capped (H17 SetExternalVehicleMaxSpeed);
         //   null restores what it had. Told only when the cap changed.

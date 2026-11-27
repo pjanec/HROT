@@ -51,6 +51,78 @@ namespace Fdp.Toolkit.Terrain.Tests
                 Assert.False(wps[i].Position.X > 299.5f && wps[i].Position.X < 300.5f && MathF.Abs(wps[i].Position.Y - 250f) < 40f, $"waypoint {i} {wps[i].Position} is inside the hedge");
         }
 
+        // ── a wall's thickness is its material's (CE-11069) ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-11069</c> (DESIGN_Breachable_Obstacle_Walls.md §8 V-4) — a SANDBAG wall feature is built 0.6 m thick, a CONCRETE one 0.4 m, a brick one at the parser's 0.3 m as before; and the 1 m
+        /// sandbag wall's contact strength (resistance × thickness × height, <c>ContactBreach.Identify</c>) is above a ramming car's limit (a car is held) and within an IFV's (it breaks it), from
+        /// <c>contact-breach.json</c>. 🔴 Red-proof: <c>WallThicknessOf</c> returns 0 ⇒ the sandbag panel is 0.3 m and its strength 30 — below the car's 40.
+        /// </summary>
+        [Fact]
+        public void CE11069_AWallFeature_IsItsMaterialsThickness_AndASandbagWallHoldsARammingCar()
+        {
+            const string S = "c4000000-0000-4000-8000-000000000004", C = "c5000000-0000-4000-8000-000000000005", B = "c6000000-0000-4000-8000-000000000006";
+            var world = Merged((S, OverlayFixture.Feature(TerrainFeature.Wall, 300, 250, "sandbags", 0, 1.0f, 0, (0, -6), (0, 6))),
+                               (C, OverlayFixture.Feature(TerrainFeature.Wall, 320, 250, "concrete", 0, 0.8f, 0, (0, -6), (0, 6))),
+                               (B, OverlayFixture.Feature(TerrainFeature.Wall, 340, 250, "brick", 0, 2.0f, 0, (0, -6), (0, 6))));
+            TerrainWallPanel Of(string guid) => world.Panels.First(p => p.Label == guid + "/0");
+            var sand = Of(S);
+            Assert.Equal(0.6f, sand.Thickness, 3);
+            Assert.Equal(0.4f, Of(C).Thickness, 3);
+            Assert.Equal(0.3f, Of(B).Thickness, 3);
+
+            float strength = sand.Material.ResistanceMmRhaPerMetre * sand.Thickness * (sand.TopZ - sand.BaseZ);
+            var table = ContactBreachTable.Shared;
+            var car = table.Rows.First(r => r.Name == "ramming-car");
+            var ifv = table.Rows.First(r => r.Name == "ifv");
+            Assert.True(strength > car.SmallMaxStrength, $"a 1 m sandbag wall's strength {strength} must hold a ramming car (limit {car.SmallMaxStrength})");
+            Assert.True(strength <= ifv.SmallMaxStrength, $"a 1 m sandbag wall's strength {strength} must break under an IFV (limit {ifv.SmallMaxStrength})");
+        }
+
+        // ── a feature wall that stands in some variants only (CE-11071) ──────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-11071</c> (DESIGN_Breachable_Obstacle_Walls.md §9c) — a wall feature with <c>Presence 0.6</c> and <c>PresenceWith</c> a roadblock macro instance's guid: the compiled overlay stamps its
+        /// part, and reading the overlay for a run drops the wall EXACTLY in the variants where the scenario load drops the roadblock (<c>ScenarioVariants.Apply</c> on the same DOM — the one
+        /// decision); variant 0 keeps it; a wall without Presence is never dropped. 🔴 Red-proof: <c>OverlayPresence.Keep</c> returns true ⇒ the wall stands in a variant whose roadblock is absent.
+        /// 🔴 Red-proof: <c>Apply</c> rolls under the entity's own key (ignores PresenceWith) ⇒ the wall and the roadblock disagree in some variant.
+        /// </summary>
+        [Fact]
+        public void CE11071_AWallWithPresenceWith_StandsExactlyWhenItsRoadblockDoes()
+        {
+            const string Wall = "c7000000-0000-4000-8000-000000000007", Plain = "c8000000-0000-4000-8000-000000000008", Roadblock = "cb000000-0000-4000-8000-00000000000b";
+            var wall = OverlayFixture.Feature(TerrainFeature.Wall, 300, 250, "concrete", 0, 1.0f, 0, (0, -3), (0, 3));
+            wall["Presence"] = 0.6; wall["PresenceWith"] = Roadblock;
+            _f.Compile(_f.Scenario((Wall, wall), (Plain, OverlayFixture.Feature(TerrainFeature.Wall, 320, 250, "brick", 0, 2.0f, 0, (0, -3), (0, 3)))));
+            bool Stands(int variant, string guid)
+            {
+                var o = TerrainFolderWorld.ReadOverlay(_f.Overlay, "base-t", TerrainAssets.RecipesSibling(_f.TerrainFolder), null, variant);
+                return o.World.Panels.Any(p => p.Label == guid + "/0");
+            }
+            bool RoadblockStands(int variant)
+            {
+                var dom = new JsonObject { ["entities"] = new JsonObject
+                {
+                    [Roadblock] = new JsonObject { ["Presence"] = 0.6, ["EntityInfo"] = new JsonObject { ["Name"] = "Roadblock N" } },
+                    [Wall] = new JsonObject { ["Presence"] = 0.6, ["PresenceWith"] = Roadblock, ["EntityInfo"] = new JsonObject { ["Name"] = "wall" } },
+                } };
+                Fdp.Toolkit.Scenario.ScenarioVariants.Apply(dom, variant, Guid.Empty, "t");
+                var ents = (JsonObject)dom["entities"]!;
+                Assert.Equal(ents.ContainsKey(Roadblock), ents.ContainsKey(Wall));   // the load drops them together
+                return ents.ContainsKey(Roadblock);
+            }
+            Assert.True(Stands(0, Wall));
+            int absent = 0, present = 0;
+            for (int v = 1; v <= 40; v++)
+            {
+                bool rb = RoadblockStands(v);
+                Assert.Equal(rb, Stands(v, Wall));
+                Assert.True(Stands(v, Plain), $"a wall without Presence stands in variant {v}");
+                if (rb) present++; else absent++;
+            }
+            Assert.True(absent > 0 && present > 0, $"40 variants should drop the roadblock in some and keep it in others (absent {absent}, present {present})");
+        }
+
         // ── a wood conceals ───────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>A WOOD feature (a forest surface from its polygon) conceals as the base's woods do: 100 m apart inside it is hidden, 20 m is seen. 🔴 Red-proof: expand a wood to an <c>open</c> surface ⇒ 100 m is seen.</summary>

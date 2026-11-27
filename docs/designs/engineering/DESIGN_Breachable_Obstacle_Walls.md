@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
+build-state: BUILDING — S1, S3 built; S2 city-battle built, roadblock-blast open (§9) (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
 updated: 2026-11-27 (rev 2: a placed wall is a terrain-feature WALL; rev 1's segment design is HISTORY)
 current-answer: §8 the review's answers (supersede §2 A-1, §5 D-2/D-3/D-4) · §2 the decision · §3 the UML · §5 decisions · §6 acceptance · §9 stages
 stale-below: ⛔ HISTORY (rev 1, segments) — must NOT be quoted as the design
@@ -198,6 +198,81 @@ roads; nothing was run. ⇒ the acceptance scenario measures the first two.
 | S3 | CE-11072 | terrain | acceptance scenario `va-dozer-breach-wall` (§6) |
 | S4 | CE-11073 | terrain | ⏳ the obstacle tool's wall types draw a feature wall (D-1) — after the user's answer |
 | S5 | CE-11074 | unreal-ig | scenario terrain features on DPS; Unreal draws the wall and places gaps by Centre / Normal / From–To (D-6, V-5) |
+
+### 9a. As built — S1 (`terrain`, 2026-11-27)
+
+| id | built | where | rails |
+|---|---|---|---|
+| CE-11069 | ✅ `FeatureExpander.WallThicknessOf(material)`: sandbags 0.6 m, concrete 0.4 m, others 0 (= the parser's 0.3 m) — a `Wall` feature's line part carries it | `FeatureKinds.cs` | `FeatureKindsTests.CE11069_*` — 0.6 / 0.4 / 0.3 m; a 1 m sandbag wall's strength 60 > the ramming car's 40, ≤ the IFV's 150 |
+| CE-11070 | ✅ the LINE rule: `RoadBlockage.FeatureWallLines` (the scenario wall lines + their passable gaps: Passages merged where they touch, kept ≥ `minDriveThroughM`), `LaneClosedByWalls` (a wall segment crosses the lane's centreline, reaches BOTH lane edges, and the crossing is in no gap), `WallClosedSegments` (our graph: a segment closes when every lane does), `WallClosedEdges` (SUMO, per lane: an edge closes when every lane does), `WallSignature` (geometry + Passages only) | `RoadBlockage.cs`, `BridgeClosureSystem.Execute/Recompute` | `BridgeClosureTests.CE11070_*` (3) — closes; 0.8 m hole keeps it; a Hole does not recompute; a 4.7 m cut re-opens; two nodes agree; 0 B steady; a base wall and a half-across wall close nothing; SUMO: square, diagonal, one lane of a 7 m two-way road re-opens |
+
+⭐ **"Scenario wall" = a free panel whose label is `<guid>/0`** (`IsScenarioWallLabel`): the feature's key is its entity guid on the live and the compiled overlay alike, while a
+base / imported wall carries its own name — content-derived, so every node agrees without the feature entities. ⚠ It covers every scenario LINE kind (wall, fence, hedge): a
+scenario fence across a road closes it too (none is placed across a road today — measured: only `Wall` features exist in `scenarios/`).
+
+⚠ **Finding — a multi-lane one-way SUMO edge with ONE lane cut stays open** (`WallClosedEdges` reports the closed lane): SumoSharp closes EDGES (`Engine.CloseEdge`, routing only) —
+a lane closure needs a SumoSharp lane permission at run time. A two-way road is two edges, so the design's "one lane of a 7 m road" case works.
+
+### 9b. S3 measured — `va-dozer-breach-wall` (CE-11072) — ⭐ the first five runs; the car row is fixed by §9d
+
+On `te-osm-bridge`: a 12 m sandbag wall (1 m) across the two-way road at x 50; a dozer on a point order at the eastbound lane's centre; a vehicle handed to SUMO driving east.
+Measured over five runs (the new cold log lines in `BridgeClosureSystem` / `TrafficSession`):
+
+| expectation (§6) | measured |
+|---|---|
+| the road is CLOSED before | ✅ `SUMO closed edges now [-west, west]` at load; SUMO REFUSES the car's hand-over (no open route) every 2 s; the car never passes the wall line |
+| the dozer cuts a Passage, the rest stands | ✅ the dozer reaches the wall at t 24 s and cuts; ⚠ it drove through its cut in 4 of 5 runs (1 run it backed off west) |
+| the road OPENS after | ✅ `closed edges now [-west]` right after the cut: the eastbound edge re-opens, the westbound (not cut) stays closed — the per-lane rule live |
+| the car passes | ⛔ then: SUMO TOOK the car once the edge re-opened, but it stood — ⭐ cause found and fixed in §9d (its own gunner fed to SUMO as a pedestrian); ✅ after the fix the car passes the cut (t 47 s) and reaches the east bank (t 60 s) |
+
+### 9c. Presence on feature walls, and the roadblock walls in the scenario (CE-11071; user `2026-11-27`: *"honour Presence on walls"*)
+
+```mermaid
+sequenceDiagram
+  participant SAVE as Scenario save: OverlayCompiler
+  participant OP as OverlayPresence
+  participant LOAD as TerrainLoadStep (every node)
+  participant RES as TerrainResidency.Prepare
+  participant SV as ScenarioVariants
+  SAVE->>OP: Stamp(entity, guid, parts) — presence + presenceKey on each part
+  LOAD->>LOAD: variant = VariantOf(run args)
+  LOAD->>RES: Prepare(terrain, overlay, variant)
+  RES->>OP: AbsentKeys(world, variant) — part of "already resident?"
+  RES->>OP: ReadOverlay(..., variant) → Filter
+  OP->>SV: IsPresent(variant, scenario salt, presenceKey, p) — the ONE decision the scenario load makes
+```
+
+*What the picture shows:* the overlay is compiled once, before any variant exists, so the chance travels WITH the parts and each node drops the absent ones from the variant it
+already reads — no second decision, no scenario file read at the terrain load.
+
+| piece | as built |
+|---|---|
+| `"PresenceWith": "<entity guid>"` (`ScenarioVariants.PresenceWithKey`) | an entity rolls its `Presence` under ANOTHER entity's key ⇒ with the same chance the two stand or fall together; kept on save (`VariantForms.PresenceWith`), honoured by Preview (`PresetInPlace`); without `Presence` it is refused |
+| `OverlayPresence` (Fdp.Toolkits Terrain) | `Stamp` at compile; `Keep` / `Filter` at read; `AbsentKeys` for the resident identity (an overlay with no chances: "" ⇒ unchanged behaviour) |
+| `TerrainFolderWorld.ReadOverlay(..., variant)`, `TerrainResidency.Prepare(name, overlay, variant)` | the absent parts are removed before the parse; the resident terrain is "unchanged" only for the same overlay hash AND absent set |
+| callers | `TerrainLoadStep` (the run's args — a replay's context too), `ReplayBrowserSubsystem` (the recording's `ScenarioArgs`) |
+| the editor | its live overlay is built from the live entities, which the load already dropped — the same result |
+| content | `city_battle_macros.py`: the roadblock macro keeps its cars, MG and AT men; `city_battle_scenario.py` `ROADBLOCK_WALLS`: per roadblock two concrete barriers (staggered, each closes one lane) and the two MG nests' sandbags as feature walls, `Presence 0.6, PresenceWith` the instance, added last (no other id moves) |
+| rails | `FeatureKindsTests.CE11071_*` (the wall stands exactly when the roadblock's `Apply` keeps it, over 40 variants; a wall without Presence always); `CityBattleVariantsTests` (a roadblock = its instance; its 4 walls stand only with it) |
+
+⚠ Not covered: a Presence-rolled BRIDGE feature keeps its road rows in the overlay header (`TerrainBridges`) even when its parts are dropped — no scenario does that today.
+
+### 9d. Found by S3 — a rider was told to SUMO as a pedestrian (CE-11072)
+
+📌 Measured on `va-dozer-breach-wall`: the APC (2001) handed to SUMO stood still 17 m after the hand-over, for good — with NO wall too. SumoSharp alone drove the same
+hand-over to the end (a probe); the editor's SUMO held the shadow because its GUNNER (an enclosed seat, entity 2002) was fed as a PERSON at the APC's own place
+(`TrafficBodyFeedSystem.Gather`): the shadow braked for its own crew. ⭐ Fix: a rider (`IsEmbarkedTag`, enclosed or exposed) is no body — its vehicle is
+(`TrafficBodyFeedTests.CE11072_ARider_IsNoBody_OnlyItsVehicleIs`). Every vehicle with a crew handed to SUMO was affected (an APC, an IFV with its squad aboard).
+
+⭐ **The dozer's exit (measured, 10 runs):** a blade cut is the hull's width + 1 m, so a DIAGONAL drive out of it clips the wall's edge — the move ended `FailedBlocked` at the
+blade (2 of 7 runs, then 3 of 3 once the car drove). ⭐ A blade cut is the hull's width + 0.5 m a side, so the dozer fits through its OWN cut only centred to ±0.5 m — its exit ended
+`FailedBlocked` straight or diagonal. The scenario cuts TWICE (the second point 4 m beside the first — ⚠ it must lie OUTSIDE the first cut: a point order is done once a
+Passage covers its point, so a point inside it cuts nothing), then drives straight through and parks off the road: 3 of 3 runs pass, the same times
+(cut 24 s, through 54 s, the car past the wall 57 s, east bank 72 s). ⚠ An order to cut a gap of a given WIDTH is not built (a point order cuts one blade).
+
+ (stopped, R-106): the three `city-battle/roadblock` instances carry `Presence: 0.6` (each stands in 60 % of runs), and the
+overlay compiler reads every saved feature entity without `Presence` (`OverlayCompiler.cs`) — moving the macro's walls into the scenario (V-3) would make them stand in EVERY run. ⇒ needs
+a decision: Presence on feature walls (the compiler or the residency honouring it), or the walls always standing.
 
 ## ⛔ HISTORY — rev 1 (segments), withdrawn `2026-11-27`
 

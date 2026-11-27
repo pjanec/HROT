@@ -105,6 +105,31 @@ public sealed class TrafficBodyFeedTests
         Assert.Equal(squares.Length, squares.Select(q => q.NetworkId).Distinct().Count());
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-11072</c> — a RIDER is no body: an APC's gunner (enclosed) and a rider on an open cabin, both at the APC's place, are not told to SUMO — only the APC is. 📌 Measured
+    /// on va-dozer-breach-wall: the gunner was told as a pedestrian ON the APC, and the APC's shadow braked for it for good. 🔴 Red-proof: drop the rider skip in <c>Gather</c> ⇒ three
+    /// bodies, two of them persons at the vehicle.
+    /// </summary>
+    [Fact]
+    public void CE11072_ARider_IsNoBody_OnlyItsVehicleIs()
+    {
+        using var world = World();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        var apc = Body(world, new Vector3(30, 0, 0), LocomotionClass.Wheeled, new VehicleParams { Class = VehicleClass.Truck, Length = 7f, Width = 3.5f });
+        var gunner = Body(world, new Vector3(30, 0, 0), LocomotionClass.Pedestrian, vp: null);
+        world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 0, Seat = 8 });
+        var rider = Body(world, new Vector3(30, 0, 0), LocomotionClass.Pedestrian, vp: null);
+        world.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = apc, Exposed = 1, Seat = 0 });
+        Body(world, new Vector3(60, 0, 0), LocomotionClass.Pedestrian, vp: null);   // a man on foot on the road: still a body
+
+        var bodies = TrafficBodyFeedSystem.Gather(world, Anchored());
+
+        Assert.Equal(2, bodies.Length);
+        Assert.Single(bodies, b => b.Kind == TrafficBodyKind.Vehicle);
+        var person = Assert.Single(bodies, b => b.Kind == TrafficBodyKind.Person);
+        Assert.Equal(2260.0, person.X);
+    }
+
     private static int _next = 100;
 
     private static Entity Body(EntityRepository world, Vector3 at, LocomotionClass c, VehicleParams? vp, Vector3 velocity = default)

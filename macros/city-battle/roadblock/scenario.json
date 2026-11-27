@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "Kind": "macro",
-    "description": "What: CE-6011 (city battle V-A, §4 prepared positions, D-3) - a ROADBLOCK at a road crossing (the anchor): two concrete blocks (8808) and two cars (8806) across an east-west road 14-27 m WEST of the anchor, an MG nest (an automatic rifleman 2009 behind sandbags 8807) 14 m each side of the road, an AT team (2 x 2006) behind. One macro so a variant keeps or drops a whole roadblock with one Presence roll. Params: side (default Hostile).",
+    "description": "What: CE-6011 (city battle V-A, §4 prepared positions, D-3) - a ROADBLOCK at a road crossing (the anchor): two cars (8806) across an east-west road 24-27 m WEST of the anchor, an MG nest (an automatic rifleman 2009) 14 m each side of the road, an AT team (2 x 2006) behind. ⭐ CE-11071: the roadblock's WALLS (two concrete barriers across the road 14-16 m west, the MG nests' sandbags) are terrain-feature walls placed in the SCENARIO beside each instance, rolling with it (PresenceWith) - a macro cannot carry a feature. One macro so a variant keeps or drops a whole roadblock with one Presence roll. Params: side (default Hostile).",
     "Anchor": {
       "Position": [
         0,
@@ -25,58 +25,6 @@
     ]
   },
   "entities": {
-    "c6011a00-0000-4000-8000-000000000001": {
-      "SimTransform": {
-        "Position": [
-          -14,
-          -2.2,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0.7071068,
-          0.7071068
-        ]
-      },
-      "TkbIdentity": {
-        "TkbType": 8808
-      },
-      "EntityInfo": {
-        "Name": "Roadblock block 1"
-      },
-      "ObstacleShape": {
-        "Length": 6,
-        "Width": 1,
-        "Height": 1
-      }
-    },
-    "c6011a00-0000-4000-8000-000000000002": {
-      "SimTransform": {
-        "Position": [
-          -16,
-          2.6,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0.7071068,
-          0.7071068
-        ]
-      },
-      "TkbIdentity": {
-        "TkbType": 8808
-      },
-      "EntityInfo": {
-        "Name": "Roadblock block 2"
-      },
-      "ObstacleShape": {
-        "Length": 6,
-        "Width": 1,
-        "Height": 1
-      }
-    },
     "c6011a00-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
@@ -129,32 +77,6 @@
         "Height": 1.8
       }
     },
-    "c6011a00-0000-4000-8000-000000000005": {
-      "SimTransform": {
-        "Position": [
-          4,
-          -14,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0.7071068,
-          0.7071068
-        ]
-      },
-      "TkbIdentity": {
-        "TkbType": 8807
-      },
-      "EntityInfo": {
-        "Name": "MG Nest S sandbags"
-      },
-      "ObstacleShape": {
-        "Length": 4,
-        "Width": 0.8,
-        "Height": 1.2
-      }
-    },
     "c6011a00-0000-4000-8000-000000000006": {
       "SimTransform": {
         "Position": [
@@ -187,32 +109,6 @@
         "Bindings": {
           "EntityInfo.ForceId": "side"
         }
-      }
-    },
-    "c6011a00-0000-4000-8000-000000000007": {
-      "SimTransform": {
-        "Position": [
-          4,
-          14,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0.7071068,
-          0.7071068
-        ]
-      },
-      "TkbIdentity": {
-        "TkbType": 8807
-      },
-      "EntityInfo": {
-        "Name": "MG Nest N sandbags"
-      },
-      "ObstacleShape": {
-        "Length": 4,
-        "Width": 0.8,
-        "Height": 1.2
       }
     },
     "c6011a00-0000-4000-8000-000000000008": {

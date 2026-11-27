@@ -46,7 +46,7 @@ public sealed class BridgeClosureTests : IDisposable
     private World Build() => Build(authoredBridge: true);
 
     /// <param name="authoredBridge">false ⇒ the river and the roads only (no authored Bridge feature, no overlay): the ground a LAID bridge is placed on (CE-4692).</param>
-    private World Build(bool authoredBridge)
+    private World Build(bool authoredBridge, JsonObject? extraEntities = null, bool baseWall = false)
     {
         string terrains = Path.Combine(_root, "assets", "terrain"), folder = Path.Combine(terrains, "t"), scenario = Path.Combine(_root, "scn");
         Directory.CreateDirectory(folder); Directory.CreateDirectory(scenario);
@@ -54,6 +54,8 @@ public sealed class BridgeClosureTests : IDisposable
         File.WriteAllText(Path.Combine(folder, "t.net.xml"), "<net/>");
         // the river: water x 200..230 across the whole terrain
         File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[200,0],[230,0],[230,400],[200,400],[200,0]]]}}]}""");
+        if (baseWall)   // ⭐ CE-11070 — a BASE (imported) wall across the west road: it must never close it (V-7)
+            File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[200,0],[230,0],[230,400],[200,400],[200,0]]]}},{"type":"Feature","properties":{"kind":"wall","material":"brick","height":2,"label":"Garden wall"},"geometry":{"type":"LineString","coordinates":[[170,190],[170,210]]}}]}""");
         // west road 0-1, east road 2-3, and a DETOUR 1-4-2 round the south (so a route exists with the bridge gone, a longer one)
         File.WriteAllText(Path.Combine(folder, "roads.json"), """
             {"$meta":{"docType":"Fdp.RoadNetwork","schemaVersion":1},
@@ -74,6 +76,7 @@ public sealed class BridgeClosureTests : IDisposable
                 ["EditablePolyline"] = new JsonObject { ["Points"] = new JsonArray(new JsonObject { ["X"] = 0, ["Y"] = 0 }, new JsonObject { ["X"] = 46, ["Y"] = 0 }), ["Version"] = 0 },
             } },
         };
+        if (extraEntities != null) foreach (var (k, v) in extraEntities.ToList()) { extraEntities.Remove(k); ((JsonObject)dom["entities"]!)[k] = v; }
         var catalog = new TerrainCatalog(new[] { terrains });
         if (!authoredBridge)
         {
@@ -199,6 +202,129 @@ public sealed class BridgeClosureTests : IDisposable
             for (int i = 0; i < 200; i++) system.Execute(w.Repo, 0.1f);
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
         }
+    }
+
+    // ── ⭐⭐ CE-11070 (docs/designs/engineering/DESIGN_Breachable_Obstacle_Walls.md §8 V-1, V-2, V-7) — scenario feature WALLS close lanes ─────────────────
+
+    private const string WallKey = "c9000000-0000-4000-8000-000000000009";
+
+    /// <summary>A scenario WALL feature (sandbags, 1 m) from <paramref name="a"/> to <paramref name="b"/> (world points).</summary>
+    private static JsonObject WallFeature(Vector2 a, Vector2 b) => new()
+    {
+        [WallKey] = new JsonObject
+        {
+            ["TerrainFeature"] = new JsonObject { ["Kind"] = TerrainFeature.Wall, ["Template"] = "sandbags", ["HeadingDeg"] = 0, ["Pad"] = 1.0, ["Seed"] = 0 },
+            ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(a.X, a.Y, 0), ["Rotation"] = new JsonArray(0, 0, 0, 1) },
+            ["EditablePolyline"] = new JsonObject { ["Points"] = new JsonArray(new JsonObject { ["X"] = 0, ["Y"] = 0 }, new JsonObject { ["X"] = b.X - a.X, ["Y"] = b.Y - a.Y }), ["Version"] = 0 },
+        },
+    };
+
+    /// <summary>A breach record on the scenario wall: <paramref name="from"/>..<paramref name="to"/> m along its first panel, base to top, of <paramref name="kind"/>.</summary>
+    private static Entity BreachWall(World w, float from, float to, BreachKind kind)
+    {
+        int panel = w.Terrain.Panels.ToList().FindIndex(p => p.Label == WallKey + "/0");
+        Assert.True(panel >= 0, "the scenario wall is a free-wall panel of the merged world");
+        var p = w.Terrain.Panels[panel];
+        int group = WallGroups.Of(w.Terrain, panel);
+        var d = new BuildingDamage { Building = group };
+        BuildingDamages.Add(ref d, new WallBreach(panel, from, to, p.BaseZ, p.TopZ, kind), null);
+        var e = w.Repo.CreateEntity();
+        w.Repo.AddComponent(e, d);
+        w.Repo.SetManagedComponent(e, new TerrainObjectKey { Key = BuildingDamages.KeyOf(w.Terrain, group) });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-11070</c> — a scenario sandbag WALL across the east road (a 0.6 m line, 20 m long, square to the road) closes it — on two nodes built apart, the same (the panels and the breach
+    /// record, no navmesh); a 0.8 m infantry Passage at the crossing keeps it closed; a HOLE (a shell's, not to the ground) does not even recompute; a 4.7 m cut (the dozer's) across the
+    /// road re-opens it; and a steady frame after it allocates nothing. 🔴 Red-proof: drop <c>WallClosedSegments</c> in <c>Recompute</c> ⇒ the road stays open with the wall standing.
+    /// 🔴 Red-proof: count every Passage as a drive-through gap (<c>minGapM</c> 0) ⇒ the 0.8 m hole re-opens it.
+    /// </summary>
+    [Fact]
+    public void CE11070_AScenarioWallAcrossARoad_ClosesIt_AHoleKeepsIt_ADriveThroughCutReOpensIt_OnEveryNode()
+    {
+        using var w = Build(true, WallFeature(new Vector2(270, 190), new Vector2(270, 210)));
+        using var other = Build(true, WallFeature(new Vector2(270, 190), new Vector2(270, 210)));
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        var second = new BridgeClosureSystem(runtime: null, () => other.Pool);
+        var from = new Vector2(245, 200); var to = new Vector2(295, 200);
+        system.Execute(w.Repo, 0.1f); second.Execute(other.Repo, 0.1f);
+        Assert.Equal(1, system.Walls);
+        Assert.Equal(1, system.Blocked);
+        Assert.Equal(system.Blocked, second.Blocked);
+        Assert.True(RoadMetres(w.Holder, from, to) > 1000f, "the wall closes the road");
+
+        // a 0.8 m man-sized Passage at the crossing (the wall's panel runs y 190 → 210, so the road's 3.5 m is 8.25..11.75 m along it)
+        BreachWall(w, 9.6f, 10.4f, BreachKind.Passage); BreachWall(other, 9.6f, 10.4f, BreachKind.Passage);
+        system.Execute(w.Repo, 0.1f); second.Execute(other.Repo, 0.1f);
+        Assert.Equal(1, system.Blocked);
+        Assert.Equal(1, second.Blocked);
+
+        // a HOLE elsewhere on the wall: no Passage changed ⇒ no recompute at all
+        int recomputes = system.Recomputes;
+        BreachWall(w, 2f, 3f, BreachKind.Hole);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(recomputes, system.Recomputes);
+
+        // the dozer's 4.7 m cut across the road ⇒ the road re-opens
+        BreachWall(w, 7.6f, 12.3f, BreachKind.Passage); BreachWall(other, 7.6f, 12.3f, BreachKind.Passage);
+        system.Execute(w.Repo, 0.1f); second.Execute(other.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked);
+        Assert.Equal(0, second.Blocked);
+        Assert.InRange(RoadMetres(w.Holder, from, to), 40f, 60f);
+
+        for (int i = 0; i < 5; i++) system.Execute(w.Repo, 0.1f);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 200; i++) system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-11070</c> V-7 — a BASE wall (the terrain's own, an imported garden wall) across the west road never closes it; and a scenario wall that ENDS inside the road (half across)
+    /// closes nothing. 🔴 Red-proof: <c>IsScenarioWallLabel</c> returns true for every label ⇒ the base wall closes the west road.
+    /// </summary>
+    [Fact]
+    public void CE11070_ABaseWallAcrossARoad_AndAScenarioWallHalfAcross_CloseNothing()
+    {
+        using var w = Build(true, WallFeature(new Vector2(270, 190), new Vector2(270, 200.5f)), baseWall: true);
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Contains(w.Terrain.Panels, p => p.Label == "Garden wall");
+        Assert.Equal(1, system.Walls);
+        Assert.Equal(0, system.Blocked);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-11070</c> — SUMO, PER LANE, on a 7 m two-way road (two edges, one 3.5 m lane each): a wall square across closes both; a DIAGONAL wall closes both; a 4.7 m cut over the
+    /// north lane re-opens that edge only; a 0.8 m hole re-opens neither; a 2-lane one-way edge with one lane cut stays OPEN (SumoSharp closes edges, never lanes — the closed lane is
+    /// reported). Pure, over <see cref="RoadBlockage.WallLine"/>s. 🔴 Red-proof: drop the gap test in <c>LaneClosedByWalls</c> ⇒ the cut re-opens nothing.
+    /// </summary>
+    [Fact]
+    public void CE11070_SumoLanes_AWallClosesEach_ADiagonalOneToo_ADriveThroughCutOpensOneLane()
+    {
+        var net = Sim.Ingest.NetworkParser.ParseXml("""
+            <net version="1.20"><location netOffset="0.00,0.00" convBoundary="0,-4,200,4" origBoundary="0,-4,200,4" projParameter="!"/>
+            <edge id="east" from="a" to="b"><lane id="east_0" index="0" speed="13.9" length="200" width="3.5" shape="0,-1.75 200,-1.75"/></edge>
+            <edge id="west" from="b" to="a"><lane id="west_0" index="0" speed="13.9" length="200" width="3.5" shape="200,1.75 0,1.75"/></edge>
+            <edge id="wide" from="c" to="d"><lane id="wide_0" index="0" speed="13.9" length="200" width="3.5" shape="0,48.25 200,48.25"/><lane id="wide_1" index="1" speed="13.9" length="200" width="3.5" shape="0,51.75 200,51.75"/></edge>
+            <junction id="a" type="dead_end" x="0" y="0" incLanes="west_0" intLanes="" shape="0,-3.5 0,3.5"/><junction id="b" type="dead_end" x="200" y="0" incLanes="east_0" intLanes="" shape="200,-3.5 200,3.5"/>
+            <junction id="c" type="dead_end" x="0" y="50" incLanes="" intLanes="" shape="0,46.5 0,53.5"/><junction id="d" type="dead_end" x="200" y="50" incLanes="wide_0 wide_1" intLanes="" shape="200,46.5 200,53.5"/>
+            </net>
+            """);
+        (double, double) Local(double x, double y) => (x, y);
+        static RoadBlockage.WallLine Wall(Vector2 a, Vector2 b, params (float, float)[] gaps) => new("wall:t", new[] { a, b }, new[] { 0f, Vector2.Distance(a, b) }, gaps);
+        List<string> Closed(params RoadBlockage.WallLine[] walls) { var l = new List<string>(); RoadBlockage.WallClosedEdges(net, Local, walls, l); l.Sort(StringComparer.Ordinal); return l; }
+
+        Assert.Equal(new[] { "east", "west" }, Closed(Wall(new Vector2(100, -6), new Vector2(100, 6))));
+        Assert.Equal(new[] { "east", "west" }, Closed(Wall(new Vector2(95, -6), new Vector2(105, 6))));   // diagonal
+        // the wall's u = y + 6: a 4.7 m cut y -0.6 .. 4.1 covers the north (west-bound) lane's centre (1.75), not the south one's (-1.75)
+        Assert.Equal(new[] { "east" }, Closed(Wall(new Vector2(100, -6), new Vector2(100, 6), (5.4f, 10.1f))));
+        Assert.Equal(new[] { "east", "west" }, Closed(Wall(new Vector2(100, -6), new Vector2(100, 6))));   // (a 0.8 m Passage is no gap: FeatureWallLines drops it below minDriveThroughM)
+
+        var lanes = new List<string>(); var edges = new List<string>();
+        RoadBlockage.WallClosedEdges(net, Local, new[] { Wall(new Vector2(100, 44), new Vector2(100, 56), (5.4f, 10.1f)) }, edges, lanes);
+        Assert.Empty(edges);
+        Assert.Equal(new[] { "wide_0" }, lanes);
     }
 
     // ── CE-4590 (P-2; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-10, §9.2 V-19, V-20, V-24) — THE road-blockage step ──────────────────

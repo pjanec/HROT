@@ -1,0 +1,260 @@
+{
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "te-osm-bridge",
+    "description": "What: CE-11072 (docs/designs/engineering/DESIGN_Breachable_Obstacle_Walls.md §6) — on the synthetic terrain te-osm-bridge (a two-way road along y 100 with a SUMO net), a 12 m SANDBAG feature wall, 1 m high, stands across the road on the west bank at x 50 (y 94..106). A scenario wall closes the lanes it crosses edge to edge (CE-11070), so 'Car' — a vehicle handed to SUMO (a road convoy of one, Mode Traffic) driving east to (180, 98.25) — cannot pass it. After 20 s 'Dozer' is ordered to clear the wall at (50, 98.25), the eastbound lane's centre: its blade cuts a hull-wide Passage (>= 4.2 m), the rest of the wall stands, the eastbound lane re-opens, and the car drives on. It cuts again 4 m north (outside the first cut: together a gap wide enough for the dozer itself); 15 s after the dozer drives straight through it and parks off the road south-east at (70, 88) (it waits for the obstacle bake to give the vehicle navmesh the gap — a wall-clock debounce). Judge: the car never passes the wall line before the dozer reaches it; the dozer cuts and drives through; the car reaches the east bank."
+  },
+  "entities": {
+    "b1107200-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 2,
+        "Template": "sandbags",
+        "HeadingDeg": 0,
+        "Pad": 1.0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          50.0,
+          94.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 0,
+            "Y": 12.0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "b1107200-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          36.0,
+          98.25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 112
+      },
+      "EntityInfo": {
+        "Name": "Dozer",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b1107200-0000-4000-9000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "20"
+                }
+              ]
+            },
+            {
+              "taskId": "b1107200-0000-4000-9000-000000000002",
+              "executingEngine": "",
+              "behaviorName": "ClearObstacle",
+              "behaviorParams": {
+                "At": [
+                  50.0,
+                  98.25,
+                  0
+                ],
+                "PushSeconds": 3,
+                "Speed": 4
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b1107200-0000-4000-9000-000000000003",
+              "executingEngine": "",
+              "behaviorName": "ClearObstacle",
+              "behaviorParams": {
+                "At": [
+                  50.0,
+                  102.25,
+                  0
+                ],
+                "PushSeconds": 3,
+                "Speed": 4
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b1107200-0000-4000-9000-000000000004",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "15"
+                }
+              ]
+            },
+            {
+              "taskId": "b1107200-0000-4000-9000-000000000005",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 3,
+                "arrivalRadius": 3,
+                "target": [
+                  62.0,
+                  98.25,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b1107200-0000-4000-9000-000000000006",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 3,
+                "arrivalRadius": 3,
+                "target": [
+                  70.0,
+                  88.0,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b1107200-0000-4000-9000-000000000007",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "b1107200-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          15.0,
+          98.25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Car",
+        "ForceId": "Neutral"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            180.0,
+            98.25,
+            0
+          ],
+          "Rank": 0,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 8
+        },
+        "Origin": "Superior"
+      }
+    },
+    "b1107200-0000-4000-8000-000000000004": {
+      "TkbIdentity": {
+        "TkbType": 8850
+      },
+      "TrafficDemand": {
+        "TargetCars": 0,
+        "Seed": 1,
+        "StepSeconds": 0.5,
+        "TargetPedestrians": 0,
+        "CarSpawnPerStep": 0
+      }
+    }
+  }
+}
