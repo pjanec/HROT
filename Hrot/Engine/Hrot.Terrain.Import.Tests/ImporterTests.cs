@@ -284,8 +284,8 @@ public class ImporterTests : IDisposable
         float L(double x) => world.Height!.Sample((float)(x - mini.MinX), (float)(0 - mini.MinY));
         Assert.Equal(1, rep.Bridges);
         Assert.InRange(L(0), 3.5f, 4.5f);                                            // the dip is still there under the bridge (no corridor levelled it)
-        foreach (var x in new[] { -19.0, -10, 0, 10, 19 })
-            Assert.InRange(Deck(x) - L(-30), -0.1f, 0.1f);                           // the deck at the banks' height all the way across
+        foreach (var x in new[] { -17.0, -10, 0, 10, 17 })
+            Assert.InRange(Deck(x) - L(-30), -0.1f, 0.1f);                           // the deck at the banks' height all the way across (the dip spans |x| < 18)
         var b = Assert.Single(world.Buildings, bd => bd.Label == "osm-bridge/e2");
         Assert.True(b.Structure);                                                    // collapsible, a hull deck (CE-4694)
         foreach (var (x, _, z) in NetPoints(folder).Where(p => MathF.Abs(p.X) <= 12))
@@ -340,6 +340,40 @@ public class ImporterTests : IDisposable
         var plainSet = new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(OneCrossing, tagged: false) };
         var (_, plain, _) = await Import(plainSet, "plain");
         Assert.False(Crosses(plain, plainSet), "without the bridge the dip stops a vehicle");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-5057</c> D-3a — a bridged edge LONGER than its structure (netconvert merges a bridge with its approaches: 📐 Stechovice's 201 m path edge, whose straight
+    /// deck ran 15 m UNDER a hill) over a HILL and a DIP: the deck never runs below the ground, spans the dip, and is not laid over the hilltop — and a RAIL edge tagged
+    /// <c>bridge</c> gets no deck at all (user, 2026-11-26: "road bridges are important, not rail bridges"). 🔴 Mutations: no spill-level case (the chord rule only) ⇒ the dip's deck floats metres above
+    /// its rims, over the flat ground too; no railway test ⇒ a deck on the rail edge.
+    /// </summary>
+    [Fact]
+    public async Task CE5057_ALongBridgedEdge_DecksOnlyItsDip_NeverUnderTheGround_AndARailEdgeNone()
+    {
+        static float Profile(double x, double y)
+            => (float)(10 + 6 * Math.Exp(-Math.Pow((x + 30) / 8, 2)) - 6 * Math.Exp(-Math.Pow((x - 25) / 6, 2)) + (x < -55 ? (-55 - x) * 0.5 : 0));   // a hill at x −30, a dip at x 25, the far west end rising (to 17.5 at x −70)
+        const string net = "<net version=\"1.20\"><location netOffset=\"0,0\"/>" +
+            "<edge id=\"long\" from=\"a\" to=\"b\" type=\"highway.path\"><lane id=\"long_0\" index=\"0\" width=\"5\" shape=\"-70,0 70,0\"/><param key=\"bridge\" value=\"yes\"/></edge>" +
+            "<edge id=\"rail\" from=\"c\" to=\"d\" type=\"railway.rail\"><lane id=\"rail_0\" index=\"0\" width=\"5\" shape=\"-70,40 70,40\"/><param key=\"bridge\" value=\"yes\"/></edge>" +
+            "<junction id=\"a\" type=\"dead_end\" x=\"-70\" y=\"0\"/><junction id=\"b\" type=\"dead_end\" x=\"70\" y=\"0\"/>" +
+            "<junction id=\"c\" type=\"dead_end\" x=\"-70\" y=\"40\"/><junction id=\"d\" type=\"dead_end\" x=\"70\" y=\"40\"/></net>\n";
+        var mini = new MiniSet { Ground = Profile, Net = true, NetXml = net };
+        var (folder, world, rep) = await Import(mini);
+        float Deck(double x, double y) => world.DeckSurfaceAt((float)(x - mini.MinX), (float)(y - mini.MinY), null);
+        float G(double x, double y) => world.Height!.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.True(rep.Bridges >= 1, "the dip is bridged");
+        for (double x = -68; x <= 68; x += 1)
+            if (!float.IsNaN(Deck(x, 0))) Assert.True(Deck(x, 0) >= G(x, 0) - 0.15f, $"the deck at x {x} runs {G(x, 0) - Deck(x, 0):F2} m under the ground");
+        Assert.True(Deck(25, 0) - G(25, 0) > 3f, "a deck over the dip");
+        Assert.InRange(Deck(25, 0), 9.5f, 10.5f);                                    // ⭐ at the DIP's own spill level (its rims, 10 m), not from a distant end or the hilltop
+        Assert.True(float.IsNaN(Deck(5, 0)) || Deck(5, 0) - G(5, 0) < 0.35f, "no deck over the flat ground between the hill and the dip");
+        Assert.True(float.IsNaN(Deck(-30, 0)) || Deck(-30, 0) - G(-30, 0) < 0.35f, "no deck laid over the hilltop");
+        for (double x = -68; x <= 68; x += 4)
+            Assert.True(float.IsNaN(Deck(x, 40)), $"a deck on the rail edge at x {x}");
+        Assert.DoesNotContain(world.Buildings, b => b.Label.StartsWith("osm-bridge/rail", StringComparison.Ordinal));
+        foreach (var (x, y, z) in NetPoints(folder).Where(p => MathF.Abs(p.Y) < 3))
+            Assert.True(z >= G(x, y) - 0.15f, $"the bridged lane at x {x:F1} is {G(x, y) - z:F2} m under the ground");
     }
 
     /// <summary>

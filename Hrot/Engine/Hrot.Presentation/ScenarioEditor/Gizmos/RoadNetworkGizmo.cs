@@ -69,8 +69,9 @@ public sealed class RoadNetworkGizmo : IGlobalStatelessGizmo
                 a = b;
             }
         }
+        if (!draw.IsLayerActive(DebugTraceLayers.RoadNodes)) return;   // ⭐ CE-6504
         for (int i = 0; i < network.Nodes.Length; i++)
-            draw.DrawSphere(On(terrain, network.Nodes[i].Position), 2f, NodeColor, layer: DebugTraceLayers.Roads, fillColor: NodeColor);
+            draw.DrawSphere(On(terrain, network.Nodes[i].Position), 2f, NodeColor, layer: DebugTraceLayers.RoadNodes, fillColor: NodeColor);
     }
 
     /// <summary>A road point on the ground (z 0 with no terrain).</summary>
