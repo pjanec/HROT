@@ -7,7 +7,7 @@
     "the Bradley launches a TOW at the tank": 16.3833,
     "tow": 16.3833,
     "the tank pops smoke within 3 s of the launch": 16.45,
-    "the tank backs out of sight behind the block (its own hide, ~257,155)": 40.75
+    "the tank backs out of sight behind the block (its own hide there: ~258,164 live, ~257,156 at fixed step)": 24
   },
   "shots": [
     {
@@ -1848,7 +1848,7 @@
     "the tank pops smoke within 3 s of the launch": 16.45,
     "never a salvo before a launch": null,
     "one salvo, not two within 30 s": null,
-    "the tank backs out of sight behind the block (its own hide, ~257,155)": 40.75,
+    "the tank backs out of sight behind the block (its own hide there: ~258,164 live, ~257,156 at fixed step)": 24,
     "the Bradley never hits the tank again once it is screened": null
   }
 }
