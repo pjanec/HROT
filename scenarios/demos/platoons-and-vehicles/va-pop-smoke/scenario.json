@@ -14,7 +14,7 @@
       "SimTransform": {
         "Position": [
           262,
-          215,
+          195,
           0
         ],
         "Rotation": [
@@ -42,6 +42,10 @@
         "Name": "BasicVehicleSop",
         "Params": {},
         "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4670d00-0000-4000-8000-000000000003",
+        "Designation": "Wingman"
       }
     },
     "c4670d00-0000-4000-8000-000000000002": {
@@ -88,6 +92,28 @@
           "Target": "c4670d00-0000-4000-8000-000000000001"
         },
         "Origin": "Superior"
+      }
+    },
+    "c4670d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          300,
+          90,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 303
+      },
+      "EntityInfo": {
+        "Name": "Tank Platoon",
+        "ForceId": "Hostile"
       }
     }
   }
