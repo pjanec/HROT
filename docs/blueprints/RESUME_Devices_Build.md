@@ -29,6 +29,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | S1d-2 the rangefinder HUD projector (DeviceHud layer, visibility policy, screen pass) to the mockups + fidelity renders | ⏳ | — |
 | S1d-3 the binoculars device replaces CE-1219 (`Viewed` raises the held item), `DevicePose` from the station look | ⏳ | — |
 | S1e the scenario grammar + SD-S1 scenarios | ⏳ | — |
+| **queued (user `2026-11-27`)** SD-S4b steer the round in flight — design §3.13a (D-80–D-84), §5 row, §5a `dv-steer-*` (4), §9 Q-14/Q-15 | ⏳ | after SD-S4 `FireControl`; real joystick = SD-S2 |
 
 ## 2. Rules learned this run (do not re-learn)
 

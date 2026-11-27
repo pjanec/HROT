@@ -126,6 +126,8 @@ graph TD
   DB -->|"LaserPointing"| LSS
   LSS -->|"LaserSpot"| LL
   LSS -->|"LaserSpot"| DB
+  GRS["GuidedRoundSystem (existing, WhenTimeAdvances)<br/>a device-launched round flies the device's line — SD-S4b"]
+  DB -->|"FireControl.AimPoint / steer command (replicated)"| GRS
   DB -->|"LaserPointing"| LL
 ```
 
@@ -513,6 +515,28 @@ tell the entity who has the weapon to initiate a fire sequence? … command bus 
 | D-78 | ⭐ **no launch in pause**: a launch is a world effect (R-4300) ⇒ while paused the device keeps `Ready = false` and does not move `LaunchSeq` (its HUD may show the press refused) — otherwise the press would fire at resume, when the controller's brain next ticks | R-4300; the pause is observation (R6-4) |
 | D-79 | ⭐ **what would change it**: a weapon with NO human controller that a device fires alone — then the device is that weapon's controller (`ControllerOf` names it) and holds the weapon channel on itself | not in any slice |
 
+#### 3.13a Steering the round in flight — the trainee guides it with the stick *(user, `2026-11-27`)*
+
+🔒 User: *"add … the scenario where a device is able to fire a weapon, and the device allows the trainee to manually (via joystick) to steer the
+projectile in flight"*.
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a guided round already steers every tick on the muscle | ✅ `GuidedRoundSystem` (`[TickMode(WhenTimeAdvances)]`, :21) over `GuidedRound` (muscle-local, `GuidedRound.cs:16-66`) | `DESIGN_Missiles_And_Ammo.md` §3 (M4) |
+| `Command` guidance flies a SIGHT LINE — today the AI-perfect line, the gunner's eye → the target's middle, lost when blocked | ✅ `GuidedRoundSystem.cs:258-272`; `GuidanceKind.Command` (`MissileDto.cs:13`, "TOW-like") | M4; `DESIGN_Urban_Armour_Tactics.md:122` (SACLOS: break sight and it flies on) |
+| the round already knows who guides it | ✅ `GuidedRound.Gunner` (*"a command round flies the gunner's sight line"*) | — |
+| the device already publishes its aim every frame, and the controller keeps reading it after launch | ⛔ not built (`FireControl`, SD-S4) | ✅ D-76 (*"after launch it keeps reading `AimPoint` every tick (command guidance)"*) |
+| a stick is a device AXIS on the device's own input | ✅ `DeviceControl.Axes[4]` → `DeviceInput` (S1b-2) | §3.4; the gamepad adapter SD-S2 |
+| no MCLOS (stick-to-missile) mode exists | ⛔ searched code (`search_graph` Guidance / Guided / Steer / Mclos / Saclos, 12 classes) and `docs/`: none | ⛔ searched, none found |
+
+| # | decision | why |
+|---|---|---|
+| D-80 | ⭐⭐ **the round flies the DEVICE's line, not the target's.** A round launched through a device's `FireControl` carries that device in `GuidedRound` (beside `Gunner`); a `Command` round with a device flies the line **eye → `FireControl.AimPoint`** — the crosshair the trainee holds with the stick (SACLOS by hand) — instead of eye → the target's middle. Off the target ⇒ it misses; the hit is the unchanged chain | ONE guidance path (ruling 9): only the line's far point changes; an AI gunner keeps today's line |
+| D-81 | ⭐ **MCLOS — the stick steers the ROUND itself** — a second kind, `GuidanceKind.Manual`: the device writes a steer command (two axes, −1…1) into `FireControl`; the round turns by command × its turn rate in the device's frame; it never looks at the target. Same field, same reader, one more branch in `GuidedRoundSystem` | the literal reading of the request (the Malyutka class); cheap once D-80's reader exists |
+| D-82 | ⭐ **the device writes only itself** (`FireControl.AimPoint` / the steer command); the MUSCLE reads it — replicated, last tick's — exactly as it reads the gunner's eye today. ⛔ the device never writes the round | the parallel rule (R-4212); one writer per component |
+| D-83 | ⭐ **no steering in pause**: the round is frozen (`WhenTimeAdvances`); while paused the device keeps its guidance outputs where they were — the crosshair may move on the HUD (observation), the command it publishes does not, until time advances | R-4300 / D-78: a pause must not hand the trainee a free correction |
+| D-84 | ⭐ the guidance ends with the round: the device's HUD shows *in flight* from the launch to the round's end (the device reads nothing of the round — it counts its own launch and its type's flight time; the muscle's hit is the proof, not the HUD) | no reverse link round → device |
+
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
 🔒 User: *"once we feel that it's right and that it's easy to extend, then it's time to start implementing the whole device stuff"*. The cleanup
@@ -580,6 +604,7 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | **SD-S2** the gamepad + the drone operator station | the gamepad adapter (`Raylib-cs`); the drone ground-station device (battery, signal, link from the drone's simulation) | editor |
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the operator panel of a manned weapon system | **`FireControl` (D-76–D-78)** — the weapon's one controller fires at the device's solution · a device mounted in a weapon's `Station` (the walk's one-level recursion, R5-12): optics, zoom, sensor modes, the procedure; what the weapon does stays the weapons design's | editor |
+| **SD-S4b** steer the round in flight (user, `2026-11-27`) | a device launches a `Command` round through `FireControl` and the trainee guides it with the stick: `GuidedRound` carries the device; `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80); `GuidanceKind.Manual` — the stick's steer command turns the round (D-81); frozen guidance in pause (D-83); the HUD's *in flight* state (D-84). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios drive the axes scripted (`do: control axis`) | editor |
 | **SD-S5b** linked devices + trackers | stacking by mounting (D-61), a stationary device manned with USE (D-60), trackers filling the frame's `Orientation` / `Position` / `BodyOffset`, `DeviceMessageEvent` (with `Seq`) + `DeviceLinks` | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (the existing Take / Drop verbs) · a device drawn where it lies (D-64) · per-station node features | editor |
 | **SD-S6** the visible beam | `LaserLayer3D`, the ONE visibility rule (eye · night · thermal) for the map, the IG (D-36) and AI perception; an AI vehicle's designator (`StartWith`) pointed by its AI | editor |
@@ -616,6 +641,10 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 | `dv-drone-operator` (S2) | the trainee flies the drone out and back with the gamepad | `device battery` / `signal` equal the drone's simulation · the link lost ⇒ the lamp |
 | `dv-target-message` (S3) | trainee A sends a target message; the pilot station shows it | the pilot device's `hud` contains the message · its map point is A's spot |
 | `dv-operator-panel` (S4) | the trainee runs the panel's procedure | the weapon system reaches its ready state (its own component) |
+| `dv-steer-in-flight` (S4b) | a scripted trainee at a guided launcher's sight device fires at a tank CROSSING at a set speed; the crosshair starts on the tank's launch-time position and the `do: control axis` rows track the tank for the flight | `hit` on the tank by the trainee's launcher · its `Health` drops · ⛔ `never` a hit on the decoy truck parked on the launch-time line |
+| `dv-steer-unsteered` (S4b, the control) | the same, the axes held at 0 | ⛔ `never` a hit on the tank — proves the stick, not the AI line, decided the first |
+| `dv-steer-manual` (S4b, MCLOS) | the same crossing tank, a `Manual` missile; the axes are scripted turn commands | `hit` on the tank · the unsteered twin misses (as above) |
+| `dv-steer-paused` (S4b) | `do: pause` 60 frames mid-flight with the axes swung hard | `atPausedFrame` rows: the round's position unchanged · after resume it continues from its pre-pause line (no step to the swung aim) |
 | `dv-linked-pair` (S5b) | a rangefinder sends a target location to a linked second device | `device` field on the receiver's stored point, within tolerance |
 | `dv-stacked-tracker` (S5b) | one scripted orientation drives two stacked devices | their world directions agree |
 | `dv-issue-drop-pick` (S5) | a device issued at run time, dropped, picked up by another trainee | it lies in the world after the drop · it is in the other's kit station after · his `hud` shows it |
@@ -650,6 +679,8 @@ per buffer-reader family (R5-4), the no-unit-system-touches-a-device rail (R5-5)
 | Q-5 | the device wheel's key and the HUD layout | the ui lane's mockup first (R-4143) |
 | Q-8 | the gateway's wire (D-5, D-36) | a SimNetGateway row when SD-C is dispatched: the primitive's space and the meta primitives on the wire; the beam's two components as entity data |
 | Q-9 | an AI leader's pocket binoculars stay a held item only; a trainee is ISSUED a binoculars device | ⭐ as stated — what would change it: a need for AI to use device menus |
+| Q-14 | SD-S4b: which steering first — SACLOS by hand (D-80, the round flies the trainee's crosshair) or MCLOS (D-81, the stick turns the round)? | ⭐ lean: BOTH in the slice, D-80 first — it is the existing `Command` branch with a different far point (a few lines), and D-81 is one more branch on the same field; what would change it: the training need is one specific missile class |
+| Q-15 | does adding a `Device` field to `GuidedRound` move a pinned layout hash? | ⭐ measure first (`GuidedRound` is muscle-local and `NoScenario`, but it may be recorded); if pinned, the device goes in a separate muscle-local component beside it (the S1b-2 lesson) |
 | ~~Q-10~~ | does `LaserPointing` replicate to the muscle on a paused frame? | ✅ measured `2026-11-27`: YES — `NedReplicationModule` is `[TickMode(EveryFrame)]` (`NedReplicationModule.cs:55`; `DESIGN_Paused_And_Stepped_Execution.md` Appendix A row "NedReplicationModule … EVERY") ⇒ the muscle's every-frame `LaserSpotSystem` answers in pause, the spot marked `Preview` (D-78) |
 | ~~Q-11 + Q-12~~ | answered — D-75 (the user drops the current binoculars in SD-S1) | — |
 | ~~Q-13~~ | answered — D-76–D-78 (§3.13): the device is the weapon's FIRE CONTROL; devices use no channels | — |
