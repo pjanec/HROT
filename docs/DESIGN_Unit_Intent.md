@@ -12,6 +12,7 @@ known-conflict:
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md §10 F2 / Appendix A (BehaviorIngressSystem and RoeSystem run every frame SO THAT a unit loaded while paused has its AI before the first step) — SUPERSEDED once built: they, TacticalIntentResolutionSystem and the hand-over's apply become WhenTimeAdvances (R1); the loaded AI waits in the intent.
   - DESIGN_Entity_Brain_View.md §12g (R-1041, in-place params write, no restart) — KEPT for the running behaviour (monitoring part); the intent section's edit is a new task (R10).
 related-designs:
+  - designs/devices/DESIGN_Simulated_Devices.md — simulated devices: a device runs its own brain on the device entity
   - DESIGN_Sensors_And_Doctrine.md — §7.5 owns the scenario shape {Name, Params, Origin} per slot (R-192), §7.6 the editor's AI section, §7.6b the ONE params form, §7.7 the hand-over reader (BrainIntentReader)
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — owns EveryFrame vs WhenTimeAdvances and the step window; this design is its rule "nothing takes effect on a paused frame" applied to the AI
   - blueprints/DESIGN_Staged_Live_Write.md — owns the staged live write (yellow, drained at the next advancing tick); §1 R7 here reuses it for every memory edit

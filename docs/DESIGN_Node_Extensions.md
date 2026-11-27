@@ -5,6 +5,7 @@ build-state: BUILT (sections 1-6, CE-4293; section 7 teardown, CE-4296; as-built
 current-answer: whole document; section 6 (as-built) overrides anything above it where they differ
 stale-below: none
 related-designs:
+  - designs/devices/DESIGN_Simulated_Devices.md — simulated devices: the physical replica panel driver, one node extension
   - DESIGN_Ned_As_The_Client_Wire.md — PROPOSES one optional INodeExtension member (NetworkFor): an extension asks for the node's NED replication to publish (the gateway, for its clients)
   - designs/llm-commander/DESIGN_LLM_Commander.md — a PRELIMINARY idea: an LLM commander seat composed inside a node (its feed, minds and HTTP surface)
   - designs/IG/DESIGN_Linked_Client_Director.md — OWNS the director's LINKED CLIENT (a node extension as the frame sink and sound source, DD-022's HROT half; CE-11017, Q113)

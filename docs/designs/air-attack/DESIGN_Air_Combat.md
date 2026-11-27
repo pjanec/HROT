@@ -7,6 +7,7 @@ stale-below: none
 known-rot: none (the review's corrections are folded)
 known-conflict: Air Operations §5 (the route: a height above the ground on every 20 m sample) — AC-1 replaces it for cruise legs; §5 keeps it for low flight
 related-designs:
+  - ../devices/DESIGN_Simulated_Devices.md — simulated devices: the pilot station device and its HUD
   - ../../DESIGN_Entity_Control.md — OWNS the pilot station: possessing a fighter (the mouse-aim manual pilot, §8f) and the HUD ui extends (§4d)
   - ../../DESIGN_Map_3D_Mode.md — OWNS the visual families and shape kits (§6n): the MiG's `TwinEngineFighter` body and the jet's stores
   - ../../DESIGN_Visual_Effects.md — OWNS the effects: muzzle flash, missile smoke, the new afterburner / vortex / falling-smoke effects

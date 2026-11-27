@@ -4,6 +4,7 @@ updated: 2026-11-21
 current-answer: §2 the sub-questions as revised by the independent review (§2a; rev 2, 2026-11-21) — ✅ APPROVED (R-11011, user `2026-11-21`: "ok approved, do")
 stale-below: nothing
 related-designs:
+  - ../designs/devices/DESIGN_Simulated_Devices.md — simulated devices: several stations on one node, each drawing only its own device HUD
   - ../DESIGN_Entity_Control.md — OWNS C-8 ("one operator per node — the station id is the node id"), which A amends
   - ../UX/DESIGN_Seats_And_Hats.md — OWNS the seat (one person) and its hats; §2.1 "a fused server … still ONE seat" is what A amends for the editor
   - ../DESIGN_Player_Join.md — OWNS the deploy server and the deploy flow that B, C and D reuse in the editor
