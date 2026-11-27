@@ -69,6 +69,10 @@ extensions, the control frame (HTTP / DDS).
 
 ⚠ rev 1's diagrams (a `DeviceRuntime` on the player node, a state block, `IDeviceLogic`) are moved to `## ⛔ HISTORY` at the bottom.
 
+⭐ **The overview picture** — [`devices-architecture.svg`](devices-architecture.svg): setup, mounting, the station, the brain, the muscle, and the rules (as of §3q).
+
+![Simulated devices — the planned architecture](devices-architecture.svg)
+
 ### 2a. The module view — who runs what, and who calls it each frame *(rev 6, §3j)*
 
 ```mermaid

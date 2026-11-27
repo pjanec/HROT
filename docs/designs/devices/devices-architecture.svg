@@ -1,0 +1,296 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1180" viewBox="0 0 1680 1180" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#37474f"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1565c0"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c62828"/></marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ef6c00"/></marker>
+    <style>
+      .t{font-size:13px;fill:#263238}
+      .s{font-size:11.5px;fill:#37474f}
+      .h{font-size:16px;font-weight:700;fill:#102027}
+      .h2{font-size:14px;font-weight:700;fill:#102027}
+      .new{fill:#fff8e1;stroke:#f9a825;stroke-width:1.5}
+      .ex{fill:#eceff1;stroke:#78909c;stroke-width:1.2}
+      .comp{fill:#ffffff;stroke:#90a4ae;stroke-width:1}
+      .compn{fill:#fffde7;stroke:#f9a825;stroke-width:1}
+      .mono{font-family:Consolas, Menlo, monospace;font-size:11.5px;fill:#263238}
+    </style>
+  </defs>
+
+  <rect width="1680" height="1180" fill="#fafafa"/>
+  <text x="24" y="38" font-size="24" font-weight="700" fill="#102027">Simulated devices — the planned architecture</text>
+  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (§3f–§3q) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
+  <!-- legend -->
+  <g transform="translate(1110,22)">
+    <rect x="0" y="0" width="16" height="12" class="new"/><text x="22" y="11" class="s">new</text>
+    <rect x="70" y="0" width="16" height="12" class="ex"/><text x="92" y="11" class="s">existing (reused / extended)</text>
+    <line x1="290" y1="6" x2="330" y2="6" stroke="#1565c0" stroke-width="2.2" marker-end="url(#ab)"/><text x="336" y="11" class="s">input</text>
+    <line x1="390" y1="6" x2="430" y2="6" stroke="#2e7d32" stroke-width="2.2" marker-end="url(#ag)"/><text x="436" y="11" class="s">output</text>
+    <line x1="0" y1="30" x2="40" y2="30" stroke="#c62828" stroke-width="2.2" marker-end="url(#ar)"/><text x="46" y="35" class="s">laser data</text>
+    <line x1="130" y1="30" x2="170" y2="30" stroke="#ef6c00" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#ao)"/><text x="176" y="35" class="s">set up from the catalogue / scenario</text>
+  </g>
+
+  <!-- ================= SETUP (left column) ================= -->
+  <rect x="20" y="84" width="420" height="500" rx="10" fill="#fff3e0" stroke="#ef6c00" stroke-width="1.5"/>
+  <text x="36" y="110" class="h">① Setup — catalogue (TKB) and scenario</text>
+
+  <rect x="36" y="124" width="388" height="118" rx="6" class="new"/>
+  <text x="48" y="144" class="h2">DeviceDefDto — a device TYPE</text>
+  <text x="48" y="164" class="s">• its behaviour (one C# class: logic + HUD drawing)</text>
+  <text x="48" y="181" class="s">• its UnitMemory state struct</text>
+  <text x="48" y="198" class="s">• mount kinds + portability → Mountable</text>
+  <text x="48" y="215" class="s">• channel names: buttons, axes, lamps, text lines</text>
+  <text x="48" y="232" class="s">  (e.g. button 0 = RANGE, lamp 3 = LASER)</text>
+
+  <rect x="36" y="254" width="388" height="132" rx="6" class="ex"/>
+  <text x="48" y="274" class="h2">Host type seats (existing SeatDto)</text>
+  <text x="48" y="294" class="s">• Station seat: Accepts = Pintle | Door | Device ★</text>
+  <text x="48" y="311" class="s">• OperatedBy = the crew seat that runs it</text>
+  <text x="48" y="328" class="s">• StartWith = the type that starts in it</text>
+  <text x="48" y="345" class="s">  (a weapon, a device, or a soldier for a crew seat)</text>
+  <text x="48" y="362" class="s">• a soldier type: Hands / Back carry stations</text>
+  <text x="48" y="379" class="s">  (Accepts Carried) — StartWith a rifle or a device</text>
+
+  <rect x="36" y="398" width="388" height="92" rx="6" class="ex"/>
+  <text x="48" y="418" class="h2">Scenario</text>
+  <text x="48" y="438" class="s">• placed hosts fill every StartWith once (SeatPresets)</text>
+  <text x="48" y="455" class="s">• a Playable slot = the trainee; his issued devices</text>
+  <text x="48" y="472" class="s">  are the devices at the seats / stations he operates</text>
+
+  <rect x="36" y="502" width="388" height="70" rx="6" class="ex"/>
+  <text x="48" y="522" class="h2">At creation (TKB translator)</text>
+  <text x="48" y="542" class="s">device entity + Mountable + TicksInPause + its behaviour,</text>
+  <text x="48" y="559" class="s">boarded into its Station (Embarkation — as a weapon is)</text>
+
+  <!-- ================= MOUNTING (left bottom) ================= -->
+  <rect x="20" y="600" width="420" height="560" rx="10" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
+  <text x="36" y="626" class="h">② Mounting — the SAME for weapons and devices</text>
+  <!-- vehicle -->
+  <rect x="40" y="644" width="380" height="250" rx="8" fill="#ffffff" stroke="#8e24aa"/>
+  <text x="54" y="666" class="h2">Vehicle (host) — its seat list</text>
+  <g class="s">
+    <rect x="56" y="678" width="170" height="30" rx="4" class="comp"/><text x="64" y="698" class="s">0 Driver — AI / trainee</text>
+    <rect x="56" y="714" width="170" height="30" rx="4" fill="#e3f2fd" stroke="#1565c0"/><text x="64" y="734" class="s">1 Gunner — the TRAINEE</text>
+    <rect x="56" y="750" width="170" height="30" rx="4" class="comp"/><text x="64" y="770" class="s">2 Commander — AI</text>
+    <rect x="240" y="696" width="166" height="40" rx="4" class="ex"/><text x="248" y="713" class="s">3 Station (Pintle)</text><text x="248" y="729" class="s">M2 — OperatedBy 1</text>
+    <rect x="240" y="748" width="166" height="40" rx="4" class="new"/><text x="248" y="765" class="s">4 Station (Device)</text><text x="248" y="781" class="s">rangefinder — OperatedBy 1</text>
+  </g>
+  <path d="M226,729 C232,729 234,716 240,716" fill="none" stroke="#8e24aa" stroke-width="1.6" marker-end="url(#a)"/>
+  <path d="M226,729 C236,740 232,768 240,768" fill="none" stroke="#8e24aa" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="56" y="812" class="s">The trainee keeps HIS seat; a weapon or device sits in a</text>
+  <text x="56" y="829" class="s">Station (a mount point, not a crew seat) operated by it.</text>
+  <text x="56" y="849" class="mono">Stations.OperatedBy(host, seat) ★ public lookup</text>
+  <text x="56" y="868" class="s">An AI vehicle: StartWith a device, OperatedBy its crew seat.</text>
+  <!-- person -->
+  <rect x="40" y="906" width="380" height="132" rx="8" fill="#ffffff" stroke="#8e24aa"/>
+  <text x="54" y="928" class="h2">Soldier (host) — carry stations</text>
+  <rect x="56" y="940" width="166" height="34" rx="4" class="ex"/><text x="64" y="962" class="s">Hands — rifle or device</text>
+  <rect x="236" y="940" width="166" height="34" rx="4" class="ex"/><text x="244" y="962" class="s">Back — stowed item</text>
+  <text x="56" y="996" class="s">Pick up / put down: the existing TAKE verb works for any</text>
+  <text x="56" y="1013" class="s">Portable item — a device included (reads Mountable).</text>
+  <!-- mountable -->
+  <rect x="40" y="1050" width="380" height="96" rx="8" class="new"/>
+  <text x="54" y="1072" class="h2">Mountable ★ { MountKinds, Portable }</text>
+  <text x="54" y="1092" class="s">moved out of WeaponSystemParams; written for weapons AND</text>
+  <text x="54" y="1109" class="s">devices from the TKB; read by Embarkation (4×), CarryStations,</text>
+  <text x="54" y="1126" class="s">OperatorUse — the six existing readers, unchanged in meaning.</text>
+
+  <!-- ================= STATION node (top right) ================= -->
+  <rect x="470" y="84" width="1190" height="300" rx="10" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+  <text x="486" y="110" class="h">③ Station node — the trainee's seat (a player node, the editor, or the gateway's per-client station)</text>
+  <text x="486" y="130" class="s">StationId = node + seat index — several stations may share one node. Runs NO device-specific code.</text>
+
+  <!-- inputs -->
+  <rect x="490" y="146" width="250" height="120" rx="6" class="ex"/>
+  <text x="502" y="166" class="h2">Primary input</text>
+  <text x="502" y="186" class="s">keyboard / mouse (keymap device scope)</text>
+  <text x="502" y="203" class="s">gamepad adapter</text>
+  <text x="502" y="226" class="s">→ drives the device shown in the</text>
+  <text x="502" y="243" class="s">   FOCUSED view</text>
+  <rect x="490" y="276" width="250" height="92" rx="6" class="new"/>
+  <text x="502" y="296" class="h2">Physical replica panels</text>
+  <text x="502" y="316" class="s">a node extension, one per panel;</text>
+  <text x="502" y="333" class="s">each its own input channel → ITS device</text>
+  <text x="502" y="350" class="s">(no switching)</text>
+
+  <!-- views -->
+  <rect x="770" y="146" width="380" height="222" rx="6" fill="#ffffff" stroke="#1565c0"/>
+  <text x="782" y="166" class="h2">Views — each bound to ONE device (or the eye)</text>
+  <rect x="784" y="178" width="172" height="112" rx="4" fill="#263238"/>
+  <text x="794" y="198" font-size="11.5" fill="#b2ff59">3-D map · view 1</text>
+  <text x="794" y="218" font-size="11.5" fill="#b2ff59">binoculars HUD</text>
+  <line x1="830" y1="250" x2="910" y2="250" stroke="#b2ff59"/><line x1="870" y1="230" x2="870" y2="270" stroke="#b2ff59"/>
+  <rect x="966" y="178" width="172" height="112" rx="4" fill="#263238" stroke-dasharray="5 4" stroke="#90a4ae"/>
+  <text x="976" y="198" font-size="11.5" fill="#80d8ff">view 2 (later)</text>
+  <text x="976" y="218" font-size="11.5" fill="#80d8ff">rangefinder HUD  452 m</text>
+  <text x="782" y="310" class="s">Renderer keeps only the gizmo run whose</text>
+  <text x="782" y="327" class="mono">HudScope{Device}</text><text x="900" y="327" class="s"> matches the view's device;</text>
+  <text x="782" y="344" class="s">screen-space primitives drawn as an overlay on</text>
+  <text x="782" y="361" class="s">the 3-D map ★ (the 2-D renderer's screen-space code)</text>
+
+  <!-- beam layer + panel out -->
+  <rect x="1176" y="146" width="468" height="104" rx="6" class="new"/>
+  <text x="1188" y="166" class="h2">LaserLayer3D ★ (every node with a 3-D map)</text>
+  <text x="1188" y="186" class="s">draws beams and spots from LaserPointing + LaserSpot;</text>
+  <text x="1188" y="203" class="s">what THIS viewer sees: one shared rule over the band and</text>
+  <text x="1188" y="220" class="s">the local SensorView (eye / night vision / thermal);</text>
+  <text x="1188" y="237" class="s">his own beam drawn from his local look (no lag)</text>
+  <rect x="1176" y="262" width="468" height="106" rx="6" class="ex"/>
+  <text x="1188" y="282" class="h2">Replica adapter output + gateway</text>
+  <text x="1188" y="302" class="s">adapter reads the device's DevicePanel → lamps, text lines,</text>
+  <text x="1188" y="319" class="s">gauges on the hardware (channel meaning from the TKB)</text>
+  <text x="1188" y="339" class="s">gateway: the same HUD run → GizmoFrame (Producer = station)</text>
+  <text x="1188" y="356" class="s">→ external image generator</text>
+
+  <!-- ================= BRAIN node ================= -->
+  <rect x="470" y="420" width="790" height="740" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="486" y="446" class="h">④ Brain node — owns the device entity (its state never leaves this node)</text>
+
+  <!-- transport in -->
+  <rect x="490" y="462" width="360" height="98" rx="6" class="ex"/>
+  <text x="502" y="482" class="h2">Interaction transport (existing)</text>
+  <text x="502" y="502" class="mono">OperatorControlFrameEvent</text><text x="680" y="502" class="s"> — ONE per</text>
+  <text x="502" y="519" class="s">operated entity, Target = the device; + Axes[4], PressSeq[16]</text>
+  <text x="502" y="536" class="s">only the TARGET's owner applies it ⇒ reaches the device's</text>
+  <text x="502" y="553" class="s">brain wherever it lives; newest by Seq; presses are counters</text>
+
+  <!-- device entity -->
+  <rect x="490" y="576" width="470" height="440" rx="8" fill="#ffffff" stroke="#2e7d32" stroke-width="1.6"/>
+  <text x="504" y="600" class="h2">Device ENTITY (e.g. the rangefinder) — its components</text>
+  <rect x="504" y="612" width="210" height="28" rx="4" class="comp"/><text x="512" y="631" class="mono">TkbIdentity (its type)</text>
+  <rect x="724" y="612" width="222" height="28" rx="4" class="compn"/><text x="732" y="631" class="mono">Mountable ★</text>
+  <rect x="724" y="646" width="222" height="28" rx="4" class="compn"/><text x="732" y="665" class="mono">TicksInPause ★ (tag)</text>
+  <rect x="504" y="646" width="210" height="28" rx="4" class="comp"/><text x="512" y="665" class="mono">place in host's Station</text>
+  <rect x="504" y="680" width="442" height="128" rx="4" class="comp"/>
+  <text x="512" y="699" class="mono">BehaviorState + blackboard store (brain only)</text>
+  <rect x="520" y="708" width="410" height="90" rx="4" class="compn"/>
+  <text x="530" y="727" class="mono">[UnitMemory] RangefinderState ★</text>
+  <text x="530" y="746" class="s">Mode · Menu · zoom step · LastRange · inputs seen ·</text>
+  <text x="530" y="763" class="s">everything the HUD shows — written only by the device</text>
+  <text x="530" y="780" class="s">itself (self-write, the parallel rule); recorded, never</text>
+  <text x="530" y="796" class="s">on the wire</text>
+  <rect x="504" y="816" width="442" height="44" rx="4" class="compn"/>
+  <text x="512" y="835" class="mono">DevicePanel ★ ~200 B</text><text x="660" y="835" class="s">LampBits · Blink · Values[16] · Text[4]</text>
+  <text x="512" y="852" class="s">written on change by PanelOut · replicated + recorded</text>
+  <rect x="504" y="868" width="442" height="44" rx="4" class="compn"/>
+  <text x="512" y="887" class="mono">LaserPointing ★</text><text x="626" y="887" class="s">on · band · direction — written by whoever points</text>
+  <text x="512" y="904" class="s">(the trainee's device logic, or an AI) · replicated</text>
+  <rect x="504" y="920" width="442" height="44" rx="4" class="compn"/>
+  <text x="512" y="939" class="mono">LaserSpot ★</text><text x="600" y="939" class="s">up to 4 spot points — written by the MUSCLE</text>
+  <text x="512" y="956" class="s">replicated · recorded</text>
+  <text x="504" y="990" class="s">One C# class per device type: the action (Step), its state,</text>
+  <text x="504" y="1007" class="s">its HUD projector, its PanelOut — side by side.</text>
+
+  <!-- systems -->
+  <rect x="980" y="462" width="262" height="160" rx="6" class="ex"/>
+  <text x="992" y="482" class="h2">BrainTickSystem (one loop)</text>
+  <text x="992" y="502" class="s">every frame now:</text>
+  <text x="992" y="519" class="s">• time advances → every brain</text>
+  <text x="992" y="536" class="s">• PAUSED → only TicksInPause</text>
+  <text x="992" y="553" class="s">  (devices), changing only</text>
+  <text x="992" y="570" class="s">  themselves (R-4300)</text>
+  <text x="992" y="590" class="s">Behaviour ingress: the same</text>
+  <text x="992" y="607" class="s">paused-frame filter</text>
+
+  <rect x="980" y="636" width="262" height="196" rx="6" class="ex"/>
+  <text x="992" y="656" class="h2">StatelessGizmoSystem</text>
+  <text x="992" y="676" class="s">runs the device's HUD projector</text>
+  <text x="992" y="693" class="mono">[GizmoProjector]</text><text x="1104" y="693" class="s"> like</text>
+  <text x="992" y="710" class="s">HillAttackGizmo; for every</text>
+  <text x="992" y="727" class="s">OPERATED device it reads the</text>
+  <text x="992" y="744" class="s">UnitMemory state and emits</text>
+  <text x="992" y="761" class="mono">HudScope{Device}</text><text x="1104" y="761" class="s"> + screen-</text>
+  <text x="992" y="778" class="s">space primitives; HUD family</text>
+  <text x="992" y="795" class="s">always visible, no culling / LOD</text>
+  <text x="992" y="815" class="s">runs every frame, pause too</text>
+
+  <rect x="980" y="846" width="262" height="98" rx="6" class="ex"/>
+  <text x="992" y="866" class="h2">Gizmo batch (existing)</text>
+  <text x="992" y="886" class="s">DebugPrimitivesBatch + strings</text>
+  <text x="992" y="903" class="s">cluster: player-node subscriber,</text>
+  <text x="992" y="920" class="s">per-producer batches, 0 B — SD-C</text>
+  <text x="992" y="937" class="s">editor: the local buffer directly</text>
+
+  <rect x="980" y="956" width="262" height="60" rx="6" class="ex"/>
+  <text x="992" y="976" class="h2">Recorder (wall-clock stamped)</text>
+  <text x="992" y="996" class="s">pauses replay exactly; replay re-</text>
+  <text x="992" y="1012" class="s">runs the projector over the state</text>
+
+  <rect x="490" y="1030" width="752" height="114" rx="6" class="new"/>
+  <text x="502" y="1052" class="h2">Feature-test scenarios (machine-judged) — the proof</text>
+  <text x="502" y="1072" class="s">grammar ★: do possess · do control (press / axis / aim, through the same frame path) · do pause N frames ·</text>
+  <text x="502" y="1089" class="s">cue device (a UnitMemory field by name) · cue hud (the drawn run of a view) · atPausedFrame (wall-clock axis)</text>
+  <text x="502" y="1109" class="s">S1: dv-menu-and-modes · dv-range-targets · dv-vehicle-station · dv-switch-devices · dv-paused-operation ·</text>
+  <text x="502" y="1126" class="s">    dv-replay-hud · dv-two-stations</text>
+
+  <!-- ================= MUSCLE node ================= -->
+  <rect x="1290" y="420" width="370" height="330" rx="10" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
+  <text x="1306" y="446" class="h">⑤ Muscle node — moves the bodies</text>
+  <rect x="1306" y="462" width="338" height="150" rx="6" class="new"/>
+  <text x="1318" y="482" class="h2">LaserSpotSystem ★ (every frame)</text>
+  <text x="1318" y="502" class="s">for each LaserPointing that is on:</text>
+  <text x="1318" y="519" class="s">• trace the terrain — IWorldQuery (synchronous)</text>
+  <text x="1318" y="536" class="s">• trace the bodies — the entity grid's</text>
+  <text x="1318" y="553" class="s">  QuerySegment + a live narrow phase</text>
+  <text x="1318" y="570" class="s">⛔ never the ray-cast EVENTS (frozen in pause)</text>
+  <text x="1318" y="590" class="s">→ writes LaserSpot (the muscle is its one writer)</text>
+  <rect x="1306" y="624" width="338" height="110" rx="6" class="ex"/>
+  <text x="1318" y="644" class="h2">Why here</text>
+  <text x="1318" y="664" class="s">the muscle holds the bodies, their poses and</text>
+  <text x="1318" y="681" class="s">the combat ray path; the brain only POINTS.</text>
+  <text x="1318" y="701" class="s">Range = 2 replicated hops (device → muscle →</text>
+  <text x="1318" y="718" class="s">device); one frame in the editor configuration.</text>
+
+  <!-- notes box -->
+  <rect x="1290" y="766" width="370" height="378" rx="10" fill="#ffffff" stroke="#78909c"/>
+  <text x="1306" y="792" class="h">Rules it keeps</text>
+  <text x="1306" y="816" class="s">• one implementation per concept: mounting (seats),</text>
+  <text x="1306" y="833" class="s">  input (the control frame), HUD (gizmo projector),</text>
+  <text x="1306" y="850" class="s">  brain loop (one), screen-space drawing (one)</text>
+  <text x="1306" y="872" class="s">• the device writes only ITSELF (parallel rule);</text>
+  <text x="1306" y="889" class="s">  LaserSpot only by the muscle</text>
+  <text x="1306" y="911" class="s">• in pause a device changes only itself; nothing</text>
+  <text x="1306" y="928" class="s">  acts on the world (R-3114 / R-4300)</text>
+  <text x="1306" y="950" class="s">• recorded components are small and unmanaged;</text>
+  <text x="1306" y="967" class="s">  HUD primitives are never stored</text>
+  <text x="1306" y="989" class="s">• 0 B per steady frame: the tick, the projector,</text>
+  <text x="1306" y="1006" class="s">  the adapters (rails)</text>
+  <text x="1306" y="1028" class="s">• a new DEVICE = a TKB type + one C# class;</text>
+  <text x="1306" y="1045" class="s">  a new PANEL = one adapter; the wire never changes</text>
+  <text x="1306" y="1067" class="s">• binoculars become a device in slice 1</text>
+  <text x="1306" y="1084" class="s">  (the station's own binocular code is removed)</text>
+  <text x="1306" y="1106" class="s">• out of scope: what any munition does with a spot</text>
+  <text x="1306" y="1123" class="s">  (the weapons design)</text>
+
+  <!-- ================= ARROWS ================= -->
+  <!-- setup -> device entity -->
+  <path d="M424,537 C455,537 452,700 490,700" fill="none" stroke="#ef6c00" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#ao)"/>
+  <!-- mounting -> the device's place -->
+  <path d="M406,768 L462,768 L462,660 L504,660" fill="none" stroke="#8e24aa" stroke-width="1.6" stroke-dasharray="3 3" marker-end="url(#a)"/>
+  <!-- inputs -> transport -->
+  <path d="M740,206 C760,206 760,400 700,420 C680,430 690,450 690,462" fill="none" stroke="#1565c0" stroke-width="2.4" marker-end="url(#ab)"/>
+  <path d="M740,322 C752,322 752,400 680,420 C660,428 660,450 660,462" fill="none" stroke="#1565c0" stroke-width="2.4" marker-end="url(#ab)"/>
+  <text x="768" y="404" class="s" fill="#1565c0">a control frame per device</text>
+  <!-- transport -> device -->
+  <path d="M670,560 L670,576" stroke="#1565c0" stroke-width="2.4" marker-end="url(#ab)"/>
+  <!-- tick -> device -->
+  <path d="M980,560 C960,560 970,700 946,720" fill="none" stroke="#37474f" stroke-width="1.6" marker-end="url(#a)"/>
+  <!-- state -> projector -->
+  <path d="M930,752 L980,752" fill="none" stroke="#2e7d32" stroke-width="2.2" marker-end="url(#ag)"/>
+  <!-- projector -> batch -->
+  <path d="M1111,832 L1111,846" stroke="#2e7d32" stroke-width="2.2" marker-end="url(#ag)"/>
+  <!-- batch -> views -->
+  <path d="M1242,880 L1252,880 L1252,404 L1060,404 L1060,368" fill="none" stroke="#2e7d32" stroke-width="2.4" marker-end="url(#ag)"/>
+  <text x="1068" y="417" class="s" fill="#2e7d32">HUD run (HudScope)</text>
+  <!-- devicepanel -> replica adapter -->
+  <path d="M946,838 L964,838 L964,390 L1300,390 L1300,368" fill="none" stroke="#2e7d32" stroke-width="2.2" stroke-dasharray="7 3" marker-end="url(#ag)"/>
+  <text x="1308" y="404" class="s" fill="#2e7d32">DevicePanel</text>
+  <!-- laser pointing -> muscle -->
+  <path d="M946,890 L969,890 L969,1021 L1266,1021 L1266,540 L1306,540" fill="none" stroke="#c62828" stroke-width="2.2" marker-end="url(#ar)"/>
+  <!-- muscle -> laser spot -->
+  <path d="M1306,598 L1282,598 L1282,1026 L975,1026 L975,942 L946,942" fill="none" stroke="#c62828" stroke-width="2.2" marker-end="url(#ar)"/>
+  <!-- laser -> layer3d -->
+  <path d="M1475,420 L1475,250" stroke="#c62828" stroke-width="2.2" marker-end="url(#ar)"/>
+  <text x="1482" y="404" class="s" fill="#c62828">LaserPointing + LaserSpot</text>
+</svg>
