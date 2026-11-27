@@ -19,6 +19,10 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// task stays paused under origin Possession, but no control frame reaches it (the vehicle is the one being driven). A change
         /// between Fps and Riding on the same station is a take-over: the operator behaviour keeps running.</summary>
         Riding = 2,
+        /// <summary>⭐ Simulated devices S1b-1 (DESIGN_Simulated_Devices §3.3, D-73) — a DEVICE the station operates through one of its operator's bodies:
+        /// CONTROL without a body (<c>StationBody.IsBodyMode</c> is false). ⭐ Written ONLY by the device tick (<c>DeviceOperators.Sync</c>); the possession
+        /// core never releases it (no behaviour swap, no clear) and never applies its frames (the device tick ingests them every frame).</summary>
+        Operated = 3,
     }
 
     /// <summary>Event ids of possession (range 5200–5299; free by a census of every event id on all lanes, <c>2026-10-11</c>).</summary>
@@ -255,7 +259,9 @@ namespace Fdp.Toolkit.Behavior.Possession
                 foreach (ref readonly var f in repo.ReadEvents<OperatorControlFrameEvent>())
                 {
                     if (!OwnsBrain(repo, f.Unit) || !HeldBy(repo, f.Unit, f.StationNodeId)) continue;
-                    if (repo.GetComponentRO<PossessedBy>(f.Unit).Mode == PossessionMode.Riding) continue;   // ⭐ CE-1156 — a rider takes no frames
+                    var frameMode = repo.GetComponentRO<PossessedBy>(f.Unit).Mode;
+                    if (frameMode == PossessionMode.Riding) continue;   // ⭐ CE-1156 — a rider takes no frames
+                    if (frameMode == PossessionMode.Operated) continue; // ⭐ devices S1b-1 — a device's frame is the device tick's (every frame, D-72)
                     if (repo.HasComponent<OperatorInput>(f.Unit) && f.Seq <= repo.GetComponentRO<OperatorInput>(f.Unit).Seq) continue;
                     var input = new OperatorInput
                     {
@@ -273,7 +279,7 @@ namespace Fdp.Toolkit.Behavior.Possession
 
             if (repo.Bus.IsRegistered<ReleasePossessionEvent>())
                 foreach (ref readonly var rel in repo.ReadEvents<ReleasePossessionEvent>())
-                    if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId))
+                    if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId) && !IsOperatedRow(repo, rel.Unit))
                     {
                         Release(repo, rel.Unit);
                         Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Applied(repo, rel.RequestId, rel.Unit);   // ⭐ edit framework F4
@@ -288,7 +294,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         private static void ReleaseKilled(EntityRepository repo)
         {
             foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && !Alive(repo, unit))   // (an earlier release of this sweep may have taken it)
+                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && !Alive(repo, unit) && !IsOperatedRow(repo, unit))   // (an earlier release of this sweep may have taken it)
                 {
                     var held = repo.GetComponentRO<PossessedBy>(unit);
                     if (StationBody.IsBodyMode(held.Mode)) FreeSeatOf(repo, unit);   // ⭐ C3 CC-11 — a killed BODY steps out of its seat
@@ -314,7 +320,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         {
             if (!repo.IsComponentTypeRegistered<PossessedBy>()) return;
             foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station) Release(repo, unit);
+                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station && !IsOperatedRow(repo, unit)) Release(repo, unit);
         }
 
         /// <summary>
@@ -327,7 +333,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             if (!repo.Bus.IsRegistered<Fdp.Toolkit.Replication.Messages.NodeDeparted>()) return;
             foreach (ref readonly var gone in repo.ReadEvents<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
                 foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                    if (OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId.Node == gone.NodeId) Release(repo, unit);   // ⭐ CE-11027 A′ — every station ON the node, not only its station 0
+                    if (OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId.Node == gone.NodeId && !IsOperatedRow(repo, unit)) Release(repo, unit);   // ⭐ CE-11027 A′ — every station ON the node, not only its station 0
         }
 
         /// <summary>⭐ R-4096 — a killed man that sits in a vehicle is asked to step out: <see cref="DisembarkEntityCommand"/> reaches the
@@ -382,6 +388,10 @@ namespace Fdp.Toolkit.Behavior.Possession
                     Entity = unit, BehaviorName = _operatorBehavior, JsonParams = "{}", Origin = BehaviorOrigin.Possession,
                 });
         }
+
+        /// <summary>⭐ Devices S1b-1 — an <see cref="PossessionMode.Operated"/> row is the device tick's (<c>DeviceOperators.Sync</c>): the possession core never releases it.</summary>
+        private static bool IsOperatedRow(EntityRepository repo, Entity unit)
+            => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).Mode == PossessionMode.Operated;
 
         private static void Release(EntityRepository repo, Entity unit)
         {

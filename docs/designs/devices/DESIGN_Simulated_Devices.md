@@ -334,6 +334,14 @@ retried every frame; nothing during a replay; registered by `CognitiveRuntimeMod
 Rails: `DeviceTickSystemTests` (6, incl. 0 B per steady frame). 📌 Found on the way: a lambda capturing a local in `ExecuteCore` allocated its
 closure EVERY frame (32 B) — caught by the existing CE505 / CE417 0 B rails, fixed by building the queries in their own method.
 
+⭐ **S1b-1 AS BUILT (`2026-11-27`)** — `PossessionMode.Operated = 3` (CONTROL without a body: `StationBody.IsBodyMode` is false for it, so every
+body / side / briefing reader already ignores a device). `FDP/Toolkits/Fdp.Toolkits/Behavior/Devices/DeviceOperators.cs` is THE walk and the ONE
+writer of a device's row: operator = its own gunner seat (manned) · the person carrying it · the occupant of the seat operating its host station;
+the row names the station of that operator's BODY, else no row; a change bumps the epoch and clears the input. Run by the device tick's pre-pass every
+frame (R7-1 — the station reads the replicated row; the existing `HeldBy` gate then authorises its frames). The possession core never releases an
+`Operated` row (ReleaseStation, ReleaseDeparted, ReleaseKilled, ReleasePossessionEvent) and never applies its frames (the device tick will, S1b-2).
+Rails: `DeviceOperatorTests` (4; the release guard red-proved).
+
 ### 3.6 Views and the HUD
 
 | # | decision | why / evidence |

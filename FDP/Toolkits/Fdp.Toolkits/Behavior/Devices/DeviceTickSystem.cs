@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Behavior.Devices
             }
             foreach (var e in _devices)
             {
+                DeviceOperators.Sync(repo, e);   // ⭐ S1b-1 — who operates it, every frame (R7-1); writes only on a change
                 ref readonly var b = ref repo.GetComponentRO<BehaviorState>(e);
                 if (b.ActiveBehaviorHash != BehaviorIds.None) continue;
                 ref readonly var info = ref repo.GetComponentRO<DeviceInfo>(e);
