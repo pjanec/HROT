@@ -77,6 +77,10 @@ private:
 	// the job
 	FString JobId, ReadyJobId, LastWhy;
 	bool bJob = false, bAudio = false, bJobOk = true;
+	// CE-11064: the job's instance went away (the gateway rebuilds its writers at every world boundary, the job kept): held this long for the
+	// same JobId to come back from the new writer before the job is dropped; 0 = not orphaned
+	static constexpr double OrphanGrace = 10.0;
+	double OrphanSince = 0;
 	int32 Fps = 30, Width = 0, Height = 0, Supersample = 1, SampleRate = 48000, Channels = 2;
 	FString Dir;
 	TArray<FRequest> Queue;

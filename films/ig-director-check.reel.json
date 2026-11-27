@@ -1,0 +1,9 @@
+{
+  "title": "IG director check - a reel",
+  "transition": "card",
+  "note": "CE-11064 - the reel form: two items with a title card between them (cards stay HROT's picture; the linked client gets Silence frames)",
+  "items": [
+    {"scenario": "ua-tank-ammo", "take": "ig-director-check", "title": "Part 1", "to": "s1+1"},
+    {"scenario": "ua-tank-ammo", "take": "ig-director-check", "title": "Part 2", "from": "s1+1"}
+  ]
+}

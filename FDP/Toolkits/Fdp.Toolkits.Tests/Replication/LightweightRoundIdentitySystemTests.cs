@@ -90,5 +90,28 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.True(map.TryGetEntity(500, out var mapped) && mapped == again);
             Assert.False(map.TryGetEntity(502, out _));
         }
+    
+        /// <summary>⭐ CE-5061 (unreal-ig H-6) — the allocator reissues an id the map still holds for ANOTHER live entity: the round takes the next id instead of
+        /// ending the process ("already registered"), the holder keeps its entry, and the collision is counted.
+        /// 🔴 Red-proof: drop the retry loop ⇒ Register throws.</summary>
+        [Fact]
+        public void CE5061_AReissuedIdStillMapped_TheRoundTakesTheNextId_NoThrow()
+        {
+            var world = World();
+            var map = new NetworkEntityMap();
+            var holder = world.CreateEntity();
+            map.Register(500, holder);                                   // a restored round (or any entity) still holds 500
+            var system = new LightweightRoundIdentitySystem(new StubIdAllocator(500), map, localNodeId: 3);
+            var round = world.CreateEntity();
+            world.AddComponent(round, default(LightweightRound));
+
+            system.Execute(world, 0.016f);
+
+            Assert.Equal(1, system.Assigned);
+            Assert.Equal(1, system.IdCollisions);
+            Assert.Equal(501, world.GetComponentRO<NetworkIdentity>(round).Value);
+            Assert.True(map.TryGetEntity(500, out var h) && h == holder);
+            Assert.True(map.TryGetEntity(501, out var r) && r == round);
+        }
     }
 }

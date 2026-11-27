@@ -217,6 +217,45 @@ public sealed class FilmTests : System.IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ CE-11066 (unreal-ig director test H-1) — a THREADED node: the map writes on the presentation world A, the gateway reads the node's world S. The suggestion and the
+    /// caption text reach S at the sim's next drain (the newest of several UI frames, one job per drain), and a steady UI frame + drain allocates nothing.
+    /// 🔴 Mutations: no uplink ⇒ S has no suggestion; the caption not copied ⇒ the text rows; a post every frame ⇒ the job count row.
+    /// </summary>
+    [Fact]
+    public void CE11066_OnAThreadedNode_TheSuggestionAndCaption_ReachTheSimWorld()
+    {
+        var (world, camera) = DirectedWorld();
+        using (world)
+        using (var sim = new EntityRepository())
+        {
+            var jobs = new Fdp.Core.Threading.SimJobQueue();
+            world.SetSingletonManaged(new Fdp.Core.Threading.SimLink(jobs, sim));
+            Assert.False(sim.HasSingletonUnmanaged<Hrot.Map.Common.Components.CameraSuggestion>());
+
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Dawn at the bridge", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Top, 0.5f);
+            FilmStudio.Fade = 0.25f; CameraSuggestions.Write(world, camera);
+            FilmStudio.Fade = 0.75f; CameraSuggestions.Write(world, camera);   // two UI frames before the sim drains
+            Assert.Equal(1, jobs.Pending);                                     // ONE copy waits
+            jobs.Drain(sim);
+
+            var onSim = sim.GetSingletonUnmanagedRO<Hrot.Map.Common.Components.CameraSuggestion>();
+            Assert.Equal(Hrot.Map.Common.Components.CameraSource.Director, onSim.Source);
+            Assert.Equal(0.75f, onSim.Fade);                                   // the newest
+            Assert.Equal((1, (byte)1), (onSim.CaptionSerial, onSim.CaptionPosition));
+            Assert.Equal("Dawn at the bridge", sim.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!.Text);
+
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Contact", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Bottom, 1f);
+            CameraSuggestions.Write(world, camera); jobs.Drain(sim);
+            Assert.Equal("Contact", sim.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!.Text);
+
+            for (int i = 0; i < 20; i++) { FilmStudio.Fade = i / 20f; CameraSuggestions.Write(world, camera); jobs.Drain(sim); }   // warm
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++) { FilmStudio.Fade = (i % 20) / 20f; CameraSuggestions.Write(world, camera); jobs.Drain(sim); }
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+    }
+
+    /// <summary>
     /// The director looks AT a point (a driver that is not a pair of eyes): the fog starts part way there, as the free camera's —
     /// a first-person driver's starts at the lens. 🔴 Red-proof: <c>ViewsFromEye</c> true ⇒ 0.
     /// </summary>

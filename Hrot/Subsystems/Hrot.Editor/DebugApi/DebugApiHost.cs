@@ -215,7 +215,8 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ CE-3289 — <c>POST /film/shot</c>: a pose, an eye and a target, or a unit to follow (§6ab's shot table).</summary>
         private static RouteResult DirectFilm(JsonNode? body)
         {
-            static float Deg(JsonNode? n, float fallback) => n is null ? fallback : n.GetValue<float>() * MathF.PI / 180f;
+            // CE-11065 (unreal-ig H-5) - the fallback is in DEGREES like the value: it was returned unconverted, so a shot with no pitchDeg had -30 RAD (-1718.87 deg)
+            static float Deg(JsonNode? n, float fallbackDeg) => (n is null ? fallbackDeg : n.GetValue<float>()) * MathF.PI / 180f;
             static System.Numerics.Vector3? V(JsonNode? n) => n is JsonArray { Count: 3 } a
                 ? new System.Numerics.Vector3(a[0]!.GetValue<float>(), a[1]!.GetValue<float>(), a[2]!.GetValue<float>()) : null;
             try
