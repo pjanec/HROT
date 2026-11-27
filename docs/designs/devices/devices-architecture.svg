@@ -20,7 +20,7 @@
 
   <rect width="1680" height="1180" fill="#fafafa"/>
   <text x="24" y="38" font-size="24" font-weight="700" fill="#102027">Simulated devices — the planned architecture</text>
-  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (rev 11: §2, §3f–§3y) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
+  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (rev 12: §2, §3f–§3z) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
   <!-- legend -->
   <g transform="translate(1110,22)">
     <rect x="0" y="0" width="16" height="12" class="new"/><text x="22" y="11" class="s">new</text>
@@ -152,8 +152,8 @@
   <text x="502" y="482" class="h2">Interaction transport (existing)</text>
   <text x="502" y="502" class="mono">OperatorControlFrameEvent</text><text x="680" y="502" class="s"> — ONE per</text>
   <text x="502" y="519" class="s">operated entity, Target · Axes[4] · PressSeq[16] · ViewedDevice</text>
-  <text x="502" y="536" class="s">the target's owner applies it if the station's BODY operates it;</text>
-  <text x="502" y="553" class="s">newest by Seq; StationId + Epoch reset on an operator change</text>
+  <text x="502" y="536" class="s">the target's owner applies it if HeldBy (PossessedBy, a device:</text>
+  <text x="502" y="553" class="s">Mode=Operated, new epoch per operator); newest Seq</text>
 
   <!-- device entity -->
   <rect x="490" y="576" width="470" height="440" rx="8" fill="#ffffff" stroke="#2e7d32" stroke-width="1.6"/>
@@ -174,7 +174,7 @@
   <text x="512" y="835" class="mono">DevicePanel ★ ~200 B</text><text x="660" y="835" class="s">LampBits · Blink · Values[16] · Text[4]</text>
   <text x="512" y="852" class="s">written on change by PanelOut · replicated + recorded</text>
   <rect x="504" y="868" width="442" height="44" rx="4" class="compn"/>
-  <text x="512" y="887" class="mono">LaserPointing ★</text><text x="626" y="887" class="s">on · band · direction — written by whoever points</text>
+  <text x="512" y="887" class="mono">LaserPointing ★</text><text x="626" y="887" class="s">on · band · power · direction — by whoever points</text>
   <text x="512" y="904" class="s">(the trainee's device logic, or an AI) · replicated</text>
   <rect x="504" y="920" width="442" height="44" rx="4" class="compn"/>
   <text x="512" y="939" class="mono">LaserSpot ★</text><text x="600" y="939" class="s">≤4 points + the Entity hit — by the MUSCLE</text>
@@ -184,14 +184,14 @@
 
   <!-- systems -->
   <rect x="980" y="462" width="262" height="160" rx="6" class="ex"/>
-  <text x="992" y="482" class="h2">Brain tick — ONE routine</text>
+  <text x="992" y="482" class="h2">Brain ticks — ONE phase runner</text>
   <text x="992" y="502" class="s">BrainTickSystem (time advances):</text>
-  <text x="992" y="519" class="s">  every brain — step window kept</text>
-  <text x="992" y="536" class="s">PausedDeviceTickSystem ★ (every</text>
-  <text x="992" y="553" class="s">  frame): paused frames, only</text>
-  <text x="992" y="570" class="s">  DeviceInfo — same instance,</text>
-  <text x="992" y="587" class="s">  devices change only themselves</text>
-  <text x="992" y="607" class="s">off under ReplayState; no channels</text>
+  <text x="992" y="519" class="s">  every brain EXCEPT devices</text>
+  <text x="992" y="536" class="s">DeviceTickSystem ★ (every frame,</text>
+  <text x="992" y="553" class="s">  paused or not): DeviceInfo only;</text>
+  <text x="992" y="570" class="s">  ingests device frames, then ticks</text>
+  <text x="992" y="587" class="s">  — each event read ONCE</text>
+  <text x="992" y="607" class="s">shared: BrainPhaseRunner ★</text>
 
   <rect x="980" y="636" width="262" height="196" rx="6" class="ex"/>
   <text x="992" y="656" class="h2">StatelessGizmoSystem</text>
