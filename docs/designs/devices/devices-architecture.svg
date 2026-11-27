@@ -49,7 +49,7 @@
   <text x="48" y="311" class="s">• OperatedBy = the crew seat that runs it</text>
   <text x="48" y="328" class="s">• StartWith = the type that starts in it</text>
   <text x="48" y="345" class="s">  (a weapon, a device, or a soldier for a crew seat)</text>
-  <text x="48" y="362" class="s">• a soldier type: Hands / Back carry stations</text>
+  <text x="48" y="362" class="s">• a soldier type: Hands / Back + Kit1…4 (devices)</text>
   <text x="48" y="379" class="s">  (Accepts Carried) — StartWith a rifle or a device</text>
 
   <rect x="36" y="398" width="388" height="92" rx="6" class="ex"/>
@@ -85,7 +85,7 @@
   <!-- person -->
   <rect x="40" y="906" width="380" height="132" rx="8" fill="#ffffff" stroke="#8e24aa"/>
   <text x="54" y="928" class="h2">Soldier (host) — carry stations</text>
-  <rect x="56" y="940" width="166" height="34" rx="4" class="ex"/><text x="64" y="962" class="s">Hands — rifle or device</text>
+  <rect x="56" y="940" width="166" height="34" rx="4" class="ex"/><text x="64" y="962" class="s">Kit1…4 — devices</text>
   <rect x="236" y="940" width="166" height="34" rx="4" class="ex"/><text x="244" y="962" class="s">Back — stowed item</text>
   <text x="56" y="996" class="s">Pick up / put down: the existing TAKE verb works for any</text>
   <text x="56" y="1013" class="s">Portable item — a device included (reads Mountable).</text>
@@ -125,7 +125,7 @@
   <text x="976" y="198" font-size="11.5" fill="#80d8ff">view 2 (later)</text>
   <text x="976" y="218" font-size="11.5" fill="#80d8ff">rangefinder HUD  452 m</text>
   <text x="782" y="310" class="s">Renderer keeps only the gizmo run whose</text>
-  <text x="782" y="327" class="mono">HudScope{Device}</text><text x="900" y="327" class="s"> matches the view's device;</text>
+  <text x="782" y="327" class="mono">HudScope{Source}</text><text x="900" y="327" class="s"> matches the view's device;</text>
   <text x="782" y="344" class="s">screen-space primitives drawn as an overlay on</text>
   <text x="782" y="361" class="s">the 3-D map ★ (the 2-D renderer's screen-space code)</text>
 
@@ -200,7 +200,7 @@
   <text x="992" y="710" class="s">HillAttackGizmo; for every</text>
   <text x="992" y="727" class="s">OPERATED device it reads the</text>
   <text x="992" y="744" class="s">UnitMemory state and emits</text>
-  <text x="992" y="761" class="mono">HudScope{Device}</text><text x="1104" y="761" class="s"> + screen-</text>
+  <text x="992" y="761" class="mono">HudScope{Source}</text><text x="1104" y="761" class="s"> + screen-</text>
   <text x="992" y="778" class="s">space primitives; HUD family</text>
   <text x="992" y="795" class="s">always visible, no culling / LOD</text>
   <text x="992" y="815" class="s">runs every frame, pause too</text>
