@@ -127,7 +127,8 @@ graph TD
   LSS -->|"LaserSpot"| LL
   LSS -->|"LaserSpot"| DB
   GRS["GuidedRoundSystem (existing, WhenTimeAdvances)<br/>a device-launched round flies the device's line — SD-S4b"]
-  DB -->|"FireControl.AimPoint / steer command (replicated)"| GRS
+  DB -->|"FireControl: AimPoint · Steer · ViewFromRound (replicated)"| GRS
+  GRS -->|"GuidedFlight: the round, Live (on the device)"| VIEW
   DB -->|"LaserPointing"| LL
 ```
 
@@ -165,7 +166,11 @@ classDiagram
   class DeviceMessageEvent { <<NEW>> Target · From · Seq · Kind · 64 B binary or JSON }
   class OperatorControlFrameEvent { <<existing, grows>> Target · Seq · Axes4 · PressSeq16 · Orientation · Position · BodyOffset · Binoculars until SD-S5, then ViewedDevice }
   class LaserPointing { <<BUILT S1c, unmanaged>> On · Band · Power · Direction in the device frame · Seq echoed by the spot }
-  class FireControl { <<NEW, unmanaged, replicated>> Ready · Target · AimPoint · LaunchSeq — on the device, SD-S4 / SD-S7 }
+  class FireControl { <<NEW, unmanaged, replicated>> Ready · Target · AimPoint · LaunchSeq · Steer2 · ViewFromRound — on the device, written by it, SD-S4 / SD-S4b }
+  class GuidedFlight { <<NEW, unmanaged, replicated>> Round network id · LaunchSeq · Live — on the device, written by the MUSCLE, SD-S4b }
+  class FireControls { <<NEW, one resolver>> Of weapon → its fire-control device }
+  FireControls ..> FireControl : finds
+  GuidedFlight ..> FireControl : LaunchSeq
   class OperatorControlBehavior { <<existing>> the weapon controller's brain — fires through ITS weapon channel }
   RangefinderBehavior --> FireControl : self only (a launcher device)
   OperatorControlBehavior ..> FireControl : reads, previous frame · LaunchSeq moved and Ready
@@ -558,7 +563,27 @@ projectile in flight"*.
 | D-81 | ⭐ **MCLOS — the stick steers the ROUND itself** — a second kind, `GuidanceKind.Manual`: the device writes a steer command (two axes, −1…1) into `FireControl`; the round turns by command × its turn rate in the device's frame; it never looks at the target. Same field, same reader, one more branch in `GuidedRoundSystem` | the literal reading of the request (the Malyutka class); cheap once D-80's reader exists |
 | D-82 | ⭐ **the device writes only itself** (`FireControl.AimPoint` / the steer command); the MUSCLE reads it — replicated, last tick's — exactly as it reads the gunner's eye today. ⛔ the device never writes the round | the parallel rule (R-4212); one writer per component |
 | D-83 | ⭐ **no steering in pause**: the round is frozen (`WhenTimeAdvances`); while paused the device keeps its guidance outputs where they were — the crosshair may move on the HUD (observation), the command it publishes does not, until time advances | R-4300 / D-78: a pause must not hand the trainee a free correction |
-| D-84 | ⭐ the guidance ends with the round: the device's HUD shows *in flight* from the launch to the round's end (the device reads nothing of the round — it counts its own launch and its type's flight time; the muscle's hit is the proof, not the HUD) | no reverse link round → device |
+| ~~D-84~~ → D-88 | ⛔ superseded by the user's view toggle (`2026-11-27`): the device now KNOWS its round — the muscle writes it (D-88) | — |
+
+🔒 User, `2026-11-27`: *"Build both steering modes, crosshair first. and add to the device the toggling the view from the missile (camera bound to
+the missile in flight) and back from the shooter"* ⇒ Q-14 answered (D-80 then D-81, both in SD-S4b).
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a missile in flight EXISTS on every viewer node | ✅ the muscle replicates visible rounds as lightweight entities (`EntityMaster` + `WorldPos`, `LightweightRound`; `FireProcessingSystem.cs:418, :558`); viewers dead-reckon | ✅ `DESIGN_Visual_Effects.md` §8.5 (R-271, LR-1..4 BUILT) |
+| a camera can already follow an entity on every map host | ✅ `FollowCameraDriver` (`Hrot.Presentation/Map3D/FollowCameraDriver.cs`; orbit / shoulder / eyes; `Lost` when the entity ends), installed by `MapViewModeLayer.cs:102`; `CameraSuggestion` names the source (`CameraSuggestion.cs:8-12`) | `DESIGN_Unit_Camera.md` UC-2 |
+| the possession camera has a chase pose | ✅ `PossessionStation.cs:1554` (`ChaseBack`, `FlyerChaseBack`) | — |
+| nothing tells the station WHICH round a device launched | ⛔ the round carries only `EntityMaster` + `WorldPos`; `GuidedRound` is muscle-local (`GuidedRound.cs:12-14`) | ⛔ searched, none |
+
+| # | decision | why |
+|---|---|---|
+| D-85 | ⭐⭐ **ONE resolver finds a weapon's fire control** — `FireControls.Of(weapon)` (the device in a `Station` of the weapon, or the one its controller operates): the controller reads it to fire (D-76) and the MUSCLE reads it at launch to know which device guides the round | two readers, one walk (ruling 9) |
+| D-86 | ⭐ **the round carries its device**: at launch `FireProcessingSystem` stores the resolved device on the round, in `GuidedRound` or, if its layout is pinned (Q-15), in a muscle-local component beside it; `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), the `Manual` branch turns by `FireControl.Steer` (D-81) | the muscle owns the round; the device writes only itself (D-82) |
+| D-87 | ⭐⭐ **`FireControl` grows the two guidance outputs and the view request** — `AimPoint` (D-80), `Steer` (2 axes, D-81), **`ViewFromRound`** (a byte, toggled by the device's VIEW press) — all written by the device on ITSELF, replicated | one component for what the device asks of its weapon; the toggle is device state, so it works in pause and replays |
+| D-88 | ⭐⭐ **the muscle writes `GuidedFlight { Round (network id), LaunchSeq, Live }` ON THE DEVICE** at launch and clears `Live` when the round ends — the same shape as `LaserSpot` (muscle-written on the device, LS-14) | the only node that knows the round tells the device's watchers which entity to follow; replicated, so every station resolves it by network id |
+| D-89 | ⭐⭐ **the station's view follows the round**: a view bound to a device whose `FireControl.ViewFromRound` is set and whose `GuidedFlight.Live` round resolves on this node puts the 3-D camera on the round — the existing `FollowCameraDriver` on the round entity, at the chase pose behind it looking along its flight (`CameraSuggestion` `Follow` / `Chase`); toggled off, or the round's end (`Lost`), gives the camera back to the shooter's view. ⛔ No new camera rig | one follow camera (ruling 9); the view stays bound to the DEVICE, so its HUD stays drawn over the missile's picture |
+| D-90 | ⭐ **what the stick steers in the missile's view**: crosshair mode (D-80) — the stick still moves the SHOOTER's crosshair (the missile's view is a watch; the HUD shows the crosshair's offset); manual mode (D-81) — the stick turns the missile, the natural TV-guided picture. Both from one press handling in the device | the guidance law decides, not the camera |
+| D-91 | ⭐ **pause**: the toggle works in pause (observation, R6-4) — the camera can jump to the frozen round and back; steering stays frozen (D-83) | R-4300 |
 
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
@@ -627,7 +652,7 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | **SD-S2** the gamepad + the drone operator station | the gamepad adapter (`Raylib-cs`); the drone ground-station device (battery, signal, link from the drone's simulation) | editor |
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the operator panel of a manned weapon system | **`FireControl` (D-76–D-78)** — the weapon's one controller fires at the device's solution · a device mounted in a weapon's `Station` (the walk's one-level recursion, R5-12): optics, zoom, sensor modes, the procedure; what the weapon does stays the weapons design's | editor |
-| **SD-S4b** steer the round in flight (user, `2026-11-27`) | a device launches a `Command` round through `FireControl` and the trainee guides it with the stick: `GuidedRound` carries the device; `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80); `GuidanceKind.Manual` — the stick's steer command turns the round (D-81); frozen guidance in pause (D-83); the HUD's *in flight* state (D-84). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios drive the axes scripted (`do: control axis`) | editor |
+| **SD-S4b** steer the round in flight + the missile's view (user, `2026-11-27`) | **crosshair first, then manual (Q-14 answered)**: `FireControls.Of` the one resolver (D-85); the round carries its device (D-86); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), then `GuidanceKind.Manual` turns by `FireControl.Steer` (D-81); `FireControl.ViewFromRound` (D-87); the muscle's `GuidedFlight` on the device (D-88); the station's view follows the round with the existing `FollowCameraDriver` and gives it back (D-89, D-90); frozen guidance, live toggle in pause (D-83, D-91). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios script the axes | editor |
 | **SD-S5b** linked devices + trackers | stacking by mounting (D-61), a stationary device manned with USE (D-60), trackers filling the frame's `Orientation` / `Position` / `BodyOffset`, `DeviceMessageEvent` (with `Seq`) + `DeviceLinks` | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (the existing Take / Drop verbs) · a device drawn where it lies (D-64) · per-station node features | editor |
 | **SD-S6** the visible beam | `LaserLayer3D`, the ONE visibility rule (eye · night · thermal) for the map, the IG (D-36) and AI perception; an AI vehicle's designator (`StartWith`) pointed by its AI | editor |
@@ -668,6 +693,7 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 | `dv-steer-unsteered` (S4b, the control) | the same, the axes held at 0 | ⛔ `never` a hit on the tank — proves the stick, not the AI line, decided the first |
 | `dv-steer-manual` (S4b, MCLOS) | the same crossing tank, a `Manual` missile; the axes are scripted turn commands | `hit` on the tank · the unsteered twin misses (as above) |
 | `dv-steer-paused` (S4b) | `do: pause` 60 frames mid-flight with the axes swung hard | `atPausedFrame` rows: the round's position unchanged · after resume it continues from its pre-pause line (no step to the swung aim) |
+| `dv-steer-view-toggle` (S4b) | mid-flight the trainee presses VIEW, steers from the missile's view, presses VIEW again; a second launch ends with the view on the round | `field` device `GuidedFlight.Live` while it flies · the station's camera suggestion is `Follow` bound to the round while toggled, the shooter after · after the round's end the camera is back on the shooter · the round still hits (steering from the missile's view works) |
 | `dv-linked-pair` (S5b) | a rangefinder sends a target location to a linked second device | `device` field on the receiver's stored point, within tolerance |
 | `dv-stacked-tracker` (S5b) | one scripted orientation drives two stacked devices | their world directions agree |
 | `dv-issue-drop-pick` (S5) | a device issued at run time, dropped, picked up by another trainee | it lies in the world after the drop · it is in the other's kit station after · his `hud` shows it |
@@ -702,7 +728,7 @@ per buffer-reader family (R5-4), the no-unit-system-touches-a-device rail (R5-5)
 | Q-5 | the device wheel's key and the HUD layout | the ui lane's mockup first (R-4143) |
 | Q-8 | the gateway's wire (D-5, D-36) | a SimNetGateway row when SD-C is dispatched: the primitive's space and the meta primitives on the wire; the beam's two components as entity data |
 | Q-9 | an AI leader's pocket binoculars stay a held item only; a trainee is ISSUED a binoculars device | ⭐ as stated — what would change it: a need for AI to use device menus |
-| Q-14 | SD-S4b: which steering first — SACLOS by hand (D-80, the round flies the trainee's crosshair) or MCLOS (D-81, the stick turns the round)? | ⭐ lean: BOTH in the slice, D-80 first — it is the existing `Command` branch with a different far point (a few lines), and D-81 is one more branch on the same field; what would change it: the training need is one specific missile class |
+| ~~Q-14~~ | answered by the user (`2026-11-27`): both, crosshair first (D-80 → D-81) | — |
 | Q-15 | does adding a `Device` field to `GuidedRound` move a pinned layout hash? | ⭐ measure first (`GuidedRound` is muscle-local and `NoScenario`, but it may be recorded); if pinned, the device goes in a separate muscle-local component beside it (the S1b-2 lesson) |
 | ~~Q-10~~ | does `LaserPointing` replicate to the muscle on a paused frame? | ✅ measured `2026-11-27`: YES — `NedReplicationModule` is `[TickMode(EveryFrame)]` (`NedReplicationModule.cs:55`; `DESIGN_Paused_And_Stepped_Execution.md` Appendix A row "NedReplicationModule … EVERY") ⇒ the muscle's every-frame `LaserSpotSystem` answers in pause, the spot marked `Preview` (D-78) |
 | ~~Q-11 + Q-12~~ | answered — D-75 (the user drops the current binoculars in SD-S1) | — |
