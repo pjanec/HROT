@@ -12,6 +12,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/GameInstance.h"
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Engine/SceneCapture2D.h"
@@ -82,7 +83,31 @@ namespace
 UHrotDpsRender* UHrotDpsRender::Get(const UObject* WorldContext)
 {
 	const UWorld* W = GEngine ? GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::ReturnNull) : nullptr;
-	return W ? W->GetSubsystem<UHrotDpsRender>() : nullptr;
+	UGameInstance* GI = W ? W->GetGameInstance() : nullptr;
+	return GI ? GI->GetSubsystem<UHrotDpsRender>() : nullptr;
+}
+
+UWorld* UHrotDpsRender::World() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	return GI ? GI->GetWorld() : nullptr;
+}
+
+void UHrotDpsRender::ApplyWorld()
+{
+	// the job's per-world setup, applied at the job's start and again in each world the client opens during it (CE-11064)
+	UWorld* W = World();
+	SetupWorld = W;
+	if (!W) return;
+	Capture = nullptr; bHadFrame = false;   // the capture actor belonged to the old world; the first frame here is a cut (warm-ups)
+	if (bAudio)
+	{
+		if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(W)) SR->ActivateWorldAudio();
+		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(W)) Snd->SetSpatialize(false);   // UE-381932: see UHrotSoundscape::SetSpatialize
+	}
+	// sounds keep sim time during the job (§3f rule 4): the speed-of-sound delays read the sim clock
+	if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(W))
+		SR->TimeSource = [WW = TWeakObjectPtr<UWorld>(W)]() { UHrotDpsWorld* DW = WW.IsValid() ? UHrotDpsWorld::Get(WW.Get()) : nullptr; return DW ? DW->SimNow() : 0.0; };
 }
 
 void UHrotDpsRender::Initialize(FSubsystemCollectionBase& Collection)
@@ -149,7 +174,7 @@ void UHrotDpsRender::Announce(double Now)
 	R.Ready = true;
 	R.MaxWidth = MaxWidth; R.MaxHeight = MaxHeight; R.MaxSupersample = MaxSupersample;
 	R.Formats = 1;   // PNG
-	Audio::FMixerDevice* M = MixerOf(GetWorld());
+	Audio::FMixerDevice* M = MixerOf(World());
 	R.AudioFormats = NrtOf(M) ? 1u : 0u;   // WAV PCM16, only with the non-real-time device
 	R.MaxSampleRate = M ? int32(M->GetSampleRate()) : 0;
 	RenderCopy(R.ReadyJobId, sizeof(R.ReadyJobId), ReadyJobId);
@@ -165,6 +190,12 @@ void UHrotDpsRender::Tick(float)
 	Connect();
 	if (!Subs.Num()) return;
 	const double Now = RenderReal();
+	if (bJob && World() != SetupWorld.Get())
+	{
+		UE_LOG(LogHrotDpsRender, Display, TEXT("DPS render job %s goes on in the new world %s (%d frames so far, queue %d)"), *JobId, World() ? *World()->GetMapName() : TEXT("-"), Frames, Queue.Num());
+		ApplyWorld();
+		IStreamingManager::Get().StreamAllResources(5.0f);
+	}
 	if (bJob && OrphanSince > 0 && Now - OrphanSince >= OrphanGrace)
 	{
 		LastWhy = FString::Printf(TEXT("the job's instance went away and did not come back within %.0f s"), OrphanGrace);
@@ -240,7 +271,7 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 	bAudio = J.Audio; SampleRate = J.SampleRate; Channels = FMath::Max(1, int32(J.Channels));
 	Dir = UTF8_TO_TCHAR(J.Dir);
 	Queue.Reset(); StepsSeen.Reset();
-	Frames = Written = Failed = Silences = WarmUps = BarrierWaits = BarrierTimeouts = Overcounts = Repeats = 0;
+	Frames = Written = Failed = Silences = WarmUps = BarrierWaits = BarrierTimeouts = Overcounts = Repeats = RepeatFrames = 0;
 	Presented.Reset();
 	bHadFrame = false; LastEpoch = -1;
 	Track.Reset(); TrackChannels = TrackRate = 0; AudioCarry = 0; Silent.Reset(); TrackFilmSamples = 0;
@@ -249,14 +280,12 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 	if (Width <= 0 || Height <= 0 || Width > MaxWidth || Height > MaxHeight) { FailJob(FString::Printf(TEXT("size %dx%d outside 1..%dx%d"), Width, Height, MaxWidth, MaxHeight)); return; }
 	if (Supersample > MaxSupersample) { FailJob(FString::Printf(TEXT("supersample %d over the limit %d"), Supersample, MaxSupersample)); return; }
 	if (!SafePath(Dir.IsEmpty() ? FString(TEXT(".")) : Dir, DirAbs) && !Dir.IsEmpty()) { FailJob(FString::Printf(TEXT("Dir '%s' is not a path under the render root"), *Dir)); return; }
-	Audio::FMixerDevice* M = MixerOf(GetWorld());
+	Audio::FMixerDevice* M = MixerOf(World());
 	if (bAudio)
 	{
 		if (!NrtOf(M)) { FailJob(TEXT("audio asked, but this process has the real-time audio device (start the render client with -deterministicaudio)")); return; }
 		if (SampleRate != 0 && SampleRate != int32(M->GetSampleRate())) { FailJob(FString::Printf(TEXT("sample rate %d, the mixer runs at %d"), SampleRate, int32(M->GetSampleRate()))); return; }
 		if (Channels > 2) { FailJob(FString::Printf(TEXT("%d channels, at most 2"), Channels)); return; }
-		if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld())) SR->ActivateWorldAudio();
-		if (UHrotSoundscape* Snd = UHrotSoundscape::Get(GetWorld())) Snd->SetSpatialize(false);   // UE-381932: see UHrotSoundscape::SetSpatialize
 	}
 	// the job's clock: a FIXED time step — FilmRate / Fps per frame, IdleDelta while we wait (MRQ runs the engine the same way)
 	bPrevFixed = FApp::UseFixedTimeStep(); PrevFixedDelta = FApp::GetFixedDeltaTime();
@@ -276,9 +305,7 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 			V->SetWithCurrentPriority(C.Value, NAME_None, ECVF_SetByConsole, ECVF_SetByScalability);
 		}
 		else UE_LOG(LogHrotDpsRender, Warning, TEXT("no console variable %s"), C.Key);
-	// sounds keep sim time during the job (§3f rule 4): the speed-of-sound delays read the sim clock
-	if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld()))
-		SR->TimeSource = [W = TWeakObjectPtr<UWorld>(GetWorld())]() { UHrotDpsWorld* DW = W.IsValid() ? UHrotDpsWorld::Get(W.Get()) : nullptr; return DW ? DW->SimNow() : 0.0; };
+	ApplyWorld();
 	// warm-up: shaders and streaming (the first frame after a rebuild hitched 28 s — DD-022 Q-4)
 	const double T0 = RenderReal();
 #if WITH_EDITOR
@@ -298,7 +325,7 @@ void UHrotDpsRender::EndJob(bool bDone)
 	if (!bJob) return;
 	if (bRecording && bDone)   // drain the mixer's latency so the tail is not lost (MRQ does the same on its last shot)
 		if (const int32 Lat = CVarAudioLatencyFrames.GetValueOnGameThread(); Lat > 0)
-			if (Audio::FMixerDevice* M = MixerOf(GetWorld())) if (Audio::FMixerPlatformNonRealtime* Nrt = NrtOf(M)) { M->Update(true); Nrt->RenderAudio(double(Lat) / Fps); }
+			if (Audio::FMixerDevice* M = MixerOf(World())) if (Audio::FMixerPlatformNonRealtime* Nrt = NrtOf(M)) { M->Update(true); Nrt->RenderAudio(double(Lat) / Fps); }
 	if (bRecording) StopRecording();
 	if (bDone && bJobOk)
 	{
@@ -321,9 +348,10 @@ void UHrotDpsRender::EndJob(bool bDone)
 	for (const TPair<FString, int32>& C : PrevCvars)
 		if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(*C.Key)) V->SetWithCurrentPriority(C.Value, NAME_None, ECVF_SetByConsole, ECVF_SetByScalability);
 	PrevCvars.Reset();
-	if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(GetWorld())) SR->TimeSource = nullptr;
-	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(GetWorld())) Snd->SetSpatialize(true);
+	if (UHrotShotRenderer* SR = UHrotShotRenderer::Get(World())) SR->TimeSource = nullptr;
+	if (UHrotSoundscape* Snd = UHrotSoundscape::Get(World())) Snd->SetSpatialize(true);
 	if (UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()) Dps->Client().ResetStepCount(false);
+	SetupWorld = nullptr;
 	bJob = false; Phase = EPhase::Idle; ReadyJobId.Reset(); NextAnnounce = 0; Queue.Reset(); OrphanSince = 0;
 }
 
@@ -389,6 +417,7 @@ void UHrotDpsRender::OnFrame(const FHrotDpsSample& S)
 bool UHrotDpsRender::BarrierMet(const FRequest& R, double Now)
 {
 	// D-B4: the step's world samples, counted since our last presentation (see the header). A frame with no stated step needs none.
+	if (R.Kind != SimNetGateway_Protocol_DdsPlayer_FrameKindScene) return true;   // owns no step (the client guide): no barrier
 	const FStepInfo* St = StepsSeen.Find(R.StepSeq);
 	if (!St && R.StepSeq != 0 && Now - R.SeenAt < BarrierGiveUp) return false;   // its ClockStep is not here yet
 	if (!St || St->Samples == 0) return true;
@@ -412,7 +441,7 @@ bool UHrotDpsRender::BarrierMet(const FRequest& R, double Now)
 
 void UHrotDpsRender::OnEndFrame()
 {
-	if (!bJob || !bJobOk) return;
+	if (!bJob || !bJobOk || World() != SetupWorld.Get()) return;
 	const double Now = RenderReal();
 	if (Phase == EPhase::Advancing)
 	{
@@ -435,6 +464,16 @@ void UHrotDpsRender::OnEndFrame()
 		Present(RenderCopy, true, FString(), FString(), 0.f, N);
 		return;
 	}
+	if (R.Kind == SimNetGateway_Protocol_DdsPlayer_FrameKindRepeat)
+	{
+		// slow motion past one frame per step (the client guide): no image (HROT copies the previous scene's file), the world does not step,
+		// the soundtrack advances by one film frame
+		const FRequest RepeatCopy = R; Queue.RemoveAt(0);
+		const int32 N = bAudio ? MixFrame(false) : 0;
+		++RepeatFrames;
+		Present(RepeatCopy, true, FString(), FString(), 0.f, N);
+		return;
+	}
 	Advance(R);
 }
 
@@ -443,9 +482,9 @@ void UHrotDpsRender::Advance(const FRequest& R)
 	// the NEXT engine frame is the frame's: the world steps FilmRate / Fps sim seconds (effects, animation) at the presented sim time
 	FApp::SetFixedDeltaTime(double(R.FilmRate) / double(Fps));
 	// the listener is the film camera (§3f): the IG camera (the player's view, so the audio listener) stands at the frame's camera
-	if (AHrotDpsCamera* Pawn = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
+	if (AHrotDpsCamera* Pawn = Cast<AHrotDpsCamera>(UGameplayStatics::GetPlayerPawn(World(), 0)))
 	{
-		const UHrotDpsWorld* DW = UHrotDpsWorld::Get(GetWorld());
+		const UHrotDpsWorld* DW = UHrotDpsWorld::Get(World());
 		const double Aspect = double(FMath::Max(1, R.Width)) / double(FMath::Max(1, R.Height));
 		Pawn->PlaceAt(DW ? DW->EnuMToUnreal(FVector(R.P)) : FVector(R.P * 100.0), HrotDpsMotion::ToUnreal(R.Q),
 			float(FMath::RadiansToDegrees(2.0 * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(double(R.Fov)) * 0.5) * Aspect))));
@@ -458,7 +497,7 @@ void UHrotDpsRender::Advance(const FRequest& R)
 void UHrotDpsRender::RenderFrame(const FRequest& R)
 {
 	const double T0 = RenderReal();
-	UWorld* W = GetWorld();
+	UWorld* W = World();
 	UHrotDpsWorld* DW = UHrotDpsWorld::Get(W);
 	FString Abs;
 	if (!SafePath(R.File, Abs)) { ++Failed; Present(R, false, R.File, FString::Printf(TEXT("File '%s' is not a path under the render root"), *R.File), 0.f, 0); return; }
@@ -554,7 +593,7 @@ void UHrotDpsRender::Present(const FRequest& R, bool bOk, const FString& File, c
 
 void UHrotDpsRender::StartRecording()
 {
-	Audio::FMixerDevice* M = MixerOf(GetWorld());
+	Audio::FMixerDevice* M = MixerOf(World());
 	if (!M) return;
 	if (TSharedPtr<Audio::FMixerSubmix> Main = M->GetMasterSubmix().Pin()) { Main->OnStartRecordingOutput(60.f); bRecording = true; }
 }
@@ -562,7 +601,7 @@ void UHrotDpsRender::StartRecording()
 void UHrotDpsRender::StopRecording()
 {
 	bRecording = false;
-	Audio::FMixerDevice* M = MixerOf(GetWorld());
+	Audio::FMixerDevice* M = MixerOf(World());
 	TSharedPtr<Audio::FMixerSubmix> Main = M ? M->GetMasterSubmix().Pin() : nullptr;
 	if (!Main) return;
 	float Ch = 0, Rate = 0;
@@ -573,7 +612,7 @@ void UHrotDpsRender::StopRecording()
 
 int32 UHrotDpsRender::MixFrame(bool bSilence)
 {
-	Audio::FMixerDevice* M = MixerOf(GetWorld());
+	Audio::FMixerDevice* M = MixerOf(World());
 	Audio::FMixerPlatformNonRealtime* Nrt = NrtOf(M);
 	if (!Nrt) return 0;
 	// one film frame of samples, the remainder carried (48000 / 30 = 1600 exactly; 44100 / 24 is not)
@@ -638,7 +677,7 @@ bool UHrotDpsRender::WriteTrack(const FString& Path, int64& OutSamples, FString&
 
 void UHrotDpsRender::DrawOverlay(const FRequest& R, UCanvas* Canvas, FVector2D Size, const FTransform& Cam, double HFovRad) const
 {
-	const UHrotDpsWorld* DW = UHrotDpsWorld::Get(GetWorld());
+	const UHrotDpsWorld* DW = UHrotDpsWorld::Get(World());
 	const double F = (Size.X * 0.5) / FMath::Tan(HFovRad * 0.5);
 	auto Project = [&](const FVector3d& Enu, FVector2D& Out)
 	{
@@ -679,9 +718,9 @@ void UHrotDpsRender::DrawOverlay(const FRequest& R, UCanvas* Canvas, FVector2D S
 
 FString UHrotDpsRender::Describe() const
 {
-	Audio::FMixerDevice* M = MixerOf(GetWorld());
-	return FString::Printf(TEXT("%s %s frames %d written %d failed %d silence %d | warm-ups %d | audio %d samples @ %d x %d (%s) | barrier waits %d, timeouts %d, over %d | repeats %d | queue %d | last: %s"),
-		bJob ? *JobId : TEXT("no job"), bJob ? (bJobOk ? TEXT("ok") : TEXT("failed")) : TEXT("-"), Frames, Written, Failed, Silences, WarmUps,
+	Audio::FMixerDevice* M = MixerOf(World());
+	return FString::Printf(TEXT("%s %s frames %d written %d failed %d silence %d repeat %d | warm-ups %d | audio %d samples @ %d x %d (%s) | barrier waits %d, timeouts %d, over %d | repeats %d | queue %d | last: %s"),
+		bJob ? *JobId : TEXT("no job"), bJob ? (bJobOk ? TEXT("ok") : TEXT("failed")) : TEXT("-"), Frames, Written, Failed, Silences, RepeatFrames, WarmUps,
 		TrackChannels > 0 ? Track.Num() / TrackChannels : 0, TrackRate, TrackChannels, NrtOf(M) ? TEXT("nrt") : TEXT("real-time"), BarrierWaits, BarrierTimeouts, Overcounts,
 		Repeats, Queue.Num(), LastWhy.IsEmpty() ? TEXT("-") : *LastWhy);
 }
