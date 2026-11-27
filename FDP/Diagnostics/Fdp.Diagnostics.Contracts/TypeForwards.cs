@@ -18,3 +18,5 @@ global using GizmoTextStyle     = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Giz
 global using SizeMode           = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.SizeMode;
 global using StringInternMap    = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.StringInternMap;
 global using LayerMask256       = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256;   // ⭐ CE-1071
+global using PrimitiveKind      = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.PrimitiveKind;   // ⭐ CC-14
+global using PrimitiveClass     = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.PrimitiveClass;

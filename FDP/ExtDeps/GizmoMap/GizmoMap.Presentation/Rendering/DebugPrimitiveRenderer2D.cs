@@ -110,12 +110,8 @@ namespace GizmoMap.Presentation
 
             foreach (ref readonly var prim in primitives)
             {
-                // SpatialAnchor, meta-binding and control primitives are never dispatched directly.
-                if (prim.Shape == DebugPrimitiveShape.SpatialAnchor) continue;
-                if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
-                if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding) continue;
-                if (prim.Shape == DebugPrimitiveShape.MainMenuBinding) continue;
-                if (prim.Shape == DebugPrimitiveShape.LayerControlMask) continue;
+                // SpatialAnchor, meta-binding and control primitives are never dispatched directly (⭐ CC-14 — the triage's own skip).
+                if (PrimitiveKind.IsMeta(prim.Shape)) continue;
 
                 // Filter: must target the 2-D map pipeline.
                 if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;
@@ -123,7 +119,7 @@ namespace GizmoMap.Presentation
                 // Filter: robust 256-bit layer mask evaluation.
                 // ⭐ CE-3149 — a PANEL (StructInspector) is not a map layer: it is exempt, or unchecking "Entities" (bit 0, the default
                 //    layer of everything that names none) would hide the layer dialog that could turn it back on.
-                if (prim.Shape != DebugPrimitiveShape.StructInspector && !activeLayers.IsSet(prim.DebugLayer)) continue;
+                if (!PrimitiveKind.IsPanel(prim.Shape) && !activeLayers.IsSet(prim.DebugLayer)) continue;
 
                 // Filter: LOD zoom culling.
                 if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;

@@ -116,6 +116,37 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(2, frame.Count(p => DebugPrimitiveBuffer.IsPickTarget(in p)));   // the plain lines gave way, not the pick targets
         }
 
+        /// <summary>⭐ CC-16 — an anchor arriving at a full buffer used to be DROPPED (it was not "protected"); it evicts a plain primitive now,
+        /// like the mask and the bindings, so an entity never loses its anchor (and with it every EntityLocal primitive) to overflow.</summary>
+        [Fact]
+        public void CC16_AnAnchorArrivingAtAFullBuffer_EvictsAPlainPrimitive_InsteadOfBeingDropped()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 8);
+            for (int i = 0; i < 8; i++) Line(b, Visible);     // full
+            b.EmitRaw(DebugPrimitive.MakeSpatialAnchor(77, 1f, 2f, 3f, 0f));
+
+            var frame = b.GetFrame().ToArray();
+            Assert.Equal(8, frame.Length);
+            Assert.Contains(frame, p => p.Shape == DebugPrimitiveShape.SpatialAnchor && p.NetworkId == 77);
+            Assert.Equal(7, frame.Count(p => p.Shape == DebugPrimitiveShape.Line));
+            Assert.Equal(1, b.DroppedCount);                  // the evicted plain line
+        }
+
+        /// <summary>⭐ CC-16 — <c>MoveDefaultLayer</c> moved a pick target off layer 0 (it was not in its skip list), so a tool's pick box left the
+        /// layer the hit-test relies on.</summary>
+        [Fact]
+        public void CC16_MoveDefaultLayer_LeavesAPickTargetOnLayerZero_ButMovesAPlainPrimitive()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 8);
+            b.EmitRaw(DebugPrimitive.MakeBox2D(new Vector2(1f, 1f), new Vector2(2f, 2f), new Rgba32(0, 0, 0, 0), layer: 0, anchorId: 5));   // pick target
+            Line(b, Visible);
+            b.MoveDefaultLayer(0, 9);
+
+            var frame = b.GetFrame().ToArray();
+            Assert.Equal(0, frame.Single(p => DebugPrimitiveBuffer.IsPickTarget(in p)).DebugLayer);
+            Assert.Equal(9, frame.Single(p => p.Shape == DebugPrimitiveShape.Line).DebugLayer);
+        }
+
         [Fact]
         public void CE1071_EndFrame_ResetsTheCounts_ButKeepsTheMask()
         {
