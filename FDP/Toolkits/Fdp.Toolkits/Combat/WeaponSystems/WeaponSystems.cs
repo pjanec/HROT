@@ -103,9 +103,11 @@ namespace Fdp.Toolkit.Combat
             return true;
         }
 
+        // ⭐ C3 CC-11 — "a human is IN this body" (a possessed gunner, a driven host): a BODY-mode hold, never any control
         private static bool IsPossessed(EntityRepository world, Entity host)
             => world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>()
-               && world.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(host);
+               && world.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(host)
+               && Fdp.Toolkit.Behavior.Possession.StationBody.IsBodyMode(world.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(host).Mode);
 
         /// <inheritdoc cref="CanFire(EntityRepository, Entity, out WeaponHold)"/>
         public static bool CanFire(EntityRepository world, Entity weapon) => CanFire(world, weapon, out _);
