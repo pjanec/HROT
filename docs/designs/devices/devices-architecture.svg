@@ -20,7 +20,7 @@
 
   <rect width="1680" height="1180" fill="#fafafa"/>
   <text x="24" y="38" font-size="24" font-weight="700" fill="#102027">Simulated devices — the planned architecture</text>
-  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (rev 12: §2, §3f–§3z) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
+  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (rev 13: §2, §3f–§3aa) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
   <!-- legend -->
   <g transform="translate(1110,22)">
     <rect x="0" y="0" width="16" height="12" class="new"/><text x="22" y="11" class="s">new</text>
@@ -50,7 +50,7 @@
   <text x="48" y="328" class="s">• StartWith = the type that starts in it</text>
   <text x="48" y="345" class="s">  (a weapon, a device, or a soldier for a crew seat)</text>
   <text x="48" y="362" class="s">• a soldier type: Hands / Back + Kit1…4 (devices, SD-S1)</text>
-  <text x="48" y="379" class="s">  Kit Accepts Device — StartWith a rifle or a device</text>
+  <text x="48" y="379" class="s">  Kits accept Device; StartWith a rifle (Hands) or a device (Kit)</text>
 
   <rect x="36" y="398" width="388" height="92" rx="6" class="ex"/>
   <text x="48" y="418" class="h2">Scenario</text>
@@ -60,8 +60,8 @@
 
   <rect x="36" y="502" width="388" height="70" rx="6" class="ex"/>
   <text x="48" y="522" class="h2">At creation (TKB translator)</text>
-  <text x="48" y="542" class="s">device + Mountable + DeviceInfo + its behaviour (set here),</text>
-  <text x="48" y="559" class="s">boarded into its Station (Embarkation — as a weapon is)</text>
+  <text x="48" y="542" class="s">device entity + Mountable + DeviceInfo (its behaviour is started</text>
+  <text x="48" y="559" class="s">by DeviceTickSystem); boarded into its Station (Embarkation)</text>
 
   <!-- ================= MOUNTING (left bottom) ================= -->
   <rect x="20" y="600" width="420" height="560" rx="10" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
@@ -190,8 +190,8 @@
   <text x="992" y="536" class="s">DeviceTickSystem ★ (every frame,</text>
   <text x="992" y="553" class="s">  paused or not): DeviceInfo only;</text>
   <text x="992" y="570" class="s">  ingests device frames, then ticks</text>
-  <text x="992" y="587" class="s">  — each event read ONCE</text>
-  <text x="992" y="607" class="s">shared: BrainPhaseRunner ★</text>
+  <text x="992" y="587" class="s">  — sim dt (0 in pause); restarts</text>
+  <text x="992" y="607" class="s">shared: BrainPhaseRunner ★ (no Prepare)</text>
 
   <rect x="980" y="636" width="262" height="196" rx="6" class="ex"/>
   <text x="992" y="656" class="h2">StatelessGizmoSystem</text>
@@ -201,8 +201,8 @@
   <text x="992" y="727" class="s">OPERATED device it reads the</text>
   <text x="992" y="744" class="s">UnitMemory state and emits</text>
   <text x="992" y="761" class="mono">BeginScope(src)</text><text x="1104" y="761" class="s"> … EndScope</text>
-  <text x="992" y="778" class="s">(HudScope{Source,Count}); keyed</text>
-  <text x="992" y="795" class="s">on DeviceInfo; never culled</text>
+  <text x="992" y="778" class="s">(HudScope{Source,Count}); keyed per</text>
+  <text x="992" y="795" class="s">device TYPE + BehaviorState</text>
   <text x="992" y="815" class="s">runs every frame, pause too</text>
 
   <rect x="980" y="846" width="262" height="98" rx="6" class="ex"/>
@@ -247,7 +247,7 @@
   <text x="1306" y="792" class="h">Rules it keeps</text>
   <text x="1306" y="816" class="s">• one implementation per concept: mounting (seats),</text>
   <text x="1306" y="833" class="s">  input (the control frame), HUD (gizmo projector),</text>
-  <text x="1306" y="850" class="s">  brain loop (one), screen-space drawing (one)</text>
+  <text x="1306" y="850" class="s">  phase runner (one), screen-space drawing (one)</text>
   <text x="1306" y="872" class="s">• the device writes only ITSELF (parallel rule);</text>
   <text x="1306" y="889" class="s">  LaserSpot only by the muscle</text>
   <text x="1306" y="911" class="s">• in pause a device changes only itself; nothing</text>
