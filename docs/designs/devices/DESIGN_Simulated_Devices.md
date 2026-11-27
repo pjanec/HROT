@@ -638,6 +638,28 @@ paused frame's control frame is consumed in that frame.
 ⇒ **build-state back to DESIGN** until these leans are approved; then the diagrams are redrawn once more (one loop, `Mountable`, the sibling input
 event, the renderer's filter).
 
+## 3p. ⭐ The user's answers to §3o (`2026-11-27`)
+
+🔒 User: *"how will we tag entities with TicksInPause - special tag component?"* · *"a trainee can have multiple physically replicated devices
+active at the same time; so the 'active' flag is wrong name, we select what device to show on the single 3d map/camera we have on the station (and
+even then in the future we would like to have multiple 3d maps in parallel, each handling different observation device), all belonging to the same
+trainee, shown next to each other, the focused one controlled from player's primary input channels keyboard/mouse (physical replicas have their own
+input channel each, no switching needed here)."* · *"Old recordings are of no issue. no need of separate DeviceInputFrameEvent … we still want to
+unify rather then duplicate if it is same concept"* · *"I am not aware of any existing working binocular so no problem if we convert it into device
+right away to unify implementations"* · the other §3o leans: no objection raised.
+
+| # | decision (lean) | why / evidence |
+|---|---|---|
+| D-37 | ⭐ **`TicksInPause` is a tag COMPONENT** (unmanaged, one byte — the codebase's tags carry a field, e.g. `IsEmbarkedTag`), added at creation by the device type's TKB translator; `NoScenario \| NoReplay` (derived from the type, rebuilt on load). On a paused frame `BrainTickSystem` (and the behaviour ingress) run ONE extra query, `owned BehaviorState + TicksInPause` — zero work when no device exists | a component query is the cheapest filter the scheduler has; a flag inside `BehaviorState` would mean walking every brain to find the few devices |
+| D-38 | ⭐⭐ **no "active" device: EVERY operated device runs all the time.** What the trainee chooses is which device a **VIEW** shows. A station has one view today (its 3-D map) and may have several side by side later; each view is bound to ONE device (or none = the plain eye) — station-local UI state, never simulation | 🔒 user; several replicas operate at once |
+| D-39 | ⭐ **inputs are addressed to a DEVICE, not chosen by a flag**: the control frame carries up to N device sections (lean N = 4), each `{ Device (network id), Axes[4], PressSeq[16] }`. The primary keyboard / mouse section is addressed to the FOCUSED view's device; each replica's own input channel fills a section addressed to ITS device — no switching. A device reads the section addressed to it | one frame, one ordering, one transport for the whole station |
+| D-40 | ⭐ **extend `OperatorControlFrameEvent` itself** (the sections above) — ⛔ R2-7's sibling event withdrawn: old recordings do not matter, and it is the same concept | 🔒 user |
+| D-41 | ⭐ **the HUD is scoped to its DEVICE**: the brain draws the HUD of every OPERATED device (only those), each run opened by a `HudScope { Device }` meta-primitive (⛔ replaces `StationScope`); a VIEW's renderer keeps the run of the device bound to it — in one place for every host (R2-8). Several views ⇒ several devices' HUDs, side by side | the brain need not know the station's views; the view picks |
+| D-42 | ⭐⭐ **the binoculars become a device in SD-S1** (⛔ CE-4707's "later" withdrawn). Measured: the station draws a binocular overlay and narrows the FOV (`PossessionStation.cs:360, :488, :1681` — CE-1219), and the frame carries a `Binoculars` field; the HELD-ITEM pose and its perception effect (`HeldItems.BinocularsUp`, `VisualPerception`) stay: the holder's own brain raises them when one of his views shows the binoculars device. ⇒ SD-S1 builds TWO devices — the **binoculars** (zoom steps, reticle; the station's overlay moves into its HUD projector) and the **rangefinder** — and the station's own binocular branch is removed | 🔒 user; ruling 9 — one optic model |
+
+⛔ Superseded here: R2-5 (*"the station owns the choice … `ActiveIndex`"*) → D-38/D-39 · R2-7 → D-40 · D-22 / R2-8's `StationScope` → D-41's
+`HudScope` (the renderer-side filter of R2-8 stands) · CE-4707's deferral → D-42.
+
 ## 4. Rejected — one line each
 
 - **Typed components per device type** — the user's concern holds: dozens of types, each a component, descriptor and translator; the block keeps the recorder ignorant.
