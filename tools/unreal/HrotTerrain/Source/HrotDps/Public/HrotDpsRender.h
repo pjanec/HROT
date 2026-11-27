@@ -16,18 +16,23 @@
 //
 // ⭐ Only in a process started as a render client: -HrotDpsRender (and -deterministicaudio for the soundtrack — the non-real-time audio
 // device; without it a job asking for audio fails before frame 0 with that reason). A render client is view-only (D-7).
+// ⭐ CE-11064: a GAME-INSTANCE subsystem, so the job and its DDS readers live through the client's own level loads — a job begun on the start level
+// (gateway T-086: the station films with a live client before any world) goes on in the terrain level; a world-bound subsystem lost the job and
+// every FrameRequest written during the blocking LoadMap. What belongs to a world (the capture actor, the shot renderer's sim clock, the
+// soundscape) is set up again when the world changes (ApplyWorld).
 // ⭐ Sounds keep sim time here: UHrotShotRenderer's speed-of-sound delays read the sim clock during a job (DD-022 §3f rule 4).
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Tickable.h"
 #include "HrotDpsRender.generated.h"
 
 class ASceneCapture2D;
 class UTextureRenderTarget2D;
 
 UCLASS()
-class HROTDPS_API UHrotDpsRender : public UTickableWorldSubsystem
+class HROTDPS_API UHrotDpsRender : public UGameInstanceSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
 
@@ -49,10 +54,10 @@ public:
 	static constexpr double IdleDelta = 1e-4;        // the world's step between frames (s): effects stand still while we wait
 	static constexpr double BarrierGiveUp = 10.0;     // s: present anyway (and say so) — the station's own 30 s timeout is the real verdict
 
-	virtual bool DoesSupportWorldType(const EWorldType::Type T) const override { return T == EWorldType::Game || T == EWorldType::PIE; }
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	virtual void Tick(float DeltaTime) override;
+	virtual ETickableTickType GetTickableTickType() const override { return HasAnyFlags(RF_ClassDefaultObject) ? ETickableTickType::Never : ETickableTickType::Always; }
 	virtual bool IsTickableWhenPaused() const override { return true; }
 	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UHrotDpsRender, STATGROUP_Tickables); }
 
@@ -89,6 +94,12 @@ private:
 	uint64 AdvanceFrame = 0;
 	double PhaseStart = 0;
 	int32 Frames = 0, Written = 0, Failed = 0, Silences = 0, WarmUps = 0, BarrierWaits = 0, BarrierTimeouts = 0, Overcounts = 0;
+	// CE-11064 (gateway T-086): after a world boundary inside a job the station writes the outstanding FrameRequest AGAIN, an exact repeat. A
+	// repeat of a frame already presented is answered from its FrameDone, never rendered twice; a repeat of one still queued is dropped
+	struct FDone { int64 StepSeq = 0; bool bOk = true; FString File, Why; float Ms = 0; int32 AudioSamples = 0; };
+	TMap<int32, FDone> Presented;   // FrameIndex -> the FrameDone sent, this job
+	int32 Repeats = 0, RepeatFrames = 0;   // repeated requests answered; FrameKindRepeat frames (slow motion)
+	TWeakObjectPtr<UWorld> SetupWorld;   // the world the job's per-world setup was applied to
 	bool bHadFrame = false; FVector3d LastP = FVector3d::ZeroVector; FQuat4d LastQ = FQuat4d::Identity; int64 LastEpoch = -1;
 	// the soundtrack (segments: recorded mixer output, zeros for a silence frame)
 	TArray<float> Track;   // interleaved, the device's channels
@@ -117,6 +128,9 @@ private:
 	void Advance(const FRequest& R);
 	void RenderFrame(const FRequest& R);
 	void Present(const FRequest& R, bool bOk, const FString& File, const FString& Why, float Ms, int32 AudioSamples);
+	UWorld* World() const;
+	void ApplyWorld();
+	void WriteDone(const FString& Job, int32 Index, const FDone& D);
 	int32 MixFrame(bool bSilence);
 	void StartRecording();
 	void StopRecording();
