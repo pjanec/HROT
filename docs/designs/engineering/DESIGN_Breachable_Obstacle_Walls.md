@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (leans for the user's approval in §5; an independent review in §9)
+build-state: DESIGN — ⛔ NOT READY: the independent review (§9) found two blockers; §10 asks the user which way
 updated: 2026-11-27 (first version, unreal-ig)
 current-answer: §2 the decision · §3 the UML · §5 decisions with leans · §6 acceptance · §9 the review
 stale-below: nothing
@@ -154,3 +154,39 @@ gateway's destroyed state before the dispose for an obstacle; `PlacementGroup` o
 | the dozer clears ONE ordered obstacle | ✅ `ClearObstacleBehavior.cs` (`p.Obstacle`, push per tick) | ⚠ an order naming a ROW clears one segment — §9 asks whether the order should name the row's segment on the dozer's path |
 | the gateway sends a destroyed state before the dispose | ⚠ DD-035 says so for decks and obstacles; ⛔ Unreal measured a barrel with none | ⛔ not measured why — D-5 ① |
 | sandbag walls exist only in the city-battle macro | ✅ content scan §1 | — |
+
+## 9. Independent review (`2026-11-27`, a fresh agent with the code, not this design's reasoning) — ⭐ the findings, as checked
+
+Verdict: *"building a wall as a row of segment entities is sound and fits R-4264 and the one-mechanism rule … but not ready to build."*
+
+| # | severity | finding (evidence) | consequence for this design |
+|---|---|---|---|
+| R-1 | ⛔ blocker | a dozer and a ram open ONE segment: `ClearObstacleBehavior.Clear` targets one entity and succeeds when it is gone (`:148-152`); `ContactBreach` crushes one obstacle per contact, and its per-hull grace holds ONE key (`:164, 194, 255-256, 421-427`) — whereas a TERRAIN wall is cut blade- or hull-wide (`CutAlong(… hull.Width + 2·CutMarginM)`, `:241, 308-320`) | the claim *"the contact paths already open a usable gap"* is false; a cut-width rule over the row's segments and a row- or point-level dozer order would be needed |
+| R-2 | ⛔ blocker | this file had no §9 although §5 / §7 pointed at it | fixed by this section |
+| R-3 | important | D-4 is false: `ObstacleDamage.BlastDamage` depends on kg and distance only (`ObstacleDamage.cs:36-43`), so halving Health WIDENS the gap | segment Health must be derived from the gap wanted at a charge, and railed |
+| R-4 | important | the content premise is wrong: the macro's two 4 m sandbag walls are MG-nest cover 14 m off the road; `roadblock-blast` holds a 6 × 1 × 1 m CONCRETE barrier, which R-11022's "barrier line" arguably covers | D-1 and the acceptance rows must be redone |
+| R-5 | important | the row tool spaces boxes (`Gap` default 1.5 m, `ObstacleRow.cs:48, 57`) and leaves wedges / overlaps at bends (`LinePlaces.cs:27-37`) | a continuous wall needs a new placement with bend handling and seam / bend rails for sight and the navmesh |
+| R-6 | important | `PlacementGroup` has no wire descriptor, so the gateway cannot see it | a new descriptor (and whether ghost promotion waits for it) |
+| R-7 | important | `PlacementGroup.NewId()` is the WALL CLOCK (✅ verified, `PlacementGroup.cs:18-27`): a load-time split differs per load and per node; roadblock members are transient macro members (`MacroTypes.cs:51-62`) | deterministic ids from the source key; the macro's local keys and bindings for N segments |
+| R-8 | important | orders name ONE entity (`ClearObstacleOrder.Obstacle`, the City Battle company call) | a row / point order shape; a row index in the serial pre-pass (D-26) |
+| R-9 | minor | removals within the bake's 0.5 s quiet period coalesce (`StaticObstacleBake.cs:60, 75-81, 223-227`); each bake rebuilds the world + the whole cover database; O(N) per-frame signature and gateway gather | negligible at today's counts; say it |
+| R-10 | minor | alternative A's rejection was overstated: a KEY-based remap already exists (`RemapDamageEntities`, `TerrainResidency.cs:687-700`; `BuildingDamageSave.cs:85-161`), and authored terrain-feature `Wall` lines (`TerrainBlock.cs:37`, kind 2) ARE already breached in part | ⭐ see §10 — this opens a third option |
+
+Not verified by the review: bake times, navmesh / sight leaks through a seam, how `checks.json` resolves a name shared by segments, the dozer's width, why
+Unreal saw no destroyed state, whether terrain-block walls reach cluster nodes outside the editor.
+
+## 10. ⭐ What the review changes — a third option, for the user
+
+R-10 shows that a breachable wall ALREADY EXISTS as authored content: a scenario terrain feature of kind **Wall** (a polyline, `EditablePolyline`;
+label `<entity guid>/<i>`) is expanded into wall PANELS of the scenario's overlay, so blasts (`BreachRule`), rams, pushes and the dozer's blade-wide
+POINT cut (B-4) breach it in part through `BuildingDamage`, and the key remap keeps its records right across loads and re-sorts. ⇒ the segment
+approach would rebuild, for obstacle rows, what feature walls already do (R-1, R-5, R-8 are all solved there).
+
+| option | reuse | what is missing |
+|---|---|---|
+| **segments** (§2) | removal, bake | R-1, R-3, R-5 … R-8: a cut-width rule, a row order, continuous placement, a wire descriptor, deterministic ids |
+| ⭐ **feature walls** — a sandbag wall / a barrier line is drawn as a terrain-feature WALL with that material and height | the whole terrain-wall breach (blast, ram, push, blade point cut), the key remap, the gateway's `BuildingDamage wall:<label>` | ① **to measure**: does a feature wall block road traffic (SUMO) and routes like an obstacle entity (R-4264's reason for entities); does every node bake it (the overlay); ② the WALL ITSELF does not reach Unreal yet — Unreal's open `TerrainFeature` ask ([NOTE_UnrealIg_To_UiIntegration_Scenario_Terrain_Features.md](../../blueprints/batches/NOTE_UnrealIg_To_UiIntegration_Scenario_Terrain_Features.md)) has to be answered either way; ③ the city-battle macro's walls / barriers become feature walls (macros already carry features: kind 9 / 10 / 16 in the bl-* and Stechovice scenarios) |
+
+⭐ Lean (pending ① measured): **feature walls** — one breach mechanism for every wall, built-in, authored or placed; the segment approach is withdrawn
+if ① holds. R-4264 (drawn obstacles are entities) stays true for the non-wall obstacles.
+
