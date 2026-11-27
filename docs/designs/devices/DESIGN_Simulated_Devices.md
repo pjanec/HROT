@@ -1,12 +1,16 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-27 (§3n — the beam drawn by a LaserLayer3D on every map host, from replicated components) · 2026-11-27 (§3m — the panel outputs are a small generic DevicePanel component, not gizmos) · 2026-11-27 (§3l — the generic output encoding: primitives + PanelOutput channels + TKB channel names; change-only gizmo sending measured as NOT built) · 2026-11-27 (rev 7 — no HUD system: the HUD is a stateless projector on the brain, shipped by the existing batch under a StationScope meta-primitive, §3k) · 2026-11-27 (rev 6 — the HUD drawn on the brain, shipped as a station-keyed frame on change; the blackboard never replicated, §3j) · 2026-11-27 (rev 5 — the HUD reads the device's full [UnitMemory] state; the device store replicated, §3i) · 2026-11-27 (rev 3 — ONE generic output description (a display list + lamps + fields) drawn as screen-space gizmos and recorded; the device ticks in pause, never acting on the world) · 2026-11-27 (rev 2 — the device runs on the BRAIN: its state is a [UnitMemory] record in its blackboard, reachable from C#, BTree / HSM and blueprints; inputs replicate as events, outputs as replicated state)
-build-state: READY-TO-BUILD (rev 4, `2026-11-27`: the diagrams redrawn on §3a–§3h; the scenarios in §5a) — the framing's leans ACCEPTED by the user (2026-11-27); the shape below (§3) for the user's nod; slices in §5
-current-answer: ⭐ rev 4 — §2 (the diagrams), §5 / §5a (slices and their scenarios), §3h (the HUD projector), §3g (the seat), §3f (measured) · ⭐ §3b rev 3 (generic outputs as a display list, the HUD as gizmos, pause) — it SUPERSEDES SD-14 and SD-7's HUD model · ⭐ §3a rev 2 (the brain, unit memory, the I/O wire) — it SUPERSEDES SD-2, SD-6 and the state block in §2 · §3 the other decisions · §5 the slices · §9 the open questions
+build-state: READY-TO-BUILD (rev 8, `2026-11-27`: §3o–§3s approved, everything measured in §3t, diagrams redrawn in §2; the cluster round trip measured live, §3t)
+current-answer: ⭐ §2 (the rev-8 diagrams) · §3t (measured) · §3s, §3r (links, trackers, messages) · §3q (per-device frames, Mountable) · §3p (views, binoculars) · §3o (the review's leans, as amended) · §3m, §3n, §3k (panel, beam layer, HUD projector) · §5 / §5a (slices, scenarios)
 stale-below: §2's `DeviceStateBlock` boxes and SD-2 / SD-6 in §3 — superseded by §3a (kept for the reasoning)
 known-rot: §3c (ValueBinding) is history for the HUD — D-3d · LS-3 / LS-10 / LS-16, D-1, D-1′, D-3, D-3′, D-3a are superseded in place (marked)
 known-conflict: none
 related-designs:
+  - ../../DESIGN_Unit_Camera.md — OWNS the station camera (over the shoulder to move, from the eyes to aim — UC-3); §3v extends the aim rule to switch the view's source to the weapon's sight
+  - ../../DESIGN_Replay_Time_Axis_And_Review.md — OWNS the replay's two axes (sim time collapses a pause; the wall-clock axis keeps it) — the paused-device scenarios are judged on the wall-clock axis
+  - ../../DESIGN_Unit_Intent.md — OWNS unit intent and the brain's inputs; a device is a brain of its own on the device entity
+  - ../../blueprints/Architect_Question_114_Seats_On_One_Node.md — OWNS several stations on one node (StationId = node + seat index); each station draws only its own device HUD
   - ../../DESIGN_Entity_Control.md — OWNS the possession station (§8d), the pilot station (§8f), the sight / lock (§8g), zoom and binoculars (§8j, §8k), and ⭐ §8m: a portable weapon is an ENTITY that boards a person's Hands / Back station, is dropped and picked up — THIS attaches a device the same way
   - ../../UX/DESIGN_Seats_And_Hats.md — OWNS seats and hats (Embodied); THIS adds a device sub-mode inside the Embodied hat
   - ../../UX/DESIGN_Input_And_Commands.md — OWNS the one keymap and its scopes; THIS feeds device controls into it and adds axis sources
@@ -66,122 +70,143 @@ extensions, the control frame (HTTP / DDS).
 
 ⚠ rev 1's diagrams (a `DeviceRuntime` on the player node, a state block, `IDeviceLogic`) are moved to `## ⛔ HISTORY` at the bottom.
 
-### 2a. The module view — who runs what, and who calls it each frame *(rev 6, §3j)*
+⭐ **The overview picture** — [`devices-architecture.svg`](devices-architecture.svg): setup, mounting, the station, the brain, the muscle, and the rules (as of §3q).
+
+![Simulated devices — the planned architecture](devices-architecture.svg)
+
+### 2a. The module view — who runs what, and who calls it each frame *(rev 8, §3k–§3t)*
 
 ```mermaid
 graph TD
-  subgraph STATION["the node that hosts the STATION — a player node; or the editor (all-in-one); the gateway hosts one per DPS client"]
-    KM["keyboard / mouse adapter — the keymap's device scope"]
-    PAD["gamepad adapter — Raylib gamepad API"]
-    REP["replica adapter — a node extension"]
-    PS["PossessionStation (existing, every frame)<br/>fills the control frame's DEVICE SECTION"]
-    SUB["gizmo subscriber (existing, CE-215)<br/>keeps the runs scoped to THIS station → its DeviceHud layer; resolves ValueBindings"]
-    MAP["3-D map (internal)"]
-    GW["gateway → GizmoFrame (Producer = station, Layer DeviceHud)"]
+  subgraph STATION["station node — a player node, the editor (all-in-one), or the gateway's per-client station"]
+    KM["keyboard / mouse + gamepad — drive the FOCUSED view's device"]
+    REP["replica panels and trackers — a node extension, one channel per device"]
+    PS["PossessionStation (existing, every frame)<br/>one control frame PER operated entity, Target = it"]
+    SUB["gizmo subscriber (existing, CE-215)<br/>cluster: keeps the last batch per producer ★"]
+    VIEW["views — each bound to one device<br/>keep the HudScope run of their device · screen pass ★"]
+    LL["LaserLayer3D ★ — every map host<br/>beams and spots, by the viewer's SensorView"]
+    RA["replica adapter output — reads DevicePanel"]
+    GW["gateway → GizmoFrame → external IG"]
   end
-  subgraph BRAIN["the node that owns the device entity (the brain) — its blackboard NEVER leaves it"]
-    DTS["DeviceTickSystem — NEW, EveryFrame<br/>ticks the DEVICE brain tier only"]
-    DB["the device's behaviour (one stateful action)<br/>+ its UnitMemory state — ON the device entity"]
-    HUDS["StatelessGizmoSystem (existing, EveryFrame) runs<br/>RangefinderHudGizmo — GizmoProjector, as HillAttackGizmo:<br/>reads the UnitMemory state → primitives under a StationScope"]
-    BTS["BrainTickSystem (existing, WhenTimeAdvances)<br/>skips the device tier"]
-    POS["PossessionSystem (existing, WhenTimeAdvances)"]
+  subgraph BRAIN["brain node — owns the device entity; its blackboard never leaves"]
+    BTS["BrainTickSystem (existing, WhenTimeAdvances)<br/>every brain, devices included — step window intact"]
+    PDT["PausedDeviceTickSystem ★ (EveryFrame)<br/>paused frames only · TicksInPause only"]
+    RT["the ONE per-entity tick routine"]
+    DB["the device's behaviour — one stateful action<br/>its UnitMemory state, DevicePose ★, DevicePanel ★, LaserPointing ★"]
+    SGS["StatelessGizmoSystem (existing, every frame)<br/>runs the device's HUD projector → HudScope + screen primitives"]
+    PUB["gizmo batch publisher (existing)"]
   end
-  subgraph MUSCLE["the node that moves the bodies (the muscle)"]
-    LSS["LaserSpotSystem — NEW, EveryFrame<br/>traces LaserPointing → writes LaserSpot"]
+  subgraph MUSCLE["muscle node"]
+    LSS["LaserSpotSystem ★ (every frame)<br/>terrain + bodies, synchronous → LaserSpot"]
   end
-  REC["Recorder (existing): the device entity's store is recorded on the brain"]
   KM --> PS
-  PAD --> PS
   REP --> PS
-  PS -->|"OperatorControlFrameEvent — interaction transport, every frame, also in pause"| DTS
-  DTS --> DB
-  DB --> HUDS
-  HUDS -->|"DebugPrimitivesBatch (existing publisher, the CGF node already runs it)"| SUB
-  SUB --> MAP
+  PS -->|"OperatorControlFrameEvent → the TARGET's owner (interaction transport)"| RT
+  BTS --> RT
+  PDT --> RT
+  RT --> DB
+  DB -->|"DeviceMessageEvent to a linked device (command buffer → transport → its owner, next tick)"| RT
+  DB --> SGS
+  SGS --> PUB
+  PUB -->|"DebugPrimitivesBatch"| SUB
+  SUB --> VIEW
   SUB --> GW
+  DB -->|"DevicePanel, replicated on change"| RA
   DB -->|"LaserPointing"| LSS
-  LSS -->|"LaserSpot (replicated)"| DB
-  DB --> REC
-  PS -.->|"⛔ not in pause — the device does not depend on it"| POS
-  BTS -.->|"⛔ never ticks a device"| DB
+  LSS -->|"LaserSpot"| LL
+  LSS -->|"LaserSpot"| DB
+  DB -->|"LaserPointing"| LL
 ```
 
-*What the picture shows that prose hid: the device's state is read only where it lives — the brain draws the HUD from it and ships the PICTURE,
-keyed by station; the station node runs no device code at all, only the generic subscriber, so the internal map and the gateway draw one HUD by
-construction. The HUD needs no new system: it is one more stateless projector on the brain, shipped by the existing batch. In the editor
-configuration the projector draws into the local buffer directly. The two
-dashed edges are the systems that do NOT run a device: both are `WhenTimeAdvances`.*
+*What the picture shows that prose hid: the two brain-tick entries feed ONE routine — the measured reason for two entries is the step window
+(§3t): the existing tick must keep reading every event since its last run, so the paused-frame tick is a separate EVERY-FRAME entry that only
+devices pass. Every arrow into the brain is a control frame or a message addressed to its TARGET, so nothing ever writes another entity, and the
+same routing works when the devices live on different nodes. In the editor configuration the three node boxes are one process.*
 
-### 2b. The classes *(rev 6)*
+### 2b. The classes *(rev 8)*
 
 ```mermaid
 classDiagram
-  class SeatDto { <<existing, grows>> Role Station · Accepts : MountKinds plus Device · OperatedBy · StartWith }
-  class WeaponSystems { <<existing, reused>> StationsOperatedBy(seat) → the devices a seat runs }
-  class BehaviorState { <<existing>> plus the DEVICE brain tier }
-  class DeviceTickSystem { <<NEW, EveryFrame, brain>> device tier only · Paused flag in the context }
-  class RangefinderDevice { <<NEW, one class per device type>> BTreeDefinition StatefulAction(Rangefinder) · Step(input, ref state) }
-  class RangefinderState { <<NEW, UnitMemory, brain only>> Mode · Menu · LastRange · everything the HUD shows }
-  class RangefinderHudGizmo { <<NEW, same file>> IStatelessGizmo · GizmoProjector on the device · StationScope then the HUD }
-  class StatelessGizmoSystem { <<existing, EveryFrame>> runs every GizmoProjector }
-  class StationScope { <<NEW meta-primitive>> StationId — the primitives after it belong to that station }
-  class DebugPrimitivesBatch { <<existing wire type>> NodeId · DebugPrimitive blob }
-  class HudSubscriber { <<existing CE-215 subscriber>> keeps its station's runs → DeviceHud layer · resolves ValueBinding }
-  class ValueBinding { <<meta-primitive, section 3c>> put local value X here }
-  class OperatorControlFrameEvent { <<existing, grows>> plus DeviceSection: Device · Axes[4] · PressSeq[16] }
-  class IDeviceAdapter { <<NEW>> Fill(ref DeviceSection) · Show(in DevicePanel) }
-  class DevicePanel { <<NEW, unmanaged, replicated on change, recorded>> Revision · LampBits · BlinkBits · Values[16] · Text[4] }
-  class LaserPointing { <<NEW, unmanaged>> On · Band · Direction — written by whoever points }
-  class LaserSpot { <<NEW, unmanaged>> Point · Entity · Part · Range — written by the muscle }
-  SeatDto ..> WeaponSystems : OperatedBy
-  DeviceTickSystem --> RangefinderDevice : ticks
-  DeviceTickSystem ..> BehaviorState : device tier
-  RangefinderDevice --> RangefinderState : own entity only
-  RangefinderDevice --> LaserPointing : writes
-  RangefinderDevice ..> LaserSpot : reads
-  RangefinderDevice ..> OperatorControlFrameEvent : reads DeviceSection
-  StatelessGizmoSystem --> RangefinderHudGizmo : runs
+  class SeatDto { <<existing, grows>> Role Station · Accepts plus Device · OperatedBy · StartWith }
+  class Mountable { <<NEW, moved out of WeaponSystemParams>> MountKinds · Portable }
+  class Stations { <<NEW public lookup>> OperatedBy(host, seat) → the items a seat runs }
+  class DeviceDefDto { <<NEW, TKB>> channel names · message kinds · stacking offset }
+  class TicksInPause { <<NEW tag, one byte, derived>> }
+  class BrainTickSystem { <<existing, WhenTimeAdvances>> }
+  class PausedDeviceTickSystem { <<NEW, EveryFrame>> paused frames · TicksInPause only }
+  class BrainTickRoutine { <<existing code, shared>> the per-entity tick }
+  class RangefinderParams { <<NEW, params DTO>> }
+  class RangefinderState { <<NEW, UnitMemory, brain only>> Mode · Menu · zoom step · LastRange · last Seq and press counts · link inbox }
+  class RangefinderBehavior { <<NEW>> resolver · BTreeDefinition · StatefulAction }
+  class RangefinderHudGizmo { <<NEW, GizmoProjector>> HudScope then screen primitives }
+  class DevicePanel { <<NEW, unmanaged, replicated on change>> LampBits · Blink · Values16 · Text4 }
+  class DevicePose { <<NEW, unmanaged, replicated>> Orientation · Offset — written by the device only }
+  class DevicePoses { <<NEW, one resolver>> World(view, device) = the mount chain ∘ pose }
+  class DeviceLinks { <<NEW>> Peer2 — where its messages go }
+  class DeviceMessageEvent { <<NEW>> Target · From · Kind · 64 B binary or JSON }
+  class OperatorControlFrameEvent { <<existing, grows>> Target · Seq · Axes4 · PressSeq16 · Orientation · Position · BodyOffset }
+  class LaserPointing { <<NEW, unmanaged>> On · Band · Direction }
+  class LaserSpot { <<NEW, unmanaged>> up to 4 points — written by the muscle }
+  class LaserLayer3D { <<NEW, every map host>> }
+  class DebugGizmoLayer { <<existing, grows>> Screen primitives join the card pass · HudScope filter per view }
+  SeatDto ..> Stations : OperatedBy
+  Stations ..> Mountable : Accepts
+  BrainTickSystem --> BrainTickRoutine
+  PausedDeviceTickSystem --> BrainTickRoutine
+  PausedDeviceTickSystem ..> TicksInPause : filter
+  BrainTickRoutine --> RangefinderBehavior
+  RangefinderBehavior --> RangefinderState : self only
+  RangefinderBehavior --> DevicePanel : PanelOut on change
+  RangefinderBehavior --> DevicePose : self only
+  RangefinderBehavior --> LaserPointing : writes
+  RangefinderBehavior ..> LaserSpot : reads
+  RangefinderBehavior ..> OperatorControlFrameEvent : its own frames
+  RangefinderBehavior ..> DeviceMessageEvent : sends and receives
+  RangefinderBehavior ..> DeviceLinks : peers
+  RangefinderBehavior ..> RangefinderParams : resolved from
   RangefinderHudGizmo ..> RangefinderState : reads
-  RangefinderHudGizmo ..> WeaponSystems : which station runs it
-  RangefinderHudGizmo ..> StationScope : emits
-  HudSubscriber ..> DebugPrimitivesBatch : reads
-  HudSubscriber ..> StationScope : filters
-  HudSubscriber ..> ValueBinding : resolves
-  IDeviceAdapter ..> OperatorControlFrameEvent : fills
-  IDeviceAdapter ..> DevicePanel : lamps and displays
-  RangefinderDevice --> DevicePanel : PanelOut, on change
+  DevicePoses ..> DevicePose : reads
+  DevicePoses ..> Stations : walks the mount chain
+  LaserLayer3D ..> LaserPointing : reads
+  LaserLayer3D ..> LaserSpot : reads
+  DebugGizmoLayer ..> RangefinderHudGizmo : draws its run
+  DeviceDefDto ..> Mountable : writes at creation
+  DeviceDefDto ..> TicksInPause : adds at creation
 ```
 
-*What the picture shows that prose hid: a new DEVICE TYPE is ONE class with three parts — the action, its `[UnitMemory]` state, its HUD drawing —
-all on the brain; a new PANEL is one `IDeviceAdapter`. Nothing device-specific exists on the station node, and the blackboard never crosses the wire.*
+*What the picture shows that prose hid: a device TYPE is the four `Rangefinder*` boxes — params, state, behaviour, HUD — in one folder (D-57); every
+other box is shared by all devices. Every arrow out of the behaviour is to its OWN components or to a message; the only cross-entity reads are
+`DevicePoses` walking the mount chain and the muscle's `LaserSpot`.*
 
-### 2c. The sequence — a button press changes the HUD (and the same in pause) *(rev 6)*
+### 2c. The sequence — a press while PAUSED changes the HUD *(rev 8)*
 
 ```mermaid
 sequenceDiagram
-  participant P as panel (keys, gamepad or replica)
-  participant A as its adapter
-  participant S as PossessionStation (station node)
-  participant T as DeviceTickSystem (brain, every frame)
-  participant D as RangefinderDevice (on the device entity)
+  participant P as panel or keys (station)
+  participant S as PossessionStation
+  participant X as interaction transport
+  participant T as PausedDeviceTickSystem (brain)
+  participant D as RangefinderBehavior (device entity)
   participant M as LaserSpotSystem (muscle)
-  participant H as RangefinderHudGizmo in StatelessGizmoSystem (brain)
-  participant U as gizmo subscriber (station node)
-  P->>A: the RANGE button pressed
-  A->>S: DeviceSection: PressSeq[range] + 1
-  S->>T: OperatorControlFrameEvent (the newest kept)
-  T->>D: Step(the section, ref state)
-  D-->>M: LaserPointing On (a pulse, replicated)
-  M-->>D: LaserSpot (Range 452 m, replicated)
-  D->>D: state.LastRange = 452 (its UnitMemory, on the brain)
-  H->>H: StationScope(station) then the HUD primitives from the state
-  H-->>U: DebugPrimitivesBatch (the brain's whole gizmo buffer)
-  U->>U: keeps the run scoped to its station → DeviceHud layer · ValueBindings ← the local look
-  Note over T,H: paused: the same path — the tick, the trace and the gizmo system run every frame, the device writes only itself (R-4300)
+  participant G as HUD projector (brain)
+  participant V as view on the station
+  P->>S: RANGE pressed (frame N, sim paused)
+  S->>X: control frame, Target = the rangefinder, PressSeq + 1
+  X->>T: delivered to the device's owner, readable at frame N+1
+  T->>D: the shared tick routine (a TicksInPause entity)
+  D->>D: a new press ⇒ LaserPointing On (its own component)
+  D-->>M: LaserPointing replicated
+  M->>M: trace terrain and bodies, synchronous
+  M-->>D: LaserSpot (range)
+  D->>D: state.LastRange = range (its UnitMemory)
+  G->>G: HudScope(device) + "452 m" from the state
+  G-->>V: gizmo batch (editor: the local buffer)
+  V->>V: keeps its device's run · draws it in the screen pass
+  Note over T,D: in pause only TicksInPause entities tick · they write only themselves (R-4300) · at resume BrainTickSystem reads the paused frames too, idempotent by Seq
 ```
 
-*What the picture shows that prose hid: the range is two replicated hops (device → muscle → device) and the HUD one more (brain → station) — in
-the editor configuration all of them are the same frame's systems on one node.*
+*What the picture shows that prose hid: in pause the device still answers within a few frames (bus N+1, the muscle hop, the HUD) — and resuming
+re-reads the same frames without a double press, because presses are counters compared to the last one seen.*
 
 ## 3. Decisions (leans — for the user's nod)
 
@@ -346,7 +371,7 @@ towards the player are replicated … I lean to events … for the output side, 
 ✅ **Measured — it already exists: UNIT MEMORY** (Q87, **R-237**, `FDP/Toolkits/Fdp.Toolkits/Behavior/UnitMemory.cs`): a `[UnitMemory]` struct is
 ONE slot in an entity's blackboard store, keyed by its TYPE, allocated on first touch (appended mid-tick, nothing moves), guarded by a layout
 hash (a changed struct or an older recording re-initialises, never mis-reads), **recorded, not scenario-saved**, shared by every behaviour of that
-entity — reached by C# (`UnitMemory.Ref<T>`), by a BTree / HSM `ref` param, and by blueprints through the **`GetShared` / `SetShared`** nodes
+entity — reached by C# (`UnitMemory.Ref<T>`), by a BTree / HSM `ref` param, and ⛔ NOT by blueprints today (the **`GetShared` / `SetShared`** nodes were removed with CE-440 — restoring them is CE-4705)
 (R-237; present in the blueprint compiler's node set — ⚠ end-to-end on a device not yet measured).
 
 | # | rev 2 decision (supersedes) | why |
@@ -358,7 +383,7 @@ entity — reached by C# (`UnitMemory.Ref<T>`), by a BTree / HSM `ref` param, an
 | SD-15 | ⭐ **look and camera motion stay LOCAL** on the player node (mouse look, smooth zoom between steps, head movement) — the brain decides the device's MODE (which zoom step, which sensor), never the per-frame view | a round trip to another node per mouse move would lag; in the editor (one process) it is all local anyway |
 | SD-16 | **the brain must tick an ACTIVE device every frame** (exempt from the brain cadence, CE-2382), an idle device rarely | a button must answer within a frame or two |
 
-⚠ What to measure first (slice 1): `GetShared` / `SetShared` on a device entity's unit memory end to end; the brain cadence exemption; the
+⚠ What to measure first (slice 1): ⛔ *superseded — §3f answered these before building (D-9)*; the brain cadence exemption; the
 round-trip delay player node → brain → player node on a two-process run (the editor has none).
 
 ## 3e. ⭐ The independent review (`2026-11-27`) — findings and leans
@@ -381,7 +406,7 @@ not a level, so a click … is never lost"*) · `RecorderTickSystem` checkpointi
 | RV-9 | 🟠 objectives cannot read an opaque payload | ⭐ `DeviceOutputs`' FIELDS are named (a name hash → value table, unmanaged) and a checks cue reads a field by name; each slice lists its expect rows; SD-S5 gets a scenario |
 | RV-10 | 🟠 paused frames are recorded only in FULL mode, and all share one sim time | ⛔ *corrected by §3f D-6 (frames are wall-clock stamped)* ⭐ say it: a debrief of a paused device change needs FULL recording; the scrubber addresses paused frames by frame, not time — ⚠ measure the replay time axis in SD-S1 before promising more |
 | RV-11 | 🟠 output authority / descriptors unstated | ⭐ the outputs are **separate components** (lamps · fields · display list), each its own descriptor in the device entity's descriptor group, **owned by the node that owns the device entity** (the brain running its holder) — one writer each |
-| RV-12…16 | ⚪ minors: reuse `CadenceMode` (`BehaviorComponents.cs:59-66`) for SD-16; typos (§3b "SD-19" → SD-20; Q-6 answered by R-4300; §6's one-writer line); unbuilt dependencies named per slice (a device Take / Drop verb, a gamepad input source, a clip-rectangle primitive); a 0 B rail for the projector and the adapters too; `FighterHud` routed through the display list in a later slice | ⭐ accept all |
+| RV-12…16 | ⚪ minors: reuse `CadenceMode` (`Cadence.cs:12`) for SD-16; typos (§3b "SD-19" → SD-20; Q-6 answered by R-4300; §6's one-writer line); unbuilt dependencies named per slice (a device Take / Drop verb, a gamepad input source, a clip-rectangle primitive); a 0 B rail for the projector and the adapters too; `FighterHud` routed through the display list in a later slice | ⭐ accept all |
 
 ⚠ Not verified by the review (carried into SD-S1's first measurements): the control frame and replication on a paused frame · whether a
 device entity can carry its own `BehaviorState` / blackboard (RV-1 runs device behaviours ON the device entity) · the round-trip delay · the
@@ -606,6 +631,224 @@ brain (§3j–§3k), which leaves this small component exactly what the panel ne
 | D-35 | ⭐ **pause and replay**: the layer is stateless over recorded components ⇒ a pause shows the beam where it is, a replay shows it where it was | as `ProjectileLayer` |
 | D-36 | ⚠ the external IG: the gateway forwards the two components as entity data on the DPS wire (a new state topic or fields on an existing one) — a SimNetGateway row with SD-S6, not a gizmo | the IG draws the world from entity data |
 
+## 3o. ⭐ The second independent review (backend lane, `2026-11-27`) — 2 blocking, 10 important, 3 minor; leans
+
+Spot-verified here: `DebugPrimitiveTriage3D.cs:140-148` (the 3-D path resolves only `EntityLocal` to world) · `Embarkation.cs:187, :299` (a
+station's `Accepts` is matched against `WeaponSystemParams.MountKinds` only) · `WeaponSystems.cs:202` (`StationsOperatedBy` is `private`, and gated
+on the man being possessed) · `BehaviorState.BrainTier` is a blackboard SIZE class, not a schedule · `DebugPrimitivesBatchSubscriberSystem` has no
+production user. Unverified by the reviewer: the gateway, the gamepad exports (both measured here in §3f), what stops brains in replay, whether a
+paused frame's control frame is consumed in that frame.
+
+| # | finding | ⭐ lean | slice |
+|---|---|---|---|
+| R2-1 🔴 | the 3-D map cannot draw a SCREEN-space primitive | ⭐ the 3-D triage keeps `Screen` primitives and hands them to the 2-D renderer's EXISTING screen-space drawing as an overlay pass after the 3-D layers (ONE screen-space implementation, ruling 9) | SD-S1 (ui) |
+| R2-2 🔴 | a Station seat accepts only weapons; the operated-by lookup is private and possession-gated; a carried device has no lookup | ⭐ ① the mount kinds move to a small `Mountable { MountKinds, Portability }` component that `Embarkation` reads for ANY item — a weapon's TKB translator writes it too (migration, the same values); ② a PUBLIC `Stations.OperatedBy(world, host, seat, dest)` with no possession gate — the weapon caller keeps its own gate; ③ host = the person ⇒ the same call over his carry stations | SD-S1 (backend) |
+| R2-3 🟠 | a device tick system would be a second brain loop; there is no "device tier" | ⛔ *the EveryFrame flip is WITHDRAWN by §3t (it breaks the step window); one tick ROUTINE, two schedule entries* ⭐ **ONE loop**: `BrainTickSystem` becomes `EveryFrame`; on a frame where time does not advance it ticks ONLY entities carrying `TicksInPause` (a tag a device type gets), and nothing else — R-3114 holds for every other brain; the replay gate unchanged. ⛔ withdraws `DeviceTickSystem` and the "device tier" | SD-S1 (backend) |
+| R2-4 🟠 | a behaviour cannot start or switch in pause (`BehaviorIngressSystem` runs only when time advances; sessions boot paused) | ⭐ the same filter on the ingress: on a paused frame it applies requests for `TicksInPause` entities only. ⭐ A device's behaviour is fixed by its TYPE (started at creation), so switching devices never switches a behaviour | SD-S1 (backend) |
+| R2-5 🟠 | nothing owns "the active device"; the brain's copy of the control frame is stale in pause | ⭐ **the STATION owns the choice**: the input frame carries `ActiveIndex` among the seat's operated devices; each device reads the newest frame ITSELF every frame and writes its own `[UnitMemory]` (`Active`, the inputs) — a self-write; the HUD draws the device whose memory says active | SD-S1 |
+| R2-6 🟠 | on a cluster the control frame reaches only the node owning the possessed unit's brain | ⛔ *dissolved by §3q D-43: a device's frame targets the device, and the transport delivers it to the device's owner* ⭐ **a device's authority follows its operator**: while a station's unit operates it, the device is owned by that unit's brain node (the existing ownership transfer); unoperated ⇒ its host's owner. Not needed in the editor | SD-C |
+| R2-7 🟠 | extending `OperatorControlFrameEvent` changes its layout ⇒ old recordings throw | ⭐ **a sibling event on the SAME interaction transport**: `DeviceInputFrameEvent { Station, Seq, ActiveIndex, Axes[4], PressSeq[16] }`, sent only while a device is operated — ⛔ supersedes RV-5's "extend"; still ONE input path (the station → the transport → the brain) | SD-S1 |
+| R2-8 🟠 | the editor has no station filter (two seats on one node draw both HUDs) | ⭐ the `StationScope` filter lives in the gizmo RENDERER — one place, every host (editor, player node, gateway) | SD-S1 (ui) |
+| R2-9 🟠 | the cluster HUD path is not built (no player-node consumer; the ingress keeps one node's batch; `.ToArray()` per frame; a byte node id vs a 16-bit station node) | ⭐ named as SD-C's work: wire the subscriber on player nodes, keep one batch PER producer node, a pooled payload (0 B), a 16-bit producer id. ⛔ the diagrams' "existing" labels corrected | SD-C |
+| R2-10 🟠 | a HUD drawn on the brain obeys that node's gizmo settings (visibility, culling, LOD) | ⭐ the HUD family's policy is FIXED in the registrar: always visible while active, `DrawsOffScreen`, no zoom LOD, its layer exempt from the node's mask | SD-S1 |
+| R2-11 🟠 | the objectives cannot be machine-checked (`device` cue reads the superseded `DeviceOutputs`; unit memory unreadable by a cue; the verifier samples on sim time) | ⭐ the `device` cue reads a field of the device type's `[UnitMemory]` struct by name (`UnitMemory.GetInView` + the type's field table); the verifier also samples on PAUSED frames (the frame / wall-clock axis) for rows marked `atPausedFrame` | SD-S1 (backend) |
+| R2-12 🟠 | binoculars would exist twice (`HeldItemKind.Binoculars`, the station's binocular zoom) | ⭐ SD-S1's device is **the rangefinder** — a new device, not binoculars; the existing binoculars stay as they are (no rush removal) and move into a device in a later slice — a tracker row | row |
+| R2-13 ⚪ | the document contradicts itself (STATUS → §3h; §3a's blueprint claim; §6 / §9 still `DeviceOutputs` / the keyed frame) | ⭐ fixed in this commit | — |
+| R2-14 ⚪ | 7 of 12 related designs had no link back; the replay time axis, unit intent and Q114 were missing; the replay-HUD scenario must name its axis | ⭐ fixed in this commit (10 back-links); `dv-replay-hud` is judged on the WALL-CLOCK axis (the sim axis collapses a pause) | — |
+| R2-15 ⚪ | no HUD mockup; most S1 scenarios need the laser; `DevicePanel` has no descriptor; `CadenceMode` mis-cited | ⭐ the ui handoff's FIRST step is the mockup (R-4143); a laser-free scenario `dv-menu-and-modes` added; `DevicePanel`'s descriptor is SD-C's (the editor needs none); `CadenceMode` is in `Cadence.cs:12` | — |
+
+⇒ **build-state back to DESIGN** until these leans are approved; then the diagrams are redrawn once more (one loop, `Mountable`, the sibling input
+event, the renderer's filter).
+
+## 3p. ⭐ The user's answers to §3o (`2026-11-27`)
+
+🔒 User: *"how will we tag entities with TicksInPause - special tag component?"* · *"a trainee can have multiple physically replicated devices
+active at the same time; so the 'active' flag is wrong name, we select what device to show on the single 3d map/camera we have on the station (and
+even then in the future we would like to have multiple 3d maps in parallel, each handling different observation device), all belonging to the same
+trainee, shown next to each other, the focused one controlled from player's primary input channels keyboard/mouse (physical replicas have their own
+input channel each, no switching needed here)."* · *"Old recordings are of no issue. no need of separate DeviceInputFrameEvent … we still want to
+unify rather then duplicate if it is same concept"* · *"I am not aware of any existing working binocular so no problem if we convert it into device
+right away to unify implementations"* · the other §3o leans: no objection raised.
+
+| # | decision (lean) | why / evidence |
+|---|---|---|
+| D-37 | ⭐ **`TicksInPause` is a tag COMPONENT** (unmanaged, one byte — the codebase's tags carry a field, e.g. `IsEmbarkedTag`), added at creation by the device type's TKB translator; `NoScenario \| NoReplay` (derived from the type, rebuilt on load). On a paused frame `BrainTickSystem` (and the behaviour ingress) run ONE extra query, `owned BehaviorState + TicksInPause` — zero work when no device exists | a component query is the cheapest filter the scheduler has; a flag inside `BehaviorState` would mean walking every brain to find the few devices |
+| D-38 | ⭐⭐ **no "active" device: EVERY operated device runs all the time.** What the trainee chooses is which device a **VIEW** shows. A station has one view today (its 3-D map) and may have several side by side later; each view is bound to ONE device (or none = the plain eye) — station-local UI state, never simulation | 🔒 user; several replicas operate at once |
+| D-39 | ⛔ *the N-sections-in-one-frame shape is superseded by §3q D-43 (one frame per device)* ⭐ **inputs are addressed to a DEVICE, not chosen by a flag**: the control frame carries up to N device sections (lean N = 4), each `{ Device (network id), Axes[4], PressSeq[16] }`. The primary keyboard / mouse section is addressed to the FOCUSED view's device; each replica's own input channel fills a section addressed to ITS device — no switching. A device reads the section addressed to it | one frame, one ordering, one transport for the whole station |
+| D-40 | ⭐ **extend `OperatorControlFrameEvent` itself** (the sections above) — ⛔ R2-7's sibling event withdrawn: old recordings do not matter, and it is the same concept | 🔒 user |
+| D-41 | ⭐ **the HUD is scoped to its DEVICE**: the brain draws the HUD of every OPERATED device (only those), each run opened by a `HudScope { Device }` meta-primitive (⛔ replaces `StationScope`); a VIEW's renderer keeps the run of the device bound to it — in one place for every host (R2-8). Several views ⇒ several devices' HUDs, side by side | the brain need not know the station's views; the view picks |
+| D-42 | ⭐⭐ **the binoculars become a device in SD-S1** (⛔ CE-4707's "later" withdrawn). Measured: the station draws a binocular overlay and narrows the FOV (`PossessionStation.cs:360, :488, :1681` — CE-1219), and the frame carries a `Binoculars` field; the HELD-ITEM pose and its perception effect (`HeldItems.BinocularsUp`, `VisualPerception`) stay: the holder's own brain raises them when one of his views shows the binoculars device. ⇒ SD-S1 builds TWO devices — the **binoculars** (zoom steps, reticle; the station's overlay moves into its HUD projector) and the **rangefinder** — and the station's own binocular branch is removed | 🔒 user; ruling 9 — one optic model |
+
+⛔ Superseded here: R2-5 (*"the station owns the choice … `ActiveIndex`"*) → D-38/D-39 · R2-7 → D-40 · D-22 / R2-8's `StationScope` → D-41's
+`HudScope` (the renderer-side filter of R2-8 stands) · CE-4707's deferral → D-42.
+
+## 3q. ⭐ Per-device input events, and what `Mountable` changes (user, `2026-11-27`)
+
+🔒 User: *"if inputs are events, why combining multiple devices into one frame event, can't we split by device, each device getting own event
+instance?"* · *"who will read/use the 'Mountable' component? What changes it introduces in existing code?"*
+
+### Inputs — one event instance per device
+
+| claim | code |
+|---|---|
+| the interaction transport sends an event to every node and **only the TARGET's owner applies it** | `InteractionTransport.cs:385` (*"only the target's owner applies it"*); the control frame's target is `e.Unit` (`:141`) |
+| the brain keeps the NEWEST frame by `Seq` (latest-wins), and presses are COUNTERS so none is lost | `Possession.cs:76-104` (`Seq`, `ShotSeq` — *"a counter, not a level"*) |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-43 | ⭐⭐ **one `OperatorControlFrameEvent` instance PER OPERATED ENTITY, targeted at it**: the unit's frame targets the unit (as today); each device's frame targets the DEVICE, carrying its `Seq` and the generic block the type gains: `Axes[4]` and `PressSeq[16]`. The keyboard / mouse fill the frame of the focused view's device; each replica fills its own device's frame. ⛔ supersedes D-39's N sections in one frame | ✅ latest-wins and the press counters work per target unchanged; ⭐ **R2-6 disappears**: the transport delivers a device's frame to the DEVICE's owner, wherever it lives — no ownership rule needed |
+| D-44 | the unit-specific fields of the frame (motion axes, stance, shot) are simply unused in a device's frame | one type for one concept — *"a station's frame of controls for the entity it operates"* |
+
+### `Mountable` — who reads it, and the change
+
+📐 Measured — the mount kinds and the portability live in `WeaponSystemParams` (`WeaponSystemComponents.cs:19-39`, `NoScenario`, written from the
+TKB `WeaponSystemDto`), and **six places** read them:
+
+| reader | what it asks |
+|---|---|
+| `Embarkation.cs:185` | is a static weapon (or a vehicle out of the fight) boardable |
+| `Embarkation.cs:187` | the first free station that accepts these mount kinds |
+| `Embarkation.cs:213` | is this a portable weapon (for carrying) |
+| `Embarkation.cs:299` | does this station accept the item |
+| `CarryStations.cs:78` | may the item move to that carry station |
+| `OperatorUse.cs:299` | a PORTABLE item lying alone is TAKEN (the pick-up verb), a static one is manned |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-45 | ⭐ **`Mountable { MountKinds, Portable }`** (unmanaged, `NoScenario`, written from the TKB like `WeaponSystemParams`) — the TWO fields MOVE out of `WeaponSystemParams` into it. A weapon type gets it from its `WeaponSystemDto` (the same values ⇒ behaviour unchanged), a device type from its `DeviceDefDto`. The six readers above read `Mountable` instead | ✅ one source of "how this item mounts" for weapons and devices; the change is mechanical (six reads, one writer per type), done with the Roslyn rename/move where it applies |
+| D-46 | ⭐ **a gain for free**: `OperatorUse` (the TAKE verb) and the carry-station moves then work for a portable DEVICE too — the pick-up of SD-S5 needs no new verb | the readers ask about mounting, never about being a weapon |
+| D-47 | ⚠ `NedTkbCatalog.cs` builds weapon types with `MountKinds` / `Portable` on the DTO — the DTO keeps its fields (the authoring shape), only the RUNTIME component moves | the catalogue and its JSON are untouched |
+
+## 3r. ⭐ Linked devices, trackers, and data between devices (user, `2026-11-27`)
+
+🔒 User: *"Sometimes we need to link devices … the binocular with a rangefinder … can send the target location to the laser target designator …
+two devices working more or less independently. They might be mounted as stacked on the same tripod, but don't need to be. If they are mounted on the
+same tripod, we detect the … orientation … for one of the devices only, and the other one automatically gets the same … the devices take inputs from
+some kind of orientation tracker … also position tracker if the device is physically movable in the training area, which might also move the trainee
+avatar relatively to his base position and affect the viewpoint … the avatar's base position can be moved by the player as usual … share one tracker
+across two devices … the other device is just getting the same information by linking to the other device, not by linking to the same tracker … the
+device might receive or send some information from the other linked device … they might be calculated by different threads at the same time, so
+their communication needs to be somehow safe."*
+
+| claim | code | design basis |
+|---|---|---|
+| inside a per-entity parallel phase, a write to ANOTHER entity goes through a command / a follow-up (`BatchContext.Later`), played after the phase; a read of another entity that the same phase writes is DECLARED and served from the tick-start view | `ParallelEntities.cs:40, :204` (`BatchContext.Later`) | `DESIGN_Parallel_Simulation.md` §18.5–§18.8; CLAUDE.md "BEHAVIOUR CODE RUNS IN PARALLEL" |
+| a station already sends a body offset of the operator in its frame — the lean | `Possession.cs:121, :174, :266` (`Lean`, CE-1212) | Entity Control §8j |
+| the interaction transport delivers an event to its TARGET's owner, wherever it lives | `InteractionTransport.cs:385` | §3q |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-48 | ⭐⭐ **a device has a POSE component**: `DevicePose { Orientation (relative to its mount), Offset (from its mount point) }` — unmanaged, replicated, recorded, written ONLY by the device's own brain (from the mouse look, a gamepad, or a tracker). ⭐ ONE function `DevicePoses.World(view, device)` = the mount point (host + station place) ∘ the pose — used by the views' camera, the HUD, the laser's direction, the renderer | where the device looks must be readable by other nodes and systems; one resolver so they all agree |
+| D-49 | ⛔ *WITHDRAWN by §3u D-61 — stacking is mounting one device on another; no separate link* ⭐⭐ **a rigid link — `PoseFrom { Entity Source }`** on the FOLLOWING device (B, stacked on A's tripod): `DevicePoses.World(B)` = A's world pose ∘ B's fixed stacking offset (from its type / its station). B has NO tracker and copies nothing — its pose is RESOLVED through A at the moment it is read | 🔒 *"linking to the other device, not … to the same tracker"*; no copy ⇒ no lag, no second writer, nothing to keep in step. ⚠ inside B's own brain step, reading A's pose is a DECLARED cross-entity read (the tick-start view — one tick behind, deterministic); every reader outside the phase (camera, renderer, muscle) reads it current |
+| D-50 | ⭐ **trackers are input channels of the station**, bound to ONE entity each in the station's setup: an ORIENTATION tracker and / or a POSITION tracker → a device's control frame (the frame gains `Orientation` (quaternion) and `Position` (vector) with "present" flags); the device's brain turns them into its `DevicePose` | the same path as every other input (§3q): one frame per target, addressed to the device |
+| D-51 | ⚠ *§3t: `Lean` is a discrete side, so the frame gains a continuous `BodyOffset`; `Lean` stays* ⭐ **a body tracker moves the AVATAR relative to his base**: bound to the trainee's unit, it fills the UNIT's frame with a body offset; the unit's brain keeps it as an offset over the BASE position, which the player still moves by ordinary locomotion — the viewpoint and the held / mounted devices follow (they hang off the avatar's stations). ⚠ to measure before building: generalise the existing `Lean` (an eye offset the frame already carries) into this offset, rather than add a second one | one notion of "the body is displaced from its base"; ⛔ not a teleport of the base |
+| D-52 | ⭐⭐ **data between devices are MESSAGES, never shared memory**: `DeviceMessageEvent { Target, From, Kind, a small fixed payload }` (e.g. *"target location"* = a point + a time), raised by the sender's brain through its command buffer (played after the phase), carried by the interaction transport to the TARGET's owner, and read by the receiver's OWN brain on its next tick into its own `[UnitMemory]`. The payload's meaning is the pair of device types' contract (`Kind` named in their TKB types) | ✅ thread-safe by construction: nobody writes another entity, the receiver applies it itself, the order is the batch's (deterministic); it works the same when the two devices live on different nodes; ⛔ never a device reading the other's `[UnitMemory]` (brain-local, and a cross-entity read of mutable state) |
+| D-53 | ⭐ **a DATA link is just an address**: `DeviceLinks { Entity Peer[2] }` on a device (set in the scenario, or by the trainee pairing them) tells its logic WHERE to send; ⭐ the rigid link (D-49) and the data link are independent — two stacked devices need not exchange data, and two linked ones need not be stacked | 🔒 *"might be mounted as stacked … but don't need to be"* |
+| D-54 | ⛔ *superseded by §3u D-60 / D-61 — a tripod device is the entity itself (manned with USE); stacking is mounting* ⭐ **a tripod is a host with stations** (a ground host type with one or two `Station` seats accepting `Device`) — the same mounting as a vehicle (§3q); stacking = two stations on one tripod, the upper device `PoseFrom` the lower | one mounting model |
+| D-55 | ⭐ **scenarios** (§5a, a later slice): `dv-linked-pair` — a rangefinder sends a target location to a second device (`device` cue on the receiver's stored point, within tolerance); `dv-stacked-tracker` — one scripted orientation drives both stacked devices (their world directions agree) | R-4277 |
+
+## 3s. ⭐ The user's refinements to §3r (`2026-11-27`)
+
+🔒 User: *"agreed."* · *"usually devices have their own tracker input channel each, just the slave one is not using it when stack-linked to its master."* ·
+*"'One C# class per device type' — shouldn't there be actually multiple? blackboard working state dto, device behavior (logic) action, gizmo
+projector …"* · *"DeviceMessageEvent might even have a json formatted payload, not expected to be sent frequently, using shared Dto both devices are
+using to serialize/deserialize. Or a fixed byte buffer payload with the unmanaged shared DTO for frequent events."*
+
+| claim | code |
+|---|---|
+| a library behaviour is already several types: a blackboard struct, a resolver from its params DTO, a `[BTreeDefinition]` tree, its action node; its gizmo is a separate `[GizmoProjector]` class in `Gizmos/` | `AdvanceToBehavior.cs` (`AdvanceToBlackboard`, `[BehaviorResolver]`, `[BTreeDefinition]`); `Hrot.AI.Behaviors/Gizmos/HillAttackGizmo.cs` |
+| the event bus takes MANAGED events too, and the command buffer can publish one | `IEventBus.cs:8` (`PublishManaged<T>`); `EntityCommandBuffer.cs:26` (`PublishManagedEvent`) |
+| the interaction transport's wire payload is a UNION, one arm per kind | the generated `InteractionPayload` (`Hrot.NED.Messages`) |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-56 | ⭐ **every device has its OWN tracker channel**; a device that is `PoseFrom` another (stacked) IGNORES its own tracker while the link holds, and uses it again when unlinked. ⛔ amends D-49 / D-50 | 🔒 user |
+| D-57 | ⭐ **a device TYPE is a small set of types, in ONE folder** (`Hrot.AI.Behaviors/Devices/<Device>/`): ① its params DTO (TKB / scenario), ② its `[UnitMemory]` state struct, ③ its behaviour (resolver + `[BTreeDefinition]` + the action node — the logic), ④ its HUD projector (`[GizmoProjector]`), ⑤ its `PanelOut` (state → `DevicePanel`), ⑥ the message DTOs it SENDS (in a shared `Devices/Contracts/` folder, because the receiver uses the same DTO). ⛔ supersedes "one C# class per device type" (§2b, §3k, the overview picture) — the point stands: they live side by side, and nothing else changes for a new device | the library's own shape; one folder keeps logic and drawing together |
+| D-58 | ⭐ **`DeviceMessageEvent` has TWO payload forms, one event concept**: ① **binary** — a fixed byte buffer (lean 64 B) holding an UNMANAGED shared DTO, for frequent messages (unmanaged event, allocation-free); ② **JSON** — the shared DTO serialised with the one shared JSON options (`FdpJsonOptionsRegistry`), for rare, richer messages (a MANAGED event, `PublishManaged`). Both carry `Target · From · Kind`, ride the SAME interaction kind on the wire (a union arm: bytes or a bounded string), and are applied by the receiver's own brain next tick | 🔒 user; ✅ the bus and the command buffer already carry managed events; the `Kind` names the DTO in both device types' TKB entries |
+| D-59 | ⚠ **to measure before SD-S5b**: that a managed event is recorded and replayed like an unmanaged one (a debrief must show the message), and the wire's string bound for the JSON arm | the JSON form must not be the one thing replay cannot show |
+
+## 3t. ⭐ Measured BEFORE building — every open question of §3e–§3s (`2026-11-27`)
+
+🔒 User: *"measure what is still unclear, do not leave the measurements to the build phase"*.
+
+| question | answer | evidence |
+|---|---|---|
+| ⭐⭐ can `BrainTickSystem` simply become `EveryFrame` (R2-3)? | ⛔ **NO.** A `WhenTimeAdvances` system runs inside a STEP WINDOW: on its run it reads *"every event since its own last run"*; an `EveryFrame` system reads only the frame's events. Flipping the brain tick would make every brain MISS events published on paused frames — an order given while paused would be lost at resume | `SystemScheduler.cs:240-270` (THE GATE, CE-3293, R-3036 rules 2 and 5: `stepOnly` ⇒ `OpenStepWindow`) |
+| ⇒ the brain loop shape | ⭐ **ONE tick routine, TWO schedule entries**: `BrainTickSystem` stays `WhenTimeAdvances` (every brain, devices included, on advancing frames — its step window intact); a small `PausedDeviceTickSystem` (`EveryFrame`) does nothing on an advancing frame and, on a paused one, calls the SAME per-entity tick routine for `owned BehaviorState + TicksInPause` only. ⇒ ⛔ R2-3's "make it EveryFrame" WITHDRAWN; the duplicate-loop concern holds because the CODE is one. A device's inputs are idempotent (newest frame by `Seq`, press COUNTERS compared to the last seen), so the advancing tick re-reading paused-frame frames is harmless. The same pair for `BehaviorIngressSystem` (`WhenTimeAdvances`, `BehaviorIngressSystem.cs:42`) | measured above |
+| what stops brains in replay | the ReviewGate: during a replay and a review the kernel suspends every system outside the toggle groups unless it declares `[RunsDuringReplay]` ⇒ `PausedDeviceTickSystem` must NOT declare it (a replay re-runs only the presentation over the recorded state) | `DESIGN_Replay_Time_Axis_And_Review.md` R7 |
+| is a control frame sent on a frame read in THAT frame? | no — the bus is double-buffered: an event *"will be visible in the next frame (after SwapBuffers)"* ⇒ a press reaches the device one frame later in the editor | `FdpEventBus.cs:88-89, :141` |
+| are MANAGED events recorded (D-59)? | ✅ yes — the recorder writes the managed streams with their type name for re-creation, after the unmanaged ones | `RecorderSystem.cs` `WriteEvents` (*"MANAGED EVENTS — written with type name for auto-recreation"*) |
+| how is JSON carried on the wire (D-58)? | ✅ precedent: `EntityBrainIntent` — a `[DdsManaged]` topic with an unbounded `string IntentJson` (CE-3048). The interaction UNION's arms are fixed unmanaged payload structs ⇒ ⭐ the BINARY form rides the interaction union (one arm, a 64-byte buffer); the JSON form is its own managed topic on the `EntityBrainIntent` pattern (reliable, volatile — an event, not a state), both published on the bus as `DeviceMessageEvent` | `BrainIntentMessages.cs:5-24`; `InteractionMessages.cs:262-299` |
+| can the existing `Lean` be generalised into the body-tracker offset (D-51)? | ⛔ no — `Lean` is a DISCRETE side (`LeanSide`: none / left / right) driving a posture and the shoulder side, not a displacement ⇒ ⭐ the frame gains a continuous `BodyOffset` (vector); `Lean` stays the posture it is | `PossessionStation.cs:1858-1863, :1923`; `Possession.cs:119-121` |
+| does the 3-D map have a screen-space pass to reuse (R2-1)? | ✅ yes — the gizmo layer collects `EntityCard` primitives in its 3-D pass (`Renderer3D.Cards`) and draws them in SCREEN space after it (`EntityCardRenderer`); ⭐ `Screen` primitives join that same post-3-D pass (the 2-D renderer's screen drawing), so there is one screen-space drawer for both maps | `DebugGizmoLayer.cs:211-241` |
+| does the verifier sample in pause (R2-11)? | ⛔ no — `Observe` runs every frame but samples only when the RELATIVE SIM TIME passes the next sample time ⇒ a paused frame never samples. ⭐ Rows marked `atPausedFrame` force a sample on the paused frames they name (by frame count) | `ScenarioVerification.cs:1262-1264, :1326` |
+| does the batch subscriber hold the last batch when none arrives (D-24)? | ⛔ no — it appends only what arrives; nothing is redrawn without a new batch ⇒ ⭐ the cluster fix (R2-9) keeps the LAST batch PER PRODUCER and re-appends it each frame; with that, a change-only gate in the publisher is safe | `DebugPrimitivesBatchSubscriberSystem.cs:82-106` |
+| the cluster round trip (D-9′) | ✅ **measured live, `2026-11-27`** — 4 processes (orchestrator, CGF brain, SimHost muscle, player station), `showcases/player-station` (~600 entities), Debug build, 4-core VM, headless nodes capped at 240 Hz; possession + a walk control frame (12 trials, ±30 ms polling): **station → brain applied ≈ 120 ms median (88–146)** — ~7 CGF frames, the CGF node at ~58 Hz, the cause not split (CE-4708) · brain → the applied seq on the other nodes +15–25 ms · **station input → the result visible back on the station ≈ 230 ms median (146–352)**. ⇒ ⭐ for a device in a cluster: a button → its HUD change ≈ the input hop (~120 ms) + one replication back (~20 ms) ≈ **~150 ms**; a RANGE press (device → muscle → device → HUD) ≈ **~200–300 ms**. The trainee's own look, reticle and beam are local (LS-4, D-17) and do not wait for it. In the EDITOR configuration (SD-S1) it is one or two frames | the subagent's run (`scripts/cluster-node.sh`; `POST /entities/{id}/control`; polling `/entities/{id}` on every node) |
+
+## 3u. ⭐ Devices, avatars and USE — the attachment model in plain terms (user, `2026-11-27`)
+
+🔒 User: *"you mentioned the tripod is just a host with one or two Station seats … i do not understand. the devices are entities. player avatar is an
+entity. devices can be assigned to a player (player can use them - can cycle them on his single 3d map) and attached to player's avatar (attached
+devices moves with the player base position/orientation plus the BodyOffset …)"* · *"what if a device is stationary? player can go close and press
+'Use' … 'possess' the device in similar way how player possess a vehicle or a weapon system."* · *"what if a device represents a weapon system …
+does it lead to treating any weapon system as a device?"* · *"what if a device is portable and pickable? will picking it establish the attachment?"* ·
+*"could the unpicked (unattached) devices be rendered on their world locations?"* · *"how many devices can be picked? how is it different from
+picking a weapon?"*
+
+| claim | code |
+|---|---|
+| USE on a lone weapon: a PORTABLE one is **Taken** into the man's first open carry station; a STATIC one (a tripod gun) is **Manned** — he boards its own Gunner seat | `OperatorUse.cs:296-304` (CE-1207 PK-2, U-5) |
+| a person has THREE carry stations: Hands (fired from), Back (stowed, seen), Hidden (concealed) | `CarryStations.cs` (CE-3233, B-11) |
+| a weapon entity lying alone, carried or deployed is DRAWN by the 3-D body layer from its type | `EntityBodyLayer3D.cs:56, :442, :484` (CE-1087) |
+
+**The model — three ways a device belongs to a trainee, all existing mechanisms:**
+
+| situation | how (existing mechanism) | the device's world pose |
+|---|---|---|
+| ⭐ **carried** — binoculars, a rangefinder, a radio | it is IN one of his carry stations (Take = boarding his station); it moves with him | his base position / orientation **+ his `BodyOffset`** ∘ the station's place ∘ its own `DevicePose` (its tracker) |
+| ⭐ **stationary** — a device on its own tripod, a fixed console | it is an entity with its OWN operator seat; **USE ⇒ "Man"** — he boards that seat exactly as he mans a tripod gun, and from then on his station operates it | where it stands ∘ its `DevicePose` |
+| ⭐ **mounted on a vehicle / a weapon** | it is in a `Station` of the host, `OperatedBy` the crew seat he sits in (the §3q model) | the host ∘ the station ∘ its `DevicePose` |
+
+⇒ **"assigned to a player"** = the devices his station OPERATES: those in his own carry stations + those in stations his seat operates + the one he
+mans. All of them run; his VIEWS choose which one each shows (§3p) and he cycles them on his single 3-D map.
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-60 | ⭐ **a stationary device is MANNED with USE, as a static weapon is**: its type carries one operator seat (role `Gunner`, the existing `Man` verb); manning it makes it operated by his station. ⛔ supersedes D-54's "a tripod is a host with stations" — a tripod device IS the entity; no separate tripod | 🔒 user; ✅ `OperatorUse` already offers Man for a static item |
+| D-61 | ⭐ **stacking = MOUNTING one device on another**: a device type may declare a `Station` (Accepts `Device`); the upper device sits in it, so its world pose is the lower one's ∘ the station ∘ its own pose — it follows the lower device BY BEING MOUNTED, and ignores its own tracker while mounted (D-56). ⛔ `PoseFrom` (D-49) is WITHDRAWN as a separate link — mounting already says it | one relation, not two; the pose rule of §3r stays (`DevicePoses.World` walks the mount chain) |
+| D-62 | ⭐ **a PORTABLE device is TAKEN with USE, as a portable weapon is — and taking it IS the attachment** (it boards his carry station; dropping un-boards it, and it lies at its world position) | ✅ `OperatorUse.Take`; `Mountable.Portable` (§3q) makes the verb work for devices with no new code |
+| D-63 | ⭐ **devices get their OWN carry stations, so carrying them never costs the weapon slots**: a person type gains device stations (lean: 4 — `Kit1…Kit4`, `Accepts = Device`) beside Hands / Back / Hidden. **Difference from a weapon:** a weapon goes to Hands (fired) or Back / Hidden (stowed); a device goes to a kit station and is OPERATED through a view; while a view shows a hand-held device he raises it (the held-item pose, as binoculars today) and lowers it again | ✅ the same stations / `Accepts` data — a soldier carrying binoculars, a rangefinder and a radio keeps his rifle |
+| D-64 | ⭐ **every device is drawn at its world location** by the 3-D body layer from its type's look (a kit, as a weapon system's): lying, on its tripod, mounted; a carried one is drawn in his hands only while raised | ✅ the weapon-system drawing path, extended with a device kit |
+| D-65 | ⭐ **a weapon system is NOT turned into a device.** A weapon whose operation needs a richer panel gets a DEVICE MOUNTED on it (a `Station` of the weapon, `OperatedBy` its gunner seat — the operator panel of SD-S4); the weapon keeps its own logic and effects, the device adds the panel, its HUD and its logic | ✅ one concept per entity: a weapon fires, a device is operated; ⚠ nothing stops one entity carrying both a weapon's components and a device behaviour later, but it is not the default |
+
+## 3v. ⭐ One VIEW-HUD mechanism for devices AND possession — the sight unit, the weapon sight, the cockpit (user, `2026-11-27`)
+
+🔒 User: *"what about a missile launcher unit (having its own eyepiece and HUD) which is portable and shoulder fired, acting as a device (having
+buttons to switch day/night view etc, maybe various menus...)?"* · *"we do not have yet any specific HUD for usual weapons showing a view over their
+sights … this HUD is pretty similar to the device HUD. I do not say that every weapon should become a device … But some others like the shoulder fire
+sophisticated missile launcher might need one."* · *"when its over-the-shoulder-camera is in its front-most position and the weapon is in aimed
+position, maybe we could render the 'weapon HUD' (view through the weapon sights, or some kind of cockpit view if we possess an aircraft..) Not sure
+whether this non-device 'possession' HUD makes sense."* (Scope here: the VIEW and its HUD only — what a weapon does stays the weapons design's.)
+
+| claim | code |
+|---|---|
+| the station already switches the camera when AIMING: over the shoulder to move, **from the eyes to aim (RMB)** — on by default | `PossessionStation.cs:62-66` (CE-1201 §8p OS-1, CE-1293 UC-3) |
+| the possession HUD exists today as HAND-DRAWN station code: the crosshair spread and shock, the binocular overlay, the fire-mode lines; the aircraft has its own `FighterHud` model | `PossessionStation.cs:359-360, :488, :943`; `FighterHud.cs` |
+| a gizmo projector reads ANY component it names, on every map host where the data is (the gateway too) | `[GizmoProjector(...)]`, `GizmoReflectionRegistrar` (§3k) |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-66 | ⭐⭐ **a VIEW shows a SOURCE, and every source draws its HUD the same way**: a source is any entity the station operates — **a device**, **the possessed unit's weapon sight**, **a vehicle / aircraft cockpit**, or none (the plain eye). Each source type may have a HUD projector (`[GizmoProjector]`, opened by `HudScope { Source }`, screen-space primitives, the same renderer filter and screen pass). ⭐ The projector runs WHERE ITS DATA IS: a device's (its state is brain-only `[UnitMemory]`) on the brain; a weapon sight's or a cockpit's (replicated components: ammo, fire mode, speed, altitude) on any map host, the station's own included | 🔒 *"pretty similar to the device HUD"* — one mechanism, not a device HUD beside a possession HUD (ruling 9) |
+| D-67 | ⭐ **a weapon is not a device; a weapon may CARRY one**: the shoulder-fired launcher's sight unit (eyepiece, day / night, menus) is a DEVICE MOUNTED on the launcher (a `Station` of the weapon, `OperatedBy` its firer) — carried with it (the launcher in his Hands carries its mounted device), operated through his view, with its own HUD, state and buttons. A plain rifle has no device: its view is the plain WEAPON SIGHT source (D-68) | D-65 kept; 🔒 *"likely not the one that is kind of default part of the entity"* |
+| D-68 | ⭐ **the weapon-sight view for ordinary weapons**: the existing aim rule (aim ⇒ from the eyes, UC-3) is extended — **aimed with the camera at its front-most position ⇒ the view's source becomes the weapon's SIGHT**: the camera at the sight, its FOV from the weapon type (iron sight · optic), its HUD projector (reticle, rounds, fire mode); a weapon carrying a sight DEVICE ⇒ the view shows that device instead. Releasing aim returns to the previous source | ✅ the trigger exists; only the source behind it is new |
+| D-69 | ⭐ **the cockpit is a source too**: a possessed aircraft or vehicle's view (first person at the pilot / driver seat) uses its type's HUD projector — ⭐ `FighterHud`'s model and drawing move into one (§3e RV-16), keeping its rail | the second HUD model disappears |
+| D-70 | ⭐ **migration, not rush removal**: the station's hand-drawn HUD parts move into projectors one source at a time — the binoculars in SD-S1 (D-42), the weapon sight and the cockpit in a later slice (**SD-S7**, below) — each keeping its rails and its frame rail against a mockup | CLAUDE.md "no rush removals"; R-4138 fidelity |
+| D-71 | ⭐ **day / night of a view follows its source**: a device or a sight with a sensor mode sets THAT view's `SensorView` mode (Sensor View G-10, *"tie to a unit's sight"*, deferred there) — the map-wide setting stays for the plain eye | one sensor-view rule, chosen per view |
+
+| slice | builds | scenario |
+|---|---|---|
+| **SD-S7** the weapon sight and the cockpit as sources | the source model of D-66 for non-device sources; the aimed-front-most switch (D-68); weapon-sight HUD projectors (iron sight, optic); `FighterHud` → a cockpit projector (D-69); the station's hand-drawn reticle moved; a launcher's sight unit as a mounted device (D-67) | `dv-weapon-sight` — aiming at the front-most camera shows the sight source's HUD (`hud` cue), releasing returns; `dv-cockpit-hud` — a possessed jet's view shows the cockpit run |
+
 ## 4. Rejected — one line each
 
 - **Typed components per device type** — the user's concern holds: dozens of types, each a component, descriptor and translator; the block keeps the recorder ignorant.
@@ -619,12 +862,14 @@ brain (§3j–§3k), which leaves this small component exactly what the panel ne
 
 | slice | builds | where judged |
 |---|---|---|
-| **SD-S1** the framework + the rangefinder binoculars | the device entity on a carry station and on a vehicle `Station` (`MountKinds.Device`, `StartWith`) · the device brain tier + `DeviceTickSystem` · the control frame's `DeviceSection` + the keyboard / mouse adapter (the keymap's device scope) · the rangefinder's HUD projector (`[GizmoProjector]`, on the brain, as `HillAttackGizmo`) + the `StationScope` meta-primitive and the subscriber's station filter into the `DeviceHud` layer (in the editor: the local buffer) + `ValueBinding` (§3c) · `LaserPointing` / `LaserSpot` + `LaserSpotSystem` (the spot only — no drawn beam) · switching devices at a seat · the checks grammar extensions (§5a) | the EDITOR configuration (D-9′) |
+| **SD-S1** the framework + the BINOCULARS and the RANGEFINDER | backend: `Mountable` (moved out of `WeaponSystemParams`, six readers) + `MountKinds.Device` + the public `Stations.OperatedBy` · `TicksInPause` + `PausedDeviceTickSystem` (and the ingress's paused companion) over the ONE tick routine · the control frame per operated entity (`Target`, `Axes4`, `PressSeq16`, `Orientation`, `Position`, `BodyOffset`) · `DevicePose` + `DevicePoses.World` · `LaserPointing` / `LaserSpot` + `LaserSpotSystem` (the spot only) · `DevicePanel` · the two device folders (params, state, behaviour, HUD projector) · the checks grammar (§5a: possess, control, pause, `device` cue on a UnitMemory field, `hud` cue, `atPausedFrame` forcing a paused sample) — ui: the HUD mockup FIRST (R-4143) · `Screen` primitives in the 3-D card pass · views bound to devices + the `HudScope` filter in `DebugGizmoLayer` · the keymap device scope + the gamepad adapter · the station's binocular branch removed (its overlay → the binoculars' HUD projector) | the EDITOR configuration (D-9′) |
 | **SD-S2** the gamepad + the drone operator station | the gamepad adapter; the drone ground-station device (battery, signal, link from the drone's simulation) | editor |
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the operator panel of a manned weapon system | a device that drives a weapon `Station` it is mounted beside (optics, zoom, sensor modes, the procedure); what the weapon does stays the weapons design's | editor |
+| **SD-S5b** linked devices + trackers (§3r, §3u) | stacking by mounting a device on a device (D-61), a stationary device manned with USE (D-60), the kit carry stations (D-63), trackers as frame inputs, the body offset (generalised `Lean`), `DeviceMessageEvent` + `DeviceLinks`, a tripod host type | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (a Take / Drop verb for a device) · per-station node features | editor |
 | **SD-S6** the visible beam | the beam and spot drawn (a projector over `LaserPointing` / `LaserSpot`), the ONE visibility rule (eye · night · thermal) for the map, the IG and the AI's perception; an AI vehicle's designator (`StartWith`) pointed by its AI | editor |
+| **SD-S7** the weapon sight and the cockpit as view sources (§3v) | the source model for non-device sources (D-66), the aimed-front-most switch (D-68), weapon-sight and cockpit HUD projectors (`FighterHud` folded in, D-69), a launcher's sight unit as a mounted device (D-67) | editor |
 | **SD-C** the cluster tier | the timed round trip measured FIRST (D-9′); late join; the nightly cluster run of every slice's scenarios; the gateway's wire carries the space (D-5) | the nightly cluster run |
 
 ## 5a. ⭐ The feature-test scenarios — the proof the concept works (R-4277)
@@ -644,11 +889,12 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 
 | scenario (slice) | What | expect rows (state, never a time) |
 |---|---|---|
+| `dv-menu-and-modes` (S1, laser-free) | a scripted trainee powers the device on, steps its modes and its menu | the `device` cue on `Mode` / `Menu` follows each press · the `hud` shows each mode's layout · only the active device answers (R2-15) |
 | `dv-range-targets` (S1) | a scripted trainee possesses an observer holding the rangefinder, aims at three named markers at 200 / 450 / 900 m and presses RANGE at each | `device range` within the device's accuracy of each marker's distance · `hud` shows each range · the device's `LaserSpot.Entity` is the marker |
 | `dv-vehicle-station` (S1) | the trainee sits in a vehicle's commander seat; the vehicle type pre-mounts the rangefinder in a `Station` operated by that seat | the device is in the Station (its `OperatedBy` = the trainee's seat) · ranging works as above · the trainee's seat holds HIM, not the device |
 | `dv-switch-devices` (S1) | two devices at one seat; the trainee switches | the `hud` shows the second device's layout after the switch, the first's before · only the active device answers a press |
 | `dv-paused-operation` (S1) | `do: pause` 120 frames; inside them the trainee steps the menu and ranges a marker | `atPausedFrame` rows: the device's `mode` / `menu` change while sim time is unchanged · the range is measured · ⛔ `never`: any unit moves, any shot, any order taken during the pause |
-| `dv-replay-hud` (S1) | the paused run above, recorded FULL, then replayed (the H5 review check) | the `hud` row at a paused frame gives the same text in replay as live |
+| `dv-replay-hud` (S1) | the paused run above, recorded FULL, then replayed (the H5 review check), judged on the WALL-CLOCK axis (R2-14) | the `hud` row at a paused frame gives the same text in replay as live |
 | `dv-two-stations` (S1) | two trainees on ONE node (the editor as server), two stations, each with a rangefinder | each `hud` shows only ITS station's device |
 | `dv-drone-operator` (S2) | the trainee flies the drone out and back with the gamepad section | `device battery` / `signal` equal the drone's simulation · the link lost ⇒ the lamp |
 | `dv-target-message` (S3) | trainee A sends a target message; the pilot station shows it | the pilot device's `hud` contains the message · its map point is A's spot |
@@ -677,8 +923,8 @@ mockup (R-4138 — the ui lane draws the mockup first).
 | Q-2 | the replica protocol's transport | a node extension on a local socket, one generic frame (the `DeviceSection` in, `DeviceOutputs` out); DDS later if a replica sits on another machine |
 | Q-4 | which lane | **ui** builds SD-S1's station half (adapters, keymap scope, the `DeviceHud` layer, `StationScope` and the subscriber's filter, `ValueBinding`, the rangefinder's HUD projector to the mockup); **backend** the brain half (the mount kind, the device tier, `DeviceTickSystem`, the laser spot, the grammar extensions) — cross-lane allowed |
 | Q-5 | the device wheel's key and the HUD layout | the ui lane's mockup first (R-4143) |
-| Q-8 | the gateway's wire (D-5) | a SimNetGateway row when SD-C is dispatched: the primitive's space on the wire |
-| ~~Q-1, Q-3, Q-6, Q-7~~ | answered | SD-2′ (unit memory) · §3f (Raylib gamepad) · R-4300 · D-3″ (no primitive list) |
+| Q-8 | the gateway's wire (D-5, D-36) | a SimNetGateway row when SD-C is dispatched: the primitive's space on the wire; the beam's two components as entity data |
+| ~~Q-1, Q-3, Q-6, Q-7~~ | answered | SD-2′ (unit memory) · §3f (Raylib gamepad) · R-4300 · §3k (the HUD is a projector; nothing stored) |
 
 ## ⛔ HISTORY — rev 1's diagrams and slices (superseded by rev 4, `2026-11-27`)
 

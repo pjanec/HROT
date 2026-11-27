@@ -7,6 +7,7 @@ stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a Re
 known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
 related-designs:
+  - designs/devices/DESIGN_Simulated_Devices.md — simulated devices: the devices a playable slot is issued, operated from its station
   - docs/blueprints/Architect_Question_114_Seats_On_One_Node.md — proposes the deploy server in the editor, a local gameplay wire beside the DDS one, one DeployFlowSystem per gateway seat (R-11010) — awaiting the user
   - docs/UX/DESIGN_Seats_And_Hats.md — the Player and the Observer as SEATS (what they may do), possession as the Embodied hat
   - docs/PLAN_Training_And_Gameplay_Engine.md — the ranked engine items (scenario rules, skill amplifier, performance evaluation, fun features) the deploy's S2/S3 feed
