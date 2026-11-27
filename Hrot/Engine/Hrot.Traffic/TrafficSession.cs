@@ -246,7 +246,13 @@ public sealed class TrafficSession : IDisposable
             //   `eb88338`): a blue light, red ignored at the front, approaching junction foes ignored; a queue at a red still holds it until green
             bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t, h.Priority)
                       || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, null, h.Priority);   // an unmapped type: SUMO's default car
-            if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); _capped.Remove(h.NetworkId); }
+            if (ok)
+            {
+                if (_refused.ContainsKey(h.NetworkId))   // ⭐ CE-11072 — a hand-over SUMO refused before and takes now (a road re-opened) is logged
+                    Fdp.Core.Logging.FdpLog<TrafficSession>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                        $"[Traffic] SUMO took vehicle {h.NetworkId} at ({h.X:0.0}, {h.Y:0.0}) after refusing it"));
+                _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); _capped.Remove(h.NetworkId);
+            }
             else
             {
                 if (!_refused.ContainsKey(h.NetworkId))   // ⭐ CE-11072 — the FIRST refusal of a hand-over is logged (a retry every RetrySeconds is not)
